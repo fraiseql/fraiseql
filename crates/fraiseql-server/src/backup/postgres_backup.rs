@@ -37,7 +37,7 @@ impl PostgresBackupProvider {
 
 #[async_trait::async_trait]
 impl BackupProvider for PostgresBackupProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "postgres"
     }
 

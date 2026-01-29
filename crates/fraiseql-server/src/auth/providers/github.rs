@@ -158,7 +158,7 @@ impl GitHubOAuth {
 
 #[async_trait]
 impl OAuthProvider for GitHubOAuth {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "github"
     }
 

@@ -1842,7 +1842,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 
     if let Some(uid) = user_id {
         // Step 2: Get orders for that user
-        let orders_query = format!(r#"query {{ users(limit: 1) {{ orders {{ id status }} }} }}"#);
+        let orders_query = r#"query { users(limit: 1) { orders { id status } } }"#.to_string();
 
         let orders_response = graphql_query(APOLLO_GATEWAY_URL, &orders_query)
             .await

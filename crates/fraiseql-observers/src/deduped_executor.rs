@@ -231,7 +231,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
     }
 
     /// Get reference to deduplication store.
-    pub fn dedup_store(&self) -> &D {
+    pub const fn dedup_store(&self) -> &D {
         &self.dedup_store
     }
 

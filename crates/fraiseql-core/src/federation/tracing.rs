@@ -123,7 +123,7 @@ impl FederationSpan {
     /// Create child span.
     pub fn create_child(&self, name: impl Into<String>) -> Self {
         let mut child_context = self.trace_context.clone();
-        child_context.parent_span_id = self.span_id.clone();
+        child_context.parent_span_id.clone_from(&self.span_id);
 
         FederationSpan::new(name, child_context)
     }

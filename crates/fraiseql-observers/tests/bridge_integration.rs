@@ -4,16 +4,23 @@
 //!
 //! ## Running Tests
 //!
-//! 1. Start PostgreSQL and NATS: ```bash docker run -d --name postgres -p 5432:5432 -e
-//!    POSTGRES_PASSWORD=postgres postgres:16 docker run -d --name nats -p 4222:4222 nats:latest -js
+//! 1. Start PostgreSQL and NATS:
+//!    ```bash
+//!    docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+//!    docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Create the test database and schema: ```bash psql -h localhost -U postgres -c "CREATE
-//!    DATABASE fraiseql_test" psql -h localhost -U postgres -d fraiseql_test -f
-//!    migrations/03_add_nats_transport.sql ```
+//! 2. Create the test database and schema:
+//!    ```bash
+//!    psql -h localhost -U postgres -c "CREATE DATABASE fraiseql_test"
+//!    psql -h localhost -U postgres -d fraiseql_test -f migrations/03_add_nats_transport.sql
+//!    ```
 //!
-//! 3. Run tests: ```bash DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \ cargo
-//!    test --test bridge_integration --features nats -- --ignored ```
+//! 3. Run tests:
+//!    ```bash
+//!    DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \
+//!    cargo test --test bridge_integration --features nats -- --ignored
+//!    ```
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]
@@ -284,7 +291,7 @@ mod bridge_tests {
         cleanup_test_data(&pool, &test_id).await;
     }
 
-    /// Test conditional mark_published prevents races
+    /// Test conditional `mark_published` prevents races
     #[tokio::test]
     #[ignore = "requires PostgreSQL - run with: cargo test --test bridge_integration --features nats -- --ignored"]
     async fn test_mark_published_conditional_update() {
@@ -505,7 +512,7 @@ mod bridge_tests {
 
         // Should receive ~50 events (entries 51-100, not 1-100)
         assert!(
-            received_count >= 45 && received_count <= 55,
+            (45..=55).contains(&received_count),
             "Should receive approximately 50 events (got {received_count})"
         );
 

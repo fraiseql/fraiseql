@@ -6,7 +6,9 @@
 use std::time::Duration;
 
 #[cfg(feature = "tracing-opentelemetry")]
-use tracing::{info, warn};
+use opentelemetry_otlp::WithExportConfig;
+#[cfg(feature = "tracing-opentelemetry")]
+use tracing::info;
 
 /// Initialize OpenTelemetry with Jaeger exporter.
 ///
@@ -42,12 +44,12 @@ pub fn init_jaeger(
         .with_headers(std::collections::HashMap::new());
 
     // Create tracer with sampler
-    let tracer = opentelemetry_otlp::new_pipeline()
+    let _tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(otlp_exporter)
         .with_trace_config(
             opentelemetry_sdk::trace::Config::default()
-                .with_sampler(opentelemetry_sdk::trace::Sampler::ProbabilitySampler(sampling_rate))
+                .with_sampler(opentelemetry_sdk::trace::Sampler::TraceIdRatioBased(sampling_rate))
                 .with_resource(opentelemetry_sdk::Resource::new(vec![
                     opentelemetry::KeyValue::new("service.name", service_name.to_string()),
                 ])),
@@ -56,41 +58,35 @@ pub fn init_jaeger(
 
     info!("OpenTelemetry initialized successfully");
 
-    Ok(JaegerGuard { _tracer: tracer })
+    Ok(JaegerGuard {})
 }
 
 /// Guard to ensure tracer is flushed on drop.
 #[cfg(feature = "tracing-opentelemetry")]
-pub struct JaegerGuard {
-    _tracer: opentelemetry_sdk::trace::TracerProvider,
-}
+pub struct JaegerGuard {}
 
 #[cfg(feature = "tracing-opentelemetry")]
 impl Drop for JaegerGuard {
     fn drop(&mut self) {
         info!("Flushing OpenTelemetry traces");
-        if let Err(e) = opentelemetry::global::shutdown_tracer_provider() {
-            warn!(error = %e, "Error shutting down tracer provider");
-        }
+        opentelemetry::global::shutdown_tracer_provider();
     }
 }
 
 #[cfg(all(test, feature = "tracing-opentelemetry"))]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_sampling_rate_validation() {
         // Valid sampling rates
         let valid_rates = vec![0.0, 0.1, 0.5, 1.0];
         for rate in valid_rates {
-            assert!(rate >= 0.0 && rate <= 1.0, "Rate {} should be valid", rate);
+            assert!((0.0..=1.0).contains(&rate), "Rate {} should be valid", rate);
         }
 
         // Invalid sampling rates
         let invalid_rates = vec![-0.1, 1.1, 2.0];
         for rate in invalid_rates {
-            assert!(!(rate >= 0.0 && rate <= 1.0), "Rate {} should be invalid", rate);
+            assert!(!(0.0..=1.0).contains(&rate), "Rate {} should be invalid", rate);
         }
     }
 }

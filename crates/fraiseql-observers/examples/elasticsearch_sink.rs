@@ -81,6 +81,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let entity_types = ["User", "Order", "Product", "Invoice"];
         let event_types = [EventKind::Created, EventKind::Updated, EventKind::Deleted];
 
+        #[allow(clippy::cast_precision_loss)] // i is bounded by num_events (50)
+        let amount = 100.0 + i as f64;
         let event = EntityEvent::new(
             event_types[i % event_types.len()],
             entity_types[i % entity_types.len()].to_string(),
@@ -91,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "status": if i % 3 == 0 { "active" } else { "inactive" },
                 "created_at": chrono::Utc::now().to_rfc3339(),
                 "data": {
-                    "amount": 100.0 + (i as f64),
+                    "amount": amount,
                     "currency": "USD"
                 }
             }),

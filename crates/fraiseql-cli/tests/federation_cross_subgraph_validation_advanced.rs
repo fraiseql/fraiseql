@@ -26,12 +26,12 @@ fn test_four_subgraph_federation_consistency() {
     // THEN: Should ensure each type owned by exactly one subgraph
 
     let users =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
 
     let orders = create_subgraph_metadata(
         "orders",
         vec![
-            create_federated_type("Order", vec!["id"], false),
+            create_federated_type("Order", &["id"], false),
             create_federated_type_extends("User", true), // Extends User
         ],
     );
@@ -39,7 +39,7 @@ fn test_four_subgraph_federation_consistency() {
     let products = create_subgraph_metadata(
         "products",
         vec![
-            create_federated_type("Product", vec!["id"], false),
+            create_federated_type("Product", &["id"], false),
             create_federated_type_extends("Order", true), // Extends Order
         ],
     );
@@ -47,7 +47,7 @@ fn test_four_subgraph_federation_consistency() {
     let payments = create_subgraph_metadata(
         "payments",
         vec![
-            create_federated_type("Payment", vec!["id"], false),
+            create_federated_type("Payment", &["id"], false),
             create_federated_type_extends("Order", true), // Also extends Order
             create_federated_type_extends("User", true),  // And User
         ],
@@ -72,8 +72,8 @@ fn test_multiple_external_fields_same_type() {
         "users",
         vec![create_federated_type_with_fields(
             "User",
-            vec!["id"],
-            vec!["email", "phone", "address"],
+            &["id"],
+            &["email", "phone", "address"],
             false,
         )],
     );
@@ -102,8 +102,8 @@ fn test_external_fields_from_different_owners_error() {
         "users",
         vec![create_federated_type_with_fields(
             "User",
-            vec!["id"],
-            vec!["email"],
+            &["id"],
+            &["email"],
             false,
         )],
     );
@@ -112,8 +112,8 @@ fn test_external_fields_from_different_owners_error() {
         "products",
         vec![create_federated_type_with_fields(
             "Product",
-            vec!["id"],
-            vec!["name"],
+            &["id"],
+            &["name"],
             false,
         )],
     );
@@ -146,7 +146,7 @@ fn test_shareable_field_consistency_all_marked() {
     // THEN: Should pass (consistent @shareable marking)
 
     let mut users_metadata =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
     users_metadata.types[0].shareable_fields.push("email".to_string());
 
     let mut auth_metadata =
@@ -165,7 +165,7 @@ fn test_shareable_field_conflict_partially_marked() {
     // THEN: Should warn about inconsistent @shareable (depending on strategy)
 
     let mut users_metadata =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
     users_metadata.types[0].shareable_fields.push("email".to_string());
 
     // Auth has User extension without @shareable marking
@@ -190,11 +190,11 @@ fn test_federation_version_consistency() {
     // THEN: Should pass
 
     let mut users =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
     users.version = "v2".to_string();
 
     let mut orders =
-        create_subgraph_metadata("orders", vec![create_federated_type("Order", vec!["id"], false)]);
+        create_subgraph_metadata("orders", vec![create_federated_type("Order", &["id"], false)]);
     orders.version = "v2".to_string();
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
@@ -209,11 +209,11 @@ fn test_federation_version_mismatch() {
     // THEN: Should reject or warn about version mismatch
 
     let mut users =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
     users.version = "v2".to_string();
 
     let mut orders =
-        create_subgraph_metadata("orders", vec![create_federated_type("Order", vec!["id"], false)]);
+        create_subgraph_metadata("orders", vec![create_federated_type("Order", &["id"], false)]);
     orders.version = "v3".to_string();
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
@@ -237,8 +237,8 @@ fn test_field_presence_consistency() {
         "users",
         vec![create_federated_type_with_fields(
             "User",
-            vec!["id"],
-            vec!["email", "name"],
+            &["id"],
+            &["email", "name"],
             false,
         )],
     );
@@ -265,8 +265,8 @@ fn test_key_field_presence_in_all_definitions() {
         "users",
         vec![create_federated_type_with_fields(
             "User",
-            vec!["id"],
-            vec!["email"],
+            &["id"],
+            &["email"],
             false,
         )],
     );
@@ -290,7 +290,7 @@ fn test_no_type_redefinition_in_non_owning_subgraph() {
     // THEN: Should ensure users is only definer
 
     let users =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
 
     let orders =
         create_subgraph_metadata("orders", vec![create_federated_type_extends("User", true)]);
@@ -348,7 +348,7 @@ fn test_large_subgraph_count_consistency() {
             // First subgraph owns User
             subgraphs.push(create_subgraph_metadata(
                 &name,
-                vec![create_federated_type("User", vec!["id"], false)],
+                vec![create_federated_type("User", &["id"], false)],
             ));
         } else {
             // Others extend User
@@ -371,12 +371,12 @@ fn test_diamond_dependency_pattern() {
     // THEN: Should handle diamond dependencies correctly
 
     let users =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
 
     let orders = create_subgraph_metadata(
         "orders",
         vec![
-            create_federated_type("Order", vec!["id"], false),
+            create_federated_type("Order", &["id"], false),
             create_federated_type_extends("User", true),
         ],
     );
@@ -403,7 +403,8 @@ fn test_many_types_single_subgraph() {
     let mut types = Vec::new();
     for i in 0..50 {
         let typename = format!("Type{}", i);
-        types.push(create_federated_type(&typename, vec![&format!("id{}", i)], false));
+        let id_field = format!("id{}", i);
+        types.push(create_federated_type(&typename, &[&id_field], false));
     }
 
     let subgraph = create_subgraph_metadata("monolith", types);
@@ -426,13 +427,13 @@ fn create_subgraph_metadata(_name: &str, types: Vec<FederatedType>) -> Federatio
 }
 
 /// Create a basic federated type with @key
-fn create_federated_type(name: &str, key_fields: Vec<&str>, is_extends: bool) -> FederatedType {
+fn create_federated_type(name: &str, key_fields: &[&str], is_extends: bool) -> FederatedType {
     let mut type_def = FederatedType::new(name.to_string());
     type_def.is_extends = is_extends;
 
     if !is_extends {
         type_def.keys.push(KeyDirective {
-            fields:     key_fields.iter().map(|s| s.to_string()).collect(),
+            fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
             resolvable: true,
         });
     }
@@ -444,14 +445,14 @@ fn create_federated_type(name: &str, key_fields: Vec<&str>, is_extends: bool) ->
 #[allow(dead_code)]
 fn create_federated_type_with_fields(
     name: &str,
-    key_fields: Vec<&str>,
-    _other_fields: Vec<&str>,
+    key_fields: &[&str],
+    _other_fields: &[&str],
     is_extends: bool,
 ) -> FederatedType {
-    let type_def = create_federated_type(name, key_fields, is_extends);
+
     // In real implementation, would track field definitions
     // For now, just validate @key fields exist
-    type_def
+    create_federated_type(name, key_fields, is_extends)
 }
 
 /// Create an extending federated type
@@ -479,12 +480,12 @@ fn create_federated_type_extends(name: &str, is_extends: bool) -> FederatedType 
 /// - Large-scale deployments (50+ types, 8+ subgraphs)
 ///
 /// # Validation Rules
-/// - **Type Ownership**: Each type defined (is_extends=false) in exactly one subgraph
-/// - **Extensions**: Multiple subgraphs can extend same type (is_extends=true)
+/// - **Type Ownership**: Each type defined (`is_extends=false`) in exactly one subgraph
+/// - **Extensions**: Multiple subgraphs can extend same type (`is_extends=true`)
 /// - **External Fields**: Each @external field must have exactly one owning subgraph
 /// - **Shareable Consistency**: @shareable marking should be consistent across subgraph definitions
 /// - **Federation Version**: All subgraphs should use compatible federation versions
-/// - **No Redefinition**: A type cannot be redefined (is_extends=false) in multiple subgraphs
+/// - **No Redefinition**: A type cannot be redefined (`is_extends=false`) in multiple subgraphs
 ///
 /// # Arguments
 /// * `subgraphs` - Collection of federation metadata from each subgraph
@@ -514,7 +515,7 @@ fn validate_cross_subgraph_consistency(subgraphs: &[FederationMetadata]) -> Resu
         for type_def in &subgraph.types {
             types_by_name
                 .entry(type_def.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((subgraph_idx, type_def));
         }
     }

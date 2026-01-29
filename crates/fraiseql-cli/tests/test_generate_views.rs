@@ -77,7 +77,7 @@ mod tests {
         assert!(schema_file.exists(), "Test schema file should exist");
 
         // Example DDL that would be generated
-        let sample_ddl = r#"
+        let sample_ddl = r"
             -- Generated DDL for tv_user view
             CREATE TABLE IF NOT EXISTS tv_user (
                 entity_id INTEGER NOT NULL UNIQUE,
@@ -92,7 +92,7 @@ mod tests {
             COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
             COMMENT ON COLUMN tv_user.entity_id IS 'Primary key reference to source User';
             COMMENT ON COLUMN tv_user.entity_json IS 'Materialized User data as JSONB';
-        "#;
+        ";
 
         // Validate DDL
         assert!(sample_ddl.contains("CREATE TABLE"), "Should have CREATE TABLE statement");
@@ -112,7 +112,7 @@ mod tests {
         assert!(schema_file.exists(), "Test schema file should exist");
 
         // Example Arrow DDL that would be generated
-        let sample_arrow_ddl = r#"
+        let sample_arrow_ddl = r"
             -- Generated Arrow DDL for ta_user_analytics view
             CREATE TABLE IF NOT EXISTS ta_user_analytics (
                 batch_number INTEGER NOT NULL,
@@ -129,7 +129,7 @@ mod tests {
 
             CREATE INDEX IF NOT EXISTS idx_ta_user_batch ON ta_user_analytics(batch_number);
             COMMENT ON TABLE ta_user_analytics IS 'Table-backed Arrow view for User analytics';
-        "#;
+        ";
 
         // Validate Arrow DDL
         assert!(sample_arrow_ddl.contains("BYTEA"), "Arrow columns should be BYTEA type");
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn test_ddl_includes_refresh_trigger() {
         // Example trigger-based refresh DDL
-        let trigger_ddl = r#"
+        let trigger_ddl = r"
             -- Refresh trigger for trigger-based strategy
             CREATE OR REPLACE FUNCTION refresh_tv_user()
             RETURNS TRIGGER AS $$
@@ -185,7 +185,7 @@ mod tests {
             AFTER INSERT OR UPDATE OR DELETE ON public.user
             FOR EACH ROW
             EXECUTE FUNCTION refresh_tv_user();
-        "#;
+        ";
 
         // Validate trigger structure
         assert!(
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_ddl_includes_scheduled_refresh() {
         // Example scheduled refresh DDL
-        let scheduled_ddl = r#"
+        let scheduled_ddl = r"
             -- Scheduled refresh using pg_cron
             CREATE OR REPLACE FUNCTION refresh_tv_user_scheduled()
             RETURNS void AS $$
@@ -214,7 +214,7 @@ mod tests {
 
             -- Schedule refresh every 30 minutes
             SELECT cron.schedule('refresh_tv_user', '30 minutes', 'SELECT refresh_tv_user_scheduled()');
-        "#;
+        ";
 
         // Validate scheduled structure
         assert!(
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn test_ddl_file_output_format() {
         // Example complete DDL output
-        let complete_ddl = r#"
+        let complete_ddl = r"
 -- FraiseQL DDL Generation Output
 -- Schema: user.json
 -- View: tv_user
@@ -278,7 +278,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_user_entity_json_gin ON tv_user USING GIN(enti
 
 -- Documentation
 COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
-        "#;
+        ";
 
         // Validate DDL format
         assert!(complete_ddl.contains("FraiseQL DDL Generation Output"));
@@ -291,7 +291,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
     #[test]
     fn test_composition_views_ddl() {
         // Example composition view DDL
-        let composition_ddl = r#"
+        let composition_ddl = r"
             -- Composition view for User -> Posts relationship
             CREATE OR REPLACE VIEW cv_user_posts AS
             SELECT
@@ -315,7 +315,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
             WHERE u.entity_id = ANY(batch_ids)
             GROUP BY u.entity_id, u.entity_json;
             $$ LANGUAGE SQL;
-        "#;
+        ";
 
         // Validate composition view structure
         assert!(
@@ -333,7 +333,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
     #[test]
     fn test_monitoring_functions_ddl() {
         // Example monitoring DDL
-        let monitoring_ddl = r#"
+        let monitoring_ddl = r"
             -- Staleness check function
             CREATE OR REPLACE FUNCTION check_staleness_user()
             RETURNS TABLE (is_stale BOOLEAN, last_updated TIMESTAMP, staleness_ms INTEGER)
@@ -359,7 +359,7 @@ COMMENT ON TABLE tv_user IS 'Table-backed JSON view for User entity';
                 END as status
             FROM tv_user
             ORDER BY staleness_ms DESC;
-        "#;
+        ";
 
         // Validate monitoring functions
         assert!(

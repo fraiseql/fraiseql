@@ -44,8 +44,10 @@ fn create_order_with_requires() -> FederatedType {
 
 /// Create federation metadata with multiple types
 fn create_federation_metadata() -> FederationMetadata {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..Default::default()
+    };
 
     // Add User type
     let mut user = FederatedType::new("User".to_string());
@@ -302,7 +304,7 @@ fn test_requires_with_multiple_required_fields() {
     assert_eq!(field_directives.requires.len(), 2);
 
     // All required fields must be present for resolution
-    let entity_fields = vec!["weight", "dimensions"];
+    let entity_fields = ["weight", "dimensions"];
     let all_present = field_directives
         .requires
         .iter()
@@ -379,7 +381,7 @@ fn test_provides_warning_if_field_not_returned() {
     user.set_field_directives("profile".to_string(), directives);
 
     // Simulating returned value that doesn't include promised field
-    let returned_fields = vec!["name", "age"]; // missing 'email'
+    let returned_fields = ["name", "age"]; // missing 'email'
     let promised_fields: Vec<_> = user
         .get_field_directives("profile")
         .unwrap()
@@ -453,10 +455,8 @@ fn test_requires_error_propagation_to_resolver() {
     let requires_weight = directives.requires.iter().any(|r| r.path[0] == "weight");
 
     // If field requires weight but entity doesn't have it, error propagates
-    if requires_weight && !entity_has_weight {
-        // Error condition detected
-        assert!(true);
-    }
+    // Verify the error condition is detected
+    assert!(requires_weight && !entity_has_weight);
 }
 
 #[test]

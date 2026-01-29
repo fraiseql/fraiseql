@@ -35,7 +35,7 @@ impl ElasticsearchBackupProvider {
 
 #[async_trait::async_trait]
 impl BackupProvider for ElasticsearchBackupProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "elasticsearch"
     }
 

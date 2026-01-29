@@ -15,9 +15,10 @@ use fraiseql_core::federation::types::{
 
 /// Create a users subgraph federation metadata
 fn create_users_subgraph() -> FederationMetadata {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
-    metadata.version = "v2".to_string();
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     // User type with @key(fields: "id")
     let mut user = FederatedType::new("User".to_string());
@@ -37,9 +38,10 @@ fn create_users_subgraph() -> FederationMetadata {
 
 /// Create an orders subgraph federation metadata
 fn create_orders_subgraph() -> FederationMetadata {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
-    metadata.version = "v2".to_string();
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     // Order type with @key(fields: "id")
     let mut order = FederatedType::new("Order".to_string());
@@ -76,9 +78,10 @@ fn create_orders_subgraph() -> FederationMetadata {
 
 /// Create a products subgraph federation metadata
 fn create_products_subgraph() -> FederationMetadata {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
-    metadata.version = "v2".to_string();
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     // Product type with @key(fields: "id")
     let mut product = FederatedType::new("Product".to_string());
@@ -218,7 +221,7 @@ fn test_key_extended_type_not_resolvable() {
 
 #[test]
 fn test_key_consistency_validation_same_type_different_keys_fails() {
-    let mut users = create_users_subgraph();
+    let users = create_users_subgraph();
     let mut conflicting_orders = create_orders_subgraph();
 
     // Modify the orders extension to have different key
@@ -246,8 +249,10 @@ fn test_key_consistency_validation_same_type_different_keys_fails() {
 
 #[test]
 fn test_key_multiple_fields() {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut type_def = FederatedType::new("Entity".to_string());
     type_def.keys.push(KeyDirective {
@@ -269,7 +274,7 @@ fn test_key_multiple_fields() {
 #[test]
 fn test_external_field_ownership_single_owner() {
     let orders = create_orders_subgraph();
-    let user_ext = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
+    let _user_ext = orders.types.iter().find(|t| t.name == "User" && t.is_extends).unwrap();
 
     // Can mark userId as external (owned by users subgraph)
     // but it's not marked in this test, which is fine
@@ -278,8 +283,10 @@ fn test_external_field_ownership_single_owner() {
 
 #[test]
 fn test_external_field_marked_on_extended_type() {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut order = FederatedType::new("Order".to_string());
     order.set_field_directives("id".to_string(), FieldFederationDirectives::new());
@@ -326,8 +333,10 @@ fn test_external_field_cannot_be_defined_twice() {
 
 #[test]
 fn test_external_field_multiple_fields() {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut user_ext = FederatedType::new("User".to_string());
     user_ext.is_extends = true;
@@ -421,8 +430,10 @@ fn test_shareable_field_conflict_one_shareable_one_not() {
 
 #[test]
 fn test_shareable_field_both_resolvable() {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut user_a = FederatedType::new("User".to_string());
     let mut email_a = FieldFederationDirectives::new();
@@ -445,8 +456,10 @@ fn test_shareable_field_both_resolvable() {
 
 #[test]
 fn test_shareable_multiple_fields() {
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut user = FederatedType::new("User".to_string());
 
@@ -488,15 +501,17 @@ fn test_conflict_resolution_strategy_first_wins() {
 
     // When composing, users subgraph comes first
     // so User type from users is primary
-    let _subgraphs = vec![users, orders];
+    let _subgraphs = [users, orders];
     assert_eq!(_subgraphs[0].types.iter().find(|t| t.name == "User").unwrap().name, "User");
 }
 
 #[test]
 fn test_conflict_resolution_strategy_shareable_required() {
     // Shareable strategy: both definitions must have @shareable
-    let mut metadata = FederationMetadata::default();
-    metadata.enabled = true;
+    let mut metadata = FederationMetadata {
+        enabled: true,
+        ..FederationMetadata::default()
+    };
 
     let mut user_a = FederatedType::new("User".to_string());
     let mut email_a = FieldFederationDirectives::new();
@@ -557,7 +572,7 @@ fn test_conflict_resolution_by_priority_list() {
     let orders = create_orders_subgraph();
     let products = create_products_subgraph();
 
-    let _subgraphs = vec![users, orders, products];
+    let _subgraphs = [users, orders, products];
 
     // Define priority: users > orders > products
     let priority_map: HashMap<String, usize> = [

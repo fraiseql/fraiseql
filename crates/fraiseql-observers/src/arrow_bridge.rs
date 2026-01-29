@@ -38,14 +38,14 @@ use crate::event::EntityEvent;
 /// assert_eq!(batch.num_rows(), 1);
 /// ```
 pub struct EventToArrowConverter {
-    batch_size: usize,
+    _batch_size: usize,
 }
 
 impl EventToArrowConverter {
     /// Create a new converter with specified batch size.
     #[must_use]
-    pub fn new(batch_size: usize) -> Self {
-        Self { batch_size }
+    pub const fn new(batch_size: usize) -> Self {
+        Self { _batch_size: batch_size }
     }
 
     /// Convert events to Arrow RecordBatch.

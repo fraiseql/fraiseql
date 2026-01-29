@@ -155,7 +155,8 @@ mod tests {
     fn test_backoff_overflow_protection() {
         // Test that exponential backoff doesn't overflow
         let delay = calculate_exponential(100, 100, u64::MAX);
-        assert!(delay <= u64::MAX);
+        // Verify the function returns without panicking (overflow protection)
+        let _ = delay;
     }
 
     #[test]

@@ -141,7 +141,7 @@ fn test_provides_multiple_fields() {
     });
 
     let validation = validate_provides_contract(&metadata, "Order", "details", &result);
-    assert!(validation.warnings.len() >= 1, "Should warn about missing dimensions");
+    assert!(!validation.warnings.is_empty(), "Should warn about missing dimensions");
     assert!(validation.success, "Should not fail");
 }
 

@@ -384,14 +384,11 @@ fn detect_circular_requires(deps: &[(&str, &str, &str, &str)]) -> Result<(), Str
 }
 
 /// Validate @requires chain depth
-fn validate_requires_chain_depth(depth: usize) -> Result<(), String> {
-    if depth > 5 {
-        // Deep chains are risky but not necessarily invalid
-        // Could warn or return Ok() with warning context
-        Ok(())
-    } else {
-        Ok(())
-    }
+const fn validate_requires_chain_depth(depth: usize) -> Result<(), String> {
+    // Deep chains are risky but not necessarily invalid
+    // Could warn or return Ok() with warning context
+    let _ = depth > 5;
+    Ok(())
 }
 
 /// Validate key consistency between owner and extension
@@ -451,7 +448,7 @@ fn validate_extension_key_consistency(keys: &[(&str, Vec<&str>)]) -> Result<(), 
 }
 
 /// Validate @key presence in extension
-fn validate_key_presence_in_extension(
+const fn validate_key_presence_in_extension(
     _owner_key: &[&str],
     _extension_fields: &[&str],
 ) -> Result<(), String> {
@@ -496,7 +493,7 @@ fn detect_circular_external_refs(refs: &[(&str, &str)]) -> Result<(), String> {
 }
 
 /// Validate self-referencing type
-fn validate_self_referencing_type(_typename: &str, _field: &str) -> Result<(), String> {
+const fn validate_self_referencing_type(_typename: &str, _field: &str) -> Result<(), String> {
     // Self-references are valid in graph structures
     Ok(())
 }

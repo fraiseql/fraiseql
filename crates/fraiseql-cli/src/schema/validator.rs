@@ -311,7 +311,7 @@ impl SchemaValidator {
                                                 ),
                                                 path:       format!("observers[{idx}].actions[{action_idx}]"),
                                                 severity:   ErrorSeverity::Error,
-                                                suggestion: Some(format!("Add '{}' field", field)),
+                                                suggestion: Some(format!("Add '{field}' field")),
                                             });
                                         }
                                     }
@@ -467,11 +467,11 @@ impl SchemaValidator {
 
         // Step 2: Check for circular dependencies using DependencyGraph
         let graph = DependencyGraph::build(metadata)
-            .map_err(|e| anyhow::anyhow!("Failed to build dependency graph: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to build dependency graph: {e}"))?;
 
         let cycles = graph.detect_cycles();
         if !cycles.is_empty() {
-            return Err(anyhow::anyhow!("Circular @requires dependencies detected: {:?}", cycles));
+            return Err(anyhow::anyhow!("Circular @requires dependencies detected: {cycles:?}"));
         }
 
         info!("Federation metadata validation passed");

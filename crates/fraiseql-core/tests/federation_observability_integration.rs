@@ -28,9 +28,9 @@ struct TestTraceContext {
 struct TestSpan {
     name:           String,
     span_id:        String,
-    parent_span_id: String,
-    trace_id:       String,
-    start_time:     Instant,
+    _parent_span_id: String,
+    trace_id:        String,
+    start_time:      Instant,
     duration_us:    u64,
     attributes:     HashMap<String, String>,
 }
@@ -60,7 +60,7 @@ impl TestMetricsCollector {
         self.entity_resolution_durations.lock().unwrap().push(duration_us);
     }
 
-    fn record_entity_resolution_error(&self) {
+    fn _record_entity_resolution_error(&self) {
         *self.entity_resolutions_errors.lock().unwrap() += 1;
     }
 
@@ -69,7 +69,7 @@ impl TestMetricsCollector {
         self.subgraph_request_durations.lock().unwrap().push(duration_us);
     }
 
-    fn record_subgraph_request_error(&self) {
+    fn _record_subgraph_request_error(&self) {
         *self.subgraph_requests_errors.lock().unwrap() += 1;
     }
 
@@ -77,7 +77,7 @@ impl TestMetricsCollector {
         *self.mutations_total.lock().unwrap() += 1;
     }
 
-    fn record_mutation_error(&self) {
+    fn _record_mutation_error(&self) {
         *self.mutations_errors.lock().unwrap() += 1;
     }
 
@@ -156,7 +156,7 @@ impl TestLogCollector {
             .collect()
     }
 
-    fn all_logs(&self) -> Vec<TestLogEntry> {
+    fn _all_logs(&self) -> Vec<TestLogEntry> {
         self.logs.lock().unwrap().clone()
     }
 }
@@ -186,7 +186,7 @@ impl TestFederationExecutor {
         let span = TestSpan {
             name: name.to_string(),
             span_id: format!("{:016x}", rand::random::<u64>()),
-            parent_span_id: self.trace_context.parent_span_id.clone(),
+            _parent_span_id: self.trace_context.parent_span_id.clone(),
             trace_id: self.trace_context.trace_id.clone(),
             start_time: Instant::now(),
             duration_us: 0,
@@ -213,7 +213,7 @@ impl TestFederationExecutor {
         self.trace_context.spans.lock().unwrap().clone()
     }
 
-    fn get_span_tree(&self) -> String {
+    fn _get_span_tree(&self) -> String {
         let spans = self.get_spans();
         let mut tree = String::new();
         tree.push_str(&format!(
@@ -596,7 +596,7 @@ fn test_structured_logging_json_serialization() {
 
     println!("✓ Log serialization valid");
     println!("✓ Trace correlation fields present: trace_id, query_id");
-    println!("✓ JSON structure: {}", json.to_string());
+    println!("✓ JSON structure: {}", json);
 
     println!("\n=== SERIALIZATION TEST PASSED ===\n");
 }
@@ -615,7 +615,7 @@ fn parse_traceparent(header: &str) -> Option<TraceparentHeader> {
     Some(TraceparentHeader {
         trace_id:       parts[1].to_string(),
         parent_span_id: parts[2].to_string(),
-        trace_flags:    parts[3].to_string(),
+        _trace_flags:   parts[3].to_string(),
     })
 }
 
@@ -623,7 +623,7 @@ fn parse_traceparent(header: &str) -> Option<TraceparentHeader> {
 struct TraceparentHeader {
     trace_id:       String,
     parent_span_id: String,
-    trace_flags:    String,
+    _trace_flags:   String,
 }
 
 /// Summary test: Phase 7 End-to-End Integration

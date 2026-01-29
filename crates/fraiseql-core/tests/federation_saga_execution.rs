@@ -615,7 +615,7 @@ fn test_execute_saga_not_found() {
     // And: Error should include saga_id
     // And: Execution should not proceed
 
-    assert!(saga_id.to_string().len() > 0);
+    assert!(!saga_id.to_string().is_empty());
 }
 
 #[test]

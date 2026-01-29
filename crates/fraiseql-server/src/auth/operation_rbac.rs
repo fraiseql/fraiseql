@@ -326,8 +326,8 @@ mod tests {
             user_id: "test-user".to_string(),
             claims:  Claims {
                 sub: "test-user".to_string(),
-                iat: 1000000,
-                exp: 2000000,
+                iat: 1_000_000,
+                exp: 2_000_000,
                 iss: "test-issuer".to_string(),
                 aud: vec!["fraiseql".to_string()],
                 extra,
@@ -343,8 +343,8 @@ mod tests {
             user_id: "test-user".to_string(),
             claims:  Claims {
                 sub: "test-user".to_string(),
-                iat: 1000000,
-                exp: 2000000,
+                iat: 1_000_000,
+                exp: 2_000_000,
                 iss: "test-issuer".to_string(),
                 aud: vec!["fraiseql".to_string()],
                 extra,

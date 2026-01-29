@@ -279,7 +279,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl BaseKmsProvider for MockKmsProvider {
-        fn provider_name(&self) -> &str {
+        fn provider_name(&self) -> &'static str {
             "mock"
         }
 
@@ -322,7 +322,7 @@ mod tests {
         ) -> KmsResult<fraiseql_core::security::kms::base::KeyInfo> {
             Ok(fraiseql_core::security::kms::base::KeyInfo {
                 alias:      Some("mock-key".to_string()),
-                created_at: 1000000,
+                created_at: 1_000_000,
             })
         }
 

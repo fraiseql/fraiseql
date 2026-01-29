@@ -33,7 +33,7 @@ pub enum AcceptedConnection {
     /// Plain TCP connection.
     Plain(tokio::net::TcpStream),
     /// TLS connection.
-    Tls(tokio_rustls::server::TlsStream<tokio::net::TcpStream>),
+    Tls(Box<tokio_rustls::server::TlsStream<tokio::net::TcpStream>>),
 }
 
 impl AcceptedConnection {
@@ -61,8 +61,8 @@ pub async fn accept_connection(
         Some(acceptor) => {
             // TLS connection
             match acceptor.accept(stream).await {
-                Ok(tls_stream) => Ok((AcceptedConnection::Tls(tls_stream), addr)),
-                Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                Ok(tls_stream) => Ok((AcceptedConnection::Tls(Box::new(tls_stream)), addr)),
+                Err(e) => Err(std::io::Error::other(e)),
             }
         },
     }

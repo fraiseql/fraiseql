@@ -29,7 +29,7 @@ pub async fn metrics_handler() -> ([(String, String); 1], String) {
         },
         Err(e) => (
             [("content-type".to_string(), "text/plain".to_string())],
-            format!("Error initializing metrics: {}", e),
+            format!("Error initializing metrics: {e}"),
         ),
     }
 }

@@ -248,11 +248,11 @@ impl SagaExecutor {
     /// # Returns
     ///
     /// Current execution state including completed steps
-    pub async fn get_execution_state(&self, _saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
+    pub async fn get_execution_state(&self, saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
         // Placeholder: Load from store in full implementation
 
         Ok(ExecutionState {
-            saga_id:         _saga_id,
+            saga_id,
             total_steps:     0,
             completed_steps: 0,
             current_step:    None,
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn test_saga_executor_creation() {
         let executor = SagaExecutor::new();
-        assert_eq!(format!("{:?}", executor._placeholder).len() > 0, true);
+        drop(executor);
     }
 
     #[test]

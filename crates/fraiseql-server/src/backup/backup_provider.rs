@@ -185,7 +185,7 @@ mod tests {
         let info = BackupInfo {
             backup_id:   "backup-123".to_string(),
             store_name:  "postgres".to_string(),
-            timestamp:   1000000,
+            timestamp:   1_000_000,
             size_bytes:  1024 * 1024,
             verified:    true,
             compression: Some("gzip".to_string()),

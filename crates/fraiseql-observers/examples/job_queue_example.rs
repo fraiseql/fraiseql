@@ -28,7 +28,7 @@ async fn main() -> fraiseql_observers::Result<()> {
 
     use fraiseql_observers::{
         config::{
-            ActionConfig, BackoffStrategy, JobQueueConfig, ObserverDefinition,
+            ActionConfig, BackoffStrategy, FailurePolicy, JobQueueConfig, ObserverDefinition,
             ObserverRuntimeConfig, PerformanceConfig, RetryConfig, TransportConfig,
         },
         event::{EntityEvent, EventKind},
@@ -96,7 +96,7 @@ async fn main() -> fraiseql_observers::Result<()> {
             actions:    vec![ActionConfig::Webhook {
                 url:           Some("https://webhook.example.com/user-created".to_string()),
                 url_env:       None,
-                headers:       Default::default(),
+                headers:       HashMap::default(),
                 body_template: None,
             }],
             retry:      RetryConfig {
@@ -105,7 +105,7 @@ async fn main() -> fraiseql_observers::Result<()> {
                 max_delay_ms:     5000,
                 backoff_strategy: BackoffStrategy::Exponential,
             },
-            on_failure: Default::default(),
+            on_failure: FailurePolicy::default(),
         },
     );
 

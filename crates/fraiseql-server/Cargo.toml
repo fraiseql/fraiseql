@@ -43,8 +43,8 @@ metrics-exporter-prometheus = {version = "0.14", optional = true}
 
 # OpenTelemetry (optional)
 opentelemetry = {version = "0.22", optional = true}
-opentelemetry_sdk = {version = "0.22", optional = true}
-opentelemetry-otlp = {version = "0.15", optional = true}
+opentelemetry_sdk = {version = "0.22", features = ["rt-tokio"], optional = true}
+opentelemetry-otlp = {version = "0.15", features = ["http-proto"], optional = true}
 tracing-opentelemetry = {version = "0.23", optional = true}
 
 # Database

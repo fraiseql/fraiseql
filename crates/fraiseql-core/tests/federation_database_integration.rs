@@ -434,8 +434,8 @@ fn test_resolve_entity_large_result_set_from_postgres() {
     assert!(result.is_ok());
     let entities = result.unwrap();
     assert_eq!(entities.len(), 100);
-    for i in 0..100 {
-        assert!(entities[i].is_some());
+    for entity in &entities {
+        assert!(entity.is_some());
     }
 }
 

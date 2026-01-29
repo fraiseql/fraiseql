@@ -111,8 +111,7 @@ fn test_compose_with_type_extension() {
 
     let composed = result.unwrap();
     // Should have exactly one User type in composed schema
-    let user_defs: Vec<_> = composed.types.iter().filter(|t| t.name == "User").collect();
-    assert_eq!(user_defs.len(), 1, "Should merge extended types into single definition");
+    assert_eq!(composed.types.iter().filter(|t| t.name == "User").count(), 1, "Should merge extended types into single definition");
 }
 
 #[test]
@@ -399,12 +398,12 @@ struct ComposedSchema {
 ///
 /// # Composition Process
 /// 1. **Collect Types**: Gather all types from all subgraphs, grouped by name
-/// 2. **Merge Definitions**: For each type, keep the owning definition (is_extends=false)
+/// 2. **Merge Definitions**: For each type, keep the owning definition (`is_extends=false`)
 /// 3. **Validate Consistency**: Ensure types are compatible across subgraphs
 /// 4. **Build Supergraph**: Construct unified federation metadata
 ///
 /// # Arguments
-/// * `subgraphs` - Collection of FederationMetadata from each subgraph
+/// * `subgraphs` - Collection of `FederationMetadata` from each subgraph
 ///
 /// # Returns
 /// `Ok(ComposedSchema)` with all types merged, or `Err(String)` if composition fails
@@ -439,7 +438,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
         for type_def in &subgraph.types {
             types_by_name
                 .entry(type_def.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(type_def.clone());
         }
     }
@@ -449,7 +448,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
     // then optionally extended in others. We merge by keeping the owning definition.
     let mut merged_types = Vec::new();
 
-    for (_typename, definitions) in types_by_name.into_iter() {
+    for (_typename, definitions) in types_by_name {
         // Find the owning definition (the one where is_extends = false)
         // This is the subgraph that originally defined this type
         let owner = definitions.iter().find(|t| !t.is_extends);
@@ -467,7 +466,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
 
     // Composed schema has federation enabled if any subgraph enables it
     let enabled = subgraphs.iter().any(|s| s.enabled);
-    let version = subgraphs.first().map(|s| s.version.clone()).unwrap_or_else(|| "v2".to_string());
+    let version = subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone());
 
     Ok(ComposedSchema {
         enabled,

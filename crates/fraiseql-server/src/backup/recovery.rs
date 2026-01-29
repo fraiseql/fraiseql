@@ -176,7 +176,7 @@ impl RecoveryStatus {
         }
         .to_string();
 
-        self.progress_percent = (self.step as u32 * 16) + 1; // Rough progress estimate
+        self.progress_percent = (self.step * 16) + 1; // Rough progress estimate
 
         true
     }
@@ -214,7 +214,7 @@ pub struct RecoveryChecklistItem {
 }
 
 /// Complete recovery checklist.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecoveryChecklist {
     /// Checklist items
     pub items: Vec<RecoveryChecklistItem>,
@@ -330,7 +330,7 @@ mod tests {
             status.next_step();
         }
         assert_eq!(status.step, 6);
-        assert!(status.next_step() == false); // Can't go beyond step 6
+        assert!(!status.next_step()); // Can't go beyond step 6
     }
 
     #[test]

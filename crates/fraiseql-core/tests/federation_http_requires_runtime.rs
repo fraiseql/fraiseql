@@ -48,7 +48,7 @@ fn test_http_requires_validation_missing_field() {
     let repr = EntityRepresentation {
         typename:   "User".to_string(),
         key_fields: Default::default(),
-        all_fields: [(("id".to_string(), json!("123")))].iter().cloned().collect(),
+        all_fields: [("id".to_string(), json!("123"))].iter().cloned().collect(),
     };
 
     // Should fail because email (required by orders) is missing

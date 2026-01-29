@@ -150,11 +150,11 @@ impl ElasticsearchSink {
     pub async fn health_check(&self) -> Result<()> {
         let response = self
             .client
-            .get(&format!("{}/_cluster/health", self.config.url))
+            .get(format!("{}/_cluster/health", self.config.url))
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Elasticsearch health check failed: {}", e),
+                reason: format!("Elasticsearch health check failed: {e}"),
             })?;
 
         if response.status().is_success() {
@@ -188,7 +188,7 @@ impl ElasticsearchSink {
                 }
 
                 // Flush on timeout
-                _ = tokio::time::sleep(flush_timeout) => {
+                () = tokio::time::sleep(flush_timeout) => {
                     if !event_buffer.is_empty() {
                         info!(count = event_buffer.len(), "Flushing buffer due to timeout");
                         if let Err(e) = self.flush_buffer(&mut event_buffer).await {
@@ -296,12 +296,12 @@ impl ElasticsearchSink {
             .send()
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Elasticsearch bulk request failed: {}", e),
+                reason: format!("Elasticsearch bulk request failed: {e}"),
             })?;
 
         let response_body: Value =
             response.json().await.map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to parse Elasticsearch response: {}", e),
+                reason: format!("Failed to parse Elasticsearch response: {e}"),
             })?;
 
         // Check for errors in bulk response
@@ -311,8 +311,7 @@ impl ElasticsearchSink {
                 response_body
                     .get("items")
                     .and_then(|items| items.as_array())
-                    .map(|items| items.len())
-                    .unwrap_or(0)
+                    .map_or(0, std::vec::Vec::len)
             );
         }
 

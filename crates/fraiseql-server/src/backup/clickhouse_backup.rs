@@ -35,7 +35,7 @@ impl ClickhouseBackupProvider {
 
 #[async_trait::async_trait]
 impl BackupProvider for ClickhouseBackupProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "clickhouse"
     }
 

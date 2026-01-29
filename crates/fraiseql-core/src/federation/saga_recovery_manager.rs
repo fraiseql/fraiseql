@@ -325,7 +325,7 @@ impl SagaRecoveryManager {
         stats: &Mutex<RecoveryStats>,
     ) -> Option<()> {
         match store.update_saga_state(saga_id, new_state).await {
-            Ok(_) => {
+            Ok(()) => {
                 debug!("Transitioned saga {} to {}", saga_id, new_state.as_str());
                 if let Ok(mut s) = stats.lock() {
                     s.sagas_processed += 1;

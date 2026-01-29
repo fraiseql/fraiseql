@@ -35,7 +35,7 @@ impl RedisBackupProvider {
 
 #[async_trait::async_trait]
 impl BackupProvider for RedisBackupProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "redis"
     }
 

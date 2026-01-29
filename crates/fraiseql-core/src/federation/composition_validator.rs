@@ -467,13 +467,14 @@ impl CompositionValidator {
             for ftype in metadata.types {
                 let key = ftype.name.clone();
 
-                if !type_definitions.contains_key(&key) {
-                    // First definition of this type
-                    type_definitions.insert(key, ComposedType::from_federated(&ftype));
-                } else {
-                    // Merge with existing definition
-                    if let Some(composed_type) = type_definitions.get_mut(&key) {
-                        composed_type.merge_from(&ftype);
+                match type_definitions.entry(key) {
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        // First definition of this type
+                        entry.insert(ComposedType::from_federated(&ftype));
+                    }
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        // Merge with existing definition
+                        entry.get_mut().merge_from(&ftype);
                     }
                 }
             }

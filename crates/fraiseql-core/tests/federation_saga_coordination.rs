@@ -154,14 +154,13 @@ fn test_saga_executor_creation() {
     // Then: It should be created successfully
 
     // Placeholder: Full implementation in GREEN phase
-    assert!(true);
 }
 
 #[test]
 fn test_execute_single_step_saga() {
     // Given: A saga with a single mutation step
     let _saga_id = Uuid::new_v4();
-    let steps = vec![fixtures::create_three_step_order_saga()[0].clone()];
+    let steps = [fixtures::create_three_step_order_saga()[0].clone()];
 
     // When: Saga coordinator executes the saga
     // Then: Step should execute successfully
@@ -324,11 +323,9 @@ fn test_compensation_executes_in_reverse_order() {
     //   - Step 2 compensation second
     //   - Step 1 compensation third
 
-    let compensation_order = vec![
-        steps[2].compensation_mutation.clone(),
+    let compensation_order = [steps[2].compensation_mutation.clone(),
         steps[1].compensation_mutation.clone(),
-        steps[0].compensation_mutation.clone(),
-    ];
+        steps[0].compensation_mutation.clone()];
 
     assert_eq!(compensation_order[0], "reversePayment");
     assert_eq!(compensation_order[1], "releaseInventory");
@@ -389,7 +386,6 @@ fn test_compensation_phase_transitions() {
     // Then: Saga transitions: Failed → Compensating → Compensated
 
     // Placeholder: State machine in GREEN phase
-    assert!(true);
 }
 
 // ===========================================================================================
@@ -406,7 +402,6 @@ fn test_saga_state_persisted_to_store() {
     // And: Each step state should be persisted
 
     // Placeholder: Store integration in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -420,7 +415,6 @@ fn test_saga_recovered_from_interrupted_execution() {
     // And: Next pending step should execute
 
     // Placeholder: Recovery logic in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -433,7 +427,6 @@ fn test_saga_recovered_from_interrupted_compensation() {
     // And: Already-compensated steps should not re-compensate
 
     // Placeholder: Recovery logic in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -477,7 +470,6 @@ fn test_saga_timestamps_recorded() {
     // And: Each step should have start and completion times
 
     // Placeholder: Timestamp recording in GREEN phase
-    assert!(true);
 }
 
 // ===========================================================================================
@@ -494,7 +486,6 @@ fn test_automatic_compensation_strategy() {
     // And: All previously completed steps should be compensated
 
     // Placeholder: Strategy in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -508,7 +499,6 @@ fn test_manual_compensation_strategy() {
     // And: External system should trigger compensation
 
     // Placeholder: Strategy in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -597,7 +587,6 @@ fn test_saga_detects_network_partition() {
     // And: Should log partition detection for operations team
 
     // Placeholder: Partition detection in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -611,7 +600,6 @@ fn test_saga_distinguishes_failure_types() {
     //   - CompensationFailure (compensation step failed)
 
     // Placeholder: Failure categorization in GREEN phase
-    assert!(true);
 }
 
 // ===========================================================================================
@@ -626,7 +614,6 @@ fn test_saga_creation_fails_with_empty_steps() {
     // And: Error should indicate "saga must have at least one step"
 
     // Placeholder: Validation in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -637,7 +624,6 @@ fn test_saga_creation_validates_step_order() {
     // Or: Should return error indicating invalid ordering
 
     // Placeholder: Order validation in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -648,7 +634,6 @@ fn test_saga_handles_duplicate_step_ids() {
     // Or: Should return error indicating duplicate IDs
 
     // Placeholder: ID validation in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -660,7 +645,6 @@ fn test_saga_validates_subgraph_exists() {
     // And: No compensation should be triggered (no steps executed)
 
     // Placeholder: Subgraph validation in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -671,7 +655,6 @@ fn test_saga_validates_mutation_exists() {
     // And: Saga state should be Failed
 
     // Placeholder: Mutation validation in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -685,7 +668,6 @@ fn test_saga_handles_idempotent_execution() {
     // And: Should NOT re-execute steps
 
     // Placeholder: Idempotency in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -698,7 +680,6 @@ fn test_compensation_idempotency() {
     // And: Re-executing should produce same result
 
     // Placeholder: Compensation idempotency in GREEN phase
-    assert!(true);
 }
 
 // ===========================================================================================
@@ -728,7 +709,6 @@ fn test_saga_coordinator_execute() {
     // And: Steps should execute sequentially
 
     // Placeholder: API in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -745,7 +725,6 @@ fn test_saga_coordinator_get_status() {
     //   - Progress percentage
 
     // Placeholder: API in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -760,7 +739,6 @@ fn test_saga_coordinator_cancel() {
     // And: Saga should transition to Failed (due to cancellation)
 
     // Placeholder: API in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -776,7 +754,6 @@ fn test_saga_coordinator_get_result() {
     //   - Any errors
 
     // Placeholder: API in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -789,7 +766,6 @@ fn test_saga_coordinator_list_in_flight() {
     //   - Can order by start time
 
     // Placeholder: API in GREEN phase
-    assert!(true);
 }
 
 // ===========================================================================================
@@ -806,7 +782,6 @@ fn test_saga_logs_execution_start() {
     //   - Target subgraphs
 
     // Placeholder: Logging in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -820,7 +795,6 @@ fn test_saga_logs_step_execution() {
     //   - Mutation name
 
     // Placeholder: Logging in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -835,7 +809,6 @@ fn test_saga_logs_failure_with_context() {
     //   - Whether compensation is triggered
 
     // Placeholder: Logging in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -848,7 +821,6 @@ fn test_saga_logs_compensation_start() {
     //   - Reason for compensation
 
     // Placeholder: Logging in GREEN phase
-    assert!(true);
 }
 
 #[test]
@@ -862,5 +834,4 @@ fn test_saga_exports_metrics() {
     //   - federation_saga_compensations_total
 
     // Placeholder: Metrics in GREEN phase
-    assert!(true);
 }

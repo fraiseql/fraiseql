@@ -122,7 +122,7 @@ fn benchmark_event_processing(c: &mut Criterion) {
     });
 
     // Benchmark batch event processing
-    for batch_size in [10, 50, 100].iter() {
+    for batch_size in &[10, 50, 100] {
         group.bench_with_input(
             BenchmarkId::new("process_batch", batch_size),
             batch_size,
@@ -295,13 +295,14 @@ fn benchmark_event_creation(c: &mut Criterion) {
 /// - **1000 events**: Large batch, stress tests event loop
 ///
 /// This directly measures production capacity:
-/// - Helps capacity planning (events/second = 1_000_000 / avg_µs_per_event)
+/// - Helps capacity planning (events/second = `1_000_000` / `avg_µs_per_event`)
 /// - Identifies throughput ceiling under sustained load
 /// - Validates batching strategy effectiveness
 fn benchmark_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");
 
-    for event_count in [100, 500, 1000].iter() {
+    for event_count in &[100, 500, 1000] {
+        #[allow(clippy::cast_sign_loss)] // event_count values are all positive
         group.throughput(Throughput::Elements(*event_count as u64));
         group.bench_with_input(
             BenchmarkId::new("events_per_second", event_count),

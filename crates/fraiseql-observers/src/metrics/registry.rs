@@ -348,9 +348,9 @@ mod tests {
         let cache_hits = metrics.cache_hits_total.get();
         let cache_misses = metrics.cache_misses_total.get();
 
-        // Just verify we can retrieve values (they may be non-zero from other tests)
-        assert!(cache_hits >= 0);
-        assert!(cache_misses >= 0);
+        // Just verify we can retrieve values without panicking (they may be non-zero from other tests)
+        let _ = cache_hits;
+        let _ = cache_misses;
     }
 
     #[test]

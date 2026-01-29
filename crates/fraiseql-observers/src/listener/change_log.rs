@@ -20,6 +20,21 @@ use crate::{
     event::{EntityEvent, EventKind, FieldChanges},
 };
 
+/// Row type returned from the `tb_entity_change_log` query.
+type ChangeLogRow = (
+    i64,
+    Uuid,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    String,
+    Option<String>,
+    Value,
+    Option<Value>,
+    Option<DateTime<Utc>>,
+);
+
 /// Configuration for the change log listener
 #[derive(Debug, Clone)]
 pub struct ChangeLogListenerConfig {
@@ -287,19 +302,7 @@ impl ChangeLogListener {
         // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
-        let rows: Vec<(
-            i64,
-            Uuid,
-            Option<String>,
-            Option<String>,
-            String,
-            String,
-            String,
-            Option<String>,
-            Value,
-            Option<Value>,
-            Option<DateTime<Utc>>,
-        )> = sqlx::query_as(
+        let rows: Vec<ChangeLogRow> = sqlx::query_as(
             r"
                 SELECT
                     pk_entity_change_log,

@@ -157,13 +157,13 @@ impl ExecutorFactory {
         // Create Redis client and connection manager
         let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
             ObserverError::InvalidConfig {
-                message: format!("Failed to create Redis client: {}", e),
+                message: format!("Failed to create Redis client: {e}"),
             }
         })?;
 
         let conn =
             ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
-                message: format!("Failed to connect to Redis: {}", e),
+                message: format!("Failed to connect to Redis: {e}"),
             })?;
 
         Ok(RedisDeduplicationStore::new(conn, redis_config.dedup_window_secs))
@@ -171,19 +171,20 @@ impl ExecutorFactory {
 
     /// Build Redis cache backend from config
     #[cfg(feature = "caching")]
+    #[allow(dead_code)] // Reason: prepared for cache integration in upcoming phase
     async fn build_cache_backend(redis_config: &RedisConfig) -> Result<RedisCacheBackend> {
         use redis::aio::ConnectionManager;
 
         // Create Redis client and connection manager
         let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
             ObserverError::InvalidConfig {
-                message: format!("Failed to create Redis client: {}", e),
+                message: format!("Failed to create Redis client: {e}"),
             }
         })?;
 
         let conn =
             ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
-                message: format!("Failed to connect to Redis: {}", e),
+                message: format!("Failed to connect to Redis: {e}"),
             })?;
 
         Ok(RedisCacheBackend::new(conn, redis_config.cache_ttl_secs))
@@ -523,18 +524,24 @@ mod tests {
         assert!(config.validate().is_ok());
 
         // Invalid: empty URL
-        let mut config = JobQueueConfig::default();
-        config.url = String::new();
+        let config = JobQueueConfig {
+            url: String::new(),
+            ..JobQueueConfig::default()
+        };
         assert!(config.validate().is_err());
 
         // Invalid: zero batch size
-        let mut config = JobQueueConfig::default();
-        config.batch_size = 0;
+        let config = JobQueueConfig {
+            batch_size: 0,
+            ..JobQueueConfig::default()
+        };
         assert!(config.validate().is_err());
 
         // Invalid: zero concurrency
-        let mut config = JobQueueConfig::default();
-        config.worker_concurrency = 0;
+        let config = JobQueueConfig {
+            worker_concurrency: 0,
+            ..JobQueueConfig::default()
+        };
         assert!(config.validate().is_err());
     }
 

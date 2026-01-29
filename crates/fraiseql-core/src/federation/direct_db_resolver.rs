@@ -173,7 +173,7 @@ impl DirectDatabaseResolver {
             // Try to find matching row by comparing key fields
             let matching_row = row_map.values().find(|row| {
                 if let Value::Object(obj) = row {
-                    rep.key_fields.iter().all(|(key, val)| obj.get(key).map_or(false, |v| v == val))
+                    rep.key_fields.iter().all(|(key, val)| obj.get(key) == Some(val))
                 } else {
                     false
                 }

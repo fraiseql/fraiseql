@@ -4,10 +4,15 @@
 //!
 //! ## Running Tests
 //!
-//! 1. Start NATS with `JetStream`: ```bash docker run -d --name nats -p 4222:4222 nats:latest -js
+//! 1. Start NATS with `JetStream`:
+//!    ```bash
+//!    docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Run tests: ```bash cargo test --test nats_integration --features nats -- --ignored ```
+//! 2. Run tests:
+//!    ```bash
+//!    cargo test --test nats_integration --features nats -- --ignored
+//!    ```
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]

@@ -9,7 +9,7 @@
 //! - Checkpoint recovery after crashes
 //!
 //! **Requirements**:
-//! - Redis must be running on localhost:6379 (or use REDIS_URL env var)
+//! - Redis must be running on localhost:6379 (or use `REDIS_URL` env var)
 //! - NATS must be running on localhost:4222 for NATS tests (optional)
 //!
 //! **Run tests**:

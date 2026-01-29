@@ -134,7 +134,7 @@ fn test_compensation_not_triggered_on_automatic_success() {
     // And: Compensation mutations should not execute
 
     // In this test context, we have completed_steps which would normally mean success
-    assert!(saga.completed_steps.len() > 0);
+    assert!(!saga.completed_steps.is_empty());
 }
 
 #[test]
@@ -415,7 +415,7 @@ fn test_compensation_provides_audit_trail() {
     //   - Timestamps for all operations
     //   - Reason for failure and compensation
 
-    assert!(saga.completed_steps.len() > 0);
+    assert!(!saga.completed_steps.is_empty());
 }
 
 // ===========================================================================================

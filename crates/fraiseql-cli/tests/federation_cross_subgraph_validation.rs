@@ -22,7 +22,7 @@ fn test_key_consistency_single_owner() {
     // THEN: Only one subgraph defines this @key
 
     let users_subgraph =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
 
     let orders_subgraph = create_subgraph_metadata(
         "orders",
@@ -44,12 +44,12 @@ fn test_key_consistency_multiple_owners_error() {
     // THEN: Should reject duplicate @key definitions
 
     let users_subgraph =
-        create_subgraph_metadata("users", vec![create_federated_type("User", vec!["id"], false)]);
+        create_subgraph_metadata("users", vec![create_federated_type("User", &["id"], false)]);
 
     let auth_subgraph = create_subgraph_metadata(
         "auth",
         vec![
-            create_federated_type("User", vec!["id"], false), // Duplicate!
+            create_federated_type("User", &["id"], false), // Duplicate!
         ],
     );
 
@@ -81,7 +81,7 @@ fn test_external_field_has_owner() {
         "users",
         vec![create_federated_type_with_field(
             "User",
-            vec!["id"],
+            &["id"],
             "id",
             false,
         )],
@@ -112,7 +112,7 @@ fn test_external_field_no_owner_error() {
     let users_subgraph = create_subgraph_metadata(
         "users",
         vec![
-            create_federated_type("User", vec!["id"], false),
+            create_federated_type("User", &["id"], false),
             // Note: doesn't define 'email' field
         ],
     );
@@ -143,7 +143,7 @@ fn test_external_field_multiple_owners_error() {
         "users",
         vec![create_federated_type_with_field(
             "User",
-            vec!["id"],
+            &["id"],
             "id",
             false,
         )],
@@ -153,7 +153,7 @@ fn test_external_field_multiple_owners_error() {
         "auth",
         vec![create_federated_type_with_field(
             "User",
-            vec!["id"],
+            &["id"],
             "id",
             false,
         )],
@@ -184,7 +184,7 @@ fn test_type_not_redefined_in_owning_subgraph() {
     let users_subgraph = create_subgraph_metadata(
         "users",
         vec![
-            create_federated_type("User", vec!["id"], false), // Owns User (is_extends=false)
+            create_federated_type("User", &["id"], false), // Owns User (is_extends=false)
         ],
     );
 
@@ -231,13 +231,13 @@ fn create_subgraph_metadata_with_external(
 }
 
 /// Create a basic federated type with @key
-fn create_federated_type(name: &str, key_fields: Vec<&str>, is_extends: bool) -> FederatedType {
+fn create_federated_type(name: &str, key_fields: &[&str], is_extends: bool) -> FederatedType {
     let mut type_def = FederatedType::new(name.to_string());
     type_def.is_extends = is_extends;
 
     if !is_extends {
         type_def.keys.push(KeyDirective {
-            fields:     key_fields.iter().map(|s| s.to_string()).collect(),
+            fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
             resolvable: true,
         });
     }
@@ -249,14 +249,14 @@ fn create_federated_type(name: &str, key_fields: Vec<&str>, is_extends: bool) ->
 #[allow(dead_code)] // Used in tests
 fn create_federated_type_with_field(
     name: &str,
-    key_fields: Vec<&str>,
+    key_fields: &[&str],
     _field_name: &str,
     is_extends: bool,
 ) -> FederatedType {
-    let type_def = create_federated_type(name, key_fields, is_extends);
+
     // Note: In real implementation, would track field definitions
     // For now, this is a placeholder
-    type_def
+    create_federated_type(name, key_fields, is_extends)
 }
 
 /// Create an extending federated type
@@ -306,7 +306,7 @@ fn validate_cross_subgraph_consistency(subgraphs: &[FederationMetadata]) -> Resu
         for type_def in &subgraph.types {
             types_by_name
                 .entry(type_def.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((subgraph_idx, type_def));
         }
     }

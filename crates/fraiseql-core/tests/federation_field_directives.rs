@@ -119,8 +119,10 @@ fn test_field_directive_shareable_flag() {
     };
 
     // Simulate adding a @shareable directive to the "name" field
-    let mut name_directives = FieldFederationDirectives::default();
-    name_directives.shareable = true;
+    let name_directives = FieldFederationDirectives {
+        shareable: true,
+        ..Default::default()
+    };
 
     product_type.field_directives.insert("name".to_string(), name_directives);
 
@@ -152,8 +154,10 @@ fn test_field_directive_external_flag() {
     };
 
     // Simulate adding an @external directive to the "total" field
-    let mut total_directives = FieldFederationDirectives::default();
-    total_directives.external = true;
+    let total_directives = FieldFederationDirectives {
+        external: true,
+        ..Default::default()
+    };
 
     order_type.field_directives.insert("total".to_string(), total_directives);
 
@@ -290,8 +294,10 @@ fn test_field_directives_multiple_fields() {
     user_type.field_directives.insert("orders".to_string(), orders_directives);
 
     // Field 2: profile with @shareable
-    let mut profile_directives = FieldFederationDirectives::default();
-    profile_directives.shareable = true;
+    let profile_directives = FieldFederationDirectives {
+        shareable: true,
+        ..Default::default()
+    };
     user_type.field_directives.insert("profile".to_string(), profile_directives);
 
     // Verify both fields have their own directives

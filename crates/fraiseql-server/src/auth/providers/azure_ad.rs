@@ -150,7 +150,7 @@ impl AzureADOAuth {
 
 #[async_trait]
 impl OAuthProvider for AzureADOAuth {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "azure_ad"
     }
 

@@ -470,7 +470,7 @@ fn test_federation_shared_entity_fields() {
 
     // Verify shared field structure
     let user_type = metadata.types.iter().find(|t| t.name == "User").unwrap();
-    assert!(user_type.shareable_fields.len() > 0);
+    assert!(!user_type.shareable_fields.is_empty());
 }
 
 // ============================================================================

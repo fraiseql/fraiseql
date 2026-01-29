@@ -287,7 +287,7 @@ impl SagaCompensator {
     ///     eprintln!("Steps that failed compensation: {:?}", result.failed_steps);
     /// }
     /// ```
-    pub async fn compensate_saga(&self, _saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
+    pub async fn compensate_saga(&self, saga_id: Uuid) -> SagaStoreResult<CompensationResult> {
         // Placeholder implementation for GREEN phase
         // In full implementation, would:
         // 1. Load saga from store
@@ -301,7 +301,7 @@ impl SagaCompensator {
         // 7. Return aggregated results
 
         Ok(CompensationResult {
-            saga_id:           _saga_id,
+            saga_id,
             status:            CompensationStatus::Compensated,
             step_results:      vec![],
             failed_steps:      vec![],
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn test_saga_compensator_creation() {
         let compensator = SagaCompensator::new();
-        assert_eq!(format!("{:?}", compensator._placeholder).len() > 0, true);
+        drop(compensator);
     }
 
     #[test]

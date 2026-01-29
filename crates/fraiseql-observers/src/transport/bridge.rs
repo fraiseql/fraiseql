@@ -406,7 +406,26 @@ impl PostgresNatsBridge {
             // Fetch batch from cursor
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
-            if !entries.is_empty() {
+            if entries.is_empty() {
+                // No more entries, wait for NOTIFY or timeout
+                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
+
+                tokio::select! {
+                    notification = notify_listener.recv() => {
+                        match notification {
+                            Ok(_) => {
+                                debug!("Received NOTIFY wake-up signal");
+                            }
+                            Err(e) => {
+                                warn!("NOTIFY listener error: {}. Continuing with poll.", e);
+                            }
+                        }
+                    }
+                    () = tokio::time::sleep(poll_duration) => {
+                        debug!("Poll interval timeout, re-checking for new entries");
+                    }
+                }
+            } else {
                 debug!("Processing {} entries from cursor {}", entries.len(), cursor);
 
                 for entry in entries {
@@ -468,25 +487,6 @@ impl PostgresNatsBridge {
 
                 // Save cursor checkpoint after batch
                 self.save_cursor(cursor).await?;
-            } else {
-                // No more entries, wait for NOTIFY or timeout
-                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
-
-                tokio::select! {
-                    notification = notify_listener.recv() => {
-                        match notification {
-                            Ok(_) => {
-                                debug!("Received NOTIFY wake-up signal");
-                            }
-                            Err(e) => {
-                                warn!("NOTIFY listener error: {}. Continuing with poll.", e);
-                            }
-                        }
-                    }
-                    () = tokio::time::sleep(poll_duration) => {
-                        debug!("Poll interval timeout, re-checking for new entries");
-                    }
-                }
             }
         }
     }
@@ -528,7 +528,23 @@ impl PostgresNatsBridge {
 
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
-            if !entries.is_empty() {
+            if entries.is_empty() {
+                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
+
+                tokio::select! {
+                    _ = shutdown.recv() => {
+                        info!("Shutdown signal received during wait, stopping bridge");
+                        self.save_cursor(cursor).await?;
+                        return Ok(());
+                    }
+                    _ = notify_listener.recv() => {
+                        debug!("Received NOTIFY wake-up signal");
+                    }
+                    () = tokio::time::sleep(poll_duration) => {
+                        debug!("Poll interval timeout");
+                    }
+                }
+            } else {
                 for entry in entries {
                     if entry.nats_published_at.is_some() {
                         cursor = entry.pk_entity_change_log;
@@ -561,22 +577,6 @@ impl PostgresNatsBridge {
                 }
 
                 self.save_cursor(cursor).await?;
-            } else {
-                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
-
-                tokio::select! {
-                    _ = shutdown.recv() => {
-                        info!("Shutdown signal received during wait, stopping bridge");
-                        self.save_cursor(cursor).await?;
-                        return Ok(());
-                    }
-                    _ = notify_listener.recv() => {
-                        debug!("Received NOTIFY wake-up signal");
-                    }
-                    () = tokio::time::sleep(poll_duration) => {
-                        debug!("Poll interval timeout");
-                    }
-                }
             }
         }
     }

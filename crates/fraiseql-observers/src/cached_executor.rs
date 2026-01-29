@@ -353,7 +353,7 @@ mod tests {
         let result = cached_executor.execute(&event, &action).await.unwrap();
 
         assert_eq!(result.action_type, "cached");
-        assert_eq!(result.success, true);
+        assert!(result.success);
         assert_eq!(executor.call_count(), 0); // Inner executor NOT called
     }
 
@@ -380,8 +380,7 @@ mod tests {
         let expected_event_id = event.id.to_string();
         assert!(
             key.contains(&expected_event_id),
-            "Key should contain event ID {}",
-            expected_event_id
+            "Key should contain event ID {expected_event_id}"
         );
         assert!(key.contains("Webhook"), "Key should contain action type");
         assert!(key.starts_with("action_result:"), "Key should start with action_result:");
@@ -411,12 +410,12 @@ mod tests {
 
         // First execution - cache miss
         let result1 = cached_executor.execute(&event, &action).await.unwrap();
-        assert_eq!(result1.success, true);
+        assert!(result1.success);
         assert_eq!(executor.call_count(), 1); // Inner executor called
 
         // Second execution - cache hit
         let result2 = cached_executor.execute(&event, &action).await.unwrap();
-        assert_eq!(result2.success, true);
+        assert!(result2.success);
         assert_eq!(executor.call_count(), 1); // Inner executor NOT called again
     }
 }

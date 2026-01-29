@@ -63,7 +63,7 @@ async fn test_observer_happy_path_insert_webhook() {
     mock_server.mock_success().await;
 
     // Create observer for Order INSERTs
-    let observer_id = create_test_observer(
+    let _observer_id = create_test_observer(
         &pool,
         &format!("test-observer-{}", test_id),
         Some("Order"),
@@ -316,7 +316,7 @@ async fn test_observer_retry_exponential_backoff() {
         .expect("Failed to fetch observer logs");
 
     // Should have up to 3 attempts in the log
-    assert!(logs.len() > 0, "Expected observer log entries for entity {}", order_id);
+    assert!(!logs.is_empty(), "Expected observer log entries for entity {}", order_id);
 
     // Verify final status is success
     let final_status = &logs.last().expect("Should have at least one log").0;

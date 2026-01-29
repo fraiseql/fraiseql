@@ -88,9 +88,6 @@ pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::observers::ObserverRepository;
-
     // Note: Integration tests would require a test database
     // These are placeholder tests for route configuration
 

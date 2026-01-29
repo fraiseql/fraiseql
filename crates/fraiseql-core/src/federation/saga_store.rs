@@ -927,7 +927,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires running PostgreSQL database"]
     async fn test_postgres_connection() {
         let store = PostgresSagaStore::new("postgresql://localhost/fraiseql_test")
             .await

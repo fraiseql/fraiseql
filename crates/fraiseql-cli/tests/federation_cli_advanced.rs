@@ -10,6 +10,8 @@
 //!
 //! RED PHASE: These tests validate advanced CLI features
 
+use std::fmt::Write;
+
 // ============================================================================
 // Test: Configuration File Parsing
 // ============================================================================
@@ -21,11 +23,11 @@ fn test_parse_yaml_configuration_basic() {
     // WHEN: Parsing configuration
     // THEN: Should extract all settings
 
-    let yaml_content = r#"
+    let yaml_content = r"
 composition:
   conflict_resolution: error
   validation: true
-"#;
+";
 
     let result = parse_config_yaml(yaml_content);
     assert!(result.is_ok(), "Should parse basic YAML config");
@@ -42,7 +44,7 @@ fn test_parse_yaml_configuration_with_priority() {
     // WHEN: Parsing
     // THEN: Should extract priority ordering
 
-    let yaml_content = r#"
+    let yaml_content = r"
 composition:
   conflict_resolution: first_wins
   validation: true
@@ -50,7 +52,7 @@ composition:
     - users
     - orders
     - products
-"#;
+";
 
     let result = parse_config_yaml(yaml_content);
     assert!(result.is_ok(), "Should parse YAML with priority");
@@ -70,11 +72,11 @@ fn test_parse_yaml_configuration_all_strategies() {
 
     for strategy in &["error", "first_wins", "shareable"] {
         let yaml_content = format!(
-            r#"
+            r"
 composition:
   conflict_resolution: {}
   validation: true
-"#,
+",
             strategy
         );
 
@@ -387,7 +389,7 @@ fn parse_config_yaml(content: &str) -> Result<ComposeConfig, String> {
     if let Some(priority_start) = content.find("subgraph_priority:") {
         let priority_section = &content[priority_start..];
         for line in priority_section.lines().skip(1) {
-            if let Some(dash_pos) = line.find("-") {
+            if let Some(dash_pos) = line.find('-') {
                 let name = line[dash_pos + 1..].trim().to_string();
                 if !name.is_empty() {
                     config.subgraph_priority.push(name);
@@ -426,7 +428,7 @@ fn format_composed_schema(schema: &str, format: &str) -> Result<String, String> 
 fn create_validation_error(error_type: &str, message: &str, suggestion: Option<&str>) -> String {
     let mut result = format!("Validation Error: {}\nMessage: {}\n", error_type, message);
     if let Some(sugg) = suggestion {
-        result.push_str(&format!("Suggestion: {}\n", sugg));
+        let _ = writeln!(result, "Suggestion: {}", sugg);
     }
     result
 }
@@ -435,9 +437,9 @@ fn create_validation_error(error_type: &str, message: &str, suggestion: Option<&
 fn format_validation_errors(errors: &[(&str, &str, Option<&str>)]) -> String {
     let mut result = format!("Found {} errors:\n", errors.len());
     for (type_name, issue, sugg) in errors {
-        result.push_str(&format!("- {}: {}\n", type_name, issue));
+        let _ = writeln!(result, "- {}: {}", type_name, issue);
         if let Some(s) = sugg {
-            result.push_str(&format!("  → {}\n", s));
+            let _ = writeln!(result, "  → {}", s);
         }
     }
     result
@@ -479,7 +481,7 @@ fn incremental_compose(
 }
 
 /// Compose empty subgraph list
-fn compose_empty_subgraphs() -> Result<Vec<String>, String> {
+const fn compose_empty_subgraphs() -> Result<Vec<String>, String> {
     Ok(Vec::new())
 }
 

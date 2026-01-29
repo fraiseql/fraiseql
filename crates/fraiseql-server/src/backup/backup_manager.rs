@@ -202,7 +202,7 @@ mod tests {
             Ok(BackupInfo {
                 backup_id:   format!("{}-backup-1", self.name),
                 store_name:  self.name.clone(),
-                timestamp:   1000000,
+                timestamp:   1_000_000,
                 size_bytes:  1024 * 1024,
                 verified:    true,
                 compression: Some("gzip".to_string()),
@@ -218,7 +218,7 @@ mod tests {
             Ok(vec![BackupInfo {
                 backup_id:   format!("{}-backup-1", self.name),
                 store_name:  self.name.clone(),
-                timestamp:   1000000,
+                timestamp:   1_000_000,
                 size_bytes:  1024 * 1024,
                 verified:    true,
                 compression: Some("gzip".to_string()),
@@ -230,7 +230,7 @@ mod tests {
             Ok(BackupInfo {
                 backup_id:   backup_id.to_string(),
                 store_name:  self.name.clone(),
-                timestamp:   1000000,
+                timestamp:   1_000_000,
                 size_bytes:  1024 * 1024,
                 verified:    true,
                 compression: Some("gzip".to_string()),
@@ -250,8 +250,8 @@ mod tests {
             Ok(StorageUsage {
                 total_bytes:             1024 * 1024 * 100,
                 backup_count:            7,
-                oldest_backup_timestamp: Some(999999),
-                newest_backup_timestamp: Some(1000000),
+                oldest_backup_timestamp: Some(999_999),
+                newest_backup_timestamp: Some(1_000_000),
             })
         }
     }

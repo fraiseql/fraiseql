@@ -80,7 +80,7 @@ impl JobExecutor {
 
     /// Set poll interval when queue is empty
     #[must_use]
-    pub fn with_poll_interval(mut self, ms: u64) -> Self {
+    pub const fn with_poll_interval(mut self, ms: u64) -> Self {
         self.poll_interval_ms = ms;
         self
     }
@@ -251,8 +251,7 @@ impl JobExecutor {
                         return;
                     }
 
-                    // Continue to next iteration (but with updated job)
-                    continue;
+                    // Next iteration will pick up the updated job
                 },
             }
         }

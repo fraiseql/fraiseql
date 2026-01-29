@@ -347,7 +347,7 @@ fn test_backoff_strategies() -> Result<()> {
                 body_template: None,
             },
             3,
-            strategy.clone(),
+            strategy,
             100,
             5000,
         );
@@ -442,7 +442,7 @@ fn test_job_config_combinations() -> Result<()> {
                     Uuid::new_v4(),
                     action.clone(),
                     *retry_count,
-                    strategy.clone(),
+                    *strategy,
                     100,
                     5000,
                 );

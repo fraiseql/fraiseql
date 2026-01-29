@@ -586,7 +586,7 @@ fn test_entity_not_found_scenario() {
 #[test]
 fn test_partial_entity_resolution_scenario() {
     // Some entities found, some not found
-    let responses = vec![
+    let responses = [
         json!({"id": "1", "name": "Alice"}),
         json!(null), // Not found
         json!({"id": "3", "name": "Charlie"}),

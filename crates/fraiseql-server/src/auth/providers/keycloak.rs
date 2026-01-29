@@ -153,7 +153,7 @@ impl KeycloakOAuth {
 
 #[async_trait]
 impl OAuthProvider for KeycloakOAuth {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "keycloak"
     }
 

@@ -262,7 +262,7 @@ impl MSSQLChangeLogEntry {
         // JSON columns are NVARCHAR(MAX), parse as needed
         let object_data_str: Option<&str> = row.get(8);
         let object_data =
-            object_data_str.map(|s| serde_json::from_str(s)).transpose().map_err(|e| {
+            object_data_str.map(serde_json::from_str).transpose().map_err(|e| {
                 ObserverError::DatabaseError {
                     reason: format!("Invalid object_data JSON: {e}"),
                 }
@@ -270,7 +270,7 @@ impl MSSQLChangeLogEntry {
 
         let extra_metadata_str: Option<&str> = row.get(9);
         let extra_metadata = extra_metadata_str
-            .map(|s| serde_json::from_str(s))
+            .map(serde_json::from_str)
             .transpose()
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Invalid extra_metadata JSON: {e}"),
@@ -491,7 +491,11 @@ impl MSSQLNatsBridge {
         loop {
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
-            if !entries.is_empty() {
+            if entries.is_empty() {
+                // No entries, wait for poll interval
+                debug!("No new entries, sleeping for {}s", self.config.poll_interval_secs);
+                tokio::time::sleep(Duration::from_secs(self.config.poll_interval_secs)).await;
+            } else {
                 debug!("Processing {} entries from cursor {}", entries.len(), cursor);
 
                 for entry in entries {
@@ -549,10 +553,6 @@ impl MSSQLNatsBridge {
                 }
 
                 self.save_cursor(cursor).await?;
-            } else {
-                // No entries, wait for poll interval
-                debug!("No new entries, sleeping for {}s", self.config.poll_interval_secs);
-                tokio::time::sleep(Duration::from_secs(self.config.poll_interval_secs)).await;
             }
         }
     }
@@ -580,7 +580,21 @@ impl MSSQLNatsBridge {
 
             let entries = self.fetch_batch_from_cursor(cursor).await?;
 
-            if !entries.is_empty() {
+            if entries.is_empty() {
+                // Poll interval with shutdown check
+                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
+
+                tokio::select! {
+                    _ = shutdown.recv() => {
+                        info!("Shutdown signal received during wait, stopping bridge");
+                        self.save_cursor(cursor).await?;
+                        return Ok(());
+                    }
+                    () = tokio::time::sleep(poll_duration) => {
+                        debug!("Poll interval timeout");
+                    }
+                }
+            } else {
                 for entry in entries {
                     if entry.nats_published_at.is_some() {
                         cursor = entry.pk_entity_change_log;
@@ -613,20 +627,6 @@ impl MSSQLNatsBridge {
                 }
 
                 self.save_cursor(cursor).await?;
-            } else {
-                // Poll interval with shutdown check
-                let poll_duration = Duration::from_secs(self.config.poll_interval_secs);
-
-                tokio::select! {
-                    _ = shutdown.recv() => {
-                        info!("Shutdown signal received during wait, stopping bridge");
-                        self.save_cursor(cursor).await?;
-                        return Ok(());
-                    }
-                    () = tokio::time::sleep(poll_duration) => {
-                        debug!("Poll interval timeout");
-                    }
-                }
             }
         }
     }

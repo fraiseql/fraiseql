@@ -122,7 +122,7 @@ impl GoogleOAuth {
 
 #[async_trait]
 impl OAuthProvider for GoogleOAuth {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "google"
     }
 

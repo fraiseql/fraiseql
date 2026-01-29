@@ -77,14 +77,11 @@ fn test_five_subgraph_composition_with_shared_extends() {
     // WHEN: Composing
     // THEN: Should handle multiple extensions of same type
 
-    let mut subgraphs = vec![];
-
-    // Users owns User type
-    subgraphs.push(FederationMetadata {
+    let mut subgraphs = vec![FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
-    });
+    }];
 
     // Orders owns Order, extends User
     subgraphs.push(FederationMetadata {
@@ -177,7 +174,7 @@ fn test_multiple_key_definitions_inconsistent() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![create_user_type_with_key(vec!["id"])],
+        types:   vec![create_user_type_with_key(&["id"])],
     };
 
     let mut auth_user = FederatedType::new("User".to_string());
@@ -442,8 +439,7 @@ fn test_many_extensions_single_owner() {
     assert!(result.is_ok());
 
     let composed = result.unwrap();
-    let user_defs: Vec<_> = composed.types.iter().filter(|t| t.name == "User").collect();
-    assert_eq!(user_defs.len(), 1, "Should have exactly one User definition (owner only)");
+    assert_eq!(composed.types.iter().filter(|t| t.name == "User").count(), 1, "Should have exactly one User definition (owner only)");
 }
 
 // ============================================================================
@@ -466,10 +462,10 @@ fn create_user_type_extending() -> FederatedType {
     user
 }
 
-fn create_user_type_with_key(key_fields: Vec<&str>) -> FederatedType {
+fn create_user_type_with_key(key_fields: &[&str]) -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields:     key_fields.iter().map(|s| s.to_string()).collect(),
+        fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
         resolvable: true,
     });
     user.is_extends = false;
@@ -537,13 +533,13 @@ fn create_payment_type_basic() -> FederatedType {
 /// Handles field-level conflicts, directive preservation, and validation.
 ///
 /// # Arguments
-/// * `subgraphs` - Collection of FederationMetadata from each subgraph
+/// * `subgraphs` - Collection of `FederationMetadata` from each subgraph
 ///
 /// # Returns
 /// `Ok(ComposedSchema)` with all types merged, or `Err(String)` if composition fails
 ///
 /// # Composition Rules
-/// - Keep one definition per type (the owning definition where is_extends=false)
+/// - Keep one definition per type (the owning definition where `is_extends=false`)
 /// - Preserve all directives (@key, @external, @shareable)
 /// - Federation is enabled if any subgraph enables it
 /// - Handle field-level conflicts based on resolution strategy
@@ -562,14 +558,14 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
         for type_def in &subgraph.types {
             types_by_name
                 .entry(type_def.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(type_def.clone());
         }
     }
 
     let mut merged_types = Vec::new();
 
-    for (_typename, definitions) in types_by_name.into_iter() {
+    for (_typename, definitions) in types_by_name {
         // Find owning definition (is_extends=false)
         let owner = definitions.iter().find(|t| !t.is_extends);
 
@@ -583,7 +579,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
     }
 
     let enabled = subgraphs.iter().any(|s| s.enabled);
-    let version = subgraphs.first().map(|s| s.version.clone()).unwrap_or_else(|| "v2".to_string());
+    let version = subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone());
 
     Ok(ComposedSchema {
         enabled,

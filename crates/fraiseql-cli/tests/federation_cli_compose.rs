@@ -11,6 +11,7 @@
 //! RED PHASE: These tests validate CLI composition functionality
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 
@@ -161,11 +162,11 @@ fn test_load_compose_configuration_from_file() {
 
     // Note: In real implementation, would read actual YAML file
     // For testing, we simulate config loading
-    let config_content = r#"
+    let config_content = r"
 composition:
   conflict_resolution: shareable
   validation: true
-"#;
+";
 
     let result = parse_config_yaml(config_content);
     assert!(result.is_ok(), "Should parse YAML configuration");
@@ -544,10 +545,8 @@ fn load_compose_config(config_path: Option<&str>) -> Result<ComposeConfig, Strin
     if let Some(_path) = config_path {
         // In real implementation, would read YAML file
         // For now, return default
-        Ok(default_config)
-    } else {
-        Ok(default_config)
     }
+    Ok(default_config)
 }
 
 /// Parse YAML configuration content
@@ -582,7 +581,7 @@ fn parse_config_yaml(content: &str) -> Result<ComposeConfig, String> {
 ///
 /// # Conflict Resolution Strategies
 /// - **"error"**: Returns an error describing the conflict (validation fails)
-/// - **"first_wins"**: Uses subgraph priority order from config
+/// - **"`first_wins`"**: Uses subgraph priority order from config
 /// - **"shareable"**: Assumes @shareable directive allows both types (implementation-specific)
 fn resolve_conflict(
     conflict: &FieldTypeConflict,
@@ -669,18 +668,18 @@ fn execute_compose_workflow(
 /// Compose multiple federation subgraph schemas into a single supergraph.
 ///
 /// Merges types from all subgraphs while preserving federation metadata.
-/// For each type, keeps the owning definition (the one where is_extends=false)
+/// For each type, keeps the owning definition (the one where `is_extends=false`)
 /// and discards extending definitions.
 ///
 /// # Arguments
-/// * `subgraphs` - Collection of FederationMetadata from each subgraph
+/// * `subgraphs` - Collection of `FederationMetadata` from each subgraph
 ///
 /// # Returns
 /// `Ok(FederationMetadata)` with merged types from all subgraphs, or empty if no subgraphs
 ///
 /// # Composition Rules (Apollo Federation v2)
-/// - Each type is defined (is_extends=false) in exactly one subgraph
-/// - Other subgraphs can extend that type (is_extends=true)
+/// - Each type is defined (`is_extends=false`) in exactly one subgraph
+/// - Other subgraphs can extend that type (`is_extends=true`)
 /// - Composition keeps only the owning definition in the supergraph
 /// - Federation is enabled if ANY subgraph has it enabled
 fn compose_federation_schemas(
@@ -706,7 +705,7 @@ fn compose_federation_schemas(
 
     Ok(FederationMetadata {
         enabled: subgraphs.iter().any(|s| s.enabled),
-        version: subgraphs.first().map(|s| s.version.clone()).unwrap_or_else(|| "v2".to_string()),
+        version: subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone()),
         types:   composed_types,
     })
 }
@@ -717,15 +716,15 @@ fn compose_federation_schemas(
 /// Error types are mapped to readable messages, with context details appended.
 ///
 /// # Arguments
-/// * `error_type` - The type of error (e.g., "SubgraphFileNotFound", "CompositionConflict")
-/// * `context` - HashMap of contextual information to include in the message
+/// * `error_type` - The type of error (e.g., "`SubgraphFileNotFound`", "`CompositionConflict`")
+/// * `context` - `HashMap` of contextual information to include in the message
 ///
 /// # Returns
 /// A formatted error string suitable for display to users
 ///
 /// # Error Type Mappings
-/// - "SubgraphFileNotFound" → "Subgraph file not found"
-/// - "CompositionConflict" → "Composition conflict detected"
+/// - "`SubgraphFileNotFound`" → "Subgraph file not found"
+/// - "`CompositionConflict`" → "Composition conflict detected"
 /// - Other types are used as-is with "Error: " prefix
 fn format_error(error_type: &str, context: &HashMap<String, String>) -> String {
     let base_msg = match error_type {
@@ -737,7 +736,7 @@ fn format_error(error_type: &str, context: &HashMap<String, String>) -> String {
     let mut msg = format!("Error: {}\n", base_msg);
 
     for (key, value) in context {
-        msg.push_str(&format!("{}: {}\n", key, value));
+        let _ = writeln!(msg, "{}: {}", key, value);
     }
 
     msg

@@ -116,7 +116,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     let view_type = validate_view_name(&config.view)?;
 
     if config.verbose {
-        eprintln!("   ✓ View type: {}", view_type);
+        eprintln!("   ✓ View type: {view_type}");
     }
 
     // 5. Generate SQL DDL
@@ -137,7 +137,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
         println!("✓ View DDL is valid");
         println!("  Entity: {}", config.entity);
         println!("  View: {}", config.view);
-        println!("  Type: {}", view_type);
+        println!("  Type: {view_type}");
         println!("  Refresh strategy: {}", config.refresh_strategy);
         println!("  Lines: {}", sql.lines().count());
         return Ok(());
@@ -155,8 +155,8 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     println!("✓ View DDL generated successfully");
     println!("  Entity: {}", config.entity);
     println!("  View: {}", config.view);
-    println!("  Type: {}", view_type);
-    println!("  Output: {}", output_path);
+    println!("  Type: {view_type}");
+    println!("  Output: {output_path}");
     println!("  Lines: {}", sql.lines().count());
 
     if config.include_composition_views {
@@ -170,7 +170,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     if config.verbose {
         eprintln!("\nGenerated SQL preview (first 5 lines):");
         for line in sql.lines().take(5) {
-            eprintln!("  {}", line);
+            eprintln!("  {line}");
         }
     }
 
@@ -183,7 +183,7 @@ fn validate_entity(schema: &CompiledSchema, entity: &str) -> Result<()> {
         Ok(())
     } else {
         let available = schema.types.iter().map(|t| t.name.clone()).collect::<Vec<_>>().join(", ");
-        anyhow::bail!("Entity '{}' not found in schema. Available types: {}", entity, available)
+        anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
     }
 }
 
@@ -201,7 +201,7 @@ fn validate_view_name(view_name: &str) -> Result<&'static str> {
     } else if view_name.starts_with("ta_") {
         Ok("Table Arrow (ta_)")
     } else {
-        anyhow::bail!("Invalid view name '{}'. Must start with va_, tv_, or ta_", view_name)
+        anyhow::bail!("Invalid view name '{view_name}'. Must start with va_, tv_, or ta_")
     }
 }
 
@@ -290,7 +290,7 @@ fn generate_table_vector_view(sql: &mut String, entity: &str, view_name: &str) {
     sql.push_str("    CURRENT_TIMESTAMP as materialized_at\n");
     sql.push_str("FROM public.schema_placeholder\n");
     sql.push_str("WHERE archived_at IS NULL;\n");
-    sql.push_str("\n");
+    sql.push('\n');
     let base_name = view_name.trim_start_matches("tv_");
     sql.push_str(&format!("CREATE INDEX idx_{base_name}_id ON {view_name} (id);\n"));
 }
