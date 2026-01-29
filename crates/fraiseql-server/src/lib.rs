@@ -22,7 +22,7 @@
 //! - Authentication middleware (optional)
 
 #![forbid(unsafe_code)]
-// TODO: Add documentation incrementally - allowing for now to focus on actionable warnings
+// Allowing missing_docs to focus on actionable warnings
 #![allow(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]

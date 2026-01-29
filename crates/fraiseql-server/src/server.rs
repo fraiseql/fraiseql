@@ -466,7 +466,3 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
     }
 }
-
-// TODO: Add server tests
-// Note: Unit tests deferred due to async_trait lifetime issues with MockAdapter.
-// Will add integration tests in future commits using real database adapters.

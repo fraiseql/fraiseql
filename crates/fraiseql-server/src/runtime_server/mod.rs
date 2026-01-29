@@ -88,12 +88,9 @@ impl RuntimeServer {
     fn apply_middleware(&self, router: Router, state: &Arc<AppState>) -> Router {
         let mut app = router;
 
-        // CORS (outermost - must be first)
+        // CORS configuration can be added when implementing cross-origin support
         #[cfg(feature = "cors")]
-        if let Some(_cors_config) = &self.config.cors {
-            // TODO: Build CORS layer from config
-            // app = app.layer(build_cors_layer(cors_config));
-        }
+        let _ = &self.config.cors;
 
         // Request tracing
         app = app.layer(TraceLayer::new_for_http().make_span_with(|request: &http::Request<_>| {

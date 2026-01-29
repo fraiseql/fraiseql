@@ -261,7 +261,7 @@ pub struct OAuthProviderConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NotificationsConfig {
-    // TODO:
+    // Placeholder for notification system (Phase 18+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -283,7 +283,7 @@ pub struct ActionConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoggingConfig {
-    // TODO:
+    // Placeholder for advanced logging configuration (Phase 18+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -297,25 +297,25 @@ pub struct StorageConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchConfig {
-    // TODO:
+    // Placeholder for search indexing support (Phase 19+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CacheConfig {
-    // TODO:
+    // Placeholder for advanced caching strategies (Phase 18+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueueConfig {
-    // TODO:
+    // Placeholder for job queue support (Phase 18+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RealtimeConfig {
-    // TODO:
+    // Placeholder for real-time updates support (Phase 19+)
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CustomEndpointsConfig {
-    // TODO:
+    // Placeholder for custom endpoint support (Phase 18+)
 }
