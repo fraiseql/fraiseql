@@ -20,6 +20,9 @@ tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 
+[dev-dependencies]
+tempfile = "3.8"
+
 [lints]
 workspace = true
 
