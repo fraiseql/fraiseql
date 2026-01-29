@@ -439,7 +439,11 @@ fn test_many_extensions_single_owner() {
     assert!(result.is_ok());
 
     let composed = result.unwrap();
-    assert_eq!(composed.types.iter().filter(|t| t.name == "User").count(), 1, "Should have exactly one User definition (owner only)");
+    assert_eq!(
+        composed.types.iter().filter(|t| t.name == "User").count(),
+        1,
+        "Should have exactly one User definition (owner only)"
+    );
 }
 
 // ============================================================================
@@ -556,10 +560,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
 
     for subgraph in subgraphs {
         for type_def in &subgraph.types {
-            types_by_name
-                .entry(type_def.name.clone())
-                .or_default()
-                .push(type_def.clone());
+            types_by_name.entry(type_def.name.clone()).or_default().push(type_def.clone());
         }
     }
 

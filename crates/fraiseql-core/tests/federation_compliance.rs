@@ -189,14 +189,18 @@ fn test_entity_representation_includes_key_fields() {
 #[test]
 fn test_entities_response_order_matches_input() {
     // Response array order must match request representation order
-    let representations = [json!({"__typename": "User", "id": "1"}),
+    let representations = [
+        json!({"__typename": "User", "id": "1"}),
         json!({"__typename": "User", "id": "2"}),
-        json!({"__typename": "User", "id": "3"})];
+        json!({"__typename": "User", "id": "3"}),
+    ];
 
     // Simulate response maintaining order
-    let responses = [json!({"__typename": "User", "id": "1", "name": "Alice"}),
+    let responses = [
+        json!({"__typename": "User", "id": "1", "name": "Alice"}),
         json!({"__typename": "User", "id": "2", "name": "Bob"}),
-        json!({"__typename": "User", "id": "3", "name": "Charlie"})];
+        json!({"__typename": "User", "id": "3", "name": "Charlie"}),
+    ];
 
     assert_eq!(representations.len(), responses.len());
     for (idx, rep) in representations.iter().enumerate() {
@@ -485,9 +489,11 @@ fn test_missing_entity_returns_null() {
 #[test]
 fn test_partial_failure_supported() {
     // Some entities can be found while others are not
-    let responses = [json!({"__typename": "User", "id": "1"}),
+    let responses = [
+        json!({"__typename": "User", "id": "1"}),
         json!(null),
-        json!({"__typename": "User", "id": "3"})];
+        json!({"__typename": "User", "id": "3"}),
+    ];
 
     // Not all responses are null, but some are
     let has_valid = responses.iter().any(|r| r.is_object());

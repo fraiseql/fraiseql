@@ -205,12 +205,14 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("sort_representations_by_type", |b| {
         b.iter(|| {
-            let mut representations = [("User", "user1"),
+            let mut representations = [
+                ("User", "user1"),
                 ("Order", "order1"),
                 ("User", "user2"),
                 ("Product", "product1"),
                 ("Order", "order2"),
-                ("User", "user3")];
+                ("User", "user3"),
+            ];
 
             representations.sort_by_key(|r| r.0);
         });

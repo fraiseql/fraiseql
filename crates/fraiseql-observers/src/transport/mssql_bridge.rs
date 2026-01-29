@@ -261,19 +261,18 @@ impl MSSQLChangeLogEntry {
 
         // JSON columns are NVARCHAR(MAX), parse as needed
         let object_data_str: Option<&str> = row.get(8);
-        let object_data =
-            object_data_str.map(serde_json::from_str).transpose().map_err(|e| {
-                ObserverError::DatabaseError {
-                    reason: format!("Invalid object_data JSON: {e}"),
-                }
-            })?;
+        let object_data = object_data_str.map(serde_json::from_str).transpose().map_err(|e| {
+            ObserverError::DatabaseError {
+                reason: format!("Invalid object_data JSON: {e}"),
+            }
+        })?;
 
         let extra_metadata_str: Option<&str> = row.get(9);
-        let extra_metadata = extra_metadata_str
-            .map(serde_json::from_str)
-            .transpose()
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Invalid extra_metadata JSON: {e}"),
+        let extra_metadata =
+            extra_metadata_str.map(serde_json::from_str).transpose().map_err(|e| {
+                ObserverError::DatabaseError {
+                    reason: format!("Invalid extra_metadata JSON: {e}"),
+                }
             })?;
 
         // Tiberius returns NaiveDateTime, convert to DateTime<Utc>

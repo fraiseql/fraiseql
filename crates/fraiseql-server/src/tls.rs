@@ -251,7 +251,7 @@ impl TlsSetup {
                 ServerError::ConfigError(format!("Failed to parse certificate: {}", e))
             })? {
                 Some(Item::X509Certificate(cert)) => certificates.push(cert),
-                Some(_) => {} // Skip other items
+                Some(_) => {}, // Skip other items
                 None => break,
             }
         }
@@ -280,7 +280,7 @@ impl TlsSetup {
                 Some(Item::Pkcs8Key(key)) => return Ok(key.into()),
                 Some(Item::Pkcs1Key(key)) => return Ok(key.into()),
                 Some(Item::Sec1Key(key)) => return Ok(key.into()),
-                Some(_) => {} // Skip other items
+                Some(_) => {}, // Skip other items
                 None => break,
             }
         }

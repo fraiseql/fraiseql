@@ -4,23 +4,16 @@
 //!
 //! ## Running Tests
 //!
-//! 1. Start PostgreSQL and NATS:
-//!    ```bash
-//!    docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
-//!    docker run -d --name nats -p 4222:4222 nats:latest -js
+//! 1. Start PostgreSQL and NATS: ```bash docker run -d --name postgres -p 5432:5432 -e
+//!    POSTGRES_PASSWORD=postgres postgres:16 docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!
-//! 2. Create the test database and schema:
-//!    ```bash
-//!    psql -h localhost -U postgres -c "CREATE DATABASE fraiseql_test"
-//!    psql -h localhost -U postgres -d fraiseql_test -f migrations/03_add_nats_transport.sql
-//!    ```
+//! 2. Create the test database and schema: ```bash psql -h localhost -U postgres -c "CREATE
+//!    DATABASE fraiseql_test" psql -h localhost -U postgres -d fraiseql_test -f
+//!    migrations/03_add_nats_transport.sql ```
 //!
-//! 3. Run tests:
-//!    ```bash
-//!    DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \
-//!    cargo test --test bridge_integration --features nats -- --ignored
-//!    ```
+//! 3. Run tests: ```bash DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \ cargo
+//!    test --test bridge_integration --features nats -- --ignored ```
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]

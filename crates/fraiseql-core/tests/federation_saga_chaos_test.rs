@@ -531,7 +531,7 @@ mod harness {
             Duration::from_millis(ms)
         }
 
-        pub fn thundering_herd_delay(&self, saga_index: usize) -> Duration {
+        pub fn thundering_herd_delay(saga_index: usize) -> Duration {
             // All sagas start within 10ms window
             Duration::from_millis((saga_index % 10) as u64)
         }
@@ -560,7 +560,7 @@ mod harness {
             }
         }
 
-        pub fn create_saga(&self, steps: Vec<SagaStepDef>) -> Result<Uuid, String> {
+        pub fn create_saga(&self, steps: &[SagaStepDef]) -> Result<Uuid, String> {
             if steps.is_empty() {
                 return Err("Saga must have at least one step".to_string());
             }
@@ -804,7 +804,7 @@ mod harness {
 
         let mut results = Vec::new();
         for _ in 0..count {
-            let saga_id = orchestrator.create_saga(steps.clone()).unwrap();
+            let saga_id = orchestrator.create_saga(&steps).unwrap();
             let result = orchestrator.execute_saga(saga_id).unwrap();
             results.push(result);
         }

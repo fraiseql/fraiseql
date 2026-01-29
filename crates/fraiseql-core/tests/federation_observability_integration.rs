@@ -26,13 +26,13 @@ struct TestTraceContext {
 /// Mock span for testing
 #[derive(Debug, Clone)]
 struct TestSpan {
-    name:           String,
-    span_id:        String,
+    name:            String,
+    span_id:         String,
     _parent_span_id: String,
     trace_id:        String,
     start_time:      Instant,
-    duration_us:    u64,
-    attributes:     HashMap<String, String>,
+    duration_us:     u64,
+    attributes:      HashMap<String, String>,
 }
 
 /// Mock metrics collector for testing

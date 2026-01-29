@@ -111,7 +111,11 @@ fn test_compose_with_type_extension() {
 
     let composed = result.unwrap();
     // Should have exactly one User type in composed schema
-    assert_eq!(composed.types.iter().filter(|t| t.name == "User").count(), 1, "Should merge extended types into single definition");
+    assert_eq!(
+        composed.types.iter().filter(|t| t.name == "User").count(),
+        1,
+        "Should merge extended types into single definition"
+    );
 }
 
 #[test]
@@ -436,10 +440,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
 
     for subgraph in subgraphs {
         for type_def in &subgraph.types {
-            types_by_name
-                .entry(type_def.name.clone())
-                .or_default()
-                .push(type_def.clone());
+            types_by_name.entry(type_def.name.clone()).or_default().push(type_def.clone());
         }
     }
 

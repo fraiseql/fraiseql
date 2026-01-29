@@ -449,7 +449,6 @@ fn create_federated_type_with_fields(
     _other_fields: &[&str],
     is_extends: bool,
 ) -> FederatedType {
-
     // In real implementation, would track field definitions
     // For now, just validate @key fields exist
     create_federated_type(name, key_fields, is_extends)

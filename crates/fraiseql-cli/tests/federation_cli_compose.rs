@@ -10,8 +10,7 @@
 //!
 //! RED PHASE: These tests validate CLI composition functionality
 
-use std::collections::HashMap;
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 

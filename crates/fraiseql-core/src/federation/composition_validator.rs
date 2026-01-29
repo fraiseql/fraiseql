@@ -471,11 +471,11 @@ impl CompositionValidator {
                     std::collections::hash_map::Entry::Vacant(entry) => {
                         // First definition of this type
                         entry.insert(ComposedType::from_federated(&ftype));
-                    }
+                    },
                     std::collections::hash_map::Entry::Occupied(mut entry) => {
                         // Merge with existing definition
                         entry.get_mut().merge_from(&ftype);
-                    }
+                    },
                 }
             }
         }

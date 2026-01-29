@@ -45,7 +45,9 @@ impl EventToArrowConverter {
     /// Create a new converter with specified batch size.
     #[must_use]
     pub const fn new(batch_size: usize) -> Self {
-        Self { _batch_size: batch_size }
+        Self {
+            _batch_size: batch_size,
+        }
     }
 
     /// Convert events to Arrow RecordBatch.

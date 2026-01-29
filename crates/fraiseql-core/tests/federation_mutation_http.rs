@@ -282,9 +282,11 @@ fn test_extended_mutation_includes_metadata() {
 #[test]
 fn test_extended_mutation_batch_responses() {
     // Batch mutations should preserve order
-    let mutations = [json!({"id": "user1", "status": "verified"}),
+    let mutations = [
+        json!({"id": "user1", "status": "verified"}),
         json!({"id": "user2", "status": "verified"}),
-        json!({"id": "user3", "status": "verified"})];
+        json!({"id": "user3", "status": "verified"}),
+    ];
 
     assert_eq!(mutations.len(), 3);
     for (idx, mutation) in mutations.iter().enumerate() {

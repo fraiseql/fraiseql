@@ -323,9 +323,11 @@ fn test_compensation_executes_in_reverse_order() {
     //   - Step 2 compensation second
     //   - Step 1 compensation third
 
-    let compensation_order = [steps[2].compensation_mutation.clone(),
+    let compensation_order = [
+        steps[2].compensation_mutation.clone(),
         steps[1].compensation_mutation.clone(),
-        steps[0].compensation_mutation.clone()];
+        steps[0].compensation_mutation.clone(),
+    ];
 
     assert_eq!(compensation_order[0], "reversePayment");
     assert_eq!(compensation_order[1], "releaseInventory");
