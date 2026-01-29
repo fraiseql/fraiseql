@@ -133,19 +133,23 @@ impl FraiseQLFlightService {
     /// Execute GraphQL query and stream Arrow batches.
     ///
     ///
-    /// # TODO
     ///
-    /// - Add query executor reference to FraiseQLFlightService struct
-    /// - Call fraiseql_core::arrow_executor::execute_query_as_arrow()
-    /// - Convert RecordBatches to FlightData
-    /// - Stream batches to client
+    /// # Implementation Status (Phase 17: Arrow Flight Implementation)
+    ///
+    /// Currently returns an empty stream (placeholder). Full implementation includes:
+    /// - BLOCKED: Awaiting Phase 17 Arrow execution engine implementation
+    /// - TODO: Add QueryExecutor reference to FraiseQLFlightService struct (see KNOWN_LIMITATIONS.md#arrow-flight)
+    /// - TODO: Call fraiseql_core::arrow_executor::execute_query_as_arrow()
+    /// - TODO: Convert RecordBatches to FlightData messages
+    /// - TODO: Stream Arrow data to client
     async fn execute_graphql_query(
         &self,
         _query: &str,
         _variables: Option<serde_json::Value>,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
-        // TODO:  - Execute actual query
+        // Phase 17: Arrow Flight implementation (BLOCKED)
+        // TODO: Execute actual GraphQL query
         // let executor = &self.query_executor;
         // let batches = fraiseql_core::arrow_executor::execute_query_as_arrow(
         //     executor,
@@ -178,12 +182,14 @@ impl FraiseQLFlightService {
     /// * `limit` - Optional LIMIT
     /// * `offset` - Optional OFFSET for pagination
     ///
-    /// # TODO
+    /// # Implementation Status (Phase 17: Arrow Flight Implementation)
     ///
-    /// - Load pre-compiled Arrow schema from metadata
-    /// - Build optimized SQL query
-    /// - Execute via database adapter
-    /// - Minimal row → Arrow conversion (types already match)
+    /// Currently functional with placeholder data. Full optimization includes:
+    /// - BLOCKED: Depends on Phase 17 Arrow execution optimization
+    /// - TODO: Pre-load and cache pre-compiled Arrow schemas from metadata (see KNOWN_LIMITATIONS.md#arrow-flight)
+    /// - TODO: Implement query optimization with pre-compiled schemas
+    /// - TODO: Use database adapter for real data execution
+    /// - TODO: Zero-copy row-to-Arrow conversion for pre-compiled types
     async fn execute_optimized_view(
         &self,
         view: &str,
@@ -287,7 +293,8 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::ListFlightsStream>, Status> {
         info!("ListFlights called");
 
-        // TODO: Return actual available datasets
+        // Phase 17: Arrow Flight dataset listing (BLOCKED)
+        // TODO: Return actual available datasets (GraphQL queries, observer events)
         // For now, demonstrate the API works with an empty stream
         let stream = futures::stream::empty();
         Ok(Response::new(Box::pin(stream)))
@@ -558,7 +565,11 @@ fn build_optimized_sql(
 
 /// Generate placeholder database rows for testing.
 ///
-/// TODO: Replace with actual database adapter when integrated with fraiseql-server.
+/// # Implementation Status (Phase 17: Arrow Flight Implementation)
+///
+/// Currently returns hardcoded test data. Production implementation:
+/// - BLOCKED: Depends on Phase 17 database adapter integration
+/// - TODO: Replace with actual database adapter when integrated with fraiseql-server (see KNOWN_LIMITATIONS.md#arrow-flight)
 ///
 /// # Arguments
 ///

@@ -135,11 +135,11 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
         DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, _) => {
             // Expect ISO 8601 string or Unix timestamp (microseconds)
             match json_val {
-                JsonValue::String(s) => {
+                JsonValue::String(_s) => {
                     // Parse ISO 8601 timestamp
-                    // TODO: Proper chrono parsing
-                    // For now, return placeholder
-                    let _ = s; // Use variable to avoid warning
+                    // Phase 17: Arrow Flight timestamp parsing (BLOCKED)
+                    // TODO: Proper chrono parsing of ISO 8601 timestamps (see KNOWN_LIMITATIONS.md#arrow-flight)
+                    // Currently returns placeholder value
                     Ok(Value::Timestamp(1_700_000_000_000_000)) // Placeholder
                 },
                 JsonValue::Number(n) => n.as_i64().map(Value::Timestamp).ok_or_else(|| {
@@ -152,7 +152,8 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
         },
         DataType::Date32 => match json_val {
             JsonValue::String(_s) => {
-                // TODO: Parse date string
+                // Phase 17: Arrow Flight date parsing (BLOCKED)
+                // TODO: Parse date string to Date32 value (see KNOWN_LIMITATIONS.md#arrow-flight)
                 Ok(Value::Date(18_500)) // Placeholder
             },
             JsonValue::Number(n) => {
