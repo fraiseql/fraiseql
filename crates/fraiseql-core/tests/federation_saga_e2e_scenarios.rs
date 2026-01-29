@@ -790,11 +790,11 @@ async fn test_cancel_saga_triggers_compensation_regardless_of_strategy() {
     // Then: Both transitions include compensation
     // (cancel should trigger compensation regardless of original strategy)
     assert!(
-        auto_cancel.error.as_ref().map_or(false, |e| e.contains("cancel")),
+        auto_cancel.error.as_ref().is_some_and(|e| e.contains("cancel")),
         "Automatic saga cancel should record error"
     );
     assert!(
-        manual_cancel.error.as_ref().map_or(false, |e| e.contains("cancel")),
+        manual_cancel.error.as_ref().is_some_and(|e| e.contains("cancel")),
         "Manual saga cancel should record error"
     );
 }

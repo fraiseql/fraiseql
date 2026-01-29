@@ -32,7 +32,7 @@ dashmap = "5.5"
 # Phase 8 Dependencies
 futures = "0.3"
 redis = { version = "0.25", features = ["aio", "connection-manager", "tokio-comp"], optional = true }
-prometheus = { version = "0.13", optional = true }
+prometheus = { version = "0.14", optional = true }
 http = "1.1"
 clap = { version = "4.5", features = ["derive"] }
 colored = "2.1"

@@ -138,7 +138,8 @@ impl FraiseQLFlightService {
     ///
     /// Currently returns an empty stream (placeholder). Full implementation includes:
     /// - BLOCKED: Awaiting Phase 17 Arrow execution engine implementation
-    /// - TODO: Add QueryExecutor reference to FraiseQLFlightService struct (see KNOWN_LIMITATIONS.md#arrow-flight)
+    /// - TODO: Add QueryExecutor reference to FraiseQLFlightService struct (see
+    ///   KNOWN_LIMITATIONS.md#arrow-flight)
     /// - TODO: Call fraiseql_core::arrow_executor::execute_query_as_arrow()
     /// - TODO: Convert RecordBatches to FlightData messages
     /// - TODO: Stream Arrow data to client
@@ -186,7 +187,8 @@ impl FraiseQLFlightService {
     ///
     /// Currently functional with placeholder data. Full optimization includes:
     /// - BLOCKED: Depends on Phase 17 Arrow execution optimization
-    /// - TODO: Pre-load and cache pre-compiled Arrow schemas from metadata (see KNOWN_LIMITATIONS.md#arrow-flight)
+    /// - TODO: Pre-load and cache pre-compiled Arrow schemas from metadata (see
+    ///   KNOWN_LIMITATIONS.md#arrow-flight)
     /// - TODO: Implement query optimization with pre-compiled schemas
     /// - TODO: Use database adapter for real data execution
     /// - TODO: Zero-copy row-to-Arrow conversion for pre-compiled types
@@ -569,7 +571,8 @@ fn build_optimized_sql(
 ///
 /// Currently returns hardcoded test data. Production implementation:
 /// - BLOCKED: Depends on Phase 17 database adapter integration
-/// - TODO: Replace with actual database adapter when integrated with fraiseql-server (see KNOWN_LIMITATIONS.md#arrow-flight)
+/// - TODO: Replace with actual database adapter when integrated with fraiseql-server (see
+///   KNOWN_LIMITATIONS.md#arrow-flight)
 ///
 /// # Arguments
 ///

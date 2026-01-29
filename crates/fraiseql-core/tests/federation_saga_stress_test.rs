@@ -958,6 +958,6 @@ fn stress_recovery_100_pending() {
     let pending = orchestrator.store.load_sagas_by_state(&SagaState::Pending);
     println!("Recovery scan found {} pending sagas", pending.len());
 
-    assert!(pending.len() > 0);
+    assert!(!pending.is_empty());
     assert!(pending.len() <= 50);
 }

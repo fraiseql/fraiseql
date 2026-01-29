@@ -15,12 +15,13 @@
 //! 9. Query execution with federation metadata
 //! 10. Error handling for schema violations
 
+use std::collections::HashMap;
+
 use fraiseql_core::federation::types::{
-    EntityRepresentation, FederationMetadata, FederatedType, FieldFederationDirectives,
+    EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,
     FieldPathSelection, KeyDirective,
 };
 use serde_json::json;
-use std::collections::HashMap;
 
 // ============================================================================
 // Test: Basic Federation Key Declaration (Python: @key)
@@ -327,10 +328,7 @@ fn test_python_entity_resolution_basic() {
     };
 
     assert_eq!(representation.typename, "User");
-    assert_eq!(
-        representation.key_fields.get("id").unwrap(),
-        &json!("user-123")
-    );
+    assert_eq!(representation.key_fields.get("id").unwrap(), &json!("user-123"));
     assert!(representation.has_field("name"));
     assert!(representation.has_field("email"));
 }
@@ -514,10 +512,7 @@ fn test_python_schema_compilation_roundtrip() {
         fields:     vec!["id".to_string()],
         resolvable: true,
     });
-    user_type.set_field_directives(
-        "email".to_string(),
-        FieldFederationDirectives::new(),
-    );
+    user_type.set_field_directives("email".to_string(), FieldFederationDirectives::new());
 
     let metadata = FederationMetadata {
         enabled: true,

@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod cli_federation_validation {
-    use std::fs;
-    use std::path::PathBuf;
+    use std::{fs, path::PathBuf};
+
     use tempfile::TempDir;
 
     fn create_test_schema(dir: &TempDir, content: &str) -> PathBuf {
@@ -30,9 +30,9 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, valid_schema);
-        
+
         // Schema should be valid
         assert!(schema_path.exists());
         let content = fs::read_to_string(&schema_path).unwrap();
@@ -55,10 +55,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify key_fields present
         assert!(content.contains("\"key_fields\""));
         assert!(content.contains("[\"id\"]"));
@@ -82,10 +82,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify extends present
         assert!(content.contains("\"is_extends\": true"));
     }
@@ -112,10 +112,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify requires present
         assert!(content.contains("\"requires_fields\""));
     }
@@ -141,10 +141,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify provides present
         assert!(content.contains("\"provides_fields\""));
     }
@@ -167,10 +167,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify external present
         assert!(content.contains("\"is_external\": true"));
     }
@@ -192,10 +192,10 @@ mod cli_federation_validation {
                 }
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify shareable present
         assert!(content.contains("\"is_shareable\": true"));
     }
@@ -207,10 +207,10 @@ mod cli_federation_validation {
             "version": "2.0",
             "types": []
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify version field
         assert!(content.contains("\"version\": \"2.0\""));
     }
@@ -226,10 +226,10 @@ mod cli_federation_validation {
                 {"name": "Product", "kind": "OBJECT", "key_fields": ["id"]}
             ]
         }"#;
-        
+
         let schema_path = create_test_schema(&dir, schema);
         let content = fs::read_to_string(&schema_path).unwrap();
-        
+
         // Verify all types present
         assert!(content.contains("\"name\": \"User\""));
         assert!(content.contains("\"name\": \"Order\""));

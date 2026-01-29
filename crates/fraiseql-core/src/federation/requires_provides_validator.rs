@@ -576,12 +576,9 @@ impl RequiresProvidesRuntimeValidator {
         // Check all fields that have @requires directives
         for (field_name, directives) in &fed_type.field_directives {
             if !directives.requires.is_empty() {
-                if let Err(field_errors) = Self::validate_required_fields(
-                    typename,
-                    field_name,
-                    directives,
-                    entity_fields,
-                ) {
+                if let Err(field_errors) =
+                    Self::validate_required_fields(typename, field_name, directives, entity_fields)
+                {
                     errors.extend(field_errors);
                 }
             }

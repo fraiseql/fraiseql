@@ -13,11 +13,12 @@
 //! 7. Field selection from different database backends
 //! 8. Error handling for cross-database mismatches
 
+use std::collections::HashMap;
+
 use fraiseql_core::federation::types::{
-    EntityRepresentation, FederationMetadata, FederatedType, KeyDirective,
+    EntityRepresentation, FederatedType, FederationMetadata, KeyDirective,
 };
 use serde_json::json;
-use std::collections::HashMap;
 
 // ============================================================================
 // Test: Basic Single-Database Federation
@@ -122,7 +123,7 @@ fn test_postgres_to_mysql_entity_chain() {
     // Both should be resolvable
     assert_eq!(pg_user.typename, "User");
     assert_eq!(mysql_order.typename, "Order");
-    assert!(metadata.types.len() > 0);
+    assert!(!metadata.types.is_empty());
 }
 
 #[test]

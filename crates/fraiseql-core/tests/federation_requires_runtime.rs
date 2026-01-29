@@ -534,10 +534,7 @@ fn test_requires_multiple_fields_mixed_results() {
 
     // Should fail when requesting both
     let result = enforce_requires(&metadata, "User", &["orders", "profile"], &repr);
-    assert!(
-        result.is_err(),
-        "Should fail when any field's requirement is not met"
-    );
+    assert!(result.is_err(), "Should fail when any field's requirement is not met");
 }
 
 #[test]
@@ -762,10 +759,7 @@ fn test_requires_with_case_sensitivity() {
     };
 
     let result = enforce_requires(&metadata, "User", &["orders"], &repr);
-    assert!(
-        result.is_err(),
-        "Should fail with case mismatch (email != Email)"
-    );
+    assert!(result.is_err(), "Should fail with case mismatch (email != Email)");
 }
 
 #[test]
@@ -883,10 +877,7 @@ fn test_requires_with_object_field() {
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
-            (
-                "location".to_string(),
-                json!({"city": "San Francisco", "state": "CA"}),
-            ),
+            ("location".to_string(), json!({"city": "San Francisco", "state": "CA"})),
         ]
         .iter()
         .cloned()
@@ -932,11 +923,7 @@ fn test_requires_validation_error_includes_typename() {
     let result = enforce_requires(&metadata, "Product", &["discount"], &repr);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(
-        err.to_lowercase().contains("product"),
-        "Error should include typename: {}",
-        err
-    );
+    assert!(err.to_lowercase().contains("product"), "Error should include typename: {}", err);
 }
 
 #[test]
@@ -1024,10 +1011,7 @@ fn test_requires_with_existing_extra_fields() {
     };
 
     let result = enforce_requires(&metadata, "User", &["orders"], &repr);
-    assert!(
-        result.is_ok(),
-        "Should pass with extra fields when required fields present"
-    );
+    assert!(result.is_ok(), "Should pass with extra fields when required fields present");
 }
 
 #[test]
@@ -1069,10 +1053,7 @@ fn test_requires_different_typenames() {
     };
 
     let result = enforce_requires(&metadata, "Order", &["userInfo"], &repr);
-    assert!(
-        result.is_ok(),
-        "Should handle @requires referencing different typename"
-    );
+    assert!(result.is_ok(), "Should handle @requires referencing different typename");
 }
 
 #[test]
@@ -1120,10 +1101,7 @@ fn test_requires_and_provides_on_same_field() {
     };
 
     let result = enforce_requires(&metadata, "User", &["orders"], &repr);
-    assert!(
-        result.is_ok(),
-        "Should validate field with both @requires and @provides"
-    );
+    assert!(result.is_ok(), "Should validate field with both @requires and @provides");
 }
 
 #[test]

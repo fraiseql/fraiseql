@@ -15,12 +15,13 @@
 //! 9. Query execution with federation metadata
 //! 10. Error handling for schema violations
 
+use std::collections::HashMap;
+
 use fraiseql_core::federation::types::{
-    EntityRepresentation, FederationMetadata, FederatedType, FieldFederationDirectives,
+    EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,
     FieldPathSelection, KeyDirective,
 };
 use serde_json::json;
-use std::collections::HashMap;
 
 // ============================================================================
 // Test: Basic Federation Key Declaration (TypeScript: @Key)
@@ -370,7 +371,7 @@ fn test_typescript_entity_with_multiple_keys() {
     entity_fields.insert("name".to_string(), json!("Engineering"));
 
     let representation = EntityRepresentation {
-        typename:   "Account".to_string(),
+        typename: "Account".to_string(),
         key_fields,
         all_fields: entity_fields,
     };

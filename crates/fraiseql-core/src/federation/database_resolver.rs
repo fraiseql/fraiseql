@@ -195,17 +195,12 @@ fn project_results(
             // Validate @requires/@provides directives are satisfied
             if let Err(validation_errors) =
                 RequiresProvidesRuntimeValidator::validate_entity_against_type(
-                    typename,
-                    &entity,
-                    fed_type,
+                    typename, &entity, fed_type,
                 )
             {
                 // Log validation errors but continue processing
                 for error in validation_errors {
-                    warn!(
-                        "Federation directive validation error for {}: {}",
-                        typename, error
-                    );
+                    warn!("Federation directive validation error for {}: {}", typename, error);
                 }
             }
 
