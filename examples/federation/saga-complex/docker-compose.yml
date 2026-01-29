@@ -2,9 +2,23 @@ version: '3.8'
 
 services:
   flight-service:
-    image: python:3.11
+    image: python:3.11-slim
     working_dir: /app
-    command: python -c "from flask import Flask, request, jsonify; app = Flask(__name__); @app.route('/graphql', methods=['POST']); def gql(): return jsonify({'data': {'reserveFlight': {'flightId': 'f-123', 'status': 'reserved'}}}); @app.route('/health'); def health(): return 'OK'; app.run('0.0.0.0', 4000)"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        python3 << 'EOF'
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        @app.route('/graphql', methods=['POST'])
+        def gql():
+            return jsonify({'data': {'reserveFlight': {'flightId': 'f-123', 'status': 'reserved'}}})
+        @app.route('/health')
+        def health():
+            return 'OK'
+        app.run('0.0.0.0', 4000)
+        EOF
     ports:
       - "4001:4000"
     healthcheck:
@@ -14,9 +28,23 @@ services:
       retries: 5
 
   hotel-service:
-    image: python:3.11
+    image: python:3.11-slim
     working_dir: /app
-    command: python -c "from flask import Flask, request, jsonify; app = Flask(__name__); @app.route('/graphql', methods=['POST']); def gql(): return jsonify({'data': {'reserveHotel': {'hotelId': 'h-456', 'status': 'reserved'}}}); @app.route('/health'); def health(): return 'OK'; app.run('0.0.0.0', 4000)"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        python3 << 'EOF'
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        @app.route('/graphql', methods=['POST'])
+        def gql():
+            return jsonify({'data': {'reserveHotel': {'hotelId': 'h-456', 'status': 'reserved'}}})
+        @app.route('/health')
+        def health():
+            return 'OK'
+        app.run('0.0.0.0', 4000)
+        EOF
     ports:
       - "4002:4000"
     healthcheck:
@@ -26,9 +54,23 @@ services:
       retries: 5
 
   car-service:
-    image: python:3.11
+    image: python:3.11-slim
     working_dir: /app
-    command: python -c "from flask import Flask, request, jsonify; app = Flask(__name__); @app.route('/graphql', methods=['POST']); def gql(): return jsonify({'data': {'reserveCar': {'carId': 'c-789', 'status': 'reserved'}}}); @app.route('/health'); def health(): return 'OK'; app.run('0.0.0.0', 4000)"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        python3 << 'EOF'
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        @app.route('/graphql', methods=['POST'])
+        def gql():
+            return jsonify({'data': {'reserveCar': {'carId': 'c-789', 'status': 'reserved'}}})
+        @app.route('/health')
+        def health():
+            return 'OK'
+        app.run('0.0.0.0', 4000)
+        EOF
     ports:
       - "4003:4000"
     healthcheck:
@@ -38,9 +80,23 @@ services:
       retries: 5
 
   payment-service:
-    image: python:3.11
+    image: python:3.11-slim
     working_dir: /app
-    command: python -c "from flask import Flask, request, jsonify; app = Flask(__name__); @app.route('/graphql', methods=['POST']); def gql(): return jsonify({'data': {'processPayment': {'chargeId': 'ch-999', 'status': 'completed'}}}); @app.route('/health'); def health(): return 'OK'; app.run('0.0.0.0', 4000)"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        python3 << 'EOF'
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        @app.route('/graphql', methods=['POST'])
+        def gql():
+            return jsonify({'data': {'processPayment': {'chargeId': 'ch-999', 'status': 'completed'}}})
+        @app.route('/health')
+        def health():
+            return 'OK'
+        app.run('0.0.0.0', 4000)
+        EOF
     ports:
       - "4004:4000"
     healthcheck:
@@ -50,9 +106,23 @@ services:
       retries: 5
 
   notification-service:
-    image: python:3.11
+    image: python:3.11-slim
     working_dir: /app
-    command: python -c "from flask import Flask, request, jsonify; app = Flask(__name__); @app.route('/graphql', methods=['POST']); def gql(): return jsonify({'data': {'sendConfirmation': {'notificationId': 'n-111', 'status': 'sent'}}}); @app.route('/health'); def health(): return 'OK'; app.run('0.0.0.0', 4000)"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        python3 << 'EOF'
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        @app.route('/graphql', methods=['POST'])
+        def gql():
+            return jsonify({'data': {'sendConfirmation': {'notificationId': 'n-111', 'status': 'sent'}}})
+        @app.route('/health')
+        def health():
+            return 'OK'
+        app.run('0.0.0.0', 4000)
+        EOF
     ports:
       - "4005:4000"
     healthcheck:
