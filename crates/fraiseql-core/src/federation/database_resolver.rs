@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use serde_json::Value;
+use tracing::warn;
 
 use crate::{
     db::traits::DatabaseAdapter,
@@ -13,6 +14,7 @@ use crate::{
     federation::{
         metadata_helpers::find_federation_type,
         query_builder::construct_where_in_clause,
+        requires_provides_validator::RequiresProvidesRuntimeValidator,
         selection_parser::FieldSelection,
         tracing::FederationTraceContext,
         types::{EntityRepresentation, FederatedType, FederationMetadata},
@@ -189,6 +191,24 @@ fn project_results(
         if let Some(row) = row_map.get(&key_values) {
             let mut entity = row.clone();
             entity.insert("__typename".to_string(), Value::String(typename.to_string()));
+
+            // Validate @requires/@provides directives are satisfied
+            if let Err(validation_errors) =
+                RequiresProvidesRuntimeValidator::validate_entity_against_type(
+                    typename,
+                    &entity,
+                    fed_type,
+                )
+            {
+                // Log validation errors but continue processing
+                for error in validation_errors {
+                    warn!(
+                        "Federation directive validation error for {}: {}",
+                        typename, error
+                    );
+                }
+            }
+
             results.push(Some(Value::Object(serde_json::Map::from_iter(entity))));
         } else {
             // Entity not found in database

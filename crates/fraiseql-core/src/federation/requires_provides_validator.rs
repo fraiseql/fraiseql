@@ -550,6 +550,49 @@ impl RequiresProvidesRuntimeValidator {
             }
         }
     }
+
+    /// Validate entity against field directives during resolution
+    ///
+    /// This method checks that for any field being resolved, all its @requires
+    /// dependencies are present in the entity data. It validates all fields
+    /// that have directives in the type definition.
+    ///
+    /// # Arguments
+    /// - `typename`: The type being resolved
+    /// - `entity_fields`: The fields present in the resolved entity
+    /// - `fed_type`: The FederatedType definition with directive information
+    ///
+    /// # Errors
+    ///
+    /// Returns a list of validation errors if any @requires directives
+    /// are not satisfied by the entity data.
+    pub fn validate_entity_against_type(
+        typename: &str,
+        entity_fields: &HashMap<String, serde_json::Value>,
+        fed_type: &FederatedType,
+    ) -> Result<(), Vec<DirectiveValidationError>> {
+        let mut errors = Vec::new();
+
+        // Check all fields that have @requires directives
+        for (field_name, directives) in &fed_type.field_directives {
+            if !directives.requires.is_empty() {
+                if let Err(field_errors) = Self::validate_required_fields(
+                    typename,
+                    field_name,
+                    directives,
+                    entity_fields,
+                ) {
+                    errors.extend(field_errors);
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -609,5 +652,125 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_entity_validation_multiple_missing_fields() {
+        let directives = FieldFederationDirectives {
+            requires:  vec![
+                FieldPathSelection {
+                    path:     vec!["weight".to_string()],
+                    typename: "Order".to_string(),
+                },
+                FieldPathSelection {
+                    path:     vec!["shippingAddress".to_string()],
+                    typename: "Order".to_string(),
+                },
+            ],
+            provides:  vec![],
+            external:  false,
+            shareable: false,
+        };
+
+        let entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
+
+        let result = RequiresProvidesRuntimeValidator::validate_required_fields(
+            "Order",
+            "shippingEstimate",
+            &directives,
+            &entity_fields,
+        );
+
+        match result {
+            Err(errors) => assert_eq!(errors.len(), 2),
+            Ok(()) => panic!("Expected validation errors for missing fields"),
+        }
+    }
+
+    #[test]
+    fn test_entity_validation_partial_fields() {
+        let directives = FieldFederationDirectives {
+            requires:  vec![
+                FieldPathSelection {
+                    path:     vec!["weight".to_string()],
+                    typename: "Order".to_string(),
+                },
+                FieldPathSelection {
+                    path:     vec!["shippingAddress".to_string()],
+                    typename: "Order".to_string(),
+                },
+            ],
+            provides:  vec![],
+            external:  false,
+            shareable: false,
+        };
+
+        let mut entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
+        entity_fields.insert("weight".to_string(), serde_json::json!(5.0));
+
+        let result = RequiresProvidesRuntimeValidator::validate_required_fields(
+            "Order",
+            "shippingEstimate",
+            &directives,
+            &entity_fields,
+        );
+
+        match result {
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+                match &errors[0] {
+                    DirectiveValidationError::MissingRequiredField { required_field, .. } => {
+                        assert_eq!(required_field, "shippingAddress");
+                    },
+                    _ => panic!("Expected MissingRequiredField error"),
+                }
+            },
+            Ok(()) => panic!("Expected validation error for missing shippingAddress"),
+        }
+    }
+
+    #[test]
+    fn test_validate_provides_fields_missing() {
+        let directives = FieldFederationDirectives {
+            requires:  vec![],
+            provides:  vec![FieldPathSelection {
+                path:     vec!["userId".to_string()],
+                typename: "Order".to_string(),
+            }],
+            external:  false,
+            shareable: false,
+        };
+
+        let entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
+
+        RequiresProvidesRuntimeValidator::validate_provides_fields(
+            "Order",
+            "user",
+            &directives,
+            &entity_fields,
+        );
+    }
+
+    #[test]
+    fn test_validate_provides_fields_present() {
+        let directives = FieldFederationDirectives {
+            requires:  vec![],
+            provides:  vec![FieldPathSelection {
+                path:     vec!["userId".to_string()],
+                typename: "Order".to_string(),
+            }],
+            external:  false,
+            shareable: false,
+        };
+
+        let mut entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
+        entity_fields.insert("userId".to_string(), serde_json::json!("user-123"));
+
+        RequiresProvidesRuntimeValidator::validate_provides_fields(
+            "Order",
+            "user",
+            &directives,
+            &entity_fields,
+        );
     }
 }
