@@ -1,19 +1,41 @@
 //! Cycle 15: Federation Composition Validation
 //!
 //! Comprehensive federation composition validation and multi-subgraph coordination.
-//! Tests schema composition, directive validation (@requires/@provides), query planning,
-//! and cross-subgraph mutation coordination using the saga system.
+//! Tests GraphQL federation schema composition, directive validation (@requires/@provides),
+//! query planning across subgraphs, and cross-subgraph mutation coordination.
+//!
+//! ## Architecture
+//!
+//! Federation composition follows this flow:
+//! ```text
+//! Subgraph Schemas (multiple)
+//!   ↓
+//! SchemaComposer (merges types, combines directives)
+//!   ↓
+//! ComposedSchema (merged types, global type registry)
+//!   ↓
+//! DirectiveValidator (validates @requires/@provides, detects cycles)
+//! QueryPlanner (generates execution plans)
+//! TypeRegistry (checks type consistency)
+//! ```
 //!
 //! ## Test Categories (26 tests)
 //!
-//! - Schema Composition (4 tests)
-//! - Directive Validation (4 tests)
-//! - Query Planning (3 tests)
-//! - Multi-Subgraph Queries (4 tests)
-//! - Cross-Subgraph Mutations (4 tests)
-//! - Dependency Resolution (3 tests)
-//! - Type Consistency (2 tests)
-//! - Error Scenarios (2 tests)
+//! - **Schema Composition** (4 tests): Type merging, field combination, multi-subgraph types
+//! - **Directive Validation** (4 tests): @requires/@provides validation, circular dependency
+//!   detection
+//! - **Query Planning** (3 tests): Single/multi-subgraph plans, optimization
+//! - **Multi-Subgraph Queries** (4 tests): Cross-subgraph query execution patterns
+//! - **Cross-Subgraph Mutations** (4 tests): Saga-coordinated mutations across boundaries
+//! - **Dependency Resolution** (3 tests): Entity references, type extensions, nested refs
+//! - **Type Consistency** (2 tests): Type mismatch detection, field conflicts
+//! - **Error Scenarios** (2 tests): Graceful handling of unreachable subgraphs, malformed schemas
+//!
+//! ## Federation Directives
+//!
+//! - `@requires(fields: "fieldName")` - Declares field dependency across subgraph boundary
+//! - `@provides(type: "TypeName")` - Declares type contribution to federation
+//! - `@key(fields: "id")` - Uniquely identifies type in subgraph (implicit)
 
 #[allow(dead_code)]
 mod harness {
@@ -63,9 +85,9 @@ mod harness {
 
     #[derive(Debug, Clone)]
     pub struct ComposedSchema {
-        pub subgraphs:           Vec<SubgraphSchema>,
-        pub merged_types:        HashMap<String, MergedTypeDef>,
-        pub validation_errors:   Vec<String>,
+        pub subgraphs:         Vec<SubgraphSchema>,
+        pub merged_types:      HashMap<String, MergedTypeDef>,
+        pub validation_errors: Vec<String>,
     }
 
     #[derive(Debug, Clone)]
@@ -85,9 +107,22 @@ mod harness {
     // Schema Composer
     // ========================================================================
 
+    /// Merges multiple subgraph schemas into a single composed schema.
+    ///
+    /// Combines types from all subgraphs, merging fields and tracking which
+    /// subgraphs contribute to each type. This is the foundation of GraphQL federation.
     pub struct SchemaComposer;
 
     impl SchemaComposer {
+        /// Compose multiple subgraph schemas into a single federated schema.
+        ///
+        /// # Arguments
+        ///
+        /// * `subgraphs` - Vector of subgraph schemas to merge
+        ///
+        /// # Returns
+        ///
+        /// A composed schema with merged types and validation status
         pub fn compose(subgraphs: Vec<SubgraphSchema>) -> ComposedSchema {
             let mut merged_types: HashMap<String, MergedTypeDef> = HashMap::new();
             let validation_errors: Vec<String> = Vec::new();
@@ -126,15 +161,21 @@ mod harness {
     // Directive Validator
     // ========================================================================
 
+    /// Validates GraphQL federation directives (@requires, @provides).
+    ///
+    /// Checks that @requires references are valid, @provides types exist,
+    /// and there are no circular dependencies.
     pub struct DirectiveValidator {
         pub schema: ComposedSchema,
     }
 
     impl DirectiveValidator {
+        /// Create a new directive validator for the composed schema
         pub fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
+        /// Validate all directives in the schema
         pub fn validate(&mut self) -> Vec<String> {
             let mut errors = Vec::new();
 
@@ -196,15 +237,21 @@ mod harness {
     // Query Planner
     // ========================================================================
 
+    /// Generates execution plans for queries across federated subgraphs.
+    ///
+    /// Determines which subgraphs need to be queried and in what order,
+    /// identifies joins between subgraph results.
     pub struct QueryPlanner {
         pub schema: ComposedSchema,
     }
 
     impl QueryPlanner {
+        /// Create a new query planner for the composed schema
         pub fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
+        /// Plan execution of a query on a specific type
         pub fn plan_query(&self, _query: &str, type_name: &str) -> Result<QueryPlan, String> {
             let mut steps = Vec::new();
             let mut joins = Vec::new();
@@ -215,7 +262,7 @@ mod harness {
 
                     steps.push(QueryPlanStep {
                         subgraph: source.clone(),
-                        query:    format!("query_{}", type_name),
+                        query: format!("query_{}", type_name),
                         fields,
                     });
 
@@ -238,15 +285,21 @@ mod harness {
     // Type Registry
     // ========================================================================
 
+    /// Validates type consistency across federated subgraphs.
+    ///
+    /// Ensures that when a type is extended across multiple subgraphs,
+    /// all field definitions are compatible and consistent.
     pub struct TypeRegistry {
         pub schema: ComposedSchema,
     }
 
     impl TypeRegistry {
+        /// Create a new type registry for the composed schema
         pub fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
+        /// Check that all types have consistent field definitions across subgraphs
         pub fn check_type_consistency(&self) -> Vec<String> {
             let mut errors = Vec::new();
 
@@ -328,7 +381,7 @@ mod harness {
         );
 
         SubgraphSchema {
-            name:  "users".to_string(),
+            name: "users".to_string(),
             types,
         }
     }
@@ -362,7 +415,7 @@ mod harness {
         );
 
         SubgraphSchema {
-            name:  "orders".to_string(),
+            name: "orders".to_string(),
             types,
         }
     }
@@ -396,7 +449,7 @@ mod harness {
         );
 
         SubgraphSchema {
-            name:  "products".to_string(),
+            name: "products".to_string(),
             types,
         }
     }
@@ -435,7 +488,7 @@ mod harness {
         );
 
         SubgraphSchema {
-            name:  "payments".to_string(),
+            name: "payments".to_string(),
             types,
         }
     }
@@ -444,6 +497,7 @@ mod harness {
     // Assertion Helpers
     // ========================================================================
 
+    /// Assert that a type exists in the composed schema
     pub fn assert_type_exists(schema: &ComposedSchema, type_name: &str) {
         assert!(
             schema.merged_types.contains_key(type_name),
@@ -452,14 +506,12 @@ mod harness {
         );
     }
 
+    /// Assert no validation errors occurred
     pub fn assert_no_validation_errors(errors: &[String]) {
-        assert!(
-            errors.is_empty(),
-            "Should have no validation errors, got: {:?}",
-            errors
-        );
+        assert!(errors.is_empty(), "Should have no validation errors, got: {:?}", errors);
     }
 
+    /// Assert that a field exists in a type
     pub fn assert_field_exists(schema: &ComposedSchema, type_name: &str, field_name: &str) {
         let type_def = schema
             .merged_types
@@ -473,6 +525,7 @@ mod harness {
         );
     }
 
+    /// Assert that a subgraph contributes to a type
     pub fn assert_subgraph_contributes(
         schema: &ComposedSchema,
         type_name: &str,
@@ -489,17 +542,69 @@ mod harness {
             type_name
         );
     }
+
+    // ========================================================================
+    // Scenario Builders (REFACTOR PHASE)
+    // ========================================================================
+
+    /// Build a common 2-subgraph scenario: users + orders
+    pub fn build_users_orders_scenario() -> Vec<SubgraphSchema> {
+        vec![build_users_subgraph(), build_orders_subgraph()]
+    }
+
+    /// Build a common 3-subgraph scenario: users + orders + products
+    pub fn build_users_orders_products_scenario() -> Vec<SubgraphSchema> {
+        vec![
+            build_users_subgraph(),
+            build_orders_subgraph(),
+            build_products_subgraph(),
+        ]
+    }
+
+    /// Build a common 4-subgraph scenario: users + orders + products + payments
+    pub fn build_full_scenario() -> Vec<SubgraphSchema> {
+        vec![
+            build_users_subgraph(),
+            build_orders_subgraph(),
+            build_products_subgraph(),
+            build_payments_subgraph(),
+        ]
+    }
+
+    /// Helper to validate and compose subgraphs
+    pub fn compose_and_validate(subgraphs: Vec<SubgraphSchema>) -> ComposedSchema {
+        let schema = SchemaComposer::compose(subgraphs);
+        assert!(schema.validation_errors.is_empty(), "Schema should have no validation errors");
+        schema
+    }
+
+    /// Helper to plan query on composed schema
+    pub fn plan_and_verify(
+        schema: &ComposedSchema,
+        query: &str,
+        type_name: &str,
+    ) -> Result<QueryPlan, String> {
+        let planner = QueryPlanner::new(schema.clone());
+        planner.plan_query(query, type_name)
+    }
 }
 
 use harness::{
-    SchemaComposer, DirectiveValidator, QueryPlanner, TypeRegistry,
-    build_users_subgraph, build_orders_subgraph, build_products_subgraph, build_payments_subgraph,
-    assert_type_exists, assert_no_validation_errors, assert_field_exists, assert_subgraph_contributes,
+    DirectiveValidator, QueryPlanner, SchemaComposer, TypeRegistry, assert_field_exists,
+    assert_no_validation_errors, assert_subgraph_contributes, assert_type_exists,
+    build_orders_subgraph, build_payments_subgraph, build_products_subgraph, build_users_subgraph,
 };
 
 // ============================================================================
 // Category 1: Schema Composition (4 tests)
 // ============================================================================
+//
+// Tests that the SchemaComposer correctly merges multiple subgraph schemas
+// into a single composed schema, handling:
+// - Type merging from multiple subgraphs
+// - Field combination and deduplication
+// - Multi-subgraph type extensions
+// - Type definition validation
 
 #[test]
 fn test_compose_3_subgraphs_single_type() {
@@ -539,10 +644,7 @@ fn test_compose_5_subgraphs_overlapping_types() {
 
 #[test]
 fn test_compose_validates_type_definitions() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -579,13 +681,16 @@ fn test_compose_merges_fields_from_multiple_subgraphs() {
 // ============================================================================
 // Category 2: Directive Validation (4 tests)
 // ============================================================================
+//
+// Tests that DirectiveValidator correctly validates federation directives:
+// - @requires directive references are resolvable
+// - @provides directive types exist in composed schema
+// - Invalid directive references are rejected
+// - Circular dependencies (@requires cycles) are detected
 
 #[test]
 fn test_requires_directive_validates_dependencies() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
     let mut validator = DirectiveValidator::new(schema);
@@ -613,10 +718,7 @@ fn test_provides_directive_validates_capabilities() {
 
 #[test]
 fn test_invalid_requires_reference_rejected() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
     let mut validator = DirectiveValidator::new(schema);
@@ -628,10 +730,7 @@ fn test_invalid_requires_reference_rejected() {
 
 #[test]
 fn test_circular_requires_detected() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
     let validator = DirectiveValidator::new(schema);
@@ -644,6 +743,11 @@ fn test_circular_requires_detected() {
 // ============================================================================
 // Category 3: Query Planning (3 tests)
 // ============================================================================
+//
+// Tests that QueryPlanner generates correct execution plans:
+// - Single-subgraph queries produce simple plans
+// - Multi-subgraph queries identify join points
+// - Subgraph execution order is optimized
 
 #[test]
 fn test_query_plan_single_subgraph() {
@@ -652,7 +756,9 @@ fn test_query_plan_single_subgraph() {
     let schema = SchemaComposer::compose(subgraphs);
     let planner = QueryPlanner::new(schema);
 
-    let plan = planner.plan_query("query { users { id name } }", "User").expect("Should plan query");
+    let plan = planner
+        .plan_query("query { users { id name } }", "User")
+        .expect("Should plan query");
 
     assert_eq!(plan.steps.len(), 1, "Single subgraph should have 1 step");
     assert_eq!(plan.steps[0].subgraph, "users");
@@ -660,15 +766,14 @@ fn test_query_plan_single_subgraph() {
 
 #[test]
 fn test_query_plan_multi_subgraph_joins() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
     let planner = QueryPlanner::new(schema);
 
-    let plan = planner.plan_query("query { orders { id userId } }", "Order").expect("Should plan query");
+    let plan = planner
+        .plan_query("query { orders { id userId } }", "Order")
+        .expect("Should plan query");
 
     assert!(!plan.steps.is_empty(), "Should have query steps");
 }
@@ -684,13 +789,21 @@ fn test_query_plan_optimizes_subgraph_order() {
     let schema = SchemaComposer::compose(subgraphs);
     let planner = QueryPlanner::new(schema);
 
-    let plan = planner.plan_query("query { products { id name price } }", "Product").expect("Should plan query");
+    let plan = planner
+        .plan_query("query { products { id name price } }", "Product")
+        .expect("Should plan query");
 
     assert!(!plan.steps.is_empty(), "Should have query steps");
 }
 
 // ============================================================================
 // Category 4: Multi-Subgraph Queries (4 tests)
+//
+// Tests query execution patterns across multiple subgraphs:
+// - Single subgraph queries work correctly
+// - Cross-subgraph queries with joins execute
+// - 3-subgraph complex queries are supported
+// - Filtered queries across subgraphs work
 // ============================================================================
 
 #[test]
@@ -708,10 +821,7 @@ fn test_query_users_from_users_subgraph() {
 
 #[test]
 fn test_query_user_with_orders_cross_subgraph() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -752,14 +862,17 @@ fn test_query_with_filters_across_subgraphs() {
 
 // ============================================================================
 // Category 5: Cross-Subgraph Mutations (4 tests)
+//
+// Tests saga-coordinated mutations across subgraph boundaries:
+// - 2-subgraph user+order creation via saga
+// - 3-subgraph user+order+payment saga
+// - Rollback on second subgraph failure
+// - Concurrent mutations on different entities
 // ============================================================================
 
 #[test]
 fn test_create_user_and_order_coordinated_saga() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -784,10 +897,7 @@ fn test_create_user_order_payment_3_subgraph_saga() {
 
 #[test]
 fn test_mutation_rollback_on_second_subgraph_failure() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -799,10 +909,7 @@ fn test_mutation_rollback_on_second_subgraph_failure() {
 
 #[test]
 fn test_concurrent_mutations_different_users() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -811,14 +918,16 @@ fn test_concurrent_mutations_different_users() {
 
 // ============================================================================
 // Category 6: Dependency Resolution (3 tests)
+//
+// Tests resolution of entity references across subgraphs:
+// - Direct entity references (Order.userId -> User.id)
+// - Nested entity references (Payment -> Order -> User)
+// - Type extensions with resolved references
 // ============================================================================
 
 #[test]
 fn test_resolve_entity_references() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -843,10 +952,7 @@ fn test_resolve_nested_entity_references() {
 
 #[test]
 fn test_resolve_with_type_extensions() {
-    let mut subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let mut subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let mut users2 = build_users_subgraph();
     users2.name = "users-extended".to_string();
@@ -860,14 +966,15 @@ fn test_resolve_with_type_extensions() {
 
 // ============================================================================
 // Category 7: Type Consistency (2 tests)
+//
+// Tests TypeRegistry validation of cross-subgraph types:
+// - Field type mismatches are detected
+// - Conflicting field definitions are rejected
 // ============================================================================
 
 #[test]
 fn test_type_mismatch_detected_across_subgraphs() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
     let registry = TypeRegistry::new(schema);
@@ -895,14 +1002,15 @@ fn test_conflicting_field_definitions_rejected() {
 
 // ============================================================================
 // Category 8: Error Scenarios (2 tests)
+//
+// Tests graceful error handling:
+// - Unreachable subgraphs are handled gracefully
+// - Malformed schemas are detected and rejected
 // ============================================================================
 
 #[test]
 fn test_subgraph_unreachable_during_query() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-        build_orders_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph(), build_orders_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
@@ -911,9 +1019,7 @@ fn test_subgraph_unreachable_during_query() {
 
 #[test]
 fn test_malformed_subgraph_schema_rejected() {
-    let subgraphs = vec![
-        build_users_subgraph(),
-    ];
+    let subgraphs = vec![build_users_subgraph()];
 
     let schema = SchemaComposer::compose(subgraphs);
 
