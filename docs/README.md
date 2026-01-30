@@ -18,6 +18,29 @@
 
 ## 📚 Documentation Structure
 
+### [Foundation](foundation/) **NEW!**
+
+**Comprehensive foundation documentation covering core concepts and architecture** (12 topics, 10,000+ lines).
+
+Perfect for developers new to FraiseQL or those wanting deep architectural understanding.
+
+- **[01: What is FraiseQL?](foundation/01-what-is-fraiseql.md)** — Understanding FraiseQL's compiled GraphQL approach
+- **[02: Core Concepts](foundation/02-core-concepts.md)** — Terminology and mental models
+- **[03: Database-Centric Architecture](foundation/03-database-centric-architecture.md)** — View types (v_*, tv_*, va_*, ta_*), fact tables, calendar dimensions
+- **[04: Design Principles](foundation/04-design-principles.md)** — Five principles guiding FraiseQL
+- **[05: Comparisons](foundation/05-comparisons.md)** — FraiseQL vs Apollo, Hasura, WunderGraph, REST
+- **[06: Compilation Pipeline](foundation/06-compilation-pipeline.md)** — Seven-phase compilation process
+- **[07: Query Execution Model](foundation/07-query-execution-model.md)** — Runtime query execution
+- **[08: Data Planes Architecture](foundation/08-data-planes-architecture.md)** — JSON (OLTP) vs Arrow (OLAP)
+- **[09: Type System](foundation/09-type-system.md)** — Built-in scalars, relationships, type inference
+- **[10: Error Handling](foundation/10-error-handling-validation.md)** — Error hierarchy and validation layers
+- **[11: Compiled Schema Structure](foundation/11-compiled-schema-structure.md)** — schema.compiled.json format
+- **[12: Performance Characteristics](foundation/12-performance-characteristics.md)** — Latency, throughput, scaling
+
+**[Complete Index](foundation/INDEX.md)** — Full topic overview with quality metrics
+
+---
+
 ### [Arrow Flight Integration](arrow-flight/)
 
 High-performance columnar data delivery for analytics and cross-language integration.
