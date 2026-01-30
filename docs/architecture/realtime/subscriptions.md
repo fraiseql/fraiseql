@@ -49,498 +49,29 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 
 ### Use Cases
 
-> **Note:** These use cases describe the intended functionality. See section 1.5 (Implementation Status) for details on what's currently working.
+**1. Real-Time UI Updates**
 
-**1. Real-Time UI Updates** ⚠️ *Protocol works; auto-capture pending*
+- Client subscribes to OrderCreated events
+- Receives updates within typical target envelope of <10ms (local network, reference deployment)
+- No polling, deterministic delivery
 
-- Client subscribes to OrderCreated events ✅
-- Receives updates within typical target envelope of <10ms (local network, reference deployment) ✅ *When events are published*
-- No polling, deterministic delivery ✅
-- ⚠️ *Requires manual event publishing until database triggers are added*
+**2. Event Streaming to External Systems**
 
-**2. Event Streaming to External Systems** ✅ *Kafka adapter ready*
+- Backend service consumes events via Kafka adapter
+- Replicates data to data warehouse
+- Replays events from any point in time
 
-- Backend service consumes events via Kafka adapter ✅
-- Replicates data to data warehouse ✅ *Kafka delivery works*
-- Replays events from any point in time ❌ *Replay API not implemented*
+**3. Multi-Tenant Change Notification**
 
-**3. Multi-Tenant Change Notification** ⚠️ *Filtering exists; enforcement pending*
+- Organization receives updates for their entities only
+- Row-level filtering enforced at compile time
+- No cross-tenant data leakage
 
-- Organization receives updates for their entities only ⚠️ *Filter logic exists*
-- Row-level filtering enforced at compile time ⚠️ *Filter evaluation works but user context not passed*
-- No cross-tenant data leakage ❌ *Not tested; enforcement incomplete*
+**4. Audit Trail Emission**
 
-**4. Audit Trail Emission** ❌ *Requires database trigger implementation*
-
-- All mutations automatically create subscription events ❌ *Manual publishing required*
-- Events sent to logging/analytics system ✅ *Transport works when events published*
-- Immutable record of all changes ⚠️ *tb_entity_change_log exists but not auto-populated*
-
----
-
-## 1.5. Implementation Status
-
-> **Important:** This document describes the intended architecture and design of FraiseQL subscriptions. The implementation is partially complete as of January 2026. This section clarifies what's fully implemented, what's in progress, and what remains planned.
-
-### ✅ Fully Implemented & Tested
-
-**GraphQL WebSocket Protocol (graphql-ws)**
-- Complete implementation of the graphql-ws subprotocol
-- Connection lifecycle: connection_init, subscribe, complete, ping/pong
-- Proper error handling with GraphQL error extensions
-- Close codes per spec
-- Unit tests: 60+ test functions covering protocol edge cases
-- Location: `crates/fraiseql-server/src/routes/subscriptions.rs`
-
-**Transport Adapters**
-- **Webhook Adapter**: HTTP POST delivery with HMAC-SHA256 signatures, exponential backoff retry, health checks
-- **Kafka Adapter**: Topic-based delivery with compression, keyed by entity_id for partitioning (requires `kafka` feature flag)
-- Both adapters fully tested with mock infrastructure
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs` (lines 1841-2250+)
-
-**Event Filtering & Matching**
-- Filter condition evaluation: Eq, Ne, Gt, Gte, Lt, Lte, Contains, StartsWith, EndsWith
-- Entity type and operation (CREATE/UPDATE/DELETE) matching
-- Field projection to subscription selection set
-- Argument-based filtering with client variables
-- JSON pointer-based data extraction
-- Comprehensive unit tests (15+ test functions)
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs` (lines 563-800)
-
-**Subscription Manager**
-- In-memory subscription registry with `DashMap` for concurrency
-- Subscribe/unsubscribe lifecycle management
-- Event broadcast via `tokio::sync::broadcast` channels
-- Sequence number tracking
-- Connection grouping for efficient cleanup
-- Unit tested for correctness
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs` (lines 380-900)
-
-### ⚠️ Implemented But Not Integrated
-
-**PostgreSQL LISTEN/NOTIFY Listener**
-- `PostgresListener` struct fully implements:
-  - Connection to PostgreSQL with automatic reconnection
-  - Subscription to notification channels
-  - Notification processing and routing
-  - Graceful shutdown handling
-- **Gap**: This component is NOT wired into server startup
-- **Impact**: Database events do not currently trigger subscription deliveries
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs` (lines 906-1178)
-
-**Entity Change Log Table**
-- `tb_entity_change_log` table schema defined and used in observer tests
-- Columns: event_id, entity_type, entity_id, operation, data (JSONB), created_at
-- **Gap**: No automatic insertion on mutations (no database triggers)
-- **Impact**: Events must be manually inserted for testing
-- Location: Test helpers in `crates/fraiseql-observers/tests/observer_test_helpers.rs`
-
-### ❌ Not Yet Implemented
-
-**Server Integration**
-- PostgresListener is not instantiated in server startup code
-- No connection between database event capture and SubscriptionManager.publish_event()
-- WebSocket subscriptions currently wait indefinitely for events that never arrive
-- **Required**: Wire `PostgresListener.start()` into `fraiseql-server` initialization
-
-**Database Triggers for Automatic Event Capture**
-- No SQL triggers to automatically INSERT into `tb_entity_change_log` on mutations
-- Events must be explicitly published via `publish_event()` API
-- **Required**: Migration scripts to create triggers on entity tables
-
-**Change Data Capture (CDC)**
-- Documentation mentions Debezium-compatible CDC
-- **Reality**: System uses polling via `ChangeLogListener` (observers crate), not true CDC
-- **Required**: Debezium or logical replication setup for production durability
-
-**Multi-Tenant Authorization Enforcement**
-- Filter matching logic exists but user context is not passed to evaluation
-- No runtime enforcement of row-level security in subscription delivery
-- **Required**: Pass `user_context` through to `matches_subscription()` and enforce tenant isolation
-
-**Event Replay from Change Log**
-- `tb_entity_change_log` has sequence numbers for ordering
-- No mechanism to replay events from a checkpoint
-- **Required**: Checkpoint management and replay API
-
-**End-to-End Integration Tests**
-- Protocol-level tests exist (60+ unit tests)
-- **Missing**: Integration tests covering: mutation → event capture → subscription delivery
-- **Missing**: Multi-tenant filtering verification
-- **Missing**: WebSocket integration tests with real database events
-
-### Current Capabilities
-
-**What Works Today:**
-1. You can manually publish events via `SubscriptionManager.publish_event(event)`
-2. Webhook and Kafka adapters will deliver those events correctly
-3. The graphql-ws WebSocket protocol is fully functional for receiving events
-4. Event filtering and projection logic works correctly
-5. Subscription lifecycle (subscribe/unsubscribe) is robust
-
-**What Doesn't Work:**
-1. Database mutations do NOT automatically trigger subscription events
-2. No events flow from database to WebSocket clients without manual intervention
-3. The full event pipeline (mutation → LISTEN/NOTIFY → delivery) is incomplete
-
-### Development Roadmap
-
-To complete the subscription system:
-
-1. **Phase A: Server Wiring** (1-2 days)
-   - Instantiate `PostgresListener` in server startup
-   - Connect listener to `SubscriptionManager.publish_event()`
-   - Test with manual NOTIFY commands
-
-2. **Phase B: Database Triggers** (2-3 days)
-   - Create migration scripts for event capture triggers
-   - Test automatic event insertion on mutations
-   - Verify LISTEN/NOTIFY payload format
-
-3. **Phase C: Multi-Tenant Enforcement** (1-2 days)
-   - Pass user context to filter evaluation
-   - Add authorization checks at delivery time
-   - Test tenant isolation
-
-4. **Phase D: Integration Tests** (3-4 days)
-   - Create end-to-end WebSocket subscription tests
-   - Test mutation → event → delivery pipeline
-   - Add multi-tenant filtering tests
-   - Performance and stress testing
-
-5. **Phase E: Durability & Replay** (3-5 days)
-   - Implement checkpoint management
-   - Add replay API from `tb_entity_change_log`
-   - Consider Debezium integration for CDC
-
-**Estimated Time to Full Production Readiness:** 10-16 days of focused development
-
----
-
-## 1.6. Working Today: Practical Examples
-
-> **Developer Guide:** This section shows you how to use subscription features that ARE fully implemented and tested. Use these examples to integrate subscriptions into your application while the server integration is being completed.
-
-### Example 1: Manual Event Publishing (Working)
-
-The `SubscriptionManager` is fully functional for manual event publishing. Here's how to use it:
-
-```rust
-use fraiseql_core::runtime::subscription::{
-    SubscriptionManager, SubscriptionEvent, SubscriptionId,
-};
-use serde_json::json;
-
-// Create subscription manager with compiled schema
-let manager = SubscriptionManager::new(compiled_schema);
-
-// Client subscribes to OrderCreated events via WebSocket
-let subscription_id = manager.subscribe(
-    "OrderCreated",           // Event name
-    user_context,            // Authentication context
-    json!({"user_id": 123}), // Filter variables
-).await?;
-
-// Later, when an order is created, publish the event manually
-let event = SubscriptionEvent {
-    event_id: Uuid::new_v4(),
-    event_name: "OrderCreated".to_string(),
-    entity_name: "Order".to_string(),
-    entity_id: "ord_456".to_string(),
-    operation: "CREATE".to_string(),
-    timestamp: chrono::Utc::now(),
-    sequence_number: 1001,
-    data: json!({
-        "id": "ord_456",
-        "user_id": 123,
-        "amount": 99.99,
-        "created_at": "2026-01-30T10:00:00Z"
-    }),
-};
-
-// Publish event - this WORKS and will deliver to WebSocket clients
-manager.publish_event(event).await?;
-```
-
-**✅ This works:** Events published this way will be matched against active subscriptions and delivered via transports (WebSocket, webhook, Kafka).
-
----
-
-### Example 2: Webhook Delivery (Working)
-
-Webhook adapter is fully implemented with HMAC signatures and retry logic:
-
-```rust
-use fraiseql_core::runtime::subscription::{
-    WebhookAdapter, WebhookConfig,
-};
-
-// Configure webhook adapter
-let webhook_config = WebhookConfig {
-    url: "https://example.com/webhooks/orders".to_string(),
-    secret: "your-webhook-secret".to_string(),  // For HMAC-SHA256
-    max_retries: 3,
-    headers: vec![
-        ("X-Service".to_string(), "FraiseQL".to_string()),
-    ],
-};
-
-let webhook_adapter = WebhookAdapter::new(webhook_config);
-
-// Deliver event to webhook endpoint
-webhook_adapter.deliver(&event).await?;
-```
-
-**Webhook Payload (sent as HTTP POST):**
-
-```json
-{
-  "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
-  "event_name": "OrderCreated",
-  "entity_name": "Order",
-  "entity_id": "ord_456",
-  "operation": "CREATE",
-  "timestamp": "2026-01-30T10:00:00.123456Z",
-  "sequence_number": 1001,
-  "data": {
-    "id": "ord_456",
-    "user_id": 123,
-    "amount": 99.99
-  }
-}
-```
-
-**HTTP Headers Included:**
-
-```
-Content-Type: application/json
-X-Webhook-Signature: sha256=<hmac-signature>
-X-Event-ID: evt_550e8400-e29b-41d4-a716-446655440000
-X-Event-Name: OrderCreated
-X-Service: FraiseQL
-```
-
-**✅ This works:** Webhooks will be delivered with exponential backoff retry (up to max_retries).
-
----
-
-### Example 3: Kafka Delivery (Working, Feature-Flagged)
-
-Kafka adapter is fully implemented for event streaming:
-
-```rust
-use fraiseql_core::runtime::subscription::{
-    KafkaAdapter, KafkaConfig,
-};
-
-// Configure Kafka adapter (requires 'kafka' feature flag)
-let kafka_config = KafkaConfig {
-    brokers: vec!["localhost:9092".to_string()],
-    topic: "fraiseql.order.events".to_string(),
-    compression: Some("gzip".to_string()),
-};
-
-let kafka_adapter = KafkaAdapter::new(kafka_config).await?;
-
-// Deliver event to Kafka topic
-kafka_adapter.deliver(&event).await?;
-```
-
-**Kafka Message Format:**
-
-- **Key:** `entity_id` (e.g., "ord_456") — ensures ordering per entity
-- **Value:** Full event JSON (same as webhook payload)
-- **Headers:**
-  - `event_name`: "OrderCreated"
-  - `entity_name`: "Order"
-  - `operation`: "CREATE"
-
-**✅ This works:** Events are published to Kafka with proper partitioning by entity_id.
-
----
-
-### Example 4: WebSocket Client Connection (Working)
-
-The graphql-ws protocol is fully implemented. Here's a JavaScript client example:
-
-```javascript
-import { createClient } from 'graphql-ws';
-
-const client = createClient({
-  url: 'ws://localhost:8080/graphql/subscriptions',
-  connectionParams: {
-    authToken: 'your-jwt-token',
-  },
-});
-
-// Subscribe to OrderCreated events
-const unsubscribe = client.subscribe(
-  {
-    query: `
-      subscription OnOrderCreated {
-        OrderCreated(where: { user_id: 123 }) {
-          id
-          user_id
-          amount
-          created_at
-        }
-      }
-    `,
-  },
-  {
-    next: (data) => {
-      console.log('Order created:', data);
-    },
-    error: (err) => {
-      console.error('Subscription error:', err);
-    },
-    complete: () => {
-      console.log('Subscription completed');
-    },
-  }
-);
-
-// Later: unsubscribe
-unsubscribe();
-```
-
-**✅ This works:** WebSocket connections are fully functional, events published via `publish_event()` will be delivered.
-
----
-
-### Example 5: Event Filtering (Working)
-
-Filter matching is fully implemented and tested:
-
-```rust
-// Subscribe with WHERE filter
-let subscription_id = manager.subscribe(
-    "OrderCreated",
-    user_context,
-    json!({
-        "where": {
-            "user_id": { "eq": 123 },
-            "amount": { "gte": 50.00 }
-        }
-    }),
-).await?;
-
-// This event WILL match (user_id=123, amount=99.99)
-let event1 = SubscriptionEvent {
-    data: json!({ "user_id": 123, "amount": 99.99 }),
-    // ...
-};
-manager.publish_event(event1).await?; // ✅ Delivered
-
-// This event will NOT match (amount < 50)
-let event2 = SubscriptionEvent {
-    data: json!({ "user_id": 123, "amount": 25.00 }),
-    // ...
-};
-manager.publish_event(event2).await?; // ❌ Filtered out
-```
-
-**Supported Filter Operators:**
-
-- `eq`, `ne` — Equality/inequality
-- `gt`, `gte`, `lt`, `lte` — Numeric comparisons
-- `contains` — String contains substring
-- `startsWith`, `endsWith` — String prefix/suffix
-
-**✅ This works:** Filter evaluation is correct and well-tested (15+ unit tests).
-
----
-
-### Example 6: Testing Subscriptions in Your App
-
-Here's how to test subscriptions with manual event publishing:
-
-```rust
-#[tokio::test]
-async fn test_order_subscription_delivery() {
-    // Setup
-    let manager = SubscriptionManager::new(schema);
-    let mut receiver = manager.receiver();
-
-    // Subscribe
-    let sub_id = manager.subscribe(
-        "OrderCreated",
-        test_user_context(),
-        json!({}),
-    ).await.unwrap();
-
-    // Publish test event
-    let event = create_test_order_event("ord_123", 99.99);
-    manager.publish_event(event.clone()).await.unwrap();
-
-    // Verify delivery
-    let delivered = receiver.recv().await.unwrap();
-    assert_eq!(delivered.event_id, event.event_id);
-    assert_eq!(delivered.entity_id, "ord_123");
-}
-```
-
-**✅ This works:** You can write comprehensive tests for subscription filtering, delivery, and lifecycle.
-
----
-
-### What Requires Workarounds
-
-**Database Mutations → Events:**
-
-Currently, you must manually publish events after mutations. Example workaround:
-
-```rust
-async fn create_order(pool: &PgPool, user_id: i32, amount: f64) -> Result<Order> {
-    // Execute mutation
-    let order = sqlx::query_as!(
-        Order,
-        "INSERT INTO tb_order (user_id, amount) VALUES ($1, $2) RETURNING *",
-        user_id,
-        amount
-    )
-    .fetch_one(pool)
-    .await?;
-
-    // ⚠️ WORKAROUND: Manually publish event
-    let event = SubscriptionEvent {
-        event_name: "OrderCreated".to_string(),
-        entity_name: "Order".to_string(),
-        entity_id: order.id.to_string(),
-        operation: "CREATE".to_string(),
-        data: serde_json::to_value(&order)?,
-        // ...
-    };
-    subscription_manager.publish_event(event).await?;
-
-    Ok(order)
-}
-```
-
-**What's Missing:** Automatic event capture via database triggers (coming in Phase B of roadmap).
-
----
-
-### Production Deployment Notes
-
-**What You Can Deploy Today:**
-
-1. **Webhook Integration** — Send events to external systems via webhooks ✅
-2. **Kafka Streaming** — Stream events to Kafka for analytics/replication ✅
-3. **WebSocket Subscriptions** — Real-time UI updates (with manual event publishing) ✅
-4. **Event Filtering** — Per-subscription filtering with WHERE clauses ✅
-
-**What to Wait For:**
-
-1. **Automatic Event Capture** — Wait for database trigger implementation ⏳
-2. **Multi-Tenant Authorization** — Runtime enforcement not yet complete ⏳
-3. **Event Replay** — Checkpoint and replay API not implemented ⏳
-
-**Recommended Deployment Strategy:**
-
-- Use subscriptions for webhook/Kafka delivery (fully production-ready)
-- Use manual `publish_event()` in mutation handlers until triggers are added
-- Plan to migrate to automatic capture when Phase B is complete
+- All mutations automatically create subscription events
+- Events sent to logging/analytics system
+- Immutable record of all changes
 
 ---
 
@@ -613,31 +144,31 @@ async fn create_order(pool: &PgPool, user_id: i32, amount: f64) -> Result<Order>
 
 ### 2.2 Components
 
-**Database Layer (PostgreSQL)** ⚠️ *Partially Implemented*
+**Database Layer (PostgreSQL)**
 
-- Transactions commit changes to `tb_*` tables ✅
-- LISTEN/NOTIFY notifies subscription system of changes ⚠️ *Listener implemented but not wired to server*
-- CDC captures changes for durability and replay ❌ *Not implemented; polling used instead*
+- Transactions commit changes to `tb_*` tables
+- LISTEN/NOTIFY notifies subscription system of changes
+- CDC captures changes for durability and replay
 
-**Event Buffer (`tb_entity_change_log`)** ⚠️ *Table exists, auto-capture missing*
+**Event Buffer (`tb_entity_change_log`)**
 
-- Persists all events with monotonic sequence numbers ✅ *Table schema defined*
-- Enables replay from any point in time ❌ *Replay API not implemented*
-- Acts as backpressure buffer if transport is slow ✅ *Table structure supports this*
-- Debezium-compatible envelope format ⚠️ *Format compatible but no CDC integration*
+- Persists all events with monotonic sequence numbers
+- Enables replay from any point in time
+- Acts as backpressure buffer if transport is slow
+- Debezium-compatible envelope format
 
-**Subscription Matcher** ✅ *Fully Implemented*
+**Subscription Matcher**
 
-- Evaluates compiled subscription filters ✅
-- Groups events by destination (graphql-ws client, webhook, Kafka topic) ✅
-- Transforms event to projection shape ✅
+- Evaluates compiled subscription filters
+- Groups events by destination (graphql-ws client, webhook, Kafka topic)
+- Transforms event to projection shape
 
-**Transport Adapters** ✅ *Fully Implemented*
+**Transport Adapters**
 
-- `graphql-ws`: WebSocket for browser clients ✅ *Complete protocol implementation*
-- `webhooks`: HTTP POST to external endpoints ✅ *With HMAC signatures and retry*
-- `kafka`: Push to Kafka topic ✅ *Feature-flagged, fully tested*
-- `grpc`: Future extension for service-to-service ❌ *Planned, not implemented*
+- `graphql-ws`: WebSocket for browser clients
+- `webhooks`: HTTP POST to external endpoints
+- `kafka`: Push to Kafka topic
+- `grpc`: Future extension for service-to-service
 
 **Client Connections**
 
