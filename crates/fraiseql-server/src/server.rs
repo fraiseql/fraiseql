@@ -5,7 +5,10 @@ use std::sync::Arc;
 use axum::{Router, middleware, routing::get};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
-    runtime::{Executor, SubscriptionManager},
+    runtime::{
+        Executor, SubscriptionManager,
+        subscription::{ListenerConfig, ListenerHandle, PostgresListener},
+    },
     schema::CompiledSchema,
     security::OidcValidator,
 };
@@ -42,6 +45,7 @@ pub struct Server<A: DatabaseAdapter> {
     executor:             Arc<Executor<A>>,
     subscription_manager: Arc<SubscriptionManager>,
     oidc_validator:       Option<Arc<OidcValidator>>,
+    subscription_listener_handle: Option<ListenerHandle>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -114,6 +118,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             executor,
             subscription_manager,
             oidc_validator,
+            subscription_listener_handle: None, // Will be started in serve() if configured
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -320,7 +325,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// # Errors
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
-    pub async fn serve(self) -> Result<()> {
+    pub async fn serve(mut self) -> Result<()> {
         let app = self.build_router();
 
         // Initialize TLS setup
@@ -347,6 +352,50 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 },
             }
             drop(guard);
+        }
+
+        // Start subscription listener if configured
+        if let Some(ref listener_config) = self.config.subscription_listener {
+            if listener_config.enabled {
+                info!(
+                    channel = %listener_config.channel_name,
+                    auto_reconnect = listener_config.auto_reconnect,
+                    "Starting PostgreSQL subscription listener..."
+                );
+
+                let mut listener_cfg = ListenerConfig::new(&self.config.database_url)
+                    .with_channel(&listener_config.channel_name)
+                    .with_reconnect_delay(listener_config.reconnect_delay_ms)
+                    .with_max_reconnect_attempts(listener_config.max_reconnect_attempts);
+
+                // Disable auto-reconnect if configured to do so
+                if !listener_config.auto_reconnect {
+                    listener_cfg = listener_cfg.without_auto_reconnect();
+                }
+
+                let pg_listener = PostgresListener::new(
+                    listener_cfg,
+                    Arc::clone(&self.subscription_manager),
+                );
+
+                match pg_listener.start().await {
+                    Ok(handle) => {
+                        info!("Subscription listener started successfully");
+                        self.subscription_listener_handle = Some(handle);
+                    },
+                    Err(e) => {
+                        warn!(
+                            error = %e,
+                            "Failed to start subscription listener, subscriptions will be manual-only"
+                        );
+                        // Continue without automatic event capture
+                    },
+                }
+            } else {
+                info!("Subscription listener is disabled in configuration");
+            }
+        } else {
+            info!("No subscription listener configured, subscriptions will be manual-only");
         }
 
         let listener = TcpListener::bind(self.config.bind_addr)
@@ -396,6 +445,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_graceful_shutdown(async move {
                     Self::shutdown_signal().await;
 
+                    // Stop subscription listener
+                    if let Some(handle) = self.subscription_listener_handle {
+                        info!("Shutting down subscription listener");
+                        handle.stop().await;
+                    }
+
                     // Stop observer runtime
                     #[cfg(feature = "observers")]
                     if let Some(ref runtime) = self.observer_runtime {
@@ -421,6 +476,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             axum::serve(listener, app)
                 .with_graceful_shutdown(async move {
                     Self::shutdown_signal().await;
+
+                    // Stop subscription listener
+                    if let Some(handle) = self.subscription_listener_handle {
+                        info!("Shutting down subscription listener");
+                        handle.stop().await;
+                    }
 
                     // Stop observer runtime
                     #[cfg(feature = "observers")]

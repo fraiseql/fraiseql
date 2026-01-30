@@ -75,6 +75,42 @@ pub struct DatabaseTlsConfig {
     pub ca_bundle_path: Option<PathBuf>,
 }
 
+/// Subscription listener configuration for PostgreSQL NOTIFY events.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionListenerConfig {
+    /// Enable subscription listener.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// PostgreSQL channel name to listen on.
+    #[serde(default = "default_subscription_channel")]
+    pub channel_name: String,
+
+    /// Auto-reconnect on connection loss.
+    #[serde(default = "default_true")]
+    pub auto_reconnect: bool,
+
+    /// Reconnection delay in milliseconds.
+    #[serde(default = "default_reconnect_delay_ms")]
+    pub reconnect_delay_ms: u64,
+
+    /// Maximum reconnection attempts (0 = unlimited).
+    #[serde(default)]
+    pub max_reconnect_attempts: u32,
+}
+
+impl Default for SubscriptionListenerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            channel_name: default_subscription_channel(),
+            auto_reconnect: true,
+            reconnect_delay_ms: default_reconnect_delay_ms(),
+            max_reconnect_attempts: 0,
+        }
+    }
+}
+
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -162,6 +198,13 @@ pub struct ServerConfig {
     /// support for real-time subscription events.
     #[serde(default = "default_true")]
     pub subscriptions_enabled: bool,
+
+    /// Subscription listener configuration for database event capture.
+    ///
+    /// When enabled, PostgresListener will listen for NOTIFY events from the
+    /// database and publish them to active GraphQL subscriptions.
+    #[serde(default)]
+    pub subscription_listener: Option<SubscriptionListenerConfig>,
 
     /// Enable metrics endpoints.
     ///
@@ -330,7 +373,8 @@ impl Default for ServerConfig {
             playground_tool: PlaygroundTool::default(),
             subscription_path: default_subscription_path(),
             subscriptions_enabled: true,
-            metrics_enabled: false, // Disabled by default for security
+            subscription_listener: None, // Disabled by default until fully tested
+            metrics_enabled: false,      // Disabled by default for security
             metrics_token: None,
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
@@ -491,6 +535,14 @@ fn default_playground_path() -> String {
 
 fn default_subscription_path() -> String {
     "/ws".to_string()
+}
+
+fn default_subscription_channel() -> String {
+    "fraiseql_events".to_string()
+}
+
+fn default_reconnect_delay_ms() -> u64 {
+    1000 // 1 second
 }
 
 fn default_pool_min_size() -> usize {

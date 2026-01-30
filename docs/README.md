@@ -79,7 +79,7 @@ System architecture, design decisions, and technical specifications.
 **Advanced Topics:**
 
 - [Integration](architecture/integration/) — Federation, extension points, integration patterns
-- [Real-time](architecture/realtime/) — Subscriptions and event streaming
+- [Real-time](architecture/realtime/) — Subscriptions and event streaming ⚠️ *See implementation status in subscriptions.md section 1.5*
 - [Design Decisions](architecture/decisions/) — Architectural decisions and patterns
 
 ### [Specifications](specs/)
@@ -158,6 +158,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 | **Security Model** | [architecture/security/security-model.md](architecture/security/security-model.md) |
 | **Production Deployment** | [guides/production-deployment.md](guides/production-deployment.md) |
 | **Testing** | [guides/testing-strategy.md](guides/testing-strategy.md) |
+| **Subscriptions** ⚠️ | [architecture/realtime/subscriptions.md](architecture/realtime/subscriptions.md) *Partially implemented - see section 1.5* |
 
 ---
 
