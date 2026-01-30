@@ -436,19 +436,7 @@ mod harness {
                 }
             }
 
-            if failed_at.is_none() {
-                self.store.update_saga_state(saga_id, SagaState::Completed)?;
-                Ok(SagaResult {
-                    saga_id,
-                    state: SagaState::Completed,
-                    completed_steps,
-                    total_steps,
-                    error: None,
-                    step_results,
-                    compensation_results: Vec::new(),
-                })
-            } else {
-                let error_msg = failed_at.unwrap();
+            if let Some(error_msg) = failed_at {
                 self.store.update_saga_state(saga_id, SagaState::Compensating)?;
 
                 let mut compensation_results = Vec::new();
@@ -487,6 +475,17 @@ mod harness {
                     error: Some(error_msg),
                     step_results,
                     compensation_results,
+                })
+            } else {
+                self.store.update_saga_state(saga_id, SagaState::Completed)?;
+                Ok(SagaResult {
+                    saga_id,
+                    state: SagaState::Completed,
+                    completed_steps,
+                    total_steps,
+                    error: None,
+                    step_results,
+                    compensation_results: Vec::new(),
                 })
             }
         }

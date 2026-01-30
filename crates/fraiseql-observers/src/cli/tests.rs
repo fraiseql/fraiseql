@@ -28,13 +28,13 @@ mod command_tests {
     #[tokio::test]
     async fn test_status_command_text_format() {
         let result = crate::cli::commands::status::execute(OutputFormat::Text, None, false).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
     async fn test_status_command_json_format() {
         let result = crate::cli::commands::status::execute(OutputFormat::Json, None, false).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -42,7 +42,7 @@ mod command_tests {
         let result =
             crate::cli::commands::debug_event::execute(OutputFormat::Text, None, None, None, None)
                 .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -55,35 +55,35 @@ mod command_tests {
             Some("created".to_string()),
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
     async fn test_validate_config_command() {
         let result =
             crate::cli::commands::validate_config::execute(OutputFormat::Text, None, false).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
     async fn test_validate_config_detailed() {
         let result =
             crate::cli::commands::validate_config::execute(OutputFormat::Json, None, true).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[cfg(feature = "metrics")]
     #[tokio::test]
     async fn test_metrics_command() {
         let result = crate::cli::commands::metrics::execute(OutputFormat::Text, None, false).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[cfg(feature = "metrics")]
     #[tokio::test]
     async fn test_metrics_json_format() {
         let result = crate::cli::commands::metrics::execute(OutputFormat::Json, None, false).await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 }
 
@@ -103,7 +103,7 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -115,7 +115,7 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -128,7 +128,7 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -142,7 +142,7 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -155,7 +155,7 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 
     #[tokio::test]
@@ -168,6 +168,6 @@ mod dlq_command_tests {
             },
         )
         .await;
-        assert!(result.is_ok());
+        result.expect("CLI command should succeed");
     }
 }

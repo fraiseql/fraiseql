@@ -158,10 +158,10 @@ fn test_field_type_conflict_same_type() {
         )])],
     };
 
-    let result = compose_federation_schemas(&[users, auth]);
-    // Result depends on conflict resolution strategy
-    // Should either error or use first definition
-    let _ = result;
+    let _result = compose_federation_schemas(&[users, auth]);
+    // Conflict detection is not yet implemented — composing identical type
+    // definitions (same fields, same types) currently succeeds.
+    // This test documents that behavior for future conflict detection work.
 }
 
 #[test]
@@ -190,9 +190,10 @@ fn test_multiple_key_definitions_inconsistent() {
         types:   vec![auth_user],
     };
 
-    let result = compose_federation_schemas(&[users, auth]);
-    // Should detect key mismatch (behavior depends on validation strategy)
-    let _ = result;
+    let _result = compose_federation_schemas(&[users, auth]);
+    // Key mismatch detection is not yet implemented — composition currently
+    // succeeds regardless of differing @key directives across subgraphs.
+    // This test documents that behavior for future validation work.
 }
 
 // ============================================================================
@@ -323,10 +324,8 @@ fn test_composed_schema_validity() {
         types:   vec![create_order_type_basic(), create_user_type_extending()],
     };
 
-    let result = compose_federation_schemas(&[users, orders]);
-    assert!(result.is_ok());
-
-    let composed = result.unwrap();
+    let composed = compose_federation_schemas(&[users, orders])
+        .expect("should compose two subgraphs for validation");
 
     // Validate composed schema
     assert!(composed.enabled, "Should be federation enabled");
@@ -360,10 +359,8 @@ fn test_composed_schema_federation_enabled_any_source() {
         types:   vec![create_order_type_basic()],
     };
 
-    let result = compose_federation_schemas(&[enabled_subgraph, disabled_subgraph]);
-    assert!(result.is_ok());
-
-    let composed = result.unwrap();
+    let composed = compose_federation_schemas(&[enabled_subgraph, disabled_subgraph])
+        .expect("should compose mixed-enabled subgraphs");
     assert!(composed.enabled, "Composed schema should be enabled if any subgraph is enabled");
 }
 
@@ -390,10 +387,8 @@ fn test_type_with_no_extensions() {
         types:   vec![create_order_type_basic()],
     };
 
-    let result = compose_federation_schemas(&[users, orders]);
-    assert!(result.is_ok());
-
-    let composed = result.unwrap();
+    let composed = compose_federation_schemas(&[users, orders])
+        .expect("should compose subgraphs with non-extended type");
     let user_type = composed.types.iter().find(|t| t.name == "User").unwrap();
     assert!(!user_type.is_extends, "User should be owning definition");
 }
@@ -435,10 +430,8 @@ fn test_many_extensions_single_owner() {
         subgraphs.push(metadata);
     }
 
-    let result = compose_federation_schemas(&subgraphs);
-    assert!(result.is_ok());
-
-    let composed = result.unwrap();
+    let composed = compose_federation_schemas(&subgraphs)
+        .expect("should compose 7 subgraphs with many User extensions");
     assert_eq!(
         composed.types.iter().filter(|t| t.name == "User").count(),
         1,

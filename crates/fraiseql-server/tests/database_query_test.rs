@@ -2,70 +2,65 @@
 //!
 //! Tests actual database query execution:
 //! 1. Connection pool initialization
-//! 2. Test schema creation
-//! 3. Data insertion
-//! 4. Query execution
-//! 5. Result verification
+//! 2. Query execution
+//! 3. Result verification
+//! 4. Error handling
 //!
-//! These tests require PostgreSQL database.
-//! Set DATABASE_URL environment variable to enable.
+//! These tests require a running PostgreSQL instance.
+//! Run with: `cargo test -p fraiseql-server --test database_query_test -- --ignored`
 
 use std::time::Instant;
 
 use sqlx::postgres::PgPool;
 
-/// Helper to get database URL from environment
-fn get_database_url() -> Option<String> {
-    std::env::var("DATABASE_URL").ok()
+/// Helper to get database URL from environment.
+/// Panics if DATABASE_URL is not set (tests using this are `#[ignore]`).
+fn require_database_url() -> String {
+    std::env::var("DATABASE_URL").expect("DATABASE_URL must be set to run this test")
 }
 
 /// Test database connection
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_database_connection() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect to database");
 
-    // Verify connection works
-    let result = sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&pool).await;
+    let value = sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&pool)
+        .await
+        .expect("SELECT 1 should succeed");
 
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 1);
+    assert_eq!(value, 1);
 
     pool.close().await;
 }
 
 /// Test connection pool configuration
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_connection_pool_config() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
-    // Create pool with custom settings
     let pool = PgPool::connect(&database_url).await.expect("Failed to create pool");
 
-    // Verify pool is usable (num_idle returns usize, so just verify we can read it)
-    let _num_idle = pool.num_idle();
+    // Verify pool has at least one idle connection after connect
+    // (sqlx creates an initial connection on connect)
+    let num_idle = pool.num_idle();
+    assert!(num_idle >= 1, "pool should have at least 1 idle connection, got {num_idle}");
 
     pool.close().await;
 }
 
 /// Test concurrent database queries
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_concurrent_database_queries() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Fire 10 concurrent queries
     let futures: Vec<_> = (0..10)
         .map(|i| {
             let pool = pool.clone();
@@ -75,124 +70,122 @@ async fn test_concurrent_database_queries() {
 
     let results = futures::future::join_all(futures).await;
 
-    // All should succeed
     assert_eq!(results.len(), 10);
     for (i, result) in results.iter().enumerate() {
-        assert!(result.is_ok(), "Query {} failed", i);
-        if let Ok(value) = result {
-            assert_eq!(*value, i as i32);
-        }
+        let value = result.as_ref().unwrap_or_else(|e| panic!("Query {i} failed: {e}"));
+        assert_eq!(*value, i as i32, "Query {i} returned wrong value");
     }
 
     pool.close().await;
 }
 
-/// Test query performance
+/// Test query performance baseline
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_query_performance() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     let start = Instant::now();
 
-    // Execute 100 simple queries
     for i in 0..100 {
-        let _result = sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&pool).await;
+        let value = sqlx::query_scalar::<_, i32>("SELECT $1")
+            .bind(i)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("Query {i} failed: {e}"));
+        assert_eq!(value, i, "Query {i} returned wrong value");
     }
 
     let duration = start.elapsed();
-    let avg_ms = duration.as_millis() as f64 / 100.0;
 
-    println!("Average query time: {:.2}ms", avg_ms);
-
-    // Queries should be fast
-    assert!(duration.as_millis() < 10000); // 100 queries in < 10s
+    // 100 simple queries should complete in under 5 seconds on any reasonable setup
+    assert!(
+        duration.as_millis() < 5000,
+        "100 queries took {}ms, expected <5000ms",
+        duration.as_millis()
+    );
 
     pool.close().await;
 }
 
 /// Test connection pool under stress
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_connection_pool_stress() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Fire 50 concurrent connections
     let futures: Vec<_> = (0..50)
         .map(|i| {
             let pool = pool.clone();
             async move {
-                // Hold connection briefly
                 sqlx::query_scalar::<_, i32>("SELECT $1 as value")
                     .bind(i)
                     .fetch_one(&pool)
                     .await
-                    .ok()
             }
         })
         .collect();
 
     let results = futures::future::join_all(futures).await;
 
-    let successful = results.iter().filter(|r| r.is_some()).count();
+    let failures: Vec<_> = results
+        .iter()
+        .enumerate()
+        .filter_map(|(i, r)| r.as_ref().err().map(|e| format!("query {i}: {e}")))
+        .collect();
 
-    println!("Connection pool stress test: {}/50 successful", successful);
-
-    // Most should succeed
-    assert!(successful > 40);
+    assert!(
+        failures.is_empty(),
+        "all 50 concurrent queries should succeed, failures: {failures:?}"
+    );
 
     pool.close().await;
 }
 
 /// Test transaction handling
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_transaction_handling() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Start transaction
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
-    // Execute query within transaction
-    let result = sqlx::query_scalar::<_, i32>("SELECT 42").fetch_one(&mut *tx).await;
+    let value = sqlx::query_scalar::<_, i32>("SELECT 42")
+        .fetch_one(&mut *tx)
+        .await
+        .expect("SELECT within transaction should succeed");
 
-    assert!(result.is_ok());
+    assert_eq!(value, 42);
 
-    // Rollback transaction
     tx.rollback().await.expect("Failed to rollback");
 
     pool.close().await;
 }
 
-/// Test error handling
+/// Test error handling for nonexistent table
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_database_error_handling() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Try to query non-existent table
-    let result = sqlx::query_scalar::<_, i32>("SELECT * FROM nonexistent_table")
+    let result = sqlx::query_scalar::<_, i32>("SELECT * FROM nonexistent_table_xyz_12345")
         .fetch_one(&pool)
         .await;
 
-    // Should return error
-    assert!(result.is_err());
+    let err = result.expect_err("querying nonexistent table should fail");
+    let err_str = err.to_string();
+    assert!(
+        err_str.contains("nonexistent_table_xyz_12345"),
+        "error should mention the table name, got: {err_str}"
+    );
 
     pool.close().await;
 }
@@ -200,100 +193,99 @@ async fn test_database_error_handling() {
 /// Test connection timeout handling
 #[tokio::test]
 async fn test_connection_timeout() {
-    // Try to connect to invalid host with short timeout
     let invalid_url = "postgresql://invalid.host.example.com/db";
 
     let result =
-        tokio::time::timeout(std::time::Duration::from_secs(1), PgPool::connect(invalid_url)).await;
+        tokio::time::timeout(std::time::Duration::from_secs(2), PgPool::connect(invalid_url)).await;
 
-    // Should timeout or fail
-    assert!(result.is_err() || result.unwrap().is_err());
+    match result {
+        Err(_elapsed) => {
+            // Timeout -- expected behavior
+        },
+        Ok(Err(_connect_err)) => {
+            // Connection error (DNS failure, refused) -- also acceptable
+        },
+        Ok(Ok(_pool)) => {
+            panic!("should not successfully connect to invalid host");
+        },
+    }
 }
 
 /// Test prepared statements caching
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_prepared_statement_caching() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
     let start = Instant::now();
 
-    // Execute same query multiple times
+    // Execute same query 50 times -- should benefit from statement caching
     for i in 0..50 {
-        let _result = sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&pool).await;
+        let value = sqlx::query_scalar::<_, i32>("SELECT $1")
+            .bind(i)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("Query {i} failed: {e}"));
+        assert_eq!(value, i);
     }
 
     let duration = start.elapsed();
 
-    println!("50 queries with caching: {:.2}ms", duration.as_millis());
-
-    // Should be fast with caching
-    assert!(duration.as_millis() < 5000);
+    assert!(
+        duration.as_millis() < 3000,
+        "50 cached queries took {}ms, expected <3000ms",
+        duration.as_millis()
+    );
 
     pool.close().await;
 }
 
 /// Test concurrent transaction handling
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_concurrent_transactions() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Fire 10 concurrent transactions
     let futures: Vec<_> = (0..10)
         .map(|i| {
             let pool = pool.clone();
             async move {
-                let mut tx = pool.begin().await.ok()?;
-                let result =
-                    sqlx::query_scalar::<_, i32>("SELECT $1").bind(i).fetch_one(&mut *tx).await;
-                if result.is_ok() {
-                    tx.commit().await.ok()?;
-                } else {
-                    tx.rollback().await.ok()?;
-                }
-                result.ok()
+                let mut tx = pool.begin().await?;
+                let value: i32 =
+                    sqlx::query_scalar("SELECT $1").bind(i).fetch_one(&mut *tx).await?;
+                tx.commit().await?;
+                Ok::<i32, sqlx::Error>(value)
             }
         })
         .collect();
 
     let results = futures::future::join_all(futures).await;
 
-    let successful = results.iter().filter(|r| r.is_some()).count();
-
-    println!("Concurrent transactions: {}/10 successful", successful);
-
-    // All should succeed
-    assert!(successful >= 8);
+    for (i, result) in results.iter().enumerate() {
+        let value = result.as_ref().unwrap_or_else(|e| panic!("Transaction {i} failed: {e}"));
+        assert_eq!(*value, i as i32, "Transaction {i} returned wrong value");
+    }
 
     pool.close().await;
 }
 
-/// Test max pool size limits
+/// Test pool reports valid state after queries
 #[tokio::test]
+#[ignore = "Requires PostgreSQL: set DATABASE_URL"]
 async fn test_pool_size_limits() {
-    let Some(database_url) = get_database_url() else {
-        eprintln!("Skipping: DATABASE_URL not set");
-        return;
-    };
+    let database_url = require_database_url();
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Check pool configuration
+    // Run a query to ensure pool is warmed up
+    let _: i32 = sqlx::query_scalar("SELECT 1").fetch_one(&pool).await.unwrap();
+
     let num_idle = pool.num_idle();
-
-    println!("Pool connections - Idle: {}", num_idle);
-
-    // Pool should be functional (num_idle is usize, always >= 0)
-    // Just verify we can read the value (the pool is usable)
+    assert!(num_idle >= 1, "pool should have idle connections after query, got {num_idle}");
 
     pool.close().await;
 }

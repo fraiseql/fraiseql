@@ -183,9 +183,9 @@ fn test_compose_detects_field_type_conflict() {
     };
 
     let result = compose_federation_schemas(&[users, auth]);
-    // Should either pass (if we're lenient) or fail (if we detect conflicts)
-    // Document the behavior
-    let _ = result;
+    // Composition with identical type (same fields, same types) should succeed —
+    // field type conflict detection is not yet implemented
+    result.expect("composing identical types should succeed");
 }
 
 #[test]

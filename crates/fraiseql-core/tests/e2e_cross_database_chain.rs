@@ -271,8 +271,8 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
     };
 
     // All entities should be resolvable
-    assert!(pg_order.key_fields.get("id").is_some());
-    assert!(sqlite_inventory.key_fields.get("order_id").is_some());
+    assert!(pg_order.key_fields.contains_key("id"));
+    assert!(sqlite_inventory.key_fields.contains_key("order_id"));
     assert_eq!(metadata.types.len(), 3);
 }
 

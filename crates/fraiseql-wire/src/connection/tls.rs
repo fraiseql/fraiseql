@@ -430,36 +430,32 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires PEM file on filesystem"]
     fn test_tls_config_builder_with_custom_ca() {
         // This test would require an actual PEM file
-        // Skipping for now as it requires filesystem setup
     }
 
     #[test]
     fn test_parse_server_name_valid() {
-        let result = parse_server_name("localhost");
-        assert!(result.is_ok());
-
-        let result = parse_server_name("example.com");
-        assert!(result.is_ok());
-
-        let result = parse_server_name("db.internal.example.com");
-        assert!(result.is_ok());
+        let _name = parse_server_name("localhost").expect("localhost should be a valid server name");
+        let _name =
+            parse_server_name("example.com").expect("example.com should be a valid server name");
+        let _name = parse_server_name("db.internal.example.com")
+            .expect("subdomain should be a valid server name");
     }
 
     #[test]
     fn test_parse_server_name_trailing_dot() {
-        let result = parse_server_name("example.com.");
-        assert!(result.is_ok());
+        let _name = parse_server_name("example.com.")
+            .expect("trailing dot should be accepted as valid server name");
     }
 
     #[test]
-    fn test_parse_server_name_with_port_fails() {
-        // ServerName expects just hostname, not host:port
-        let result = parse_server_name("example.com:5432");
-        // This might actually succeed or fail depending on rustls version
-        // Just ensure it doesn't panic
-        let _ = result;
+    fn test_parse_server_name_with_port() {
+        // ServerName expects just hostname, not host:port.
+        // Whether this succeeds or fails depends on the rustls version,
+        // so we only verify it doesn't panic.
+        let _result = parse_server_name("example.com:5432");
     }
 
     #[test]
@@ -488,30 +484,26 @@ mod tests {
 
     #[test]
     fn test_danger_mode_allowed_in_debug_build() {
-        // In debug builds, danger mode should be allowed but logged
         install_crypto_provider();
 
-        let tls = TlsConfig::builder()
+        let config = TlsConfig::builder()
             .danger_accept_invalid_certs(true)
-            .build();
+            .build()
+            .expect("danger mode should be allowed in debug builds");
 
-        // In debug, this should succeed
-        assert!(tls.is_ok());
-        if let Ok(config) = tls {
-            assert!(config.danger_accept_invalid_certs());
-        }
+        assert!(config.danger_accept_invalid_certs());
     }
 
     #[test]
     fn test_normal_tls_config_works() {
         install_crypto_provider();
 
-        let tls = TlsConfig::builder().verify_hostname(true).build();
+        let config = TlsConfig::builder()
+            .verify_hostname(true)
+            .build()
+            .expect("normal TLS config should build successfully");
 
-        assert!(tls.is_ok());
-        if let Ok(config) = tls {
-            assert!(!config.danger_accept_invalid_certs());
-        }
+        assert!(!config.danger_accept_invalid_certs());
     }
 }
 

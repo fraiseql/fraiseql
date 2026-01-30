@@ -98,12 +98,15 @@ fn test_error_serialization() {
         .with_location(1, 5)
         .with_path(vec!["user".to_string(), "id".to_string()]);
 
-    let json = serde_json::to_string(&error).unwrap();
-    assert!(json.contains("Invalid query"));
-    assert!(json.contains("VALIDATION_ERROR"));
-    assert!(json.contains("\"line\":1"));
-    assert!(json.contains("\"column\":5"));
-    assert!(json.contains("user"));
+    let json: serde_json::Value = serde_json::to_value(&error).unwrap();
+    assert_eq!(json["message"], "Invalid query");
+    assert_eq!(json["code"], "VALIDATION_ERROR");
+    assert_eq!(json["locations"][0]["line"], 1);
+    assert_eq!(json["locations"][0]["column"], 5);
+    let path = json["path"].as_array().unwrap();
+    assert_eq!(path.len(), 2);
+    assert_eq!(path[0], "user");
+    assert_eq!(path[1], "id");
 }
 
 /// Test different error code HTTP status mappings
@@ -126,24 +129,24 @@ fn test_error_code_status_mapping() {
 /// Test GraphQL request deserialization
 #[test]
 fn test_graphql_request_deserialization() {
-    let json = r#"{"query": "{ users { id } }"}"#;
-    let request: GraphQLRequest = serde_json::from_str(json).unwrap();
+    let json_str = r#"{"query": "{ users { id } }"}"#;
+    let request: GraphQLRequest = serde_json::from_str(json_str).unwrap();
 
     assert_eq!(request.query, "{ users { id } }");
-    assert!(request.variables.is_none());
-    assert!(request.operation_name.is_none());
+    assert_eq!(request.variables, None);
+    assert_eq!(request.operation_name, None);
 }
 
 /// Test GraphQL request with variables deserialization
 #[test]
 fn test_graphql_request_with_variables_deserialization() {
-    let json =
+    let json_str =
         r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
-    let request: GraphQLRequest = serde_json::from_str(json).unwrap();
+    let request: GraphQLRequest = serde_json::from_str(json_str).unwrap();
 
     assert_eq!(request.query, "query($id: ID!) { user(id: $id) { name } }");
-    assert!(request.variables.is_some());
-    assert_eq!(request.variables.unwrap(), json!({"id": "123"}));
+    let variables = request.variables.expect("variables should be present");
+    assert_eq!(variables, json!({"id": "123"}));
 }
 
 /// Test GraphQL request with operation name
@@ -192,11 +195,13 @@ fn test_multiple_errors_response() {
         GraphQLError::database("Connection timeout"),
     ]);
 
-    let json = serde_json::to_string(&response).unwrap();
-    assert!(json.contains("Field not found"));
-    assert!(json.contains("Connection timeout"));
-    assert!(json.contains("VALIDATION_ERROR"));
-    assert!(json.contains("DATABASE_ERROR"));
+    let json: serde_json::Value = serde_json::to_value(&response).unwrap();
+    let errors = json["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 2);
+    assert_eq!(errors[0]["message"], "Field not found");
+    assert_eq!(errors[0]["code"], "VALIDATION_ERROR");
+    assert_eq!(errors[1]["message"], "Connection timeout");
+    assert_eq!(errors[1]["code"], "DATABASE_ERROR");
 }
 
 /// Test error extensions functionality
@@ -209,11 +214,13 @@ fn test_error_extensions() {
     };
 
     let error = GraphQLError::validation("Invalid input").with_extensions(extensions);
-    let json = serde_json::to_string(&error).unwrap();
+    let json: serde_json::Value = serde_json::to_value(&error).unwrap();
 
-    assert!(json.contains("VALIDATION"));
-    assert!(json.contains("400"));
-    assert!(json.contains("req-12345"));
+    assert_eq!(json["message"], "Invalid input");
+    assert_eq!(json["code"], "VALIDATION_ERROR");
+    assert_eq!(json["extensions"]["category"], "VALIDATION");
+    assert_eq!(json["extensions"]["status"], 400);
+    assert_eq!(json["extensions"]["request_id"], "req-12345");
 }
 
 /// Test validator builder pattern
@@ -258,7 +265,7 @@ fn test_all_error_codes_have_status() {
     }
 }
 
-/// Test that error responses can be converted to HTTP responses
+/// Test that error responses can be converted to HTTP responses with correct status
 #[test]
 fn test_error_response_into_response() {
     use axum::response::IntoResponse;
@@ -266,9 +273,8 @@ fn test_error_response_into_response() {
     let error = GraphQLError::validation("Test error");
     let response = ErrorResponse::from_error(error);
 
-    // This just verifies the IntoResponse trait is implemented
-    // The actual response would be tested in an async HTTP test
-    let _response = response.into_response();
+    let http_response = response.into_response();
+    assert_eq!(http_response.status(), axum::http::StatusCode::BAD_REQUEST);
 }
 
 /// Test string handling in query validation
@@ -276,11 +282,11 @@ fn test_error_response_into_response() {
 fn test_string_literal_handling() {
     let validator = RequestValidator::new();
 
-    // Query with string containing quotes and braces
+    // Query with string containing quotes and braces should be accepted
+    // as valid by the structural validator (it checks depth/complexity, not syntax)
     let query = r#"{ user { name: "John \"Doe\"" } }"#;
     let result = validator.validate_query(query);
-    // Should not crash due to string escaping
-    assert!(result.is_ok() || result.is_err()); // Just verify it runs
+    assert!(result.is_ok(), "Query with escaped quotes should pass structural validation: {result:?}");
 }
 
 /// Test validator with minimal configuration
@@ -302,9 +308,11 @@ fn test_validation_error_conversion() {
     };
 
     let error_msg = error.to_string();
-    assert!(error_msg.contains("depth"));
-    assert!(error_msg.contains("10"));
-    assert!(error_msg.contains("15"));
+    assert_eq!(
+        error_msg,
+        "Query exceeds maximum depth of 10: depth = 15",
+        "ValidationError::QueryTooDeep should produce exact error message"
+    );
 }
 
 /// Test various GraphQLError factory methods

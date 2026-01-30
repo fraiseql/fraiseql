@@ -234,12 +234,18 @@ mod tests {
     async fn test_leader_election() {
         let coordinator = MultiListenerCoordinator::new();
 
-        coordinator.register_listener("listener-1".to_string()).await.ok();
-        coordinator.register_listener("listener-2".to_string()).await.ok();
+        coordinator
+            .register_listener("listener-1".to_string())
+            .await
+            .expect("register listener-1");
+        coordinator
+            .register_listener("listener-2".to_string())
+            .await
+            .expect("register listener-2");
 
-        // Leaders can only be elected from healthy (Running) listeners
-        // Initially listeners are Initializing, so election should fail
-        let leader_result = coordinator.elect_leader().await;
-        assert!(leader_result.is_err() || leader_result.is_ok());
+        // Leaders can only be elected from healthy (Running) listeners.
+        // Initially listeners are Initializing, so election may fail or
+        // succeed depending on implementation. Either way, it must not panic.
+        let _leader_result = coordinator.elect_leader().await;
     }
 }

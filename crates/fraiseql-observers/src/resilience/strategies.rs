@@ -87,9 +87,11 @@ mod tests {
         let breaker = Arc::new(CircuitBreaker::new(config));
         let executor = ResilientExecutor::new(breaker, ResilienceStrategy::FailFast);
 
-        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
-
-        assert!(result.is_ok());
+        let value = executor
+            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
+            .await
+            .expect("fail-fast strategy should succeed when closure returns Ok");
+        assert_eq!(value, 42);
     }
 
     #[tokio::test]
@@ -99,9 +101,11 @@ mod tests {
         let executor =
             ResilientExecutor::new(breaker, ResilienceStrategy::Fallback("default".to_string()));
 
-        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
-
-        assert!(result.is_ok());
+        let value = executor
+            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
+            .await
+            .expect("fallback strategy should succeed when closure returns Ok");
+        assert_eq!(value, 42);
     }
 
     #[tokio::test]
@@ -116,9 +120,11 @@ mod tests {
             },
         );
 
-        let result = executor.execute(|| Box::pin(async { Ok::<i32, _>(42) })).await;
-
-        assert!(result.is_ok());
+        let value = executor
+            .execute(|| Box::pin(async { Ok::<i32, _>(42) }))
+            .await
+            .expect("retry strategy should succeed when closure returns Ok");
+        assert_eq!(value, 42);
     }
 
     #[test]

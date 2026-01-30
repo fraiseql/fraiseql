@@ -57,6 +57,11 @@ mod tracing_e2e_tests {
         assert_ne!(child1.span_id, child2.span_id);
     }
 
+    // ---- Smoke tests ----
+    // The following tests verify that tracer methods can be called in various
+    // sequences without panicking. For observability code, this is the primary
+    // correctness guarantee: recording operations must never crash the host.
+
     #[test]
     fn test_listener_tracer_full_lifecycle() {
         let tracer = ListenerTracer::new("listener-1".to_string());
@@ -67,6 +72,7 @@ mod tracing_e2e_tests {
         tracer.record_batch_complete(100, 0);
         tracer.record_health_check(false);
         tracer.record_batch_complete(50, 5);
+        // No panic = success: tracer handles full lifecycle
     }
 
     #[test]
@@ -81,6 +87,7 @@ mod tracing_e2e_tests {
         }
 
         tracer.record_action_success("webhook", 100.0);
+        // No panic = success: tracer handles retry sequences
     }
 
     #[test]
@@ -89,10 +96,9 @@ mod tracing_e2e_tests {
 
         tracer.record_evaluation_start();
         tracer.record_evaluation_error("invalid condition syntax");
-
-        // Retry
         tracer.record_evaluation_start();
         tracer.record_evaluation_result(true, 25.0);
+        // No panic = success: tracer handles error-then-success sequences
     }
 
     #[test]
@@ -107,6 +113,7 @@ mod tracing_e2e_tests {
 
         tracer.record_start();
         let headers = trace_context.to_headers();
+        assert!(!headers.is_empty(), "trace context should produce headers");
         tracer.record_trace_context_injection(headers.len());
         tracer.record_success(200, 42.5);
     }
@@ -119,10 +126,9 @@ mod tracing_e2e_tests {
             EmailTracer::new("user3@example.com".to_string()),
         ];
 
-        // Record batch operation
+        assert_eq!(recipients.len(), 3);
         recipients[0].record_batch_send(recipients.len());
 
-        // Record individual executions
         for (i, tracer) in recipients.iter().enumerate() {
             tracer.record_start("confirmation");
 
@@ -134,6 +140,7 @@ mod tracing_e2e_tests {
                 tracer.record_success(Some(&format!("msg-{}", i)), 100.0 * (i + 1) as f64);
             }
         }
+        // No panic = success: tracer handles batch with mixed outcomes
     }
 
     #[test]
@@ -143,14 +150,14 @@ mod tracing_e2e_tests {
         tracer.record_start();
         tracer.record_success(200, 75.0);
         tracer.record_thread_created("ts-1234567890.123456");
-        tracer.record_reaction("👍");
-        tracer.record_reaction("🚀");
+        tracer.record_reaction("\u{1f44d}");
+        tracer.record_reaction("\u{1f680}");
 
-        // Failure scenario
         let tracer2 = SlackTracer::new("#notifications".to_string());
         tracer2.record_start();
         tracer2.record_failure("rate_limited", 429.0);
         tracer2.record_retry(1, "rate limit exceeded");
+        // No panic = success: tracer handles threads, reactions, and failures
     }
 
     #[test]
@@ -170,33 +177,32 @@ mod tracing_e2e_tests {
 
         error_span.record_start_span();
         error_span.record_span_error("SMTP server unavailable");
+        // No panic = success: span handles success and error paths
     }
 
     #[test]
     fn test_action_batch_executor_multi_action() {
         let mut executor = ActionBatchExecutor::new();
 
-        // Add multiple actions
         executor.add_action("webhook", "notify_system");
         executor.add_action("email", "notify_admins");
         executor.add_action("slack", "alert_team");
         executor.add_action("webhook", "update_analytics");
 
-        // Execute with mixed results
         let results = vec![
-            (true, 45.0),      // Success
-            (true, 120.0),     // Success
-            (false, 5000.0),   // Failure
-            (true, 50.0),      // Success
+            (true, 45.0),
+            (true, 120.0),
+            (false, 5000.0),
+            (true, 50.0),
         ];
 
         executor.execute_batch(&results);
 
-        // Record errors for specific actions
         let errors = vec![
             ("slack", "webhook timeout")
         ];
         executor.record_batch_errors(&errors);
+        // No panic = success: batch executor handles mixed results and errors
     }
 
     #[test]

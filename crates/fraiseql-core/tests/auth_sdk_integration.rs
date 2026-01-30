@@ -292,10 +292,10 @@ async fn test_executor_classifies_aggregate_query() {
 
     let result = executor.execute(query, Some(&variables)).await;
 
-    // Should route to aggregate execution
-    // Note: Will fail with "Fact table not found" or similar since we don't have full setup,
-    // but the important thing is it tries to route correctly
-    assert!(result.is_err() || result.is_ok());
+    // Without full fact table setup, this will produce an error, but the executor
+    // should still attempt to process the query without panicking.
+    // A panic here would indicate a routing failure.
+    drop(result);
 }
 
 /// Test end-to-end: parse schema with fact tables, validate, and verify metadata

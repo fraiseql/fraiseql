@@ -157,17 +157,19 @@ mod tests {
     use super::*;
     use crate::listener::ChangeLogListenerConfig;
 
-    async fn get_test_pool() -> Option<PgPool> {
-        let database_url = env::var("TEST_DATABASE_URL").ok()?;
-        PgPool::connect(&database_url).await.ok()
+    /// Panics if TEST_DATABASE_URL is not set (tests using this are `#[ignore]`).
+    async fn require_test_pool() -> PgPool {
+        let database_url =
+            env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run this test");
+        PgPool::connect(&database_url)
+            .await
+            .expect("Failed to connect to TEST_DATABASE_URL")
     }
 
     #[tokio::test]
+    #[ignore = "Requires PostgreSQL: set TEST_DATABASE_URL"]
     async fn test_postgres_transport_creation() {
-        let Some(pool) = get_test_pool().await else {
-            eprintln!("Skipping test: TEST_DATABASE_URL not set");
-            return;
-        };
+        let pool = require_test_pool().await;
 
         let config = ChangeLogListenerConfig::new(pool);
         let transport = PostgresNotifyTransport::from_config(config);
@@ -176,43 +178,37 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires PostgreSQL: set TEST_DATABASE_URL"]
     async fn test_postgres_transport_health_check() {
-        let Some(pool) = get_test_pool().await else {
-            eprintln!("Skipping test: TEST_DATABASE_URL not set");
-            return;
-        };
+        let pool = require_test_pool().await;
 
         let config = ChangeLogListenerConfig::new(pool);
         let transport = PostgresNotifyTransport::from_config(config);
 
-        let health = transport.health_check().await.unwrap();
+        let health = transport.health_check().await.expect("health_check should succeed");
         assert_eq!(health.status, HealthStatus::Healthy);
     }
 
     #[tokio::test]
+    #[ignore = "Requires PostgreSQL: set TEST_DATABASE_URL"]
     async fn test_postgres_transport_subscribe() {
-        let Some(pool) = get_test_pool().await else {
-            eprintln!("Skipping test: TEST_DATABASE_URL not set");
-            return;
-        };
+        let pool = require_test_pool().await;
 
         let config = ChangeLogListenerConfig::new(pool).with_poll_interval(50);
         let transport = PostgresNotifyTransport::from_config(config);
 
-        // Subscribe to events
-        let stream = transport.subscribe(EventFilter::default()).await.unwrap();
-
-        // Note: This test won't produce events unless the database has data
-        // It just verifies the stream can be created
+        // Verify the stream can be created (won't produce events without data)
+        let stream = transport
+            .subscribe(EventFilter::default())
+            .await
+            .expect("subscribe should succeed");
         drop(stream);
     }
 
     #[tokio::test]
+    #[ignore = "Requires PostgreSQL: set TEST_DATABASE_URL"]
     async fn test_postgres_transport_poll_interval() {
-        let Some(pool) = get_test_pool().await else {
-            eprintln!("Skipping test: TEST_DATABASE_URL not set");
-            return;
-        };
+        let pool = require_test_pool().await;
 
         let config = ChangeLogListenerConfig::new(pool);
         let transport = PostgresNotifyTransport::from_config(config)

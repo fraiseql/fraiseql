@@ -45,14 +45,11 @@ async fn test_health_endpoint_responds() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let body = resp.json::<serde_json::Value>().await;
-            assert!(body.is_ok());
-            if let Ok(json) = body {
-                assert_health_response(&json);
-            }
+            let json = resp.json::<serde_json::Value>().await
+                .expect("health response should be valid JSON");
+            assert_health_response(&json);
         },
         Err(e) => {
-            // Server not running - this is expected in CI
             eprintln!("Warning: Could not connect to server: {}", e);
         },
     }
@@ -75,15 +72,20 @@ async fn test_metrics_endpoint_responds() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let content_type = resp.headers().get("content-type");
-            assert!(content_type.is_some());
+            let content_type = resp.headers().get("content-type")
+                .expect("metrics response should have Content-Type header");
+            let ct_str = content_type.to_str().unwrap();
+            assert!(
+                ct_str.contains("text/plain") || ct_str.contains("application/openmetrics"),
+                "metrics Content-Type should be Prometheus format, got: {ct_str}"
+            );
 
-            let body = resp.text().await;
-            assert!(body.is_ok());
-            if let Ok(text) = body {
-                // Should be Prometheus text format
-                assert!(text.contains("fraiseql_graphql_queries_total"));
-            }
+            let text = resp.text().await
+                .expect("metrics response should have a body");
+            assert!(
+                text.contains("fraiseql_graphql_queries_total"),
+                "metrics body should contain Prometheus metric names"
+            );
         },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
@@ -109,11 +111,9 @@ async fn test_metrics_json_endpoint_responds() {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
 
-            let body = resp.json::<serde_json::Value>().await;
-            assert!(body.is_ok());
-            if let Ok(json) = body {
-                assert_metrics_response(&json);
-            }
+            let json = resp.json::<serde_json::Value>().await
+                .expect("metrics JSON response should be valid JSON");
+            assert_metrics_response(&json);
         },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
@@ -198,11 +198,9 @@ async fn test_graphql_endpoint_accepts_post() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let body = resp.json::<serde_json::Value>().await;
-            assert!(body.is_ok());
-            if let Ok(json) = body {
-                assert_graphql_response(&json);
-            }
+            let json = resp.json::<serde_json::Value>().await
+                .expect("GraphQL response should be valid JSON");
+            assert_graphql_response(&json);
         },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
@@ -331,8 +329,11 @@ async fn test_introspection_endpoint_responds() {
 
     match response {
         Ok(resp) => {
-            // Should return 200 or 400 (for missing schema)
-            assert!(resp.status().is_success() || resp.status().is_client_error());
+            let status = resp.status();
+            assert!(
+                status == StatusCode::OK || status == StatusCode::BAD_REQUEST || status == StatusCode::METHOD_NOT_ALLOWED,
+                "Introspection should return 200, 400, or 405; got {status}"
+            );
         },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);
@@ -360,11 +361,11 @@ async fn test_concurrent_health_requests() {
 
     let successful = results.iter().filter(|r| r.is_ok()).count();
 
-    // Should have some successful requests (at least 1)
-    // All should succeed if server is up
-    if successful > 0 {
-        assert!(successful >= 1);
-    }
+    // All 10 concurrent health checks should succeed
+    assert_eq!(
+        successful, 10,
+        "all concurrent health requests should succeed, got {successful}/10"
+    );
 }
 
 /// Test response content type consistency
@@ -380,11 +381,13 @@ async fn test_content_type_consistency() {
 
     match response {
         Ok(resp) => {
-            let content_type = resp.headers().get("content-type");
-            if let Some(ct) = content_type {
-                let ct_str = ct.to_str().unwrap_or("");
-                assert!(ct_str.contains("application/json"));
-            }
+            let content_type = resp.headers().get("content-type")
+                .expect("GraphQL response should have Content-Type header");
+            let ct_str = content_type.to_str().unwrap();
+            assert!(
+                ct_str.contains("application/json"),
+                "GraphQL response Content-Type should be application/json, got: {ct_str}"
+            );
         },
         Err(e) => {
             eprintln!("Warning: Could not connect to server: {}", e);

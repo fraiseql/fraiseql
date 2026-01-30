@@ -183,12 +183,23 @@ mod tests {
         let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::new(coordinator.clone());
 
-        coordinator.register_listener("listener-1".to_string()).await.ok();
-        coordinator.register_listener("listener-2".to_string()).await.ok();
+        coordinator
+            .register_listener("listener-1".to_string())
+            .await
+            .expect("register listener-1");
+        coordinator
+            .register_listener("listener-2".to_string())
+            .await
+            .expect("register listener-2");
 
-        let failures = manager.detect_failures().await.unwrap();
-        // Initially all listeners are Initializing, so may be detected as unhealthy
-        assert!(failures.is_empty() || failures.len() <= 2);
+        let failures = manager.detect_failures().await.expect("detect_failures should succeed");
+        // With 2 listeners registered in Initializing state, failures should be
+        // exactly 0 (healthy) or exactly 2 (both detected as initializing)
+        assert!(
+            failures.is_empty() || failures.len() == 2,
+            "expected 0 or 2 failures for 2 initializing listeners, got {}",
+            failures.len()
+        );
     }
 
     #[tokio::test]
@@ -196,13 +207,20 @@ mod tests {
         let coordinator = Arc::new(MultiListenerCoordinator::new());
         let manager = FailoverManager::new(coordinator.clone());
 
-        coordinator.register_listener("listener-1".to_string()).await.ok();
-        coordinator.register_listener("listener-2".to_string()).await.ok();
+        coordinator
+            .register_listener("listener-1".to_string())
+            .await
+            .expect("register listener-1");
+        coordinator
+            .register_listener("listener-2".to_string())
+            .await
+            .expect("register listener-2");
 
-        // Failover may fail if no healthy listeners exist initially
-        let result = manager.trigger_failover("listener-1").await;
-        // Result depends on health state
-        assert!(result.is_err() || result.is_ok());
+        // Failover for a listener that just registered (Initializing state) —
+        // result depends on whether a healthy replacement can be found
+        let _result = manager.trigger_failover("listener-1").await;
+        // We don't assert Ok/Err here because success depends on listener health
+        // state, but the call must not panic.
     }
 
     #[tokio::test]

@@ -856,12 +856,11 @@ async fn test_recovery_after_partial_saga_execution() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    // Should resume saga from last completed step
     let saga_id = Uuid::new_v4();
-    let result = manager.retry_saga(saga_id, 1).await;
-
-    // Should continue from step N, not restart from step 1
-    assert!(result.is_err() || result.is_ok());
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("retry_saga with attempt 1 should succeed on empty store");
 }
 
 #[tokio::test]
@@ -869,11 +868,11 @@ async fn test_recovery_with_missing_step_results() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    // Should handle case where intermediate results are missing
     let saga_id = Uuid::new_v4();
-    let result = manager.retry_saga(saga_id, 1).await;
-
-    assert!(result.is_err() || result.is_ok());
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("retry_saga should succeed even with no prior step results");
 }
 
 #[tokio::test]
@@ -893,12 +892,20 @@ async fn test_recovery_duplicate_attempt_prevention() {
 
     let saga_id = Uuid::new_v4();
 
-    // Should not attempt recovery twice for same saga
-    let _ = manager.retry_saga(saga_id, 1).await;
-    let result2 = manager.retry_saga(saga_id, 2).await;
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("first retry should succeed");
+    manager
+        .retry_saga(saga_id, 2)
+        .await
+        .expect("second retry with higher attempt number should succeed");
 
-    // Second retry should use attempt 2, not restart from 1
-    assert!(result2.is_err() || result2.is_ok());
+    let metrics = manager.get_metrics();
+    assert_eq!(
+        metrics.total_recovery_attempts, 2,
+        "both retry attempts should be tracked in metrics"
+    );
 }
 
 #[tokio::test]
@@ -916,12 +923,11 @@ async fn test_recovery_with_network_failures() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    // Transient network errors should be retried
     let saga_id = Uuid::new_v4();
-    let result = manager.retry_saga(saga_id, 1).await;
-
-    // Should attempt to retry on transient errors
-    assert!(result.is_err() || result.is_ok());
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("retry_saga should succeed on empty in-memory store");
 }
 
 // ============================================================================
@@ -933,11 +939,13 @@ async fn test_recovery_metrics_total_recovered() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    let _ = manager.recover_startup_sagas().await;
+    manager
+        .recover_startup_sagas()
+        .await
+        .expect("recover_startup_sagas should succeed on empty store");
     let metrics = manager.get_metrics();
 
-    // Metrics should track total sagas recovered
-    assert_eq!(metrics.total_sagas_recovered, 0); // No sagas to recover in empty store
+    assert_eq!(metrics.total_sagas_recovered, 0, "no sagas to recover in empty store");
 }
 
 #[tokio::test]
@@ -946,11 +954,17 @@ async fn test_recovery_metrics_failed_attempts() {
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
     let saga_id = Uuid::new_v4();
-    let _ = manager.retry_saga(saga_id, 1).await;
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("retry_saga with attempt 1 should succeed");
 
-    let _metrics = manager.get_metrics();
-    // Metrics should track failed recovery attempts
-    // (total_recovery_attempts is u64, so >= 0 is always true)
+    let metrics = manager.get_metrics();
+    assert_eq!(metrics.total_recovery_attempts, 1, "one retry attempt should be recorded");
+    assert_eq!(
+        metrics.failed_recovery_attempts, 0,
+        "successful attempt should not be counted as failed"
+    );
 }
 
 #[tokio::test]
@@ -958,11 +972,13 @@ async fn test_recovery_metrics_cleanup_deleted() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    let _ = manager.cleanup_stale_sagas().await;
+    manager
+        .cleanup_stale_sagas()
+        .await
+        .expect("cleanup should succeed on empty store");
     let metrics = manager.get_metrics();
 
-    // Metrics should track sagas deleted during cleanup
-    assert_eq!(metrics.sagas_cleaned_up, 0); // No sagas to clean in empty store
+    assert_eq!(metrics.sagas_cleaned_up, 0, "no sagas to clean in empty store");
 }
 
 #[tokio::test]
@@ -996,11 +1012,11 @@ async fn test_recovery_manager_with_executor() {
     let config = RecoveryConfig::default();
     let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
 
-    // Should integrate with saga executor for retry
     let saga_id = Uuid::new_v4();
-    let result = manager.retry_saga(saga_id, 1).await;
-
-    assert!(result.is_err() || result.is_ok());
+    manager
+        .retry_saga(saga_id, 1)
+        .await
+        .expect("retry_saga should succeed on in-memory store");
 }
 
 #[tokio::test]

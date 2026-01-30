@@ -57,10 +57,8 @@ fn test_parse_compose_arguments_multiple_subgraphs() {
         "orders:orders.json".to_string(),
     ];
 
-    let result = parse_compose_args(&args);
-    assert!(result.is_ok());
-
-    let parsed = result.unwrap();
+    let parsed = parse_compose_args(&args)
+        .expect("should parse multiple subgraph arguments");
     assert_eq!(parsed.subgraphs.len(), 2);
     assert_eq!(parsed.subgraphs[0].name, "users");
     assert_eq!(parsed.subgraphs[1].name, "orders");
@@ -82,10 +80,8 @@ fn test_parse_compose_arguments_with_output() {
         "supergraph.json".to_string(),
     ];
 
-    let result = parse_compose_args(&args);
-    assert!(result.is_ok());
-
-    let parsed = result.unwrap();
+    let parsed = parse_compose_args(&args)
+        .expect("should parse output argument");
     assert_eq!(parsed.output_path, Some("supergraph.json".to_string()));
 }
 
@@ -251,10 +247,10 @@ fn test_resolve_conflict_strategy_shareable() {
         subgraph2:  ("auth".to_string(), "Int".to_string()),
     };
 
-    let result = resolve_conflict(&conflict, &config);
-    // Should allow if both are shareable (need to track that separately)
-    // For now, document the behavior
-    let _ = result;
+    let _result = resolve_conflict(&conflict, &config);
+    // Shareable strategy currently returns first subgraph's type without
+    // verifying @shareable directive presence. This test documents that
+    // behavior for future @shareable validation work.
 }
 
 // ============================================================================
@@ -342,10 +338,9 @@ fn test_compose_workflow_with_validation_errors() {
         subgraph_priority:   vec![],
     };
 
-    let result = execute_compose_workflow(&subgraphs, &config);
-    // May pass (empty schema is valid) or fail depending on validation rules
-    // Document behavior
-    let _ = result;
+    let _result = execute_compose_workflow(&subgraphs, &config);
+    // An empty-types subgraph currently composes successfully. This test
+    // documents the behavior — validation may reject this in the future.
 }
 
 // ============================================================================

@@ -30,10 +30,9 @@ fn test_simple_query_structure() {
         operation_name: None,
     };
 
-    // Verify request structure
     assert_eq!(request.query, "{ user { id } }");
-    assert!(request.variables.is_none());
-    assert!(request.operation_name.is_none());
+    assert_eq!(request.variables, None);
+    assert_eq!(request.operation_name, None);
 }
 
 /// Test query with variables
@@ -50,15 +49,11 @@ fn test_query_with_variables() {
         operation_name: Some("GetUserPosts".to_string()),
     };
 
-    assert!(request.variables.is_some());
     assert_eq!(request.operation_name, Some("GetUserPosts".to_string()));
 
-    let vars = request.variables.unwrap();
-    assert_eq!(
-        vars.get("userId").and_then(|v| v.as_str()),
-        Some("123e4567-e89b-12d3-a456-426614174000")
-    );
-    assert_eq!(vars.get("limit").and_then(|v| v.as_i64()), Some(10));
+    let vars = request.variables.expect("variables should be present");
+    assert_eq!(vars["userId"], "123e4567-e89b-12d3-a456-426614174000");
+    assert_eq!(vars["limit"], 10);
 }
 
 /// Test query validation - simple queries should pass
@@ -205,69 +200,39 @@ fn test_empty_query_rejection() {
     }
 }
 
-/// Test malformed query rejection
+/// Test that the structural validator rejects queries it can detect as invalid.
+///
+/// Note: The `RequestValidator` performs depth/complexity checks, not full
+/// GraphQL parsing. It does NOT validate balanced braces or root-level
+/// structure — those are parse-time concerns handled downstream.
 #[test]
-fn test_malformed_query_rejection() {
-    let validator = RequestValidator::new();
+fn test_structural_validator_rejects_known_invalid() {
+    let validator = RequestValidator::new().with_max_depth(3);
 
-    let malformed = vec![
-        "{ user id }",       // Missing braces
-        "{ user { id",       // Unclosed braces
-        "user { id }",       // Missing opening brace
-        "{ { user { id } }", // Extra braces
-    ];
+    // Excessive depth is rejected
+    let too_deep = "{ a { b { c { d { e } } } } }";
+    assert!(
+        validator.validate_query(too_deep).is_err(),
+        "Query exceeding max_depth should be rejected"
+    );
 
-    for query in malformed {
-        // These may or may not be caught by the simple validator
-        // depending on implementation - just verify behavior is consistent
-        let _ = validator.validate_query(query);
-    }
+    // Unclosed braces are NOT rejected by the structural validator
+    // (this is a parse-time concern, not a structural validation concern)
+    let unclosed = "{ user { id";
+    assert!(
+        validator.validate_query(unclosed).is_ok(),
+        "Structural validator does not check brace matching"
+    );
 }
 
-/// Test response formatting with error structure
+/// Test GraphQLError serializes to spec-compliant JSON format
 #[test]
 fn test_graphql_error_response_format() {
     let error = GraphQLError::parse("Unexpected token".to_string());
     let json = serde_json::to_value(&error).unwrap();
 
-    assert!(json.get("message").is_some());
-    assert_eq!(json.get("message").and_then(|v| v.as_str()), Some("Unexpected token"));
-}
-
-/// Test response structure with data
-#[test]
-fn test_graphql_response_with_data() {
-    let response_data = json!({
-        "data": {
-            "user": {
-                "id": "123",
-                "name": "Alice"
-            }
-        }
-    });
-
-    assert!(response_data.get("data").is_some());
-    assert!(response_data.get("data").unwrap().get("user").is_some());
-}
-
-/// Test response structure with errors
-#[test]
-fn test_graphql_response_with_errors() {
-    let response_data = json!({
-        "errors": [
-            {
-                "message": "Field not found",
-                "extensions": {
-                    "code": "VALIDATION_ERROR"
-                }
-            }
-        ]
-    });
-
-    assert!(response_data.get("errors").is_some());
-    let errors = response_data.get("errors").unwrap().as_array().unwrap();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].get("message").and_then(|v| v.as_str()), Some("Field not found"));
+    assert_eq!(json["message"], "Unexpected token");
+    assert_eq!(json["code"], "PARSE_ERROR");
 }
 
 /// Test query execution request structure
@@ -284,7 +249,8 @@ fn test_graphql_request_deserialization() {
     let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
 
     assert_eq!(request.query, "{ users { id name } }");
-    assert!(request.variables.is_some());
+    let variables = request.variables.expect("variables should be present");
+    assert_eq!(variables["limit"], 10);
     assert_eq!(request.operation_name, Some("GetUsers".to_string()));
 }
 
@@ -296,8 +262,8 @@ fn test_minimal_graphql_request() {
     let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
 
     assert_eq!(request.query, "{ users { id } }");
-    assert!(request.variables.is_none());
-    assert!(request.operation_name.is_none());
+    assert_eq!(request.variables, None);
+    assert_eq!(request.operation_name, None);
 }
 
 /// Test request with all optional fields
@@ -351,22 +317,30 @@ fn test_batch_query_validation() {
     }
 }
 
-/// Test operator validation (depth measuring)
+/// Test that queries at various depths validate correctly against depth limits
 #[test]
-fn test_query_field_selection() {
-    let validator = RequestValidator::new();
+fn test_query_depth_acceptance_by_level() {
+    // Use a depth limit of 3 to verify correct depth counting
+    let validator = RequestValidator::new().with_max_depth(3);
 
-    // Verify these are correctly parsed for depth measurement
-    let test_queries = vec![
-        ("{ id }", 1),                                   // 1 level
-        ("{ user { id } }", 2),                          // 2 levels
-        ("{ user { profile { name } } }", 3),            // 3 levels
-        ("{ posts { author { posts { title } } } }", 4), // 4 levels
+    // These should pass (depth <= 3)
+    let within_limit = vec![
+        "{ id }",                            // depth 1
+        "{ user { id } }",                   // depth 2
+        "{ user { profile { name } } }",     // depth 3
     ];
 
-    for (query, _expected_depth) in test_queries {
-        // Just verify they validate without error
-        // Exact depth depends on validator implementation
-        let _ = validator.validate_query(query);
+    for query in within_limit {
+        assert!(
+            validator.validate_query(query).is_ok(),
+            "Query should pass with max_depth=3: {query}"
+        );
     }
+
+    // This should fail (depth 4 > limit 3)
+    let over_limit = "{ posts { author { posts { title } } } }";
+    assert!(
+        validator.validate_query(over_limit).is_err(),
+        "Query at depth 4 should fail with max_depth=3"
+    );
 }
