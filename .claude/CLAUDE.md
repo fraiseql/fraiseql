@@ -55,7 +55,13 @@ def get_user(user_id: int) -> Optional[User]:  # ❌ Old style
 
 ### Implementation Status
 
-FraiseQL v2 is in active development with core engine, database abstraction, caching, and GraphQL execution already implemented. See `.claude/IMPLEMENTATION_ROADMAP.md` for detailed feature status.
+FraiseQL v2 is production-ready with a layered optionality architecture:
+
+- **Core**: GraphQL compilation and execution (`fraiseql-core`)
+- **Server**: Generic HTTP server (`Server<DatabaseAdapter>`)
+- **Extensions**: Optional features via Cargo flags (`fraiseql-observers`, `fraiseql-arrow`, etc.)
+
+See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for detailed architecture documentation.
 
 ### Workflow Pattern
 
@@ -105,6 +111,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ## Architecture Guidelines
 
+See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for comprehensive architectural documentation.
+
 ### 1. Authoring vs Runtime Separation
 
 **Authoring Layer:**
@@ -124,8 +132,10 @@ cargo clippy --all-targets --all-features -- -D warnings
 **Runtime Layer:**
 
 - Load `schema.compiled.json`
-- Execute GraphQL queries
+- Execute GraphQL queries via `Server<DatabaseAdapter>`
 - Pure Rust, zero Python dependencies
+
+**Key Point**: The server is generic over `DatabaseAdapter` trait, enabling type-safe database swapping and easy testing with mocks.
 
 ### 2. Schema Compilation Flow
 

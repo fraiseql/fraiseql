@@ -5,7 +5,7 @@
 **Date:** January 25, 2026 (Updated)
 
 > **For developers**: See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development workflow and standards.
-> **For planning**: See [`.claude/IMPLEMENTATION_ROADMAP.md`](.claude/IMPLEMENTATION_ROADMAP.md) for the 11-phase implementation plan.
+> **For architecture**: See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural principles and patterns.
 
 ---
 
@@ -29,6 +29,10 @@ FraiseQL v2 is a **compiled GraphQL execution engine** designed for deterministi
 ---
 
 ## Architecture Overview
+
+**Layered Optionality**: Core GraphQL engine + optional extensions via Cargo features.
+
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for comprehensive architectural documentation.
 
 ```
 ┌─────────────────────────────────────┐

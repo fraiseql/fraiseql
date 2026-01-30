@@ -1,8 +1,10 @@
 # FraiseQL Endpoint Runtime Documentation
 
-**Status**: ✅ Phase 5 Complete | Last Updated: 2026-01-21
+**Status**: ✅ Features Implemented | Last Updated: 2026-01-30
 
-Complete documentation for the 10-phase GraphQL server implementation plan.
+> ⚠️ **IMPORTANT**: These documents represent historical planning. The actual implementation evolved into a unified `Server<DatabaseAdapter>` architecture with feature flags. See [ARCHITECTURE_UPDATE.md](ARCHITECTURE_UPDATE.md) for details.
+
+Complete documentation for the endpoint runtime feature set (webhooks, files, auth, observers).
 
 ---
 
