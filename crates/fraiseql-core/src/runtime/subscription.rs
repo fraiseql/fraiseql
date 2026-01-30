@@ -805,6 +805,15 @@ impl std::fmt::Debug for SubscriptionManager {
 // =============================================================================
 
 /// Configuration for the PostgreSQL notification listener.
+///
+/// # ⚠️ DEPRECATED
+///
+/// This configuration is for `PostgresListener`, which uses LISTEN/NOTIFY (not recommended).
+/// See the deprecation notice on `PostgresListener` for details.
+#[deprecated(
+    since = "2.0.0",
+    note = "Used by deprecated PostgresListener. Use ChangeLogListener configuration instead."
+)]
 #[derive(Debug, Clone)]
 pub struct ListenerConfig {
     /// PostgreSQL connection string.
@@ -867,6 +876,33 @@ impl ListenerConfig {
 
 /// PostgreSQL LISTEN/NOTIFY listener for subscription events.
 ///
+/// # ⚠️ ARCHITECTURAL NOTICE
+///
+/// **This implementation uses LISTEN/NOTIFY, which is NOT the recommended architecture
+/// for FraiseQL subscriptions.** This code is kept for reference but should not be used
+/// in production.
+///
+/// **Recommended Architecture:**
+/// - Events should be captured in `tb_entity_change_log` table (single source of truth)
+/// - `ChangeLogListener` polls this table every 100ms (effectively real-time)
+/// - `ObserverRuntime` routes events to both `ObserverExecutor` and `SubscriptionManager`
+/// - See `docs/architecture/realtime/SUBSCRIPTIONS_CORRECTED_ARCHITECTURE.md` for details
+///
+/// **Why LISTEN/NOTIFY is wrong:**
+/// - ❌ No durability (messages lost on restart)
+/// - ❌ No replay capability (can't reprocess old events)
+/// - ❌ Violates FraiseQL's database-centric principle (message channel, not table)
+/// - ❌ Creates duplicate event infrastructure (ChangeLogListener already polls)
+///
+/// **This code exists because:**
+/// - It was implemented before the architectural decision was finalized
+/// - It demonstrates a common but incorrect approach to database event streaming
+/// - It may be useful as reference for understanding LISTEN/NOTIFY patterns
+///
+/// **Status:** Not wired into `fraiseql-server`, not recommended for use.
+///
+/// ---
+///
 /// This listener connects to PostgreSQL and subscribes to database notifications
 /// on a configured channel. When notifications are received, they are parsed
 /// as subscription events and published to the `SubscriptionManager`.
@@ -903,6 +939,12 @@ impl ListenerConfig {
 /// // Stop listening
 /// handle.stop().await;
 /// ```
+#[deprecated(
+    since = "2.0.0",
+    note = "PostgresListener uses LISTEN/NOTIFY which is NOT the recommended FraiseQL architecture. \
+            Use ChangeLogListener + ObserverRuntime instead. \
+            See docs/architecture/realtime/SUBSCRIPTIONS_CORRECTED_ARCHITECTURE.md"
+)]
 pub struct PostgresListener {
     /// Listener configuration.
     config: ListenerConfig,
@@ -917,6 +959,7 @@ pub struct PostgresListener {
     running: std::sync::atomic::AtomicBool,
 }
 
+#[allow(deprecated)]
 impl PostgresListener {
     /// Create a new PostgreSQL listener.
     #[must_use]
@@ -1178,6 +1221,15 @@ impl std::fmt::Debug for PostgresListener {
 }
 
 /// Handle for controlling a running listener.
+///
+/// # ⚠️ DEPRECATED
+///
+/// This handle is for `PostgresListener`, which uses LISTEN/NOTIFY (not recommended).
+/// See the deprecation notice on `PostgresListener` for details.
+#[deprecated(
+    since = "2.0.0",
+    note = "Used by deprecated PostgresListener. Use ObserverRuntime handle instead."
+)]
 pub struct ListenerHandle {
     shutdown_tx: tokio::sync::watch::Sender<bool>,
     task_handle: tokio::task::JoinHandle<()>,
@@ -2764,6 +2816,7 @@ mod tests {
     // =========================================================================
 
     #[test]
+    #[allow(deprecated)]
     fn test_process_notification_create() {
         let schema = Arc::new(create_test_schema());
         let manager = SubscriptionManager::new(schema);
