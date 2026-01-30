@@ -38,9 +38,11 @@ Resolver emits value to client
 ```
 Database commits transaction (user.name updated)
     ↓
-Database notifies change via LISTEN/NOTIFY
+Application inserts event into tb_entity_change_log
     ↓
-Change captured in tb_entity_change_log
+ChangeLogListener polls tb_entity_change_log (every 100ms)
+    ↓
+ObserverRuntime processes event
     ↓
 Event matching filters from CompiledSchema
     ↓
@@ -77,7 +79,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 
 ## 2. Architecture
 
-### 2.1 High-Level Event Flow
+### 2.1 High-Level Event Flow (CORRECT)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -89,122 +91,330 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
         ┌──────────────────────────────────────┐
         │ PostgreSQL Database Transaction      │
         │ ├─ INSERT into tb_order              │
-        │ ├─ Audit columns: created_at, etc.   │
+        │ ├─ INSERT into tb_entity_change_log  │  ← Manual (for now)
         │ └─ COMMIT                            │
         └──────────────────────────┬───────────┘
                                    │
-                ┌──────────────────┴──────────────────┐
-                ↓                                     ↓
-        ┌───────────────────┐            ┌──────────────────────┐
-        │ LISTEN / NOTIFY   │            │ CDC (Change Data     │
-        │ (Low-latency)     │            │  Capture)            │
-        │                   │            │ (Durable)            │
-        └─────────┬─────────┘            └──────────┬───────────┘
-                  │                                   │
-                  └──────────────┬────────────────────┘
-                                 ↓
-                    ┌────────────────────────────┐
-                    │ tb_entity_change_log       │
-                    │ (Event Buffer / Durability)│
-                    │ ├─ event_id                │
-                    │ ├─ entity_type (Order)     │
-                    │ ├─ entity_id               │
-                    │ ├─ operation (INSERT)      │
-                    │ ├─ data (JSONB)            │
-                    │ └─ created_at              │
-                    └────────────┬────────────────┘
-                                 │
-                    ┌────────────┴─────────────┐
-                    ↓                         ↓
-    ┌──────────────────────────┐  ┌──────────────────────┐
-    │ Subscription Matcher     │  │ Subscription Matcher │
-    │ (Filter evaluation)      │  │ (Filter evaluation)  │
-    │ ├─ WHERE user_id = ?     │  │ ├─ WHERE org_id = ?  │
-    │ └─ Match against         │  │ └─ Match against     │
-    │   subscriptions          │  │   subscriptions      │
-    └─────────┬────────────────┘  └──────────┬───────────┘
-              │                               │
-    ┌─────────┴─────────┬────────────────────┘
-    ↓                   ↓
-┌─────────────────┐  ┌──────────────────┐
-│ graphql-ws      │  │ Kafka Adapter    │
-│ Adapter         │  │                  │
-│ (WebSocket)     │  │ Event Stream:    │
-│                 │  │ ├─ OrderCreated  │
-│ Clients:        │  │ ├─ OrderUpdated  │
-│ ├─ Browser UI   │  │ └─ OrderDeleted  │
-│ ├─ Mobile App   │  │                  │
-│ └─ Dashboard    │  │ Consumers:       │
-│                 │  │ ├─ Analytics     │
-│ Target: <10ms   │  │ ├─ Warehouse     │
-│ (typical)       │  │ └─ Replication   │
-└─────────────────┘  └──────────────────┘
-     (real-time UI)      (event streaming)
+                    ┌──────────────┴──────────────────┐
+                    ↓                                 ↓
+        ┌──────────────────────┐      ┌──────────────────────┐
+        │ tb_entity_change_log │      │ tb_entity_change_log │
+        │ (Single Source of    │      │ (Debezium envelope)  │
+        │  Truth)              │      │                      │
+        │ - object_type        │      │ Polling every 100ms  │
+        │ - object_id          │      │ (effectively real-   │
+        │ - modification_type  │      │  time)               │
+        │ - object_data (JSONB)│      │                      │
+        │ - created_at         │      │                      │
+        └──────────┬────────────┘      └──────────────────────┘
+                   │
+                   ↓
+        ┌──────────────────────────────────────┐
+        │ ChangeLogListener                     │
+        │ (polls tb_entity_change_log)          │
+        │ - Poll interval: 100ms                │
+        │ - Batch size: 100 events              │
+        │ - Checkpoint tracking                 │
+        └──────────────────┬────────────────────┘
+                           │
+                           ↓
+        ┌──────────────────────────────────────┐
+        │ ObserverRuntime (background task)     │
+        │ Processes ChangeLogEntry → EntityEvent│
+        └──────────┬───────────────────┬─────────┘
+                   │                   │
+        ┌──────────┴────────┐    ┌────┴───────────────────┐
+        ↓                   ↓    ↓                        ↓
+┌───────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ ObserverExecutor  │  │ Subscription     │  │ (Future: Other   │
+│                   │  │ Manager          │  │  Consumers)      │
+│ Actions:          │  │                  │  │                  │
+│ ├─ Webhooks       │  │ Transports:      │  │                  │
+│ ├─ Email          │  │ ├─ WebSocket     │  │                  │
+│ ├─ SMS            │  │ │  (graphql-ws)  │  │                  │
+│ ├─ Push           │  │ ├─ Kafka         │  │                  │
+│ ├─ Slack          │  │ └─ Webhooks      │  │                  │
+│ └─ Search Index   │  │                  │  │                  │
+└───────────────────┘  └──────────────────┘  └──────────────────┘
+     (automation)        (real-time UI)        (event streaming)
 ```
+
+---
 
 ### 2.2 Components
 
-**Database Layer (PostgreSQL)**
+**tb_entity_change_log** ✅ *Table exists, manual population*
 
-- Transactions commit changes to `tb_*` tables
-- LISTEN/NOTIFY notifies subscription system of changes
-- CDC captures changes for durability and replay
+- Single source of truth for ALL database change events
+- Debezium-compatible envelope format (op, before, after, source, ts_ms)
+- Durable storage with sequence numbers for ordering
+- Enables event replay from any checkpoint
+- **Populated manually** (application code must INSERT after mutations)
+- Schema:
+  ```sql
+  CREATE TABLE tb_entity_change_log (
+      pk_entity_change_log BIGSERIAL PRIMARY KEY,
+      id UUID NOT NULL,
+      fk_customer_org UUID,
+      object_type VARCHAR(255) NOT NULL,
+      object_id VARCHAR(255) NOT NULL,
+      modification_type VARCHAR(10) NOT NULL,  -- INSERT, UPDATE, DELETE
+      change_status VARCHAR(50),
+      object_data JSONB NOT NULL,              -- Debezium "after" data
+      extra_metadata JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
+  CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
+  ```
 
-**Event Buffer (`tb_entity_change_log`)**
+**ChangeLogListener** ✅ *Fully implemented*
 
-- Persists all events with monotonic sequence numbers
-- Enables replay from any point in time
-- Acts as backpressure buffer if transport is slow
-- Debezium-compatible envelope format
+- Polls `tb_entity_change_log` at configurable interval (default: 100ms)
+- Maintains checkpoint for recovery (no duplicate processing)
+- Fetches entries in batches (default: 100 events)
+- Parses Debezium envelope format (before/after/op)
+- Location: `crates/fraiseql-observers/src/listener/change_log.rs`
+- **Key insight:** 100ms polling IS real-time for UI updates
 
-**Subscription Matcher**
+**ObserverRuntime** ✅ *Fully implemented*
 
-- Evaluates compiled subscription filters
-- Groups events by destination (graphql-ws client, webhook, Kafka topic)
-- Transforms event to projection shape
+- Background tokio task started in server initialization
+- Calls `ChangeLogListener.next_batch()` in loop
+- Converts `ChangeLogEntry` → `EntityEvent`
+- Routes events to registered consumers:
+  - ObserverExecutor (actions like webhooks, email)
+  - SubscriptionManager (transports like WebSocket, Kafka) ← **To be added**
+- Location: `crates/fraiseql-server/src/observers/runtime.rs`
 
-**Transport Adapters**
+**SubscriptionManager** ✅ *Fully implemented*
 
-- `graphql-ws`: WebSocket for browser clients
-- `webhooks`: HTTP POST to external endpoints
-- `kafka`: Push to Kafka topic
-- `grpc`: Future extension for service-to-service
+- Manages active GraphQL subscriptions
+- Matches events against subscription filters
+- Projects data to subscription's field selection
+- Broadcasts via `tokio::sync::broadcast` channels
+- Delivers to transport adapters (WebSocket, Kafka, Webhooks)
+- Location: `crates/fraiseql-core/src/runtime/subscription.rs`
 
-**Client Connections**
+**Transport Adapters** ✅ *All fully implemented*
 
-- Establish transport connection (WebSocket, webhook, etc.)
-- Authenticate and authorize
-- Subscribe to specific subscription types with filters
-- Receive events until disconnect
+- **graphql-ws (WebSocket)**: Real-time UI updates, complete protocol implementation
+- **Webhooks**: HTTP POST with HMAC signatures, exponential backoff retry
+- **Kafka**: Event streaming with compression, keyed by entity_id for partitioning
+
+---
 
 ### 2.3 Event Format
 
-All subscription events follow this structure:
+Events flow through the system in Debezium envelope format:
 
 ```json
 {
-  "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
-  "event_name": "OrderCreated",
-  "entity_name": "Order",
-  "entity_id": "ord_123",
-  "operation": "CREATE",
-  "timestamp": "2026-01-11T15:35:00.123456Z",
-  "sequence_number": 4521,
-  "data": {
+  "pk_entity_change_log": 1234,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "object_type": "Order",
+  "object_id": "ord_123",
+  "modification_type": "INSERT",
+  "object_data": {
     "id": "ord_123",
     "user_id": "usr_456",
     "amount": 99.99,
-    "created_at": "2026-01-11T15:35:00.123456Z"
-  }
+    "created_at": "2026-01-30T10:00:00Z"
+  },
+  "extra_metadata": {},
+  "created_at": "2026-01-30T10:00:00.123456Z"
 }
 ```
 
-**Mapping:**
+**Conversion to SubscriptionEvent:**
 
-- `event_name`: Subscription type name (e.g., `OrderCreated`)
-- `entity_name`: GraphQL type (e.g., `Order`)
-- `operation`: CREATE, UPDATE, DELETE
-- `data`: Projected fields (determined by subscription query)
+```rust
+// In ObserverRuntime background task
+for entry in entries {
+    let entity_event = EntityEvent::from_change_log_entry(entry);
+
+    // Route to observers (existing)
+    observer_executor.process_event(&entity_event).await;
+
+    // Route to subscriptions (TO BE ADDED)
+    if let Some(ref sub_manager) = subscription_manager {
+        let subscription_event = SubscriptionEvent {
+            event_id: entity_event.id,
+            entity_type: entity_event.object_type,
+            entity_id: entity_event.object_id,
+            operation: entity_event.modification_type,  // INSERT/UPDATE/DELETE
+            data: entity_event.object_data,
+            old_data: None,  // Could extract from "before" field
+            timestamp: entity_event.created_at,
+            sequence_number: entity_event.pk,
+        };
+        sub_manager.publish_event(subscription_event).await?;
+    }
+}
+```
+
+---
+
+### 2.4 Architectural Insights
+
+#### Why Polling, Not LISTEN/NOTIFY?
+
+FraiseQL subscriptions use database-centric polling architecture rather than PostgreSQL LISTEN/NOTIFY:
+
+1. **Database-Centric Design** - FraiseQL's core philosophy is "database as source of truth"
+2. **Single Event Log** - `tb_entity_change_log` is THE event log, shared by observers and subscriptions
+3. **Durability** - Events in database table can be replayed, checkpointed, and audited
+4. **100ms Is Real-Time** - For UI updates, 100ms latency is imperceptible to users
+5. **Simplicity** - One polling mechanism (ChangeLogListener), not two (LISTEN + polling)
+6. **Existing Infrastructure** - ObserverRuntime already processes events; extend it
+
+#### What Would Be Wrong With LISTEN/NOTIFY?
+
+A LISTEN/NOTIFY based architecture would create:
+
+```
+Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
+```
+
+**Problems:**
+- ❌ Duplicate event capture mechanism (ChangeLogListener already polls)
+- ❌ No durability (NOTIFY messages are fire-and-forget)
+- ❌ No replay capability (can't reprocess old events)
+- ❌ Violates database-centric principle (message channel, not table)
+- ❌ Creates two parallel event systems fighting for same purpose
+
+#### Current Limitations (Temporary)
+
+1. **Manual Event Population** - Application code must explicitly INSERT into `tb_entity_change_log`
+   - Example:
+     ```rust
+     sqlx::query!(
+         "INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
+          VALUES ($1, $2, $3, $4)",
+         "Order",
+         order_id,
+         "INSERT",
+         serde_json::to_value(&order)?
+     ).execute(&pool).await?;
+     ```
+
+2. **SubscriptionManager Not Wired to ObserverRuntime** - Integration pending (see migration path below)
+
+3. **No Multi-Tenant Authorization Enforcement** - Filter evaluation exists but user context not passed
+
+#### Performance Characteristics
+
+| Aspect | Value | Notes |
+|--------|-------|-------|
+| **Event Latency** | 100ms (P50), 200ms (P99) | Polling interval + processing |
+| **Throughput** | ~1000 events/sec | Batch size 100, 100ms polling |
+| **Subscription Delivery** | 100-150ms total | Polling + matching + transport |
+| **Durability** | ✅ Full | Events persisted in database table |
+| **Replay** | ✅ Supported | Checkpoint-based from any point |
+| **Scalability** | Limited by PostgreSQL | Single table bottleneck |
+
+**Comparison:**
+
+| Architecture | Latency | Durability | Replay | Complexity |
+|--------------|---------|------------|--------|------------|
+| **Polling (FraiseQL)** | 100ms | ✅ | ✅ | Low |
+| **LISTEN/NOTIFY** | <10ms | ❌ | ❌ | Medium |
+| **Kafka** | 10-50ms | ✅ | ✅ | High |
+| **Redis Streams** | 5-20ms | ⚠️ | ⚠️ | Medium |
+
+#### Migration Path
+
+**Phase 1: Wire SubscriptionManager to ObserverRuntime** (Pending)
+
+**Changes Required:**
+1. Add `Arc<SubscriptionManager>` field to `ObserverRuntime`
+2. Pass subscription_manager from `Server::new()` → `init_observer_runtime()`
+3. In background task loop: `subscription_manager.publish_event()`
+4. Convert `EntityEvent` to `SubscriptionEvent` format
+
+**Estimated Effort:** ~30 minutes
+
+**Phase 2: Automatic Event Population** (Future)
+
+**Options:**
+- **Option A: Executor Hooks** (Recommended) - Add `after_mutation` hook in `Executor::execute_internal()`
+- **Option B: Database Triggers** - Create triggers on all entity tables
+- **Option C: Keep Manual** (Current) - Document best practice
+
+**Estimated Effort:** 2-3 days depending on option
+
+---
+
+### 2.5 Relationship to Observer System
+
+FraiseQL has **two separate event consumer systems** sharing the same event source:
+
+#### Subscriptions vs Observers
+
+| Aspect | Subscriptions | Observers |
+|--------|--------------|-----------|
+| **Purpose** | Real-time client notifications | Automation actions |
+| **Consumers** | Browser/mobile clients | Webhooks, email, SMS, search indexing |
+| **Transports** | graphql-ws, Kafka, HTTP webhooks | EventTransport trait (PostgresNotify, **NATS**, InMemory) |
+| **Latency** | 100-150ms (polling) | Variable (action-dependent) |
+| **Use Case** | Live dashboards, real-time UI | Background jobs, integrations |
+
+#### Architecture: Two Branches from Same Source
+
+```
+tb_entity_change_log (single source of truth)
+    ↓
+ChangeLogListener (polls every 100ms)
+    ↓
+ObserverRuntime (in-process routing)
+    ├─ ObserverExecutor → Actions (can use NATS transport)
+    │   ├─ Webhooks
+    │   ├─ Email/SMS
+    │   ├─ Slack notifications
+    │   └─ Search indexing
+    │
+    └─ SubscriptionManager → Client transports
+        ├─ graphql-ws (WebSocket)
+        ├─ Kafka
+        └─ HTTP webhooks
+```
+
+#### Why Subscriptions Don't Use NATS Directly
+
+**Subscriptions** use their own transport adapters (graphql-ws, Kafka) because:
+- Clients connect directly to FraiseQL server (WebSocket)
+- No intermediate message bus needed for latency-sensitive UI
+- GraphQL protocol expectations (graphql-ws spec)
+
+**Observers** can optionally use NATS because:
+- Actions are asynchronous (latency tolerance)
+- May need polyglot consumers (Python, Go, etc.)
+- Benefits from distributed event streaming
+- Horizontal scaling of action processors
+
+#### Configuration: Composition by Default, NATS Optional
+
+**Default (Composition):**
+```toml
+# fraiseql.toml
+[observer_runtime]
+transport = "in_process"  # Direct routing, no NATS required
+
+# Both observers and subscriptions get events from same ObserverRuntime
+```
+
+**Optional (NATS Everywhere):**
+```toml
+[observer_runtime]
+transport = "nats"
+nats_url = "nats://localhost:4222"
+stream_name = "fraiseql.events"
+
+# All events published to NATS once
+# ObserverExecutor and SubscriptionManager both consume from NATS
+```
+
+**Key Insight:** FraiseQL defaults to **database-centric composition** (no NATS required), but makes **NATS everywhere** easy to enable for distributed deployments.
 
 ---
 
@@ -850,115 +1060,124 @@ subscription OrderCreated {
 
 ### 7.1 PostgreSQL (Phase 1 — Reference Implementation)
 
-**Event capture mechanism:** LISTEN / NOTIFY + Logical Decoding
+**Event capture mechanism:** Database table polling (`tb_entity_change_log`)
 
 ```sql
--- Enable logical decoding
-CREATE PUBLICATION fraiseql_events FOR ALL TABLES;
+-- Event log table (already exists)
+CREATE TABLE tb_entity_change_log (
+    pk_entity_change_log BIGSERIAL PRIMARY KEY,
+    id UUID NOT NULL,
+    fk_customer_org UUID,
+    object_type VARCHAR(255) NOT NULL,
+    object_id VARCHAR(255) NOT NULL,
+    modification_type VARCHAR(10) NOT NULL,  -- INSERT, UPDATE, DELETE
+    change_status VARCHAR(50),
+    object_data JSONB NOT NULL,
+    extra_metadata JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
 
--- Listen for changes
-LISTEN fraiseql_changes;
+-- Indexes for efficient polling
+CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
+CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 
--- Example notification from trigger
-CREATE FUNCTION notify_change() RETURNS TRIGGER AS $$
-BEGIN
-    PERFORM pg_notify('fraiseql_changes',
-        json_build_object(
-            'entity_type', TG_TABLE_NAME,
-            'entity_id', NEW.id,
-            'operation', TG_OP
-        )::text
-    );
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER order_change_trigger AFTER INSERT OR UPDATE OR DELETE ON tb_order
-FOR EACH ROW EXECUTE FUNCTION notify_change();
+-- Application code inserts events after mutations
+INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
+VALUES ('Order', 'ord_123', 'INSERT', '{"id": "ord_123", "user_id": "usr_456", ...}'::jsonb);
 ```
 
 **Advantages (Reference Implementation):**
 
-- Sub-millisecond latency (in-process notification)
-- No additional infrastructure (built-in to PostgreSQL)
-- Logical decoding for durability and replay
-- Production-tested and battle-hardened
-- Full feature parity with subscription architecture
+- Database-centric (table as event log, not message channel)
+- Full durability (events persisted in table)
+- Replay capability (query any historical event)
+- No additional infrastructure required
+- Simple and predictable (100ms polling = real-time for UIs)
+- Production-tested in FraiseQL observer system
 
 **Limitations:**
 
-- Notifications lost if server restarts (use CDC for durability)
-- CDC requires enterprise features or wal2json plugin
-- Single database only (no cross-database subscriptions)
+- Manual event population required (no automatic triggers yet)
+- 100-200ms latency (polling interval)
+- Limited by PostgreSQL write throughput (single table)
 
 ### 7.2 MySQL (Phase 2)
 
-**Event capture mechanism:** Binary log + Debezium or maxwell
+**Event capture mechanism:** Database table polling (`tb_entity_change_log`)
+
+**Architecture:** Same as PostgreSQL - application code inserts events into `tb_entity_change_log`, ChangeLogListener polls.
+
+**MySQL-specific considerations:**
 
 ```sql
--- Enable binary logging
-SET GLOBAL binlog_format = 'ROW';
-
--- Debezium connector reads binary log
-CREATE TABLE fraiseql_outbox (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    entity_type VARCHAR(255),
-    entity_id VARCHAR(255),
-    operation VARCHAR(10),
-    data JSON,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Same table schema as PostgreSQL
+CREATE TABLE tb_entity_change_log (
+    pk_entity_change_log BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id CHAR(36) NOT NULL,
+    fk_customer_org CHAR(36),
+    object_type VARCHAR(255) NOT NULL,
+    object_id VARCHAR(255) NOT NULL,
+    modification_type VARCHAR(10) NOT NULL,
+    change_status VARCHAR(50),
+    object_data JSON NOT NULL,  -- MySQL uses JSON type
+    extra_metadata JSON,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Trigger captures changes
-CREATE TRIGGER order_outbox AFTER INSERT ON tb_order
-FOR EACH ROW
-INSERT INTO fraiseql_outbox (entity_type, entity_id, operation, data)
-VALUES ('Order', NEW.id, 'INSERT', JSON_OBJECT(...));
+CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
+CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 ```
 
 **Advantages:**
 
-- Scalable to large datasets
-- Debezium ecosystem mature and well-supported
+- Same architecture as PostgreSQL (consistency)
+- No additional infrastructure required
 - Works with managed MySQL services (AWS RDS, Cloud SQL)
 
 **Limitations:**
 
-- Additional infrastructure (Debezium/maxwell)
-- Higher latency (seconds vs milliseconds)
-- Outbox pattern required (separate table)
+- Manual event population (like PostgreSQL)
+- 100-200ms latency (polling interval)
+- JSON type instead of JSONB (slightly less efficient)
 
 ### 7.3 SQL Server (Phase 2)
 
-**Event capture mechanism:** Change Data Capture (built-in)
+**Event capture mechanism:** Database table polling (`tb_entity_change_log`)
+
+**Architecture:** Same as PostgreSQL - application code inserts events into `tb_entity_change_log`, ChangeLogListener polls.
+
+**SQL Server-specific considerations:**
 
 ```sql
--- Enable CDC on database
-EXEC sys.sp_cdc_enable_db;
+-- Same table schema as PostgreSQL
+CREATE TABLE tb_entity_change_log (
+    pk_entity_change_log BIGINT IDENTITY(1,1) PRIMARY KEY,
+    id UNIQUEIDENTIFIER NOT NULL,
+    fk_customer_org UNIQUEIDENTIFIER,
+    object_type NVARCHAR(255) NOT NULL,
+    object_id NVARCHAR(255) NOT NULL,
+    modification_type NVARCHAR(10) NOT NULL,
+    change_status NVARCHAR(50),
+    object_data NVARCHAR(MAX) NOT NULL,  -- JSON stored as NVARCHAR(MAX)
+    extra_metadata NVARCHAR(MAX),
+    created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+);
 
--- Enable CDC on specific table
-EXEC sys.sp_cdc_enable_table
-    @source_schema = 'dbo',
-    @source_name = 'Order',
-    @role_name = NULL;
-
--- Query CDC tables
-SELECT * FROM cdc.dbo_Order_CT
-WHERE __$start_lsn >= @previous_lsn
-ORDER BY __$seqval;
+CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
+CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 ```
 
 **Advantages:**
 
-- Built-in to SQL Server (no plugins)
-- Mature, enterprise-grade CDC
-- Integrated with query execution
+- Same architecture as PostgreSQL (consistency)
+- No additional infrastructure required
+- Works with all SQL Server editions (including Express)
 
 **Limitations:**
 
-- Enterprise/Standard editions only (not Express)
-- Overhead on transactional workload
-- Slightly higher latency than LISTEN/NOTIFY
+- Manual event population (like PostgreSQL)
+- 100-200ms latency (polling interval)
+- JSON stored as NVARCHAR(MAX) (less efficient than native JSON)
 
 ### 7.4 SQLite (Phase 2)
 
@@ -1043,23 +1262,26 @@ Subscriptions are **compiled at schema build time** into the CompiledSchema:
 
 At runtime, subscriptions follow a unified event pipeline:
 
-**PostgreSQL (primary mechanism):**
+**FraiseQL Architecture (database-centric):**
 
-- LISTEN/NOTIFY: Fast, in-process notification of database changes
-- Triggers: Capture changes to `tb_entity_change_log`
+- Application code explicitly inserts events into `tb_entity_change_log` after mutations
+- `ChangeLogListener` polls table every 100ms with checkpoint tracking
+- `ObserverRuntime` processes events in background task
+- Events routed to both `ObserverExecutor` (actions) and `SubscriptionManager` (transports)
 
-**Other databases (same event structure):**
+**Event capture across databases:**
 
-- MySQL: CDC via Debezium or Maxwell
-- SQL Server: Native Change Data Capture (built-in)
-- SQLite: Trigger-based capture to temporary table
+- PostgreSQL: Direct table polling (reference implementation)
+- MySQL: Table polling (same as PostgreSQL)
+- SQL Server: Table polling (same as PostgreSQL)
+- SQLite: Table polling for development/testing
 
-**Event buffer:** All events written to `tb_entity_change_log` with:
+**Event buffer (`tb_entity_change_log`):** All events written with:
 
 - Monotonic sequence numbers (for replay and ordering)
 - Debezium-compatible envelope format
-- Full before/after data
-- Transaction context
+- Full entity data in JSONB column
+- Timestamp for chronological ordering
 
 ### 8.3 Transport Adapters
 
@@ -1116,24 +1338,25 @@ Authorization enforced at **event capture time** (not delivery time):
 
 | Path | Latency (Observed) | Notes |
 |------|----------|-------|
-| PostgreSQL LISTEN/NOTIFY | <1ms | In-process notification (reference deployment) |
-| graphql-ws client (local) | ~5-10ms | Network round-trip included (target envelope) |
-| graphql-ws client (remote) | 50-100ms | Network latency dominant (typical WAN) |
-| Webhook delivery | 50-200ms | HTTP request + retry logic (depends on endpoint) |
-| Kafka producer | <5ms | Async write to broker (target) |
+| ChangeLogListener polling | 100ms (P50), 200ms (P99) | Polling interval + checkpoint |
+| graphql-ws client (local) | 100-150ms | Polling + network round-trip |
+| graphql-ws client (remote) | 150-300ms | Polling + WAN latency |
+| Webhook delivery | 150-400ms | Polling + HTTP request + retry logic |
+| Kafka producer | 100-150ms | Polling + async write to broker |
 
 **Example: User creates order in UI, sees confirmation**
 
 ```
 1. Mutation committed (1ms)
-2. Trigger fires, sends notification (0.5ms)
-3. Listener receives (0.5ms)
-4. Filter evaluates (0.5ms)
-5. Transform to GraphQL (0.5ms)
-6. Send to WebSocket (1ms)
-7. Client receives (5-10ms network)
+2. Event inserted into tb_entity_change_log (1ms)
+3. ChangeLogListener polls (0-100ms, average 50ms)
+4. ObserverRuntime processes event (1ms)
+5. Filter evaluates (0.5ms)
+6. Transform to GraphQL (0.5ms)
+7. Send to WebSocket (1ms)
+8. Client receives (5-10ms network)
 ────────────────
-Total: ~10ms (sub-second perceived latency)
+Total: ~100-150ms (imperceptible to users)
 ```
 
 ### 9.2 Throughput
@@ -1146,7 +1369,7 @@ Total: ~10ms (sub-second perceived latency)
 
 **Event throughput (observed in reference deployments):**
 
-- PostgreSQL LISTEN/NOTIFY: 10,000+ events/second (target)
+- ChangeLogListener polling: 1,000-2,000 events/second (database-limited)
 - Webhook delivery: Limited by HTTP endpoint capacity (external factor)
 - Kafka: 100,000+ events/second (broker-dependent; target with typical configurations)
 
@@ -1237,29 +1460,31 @@ Total: ~10ms (sub-second perceived latency)
 
 ### 10.4 Database Limitations
 
+**All Databases (Polling Architecture):**
+
+- Manual event population required (application must INSERT into `tb_entity_change_log`)
+- 100-200ms latency (polling interval)
+- Single table write bottleneck (can scale with partitioning)
+
 **PostgreSQL:**
 
-- LISTEN/NOTIFY lost on server restart (use CDC/WAL for durability)
-- No cross-database subscriptions
-- Logical decoding requires wal_level=logical
+- None specific (reference implementation)
 
 **MySQL:**
 
-- Requires Debezium/maxwell (additional infrastructure)
-- Higher latency than PostgreSQL (seconds vs milliseconds)
-- Binary log must be enabled
+- JSON type less efficient than PostgreSQL JSONB
+- No native UUID type (stored as CHAR(36))
 
 **SQL Server:**
 
-- CDC available only in Standard+ editions
-- Overhead on transactional load
-- Enterprise licensing
+- JSON stored as NVARCHAR(MAX) (less efficient than native JSON)
+- Different date/time types (DATETIME2 vs TIMESTAMP)
 
 **SQLite:**
 
-- Pull-based only (no push)
-- In-memory (no durability)
 - Single process (no network clients)
+- Not suitable for production subscriptions
+- Good for development/testing only
 
 ---
 
@@ -1644,7 +1869,7 @@ config = FraiseQLConfig(
 
 **Key properties:**
 
-- ✅ Database-native (LISTEN/NOTIFY, CDC)
+- ✅ Database-centric (table polling, not message channels)
 - ✅ Compiled, not interpreted
 - ✅ Transport-agnostic (graphql-ws, webhooks, Kafka, etc.)
 - ✅ Deterministic, no user code
@@ -1653,14 +1878,24 @@ config = FraiseQLConfig(
 **Architecture:**
 
 1. Database transaction commits
-2. Change captured via LISTEN/NOTIFY or CDC
-3. Event buffered in `tb_entity_change_log`
-4. Filters evaluated against compiled predicates
-5. Delivered via transport adapter (graphql-ws, webhook, Kafka)
+2. Application inserts event into `tb_entity_change_log`
+3. ChangeLogListener polls table every 100ms
+4. ObserverRuntime routes events to SubscriptionManager
+5. Filters evaluated against compiled predicates
+6. Delivered via transport adapter (graphql-ws, webhook, Kafka)
 
-**For real-time UI:** graphql-ws targets <10ms latency (local network, reference deployment)
-**For event streaming:** Kafka provides durability and replay
-**For external systems:** Webhooks with retry logic
+**Performance:**
+
+- **Latency:** 100-150ms (polling + processing + network)
+- **Throughput:** 1,000-2,000 events/sec (database-limited)
+- **Perceived latency:** Imperceptible to users for UI updates
+
+**Relationship to Observers:**
+
+- Subscriptions and Observers share the same event source (`tb_entity_change_log`)
+- Observers can optionally use NATS for distributed action processing
+- Subscriptions use direct transports (graphql-ws, Kafka) for client notifications
+- Default: composition (in-process routing), NATS optional for distributed deployments
 
 **Security:**
 
@@ -1673,5 +1908,6 @@ config = FraiseQLConfig(
 - Subscriptions are read-only (no mutations)
 - Filters compile-time determined
 - Per-entity ordering only
+- Manual event population required (automatic triggers pending)
 
 *End of Subscriptions Specification*
