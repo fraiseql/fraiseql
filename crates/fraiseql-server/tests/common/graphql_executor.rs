@@ -3,8 +3,9 @@
 //! This is a simplified GraphQL executor for testing purposes.
 //! It provides basic query execution against in-memory test data.
 
-use serde_json::{json, Value};
 use std::collections::HashMap;
+
+use serde_json::{Value, json};
 
 /// Simple GraphQL executor for test purposes
 #[derive(Debug, Clone)]
@@ -131,10 +132,8 @@ impl TestGraphQLExecutor {
 
         // Filter users data to only requested fields
         if let Value::Array(users_arr) = users {
-            let filtered_users: Vec<Value> = users_arr
-                .iter()
-                .map(|user| self.filter_fields(user, &fields))
-                .collect();
+            let filtered_users: Vec<Value> =
+                users_arr.iter().map(|user| self.filter_fields(user, &fields)).collect();
 
             Ok(json!({ "users": filtered_users }))
         } else {
@@ -155,10 +154,8 @@ impl TestGraphQLExecutor {
 
         // Filter posts data to only requested fields
         if let Value::Array(posts_arr) = posts {
-            let filtered_posts: Vec<Value> = posts_arr
-                .iter()
-                .map(|post| self.filter_fields(post, &fields))
-                .collect();
+            let filtered_posts: Vec<Value> =
+                posts_arr.iter().map(|post| self.filter_fields(post, &fields)).collect();
 
             Ok(json!({ "posts": filtered_posts }))
         } else {
@@ -196,7 +193,8 @@ impl TestGraphQLExecutor {
 
             // Extract field name
             let mut field = String::new();
-            while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '{' && chars[i] != '}' {
+            while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '{' && chars[i] != '}'
+            {
                 field.push(chars[i]);
                 i += 1;
             }
@@ -207,10 +205,9 @@ impl TestGraphQLExecutor {
                 && field != "posts"
                 && field != "id"
                 && field != "comments"
+                && !fields.contains(&field)
             {
-                if !fields.contains(&field) {
-                    fields.push(field);
-                }
+                fields.push(field);
             }
         }
 

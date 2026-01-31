@@ -6,7 +6,7 @@
 #[derive(Debug, Clone)]
 pub struct DatabaseFixture {
     /// PostgreSQL connection string for test database
-    pub postgres_url: String,
+    pub postgres_url:  String,
     /// Whether to clean up tables after tests
     pub cleanup_after: bool,
 }
@@ -16,7 +16,7 @@ impl DatabaseFixture {
     /// Create a new test database fixture
     pub fn new() -> Self {
         Self {
-            postgres_url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+            postgres_url:  std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
                 "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
                     .to_string()
             }),
@@ -27,7 +27,7 @@ impl DatabaseFixture {
     /// Create fixture with custom database URL
     pub fn with_url(url: &str) -> Self {
         Self {
-            postgres_url: url.to_string(),
+            postgres_url:  url.to_string(),
             cleanup_after: true,
         }
     }
@@ -80,7 +80,7 @@ impl Default for DatabaseFixture {
 #[derive(Debug, Clone)]
 pub struct GraphQLResult {
     /// Response data as JSON string
-    pub data: Option<String>,
+    pub data:   Option<String>,
     /// Error messages if any
     pub errors: Vec<String>,
     /// HTTP status code
@@ -126,9 +126,9 @@ impl GraphQLResult {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct UserFixture {
-    pub id: String,
-    pub name: String,
-    pub email: String,
+    pub id:     String,
+    pub name:   String,
+    pub email:  String,
     pub active: bool,
 }
 
@@ -136,9 +136,9 @@ impl UserFixture {
     /// Create test user
     pub fn new(id: &str, name: &str, email: &str) -> Self {
         Self {
-            id: id.to_string(),
-            name: name.to_string(),
-            email: email.to_string(),
+            id:     id.to_string(),
+            name:   name.to_string(),
+            email:  email.to_string(),
             active: true,
         }
     }
@@ -148,8 +148,8 @@ impl UserFixture {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct PostFixture {
-    pub id: String,
-    pub title: String,
+    pub id:        String,
+    pub title:     String,
     pub author_id: String,
     pub published: bool,
 }
@@ -158,8 +158,8 @@ impl PostFixture {
     /// Create test post
     pub fn new(id: &str, title: &str, author_id: &str) -> Self {
         Self {
-            id: id.to_string(),
-            title: title.to_string(),
+            id:        id.to_string(),
+            title:     title.to_string(),
             author_id: author_id.to_string(),
             published: false,
         }
