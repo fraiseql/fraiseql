@@ -81,6 +81,7 @@ pub mod routes;
 pub mod schema;
 pub mod server;
 pub mod server_config;
+pub mod subscriptions;
 pub mod validation;
 
 // Renamed to avoid conflicts with runtime modules
