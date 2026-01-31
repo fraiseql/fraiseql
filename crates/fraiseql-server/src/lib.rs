@@ -119,6 +119,10 @@ pub mod tls_listener;
 #[cfg(feature = "observers")]
 pub mod observers;
 
+// Arrow Flight integration - optional
+#[cfg(feature = "arrow")]
+pub mod arrow;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
