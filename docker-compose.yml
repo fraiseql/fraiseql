@@ -42,16 +42,17 @@ services:
     image: postgres:16-alpine
     container_name: fraiseql-postgres
     environment:
-      POSTGRES_DB: fraiseql
-      POSTGRES_USER: test_user
-      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_fraiseql
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
       POSTGRES_INITDB_ARGS: "-c max_connections=200"
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U test_user -d fraiseql"]
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,17 +65,18 @@ services:
     image: mysql:8.0
     container_name: fraiseql-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_USER: test_user
-      MYSQL_PASSWORD: test_password
-      MYSQL_DATABASE: fraiseql
+      MYSQL_ROOT_PASSWORD: fraiseql_test_password
+      MYSQL_USER: fraiseql_test
+      MYSQL_PASSWORD: fraiseql_test_password
+      MYSQL_DATABASE: test_fraiseql
       MYSQL_ROOT_HOST: "%"
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./tests/sql/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "test_user", "-ptest_password"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fraiseql_test", "-pfraiseql_test_password"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -89,18 +91,21 @@ services:
     container_name: fraiseql-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "SqlServer@123"
+      MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
       MSSQL_PID: "Express"
       MSSQL_TCP_PORT: 1433
     ports:
-      - "1433:1433"
+      - "1434:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+      - ./tests/sql/sqlserver/entrypoint-simple.sh:/docker-entrypoint.sh
+    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "SqlServer@123", "-Q", "SELECT 1", "-C"]
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "FraiseQL_Test1234", "-Q", "SELECT 1", "-C"]
       interval: 10s
       timeout: 10s
       retries: 5
+      start_period: 30s
     networks:
       - fraiseql
     restart: unless-stopped

@@ -387,7 +387,7 @@ mod tests {
     // Note: These tests require a running SQL Server instance with test data.
     // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter
 
-    const TEST_DB_URL: &str = "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    const TEST_DB_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     #[tokio::test]
     async fn test_adapter_creation() {

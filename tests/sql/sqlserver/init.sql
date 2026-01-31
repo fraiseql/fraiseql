@@ -2,6 +2,16 @@
 -- Creates test tables and NVARCHAR(MAX) JSON views
 -- Equivalent to PostgreSQL init.sql but using SQL Server T-SQL
 
+-- Create database if it doesn't exist
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'fraiseql_test')
+BEGIN
+  CREATE DATABASE fraiseql_test;
+END
+GO
+
+USE fraiseql_test;
+GO
+
 -- Drop existing objects if they exist
 IF OBJECT_ID('dbo.v_product', 'V') IS NOT NULL DROP VIEW dbo.v_product;
 IF OBJECT_ID('dbo.v_post', 'V') IS NOT NULL DROP VIEW dbo.v_post;
