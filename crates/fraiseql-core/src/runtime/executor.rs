@@ -20,10 +20,7 @@ use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, Runti
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
-    db::{
-        projection_generator::PostgresProjectionGenerator,
-        traits::DatabaseAdapter,
-    },
+    db::{projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
@@ -455,24 +452,23 @@ impl<A: DatabaseAdapter> Executor<A> {
         // This reduces payload by 40-55% by projecting only requested fields at the database level
         let projection_hint = if !plan.projection_fields.is_empty() {
             let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator.generate_projection_sql(&plan.projection_fields)
+            let projection_sql = generator
+                .generate_projection_sql(&plan.projection_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database: "postgresql".to_string(),
-                projection_template: projection_sql,
+                database:                    "postgresql".to_string(),
+                projection_template:         projection_sql,
                 estimated_reduction_percent: 50,
             })
         } else {
             None
         };
 
-        let results = self.adapter.execute_with_projection(
-            sql_source,
-            projection_hint.as_ref(),
-            None,
-            None,
-        ).await?;
+        let results = self
+            .adapter
+            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None)
+            .await?;
 
         // 4. Project results
         let projector = ResultProjector::new(plan.projection_fields);

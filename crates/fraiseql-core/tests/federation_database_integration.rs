@@ -17,12 +17,12 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::Result,
-    schema::SqlProjectionHint,
     federation::{
         database_resolver::DatabaseEntityResolver,
         selection_parser::FieldSelection,
         types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
     },
+    schema::SqlProjectionHint,
 };
 use serde_json::{Value, json};
 

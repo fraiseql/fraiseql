@@ -28,11 +28,11 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::Result,
-    schema::SqlProjectionHint,
     federation::{
         EntityRepresentation, FederatedType, FederationMetadata, FederationResolver, KeyDirective,
         batch_load_entities_with_tracing_and_metrics, selection_parser::FieldSelection,
     },
+    schema::SqlProjectionHint,
 };
 use serde_json::{Value, json};
 

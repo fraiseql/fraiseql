@@ -17,11 +17,11 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::Result,
-    schema::SqlProjectionHint,
     federation::{
         mutation_executor::FederationMutationExecutor,
         types::{FederatedType, FederationMetadata, KeyDirective},
     },
+    schema::SqlProjectionHint,
 };
 use serde_json::{Value, json};
 

@@ -6,8 +6,7 @@ use super::{
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
-use crate::error::Result;
-use crate::schema::SqlProjectionHint;
+use crate::{error::Result, schema::SqlProjectionHint};
 
 /// Database adapter for executing queries against views.
 ///

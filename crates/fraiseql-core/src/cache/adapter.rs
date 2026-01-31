@@ -601,7 +601,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         }
 
         // Cache miss - execute via underlying adapter
-        let result = self.adapter.execute_with_projection(view, projection, where_clause, limit).await?;
+        let result = self
+            .adapter
+            .execute_with_projection(view, projection, where_clause, limit)
+            .await?;
 
         // Store in cache
         self.cache.put(cache_key, result.clone(), vec![view.to_string()])?;
