@@ -42,16 +42,12 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 ///
 /// ```rust,ignore
 /// let pg_adapter = PostgresAdapter::new(&db_url).await?;
-/// let flight_service = create_flight_service(Arc::new(pg_adapter))?;
+/// let flight_service = create_flight_service(Arc::new(pg_adapter));
 /// ```
 #[cfg(feature = "arrow")]
-pub fn create_flight_service(
-    adapter: Arc<PostgresAdapter>,
-) -> Result<FraiseQLFlightService, Box<dyn std::error::Error>> {
+pub fn create_flight_service(adapter: Arc<PostgresAdapter>) -> FraiseQLFlightService {
     let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
 
     // Create Flight service with real database adapter
-    let service = FraiseQLFlightService::new_with_db(Arc::new(flight_adapter));
-
-    Ok(service)
+    FraiseQLFlightService::new_with_db(Arc::new(flight_adapter))
 }

@@ -131,10 +131,32 @@ async fn main() -> anyhow::Result<()> {
     let db_pool: Option<sqlx::PgPool> = None;
 
     // Create and start server
-    let server = Server::new(config, schema, adapter, db_pool).await?;
-    tracing::info!("FraiseQL Server {} starting", env!("CARGO_PKG_VERSION"));
+    #[cfg(feature = "arrow")]
+    {
+        use fraiseql_server::arrow::create_flight_service;
 
-    server.serve().await?;
+        // Create Flight service with real database adapter
+        let flight_service = create_flight_service(adapter.clone());
+        tracing::info!("Arrow Flight service initialized with real database adapter");
+
+        let server =
+            Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
+                .await?;
+        tracing::info!(
+            "FraiseQL Server {} starting (HTTP + Arrow Flight)",
+            env!("CARGO_PKG_VERSION")
+        );
+
+        server.serve().await?;
+    }
+
+    #[cfg(not(feature = "arrow"))]
+    {
+        let server = Server::new(config, schema, adapter, db_pool).await?;
+        tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
+
+        server.serve().await?;
+    }
 
     Ok(())
 }
