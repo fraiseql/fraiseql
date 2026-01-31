@@ -92,6 +92,7 @@ pub mod tracing_server;
 pub mod config;
 pub mod lifecycle;
 pub mod observability;
+pub mod operational;
 pub mod resilience;
 pub mod runtime_state;
 pub mod tracing_utils;
