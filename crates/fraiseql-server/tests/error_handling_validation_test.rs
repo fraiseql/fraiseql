@@ -1,4 +1,4 @@
-//! Error Handling Validation Tests (GREEN Phase)
+//! Error Handling Validation Tests
 //!
 //! Tests comprehensive error handling integration with actual error infrastructure:
 //! 1. Database connection failures
@@ -396,7 +396,7 @@ fn test_multiple_errors_in_response() {
 }
 
 // ============================================================================
-// Test Cases: Improved Helper Methods (REFACTOR Phase)
+// Test Cases: Improved Helper Methods
 // ============================================================================
 
 #[test]
