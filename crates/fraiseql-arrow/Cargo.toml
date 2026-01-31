@@ -42,6 +42,14 @@ clickhouse = { version = "0.14", features = ["inserter"], optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"] }
+tempfile = "3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+
+# Integration test dependencies
+fraiseql-core = { path = "../fraiseql-core" }
+fraiseql-server = { path = "../fraiseql-server", features = ["arrow"] }
 
 [lib]
 name = "fraiseql_arrow"
