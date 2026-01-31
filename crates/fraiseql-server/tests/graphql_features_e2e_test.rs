@@ -22,8 +22,10 @@
 
 use std::collections::HashMap;
 
-// Re-export test utilities if available
-// use sqlx::postgres::PgPoolOptions;
+// Common test utilities
+mod common;
+#[allow(unused_imports)]
+use common::{DatabaseFixture, GraphQLResult, TestDataBuilder};
 
 // ============================================================================
 // Mock GraphQL Schema & Query Builder
