@@ -1,14 +1,23 @@
 //! Example Validation Tests
 //!
-//! Validates that all code examples in documentation work correctly:
-//! 1. Basic error handling example
-//! 2. Query execution patterns
-//! 3. GraphQL error responses
-//! 4. Authorization patterns
-//! 5. Timeout handling
-//! 6. Rate limiting
-//! 7. Request tracing with ID tracking
-//! 8. Error chaining patterns
+//! Validates that all documented code examples and patterns work correctly.
+//! These tests serve as both validation and documentation of correct error handling usage.
+//!
+//! # Test Organization
+//!
+//! - **Basic Examples** (6 tests): Fundamental error creation and HTTP status codes
+//! - **Documentation Examples** (10 tests): Patterns from architecture documentation
+//! - **Real-World Examples** (6 tests): Production scenarios with complete context
+//!
+//! # Covered Patterns
+//!
+//! 1. Error creation: `new()`, `validation()`, `parse()`, `database()`, etc.
+//! 2. Error enrichment: `with_location()`, `with_path()`, `with_extensions()`
+//! 3. Request tracing: `with_request_id()` for distributed tracing
+//! 4. Error chaining: Builder pattern for combining metadata
+//! 5. HTTP status codes: Complete mapping of error codes to status codes
+//! 6. Recovery patterns: Identifying retryable vs non-retryable errors
+//! 7. Complex scenarios: Federation, subscriptions, batch queries, partial errors
 //!
 //! # Running Tests
 //!
@@ -22,7 +31,17 @@ use axum::http::StatusCode;
 use fraiseql_server::error::{ErrorCode, ErrorExtensions, GraphQLError};
 
 // ============================================================================
-// Documentation Example 1: Basic Error Handling
+// SECTION 1: BASIC EXAMPLES (Fundamental error handling patterns)
+// ============================================================================
+// These tests demonstrate the most common error handling patterns:
+// - Creating errors with specific codes
+// - HTTP status code mapping
+// - Basic error message construction
+//
+// Use these as a quick reference for error handling in handlers.
+
+// ============================================================================
+// Example 1: Basic Error Handling
 // ============================================================================
 
 #[test]
@@ -37,7 +56,7 @@ fn test_example_basic_error_handling() {
 }
 
 // ============================================================================
-// Documentation Example 2: Parse Error with Location
+// Example 2: Parse Error with Location
 // ============================================================================
 
 #[test]
