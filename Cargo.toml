@@ -61,7 +61,7 @@ jsonwebtoken = "9.2"
 lazy_static = "1.4"
 linked-hash-map = "0.5"
 # Caching
-lru = "0.12"
+lru = "0.16"
 # TLS
 native-tls = "0.2"
 once_cell = "1.19"

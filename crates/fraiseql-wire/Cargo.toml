@@ -30,7 +30,7 @@ rand = "0.8"  # Random nonce generation
 # TLS support
 rustls = {version = "0.23", features = ["ring"]}
 rustls-native-certs = "0.8.3"
-rustls-pemfile = "2.0"
+rustls-pemfile = "2.2"
 rustls-pki-types = "1"
 # Serialization
 serde = {version = "1", features = ["derive"]}

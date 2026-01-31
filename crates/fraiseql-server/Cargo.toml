@@ -59,7 +59,7 @@ aes-gcm = "0.10"
 # TLS/SSL support
 rustls = "0.23"
 tokio-rustls = "0.25"
-rustls-pemfile = "2"
+rustls-pemfile = "2.2"
 
 # Webhook signature verification
 hmac = "0.12"

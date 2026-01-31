@@ -193,7 +193,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {

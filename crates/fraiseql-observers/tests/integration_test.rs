@@ -435,9 +435,8 @@ async fn test_concurrent_observer_processing() -> Result<()> {
     // Wait for all concurrent tasks
     let mut success_count = 0;
     for handle in handles {
-        match handle.await {
-            Ok(Ok(_)) => success_count += 1,
-            _ => {}
+        if let Ok(Ok(_)) = handle.await {
+            success_count += 1;
         }
     }
 
@@ -546,7 +545,8 @@ async fn test_executor_factory_all_features() -> Result<()> {
 
     // Summary should be valid
     assert!(!event.id.to_string().is_empty(), "Event should process");
-    assert!(summary.dlq_errors >= 0, "DLQ errors should be >= 0");
+    // dlq_errors is always non-negative as an unsigned type
+    let _ = summary.dlq_errors;
 
     println!("✅ Executor factory all features test passed");
 

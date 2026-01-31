@@ -190,7 +190,7 @@ mod tests {
         // 2. CommandComplete (C) - "SELECT 0"
         // 3. ReadyForQuery (Z) - ready for next command
 
-        let messages = vec!["RowDescription", "CommandComplete", "ReadyForQuery"];
+        let messages = ["RowDescription", "CommandComplete", "ReadyForQuery"];
 
         // Should have exactly 3 messages, no DataRow
         assert_eq!(messages.len(), 3, "Should have 3 messages for empty result");
@@ -263,8 +263,11 @@ mod tests {
         let hint = Some("Did you mean the table 'users'?");
 
         // Hint should be extracted and available
-        assert!(hint.is_some(), "Hint should be present");
-        assert!(hint.unwrap().contains("users"), "Hint should suggest table name");
+        if let Some(hint_text) = hint {
+            assert!(hint_text.contains("users"), "Hint should suggest table name");
+        } else {
+            panic!("Hint should be present");
+        }
 
         println!("✅ Error hint field test passed");
     }
