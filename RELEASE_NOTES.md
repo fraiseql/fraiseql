@@ -14,6 +14,54 @@ FraiseQL v2 is a **compiled GraphQL execution engine** that transforms schema de
 
 ---
 
+## 🚀 What's New in Phase 5: Production Hardening
+
+FraiseQL v2 now includes comprehensive production hardening for enterprise deployments:
+
+### 1. Security Audit & Fixes ✅
+- **13 comprehensive security tests** covering SQL injection, XSS, CSRF, authentication, and secrets handling
+- Input validation on all query boundaries
+- Parameterized queries prevent SQL injection
+- CORS restrictions and token validation
+- Error sanitization prevents information disclosure
+- No hardcoded secrets in code
+
+### 2. Dependency Management ✅
+- **CVE audits** completed with `cargo audit`
+- Critical security updates: `lru` 0.12 → 0.16 (timing sidechannel fix)
+- `rustls-pemfile` 2.0 → 2.2 (security updates)
+- All 2200+ tests passing with updated dependencies
+- Zero known critical vulnerabilities
+
+### 3. Observability Integration ✅
+- **25 comprehensive tests** covering OpenTelemetry integration
+- **W3C Trace Context** standard compliance
+- Distributed tracing with 32-char hex trace IDs, 16-char hex span IDs
+- **Structured JSON logging** with trace correlation
+- **SpanBuilder pattern** for fluent span creation
+- **MetricsCollector** for Prometheus-compatible metrics
+- Thread-safe concurrent span/metric/log handling
+
+### 4. Operational Tools ✅
+- **14 comprehensive tests** for production operations
+- **Three-tier health check endpoints**:
+  - `/health` - Overall health with uptime
+  - `/ready` - Readiness probe (database/cache checks)
+  - `/live` - Liveness probe (process alive check)
+- **Metrics collection** with Prometheus text format export
+- **Configuration validation** at startup with exhaustive error reporting
+- **Graceful shutdown** with SIGTERM handling and in-flight request draining
+- **Atomic operations** for thread-safe shutdown coordination
+
+### 5. Documentation Updates ✅
+- Updated OBSERVABILITY.md with OpenTelemetry integration details
+- Updated OPERATIONS_GUIDE.md with health checks and graceful shutdown
+- Comprehensive health probe configuration for Kubernetes
+- Load balancer integration guides (ALB, Nginx, HAProxy)
+- Graceful shutdown timing and signal handling
+
+---
+
 ## 🚀 What's New in Phase 16
 
 ### Core Features

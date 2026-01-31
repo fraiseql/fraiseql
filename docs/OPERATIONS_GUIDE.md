@@ -93,49 +93,259 @@ Target: 99.9% success rate (0.1% error rate)
 
 ## Part 2: Monitoring & Observability
 
-### Health Checks
+### Health Checks (Phase 5 Cycle 4)
 
-FraiseQL provides a `/health` endpoint that checks all dependencies:
+FraiseQL provides three health check endpoints following Kubernetes probe semantics:
+
+#### 1. `/health` - Overall Health Status
+
+Returns overall system health including uptime:
 
 ```bash
-curl https://your-fraiseql-api.com/health
+curl http://localhost:8000/health
+```
 
-# Response (if healthy):
+**Response** (HTTP 200):
+```json
 {
   "status": "healthy",
-  "version": "2.0.0",
-  "timestamp": "2026-03-15T10:30:00Z",
-  "checks": {
-    "database": {"status": "healthy", "latency_ms": 2.3},
-    "elasticsearch": {"status": "healthy", "latency_ms": 45.2},
-    "redis": {"status": "healthy", "latency_ms": 0.8},
-    "kms": {"status": "healthy", "latency_ms": 12.1}
-  }
+  "timestamp": 1706794800,
+  "uptime_seconds": 3600
 }
 ```
 
-**Use in Kubernetes** (liveness/readiness probes):
+**Use Case**: General health monitoring, dashboards, observability
 
+---
+
+#### 2. `/ready` - Readiness Probe (Can Accept Requests?)
+
+Checks if the server is ready to accept requests (database connectivity, cache available):
+
+```bash
+curl http://localhost:8000/ready
+```
+
+**Response - Ready** (HTTP 200):
+```json
+{
+  "ready": true,
+  "database_connected": true,
+  "cache_available": true,
+  "reason": null
+}
+```
+
+**Response - Not Ready** (HTTP 503):
+```json
+{
+  "ready": false,
+  "database_connected": false,
+  "cache_available": true,
+  "reason": "Database unavailable"
+}
+```
+
+**Kubernetes Configuration** (recommended):
+```yaml
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  successThreshold: 1
+  failureThreshold: 3
+```
+
+**What It Checks**:
+- ✅ Database connectivity
+- ✅ Cache/Redis connectivity (if enabled)
+- ✅ Configuration validity
+
+**Use Case**: Kubernetes readiness probe, load balancer health checks, startup dependencies
+
+---
+
+#### 3. `/live` - Liveness Probe (Process Alive?)
+
+Checks if the process is still running (lightweight, no dependency checks):
+
+```bash
+curl http://localhost:8000/live
+```
+
+**Response** (HTTP 200):
+```json
+{
+  "alive": true,
+  "pid": 42157,
+  "response_time_ms": 1
+}
+```
+
+**Kubernetes Configuration** (recommended):
 ```yaml
 livenessProbe:
   httpGet:
-    path: /health
-    port: 9090
-  initialDelaySeconds: 10
+    path: /live
+    port: 8000
+  initialDelaySeconds: 30
   periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 9090
-  initialDelaySeconds: 5
-  periodSeconds: 5
+  timeoutSeconds: 2
+  successThreshold: 1
+  failureThreshold: 3
 ```
 
-**Use in Load Balancers**:
-- Configure your load balancer to check `/health`
-- Remove unhealthy instances from rotation
-- Set timeout to 5 seconds (should respond quickly)
+**What It Checks**:
+- ✅ Process is running
+- ✅ Response time (detects hangs)
+- ✅ Process ID still valid
+
+**Use Case**: Kubernetes liveness probe, container restart decisions (never restart on readiness failure, only on liveness failure)
+
+---
+
+### Complete Kubernetes Probe Configuration
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraiseql
+spec:
+  template:
+    spec:
+      containers:
+      - name: fraiseql
+        image: fraiseql:2.0.0
+        ports:
+        - containerPort: 8000
+
+        # Startup Probe - Wait for app to start (only Kubernetes 1.16+)
+        startupProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 30  # 30 * 10 = 300s max startup time
+
+        # Readiness Probe - Remove from LB if not ready
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Liveness Probe - Restart if hung
+        livenessProbe:
+          httpGet:
+            path: /live
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Termination Grace Period - Allow graceful shutdown
+        terminationGracePeriodSeconds: 30
+```
+
+### Graceful Shutdown (Phase 5 Cycle 4)
+
+FraiseQL handles graceful shutdown with signal handling:
+
+**How It Works**:
+1. Server receives `SIGTERM` signal
+2. Stops accepting new requests
+3. Waits for in-flight requests to complete (up to grace period)
+4. Closes database connections
+5. Exits cleanly
+
+**Kubernetes Configuration**:
+```yaml
+terminationGracePeriodSeconds: 30  # Allow 30s for graceful shutdown
+```
+
+**Docker Configuration**:
+```dockerfile
+STOPSIGNAL SIGTERM
+```
+
+**Manual Testing**:
+```bash
+# Terminal 1: Start server
+cargo run -p fraiseql-server
+
+# Terminal 2: Send SIGTERM
+kill -TERM <pid>
+
+# Observe in Terminal 1:
+# - "Shutdown requested"
+# - "Draining in-flight requests..."
+# - "Clean shutdown complete"
+```
+
+**Load Balancer Configuration**:
+- Set connection drain timeout = grace period (30s)
+- Stop sending new requests on SIGTERM
+- Wait for in-flight requests to complete
+
+### Load Balancer Configuration
+
+Configure your load balancer to use the health endpoints:
+
+**AWS ALB**:
+```hcl
+health_check {
+  enabled = true
+  healthy_threshold = 2
+  unhealthy_threshold = 3
+  timeout = 5
+  interval = 30
+  path = "/ready"
+  port = "8000"
+  protocol = "HTTP"
+  matcher = "200"
+}
+```
+
+**Nginx**:
+```nginx
+upstream fraiseql {
+  server fraiseql-1:8000;
+  server fraiseql-2:8000;
+  keepalive 32;
+}
+
+server {
+  location / {
+    proxy_pass http://fraiseql;
+    proxy_http_version 1.1;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 30s;
+  }
+}
+
+# Health check (external configuration)
+```
+
+**HAProxy**:
+```
+backend fraiseql
+  option httpchk GET /ready HTTP/1.1
+  default-server inter 30s fall 3 rise 2
+  server fraiseql-1 localhost:8000 check
+  server fraiseql-2 localhost:8001 check
+```
 
 ---
 

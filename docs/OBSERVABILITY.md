@@ -69,6 +69,157 @@ curl http://localhost:8000/metrics/json
 # }
 ```
 
+## OpenTelemetry Integration (Phase 5 Cycle 3)
+
+### Initialization
+
+FraiseQL v2 provides full **OpenTelemetry** integration for distributed tracing and observability:
+
+```rust
+use fraiseql_server::observability;
+
+// Initialize OpenTelemetry at startup
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize tracer, metrics, and logging
+    observability::init_observability()?;
+
+    // Now all requests will be automatically traced
+    start_server().await
+}
+```
+
+### W3C Trace Context Format
+
+FraiseQL uses the **W3C Trace Context** standard for cross-service tracing:
+
+```
+traceparent: 00-{trace-id}-{span-id}-{trace-flags}
+            └──────────┬──────────┘
+            Example: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+```
+
+**Components**:
+- **Version** (2 hex digits): `00` (v1)
+- **Trace ID** (32 hex digits): Unique request identifier across all services
+  - Generated: `uuid()` as 32-char hex (e.g., `4bf92f3577b34da6a3ce929d0e0e4736`)
+- **Span ID** (16 hex digits): Unique operation within trace
+  - Generated: `uuid()` as 16-char hex (e.g., `00f067aa0ba902b7`)
+- **Trace Flags** (2 hex digits): `01` = sampled, `00` = not sampled
+
+### Trace Context Propagation
+
+Automatic trace context propagation across service boundaries:
+
+```rust
+use fraiseql_server::observability::context::{TraceContext, get_context, set_context};
+
+// In request handler
+let incoming_traceparent = req.headers().get("traceparent")?;
+let trace_ctx = TraceContext::from_traceparent(incoming_traceparent)?;
+
+// Store in thread-local context
+set_context(trace_ctx.clone());
+
+// Execute query (trace ID automatically included in all logs/spans)
+let result = execute_query(query).await?;
+
+// Create child span for downstream call
+let child_span = trace_ctx.child();
+let downstream_traceparent = child_span.traceparent_header();
+
+// Call downstream service with trace propagation
+client.call(service, request)
+    .header("traceparent", downstream_traceparent)
+    .await?;
+
+// Clear context after request
+clear_context();
+```
+
+### Span Creation and Management
+
+Use the **SpanBuilder** pattern for creating instrumentation:
+
+```rust
+use fraiseql_server::observability::tracing::{SpanBuilder, SpanStatus};
+
+// Create a span with attributes
+let span = SpanBuilder::new("execute_query")
+    .with_attribute("operation", "GetUser")
+    .with_attribute("database", "postgres")
+    .with_attribute("cache", "hit")
+    .build();
+
+// Status after execution
+if query_succeeded {
+    span.set_status(SpanStatus::Ok);
+} else {
+    span.set_status(SpanStatus::Error);
+}
+```
+
+### Structured Logging with Trace Correlation
+
+All logs automatically include trace context:
+
+```rust
+use fraiseql_server::observability::logging::{LogEntry, LogLevel};
+
+let entry = LogEntry::new(LogLevel::Info, "Query executed")
+    .with_duration_ms(45.2)
+    .with_field("operation", "GetUser")
+    .with_field("rows", "142");
+
+// Automatically includes:
+// - timestamp
+// - level (INFO)
+// - message
+// - trace_id (from context)
+// - span_id (from context)
+// - all custom fields
+// Output: JSON to stdout
+```
+
+**Example JSON Output**:
+```json
+{
+  "timestamp": "2026-01-31T12:34:56.789Z",
+  "level": "INFO",
+  "message": "Query executed",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "duration_ms": 45.2,
+  "operation": "GetUser",
+  "rows": 142
+}
+```
+
+### Metrics Collection
+
+Metrics automatically tracked for:
+
+```rust
+use fraiseql_server::observability::metrics::MetricsCollector;
+
+let collector = MetricsCollector::new();
+
+// Record each request
+collector.record_request(
+    duration_ms: 45,
+    is_error: false
+);
+
+// Get summary with Prometheus format
+let summary = collector.summary();
+// Output includes:
+// - graphql_requests_total {count}
+// - graphql_errors_total {count}
+// - graphql_duration_ms {average}
+```
+
+---
+
 ## Architecture
 
 ### Three-Layer Observability Stack
