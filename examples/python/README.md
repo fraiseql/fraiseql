@@ -1,77 +1,58 @@
-# FraiseQL Python Client
+# FraiseQL Python Examples
 
-Arrow Flight client for FraiseQL demonstrating zero-copy integration with PyArrow and Polars.
+Python examples for interacting with FraiseQL servers.
 
-## Installation
+## Arrow Flight Client (`test_arrow_flight.py`)
+
+High-performance client for querying FraiseQL's ta_* materialized tables via Arrow Flight.
+
+### Features
+
+- Connect to Arrow Flight gRPC server
+- Query ta_* tables with pagination and filtering
+- Convert results to Polars DataFrames
+- Automatic schema detection
+
+### Prerequisites
+
+1. **FraiseQL Server**: Running with Arrow Flight enabled
+   ```bash
+   cargo run --release --features arrow
+   ```
+
+2. **Python Dependencies**:
+   ```bash
+   pip install pyarrow polars
+   ```
+
+### Usage
 
 ```bash
-pip install -r requirements.txt
+python examples/python/test_arrow_flight.py
 ```
 
-## Usage
+### Query Parameters
 
-### GraphQL Queries
-
-```bash
-# Basic query
-python fraiseql_client.py query "{ users { id name } }"
-
-# Export to CSV
-python fraiseql_client.py query "{ orders { id total } }" --output orders.csv
-
-# Export to Parquet
-python fraiseql_client.py query "{ users { id name } }" --output users.parquet
-```
-
-### Observer Events
-
-```bash
-# Stream all Order events
-python fraiseql_client.py events Order
-
-# Filter by date range
-python fraiseql_client.py events Order --start 2026-01-01 --end 2026-01-31
-
-# Limit results
-python fraiseql_client.py events Order --limit 10000
-
-# Export to Parquet
-python fraiseql_client.py events Order --limit 100000 --output events.parquet
-```
-
-## Performance
-
-- **Zero-copy**: Arrow data is directly consumed by Polars (no JSON parsing)
-- **Memory efficient**: Stream large datasets without loading into memory
-- **Speed**: 50x faster than HTTP/JSON for 100k+ row queries
-
-## Code Example
+The client supports these ticket parameters:
 
 ```python
-from fraiseql_client import FraiseQLClient
-
-# Connect to server
-client = FraiseQLClient(host="localhost", port=50051)
-
-# Execute GraphQL query
-df = client.query_graphql("{ users { id name email } }")
-print(f"Fetched {len(df)} users")
-
-# Stream events with filtering
-events = client.stream_events("Order", start_date="2026-01-01", limit=10000)
-print(events.head())
-
-# Batch processing for large datasets
-def process_batch(df):
-    # Perform aggregations, filtering, etc.
-    print(f"Processing batch of {len(df)} events")
-
-client.stream_events_batched("Order", process_batch, limit=1000000)
+ticket_data = {
+    "type": "OptimizedView",     # Query type (fixed)
+    "view": "ta_users",          # Table name
+    "limit": 100,                # Max rows (optional)
+    "offset": 0,                 # Pagination offset (optional)
+    "filter": "...",             # WHERE clause (optional)
+    "order_by": "...",           # ORDER BY clause (optional)
+}
 ```
 
-## Requirements
+### Performance Tips
 
-- FraiseQL server running on localhost:50051
-- Python 3.10+
-- PyArrow 15.0+
-- Polars 0.20+
+1. **Use LIMIT**: Always specify a limit to avoid transferring huge datasets
+2. **Use Filtering**: Pre-filter at the database level rather than in Python
+3. **Connection Pooling**: Reuse client connections across queries
+
+## Further Reading
+
+- [Arrow Flight Protocol](https://arrow.apache.org/docs/format/Flight.html)
+- [Polars DataFrame Library](https://www.pola-rs.com/)
