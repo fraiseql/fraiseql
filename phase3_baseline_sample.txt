@@ -1,0 +1,325 @@
+[1m[92m    Finished[0m `bench` profile [optimized] target(s) in 0.13s
+[1m[92m     Running[0m benches/sql_projection_benchmark.rs (target/release/deps/sql_projection_benchmark-7b03b378a4142a09)
+Gnuplot not found, using plotters backend
+Benchmarking postgres_projection_generation/5_fields
+Benchmarking postgres_projection_generation/5_fields: Warming up for 3.0000 s
+Benchmarking postgres_projection_generation/5_fields: Collecting 100 samples in estimated 5.0008 s (12M iterations)
+Benchmarking postgres_projection_generation/5_fields: Analyzing
+postgres_projection_generation/5_fields
+                        time:   [420.81 ns 421.60 ns 422.38 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking postgres_projection_generation/10_fields
+Benchmarking postgres_projection_generation/10_fields: Warming up for 3.0000 s
+Benchmarking postgres_projection_generation/10_fields: Collecting 100 samples in estimated 5.0024 s (4.9M iterations)
+Benchmarking postgres_projection_generation/10_fields: Analyzing
+postgres_projection_generation/10_fields
+                        time:   [1.0120 µs 1.0127 µs 1.0134 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking postgres_projection_generation/20_fields
+Benchmarking postgres_projection_generation/20_fields: Warming up for 3.0000 s
+Benchmarking postgres_projection_generation/20_fields: Collecting 100 samples in estimated 5.0027 s (2.9M iterations)
+Benchmarking postgres_projection_generation/20_fields: Analyzing
+postgres_projection_generation/20_fields
+                        time:   [1.7137 µs 1.7149 µs 1.7163 µs]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking postgres_projection_generation/50_fields
+Benchmarking postgres_projection_generation/50_fields: Warming up for 3.0000 s
+Benchmarking postgres_projection_generation/50_fields: Collecting 100 samples in estimated 5.0211 s (1.1M iterations)
+Benchmarking postgres_projection_generation/50_fields: Analyzing
+postgres_projection_generation/50_fields
+                        time:   [4.4047 µs 4.4066 µs 4.4086 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) low mild
+  1 (1.00%) high mild
+
+Benchmarking mysql_projection_generation/5_fields
+Benchmarking mysql_projection_generation/5_fields: Warming up for 3.0000 s
+Benchmarking mysql_projection_generation/5_fields: Collecting 100 samples in estimated 5.0001 s (15M iterations)
+Benchmarking mysql_projection_generation/5_fields: Analyzing
+mysql_projection_generation/5_fields
+                        time:   [339.37 ns 339.82 ns 340.34 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking mysql_projection_generation/10_fields
+Benchmarking mysql_projection_generation/10_fields: Warming up for 3.0000 s
+Benchmarking mysql_projection_generation/10_fields: Collecting 100 samples in estimated 5.0018 s (6.9M iterations)
+Benchmarking mysql_projection_generation/10_fields: Analyzing
+mysql_projection_generation/10_fields
+                        time:   [720.86 ns 722.28 ns 724.09 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking mysql_projection_generation/20_fields
+Benchmarking mysql_projection_generation/20_fields: Warming up for 3.0000 s
+Benchmarking mysql_projection_generation/20_fields: Collecting 100 samples in estimated 5.0032 s (4.0M iterations)
+Benchmarking mysql_projection_generation/20_fields: Analyzing
+mysql_projection_generation/20_fields
+                        time:   [1.2602 µs 1.2609 µs 1.2616 µs]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking mysql_projection_generation/50_fields
+Benchmarking mysql_projection_generation/50_fields: Warming up for 3.0000 s
+Benchmarking mysql_projection_generation/50_fields: Collecting 100 samples in estimated 5.0085 s (1.3M iterations)
+Benchmarking mysql_projection_generation/50_fields: Analyzing
+mysql_projection_generation/50_fields
+                        time:   [3.7108 µs 3.7168 µs 3.7241 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking sqlite_projection_generation/5_fields
+Benchmarking sqlite_projection_generation/5_fields: Warming up for 3.0000 s
+Benchmarking sqlite_projection_generation/5_fields: Collecting 100 samples in estimated 5.0004 s (15M iterations)
+Benchmarking sqlite_projection_generation/5_fields: Analyzing
+sqlite_projection_generation/5_fields
+                        time:   [334.71 ns 335.17 ns 335.71 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+Benchmarking sqlite_projection_generation/10_fields
+Benchmarking sqlite_projection_generation/10_fields: Warming up for 3.0000 s
+Benchmarking sqlite_projection_generation/10_fields: Collecting 100 samples in estimated 5.0002 s (7.7M iterations)
+Benchmarking sqlite_projection_generation/10_fields: Analyzing
+sqlite_projection_generation/10_fields
+                        time:   [645.62 ns 646.39 ns 647.29 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking sqlite_projection_generation/20_fields
+Benchmarking sqlite_projection_generation/20_fields: Warming up for 3.0000 s
+Benchmarking sqlite_projection_generation/20_fields: Collecting 100 samples in estimated 5.0056 s (3.5M iterations)
+Benchmarking sqlite_projection_generation/20_fields: Analyzing
+sqlite_projection_generation/20_fields
+                        time:   [1.4352 µs 1.4364 µs 1.4377 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking sqlite_projection_generation/50_fields
+Benchmarking sqlite_projection_generation/50_fields: Warming up for 3.0000 s
+Benchmarking sqlite_projection_generation/50_fields: Collecting 100 samples in estimated 5.0133 s (1.3M iterations)
+Benchmarking sqlite_projection_generation/50_fields: Analyzing
+sqlite_projection_generation/50_fields
+                        time:   [3.7126 µs 3.7153 µs 3.7182 µs]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking result_projection_field_filtering/10_rows
+Benchmarking result_projection_field_filtering/10_rows: Warming up for 3.0000 s
+Benchmarking result_projection_field_filtering/10_rows: Collecting 100 samples in estimated 5.0063 s (1.6M iterations)
+Benchmarking result_projection_field_filtering/10_rows: Analyzing
+result_projection_field_filtering/10_rows
+                        time:   [3.1198 µs 3.1213 µs 3.1230 µs]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+Benchmarking result_projection_field_filtering/100_rows
+Benchmarking result_projection_field_filtering/100_rows: Warming up for 3.0000 s
+Benchmarking result_projection_field_filtering/100_rows: Collecting 100 samples in estimated 5.1976 s (126k iterations)
+Benchmarking result_projection_field_filtering/100_rows: Analyzing
+result_projection_field_filtering/100_rows
+                        time:   [41.043 µs 41.099 µs 41.156 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking result_projection_field_filtering/1000_rows
+Benchmarking result_projection_field_filtering/1000_rows: Warming up for 3.0000 s
+Benchmarking result_projection_field_filtering/1000_rows: Collecting 100 samples in estimated 6.1408 s (15k iterations)
+Benchmarking result_projection_field_filtering/1000_rows: Analyzing
+result_projection_field_filtering/1000_rows
+                        time:   [405.56 µs 407.15 µs 409.13 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+
+Benchmarking result_projection_large_fieldset/10_fields
+Benchmarking result_projection_large_fieldset/10_fields: Warming up for 3.0000 s
+Benchmarking result_projection_large_fieldset/10_fields: Collecting 100 samples in estimated 5.0375 s (61k iterations)
+Benchmarking result_projection_large_fieldset/10_fields: Analyzing
+result_projection_large_fieldset/10_fields
+                        time:   [83.030 µs 83.164 µs 83.301 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking result_projection_large_fieldset/20_fields
+Benchmarking result_projection_large_fieldset/20_fields: Warming up for 3.0000 s
+Benchmarking result_projection_large_fieldset/20_fields: Collecting 100 samples in estimated 5.8935 s (30k iterations)
+Benchmarking result_projection_large_fieldset/20_fields: Analyzing
+result_projection_large_fieldset/20_fields
+                        time:   [192.63 µs 193.25 µs 194.04 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking result_projection_large_fieldset/50_fields
+Benchmarking result_projection_large_fieldset/50_fields: Warming up for 3.0000 s
+Benchmarking result_projection_large_fieldset/50_fields: Collecting 100 samples in estimated 5.1144 s (10k iterations)
+Benchmarking result_projection_large_fieldset/50_fields: Analyzing
+result_projection_large_fieldset/50_fields
+                        time:   [506.52 µs 507.54 µs 508.64 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  1 (1.00%) low mild
+  8 (8.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking add_typename_single_object/5_fields
+Benchmarking add_typename_single_object/5_fields: Warming up for 3.0000 s
+Benchmarking add_typename_single_object/5_fields: Collecting 100 samples in estimated 5.0028 s (8.9M iterations)
+Benchmarking add_typename_single_object/5_fields: Analyzing
+add_typename_single_object/5_fields
+                        time:   [563.04 ns 563.57 ns 564.42 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  1 (1.00%) high mild
+  5 (5.00%) high severe
+Benchmarking add_typename_single_object/20_fields
+Benchmarking add_typename_single_object/20_fields: Warming up for 3.0000 s
+Benchmarking add_typename_single_object/20_fields: Collecting 100 samples in estimated 5.0059 s (4.2M iterations)
+Benchmarking add_typename_single_object/20_fields: Analyzing
+add_typename_single_object/20_fields
+                        time:   [1.1800 µs 1.1809 µs 1.1818 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+Benchmarking add_typename_single_object/50_fields
+Benchmarking add_typename_single_object/50_fields: Warming up for 3.0000 s
+Benchmarking add_typename_single_object/50_fields: Collecting 100 samples in estimated 5.0034 s (2.0M iterations)
+Benchmarking add_typename_single_object/50_fields: Analyzing
+add_typename_single_object/50_fields
+                        time:   [2.4254 µs 2.4311 µs 2.4374 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high severe
+
+Benchmarking add_typename_array/10_rows
+Benchmarking add_typename_array/10_rows: Warming up for 3.0000 s
+Benchmarking add_typename_array/10_rows: Collecting 100 samples in estimated 5.0478 s (525k iterations)
+Benchmarking add_typename_array/10_rows: Analyzing
+add_typename_array/10_rows
+                        time:   [9.4680 µs 9.4782 µs 9.4899 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) high mild
+  7 (7.00%) high severe
+Benchmarking add_typename_array/100_rows
+Benchmarking add_typename_array/100_rows: Warming up for 3.0000 s
+Benchmarking add_typename_array/100_rows: Collecting 100 samples in estimated 5.5549 s (45k iterations)
+Benchmarking add_typename_array/100_rows: Analyzing
+add_typename_array/100_rows
+                        time:   [119.95 µs 120.02 µs 120.08 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking add_typename_array/1000_rows
+Benchmarking add_typename_array/1000_rows: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 6.3s, enable flat sampling, or reduce sample count to 60.
+Benchmarking add_typename_array/1000_rows: Collecting 100 samples in estimated 6.2604 s (5050 iterations)
+Benchmarking add_typename_array/1000_rows: Analyzing
+add_typename_array/1000_rows
+                        time:   [1.2256 ms 1.2293 ms 1.2342 ms]
+Found 14 outliers among 100 measurements (14.00%)
+  1 (1.00%) low mild
+  6 (6.00%) high mild
+  7 (7.00%) high severe
+
+Benchmarking complete_pipeline_single_row/5_fields
+Benchmarking complete_pipeline_single_row/5_fields: Warming up for 3.0000 s
+Benchmarking complete_pipeline_single_row/5_fields: Collecting 100 samples in estimated 5.0010 s (5.4M iterations)
+Benchmarking complete_pipeline_single_row/5_fields: Analyzing
+complete_pipeline_single_row/5_fields
+                        time:   [927.31 ns 928.36 ns 929.47 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+Benchmarking complete_pipeline_single_row/10_fields
+Benchmarking complete_pipeline_single_row/10_fields: Warming up for 3.0000 s
+Benchmarking complete_pipeline_single_row/10_fields: Collecting 100 samples in estimated 5.0045 s (3.4M iterations)
+Benchmarking complete_pipeline_single_row/10_fields: Analyzing
+complete_pipeline_single_row/10_fields
+                        time:   [1.4643 µs 1.4654 µs 1.4664 µs]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking complete_pipeline_single_row/20_fields
+Benchmarking complete_pipeline_single_row/20_fields: Warming up for 3.0000 s
+Benchmarking complete_pipeline_single_row/20_fields: Collecting 100 samples in estimated 5.0065 s (1.8M iterations)
+Benchmarking complete_pipeline_single_row/20_fields: Analyzing
+complete_pipeline_single_row/20_fields
+                        time:   [2.7162 µs 2.7194 µs 2.7226 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+Benchmarking complete_pipeline_array/100_rows
+Benchmarking complete_pipeline_array/100_rows: Warming up for 3.0000 s
+Benchmarking complete_pipeline_array/100_rows: Collecting 100 samples in estimated 5.1861 s (66k iterations)
+Benchmarking complete_pipeline_array/100_rows: Analyzing
+complete_pipeline_array/100_rows
+                        time:   [78.727 µs 78.767 µs 78.823 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking complete_pipeline_array/1000_rows
+Benchmarking complete_pipeline_array/1000_rows: Warming up for 3.0000 s
+Benchmarking complete_pipeline_array/1000_rows: Collecting 100 samples in estimated 8.4487 s (10k iterations)
+Benchmarking complete_pipeline_array/1000_rows: Analyzing
+complete_pipeline_array/1000_rows
+                        time:   [830.91 µs 831.54 µs 832.30 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  4 (4.00%) low mild
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+Benchmarking complete_pipeline_array/10000_rows
+Benchmarking complete_pipeline_array/10000_rows: Warming up for 3.0000 s
+Benchmarking complete_pipeline_array/10000_rows: Collecting 100 samples in estimated 5.2375 s (500 iterations)
+Benchmarking complete_pipeline_array/10000_rows: Analyzing
+complete_pipeline_array/10000_rows
+                        time:   [10.433 ms 10.458 ms 10.484 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking payload_size_comparison/100_rows_unfiltered
+Benchmarking payload_size_comparison/100_rows_unfiltered: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/100_rows_unfiltered: Collecting 10 samples in estimated 5.0083 s (31k iterations)
+Benchmarking payload_size_comparison/100_rows_unfiltered: Analyzing
+payload_size_comparison/100_rows_unfiltered
+                        time:   [161.82 µs 161.94 µs 162.07 µs]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking payload_size_comparison/100_rows_projected
+Benchmarking payload_size_comparison/100_rows_projected: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/100_rows_projected: Collecting 10 samples in estimated 5.0038 s (53k iterations)
+Benchmarking payload_size_comparison/100_rows_projected: Analyzing
+payload_size_comparison/100_rows_projected
+                        time:   [93.450 µs 93.505 µs 93.584 µs]
+Benchmarking payload_size_comparison/1000_rows_unfiltered
+Benchmarking payload_size_comparison/1000_rows_unfiltered: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/1000_rows_unfiltered: Collecting 10 samples in estimated 5.0156 s (3025 iterations)
+Benchmarking payload_size_comparison/1000_rows_unfiltered: Analyzing
+payload_size_comparison/1000_rows_unfiltered
+                        time:   [1.6467 ms 1.6481 ms 1.6507 ms]
+Benchmarking payload_size_comparison/1000_rows_projected
+Benchmarking payload_size_comparison/1000_rows_projected: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/1000_rows_projected: Collecting 10 samples in estimated 5.0258 s (5225 iterations)
+Benchmarking payload_size_comparison/1000_rows_projected: Analyzing
+payload_size_comparison/1000_rows_projected
+                        time:   [956.95 µs 958.32 µs 959.79 µs]
+Benchmarking payload_size_comparison/10000_rows_unfiltered
+Benchmarking payload_size_comparison/10000_rows_unfiltered: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/10000_rows_unfiltered: Collecting 10 samples in estimated 5.7414 s (220 iterations)
+Benchmarking payload_size_comparison/10000_rows_unfiltered: Analyzing
+payload_size_comparison/10000_rows_unfiltered
+                        time:   [26.142 ms 26.169 ms 26.201 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking payload_size_comparison/10000_rows_projected
+Benchmarking payload_size_comparison/10000_rows_projected: Warming up for 3.0000 s
+Benchmarking payload_size_comparison/10000_rows_projected: Collecting 10 samples in estimated 5.2660 s (440 iterations)
+Benchmarking payload_size_comparison/10000_rows_projected: Analyzing
+payload_size_comparison/10000_rows_projected
+                        time:   [11.776 ms 11.806 ms 11.845 ms]
+
