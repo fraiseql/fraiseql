@@ -892,10 +892,7 @@ async fn test_recovery_duplicate_attempt_prevention() {
 
     let saga_id = Uuid::new_v4();
 
-    manager
-        .retry_saga(saga_id, 1)
-        .await
-        .expect("first retry should succeed");
+    manager.retry_saga(saga_id, 1).await.expect("first retry should succeed");
     manager
         .retry_saga(saga_id, 2)
         .await

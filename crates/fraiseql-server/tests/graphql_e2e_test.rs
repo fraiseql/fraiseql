@@ -325,9 +325,9 @@ fn test_query_depth_acceptance_by_level() {
 
     // These should pass (depth <= 3)
     let within_limit = vec![
-        "{ id }",                            // depth 1
-        "{ user { id } }",                   // depth 2
-        "{ user { profile { name } } }",     // depth 3
+        "{ id }",                        // depth 1
+        "{ user { id } }",               // depth 2
+        "{ user { profile { name } } }", // depth 3
     ];
 
     for query in within_limit {

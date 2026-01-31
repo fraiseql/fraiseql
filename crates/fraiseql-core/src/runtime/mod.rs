@@ -65,10 +65,10 @@ pub use query_tracing::{
 };
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
-    ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage,
-    SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,
-    SubscriptionOperation, SubscriptionPayload, TransportAdapter, TransportManager,
-    WebhookAdapter, WebhookConfig, WebhookPayload, protocol,
+    ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, SubscriptionError,
+    SubscriptionEvent, SubscriptionId, SubscriptionManager, SubscriptionOperation,
+    SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
+    WebhookPayload, protocol,
 };
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};

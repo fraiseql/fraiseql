@@ -57,8 +57,7 @@ fn test_parse_compose_arguments_multiple_subgraphs() {
         "orders:orders.json".to_string(),
     ];
 
-    let parsed = parse_compose_args(&args)
-        .expect("should parse multiple subgraph arguments");
+    let parsed = parse_compose_args(&args).expect("should parse multiple subgraph arguments");
     assert_eq!(parsed.subgraphs.len(), 2);
     assert_eq!(parsed.subgraphs[0].name, "users");
     assert_eq!(parsed.subgraphs[1].name, "orders");
@@ -80,8 +79,7 @@ fn test_parse_compose_arguments_with_output() {
         "supergraph.json".to_string(),
     ];
 
-    let parsed = parse_compose_args(&args)
-        .expect("should parse output argument");
+    let parsed = parse_compose_args(&args).expect("should parse output argument");
     assert_eq!(parsed.output_path, Some("supergraph.json".to_string()));
 }
 

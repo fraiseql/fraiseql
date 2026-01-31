@@ -103,8 +103,8 @@ mod tls_integration {
 
     /// Panics if TLS_TEST_DB_URL is not set (tests using this are `#[ignore]`).
     fn require_tls_test_config() -> (String, Option<String>) {
-        let db_url = env::var("TLS_TEST_DB_URL")
-            .expect("TLS_TEST_DB_URL must be set to run this test");
+        let db_url =
+            env::var("TLS_TEST_DB_URL").expect("TLS_TEST_DB_URL must be set to run this test");
         let ca_cert_path = env::var("TLS_TEST_CA_CERT").ok();
         (db_url, ca_cert_path)
     }
@@ -161,7 +161,10 @@ mod tls_integration {
             .expect("Query execution should succeed after TLS auth");
 
         let first = stream.next().await;
-        assert!(first.is_some(), "Should receive at least one row over TLS with password auth");
+        assert!(
+            first.is_some(),
+            "Should receive at least one row over TLS with password auth"
+        );
     }
 
     /// Test that multiple TLS connections can be created
@@ -182,7 +185,11 @@ mod tls_integration {
             connections.push(client);
         }
 
-        assert_eq!(connections.len(), 3, "Should have created 3 TLS connections");
+        assert_eq!(
+            connections.len(),
+            3,
+            "Should have created 3 TLS connections"
+        );
 
         // Verify each connection is usable
         for (i, client) in connections.into_iter().enumerate() {

@@ -45,7 +45,9 @@ async fn test_health_endpoint_responds() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let json = resp.json::<serde_json::Value>().await
+            let json = resp
+                .json::<serde_json::Value>()
+                .await
                 .expect("health response should be valid JSON");
             assert_health_response(&json);
         },
@@ -72,7 +74,9 @@ async fn test_metrics_endpoint_responds() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let content_type = resp.headers().get("content-type")
+            let content_type = resp
+                .headers()
+                .get("content-type")
                 .expect("metrics response should have Content-Type header");
             let ct_str = content_type.to_str().unwrap();
             assert!(
@@ -80,8 +84,7 @@ async fn test_metrics_endpoint_responds() {
                 "metrics Content-Type should be Prometheus format, got: {ct_str}"
             );
 
-            let text = resp.text().await
-                .expect("metrics response should have a body");
+            let text = resp.text().await.expect("metrics response should have a body");
             assert!(
                 text.contains("fraiseql_graphql_queries_total"),
                 "metrics body should contain Prometheus metric names"
@@ -111,7 +114,9 @@ async fn test_metrics_json_endpoint_responds() {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
 
-            let json = resp.json::<serde_json::Value>().await
+            let json = resp
+                .json::<serde_json::Value>()
+                .await
                 .expect("metrics JSON response should be valid JSON");
             assert_metrics_response(&json);
         },
@@ -198,7 +203,9 @@ async fn test_graphql_endpoint_accepts_post() {
     match response {
         Ok(resp) => {
             assert_eq!(resp.status(), StatusCode::OK);
-            let json = resp.json::<serde_json::Value>().await
+            let json = resp
+                .json::<serde_json::Value>()
+                .await
                 .expect("GraphQL response should be valid JSON");
             assert_graphql_response(&json);
         },
@@ -331,7 +338,9 @@ async fn test_introspection_endpoint_responds() {
         Ok(resp) => {
             let status = resp.status();
             assert!(
-                status == StatusCode::OK || status == StatusCode::BAD_REQUEST || status == StatusCode::METHOD_NOT_ALLOWED,
+                status == StatusCode::OK
+                    || status == StatusCode::BAD_REQUEST
+                    || status == StatusCode::METHOD_NOT_ALLOWED,
                 "Introspection should return 200, 400, or 405; got {status}"
             );
         },
@@ -381,7 +390,9 @@ async fn test_content_type_consistency() {
 
     match response {
         Ok(resp) => {
-            let content_type = resp.headers().get("content-type")
+            let content_type = resp
+                .headers()
+                .get("content-type")
                 .expect("GraphQL response should have Content-Type header");
             let ct_str = content_type.to_str().unwrap();
             assert!(

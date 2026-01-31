@@ -286,7 +286,10 @@ fn test_string_literal_handling() {
     // as valid by the structural validator (it checks depth/complexity, not syntax)
     let query = r#"{ user { name: "John \"Doe\"" } }"#;
     let result = validator.validate_query(query);
-    assert!(result.is_ok(), "Query with escaped quotes should pass structural validation: {result:?}");
+    assert!(
+        result.is_ok(),
+        "Query with escaped quotes should pass structural validation: {result:?}"
+    );
 }
 
 /// Test validator with minimal configuration
@@ -309,8 +312,7 @@ fn test_validation_error_conversion() {
 
     let error_msg = error.to_string();
     assert_eq!(
-        error_msg,
-        "Query exceeds maximum depth of 10: depth = 15",
+        error_msg, "Query exceeds maximum depth of 10: depth = 15",
         "ValidationError::QueryTooDeep should produce exact error message"
     );
 }
