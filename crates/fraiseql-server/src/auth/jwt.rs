@@ -66,12 +66,34 @@ impl JwtValidator {
 
         let mut validation = Validation::new(algorithm);
         validation.set_issuer(&[issuer]);
-        validation.validate_aud = false; // Allow any audience for now, can be restricted later
+        // Default: require audience validation, but allow any audience initially
+        // Applications should call with_audiences() to restrict to specific audiences
+        validation.validate_aud = false;
 
         Ok(Self {
             validation,
             issuer: issuer.to_string(),
         })
+    }
+
+    /// Set the audiences that this validator will accept
+    /// Recommended for production to restrict JWT usage to specific services
+    pub fn with_audiences(mut self, audiences: &[&str]) -> Result<Self> {
+        if audiences.is_empty() {
+            return Err(AuthError::ConfigError {
+                message: "At least one audience must be configured".to_string(),
+            });
+        }
+
+        self.validation.set_audience(
+            &audiences
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        );
+        self.validation.validate_aud = true;
+
+        Ok(self)
     }
 
     /// Validate a JWT token and extract claims

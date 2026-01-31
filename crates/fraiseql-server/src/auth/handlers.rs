@@ -99,15 +99,19 @@ pub async fn auth_start(
     State(state): State<AuthState>,
     Json(req): Json<AuthStartRequest>,
 ) -> Result<Json<AuthStartResponse>> {
-    // Generate random state for CSRF protection
-    let state_value = generate_state();
+    // Generate random state for CSRF protection using cryptographically secure RNG
+    let state_value = generate_secure_state();
+
+    // Get current time with explicit error handling (not unwrap_or_default)
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| AuthError::SystemTimeError {
+            message: "Failed to get current system time".to_string(),
+        })?
+        .as_secs();
 
     // Store state with expiry (10 minutes)
-    let expiry = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        + 600;
+    let expiry = now + 600;
 
     // SECURITY: Store state using configurable backend (in-memory or distributed)
     let provider = req.provider.unwrap_or_else(|| "default".to_string());
@@ -136,10 +140,12 @@ pub async fn auth_callback(
     // SECURITY: Validate state using configurable backend (distributed-safe)
     let (_provider_name, expiry) = state.state_store.retrieve(&query.state).await?;
 
-    // Check state expiry
+    // Check state expiry with explicit error handling
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
+        .map_err(|_| AuthError::SystemTimeError {
+            message: "Failed to get current system time".to_string(),
+        })?
         .as_secs();
 
     if now > expiry {
@@ -208,16 +214,16 @@ pub async fn auth_logout(
 }
 
 /// Generate a cryptographically random state for CSRF protection
-fn generate_state() -> String {
-    use rand::Rng;
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
-    (0..32)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
+/// Uses OsRng for cryptographically secure randomness
+pub fn generate_secure_state() -> String {
+    use rand::RngCore;
+
+    // Generate 32 random bytes for 256 bits of entropy
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+
+    // Encode as hex string for safe transmission in URLs/headers
+    hex::encode(bytes)
 }
 
 #[cfg(test)]
@@ -225,17 +231,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_state() {
-        let state1 = generate_state();
-        let state2 = generate_state();
+    fn test_generate_secure_state() {
+        let state1 = generate_secure_state();
+        let state2 = generate_secure_state();
 
         // States should be random and different
         assert_ne!(state1, state2);
         // Should be non-empty
         assert!(!state1.is_empty());
         assert!(!state2.is_empty());
-        // Should be 32 characters
-        assert_eq!(state1.len(), 32);
-        assert_eq!(state2.len(), 32);
+        // Should be 64 hex characters (32 bytes encoded)
+        assert_eq!(state1.len(), 64);
+        assert_eq!(state2.len(), 64);
+        // Should be valid hex
+        assert!(hex::decode(&state1).is_ok());
+        assert!(hex::decode(&state2).is_ok());
     }
 }

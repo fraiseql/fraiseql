@@ -14,6 +14,9 @@ pub mod session;
 pub mod session_postgres;
 pub mod state_store;
 
+#[cfg(test)]
+mod security_tests;
+
 pub use error::{AuthError, Result};
 pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,

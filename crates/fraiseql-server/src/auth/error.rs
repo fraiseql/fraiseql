@@ -50,6 +50,9 @@ pub enum AuthError {
 
     #[error("Internal error: {message}")]
     Internal { message: String },
+
+    #[error("System time error: {message}")]
+    SystemTimeError { message: String },
 }
 
 pub type Result<T> = std::result::Result<T, AuthError>;
