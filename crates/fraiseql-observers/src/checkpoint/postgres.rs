@@ -124,51 +124,6 @@ mod tests {
     // Note: These tests require a test database setup.
     // See the main testing module for integration test infrastructure.
 
-    #[tokio::test]
-    #[ignore = "requires test database"]
-    async fn test_checkpoint_save_and_load() {
-        // Setup: Create test database pool
-        // let pool = setup_test_db().await;
-        // let store = PostgresCheckpointStore::new(pool);
-
-        // let state = CheckpointState {
-        //     listener_id: "listener-1".to_string(),
-        //     last_processed_id: 1000,
-        //     last_processed_at: Utc::now(),
-        //     batch_size: 100,
-        //     event_count: 100,
-        // };
-
-        // store.save("listener-1", &state).await.unwrap();
-        // let loaded = store.load("listener-1").await.unwrap().unwrap();
-
-        // assert_eq!(loaded.last_processed_id, 1000);
-        // assert_eq!(loaded.event_count, 100);
-    }
-
-    #[tokio::test]
-    #[ignore = "requires test database"]
-    async fn test_checkpoint_compare_and_swap() {
-        // Setup: Create test database pool
-        // let pool = setup_test_db().await;
-        // let store = PostgresCheckpointStore::new(pool);
-
-        // Initial save
-        // let state = CheckpointState {
-        //     listener_id: "listener-1".to_string(),
-        //     last_processed_id: 100,
-        //     ...
-        // };
-        // store.save("listener-1", &state).await.unwrap();
-
-        // Successful CAS (expected_id matches)
-        // let success = store.compare_and_swap("listener-1", 100, 200).await.unwrap();
-        // assert!(success);
-
-        // Failed CAS (expected_id doesn't match)
-        // let failure = store.compare_and_swap("listener-1", 100, 300).await.unwrap();
-        // assert!(!failure);
-    }
 
     #[test]
     fn test_checkpoint_store_clone() {

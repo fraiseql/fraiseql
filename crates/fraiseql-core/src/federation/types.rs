@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-// Phase 1, Cycle 1: Field-level directive metadata structures
-
 /// Federation metadata attached to compiled schema
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationMetadata {

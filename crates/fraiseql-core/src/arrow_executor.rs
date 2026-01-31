@@ -67,10 +67,7 @@ pub async fn execute_query_as_arrow(
     _variables: Option<serde_json::Value>,
     batch_size: usize,
 ) -> Result<Vec<RecordBatch>> {
-    // Phase 17: Arrow Flight implementation (BLOCKED)
-    // TODO: Execute actual GraphQL query
-    // let result = executor.execute(query, variables).await?;
-
+    // TODO: Execute actual GraphQL query and convert to Arrow RecordBatches
     // Placeholder: Generate dummy schema (2 fields: id, name)
     let fields = vec![
         ("id".to_string(), "ID".to_string(), false),

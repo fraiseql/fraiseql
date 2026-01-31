@@ -130,8 +130,6 @@ impl EventListener {
                                         debug!("Event sent through channel");
                                     },
                                     Err(mpsc::error::TrySendError::Full(_event)) => {
-                                        // Handle based on overflow policy (will
-                                        // implement)
                                         warn!("Channel full, dropping event");
                                     },
                                     Err(mpsc::error::TrySendError::Closed(_)) => {

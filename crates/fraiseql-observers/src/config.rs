@@ -459,7 +459,7 @@ impl BridgeTransportConfig {
 }
 
 // ============================================================================
-// Redis Configuration (Phase 8: Deduplication + Caching)
+// Redis Configuration
 // ============================================================================
 
 /// Redis configuration for deduplication and caching
@@ -763,7 +763,7 @@ impl JobQueueConfig {
 }
 
 // ============================================================================
-// Performance Configuration (Phase 8: Feature Toggles)
+// Performance Configuration
 // ============================================================================
 
 /// Performance optimization features
@@ -865,7 +865,7 @@ impl PerformanceConfig {
 }
 
 // ============================================================================
-// ClickHouse Configuration (Phase 9.4: Analytics Sink)
+// ClickHouse Configuration
 // ============================================================================
 
 /// ClickHouse sink configuration for analytics events

@@ -187,24 +187,7 @@ impl FraiseQLFlightService {
         _variables: Option<serde_json::Value>,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
-        // Phase 17: Arrow Flight implementation (BLOCKED)
-        // TODO: Execute actual GraphQL query
-        // let executor = &self.query_executor;
-        // let batches = fraiseql_core::arrow_executor::execute_query_as_arrow(
-        //     executor,
-        //     query,
-        //     variables,
-        //     10_000, // batch size
-        // ).await
-        //   .map_err(|e| Status::internal(format!("Query execution failed: {}", e)))?;
-        //
-        // Convert RecordBatches to FlightData and stream
-        //  let stream = stream::iter(batches.into_iter().map(|batch| {
-        //      let flight_data = ... // Convert RecordBatch to FlightData
-        //      Ok(flight_data)
-        //  }));
-
-        // Placeholder: Return empty stream
+        // TODO: Execute actual GraphQL query and convert RecordBatches to FlightData
         let stream = futures::stream::empty();
         Ok(stream)
     }
