@@ -3,6 +3,8 @@
 use std::sync::Arc;
 
 use axum::{Router, middleware, routing::get};
+#[cfg(feature = "arrow")]
+use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
@@ -18,8 +20,6 @@ use {
     crate::observers::{ObserverRuntime, ObserverRuntimeConfig},
     tokio::sync::RwLock,
 };
-#[cfg(feature = "arrow")]
-use {fraiseql_arrow::FraiseQLFlightService, tonic::transport::Server as GrpcServer};
 
 use crate::{
     Result, ServerError,
@@ -105,7 +105,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
 
-        // Initialize Flight service
+        // Initialize Flight service (with placeholder data by default)
         #[cfg(feature = "arrow")]
         let flight_service = Some(FraiseQLFlightService::new());
 
@@ -119,6 +119,63 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             #[cfg(feature = "arrow")]
+            flight_service,
+        })
+    }
+
+    /// Create new server with pre-configured Arrow Flight service.
+    ///
+    /// Use this constructor when you want to provide a Flight service with a real database adapter.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration
+    /// * `schema` - Compiled GraphQL schema
+    /// * `adapter` - Database adapter
+    /// * `db_pool` - Database connection pool (optional, required for observers)
+    /// * `flight_service` - Pre-configured Flight service (only available with arrow feature)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if OIDC validator initialization fails.
+    #[cfg(feature = "arrow")]
+    pub async fn with_flight_service(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+        flight_service: Option<FraiseQLFlightService>,
+    ) -> Result<Self> {
+        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+
+        // Initialize OIDC validator if auth is configured
+        let oidc_validator = if let Some(ref auth_config) = config.auth {
+            info!(
+                issuer = %auth_config.issuer,
+                "Initializing OIDC authentication"
+            );
+            let validator = OidcValidator::new(auth_config.clone())
+                .await
+                .map_err(|e| ServerError::ConfigError(format!("Failed to initialize OIDC: {e}")))?;
+            Some(Arc::new(validator))
+        } else {
+            None
+        };
+
+        // Initialize observer runtime
+        #[cfg(feature = "observers")]
+        let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
+
+        Ok(Self {
+            config,
+            executor,
+            subscription_manager,
+            oidc_validator,
+            #[cfg(feature = "observers")]
+            observer_runtime,
+            #[cfg(feature = "observers")]
+            db_pool,
             flight_service,
         })
     }
@@ -385,7 +442,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
             // Spawn Flight server in background
             let flight_server = tokio::spawn(async move {
-                GrpcServer::builder()
+                tonic::transport::Server::builder()
                     .add_service(flight_service.into_server())
                     .serve(flight_addr)
                     .await

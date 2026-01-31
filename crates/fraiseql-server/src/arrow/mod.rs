@@ -19,4 +19,39 @@
 pub mod database_adapter;
 
 #[cfg(feature = "arrow")]
+use std::sync::Arc;
+
+#[cfg(feature = "arrow")]
 pub use database_adapter::FlightDatabaseAdapter;
+#[cfg(feature = "arrow")]
+use fraiseql_arrow::FraiseQLFlightService;
+#[cfg(feature = "arrow")]
+use fraiseql_core::db::postgres::PostgresAdapter;
+
+/// Create an Arrow Flight service with a real PostgreSQL database adapter.
+///
+/// # Arguments
+///
+/// * `adapter` - PostgreSQL adapter from fraiseql-core
+///
+/// # Returns
+///
+/// FraiseQLFlightService configured with the real database adapter
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let pg_adapter = PostgresAdapter::new(&db_url).await?;
+/// let flight_service = create_flight_service(Arc::new(pg_adapter))?;
+/// ```
+#[cfg(feature = "arrow")]
+pub fn create_flight_service(
+    adapter: Arc<PostgresAdapter>,
+) -> Result<FraiseQLFlightService, Box<dyn std::error::Error>> {
+    let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
+
+    // Create Flight service with real database adapter
+    let service = FraiseQLFlightService::new_with_db(Arc::new(flight_adapter));
+
+    Ok(service)
+}
