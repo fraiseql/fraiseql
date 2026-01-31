@@ -1,42 +1,111 @@
-# FraiseQL v2 - Local Development Stack
+# FraiseQL v2 - Development & Testing Stack
 #
-# Includes:
-# - PostgreSQL database
-# - FraiseQL server
-# - Optional: Redis (caching) - use profile: with-redis
-# - Optional: NATS (distributed events) - use profile: with-nats
+# Core Services (for integration tests):
+# - PostgreSQL database (primary test database)
+# - MySQL database (multi-db adapter testing)
+# - SQL Server database (enterprise adapter testing)
+#
+# Optional Services:
+# - FraiseQL server (full stack) - use profile: with-server
+# - Redis (caching) - use profile: with-redis
+# - NATS (distributed events) - use profile: with-nats
 #
 # Usage:
-#   docker compose up -d                           # Core services only
-#   docker compose --profile with-redis up -d      # Include Redis
-#   docker compose --profile with-nats up -d       # Include NATS
-#   docker compose --profile with-redis --profile with-nats up -d  # All services
+#   # For integration tests (all three databases):
+#   docker compose up -d
+#
+#   # Full development stack with server:
+#   docker compose --profile with-server up -d
+#
+#   # With optional services:
+#   docker compose --profile with-redis --profile with-nats up -d
+#
+#   # Full everything:
+#   docker compose --profile with-server --profile with-redis --profile with-nats up -d
+#
+#   # Check status:
+#   docker compose ps
+#
+#   # View logs:
+#   docker compose logs -f postgres
+#   docker compose logs -f mysql
+#   docker compose logs -f sqlserver
+#
+#   # Stop all:
+#   docker compose down
 
 version: '3.9'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database - Primary database for FraiseQL
   postgres:
     image: postgres:16-alpine
     container_name: fraiseql-postgres
     environment:
       POSTGRES_DB: fraiseql
-      POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev_password
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_INITDB_ARGS: "-c max_connections=200"
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      test: ["CMD-SHELL", "pg_isready -U test_user -d fraiseql"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - fraiseql
+    restart: unless-stopped
 
-  # FraiseQL Server
+  # MySQL Database - For multi-database adapter testing
+  mysql:
+    image: mysql:8.0
+    container_name: fraiseql-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test_password
+      MYSQL_DATABASE: fraiseql
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "test_user", "-ptest_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --sql_mode=""
+
+  # SQL Server Database - For enterprise adapter testing
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: fraiseql-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "SqlServer@123"
+      MSSQL_PID: "Express"
+      MSSQL_TCP_PORT: 1433
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "SqlServer@123", "-Q", "SELECT 1", "-C"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - fraiseql
+    restart: unless-stopped
+
+  # FraiseQL Server (optional - use with-server profile)
   fraiseql-server:
     build:
       context: .
@@ -46,7 +115,7 @@ services:
       - "8000:8000"
     environment:
       RUST_LOG: debug
-      DATABASE_URL: postgresql://fraiseql:fraiseql_dev_password@postgres:5432/fraiseql
+      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/fraiseql
       FRAISEQL_BIND_ADDR: 0.0.0.0:8000
       FRAISEQL_SCHEMA_PATH: /app/schemas/schema.compiled.json
       FRAISEQL_POOL_MIN_SIZE: 5
@@ -66,6 +135,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    profiles:
+      - with-server
 
   # Redis (optional - for caching)
   redis:
@@ -102,6 +173,10 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  mysql_data:
+    driver: local
+  sqlserver_data:
     driver: local
   redis_data:
     driver: local
