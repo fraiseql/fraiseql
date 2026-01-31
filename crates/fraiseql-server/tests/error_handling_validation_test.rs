@@ -394,3 +394,74 @@ fn test_multiple_errors_in_response() {
     assert_eq!(errors.len(), 2);
     assert!(errors.iter().all(|e| e.code == ErrorCode::ValidationError));
 }
+
+// ============================================================================
+// Test Cases: Improved Helper Methods (REFACTOR Phase)
+// ============================================================================
+
+#[test]
+fn test_error_with_request_id_helper() {
+    let error = GraphQLError::validation("Field not found").with_request_id("req-abc-123");
+
+    assert!(error.extensions.is_some());
+    let ext = error.extensions.unwrap();
+    assert_eq!(ext.request_id, Some("req-abc-123".to_string()));
+}
+
+#[test]
+fn test_error_timeout_helper() {
+    let error = GraphQLError::timeout("Database query");
+
+    assert_eq!(error.code, ErrorCode::Timeout);
+    assert!(error.message.contains("Database query"));
+    assert!(error.message.contains("exceeded timeout"));
+}
+
+#[test]
+fn test_error_rate_limited_helper() {
+    let error = GraphQLError::rate_limited("Exceeded 100 requests per minute");
+
+    assert_eq!(error.code, ErrorCode::RateLimitExceeded);
+    assert!(error.message.contains("100 requests"));
+}
+
+#[test]
+fn test_error_chaining_with_request_id_and_location() {
+    let error = GraphQLError::validation("Invalid argument type")
+        .with_location(5, 12)
+        .with_request_id("req-xyz-789");
+
+    assert_eq!(error.code, ErrorCode::ValidationError);
+    assert!(error.locations.is_some());
+    assert!(error.extensions.is_some());
+
+    let ext = error.extensions.unwrap();
+    assert_eq!(ext.request_id, Some("req-xyz-789".to_string()));
+
+    let loc = error.locations.unwrap();
+    assert_eq!(loc[0].line, 5);
+    assert_eq!(loc[0].column, 12);
+}
+
+#[test]
+fn test_error_with_all_metadata() {
+    let error = GraphQLError::database("Connection timeout: unable to reach server")
+        .with_location(1, 1)
+        .with_path(vec!["user".to_string(), "profile".to_string()])
+        .with_extensions(ErrorExtensions {
+            category:   Some("DATABASE".to_string()),
+            status:     Some(503),
+            request_id: Some("req-db-001".to_string()),
+        });
+
+    // Verify all components are present
+    assert_eq!(error.code, ErrorCode::DatabaseError);
+    assert!(error.message.contains("Connection timeout"));
+    assert!(error.locations.is_some());
+    assert!(error.path.is_some());
+    assert!(error.extensions.is_some());
+
+    let ext = error.extensions.unwrap();
+    assert_eq!(ext.request_id, Some("req-db-001".to_string()));
+    assert_eq!(ext.category, Some("DATABASE".to_string()));
+}

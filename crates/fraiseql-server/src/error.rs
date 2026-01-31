@@ -146,52 +146,79 @@ impl GraphQLError {
         self
     }
 
+    /// Add request ID for distributed tracing.
+    #[must_use]
+    pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
+        let request_id = request_id.into();
+        let extensions = self.extensions.take().unwrap_or(ErrorExtensions {
+            category:   None,
+            status:     None,
+            request_id: None,
+        });
+
+        self.extensions = Some(ErrorExtensions {
+            request_id: Some(request_id),
+            ..extensions
+        });
+        self
+    }
+
     /// Validation error.
     pub fn validation(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::ValidationError)
     }
 
-    /// Parse error.
+    /// Parse error with hint for common syntax issues.
     pub fn parse(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::ParseError)
     }
 
-    /// Request error.
+    /// Request error with validation details.
     pub fn request(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::RequestError)
     }
 
-    /// Database error.
+    /// Database error - includes connection, timeout, and query errors.
     pub fn database(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::DatabaseError)
     }
 
-    /// Internal server error.
+    /// Internal server error - unexpected conditions.
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::InternalServerError)
     }
 
-    /// Execution error.
+    /// Execution error during GraphQL resolver execution.
     #[must_use]
     pub fn execution(message: &str) -> Self {
         Self::new(message, ErrorCode::InternalServerError)
     }
 
-    /// Unauthenticated error.
+    /// Unauthenticated error - authentication token is missing or invalid.
     #[must_use]
     pub fn unauthenticated() -> Self {
         Self::new("Authentication required", ErrorCode::Unauthenticated)
     }
 
-    /// Forbidden error.
+    /// Forbidden error - user lacks permission to access resource.
     #[must_use]
     pub fn forbidden() -> Self {
         Self::new("Access denied", ErrorCode::Forbidden)
     }
 
-    /// Not found error.
+    /// Not found error - requested resource does not exist.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::NotFound)
+    }
+
+    /// Timeout error - operation took too long and was cancelled.
+    pub fn timeout(operation: impl Into<String>) -> Self {
+        Self::new(format!("{} exceeded timeout", operation.into()), ErrorCode::Timeout)
+    }
+
+    /// Rate limit error - too many requests from client.
+    pub fn rate_limited(message: impl Into<String>) -> Self {
+        Self::new(message, ErrorCode::RateLimitExceeded)
     }
 }
 
