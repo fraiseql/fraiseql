@@ -284,6 +284,16 @@ impl PostgresAdapter {
 
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.execute_with_projection(view, projection, where_clause, limit).await
+    }
+
     async fn execute_where_query(
         &self,
         view: &str,

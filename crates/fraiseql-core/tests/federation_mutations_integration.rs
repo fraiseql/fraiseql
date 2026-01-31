@@ -17,6 +17,7 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::Result,
+    schema::SqlProjectionHint,
     federation::{
         mutation_executor::FederationMutationExecutor,
         types::{FederatedType, FederationMetadata, KeyDirective},
@@ -49,6 +50,17 @@ impl MockMutationDatabaseAdapter {
 
 #[async_trait]
 impl DatabaseAdapter for MockMutationDatabaseAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        _projection: Option<&SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // Fall back to standard query for tests
+        self.execute_where_query(view, where_clause, limit, None).await
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,

@@ -175,6 +175,18 @@ impl MySqlAdapter {
 
 #[async_trait]
 impl DatabaseAdapter for MySqlAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // For now, fall back to standard query until MySQL projection is optimized
+        // TODO: Implement MySQL-specific JSON_OBJECT projection
+        self.execute_where_query(view, where_clause, limit, None).await
+    }
+
     async fn execute_where_query(
         &self,
         view: &str,

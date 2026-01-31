@@ -577,6 +577,38 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
 #[async_trait]
 impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // Generate cache key including projection info
+        let query_string = format!("query {{ {view} }}");
+        let projection_info = projection.map(|p| &p.projection_template[..]).unwrap_or("");
+        let variables = json!({
+            "limit": limit,
+            "projection": projection_info,
+        });
+
+        let cache_key =
+            generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
+
+        // Try cache first
+        if let Some(cached_result) = self.cache.get(&cache_key)? {
+            return Ok((*cached_result).clone());
+        }
+
+        // Cache miss - execute via underlying adapter
+        let result = self.adapter.execute_with_projection(view, projection, where_clause, limit).await?;
+
+        // Store in cache
+        self.cache.put(cache_key, result.clone(), vec![view.to_string()])?;
+
+        Ok(result)
+    }
+
     async fn execute_where_query(
         &self,
         view: &str,
@@ -668,6 +700,22 @@ mod tests {
 
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+            // Return mock data (same as execute_where_query)
+            Ok(vec![
+                JsonbValue::new(json!({"id": 1, "name": "Alice"})),
+                JsonbValue::new(json!({"id": 2, "name": "Bob"})),
+            ])
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

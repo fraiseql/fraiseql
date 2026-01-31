@@ -201,6 +201,18 @@ impl FraiseWireAdapter {
 
 #[async_trait]
 impl DatabaseAdapter for FraiseWireAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        // FraiseWire uses streaming, so projection is handled by field selection
+        // Fall back to standard query for now
+        self.execute_where_query(view, where_clause, limit, None).await
+    }
+
     async fn execute_where_query(
         &self,
         view: &str,
