@@ -3,9 +3,10 @@
 //! This module maps GraphQL scalar types to Apache Arrow data types
 //! and generates Arrow schemas from GraphQL query result shapes.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use serde_json::Value;
 
 /// Map GraphQL scalar types to Arrow types.
 ///
@@ -83,6 +84,67 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
         .collect();
 
     Arc::new(Schema::new(arrow_fields))
+}
+
+/// Infer Arrow schema from raw database rows (JSON objects).
+///
+/// Examines the first row to determine field names and infers data types
+/// from JSON value types. All fields are nullable by default.
+///
+/// # Arguments
+///
+/// * `rows` - Vector of HashMap representing database rows
+///
+/// # Returns
+///
+/// Arrow Schema inferred from the rows
+///
+/// # Errors
+///
+/// Returns error if rows are empty or if schema inference fails
+pub fn infer_schema_from_rows(
+    rows: &[HashMap<String, Value>],
+) -> Result<Arc<Schema>, Box<dyn std::error::Error>> {
+    if rows.is_empty() {
+        return Err("Cannot infer schema from empty rows".into());
+    }
+
+    let first_row = &rows[0];
+    let arrow_fields: Vec<Field> = first_row
+        .iter()
+        .map(|(name, value)| {
+            let arrow_type = infer_type_from_value(value);
+            Field::new(name.clone(), arrow_type, true) // All fields nullable
+        })
+        .collect();
+
+    Ok(Arc::new(Schema::new(arrow_fields)))
+}
+
+/// Infer Arrow data type from a JSON value.
+///
+/// # Arguments
+///
+/// * `value` - serde_json::Value to infer type from
+///
+/// # Returns
+///
+/// Corresponding Arrow DataType
+fn infer_type_from_value(value: &Value) -> DataType {
+    match value {
+        Value::Null => DataType::Null,
+        Value::Bool(_) => DataType::Boolean,
+        Value::Number(n) => {
+            if n.is_i64() {
+                DataType::Int64
+            } else {
+                DataType::Float64
+            }
+        },
+        Value::String(_) => DataType::Utf8,
+        Value::Array(_) => DataType::Utf8, // JSON arrays as strings
+        Value::Object(_) => DataType::Utf8, // JSON objects as strings
+    }
 }
 
 #[cfg(test)]

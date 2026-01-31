@@ -5,7 +5,7 @@
 //! cargo bench --package fraiseql-arrow --bench flight_benchmarks
 //! ```
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_arrow::db::DatabaseAdapter as ArrowDatabaseAdapter;
 use fraiseql_core::db::DatabaseAdapter;
 use sqlx::postgres::PgPoolOptions;
@@ -18,13 +18,10 @@ struct BenchDb {
 
 impl BenchDb {
     async fn setup() -> Result<Self, Box<dyn std::error::Error>> {
-        let db_url =
-            std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://localhost/postgres".to_string());
+        let db_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string());
 
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&db_url)
-            .await?;
+        let pool = PgPoolOptions::new().max_connections(5).connect(&db_url).await?;
 
         // Create test tables if they don't exist
         sqlx::query(
@@ -90,7 +87,8 @@ impl BenchDb {
     }
 
     fn connection_string(&self) -> String {
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://localhost/postgres".to_string())
+        std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string())
     }
 }
 
@@ -108,11 +106,8 @@ fn adapter_initialization(c: &mut Criterion) {
 fn query_latency(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let bench_db = rt.block_on(async {
-        BenchDb::setup()
-            .await
-            .expect("Failed to setup benchmark database")
-    });
+    let bench_db =
+        rt.block_on(async { BenchDb::setup().await.expect("Failed to setup benchmark database") });
 
     let mut group = c.benchmark_group("query_latency");
 
@@ -136,9 +131,7 @@ fn query_latency(c: &mut Criterion) {
             let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
-            adapter
-                .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
-                .await
+            adapter.execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5")).await
         });
     });
 
@@ -149,9 +142,7 @@ fn query_latency(c: &mut Criterion) {
             let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
-            adapter
-                .execute_raw_query(black_box("SELECT * FROM ta_users"))
-                .await
+            adapter.execute_raw_query(black_box("SELECT * FROM ta_users")).await
         });
     });
 
@@ -163,7 +154,9 @@ fn query_latency(c: &mut Criterion) {
                 .await
                 .expect("Failed to create adapter");
             adapter
-                .execute_raw_query(black_box("SELECT id, name FROM ta_users WHERE id LIKE 'bench-user%'"))
+                .execute_raw_query(black_box(
+                    "SELECT id, name FROM ta_users WHERE id LIKE 'bench-user%'",
+                ))
                 .await
         });
     });
@@ -175,9 +168,7 @@ fn query_latency(c: &mut Criterion) {
             let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
-            adapter
-                .execute_raw_query(black_box("SELECT * FROM ta_users ORDER BY id"))
-                .await
+            adapter.execute_raw_query(black_box("SELECT * FROM ta_users ORDER BY id")).await
         });
     });
 
@@ -187,11 +178,8 @@ fn query_latency(c: &mut Criterion) {
 fn flight_adapter_latency(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let bench_db = rt.block_on(async {
-        BenchDb::setup()
-            .await
-            .expect("Failed to setup benchmark database")
-    });
+    let bench_db =
+        rt.block_on(async { BenchDb::setup().await.expect("Failed to setup benchmark database") });
 
     let mut group = c.benchmark_group("flight_adapter");
 
@@ -202,8 +190,7 @@ fn flight_adapter_latency(c: &mut Criterion) {
             let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
-            let _flight_adapter =
-                fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
+            let _flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
         });
     });
 

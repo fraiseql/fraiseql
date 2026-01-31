@@ -42,6 +42,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod cache;
 pub mod convert;
 pub mod db;
 pub mod db_convert;
@@ -56,6 +57,7 @@ pub mod ticket;
 #[cfg(feature = "clickhouse")]
 pub mod clickhouse_sink;
 
+pub use cache::QueryCache;
 #[cfg(feature = "clickhouse")]
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};

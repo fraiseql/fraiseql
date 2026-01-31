@@ -450,4 +450,115 @@ mod tests {
         tracing::info!("✓ Users data integrity test passed");
         Ok(())
     }
+
+    /// Test batch queries ticket encoding and decoding
+    #[test]
+    fn test_batched_queries_ticket() -> Result<(), Box<dyn std::error::Error>> {
+        use fraiseql_arrow::FlightTicket;
+
+        let ticket = FlightTicket::BatchedQueries {
+            queries: vec![
+                "SELECT * FROM ta_users LIMIT 2".to_string(),
+                "SELECT * FROM ta_orders LIMIT 2".to_string(),
+            ],
+        };
+
+        let bytes = ticket.encode()?;
+        let decoded = FlightTicket::decode(&bytes)?;
+
+        match decoded {
+            FlightTicket::BatchedQueries { queries } => {
+                assert_eq!(queries.len(), 2);
+                assert_eq!(queries[0], "SELECT * FROM ta_users LIMIT 2");
+                assert_eq!(queries[1], "SELECT * FROM ta_orders LIMIT 2");
+            },
+            _ => panic!("Expected BatchedQueries variant"),
+        }
+
+        tracing::info!("✓ Batched queries ticket test passed");
+        Ok(())
+    }
+
+    /// Test query cache with basic put/get
+    #[test]
+    fn test_query_cache() -> Result<(), Box<dyn std::error::Error>> {
+        use std::{collections::HashMap, sync::Arc};
+
+        use fraiseql_arrow::QueryCache;
+
+        let cache = QueryCache::new(60);
+        let query = "SELECT * FROM ta_users";
+        let result = vec![HashMap::from([
+            ("id".to_string(), serde_json::json!("user-1")),
+            ("name".to_string(), serde_json::json!("Alice")),
+        ])];
+
+        // Cache miss initially
+        assert!(cache.get(query).is_none());
+
+        // Store result
+        cache.put(query, Arc::new(result.clone()));
+
+        // Cache hit
+        let cached = cache.get(query).unwrap();
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].get("name").unwrap().as_str().unwrap(), "Alice");
+
+        tracing::info!("✓ Query cache test passed");
+        Ok(())
+    }
+
+    /// Test query cache expiration
+    #[test]
+    fn test_query_cache_expiration() -> Result<(), Box<dyn std::error::Error>> {
+        use std::{collections::HashMap, sync::Arc};
+
+        use fraiseql_arrow::QueryCache;
+
+        let cache = QueryCache::new(1); // 1-second TTL
+        let query = "SELECT * FROM ta_orders";
+        let result = vec![HashMap::from([(
+            "id".to_string(),
+            serde_json::json!("order-1"),
+        )])];
+
+        cache.put(query, Arc::new(result));
+
+        // Should be cached immediately
+        assert!(cache.get(query).is_some());
+
+        // Wait for expiration
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        // Should be expired now
+        assert!(cache.get(query).is_none());
+
+        tracing::info!("✓ Query cache expiration test passed");
+        Ok(())
+    }
+
+    /// Test Flight service with caching enabled
+    #[tokio::test]
+    async fn test_flight_service_with_cache() -> Result<(), Box<dyn std::error::Error>> {
+        use fraiseql_arrow::FraiseQLFlightService;
+
+        let test_db = TestDb::setup().await?;
+        let conn_string = test_db.connection_string();
+
+        // Create adapter with cache (60-second TTL)
+        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
+        let flight_adapter =
+            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+
+        let service = FraiseQLFlightService::new_with_cache(flight_adapter.clone(), 60);
+
+        // Verify service is created
+        assert!(
+            service.schema_registry().contains("ta_users"),
+            "Service should have ta_users schema"
+        );
+
+        tracing::info!("✓ Flight service with cache test passed");
+        Ok(())
+    }
 }
