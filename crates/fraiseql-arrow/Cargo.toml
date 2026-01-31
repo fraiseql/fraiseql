@@ -46,6 +46,7 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uu
 tempfile = "3"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Integration test dependencies
 fraiseql-core = { path = "../fraiseql-core" }
@@ -54,6 +55,10 @@ fraiseql-server = { path = "../fraiseql-server", features = ["arrow"] }
 [lib]
 name = "fraiseql_arrow"
 path = "src/lib.rs"
+
+[[bench]]
+name = "flight_benchmarks"
+harness = false
 
 [features]
 default = []
