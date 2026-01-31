@@ -22,6 +22,7 @@
 
 /// Represents a documentation example
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct DocumentationExample {
     /// Example name/title
     title: String,

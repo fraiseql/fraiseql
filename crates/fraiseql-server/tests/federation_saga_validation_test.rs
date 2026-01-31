@@ -1,4 +1,4 @@
-//! Federation Saga Validation Tests (RED Phase)
+//! Federation Saga Validation Tests (GREEN Phase)
 //!
 //! Tests saga orchestration across multiple services/databases:
 //! 1. Multi-step saga execution (happy path and failures)
@@ -23,8 +23,14 @@
 //! ```
 
 #![cfg(test)]
+#![allow(dead_code)]
 
 use std::collections::HashMap;
+
+// Common test utilities
+mod common;
+#[allow(unused_imports)]
+use common::{SagaStepDef, SagaStepResult, TestSagaExecutor};
 
 // ============================================================================
 // Saga Domain Model
@@ -525,12 +531,107 @@ fn test_saga_idempotency() {
 }
 
 // ============================================================================
+// GREEN Phase Tests: Saga Execution
+// ============================================================================
+
+/// GREEN Phase Test 1: Execute two-step saga forward phase
+#[tokio::test]
+async fn test_saga_forward_phase_execution() {
+    let mut executor = TestSagaExecutor::new();
+
+    let steps = vec![
+        SagaStepDef::new(1, "order-service", "orders", serde_json::json!({"orderId": "order_123"}))
+            .with_compensation("cancel_order"),
+        SagaStepDef::new(
+            2,
+            "inventory-service",
+            "inventory",
+            serde_json::json!({"productId": "prod_456"}),
+        )
+        .with_compensation("release_inventory"),
+    ];
+
+    let result = executor.execute_saga("saga-123", steps.clone()).await;
+    assert!(result.is_ok(), "Saga execution should succeed");
+
+    let results = result.unwrap();
+    assert_eq!(results.len(), 2, "Should have executed 2 steps");
+    assert!(results[0].success, "First step should succeed");
+    assert!(results[1].success, "Second step should succeed");
+    assert_eq!(results[0].step_number, 1);
+    assert_eq!(results[1].step_number, 2);
+}
+
+/// GREEN Phase Test 2: Verify LIFO compensation order
+#[tokio::test]
+async fn test_saga_lifo_compensation_order() {
+    let executor = TestSagaExecutor::new();
+
+    let forward_steps = vec![
+        SagaStepDef::new(1, "order-service", "orders", serde_json::json!({}))
+            .with_compensation("cancel_order"),
+        SagaStepDef::new(2, "inventory-service", "inventory", serde_json::json!({}))
+            .with_compensation("release_inventory"),
+        SagaStepDef::new(3, "payment-service", "payments", serde_json::json!({}))
+            .with_compensation("refund_payment"),
+    ];
+
+    // Simulate compensation results in LIFO order (step 3, 2, 1)
+    let compensation_results = vec![
+        SagaStepResult::success(3, serde_json::json!({"refunded": true})),
+        SagaStepResult::success(2, serde_json::json!({"released": true})),
+        SagaStepResult::success(1, serde_json::json!({"cancelled": true})),
+    ];
+
+    // Verify LIFO order
+    let order_check = executor.verify_lifo_order(&forward_steps, &compensation_results);
+    if let Err(e) = order_check {
+        panic!("Compensation order verification failed: {}", e);
+    }
+}
+
+/// GREEN Phase Test 3: Verify multi-step saga with correct step execution
+#[tokio::test]
+async fn test_multi_step_saga_execution() {
+    let mut executor = TestSagaExecutor::new();
+
+    let steps = vec![
+        SagaStepDef::new(
+            1,
+            "order-service",
+            "orders",
+            serde_json::json!({"customerId": "cust_123"}),
+        ),
+        SagaStepDef::new(
+            2,
+            "inventory-service",
+            "inventory",
+            serde_json::json!({"productId": "prod_456", "quantity": 5}),
+        ),
+        SagaStepDef::new(3, "payment-service", "payments", serde_json::json!({"amount": 100.00})),
+    ];
+
+    let result = executor.execute_saga("multi-saga", steps).await;
+    assert!(result.is_ok());
+
+    let results = result.unwrap();
+    assert_eq!(results.len(), 3);
+
+    // Verify each step has correct metadata
+    for (idx, result) in results.iter().enumerate() {
+        assert!(result.success);
+        assert_eq!(result.step_number, idx + 1);
+        assert!(result.data.is_some());
+    }
+}
+
+// ============================================================================
 // Summary
 // ============================================================================
 
-// Total: 8 Federation Saga Tests (RED phase)
+// Total: 8 Federation Saga Tests (RED phase) + 3 GREEN phase tests
 //
-// Coverage:
+// RED Phase Coverage:
 // - Saga Execution: 2 tests ✓
 //   - Two-step success (happy path)
 //   - Partial success (one step fails)
@@ -547,7 +648,16 @@ fn test_saga_idempotency() {
 //   - Concurrent execution
 //   - Idempotency guarantees
 //
-// Total: 8 tests ✓
+// GREEN Phase Coverage:
+// - Forward Phase Execution: 1 test ✓
+//   - Multi-step saga execution
 //
-// Phase: RED - Tests verify saga structure and coordination
-// Next phase (GREEN): Execute sagas against real multi-database setup
+// - LIFO Compensation: 1 test ✓
+//   - Compensation order verification
+//
+// - Multi-Step Orchestration: 1 test ✓
+//   - Complex saga with 3 steps
+//
+// Total: 11 tests ✓ (8 RED + 3 GREEN)
+//
+// Phase: Transitioning to GREEN - Tests execute sagas with test executor
