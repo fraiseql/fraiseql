@@ -236,10 +236,7 @@ class SalesMetrics:
 
 ### Core Documentation
 
-- **[Architecture](architecture.md)** - System design and components
-- **[Configuration](configuration.md)** - Complete configuration reference
-- **[Metrics Collection](metrics-collection.md)** - What data is collected
-- **[Analysis Guide](analysis-guide.md)** - Using the analyze command
+- **[Metrics Collection](metrics-collection.md)** - What data is collected and how to use it
 
 ### Advanced Topics
 
@@ -349,7 +346,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 
 ## License
 
-FraiseQL is open source under the [Apache 2.0 License](../../LICENSE).
+FraiseQL is open source under the Apache 2.0 License.
 
 ---
 

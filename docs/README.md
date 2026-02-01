@@ -24,7 +24,7 @@
 
 Perfect for developers new to FraiseQL or those wanting deep architectural understanding.
 
-See [foundation/](foundation/) for detailed guides on:
+FraiseQL foundations documentation covers:
 - What is FraiseQL? — Understanding FraiseQL's compiled GraphQL approach
 - Core Concepts — Terminology and mental models
 - Database-Centric Architecture — View types (v_*, tv_*, va_*, ta_*), fact tables, calendar dimensions
@@ -55,7 +55,7 @@ See [integrations/arrow-flight/](integrations/arrow-flight/) for guides on:
 
 High-level vision, philosophy, and system requirements.
 
-See [prd/](prd/) directory for product requirements and design philosophy.
+See [PRD.md](prd/PRD.md) for product requirements and design philosophy.
 
 ### Architecture
 
@@ -191,7 +191,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 **I want to...**
 
 - **Understand FraiseQL** → [Reading Order: New to FraiseQL](reading-order.md#new-to-fraiseql-start-here)
-- **Evaluate for adoption** → [PRD](prd/PRD.md) + [Architecture: Core](architecture/core/)
+- **Evaluate for adoption** → [PRD](prd/PRD.md) + [Architecture Guide](architecture/)
 - **Write schemas** → [Specs: Authoring Contract](specs/authoring-contract.md) + [Schema Conventions](specs/schema-conventions.md)
 - **Build a compiler** → [Reading Order: Compiler Developers](reading-order.md#for-compiler-developers)
 - **Extend the runtime** → [Reading Order: Runtime Developers](reading-order.md#for-runtime-developers)
