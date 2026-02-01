@@ -10,6 +10,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{
+    audit_logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
     provider::OAuthProvider,
     session::SessionStore,
@@ -132,6 +133,14 @@ pub async fn auth_callback(
 ) -> Result<impl IntoResponse> {
     // Check for provider error
     if let Some(error) = query.error {
+        let audit_logger = get_audit_logger();
+        audit_logger.log_failure(
+            AuditEventType::OauthCallback,
+            SecretType::AuthorizationCode,
+            None,
+            "exchange",
+            &error,
+        );
         return Err(AuthError::OAuthError {
             message: format!("{}: {}", error, query.error_description.unwrap_or_default()),
         });
@@ -149,11 +158,37 @@ pub async fn auth_callback(
         .as_secs();
 
     if now > expiry {
+        let audit_logger = get_audit_logger();
+        audit_logger.log_failure(
+            AuditEventType::CsrfStateValidated,
+            SecretType::StateToken,
+            None,
+            "validate",
+            "State token expired",
+        );
         return Err(AuthError::InvalidState);
     }
 
+    // Audit log: CSRF state validation success
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::CsrfStateValidated,
+        SecretType::StateToken,
+        None,
+        "validate",
+    );
+
     // Exchange code for tokens
     let token_response = state.oauth_provider.exchange_code(&query.code).await?;
+
+    // Audit log: Token exchange success
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::OauthCallback,
+        SecretType::AuthorizationCode,
+        None,
+        "exchange",
+    );
 
     // Get user info
     let user_info = state.oauth_provider.user_info(&token_response.access_token).await?;
@@ -161,6 +196,24 @@ pub async fn auth_callback(
     // Create session (expires in 7 days)
     let expires_at = now + (7 * 24 * 60 * 60);
     let session_tokens = state.session_store.create_session(&user_info.id, expires_at).await?;
+
+    // Audit log: Session token created
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::SessionTokenCreated,
+        SecretType::SessionToken,
+        Some(user_info.id.clone()),
+        "create",
+    );
+
+    // Audit log: Auth success
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::AuthSuccess,
+        SecretType::SessionToken,
+        Some(user_info.id),
+        "oauth_flow",
+    );
 
     let response = AuthCallbackResponse {
         access_token:  session_tokens.access_token,
@@ -184,11 +237,29 @@ pub async fn auth_refresh(
     // Validate refresh token exists in session store
     use crate::auth::session::hash_token;
     let token_hash = hash_token(&req.refresh_token);
-    let _session = state.session_store.get_session(&token_hash).await?;
+    let session = state.session_store.get_session(&token_hash).await?;
+
+    // Audit log: Refresh token validation success
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::SessionTokenValidation,
+        SecretType::RefreshToken,
+        Some(session.user_id.clone()),
+        "validate",
+    );
 
     // In a real implementation, would generate new JWT here
     // For now, return a simple response
     let access_token = format!("new_access_token_{}", uuid::Uuid::new_v4());
+
+    // Audit log: JWT refresh success
+    let audit_logger = get_audit_logger();
+    audit_logger.log_success(
+        AuditEventType::JwtRefresh,
+        SecretType::JwtToken,
+        Some(session.user_id),
+        "refresh",
+    );
 
     Ok(Json(AuthRefreshResponse {
         access_token,

@@ -6,7 +6,10 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 
-use crate::auth::error::{AuthError, Result};
+use crate::auth::{
+    audit_logger::{AuditEventType, SecretType, get_audit_logger},
+    error::{AuthError, Result},
+};
 
 /// Standard JWT claims with support for custom claims
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -107,7 +110,7 @@ impl JwtValidator {
 
         let token_data = decode::<Claims>(token, &decoding_key, &self.validation).map_err(|e| {
             use jsonwebtoken::errors::ErrorKind;
-            match e.kind() {
+            let error = match e.kind() {
                 ErrorKind::ExpiredSignature => AuthError::TokenExpired,
                 ErrorKind::InvalidSignature => AuthError::InvalidSignature,
                 ErrorKind::InvalidIssuer => AuthError::InvalidToken {
@@ -119,15 +122,44 @@ impl JwtValidator {
                 _ => AuthError::InvalidToken {
                     reason: e.to_string(),
                 },
-            }
+            };
+
+            // Audit log: JWT validation failure
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                None, // Subject not yet known at this point
+                "validate",
+                &e.to_string(),
+            );
+
+            error
         })?;
 
         let claims = token_data.claims;
 
         // Additional validation: check if token is expired (redundant but explicit)
         if claims.is_expired() {
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                Some(claims.sub.clone()),
+                "validate",
+                "Token expired",
+            );
             return Err(AuthError::TokenExpired);
         }
+
+        // Audit log: JWT validation success
+        let audit_logger = get_audit_logger();
+        audit_logger.log_success(
+            AuditEventType::JwtValidation,
+            SecretType::JwtToken,
+            Some(claims.sub.clone()),
+            "validate",
+        );
 
         Ok(claims)
     }

@@ -1,6 +1,7 @@
 // Authentication module
 // Handles JWT validation, OAuth/OIDC flows, session management, and authorization
 
+pub mod audit_logger;
 pub mod error;
 pub mod handlers;
 pub mod jwt;
@@ -17,6 +18,13 @@ pub mod state_store;
 #[cfg(test)]
 mod security_tests;
 
+#[cfg(test)]
+mod audit_logging_tests;
+
+pub use audit_logger::{
+    AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
+    init_audit_logger,
+};
 pub use error::{AuthError, Result};
 pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
