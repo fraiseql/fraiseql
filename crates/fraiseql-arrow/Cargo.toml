@@ -60,6 +60,10 @@ path = "src/lib.rs"
 name = "flight_benchmarks"
 harness = false
 
+[[bench]]
+name = "arrow_vs_json_serialization"
+harness = false
+
 [features]
 default = []
 clickhouse = ["dep:clickhouse"]
