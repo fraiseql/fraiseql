@@ -7,12 +7,16 @@
 ## Core Architecture Principle
 
 ```
-Authoring (Python/TS) → Compilation (Rust) → Runtime (Rust)
-         ↓                      ↓                    ↓
-   schema.json        schema.compiled.json    GraphQL Server
+Authoring               Compilation              Runtime
+(Python/TS)            (Rust)                   (Rust)
+    ↓                      ↓                        ↓
+schema.json    +    fraiseql.toml      →    schema.compiled.json    →    GraphQL Server
+(types)                 (config)           (types + config + SQL)        (initialized from config)
 ```
 
 **Key Point**: Python/TypeScript are **authoring languages only**. No runtime FFI, no language bindings needed.
+
+**Configuration Management**: Security and operational configuration flows from TOML through the compiler to the runtime, with environment variable overrides for production.
 
 ---
 
@@ -137,37 +141,57 @@ See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for comprehensive a
 
 **Key Point**: The server is generic over `DatabaseAdapter` trait, enabling type-safe database swapping and easy testing with mocks.
 
-### 2. Schema Compilation Flow
+### 2. Schema Compilation and Configuration Flow
 
 ```
-┌─────────────────┐
-│ Python Code     │
-│ @fraiseql.type  │
-│ class User:     │
-│   id: int       │
-└────────┬────────┘
+┌─────────────────────────┐
+│ Developer Setup         │
+├─────────────────────────┤
+│ 1. Python Code          │
+│    @fraiseql.type       │
+│    class User:          │
+│      id: int            │
+│                         │
+│ 2. fraiseql.toml        │
+│    [fraiseql.security]  │
+│    rate_limiting = {...}│
+└────────┬────────────────┘
          │
          ↓ (generates)
-┌─────────────────┐
-│ schema.json     │
-│ {               │
-│   "types": [...] │
-│ }               │
-└────────┬────────┘
+┌──────────────────────────┐
+│ schema.json +            │
+│ fraiseql.toml config     │
+└────────┬─────────────────┘
          │
          ↓ (fraiseql-cli compile)
-┌─────────────────┐
-│ schema.compiled │
-│ .json           │
-│ Optimized SQL   │
-└────────┬────────┘
+┌────────────────────────────────┐
+│ schema.compiled.json           │
+│ {                              │
+│   "types": [...],              │
+│   "queries": [...],            │
+│   "security": {                │
+│     "rateLimiting": {...},     │
+│     "auditLogging": {...},     │
+│     "errorSanitization": {...},│
+│     "stateEncryption": {...}   │
+│   }                            │
+│ }                              │
+└────────┬─────────────────────┘
          │
          ↓ (loaded by)
-┌─────────────────┐
-│ fraiseql-server │
-│ Execute queries │
-└─────────────────┘
+┌──────────────────────────────┐
+│ fraiseql-server              │
+├──────────────────────────────┤
+│ 1. Load schema.compiled.json │
+│ 2. Extract "security"        │
+│ 3. Apply env var overrides   │
+│ 4. Validate configuration    │
+│ 5. Initialize subsystems     │
+│ 6. Execute queries           │
+└──────────────────────────────┘
 ```
+
+**Configuration is embedded in the compiled schema**, flowing from developer configuration through the compiler to runtime initialization. Environment variables can override compiled settings in production.
 
 ### 3. Database Abstraction
 
@@ -195,7 +219,30 @@ pub enum FraiseQLError {
 pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ```
 
-### 5. Testing Strategy
+### 5. Security Configuration
+
+**Configuration Management**: Security and operational settings are declared in `fraiseql.toml` and compiled into `schema.compiled.json`:
+
+```toml
+# fraiseql.toml
+[fraiseql.security.rate_limiting]
+enabled = true
+auth_start_max_requests = 100
+auth_start_window_secs = 60
+
+[fraiseql.security.audit_logging]
+enabled = true
+log_level = "info"
+```
+
+**Runtime Loading**:
+- Configuration is embedded in compiled schema as JSON
+- Server loads configuration at startup
+- Environment variables override compiled settings for production
+
+**Pattern**: Configuration flows from developer (TOML) → compiler (validation) → runtime (application)
+
+### 6. Testing Strategy
 
 **Unit tests**: Per-module in `mod.rs` or `tests.rs`
 
@@ -223,6 +270,18 @@ async fn test_query_execution() {
 ```
 
 **Benchmarks**: Criterion benchmarks for performance analysis
+
+### 7. Security Features
+
+**Phase 7 Enterprise Security** (v2.1.0) adds:
+
+1. **Audit Logging** - Track all secret access for compliance
+2. **Error Sanitization** - Hide implementation details in error messages
+3. **Constant-Time Comparison** - Prevent timing attacks on token validation
+4. **PKCE State Encryption** - Protect OAuth state parameters from inspection
+5. **Rate Limiting** - Brute-force protection on auth endpoints
+
+All configurable via `fraiseql.toml` and environment variables.
 
 ---
 
