@@ -98,6 +98,28 @@ async fn main() -> anyhow::Result<()> {
     let schema = schema_loader.load().await?;
     tracing::info!("Compiled schema loaded successfully");
 
+    // Initialize security configuration from schema
+    tracing::info!("Initializing security configuration from schema");
+    let schema_json_str = schema.to_json().unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "Failed to serialize schema to JSON");
+        "{}".to_string()
+    });
+
+    let security_config = fraiseql_server::auth::init_security_config(&schema_json_str)
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "Failed to load security config from schema, using defaults");
+            fraiseql_server::auth::init_default_security_config()
+        });
+
+    // Validate security configuration
+    if let Err(e) = fraiseql_server::auth::validate_security_config(&security_config) {
+        tracing::error!(error = %e, "Security configuration validation failed");
+        anyhow::bail!(e);
+    }
+
+    // Log security configuration for observability
+    fraiseql_server::auth::log_security_config(&security_config);
+
     // Initialize database adapter with pool configuration
     tracing::info!(
         database_url = %config.database_url,

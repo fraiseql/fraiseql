@@ -14,6 +14,8 @@ pub mod operation_rbac;
 pub mod provider;
 pub mod providers;
 pub mod rate_limiting;
+pub mod security_config;
+pub mod security_init;
 pub mod session;
 pub mod session_postgres;
 pub mod state_encryption;
@@ -65,3 +67,11 @@ pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
 pub use state_encryption::{EncryptedState, StateEncryption, generate_state_encryption_key};
 pub use state_store::{InMemoryStateStore, StateStore};
+pub use security_config::{
+    SecurityConfigFromSchema, AuditLoggingSettings, ErrorSanitizationSettings,
+    RateLimitingSettings, StateEncryptionSettings,
+};
+pub use security_init::{
+    init_security_config, init_default_security_config, log_security_config,
+    validate_security_config,
+};
