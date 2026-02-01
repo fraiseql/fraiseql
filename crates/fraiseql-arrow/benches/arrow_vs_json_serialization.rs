@@ -10,7 +10,7 @@
 //! Measures:
 //! - Query execution latency from each plane
 //! - Full round-trip time (query + serialization)
-//! - Output size per format
+//! - Actual output size per format (JSON vs Arrow IPC)
 //!
 //! Requires PostgreSQL with test tables:
 //! - v_users (JSON plane view) - denormalized for JSON output
@@ -23,6 +23,14 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use fraiseql_core::db::DatabaseAdapter;
+use fraiseql_arrow::convert::{RowToArrowConverter, ConvertConfig};
+use fraiseql_arrow::db_convert::convert_db_rows_to_arrow;
+use arrow::{
+    datatypes::{DataType, Field, Schema},
+    ipc::writer::StreamWriter,
+};
+use std::sync::Arc;
+use std::io::Cursor;
 
 /// Benchmark comparing JSON plane (v_users view) vs Arrow plane (ta_users table)
 fn benchmark_query_planes(c: &mut Criterion) {
@@ -63,7 +71,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
         });
     });
 
-    // Benchmark Arrow plane (ta_users table) - small result set
+    // Benchmark Arrow plane (ta_users table) - small result set with real IPC serialization
     group.bench_function("arrow_plane_100_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
@@ -83,7 +91,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
         });
     });
 
-    // Benchmark Arrow plane - large result set
+    // Benchmark Arrow plane - large result set with real IPC serialization
     group.bench_function("arrow_plane_1000_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
@@ -119,11 +127,49 @@ async fn query_arrow_plane(
     let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(db_url).await?;
 
     let query = format!("SELECT * FROM ta_users {}", limit_clause);
-    let _rows = adapter.execute_raw_query(&query).await?;
+    let rows = adapter.execute_raw_query(&query).await?;
 
-    // In real implementation, this would convert to Arrow IPC format
-    // For now, return empty to show structure - actual benchmark would serialize
-    Ok(Vec::new())
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Define Arrow schema for the benchmark data
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Utf8, true),
+        Field::new("email", DataType::Utf8, true),
+        Field::new("name", DataType::Utf8, true),
+        Field::new("age", DataType::Int64, true),
+        Field::new("is_active", DataType::Boolean, true),
+        Field::new("created_at", DataType::Utf8, true),
+        Field::new("balance", DataType::Float64, true),
+        Field::new("tags", DataType::Utf8, true), // Simplified: store as JSON string
+        Field::new("metadata", DataType::Utf8, true), // Store as JSON string
+    ]));
+
+    // Convert database rows to Arrow values
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
+        .map_err(|e| format!("Failed to convert rows: {}", e))?;
+
+    // Create converter and build RecordBatch
+    let converter = RowToArrowConverter::new(schema.clone(), ConvertConfig::default());
+    let batch = converter
+        .convert_batch(arrow_rows)
+        .map_err(|e| format!("Failed to create batch: {}", e))?;
+
+    // Serialize to Arrow IPC format (streaming format)
+    let mut buffer = Cursor::new(Vec::new());
+    let mut writer = StreamWriter::try_new(&mut buffer, &batch.schema())
+        .map_err(|e| format!("Failed to create writer: {}", e))?;
+
+    writer
+        .write(&batch)
+        .map_err(|e| format!("Failed to write batch: {}", e))?;
+
+    writer
+        .finish()
+        .map_err(|e| format!("Failed to finish write: {}", e))?;
+
+    Ok(buffer.into_inner())
 }
 
 /// Setup test tables: v_users (JSON view) and ta_users (Arrow analytics table)
