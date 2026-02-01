@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::env;
 
 /// Audit logging configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -90,12 +89,17 @@ impl ErrorSanitizationConfig {
 }
 
 /// Rate limiting per endpoint
+///
+/// Reason: Included for forward compatibility with per-endpoint rate limiting.
+/// Currently unused but provided for API completeness in security configuration.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RateLimitingPerEndpoint {
     pub max_requests: u32,
     pub window_secs: u64,
 }
 
+#[allow(dead_code)]
 impl RateLimitingPerEndpoint {
     /// Convert to JSON representation for schema
     pub fn to_json(&self) -> serde_json::Value {
@@ -312,41 +316,6 @@ impl SecurityConfig {
         self.rate_limiting.validate()?;
         self.state_encryption.validate()?;
         Ok(())
-    }
-
-    /// Apply environment variable overrides
-    pub fn apply_env_overrides(&mut self) {
-        // Audit logging
-        if let Ok(level) = env::var("AUDIT_LOG_LEVEL") {
-            self.audit_logging.log_level = level;
-        }
-
-        // Rate limiting
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_START") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_start_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_CALLBACK") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_callback_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_REFRESH") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_refresh_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_AUTH_LOGOUT") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.auth_logout_max_requests = n;
-            }
-        }
-        if let Ok(val) = env::var("RATE_LIMIT_FAILED_LOGIN") {
-            if let Ok(n) = val.parse() {
-                self.rate_limiting.failed_login_max_requests = n;
-            }
-        }
     }
 
     /// Convert to JSON representation for schema.json
