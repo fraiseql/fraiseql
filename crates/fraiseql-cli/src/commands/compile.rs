@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use fraiseql_core::schema::CompiledSchema;
 use tracing::{info, warn};
 
+use crate::config::FraiseQLConfig;
 use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
 
 /// Run the compile command
@@ -40,8 +41,32 @@ pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>)
 
     // 2. Parse JSON into IntermediateSchema (language-agnostic format)
     info!("Parsing intermediate schema...");
-    let intermediate: IntermediateSchema =
+    let mut intermediate: IntermediateSchema =
         serde_json::from_str(&schema_json).context("Failed to parse schema.json")?;
+
+    // 2a. Load and apply security configuration from fraiseql.toml if it exists
+    if Path::new("fraiseql.toml").exists() {
+        info!("Loading security configuration from fraiseql.toml...");
+        match FraiseQLConfig::from_file("fraiseql.toml") {
+            Ok(config) => {
+                info!("Validating security configuration...");
+                config.validate()?;
+
+                info!("Applying security configuration to schema...");
+                // Merge security config into intermediate schema
+                let security_json = config.fraiseql.security.to_json();
+                intermediate.security = Some(security_json);
+
+                info!("Security configuration applied successfully");
+            }
+            Err(e) => {
+                warn!("Failed to load fraiseql.toml: {e}");
+                warn!("Continuing with default security configuration");
+            }
+        }
+    } else {
+        info!("No fraiseql.toml found, using default security configuration");
+    }
 
     // 3. Validate intermediate schema
     info!("Validating schema structure...");

@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Intermediate schema - universal format from all language libraries
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct IntermediateSchema {
     /// Schema format version
     #[serde(default = "default_version")]
@@ -63,6 +63,12 @@ pub struct IntermediateSchema {
     /// Observer definitions (database change event listeners)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers: Option<Vec<IntermediateObserver>>,
+
+    /// Security configuration (from fraiseql.toml)
+    /// Compiled from the security section of fraiseql.toml at compile time.
+    /// Optional - if not provided, defaults are used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub security: Option<serde_json::Value>,
 }
 
 fn default_version() -> String {

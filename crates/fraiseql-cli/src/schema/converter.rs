@@ -641,6 +641,7 @@ mod tests {
     #[test]
     fn test_convert_minimal_schema() {
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -666,6 +667,7 @@ mod tests {
     #[test]
     fn test_convert_type_with_fields() {
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -715,6 +717,7 @@ mod tests {
     #[test]
     fn test_validate_unknown_type_reference() {
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -749,6 +752,7 @@ mod tests {
     #[test]
     fn test_convert_query_with_arguments() {
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -803,6 +807,7 @@ mod tests {
         use crate::schema::intermediate::IntermediateAppliedDirective;
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -868,6 +873,7 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![IntermediateEnum {
@@ -937,6 +943,7 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -1013,6 +1020,7 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -1058,6 +1066,7 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -1123,6 +1132,7 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -1163,6 +1173,7 @@ mod tests {
         };
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -1215,6 +1226,7 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType, IntermediateUnion};
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![
                 IntermediateType {
@@ -1277,6 +1289,7 @@ mod tests {
         use crate::schema::intermediate::{IntermediateField, IntermediateType};
 
         let intermediate = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "Employee".to_string(),

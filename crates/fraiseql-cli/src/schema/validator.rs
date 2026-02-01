@@ -574,6 +574,7 @@ mod tests {
     #[test]
     fn test_validate_empty_schema() {
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -597,6 +598,7 @@ mod tests {
     #[test]
     fn test_detect_unknown_return_type() {
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -632,6 +634,7 @@ mod tests {
     #[test]
     fn test_detect_duplicate_query_names() {
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -684,6 +687,7 @@ mod tests {
     #[test]
     fn test_warning_for_query_without_sql_source() {
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "User".to_string(),
@@ -728,6 +732,7 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "Order".to_string(),
@@ -776,6 +781,7 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -816,6 +822,7 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "Order".to_string(),
@@ -861,6 +868,7 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "Order".to_string(),
@@ -906,6 +914,7 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
+            security: None,
             version:           "2.0.0".to_string(),
             types:             vec![IntermediateType {
                 name:        "Order".to_string(),
