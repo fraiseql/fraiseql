@@ -73,24 +73,27 @@ public class EcommerceWithObserversSchema {
         //     { type = "slack", channel = "#sales", message = "🎉 High-value order {id}: ${total}" }
         //   ]
 
-        // Export schema
-        FraiseQL.exportSchema("ecommerce_observers_schema.json");
+        // Export minimal types (observers now configured in fraiseql.toml)
+        FraiseQL.exportTypes("ecommerce_types.json");
 
         // Print summary
-        System.out.println("\n✅ Schema exported to ecommerce_observers_schema.json");
+        System.out.println("\n✅ Types exported to ecommerce_types.json");
         System.out.println("   Types: " + FraiseQL.getRegistry().getAllTypes().size());
-        System.out.println("   Observers: " + FraiseQL.getRegistry().getAllObservers().size());
 
-        System.out.println("\n🎯 Observer Summary:");
-        System.out.println("   1. onHighValueOrder → Webhooks, Slack, Email for total > 1000");
-        System.out.println("   2. onOrderShipped → Webhook + customer email when status='shipped'");
-        System.out.println("   3. onPaymentFailure → Slack + webhook with retry on payment failures");
-        System.out.println("   4. onOrderDeleted → Archive deleted orders via webhook");
-        System.out.println("   5. onOrderCreated → Slack notification for all new orders");
+        System.out.println("\n🎯 TOML-based Workflow:");
+        System.out.println("   1. Java generates: ecommerce_types.json (types only)");
+        System.out.println("   2. Define observers in: fraiseql.toml [fraiseql.observers]");
+        System.out.println("   3. Compile: fraiseql-cli compile fraiseql.toml --types ecommerce_types.json");
+        System.out.println("   4. Result: schema.compiled.json with types + observer config");
 
-        System.out.println("\n✨ Next steps:");
-        System.out.println("   1. fraiseql-cli compile ecommerce_observers_schema.json");
-        System.out.println("   2. fraiseql-server --schema ecommerce_observers_schema.compiled.json");
-        System.out.println("   3. Observers will execute automatically on database changes!");
+        System.out.println("\n✨ Example fraiseql.toml configuration:");
+        System.out.println("   [fraiseql.observers.onHighValueOrder]");
+        System.out.println("   entity = \"Order\"");
+        System.out.println("   event = \"INSERT\"");
+        System.out.println("   condition = \"total > 1000\"");
+        System.out.println("   actions = [");
+        System.out.println("     { type = \"webhook\", url = \"https://api.example.com/high-value\" },");
+        System.out.println("     { type = \"slack\", channel = \"#sales\", message = \"High-value order {id}\" }");
+        System.out.println("   ]");
     }
 }

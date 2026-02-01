@@ -15,7 +15,6 @@ public class SchemaRegistry {
     private final Map<String, QueryInfo> queries;
     private final Map<String, MutationInfo> mutations;
     private final Map<String, SubscriptionInfo> subscriptions;
-    private final Map<String, ObserverInfo> observers;
     private final Map<String, EnumInfo> enums;
     private final Map<String, InterfaceInfo> interfaces;
     private final Map<String, UnionInfo> unions;
@@ -26,7 +25,6 @@ public class SchemaRegistry {
         this.queries = new ConcurrentHashMap<>();
         this.mutations = new ConcurrentHashMap<>();
         this.subscriptions = new ConcurrentHashMap<>();
-        this.observers = new ConcurrentHashMap<>();
         this.enums = new ConcurrentHashMap<>();
         this.interfaces = new ConcurrentHashMap<>();
         this.unions = new ConcurrentHashMap<>();
@@ -129,23 +127,6 @@ public class SchemaRegistry {
                                      String description, String topic, String operation) {
         SubscriptionInfo subscriptionInfo = new SubscriptionInfo(subscriptionName, entityType, arguments, description, topic, operation);
         subscriptions.put(subscriptionName, subscriptionInfo);
-    }
-
-    /**
-     * Register an observer in the schema.
-     * Observers react to database change events (INSERT/UPDATE/DELETE) with configurable actions.
-     *
-     * @param name the observer name (unique identifier)
-     * @param entity the entity type to observe
-     * @param event the event type (INSERT, UPDATE, DELETE)
-     * @param actions the actions to execute (webhooks, Slack, email)
-     * @param condition optional condition expression
-     * @param retry retry configuration for action execution
-     */
-    public void registerObserver(String name, String entity, String event,
-                                 List<Map<String, Object>> actions, String condition, RetryConfig retry) {
-        ObserverInfo observerInfo = new ObserverInfo(name, entity, event, actions, condition, retry);
-        observers.put(name, observerInfo);
     }
 
     /**
@@ -273,15 +254,6 @@ public class SchemaRegistry {
     }
 
     /**
-     * Get all registered observers.
-     *
-     * @return unmodifiable map of observer name to ObserverInfo
-     */
-    public Map<String, ObserverInfo> getAllObservers() {
-        return Collections.unmodifiableMap(observers);
-    }
-
-    /**
      * Get an enum type by name.
      *
      * @param enumName the enum name
@@ -358,7 +330,7 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, mutations, subscriptions, observers, enums, interfaces, unions, and input types.
+     * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, and input types.
      * Useful for testing.
      */
     public void clear() {
@@ -366,7 +338,6 @@ public class SchemaRegistry {
         queries.clear();
         mutations.clear();
         subscriptions.clear();
-        observers.clear();
         enums.clear();
         interfaces.clear();
         unions.clear();
@@ -482,40 +453,6 @@ public class SchemaRegistry {
                 ", arguments=" + arguments.size() +
                 (topic != null ? ", topic='" + topic + '\'' : "") +
                 (operation != null ? ", operation='" + operation + '\'' : "") +
-                '}';
-        }
-    }
-
-    /**
-     * Information about a registered FraiseQL observer.
-     * Observers react to database change events with configurable actions.
-     */
-    public static class ObserverInfo {
-        public final String name;
-        public final String entity;
-        public final String event;
-        public final List<Map<String, Object>> actions;
-        public final String condition;
-        public final RetryConfig retry;
-
-        public ObserverInfo(String name, String entity, String event,
-                           List<Map<String, Object>> actions, String condition, RetryConfig retry) {
-            this.name = name;
-            this.entity = entity;
-            this.event = event;
-            this.actions = Collections.unmodifiableList(new ArrayList<>(actions));
-            this.condition = condition;
-            this.retry = retry;
-        }
-
-        @Override
-        public String toString() {
-            return "ObserverInfo{" +
-                "name='" + name + '\'' +
-                ", entity='" + entity + '\'' +
-                ", event='" + event + '\'' +
-                ", actions=" + actions.size() +
-                (condition != null && !condition.isEmpty() ? ", condition='" + condition + '\'' : "") +
                 '}';
         }
     }
