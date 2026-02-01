@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Demonstrates real-world analytics scenarios using fact tables,
  * measures, and dimensions.
  */
-@DisplayName("Analytics Patterns\")")
+@DisplayName("Analytics Patterns")
 public class AnalyticsPatternTest {
 
     private SchemaRegistry registry;
@@ -27,27 +27,27 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Chained aggregation (revenue → profit margin)\")
+    @DisplayName("Pattern: Chained aggregation (revenue → profit margin)")
     void testChainedAggregationPattern() {
         FraiseQL.registerType(TransactionalFactTable.class);
 
         // First aggregation: get totals
-        FraiseQL.query(\"salesTotals\")
-            .returnType(\"SalesTotals\")
-            .arg(\"region\", \"String\")
-            .arg(\"period\", \"String\")
+        FraiseQL.query("salesTotals")
+            .returnType("SalesTotals")
+            .arg("region", "String")
+            .arg("period", "String")
             .register();
 
         // Second aggregation: calculate margins
-        FraiseQL.query(\"profitMargins\")
-            .returnType(\"ProfitMargin\")
+        FraiseQL.query("profitMargins")
+            .returnType("ProfitMargin")
             .returnsArray(true)
-            .arg(\"minMargin\", \"Float\")
-            .arg(\"region\", \"String\")
+            .arg("minMargin", "Float")
+            .arg("region", "String")
             .register();
 
-        var salesQuery = registry.getQuery(\"salesTotals\");
-        var marginQuery = registry.getQuery(\"profitMargins\");
+        var salesQuery = registry.getQuery("salesTotals");
+        var marginQuery = registry.getQuery("profitMargins");
 
         assertTrue(salesQuery.isPresent());
         assertTrue(marginQuery.isPresent());
@@ -60,37 +60,37 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Running total (cumulative revenue)\")
+    @DisplayName("Pattern: Running total (cumulative revenue)")
     void testRunningTotalPattern() {
         FraiseQL.registerType(TimeSeriesFactTable.class);
 
-        FraiseQL.query(\"cumulativeRevenue\")
-            .returnType(\"CumulativeData\")
+        FraiseQL.query("cumulativeRevenue")
+            .returnType("CumulativeData")
             .returnsArray(true)
-            .arg(\"startDate\", \"String\")
-            .arg(\"endDate\", \"String\")
-            .arg(\"region\", \"String\")
+            .arg("startDate", "String")
+            .arg("endDate", "String")
+            .arg("region", "String")
             .register();
 
-        var query = registry.getQuery(\"cumulativeRevenue\");
+        var query = registry.getQuery("cumulativeRevenue");
         assertTrue(query.isPresent());
         assertEquals(3, query.get().arguments.size());
     }
 
     @Test
-    @DisplayName(\"Pattern: Moving average (smoothed trends)\")
+    @DisplayName("Pattern: Moving average (smoothed trends)")
     void testMovingAveragePattern() {
         FraiseQL.registerType(TimeSeriesFactTable.class);
 
-        FraiseQL.query(\"movingAverageRevenue\")
-            .returnType(\"MovingAverageData\")
+        FraiseQL.query("movingAverageRevenue")
+            .returnType("MovingAverageData")
             .returnsArray(true)
-            .arg(\"windowSize\", \"Int\")
-            .arg(\"startDate\", \"String\")
-            .arg(\"endDate\", \"String\")
+            .arg("windowSize", "Int")
+            .arg("startDate", "String")
+            .arg("endDate", "String")
             .register();
 
-        var query = registry.getQuery(\"movingAverageRevenue\");
+        var query = registry.getQuery("movingAverageRevenue");
         assertTrue(query.isPresent());
         assertEquals(3, query.get().arguments.size());
     }
@@ -100,36 +100,36 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Year-over-year (YoY) comparison\")
+    @DisplayName("Pattern: Year-over-year (YoY) comparison")
     void testYearOverYearPattern() {
         FraiseQL.registerType(TimeSeriesFactTable.class);
 
-        FraiseQL.query(\"yearOverYearRevenue\")
-            .returnType(\"YoYComparison\")
+        FraiseQL.query("yearOverYearRevenue")
+            .returnType("YoYComparison")
             .returnsArray(true)
-            .arg(\"year1\", \"Int\")
-            .arg(\"year2\", \"Int\")
-            .arg(\"region\", \"String\")
+            .arg("year1", "Int")
+            .arg("year2", "Int")
+            .arg("region", "String")
             .register();
 
-        var query = registry.getQuery(\"yearOverYearRevenue\");
+        var query = registry.getQuery("yearOverYearRevenue");
         assertTrue(query.isPresent());
         assertEquals(3, query.get().arguments.size());
     }
 
     @Test
-    @DisplayName(\"Pattern: Month-over-month (MoM) growth\")
+    @DisplayName("Pattern: Month-over-month (MoM) growth")
     void testMonthOverMonthPattern() {
         FraiseQL.registerType(TimeSeriesFactTable.class);
 
-        FraiseQL.query(\"monthOverMonthGrowth\")
-            .returnType(\"GrowthMetrics\")
+        FraiseQL.query("monthOverMonthGrowth")
+            .returnType("GrowthMetrics")
             .returnsArray(true)
-            .arg(\"startMonth\", \"String\")
-            .arg(\"endMonth\", \"String\")
+            .arg("startMonth", "String")
+            .arg("endMonth", "String")
             .register();
 
-        var query = registry.getQuery(\"monthOverMonthGrowth\");
+        var query = registry.getQuery("monthOverMonthGrowth");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
@@ -139,35 +139,35 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Profit margin calculation (profit / revenue)\")
+    @DisplayName("Pattern: Profit margin calculation (profit / revenue)")
     void testProfitMarginPattern() {
         FraiseQL.registerType(FinancialFactTable.class);
 
-        FraiseQL.query(\"profitMarginAnalysis\")
-            .returnType(\"MarginAnalysis\")
+        FraiseQL.query("profitMarginAnalysis")
+            .returnType("MarginAnalysis")
             .returnsArray(true)
-            .arg(\"minMarginPercent\", \"Float\")
-            .arg(\"maxMarginPercent\", \"Float\")
+            .arg("minMarginPercent", "Float")
+            .arg("maxMarginPercent", "Float")
             .register();
 
-        var query = registry.getQuery(\"profitMarginAnalysis\");
+        var query = registry.getQuery("profitMarginAnalysis");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
 
     @Test
-    @DisplayName(\"Pattern: Conversion funnel (steps through customer journey)\")
+    @DisplayName("Pattern: Conversion funnel (steps through customer journey)")
     void testConversionFunnelPattern() {
         FraiseQL.registerType(UserJourneyFactTable.class);
 
-        FraiseQL.query(\"conversionFunnel\")
-            .returnType(\"FunnelStep\")
+        FraiseQL.query("conversionFunnel")
+            .returnType("FunnelStep")
             .returnsArray(true)
-            .arg(\"startDate\", \"String\")
-            .arg(\"endDate\", \"String\")
+            .arg("startDate", "String")
+            .arg("endDate", "String")
             .register();
 
-        var query = registry.getQuery(\"conversionFunnel\");
+        var query = registry.getQuery("conversionFunnel");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
@@ -177,36 +177,36 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Top N products by revenue\")
+    @DisplayName("Pattern: Top N products by revenue")
     void testTopNPattern() {
         FraiseQL.registerType(ProductSalesFactTable.class);
 
-        FraiseQL.query(\"topProductsByRevenue\")
-            .returnType(\"RankedProduct\")
+        FraiseQL.query("topProductsByRevenue")
+            .returnType("RankedProduct")
             .returnsArray(true)
-            .arg(\"topN\", \"Int\")
-            .arg(\"region\", \"String\")
+            .arg("topN", "Int")
+            .arg("region", "String")
             .register();
 
-        var query = registry.getQuery(\"topProductsByRevenue\");
+        var query = registry.getQuery("topProductsByRevenue");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
 
     @Test
-    @DisplayName(\"Pattern: Customer segmentation (RFM analysis)\")
+    @DisplayName("Pattern: Customer segmentation (RFM analysis)")
     void testCustomerSegmentationPattern() {
         FraiseQL.registerType(CustomerSalesFactTable.class);
 
-        FraiseQL.query(\"rfmSegmentation\")
-            .returnType(\"RFMSegment\")
+        FraiseQL.query("rfmSegmentation")
+            .returnType("RFMSegment")
             .returnsArray(true)
-            .arg(\"recencyDays\", \"Int\")
-            .arg(\"minFrequency\", \"Int\")
-            .arg(\"minMonetaryValue\", \"Float\")
+            .arg("recencyDays", "Int")
+            .arg("minFrequency", "Int")
+            .arg("minMonetaryValue", "Float")
             .register();
 
-        var query = registry.getQuery(\"rfmSegmentation\");
+        var query = registry.getQuery("rfmSegmentation");
         assertTrue(query.isPresent());
         assertEquals(3, query.get().arguments.size());
     }
@@ -216,18 +216,18 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Customer lifetime value (CLV) calculation\")
+    @DisplayName("Pattern: Customer lifetime value (CLV) calculation")
     void testCustomerLifetimeValuePattern() {
         FraiseQL.registerType(CustomerLifecycleFactTable.class);
 
-        FraiseQL.query(\"customerLifetimeValue\")
-            .returnType(\"CLVMetrics\")
+        FraiseQL.query("customerLifetimeValue")
+            .returnType("CLVMetrics")
             .returnsArray(true)
-            .arg(\"minCLV\", \"Float\")
-            .arg(\"acquisitionChannel\", \"String\")
+            .arg("minCLV", "Float")
+            .arg("acquisitionChannel", "String")
             .register();
 
-        var query = registry.getQuery(\"customerLifetimeValue\");
+        var query = registry.getQuery("customerLifetimeValue");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
@@ -237,18 +237,18 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Campaign ROI (Return on Investment) analysis\")
+    @DisplayName("Pattern: Campaign ROI (Return on Investment) analysis")
     void testCampaignROIPattern() {
         FraiseQL.registerType(MarketingCampaignFactTable.class);
 
-        FraiseQL.query(\"campaignROI\")
-            .returnType(\"ROIMetrics\")
+        FraiseQL.query("campaignROI")
+            .returnType("ROIMetrics")
             .returnsArray(true)
-            .arg(\"minROI\", \"Float\")
-            .arg(\"channel\", \"String\")
+            .arg("minROI", "Float")
+            .arg("channel", "String")
             .register();
 
-        var query = registry.getQuery(\"campaignROI\");
+        var query = registry.getQuery("campaignROI");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
@@ -258,18 +258,18 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Cohort retention analysis\")
+    @DisplayName("Pattern: Cohort retention analysis")
     void testCohortRetentionPattern() {
         FraiseQL.registerType(CohortFactTable.class);
 
-        FraiseQL.query(\"cohortRetention\")
-            .returnType(\"CohortRetention\")
+        FraiseQL.query("cohortRetention")
+            .returnType("CohortRetention")
             .returnsArray(true)
-            .arg(\"cohortDate\", \"String\")
-            .arg(\"weeksToTrack\", \"Int\")
+            .arg("cohortDate", "String")
+            .arg("weeksToTrack", "Int")
             .register();
 
-        var query = registry.getQuery(\"cohortRetention\");
+        var query = registry.getQuery("cohortRetention");
         assertTrue(query.isPresent());
         assertEquals(2, query.get().arguments.size());
     }
@@ -279,21 +279,21 @@ public class AnalyticsPatternTest {
     // =========================================================================
 
     @Test
-    @DisplayName(\"Pattern: Cross-dimensional drill-down (region → product → customer)\")
+    @DisplayName("Pattern: Cross-dimensional drill-down (region → product → customer)")
     void testCrossDimensionalDrillDownPattern() {
         FraiseQL.registerType(UniversalSalesFactTable.class);
 
-        FraiseQL.query(\"drillDownAnalysis\")
-            .returnType(\"DrillDownData\")
+        FraiseQL.query("drillDownAnalysis")
+            .returnType("DrillDownData")
             .returnsArray(true)
-            .arg(\"region\", \"String\")
-            .arg(\"product\", \"String\")
-            .arg(\"customer\", \"String\")
-            .arg(\"startDate\", \"String\")
-            .arg(\"endDate\", \"String\")
+            .arg("region", "String")
+            .arg("product", "String")
+            .arg("customer", "String")
+            .arg("startDate", "String")
+            .arg("endDate", "String")
             .register();
 
-        var query = registry.getQuery(\"drillDownAnalysis\");
+        var query = registry.getQuery("drillDownAnalysis");
         assertTrue(query.isPresent());
         assertEquals(5, query.get().arguments.size());
     }
@@ -302,192 +302,192 @@ public class AnalyticsPatternTest {
     // TEST FIXTURES - FACT TABLES
     // =========================================================================
 
-    @GraphQLFactTable(tableName = \"tf_transactions\", grain = \"transaction\")
+    @GraphQLFactTable(tableName = "tf_transactions", grain = "transaction")
     public static class TransactionalFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Total revenue\")
+        @Measure(aggregation = "SUM", description = "Total revenue")
         public float revenue;
 
-        @Measure(aggregation = \"SUM\", description = \"Total cost\")
+        @Measure(aggregation = "SUM", description = "Total cost")
         public float cost;
 
-        @Measure(aggregation = \"COUNT\", description = \"Transaction count\")
+        @Measure(aggregation = "COUNT", description = "Transaction count")
         public long transactionCount;
 
-        @Dimension(name = \"date\", hierarchy = \"year > quarter > month > day\")
+        @Dimension(name = "date", hierarchy = "year > quarter > month > day")
         public String date;
 
-        @Dimension(name = \"region\", hierarchy = \"continent > country > region\")
+        @Dimension(name = "region", hierarchy = "continent > country > region")
         public String region;
 
-        @Dimension(name = \"product\")
+        @Dimension(name = "product")
         public String productCategory;
     }
 
-    @GraphQLFactTable(tableName = \"tf_timeseries\", grain = \"daily\")
+    @GraphQLFactTable(tableName = "tf_timeseries", grain = "daily")
     public static class TimeSeriesFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Daily revenue\")
+        @Measure(aggregation = "SUM", description = "Daily revenue")
         public float dailyRevenue;
 
-        @Measure(aggregation = \"COUNT\", description = \"Daily transactions\")
+        @Measure(aggregation = "COUNT", description = "Daily transactions")
         public long dailyTransactions;
 
-        @Measure(aggregation = \"AVG\", description = \"Average transaction value\")
+        @Measure(aggregation = "AVG", description = "Average transaction value")
         public float avgValue;
 
-        @Dimension(name = \"date\", hierarchy = \"year > month > day\", cardinality = 365)
+        @Dimension(name = "date", hierarchy = "year > month > day", cardinality = 365)
         public String date;
 
-        @Dimension(name = \"region\", cardinality = 4)
+        @Dimension(name = "region", cardinality = 4)
         public String region;
     }
 
-    @GraphQLFactTable(tableName = \"tf_financial\")
+    @GraphQLFactTable(tableName = "tf_financial")
     public static class FinancialFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Revenue in USD\", unit = \"USD\")
+        @Measure(aggregation = "SUM", description = "Revenue in USD", unit = "USD")
         public float revenue;
 
-        @Measure(aggregation = \"SUM\", description = \"Cost of goods\", unit = \"USD\")
+        @Measure(aggregation = "SUM", description = "Cost of goods", unit = "USD")
         public float cost;
 
-        @Measure(aggregation = \"SUM\", description = \"Gross profit\", unit = \"USD\")
+        @Measure(aggregation = "SUM", description = "Gross profit", unit = "USD")
         public float profit;
 
-        @Dimension(name = \"date\", hierarchy = \"year > quarter > month\")
+        @Dimension(name = "date", hierarchy = "year > quarter > month")
         public String date;
 
-        @Dimension(name = \"business_unit\")
+        @Dimension(name = "business_unit")
         public String businessUnit;
     }
 
-    @GraphQLFactTable(tableName = \"tf_user_journey\")
+    @GraphQLFactTable(tableName = "tf_user_journey")
     public static class UserJourneyFactTable {
-        @Measure(aggregation = \"COUNT\", description = \"Users reaching step\")
+        @Measure(aggregation = "COUNT", description = "Users reaching step")
         public long stepCount;
 
-        @Measure(aggregation = \"AVG\", description = \"Average time in step (seconds)\")
+        @Measure(aggregation = "AVG", description = "Average time in step (seconds)")
         public float avgDuration;
 
-        @Dimension(name = \"step\", cardinality = 5)
+        @Dimension(name = "step", cardinality = 5)
         public String step;
 
-        @Dimension(name = \"date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "date", hierarchy = "year > month > day")
         public String date;
     }
 
-    @GraphQLFactTable(tableName = \"tf_product_sales\")
+    @GraphQLFactTable(tableName = "tf_product_sales")
     public static class ProductSalesFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Product revenue\")
+        @Measure(aggregation = "SUM", description = "Product revenue")
         public float revenue;
 
-        @Measure(aggregation = \"COUNT\", description = \"Units sold\")
+        @Measure(aggregation = "COUNT", description = "Units sold")
         public long unitsSold;
 
-        @Dimension(name = \"product\", cardinality = 1000)
+        @Dimension(name = "product", cardinality = 1000)
         public String productId;
 
-        @Dimension(name = \"date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "date", hierarchy = "year > month > day")
         public String date;
 
-        @Dimension(name = \"region\")
+        @Dimension(name = "region")
         public String region;
     }
 
-    @GraphQLFactTable(tableName = \"tf_customer_sales\")
+    @GraphQLFactTable(tableName = "tf_customer_sales")
     public static class CustomerSalesFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Customer total revenue\")
+        @Measure(aggregation = "SUM", description = "Customer total revenue")
         public float revenue;
 
-        @Measure(aggregation = \"COUNT\", description = \"Customer transaction count\")
+        @Measure(aggregation = "COUNT", description = "Customer transaction count")
         public long transactionCount;
 
-        @Dimension(name = \"customer_id\", cardinality = 100000)
+        @Dimension(name = "customer_id", cardinality = 100000)
         public String customerId;
 
-        @Dimension(name = \"last_purchase_date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "last_purchase_date", hierarchy = "year > month > day")
         public String lastPurchaseDate;
     }
 
-    @GraphQLFactTable(tableName = \"tf_customer_lifecycle\")
+    @GraphQLFactTable(tableName = "tf_customer_lifecycle")
     public static class CustomerLifecycleFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Lifetime revenue per customer\")
+        @Measure(aggregation = "SUM", description = "Lifetime revenue per customer")
         public float lifetimeRevenue;
 
-        @Measure(aggregation = \"AVG\", description = \"Average order value\")
+        @Measure(aggregation = "AVG", description = "Average order value")
         public float avgOrderValue;
 
-        @Measure(aggregation = \"COUNT\", description = \"Total orders\")
+        @Measure(aggregation = "COUNT", description = "Total orders")
         public long totalOrders;
 
-        @Dimension(name = \"customer_id\", cardinality = 100000)
+        @Dimension(name = "customer_id", cardinality = 100000)
         public String customerId;
 
-        @Dimension(name = \"acquisition_channel\")
+        @Dimension(name = "acquisition_channel")
         public String channel;
 
-        @Dimension(name = \"first_purchase_date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "first_purchase_date", hierarchy = "year > month > day")
         public String firstPurchaseDate;
     }
 
-    @GraphQLFactTable(tableName = \"tf_marketing_campaign\")
+    @GraphQLFactTable(tableName = "tf_marketing_campaign")
     public static class MarketingCampaignFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Campaign spend in USD\", unit = \"USD\")
+        @Measure(aggregation = "SUM", description = "Campaign spend in USD", unit = "USD")
         public float spend;
 
-        @Measure(aggregation = \"COUNT\", description = \"Impressions\")
+        @Measure(aggregation = "COUNT", description = "Impressions")
         public long impressions;
 
-        @Measure(aggregation = \"COUNT\", description = \"Clicks\")
+        @Measure(aggregation = "COUNT", description = "Clicks")
         public long clicks;
 
-        @Measure(aggregation = \"SUM\", description = \"Revenue from campaign\", unit = \"USD\")
+        @Measure(aggregation = "SUM", description = "Revenue from campaign", unit = "USD")
         public float revenue;
 
-        @Dimension(name = \"campaign_id\")
+        @Dimension(name = "campaign_id")
         public String campaignId;
 
-        @Dimension(name = \"channel\")
+        @Dimension(name = "channel")
         public String channel;
 
-        @Dimension(name = \"date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "date", hierarchy = "year > month > day")
         public String date;
     }
 
-    @GraphQLFactTable(tableName = \"tf_cohort\")
+    @GraphQLFactTable(tableName = "tf_cohort")
     public static class CohortFactTable {
-        @Measure(aggregation = \"COUNT\", description = \"Users in cohort\")
+        @Measure(aggregation = "COUNT", description = "Users in cohort")
         public long cohortSize;
 
-        @Measure(aggregation = \"AVG\", description = \"Retention percentage\")
+        @Measure(aggregation = "AVG", description = "Retention percentage")
         public float retentionPercent;
 
-        @Dimension(name = \"cohort_date\", hierarchy = \"year > month\", cardinality = 12)
+        @Dimension(name = "cohort_date", hierarchy = "year > month", cardinality = 12)
         public String cohortDate;
 
-        @Dimension(name = \"week_number\", cardinality = 52)
+        @Dimension(name = "week_number", cardinality = 52)
         public int weekNumber;
     }
 
-    @GraphQLFactTable(tableName = \"tf_universal_sales\")
+    @GraphQLFactTable(tableName = "tf_universal_sales")
     public static class UniversalSalesFactTable {
-        @Measure(aggregation = \"SUM\", description = \"Sales amount\")
+        @Measure(aggregation = "SUM", description = "Sales amount")
         public float amount;
 
-        @Measure(aggregation = \"COUNT\", description = \"Transaction count\")
+        @Measure(aggregation = "COUNT", description = "Transaction count")
         public long transactions;
 
-        @Measure(aggregation = \"AVG\", description = \"Average transaction\")
+        @Measure(aggregation = "AVG", description = "Average transaction")
         public float avgTransaction;
 
-        @Dimension(name = \"region\", hierarchy = \"continent > country > region\")
+        @Dimension(name = "region", hierarchy = "continent > country > region")
         public String region;
 
-        @Dimension(name = \"product\", cardinality = 1000)
+        @Dimension(name = "product", cardinality = 1000)
         public String product;
 
-        @Dimension(name = \"customer\", cardinality = 100000)
+        @Dimension(name = "customer", cardinality = 100000)
         public String customer;
 
-        @Dimension(name = \"date\", hierarchy = \"year > month > day\")
+        @Dimension(name = "date", hierarchy = "year > month > day")
         public String date;
     }
 

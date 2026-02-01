@@ -103,6 +103,30 @@ public class FraiseQL {
     }
 
     /**
+     * Export minimal types.json (types only, no queries/mutations).
+     * For TOML-based workflow: Java generates types.json, fraiseql.toml provides config.
+     *
+     * @param filePath the output file path
+     * @throws IOException if writing to file fails
+     */
+    public static void exportTypes(String filePath) throws IOException {
+        var schema = SchemaFormatter.formatMinimalSchema(registry);
+        SchemaFormatter.writeToFile(schema, filePath);
+    }
+
+    /**
+     * Export minimal types.json with optional pretty-printing.
+     *
+     * @param filePath the output file path
+     * @param pretty whether to pretty-print JSON
+     * @throws IOException if writing to file fails
+     */
+    public static void exportTypes(String filePath, boolean pretty) throws IOException {
+        var schema = SchemaFormatter.formatMinimalSchema(registry);
+        SchemaFormatter.writeToFile(schema, filePath, pretty);
+    }
+
+    /**
      * Get the schema registry.
      *
      * @return the SchemaRegistry instance

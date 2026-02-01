@@ -58,6 +58,38 @@ public class SchemaFormatter {
     }
 
     /**
+     * Format minimal types.json (types, enums, input_types, interfaces only).
+     * Excludes queries, mutations, subscriptions, observers, and other config.
+     * For TOML-based workflow where configuration is separate.
+     *
+     * @param registry the SchemaRegistry to format
+     * @return ObjectNode representing minimal schema (types only)
+     */
+    public static ObjectNode formatMinimalSchema(SchemaRegistry registry) {
+        ObjectNode root = mapper.createObjectNode();
+
+        // Format types
+        root.set("types", formatTypes(registry.getAllTypes()));
+
+        // Format enums
+        if (!registry.getAllEnums().isEmpty()) {
+            root.set("enums", formatEnums(registry.getAllEnums()));
+        }
+
+        // Format input types
+        if (!registry.getAllInputTypes().isEmpty()) {
+            root.set("input_types", formatInputTypes(registry.getAllInputTypes()));
+        }
+
+        // Format interfaces
+        if (!registry.getAllInterfaces().isEmpty()) {
+            root.set("interfaces", formatInterfaces(registry.getAllInterfaces()));
+        }
+
+        return root;
+    }
+
+    /**
      * Format all registered types.
      *
      * @param types map of type name to GraphQLTypeInfo
@@ -83,10 +115,8 @@ public class SchemaFormatter {
             for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
                 ObjectNode fieldNode = mapper.createObjectNode();
 
-                fieldNode.put("type", fieldInfo.getGraphQLType());
+                fieldNode.put("type", fieldInfo.type);
                 fieldNode.put("nullable", fieldInfo.nullable);
-                fieldNode.put("isList", fieldInfo.isList);
-                fieldNode.put("baseType", fieldInfo.type);
 
                 if (!fieldInfo.description.isEmpty()) {
                     fieldNode.put("description", fieldInfo.description);
@@ -209,6 +239,119 @@ public class SchemaFormatter {
     }
 
     /**
+     * Format all registered enums.
+     *
+     * @param enums map of enum name to EnumInfo
+     * @return ObjectNode with formatted enums
+     */
+    private static ObjectNode formatEnums(Map<String, SchemaRegistry.EnumInfo> enums) {
+        ObjectNode enumsNode = mapper.createObjectNode();
+
+        for (SchemaRegistry.EnumInfo enumInfo : enums.values()) {
+            ObjectNode enumNode = mapper.createObjectNode();
+
+            enumNode.put("name", enumInfo.name);
+
+            if (!enumInfo.description.isEmpty()) {
+                enumNode.put("description", enumInfo.description);
+            }
+
+            // Format enum values
+            ArrayNode valuesArray = mapper.createArrayNode();
+            for (String value : enumInfo.values.keySet()) {
+                ObjectNode valueNode = mapper.createObjectNode();
+                valueNode.put("name", value);
+                valuesArray.add(valueNode);
+            }
+            enumNode.set("values", valuesArray);
+
+            enumsNode.set(enumInfo.name, enumNode);
+        }
+
+        return enumsNode;
+    }
+
+    /**
+     * Format all registered input types.
+     *
+     * @param inputTypes map of input type name to InputTypeInfo
+     * @return ObjectNode with formatted input types
+     */
+    private static ObjectNode formatInputTypes(Map<String, SchemaRegistry.InputTypeInfo> inputTypes) {
+        ObjectNode inputTypesNode = mapper.createObjectNode();
+
+        for (SchemaRegistry.InputTypeInfo inputInfo : inputTypes.values()) {
+            ObjectNode inputNode = mapper.createObjectNode();
+
+            inputNode.put("name", inputInfo.name);
+
+            if (!inputInfo.description.isEmpty()) {
+                inputNode.put("description", inputInfo.description);
+            }
+
+            // Format fields
+            ObjectNode fieldsNode = mapper.createObjectNode();
+            for (TypeConverter.GraphQLFieldInfo fieldInfo : inputInfo.fields.values()) {
+                ObjectNode fieldNode = mapper.createObjectNode();
+
+                fieldNode.put("type", fieldInfo.type);
+                fieldNode.put("nullable", fieldInfo.nullable);
+
+                if (!fieldInfo.description.isEmpty()) {
+                    fieldNode.put("description", fieldInfo.description);
+                }
+
+                fieldsNode.set(fieldInfo.name, fieldNode);
+            }
+
+            inputNode.set("fields", fieldsNode);
+            inputTypesNode.set(inputInfo.name, inputNode);
+        }
+
+        return inputTypesNode;
+    }
+
+    /**
+     * Format all registered interfaces.
+     *
+     * @param interfaces map of interface name to InterfaceInfo
+     * @return ObjectNode with formatted interfaces
+     */
+    private static ObjectNode formatInterfaces(Map<String, SchemaRegistry.InterfaceInfo> interfaces) {
+        ObjectNode interfacesNode = mapper.createObjectNode();
+
+        for (SchemaRegistry.InterfaceInfo interfaceInfo : interfaces.values()) {
+            ObjectNode interfaceNode = mapper.createObjectNode();
+
+            interfaceNode.put("name", interfaceInfo.name);
+
+            if (!interfaceInfo.description.isEmpty()) {
+                interfaceNode.put("description", interfaceInfo.description);
+            }
+
+            // Format fields
+            ObjectNode fieldsNode = mapper.createObjectNode();
+            for (TypeConverter.GraphQLFieldInfo fieldInfo : interfaceInfo.fields.values()) {
+                ObjectNode fieldNode = mapper.createObjectNode();
+
+                fieldNode.put("type", fieldInfo.type);
+                fieldNode.put("nullable", fieldInfo.nullable);
+
+                if (!fieldInfo.description.isEmpty()) {
+                    fieldNode.put("description", fieldInfo.description);
+                }
+
+                fieldsNode.set(fieldInfo.name, fieldNode);
+            }
+
+            interfaceNode.set("fields", fieldsNode);
+            interfacesNode.set(interfaceInfo.name, interfaceNode);
+        }
+
+        return interfacesNode;
+    }
+
+    /**
      * Write formatted schema to file as pretty-printed JSON.
      *
      * @param schema the formatted schema ObjectNode
@@ -216,8 +359,24 @@ public class SchemaFormatter {
      * @throws IOException if writing to file fails
      */
     public static void writeToFile(ObjectNode schema, String filePath) throws IOException {
+        writeToFile(schema, filePath, true);
+    }
+
+    /**
+     * Write formatted schema to file with optional pretty-printing.
+     *
+     * @param schema the formatted schema ObjectNode
+     * @param filePath the output file path
+     * @param pretty whether to pretty-print JSON
+     * @throws IOException if writing to file fails
+     */
+    public static void writeToFile(ObjectNode schema, String filePath, boolean pretty) throws IOException {
         File file = new File(filePath);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(file, schema);
+        if (pretty) {
+            mapper.writerWithDefaultPrettyPrinter().writeValue(file, schema);
+        } else {
+            mapper.writeValue(file, schema);
+        }
     }
 
     /**
