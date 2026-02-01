@@ -61,6 +61,93 @@ impl SchemaMerger {
         Self::merge_values(&types_value, &toml_schema)
     }
 
+    /// Merge from directory with auto-discovery
+    ///
+    /// # Arguments
+    /// * `toml_path` - Path to fraiseql.toml (configuration)
+    /// * `schema_dir` - Path to directory containing schema files
+    ///
+    /// # Returns
+    /// IntermediateSchema from loaded files + TOML definitions
+    pub fn merge_from_directory(toml_path: &str, schema_dir: &str) -> Result<IntermediateSchema> {
+        let toml_schema = TomlSchema::from_file(toml_path)
+            .context(format!("Failed to load TOML from {toml_path}"))?;
+
+        toml_schema.validate()?;
+
+        // Load all files from directory
+        let types_value = crate::schema::MultiFileLoader::load_from_directory(schema_dir)
+            .context(format!("Failed to load schema from directory {schema_dir}"))?;
+
+        // Merge with TOML definitions
+        Self::merge_values(&types_value, &toml_schema)
+    }
+
+    /// Merge explicit file lists
+    ///
+    /// # Arguments
+    /// * `toml_path` - Path to fraiseql.toml (configuration)
+    /// * `type_files` - Vector of type file paths
+    /// * `query_files` - Vector of query file paths
+    /// * `mutation_files` - Vector of mutation file paths
+    ///
+    /// # Returns
+    /// IntermediateSchema from loaded files + TOML definitions
+    pub fn merge_explicit_files(
+        toml_path: &str,
+        type_files: &[String],
+        query_files: &[String],
+        mutation_files: &[String],
+    ) -> Result<IntermediateSchema> {
+        let toml_schema = TomlSchema::from_file(toml_path)
+            .context(format!("Failed to load TOML from {toml_path}"))?;
+
+        toml_schema.validate()?;
+
+        // Load explicit files
+        let mut types_value = serde_json::json!({
+            "types": [],
+            "queries": [],
+            "mutations": []
+        });
+
+        // Load type files
+        if !type_files.is_empty() {
+            let type_paths: Vec<std::path::PathBuf> =
+                type_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+            let loaded = crate::schema::MultiFileLoader::load_from_paths(&type_paths)
+                .context("Failed to load type files")?;
+            if let Some(types_array) = loaded.get("types") {
+                types_value["types"] = types_array.clone();
+            }
+        }
+
+        // Load query files
+        if !query_files.is_empty() {
+            let query_paths: Vec<std::path::PathBuf> =
+                query_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+            let loaded = crate::schema::MultiFileLoader::load_from_paths(&query_paths)
+                .context("Failed to load query files")?;
+            if let Some(queries_array) = loaded.get("queries") {
+                types_value["queries"] = queries_array.clone();
+            }
+        }
+
+        // Load mutation files
+        if !mutation_files.is_empty() {
+            let mutation_paths: Vec<std::path::PathBuf> =
+                mutation_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+            let loaded = crate::schema::MultiFileLoader::load_from_paths(&mutation_paths)
+                .context("Failed to load mutation files")?;
+            if let Some(mutations_array) = loaded.get("mutations") {
+                types_value["mutations"] = mutations_array.clone();
+            }
+        }
+
+        // Merge with TOML definitions
+        Self::merge_values(&types_value, &toml_schema)
+    }
+
     /// Merge with TOML includes (glob patterns for schema files)
     ///
     /// # Arguments

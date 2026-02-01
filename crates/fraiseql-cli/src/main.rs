@@ -64,6 +64,22 @@ enum Commands {
         #[arg(long, value_name = "TYPES")]
         types: Option<String>,
 
+        /// Directory for auto-discovery of schema files (recursive *.json)
+        #[arg(long, value_name = "DIR")]
+        schema_dir: Option<String>,
+
+        /// Type files (repeatable): fraiseql compile fraiseql.toml --type-file a.json --type-file b.json
+        #[arg(long = "type-file", value_name = "FILE")]
+        type_files: Vec<String>,
+
+        /// Query files (repeatable)
+        #[arg(long = "query-file", value_name = "FILE")]
+        query_files: Vec<String>,
+
+        /// Mutation files (repeatable)
+        #[arg(long = "mutation-file", value_name = "FILE")]
+        mutation_files: Vec<String>,
+
         /// Output schema.compiled.json file path
         #[arg(
             short,
@@ -191,10 +207,25 @@ async fn main() {
         Commands::Compile {
             input,
             types,
+            schema_dir,
+            type_files,
+            query_files,
+            mutation_files,
             output,
             check,
             database,
-        } => commands::compile::run(&input, types.as_deref(), &output, check, database.as_deref()).await,
+        } => commands::compile::run(
+            &input,
+            types.as_deref(),
+            schema_dir.as_deref(),
+            type_files,
+            query_files,
+            mutation_files,
+            &output,
+            check,
+            database.as_deref(),
+        )
+        .await,
 
         Commands::GenerateViews {
             schema,

@@ -17,6 +17,10 @@ use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, Schema
 ///
 /// * `input` - Path to fraiseql.toml (TOML) or schema.json (legacy)
 /// * `types` - Optional path to types.json (when using TOML workflow)
+/// * `schema_dir` - Optional directory for auto-discovery of schema files
+/// * `type_files` - Optional vector of explicit type file paths
+/// * `query_files` - Optional vector of explicit query file paths
+/// * `mutation_files` - Optional vector of explicit mutation file paths
 /// * `output` - Path to write schema.compiled.json
 /// * `check` - If true, validate only without writing output
 /// * `database` - Optional database URL for indexed column validation
@@ -25,7 +29,9 @@ use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, Schema
 ///
 /// 1. TOML-only: `fraiseql compile fraiseql.toml`
 /// 2. Language + TOML: `fraiseql compile fraiseql.toml --types types.json`
-/// 3. Legacy JSON: `fraiseql compile schema.json`
+/// 3. Multi-file auto-discovery: `fraiseql compile fraiseql.toml --schema-dir schema/`
+/// 4. Multi-file explicit: `fraiseql compile fraiseql.toml --type-file a.json --type-file b.json`
+/// 5. Legacy JSON: `fraiseql compile schema.json`
 ///
 /// # Errors
 ///
@@ -35,7 +41,17 @@ use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, Schema
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
-pub async fn run(input: &str, types: Option<&str>, output: &str, check: bool, database: Option<&str>) -> Result<()> {
+pub async fn run(
+    input: &str,
+    types: Option<&str>,
+    schema_dir: Option<&str>,
+    type_files: Vec<String>,
+    query_files: Vec<String>,
+    mutation_files: Vec<String>,
+    output: &str,
+    check: bool,
+    database: Option<&str>,
+) -> Result<()> {
     info!("Compiling schema: {input}");
 
     // 1. Determine workflow based on input file and options
@@ -49,16 +65,39 @@ pub async fn run(input: &str, types: Option<&str>, output: &str, check: bool, da
         // TOML workflow (new)
         info!("Using TOML-based workflow");
 
-        if let Some(types_path) = types {
-            // Language + TOML: merge types.json with fraiseql.toml
-            info!("Merging types.json with TOML configuration...");
+        // Determine mode based on precedence:
+        // 1. Explicit file lists (highest priority)
+        // 2. --schema-dir auto-discovery
+        // 3. TOML includes (if configured)
+        // 4. --types single file
+        // 5. TOML-only (no external files)
+
+        if !type_files.is_empty() || !query_files.is_empty() || !mutation_files.is_empty() {
+            // Mode 1: Explicit file lists
+            info!("Mode: Explicit file lists");
+            crate::schema::SchemaMerger::merge_explicit_files(input, &type_files, &query_files, &mutation_files)
+                .context("Failed to load explicit schema files")?
+        } else if let Some(dir) = schema_dir {
+            // Mode 2: Auto-discovery directory
+            info!("Mode: Auto-discovery from directory: {}", dir);
+            crate::schema::SchemaMerger::merge_from_directory(input, dir)
+                .context("Failed to load schema from directory")?
+        } else if let Some(types_path) = types {
+            // Mode 3: Single types.json file (backward compatible)
+            info!("Mode: Language + TOML (types.json + fraiseql.toml)");
             crate::schema::SchemaMerger::merge_files(types_path, input)
                 .context("Failed to merge types.json with TOML")?
         } else {
-            // TOML-only: use inline type definitions from TOML
-            info!("Using type definitions from TOML...");
-            crate::schema::SchemaMerger::merge_toml_only(input)
-                .context("Failed to load schema from TOML")?
+            // Mode 4: TOML includes or TOML-only
+            info!("Mode: TOML-based (checking for includes...)");
+            match crate::schema::SchemaMerger::merge_with_includes(input) {
+                Ok(schema) => schema,
+                Err(_) => {
+                    info!("No includes configured, using TOML-only definitions");
+                    crate::schema::SchemaMerger::merge_toml_only(input)
+                        .context("Failed to load schema from TOML")?
+                }
+            }
         }
     } else {
         // Legacy JSON workflow

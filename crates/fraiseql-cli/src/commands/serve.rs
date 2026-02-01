@@ -104,5 +104,16 @@ async fn compile_schema(input: &str) -> Result<()> {
     let output = input.replace(".json", ".compiled.json");
 
     // Use the compile command logic (no database validation for dev server)
-    super::compile::run(input, None, &output, false, None).await
+    super::compile::run(
+        input,
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        &output,
+        false,
+        None,
+    )
+    .await
 }
