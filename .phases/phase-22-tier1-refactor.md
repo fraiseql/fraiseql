@@ -338,16 +338,18 @@ def test_python_toml_workflow():
   - 92f69a33: TypeScript module removal (REFACTOR + CLEANUP)
 - **Result**: 4,433 → ~2,100 LOC (53% reduction)
 
-### Cycle 3: Java Refactoring - GREEN PHASE COMPLETE ✅
+### Cycle 3: Java Refactoring - REFACTOR COMPLETE ✅
 - **RED**: Created test file ExportTypesMinimalTest.java with 7 test methods
-- **GREEN**: Implemented `exportTypes()` in Java with minimal schema export
-  - Added FraiseQL.exportTypes(String) and FraiseQL.exportTypes(String, boolean)
-  - Implemented SchemaFormatter.formatMinimalSchema() method
-  - Added helper methods for formatting enums, input_types, interfaces
-  - Fixed pre-existing broken formatTypes() property access
-  - Updated writeToFile() to support pretty-printing option
-- **Status**: Main code compiles cleanly; tests await CLEANUP phase verification
-- **Next**: REFACTOR phase to remove federation/security/observers/analytics packages
+- **GREEN**: Implemented `exportTypes()` in Java with minimal schema export (COMPLETE)
+- **REFACTOR**: Removed federation/security/observers/analytics code (COMPLETE)
+  - Deleted 9 files: ObserverBuilder, Observer, Authorize, AuthzPolicy, RoleRequired,
+    GraphQLFactTable, Dimension, Measure, PerformanceMonitor (1,183 LOC)
+  - Removed observers field and methods from SchemaRegistry
+  - Removed observer formatting from SchemaFormatter
+  - Updated EcommerceWithObserversSchema to TOML workflow example
+  - Cleaned up empty package directories (analytics, builders, registry)
+- **Code Reduction**: 4,769 → 3,479 LOC (27% reduction / 1,290 LOC removed)
+- **Status**: Code compiles cleanly; ready for CLEANUP phase
 
 ### Cycle 4: Integration & Documentation - NOT STARTED ⬜
 - Will create end-to-end integration tests
@@ -359,9 +361,10 @@ def test_python_toml_workflow():
 [ ] Not Started | [x] In Progress | [ ] Complete
 
 **Current Achievement**:
-- ✅ Python: 2/2 Tier 1 refactoring cycles complete (RED/GREEN → REFACTOR/CLEANUP)
-- ✅ TypeScript: 2/2 Tier 1 refactoring cycles complete (RED/GREEN → REFACTOR/CLEANUP)
-- 🟡 Java: 1/2 cycles in progress (GREEN phase complete, REFACTOR pending)
-- 📊 Code reduction: ~3,400 LOC removed from Python/TypeScript combined
-- 🎯 All three languages now have minimal types.json export via TOML-based workflow
+- ✅ Python: 2/2 cycles complete (RED/GREEN/REFACTOR/CLEANUP)
+- ✅ TypeScript: 2/2 cycles complete (RED/GREEN/REFACTOR/CLEANUP)
+- ✅ Java: 3/4 phases complete (RED/GREEN/REFACTOR) - CLEANUP pending
+- 📊 Combined code reduction: ~4,700 LOC (Python: 1,365 + TypeScript: 2,166 + Java: 1,290)
+- 🎯 All three languages now use minimal types.json export via TOML-based workflow
 - 🧪 Java: 7 comprehensive tests created for minimal schema export validation
+- 🏗️ Java SDK reduced from 4,769 to 3,479 LOC (27% reduction)
