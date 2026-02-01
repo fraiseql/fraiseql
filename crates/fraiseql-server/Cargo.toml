@@ -75,6 +75,9 @@ rand = "0.8"
 dashmap = "5.5"
 urlencoding = "2.1"
 
+# Constant-time comparison (timing attack prevention)
+subtle = "2.5"
+
 # File processing
 bytes = "1"
 image = {version = "0.24", features = ["jpeg", "png", "webp"]}
