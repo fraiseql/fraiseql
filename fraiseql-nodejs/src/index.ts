@@ -1,28 +1,13 @@
 /**
- * FraiseQL Node.js - TypeScript/JavaScript GraphQL Schema Authoring
+ * FraiseQL Node.js - Minimal TypeScript/JavaScript GraphQL SDK for TOML-based workflow
  *
- * Provides declarative, type-safe GraphQL schema definitions with:
- * - Advanced authorization and security
- * - Role-based access control (RBAC)
- * - Attribute-based access control (ABAC)
- * - Authorization policies
- * - 100% feature parity with Python, Java, Go, PHP, and TypeScript
+ * This SDK provides type definitions and schema export for use with fraiseql.toml:
+ * - Type registration and introspection
+ * - Minimal types.json export (types only)
+ * - All operational config (queries, mutations, federation, security, observers) in TOML
  */
 
-export {
-  RoleMatchStrategy,
-  AuthzPolicyType,
-  AuthorizeConfig,
-  RoleRequiredConfig,
-  AuthzPolicyConfig,
-  AuthorizeBuilder,
-  RoleRequiredBuilder,
-  AuthzPolicyBuilder,
-  Authorize,
-  RoleRequired,
-  AuthzPolicy,
-} from './security';
+export { Schema } from './schema';
 
 // Version info
-export const VERSION = '1.0.0';
-export const PARITY_LANGUAGES = ['Python', 'TypeScript', 'Java', 'Go', 'PHP', 'Node.js'];
+export const VERSION = '2.0.0';
