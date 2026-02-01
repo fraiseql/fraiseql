@@ -291,7 +291,7 @@ let summary = collector.summary();
 - `/metrics` - Prometheus text format (for scraping)
 - `/metrics/json` - JSON format (for dashboards)
 
-**See Also**: [Metrics Collection Guide](./observability/metrics-collection.md) (detailed reference)
+**See Also**: [Metrics Reference](./reference/metrics.md) for detailed metrics
 
 ### 2. Structured JSON Logging
 
@@ -319,7 +319,7 @@ let summary = collector.summary();
 }
 ```
 
-**See Also**: [STRUCTURED_LOGGING.md](./STRUCTURED_LOGGING.md)
+**See Also**: [Structured Logging Guide](./structured-logging.md)
 
 ### 3. Distributed Tracing
 
@@ -338,7 +338,7 @@ traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 - Cross-cutting context via baggage
 - W3C standard compliant
 
-**See Also**: [DISTRIBUTED_TRACING.md](./DISTRIBUTED_TRACING.md)
+**See Also**: [Distributed Tracing Guide](./distributed-tracing.md)
 
 ### 4. Performance Monitoring
 
@@ -352,7 +352,7 @@ traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 - Operation-specific profiling
 - Database query performance
 
-**See Also**: [PERFORMANCE_MONITORING.md](./PERFORMANCE_MONITORING.md)
+**See Also**: [Observability Architecture](./observability-architecture.md)
 
 ## Integration Patterns
 
@@ -710,13 +710,10 @@ Service Level Objectives for FraiseQL v2:
 
 ## Additional Resources
 
-- [Metrics Collection Guide](./observability/metrics-collection.md)
-- [Structured Logging Guide](./STRUCTURED_LOGGING.md)
-- [Distributed Tracing Guide](./DISTRIBUTED_TRACING.md)
-- [Performance Monitoring Guide](./PERFORMANCE_MONITORING.md)
-- [Grafana Dashboard JSON](../monitoring/grafana-dashboard.json)
-- [Docker Compose Configuration](../docker-compose.yml)
-- [Kubernetes Manifests](../k8s/deployment.yaml)
+- [Metrics Reference](./reference/metrics.md)
+- [Structured Logging Guide](./structured-logging.md)
+- [Distributed Tracing Guide](./distributed-tracing.md)
+- [Observability Architecture](./observability-architecture.md)
 
 ## Support
 
