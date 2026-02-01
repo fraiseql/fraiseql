@@ -2487,6 +2487,7 @@ dependencies = [
  "clap",
  "deadpool-postgres",
  "fraiseql-core",
+ "glob",
  "notify",
  "serde",
  "serde_json",
@@ -2497,6 +2498,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "walkdir",
 ]
 
 [[package]]
