@@ -2,7 +2,7 @@
 
 **Duration**: 2-4 hours
 **Outcome**: Implement common patterns in your FraiseQL application
-**Prerequisites**: Completed [CORE_CONCEPTS.md](CORE_CONCEPTS.md)
+**Prerequisites**: Basic understanding of FraiseQL (see [GETTING_STARTED.md](../GETTING_STARTED.md))
 
 ---
 
@@ -1108,10 +1108,10 @@ You now know how to implement:
 
 ## Next Steps
 
-- **Ready to deploy?** → [DEPLOYMENT.md](DEPLOYMENT.md)
-- **Need performance help?** → [PERFORMANCE.md](PERFORMANCE.md)
-- **Stuck?** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Ready to deploy?** → [Deployment Guide](../deployment/guide.md)
+- **Need help?** → [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- **Want more patterns?** → Explore more guides in the [guides](../guides/) directory
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).

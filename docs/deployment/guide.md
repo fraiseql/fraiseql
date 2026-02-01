@@ -2,13 +2,13 @@
 
 **Duration**: 2-4 hours
 **Outcome**: Deploy FraiseQL to production with confidence
-**Prerequisites**: Completed [GETTING_STARTED.md](GETTING_STARTED.md)
+**Prerequisites**: Completed [GETTING_STARTED.md](../GETTING_STARTED.md)
 
 ---
 
 ## Overview
 
-This guide covers deploying the FraiseQL GraphQL server to various environments including local development, Docker, Kubernetes, and cloud platforms. It also references the comprehensive [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md) for production operations.
+This guide covers deploying the FraiseQL GraphQL server to various environments including local development, Docker, Kubernetes, and cloud platforms. See [operations/guide.md](../operations/guide.md) for production operations and maintenance.
 
 ## Prerequisites
 
@@ -674,6 +674,6 @@ docker run -p 8000:8000 fraiseql-server:v1.9  # Previous version
 
 ## Next Steps
 
-- See [HTTP_SERVER.md](./HTTP_SERVER.md) for server configuration options
-- See [GRAPHQL_API.md](./GRAPHQL_API.md) for API specification
-- See [examples/](../examples/) for query examples
+- See [HTTP_SERVER.md](../reference/api/HTTP_SERVER.md) for server configuration options
+- See [GRAPHQL_API.md](../reference/api/GRAPHQL_API.md) for API specification
+- See [examples/](../../examples/) for query examples

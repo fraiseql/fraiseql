@@ -532,7 +532,6 @@ Tests run automatically on:
 
 ## See Also
 
-- [Language Generators Guide](./language-generators.md)
-- [CLI Schema Format Guide](./cli-schema-format.md)
-- [Makefile E2E Targets](../Makefile)
-- [E2E Strategy Document](../.claude/E2E_TESTING_STRATEGY.md)
+- [Language Generators Guide](../language-generators.md)
+- [CLI Schema Format Guide](../../reference/cli-schema-format.md)
+- [Testing Strategy](testing-strategy.md)
