@@ -174,10 +174,9 @@ Query result:
 
 ### Learn more
 
-- **Core Concepts**: Read [CORE_CONCEPTS.md](CORE_CONCEPTS.md) to understand how FraiseQL works
-- **Common Patterns**: See [PATTERNS.md](PATTERNS.md) for solutions to real-world problems
-- **Deployment**: When ready to deploy, see [DEPLOYMENT.md](DEPLOYMENT.md)
-- **Performance**: Optimize your queries with [PERFORMANCE.md](PERFORMANCE.md)
+- **Common Patterns**: See [PATTERNS.md](guides/PATTERNS.md) for solutions to real-world problems
+- **Deployment**: When ready to deploy, see [deployment guide](deployment/guide.md)
+- **Operations**: Manage your FraiseQL instance with [operations guide](operations/guide.md)
 
 ### Try these exercises
 
@@ -189,13 +188,13 @@ Query result:
 ### Common questions
 
 **Q: Where do I put my database code?**
-A: Replace the mock data in the schema execution with real database queries. See [PATTERNS.md](PATTERNS.md) for examples.
+A: Replace the mock data in the schema execution with real database queries. See [PATTERNS.md](guides/PATTERNS.md) for examples.
 
 **Q: How do I add authentication?**
-A: See the authentication pattern in [PATTERNS.md](PATTERNS.md).
+A: See the authentication pattern in [PATTERNS.md](guides/PATTERNS.md).
 
 **Q: Can I use this in production?**
-A: Yes! See [DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md).
+A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](operations/guide.md).
 
 ---
 
@@ -216,7 +215,7 @@ A: Yes! See [DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATIONS_GUIDE.md](OPERATIONS_
 ### "Query failed with error"
 - Check your query syntax against the schema
 - Use the error message to identify the issue
-- See [CORE_CONCEPTS.md](CORE_CONCEPTS.md) for query help
+- See [patterns guide](guides/PATTERNS.md) for query help
 
 ---
 
@@ -227,7 +226,7 @@ A: Yes! See [DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATIONS_GUIDE.md](OPERATIONS_
 ✅ Executed a query
 ✅ Handled results and errors
 
-**Next**: Continue with [CORE_CONCEPTS.md](CORE_CONCEPTS.md) for deeper understanding.
+**Next**: Continue with [PATTERNS.md](guides/PATTERNS.md) for deeper understanding.
 
 ---
 

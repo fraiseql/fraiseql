@@ -18,69 +18,67 @@
 
 ## 📚 Documentation Structure
 
-### [Foundation](foundation/) **NEW!**
+### Foundation **NEW!**
 
 **Comprehensive foundation documentation covering core concepts and architecture** (12 topics, 10,000+ lines).
 
 Perfect for developers new to FraiseQL or those wanting deep architectural understanding.
 
-- **[01: What is FraiseQL?](foundation/01-what-is-fraiseql.md)** — Understanding FraiseQL's compiled GraphQL approach
-- **[02: Core Concepts](foundation/02-core-concepts.md)** — Terminology and mental models
-- **[03: Database-Centric Architecture](foundation/03-database-centric-architecture.md)** — View types (v_*, tv_*, va_*, ta_*), fact tables, calendar dimensions
-- **[04: Design Principles](foundation/04-design-principles.md)** — Five principles guiding FraiseQL
-- **[05: Comparisons](foundation/05-comparisons.md)** — FraiseQL vs Apollo, Hasura, WunderGraph, REST
-- **[06: Compilation Pipeline](foundation/06-compilation-pipeline.md)** — Seven-phase compilation process
-- **[07: Query Execution Model](foundation/07-query-execution-model.md)** — Runtime query execution
-- **[08: Data Planes Architecture](foundation/08-data-planes-architecture.md)** — JSON (OLTP) vs Arrow (OLAP)
-- **[09: Type System](foundation/09-type-system.md)** — Built-in scalars, relationships, type inference
-- **[10: Error Handling](foundation/10-error-handling-validation.md)** — Error hierarchy and validation layers
-- **[11: Compiled Schema Structure](foundation/11-compiled-schema-structure.md)** — schema.compiled.json format
-- **[12: Performance Characteristics](foundation/12-performance-characteristics.md)** — Latency, throughput, scaling
-
-**[Complete Index](foundation/INDEX.md)** — Full topic overview with quality metrics
+See [foundation/](foundation/) for detailed guides on:
+- What is FraiseQL? — Understanding FraiseQL's compiled GraphQL approach
+- Core Concepts — Terminology and mental models
+- Database-Centric Architecture — View types (v_*, tv_*, va_*, ta_*), fact tables, calendar dimensions
+- Design Principles — Five principles guiding FraiseQL
+- Comparisons — FraiseQL vs Apollo, Hasura, WunderGraph, REST
+- Compilation Pipeline — Seven-phase compilation process
+- Query Execution Model — Runtime query execution
+- Data Planes Architecture — JSON (OLTP) vs Arrow (OLAP)
+- Type System — Built-in scalars, relationships, type inference
+- Error Handling — Error hierarchy and validation layers
+- Compiled Schema Structure — schema.compiled.json format
+- Performance Characteristics — Latency, throughput, scaling
 
 ---
 
-### [Arrow Flight Integration](arrow-flight/)
+### Arrow Flight Integration
 
 High-performance columnar data delivery for analytics and cross-language integration.
 
-- **[README.md](arrow-flight/README.md)** — Overview and quick start (5 minutes)
-- **[Architecture](arrow-flight/architecture.md)** — System design and dual-dataplane architecture
-- **[Getting Started](arrow-flight/getting-started.md)** — Step-by-step tutorial
-- **[Migration Guide](arrow-flight/migration-guide.md)** — 4-phase adoption strategy (5 weeks)
-- **[Performance Benchmarks](arrow-flight/performance/benchmarks.md)** — Real-world performance metrics (10-50x improvements)
+See [integrations/arrow-flight/](integrations/arrow-flight/) for guides on:
+- Overview and quick start
+- System design and dual-dataplane architecture
+- Step-by-step tutorial
+- 4-phase adoption strategy
+- Real-world performance metrics (10-50x improvements)
 
-### [Product Requirements](prd/)
+### Product Requirements
 
 High-level vision, philosophy, and system requirements.
 
-- **[PRD.md](prd/PRD.md)** — Complete product requirements and design philosophy
+See [prd/](prd/) directory for product requirements and design philosophy.
 
-### [Architecture](architecture/)
+### Architecture
 
 System architecture, design decisions, and technical specifications.
 
-**Core Compilation & Execution:**
+See [architecture/](architecture/) for comprehensive documentation including:
 
-- [Core Pipeline](architecture/core/) — Compilation and execution fundamentals
-- [Database Integration](architecture/database/) — Database targeting and Arrow support
-  - [View Selection Guide](architecture/database/view-selection-guide.md) — Choose between v_*, tv_*, va_*, ta_*
-  - [tv_* Table Pattern](architecture/database/tv-table-pattern.md) — Pre-computed JSON views for GraphQL
-  - [ta_* Table Pattern](architecture/database/ta-table-pattern.md) — Optimized columnar views for analytics
+**Core Compilation & Execution:**
+- Compilation and execution fundamentals
+- Database targeting and Arrow support
+- View selection guide (v_*, tv_*, va_*, ta_* patterns)
+- Table pattern optimization (JSON views and columnar views)
 
 **System Qualities:**
-
-- [Reliability](architecture/reliability/) — Consistency, error handling, failure modes
-- [Security](architecture/security/) — Security model and authentication
-- [Performance](architecture/performance/) — Optimization and performance characteristics
-- [Observability](architecture/observability/) — Monitoring and instrumentation model
+- Reliability — Consistency, error handling, failure modes
+- Security — Security model and authentication
+- Performance — Optimization and performance characteristics
+- Observability — Monitoring and instrumentation model
 
 **Advanced Topics:**
-
-- [Integration](architecture/integration/) — Federation, extension points, integration patterns
-- [Real-time](architecture/realtime/) — Subscriptions and event streaming
-- [Design Decisions](architecture/decisions/) — Architectural decisions and patterns
+- Federation, extension points, and integration patterns
+- Subscriptions and event streaming
+- Architectural decisions and patterns
 
 ### [Specifications](specs/)
 
@@ -98,7 +96,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 - **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/PATTERNS.md)
 - **Deployment**: [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
 - **Operations**: [Monitoring](guides/monitoring.md), [Observability](guides/observability.md), [Analytics Patterns](guides/analytics-patterns.md)
-- **Development**: [Testing Strategy](guides/development/), [Benchmarking](guides/development/benchmarking.md), [Profiling](guides/development/PROFILING_GUIDE.md)
+- **Development**: [Testing Strategy](guides/testing-strategy.md), [Benchmarking](guides/development/benchmarking.md), [Profiling](guides/development/PROFILING_GUIDE.md)
 
 ### [Configuration](configuration/)
 
@@ -133,7 +131,6 @@ Integration guides for external services and databases.
 - **[Federation](integrations/federation/)** — Multi-database composition with SAGA patterns
 - **[Authentication](integrations/authentication/)** — Auth0, Google, Keycloak, SCRAM
 - **[Arrow Flight](integrations/arrow-flight/)** — High-performance analytics
-- **[Monitoring](integrations/monitoring/)** — Grafana, Prometheus integration
 
 ### [Enterprise Features](enterprise/)
 

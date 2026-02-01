@@ -55,7 +55,7 @@ A: FraiseQL currently supports:
 - **SQLite** (local development, testing)
 - **SQL Server** (enterprise)
 
-All databases can be used together in federation. See [FEDERATION_SAGAS.md#multi-database-consistency](FEDERATION_SAGAS.md#multi-database-consistency).
+All databases can be used together in federation. See [multi-database consistency](integrations/federation/sagas.md#multi-database-consistency).
 
 ---
 
@@ -89,7 +89,7 @@ A: Apollo Federation v2 is a specification for composing multiple GraphQL servic
 - **Field availability** (@provides directive)
 - **Service independence** while maintaining a unified API
 
-See [FEDERATION_SAGAS.md](FEDERATION_SAGAS.md) for FraiseQL implementation.
+See [federation sagas](integrations/federation/sagas.md) for FraiseQL implementation.
 
 ---
 
@@ -128,7 +128,7 @@ type Order @key(fields: "id") {
 }
 ```
 
-See [FEDERATION_SAGAS.md#runtime-directive-enforcement](FEDERATION_SAGAS.md).
+See [runtime directive enforcement](integrations/federation/sagas.md#runtime-directive-enforcement).
 
 ---
 
@@ -151,7 +151,7 @@ services:
     ports: ["4000:4000"]
 ```
 
-See [examples/federation/saga-basic](examples/federation/saga-basic).
+See [saga-basic example](../examples/federation/saga-basic/).
 
 ---
 
@@ -171,7 +171,7 @@ Step 1 Reverse: N/A (verify only)
 Result: No order, payment refunded
 ```
 
-See [SAGA_GETTING_STARTED.md](SAGA_GETTING_STARTED.md).
+See [federation guide](integrations/federation/guide.md).
 
 ---
 
@@ -214,7 +214,7 @@ match coordinator.execute(steps).await {
 }
 ```
 
-See [SAGA_PATTERNS.md#compensation-strategies](SAGA_PATTERNS.md#compensation-strategies).
+See [compensation strategies](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
 ---
 
@@ -266,7 +266,7 @@ SagaStep {
 }
 ```
 
-See [SAGA_PATTERNS.md#idempotency](SAGA_PATTERNS.md#idempotency).
+See [idempotency best practices](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
 ---
 
@@ -288,7 +288,7 @@ Optimize with:
 - ✅ Result caching
 - ✅ Batch operations
 
-See [FEDERATION_SAGAS.md#performance-characteristics](FEDERATION_SAGAS.md#performance-characteristics).
+See [performance characteristics](integrations/federation/sagas.md#observability).
 
 ---
 
@@ -311,7 +311,7 @@ coordinator.execute_parallel(
 ).await
 ```
 
-See [examples/federation/saga-complex](examples/federation/saga-complex).
+See [saga-complex example](../examples/federation/saga-complex/).
 
 ---
 
@@ -397,7 +397,7 @@ mysqldump -u root -p fraiseql > orders_backup.sql
 docker-compose exec postgres pg_dump -U fraiseql fraiseql > backup.sql
 ```
 
-See [PHASE_16_READINESS.md#production-deployment](PHASE_16_READINESS.md#production-deployment).
+See [deployment guide](deployment/guide.md) for production-deployment steps.
 
 ---
 
@@ -447,7 +447,7 @@ type User {
 SELECT id, email, phone FROM users WHERE id = $1
 ```
 
-See [TROUBLESHOOTING.md#entity-resolution-returns-error](TROUBLESHOOTING.md#entity-resolution-returns-error).
+See [entity resolution troubleshooting](TROUBLESHOOTING.md#problem-entity-resolution-fails).
 
 ---
 
@@ -465,7 +465,7 @@ Then force recovery:
 recovery_manager.recover_saga(&stuck_saga).await?;
 ```
 
-See [TROUBLESHOOTING.md#saga-stuck-in-executing-status](TROUBLESHOOTING.md#saga-stuck-in-executing-status).
+See [saga troubleshooting](TROUBLESHOOTING.md#problem-saga-stuck-in-executing).
 
 ---
 
@@ -482,7 +482,7 @@ extend type User @key(fields: "id") { ... }  // orders-service
 extend type User @key(fields: "userId") { ... }  // Different key!
 ```
 
-See [TROUBLESHOOTING.md#cannot-compose-supergraph](TROUBLESHOOTING.md#cannot-compose-supergraph).
+See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-supergraph).
 
 ---
 
@@ -508,9 +508,9 @@ Watch for logs like:
 A: Check these resources in order:
 
 1. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues & solutions
-2. **[SAGA_GETTING_STARTED.md](SAGA_GETTING_STARTED.md)** - Saga basics
-3. **[FEDERATION_SAGAS.md](FEDERATION_SAGAS.md)** - Federation patterns
-4. **[Examples](examples/federation/)** - Working code
+2. **[Federation Guide](integrations/federation/guide.md)** - Saga basics
+3. **[Federation Sagas](integrations/federation/sagas.md)** - Federation patterns
+4. **[Examples](../examples/federation/)** - Working code
 5. **[GitHub Issues](https://github.com/anthropics/fraiseql/issues)** - Bug reports
 
 ---
@@ -531,7 +531,7 @@ A: **Yes!** We welcome contributions. See [CONTRIBUTING.md](../CONTRIBUTING.md) 
 
 ### Q: What license is FraiseQL under?
 
-A: FraiseQL is released under the **Apache 2.0 License**. See [LICENSE](../LICENSE) file.
+A: FraiseQL is released under the **Apache 2.0 License**.
 
 ---
 

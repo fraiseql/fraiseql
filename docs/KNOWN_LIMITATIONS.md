@@ -449,8 +449,8 @@ If you encounter a limitation not listed here, please:
 
 - See [FAQ.md](./FAQ.md) for frequently asked questions
 - See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues
-- See [MIGRATION_PHASE_15_TO_16.md](./MIGRATION_PHASE_15_TO_16.md) for upgrade guidance
-- See [PHASE_16_READINESS.md](./PHASE_16_READINESS.md) for Phase 16 completion status
+- See [upgrade guidance](.archive/future-phases/MIGRATION_PHASE_15_TO_16.md) for migration details
+- See [Phase 16 status](.archive/future-phases/PHASE_16_READINESS.md) for completion status
 
 ---
 
