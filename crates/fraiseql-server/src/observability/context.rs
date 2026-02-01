@@ -3,43 +3,44 @@
 //! Manages trace and span IDs, baggage, and context propagation
 
 use std::collections::HashMap;
+
 use uuid::Uuid;
 
 /// W3C Trace Context
 #[derive(Clone, Debug)]
 pub struct TraceContext {
     /// Trace ID (32-character hex string)
-    pub trace_id: String,
+    pub trace_id:       String,
     /// Span ID (16-character hex string)
-    pub span_id: String,
+    pub span_id:        String,
     /// Parent span ID
     pub parent_span_id: Option<String>,
     /// Baggage items
-    pub baggage: HashMap<String, String>,
+    pub baggage:        HashMap<String, String>,
     /// Trace flags (sampling decision)
-    pub trace_flags: u8,
+    pub trace_flags:    u8,
 }
 
 impl TraceContext {
     /// Create a new root trace context
     pub fn new() -> Self {
         Self {
-            trace_id: Self::generate_trace_id(),
-            span_id: Self::generate_span_id(),
+            trace_id:       Self::generate_trace_id(),
+            span_id:        Self::generate_span_id(),
             parent_span_id: None,
-            baggage: HashMap::new(),
-            trace_flags: 0x01, // Sampled
+            baggage:        HashMap::new(),
+            trace_flags:    0x01, // Sampled
         }
     }
 
     /// Create a child context from this context
     pub fn child(&self) -> Self {
         Self {
-            trace_id: self.trace_id.clone(),
-            span_id: Self::generate_span_id(),
+            trace_id:       self.trace_id.clone(),
+            span_id:        Self::generate_span_id(),
             parent_span_id: Some(self.span_id.clone()),
-            baggage: self.baggage.clone(),
-            trace_flags: self.trace_flags,
+            baggage:        self.baggage.clone(),
+            trace_flags:    self.trace_flags,
         }
     }
 
@@ -73,10 +74,7 @@ impl TraceContext {
 
     /// Format as W3C traceparent header
     pub fn traceparent_header(&self) -> String {
-        format!(
-            "00-{}-{}-{:02x}",
-            self.trace_id, self.span_id, self.trace_flags
-        )
+        format!("00-{}-{}-{:02x}", self.trace_id, self.span_id, self.trace_flags)
     }
 
     /// Add baggage item
@@ -93,11 +91,11 @@ impl TraceContext {
         }
 
         Ok(Self {
-            trace_id: parts[1].to_string(),
-            span_id: parts[2].to_string(),
+            trace_id:       parts[1].to_string(),
+            span_id:        parts[2].to_string(),
             parent_span_id: None,
-            baggage: HashMap::new(),
-            trace_flags: u8::from_str_radix(parts[3], 16).map_err(|e| e.to_string())?,
+            baggage:        HashMap::new(),
+            trace_flags:    u8::from_str_radix(parts[3], 16).map_err(|e| e.to_string())?,
         })
     }
 }

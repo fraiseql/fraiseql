@@ -2,7 +2,10 @@
 //!
 //! Manages signal handling and graceful server shutdown
 
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 /// Shutdown handler
 #[derive(Clone)]

@@ -52,9 +52,7 @@ mod security_tests {
         use crate::auth::handlers::generate_secure_state;
 
         // Generate multiple states
-        let states: Vec<String> = (0..50)
-            .map(|_| generate_secure_state())
-            .collect();
+        let states: Vec<String> = (0..50).map(|_| generate_secure_state()).collect();
 
         // Verify each is unique (no collisions)
         let unique_count = states.iter().collect::<HashSet<_>>().len();
@@ -66,11 +64,7 @@ mod security_tests {
 
         // Verify hex format
         for state in &states {
-            assert!(
-                hex::decode(state).is_ok(),
-                "CSRF state is not valid hex: {}",
-                state
-            );
+            assert!(hex::decode(state).is_ok(), "CSRF state is not valid hex: {}", state);
         }
     }
 
@@ -78,8 +72,9 @@ mod security_tests {
     /// Expired tokens must be rejected, not silently accepted.
     #[test]
     fn test_jwt_expiration_enforcement() {
-        use crate::auth::jwt::Claims;
         use std::time::{SystemTime, UNIX_EPOCH};
+
+        use crate::auth::jwt::Claims;
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -88,49 +83,43 @@ mod security_tests {
 
         // Create expired token (exp = 1 second ago)
         let expired_token = Claims {
-            iss: "test_issuer".to_string(),
-            sub: "user123".to_string(),
-            aud: vec!["api".to_string()],
-            exp: now - 1,
-            iat: now - 3600,
+            iss:   "test_issuer".to_string(),
+            sub:   "user123".to_string(),
+            aud:   vec!["api".to_string()],
+            exp:   now - 1,
+            iat:   now - 3600,
             extra: Default::default(),
         };
 
-        assert!(
-            expired_token.is_expired(),
-            "Expired token should be rejected"
-        );
+        assert!(expired_token.is_expired(), "Expired token should be rejected");
 
         // Create future token (exp = 1 hour from now)
         let valid_token = Claims {
-            iss: "test_issuer".to_string(),
-            sub: "user123".to_string(),
-            aud: vec!["api".to_string()],
-            exp: now + 3600,
-            iat: now,
+            iss:   "test_issuer".to_string(),
+            sub:   "user123".to_string(),
+            aud:   vec!["api".to_string()],
+            exp:   now + 3600,
+            iat:   now,
             extra: Default::default(),
         };
 
-        assert!(
-            !valid_token.is_expired(),
-            "Valid token should not be rejected"
-        );
+        assert!(!valid_token.is_expired(), "Valid token should not be rejected");
     }
 
     /// Test that JWT validator can be configured with audience validation.
     #[test]
     fn test_jwt_audience_validation_support() {
-        use crate::auth::jwt::JwtValidator;
         use jsonwebtoken::Algorithm;
+
+        use crate::auth::jwt::JwtValidator;
 
         // Create validator without audiences (backward compat)
         let validator = JwtValidator::new("https://issuer.example.com", Algorithm::HS256)
             .expect("Valid issuer config");
 
         // Configure with audiences
-        let _validator_with_aud = validator
-            .with_audiences(&["api", "web"])
-            .expect("Valid audiences");
+        let _validator_with_aud =
+            validator.with_audiences(&["api", "web"]).expect("Valid audiences");
 
         // This test validates that the API supports audience configuration
         // The actual enforcement happens in production when tokens are validated
@@ -139,16 +128,14 @@ mod security_tests {
     /// Test that invalid issuer is rejected.
     #[test]
     fn test_jwt_invalid_issuer_rejection() {
-        use crate::auth::jwt::JwtValidator;
         use jsonwebtoken::Algorithm;
+
+        use crate::auth::jwt::JwtValidator;
 
         // Empty issuer should fail
         let result = JwtValidator::new("", Algorithm::HS256);
 
-        assert!(
-            result.is_err(),
-            "Empty issuer should be rejected"
-        );
+        assert!(result.is_err(), "Empty issuer should be rejected");
     }
 
     /// Test that CSRF token format is consistent and URL-safe.
@@ -156,9 +143,7 @@ mod security_tests {
     fn test_csrf_token_url_safe_format() {
         use crate::auth::handlers::generate_secure_state;
 
-        let tokens: Vec<String> = (0..20)
-            .map(|_| generate_secure_state())
-            .collect();
+        let tokens: Vec<String> = (0..20).map(|_| generate_secure_state()).collect();
 
         for token in tokens {
             // Must be hex (URL-safe without encoding)
@@ -169,12 +154,7 @@ mod security_tests {
             );
 
             // Must be deterministic length (32 bytes = 64 hex chars)
-            assert_eq!(
-                token.len(),
-                64,
-                "Token length should be consistent: {}",
-                token.len()
-            );
+            assert_eq!(token.len(), 64, "Token length should be consistent: {}", token.len());
         }
     }
 
@@ -194,15 +174,9 @@ mod security_tests {
         let future_expiry = now + 600; // 10 minutes
         let past_expiry = now - 1; // Already expired
 
-        assert!(
-            future_expiry > now,
-            "Future expiry should be after current time"
-        );
+        assert!(future_expiry > now, "Future expiry should be after current time");
 
-        assert!(
-            past_expiry < now,
-            "Past expiry should be before current time"
-        );
+        assert!(past_expiry < now, "Past expiry should be before current time");
     }
 
     /// Test that random state generation doesn't use weak RNG.
@@ -212,9 +186,7 @@ mod security_tests {
         use crate::auth::handlers::generate_secure_state;
 
         // Generate states with different byte patterns
-        let states: Vec<String> = (0..10)
-            .map(|_| generate_secure_state())
-            .collect();
+        let states: Vec<String> = (0..10).map(|_| generate_secure_state()).collect();
 
         // Verify we have good distribution (no obvious patterns)
         for state in states {

@@ -14,14 +14,14 @@ pub fn init_tracer() -> Result<(), Box<dyn std::error::Error>> {
 /// Span attribute key-value pair
 #[derive(Clone, Debug)]
 pub struct SpanAttribute {
-    pub key: String,
+    pub key:   String,
     pub value: String,
 }
 
 /// Span builder for creating spans with attributes
 #[derive(Debug)]
 pub struct SpanBuilder {
-    name: String,
+    name:       String,
     attributes: Vec<SpanAttribute>,
 }
 
@@ -29,7 +29,7 @@ impl SpanBuilder {
     /// Create a new span builder
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:       name.into(),
             attributes: Vec::new(),
         }
     }
@@ -37,7 +37,7 @@ impl SpanBuilder {
     /// Add an attribute to the span
     pub fn with_attribute(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.attributes.push(SpanAttribute {
-            key: key.into(),
+            key:   key.into(),
             value: value.into(),
         });
         self
@@ -46,9 +46,9 @@ impl SpanBuilder {
     /// Build the span
     pub fn build(self) -> Span {
         Span {
-            name: self.name,
+            name:       self.name,
             attributes: self.attributes,
-            status: SpanStatus::Ok,
+            status:     SpanStatus::Ok,
         }
     }
 }
@@ -63,7 +63,7 @@ pub enum SpanStatus {
         /// Error message
         message: String,
         /// Error code or SQLSTATE
-        code: String,
+        code:    String,
     },
 }
 
@@ -71,11 +71,11 @@ pub enum SpanStatus {
 #[derive(Clone, Debug)]
 pub struct Span {
     /// Span name
-    pub name: String,
+    pub name:       String,
     /// Span attributes
     pub attributes: Vec<SpanAttribute>,
     /// Span completion status
-    pub status: SpanStatus,
+    pub status:     SpanStatus,
 }
 
 impl fmt::Display for Span {

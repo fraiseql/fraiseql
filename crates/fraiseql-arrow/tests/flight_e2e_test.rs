@@ -187,10 +187,7 @@ mod tests {
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
         // Verify schema registry contains ta_users
-        assert!(
-            service.schema_registry().contains("ta_users"),
-            "Should have ta_users schema"
-        );
+        assert!(service.schema_registry().contains("ta_users"), "Should have ta_users schema");
 
         tracing::info!("✓ DoGet optimized view full flow test passed");
         Ok(())
@@ -243,10 +240,7 @@ mod tests {
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_cache(flight_adapter, 60);
 
         // Verify service is functional
-        assert!(
-            service.schema_registry().contains("ta_orders"),
-            "Should have ta_orders schema"
-        );
+        assert!(service.schema_registry().contains("ta_orders"), "Should have ta_orders schema");
 
         tracing::info!("✓ DoGet cache miss test passed");
         Ok(())
@@ -273,14 +267,8 @@ mod tests {
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
         // Verify both tables exist
-        assert!(
-            service.schema_registry().contains("ta_users"),
-            "Should have ta_users"
-        );
-        assert!(
-            service.schema_registry().contains("ta_orders"),
-            "Should have ta_orders"
-        );
+        assert!(service.schema_registry().contains("ta_users"), "Should have ta_users");
+        assert!(service.schema_registry().contains("ta_orders"), "Should have ta_orders");
 
         tracing::info!("✓ Batched queries full flow test passed");
         Ok(())
@@ -308,7 +296,10 @@ mod tests {
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
         // Verify service is functional
-        assert!(!service.schema_registry().contains("nonexistent_table"), "Should reject unknown tables");
+        assert!(
+            !service.schema_registry().contains("nonexistent_table"),
+            "Should reject unknown tables"
+        );
 
         tracing::info!("✓ Large result set streaming test passed");
         Ok(())

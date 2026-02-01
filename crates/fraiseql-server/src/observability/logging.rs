@@ -17,9 +17,9 @@ pub enum LogLevel {
     /// Debug level
     Debug = 0,
     /// Info level
-    Info = 1,
+    Info  = 1,
     /// Warning level
-    Warn = 2,
+    Warn  = 2,
     /// Error level
     Error = 3,
 }
@@ -42,15 +42,15 @@ pub struct LogEntry {
     /// Timestamp
     pub timestamp: String,
     /// Log level
-    pub level: LogLevel,
+    pub level:     LogLevel,
     /// Log message
-    pub message: String,
+    pub message:   String,
     /// Trace ID
-    pub trace_id: Option<String>,
+    pub trace_id:  Option<String>,
     /// Span ID
-    pub span_id: Option<String>,
+    pub span_id:   Option<String>,
     /// Additional fields
-    pub fields: HashMap<String, String>,
+    pub fields:    HashMap<String, String>,
 }
 
 impl LogEntry {

@@ -608,7 +608,10 @@ mod tests {
         let service = FraiseQLFlightService::new();
 
         // Verify service is created
-        assert!(!service.schema_registry().contains("nonexistent"), "Should reject unknown views");
+        assert!(
+            !service.schema_registry().contains("nonexistent"),
+            "Should reject unknown views"
+        );
 
         tracing::info!("✓ DoAction unimplemented status test passed");
     }
@@ -623,10 +626,7 @@ mod tests {
         let service = FraiseQLFlightService::new();
 
         // Verify service is created and functional
-        assert!(
-            service.schema_registry().contains("ta_users"),
-            "Service should be functional"
-        );
+        assert!(service.schema_registry().contains("ta_users"), "Service should be functional");
 
         tracing::info!("✓ DoExchange unimplemented status test passed");
     }
@@ -659,10 +659,7 @@ mod tests {
         let service = FraiseQLFlightService::new();
 
         // Verify service is created
-        assert!(
-            service.schema_registry().contains("va_users"),
-            "Service should have views"
-        );
+        assert!(service.schema_registry().contains("va_users"), "Service should have views");
 
         tracing::info!("✓ PollFlightInfo unimplemented status test passed");
     }

@@ -2,27 +2,29 @@
 //!
 //! Provides metrics for observability (counters, histograms, gauges)
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 /// A metrics counter
 #[derive(Clone, Debug)]
 pub struct MetricCounter {
     /// Counter name
-    pub name: String,
+    pub name:   String,
     /// Counter labels
     pub labels: HashMap<String, String>,
     /// Counter value
-    pub value: u64,
+    pub value:  u64,
 }
 
 impl MetricCounter {
     /// Create a new counter
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:   name.into(),
             labels: HashMap::new(),
-            value: 0,
+            value:  0,
         }
     }
 
@@ -47,20 +49,20 @@ impl MetricCounter {
 #[derive(Clone, Debug)]
 pub struct MetricHistogram {
     /// Histogram name
-    pub name: String,
+    pub name:    String,
     /// Histogram buckets
     pub buckets: Vec<u64>,
     /// Observed values
-    pub values: Vec<u64>,
+    pub values:  Vec<u64>,
 }
 
 impl MetricHistogram {
     /// Create a new histogram with standard buckets
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:    name.into(),
             buckets: vec![1, 5, 10, 25, 50, 100, 250, 500, 1000],
-            values: Vec::new(),
+            values:  Vec::new(),
         }
     }
 
@@ -91,7 +93,7 @@ impl MetricHistogram {
 
 /// Metrics registry
 pub struct MetricsRegistry {
-    counters: Arc<Mutex<Vec<MetricCounter>>>,
+    counters:   Arc<Mutex<Vec<MetricCounter>>>,
     histograms: Arc<Mutex<Vec<MetricHistogram>>>,
 }
 
@@ -99,7 +101,7 @@ impl MetricsRegistry {
     /// Create a new registry
     pub fn new() -> Self {
         Self {
-            counters: Arc::new(Mutex::new(Vec::new())),
+            counters:   Arc::new(Mutex::new(Vec::new())),
             histograms: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -128,7 +130,7 @@ impl Default for MetricsRegistry {
 impl Clone for MetricsRegistry {
     fn clone(&self) -> Self {
         Self {
-            counters: Arc::clone(&self.counters),
+            counters:   Arc::clone(&self.counters),
             histograms: Arc::clone(&self.histograms),
         }
     }

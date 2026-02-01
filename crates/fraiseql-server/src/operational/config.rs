@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     /// Server port
-    pub port: u16,
+    pub port:                 u16,
     /// Server host
-    pub host: String,
+    pub host:                 String,
     /// Database URL
-    pub database_url: String,
+    pub database_url:         String,
     /// Log level
-    pub log_level: String,
+    pub log_level:            String,
     /// Request timeout in seconds
     pub request_timeout_secs: u32,
 }
@@ -23,7 +23,7 @@ pub struct ServerConfig {
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
     /// Is valid
-    pub valid: bool,
+    pub valid:  bool,
     /// Errors
     pub errors: Vec<String>,
 }
@@ -32,7 +32,7 @@ impl ValidationResult {
     /// Create valid result
     pub fn valid() -> Self {
         Self {
-            valid: true,
+            valid:  true,
             errors: Vec::new(),
         }
     }
@@ -100,10 +100,10 @@ mod tests {
     #[test]
     fn test_valid_config() {
         let config = ServerConfig {
-            port: 8080,
-            host: "0.0.0.0".to_string(),
-            database_url: "postgres://localhost/db".to_string(),
-            log_level: "info".to_string(),
+            port:                 8080,
+            host:                 "0.0.0.0".to_string(),
+            database_url:         "postgres://localhost/db".to_string(),
+            log_level:            "info".to_string(),
             request_timeout_secs: 30,
         };
 
@@ -115,10 +115,10 @@ mod tests {
     #[test]
     fn test_invalid_config() {
         let config = ServerConfig {
-            port: 0,
-            host: "".to_string(),
-            database_url: "".to_string(),
-            log_level: "invalid".to_string(),
+            port:                 0,
+            host:                 "".to_string(),
+            database_url:         "".to_string(),
+            log_level:            "invalid".to_string(),
             request_timeout_secs: 0,
         };
 

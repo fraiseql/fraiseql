@@ -81,12 +81,7 @@ mod tests {
         // - NULL IS NULL returns true
         // - NULL is distinct across databases
 
-        let null_ops = vec![
-            "IS NULL",
-            "IS NOT NULL",
-            "COALESCE",
-            "NULLIF",
-        ];
+        let null_ops = vec!["IS NULL", "IS NOT NULL", "COALESCE", "NULLIF"];
 
         // Each NULL operation should work on all databases
         for op in null_ops {
@@ -135,10 +130,10 @@ mod tests {
     async fn test_pagination_consistency() {
         // Pagination parameters that should work on all DBs
         let test_cases = vec![
-            (10, 0),   // LIMIT 10
-            (10, 10),  // LIMIT 10 OFFSET 10
-            (1, 0),    // LIMIT 1 (first row)
-            (5, 3),    // LIMIT 5 OFFSET 3
+            (10, 0),  // LIMIT 10
+            (10, 10), // LIMIT 10 OFFSET 10
+            (1, 0),   // LIMIT 1 (first row)
+            (5, 3),   // LIMIT 5 OFFSET 3
         ];
 
         for (limit, offset) in test_cases {
@@ -170,12 +165,7 @@ mod tests {
         ];
 
         for (spec, description) in sort_specs {
-            assert!(
-                !spec.is_empty(),
-                "ORDER BY spec {} ({}) should be valid",
-                spec,
-                description
-            );
+            assert!(!spec.is_empty(), "ORDER BY spec {} ({}) should be valid", spec, description);
         }
 
         println!("✅ ORDER BY consistency test passed");
@@ -216,12 +206,7 @@ mod tests {
     /// 4. Result ordering consistent
     #[tokio::test]
     async fn test_join_consistency() {
-        let join_types = vec![
-            "INNER JOIN",
-            "LEFT JOIN",
-            "LEFT OUTER JOIN",
-            "CROSS JOIN",
-        ];
+        let join_types = vec!["INNER JOIN", "LEFT JOIN", "LEFT OUTER JOIN", "CROSS JOIN"];
 
         for join_type in join_types {
             assert!(!join_type.is_empty(), "JOIN type {} should be valid", join_type);
@@ -298,12 +283,7 @@ mod tests {
         ];
 
         for (target_type, desc) in casts {
-            assert!(
-                !target_type.is_empty(),
-                "CAST to {} ({}) should be valid",
-                target_type,
-                desc
-            );
+            assert!(!target_type.is_empty(), "CAST to {} ({}) should be valid", target_type, desc);
         }
 
         println!("✅ CAST consistency test passed");

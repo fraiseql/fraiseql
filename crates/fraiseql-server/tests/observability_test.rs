@@ -45,20 +45,20 @@ mod tests {
         // Simulate span creation
         #[derive(Debug)]
         struct Span {
-            name: String,
+            name:       String,
             attributes: HashMap<String, String>,
-            status: String,
+            status:     String,
         }
 
         let span = Span {
-            name: "handle_graphql_query".to_string(),
+            name:       "handle_graphql_query".to_string(),
             attributes: {
                 let mut attrs = HashMap::new();
                 attrs.insert("operation".to_string(), "Query".to_string());
                 attrs.insert("query_size".to_string(), "256".to_string());
                 attrs
             },
-            status: "ok".to_string(),
+            status:     "ok".to_string(),
         };
 
         assert_eq!(span.name, "handle_graphql_query", "Span should have name");
@@ -79,20 +79,20 @@ mod tests {
         // Simulate trace context
         #[derive(Clone, Debug)]
         struct TraceContext {
-            trace_id: String,
-            span_id: String,
+            trace_id:       String,
+            span_id:        String,
             parent_span_id: Option<String>,
         }
 
         let parent_context = TraceContext {
-            trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
-            span_id: "00f067aa0ba902b7".to_string(),
+            trace_id:       "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+            span_id:        "00f067aa0ba902b7".to_string(),
             parent_span_id: None,
         };
 
         let child_context = TraceContext {
-            trace_id: parent_context.trace_id.clone(), // Same trace
-            span_id: "00f067aa0ba902b8".to_string(),   // Different span
+            trace_id:       parent_context.trace_id.clone(), // Same trace
+            span_id:        "00f067aa0ba902b8".to_string(),  // Different span
             parent_span_id: Some(parent_context.span_id.clone()),
         };
 
@@ -122,20 +122,20 @@ mod tests {
         #[derive(Debug)]
         struct LogEntry {
             timestamp: String,
-            level: String,
-            message: String,
-            trace_id: String,
-            span_id: String,
-            fields: HashMap<String, String>,
+            level:     String,
+            message:   String,
+            trace_id:  String,
+            span_id:   String,
+            fields:    HashMap<String, String>,
         }
 
         let log = LogEntry {
             timestamp: "2026-01-31T17:46:00Z".to_string(),
-            level: "info".to_string(),
-            message: "GraphQL query executed".to_string(),
-            trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
-            span_id: "00f067aa0ba902b7".to_string(),
-            fields: {
+            level:     "info".to_string(),
+            message:   "GraphQL query executed".to_string(),
+            trace_id:  "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+            span_id:   "00f067aa0ba902b7".to_string(),
+            fields:    {
                 let mut f = HashMap::new();
                 f.insert("operation".to_string(), "Query".to_string());
                 f.insert("duration_ms".to_string(), "42".to_string());
@@ -168,7 +168,7 @@ mod tests {
 
         let error_status = SpanStatus::Error {
             message: "Database connection failed".to_string(),
-            code: "SQLSTATE 08006".to_string(),
+            code:    "SQLSTATE 08006".to_string(),
         };
 
         match error_status {
@@ -176,7 +176,7 @@ mod tests {
             SpanStatus::Error { message, code } => {
                 assert!(!message.is_empty(), "Error should have message");
                 assert!(!code.is_empty(), "Error should have code");
-            }
+            },
         }
 
         println!("✅ Span status and error handling test passed");
@@ -194,20 +194,20 @@ mod tests {
         // Simulate metrics
         #[derive(Debug)]
         struct MetricCounter {
-            name: String,
+            name:   String,
             labels: HashMap<String, String>,
-            value: u64,
+            value:  u64,
         }
 
         let mut counter = MetricCounter {
-            name: "graphql_queries_total".to_string(),
+            name:   "graphql_queries_total".to_string(),
             labels: {
                 let mut l = HashMap::new();
                 l.insert("operation".to_string(), "Query".to_string());
                 l.insert("status".to_string(), "success".to_string());
                 l
             },
-            value: 0,
+            value:  0,
         };
 
         counter.value += 1;
@@ -231,14 +231,14 @@ mod tests {
         // Simulate histogram
         #[derive(Debug)]
         struct Histogram {
-            name: String,
-            buckets: Vec<u64>,
+            name:         String,
+            buckets:      Vec<u64>,
             observations: Vec<u64>,
         }
 
         let histogram = Histogram {
-            name: "query_duration_ms".to_string(),
-            buckets: vec![1, 5, 10, 25, 50, 100, 250, 500, 1000],
+            name:         "query_duration_ms".to_string(),
+            buckets:      vec![1, 5, 10, 25, 50, 100, 250, 500, 1000],
             observations: vec![3, 7, 45, 123, 89],
         };
 
@@ -263,14 +263,14 @@ mod tests {
     fn test_gauge_metrics() {
         // Simulate gauge
         struct Gauge {
-            name: String,
-            value: f64,
+            name:   String,
+            value:  f64,
             labels: HashMap<String, String>,
         }
 
         let mut gauge = Gauge {
-            name: "active_connections".to_string(),
-            value: 0.0,
+            name:   "active_connections".to_string(),
+            value:  0.0,
             labels: {
                 let mut l = HashMap::new();
                 l.insert("database".to_string(), "postgres".to_string());
@@ -298,17 +298,17 @@ mod tests {
         // Simulate OTLP exporter config
         #[derive(Debug)]
         struct OtlpConfig {
-            endpoint: String,
+            endpoint:           String,
             export_interval_ms: u64,
-            batch_size: usize,
-            timeout_ms: u64,
+            batch_size:         usize,
+            timeout_ms:         u64,
         }
 
         let config = OtlpConfig {
-            endpoint: "http://localhost:4317".to_string(),
+            endpoint:           "http://localhost:4317".to_string(),
             export_interval_ms: 5000,
-            batch_size: 512,
-            timeout_ms: 10000,
+            batch_size:         512,
+            timeout_ms:         10000,
         };
 
         assert!(!config.endpoint.is_empty(), "Should have endpoint");
@@ -345,16 +345,8 @@ mod tests {
             }
         }
 
-        assert_eq!(
-            should_sample(1.0),
-            SamplingDecision::Sample,
-            "Should always sample at 100%"
-        );
-        assert_eq!(
-            should_sample(0.0),
-            SamplingDecision::DontSample,
-            "Should never sample at 0%"
-        );
+        assert_eq!(should_sample(1.0), SamplingDecision::Sample, "Should always sample at 100%");
+        assert_eq!(should_sample(0.0), SamplingDecision::DontSample, "Should never sample at 0%");
         println!("✅ Sampling strategy test passed");
     }
 
@@ -407,16 +399,13 @@ mod tests {
         assert_eq!(trace_id.len(), 32, "Trace ID should be 32 chars");
         assert_eq!(span_id.len(), 16, "Span ID should be 16 chars");
 
-        assert!(
-            trace_id.chars().all(|c| c.is_ascii_hexdigit()),
-            "Trace ID should be hex"
-        );
-        assert!(
-            span_id.chars().all(|c| c.is_ascii_hexdigit()),
-            "Span ID should be hex"
-        );
+        assert!(trace_id.chars().all(|c| c.is_ascii_hexdigit()), "Trace ID should be hex");
+        assert!(span_id.chars().all(|c| c.is_ascii_hexdigit()), "Span ID should be hex");
 
-        assert_ne!(trace_id, "00000000000000000000000000000000", "Trace ID should not be all zeros");
+        assert_ne!(
+            trace_id, "00000000000000000000000000000000",
+            "Trace ID should not be all zeros"
+        );
         println!("✅ Trace ID format test passed");
     }
 
@@ -435,19 +424,13 @@ mod tests {
             "traceparent".to_string(),
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_string(),
         );
-        headers.insert(
-            "tracestate".to_string(),
-            "vendor1=value1,vendor2=value2".to_string(),
-        );
+        headers.insert("tracestate".to_string(), "vendor1=value1,vendor2=value2".to_string());
 
         assert!(headers.contains_key("traceparent"), "Should have traceparent header");
         assert!(headers.contains_key("tracestate"), "Should have tracestate header");
 
         let traceparent = headers.get("traceparent").unwrap();
-        assert!(
-            traceparent.starts_with("00-"),
-            "traceparent should start with version"
-        );
+        assert!(traceparent.starts_with("00-"), "traceparent should start with version");
         println!("✅ HTTP header propagation test passed");
     }
 
@@ -463,8 +446,8 @@ mod tests {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         enum LogLevel {
             Debug = 0,
-            Info = 1,
-            Warn = 2,
+            Info  = 1,
+            Warn  = 2,
             Error = 3,
         }
 
@@ -493,14 +476,14 @@ mod tests {
         #[derive(Clone, Debug)]
         struct Context {
             trace_id: String,
-            span_id: String,
-            baggage: HashMap<String, String>,
+            span_id:  String,
+            baggage:  HashMap<String, String>,
         }
 
         let context = Context {
             trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
-            span_id: "00f067aa0ba902b7".to_string(),
-            baggage: {
+            span_id:  "00f067aa0ba902b7".to_string(),
+            baggage:  {
                 let mut b = HashMap::new();
                 b.insert("user_id".to_string(), "user-123".to_string());
                 b

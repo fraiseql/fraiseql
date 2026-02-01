@@ -2,14 +2,15 @@
 //!
 //! Provides Prometheus-compatible metrics
 
-use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+
+use serde::{Deserialize, Serialize};
 
 /// Metrics collector
 #[derive(Clone)]
 pub struct MetricsCollector {
-    request_count: Arc<Mutex<u64>>,
-    error_count: Arc<Mutex<u64>>,
+    request_count:     Arc<Mutex<u64>>,
+    error_count:       Arc<Mutex<u64>>,
     total_duration_ms: Arc<Mutex<u64>>,
 }
 
@@ -17,11 +18,11 @@ pub struct MetricsCollector {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSummary {
     /// Total requests processed
-    pub request_count: u64,
+    pub request_count:    u64,
     /// Total errors
-    pub error_count: u64,
+    pub error_count:      u64,
     /// Average response time
-    pub avg_duration_ms: f64,
+    pub avg_duration_ms:  f64,
     /// Prometheus format output
     pub prometheus_lines: Vec<String>,
 }
@@ -30,8 +31,8 @@ impl MetricsCollector {
     /// Create new metrics collector
     pub fn new() -> Self {
         Self {
-            request_count: Arc::new(Mutex::new(0)),
-            error_count: Arc::new(Mutex::new(0)),
+            request_count:     Arc::new(Mutex::new(0)),
+            error_count:       Arc::new(Mutex::new(0)),
             total_duration_ms: Arc::new(Mutex::new(0)),
         }
     }

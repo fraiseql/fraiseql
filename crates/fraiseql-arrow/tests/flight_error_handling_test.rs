@@ -36,10 +36,8 @@ impl TestDb {
 
         let pool = PgPoolOptions::new().max_connections(1).connect(&db_url).await?;
 
-        let test_db_name = format!(
-            "fraiseql_arrow_err_{}",
-            uuid::Uuid::new_v4().to_string().replace('-', "_")
-        );
+        let test_db_name =
+            format!("fraiseql_arrow_err_{}", uuid::Uuid::new_v4().to_string().replace('-', "_"));
         tracing::info!("Creating test database: {}", test_db_name);
 
         sqlx::query(&format!("CREATE DATABASE \"{}\"", test_db_name))
@@ -175,10 +173,7 @@ mod tests {
         let service = fraiseql_arrow::FraiseQLFlightService::new();
 
         // Service should still have schema registry
-        assert!(
-            service.schema_registry().contains("ta_users"),
-            "Should have default schemas"
-        );
+        assert!(service.schema_registry().contains("ta_users"), "Should have default schemas");
 
         tracing::info!("✓ Database connection failure test passed");
         Ok(())

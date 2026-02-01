@@ -6,15 +6,15 @@
 //! - Metrics collection (counters, histograms, gauges)
 //! - Context propagation across async boundaries
 
-pub mod tracing;
-pub mod metrics;
-pub mod logging;
 pub mod context;
+pub mod logging;
+pub mod metrics;
+pub mod tracing;
 
-pub use tracing::{init_tracer, create_span, SpanBuilder};
-pub use metrics::{MetricsRegistry, MetricCounter, MetricHistogram};
+pub use context::{TraceContext, clear_context, get_context, set_context};
 pub use logging::init_logging;
-pub use context::{TraceContext, get_context, set_context, clear_context};
+pub use metrics::{MetricCounter, MetricHistogram, MetricsRegistry};
+pub use tracing::{SpanBuilder, create_span, init_tracer};
 
 /// Initialize all observability components
 ///

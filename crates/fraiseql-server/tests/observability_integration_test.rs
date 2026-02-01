@@ -80,7 +80,7 @@ mod tests {
     /// Test trace context propagation through request
     #[test]
     fn test_trace_context_in_request() {
-        use fraiseql_server::observability::context::{TraceContext, set_context, get_context};
+        use fraiseql_server::observability::context::{TraceContext, get_context, set_context};
 
         let ctx = TraceContext::new()
             .with_baggage("user_id", "user-123")

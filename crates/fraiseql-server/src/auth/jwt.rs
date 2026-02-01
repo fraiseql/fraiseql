@@ -85,12 +85,8 @@ impl JwtValidator {
             });
         }
 
-        self.validation.set_audience(
-            &audiences
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>(),
-        );
+        self.validation
+            .set_audience(&audiences.iter().map(|s| s.to_string()).collect::<Vec<_>>());
         self.validation.validate_aud = true;
 
         Ok(self)

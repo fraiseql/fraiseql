@@ -69,7 +69,10 @@ mod tests {
         let max_message_len: u32 = 0xFFFF_FFFF;
 
         // Should detect as invalid
-        assert!(max_message_len > 1_000_000_000, "Should be unreasonably large");
+        assert!(
+            max_message_len > 1_000_000_000,
+            "Should be unreasonably large"
+        );
 
         // System should reject or handle carefully
         println!("✅ Length field overflow test passed");
@@ -120,7 +123,11 @@ mod tests {
         // Simulate error
         let state = ProtocolState::Failed;
 
-        assert_eq!(state, ProtocolState::Failed, "Should transition to Failed on error");
+        assert_eq!(
+            state,
+            ProtocolState::Failed,
+            "Should transition to Failed on error"
+        );
 
         // Should not be able to process queries in Failed state
         if state == ProtocolState::Failed {
@@ -151,7 +158,10 @@ mod tests {
         buffer.extend_from_slice(&packet2);
 
         // Should have complete message in buffer
-        assert!(buffer.len() >= packet1.len() + packet2.len(), "Buffer should accumulate");
+        assert!(
+            buffer.len() >= packet1.len() + packet2.len(),
+            "Buffer should accumulate"
+        );
 
         println!("✅ Partial message buffering test passed");
     }
@@ -171,7 +181,11 @@ mod tests {
         // Should allocate buffer for it
         let buffer = vec![0u8; large_message_size];
 
-        assert_eq!(buffer.len(), large_message_size, "Buffer should handle large message");
+        assert_eq!(
+            buffer.len(),
+            large_message_size,
+            "Buffer should handle large message"
+        );
 
         println!("✅ Large data row test passed");
     }
@@ -194,7 +208,10 @@ mod tests {
 
         // Should have exactly 3 messages, no DataRow
         assert_eq!(messages.len(), 3, "Should have 3 messages for empty result");
-        assert!(!messages.contains(&"DataRow"), "Should not have DataRow for empty result");
+        assert!(
+            !messages.contains(&"DataRow"),
+            "Should not have DataRow for empty result"
+        );
 
         println!("✅ Empty result set messages test passed");
     }
@@ -264,7 +281,10 @@ mod tests {
 
         // Hint should be extracted and available
         if let Some(hint_text) = hint {
-            assert!(hint_text.contains("users"), "Hint should suggest table name");
+            assert!(
+                hint_text.contains("users"),
+                "Hint should suggest table name"
+            );
         } else {
             panic!("Hint should be present");
         }
@@ -360,7 +380,10 @@ mod tests {
         params.insert("DateStyle", "ISO, MDY");
 
         // Client should store these
-        assert!(params.contains_key("client_encoding"), "Should track client encoding");
+        assert!(
+            params.contains_key("client_encoding"),
+            "Should track client encoding"
+        );
 
         println!("✅ Parameter status updates test passed");
     }

@@ -6,12 +6,12 @@
 //! - Metrics collection and export
 //! - Graceful shutdown with signal handling
 
+pub mod config;
 pub mod health;
 pub mod metrics;
-pub mod config;
 pub mod shutdown;
 
+pub use config::{ServerConfig, validate_config};
 pub use health::{HealthStatus, health_check};
 pub use metrics::{MetricsCollector, metrics_summary};
-pub use config::{validate_config, ServerConfig};
 pub use shutdown::{ShutdownHandler, install_signal_handlers};

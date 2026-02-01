@@ -33,10 +33,7 @@ mod tests {
 
         // Should never be executed as-is
         // Must be parameterized
-        assert!(
-            malicious_input.contains("'"),
-            "Test input contains quotes as expected"
-        );
+        assert!(malicious_input.contains("'"), "Test input contains quotes as expected");
 
         // In actual implementation, would verify:
         // - Input is not concatenated into SQL
@@ -65,10 +62,7 @@ mod tests {
             .replace('"', "&quot;")
             .replace('\'', "&#39;");
 
-        assert!(
-            !escaped.contains("<script>"),
-            "Script tag should be escaped"
-        );
+        assert!(!escaped.contains("<script>"), "Script tag should be escaped");
         assert!(escaped.contains("&lt;script&gt;"), "Should be HTML-encoded");
 
         println!("✅ XSS prevention test passed");
@@ -86,16 +80,11 @@ mod tests {
         let payload = r#"" onclick="alert('xss')"#;
 
         // Should be escaped
-        let escaped = payload
-            .replace('"', "&quot;")
-            .replace('\'', "&#39;");
+        let escaped = payload.replace('"', "&quot;").replace('\'', "&#39;");
 
         // After escaping quotes, the onclick syntax is broken
         // because the quotes are now &quot; which breaks the attribute
-        assert!(
-            escaped.contains("&quot;"),
-            "Quotes should be HTML-encoded"
-        );
+        assert!(escaped.contains("&quot;"), "Quotes should be HTML-encoded");
 
         println!("✅ Event handler XSS prevention test passed");
     }
@@ -135,35 +124,33 @@ mod tests {
     fn test_authentication_required() {
         // Test cases for auth
         struct TestCase {
-            _token: Option<String>,
+            _token:          Option<String>,
             expected_status: u16,
-            description: &'static str,
+            description:     &'static str,
         }
 
         let cases = vec![
             TestCase {
-                _token: None,
+                _token:          None,
                 expected_status: 401,
-                description: "Missing token",
+                description:     "Missing token",
             },
             TestCase {
-                _token: Some("invalid_token".to_string()),
+                _token:          Some("invalid_token".to_string()),
                 expected_status: 401,
-                description: "Invalid token",
+                description:     "Invalid token",
             },
             TestCase {
-                _token: Some("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MDAwMDAwMDB9.x".to_string()),
+                _token:          Some(
+                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MDAwMDAwMDB9.x".to_string(),
+                ),
                 expected_status: 401,
-                description: "Expired token",
+                description:     "Expired token",
             },
         ];
 
         for case in cases {
-            assert_eq!(
-                case.expected_status, 401,
-                "Auth should be required: {}",
-                case.description
-            );
+            assert_eq!(case.expected_status, 401, "Auth should be required: {}", case.description);
         }
 
         println!("✅ Authentication required test passed");
@@ -179,17 +166,17 @@ mod tests {
     #[test]
     fn test_authorization_enforcement() {
         struct User {
-            id: String,
+            id:   String,
             role: String,
         }
 
         let user1 = User {
-            id: "user-1".to_string(),
+            id:   "user-1".to_string(),
             role: "user".to_string(),
         };
 
         let user2 = User {
-            id: "user-2".to_string(),
+            id:   "user-2".to_string(),
             role: "admin".to_string(),
         };
 
@@ -223,10 +210,7 @@ mod tests {
         // Test oversized input
         let huge_string = "x".repeat(100_000);
         let max_length = 1000;
-        assert!(
-            huge_string.len() > max_length,
-            "Oversized input should be detected"
-        );
+        assert!(huge_string.len() > max_length, "Oversized input should be detected");
 
         println!("✅ Input validation test passed");
     }
@@ -279,10 +263,7 @@ mod tests {
         );
 
         // CORS should use specific origins, not wildcard in production
-        assert!(
-            allowed_origins[0] != "*",
-            "Should not use wildcard in production"
-        );
+        assert!(allowed_origins[0] != "*", "Should not use wildcard in production");
 
         println!("✅ CORS configuration test passed");
     }
@@ -306,10 +287,7 @@ mod tests {
 
         // HSTS should be configured
         let hsts_header = "Strict-Transport-Security: max-age=31536000; includeSubDomains";
-        assert!(
-            hsts_header.contains("max-age"),
-            "HSTS should have max-age"
-        );
+        assert!(hsts_header.contains("max-age"), "HSTS should have max-age");
 
         println!("✅ TLS enforcement test passed");
     }
@@ -347,18 +325,9 @@ mod tests {
 
         // Strong password should meet requirements
         assert!(strong_password.len() >= 8, "Should have minimum length");
-        assert!(
-            strong_password.chars().any(|c| c.is_uppercase()),
-            "Should have uppercase"
-        );
-        assert!(
-            strong_password.chars().any(|c| c.is_lowercase()),
-            "Should have lowercase"
-        );
-        assert!(
-            strong_password.chars().any(|c| c.is_ascii_digit()),
-            "Should have digit"
-        );
+        assert!(strong_password.chars().any(|c| c.is_uppercase()), "Should have uppercase");
+        assert!(strong_password.chars().any(|c| c.is_lowercase()), "Should have lowercase");
+        assert!(strong_password.chars().any(|c| c.is_ascii_digit()), "Should have digit");
 
         // Weak password should fail
         assert!(weak_password.len() < 8, "Weak password is too short");
@@ -377,20 +346,20 @@ mod tests {
     fn test_sensitive_operation_verification() {
         // Sensitive operations should require additional verification
         struct SensitiveOp {
-            operation: String,
-            requires_mfa: bool,
+            operation:             String,
+            requires_mfa:          bool,
             requires_confirmation: bool,
         }
 
         let sensitive_ops = vec![
             SensitiveOp {
-                operation: "delete_user".to_string(),
-                requires_mfa: true,
+                operation:             "delete_user".to_string(),
+                requires_mfa:          true,
                 requires_confirmation: true,
             },
             SensitiveOp {
-                operation: "change_password".to_string(),
-                requires_mfa: false,
+                operation:             "change_password".to_string(),
+                requires_mfa:          false,
                 requires_confirmation: true,
             },
         ];
