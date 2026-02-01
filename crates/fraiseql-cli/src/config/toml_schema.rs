@@ -5,6 +5,119 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+/// Schema includes for multi-file composition
+///
+/// Supports glob patterns for flexible file inclusion:
+/// ```toml
+/// [schema.includes]
+/// types = ["schema/types/**/*.json"]
+/// queries = ["schema/queries/**/*.json"]
+/// mutations = ["schema/mutations/**/*.json"]
+/// ```
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct SchemaIncludes {
+    /// Glob patterns for type files
+    pub types: Vec<String>,
+    /// Glob patterns for query files
+    pub queries: Vec<String>,
+    /// Glob patterns for mutation files
+    pub mutations: Vec<String>,
+}
+
+impl SchemaIncludes {
+    /// Check if any includes are specified
+    pub fn is_empty(&self) -> bool {
+        self.types.is_empty() && self.queries.is_empty() && self.mutations.is_empty()
+    }
+
+    /// Resolve glob patterns to actual file paths
+    ///
+    /// # Returns
+    /// ResolvedIncludes with expanded file paths, or error if resolution fails
+    pub fn resolve_globs(&self) -> Result<ResolvedIncludes> {
+        use glob::glob as glob_pattern;
+
+        let mut type_paths = Vec::new();
+        let mut query_paths = Vec::new();
+        let mut mutation_paths = Vec::new();
+
+        // Resolve type globs
+        for pattern in &self.types {
+            for entry in glob_pattern(pattern)
+                .context(format!("Invalid glob pattern for types: {pattern}"))?
+            {
+                match entry {
+                    Ok(path) => type_paths.push(path),
+                    Err(e) => {
+                        anyhow::bail!("Error resolving type glob pattern '{}': {}", pattern, e);
+                    }
+                }
+            }
+        }
+
+        // Resolve query globs
+        for pattern in &self.queries {
+            for entry in glob_pattern(pattern)
+                .context(format!("Invalid glob pattern for queries: {pattern}"))?
+            {
+                match entry {
+                    Ok(path) => query_paths.push(path),
+                    Err(e) => {
+                        anyhow::bail!("Error resolving query glob pattern '{}': {}", pattern, e);
+                    }
+                }
+            }
+        }
+
+        // Resolve mutation globs
+        for pattern in &self.mutations {
+            for entry in glob_pattern(pattern)
+                .context(format!("Invalid glob pattern for mutations: {pattern}"))?
+            {
+                match entry {
+                    Ok(path) => mutation_paths.push(path),
+                    Err(e) => {
+                        anyhow::bail!(
+                            "Error resolving mutation glob pattern '{}': {}",
+                            pattern,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
+        // Sort for deterministic ordering
+        type_paths.sort();
+        query_paths.sort();
+        mutation_paths.sort();
+
+        // Remove duplicates
+        type_paths.dedup();
+        query_paths.dedup();
+        mutation_paths.dedup();
+
+        Ok(ResolvedIncludes {
+            types: type_paths,
+            queries: query_paths,
+            mutations: mutation_paths,
+        })
+    }
+}
+
+/// Resolved glob patterns to actual file paths
+#[derive(Debug, Clone)]
+pub struct ResolvedIncludes {
+    /// Resolved type file paths
+    pub types: Vec<PathBuf>,
+    /// Resolved query file paths
+    pub queries: Vec<PathBuf>,
+    /// Resolved mutation file paths
+    pub mutations: Vec<PathBuf>,
+}
 
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -53,6 +166,10 @@ pub struct TomlSchema {
     /// Observability configuration
     #[serde(rename = "observability")]
     pub observability: ObservabilityConfig,
+
+    /// Schema includes configuration for multi-file composition
+    #[serde(default)]
+    pub includes: SchemaIncludes,
 }
 
 /// Schema metadata

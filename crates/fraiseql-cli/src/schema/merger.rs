@@ -61,6 +61,76 @@ impl SchemaMerger {
         Self::merge_values(&types_value, &toml_schema)
     }
 
+    /// Merge with TOML includes (glob patterns for schema files)
+    ///
+    /// # Arguments
+    /// * `toml_path` - Path to fraiseql.toml with schema.includes section
+    ///
+    /// # Returns
+    /// IntermediateSchema from loaded files + TOML definitions
+    pub fn merge_with_includes(toml_path: &str) -> Result<IntermediateSchema> {
+        let toml_schema = TomlSchema::from_file(toml_path)
+            .context(format!("Failed to load TOML from {toml_path}"))?;
+
+        toml_schema.validate()?;
+
+        // If includes are specified, load and merge files
+        let types_value = if !toml_schema.includes.is_empty() {
+            let resolved = toml_schema
+                .includes
+                .resolve_globs()
+                .context("Failed to resolve glob patterns in schema.includes")?;
+
+            // Load all type files
+            let type_files: Vec<std::path::PathBuf> = resolved.types;
+            let mut merged_types = if !type_files.is_empty() {
+                crate::schema::MultiFileLoader::load_from_paths(&type_files)
+                    .context("Failed to load type files")?
+            } else {
+                serde_json::json!({
+                    "types": [],
+                    "queries": [],
+                    "mutations": []
+                })
+            };
+
+            // Load and merge query files
+            if !resolved.queries.is_empty() {
+                let query_value = crate::schema::MultiFileLoader::load_from_paths(&resolved.queries)
+                    .context("Failed to load query files")?;
+                if let Some(Value::Array(queries)) = query_value.get("queries") {
+                    if let Some(Value::Array(existing_queries)) = merged_types.get_mut("queries") {
+                        existing_queries.extend(queries.clone());
+                    }
+                }
+            }
+
+            // Load and merge mutation files
+            if !resolved.mutations.is_empty() {
+                let mutation_value =
+                    crate::schema::MultiFileLoader::load_from_paths(&resolved.mutations)
+                        .context("Failed to load mutation files")?;
+                if let Some(Value::Array(mutations)) = mutation_value.get("mutations") {
+                    if let Some(Value::Array(existing_mutations)) = merged_types.get_mut("mutations") {
+                        existing_mutations.extend(mutations.clone());
+                    }
+                }
+            }
+
+            merged_types
+        } else {
+            // No includes specified, use empty schema
+            serde_json::json!({
+                "types": [],
+                "queries": [],
+                "mutations": []
+            })
+        };
+
+        // Merge with TOML definitions
+        Self::merge_values(&types_value, &toml_schema)
+    }
+
     /// Merge JSON types with TOML schema
     fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
         // Start with arrays for types, queries, mutations (not objects!)
@@ -95,6 +165,19 @@ impl SchemaMerger {
                     for (type_name, type_value) in types_map {
                         let mut enriched_type = type_value.clone();
                         enriched_type["name"] = json!(type_name);
+
+                        // Convert fields from object to array format if needed
+                        if let Some(Value::Object(fields_map)) = enriched_type.get("fields") {
+                            let fields_array: Vec<Value> = fields_map
+                                .iter()
+                                .map(|(field_name, field_value)| {
+                                    let mut field = field_value.clone();
+                                    field["name"] = json!(field_name);
+                                    field
+                                })
+                                .collect();
+                            enriched_type["fields"] = json!(fields_array);
+                        }
 
                         if let Some(toml_type) = toml_schema.types.get(type_name) {
                             enriched_type["sql_source"] = json!(toml_type.sql_source);
@@ -302,6 +385,8 @@ impl SchemaMerger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_merge_toml_only() {
@@ -339,5 +424,94 @@ sql_source = "v_user"
 
         // Clean up
         let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn test_merge_with_includes() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+
+        // Create schema files
+        let user_types = serde_json::json!({
+            "types": [{"name": "User", "fields": []}],
+            "queries": [],
+            "mutations": []
+        });
+        fs::write(
+            temp_dir.path().join("user.json"),
+            user_types.to_string(),
+        )?;
+
+        let post_types = serde_json::json!({
+            "types": [{"name": "Post", "fields": []}],
+            "queries": [],
+            "mutations": []
+        });
+        fs::write(
+            temp_dir.path().join("post.json"),
+            post_types.to_string(),
+        )?;
+
+        // Create TOML with includes
+        let toml_content = format!(
+            r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[includes]
+types = ["{}/*.json"]
+queries = []
+mutations = []
+"#,
+            temp_dir.path().to_string_lossy()
+        );
+
+        let toml_path = temp_dir.path().join("fraiseql.toml");
+        fs::write(&toml_path, toml_content)?;
+
+        // Merge
+        let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
+        assert!(result.is_ok());
+
+        let schema = result?;
+        assert_eq!(schema.types.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_with_includes_missing_files() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+
+        let toml_content = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[schema.includes]
+types = ["/nonexistent/path/*.json"]
+queries = []
+mutations = []
+"#;
+
+        let toml_path = temp_dir.path().join("fraiseql.toml");
+        fs::write(&toml_path, toml_content)?;
+
+        // Should succeed but with no files loaded (glob matches nothing)
+        let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
+        assert!(result.is_ok());
+
+        let schema = result?;
+        assert_eq!(schema.types.len(), 0);
+
+        Ok(())
     }
 }
