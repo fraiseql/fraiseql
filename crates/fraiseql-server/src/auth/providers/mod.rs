@@ -1,24 +1,26 @@
 // OAuth provider implementations
-// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, and Azure AD
+// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, and Azure AD
 
 pub mod auth0;
 pub mod azure_ad;
 pub mod github;
 pub mod google;
 pub mod keycloak;
+pub mod okta;
 
 pub use auth0::Auth0OAuth;
 pub use azure_ad::AzureADOAuth;
 pub use github::GitHubOAuth;
 pub use google::GoogleOAuth;
 pub use keycloak::KeycloakOAuth;
+pub use okta::OktaOAuth;
 
 use crate::auth::{error::Result, provider::OAuthProvider};
 
 /// Factory for creating OAuth providers from configuration
 ///
 /// # Arguments
-/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "azure_ad"
+/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad"
 /// * `client_id` - OAuth client ID
 /// * `client_secret` - OAuth client secret
 /// * `config` - Provider-specific configuration (JSON value)
@@ -85,6 +87,23 @@ pub async fn create_provider(
                     .await?;
             Ok(Box::new(provider))
         },
+        "okta" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Okta provider requires config with okta_domain".to_string(),
+            })?;
+
+            let okta_domain = config
+                .get("okta_domain")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing okta_domain in config".to_string(),
+                })?
+                .to_string();
+
+            let provider = OktaOAuth::new(client_id, client_secret, okta_domain, redirect_uri)
+                .await?;
+            Ok(Box::new(provider))
+        },
         "azure_ad" => {
             let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
                 message: "Azure AD provider requires config with tenant".to_string(),
@@ -141,6 +160,17 @@ mod tests {
         let roles =
             keycloak::KeycloakOAuth::map_keycloak_roles_to_fraiseql(vec!["admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
+    }
+
+    #[test]
+    fn test_okta_group_mapping() {
+        let groups = okta::OktaOAuth::map_okta_groups_to_fraiseql(vec![
+            "fraiseql-admin".to_string(),
+            "everyone".to_string(),
+        ]);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.contains(&"admin".to_string()));
+        assert!(groups.contains(&"viewer".to_string()));
     }
 
     #[test]
