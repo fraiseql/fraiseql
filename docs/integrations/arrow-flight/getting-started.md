@@ -203,17 +203,10 @@ You've successfully:
 ### Learn More
 - **[Architecture Deep Dive](./architecture.md)** - Understand the design
 - **[Migration Guide](./migration-guide.md)** - Adopt in your codebase
-- **[Performance Tuning](./performance/benchmarks.md)** - Optimize queries
 
-### Try Advanced Features
-- **[Stream to ClickHouse](./client-integration/clickhouse.md)** - Real-time analytics
-- **[Use R or Rust](./client-integration/)** - Other languages
-- **[Compare HTTP/JSON vs Arrow](./performance/comparison.md)** - Performance comparison
+### Explore Integration Patterns
 
-### Deploy to Production
-- **[Docker Compose Setup](./deployment/docker-compose.md)** - Multi-service deployment
-- **[Kubernetes](./deployment/kubernetes.md)** - Production deployment
-- **[Monitoring](./deployment/monitoring.md)** - Metrics and alerts
+Arrow Flight supports Python, R, Rust, Java, and other languages. See the [architecture guide](./architecture.md) and [migration guide](./migration-guide.md) for integration examples and production deployment patterns.
 
 ## Troubleshooting
 
