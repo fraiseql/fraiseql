@@ -6,10 +6,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY tutorial/package.json tutorial/package-lock.json* ./
+COPY tutorial/package.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # ============================================================================
 # RUNTIME

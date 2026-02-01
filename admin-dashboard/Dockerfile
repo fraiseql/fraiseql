@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY admin-dashboard/package.json .
 
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # ============================================================================
 # RUNTIME
