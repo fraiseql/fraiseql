@@ -465,4 +465,3 @@ These are potential future enhancements to FraiseQL.
 **See Also**:
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Detailed migration instructions
 - `examples/` - Working examples
-- Phase 25 implementation: Phase 25 Cycle 4 adds domain discovery
