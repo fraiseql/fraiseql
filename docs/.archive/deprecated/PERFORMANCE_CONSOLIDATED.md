@@ -2,7 +2,7 @@
 
 **Duration**: 2-4 hours
 **Outcome**: Optimize and scale FraiseQL for high throughput
-**Prerequisites**: Completed [DEPLOYMENT.md](DEPLOYMENT.md)
+**Prerequisites**: Understanding of deployment (see [deployment guide](../../deployment/guide.md))
 
 ---
 
@@ -601,10 +601,9 @@ You now know how to:
 
 ## Next Steps
 
-- **Need help with production?** → [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md)
-- **Specific problem?** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- **See operations?** → [DEPLOYMENT.md](DEPLOYMENT.md)
+- **Need help with production?** → See current [operations guide](../../operations/guide.md)
+- **Specific problem?** → Check [troubleshooting guide](../../TROUBLESHOOTING.md)
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql).

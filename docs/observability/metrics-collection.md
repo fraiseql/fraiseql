@@ -1040,9 +1040,9 @@ Set up alerts for:
 
 ## Next Steps
 
-- **[Analysis Guide](analysis-guide.md)** - How to analyze collected metrics
-- **[Configuration](configuration.md)** - Tune collection settings
-- **[Architecture](architecture.md)** - System design details
+- **[Operations Guide](./migration-workflow.md)** - Apply optimizations
+- **[Optimization Suggestions](./optimization-suggestions.md)** - Performance tuning
+- **[Troubleshooting](./troubleshooting.md)** - Common issues
 
 ---
 
