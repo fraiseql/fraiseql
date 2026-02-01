@@ -6,7 +6,7 @@
 
 FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
-This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all Clippy warnings resolved), zero unsafe code, and validated against chaos engineering scenarios.
+This is a **solo-authored project** with comprehensive testing (7,600+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
 See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development details, [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture, or [`.phases/README.md`](.phases/README.md) for development history.
 
@@ -33,7 +33,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - Automatic WHERE type generation from GraphQL scalar types
 - Apollo Federation v2 with SAGA transaction support across services
-- Webhooks integration (11 external providers)
+- Webhooks integration (12 external providers: Discord, GitHub, GitLab, LemonSqueezy, Paddle, Postmark, SendGrid, Shopify, Slack, Stripe, Twilio, + generic)
 - Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
 - Backup and disaster recovery (point-in-time restore, failover support)
 - Multi-tenant isolation with per-tenant data scoping
@@ -252,17 +252,17 @@ See `docs/specs/schema-conventions.md` for complete conventions.
 
 ## WHERE Operators
 
-FraiseQL automatically generates filter operators based on your GraphQL scalar types. PostgreSQL deployments get 150+ operators across 15 categories; other databases get only what they support. No manual filter type definitions.
+FraiseQL automatically generates filter operators based on your GraphQL scalar types and database capabilities. PostgreSQL gets extensive operator support (string matching, full-text search, arrays, JSONB, vectors, networks, hierarchies); other databases get only what they support. No manual filter type definitions needed.
 
-**Standard (all databases):**
+**Standard operators (all databases):**
 - Comparison: `_eq`, `_neq`, `_lt`, `_lte`, `_gt`, `_gte`
 - Logical: `_and`, `_or`, `_not`
 
-**String (database-dependent):**
-- PostgreSQL: `_like`, `_ilike`, `_regex`, `_contains`, `_icontains`, `_startswith`, `_istartswith`, `_endswith`, etc.
-- SQLite/MySQL: basic set (`_like`, `_contains`)
+**String operators (database-dependent):**
+- PostgreSQL: `_like`, `_ilike`, `_regex`, `_contains`, `_icontains`, `_startswith`, `_istartswith`, `_endswith`, `_matches` (full-text), etc.
+- SQLite/MySQL: `_like`, `_contains`
 
-**PostgreSQL-specific (compiled out for other databases):**
+**PostgreSQL-specific operators (compiled out for other databases):**
 - Arrays: `_array_contains`, `_array_contained_by`, `_array_overlaps`, `_len_eq`, `_len_gt`
 - JSONB: `_jsonb_contains`, `_jsonb_has_key`, `_jsonb_path_exists`
 - Vectors (pgvector): `_cosine_distance_lt`, `_l2_distance_lt`, `_inner_product_gt`, etc.
@@ -280,17 +280,17 @@ See `docs/reference/where-operators.md` for the complete list and SQL equivalent
 
 FraiseQL provides two specialized ways to stream large result sets:
 
-**fraiseql-wire** — A PostgreSQL-specific driver optimized for streaming JSON results. Processes rows as they arrive from the database without buffering the entire result set. Implements the Postgres wire protocol from scratch, supporting TCP and Unix sockets. Supports WHERE filters and ORDER BY, with memory usage bounded by chunk size, not result size. Useful when you need to stream large datasets with low latency and bounded memory from PostgreSQL.
+**fraiseql-wire** — A PostgreSQL-specific driver optimized for streaming JSON results. Processes rows as they arrive from the database without buffering the entire result set. Implements the Postgres wire protocol from scratch, supporting TCP and Unix sockets. Supports WHERE filters and ORDER BY, with memory usage bounded by chunk size, not result size. Useful when you need to stream large datasets with bounded memory from PostgreSQL.
 
-**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Provides 50x better throughput than JSON with 10x better memory efficiency. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines.
+**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Columnar format provides better throughput for analytics workloads with more efficient memory usage than row-oriented JSON. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines. See `crates/fraiseql-arrow/benches/` for performance measurements.
 
 ---
 
 ## Performance & Reliability
 
-**Performance:** FraiseQL eliminates common GraphQL bottlenecks. No N+1 queries (joins determined at compile time), no resolver chain overhead, no runtime interpretation. For typical workloads, this translates to single-digit millisecond latency. Arrow Flight provides 50x better throughput than JSON for analytics workloads with 10x better memory efficiency—useful when you have large result sets.
+**Performance:** FraiseQL eliminates common GraphQL bottlenecks. No N+1 queries (joins determined at compile time), no resolver chain overhead, no runtime interpretation. Query execution is fast, with no runtime schema interpretation overhead. Arrow Flight provides better throughput and memory efficiency for analytics workloads compared to row-oriented JSON—useful when you have large result sets or need to integrate with data warehouses.
 
-**Reliability:** The codebase uses Rust's type system to prevent entire categories of bugs. No unsafe code (forbidden at compile time), all warnings treated as errors. Chaos engineering tests validate zero data loss. Field-level authorization is compiled as metadata, making it impossible to bypass via resolver tricks.
+**Reliability:** The codebase uses Rust's type system to prevent entire categories of bugs. No unsafe code (forbidden at compile time), all critical warnings treated as errors. Chaos engineering tests validate transaction consistency and recovery under failure scenarios. Field-level authorization is compiled as metadata, making it impossible to bypass via resolver tricks.
 
 **Maintainability:** Every feature has corresponding tests. The 2,400+ test suite covers unit tests, integration tests with real databases, E2E tests across all language SDKs, and chaos engineering scenarios. This means changes are validated end-to-end, not just at the unit level.
 
@@ -315,7 +315,7 @@ Current release: **v2.0.0-alpha.1** (all planned features complete)
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
 - ✅ Event system with webhooks, message queues, and job dispatch
 - ✅ Multi-tenant isolation with per-tenant data scoping
-- ✅ Comprehensive test suite (2,400+ tests across all components)
+- ✅ Comprehensive test suite (7,600+ tests across all components)
 - ✅ Production deployment guides and monitoring setup
 
 **Next steps:**
