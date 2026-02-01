@@ -972,12 +972,7 @@ checkpoint_interval_ms = 10000  # Every 10 seconds (fastest)
 
 ## API Reference
 
-See language-specific documentation:
-- [Python API](../language-sdks/python/observers.md)
-- [TypeScript API](../language-sdks/typescript/observers.md)
-- [Go API](../language-sdks/go/observers.md)
-- [Java API](../language-sdks/java/observers.md)
-- [PHP API](../language-sdks/php/observers.md)
+The Observer API is available in all supported languages: Python, TypeScript, Go, Java, and PHP. See the quick start section above for language-specific examples.
 
 ---
 
@@ -1051,10 +1046,9 @@ ObserverBuilder.create('onOrderCreated')
 
 ## Further Reading
 
-- [Architecture: Observer Runtime](../architecture/observers/runtime.md)
-- [Architecture: Change Log System](../architecture/observers/change-log.md)
-- [Performance: Observer Optimization](../architecture/performance/observer-optimization.md)
-- [Security: Observer Authentication](../architecture/security/observer-auth.md)
+For more information on optimizing observer performance and security, see the Architecture documentation:
+- [Performance Optimization](../architecture/performance/advanced-optimization.md)
+- [Security Model](../architecture/security/security-model.md)
 
 ---
 
