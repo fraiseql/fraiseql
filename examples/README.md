@@ -2,6 +2,85 @@
 
 This directory contains example projects demonstrating FraiseQL usage patterns and best practices.
 
+## Docker Newcomer Onboarding Examples (Phase 1-4)
+
+Complete, runnable reference applications for learning FraiseQL without local compilation:
+
+### 1. Blog Example (Basic)
+
+**Location**: `examples/basic/`
+
+Introductory example with simple schema:
+- 2 types: `User`, `Post`
+- 1-to-many relationship
+- 5 sample users, 10 sample posts
+- Basic filtering and listing queries
+
+Run with: `docker compose -f docker/docker-compose.demo.yml up -d`
+
+### 2. E-Commerce Example (Intermediate)
+
+**Location**: `examples/ecommerce/`
+
+Real-world schema with complex relationships:
+- 5 types: `Category`, `Product`, `Customer`, `Order`, `OrderItem`
+- Multiple nested relationships
+- 5 categories, 12 products, 5 customers, 7 orders
+- Advanced filtering, aggregation, and relationship traversal
+
+**Queries**:
+- Product listing and filtering
+- Customer order history
+- Inventory management
+- Order analysis
+
+Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
+
+### 3. Streaming Example (Advanced)
+
+**Location**: `examples/streaming/`
+
+Real-time event-driven architecture:
+- 4 types: `Event`, `Message`, `UserActivity`, `LiveMetrics`
+- 4 GraphQL subscriptions for real-time data
+- Event streaming patterns
+- Metrics aggregation
+
+**Subscriptions**:
+- `onEvent` - System events
+- `onMessage` - Real-time messaging
+- `onUserStatusChange` - Presence tracking
+- `onMetricUpdate` - Performance metrics
+
+Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
+
+### Quick Start
+
+```bash
+# Single example (blog only)
+make demo-start
+
+# All examples (blog + ecommerce + streaming)
+make examples-start
+
+# Check status
+make examples-status
+
+# View logs
+make examples-logs
+```
+
+Access:
+- Blog IDE: http://localhost:3000
+- E-Commerce IDE: http://localhost:3100
+- Streaming IDE: http://localhost:3200
+- Tutorial: http://localhost:3001
+- Admin Dashboard: http://localhost:3002
+
+See `.docker-phase4-status.md` for comprehensive Phase 4 documentation.
+
+---
+
 ## Arrow Flight Client Examples (Phase 9.6)
 
 Production-ready clients demonstrating zero-copy columnar data delivery via Apache Arrow Flight:
