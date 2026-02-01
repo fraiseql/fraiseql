@@ -1,0 +1,196 @@
+# FraiseQL v2 Configuration
+# TOML-based schema for TOML-first workflow
+# Pairs with types.json from Python/TypeScript/Java SDKs
+
+[fraiseql]
+version = "2.0"
+name = "E-commerce API"
+description = "Example e-commerce GraphQL API with types from language SDKs"
+
+# ============================================================================
+# QUERIES - Define GraphQL queries
+# ============================================================================
+
+[fraiseql.queries.users]
+return_type = "User"
+returns_list = true
+nullable = false
+description = "Get all users"
+sql_source = "SELECT * FROM users"
+
+[fraiseql.queries.users.arguments]
+limit = "Int"
+offset = "Int"
+
+[fraiseql.queries.user]
+return_type = "User"
+returns_list = false
+nullable = true
+description = "Get user by ID"
+sql_source = "SELECT * FROM users WHERE id = ?"
+
+[fraiseql.queries.user.arguments]
+id = "String"
+
+[fraiseql.queries.posts]
+return_type = "Post"
+returns_list = true
+nullable = false
+description = "Get all posts"
+sql_source = "SELECT * FROM posts"
+
+[fraiseql.queries.posts.arguments]
+limit = "Int"
+offset = "Int"
+
+# ============================================================================
+# MUTATIONS - Define GraphQL mutations
+# ============================================================================
+
+[fraiseql.mutations.createUser]
+return_type = "User"
+returns_list = false
+nullable = false
+operation = "CREATE"
+description = "Create a new user"
+sql_source = "INSERT INTO users (name, email) VALUES (?, ?) RETURNING *"
+
+[fraiseql.mutations.createUser.arguments]
+name = "String"
+email = "String"
+
+[fraiseql.mutations.updateUser]
+return_type = "User"
+returns_list = false
+nullable = true
+operation = "UPDATE"
+description = "Update an existing user"
+sql_source = "UPDATE users SET name = ?, email = ? WHERE id = ? RETURNING *"
+
+[fraiseql.mutations.updateUser.arguments]
+id = "String"
+name = "String"
+email = "String"
+
+[fraiseql.mutations.deleteUser]
+return_type = "Boolean"
+returns_list = false
+nullable = false
+operation = "DELETE"
+description = "Delete a user"
+sql_source = "DELETE FROM users WHERE id = ? RETURNING true"
+
+[fraiseql.mutations.deleteUser.arguments]
+id = "String"
+
+# ============================================================================
+# SECURITY - Rate limiting, auth, audit logging
+# ============================================================================
+
+[fraiseql.security]
+enabled = true
+
+[fraiseql.security.rate_limiting]
+enabled = true
+auth_start_max_requests = 100
+auth_start_window_secs = 60
+authenticated_max_requests = 1000
+authenticated_window_secs = 60
+
+[fraiseql.security.audit_logging]
+enabled = true
+log_level = "info"
+log_auth_attempts = true
+log_mutations = true
+
+# ============================================================================
+# FEDERATION - Cross-service federation (if using multiple services)
+# ============================================================================
+
+[fraiseql.federation]
+enabled = false
+# Example federation configuration:
+# [[fraiseql.federation.subgraphs]]
+# name = "Users"
+# strategy = "local"
+# [[fraiseql.federation.subgraphs]]
+# name = "Orders"
+# strategy = "http"
+# url = "http://orders-service/graphql"
+
+# ============================================================================
+# OBSERVERS - Event-driven actions on database changes
+# ============================================================================
+
+[fraiseql.observers.userCreated]
+entity = "User"
+event = "INSERT"
+description = "Send welcome email when user is created"
+
+[[fraiseql.observers.userCreated.actions]]
+type = "webhook"
+url = "https://api.example.com/webhooks/user-created"
+method = "POST"
+timeout_ms = 5000
+
+[[fraiseql.observers.userCreated.actions]]
+type = "slack"
+channel = "#user-events"
+message = "New user created: {name} ({email})"
+
+[fraiseql.observers.userUpdated]
+entity = "User"
+event = "UPDATE"
+condition = "email.changed()"
+description = "Log email changes for audit"
+
+[[fraiseql.observers.userUpdated.actions]]
+type = "webhook"
+url = "https://api.example.com/webhooks/user-updated"
+method = "POST"
+
+[fraiseql.observers.userDeleted]
+entity = "User"
+event = "DELETE"
+description = "Archive user data when deleted"
+
+[[fraiseql.observers.userDeleted.actions]]
+type = "webhook"
+url = "https://api.example.com/webhooks/user-deleted"
+method = "POST"
+
+[fraiseql.observers.userDeleted.retry]
+max_attempts = 5
+initial_delay_ms = 100
+max_delay_ms = 60000
+multiplier = 2.0
+
+# ============================================================================
+# ANALYTICS - Schema analytics and observability
+# ============================================================================
+
+[fraiseql.analytics]
+enabled = true
+
+[fraiseql.analytics.metrics]
+collect_query_performance = true
+collect_field_usage = true
+collect_error_rates = true
+
+# ============================================================================
+# CACHING - Query result caching with automatic coherency
+# ============================================================================
+
+[fraiseql.caching]
+enabled = true
+default_ttl_seconds = 300
+
+[[fraiseql.caching.rules]]
+query = "users"
+ttl_seconds = 600
+invalidate_on = ["User"]
+
+[[fraiseql.caching.rules]]
+query = "posts"
+ttl_seconds = 300
+invalidate_on = ["Post"]
