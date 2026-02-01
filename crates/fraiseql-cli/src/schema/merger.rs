@@ -184,6 +184,7 @@ impl SchemaMerger {
 
         // Build merged schema with arrays
         let mut merged = serde_json::json!({
+            "version": "2.0.0",
             "types": types_array,
             "queries": queries_array,
             "mutations": mutations_array,
