@@ -3,6 +3,7 @@
 
 pub mod audit_logger;
 pub mod error;
+pub mod error_sanitizer;
 pub mod handlers;
 pub mod jwt;
 pub mod middleware;
@@ -21,11 +22,17 @@ mod security_tests;
 #[cfg(test)]
 mod audit_logging_tests;
 
+#[cfg(test)]
+mod error_sanitization_tests;
+
 pub use audit_logger::{
     AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
     init_audit_logger,
 };
 pub use error::{AuthError, Result};
+pub use error_sanitizer::{
+    AuthErrorSanitizer, Sanitizable, SanitizedError, messages as error_messages,
+};
 pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
     auth_callback, auth_logout, auth_refresh, auth_start,
