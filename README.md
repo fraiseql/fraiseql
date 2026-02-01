@@ -111,7 +111,7 @@ Additional security features:
 - Audit logging for all mutations and admin operations
 - Rate limiting on authentication endpoints
 - Error messages sanitized (no implementation details to clients)
-- OAuth2/OIDC support (Auth0, GitHub, Google, Keycloak, Azure AD)
+- OAuth2/OIDC support (Auth0, GitHub, Google, Keycloak, Okta, Azure AD)
 - Field-level authorization via GraphQL directives
 - Configurable via TOML with environment variable overrides for production
 
