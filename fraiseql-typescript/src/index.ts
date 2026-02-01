@@ -23,9 +23,9 @@
  *   // Function body not executed - only for type/metadata
  * }
  *
- * // Export to JSON
+ * // Export minimal types.json (use fraiseql.toml for queries, security, etc.)
  * if (require.main === module) {
- *   fraiseql.exportSchema("schema.json");
+ *   fraiseql.exportTypes("types.json");
  * }
  * ```
  *
@@ -54,15 +54,6 @@ export type {
   InputTypeDefinition,
   UnionDefinition,
   Schema,
-  Measure,
-  Dimension,
-  DimensionPath,
-  DenormalizedFilter,
-  FactTableDefinition,
-  AggregateQueryDefinition,
-  ObserverAction,
-  ObserverRetryConfig,
-  ObserverDefinition,
 } from "./registry";
 
 // Export decorators
@@ -72,8 +63,6 @@ export {
   Query,
   Mutation,
   Subscription,
-  FactTable as FactTableDecorator,
-  AggregateQuery as AggregateQueryDecorator,
   enum_,
   interface_,
   union,
@@ -88,8 +77,6 @@ export type {
   OperationConfig,
   MutationConfig,
   SubscriptionConfig,
-  FactTableConfig,
-  AggregateQueryConfig,
   EnumConfig,
   InterfaceConfig,
   UnionConfig,
@@ -98,47 +85,6 @@ export type {
 
 // Export schema functions
 export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString } from "./schema";
-
-// Export DDL generation helpers for table-backed views
-export {
-  loadSchema,
-  generateTvDdl,
-  generateTaDdl,
-  generateCompositionViews,
-  suggestRefreshStrategy,
-  validateGeneratedDdl,
-} from "./views";
-export type {
-  SchemaField,
-  SchemaRelationship,
-  SchemaType,
-  SchemaObject,
-  GenerateTvOptions,
-  GenerateTaOptions,
-  CompositionOptions,
-  StrategyOptions,
-} from "./views";
-
-// Export analytics
-export {
-  FactTable,
-  AggregateQuery,
-  registerFactTableManual,
-  registerTypeFieldsManual,
-} from "./analytics";
-export type { FactTableDecoratorConfig, AggregateQueryDecoratorConfig } from "./analytics";
-
-// Export observers
-export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
-export type {
-  RetryConfig,
-  WebhookAction,
-  SlackAction,
-  EmailAction,
-  Action,
-  ObserverConfig,
-  ObserverDefinition as ObserverDef,
-} from "./observers";
 
 // Export scalar types for schema authoring
 export {
@@ -217,13 +163,3 @@ export type {
   // Database scalars
   LTree,
 } from "./scalars";
-
-// Export federation support
-export {
-  Key,
-  Extends,
-  External,
-  Requires,
-  Provides,
-  generateSchemaJson,
-} from "./federation";
