@@ -16,14 +16,15 @@ type FieldInfo struct {
 
 // goToGraphQLType converts a Go type to GraphQL type string and nullable flag
 // Examples:
-//   int -> ("Int", false)
-//   *int -> ("Int", true)
-//   string -> ("String", false)
-//   *string -> ("String", true)
-//   []User -> ("[User]", false)
-//   *[]User -> ("[User]", true)
-//   bool -> ("Boolean", false)
-//   float64 -> ("Float", false)
+//
+//	int -> ("Int", false)
+//	*int -> ("Int", true)
+//	string -> ("String", false)
+//	*string -> ("String", true)
+//	[]User -> ("[User]", false)
+//	*[]User -> ("[User]", true)
+//	bool -> ("Boolean", false)
+//	float64 -> ("Float", false)
 func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 	nullable := false
 

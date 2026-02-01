@@ -61,10 +61,10 @@ func (qb *QueryBuilder) Arg(name string, graphQLType string, defaultValue interf
 	}
 
 	arg := ArgumentDefinition{
-		Name:        name,
-		Type:        graphQLType,
-		Nullable:    isNullable,
-		IsDefault:   defaultValue != nil,
+		Name:      name,
+		Type:      graphQLType,
+		Nullable:  isNullable,
+		IsDefault: defaultValue != nil,
 	}
 
 	if defaultValue != nil {
@@ -159,10 +159,10 @@ func (mb *MutationBuilder) Arg(name string, graphQLType string, defaultValue int
 	}
 
 	arg := ArgumentDefinition{
-		Name:        name,
-		Type:        graphQLType,
-		Nullable:    isNullable,
-		IsDefault:   defaultValue != nil,
+		Name:      name,
+		Type:      graphQLType,
+		Nullable:  isNullable,
+		IsDefault: defaultValue != nil,
 	}
 
 	if defaultValue != nil {

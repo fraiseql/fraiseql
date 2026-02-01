@@ -32,9 +32,6 @@ func ExportSchema(outputPath string) error {
 	if len(schema.AggregateQueries) > 0 {
 		fmt.Printf("   Aggregate Queries: %d\n", len(schema.AggregateQueries))
 	}
-	if len(schema.Observers) > 0 {
-		fmt.Printf("   Observers: %d\n", len(schema.Observers))
-	}
 
 	return nil
 }
@@ -54,4 +51,47 @@ func (s Schema) MarshalJSON() ([]byte, error) {
 	}{
 		Alias: (*Alias)(&s),
 	})
+}
+
+// ExportTypes exports only types to a minimal JSON structure
+// This is used for the TOML-based workflow where types come from SDKs
+// and configuration (queries, mutations, etc.) comes from fraiseql.toml
+// The pretty parameter controls JSON formatting
+func ExportTypes(pretty bool) ([]byte, error) {
+	schema := GetSchema()
+
+	// Build minimal schema with only types
+	minimalSchema := map[string]interface{}{
+		"types": schema.Types,
+	}
+
+	if pretty {
+		return json.MarshalIndent(minimalSchema, "", "  ")
+	}
+	return json.Marshal(minimalSchema)
+}
+
+// ExportTypesFile exports types to a file using ExportTypes()
+func ExportTypesFile(outputPath string) error {
+	typesJSON, err := ExportTypes(true)
+	if err != nil {
+		return fmt.Errorf("failed to marshal types to JSON: %w", err)
+	}
+
+	// Write to file
+	err = os.WriteFile(outputPath, typesJSON, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to write types file: %w", err)
+	}
+
+	// Print summary
+	schema := GetSchema()
+	fmt.Printf("✅ Types exported to %s\n", outputPath)
+	fmt.Printf("   Types: %d\n", len(schema.Types))
+	fmt.Printf("\n🎯 Next steps:\n")
+	fmt.Printf("   1. fraiseql compile fraiseql.toml --types %s\n", outputPath)
+	fmt.Printf("   2. This merges types with TOML configuration\n")
+	fmt.Printf("   3. Result: schema.compiled.json with types + all config\n")
+
+	return nil
 }

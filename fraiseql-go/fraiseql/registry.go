@@ -18,9 +18,9 @@ type ArgumentDefinition struct {
 
 // TypeDefinition represents a GraphQL type
 type TypeDefinition struct {
-	Name        string       `json:"name"`
-	Fields      []FieldInfo  `json:"fields"`
-	Description string       `json:"description,omitempty"`
+	Name        string      `json:"name"`
+	Fields      []FieldInfo `json:"fields"`
+	Description string      `json:"description,omitempty"`
 }
 
 // QueryDefinition represents a GraphQL query
@@ -56,12 +56,12 @@ type FactTableDefinition struct {
 
 // AggregateQueryDefinition represents a GraphQL aggregate query
 type AggregateQueryDefinition struct {
-	Name             string                 `json:"name"`
-	FactTable        string                 `json:"fact_table"`
-	AutoGroupBy      bool                   `json:"auto_group_by"`
-	AutoAggregates   bool                   `json:"auto_aggregates"`
-	Description      string                 `json:"description,omitempty"`
-	Config           map[string]interface{} `json:"config,omitempty"`
+	Name           string                 `json:"name"`
+	FactTable      string                 `json:"fact_table"`
+	AutoGroupBy    bool                   `json:"auto_group_by"`
+	AutoAggregates bool                   `json:"auto_aggregates"`
+	Description    string                 `json:"description,omitempty"`
+	Config         map[string]interface{} `json:"config,omitempty"`
 }
 
 // SubscriptionDefinition represents a GraphQL subscription
@@ -86,8 +86,6 @@ type Schema struct {
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
-	Observers        []ObserverDefinition       `json:"observers,omitempty"`
-	AuthzPolicies    []AuthzPolicyConfig        `json:"authz_policies,omitempty"`
 }
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
@@ -99,8 +97,6 @@ type SchemaRegistry struct {
 	subscriptions    map[string]SubscriptionDefinition
 	factTables       map[string]FactTableDefinition
 	aggregateQueries map[string]AggregateQueryDefinition
-	observers        map[string]ObserverDefinition
-	authzPolicies    map[string]AuthzPolicyConfig
 }
 
 // Global registry instance
@@ -117,8 +113,6 @@ func getInstance() *SchemaRegistry {
 			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
 			aggregateQueries: make(map[string]AggregateQueryDefinition),
-			observers:        make(map[string]ObserverDefinition),
-			authzPolicies:    make(map[string]AuthzPolicyConfig),
 		}
 	})
 	return registry
@@ -184,24 +178,6 @@ func RegisterSubscription(definition SubscriptionDefinition) {
 	reg.subscriptions[definition.Name] = definition
 }
 
-// RegisterObserver registers an observer with the schema registry
-func RegisterObserver(definition ObserverDefinition) {
-	reg := getInstance()
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	reg.observers[definition.Name] = definition
-}
-
-// RegisterAuthzPolicy registers an authorization policy with the schema registry
-func RegisterAuthzPolicy(config AuthzPolicyConfig) {
-	reg := getInstance()
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	reg.authzPolicies[config.Name] = config
-}
-
 // GetRegistry returns the singleton registry instance
 func GetRegistry() *SchemaRegistry {
 	return getInstance()
@@ -240,14 +216,6 @@ func GetSchema() Schema {
 		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
 	}
 
-	for _, observer := range reg.observers {
-		schema.Observers = append(schema.Observers, observer)
-	}
-
-	for _, policy := range reg.authzPolicies {
-		schema.AuthzPolicies = append(schema.AuthzPolicies, policy)
-	}
-
 	return schema
 }
 
@@ -273,8 +241,6 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
-	reg.observers = make(map[string]ObserverDefinition)
-	reg.authzPolicies = make(map[string]AuthzPolicyConfig)
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them
