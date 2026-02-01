@@ -247,6 +247,61 @@ def export_schema(output_path: str, pretty: bool = True) -> None:
         print(f"   Observers: {len(schema['observers'])}")
 
 
+def export_types(output_path: str, pretty: bool = True) -> None:
+    """Export ONLY types to a minimal types.json file (TOML-based workflow).
+
+    This is the new minimal export function for the TOML-based configuration approach.
+    It exports only the type definitions (types, enums, input_types, interfaces) without
+    queries, mutations, federation, security, observers, or analytics metadata.
+
+    All configuration moves to fraiseql.toml, which is merged with this types.json
+    by the fraiseql-cli compile command.
+
+    Args:
+        output_path: Path to output types.json file
+        pretty: If True, format JSON with indentation (default: True)
+
+    Examples:
+        >>> # At end of schema.py
+        >>> if __name__ == "__main__":
+        ...     fraiseql.export_types("user_types.json")
+
+    Notes:
+        - Call this after all @fraiseql decorators have been applied
+        - The output types.json contains only type definitions
+        - Queries, mutations, and all configuration moves to fraiseql.toml
+        - Use with: fraiseql compile fraiseql.toml --types user_types.json
+    """
+    full_schema = SchemaRegistry.get_schema()
+
+    # Extract only types, enums, input_types, interfaces
+    # (no queries/mutations/federation/security/observers/analytics)
+    minimal_schema = {
+        "types": full_schema.get("types", []),
+        "enums": full_schema.get("enums", []),
+        "input_types": full_schema.get("input_types", []),
+        "interfaces": full_schema.get("interfaces", []),
+    }
+
+    # Write to file
+    with open(output_path, "w", encoding="utf-8") as f:
+        if pretty:
+            json.dump(minimal_schema, f, indent=2, ensure_ascii=False)
+            f.write("\n")  # Add trailing newline
+        else:
+            json.dump(minimal_schema, f, ensure_ascii=False)
+
+    print(f"✅ Types exported to {output_path}")
+    print(f"   Types: {len(minimal_schema['types'])}")
+    if minimal_schema["enums"]:
+        print(f"   Enums: {len(minimal_schema['enums'])}")
+    if minimal_schema["input_types"]:
+        print(f"   Input types: {len(minimal_schema['input_types'])}")
+    if minimal_schema["interfaces"]:
+        print(f"   Interfaces: {len(minimal_schema['interfaces'])}")
+    print(f"   → Use with: fraiseql compile fraiseql.toml --types {output_path}")
+
+
 def get_schema_dict() -> dict[str, Any]:
     """Get the current schema as a dictionary (without exporting to file).
 

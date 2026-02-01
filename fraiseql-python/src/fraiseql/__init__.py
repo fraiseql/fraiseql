@@ -42,12 +42,10 @@ Example:
 """
 
 from fraiseql.analytics import aggregate_query, fact_table
-from fraiseql.decorators import FieldConfig
+from fraiseql.decorators import FieldConfig, field, mutation, query, subscription
 from fraiseql.decorators import enum as enum_decorator
-from fraiseql.decorators import field
 from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
-from fraiseql.decorators import mutation, query, subscription
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
 from fraiseql.federation import extends, external, key, provides, requires
@@ -55,12 +53,14 @@ from fraiseql.observers import (
     Observer,
     RetryConfig,
     email,
-    observer as observer_decorator,
     slack,
     webhook,
 )
+from fraiseql.observers import (
+    observer as observer_decorator,
+)
 from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
-from fraiseql.schema import config, export_schema
+from fraiseql.schema import config, export_schema, export_types
 from fraiseql.security import (
     AuthorizeConfig,
     AuthzPolicyConfig,
@@ -120,6 +120,7 @@ __all__ = [
     # Schema utilities
     "config",
     "export_schema",
+    "export_types",
     # Analytics
     "fact_table",
     "aggregate_query",
