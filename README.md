@@ -1,7 +1,7 @@
 # FraiseQL v2 — Compiled GraphQL Execution Engine
 
 **Version:** 2.0.0-a1
-**Status:** ✅ GA READY (Phases 1-6 Complete - 572 commits, 2,293+ tests passing)
+**Status:** ✅ GA READY (Phases 1-7 Complete - Enterprise Security Features Included)
 **Date:** February 1, 2026
 
 > **For developers**: See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development workflow and standards.
@@ -118,6 +118,18 @@ Thread-safe patterns throughout:
 - Rust type system prevents data races at compile time
 
 See [SECURITY_PATTERNS.md](crates/fraiseql-core/docs/SECURITY_PATTERNS.md) for detailed security analysis and best practices.
+
+### Enterprise Security (Phase 7)
+
+FraiseQL v2.0.0 includes production-ready enterprise security features configured via `fraiseql.toml`:
+
+- **Audit Logging** — Track all secret access and mutations for compliance
+- **Error Sanitization** — Hide implementation details from client errors
+- **Constant-Time Comparison** — Prevent timing attacks on token validation
+- **PKCE State Encryption** — Protect OAuth state parameters from inspection
+- **Rate Limiting** — Brute-force protection on authentication endpoints
+
+All features are configurable per-environment with environment variable overrides for production. See [Enterprise Security Guide](docs/enterprise/README.md) for complete documentation.
 
 ---
 
