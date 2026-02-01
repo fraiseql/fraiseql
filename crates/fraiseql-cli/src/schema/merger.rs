@@ -9,7 +9,6 @@
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::fs;
-use std::path::Path;
 
 use crate::config::TomlSchema;
 use crate::schema::IntermediateSchema;
@@ -64,60 +63,85 @@ impl SchemaMerger {
 
     /// Merge JSON types with TOML schema
     fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
-        // Start with types from JSON
-        let mut merged = serde_json::json!({
-            "types": {},
-            "queries": {},
-            "mutations": {},
-        });
+        // Start with arrays for types, queries, mutations (not objects!)
+        // This matches IntermediateSchema structure which uses Vec<T>
+        let mut types_array: Vec<Value> = Vec::new();
+        let mut queries_array: Vec<Value> = Vec::new();
+        let mut mutations_array: Vec<Value> = Vec::new();
 
-        // Copy types from types.json
+        // Process types from types.json (comes as array from language SDKs)
         if let Some(types_obj) = types_value.get("types") {
-            if let Value::Object(types_map) = types_obj {
-                for (type_name, type_value) in types_map {
-                    merged["types"][type_name] = type_value.clone();
+            match types_obj {
+                // Handle array format (from language SDKs)
+                Value::Array(types_list) => {
+                    for type_item in types_list {
+                        if let Some(type_name) = type_item.get("name").and_then(|v| v.as_str()) {
+                            let mut enriched_type = type_item.clone();
 
-                    // Enrich with TOML metadata if available
-                    if let Some(toml_type) = toml_schema.types.get(type_name) {
-                        merged["types"][type_name]["sql_source"] = json!(toml_type.sql_source);
-                        if let Some(desc) = &toml_type.description {
-                            merged["types"][type_name]["description"] = json!(desc);
+                            // Enrich with TOML metadata if available
+                            if let Some(toml_type) = toml_schema.types.get(type_name) {
+                                enriched_type["sql_source"] = json!(toml_type.sql_source);
+                                if let Some(desc) = &toml_type.description {
+                                    enriched_type["description"] = json!(desc);
+                                }
+                            }
+
+                            types_array.push(enriched_type);
                         }
                     }
                 }
+                // Handle object format (from TOML-only, for backward compatibility)
+                Value::Object(types_map) => {
+                    for (type_name, type_value) in types_map {
+                        let mut enriched_type = type_value.clone();
+                        enriched_type["name"] = json!(type_name);
+
+                        if let Some(toml_type) = toml_schema.types.get(type_name) {
+                            enriched_type["sql_source"] = json!(toml_type.sql_source);
+                            if let Some(desc) = &toml_type.description {
+                                enriched_type["description"] = json!(desc);
+                            }
+                        }
+
+                        types_array.push(enriched_type);
+                    }
+                }
+                _ => {}
             }
         }
 
-        // Add types from TOML that aren't in types.json
+        // Add types from TOML that aren't already in types_array
+        let existing_type_names: std::collections::HashSet<_> = types_array
+            .iter()
+            .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect();
+
         for (type_name, toml_type) in &toml_schema.types {
-            if !merged["types"].get(type_name).is_some() {
-                merged["types"][type_name] = json!({
+            if !existing_type_names.contains(type_name) {
+                types_array.push(json!({
                     "name": type_name,
                     "sql_source": toml_type.sql_source,
                     "description": toml_type.description,
-                    "fields": toml_type.fields.iter().map(|(fname, fdef)| {
-                        (fname.clone(), json!({
-                            "type": fdef.field_type,
-                            "nullable": fdef.nullable,
-                            "description": fdef.description,
-                        }))
-                    }).collect::<serde_json::Map<String, Value>>()
-                });
+                    "fields": toml_type.fields.iter().map(|(fname, fdef)| json!({
+                        "name": fname,
+                        "type": fdef.field_type,
+                        "nullable": fdef.nullable,
+                        "description": fdef.description,
+                    })).collect::<Vec<_>>(),
+                }));
             }
         }
 
-        // Copy queries from types.json
+        // Process queries (similar array-based approach)
         if let Some(queries_obj) = types_value.get("queries") {
-            if let Value::Object(queries_map) = queries_obj {
-                for (query_name, query_value) in queries_map {
-                    merged["queries"][query_name] = query_value.clone();
-                }
+            if let Value::Array(queries_list) = queries_obj {
+                queries_array = queries_list.clone();
             }
         }
 
         // Add queries from TOML
         for (query_name, toml_query) in &toml_schema.queries {
-            merged["queries"][query_name] = json!({
+            queries_array.push(json!({
                 "name": query_name,
                 "return_type": toml_query.return_type,
                 "return_array": toml_query.return_array,
@@ -130,12 +154,19 @@ impl SchemaMerger {
                     "default": arg.default,
                     "description": arg.description,
                 })).collect::<Vec<_>>(),
-            });
+            }));
+        }
+
+        // Process mutations (similar array-based approach)
+        if let Some(mutations_obj) = types_value.get("mutations") {
+            if let Value::Array(mutations_list) = mutations_obj {
+                mutations_array = mutations_list.clone();
+            }
         }
 
         // Add mutations from TOML
         for (mutation_name, toml_mutation) in &toml_schema.mutations {
-            merged["mutations"][mutation_name] = json!({
+            mutations_array.push(json!({
                 "name": mutation_name,
                 "return_type": toml_mutation.return_type,
                 "sql_source": toml_mutation.sql_source,
@@ -148,8 +179,15 @@ impl SchemaMerger {
                     "default": arg.default,
                     "description": arg.description,
                 })).collect::<Vec<_>>(),
-            });
+            }));
         }
+
+        // Build merged schema with arrays
+        let mut merged = serde_json::json!({
+            "types": types_array,
+            "queries": queries_array,
+            "mutations": mutations_array,
+        });
 
         // Add federation config if enabled
         if toml_schema.federation.enabled {
