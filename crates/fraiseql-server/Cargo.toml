@@ -78,6 +78,10 @@ urlencoding = "2.1"
 # Constant-time comparison (timing attack prevention)
 subtle = "2.5"
 
+# AEAD encryption for state protection (PKCE)
+chacha20poly1305 = "0.10"
+zeroize = "1.8"
+
 # File processing
 bytes = "1"
 image = {version = "0.24", features = ["jpeg", "png", "webp"]}

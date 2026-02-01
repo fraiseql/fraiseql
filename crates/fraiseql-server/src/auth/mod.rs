@@ -15,6 +15,7 @@ pub mod provider;
 pub mod providers;
 pub mod session;
 pub mod session_postgres;
+pub mod state_encryption;
 pub mod state_store;
 
 #[cfg(test)]
@@ -28,6 +29,9 @@ mod error_sanitization_tests;
 
 #[cfg(test)]
 mod constant_time_tests;
+
+#[cfg(test)]
+mod state_encryption_tests;
 
 pub use audit_logger::{
     AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
@@ -51,4 +55,5 @@ pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
+pub use state_encryption::{EncryptedState, StateEncryption, generate_state_encryption_key};
 pub use state_store::{InMemoryStateStore, StateStore};
