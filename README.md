@@ -33,13 +33,13 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - Automatic WHERE type generation from GraphQL scalar types
 - Apollo Federation v2 with SAGA transaction support across services
-- Webhooks integration (12 external providers: Discord, GitHub, GitLab, LemonSqueezy, Paddle, Postmark, SendGrid, Shopify, Slack, Stripe, Twilio, + generic)
+- Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
 - Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
 - Backup and disaster recovery (point-in-time restore, failover support)
 - Multi-tenant isolation with per-tenant data scoping
 - Change Data Capture (CDC) at the database layer with full entity context
 - Enterprise security (rate limiting, audit logging, constant-time token comparison, field-level authorization, encryption)
-- Event system with webhook dispatch (12+ providers), NATS JetStream messaging, and 15+ action types
+- Event system with webhook dispatch (extensible provider architecture), NATS JetStream messaging, and action routing
 - Automatic Persisted Queries (APQ) with query allowlisting
 - Query result caching with automatic invalidation
 - Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
@@ -111,7 +111,7 @@ Additional security features:
 - Audit logging for all mutations and admin operations
 - Rate limiting on authentication endpoints
 - Error messages sanitized (no implementation details to clients)
-- OAuth2/OIDC support (Auth0, GitHub, Google, Keycloak, Okta, Azure AD)
+- OAuth2/OIDC support (GitHub, Google, Auth0, + extensible provider system)
 - Field-level authorization via GraphQL directives
 - Configurable via TOML with environment variable overrides for production
 
@@ -313,7 +313,7 @@ Current release: **v2.0.0-alpha.1** (all planned features complete)
 - ✅ Apache Arrow Flight columnar data plane
 - ✅ Query result caching with automatic invalidation
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
-- ✅ Event system with webhooks (12+ providers), NATS JetStream messaging, and job dispatch
+- ✅ Event system with webhooks (extensible provider architecture), NATS JetStream messaging, and job dispatch
 - ✅ Multi-tenant isolation with per-tenant data scoping
 - ✅ Comprehensive test suite (7,600+ tests across all components)
 - ✅ Production deployment guides and monitoring setup
