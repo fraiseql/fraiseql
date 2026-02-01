@@ -50,19 +50,12 @@ final class SchemaFormatter
             $types[$typeName] = $this->formatType($registry, $typeName, $usedScalars);
         }
 
-        // Format observers
-        $observers = [];
-        foreach ($registry->getAllObservers() as $observer) {
-            $observers[] = $observer->toArray();
-        }
-
         return new JsonSchema(
             version: self::SCHEMA_VERSION,
             types: $types,
             scalars: $this->formatScalars($usedScalars),
             description: $description,
             metadata: [],
-            observers: $observers,
         );
     }
 

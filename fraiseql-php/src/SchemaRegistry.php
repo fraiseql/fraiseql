@@ -38,12 +38,6 @@ final class SchemaRegistry
     /** @var array<string, SubscriptionDefinition> Registered subscriptions */
     private array $subscriptions = [];
 
-    /** @var array<string, ObserverDefinition> Registered observers */
-    private array $observers = [];
-
-    /** @var array<string, \FraiseQL\Security\AuthzPolicyConfig> Registered authorization policies */
-    private array $authzPolicies = [];
-
     private function __construct()
     {
     }
@@ -219,93 +213,6 @@ final class SchemaRegistry
         return isset($this->subscriptions[$name]);
     }
 
-    /**
-     * Register an observer.
-     *
-     * @param ObserverDefinition $observer The observer definition
-     * @return self Fluent interface
-     */
-    public function registerObserver(ObserverDefinition $observer): self
-    {
-        $this->observers[$observer->name] = $observer;
-        return $this;
-    }
-
-    /**
-     * Get a registered observer by name.
-     *
-     * @param string $name Observer name
-     * @return ObserverDefinition|null
-     */
-    public function getObserver(string $name): ?ObserverDefinition
-    {
-        return $this->observers[$name] ?? null;
-    }
-
-    /**
-     * Get all registered observers.
-     *
-     * @return array<string, ObserverDefinition>
-     */
-    public function getAllObservers(): array
-    {
-        return $this->observers;
-    }
-
-    /**
-     * Check if an observer is registered.
-     *
-     * @param string $name Observer name
-     * @return bool
-     */
-    public function hasObserver(string $name): bool
-    {
-        return isset($this->observers[$name]);
-    }
-
-    /**
-     * Register an authorization policy.
-     *
-     * @param \FraiseQL\Security\AuthzPolicyConfig $policy The policy configuration
-     * @return self Fluent interface
-     */
-    public function registerAuthzPolicy(\FraiseQL\Security\AuthzPolicyConfig $policy): self
-    {
-        $this->authzPolicies[$policy->name] = $policy;
-        return $this;
-    }
-
-    /**
-     * Get a registered authorization policy by name.
-     *
-     * @param string $name Policy name
-     * @return \FraiseQL\Security\AuthzPolicyConfig|null
-     */
-    public function getAuthzPolicy(string $name): ?\FraiseQL\Security\AuthzPolicyConfig
-    {
-        return $this->authzPolicies[$name] ?? null;
-    }
-
-    /**
-     * Get all registered authorization policies.
-     *
-     * @return array<string, \FraiseQL\Security\AuthzPolicyConfig>
-     */
-    public function getAllAuthzPolicies(): array
-    {
-        return $this->authzPolicies;
-    }
-
-    /**
-     * Check if an authorization policy is registered.
-     *
-     * @param string $name Policy name
-     * @return bool
-     */
-    public function hasAuthzPolicy(string $name): bool
-    {
-        return isset($this->authzPolicies[$name]);
-    }
 
     /**
      * Clear all registered types (useful for testing).
@@ -318,8 +225,6 @@ final class SchemaRegistry
         $this->classToTypeName = [];
         $this->typeFields = [];
         $this->subscriptions = [];
-        $this->observers = [];
-        $this->authzPolicies = [];
 
         return $this;
     }

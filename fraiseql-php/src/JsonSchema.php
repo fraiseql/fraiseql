@@ -18,7 +18,6 @@ final class JsonSchema
      * @param array<string, string> $scalars Scalar type definitions
      * @param string|null $description Optional schema description
      * @param array<string, mixed> $metadata Additional schema metadata
-     * @param array<int, array<string, mixed>> $observers Observer definitions
      */
     public function __construct(
         public readonly string $version,
@@ -26,7 +25,6 @@ final class JsonSchema
         public readonly array $scalars,
         public readonly ?string $description = null,
         public readonly array $metadata = [],
-        public readonly array $observers = [],
     ) {
     }
 
@@ -49,10 +47,6 @@ final class JsonSchema
 
         if (!empty($this->metadata)) {
             $schema['metadata'] = $this->metadata;
-        }
-
-        if (!empty($this->observers)) {
-            $schema['observers'] = $this->observers;
         }
 
         return $schema;
@@ -145,7 +139,6 @@ final class JsonSchema
             scalars: $data['scalars'] ?? [],
             description: $data['description'] ?? null,
             metadata: $data['metadata'] ?? [],
-            observers: $data['observers'] ?? [],
         );
     }
 

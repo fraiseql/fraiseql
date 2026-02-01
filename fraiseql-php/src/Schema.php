@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace FraiseQL;
 
-use FraiseQL\Security\AuthzPolicyConfig;
-
 /**
  * Facade for schema management and minimal types export (TOML-based workflow)
  *
@@ -20,31 +18,16 @@ use FraiseQL\Security\AuthzPolicyConfig;
  */
 final class Schema
 {
-    private static SchemaRegistry $registry;
-
     /**
-     * Initialize schema (called once at startup)
-     */
-    public static function init(): void
-    {
-        self::$registry = SchemaRegistry::getInstance();
-    }
-
-    /**
-     * Register a type for types.json export
+     * Register a type from a PHP class
      *
-     * @param string $name Type name
-     * @param TypeInfo $typeInfo Type definition with fields
+     * @param string $className Fully qualified class name
      * @return void
      */
-    public static function registerType(string $name, TypeInfo $typeInfo): void
+    public static function registerType(string $className): void
     {
-        if (!isset(self::$registry)) {
-            self::init();
-        }
-
-        // Store type in registry
-        self::$registry->registerTypeInfo($name, $typeInfo);
+        $registry = SchemaRegistry::getInstance();
+        $registry->register($className);
     }
 
     /**
@@ -59,14 +42,25 @@ final class Schema
      */
     public static function exportTypes(bool $pretty = true): string
     {
-        if (!isset(self::$registry)) {
-            self::init();
-        }
-
-        // Get all registered types
-        $types = self::$registry->getRegisteredTypes();
+        $registry = SchemaRegistry::getInstance();
+        $typeNames = $registry->getTypeNames();
 
         // Build minimal schema with only types
+        $types = [];
+        foreach ($typeNames as $typeName) {
+            $fields = $registry->getTypeFields($typeName);
+            $types[] = [
+                'name' => $typeName,
+                'fields' => array_map(function (FieldDefinition $field) {
+                    return [
+                        'name' => $field->name,
+                        'type' => $field->type,
+                        'nullable' => $field->nullable,
+                    ];
+                }, $fields),
+            ];
+        }
+
         $minimalSchema = [
             'types' => $types,
         ];
@@ -96,10 +90,8 @@ final class Schema
         }
 
         // Print summary
-        if (!isset(self::$registry)) {
-            self::init();
-        }
-        $typesCount = count(self::$registry->getRegisteredTypes());
+        $registry = SchemaRegistry::getInstance();
+        $typesCount = count($registry->getTypeNames());
 
         echo "✅ Types exported to $outputPath\n";
         echo "   Types: $typesCount\n";
@@ -114,22 +106,18 @@ final class Schema
      */
     public static function reset(): void
     {
-        // Get fresh singleton instance
-        self::$registry = SchemaRegistry::getInstance();
-        self::$registry->reset();
+        $registry = SchemaRegistry::getInstance();
+        $registry->clear();
     }
 
     /**
-     * Get all registered types
+     * Get all registered type names
      *
-     * @return array Array of type definitions
+     * @return array Array of type names
      */
-    public static function getTypes(): array
+    public static function getTypeNames(): array
     {
-        if (!isset(self::$registry)) {
-            self::init();
-        }
-
-        return self::$registry->getRegisteredTypes();
+        $registry = SchemaRegistry::getInstance();
+        return $registry->getTypeNames();
     }
 }
