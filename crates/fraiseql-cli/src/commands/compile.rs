@@ -68,9 +68,10 @@ pub async fn run(
         // Determine mode based on precedence:
         // 1. Explicit file lists (highest priority)
         // 2. --schema-dir auto-discovery
-        // 3. TOML includes (if configured)
-        // 4. --types single file
-        // 5. TOML-only (no external files)
+        // 3. Domain discovery (from TOML config)
+        // 4. TOML includes (if configured)
+        // 5. --types single file
+        // 6. TOML-only (no external files)
 
         if !type_files.is_empty() || !query_files.is_empty() || !mutation_files.is_empty() {
             // Mode 1: Explicit file lists
@@ -88,14 +89,20 @@ pub async fn run(
             crate::schema::SchemaMerger::merge_files(types_path, input)
                 .context("Failed to merge types.json with TOML")?
         } else {
-            // Mode 4: TOML includes or TOML-only
-            info!("Mode: TOML-based (checking for includes...)");
-            match crate::schema::SchemaMerger::merge_with_includes(input) {
+            // Try modes in order: domain discovery → includes → toml-only
+            info!("Mode: TOML-based (checking for domain discovery...)");
+            match crate::schema::SchemaMerger::merge_from_domains(input) {
                 Ok(schema) => schema,
                 Err(_) => {
-                    info!("No includes configured, using TOML-only definitions");
-                    crate::schema::SchemaMerger::merge_toml_only(input)
-                        .context("Failed to load schema from TOML")?
+                    info!("No domains configured, checking for TOML includes...");
+                    match crate::schema::SchemaMerger::merge_with_includes(input) {
+                        Ok(schema) => schema,
+                        Err(_) => {
+                            info!("No includes configured, using TOML-only definitions");
+                            crate::schema::SchemaMerger::merge_toml_only(input)
+                                .context("Failed to load schema from TOML")?
+                        }
+                    }
                 }
             }
         }

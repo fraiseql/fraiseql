@@ -7,7 +7,84 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// Schema includes for multi-file composition
+/// Domain-based schema organization
+///
+/// Automatically discovers schema files in domain directories:
+/// ```toml
+/// [schema.domain_discovery]
+/// enabled = true
+/// root_dir = "schema"
+/// ```
+///
+/// Expects structure:
+/// ```
+/// schema/
+/// ├── auth/
+/// │   ├── types.json
+/// │   ├── queries.json
+/// │   └── mutations.json
+/// ├── products/
+/// │   ├── types.json
+/// │   ├── queries.json
+/// │   └── mutations.json
+/// ```
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct DomainDiscovery {
+    /// Enable automatic domain discovery
+    pub enabled: bool,
+    /// Root directory containing domains
+    pub root_dir: String,
+}
+
+/// Represents a discovered domain
+#[derive(Debug, Clone)]
+pub struct Domain {
+    /// Domain name (directory name)
+    pub name: String,
+    /// Path to domain root
+    pub path: PathBuf,
+}
+
+impl DomainDiscovery {
+    /// Discover all domains in root_dir
+    pub fn resolve_domains(&self) -> Result<Vec<Domain>> {
+        if !self.enabled {
+            return Ok(Vec::new());
+        }
+
+        let root = PathBuf::from(&self.root_dir);
+        if !root.is_dir() {
+            anyhow::bail!("Domain discovery root not found: {}", self.root_dir);
+        }
+
+        let mut domains = Vec::new();
+
+        for entry in std::fs::read_dir(&root)
+            .context(format!("Failed to read domain root: {}", self.root_dir))?
+        {
+            let entry = entry.context("Failed to read directory entry")?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| anyhow::anyhow!("Invalid domain name: {:?}", path))?;
+
+                domains.push(Domain { name, path });
+            }
+        }
+
+        // Sort for deterministic ordering
+        domains.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(domains)
+    }
+}
+
+/// Schema includes for multi-file composition (glob patterns)
 ///
 /// Supports glob patterns for flexible file inclusion:
 /// ```toml
@@ -170,6 +247,10 @@ pub struct TomlSchema {
     /// Schema includes configuration for multi-file composition
     #[serde(default)]
     pub includes: SchemaIncludes,
+
+    /// Domain discovery configuration for domain-based organization
+    #[serde(default)]
+    pub domain_discovery: DomainDiscovery,
 }
 
 /// Schema metadata

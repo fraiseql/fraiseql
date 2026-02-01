@@ -148,6 +148,97 @@ impl SchemaMerger {
         Self::merge_values(&types_value, &toml_schema)
     }
 
+    /// Merge from domains (domain-based organization)
+    ///
+    /// # Arguments
+    /// * `toml_path` - Path to fraiseql.toml with domain_discovery enabled
+    ///
+    /// # Returns
+    /// IntermediateSchema from all domains (types.json, queries.json, mutations.json)
+    pub fn merge_from_domains(toml_path: &str) -> Result<IntermediateSchema> {
+        let toml_schema = TomlSchema::from_file(toml_path)
+            .context(format!("Failed to load TOML from {toml_path}"))?;
+
+        toml_schema.validate()?;
+
+        // Resolve domains from configuration
+        let domains = toml_schema
+            .domain_discovery
+            .resolve_domains()
+            .context("Failed to discover domains")?;
+
+        if domains.is_empty() {
+            // No domains found, return empty schema merged with TOML definitions
+            let empty_value = serde_json::json!({
+                "types": [],
+                "queries": [],
+                "mutations": []
+            });
+            return Self::merge_values(&empty_value, &toml_schema);
+        }
+
+        // Load types from all domains
+        let mut all_types = Vec::new();
+        let mut all_queries = Vec::new();
+        let mut all_mutations = Vec::new();
+
+        for domain in domains {
+            // Load {domain}/types.json if it exists
+            let types_path = domain.path.join("types.json");
+            if types_path.exists() {
+                let content = fs::read_to_string(&types_path)
+                    .context(format!("Failed to read {}", types_path.display()))?;
+                let value: Value = serde_json::from_str(&content)
+                    .context(format!("Failed to parse {}", types_path.display()))?;
+
+                if let Some(Value::Array(type_items)) = value.get("types") {
+                    all_types.extend(type_items.clone());
+                }
+                if let Some(Value::Array(query_items)) = value.get("queries") {
+                    all_queries.extend(query_items.clone());
+                }
+                if let Some(Value::Array(mutation_items)) = value.get("mutations") {
+                    all_mutations.extend(mutation_items.clone());
+                }
+            }
+
+            // Load {domain}/queries.json if it exists
+            let queries_path = domain.path.join("queries.json");
+            if queries_path.exists() {
+                let content = fs::read_to_string(&queries_path)
+                    .context(format!("Failed to read {}", queries_path.display()))?;
+                let value: Value = serde_json::from_str(&content)
+                    .context(format!("Failed to parse {}", queries_path.display()))?;
+
+                if let Some(Value::Array(query_items)) = value.get("queries") {
+                    all_queries.extend(query_items.clone());
+                }
+            }
+
+            // Load {domain}/mutations.json if it exists
+            let mutations_path = domain.path.join("mutations.json");
+            if mutations_path.exists() {
+                let content = fs::read_to_string(&mutations_path)
+                    .context(format!("Failed to read {}", mutations_path.display()))?;
+                let value: Value = serde_json::from_str(&content)
+                    .context(format!("Failed to parse {}", mutations_path.display()))?;
+
+                if let Some(Value::Array(mutation_items)) = value.get("mutations") {
+                    all_mutations.extend(mutation_items.clone());
+                }
+            }
+        }
+
+        let types_value = serde_json::json!({
+            "types": all_types,
+            "queries": all_queries,
+            "mutations": all_mutations,
+        });
+
+        // Merge with TOML definitions
+        Self::merge_values(&types_value, &toml_schema)
+    }
+
     /// Merge with TOML includes (glob patterns for schema files)
     ///
     /// # Arguments
@@ -583,7 +674,7 @@ database_target = "postgresql"
 [database]
 url = "postgresql://localhost/test"
 
-[schema.includes]
+[includes]
 types = ["/nonexistent/path/*.json"]
 queries = []
 mutations = []
@@ -598,6 +689,128 @@ mutations = []
 
         let schema = result?;
         assert_eq!(schema.types.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_from_domains() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let schema_dir = temp_dir.path().join("schema");
+        fs::create_dir(&schema_dir)?;
+
+        // Create domain structure
+        fs::create_dir(schema_dir.join("auth"))?;
+        fs::create_dir(schema_dir.join("products"))?;
+
+        let auth_types = serde_json::json!({
+            "types": [{"name": "User", "fields": []}],
+            "queries": [{"name": "getUser", "return_type": "User"}],
+            "mutations": []
+        });
+        fs::write(schema_dir.join("auth/types.json"), auth_types.to_string())?;
+
+        let product_types = serde_json::json!({
+            "types": [{"name": "Product", "fields": []}],
+            "queries": [{"name": "getProduct", "return_type": "Product"}],
+            "mutations": []
+        });
+        fs::write(
+            schema_dir.join("products/types.json"),
+            product_types.to_string(),
+        )?;
+
+        // Create TOML with domain discovery (use absolute path)
+        let schema_dir_str = schema_dir.to_string_lossy().to_string();
+        let toml_content = format!(
+            r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[domain_discovery]
+enabled = true
+root_dir = "{}"
+"#,
+            schema_dir_str
+        );
+
+        let toml_path = temp_dir.path().join("fraiseql.toml");
+        fs::write(&toml_path, toml_content)?;
+
+        // Merge
+        let result = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap());
+
+        assert!(result.is_ok());
+        let schema = result?;
+
+        // Should have 2 types (from both domains)
+        assert_eq!(schema.types.len(), 2);
+        // Should have 2 queries (from both domains)
+        assert_eq!(schema.queries.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_from_domains_alphabetical_order() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let schema_dir = temp_dir.path().join("schema");
+        fs::create_dir(&schema_dir)?;
+
+        // Create domains in non-alphabetical order
+        fs::create_dir(schema_dir.join("zebra"))?;
+        fs::create_dir(schema_dir.join("alpha"))?;
+        fs::create_dir(schema_dir.join("middle"))?;
+
+        for domain in &["zebra", "alpha", "middle"] {
+            let types = serde_json::json!({
+                "types": [{"name": domain.to_uppercase(), "fields": []}],
+                "queries": [],
+                "mutations": []
+            });
+            fs::write(
+                schema_dir.join(format!("{}/types.json", domain)),
+                types.to_string(),
+            )?;
+        }
+
+        let schema_dir_str = schema_dir.to_string_lossy().to_string();
+        let toml_content = format!(
+            r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[domain_discovery]
+enabled = true
+root_dir = "{}"
+"#,
+            schema_dir_str
+        );
+
+        let toml_path = temp_dir.path().join("fraiseql.toml");
+        fs::write(&toml_path, toml_content)?;
+
+        let result = SchemaMerger::merge_from_domains(toml_path.to_str().unwrap());
+
+        assert!(result.is_ok());
+        let schema = result?;
+
+        // Types should be loaded in alphabetical order: ALPHA, MIDDLE, ZEBRA
+        let type_names: Vec<String> = schema.types.iter().map(|t| t.name.clone()).collect();
+
+        assert_eq!(type_names[0], "ALPHA");
+        assert_eq!(type_names[1], "MIDDLE");
+        assert_eq!(type_names[2], "ZEBRA");
 
         Ok(())
     }
