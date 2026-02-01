@@ -82,12 +82,12 @@ services:
     restart: unless-stopped
 
   graphql-ide-blog:
-    image: apollographql/sandbox:latest
+    image: graphql/graphql-playground:latest
     container_name: fraiseql-ide-blog
     ports:
       - "3000:80"
     environment:
-      APOLLO_SANDBOX_DEFAULT_ENDPOINT: http://localhost:8000/graphql
+      ENDPOINT: http://localhost:8000/graphql
     depends_on:
       fraiseql-server-blog:
         condition: service_healthy
@@ -149,12 +149,12 @@ services:
     restart: unless-stopped
 
   graphql-ide-ecommerce:
-    image: apollographql/sandbox:latest
+    image: graphql/graphql-playground:latest
     container_name: fraiseql-ide-ecommerce
     ports:
       - "3100:80"
     environment:
-      APOLLO_SANDBOX_DEFAULT_ENDPOINT: http://localhost:8001/graphql
+      ENDPOINT: http://localhost:8001/graphql
     depends_on:
       fraiseql-server-ecommerce:
         condition: service_healthy
@@ -216,12 +216,12 @@ services:
     restart: unless-stopped
 
   graphql-ide-streaming:
-    image: apollographql/sandbox:latest
+    image: graphql/graphql-playground:latest
     container_name: fraiseql-ide-streaming
     ports:
       - "3200:80"
     environment:
-      APOLLO_SANDBOX_DEFAULT_ENDPOINT: http://localhost:8002/graphql
+      ENDPOINT: http://localhost:8002/graphql
     depends_on:
       fraiseql-server-streaming:
         condition: service_healthy

@@ -76,16 +76,16 @@ services:
     restart: unless-stopped
 
   # ============================================================================
-  # GraphQL IDE: Apollo Sandbox for testing queries
+  # GraphQL IDE: Lighter-weight GraphQL Playground for testing queries
   # ============================================================================
   graphql-ide:
-    image: apollographql/sandbox:latest
+    image: graphql/graphql-playground:latest
     container_name: fraiseql-demo-ide
     ports:
       - "3000:80"
     environment:
-      # Configure sandbox to point to FraiseQL server
-      APOLLO_SANDBOX_DEFAULT_ENDPOINT: http://localhost:8000/graphql
+      # Configure playground to point to FraiseQL server
+      ENDPOINT: http://fraiseql-server:8000/graphql
     depends_on:
       fraiseql-server:
         condition: service_healthy
