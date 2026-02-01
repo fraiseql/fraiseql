@@ -179,8 +179,7 @@ cargo test --all-features
 
 **If tests fail**:
 1. Check compiler messages
-2. Refer to [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
-3. See [FAQ.md](./FAQ.md) for common issues
+2. See the current [FAQ.md](../../FAQ.md) for common issues
 
 ### Step 6: Update Documentation
 
@@ -200,7 +199,7 @@ This project has been migrated to FraiseQL Phase 16 (Apollo Federation v2).
 - Parallel saga execution
 - Improved recovery for stuck sagas
 
-See [MIGRATION_PHASE_15_TO_16.md](docs/MIGRATION_PHASE_15_TO_16.md) for details.
+See the archived Phase 16 migration guide for details.
 ```
 
 ---
@@ -382,13 +381,12 @@ Result: Negligible impact for existing workloads
 
 ## New Documentation
 
-After migration, review these new Phase 16 docs:
+After migration, review the current documentation for:
 
-1. **[SAGA_GETTING_STARTED.md](./SAGA_GETTING_STARTED.md)** - User guide to sagas
-2. **[SAGA_PATTERNS.md](./SAGA_PATTERNS.md)** - Advanced saga patterns
-3. **[FEDERATION_SAGAS.md](./FEDERATION_SAGAS.md)** - Federation + saga integration
-4. **[PHASE_16_READINESS.md](./PHASE_16_READINESS.md)** - Production readiness checklist
-5. **[FAQ.md](./FAQ.md)** - 20+ frequently asked questions
+1. Saga implementation guides
+2. Federation integration patterns
+3. Production readiness guidelines
+4. Frequently asked questions
 
 ---
 
@@ -399,7 +397,7 @@ After migration, review these new Phase 16 docs:
 **Solution**:
 1. Check compiler messages for new validation errors
 2. Run with debug logging: `RUST_LOG=debug cargo test`
-3. Refer to [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+3. Check the [troubleshooting guide](../../TROUBLESHOOTING.md)
 
 ### Issue: @requires fields not being validated
 
@@ -426,10 +424,9 @@ SELECT id, email, profile FROM users WHERE id = $1
 
 ## Getting Help
 
-1. **[FAQ.md](./FAQ.md)** - Common questions and answers
-2. **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions
-3. **[SAGA_GETTING_STARTED.md](./SAGA_GETTING_STARTED.md)** - Saga patterns
-4. **[GitHub Issues](https://github.com/anthropics/fraiseql/issues)** - Report bugs
+1. **[FAQ.md](../../FAQ.md)** - Common questions and answers
+2. **[TROUBLESHOOTING.md](../../TROUBLESHOOTING.md)** - Common issues and solutions
+3. **[GitHub Issues](https://github.com/anthropics/fraiseql/issues)** - Report bugs
 
 ---
 

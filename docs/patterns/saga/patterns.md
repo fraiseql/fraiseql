@@ -1,7 +1,7 @@
 # Saga Patterns and Best Practices
 
 **Audience:** Backend developers designing distributed transaction flows
-**Prerequisites:** [Getting Started with Sagas](SAGA_GETTING_STARTED.md)
+**Prerequisites:** [Getting Started with Sagas](quick-start.md)
 **Estimated Reading Time:** 20-25 minutes
 
 ---
@@ -670,9 +670,9 @@ let results = coordinator.execute_batch(vec![saga1, saga2, saga3]).await?;
 
 ## Next Steps
 
-1. **[FEDERATION_SAGAS.md](FEDERATION_SAGAS.md)** - Integrate sagas with Apollo Federation
-2. **[reference/SAGA_API.md](reference/SAGA_API.md)** - Complete API reference
-3. **[SAGA_GETTING_STARTED.md](SAGA_GETTING_STARTED.md)** - Review basics if needed
+1. **[Federation Sagas](../../integrations/federation/sagas.md)** - Integrate sagas with Apollo Federation
+2. **[SAGA API Reference](../../reference/SAGA_API.md)** - Complete API reference
+3. **[Quick Start](quick-start.md)** - Review basics if needed
 
 ---
 

@@ -448,15 +448,15 @@ coordinator.recover_failed_sagas().await?;
 
 Now that you understand saga basics:
 
-1. **Read [SAGA_PATTERNS.md](SAGA_PATTERNS.md)** for advanced coordination patterns
-2. **Review [FEDERATION_SAGAS.md](FEDERATION_SAGAS.md)** to integrate sagas with Apollo Federation
-3. **Check [reference/SAGA_API.md](reference/SAGA_API.md)** for detailed API documentation
+1. **Read [patterns.md](patterns.md)** for advanced coordination patterns
+2. **Review [federation sagas](../../integrations/federation/sagas.md)** to integrate sagas with Apollo Federation
+3. **Check [SAGA API Reference](../../reference/SAGA_API.md)** for detailed API documentation
 
 ## See Also
 
-- [Saga State Machines](SAGA_PATTERNS.md#saga-state-machines)
-- [Error Handling Strategies](SAGA_PATTERNS.md#error-handling-strategies)
-- [Performance Optimization](SAGA_PATTERNS.md#performance-optimization)
+- [Saga State Machines](patterns.md#saga-state-machines)
+- [Error Handling Strategies](patterns.md#error-handling-strategies)
+- [Performance Optimization](patterns.md#performance-optimization)
 
 ---
 
