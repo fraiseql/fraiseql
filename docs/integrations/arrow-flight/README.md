@@ -168,18 +168,13 @@ grpcurl localhost:50051 fraiseql.Flight ...  # Arrow Flight (new)
 docker-compose up -d  # Arrow Flight on port 50051
 ```
 
-### Production (Kubernetes)
-See [Kubernetes Deployment Guide](./deployment/kubernetes.md)
+### Production Deployment
 
-### With Analytics (ClickHouse)
-See [Docker Compose with ClickHouse](./deployment/docker-compose.md)
+Arrow Flight works with Docker Compose or Kubernetes. See [migration guide](./migration-guide.md) for deployment details.
 
 ## Client Libraries
 
-- **Python**: [PyArrow Flight + Polars Integration](./client-integration/python.md)
-- **R**: [Arrow R Package Guide](./client-integration/r.md)
-- **Rust**: [Native Rust Client](./client-integration/rust.md)
-- **ClickHouse**: [Direct Arrow Integration](./client-integration/clickhouse.md)
+Arrow Flight supports Python, R, Rust, and ClickHouse clients. See [getting started guide](./getting-started.md) for integration examples.
 
 ## Migration
 
@@ -197,11 +192,7 @@ See [Migration Guide](./migration-guide.md) for details.
 
 - **[Getting Started](./getting-started.md)** - 5-minute tutorial with runnable code
 - **[Architecture](./architecture.md)** - Deep dive into dual-dataplane design
-- **[Performance](./performance/benchmarks.md)** - Detailed benchmarks and tuning
-- **[Deployment](./deployment/)** - Docker, Kubernetes, monitoring
-- **[Migration Guide](./migration-guide.md)** - Incremental adoption strategy
-- **[Troubleshooting](./deployment/troubleshooting.md)** - Common issues and solutions
-- **[API Reference](./api-reference.md)** - Flight ticket types and schemas
+- **[Migration Guide](./migration-guide.md)** - Incremental adoption strategy and deployment
 
 ## Common Questions
 
@@ -229,9 +220,8 @@ Minimal: 2-3 threads for gRPC server, no additional memory when not in use.
 ## Next Steps
 
 1. **[Get Started in 5 Minutes](./getting-started.md)** - Run your first Arrow Flight query
-2. **[Choose Your Client](./client-integration/)** - Python, R, or Rust
-3. **[Plan Migration](./migration-guide.md)** - Adopt incrementally
-4. **[Deploy to Production](./deployment/kubernetes.md)** - Production-ready setup
+2. **[Plan Migration](./migration-guide.md)** - Adopt incrementally with 4-phase strategy
+3. **[Understand Architecture](./architecture.md)** - Deep dive into design
 
 ---
 
