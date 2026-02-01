@@ -1,8 +1,8 @@
 # FraiseQL v2 Documentation
 
-**Version:** 1.1
+**Version:** 2.0.0
 **Status:** Complete and production-ready
-**Last Updated:** February 1, 2026
+**Last Updated:** February 1, 2026 (v2.0.0 Documentation Restructuring)
 
 ---
 
@@ -93,19 +93,47 @@ Detailed technical specifications for implementers.
 
 ### [Guides](guides/)
 
-Practical how-to guides for operators and developers.
+Practical how-to guides for operators, developers, and DevOps teams.
 
-- [Testing Strategy](guides/testing-strategy.md) — Complete testing approach
-- [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
-- [Monitoring](guides/monitoring.md) — Prometheus, OpenTelemetry, health checks
-- [Observability](guides/observability.md) — Logging, tracing, metrics
+- **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/PATTERNS.md)
+- **Deployment**: [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
+- **Operations**: [Monitoring](guides/monitoring.md), [Observability](guides/observability.md), [Analytics Patterns](guides/analytics-patterns.md)
+- **Development**: [Testing Strategy](guides/development/), [Benchmarking](guides/development/benchmarking.md), [Profiling](guides/development/PROFILING_GUIDE.md)
 
-**View Selection Guides**:
+### [Configuration](configuration/)
 
-- [Quick Reference](guides/view-selection-quick-reference.md) — Quick decision matrix and cheat sheet
-- [Migration Checklist](guides/view-selection-migration-checklist.md) — Step-by-step migration workflow
-- [Performance Testing](guides/view-selection-performance-testing.md) — Methodology for validating performance improvements
-- [DDL Generation Guide](guides/ddl-generation-guide.md) — Generate SQL for table-backed views
+Configuration reference for security, networking, and operations.
+
+- [Security Configuration](configuration/SECURITY_CONFIGURATION.md) — Security settings overview
+- [TLS/SSL Configuration](configuration/TLS_CONFIGURATION.md) — HTTPS and mutual TLS
+- [Rate Limiting](configuration/RATE_LIMITING.md) — Brute-force protection
+- [PostgreSQL Authentication](configuration/POSTGRESQL_AUTHENTICATION.md) — Database connection
+
+### [Deployment](deployment/)
+
+Deployment guides for various environments.
+
+- [Production Deployment](deployment/guide.md) — Enterprise-scale deployments
+- [Database Migration](deployment/migration-projection.md) — Migrate existing schemas
+
+### [Operations](operations/)
+
+Day-to-day operations, monitoring, and maintenance.
+
+- [Operations Guide](operations/guide.md) — Production operations and maintenance
+- [Observability](operations/observability.md) — Monitoring and observability setup
+- [Distributed Tracing](operations/distributed-tracing.md) — Trace collection
+- [Health Checks](operations/reference/health-checks.md) — Health check patterns
+- [Metrics Reference](operations/reference/metrics.md) — Prometheus metrics
+
+### [Integrations](integrations/)
+
+Integration guides for external services and databases.
+
+- **[Federation](integrations/federation/)** — Multi-database composition with SAGA patterns
+- **[Authentication](integrations/authentication/)** — Auth0, Google, Keycloak, SCRAM
+- **[Arrow Flight](integrations/arrow-flight/)** — High-performance analytics
+- **[Monitoring](integrations/monitoring/)** — Grafana, Prometheus integration
 
 ### [Enterprise Features](enterprise/)
 
@@ -180,11 +208,12 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 
 ## 📊 Documentation Statistics
 
-- **Total Documents:** 53+ files (includes Arrow Flight 9 docs)
-- **Total Lines:** ~57,000 lines (added ~4,000 for Arrow Flight)
-- **Estimated Reading Time:** 13-16 hours (complete path)
-- **Last Updated:** January 25, 2026
-- **Latest Addition:** Arrow Flight Integration (Phase 9, 2,000+ lines of user docs)
+- **Total Documents:** 170+ organized files
+- **Total Lines:** ~60,000 lines of documentation
+- **Estimated Reading Time:** 15-20 hours (complete path)
+- **Organized Into:** 22 directories with clear structure
+- **Last Updated:** February 1, 2026
+- **Latest Restructuring:** Full documentation reorganization for clarity and navigation
 
 ---
 
