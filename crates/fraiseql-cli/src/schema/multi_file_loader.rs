@@ -16,12 +16,10 @@ use walkdir::WalkDir;
 /// Loads and merges JSON schema files from directories
 pub struct MultiFileLoader;
 
-/// Result of loading files with source tracking for conflict detection
+/// Result of loading files
 pub struct LoadResult {
     /// Merged JSON value with types, queries, mutations arrays
     pub merged: Value,
-    /// Map of item name -> file path for error reporting
-    pub name_to_file: HashMap<String, String>,
 }
 
 impl MultiFileLoader {
@@ -145,7 +143,7 @@ impl MultiFileLoader {
             "mutations": mutations,
         });
 
-        Ok(LoadResult { merged, name_to_file })
+        Ok(LoadResult { merged })
     }
 
     /// Load specific files and merge them
@@ -489,24 +487,4 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_load_from_tracking_returns_name_to_file() -> Result<()> {
-        let temp_dir = TempDir::new()?;
-
-        let schema = json!({
-            "types": [{"name": "User", "fields": []}],
-            "queries": [{"name": "getUser", "return_type": "User"}],
-            "mutations": []
-        });
-        create_test_file(temp_dir.path(), "schema.json", &schema.to_string())?;
-
-        let result = MultiFileLoader::load_from_directory_with_tracking(
-            temp_dir.path().to_str().unwrap(),
-        )?;
-
-        assert!(result.name_to_file.contains_key("type:User"));
-        assert!(result.name_to_file.contains_key("query:getUser"));
-
-        Ok(())
-    }
 }
