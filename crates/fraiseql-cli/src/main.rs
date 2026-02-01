@@ -26,6 +26,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod commands;
+mod config;
 mod schema;
 
 /// FraiseQL CLI - Compile GraphQL schemas to optimized SQL execution
