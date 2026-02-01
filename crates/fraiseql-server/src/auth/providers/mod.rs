@@ -1,11 +1,13 @@
 // OAuth provider implementations
-// Provides provider-specific wrappers for GitHub, Google, Keycloak, and Azure AD
+// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, and Azure AD
 
+pub mod auth0;
 pub mod azure_ad;
 pub mod github;
 pub mod google;
 pub mod keycloak;
 
+pub use auth0::Auth0OAuth;
 pub use azure_ad::AzureADOAuth;
 pub use github::GitHubOAuth;
 pub use google::GoogleOAuth;
@@ -16,7 +18,7 @@ use crate::auth::{error::Result, provider::OAuthProvider};
 /// Factory for creating OAuth providers from configuration
 ///
 /// # Arguments
-/// * `provider_type` - Provider type: "github", "google", "keycloak", "azure_ad"
+/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "azure_ad"
 /// * `client_id` - OAuth client ID
 /// * `client_secret` - OAuth client secret
 /// * `config` - Provider-specific configuration (JSON value)
@@ -31,6 +33,23 @@ pub async fn create_provider(
     config: Option<serde_json::Value>,
 ) -> Result<Box<dyn OAuthProvider>> {
     match provider_type {
+        "auth0" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Auth0 provider requires config with auth0_domain".to_string(),
+            })?;
+
+            let auth0_domain = config
+                .get("auth0_domain")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing auth0_domain in config".to_string(),
+                })?
+                .to_string();
+
+            let provider = Auth0OAuth::new(client_id, client_secret, auth0_domain, redirect_uri)
+                .await?;
+            Ok(Box::new(provider))
+        },
         "github" => {
             let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri).await?;
             Ok(Box::new(provider))
@@ -92,6 +111,13 @@ pub async fn create_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_auth0_role_mapping() {
+        let roles =
+            auth0::Auth0OAuth::map_auth0_roles_to_fraiseql(vec!["admin".to_string()]);
+        assert!(roles.contains(&"admin".to_string()));
+    }
 
     #[test]
     fn test_github_role_mapping() {
