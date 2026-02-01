@@ -149,3 +149,66 @@ export function exportSchemaToString(options: { pretty?: boolean } = {}): string
 
   return pretty ? JSON.stringify(schema, null, 2) : JSON.stringify(schema);
 }
+
+/**
+ * Export ONLY types to a minimal types.json file (TOML-based workflow).
+ *
+ * This is the new minimal export function for the TOML-based configuration approach.
+ * It exports only the type definitions (types, enums, input_types, interfaces) without
+ * queries, mutations, federation, security, observers, or analytics metadata.
+ *
+ * All configuration moves to fraiseql.toml, which is merged with this types.json
+ * by the fraiseql-cli compile command.
+ *
+ * @param outputPath - Path to output types.json file
+ * @param options - Export options
+ *
+ * @example
+ * ```ts
+ * // At end of schema.ts
+ * if (require.main === module) {
+ *   exportTypes("user_types.json");
+ * }
+ * ```
+ *
+ * Notes:
+ * - Call this after all decorators have been applied
+ * - The output types.json contains only type definitions
+ * - Queries, mutations, and all configuration moves to fraiseql.toml
+ * - Use with: fraiseql compile fraiseql.toml --types user_types.json
+ */
+export function exportTypes(outputPath: string, options: { pretty?: boolean } = {}): void {
+  const { pretty = true } = options;
+
+  const fullSchema = SchemaRegistry.getSchema();
+
+  // Extract only types, enums, input_types, interfaces
+  // (no queries/mutations/federation/security/observers/analytics)
+  const minimalSchema = {
+    types: fullSchema.types || [],
+    enums: fullSchema.enums || [],
+    input_types: fullSchema.input_types || [],
+    interfaces: fullSchema.interfaces || [],
+  };
+
+  // Write to file
+  const content = pretty
+    ? JSON.stringify(minimalSchema, null, 2) + "\n"
+    : JSON.stringify(minimalSchema);
+
+  fs.writeFileSync(outputPath, content, { encoding: "utf-8" });
+
+  // Print summary
+  console.log(`✅ Types exported to ${outputPath}`);
+  console.log(`   Types: ${minimalSchema.types.length}`);
+  if (minimalSchema.enums.length > 0) {
+    console.log(`   Enums: ${minimalSchema.enums.length}`);
+  }
+  if (minimalSchema.input_types.length > 0) {
+    console.log(`   Input types: ${minimalSchema.input_types.length}`);
+  }
+  if (minimalSchema.interfaces.length > 0) {
+    console.log(`   Interfaces: ${minimalSchema.interfaces.length}`);
+  }
+  console.log(`   → Use with: fraiseql compile fraiseql.toml --types ${outputPath}`);
+}

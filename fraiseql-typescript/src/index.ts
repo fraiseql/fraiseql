@@ -97,7 +97,7 @@ export type {
 } from "./decorators";
 
 // Export schema functions
-export { config, exportSchema, getSchemaDict, exportSchemaToString } from "./schema";
+export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString } from "./schema";
 
 // Export DDL generation helpers for table-backed views
 export {
