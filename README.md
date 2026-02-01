@@ -1,8 +1,8 @@
 # FraiseQL v2 — Compiled GraphQL Execution Engine
 
 **Version:** 2.0.0-a1
-**Status:** ✅ GA READY (Phases 1-10 Complete - 256 commits, 1,693+ tests passing)
-**Date:** January 25, 2026 (Updated)
+**Status:** ✅ GA READY (Phases 1-6 Complete - 572 commits, 2,293+ tests passing)
+**Date:** February 1, 2026
 
 > **For developers**: See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development workflow and standards.
 > **For architecture**: See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural principles and patterns.

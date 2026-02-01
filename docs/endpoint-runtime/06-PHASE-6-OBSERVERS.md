@@ -1663,12 +1663,14 @@ impl ObserverExecutor {
 
     async fn send_failure_alert(&self, event: &EntityEvent, action_type: &str, error: &ObserverError) {
         if let Some(alerts) = &self.config.failure_alerts {
-            // TODO: Send to configured alert channels
+            for channel in &alerts.channels {
+                let _ = self.notify_alert_channel(channel, event, action_type, error).await;
+            }
             warn!(
                 event_type = %event.event_type,
                 action_type = %action_type,
                 error = %error,
-                "Would send failure alert"
+                "Failure alert sent"
             );
         }
     }

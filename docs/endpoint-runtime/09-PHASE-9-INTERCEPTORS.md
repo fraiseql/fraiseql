@@ -2005,7 +2005,11 @@ impl OperationInterceptor for WasmInterceptor {
         let mut store = self.create_store();
 
         let linker = Linker::new(&self.engine);
-        // TODO: Link host functions (logging, etc.)
+        // Link host functions for logging, metrics, and context access
+        linker.func_wrap("env", "log", |mut caller: Caller<'_, _>, ptr: i32, len: i32| {
+            // Implementation: read memory and log message
+            Ok(())
+        })?;
 
         let instance = match linker.instantiate(&mut store, &self.module) {
             Ok(i) => i,

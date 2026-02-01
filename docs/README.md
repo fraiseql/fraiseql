@@ -1,8 +1,8 @@
 # FraiseQL v2 Documentation
 
 **Version:** 1.1
-**Status:** Complete (Phase 9 Arrow Flight docs added)
-**Last Updated:** January 25, 2026
+**Status:** Complete and production-ready
+**Last Updated:** February 1, 2026
 
 ---
 

@@ -779,9 +779,8 @@ impl EventStream for PostgresEventStream {
 
         let stream = ReceiverStream::new(rx).filter(move |event| {
             let matches = event.entity_type == filter.entity_type
-                && event.operation == filter.operation;
-
-            // TODO: Apply WHERE clause filter
+                && event.operation == filter.operation
+                && filter.apply_where_clause(&event.data);
 
             futures::future::ready(matches)
         });

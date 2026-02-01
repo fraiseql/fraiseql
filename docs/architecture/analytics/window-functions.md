@@ -526,7 +526,7 @@ CREATE INDEX idx_sales_category_occurred
 
 ## GraphQL API (Proposed)
 
-**Status**: Planned for Phase 5
+**Status**: Proposed for future enhancement
 
 ### Query Structure
 
