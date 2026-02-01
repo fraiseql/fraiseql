@@ -13,6 +13,7 @@ pub mod oidc_provider;
 pub mod operation_rbac;
 pub mod provider;
 pub mod providers;
+pub mod rate_limiting;
 pub mod session;
 pub mod session_postgres;
 pub mod state_encryption;
@@ -32,6 +33,9 @@ mod constant_time_tests;
 
 #[cfg(test)]
 mod state_encryption_tests;
+
+#[cfg(test)]
+mod rate_limiting_tests;
 
 pub use audit_logger::{
     AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
@@ -53,6 +57,7 @@ pub use oidc_provider::OidcProvider;
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
+pub use rate_limiting::{KeyedRateLimiter, RateLimitConfig, RateLimiters};
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
 pub use state_encryption::{EncryptedState, StateEncryption, generate_state_encryption_key};

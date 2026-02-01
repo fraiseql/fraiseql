@@ -53,6 +53,9 @@ pub enum AuthError {
 
     #[error("System time error: {message}")]
     SystemTimeError { message: String },
+
+    #[error("Rate limited: retry after {retry_after_secs} seconds")]
+    RateLimited { retry_after_secs: u64 },
 }
 
 pub type Result<T> = std::result::Result<T, AuthError>;
