@@ -1,26 +1,9 @@
 // Constant-time comparison tests
-// Phase 7, Cycle 3: RED phase - Define expected behavior
+// Phase 7, Cycle 3: Integration tests for constant-time comparison
 
 #[cfg(test)]
 mod constant_time_comparison {
-    /// A constant-time comparison implementation that compares tokens securely
-    pub struct ConstantTimeComparison;
-
-    impl ConstantTimeComparison {
-        /// Compare two tokens in constant time
-        /// Returns true if equal, false if not equal
-        /// Time should be independent of where difference occurs
-        pub fn compare(_expected: &[u8], _actual: &[u8]) -> bool {
-            // RED: This is a placeholder - real implementation uses subtle crate
-            // The test will verify the contract
-            true
-        }
-
-        /// Compare two strings in constant time
-        pub fn compare_str(expected: &str, actual: &str) -> bool {
-            Self::compare(expected.as_bytes(), actual.as_bytes())
-        }
-    }
+    use crate::auth::constant_time::ConstantTimeOps;
 
     // ===== BASIC CONSTANT-TIME COMPARISON TESTS =====
 
@@ -30,7 +13,7 @@ mod constant_time_comparison {
         let token1 = b"valid_jwt_token_12345";
         let token2 = b"valid_jwt_token_12345";
 
-        assert!(ConstantTimeComparison::compare(token1, token2));
+        assert!(ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -39,7 +22,7 @@ mod constant_time_comparison {
         let token1 = b"valid_jwt_token_12345";
         let token2 = b"invalid_jwt_token_54321";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -48,7 +31,7 @@ mod constant_time_comparison {
         let token1 = b"AAAAAAAAAAAAAAAAAAAAA";
         let token2 = b"BBBBBBBBBBBBBBBBBBBBB";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -57,7 +40,7 @@ mod constant_time_comparison {
         let token1 = b"AAAAAAAAAABAAAAAAAAAA";
         let token2 = b"AAAAAAAAAABAAAAAAAAA";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -66,7 +49,7 @@ mod constant_time_comparison {
         let token1 = b"AAAAAAAAAAAAAAAAAAAAA";
         let token2 = b"AAAAAAAAAAAAAAAAAAAAB";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -75,7 +58,7 @@ mod constant_time_comparison {
         let token1 = b"";
         let token2 = b"";
 
-        assert!(ConstantTimeComparison::compare(token1, token2));
+        assert!(ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -84,7 +67,7 @@ mod constant_time_comparison {
         let token1 = b"short";
         let token2 = b"much_longer_token";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     // ===== JWT TOKEN COMPARISON TESTS =====
@@ -95,7 +78,7 @@ mod constant_time_comparison {
         let valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
         let same_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
 
-        assert!(ConstantTimeComparison::compare_str(valid_jwt, same_jwt));
+        assert!(ConstantTimeOps::compare_str(valid_jwt, same_jwt));
     }
 
     #[test]
@@ -105,7 +88,7 @@ mod constant_time_comparison {
         let invalid_jwt =
             "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature999";
 
-        assert!(!ConstantTimeComparison::compare_str(valid_jwt, invalid_jwt));
+        assert!(!ConstantTimeOps::compare_str(valid_jwt, invalid_jwt));
     }
 
     #[test]
@@ -114,7 +97,7 @@ mod constant_time_comparison {
         let original = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
         let tampered = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbjEyM30.signature123";
 
-        assert!(!ConstantTimeComparison::compare_str(original, tampered));
+        assert!(!ConstantTimeOps::compare_str(original, tampered));
     }
 
     // ===== SESSION TOKEN COMPARISON TESTS =====
@@ -125,7 +108,7 @@ mod constant_time_comparison {
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_abcdef123456:hmac_signature_value_xyz";
 
-        assert!(ConstantTimeComparison::compare_str(token1, token2));
+        assert!(ConstantTimeOps::compare_str(token1, token2));
     }
 
     #[test]
@@ -134,7 +117,7 @@ mod constant_time_comparison {
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_different654321:hmac_signature_value_xyz";
 
-        assert!(!ConstantTimeComparison::compare_str(token1, token2));
+        assert!(!ConstantTimeOps::compare_str(token1, token2));
     }
 
     #[test]
@@ -143,7 +126,7 @@ mod constant_time_comparison {
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_abcdef123456:hmac_signature_value_abc";
 
-        assert!(!ConstantTimeComparison::compare_str(token1, token2));
+        assert!(!ConstantTimeOps::compare_str(token1, token2));
     }
 
     // ===== CSRF TOKEN COMPARISON TESTS =====
@@ -154,7 +137,7 @@ mod constant_time_comparison {
         let token1 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
         let token2 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
 
-        assert!(ConstantTimeComparison::compare_str(token1, token2));
+        assert!(ConstantTimeOps::compare_str(token1, token2));
     }
 
     #[test]
@@ -163,7 +146,7 @@ mod constant_time_comparison {
         let token1 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
         let token2 = "csrf_token_zyxwvutsrqponmlkjihgfedcba";
 
-        assert!(!ConstantTimeComparison::compare_str(token1, token2));
+        assert!(!ConstantTimeOps::compare_str(token1, token2));
     }
 
     // ===== TIMING ATTACK PREVENTION TESTS =====
@@ -177,15 +160,15 @@ mod constant_time_comparison {
         // Mismatch at different positions all return false
         let mut mismatch_start = base.to_vec();
         mismatch_start[0] = b'B';
-        assert!(!ConstantTimeComparison::compare(base, &mismatch_start));
+        assert!(!ConstantTimeOps::compare(base, &mismatch_start));
 
         let mut mismatch_middle = base.to_vec();
         mismatch_middle[16] = b'B';
-        assert!(!ConstantTimeComparison::compare(base, &mismatch_middle));
+        assert!(!ConstantTimeOps::compare(base, &mismatch_middle));
 
         let mut mismatch_end = base.to_vec();
         mismatch_end[33] = b'B';
-        assert!(!ConstantTimeComparison::compare(base, &mismatch_end));
+        assert!(!ConstantTimeOps::compare(base, &mismatch_end));
     }
 
     #[test]
@@ -194,7 +177,7 @@ mod constant_time_comparison {
         let token1 = b"abcdefghijklmnopqrstuvwxyz123456";
         let token2 = b"abXdefgXijklmnXpqrstuvwXyz12X456";
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     #[test]
@@ -203,7 +186,7 @@ mod constant_time_comparison {
         let token1 = b"abcdefghijklmnopqrstuvwxyz123456";
         let token2 = b"abcdefghijklmnopqrstuvwxyz123457"; // Last char 6->7
 
-        assert!(!ConstantTimeComparison::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token2));
     }
 
     // ===== AUTHENTICITY VERIFICATION TESTS =====
@@ -214,7 +197,7 @@ mod constant_time_comparison {
         let sig1 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
         let sig2 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
 
-        assert!(ConstantTimeComparison::compare(sig1, sig2));
+        assert!(ConstantTimeOps::compare(sig1, sig2));
     }
 
     #[test]
@@ -223,7 +206,7 @@ mod constant_time_comparison {
         let sig1 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
         let sig2 = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
-        assert!(!ConstantTimeComparison::compare(sig1, sig2));
+        assert!(!ConstantTimeOps::compare(sig1, sig2));
     }
 
     // ===== REAL-WORLD TOKEN SCENARIOS =====
@@ -235,8 +218,8 @@ mod constant_time_comparison {
         let attack_1 = b"super_fake_token_qqq_bbb_ggg_456";
         let attack_2 = b"super_secret_token_xyz_abc_def_999";
 
-        assert!(!ConstantTimeComparison::compare(valid_token, attack_1));
-        assert!(!ConstantTimeComparison::compare(valid_token, attack_2));
+        assert!(!ConstantTimeOps::compare(valid_token, attack_1));
+        assert!(!ConstantTimeOps::compare(valid_token, attack_2));
     }
 
     #[test]
@@ -246,8 +229,8 @@ mod constant_time_comparison {
         let token2 = b"token\x00with\x00nulls";
         let token3 = b"token\x00with\x00other";
 
-        assert!(ConstantTimeComparison::compare(token1, token2));
-        assert!(!ConstantTimeComparison::compare(token1, token3));
+        assert!(ConstantTimeOps::compare(token1, token2));
+        assert!(!ConstantTimeOps::compare(token1, token3));
     }
 
     #[test]
@@ -262,11 +245,11 @@ mod constant_time_comparison {
             *t = i as u8;
         }
 
-        assert!(ConstantTimeComparison::compare(&token1, &token2));
+        assert!(ConstantTimeOps::compare(&token1, &token2));
 
         // Flip one byte
         token2[127] = token2[127].wrapping_add(1);
-        assert!(!ConstantTimeComparison::compare(&token1, &token2));
+        assert!(!ConstantTimeOps::compare(&token1, &token2));
     }
 
     // ===== EDGE CASES =====
@@ -279,8 +262,8 @@ mod constant_time_comparison {
         let mut token3 = token1.clone();
         token3[5_000] = token3[5_000].wrapping_add(1);
 
-        assert!(ConstantTimeComparison::compare(&token1, &token2));
-        assert!(!ConstantTimeComparison::compare(&token1, &token3));
+        assert!(ConstantTimeOps::compare(&token1, &token2));
+        assert!(!ConstantTimeOps::compare(&token1, &token3));
     }
 
     #[test]
@@ -290,8 +273,8 @@ mod constant_time_comparison {
         let token2 = "token_with_émojis_🔐_🔒_🔓";
         let token3 = "token_with_émojis_🔐_🔐_🔐";
 
-        assert!(ConstantTimeComparison::compare_str(token1, token2));
-        assert!(!ConstantTimeComparison::compare_str(token1, token3));
+        assert!(ConstantTimeOps::compare_str(token1, token2));
+        assert!(!ConstantTimeOps::compare_str(token1, token3));
     }
 
     #[test]
@@ -300,8 +283,8 @@ mod constant_time_comparison {
         let token1 = b"first_token_value_abcd";
         let token2 = b"second_token_value_xyz";
 
-        let result1 = ConstantTimeComparison::compare(token1, token2);
-        let result2 = ConstantTimeComparison::compare(token2, token1);
+        let result1 = ConstantTimeOps::compare(token1, token2);
+        let result2 = ConstantTimeOps::compare(token2, token1);
 
         assert_eq!(result1, result2);
     }
@@ -312,9 +295,9 @@ mod constant_time_comparison {
         let token1 = b"consistent_token_abc";
         let token2 = b"different_token_xyz";
 
-        let result1 = ConstantTimeComparison::compare(token1, token2);
-        let result2 = ConstantTimeComparison::compare(token1, token2);
-        let result3 = ConstantTimeComparison::compare(token1, token2);
+        let result1 = ConstantTimeOps::compare(token1, token2);
+        let result2 = ConstantTimeOps::compare(token1, token2);
+        let result3 = ConstantTimeOps::compare(token1, token2);
 
         assert_eq!(result1, result2);
         assert_eq!(result2, result3);

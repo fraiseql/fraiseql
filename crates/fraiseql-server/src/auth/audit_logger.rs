@@ -213,7 +213,7 @@ impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
             Ok(_) => logger.log_success(event_type, secret_type, subject, operation),
             Err(e) => {
                 logger.log_failure(event_type, secret_type, subject, operation, &e.to_string());
-            }
+            },
         }
         self
     }

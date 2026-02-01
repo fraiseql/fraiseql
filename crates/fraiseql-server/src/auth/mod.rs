@@ -37,6 +37,9 @@ mod state_encryption_tests;
 #[cfg(test)]
 mod rate_limiting_tests;
 
+#[cfg(test)]
+mod integration_security_tests;
+
 pub use audit_logger::{
     AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
     init_audit_logger,
