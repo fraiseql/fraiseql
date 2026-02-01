@@ -45,10 +45,7 @@ def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:
 
     # Handle Union types (including | None for nullable)
     # This handles both typing.Union and the | operator (UnionType in Python 3.10+)
-    is_union = (
-        origin is Union
-        or (hasattr(origin, "__name__") and origin.__name__ == "UnionType")
-    )
+    is_union = origin is Union or (hasattr(origin, "__name__") and origin.__name__ == "UnionType")
     if is_union:
         # Check if it's a nullable type (T | None)
         if len(args) == 2 and type(None) in args:

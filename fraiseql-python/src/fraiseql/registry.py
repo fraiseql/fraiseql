@@ -19,9 +19,6 @@ class SchemaRegistry:
     _queries: dict[str, dict[str, Any]] = {}
     _mutations: dict[str, dict[str, Any]] = {}
     _subscriptions: dict[str, dict[str, Any]] = {}
-    _fact_tables: dict[str, dict[str, Any]] = {}
-    _aggregate_queries: dict[str, dict[str, Any]] = {}
-    _observers: dict[str, dict[str, Any]] = {}
 
     @classmethod
     def register_type(
@@ -30,7 +27,6 @@ class SchemaRegistry:
         fields: dict[str, dict[str, Any]],
         description: str | None = None,
         implements: list[str] | None = None,
-        federation: dict[str, Any] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -39,9 +35,8 @@ class SchemaRegistry:
             fields: Dictionary of field_name -> {"type": str, "nullable": bool}
             description: Optional type description from docstring
             implements: List of interface names this type implements
-            federation: Federation metadata (keys, extends, external_fields, etc.)
         """
-        # Build field list with federation metadata
+        # Build field list
         field_list = []
         for field_name, field_info in fields.items():
             field_def: dict[str, Any] = {
@@ -49,25 +44,6 @@ class SchemaRegistry:
                 "type": field_info["type"],
                 "nullable": field_info["nullable"],
             }
-
-            # Add field-level federation metadata
-            if federation:
-                field_fed: dict[str, Any] = {
-                    "external": field_name in federation.get("external_fields", []),
-                }
-                if field_name in federation.get("requires", {}):
-                    field_fed["requires"] = federation["requires"][field_name]
-                if federation.get("provides_data"):
-                    # Check if this field provides any data
-                    field_provides = [
-                        p
-                        for p in federation["provides_data"]
-                        if f"{name}.{field_name}" in str(p) or p.startswith(f"{field_name}:")
-                    ]
-                    if field_provides:
-                        field_fed["provides"] = field_provides
-
-                field_def["federation"] = field_fed
 
             field_list.append(field_def)
 
@@ -80,18 +56,6 @@ class SchemaRegistry:
         # Add implements if specified
         if implements:
             type_def["implements"] = implements
-
-        # Add federation metadata if specified, or default empty federation
-        if federation:
-            type_def["federation"] = federation
-        else:
-            # Add default empty federation metadata for all types
-            type_def["federation"] = {
-                "keys": [],
-                "extend": False,
-                "external_fields": [],
-                "provides_data": [],
-            }
 
         cls._types[name] = type_def
 
@@ -288,98 +252,15 @@ class SchemaRegistry:
         }
 
     @classmethod
-    def register_fact_table(
-        cls,
-        table_name: str,
-        measures: list[dict[str, Any]],
-        dimensions: dict[str, Any],
-        denormalized_filters: list[dict[str, Any]],
-    ) -> None:
-        """Register a fact table definition.
-
-        Args:
-            table_name: Fact table name (e.g., "tf_sales")
-            measures: List of measure column definitions
-            dimensions: Dimension column metadata
-            denormalized_filters: List of filter column definitions
-        """
-        cls._fact_tables[table_name] = {
-            "table_name": table_name,
-            "measures": measures,
-            "dimensions": dimensions,
-            "denormalized_filters": denormalized_filters,
-        }
-
-    @classmethod
-    def register_aggregate_query(
-        cls,
-        name: str,
-        fact_table: str,
-        auto_group_by: bool,
-        auto_aggregates: bool,
-        description: str | None = None,
-    ) -> None:
-        """Register an aggregate query definition.
-
-        Args:
-            name: Query name (e.g., "sales_aggregate")
-            fact_table: Fact table name (e.g., "tf_sales")
-            auto_group_by: Auto-generate groupBy fields
-            auto_aggregates: Auto-generate aggregate fields
-            description: Optional query description
-        """
-        cls._aggregate_queries[name] = {
-            "name": name,
-            "fact_table": fact_table,
-            "auto_group_by": auto_group_by,
-            "auto_aggregates": auto_aggregates,
-            "description": description,
-        }
-
-    @classmethod
-    def register_observer(
-        cls,
-        name: str,
-        entity: str,
-        event: str,
-        actions: list[dict[str, Any]],
-        condition: str | None = None,
-        retry: dict[str, Any] | None = None,
-    ) -> None:
-        """Register an observer.
-
-        Args:
-            name: Observer function name (e.g., "on_order_created")
-            entity: Entity type to observe (e.g., "Order")
-            event: Event type (INSERT, UPDATE, or DELETE)
-            actions: List of action configurations
-            condition: Optional condition expression
-            retry: Optional retry configuration
-        """
-        cls._observers[name] = {
-            "name": name,
-            "entity": entity,
-            "event": event.upper(),
-            "actions": actions,
-            "condition": condition,
-            "retry": retry,
-        }
-
-    @classmethod
     def get_schema(cls) -> dict[str, Any]:
         """Get the complete schema as a dictionary.
 
         Returns:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
-            "queries", "mutations", "fact_tables", and "aggregate_queries"
+            "queries", "mutations", and "subscriptions"
         """
-        types_list = list(cls._types.values())
-
-        # Check if any type has actual federation keys (not just empty metadata)
-        has_federation = any(t.get("federation", {}).get("keys") for t in types_list)
-
-        schema: dict[str, Any] = {
-            "types": types_list,
+        return {
+            "types": list(cls._types.values()),
             "enums": list(cls._enums.values()),
             "input_types": list(cls._input_types.values()),
             "interfaces": list(cls._interfaces.values()),
@@ -388,25 +269,6 @@ class SchemaRegistry:
             "mutations": list(cls._mutations.values()),
             "subscriptions": list(cls._subscriptions.values()),
         }
-
-        # Add federation root metadata if any type uses federation
-        if has_federation:
-            schema["federation"] = {
-                "enabled": True,
-                "version": "v2",
-            }
-
-        # Add analytics sections if present
-        if cls._fact_tables:
-            schema["fact_tables"] = list(cls._fact_tables.values())
-        if cls._aggregate_queries:
-            schema["aggregate_queries"] = list(cls._aggregate_queries.values())
-
-        # Add observers if present
-        if cls._observers:
-            schema["observers"] = list(cls._observers.values())
-
-        return schema
 
     @classmethod
     def clear(cls) -> None:
@@ -419,9 +281,6 @@ class SchemaRegistry:
         cls._queries.clear()
         cls._mutations.clear()
         cls._subscriptions.clear()
-        cls._fact_tables.clear()
-        cls._aggregate_queries.clear()
-        cls._observers.clear()
 
 
 def generate_schema_json(types: list[type] | None = None) -> dict[str, Any]:

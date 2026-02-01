@@ -11,7 +11,6 @@ import json
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import Annotated
 
 import pytest
 
@@ -95,63 +94,6 @@ def test_export_types_multiple_types() -> None:
         assert len(schema["types"]) == 2
         type_names = {t["name"] for t in schema["types"]}
         assert type_names == {"User", "Product"}
-
-
-def test_export_types_ignores_federation_decorators() -> None:
-    """export_types() should ignore federation decorators (moved to TOML)."""
-
-    @fraiseql.type
-    @fraiseql.extends
-    @fraiseql.key("id")
-    class User:
-        """User type with federation."""
-
-        id: str
-        name: str
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_path = Path(tmpdir) / "user_types.json"
-        fraiseql.export_types(str(output_path))
-
-        with open(output_path) as f:
-            schema = json.load(f)
-
-        # Should have type but federation config should NOT be in output
-        assert len(schema["types"]) == 1
-        user_type = schema["types"][0]
-        assert user_type["name"] == "User"
-
-        # Federation should not be in types.json
-        # It moves to fraiseql.toml [federation] section
-        assert "federation" not in schema or schema.get("federation") is None
-
-
-def test_export_types_ignores_security_decorators() -> None:
-    """export_types() should ignore security decorators (moved to TOML)."""
-
-    @fraiseql.type
-    class User:
-        """User type with security fields."""
-
-        id: str
-        name: str
-        # Field with security moved to TOML
-        salary: Annotated[float, fraiseql.field(requires_scope="read:User.salary")]
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_path = Path(tmpdir) / "user_types.json"
-        fraiseql.export_types(str(output_path))
-
-        with open(output_path) as f:
-            schema = json.load(f)
-
-        # Type should be present but without security metadata
-        assert len(schema["types"]) == 1
-        user_type = schema["types"][0]
-        assert user_type["name"] == "User"
-
-        # Security should not be in types.json (moves to TOML)
-        assert "security" not in schema or schema.get("security") is None
 
 
 def test_export_types_with_enums() -> None:

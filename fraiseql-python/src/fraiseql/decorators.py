@@ -81,17 +81,10 @@ def field(
         ...     # Deprecated field
         ...     old_email: Annotated[str, fraiseql.field(deprecated="Use email instead")]
 
-        This generates JSON:
-        {
-            "name": "User",
-            "fields": [
-                {"name": "id", "type": "Int", "nullable": false},
-                {"name": "name", "type": "String", "nullable": false},
-                {"name": "salary", "type": "Int", "nullable": false, "requires_scope": "read:User.salary"},
-                {"name": "ssn", "type": "String", "nullable": false, "requires_scope": "hr:view_pii"},
-                {"name": "old_email", "type": "String", "nullable": false, "deprecated": {"reason": "Use email instead"}}
-            ]
-        }
+        This generates JSON with field-level access control:
+        - salary field requires "read:User.salary" scope
+        - ssn field requires "hr:view_pii" scope
+        - old_email field is marked deprecated
 
     Notes:
         - Use with typing.Annotated for type safety
@@ -166,24 +159,6 @@ def type(
         # Mark class as a FraiseQL type
         c.__fraiseql_type__ = True
 
-        # Check for invalid federation usage
-        federation_metadata = getattr(c, "__fraiseql_federation__", None)
-        if federation_metadata:
-            # Validate @external usage (only on extended types)
-            from fraiseql.errors import FederationValidationError
-            from fraiseql.federation import FieldDefault
-
-            annotations = getattr(c, "__annotations__", {})
-            for field_name in annotations:
-                field_default = getattr(c, field_name, None)
-                # @external can only be used on extended types
-                if (
-                    isinstance(field_default, FieldDefault)
-                    and field_default.external
-                    and not federation_metadata.get("extend", False)
-                ):
-                    raise FederationValidationError("@external requires @extends")
-
         # Extract field information from class annotations
         fields = extract_field_info(c)
 
@@ -193,7 +168,6 @@ def type(
             fields=fields,
             description=c.__doc__,
             implements=implements or [],
-            federation=federation_metadata,
         )
 
         # Return original class unmodified (no runtime behavior)
