@@ -282,7 +282,7 @@ FraiseQL provides two specialized ways to stream large result sets:
 
 **fraiseql-wire** — A PostgreSQL-specific driver optimized for streaming JSON results. Processes rows as they arrive from the database without buffering the entire result set. Implements the Postgres wire protocol from scratch, supporting TCP and Unix sockets. Supports WHERE filters and ORDER BY, with memory usage bounded by chunk size, not result size. Useful when you need to stream large datasets with bounded memory from PostgreSQL.
 
-**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Columnar format provides better throughput for analytics workloads with more efficient memory usage than row-oriented JSON. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines. See `crates/fraiseql-arrow/benches/` for performance measurements.
+**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Columnar format provides better throughput for analytics workloads with more efficient memory usage than row-oriented JSON. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines. Real performance benchmarks comparing JSON vs Arrow serialization are in `crates/fraiseql-arrow/benches/arrow_vs_json_serialization.rs`.
 
 ---
 
