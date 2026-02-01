@@ -1,7 +1,7 @@
 # Sagas in Apollo Federation
 
 **Audience:** Architects designing distributed microservices with federation
-**Prerequisites:** [SAGA_GETTING_STARTED.md](SAGA_GETTING_STARTED.md), [Sagas Overview](FEDERATION.md)
+**Prerequisites:** [Saga Basics](../../patterns/saga/quick-start.md), [Federation Overview](guide.md)
 **Estimated Reading Time:** 25-30 minutes
 
 ---
@@ -628,9 +628,9 @@ Saga Steps:
 
 ## Next Steps
 
-1. Review **[reference/SAGA_API.md](reference/SAGA_API.md)** for complete API
-2. Check **[FEDERATION_OBSERVABILITY.md](FEDERATION_OBSERVABILITY.md)** for monitoring
-3. See **[FEDERATION_DEPLOYMENT.md](FEDERATION_DEPLOYMENT.md)** for deployment details
+1. Review **[SAGA API Reference](../../reference/SAGA_API.md)** for complete API
+2. Check **[Observability Guide](operations/observability.md)** for monitoring
+3. See **[Deployment Guide](deployment.md)** for deployment details
 
 ---
 

@@ -974,6 +974,6 @@ pub fn new(adapter: Arc<dyn DatabaseAdapter>) -> Self;
 
 ## See Also
 
-- [Federation Guide](FEDERATION.md)
-- [Deployment Guide](FEDERATION_DEPLOYMENT.md)
-- [Examples](../examples/federation/)
+- [Federation Guide](guide.md)
+- [Deployment Guide](deployment.md)
+- [Examples](../../examples/federation/)

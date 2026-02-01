@@ -726,7 +726,7 @@ let metadata = FederationMetadata {
 ## Next Steps
 
 1. **Setup Examples:** See `examples/federation/basic/` for complete working example
-2. **Deploy:** See [FEDERATION_DEPLOYMENT.md](./FEDERATION_DEPLOYMENT.md) for multi-cloud setup
+2. **Deploy:** See [deployment.md](./deployment.md) for multi-cloud setup
 3. **Performance:** See [Performance Optimization](#performance-optimization) above
 4. **Troubleshoot:** See [Troubleshooting](#troubleshooting) above
 
@@ -735,7 +735,6 @@ let metadata = FederationMetadata {
 ## Additional Resources
 
 - [Apollo Federation v2 Specification](https://www.apollographql.com/docs/apollo-server/federation/federation-2/)
-- [FraiseQL Performance Guide](./PERFORMANCE.md)
-- [Database Indexing Best Practices](./DATABASE.md)
-- [Multi-Cloud Deployment](./FEDERATION_DEPLOYMENT.md)
+- [Deployment Guide](./deployment.md)
+- [Readiness Checklist](./readiness-checklist.md)
 
