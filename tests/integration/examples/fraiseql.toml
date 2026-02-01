@@ -2,10 +2,17 @@
 # TOML-based schema for TOML-first workflow
 # Pairs with types.json from Python/TypeScript/Java SDKs
 
-[fraiseql]
+[schema]
 version = "2.0"
 name = "E-commerce API"
 description = "Example e-commerce GraphQL API with types from language SDKs"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/fraiseql_dev"
+pool_size = 10
+ssl_mode = "prefer"
+timeout_seconds = 30
 
 # ============================================================================
 # QUERIES - Define GraphQL queries

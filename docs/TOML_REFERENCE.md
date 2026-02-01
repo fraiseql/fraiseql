@@ -34,10 +34,17 @@ Types are provided by language SDKs via `types.json`, not defined in TOML.
 ## Top-Level Configuration
 
 ```toml
-[fraiseql]
-version = "2.0"                    # Required: FraiseQL version
-name = "My API"                    # Optional: API name
-description = "API description"   # Optional: Description
+[schema]
+version = "2.0"                      # Required: Schema version
+name = "My API"                      # Required: API name
+description = "API description"      # Optional: Description
+database_target = "postgresql"       # Required: Database type (postgresql, mysql, sqlite, sqlserver)
+
+[database]
+url = "postgresql://localhost/mydb"  # Required: Database connection URL
+pool_size = 10                       # Optional: Connection pool size (default: 10)
+ssl_mode = "prefer"                  # Optional: SSL mode (disable, allow, prefer, require)
+timeout_seconds = 30                 # Optional: Connection timeout (default: 30)
 ```
 
 ---
