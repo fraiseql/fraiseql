@@ -133,6 +133,101 @@ All features are configurable per-environment with environment variable override
 
 ---
 
+## Quick Start (5 minutes)
+
+### 1. Define Your Schema (Python Example)
+
+Create `schema.py`:
+
+```python
+from fraiseql import type as fraiseql_type, query as fraiseql_query, schema
+
+@fraiseql_type
+class User:
+    """User type"""
+    id: int
+    name: str
+    email: str | None
+
+@fraiseql_query(sql_source="v_users")
+def users(limit: int = 10) -> list[User]:
+    """Get all users"""
+    pass
+
+# Export schema
+schema.export_schema("schema.json")
+```
+
+Run:
+```bash
+python schema.py
+```
+
+### 2. Compile to Optimized SQL
+
+```bash
+fraiseql-cli compile schema.json -o schema.compiled.json
+```
+
+Output: `schema.compiled.json` (database-agnostic artifact with compiled SQL templates)
+
+### 3. Run the Server
+
+```bash
+fraiseql-server -c config.toml --schema schema.compiled.json
+```
+
+Configuration (`config.toml`):
+```toml
+[server]
+bind_addr = "0.0.0.0:8080"
+database_url = "postgresql://localhost/mydb"
+
+[fraiseql.security.rate_limiting]
+enabled = true
+auth_start_max_requests = 100
+```
+
+### 4. Query Your API
+
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{ users(limit: 5) { id name email } }"
+  }'
+```
+
+Response:
+```json
+{
+  "data": {
+    "users": [
+      { "id": 1, "name": "Alice", "email": "alice@example.com" },
+      { "id": 2, "name": "Bob", "email": "bob@example.com" }
+    ]
+  }
+}
+```
+
+### ✅ That's it!
+
+You now have:
+- ✅ Compiled GraphQL schema
+- ✅ Optimized SQL queries
+- ✅ Production-ready server
+- ✅ Rate limiting enabled
+- ✅ Full type safety
+
+**Next Steps:**
+
+- **Production deployment**: See [Production Deployment Guide](docs/guides/production-deployment.md)
+- **Enterprise security**: See [Enterprise Features](docs/enterprise/README.md) (Phase 7)
+- **Advanced schemas**: See [Language Generators Guide](docs/language-generators.md)
+- **Testing**: See [E2E Testing Guide](docs/e2e-testing.md)
+
+---
+
 ## Language Generators
 
 FraiseQL v2 supports **schema authoring in 5 programming languages**, all producing compatible JSON schemas that compile to the same optimized execution engine.
