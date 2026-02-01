@@ -907,8 +907,8 @@ HAVING COUNT(*) > 1;
 ## Next Steps
 
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
-- **[Examples](examples/basic-denormalization.md)** - Real-world case studies
-- **[Configuration](configuration.md)** - Observability settings
+- **[Examples](./examples/basic-denormalization.md)** - Real-world case studies
+- **[Operations Configuration](../operations/configuration.md)** - Observability settings
 
 ---
 

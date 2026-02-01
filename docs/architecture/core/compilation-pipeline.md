@@ -495,7 +495,7 @@ FraiseQL supports **150+ WHERE clause operators** across 15 categories, automati
     - `_and`, `_or`, `_not`
 
 **Complete Reference:**
-See [`docs/reference/where-operators.md`](../reference/where-operators.md) for:
+See [`reference/where-operators.md`](../../reference/where-operators.md) for:
 
 - Full operator specifications by category
 - SQL equivalents for each operator

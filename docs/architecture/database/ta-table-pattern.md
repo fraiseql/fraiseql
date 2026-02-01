@@ -395,6 +395,6 @@ See `/home/lionel/code/fraiseql/examples/sql/postgres/` for complete DDL example
 
 - [tv_* Table Pattern (JSON Plane)](./tv-table-pattern.md) - Table-backed views for GraphQL queries
 - [View Selection Guide](./view-selection-guide.md) - Unified decision guide for all 4 view patterns
-- [Arrow Flight Integration](../arrow-flight.md)
-- [FraiseQL Database Architecture](../architecture.md)
+- [Arrow Flight Integration](../../integrations/arrow-flight/) - Fast columnar data exchange
+- [FraiseQL Database Architecture](../../architecture/) - Core database layer design
 - [PostgreSQL Query Performance Tuning](https://www.postgresql.org/docs/current/performance-tips.html)

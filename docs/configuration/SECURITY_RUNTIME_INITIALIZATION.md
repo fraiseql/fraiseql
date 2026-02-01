@@ -252,4 +252,4 @@ Comprehensive tests verify the security configuration flow:
 ## See Also
 
 - [SECURITY_CONFIGURATION.md](./SECURITY_CONFIGURATION.md) - Configuration reference
-- [AuthArchitecture.md](./AuthArchitecture.md) - Authentication system design
+- [Authentication Design](../architecture/security/authentication-detailed.md) - Authentication system architecture

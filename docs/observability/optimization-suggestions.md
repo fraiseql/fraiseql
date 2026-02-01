@@ -764,9 +764,9 @@ row_scan_cost_ms = 0.0001
 
 ## Next Steps
 
-- **[Migration Workflow](migration-workflow.md)** - How to apply suggestions safely
-- **[Analysis Guide](analysis-guide.md)** - Generate suggestions
-- **[Examples](examples/basic-denormalization.md)** - Real-world case studies
+- **[Migration Workflow](./migration-workflow.md)** - How to apply suggestions safely
+- **[Analysis Guide](../operations/analysis-guide.md)** - Generate suggestions
+- **[Examples](./examples/basic-denormalization.md)** - Real-world case studies
 
 ---
 

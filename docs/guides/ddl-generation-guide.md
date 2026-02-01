@@ -381,9 +381,9 @@ if (errors.length > 0) {
 writeFileSync("views.sql", tvDdl + "\n\n" + taDdl);
 ```
 
-**Full Example:**
+**Full Examples:**
 
-See [`examples/ddl-generation/typescript-example.ts`](../../examples/ddl-generation/typescript-example.ts)
+See the [DDL Generation Examples](../../examples/ddl-generation/) directory for detailed code examples in Python
 
 ### CLI
 

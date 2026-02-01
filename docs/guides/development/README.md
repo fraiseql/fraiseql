@@ -10,7 +10,7 @@ Tools and guides for FraiseQL development and testing.
 ## Testing
 
 ### Test Strategies
-- **[Testing Strategy](testing-strategy.md)** — Complete testing approach
+- **[Testing Strategy](../testing-strategy.md)** — Complete testing approach
   - Unit testing
   - Integration testing
   - End-to-end testing
@@ -59,7 +59,7 @@ cargo flamegraph --bin fraiseql-server
 
 ## Common Tasks
 
-- **Add a new feature** → Start with [Testing Strategy](testing-strategy.md) (TDD approach)
+- **Add a new feature** → Start with [Testing Strategy](../testing-strategy.md) (TDD approach)
 - **Improve performance** → Use [Benchmarking Guide](benchmarking.md) to measure
 - **Debug an issue** → Use [Profiling Guide](PROFILING_GUIDE.md) to find root cause
 - **Ensure code quality** → Run [Linting](LINTING.md) before commit

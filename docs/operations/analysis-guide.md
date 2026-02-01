@@ -869,9 +869,8 @@ npm test
 
 ## Next Steps
 
-- **[Optimization Suggestions](optimization-suggestions.md)** - Understanding output in detail
-- **[Migration Workflow](migration-workflow.md)** - Safely applying changes
-- **[Configuration](configuration.md)** - Tuning analysis thresholds
+- **[Optimization Suggestions](../observability/optimization-suggestions.md)** - Understanding output in detail
+- **[Migration Workflow](../observability/migration-workflow.md)** - Safely applying changes
 
 ---
 

@@ -663,4 +663,4 @@ Use `/introspection` to understand schema structure and optimize queries accordi
 
 ## Examples
 
-See [examples/](../examples/) for complete working examples with various query patterns and edge cases.
+See [examples/](../../../examples/) for complete working examples with various query patterns and edge cases.

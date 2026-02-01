@@ -12,7 +12,6 @@ Complete configuration reference for FraiseQL security, networking, and operatio
 
 ### Database Configuration
 - **[PostgreSQL Authentication](POSTGRESQL_AUTHENTICATION.md)** — PostgreSQL connection and authentication
-- **[Connection Pooling](connection-pooling.md)** — Configure connection pools
 
 ## Environment Variables
 

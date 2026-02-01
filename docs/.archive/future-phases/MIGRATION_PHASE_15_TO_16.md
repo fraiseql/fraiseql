@@ -465,7 +465,7 @@ Everything from Phase 15 works unchanged in Phase 16.
 
 ---
 
-**Questions?** See [FAQ.md](./FAQ.md) or check [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+**Questions?** See [FAQ.md](../../FAQ.md) or check [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md)
 
 **Last Updated**: 2026-01-29
 **Author**: FraiseQL Federation Team

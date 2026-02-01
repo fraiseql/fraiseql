@@ -204,7 +204,7 @@ See [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md) for full configuration manage
 
 ## 📚 Related Documentation
 
-- **[Architecture: Security](../architecture/security/)** — Security model and authentication
+- **[Security Model](../architecture/security/security-model.md)** — Security model and authentication
 - **[Specs: Security Compliance](../specs/security-compliance.md)** — Security profiles (STANDARD, REGULATED, RESTRICTED)
 - **[Guides: Production Deployment](../guides/production-deployment.md)** — Security hardening checklist
 

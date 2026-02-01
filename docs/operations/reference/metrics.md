@@ -379,8 +379,8 @@ histogram_quantile(0.95, rate(graphql_duration_ms_bucket[5m])) > 100
 - [Prometheus Metrics Types](https://prometheus.io/docs/concepts/metric_types/)
 - [PromQL Documentation](https://prometheus.io/docs/prometheus/latest/querying/basics/)
 - [Grafana Dashboard Documentation](https://grafana.com/docs/grafana/latest/dashboards/)
-- [FraiseQL OBSERVABILITY_GUIDE.md](./OBSERVABILITY.md)
-- [FraiseQL OPERATIONS_GUIDE.md](./OPERATIONS_GUIDE.md)
+- [Observability Guide](../../observability/)
+- [Operations Guide](../guide.md)
 
 ---
 

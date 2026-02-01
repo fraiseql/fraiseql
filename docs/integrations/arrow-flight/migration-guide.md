@@ -217,8 +217,6 @@ install.packages("arrow")
 library(arrow)
 ```
 
-**Other**: See [Client Integration Guides](./client-integration/)
-
 ### ✅ Phase 2 Complete
 
 - ✅ Analytics scripts migrated

@@ -22,8 +22,6 @@ Complete guide for deploying, monitoring, and maintaining FraiseQL in production
 - **[Observability Architecture](observability-architecture.md)** — Deep dive into observability design
 - **[Configuration](configuration.md)** — Advanced observability configuration
 - **[Analysis Guide](analysis-guide.md)** — Analyzing observability data
-- **[Examples](examples/)** — Real-world observability examples
-
 ## Running in Production
 
 1. **Deploy**: Follow [Deployment Guide](../deployment/guide.md)
@@ -33,7 +31,7 @@ Complete guide for deploying, monitoring, and maintaining FraiseQL in production
 
 ## Federation
 
-For multi-database federation operations, see [Federation Operations](../integrations/federation/operations/).
+For multi-database federation operations, see [Federation Guide](../integrations/federation/).
 
 ## Support
 

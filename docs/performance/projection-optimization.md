@@ -449,5 +449,4 @@ A: Currently PostgreSQL is fully optimized. MySQL/SQLite/SQL Server use server-s
 
 **Learn More**:
 - [Performance Baselines](./projection-baseline-results.md) - Detailed benchmark data
-- [Tuning Guide](./performance-tuning.md) - Advanced optimization techniques
-- [Architecture](../architecture.md) - How FraiseQL works under the hood
+- [Architecture](../architecture/) - How FraiseQL works under the hood

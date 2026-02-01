@@ -12,7 +12,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 ## 🛠️ Development Guides
 
 ### Testing & Profiling
-- **[Testing Strategy](development/testing-strategy.md)** — Unit, integration, E2E, and performance testing
+- **[Testing Strategy](testing-strategy.md)** — Unit, integration, E2E, and performance testing
 - **[E2E Testing](development/e2e-testing.md)** — End-to-end testing with real services
 - **[Profiling Guide](development/PROFILING_GUIDE.md)** — Profile and optimize code
 - **[Benchmarking](development/benchmarking.md)** — Performance benchmarking with Criterion
@@ -40,7 +40,7 @@ See [Integrations Guide](../integrations/) for:
 ## 📚 Analytics
 
 - **[Analytics Patterns](analytics-patterns.md)** — Common analytical query patterns
-- **[Arrow Flight Client Integration](../integrations/arrow-flight/client-integration/)** — BI tool integration
+- **[Arrow Flight Integration](../integrations/arrow-flight/)** — High-performance analytics and BI tool integration
 
 ---
 
@@ -52,7 +52,7 @@ See [Integrations Guide](../integrations/) for:
 - **Design a schema** → [Patterns](PATTERNS.md)
 - **Deploy to production** → [Production Deployment](production-deployment.md)
 - **Set up monitoring** → [Monitoring](monitoring.md)
-- **Test my code** → [Testing Strategy](development/testing-strategy.md)
+- **Test my code** → [Testing Strategy](testing-strategy.md)
 - **Integrate with Auth0** → [Auth0 Setup](../integrations/authentication/SETUP-AUTH0.md)
 - **Set up federation** → [Federation Guide](../integrations/federation/guide.md)
 

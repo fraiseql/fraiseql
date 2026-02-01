@@ -846,9 +846,9 @@ echo -e "\n=== Health Check Complete ==="
 
 ## Next Steps
 
-- **[Configuration](configuration.md)** - Tune observability settings
-- **[Analysis Guide](analysis-guide.md)** - Run analysis effectively
-- **[Migration Workflow](migration-workflow.md)** - Apply changes safely
+- **[Operations Configuration](../operations/configuration.md)** - Tune observability settings
+- **[Analysis Guide](../operations/analysis-guide.md)** - Run analysis effectively
+- **[Migration Workflow](./migration-workflow.md)** - Apply changes safely
 
 ---
 

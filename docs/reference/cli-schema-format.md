@@ -325,6 +325,6 @@ The server then:
 
 ## See Also
 
-- [Language Generators Guide](./language-generators.md)
-- [E2E Testing Guide](./e2e-testing.md)
+- [Language Generators Guide](../guides/language-generators.md)
+- [E2E Testing Guide](../guides/development/e2e-testing.md)
 - [GraphQL Specification](https://spec.graphql.org)

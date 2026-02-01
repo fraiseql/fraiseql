@@ -66,7 +66,7 @@ Complete API and operator references.
 
 - **[Specs: Authoring Contract](../specs/authoring-contract.md)** — Schema authoring rules
 - **[Specs: Compiled Schema](../specs/compiled-schema.md)** — Compiled type system
-- **[Architecture: Database](../architecture/database/)** — Database type mappings
+- **[View Selection Guide](../architecture/database/view-selection-guide.md)** — Database view patterns and type mappings
 
 ---
 

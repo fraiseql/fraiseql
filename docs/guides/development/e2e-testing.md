@@ -534,4 +534,4 @@ Tests run automatically on:
 
 - [Language Generators Guide](../language-generators.md)
 - [CLI Schema Format Guide](../../reference/cli-schema-format.md)
-- [Testing Strategy](testing-strategy.md)
+- [Testing Strategy](../testing-strategy.md)

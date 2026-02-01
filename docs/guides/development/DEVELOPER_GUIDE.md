@@ -510,8 +510,7 @@ When reviewing code:
 
 - [Rust Book](https://doc.rust-lang.org/book/)
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
-- [FraiseQL Architecture](./architecture/)
-- [Performance Guide](./PERFORMANCE_MONITORING.md)
+- [FraiseQL Architecture](../../architecture/)
 - [Linting Guide](./LINTING.md)
 
 ## Quick Reference

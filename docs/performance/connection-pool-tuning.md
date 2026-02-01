@@ -453,7 +453,7 @@ Acquisition time: 100-500µs (when creating new connection)
 
 - [SQL Projection Optimization](./projection-optimization.md) - Reduce query latency
 - [Performance Baselines](./projection-baseline-results.md) - Benchmark data
-- [Architecture](../architecture.md) - How database connections work
+- [Architecture](../architecture/) - How database connections work
 
 ---
 

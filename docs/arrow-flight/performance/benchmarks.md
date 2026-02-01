@@ -326,5 +326,3 @@ for size in [100, 1000, 10000, 100000]:
 **Bottom Line**: Use Arrow Flight for analytics, HTTP/JSON for web clients. Both run simultaneously.
 
 ---
-
-**Next**: [Tuning Guide](./tuning.md) to optimize your setup.

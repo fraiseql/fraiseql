@@ -620,5 +620,5 @@ else:
 ## Next Steps
 
 - See [GRAPHQL_API.md](./GRAPHQL_API.md) for detailed GraphQL API specification
-- See [DEPLOYMENT.md](./DEPLOYMENT.md) for production deployment guide
-- See [examples/](../examples/) for example schemas and queries
+- See [Deployment Guide](../../deployment/guide.md) for production deployment
+- See [examples/](../../../examples/) for example schemas and queries

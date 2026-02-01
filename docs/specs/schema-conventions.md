@@ -51,7 +51,7 @@ FraiseQL enforces opinionated PostgreSQL schema conventions that enable automati
 
 **When to use each pattern:**
 
-See [View Selection Guide](../../database/view-selection-guide.md) for detailed decision trees:
+See [View Selection Guide](../architecture/database/view-selection-guide.md) for detailed decision trees:
 - `v_*` vs `tv_*`: Logical vs table-backed for JSON/GraphQL queries
 - `va_*` vs `ta_*`: Logical vs table-backed for Arrow/Analytics queries
 

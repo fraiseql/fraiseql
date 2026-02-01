@@ -532,7 +532,6 @@ mod tests {
 ## See Also
 
 - [API Reference](./API-REFERENCE.md)
-- [Custom OAuth Provider](./IMPLEMENT-OAUTH-PROVIDER.md)
 
 ---
 

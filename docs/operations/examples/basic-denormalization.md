@@ -718,9 +718,9 @@ fraiseql-cli analyze --database postgres://... --format text
 
 ## Additional Resources
 
-- **[Architecture](../architecture.md)** - System design details
+- **[Observability Architecture](../observability-architecture.md)** - System design details
 - **[Analysis Guide](../analysis-guide.md)** - Running analysis
-- **[Migration Workflow](../migration-workflow.md)** - Safe deployment practices
+- **[Migration Workflow](../../observability/migration-workflow.md)** - Safe deployment practices
 
 ---
 

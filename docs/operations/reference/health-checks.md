@@ -597,7 +597,7 @@ readinessProbe:
 - [Kubernetes Liveness, Readiness, and Startup Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
 - [Docker Healthcheck](https://docs.docker.com/engine/reference/builder/#healthcheck)
 - [AWS Load Balancer Health Checks](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-health-checks.html)
-- [FraiseQL OPERATIONS_GUIDE.md](./OPERATIONS_GUIDE.md)
+- [Operations Guide](../guide.md)
 
 ---
 

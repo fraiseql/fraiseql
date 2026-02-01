@@ -10,7 +10,6 @@ Integration guides for connecting FraiseQL with external services and databases.
 - **[Deployment](federation/deployment.md)** — Deploy federated systems
 - **[SAGA Patterns](federation/sagas.md)** — Distributed transactions across databases
 - **[Readiness Checklist](federation/readiness-checklist.md)** — Pre-deployment checklist
-- **[Operations](federation/operations/)** — Monitor and troubleshoot federation
 
 ### Authentication
 - **[Authentication Guide](authentication/README.md)** — Overview and setup
@@ -26,7 +25,6 @@ Integration guides for connecting FraiseQL with external services and databases.
 - **[Arrow Flight Guide](arrow-flight/getting-started.md)** — Get started
 - **[Architecture](arrow-flight/architecture.md)** — Design and architecture
 - **[Migration Guide](arrow-flight/migration-guide.md)** — Migrate from GraphQL
-- **[Client Integration](arrow-flight/client-integration/)** — Client libraries
 
 ### Monitoring & Visualization
 - **[Grafana Dashboard](monitoring/grafana-dashboard-8.7.json)** — Pre-built dashboard
