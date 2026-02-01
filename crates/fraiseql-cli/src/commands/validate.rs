@@ -13,5 +13,5 @@ use anyhow::Result;
 /// * `input` - Path to schema.json file to validate
 pub async fn run(input: &str) -> Result<()> {
     // Validate is just compile --check (no database validation)
-    super::compile::run(input, "unused", true, None).await
+    super::compile::run(input, None, "unused", true, None).await
 }

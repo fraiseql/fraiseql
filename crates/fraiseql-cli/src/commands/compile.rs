@@ -15,34 +15,60 @@ use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, Schema
 ///
 /// # Arguments
 ///
-/// * `input` - Path to schema.json file
+/// * `input` - Path to fraiseql.toml (TOML) or schema.json (legacy)
+/// * `types` - Optional path to types.json (when using TOML workflow)
 /// * `output` - Path to write schema.compiled.json
 /// * `check` - If true, validate only without writing output
 /// * `database` - Optional database URL for indexed column validation
+///
+/// # Workflows
+///
+/// 1. TOML-only: `fraiseql compile fraiseql.toml`
+/// 2. Language + TOML: `fraiseql compile fraiseql.toml --types types.json`
+/// 3. Legacy JSON: `fraiseql compile schema.json`
 ///
 /// # Errors
 ///
 /// Returns error if:
 /// - Input file doesn't exist or can't be read
-/// - JSON parsing fails
+/// - JSON/TOML parsing fails
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
-pub async fn run(input: &str, output: &str, check: bool, database: Option<&str>) -> Result<()> {
+pub async fn run(input: &str, types: Option<&str>, output: &str, check: bool, database: Option<&str>) -> Result<()> {
     info!("Compiling schema: {input}");
 
-    // 1. Read input schema.json
+    // 1. Determine workflow based on input file and options
     let input_path = Path::new(input);
     if !input_path.exists() {
         anyhow::bail!("Input file not found: {input}");
     }
 
-    let schema_json = fs::read_to_string(input_path).context("Failed to read input schema.json")?;
+    // Load schema based on file type and options
+    let mut intermediate: IntermediateSchema = if input.ends_with(".toml") {
+        // TOML workflow (new)
+        info!("Using TOML-based workflow");
 
-    // 2. Parse JSON into IntermediateSchema (language-agnostic format)
-    info!("Parsing intermediate schema...");
-    let mut intermediate: IntermediateSchema =
-        serde_json::from_str(&schema_json).context("Failed to parse schema.json")?;
+        if let Some(types_path) = types {
+            // Language + TOML: merge types.json with fraiseql.toml
+            info!("Merging types.json with TOML configuration...");
+            crate::schema::SchemaMerger::merge_files(types_path, input)
+                .context("Failed to merge types.json with TOML")?
+        } else {
+            // TOML-only: use inline type definitions from TOML
+            info!("Using type definitions from TOML...");
+            crate::schema::SchemaMerger::merge_toml_only(input)
+                .context("Failed to load schema from TOML")?
+        }
+    } else {
+        // Legacy JSON workflow
+        info!("Using legacy JSON workflow");
+        let schema_json = fs::read_to_string(input_path).context("Failed to read schema.json")?;
+
+        // 2. Parse JSON into IntermediateSchema (language-agnostic format)
+        info!("Parsing intermediate schema...");
+        serde_json::from_str(&schema_json).context("Failed to parse schema.json")?
+    };
 
     // 2a. Load and apply security configuration from fraiseql.toml if it exists
     if Path::new("fraiseql.toml").exists() {

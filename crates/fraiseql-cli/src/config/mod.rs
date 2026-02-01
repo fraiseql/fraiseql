@@ -4,8 +4,10 @@
 //! including security settings, project metadata, and compilation options.
 
 pub mod security;
+pub mod toml_schema;
 
 pub use security::SecurityConfig;
+pub use toml_schema::TomlSchema;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};

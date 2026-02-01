@@ -7,8 +7,10 @@ pub mod converter;
 pub mod intermediate;
 pub mod optimizer;
 pub mod validator;
+pub mod merger;
 
 pub use converter::SchemaConverter;
 pub use intermediate::IntermediateSchema;
 pub use optimizer::SchemaOptimizer;
 pub use validator::SchemaValidator;
+pub use merger::SchemaMerger;

@@ -49,11 +49,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Compile schema.json to optimized schema.compiled.json
+    /// Compile schema to optimized schema.compiled.json
+    ///
+    /// Supports three workflows:
+    /// 1. TOML-only: fraiseql compile fraiseql.toml
+    /// 2. Language + TOML: fraiseql compile fraiseql.toml --types types.json
+    /// 3. Legacy JSON: fraiseql compile schema.json
     Compile {
-        /// Input schema.json file path
+        /// Input file path: fraiseql.toml (TOML) or schema.json (legacy)
         #[arg(value_name = "INPUT")]
         input: String,
+
+        /// Optional types.json from language implementation (used with fraiseql.toml)
+        #[arg(long, value_name = "TYPES")]
+        types: Option<String>,
 
         /// Output schema.compiled.json file path
         #[arg(
@@ -181,10 +190,11 @@ async fn main() {
     let result = match cli.command {
         Commands::Compile {
             input,
+            types,
             output,
             check,
             database,
-        } => commands::compile::run(&input, &output, check, database.as_deref()).await,
+        } => commands::compile::run(&input, types.as_deref(), &output, check, database.as_deref()).await,
 
         Commands::GenerateViews {
             schema,
