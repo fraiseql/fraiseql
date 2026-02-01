@@ -58,6 +58,46 @@ fn benchmark_query_planes(c: &mut Criterion) {
 
     let db_url = setup_result.unwrap();
 
+    // Measure payload sizes once before benchmarking
+    let json_size_100 = rt.block_on(query_json_plane(&db_url, "LIMIT 100"))
+        .ok()
+        .map(|b| b.len());
+    let arrow_size_100 = rt.block_on(query_arrow_plane(&db_url, "LIMIT 100"))
+        .ok()
+        .map(|b| b.len());
+    let json_size_1000 = rt.block_on(query_json_plane(&db_url, "LIMIT 1000"))
+        .ok()
+        .map(|b| b.len());
+    let arrow_size_1000 = rt.block_on(query_arrow_plane(&db_url, "LIMIT 1000"))
+        .ok()
+        .map(|b| b.len());
+
+    // Print payload sizes
+    println!("\n=== Payload Sizes ===");
+    println!("100 rows:");
+    if let Some(json_sz) = json_size_100 {
+        println!("  JSON:  {} bytes", json_sz);
+    }
+    if let Some(arrow_sz) = arrow_size_100 {
+        println!("  Arrow: {} bytes", arrow_sz);
+        if let Some(json_sz) = json_size_100 {
+            let ratio = json_sz as f64 / arrow_sz as f64;
+            println!("  Ratio: JSON is {:.2}x larger", ratio);
+        }
+    }
+    println!("1000 rows:");
+    if let Some(json_sz) = json_size_1000 {
+        println!("  JSON:  {} bytes ({:.1} KB)", json_sz, json_sz as f64 / 1024.0);
+    }
+    if let Some(arrow_sz) = arrow_size_1000 {
+        println!("  Arrow: {} bytes ({:.1} KB)", arrow_sz, arrow_sz as f64 / 1024.0);
+        if let Some(json_sz) = json_size_1000 {
+            let ratio = json_sz as f64 / arrow_sz as f64;
+            println!("  Ratio: JSON is {:.2}x larger", ratio);
+        }
+    }
+    println!("====================\n");
+
     let mut group = c.benchmark_group("query_plane_comparison");
     group.sample_size(10);
 
