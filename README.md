@@ -39,11 +39,11 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Multi-tenant isolation with per-tenant data scoping
 - Change Data Capture (CDC) at the database layer with full entity context
 - Enterprise security (rate limiting, audit logging, constant-time token comparison, field-level authorization, encryption)
-- Event system with webhook dispatch, message queues, and 15+ action types
+- Event system with webhook dispatch (12+ providers), NATS JetStream messaging, and 15+ action types
 - Automatic Persisted Queries (APQ) with query allowlisting
 - Query result caching with automatic invalidation
-- Apache Arrow Flight data plane (columnar format, 50x faster than JSON for analytics, 10x better memory)
-- 2,400+ tests, all passing
+- Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
+- 7,600+ tests, all passing
 
 ---
 
@@ -313,7 +313,7 @@ Current release: **v2.0.0-alpha.1** (all planned features complete)
 - ✅ Apache Arrow Flight columnar data plane
 - ✅ Query result caching with automatic invalidation
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
-- ✅ Event system with webhooks, message queues, and job dispatch
+- ✅ Event system with webhooks (12+ providers), NATS JetStream messaging, and job dispatch
 - ✅ Multi-tenant isolation with per-tenant data scoping
 - ✅ Comprehensive test suite (7,600+ tests across all components)
 - ✅ Production deployment guides and monitoring setup
