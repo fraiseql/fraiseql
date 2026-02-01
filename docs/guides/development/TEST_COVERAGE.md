@@ -468,9 +468,8 @@ cargo tarpaulin --all-features --workspace
 
 ## Questions?
 
-- See [PHASE_16_READINESS.md](./PHASE_16_READINESS.md) for Phase 16 status
-- See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for feature limitations
-- See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues
+- See [KNOWN_LIMITATIONS.md](../../KNOWN_LIMITATIONS.md) for feature limitations
+- See [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for common issues
 
 ---
 

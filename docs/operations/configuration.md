@@ -997,10 +997,9 @@ sample_rate = 1.5  # ❌ ERROR: Must be 0.0-1.0
 
 ## Next Steps
 
-- **[Metrics Collection Guide](metrics-collection.md)** - What data is collected
-- **[Analysis Guide](analysis-guide.md)** - How to analyze metrics
-- **[Architecture](architecture.md)** - System design details
-- **[Troubleshooting](troubleshooting.md)** - Common issues
+- **[Metrics Collection Guide](../observability/metrics-collection.md)** - What data is collected
+- **[Troubleshooting](../observability/troubleshooting.md)** - Common issues and solutions
+- **[Observability Guide](./observability.md)** - Complete observability setup
 
 ---
 

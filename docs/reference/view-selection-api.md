@@ -592,7 +592,7 @@ GROUP BY view_name;
 
 ## See Also
 
-- [View Selection Guide](../database/view-selection-guide.md)
-- [tv_* Table Pattern](../database/tv-table-pattern.md)
-- [ta_* Table Pattern](../database/ta-table-pattern.md)
-- [Schema Conventions](../../specs/schema-conventions.md)
+- [View Selection Guide](../architecture/database/view-selection-guide.md)
+- [tv_* Table Pattern](../architecture/database/tv-table-pattern.md)
+- [ta_* Table Pattern](../architecture/database/ta-table-pattern.md)
+- [Schema Conventions](../specs/schema-conventions.md)
