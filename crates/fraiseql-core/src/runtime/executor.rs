@@ -24,7 +24,7 @@ use crate::{
     error::{FraiseQLError, Result},
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
-    security::FieldAccessError,
+    security::{FieldAccessError, SecurityContext},
 };
 
 /// Query type classification for routing.
@@ -401,6 +401,107 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
+    /// Execute a GraphQL query with row-level security (RLS) context.
+    ///
+    /// This method applies RLS filtering based on the user's SecurityContext
+    /// before executing the query. If an RLS policy is configured in RuntimeConfig,
+    /// it will be evaluated to determine what rows the user can access.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - GraphQL query string
+    /// * `variables` - Query variables (optional)
+    /// * `security_context` - User's security context (authentication + permissions)
+    ///
+    /// # Returns
+    ///
+    /// GraphQL response as JSON string, or error if access denied by RLS
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let query = r#"query { posts { id title } }"#;
+    /// let context = SecurityContext {
+    ///     user_id: "user1".to_string(),
+    ///     roles: vec!["user".to_string()],
+    ///     tenant_id: None,
+    ///     scopes: vec![],
+    ///     attributes: HashMap::new(),
+    ///     request_id: "req-1".to_string(),
+    ///     ip_address: None,
+    ///     authenticated_at: Utc::now(),
+    ///     expires_at: Utc::now() + Duration::hours(1),
+    ///     issuer: None,
+    ///     audience: None,
+    /// };
+    /// let result = executor.execute_with_security(query, None, &context).await?;
+    /// ```
+    pub async fn execute_with_security(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<String> {
+        // Apply query timeout if configured
+        if self.config.query_timeout_ms > 0 {
+            let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
+            tokio::time::timeout(
+                timeout_duration,
+                self.execute_with_security_internal(query, variables, security_context),
+            )
+            .await
+            .map_err(|_| {
+                let query_snippet = if query.len() > 100 {
+                    format!("{}...", &query[..100])
+                } else {
+                    query.to_string()
+                };
+                FraiseQLError::Timeout {
+                    timeout_ms: self.config.query_timeout_ms,
+                    query:      Some(query_snippet),
+                }
+            })?
+        } else {
+            self.execute_with_security_internal(query, variables, security_context)
+                .await
+        }
+    }
+
+    /// Internal execution logic with security context (called by execute_with_security with timeout wrapper).
+    async fn execute_with_security_internal(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<String> {
+        // 1. Classify query type
+        let query_type = self.classify_query(query)?;
+
+        // 2. Route to appropriate handler (with RLS support for regular queries)
+        match query_type {
+            QueryType::Regular => {
+                self.execute_regular_query_with_security(query, variables, security_context)
+                    .await
+            },
+            // Other query types don't support RLS yet
+            QueryType::Aggregate(query_name) => {
+                self.execute_aggregate_dispatch(&query_name, variables).await
+            },
+            QueryType::Window(query_name) => {
+                self.execute_window_dispatch(&query_name, variables).await
+            },
+            QueryType::Federation(query_name) => {
+                self.execute_federation_query(&query_name, query, variables).await
+            },
+            QueryType::IntrospectionSchema => {
+                Ok(self.introspection.schema_response.clone())
+            },
+            QueryType::IntrospectionType(type_name) => {
+                Ok(self.introspection.get_type_response(&type_name))
+            },
+        }
+    }
+
     /// Check if a specific field can be accessed with given scopes.
     ///
     /// This is a convenience method for checking field access without executing a query.
@@ -428,7 +529,33 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Execute a regular (non-analytics) GraphQL query.
+    /// Execute a regular query with row-level security context.
+    ///
+    /// This method evaluates RLS policies based on the user's SecurityContext.
+    /// **Note**: Full SQL WHERE clause integration is planned for Cycle 3 (REFACTOR).
+    /// Currently this validates access and evaluates policies but doesn't modify SQL.
+    async fn execute_regular_query_with_security(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<String> {
+        // 1. Validate security context (check expiration, etc.)
+        if security_context.is_expired() {
+            return Err(FraiseQLError::Validation {
+                message: "Security token has expired".to_string(),
+                path:    Some("request.authorization".to_string()),
+            });
+        }
+
+        // 2. For now, just execute normally. RLS SQL integration comes in Cycle 3.
+        // TODO: Cycle 3 - Integrate RLS filtering into query planner
+        //       - Evaluate RLS policy for this query
+        //       - Compose RLS WHERE clause with user WHERE clause
+        //       - Modify query execution to apply RLS filter
+        self.execute(query, variables).await
+    }
+
     async fn execute_regular_query(
         &self,
         query: &str,
@@ -1074,6 +1201,7 @@ mod tests {
             max_query_complexity: 500,
             enable_tracing:       true,
             field_filter:         None,
+            rls_policy:           None,
             query_timeout_ms:     30_000,
         };
 

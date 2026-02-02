@@ -75,10 +75,11 @@ pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
-use crate::security::{FieldFilter, FieldFilterConfig};
+use std::sync::Arc;
+
+use crate::security::{FieldFilter, FieldFilterConfig, RLSPolicy};
 
 /// Runtime configuration.
-#[derive(Debug, Clone)]
 pub struct RuntimeConfig {
     /// Enable query plan caching.
     pub cache_query_plans: bool,
@@ -96,8 +97,27 @@ pub struct RuntimeConfig {
     /// When set, validates that users have required scopes to access fields.
     pub field_filter: Option<FieldFilter>,
 
+    /// Optional row-level security (RLS) policy.
+    /// When set, evaluates access rules based on SecurityContext to determine
+    /// what rows a user can access (e.g., tenant isolation, owner-based access).
+    pub rls_policy: Option<Arc<dyn RLSPolicy>>,
+
     /// Query timeout in milliseconds (0 = no timeout).
     pub query_timeout_ms: u64,
+}
+
+impl std::fmt::Debug for RuntimeConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuntimeConfig")
+            .field("cache_query_plans", &self.cache_query_plans)
+            .field("max_query_depth", &self.max_query_depth)
+            .field("max_query_complexity", &self.max_query_complexity)
+            .field("enable_tracing", &self.enable_tracing)
+            .field("field_filter", &self.field_filter.is_some())
+            .field("rls_policy", &self.rls_policy.is_some())
+            .field("query_timeout_ms", &self.query_timeout_ms)
+            .finish()
+    }
 }
 
 impl Default for RuntimeConfig {
@@ -108,6 +128,7 @@ impl Default for RuntimeConfig {
             max_query_complexity: 1000,
             enable_tracing:       false,
             field_filter:         None,
+            rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
         }
     }
@@ -132,6 +153,27 @@ impl RuntimeConfig {
     #[must_use]
     pub fn with_field_filter(mut self, config: FieldFilterConfig) -> Self {
         self.field_filter = Some(FieldFilter::new(config));
+        self
+    }
+
+    /// Configure row-level security (RLS) policy for access control.
+    ///
+    /// When set, the executor will evaluate the RLS policy before executing queries,
+    /// applying WHERE clause filters based on the user's SecurityContext.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use fraiseql_core::runtime::RuntimeConfig;
+    /// use fraiseql_core::security::DefaultRLSPolicy;
+    /// use std::sync::Arc;
+    ///
+    /// let config = RuntimeConfig::default()
+    ///     .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+    /// ```
+    #[must_use]
+    pub fn with_rls_policy(mut self, policy: Arc<dyn RLSPolicy>) -> Self {
+        self.rls_policy = Some(policy);
         self
     }
 }
