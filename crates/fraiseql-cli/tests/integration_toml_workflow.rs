@@ -14,6 +14,7 @@ use tempfile::TempDir;
 fn test_toml_workflow_python_sdk() {
     test_sdk_integration(
         "python",
+        "User",
         r#"
 {
   "types": [
@@ -34,6 +35,7 @@ fn test_toml_workflow_python_sdk() {
 fn test_toml_workflow_go_sdk() {
     test_sdk_integration(
         "go",
+        "Product",
         r#"
 {
   "types": [
@@ -54,6 +56,7 @@ fn test_toml_workflow_go_sdk() {
 fn test_toml_workflow_nodejs_sdk() {
     test_sdk_integration(
         "nodejs",
+        "Post",
         r#"
 {
   "types": [
@@ -75,6 +78,7 @@ fn test_toml_workflow_nodejs_sdk() {
 fn test_toml_workflow_php_sdk() {
     test_sdk_integration(
         "php",
+        "Comment",
         r#"
 {
   "types": [
@@ -92,7 +96,7 @@ fn test_toml_workflow_php_sdk() {
 }
 
 // Integration test helper
-fn test_sdk_integration(sdk_name: &str, types_json: &str) {
+fn test_sdk_integration(sdk_name: &str, type_name: &str, types_json: &str) {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let types_path = temp_dir.path().join("types.json");
     let toml_path = temp_dir.path().join("fraiseql.toml");
@@ -102,7 +106,8 @@ fn test_sdk_integration(sdk_name: &str, types_json: &str) {
     fs::write(&types_path, types_json).expect("Failed to write types.json");
 
     // 2. Create fraiseql.toml with queries/mutations/security (minimal valid config)
-    let toml_config = r#"
+    let toml_config = format!(
+        r#"
 [schema]
 name = "test_schema"
 version = "1.0.0"
@@ -111,10 +116,10 @@ database_target = "postgresql"
 [database]
 url = "postgresql://localhost/test"
 
-[queries.getUsers]
-return_type = "User"
+[queries.getItems]
+return_type = "{}"
 return_array = true
-sql_source = "SELECT * FROM users"
+sql_source = "SELECT * FROM v_{}"
 
 [security]
 default_policy = "public"
@@ -135,7 +140,10 @@ enabled = false
 [security.enterprise]
 rate_limiting_enabled = false
 audit_logging_enabled = false
-"#;
+"#,
+        type_name,
+        type_name.to_lowercase()
+    );
 
     fs::write(&toml_path, toml_config).expect("Failed to write fraiseql.toml");
 

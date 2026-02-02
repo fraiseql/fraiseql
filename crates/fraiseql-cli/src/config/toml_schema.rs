@@ -453,6 +453,7 @@ pub struct AuthorizationPolicy {
     pub rule: Option<String>,
     pub roles: Vec<String>,
     pub strategy: Option<String>, // ANY, ALL, EXACTLY
+    #[serde(default)]
     pub attributes: Vec<String>,
     pub description: Option<String>,
     pub cache_ttl_seconds: Option<u32>,
