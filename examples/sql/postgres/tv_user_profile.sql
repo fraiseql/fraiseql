@@ -24,7 +24,7 @@ WHERE deleted_at IS NULL
 GROUP BY fk_post;
 
 -- Compose posts with nested comments
-CREATE OR REPLACE VIEW v_posts_with_comments AS
+CREATE OR REPLACE VIEW v_post_with_comments AS
 SELECT
     fk_user,
     jsonb_agg(
@@ -72,7 +72,7 @@ BEGIN
         ) AS data,
         NOW()
     FROM v_user u
-    LEFT JOIN v_posts_with_comments p ON p.fk_user = u.pk_user
+    LEFT JOIN v_post_with_comments p ON p.fk_user = u.pk_user
     WHERE u.id = user_id
     ON CONFLICT (id) DO UPDATE SET
         data = EXCLUDED.data,
@@ -170,7 +170,7 @@ BEGIN
             ) AS data,
             NOW()
         FROM v_user u
-        LEFT JOIN v_posts_with_comments p ON p.fk_user = u.pk_user
+        LEFT JOIN v_post_with_comments p ON p.fk_user = u.pk_user
         WHERE user_id_filter IS NULL OR u.id = user_id_filter
         ON CONFLICT (id) DO UPDATE SET
             data = EXCLUDED.data,

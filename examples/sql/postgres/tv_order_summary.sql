@@ -8,7 +8,7 @@
 -- ============================================================================
 
 -- Aggregate order items with product details
-CREATE OR REPLACE VIEW v_order_items_composed AS
+CREATE OR REPLACE VIEW v_order_item_composed AS
 SELECT
     fk_order,
     jsonb_agg(
@@ -95,7 +95,7 @@ BEGIN
         o.created_at,
         NOW()
     FROM v_order o
-    LEFT JOIN v_order_items_composed items ON items.fk_order = o.pk_order
+    LEFT JOIN v_order_item_composed items ON items.fk_order = o.pk_order
     LEFT JOIN v_customer_composed cust ON cust.fk_order = o.pk_order
     WHERE o.id = order_id
     ON CONFLICT (id) DO UPDATE SET
@@ -175,7 +175,7 @@ BEGIN
             o.created_at,
             NOW()
         FROM v_order o
-        LEFT JOIN v_order_items_composed items ON items.fk_order = o.pk_order
+        LEFT JOIN v_order_item_composed items ON items.fk_order = o.pk_order
         LEFT JOIN v_customer_composed cust ON cust.fk_order = o.pk_order
         WHERE (order_id_filter IS NULL OR o.id = order_id_filter)
           AND (status_filter IS NULL OR o.status = status_filter)

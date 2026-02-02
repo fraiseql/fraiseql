@@ -3,14 +3,14 @@
 -- Pattern: tb_* (table), pk_* (INTEGER primary key), fk_* (INTEGER foreign key), id (UUID), v_* (view)
 
 -- Drop existing objects if present
-DROP TABLE IF EXISTS tb_order_items CASCADE;
-DROP TABLE IF EXISTS tb_orders CASCADE;
-DROP TABLE IF EXISTS tb_products CASCADE;
-DROP TABLE IF EXISTS tb_customers CASCADE;
-DROP TABLE IF EXISTS tb_categories CASCADE;
+DROP TABLE IF EXISTS tb_order_item CASCADE;
+DROP TABLE IF EXISTS tb_order CASCADE;
+DROP TABLE IF EXISTS tb_product CASCADE;
+DROP TABLE IF EXISTS tb_customer CASCADE;
+DROP TABLE IF EXISTS tb_category CASCADE;
 
 -- Create categories table (Trinity Pattern)
-CREATE TABLE tb_categories (
+CREATE TABLE tb_category (
     pk_category SERIAL PRIMARY KEY,
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -19,20 +19,20 @@ CREATE TABLE tb_categories (
 );
 
 -- Create products table (Trinity Pattern)
-CREATE TABLE tb_products (
+CREATE TABLE tb_product (
     pk_product SERIAL PRIMARY KEY,
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
     inventory INTEGER NOT NULL DEFAULT 0,
-    fk_category INTEGER NOT NULL REFERENCES tb_categories(pk_category),
+    fk_category INTEGER NOT NULL REFERENCES tb_category(pk_category),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create customers table (Trinity Pattern)
-CREATE TABLE tb_customers (
+CREATE TABLE tb_customer (
     pk_customer SERIAL PRIMARY KEY,
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -43,10 +43,10 @@ CREATE TABLE tb_customers (
 );
 
 -- Create orders table (Trinity Pattern)
-CREATE TABLE tb_orders (
+CREATE TABLE tb_order (
     pk_order SERIAL PRIMARY KEY,
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
-    fk_customer INTEGER NOT NULL REFERENCES tb_customers(pk_customer),
+    fk_customer INTEGER NOT NULL REFERENCES tb_customer(pk_customer),
     total_price DECIMAL(10, 2) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -54,63 +54,104 @@ CREATE TABLE tb_orders (
 );
 
 -- Create order_items table (Trinity Pattern)
-CREATE TABLE tb_order_items (
+CREATE TABLE tb_order_item (
     pk_order_item SERIAL PRIMARY KEY,
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
-    fk_order INTEGER NOT NULL REFERENCES tb_orders(pk_order),
-    fk_product INTEGER NOT NULL REFERENCES tb_products(pk_product),
+    fk_order INTEGER NOT NULL REFERENCES tb_order(pk_order),
+    fk_product INTEGER NOT NULL REFERENCES tb_product(pk_product),
     quantity INTEGER NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_tb_products_fk_category ON tb_products(fk_category);
-CREATE INDEX idx_tb_orders_fk_customer ON tb_orders(fk_customer);
-CREATE INDEX idx_tb_orders_status ON tb_orders(status);
-CREATE INDEX idx_tb_order_items_fk_order ON tb_order_items(fk_order);
-CREATE INDEX idx_tb_order_items_fk_product ON tb_order_items(fk_product);
-CREATE INDEX idx_tb_customers_email ON tb_customers(email);
-CREATE INDEX idx_tb_categories_id ON tb_categories(id);
-CREATE INDEX idx_tb_products_id ON tb_products(id);
-CREATE INDEX idx_tb_customers_id ON tb_customers(id);
-CREATE INDEX idx_tb_orders_id ON tb_orders(id);
-CREATE INDEX idx_tb_order_items_id ON tb_order_items(id);
+CREATE INDEX idx_tb_product_fk_category ON tb_product(fk_category);
+CREATE INDEX idx_tb_order_fk_customer ON tb_order(fk_customer);
+CREATE INDEX idx_tb_order_status ON tb_order(status);
+CREATE INDEX idx_tb_order_item_fk_order ON tb_order_item(fk_order);
+CREATE INDEX idx_tb_order_item_fk_product ON tb_order_item(fk_product);
+CREATE INDEX idx_tb_customer_email ON tb_customer(email);
+CREATE INDEX idx_tb_category_id ON tb_category(id);
+CREATE INDEX idx_tb_product_id ON tb_product(id);
+CREATE INDEX idx_tb_customer_id ON tb_customer(id);
+CREATE INDEX idx_tb_order_id ON tb_order(id);
+CREATE INDEX idx_tb_order_item_id ON tb_order_item(id);
 
 -- Create views (Trinity Pattern v_* naming)
-CREATE VIEW v_categories AS
-SELECT pk_category, id, name, description, created_at
-FROM tb_categories;
-
-CREATE VIEW v_products AS
+-- Each view returns pk_* (for internal joins) and data (JSONB for GraphQL)
+CREATE VIEW v_category AS
 SELECT
-    pk_product, id, name, description, price, inventory,
-    fk_category, c.id AS category_id, c.name AS category_name,
-    tb_products.created_at, tb_products.updated_at
-FROM tb_products
-JOIN tb_categories c ON tb_products.fk_category = c.pk_category;
+    pk_category,
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'description', description,
+        'createdAt', created_at
+    ) AS data
+FROM tb_category;
 
-CREATE VIEW v_customers AS
-SELECT pk_customer, id, name, email, phone, joined_date, created_at
-FROM tb_customers;
-
-CREATE VIEW v_orders AS
+CREATE VIEW v_product AS
 SELECT
-    pk_order, id, fk_customer, cu.id AS customer_id, cu.name AS customer_name,
-    total_price, status, tb_orders.created_at, tb_orders.updated_at
-FROM tb_orders
-JOIN tb_customers cu ON tb_orders.fk_customer = cu.pk_customer;
+    pk_product,
+    jsonb_build_object(
+        'id', p.id,
+        'name', p.name,
+        'description', p.description,
+        'price', p.price,
+        'inventory', p.inventory,
+        'categoryId', c.id,
+        'categoryName', c.name,
+        'createdAt', p.created_at,
+        'updatedAt', p.updated_at
+    ) AS data
+FROM tb_product p
+JOIN tb_category c ON p.fk_category = c.pk_category;
 
-CREATE VIEW v_order_items AS
+CREATE VIEW v_customer AS
 SELECT
-    oi.pk_order_item, oi.id, oi.fk_order, oi.fk_product,
-    pr.id AS product_id, pr.name AS product_name, pr.price AS product_price,
-    oi.quantity, oi.price, oi.created_at
-FROM tb_order_items oi
-JOIN tb_products pr ON oi.fk_product = pr.pk_product;
+    pk_customer,
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'email', email,
+        'phone', phone,
+        'joinedDate', joined_date,
+        'createdAt', created_at
+    ) AS data
+FROM tb_customer;
+
+CREATE VIEW v_order AS
+SELECT
+    pk_order,
+    jsonb_build_object(
+        'id', o.id,
+        'customerId', cu.id,
+        'customerName', cu.name,
+        'totalPrice', o.total_price,
+        'status', o.status,
+        'createdAt', o.created_at,
+        'updatedAt', o.updated_at
+    ) AS data
+FROM tb_order o
+JOIN tb_customer cu ON o.fk_customer = cu.pk_customer;
+
+CREATE VIEW v_order_item AS
+SELECT
+    oi.pk_order_item,
+    jsonb_build_object(
+        'id', oi.id,
+        'productId', pr.id,
+        'productName', pr.name,
+        'productPrice', pr.price,
+        'quantity', oi.quantity,
+        'price', oi.price,
+        'createdAt', oi.created_at
+    ) AS data
+FROM tb_order_item oi
+JOIN tb_product pr ON oi.fk_product = pr.pk_product;
 
 -- Insert sample categories
-INSERT INTO tb_categories (name, description) VALUES
+INSERT INTO tb_category (name, description) VALUES
     ('Electronics', 'Electronic devices and gadgets'),
     ('Clothing', 'Apparel and fashion items'),
     ('Books', 'Physical and digital books'),
@@ -118,7 +159,7 @@ INSERT INTO tb_categories (name, description) VALUES
     ('Sports', 'Sports equipment and accessories');
 
 -- Insert sample products
-INSERT INTO tb_products (name, description, price, inventory, fk_category) VALUES
+INSERT INTO tb_product (name, description, price, inventory, fk_category) VALUES
     ('Laptop Computer', 'High-performance laptop with 16GB RAM', 999.99, 15, 1),
     ('Wireless Mouse', 'Ergonomic wireless mouse', 29.99, 50, 1),
     ('USB-C Cable', 'Fast charging USB-C cable', 14.99, 100, 1),
@@ -133,7 +174,7 @@ INSERT INTO tb_products (name, description, price, inventory, fk_category) VALUE
     ('Dumbbells Set', 'Adjustable dumbbell set 5-25lbs', 89.99, 18, 5);
 
 -- Insert sample customers
-INSERT INTO tb_customers (name, email, phone, joined_date) VALUES
+INSERT INTO tb_customer (name, email, phone, joined_date) VALUES
     ('Alice Johnson', 'alice@example.com', '555-0101', NOW() - INTERVAL '6 months'),
     ('Bob Smith', 'bob@example.com', '555-0102', NOW() - INTERVAL '5 months'),
     ('Charlie Brown', 'charlie@example.com', '555-0103', NOW() - INTERVAL '4 months'),
@@ -141,7 +182,7 @@ INSERT INTO tb_customers (name, email, phone, joined_date) VALUES
     ('Eve Davis', 'eve@example.com', '555-0105', NOW() - INTERVAL '2 months');
 
 -- Insert sample orders
-INSERT INTO tb_orders (fk_customer, total_price, status, created_at) VALUES
+INSERT INTO tb_order (fk_customer, total_price, status, created_at) VALUES
     (1, 1359.97, 'delivered', NOW() - INTERVAL '3 months'),
     (1, 89.99, 'shipped', NOW() - INTERVAL '1 month'),
     (2, 299.97, 'delivered', NOW() - INTERVAL '2 months'),
@@ -151,7 +192,7 @@ INSERT INTO tb_orders (fk_customer, total_price, status, created_at) VALUES
     (5, 199.98, 'shipped', NOW() - INTERVAL '2 weeks');
 
 -- Insert sample order items
-INSERT INTO tb_order_items (fk_order, fk_product, quantity, price) VALUES
+INSERT INTO tb_order_item (fk_order, fk_product, quantity, price) VALUES
     -- Order 1: Alice's laptop bundle
     (1, 1, 1, 999.99),
     (1, 2, 1, 29.99),
@@ -180,31 +221,31 @@ INSERT INTO tb_order_items (fk_order, fk_product, quantity, price) VALUES
 
 -- Verify data
 SELECT 'Categories:' AS info;
-SELECT COUNT(*) as category_count FROM tb_categories;
+SELECT COUNT(*) as category_count FROM tb_category;
 
 SELECT 'Products:' AS info;
-SELECT COUNT(*) as product_count FROM tb_products;
+SELECT COUNT(*) as product_count FROM tb_product;
 
 SELECT 'Customers:' AS info;
-SELECT COUNT(*) as customer_count FROM tb_customers;
+SELECT COUNT(*) as customer_count FROM tb_customer;
 
 SELECT 'Orders:' AS info;
-SELECT COUNT(*) as order_count FROM tb_orders;
+SELECT COUNT(*) as order_count FROM tb_order;
 
 SELECT 'Order Items:' AS info;
-SELECT COUNT(*) as order_item_count FROM tb_order_items;
+SELECT COUNT(*) as order_item_count FROM tb_order_item;
 
 -- Sample queries to verify schema
 SELECT 'Top customers by orders:' AS info;
 SELECT c.name, COUNT(o.pk_order) as order_count, SUM(o.total_price) as total_spent
-FROM tb_customers c
-LEFT JOIN tb_orders o ON c.pk_customer = o.fk_customer
+FROM tb_customer c
+LEFT JOIN tb_order o ON c.pk_customer = o.fk_customer
 GROUP BY c.pk_customer, c.name
 ORDER BY total_spent DESC;
 
 SELECT 'Products by category:' AS info;
 SELECT cat.name as category, COUNT(p.pk_product) as product_count, AVG(p.price) as avg_price
-FROM tb_categories cat
-LEFT JOIN tb_products p ON cat.pk_category = p.fk_category
+FROM tb_category cat
+LEFT JOIN tb_product p ON cat.pk_category = p.fk_category
 GROUP BY cat.pk_category, cat.name
 ORDER BY product_count DESC;

@@ -2,9 +2,9 @@
 -- Used by orders-service (owns Order entity, extends User)
 -- Pattern: tb_* (table), pk_* (INTEGER primary key), id (federation ID), v_* (view)
 
-DROP TABLE IF EXISTS tb_orders CASCADE;
+DROP TABLE IF EXISTS tb_order CASCADE;
 
-CREATE TABLE tb_orders (
+CREATE TABLE tb_order (
     pk_order SERIAL PRIMARY KEY,
     id VARCHAR(50) UNIQUE NOT NULL,
     user_id VARCHAR(50) NOT NULL,
@@ -14,17 +14,26 @@ CREATE TABLE tb_orders (
 );
 
 -- Index key fields for federation and performance
-CREATE INDEX idx_tb_orders_id ON tb_orders(id);
-CREATE INDEX idx_tb_orders_user_id ON tb_orders(user_id);
-CREATE INDEX idx_tb_orders_status ON tb_orders(status);
+CREATE INDEX idx_tb_order_id ON tb_order(id);
+CREATE INDEX idx_tb_order_user_id ON tb_order(user_id);
+CREATE INDEX idx_tb_order_status ON tb_order(status);
 
 -- Create view (Trinity Pattern v_* naming)
-CREATE VIEW v_orders AS
-SELECT pk_order, id, user_id, status, total, created_at
-FROM tb_orders;
+-- Returns pk_* (for internal joins) and data (JSONB for GraphQL)
+CREATE VIEW v_order AS
+SELECT
+    pk_order,
+    jsonb_build_object(
+        'id', id,
+        'userId', user_id,
+        'status', status,
+        'total', total,
+        'createdAt', created_at
+    ) AS data
+FROM tb_order;
 
 -- Insert test data
-INSERT INTO tb_orders (id, user_id, status, total) VALUES
+INSERT INTO tb_order (id, user_id, status, total) VALUES
     ('order1', 'user1', 'completed', 99.99),
     ('order2', 'user1', 'completed', 149.99),
     ('order3', 'user1', 'pending', 199.99),
