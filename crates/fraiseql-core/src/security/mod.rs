@@ -26,6 +26,8 @@ pub mod kms;
 pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
+pub mod rls_policy;
+pub mod security_context;
 pub mod tls_enforcer;
 
 // Re-export key types for convenience
@@ -44,4 +46,6 @@ pub use kms::{
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
+pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy};
+pub use security_context::SecurityContext;
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
