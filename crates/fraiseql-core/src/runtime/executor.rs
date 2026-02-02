@@ -758,7 +758,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &fed_resolver,
             Arc::clone(&self.adapter),
             &selection,
-            None, // TODO: Extract trace context from HTTP headers in Phase 2
+            None, // TODO: Extract trace context from HTTP headers for distributed tracing
         )
         .await?;
 
