@@ -39,6 +39,7 @@ final class TypeConverter
      *
      * @param ReflectionProperty $property The property to convert
      * @return TypeInfo The converted type information
+     * @throws \Exception If scope validation fails
      */
     public static function fromReflectionProperty(ReflectionProperty $property): TypeInfo
     {
@@ -48,6 +49,35 @@ final class TypeConverter
             /** @var GraphQLField $graphQLFieldAttribute */
             $graphQLFieldAttribute = $attribute->newInstance();
             break;
+        }
+
+        // Validate scopes if present
+        if ($graphQLFieldAttribute !== null) {
+            if ($graphQLFieldAttribute->scope !== null && $graphQLFieldAttribute->scopes !== null) {
+                throw new \Exception(
+                    "Field {$property->getName()} cannot have both scope and scopes"
+                );
+            }
+
+            if ($graphQLFieldAttribute->scope !== null) {
+                self::validateScope($graphQLFieldAttribute->scope, $property->getName());
+            }
+
+            if ($graphQLFieldAttribute->scopes !== null) {
+                if (empty($graphQLFieldAttribute->scopes)) {
+                    throw new \Exception(
+                        "Field {$property->getName()} has empty scopes array"
+                    );
+                }
+                foreach ($graphQLFieldAttribute->scopes as $scope) {
+                    if (empty($scope)) {
+                        throw new \Exception(
+                            "Field {$property->getName()} has empty scope in scopes array"
+                        );
+                    }
+                    self::validateScope($scope, $property->getName());
+                }
+            }
         }
 
         $type = $property->getType();
@@ -60,6 +90,8 @@ final class TypeConverter
                 isNullable: $graphQLFieldAttribute->nullable,
                 description: $graphQLFieldAttribute->description,
                 customResolver: $graphQLFieldAttribute->resolver,
+                scope: $graphQLFieldAttribute->scope,
+                scopes: $graphQLFieldAttribute->scopes,
             );
         }
 
@@ -75,6 +107,8 @@ final class TypeConverter
             isNullable: true,
             description: $graphQLFieldAttribute?->description,
             customResolver: $graphQLFieldAttribute?->resolver,
+            scope: $graphQLFieldAttribute?->scope,
+            scopes: $graphQLFieldAttribute?->scopes,
         );
     }
 
@@ -109,6 +143,8 @@ final class TypeConverter
                     isNullable: true,
                     description: $fieldAttribute?->description,
                     customResolver: $fieldAttribute?->resolver,
+                    scope: $fieldAttribute?->scope,
+                    scopes: $fieldAttribute?->scopes,
                 );
             }
         }
@@ -125,6 +161,8 @@ final class TypeConverter
                     isList: true,
                     description: $fieldAttribute?->description,
                     customResolver: $fieldAttribute?->resolver,
+                    scope: $fieldAttribute?->scope,
+                    scopes: $fieldAttribute?->scopes,
                 );
             }
 
@@ -137,6 +175,8 @@ final class TypeConverter
                 isNullable: $isNullable,
                 description: $fieldAttribute?->description,
                 customResolver: $fieldAttribute?->resolver,
+                scope: $fieldAttribute?->scope,
+                scopes: $fieldAttribute?->scopes,
             );
         }
 
@@ -147,7 +187,111 @@ final class TypeConverter
             isNullable: true,
             description: $fieldAttribute?->description,
             customResolver: $fieldAttribute?->resolver,
+            scope: $fieldAttribute?->scope,
+            scopes: $fieldAttribute?->scopes,
         );
+    }
+
+    /**
+     * Validate scope format: action:resource
+     * Valid patterns:
+     * - * (global wildcard)
+     * - action:resource (read:user.email, write:User.salary)
+     * - action:* (admin:*, read:*)
+     *
+     * @param string $scope The scope to validate
+     * @param string $fieldName The field name for error reporting
+     * @throws \Exception If scope format is invalid
+     */
+    private static function validateScope(string $scope, string $fieldName): void
+    {
+        if (empty($scope)) {
+            throw new \Exception("Field {$fieldName} has empty scope");
+        }
+
+        // Global wildcard is always valid
+        if ($scope === '*') {
+            return;
+        }
+
+        // Must contain at least one colon
+        if (!str_contains($scope, ':')) {
+            throw new \Exception(
+                "Field {$fieldName} has invalid scope '{$scope}' (missing colon)"
+            );
+        }
+
+        [$action, $resource] = explode(':', $scope, 2);
+
+        // Validate action: [a-zA-Z_][a-zA-Z0-9_]*
+        if (!self::isValidAction($action)) {
+            throw new \Exception(
+                "Field {$fieldName} has invalid action in scope '{$scope}' (must be alphanumeric + underscore)"
+            );
+        }
+
+        // Validate resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+        if (!self::isValidResource($resource)) {
+            throw new \Exception(
+                "Field {$fieldName} has invalid resource in scope '{$scope}' (must be alphanumeric + underscore + dot, or *)"
+            );
+        }
+    }
+
+    /**
+     * Check if action matches [a-zA-Z_][a-zA-Z0-9_]*
+     */
+    private static function isValidAction(string $action): bool
+    {
+        if (empty($action)) {
+            return false;
+        }
+
+        // First character must be letter or underscore
+        $firstChar = $action[0];
+        if (!ctype_alpha($firstChar) && $firstChar !== '_') {
+            return false;
+        }
+
+        // Rest must be letters, digits, or underscores
+        for ($i = 1; $i < strlen($action); $i++) {
+            $char = $action[$i];
+            if (!ctype_alnum($char) && $char !== '_') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+     */
+    private static function isValidResource(string $resource): bool
+    {
+        if ($resource === '*') {
+            return true;
+        }
+
+        if (empty($resource)) {
+            return false;
+        }
+
+        // First character must be letter or underscore
+        $firstChar = $resource[0];
+        if (!ctype_alpha($firstChar) && $firstChar !== '_') {
+            return false;
+        }
+
+        // Rest must be letters, digits, underscores, or dots
+        for ($i = 1; $i < strlen($resource); $i++) {
+            $char = $resource[$i];
+            if (!ctype_alnum($char) && $char !== '_' && $char !== '.') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

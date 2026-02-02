@@ -19,6 +19,8 @@ final readonly class TypeInfo
      * @param bool $isList Whether the type represents a list/array
      * @param string|null $description Optional description for the type
      * @param string|null $customResolver Optional custom resolver method name
+     * @param string|null $scope Optional JWT scope required to access this field
+     * @param array<string>|null $scopes Optional JWT scopes required to access this field
      */
     public function __construct(
         public string $phpType,
@@ -27,6 +29,8 @@ final readonly class TypeInfo
         public bool $isList = false,
         public ?string $description = null,
         public ?string $customResolver = null,
+        public ?string $scope = null,
+        public ?array $scopes = null,
     ) {
     }
 

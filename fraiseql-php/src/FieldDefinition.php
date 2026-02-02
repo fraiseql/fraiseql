@@ -21,6 +21,8 @@ final readonly class FieldDefinition
      * @param string $phpType The original PHP type
      * @param string|null $customResolver Optional custom resolver method name
      * @param string $parentType The parent GraphQL type name
+     * @param string|null $scope Optional JWT scope required to access this field
+     * @param array<string>|null $scopes Optional JWT scopes required to access this field
      */
     public function __construct(
         public string $name,
@@ -31,6 +33,8 @@ final readonly class FieldDefinition
         public string $phpType = 'mixed',
         public ?string $customResolver = null,
         public string $parentType = 'Unknown',
+        public ?string $scope = null,
+        public ?array $scopes = null,
     ) {
     }
 
@@ -81,6 +85,36 @@ final readonly class FieldDefinition
     public function hasCustomResolver(): bool
     {
         return $this->customResolver !== null;
+    }
+
+    /**
+     * Get the single scope requirement for this field if present.
+     *
+     * @return string|null
+     */
+    public function getScope(): ?string
+    {
+        return $this->scope;
+    }
+
+    /**
+     * Get the multiple scope requirements for this field if present.
+     *
+     * @return array<string>|null
+     */
+    public function getScopes(): ?array
+    {
+        return $this->scopes;
+    }
+
+    /**
+     * Check if this field has any scope requirement.
+     *
+     * @return bool
+     */
+    public function hasScope(): bool
+    {
+        return $this->scope !== null || $this->scopes !== null;
     }
 
     /**
