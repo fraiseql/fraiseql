@@ -45,6 +45,14 @@ class SchemaRegistry:
                 "nullable": field_info["nullable"],
             }
 
+            # Include optional metadata: requires_scope, deprecated, description
+            if "requires_scope" in field_info:
+                field_def["requires_scope"] = field_info["requires_scope"]
+            if "deprecated" in field_info:
+                field_def["deprecated"] = field_info["deprecated"]
+            if "description" in field_info:
+                field_def["description"] = field_info["description"]
+
             field_list.append(field_def)
 
         type_def: dict[str, Any] = {
@@ -70,19 +78,31 @@ class SchemaRegistry:
 
         Args:
             name: Interface name (e.g., "Node")
-            fields: Dictionary of field_name -> {"type": str, "nullable": bool}
+            fields: Dictionary of field_name -> {"type": str, "nullable": bool, ...metadata}
             description: Optional interface description from docstring
         """
+        # Build field list with metadata
+        field_list = []
+        for field_name, field_info in fields.items():
+            field_def: dict[str, Any] = {
+                "name": field_name,
+                "type": field_info["type"],
+                "nullable": field_info["nullable"],
+            }
+
+            # Include optional metadata: requires_scope, deprecated, description
+            if "requires_scope" in field_info:
+                field_def["requires_scope"] = field_info["requires_scope"]
+            if "deprecated" in field_info:
+                field_def["deprecated"] = field_info["deprecated"]
+            if "description" in field_info:
+                field_def["description"] = field_info["description"]
+
+            field_list.append(field_def)
+
         cls._interfaces[name] = {
             "name": name,
-            "fields": [
-                {
-                    "name": field_name,
-                    "type": field_info["type"],
-                    "nullable": field_info["nullable"],
-                }
-                for field_name, field_info in fields.items()
-            ],
+            "fields": field_list,
             "description": description,
         }
 

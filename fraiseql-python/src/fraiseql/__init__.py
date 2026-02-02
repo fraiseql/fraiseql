@@ -46,6 +46,7 @@ from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
 from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema, export_types
+from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
 
 __version__ = "2.0.0-alpha.1"
 
@@ -74,6 +75,10 @@ __all__ = [
     "config",
     "export_schema",
     "export_types",
+    # Scope validation (RBAC)
+    "validate_scope",
+    "ScopeValidationError",
+    "describe_scope_format",
     # Metadata
     "__version__",
 ]

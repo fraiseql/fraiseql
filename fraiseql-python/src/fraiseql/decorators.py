@@ -8,6 +8,7 @@ from types import FunctionType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from fraiseql.registry import SchemaRegistry
+from fraiseql.scope import validate_scope
 from fraiseql.types import extract_field_info, extract_function_signature
 
 if TYPE_CHECKING:
@@ -60,11 +61,15 @@ def field(
         requires_scope: Scope required to access this field.
             If set, users must have this scope in their JWT to query this field.
             Supports patterns like "read:Type.field" or custom scopes like "hr:view_pii".
+            See fraiseql.scope module for format documentation.
         deprecated: Deprecation reason if field is deprecated.
         description: Field description for GraphQL schema documentation.
 
     Returns:
         FieldConfig instance for use with Annotated[T, field(...)]
+
+    Raises:
+        ScopeValidationError: If requires_scope format is invalid
 
     Examples:
         >>> from typing import Annotated
@@ -89,9 +94,13 @@ def field(
     Notes:
         - Use with typing.Annotated for type safety
         - Multiple FieldConfig annotations on a field are merged
-        - Scope format should match your JWT token structure
+        - Scope format: action:resource (e.g., "read:Type.field", "admin:*")
         - The runtime will reject queries for protected fields without proper scopes
+        - For scope format details, see fraiseql.scope module documentation
     """
+    # Validate scope format
+    validate_scope(requires_scope)
+
     return FieldConfig(
         requires_scope=requires_scope,
         deprecated=deprecated,

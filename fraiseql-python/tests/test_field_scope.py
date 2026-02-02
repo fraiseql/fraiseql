@@ -4,14 +4,13 @@ These tests verify that field scopes defined with fraiseql.field(requires_scope=
 are properly collected, exported in schema.json, and ready for compiler integration.
 """
 
-import json
 from typing import Annotated
 
 import pytest
 
 import fraiseql
-from fraiseql.scalars import ID
 from fraiseql.registry import SchemaRegistry
+from fraiseql.scalars import ID
 
 
 class TestFieldScopeDeclaration:
@@ -22,6 +21,7 @@ class TestFieldScopeDeclaration:
 
         RED: Verify that field scope is included in extracted field info.
         """
+
         @fraiseql.type
         class User:
             """User with public and sensitive fields."""
@@ -69,10 +69,12 @@ class TestFieldScopeDeclaration:
 
             id: ID
             name: str
-            cost: Annotated[float, fraiseql.field(
-                requires_scope="read:Product.cost",
-                description="Internal cost of the product"
-            )]
+            cost: Annotated[
+                float,
+                fraiseql.field(
+                    requires_scope="read:Product.cost", description="Internal cost of the product"
+                ),
+            ]
 
         from fraiseql.types import extract_field_info
 
@@ -94,7 +96,7 @@ class TestFieldScopeDeclaration:
             """Account with scoped fields."""
 
             id: ID
-            accountNumber: str
+            accountNumber: str  # noqa: N815
             # Sensitive financial information
             balance: Annotated[float, fraiseql.field(requires_scope="read:Account.balance")]
 
@@ -171,7 +173,9 @@ class TestMixedScopedAndPublicFields:
             id: ID  # Public
             name: str  # Public
             # Private fields requiring scopes
-            internalNotes: Annotated[str, fraiseql.field(requires_scope="internal:view_notes")]
+            internalNotes: Annotated[  # noqa: N815
+                str, fraiseql.field(requires_scope="internal:view_notes")
+            ]
             budget: Annotated[float, fraiseql.field(requires_scope="finance:view_budget")]
 
         from fraiseql.types import extract_field_info
@@ -206,10 +210,12 @@ class TestFieldScopeEdgeCases:
         field_info = extract_field_info(TestType)
 
         # Empty scope should not appear in field_info
-        assert "requires_scope" not in field_info["data"] or field_info["data"]["requires_scope"] == ""
+        assert (
+            "requires_scope" not in field_info["data"] or field_info["data"]["requires_scope"] == ""
+        )
 
     def test_scope_with_special_characters(self):
-        """Test scope with allowed special characters."""
+        """Test scope with allowed special characters and underscores."""
 
         @fraiseql.type
         class SpecialScopes:
@@ -217,14 +223,132 @@ class TestFieldScopeEdgeCases:
 
             id: ID
             data1: Annotated[str, fraiseql.field(requires_scope="read:User.email_verified")]
-            data2: Annotated[str, fraiseql.field(requires_scope="admin_read:system:config")]
+            data2: Annotated[str, fraiseql.field(requires_scope="admin_read:system_config")]
 
         from fraiseql.types import extract_field_info
 
         field_info = extract_field_info(SpecialScopes)
 
         assert field_info["data1"]["requires_scope"] == "read:User.email_verified"
-        assert field_info["data2"]["requires_scope"] == "admin_read:system:config"
+        assert field_info["data2"]["requires_scope"] == "admin_read:system_config"
+
+
+class TestScopeValidation:
+    """Test scope format validation."""
+
+    def test_valid_scope_read_field(self):
+        """Test valid scope for reading a specific field."""
+        from fraiseql.scope import validate_scope
+
+        # Should not raise
+        validate_scope("read:User.email")
+        validate_scope("read:Post.title")
+
+    def test_valid_scope_wildcard_type(self):
+        """Test valid scope for all fields of a type."""
+        from fraiseql.scope import validate_scope
+
+        validate_scope("read:User.*")
+        validate_scope("write:Post.*")
+
+    def test_valid_scope_wildcard_all(self):
+        """Test valid scope for all resources."""
+        from fraiseql.scope import validate_scope
+
+        validate_scope("read:*")
+        validate_scope("admin:*")
+        validate_scope("write:*")
+
+    def test_valid_scope_custom(self):
+        """Test valid custom scope formats."""
+        from fraiseql.scope import validate_scope
+
+        validate_scope("hr:view_pii")
+        validate_scope("finance:audit_log")
+        validate_scope("admin_read:system_config")
+
+    def test_valid_scope_none(self):
+        """Test that None scope is accepted (public field)."""
+        from fraiseql.scope import validate_scope
+
+        # Should not raise
+        validate_scope(None)
+
+    def test_invalid_scope_missing_colon(self):
+        """Test that scope without colon raises error."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope("readUser")
+
+        assert "':' separator" in str(exc_info.value)
+
+    def test_invalid_scope_empty_action(self):
+        """Test that scope with empty action raises error."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope(":User.email")
+
+        assert "empty action" in str(exc_info.value)
+
+    def test_invalid_scope_empty_resource(self):
+        """Test that scope with empty resource raises error."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope("read:")
+
+        assert "empty resource" in str(exc_info.value)
+
+    def test_invalid_scope_multiple_colons(self):
+        """Test that scope with multiple colons raises error."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope("read:User:email")
+
+        assert "too many colons" in str(exc_info.value)
+
+    def test_invalid_scope_invalid_action(self):
+        """Test that scope with invalid action characters raises error."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope("read-admin:User.email")
+
+        assert "invalid characters" in str(exc_info.value)
+
+    def test_invalid_scope_invalid_resource_type_lowercase(self):
+        """Test that resource type must start with capital letter."""
+        from fraiseql.scope import ScopeValidationError, validate_scope
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            validate_scope("read:user.email")
+
+        assert "invalid characters" in str(exc_info.value)
+
+    def test_field_with_invalid_scope_raises(self):
+        """Test that field() with invalid scope raises error."""
+        from fraiseql.scope import ScopeValidationError
+
+        with pytest.raises(ScopeValidationError) as exc_info:
+            fraiseql.field(requires_scope="invalid_scope_format")
+
+        assert "':' separator" in str(exc_info.value)
+
+    def test_type_with_invalid_scope_field_raises(self):
+        """Test that @type with invalid scope in field raises during decoration."""
+        from fraiseql.scope import ScopeValidationError
+
+        with pytest.raises(ScopeValidationError):
+
+            @fraiseql.type
+            class BadScope:
+                """Type with invalid scope."""
+
+                id: ID
+                bad_field: Annotated[str, fraiseql.field(requires_scope="bad")]
 
 
 # Placeholder for future cycles
