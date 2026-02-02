@@ -73,6 +73,7 @@
 
 // Original fraiseql-server modules
 pub mod error;
+pub mod extractors;
 pub mod federation;
 pub mod logging;
 pub mod middleware;

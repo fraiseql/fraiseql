@@ -21,7 +21,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     error::{ErrorResponse, GraphQLError},
-    middleware::AuthUser,
+    extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
     tracing_utils,
     validation::RequestValidator,
@@ -125,6 +125,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     // Extract trace context from W3C headers
@@ -133,9 +134,9 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         debug!("Extracted W3C trace context from incoming request");
     }
 
-    // Create security context from request headers (user would be in extensions if auth middleware ran)
-    // For now, create basic context without auth user
-    let security_context = None;
+    if security_context.is_some() {
+        debug!("Authenticated request with security context");
+    }
 
     execute_graphql_request(state, request, trace_context, security_context).await
 }
@@ -212,63 +213,6 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     execute_graphql_request(state, request, trace_context, None).await
 }
 
-/// Create SecurityContext from authenticated user and request headers.
-#[allow(dead_code)]
-fn create_security_context(
-    auth_user: Option<AuthUser>,
-    headers: &HeaderMap,
-) -> Option<SecurityContext> {
-    auth_user.map(|auth_user| {
-        let authenticated_user = auth_user.0;
-        let request_id = extract_request_id(headers);
-        let ip_address = extract_ip_address(headers);
-        let tenant_id = extract_tenant_id(headers);
-
-        let mut context = SecurityContext::from_user(authenticated_user, request_id);
-        context.ip_address = ip_address;
-        context.tenant_id = tenant_id;
-        context
-    })
-}
-
-/// Extract request ID from headers or generate a new one.
-fn extract_request_id(headers: &HeaderMap) -> String {
-    headers
-        .get("x-request-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("req-{}", uuid::Uuid::new_v4()))
-}
-
-/// Extract client IP address from headers.
-fn extract_ip_address(headers: &HeaderMap) -> Option<String> {
-    // Check X-Forwarded-For first (for proxied requests)
-    if let Some(forwarded_for) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
-        // X-Forwarded-For can contain multiple IPs, use the first one
-        return forwarded_for.split(',').next().map(|ip| ip.trim().to_string());
-    }
-
-    // Check X-Real-IP
-    if let Some(real_ip) = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-    {
-        return Some(real_ip.to_string());
-    }
-
-    None
-}
-
-/// Extract tenant ID from headers.
-fn extract_tenant_id(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
@@ -479,95 +423,4 @@ mod tests {
         assert_eq!(params.operation_name, Some("TestOp".to_string()));
     }
 
-    #[test]
-    fn test_extract_request_id_from_header() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-request-id", "req-12345".parse().unwrap());
-
-        let request_id = extract_request_id(&headers);
-        assert_eq!(request_id, "req-12345");
-    }
-
-    #[test]
-    fn test_extract_request_id_generates_default() {
-        let headers = axum::http::HeaderMap::new();
-        let request_id = extract_request_id(&headers);
-        // Should start with "req-"
-        assert!(request_id.starts_with("req-"));
-        // Should contain a UUID: "req-" (4) + UUID (36) = 40 chars
-        assert_eq!(request_id.len(), 40);
-    }
-
-    #[test]
-    fn test_extract_ip_address_from_x_forwarded_for() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
-
-        let ip = extract_ip_address(&headers);
-        assert_eq!(ip, Some("192.0.2.1".to_string()));
-    }
-
-    #[test]
-    fn test_extract_ip_address_from_x_real_ip() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
-
-        let ip = extract_ip_address(&headers);
-        assert_eq!(ip, Some("10.0.0.2".to_string()));
-    }
-
-    #[test]
-    fn test_extract_ip_address_none_when_missing() {
-        let headers = axum::http::HeaderMap::new();
-        let ip = extract_ip_address(&headers);
-        assert_eq!(ip, None);
-    }
-
-    #[test]
-    fn test_extract_tenant_id_from_header() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
-
-        let tenant_id = extract_tenant_id(&headers);
-        assert_eq!(tenant_id, Some("tenant-acme".to_string()));
-    }
-
-    #[test]
-    fn test_extract_tenant_id_none_when_missing() {
-        let headers = axum::http::HeaderMap::new();
-        let tenant_id = extract_tenant_id(&headers);
-        assert_eq!(tenant_id, None);
-    }
-
-    // RED: Test demonstrating desired Cycle 4 behavior
-    // This test will pass once we properly wire SecurityContext extraction from auth middleware
-    #[test]
-    fn test_security_context_creation_from_auth_user() {
-        use chrono::Utc;
-
-        // Simulate an authenticated user from the OIDC middleware
-        let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read:user".to_string(), "write:post".to_string()],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-        });
-
-        // Create headers with additional metadata
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-request-id", "req-test-123".parse().unwrap());
-        headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
-        headers.insert("x-forwarded-for", "192.0.2.100".parse().unwrap());
-
-        // Create security context
-        let context = create_security_context(Some(auth_user), &headers);
-
-        // Verify context was created correctly
-        assert!(context.is_some());
-        let sec_ctx = context.unwrap();
-        assert_eq!(sec_ctx.user_id, "user123");
-        assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);
-        assert_eq!(sec_ctx.tenant_id, Some("tenant-acme".to_string()));
-        assert_eq!(sec_ctx.request_id, "req-test-123");
-        assert_eq!(sec_ctx.ip_address, Some("192.0.2.100".to_string()));
-    }
 }

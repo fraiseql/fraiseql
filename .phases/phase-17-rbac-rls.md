@@ -175,10 +175,25 @@ Both features integrate with the compilation-first architecture, respecting the 
 - Type-safe via WhereClause enum
 - 8 total integration tests (6 + 2 new)
 
-### Cycle 4: Server Handler Wiring (NEXT)
-- Extract user info from JWT claims
-- Create SecurityContext from request
-- Pass to executor.execute_with_security()
+### Cycle 4: Server Handler Wiring (IN PROGRESS)
+- **RED**: ✅ Created tests for request metadata extraction and SecurityContext creation
+- **GREEN**: ✅ Implemented HTTP handler routing through execute_with_security()
+  - execute_graphql_request() accepts optional SecurityContext parameter
+  - Routes to execute_with_security() when context present
+  - Falls back to execute() for unauthenticated requests
+  - Added helper functions: extract_request_id, extract_ip_address, extract_tenant_id
+  - Created security_context extraction from AuthUser + headers
+  - 12 new unit tests for header extraction (all passing)
+  - 8 RLS integration tests still passing (no regressions)
+
+- **REFACTOR** (IN PROGRESS):
+  - Need to implement custom Axum extractor for optional AuthUser from request extensions
+  - Wire authenticated user from oidc_auth_middleware into SecurityContext
+  - Update handlers to extract and pass SecurityContext automatically
+
+- **CLEANUP** (TODO):
+  - Remove #[allow(dead_code)] on helper functions once wired up
+  - Update documentation with HTTP handler flow
 
 ### Cycle 5: TOML Schema Enhancements (FUTURE)
 - RLS rule definitions in TOML
