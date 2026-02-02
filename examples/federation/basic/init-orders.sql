@@ -1,20 +1,30 @@
--- Orders database initialization
+-- Orders database initialization (Trinity Pattern)
 -- Used by orders-service (owns Order entity, extends User)
+-- Pattern: tb_* (table), pk_* (INTEGER primary key), id (federation ID), v_* (view)
 
-CREATE TABLE orders (
-    id VARCHAR(50) PRIMARY KEY,
+DROP TABLE IF EXISTS tb_orders CASCADE;
+
+CREATE TABLE tb_orders (
+    pk_order SERIAL PRIMARY KEY,
+    id VARCHAR(50) UNIQUE NOT NULL,
     user_id VARCHAR(50) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',
     total DECIMAL(10, 2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Index key fields for federation
-CREATE INDEX idx_orders_id ON orders(id);
-CREATE INDEX idx_orders_user_id ON orders(user_id);
+-- Index key fields for federation and performance
+CREATE INDEX idx_tb_orders_id ON tb_orders(id);
+CREATE INDEX idx_tb_orders_user_id ON tb_orders(user_id);
+CREATE INDEX idx_tb_orders_status ON tb_orders(status);
+
+-- Create view (Trinity Pattern v_* naming)
+CREATE VIEW v_orders AS
+SELECT pk_order, id, user_id, status, total, created_at
+FROM tb_orders;
 
 -- Insert test data
-INSERT INTO orders (id, user_id, status, total) VALUES
+INSERT INTO tb_orders (id, user_id, status, total) VALUES
     ('order1', 'user1', 'completed', 99.99),
     ('order2', 'user1', 'completed', 149.99),
     ('order3', 'user1', 'pending', 199.99),

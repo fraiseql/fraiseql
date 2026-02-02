@@ -1,71 +1,67 @@
--- FraiseQL Basic Example - Database Setup
+-- FraiseQL Basic Example - Database Setup (Trinity Pattern)
 -- PostgreSQL
+-- Pattern: tb_* (table), pk_* (INTEGER primary key), fk_* (INTEGER foreign key), id (UUID), v_* (view)
 
 -- Drop existing objects if present
-DROP VIEW IF EXISTS v_posts CASCADE;
-DROP VIEW IF EXISTS v_users CASCADE;
-DROP TABLE IF EXISTS posts CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS tb_posts CASCADE;
+DROP TABLE IF EXISTS tb_users CASCADE;
 
--- Create users table
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+-- Create users table (Trinity Pattern)
+CREATE TABLE tb_users (
+    pk_user SERIAL PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create posts table
-CREATE TABLE posts (
-    id SERIAL PRIMARY KEY,
+-- Create posts table (Trinity Pattern)
+CREATE TABLE tb_posts (
+    pk_post SERIAL PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    author_id INTEGER NOT NULL REFERENCES users(id),
+    fk_user INTEGER NOT NULL REFERENCES tb_users(pk_user),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes
-CREATE INDEX idx_posts_author_id ON posts(author_id);
-CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_tb_posts_fk_user ON tb_posts(fk_user);
+CREATE INDEX idx_tb_users_email ON tb_users(email);
+CREATE INDEX idx_tb_users_id ON tb_users(id);
+CREATE INDEX idx_tb_posts_id ON tb_posts(id);
 
--- Create views that return JSONB (FraiseQL pattern)
--- Each view returns rows with a 'data' column containing the JSONB representation
-
+-- Create views (Trinity Pattern v_* naming)
 CREATE VIEW v_users AS
 SELECT
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email,
-        'created_at', created_at
-    ) AS data
-FROM users;
+    pk_user,
+    id,
+    name,
+    email,
+    created_at
+FROM tb_users;
 
 CREATE VIEW v_posts AS
 SELECT
-    jsonb_build_object(
-        'id', p.id,
-        'title', p.title,
-        'content', p.content,
-        'author_id', p.author_id,
-        'author', jsonb_build_object(
-            'id', u.id,
-            'name', u.name,
-            'email', u.email,
-            'created_at', u.created_at
-        ),
-        'created_at', p.created_at
-    ) AS data
-FROM posts p
-JOIN users u ON p.author_id = u.id;
+    p.pk_post,
+    p.id,
+    p.title,
+    p.content,
+    p.fk_user,
+    u.id AS author_id,
+    u.name AS author_name,
+    u.email AS author_email,
+    p.created_at
+FROM tb_posts p
+JOIN tb_users u ON p.fk_user = u.pk_user;
 
 -- Insert sample data
-INSERT INTO users (name, email) VALUES
+INSERT INTO tb_users (name, email) VALUES
     ('Alice Johnson', 'alice@example.com'),
     ('Bob Smith', 'bob@example.com'),
     ('Charlie Brown', 'charlie@example.com');
 
-INSERT INTO posts (title, content, author_id) VALUES
+INSERT INTO tb_posts (title, content, fk_user) VALUES
     ('Getting Started with FraiseQL', 'FraiseQL is a compiled GraphQL execution engine...', 1),
     ('Database Views for GraphQL', 'Learn how to use database views with FraiseQL...', 1),
     ('Performance Tips', 'Here are some tips for optimizing your FraiseQL queries...', 2),
