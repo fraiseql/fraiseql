@@ -262,6 +262,37 @@ impl SecurityContext {
         self.attributes.insert(key, value);
         self
     }
+
+    /// Check if user can access a field based on role definitions.
+    ///
+    /// Takes a required scope and checks if any of the user's roles grant that scope.
+    ///
+    /// # Arguments
+    ///
+    /// * `security_config` - Security config from compiled schema with role definitions
+    /// * `required_scope` - Scope required to access the field (e.g., "read:User.email")
+    ///
+    /// # Returns
+    ///
+    /// `true` if user's roles grant the required scope, `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = SecurityConfig::new();
+    /// let can_access = context.can_access_scope(&config, "read:User.email")?;
+    /// ```
+    #[must_use]
+    pub fn can_access_scope(
+        &self,
+        security_config: &crate::schema::SecurityConfig,
+        required_scope: &str,
+    ) -> bool {
+        // Check if any of user's roles grant this scope
+        self.roles
+            .iter()
+            .any(|role_name| security_config.role_has_scope(role_name, required_scope))
+    }
 }
 
 impl std::fmt::Display for SecurityContext {

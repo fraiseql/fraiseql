@@ -8,63 +8,65 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition};
+use fraiseql_core::schema::{
+    CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,
+};
 
 /// Helper to create a test schema with scoped fields
 fn create_schema_with_scoped_fields() -> CompiledSchema {
     let user_type = TypeDefinition {
-        name: "User".to_string(),
-        fields: vec![
+        name:                "User".to_string(),
+        fields:              vec![
             FieldDefinition {
-                name: "id".to_string(),
-                field_type: FieldType::Int,
-                nullable: false,
-                default_value: None,
-                description: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "id".to_string(),
+                field_type:     FieldType::Int,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: None, // Public field
             },
             FieldDefinition {
-                name: "name".to_string(),
-                field_type: FieldType::String,
-                nullable: false,
-                default_value: None,
-                description: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "name".to_string(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: None, // Public field
             },
             FieldDefinition {
-                name: "email".to_string(),
-                field_type: FieldType::String,
-                nullable: false,
-                default_value: None,
-                description: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "email".to_string(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
             },
             FieldDefinition {
-                name: "password_hash".to_string(),
-                field_type: FieldType::String,
-                nullable: false,
-                default_value: None,
-                description: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "password_hash".to_string(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
             },
         ],
-        description: None,
-        sql_source: "users".to_string(),
-        jsonb_column: String::new(),
+        description:         None,
+        sql_source:          "users".to_string(),
+        jsonb_column:        String::new(),
         sql_projection_hint: None,
-        implements: vec![],
+        implements:          vec![],
     };
 
     let mut security_config = SecurityConfig::new();
@@ -82,20 +84,20 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
     security_config.default_role = Some("viewer".to_string());
 
     CompiledSchema {
-        types: vec![user_type],
-        queries: vec![],
-        mutations: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
+        types:         vec![user_type],
+        queries:       vec![],
+        mutations:     vec![],
+        enums:         vec![],
+        input_types:   vec![],
+        interfaces:    vec![],
+        unions:        vec![],
         subscriptions: vec![],
-        directives: vec![],
-        observers: vec![],
-        fact_tables: HashMap::default(),
-        federation: None,
-        security: Some(serde_json::to_value(security_config).unwrap()),
-        schema_sdl: None,
+        directives:    vec![],
+        observers:     vec![],
+        fact_tables:   HashMap::default(),
+        federation:    None,
+        security:      Some(serde_json::to_value(security_config).unwrap()),
+        schema_sdl:    None,
     }
 }
 
@@ -140,7 +142,10 @@ fn test_user_with_viewer_role_can_access_public_fields() {
 
     // Verify viewer has read:User.* scope
     let scopes = viewer_role["scopes"].as_array().expect("Should have scopes");
-    assert!(scopes.iter().any(|s| s == "read:User.*"), "Viewer should have read:User.* scope");
+    assert!(
+        scopes.iter().any(|s| s == "read:User.*"),
+        "Viewer should have read:User.* scope"
+    );
 
     // Verify user has the viewer role
     assert!(context.roles.contains(&"viewer".to_string()), "User should have viewer role");
@@ -211,30 +216,40 @@ fn test_scope_matching_exact_match() {
         .find(|f| f.name == "email")
         .expect("email field should exist");
 
-    assert_eq!(email_field.requires_scope, Some("read:User.email".to_string()), "Email should require read:User.email");
+    assert_eq!(
+        email_field.requires_scope,
+        Some("read:User.email".to_string()),
+        "Email should require read:User.email"
+    );
 
     // Verify this scope can be matched by a role with "read:User.*"
     let viewer_role = RoleDefinition {
-        name: "viewer".to_string(),
+        name:        "viewer".to_string(),
         description: None,
-        scopes: vec!["read:User.*".to_string()],
+        scopes:      vec!["read:User.*".to_string()],
     };
 
     // Test wildcard matching: "read:User.*" should match "read:User.email"
-    assert!(viewer_role.has_scope("read:User.email"), "Wildcard scope should match specific field");
+    assert!(
+        viewer_role.has_scope("read:User.email"),
+        "Wildcard scope should match specific field"
+    );
 }
 
 #[test]
 fn test_scope_matching_wildcard_all() {
     // RED: Test that global wildcard matches any scope
     let admin_role = RoleDefinition {
-        name: "admin".to_string(),
+        name:        "admin".to_string(),
         description: None,
-        scopes: vec!["*".to_string()],
+        scopes:      vec!["*".to_string()],
     };
 
     assert!(admin_role.has_scope("admin:*"), "Global wildcard should match admin:*");
-    assert!(admin_role.has_scope("read:User.email"), "Global wildcard should match read:User.email");
+    assert!(
+        admin_role.has_scope("read:User.email"),
+        "Global wildcard should match read:User.email"
+    );
     assert!(admin_role.has_scope("anything"), "Global wildcard should match anything");
 }
 
@@ -242,13 +257,16 @@ fn test_scope_matching_wildcard_all() {
 fn test_scope_matching_action_wildcard() {
     // RED: Test that action wildcard (admin:*) matches specific admin scopes
     let admin_role = RoleDefinition {
-        name: "admin".to_string(),
+        name:        "admin".to_string(),
         description: None,
-        scopes: vec!["admin:*".to_string()],
+        scopes:      vec!["admin:*".to_string()],
     };
 
     assert!(admin_role.has_scope("admin:delete"), "admin:* should match admin:delete");
-    assert!(admin_role.has_scope("admin:User.password_hash"), "admin:* should match admin:User.password_hash");
+    assert!(
+        admin_role.has_scope("admin:User.password_hash"),
+        "admin:* should match admin:User.password_hash"
+    );
     assert!(!admin_role.has_scope("read:*"), "admin:* should not match read:*");
 }
 
