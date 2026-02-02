@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 6: CLI Advanced Features and Edge Cases
 //!
 //! Extended CLI tests for production-ready composition:
 //! - YAML configuration file parsing

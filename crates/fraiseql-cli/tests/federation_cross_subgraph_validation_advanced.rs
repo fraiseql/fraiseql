@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 4: Advanced Cross-Subgraph Validation Tests
 //!
 //! Extended validation tests for complex federation scenarios:
 //! - Complex type hierarchies (4+ subgraphs, nested types)

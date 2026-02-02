@@ -1,6 +1,5 @@
 // State encryption for PKCE protection
 // Encrypts OAuth state parameters using ChaCha20-Poly1305 AEAD
-// Phase 7, Cycle 4: GREEN phase - Implementation
 
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,

@@ -1,4 +1,3 @@
-//! Phase 11 Concurrent Load Testing
 //!
 //! Tests for concurrent query execution under sustained load:
 //! - Multiple concurrent queries

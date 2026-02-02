@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 7: Federation Edge Cases (Refinement)
 //!
 //! Comprehensive edge case testing for production-grade federation:
 //! - Directive conflict scenarios (@requires/@provides/@key/@shareable interactions)

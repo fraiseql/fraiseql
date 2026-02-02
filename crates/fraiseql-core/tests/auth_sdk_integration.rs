@@ -1,4 +1,3 @@
-//! Phase 8A Integration Tests - Analytics Core Integration
 //!
 //! Tests end-to-end analytics functionality:
 //! - Fact table metadata in schema

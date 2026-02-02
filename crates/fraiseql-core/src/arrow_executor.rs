@@ -27,10 +27,8 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 /// # Implementation Status
 ///
 /// Currently returns placeholder data for testing purposes. Full integration includes:
-/// # Implementation Status (Phase 17: Arrow Flight Implementation)
 ///
 /// Currently returns placeholder data for testing. Full integration:
-/// - BLOCKED: Depends on Phase 17 Arrow execution engine implementation
 /// - TODO: Execute actual GraphQL query via QueryExecutor (see KNOWN_LIMITATIONS.md#arrow-flight)
 /// - TODO: Extract field metadata from GraphQL schema introspection
 /// - TODO: Convert database-specific rows to Arrow Values
@@ -101,10 +99,8 @@ pub async fn execute_query_as_arrow(
 
 /// Generate dummy rows for testing purposes.
 ///
-/// # Implementation Status (Phase 17: Arrow Flight Implementation)
 ///
 /// Currently returns hardcoded test data. Production implementation:
-/// - BLOCKED: Depends on Phase 17 database row conversion
 /// - TODO: Replace with actual database row conversion (see KNOWN_LIMITATIONS.md#arrow-flight)
 #[cfg(feature = "arrow")]
 fn generate_dummy_rows() -> Vec<Vec<Option<Value>>> {

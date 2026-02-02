@@ -1,6 +1,5 @@
 // Rate limiting for brute-force protection
 // Uses an in-memory approach with Arc and Mutex for simplicity
-// Phase 7, Cycle 5: GREEN phase - Implementation
 
 use std::{
     collections::HashMap,

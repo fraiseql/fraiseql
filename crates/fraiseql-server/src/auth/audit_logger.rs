@@ -1,6 +1,5 @@
 // Audit logging module for security-critical operations
 // Tracks all secret access, authentication events, and security decisions
-// Phase 7, Cycle 1: GREEN phase - Implementation
 
 use std::sync::Arc;
 

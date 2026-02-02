@@ -1,5 +1,4 @@
 // Integration tests for all security layers working together
-// Phase 7, Cycle 6: RED phase - Define expected E2E behavior
 
 #[cfg(test)]
 mod integration_security {

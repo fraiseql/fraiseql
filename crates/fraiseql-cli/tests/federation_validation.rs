@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 3: Compile-Time Federation Validation Tests
 //!
 //! Tests for validating federation directives at schema compilation time:
 //! - @requires/@provides reference valid fields

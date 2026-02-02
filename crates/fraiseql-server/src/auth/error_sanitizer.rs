@@ -1,6 +1,5 @@
 // Error sanitization layer
 // Separates user-facing messages from internal details
-// Phase 7, Cycle 2: GREEN phase - Implementation
 
 use std::fmt;
 

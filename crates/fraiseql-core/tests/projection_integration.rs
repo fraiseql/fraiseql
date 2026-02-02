@@ -1,4 +1,3 @@
-//! Phase 10 Integration Tests - SQL Projection Pipeline
 //!
 //! Tests end-to-end SQL projection functionality:
 //! - Schema compilation with projection hints

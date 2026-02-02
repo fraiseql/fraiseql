@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 2: Composition Validator Tests
 //!
 //! Tests for building and validating composed supergraph schemas from multiple subgraphs:
 //! - Merge types from multiple subgraphs

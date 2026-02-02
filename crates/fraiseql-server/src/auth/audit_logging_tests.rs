@@ -1,5 +1,4 @@
 // Audit logging tests for secret access tracking
-// Phase 7, Cycle 1: RED phase - Define expected behavior
 
 #[cfg(test)]
 mod audit_logging {

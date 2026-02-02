@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 1: Cross-Subgraph Validation Tests
 //!
 //! Tests for validating federation schemas across multiple subgraphs:
 //! - @key consistency: Each @key must be unique within its type

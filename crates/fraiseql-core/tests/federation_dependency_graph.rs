@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 2: Dependency Graph & Cycle Detection Tests
 //!
 //! Tests for building dependency graphs from @requires directives and detecting
 //! circular dependencies.

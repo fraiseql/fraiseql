@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 4: Runtime @requires Enforcement Tests
 //!
 //! Tests for validating @requires directives at runtime during entity resolution:
 //! - Required fields present in entity representations

@@ -1,5 +1,4 @@
 // Error message sanitization tests
-// Phase 7, Cycle 2: RED phase - Define expected behavior
 
 #[cfg(test)]
 mod error_sanitization {

@@ -1,5 +1,4 @@
 // State encryption integration tests
-// Phase 7, Cycle 4: Tests for StateEncryption functionality
 
 #[cfg(test)]
 mod state_encryption_tests {

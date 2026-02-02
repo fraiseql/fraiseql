@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 4c: @provides Directive Enforcement Tests
 //!
 //! Tests for @provides directive validation at runtime:
 //! - @provides fields should be present in resolver results

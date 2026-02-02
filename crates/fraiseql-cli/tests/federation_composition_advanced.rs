@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 5: Advanced Composition Scenarios
 //!
 //! Extended composition tests for complex federation scenarios:
 //! - 4+ subgraph composition with shared types

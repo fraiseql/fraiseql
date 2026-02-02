@@ -1,4 +1,3 @@
-//! Phase 2, Cycle 3: CLI Compose Command Tests
 //!
 //! Tests for the `fraiseql compose` CLI command:
 //! - Compose multiple subgraph schemas into supergraph

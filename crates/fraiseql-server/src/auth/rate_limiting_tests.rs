@@ -1,5 +1,4 @@
 // Rate limiting integration tests
-// Phase 7, Cycle 5: Tests for KeyedRateLimiter functionality
 
 #[cfg(test)]
 mod rate_limiting_tests {

@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 4b: HTTP @requires Enforcement Tests
 //!
 //! Tests for validating @requires directives at runtime during HTTP entity resolution:
 //! - Required fields present in entity representations before HTTP call

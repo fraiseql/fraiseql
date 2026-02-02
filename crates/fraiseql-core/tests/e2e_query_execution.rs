@@ -1,4 +1,3 @@
-//! Phase 10 E2E Tests - Complete Query Execution with SQL Projection
 //!
 //! Tests end-to-end query execution scenarios:
 //! - Mock database with sample data

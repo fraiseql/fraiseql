@@ -1,5 +1,4 @@
 // Constant-time comparison tests
-// Phase 7, Cycle 3: Integration tests for constant-time comparison
 
 #[cfg(test)]
 mod constant_time_comparison {

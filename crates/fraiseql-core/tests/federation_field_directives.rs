@@ -1,4 +1,3 @@
-//! Phase 1, Cycle 1: Field-Level Directive Metadata Tests
 //!
 //! These tests define the expected behavior for storing and accessing
 //! field-level federation directives (@requires, @provides, @shareable).

@@ -172,10 +172,8 @@ impl FraiseQLFlightService {
     ///
     ///
     ///
-    /// # Implementation Status (Phase 17: Arrow Flight Implementation)
     ///
     /// Currently returns an empty stream (placeholder). Full implementation includes:
-    /// - BLOCKED: Awaiting Phase 17 Arrow execution engine implementation
     /// - TODO: Add QueryExecutor reference to FraiseQLFlightService struct (see
     ///   KNOWN_LIMITATIONS.md#arrow-flight)
     /// - TODO: Call fraiseql_core::arrow_executor::execute_query_as_arrow()
@@ -205,10 +203,8 @@ impl FraiseQLFlightService {
     /// * `limit` - Optional LIMIT
     /// * `offset` - Optional OFFSET for pagination
     ///
-    /// # Implementation Status (Phase 17: Arrow Flight Implementation)
     ///
     /// Currently functional with placeholder data. Full optimization includes:
-    /// - BLOCKED: Depends on Phase 17 Arrow execution optimization
     /// - TODO: Pre-load and cache pre-compiled Arrow schemas from metadata (see
     ///   KNOWN_LIMITATIONS.md#arrow-flight)
     /// - TODO: Implement query optimization with pre-compiled schemas
@@ -446,7 +442,6 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::ListFlightsStream>, Status> {
         info!("ListFlights called");
 
-        // Phase 17: Arrow Flight dataset listing (BLOCKED)
         // TODO: Return actual available datasets (GraphQL queries, observer events)
         // For now, demonstrate the API works with an empty stream
         let stream = futures::stream::empty();
@@ -729,10 +724,8 @@ fn build_optimized_sql(
 
 /// Generate placeholder database rows for testing.
 ///
-/// # Implementation Status (Phase 17: Arrow Flight Implementation)
 ///
 /// Currently returns hardcoded test data. Production implementation:
-/// - BLOCKED: Depends on Phase 17 database adapter integration
 /// - TODO: Replace with actual database adapter when integrated with fraiseql-server (see
 ///   KNOWN_LIMITATIONS.md#arrow-flight)
 ///

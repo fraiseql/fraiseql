@@ -1,4 +1,3 @@
-//! Phase 3, Cycle 1: Saga Coordinator Foundation
 //!
 //! Comprehensive saga coordinator testing for distributed transactions:
 //! - Saga creation and initialization

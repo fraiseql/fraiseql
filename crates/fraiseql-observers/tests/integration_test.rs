@@ -389,7 +389,6 @@ async fn test_multi_event_processing() -> Result<()> {
 }
 
 // ============================================================================
-// Phase 4 Cycle 2: Observer System Hardening Tests
 // ============================================================================
 
 /// Test DLQ job tracking and failure scenarios

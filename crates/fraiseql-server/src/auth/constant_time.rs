@@ -1,6 +1,5 @@
 // Constant-time comparison utilities
 // Prevents timing attacks on token validation
-// Phase 7, Cycle 3: GREEN phase - Implementation
 //
 // ## Integration Points
 //
