@@ -6,12 +6,12 @@
 //!
 //! Result: Complete IntermediateSchema ready for compilation
 
-use anyhow::{Context, Result};
-use serde_json::{json, Value};
 use std::fs;
 
-use crate::config::TomlSchema;
-use crate::schema::IntermediateSchema;
+use anyhow::{Context, Result};
+use serde_json::{Value, json};
+
+use crate::{config::TomlSchema, schema::IntermediateSchema};
 
 /// Schema merger combining language types and TOML config
 pub struct SchemaMerger;
@@ -29,8 +29,8 @@ impl SchemaMerger {
         // Load types.json
         let types_json = fs::read_to_string(types_path)
             .context(format!("Failed to read types.json from {types_path}"))?;
-        let types_value: Value = serde_json::from_str(&types_json)
-            .context("Failed to parse types.json")?;
+        let types_value: Value =
+            serde_json::from_str(&types_json).context("Failed to parse types.json")?;
 
         // Load TOML
         let toml_schema = TomlSchema::from_file(toml_path)
@@ -274,8 +274,9 @@ impl SchemaMerger {
 
             // Load and merge query files
             if !resolved.queries.is_empty() {
-                let query_value = crate::schema::MultiFileLoader::load_from_paths(&resolved.queries)
-                    .context("Failed to load query files")?;
+                let query_value =
+                    crate::schema::MultiFileLoader::load_from_paths(&resolved.queries)
+                        .context("Failed to load query files")?;
                 if let Some(Value::Array(queries)) = query_value.get("queries") {
                     if let Some(Value::Array(existing_queries)) = merged_types.get_mut("queries") {
                         existing_queries.extend(queries.clone());
@@ -289,7 +290,9 @@ impl SchemaMerger {
                     crate::schema::MultiFileLoader::load_from_paths(&resolved.mutations)
                         .context("Failed to load mutation files")?;
                 if let Some(Value::Array(mutations)) = mutation_value.get("mutations") {
-                    if let Some(Value::Array(existing_mutations)) = merged_types.get_mut("mutations") {
+                    if let Some(Value::Array(existing_mutations)) =
+                        merged_types.get_mut("mutations")
+                    {
                         existing_mutations.extend(mutations.clone());
                     }
                 }
@@ -337,7 +340,7 @@ impl SchemaMerger {
                             types_array.push(enriched_type);
                         }
                     }
-                }
+                },
                 // Handle object format (from TOML-only, for backward compatibility)
                 Value::Object(types_map) => {
                     for (type_name, type_value) in types_map {
@@ -366,8 +369,8 @@ impl SchemaMerger {
 
                         types_array.push(enriched_type);
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -502,9 +505,11 @@ impl SchemaMerger {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_merge_toml_only() {
@@ -554,20 +559,14 @@ sql_source = "v_user"
             "queries": [],
             "mutations": []
         });
-        fs::write(
-            temp_dir.path().join("user.json"),
-            user_types.to_string(),
-        )?;
+        fs::write(temp_dir.path().join("user.json"), user_types.to_string())?;
 
         let post_types = serde_json::json!({
             "types": [{"name": "Post", "fields": []}],
             "queries": [],
             "mutations": []
         });
-        fs::write(
-            temp_dir.path().join("post.json"),
-            post_types.to_string(),
-        )?;
+        fs::write(temp_dir.path().join("post.json"), post_types.to_string())?;
 
         // Create TOML with includes
         let toml_content = format!(
@@ -655,10 +654,7 @@ mutations = []
             "queries": [{"name": "getProduct", "return_type": "Product"}],
             "mutations": []
         });
-        fs::write(
-            schema_dir.join("products/types.json"),
-            product_types.to_string(),
-        )?;
+        fs::write(schema_dir.join("products/types.json"), product_types.to_string())?;
 
         // Create TOML with domain discovery (use absolute path)
         let schema_dir_str = schema_dir.to_string_lossy().to_string();
@@ -713,10 +709,7 @@ root_dir = "{}"
                 "queries": [],
                 "mutations": []
             });
-            fs::write(
-                schema_dir.join(format!("{}/types.json", domain)),
-                types.to_string(),
-            )?;
+            fs::write(schema_dir.join(format!("{}/types.json", domain)), types.to_string())?;
         }
 
         let schema_dir_str = schema_dir.to_string_lossy().to_string();

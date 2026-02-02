@@ -1,6 +1,7 @@
 //! Integration tests for security configuration in schema compilation
 
 use std::fs;
+
 use tempfile::TempDir;
 
 #[test]

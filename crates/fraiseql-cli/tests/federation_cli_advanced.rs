@@ -1,4 +1,3 @@
-//!
 //! Extended CLI tests for production-ready composition:
 //! - YAML configuration file parsing
 //! - Output format options (JSON, GraphQL SDL)

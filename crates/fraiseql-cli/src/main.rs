@@ -68,7 +68,8 @@ enum Commands {
         #[arg(long, value_name = "DIR")]
         schema_dir: Option<String>,
 
-        /// Type files (repeatable): fraiseql compile fraiseql.toml --type-file a.json --type-file b.json
+        /// Type files (repeatable): fraiseql compile fraiseql.toml --type-file a.json --type-file
+        /// b.json
         #[arg(long = "type-file", value_name = "FILE")]
         type_files: Vec<String>,
 
@@ -214,18 +215,20 @@ async fn main() {
             output,
             check,
             database,
-        } => commands::compile::run(
-            &input,
-            types.as_deref(),
-            schema_dir.as_deref(),
-            type_files,
-            query_files,
-            mutation_files,
-            &output,
-            check,
-            database.as_deref(),
-        )
-        .await,
+        } => {
+            commands::compile::run(
+                &input,
+                types.as_deref(),
+                schema_dir.as_deref(),
+                type_files,
+                query_files,
+                mutation_files,
+                &output,
+                check,
+                database.as_deref(),
+            )
+            .await
+        },
 
         Commands::GenerateViews {
             schema,

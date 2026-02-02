@@ -6,10 +6,10 @@
 //! 3. Merges both into schema.compiled.json
 //! 4. Validates scope consistency
 
-use std::fs;
-use std::path::PathBuf;
-use tempfile::TempDir;
+use std::{fs, path::PathBuf};
+
 use fraiseql_core::schema::CompiledSchema;
+use tempfile::TempDir;
 
 /// Helper to create test TOML with role definitions
 fn create_test_toml_with_roles(temp_dir: &TempDir) -> PathBuf {
@@ -138,20 +138,25 @@ fn test_compiler_preserves_field_scopes_from_schema() {
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
 
     // Parse schema.json directly
-    let schema_json = fs::read_to_string(temp_dir.path().join("schema.json"))
-        .expect("Failed to read schema");
-    let compiled: CompiledSchema = serde_json::from_str(&schema_json)
-        .expect("Failed to parse schema as CompiledSchema");
+    let schema_json =
+        fs::read_to_string(temp_dir.path().join("schema.json")).expect("Failed to read schema");
+    let compiled: CompiledSchema =
+        serde_json::from_str(&schema_json).expect("Failed to parse schema as CompiledSchema");
 
     // Verify field scopes are preserved
-    let user_type = compiled.types.iter().find(|t| t.name == "User")
-        .expect("User type not found");
+    let user_type = compiled.types.iter().find(|t| t.name == "User").expect("User type not found");
 
-    let email_field = user_type.fields.iter().find(|f| f.name == "email")
+    let email_field = user_type
+        .fields
+        .iter()
+        .find(|f| f.name == "email")
         .expect("email field not found");
     assert_eq!(email_field.requires_scope, Some("read:User.email".to_string()));
 
-    let password_field = user_type.fields.iter().find(|f| f.name == "password_hash")
+    let password_field = user_type
+        .fields
+        .iter()
+        .find(|f| f.name == "password_hash")
         .expect("password_hash field not found");
     assert_eq!(password_field.requires_scope, Some("admin:*".to_string()));
 }
@@ -163,14 +168,17 @@ fn test_compiler_merges_role_definitions_from_toml() {
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
     let _toml_path = create_test_toml_with_roles(&temp_dir);
 
-    // This test verifies that when role definitions are in TOML and field scopes are in schema.json,
-    // the compiler can load and merge both. Currently this fails because:
+    // This test verifies that when role definitions are in TOML and field scopes are in
+    // schema.json, the compiler can load and merge both. Currently this fails because:
     // 1. SecurityConfig in CLI doesn't parse role_definitions from TOML
     // 2. Compiler doesn't merge field scopes with roles
 
     // For now, just verify the TOML can be parsed
     let toml_content = fs::read_to_string(_toml_path).expect("Failed to read TOML");
-    assert!(toml_content.contains("role_definitions"), "TOML should contain role_definitions");
+    assert!(
+        toml_content.contains("role_definitions"),
+        "TOML should contain role_definitions"
+    );
     assert!(toml_content.contains("viewer"), "TOML should contain viewer role");
 }
 
@@ -220,7 +228,10 @@ fn test_compiler_validates_scope_consistency() {
 
     // Verify the schema file contains the scope
     let content = fs::read_to_string(&schema_path).expect("Failed to read schema");
-    assert!(content.contains("internal:special_scope"), "Schema should contain special scope");
+    assert!(
+        content.contains("internal:special_scope"),
+        "Schema should contain special scope"
+    );
 }
 
 #[test]
@@ -231,12 +242,15 @@ fn test_compiler_handles_missing_role_definitions() {
 
     // Without a fraiseql.toml file, the schema should still load with field scopes
     // but no role definitions
-    let schema_json = fs::read_to_string(temp_dir.path().join("schema.json"))
-        .expect("Failed to read schema");
+    let schema_json =
+        fs::read_to_string(temp_dir.path().join("schema.json")).expect("Failed to read schema");
 
     // The field scopes should be present
     assert!(schema_json.contains("requires_scope"), "Field scopes should be in schema");
-    assert!(schema_json.contains("read:User.email"), "Specific field scope should be present");
+    assert!(
+        schema_json.contains("read:User.email"),
+        "Specific field scope should be present"
+    );
 }
 
 #[test]
@@ -253,13 +267,13 @@ fn test_compiler_output_includes_both_field_scopes_and_roles() {
     assert!(temp_dir.path().join("fraiseql.toml").exists(), "fraiseql.toml should exist");
 
     // Verify schema has field scopes
-    let schema_content = fs::read_to_string(temp_dir.path().join("schema.json"))
-        .expect("Failed to read schema");
+    let schema_content =
+        fs::read_to_string(temp_dir.path().join("schema.json")).expect("Failed to read schema");
     assert!(schema_content.contains("requires_scope"), "Schema should have requires_scope");
 
     // Verify TOML has role definitions
-    let toml_content = fs::read_to_string(temp_dir.path().join("fraiseql.toml"))
-        .expect("Failed to read TOML");
+    let toml_content =
+        fs::read_to_string(temp_dir.path().join("fraiseql.toml")).expect("Failed to read TOML");
     assert!(toml_content.contains("role_definitions"), "TOML should have role_definitions");
 }
 
@@ -272,17 +286,19 @@ fn test_field_scope_in_compiled_schema_from_intermediate() {
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
 
     // Parse intermediate schema
-    let schema_json = fs::read_to_string(temp_dir.path().join("schema.json"))
-        .expect("Failed to read schema");
-    let compiled: CompiledSchema = serde_json::from_str(&schema_json)
-        .expect("Failed to parse as CompiledSchema");
+    let schema_json =
+        fs::read_to_string(temp_dir.path().join("schema.json")).expect("Failed to read schema");
+    let compiled: CompiledSchema =
+        serde_json::from_str(&schema_json).expect("Failed to parse as CompiledSchema");
 
     // Find User type
-    let user_type = compiled.types.iter().find(|t| t.name == "User")
-        .expect("User type not found");
+    let user_type = compiled.types.iter().find(|t| t.name == "User").expect("User type not found");
 
     // Find email field
-    let email_field = user_type.fields.iter().find(|f| f.name == "email")
+    let email_field = user_type
+        .fields
+        .iter()
+        .find(|f| f.name == "email")
         .expect("email field not found");
 
     // Verify field scope is preserved
@@ -293,7 +309,10 @@ fn test_field_scope_in_compiled_schema_from_intermediate() {
     );
 
     // Check password_hash field too
-    let password_field = user_type.fields.iter().find(|f| f.name == "password_hash")
+    let password_field = user_type
+        .fields
+        .iter()
+        .find(|f| f.name == "password_hash")
         .expect("password_hash field not found");
     assert_eq!(
         password_field.requires_scope,
@@ -322,9 +341,14 @@ fn test_role_definitions_parse_from_toml() {
     std::env::set_current_dir(original_dir).expect("Failed to restore dir");
 
     // Verify role_definitions are in TOML
-    assert!(parsed["fraiseql"]["security"]["role_definitions"].is_array(), "role_definitions should be an array");
+    assert!(
+        parsed["fraiseql"]["security"]["role_definitions"].is_array(),
+        "role_definitions should be an array"
+    );
 
-    let roles = parsed["fraiseql"]["security"]["role_definitions"].as_array().expect("Should be array");
+    let roles = parsed["fraiseql"]["security"]["role_definitions"]
+        .as_array()
+        .expect("Should be array");
     assert_eq!(roles.len(), 3, "Should have 3 roles");
 
     // Verify each role has name and scopes

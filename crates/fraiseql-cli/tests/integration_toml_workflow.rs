@@ -6,8 +6,8 @@
 //! 3. Run: fraiseql compile fraiseql.toml --types types.json
 //! 4. Verify schema.compiled.json contains all features
 
-use std::fs;
-use std::process::Command;
+use std::{fs, process::Command};
+
 use tempfile::TempDir;
 
 #[test]
@@ -173,24 +173,33 @@ audit_logging_enabled = false
             }
 
             // 4. Verify compiled schema
-            let compiled = fs::read_to_string(&output_path)
-                .expect("Failed to read compiled schema");
+            let compiled =
+                fs::read_to_string(&output_path).expect("Failed to read compiled schema");
 
             // Check that compiled schema contains types
-            assert!(compiled.contains("\"types\""),
-                "Compiled schema missing types section for {}", sdk_name);
+            assert!(
+                compiled.contains("\"types\""),
+                "Compiled schema missing types section for {}",
+                sdk_name
+            );
 
             // Check that queries are present
-            assert!(compiled.contains("\"queries\""),
-                "Compiled schema missing queries section for {}", sdk_name);
+            assert!(
+                compiled.contains("\"queries\""),
+                "Compiled schema missing queries section for {}",
+                sdk_name
+            );
 
             // Check that security is present
-            assert!(compiled.contains("\"security\""),
-                "Compiled schema missing security section for {}", sdk_name);
-        }
+            assert!(
+                compiled.contains("\"security\""),
+                "Compiled schema missing security section for {}",
+                sdk_name
+            );
+        },
         Err(e) => {
             panic!("Failed to run fraiseql-cli for {}: {}", sdk_name, e);
-        }
+        },
     }
 }
 
@@ -294,8 +303,7 @@ audit_logging_enabled = false
     }
 
     // Verify merged result
-    let compiled = fs::read_to_string(&output_path)
-        .expect("Failed to read compiled schema");
+    let compiled = fs::read_to_string(&output_path).expect("Failed to read compiled schema");
 
     // Check that both types are in the output
     assert!(compiled.contains("User"), "User type not in compiled schema");
@@ -306,17 +314,11 @@ audit_logging_enabled = false
     assert!(compiled.contains("getPosts"), "getPosts query not in compiled schema");
 
     // Check that types are arrays, not objects
-    let compiled_value: serde_json::Value = serde_json::from_str(&compiled)
-        .expect("Failed to parse compiled schema as JSON");
+    let compiled_value: serde_json::Value =
+        serde_json::from_str(&compiled).expect("Failed to parse compiled schema as JSON");
 
-    assert!(
-        compiled_value["types"].is_array(),
-        "types should be an array, not object"
-    );
-    assert!(
-        compiled_value["queries"].is_array(),
-        "queries should be an array, not object"
-    );
+    assert!(compiled_value["types"].is_array(), "types should be an array, not object");
+    assert!(compiled_value["queries"].is_array(), "queries should be an array, not object");
 }
 
 #[test]
@@ -427,12 +429,6 @@ audit_logging_enabled = false
         security.get("default_policy").is_some(),
         "default_policy missing from security config"
     );
-    assert!(
-        security.get("rules").is_some(),
-        "rules missing from security config"
-    );
-    assert!(
-        security.get("policies").is_some(),
-        "policies missing from security config"
-    );
+    assert!(security.get("rules").is_some(), "rules missing from security config");
+    assert!(security.get("policies").is_some(), "policies missing from security config");
 }

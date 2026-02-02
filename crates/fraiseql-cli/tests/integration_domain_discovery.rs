@@ -3,8 +3,11 @@
 //! Tests domain-driven schema organization where schemas are split across
 //! multiple domains in subdirectories with automatic discovery.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use tempfile::TempDir;
 
 /// Helper to compile a schema and verify success

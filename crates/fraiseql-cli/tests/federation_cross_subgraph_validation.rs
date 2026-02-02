@@ -1,4 +1,3 @@
-//!
 //! Tests for validating federation schemas across multiple subgraphs:
 //! - @key consistency: Each @key must be unique within its type
 //! - @external field ownership: Exactly one subgraph owns each @external field

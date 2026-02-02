@@ -6,11 +6,14 @@
 //! - Deduplicate by name with error reporting
 //! - Preserve file path information for error messages
 
-use anyhow::{bail, Context, Result};
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
+
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
 use walkdir::WalkDir;
 
 /// Loads and merges JSON schema files from directories
@@ -163,8 +166,8 @@ impl MultiFileLoader {
                 bail!("File not found: {}", path.display());
             }
 
-            let content = fs::read_to_string(path)
-                .context(format!("Failed to read {}", path.display()))?;
+            let content =
+                fs::read_to_string(path).context(format!("Failed to read {}", path.display()))?;
             let value: Value = serde_json::from_str(&content)
                 .context(format!("Failed to parse JSON from {}", path.display()))?;
 
@@ -194,9 +197,11 @@ impl MultiFileLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     fn create_test_file(dir: &Path, name: &str, content: &str) -> Result<()> {
         let path = dir.join(name);
@@ -486,5 +491,4 @@ mod tests {
 
         Ok(())
     }
-
 }

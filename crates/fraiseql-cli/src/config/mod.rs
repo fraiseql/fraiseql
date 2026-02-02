@@ -6,12 +6,12 @@
 pub mod security;
 pub mod toml_schema;
 
-pub use security::SecurityConfig;
-pub use toml_schema::TomlSchema;
+use std::path::Path;
 
 use anyhow::{Context, Result};
+pub use security::SecurityConfig;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+pub use toml_schema::TomlSchema;
 use tracing::info;
 
 /// Project configuration from fraiseql.toml
@@ -29,16 +29,16 @@ pub struct FraiseQLConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ProjectConfig {
-    pub name: String,
-    pub version: String,
+    pub name:        String,
+    pub version:     String,
     pub description: Option<String>,
 }
 
 impl Default for ProjectConfig {
     fn default() -> Self {
         Self {
-            name: "my-fraiseql-app".to_string(),
-            version: "1.0.0".to_string(),
+            name:        "my-fraiseql-app".to_string(),
+            version:     "1.0.0".to_string(),
             description: None,
         }
     }
@@ -51,7 +51,7 @@ pub struct FraiseQLSettings {
     pub schema_file: String,
     pub output_file: String,
     #[serde(rename = "security")]
-    pub security: SecurityConfig,
+    pub security:    SecurityConfig,
 }
 
 impl Default for FraiseQLSettings {
@@ -59,7 +59,7 @@ impl Default for FraiseQLSettings {
         Self {
             schema_file: "schema.json".to_string(),
             output_file: "schema.compiled.json".to_string(),
-            security: SecurityConfig::default(),
+            security:    SecurityConfig::default(),
         }
     }
 }
@@ -74,8 +74,7 @@ impl FraiseQLConfig {
             anyhow::bail!("Configuration file not found: {path:?}");
         }
 
-        let toml_content = std::fs::read_to_string(path)
-            .context("Failed to read fraiseql.toml")?;
+        let toml_content = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;
 
         let config: FraiseQLConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;

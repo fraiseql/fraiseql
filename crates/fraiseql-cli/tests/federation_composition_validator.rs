@@ -1,4 +1,3 @@
-//!
 //! Tests for building and validating composed supergraph schemas from multiple subgraphs:
 //! - Merge types from multiple subgraphs
 //! - Detect field type conflicts

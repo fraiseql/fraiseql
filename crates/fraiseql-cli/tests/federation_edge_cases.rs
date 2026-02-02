@@ -1,4 +1,3 @@
-//!
 //! Comprehensive edge case testing for production-grade federation:
 //! - Directive conflict scenarios (@requires/@provides/@key/@shareable interactions)
 //! - Conflicting @key definitions across subgraphs

@@ -7,23 +7,23 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AuditLoggingConfig {
-    pub enabled: bool,
-    pub log_level: String, // "debug", "info", "warn"
+    pub enabled:                bool,
+    pub log_level:              String, // "debug", "info", "warn"
     pub include_sensitive_data: bool,
-    pub async_logging: bool,
-    pub buffer_size: u32,
-    pub flush_interval_secs: u32,
+    pub async_logging:          bool,
+    pub buffer_size:            u32,
+    pub flush_interval_secs:    u32,
 }
 
 impl Default for AuditLoggingConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            log_level: "info".to_string(),
+            enabled:                true,
+            log_level:              "info".to_string(),
             include_sensitive_data: false,
-            async_logging: true,
-            buffer_size: 1000,
-            flush_interval_secs: 5,
+            async_logging:          true,
+            buffer_size:            1000,
+            flush_interval_secs:    5,
         }
     }
 }
@@ -46,21 +46,21 @@ impl AuditLoggingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ErrorSanitizationConfig {
-    pub enabled: bool,
-    pub generic_messages: bool,
-    pub internal_logging: bool,
+    pub enabled:                bool,
+    pub generic_messages:       bool,
+    pub internal_logging:       bool,
     pub leak_sensitive_details: bool,
-    pub user_facing_format: String, // "generic", "simple", "detailed"
+    pub user_facing_format:     String, // "generic", "simple", "detailed"
 }
 
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            generic_messages: true,
-            internal_logging: true,
+            enabled:                true,
+            generic_messages:       true,
+            internal_logging:       true,
             leak_sensitive_details: false,
-            user_facing_format: "generic".to_string(),
+            user_facing_format:     "generic".to_string(),
         }
     }
 }
@@ -96,7 +96,7 @@ impl ErrorSanitizationConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RateLimitingPerEndpoint {
     pub max_requests: u32,
-    pub window_secs: u64,
+    pub window_secs:  u64,
 }
 
 #[allow(dead_code)]
@@ -118,37 +118,37 @@ pub struct RateLimitConfig {
 
     // Per-IP limits (public endpoints)
     pub auth_start_max_requests: u32,
-    pub auth_start_window_secs: u64,
+    pub auth_start_window_secs:  u64,
 
     pub auth_callback_max_requests: u32,
-    pub auth_callback_window_secs: u64,
+    pub auth_callback_window_secs:  u64,
 
     // Per-user limits (authenticated endpoints)
     pub auth_refresh_max_requests: u32,
-    pub auth_refresh_window_secs: u64,
+    pub auth_refresh_window_secs:  u64,
 
     pub auth_logout_max_requests: u32,
-    pub auth_logout_window_secs: u64,
+    pub auth_logout_window_secs:  u64,
 
     // Failed login limiting
     pub failed_login_max_requests: u32,
-    pub failed_login_window_secs: u64,
+    pub failed_login_window_secs:  u64,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            auth_start_max_requests: 100,
-            auth_start_window_secs: 60,
+            enabled:                    true,
+            auth_start_max_requests:    100,
+            auth_start_window_secs:     60,
             auth_callback_max_requests: 50,
-            auth_callback_window_secs: 60,
-            auth_refresh_max_requests: 10,
-            auth_refresh_window_secs: 60,
-            auth_logout_max_requests: 20,
-            auth_logout_window_secs: 60,
-            failed_login_max_requests: 5,
-            failed_login_window_secs: 3600,
+            auth_callback_window_secs:  60,
+            auth_refresh_max_requests:  10,
+            auth_refresh_window_secs:   60,
+            auth_logout_max_requests:   20,
+            auth_logout_window_secs:    60,
+            failed_login_max_requests:  5,
+            failed_login_window_secs:   3600,
         }
     }
 }
@@ -202,21 +202,21 @@ impl RateLimitConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct StateEncryptionConfig {
-    pub enabled: bool,
-    pub algorithm: String, // "chacha20-poly1305"
+    pub enabled:              bool,
+    pub algorithm:            String, // "chacha20-poly1305"
     pub key_rotation_enabled: bool,
-    pub nonce_size: u32,
-    pub key_size: u32,
+    pub nonce_size:           u32,
+    pub key_size:             u32,
 }
 
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            algorithm: "chacha20-poly1305".to_string(),
+            enabled:              true,
+            algorithm:            "chacha20-poly1305".to_string(),
             key_rotation_enabled: false,
-            nonce_size: 12,
-            key_size: 32,
+            nonce_size:           12,
+            key_size:             32,
         }
     }
 }
@@ -249,20 +249,20 @@ impl StateEncryptionConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ConstantTimeConfig {
-    pub enabled: bool,
-    pub apply_to_jwt: bool,
+    pub enabled:                 bool,
+    pub apply_to_jwt:            bool,
     pub apply_to_session_tokens: bool,
-    pub apply_to_csrf_tokens: bool,
+    pub apply_to_csrf_tokens:    bool,
     pub apply_to_refresh_tokens: bool,
 }
 
 impl Default for ConstantTimeConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            apply_to_jwt: true,
+            enabled:                 true,
+            apply_to_jwt:            true,
             apply_to_session_tokens: true,
-            apply_to_csrf_tokens: true,
+            apply_to_csrf_tokens:    true,
             apply_to_refresh_tokens: true,
         }
     }
@@ -284,10 +284,10 @@ impl ConstantTimeConfig {
 /// Field-level RBAC role definition from fraiseql.toml
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RoleDefinitionConfig {
-    pub name: String,
+    pub name:        String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub scopes: Vec<String>,
+    pub scopes:      Vec<String>,
 }
 
 impl RoleDefinitionConfig {
@@ -296,9 +296,9 @@ impl RoleDefinitionConfig {
     #[allow(dead_code)]
     pub fn to_core_role_definition(&self) -> fraiseql_core::schema::RoleDefinition {
         fraiseql_core::schema::RoleDefinition {
-            name: self.name.clone(),
+            name:        self.name.clone(),
             description: self.description.clone(),
-            scopes: self.scopes.clone(),
+            scopes:      self.scopes.clone(),
         }
     }
 }
@@ -308,33 +308,33 @@ impl RoleDefinitionConfig {
 #[serde(default)]
 pub struct SecurityConfig {
     #[serde(rename = "audit_logging")]
-    pub audit_logging: AuditLoggingConfig,
+    pub audit_logging:      AuditLoggingConfig,
     #[serde(rename = "error_sanitization")]
     pub error_sanitization: ErrorSanitizationConfig,
     #[serde(rename = "rate_limiting")]
-    pub rate_limiting: RateLimitConfig,
+    pub rate_limiting:      RateLimitConfig,
     #[serde(rename = "state_encryption")]
-    pub state_encryption: StateEncryptionConfig,
+    pub state_encryption:   StateEncryptionConfig,
     #[serde(rename = "constant_time")]
-    pub constant_time: ConstantTimeConfig,
+    pub constant_time:      ConstantTimeConfig,
     /// Field-level RBAC role definitions
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub role_definitions: Vec<RoleDefinitionConfig>,
+    pub role_definitions:   Vec<RoleDefinitionConfig>,
     /// Default role when user has no explicit role assignment
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_role: Option<String>,
+    pub default_role:       Option<String>,
 }
 
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
-            audit_logging: AuditLoggingConfig::default(),
+            audit_logging:      AuditLoggingConfig::default(),
             error_sanitization: ErrorSanitizationConfig::default(),
-            rate_limiting: RateLimitConfig::default(),
-            state_encryption: StateEncryptionConfig::default(),
-            constant_time: ConstantTimeConfig::default(),
-            role_definitions: Vec::new(),
-            default_role: None,
+            rate_limiting:      RateLimitConfig::default(),
+            state_encryption:   StateEncryptionConfig::default(),
+            constant_time:      ConstantTimeConfig::default(),
+            role_definitions:   Vec::new(),
+            default_role:       None,
         }
     }
 }
@@ -370,9 +370,7 @@ impl SecurityConfig {
     /// Used in runtime field filtering (Cycle 5)
     #[allow(dead_code)]
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.find_role(role_name)
-            .map(|role| role.scopes.clone())
-            .unwrap_or_default()
+        self.find_role(role_name).map(|role| role.scopes.clone()).unwrap_or_default()
     }
 
     /// Convert to JSON representation for schema.json
@@ -388,14 +386,18 @@ impl SecurityConfig {
         // Add role definitions if present
         if !self.role_definitions.is_empty() {
             json["roleDefinitions"] = serde_json::to_value(
-                self.role_definitions.iter().map(|r| {
-                    serde_json::json!({
-                        "name": r.name,
-                        "description": r.description,
-                        "scopes": r.scopes,
+                self.role_definitions
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "name": r.name,
+                            "description": r.description,
+                            "scopes": r.scopes,
+                        })
                     })
-                }).collect::<Vec<_>>()
-            ).unwrap_or_default();
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_default();
         }
 
         // Add default role if present

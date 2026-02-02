@@ -8,8 +8,10 @@ use anyhow::{Context, Result};
 use fraiseql_core::schema::CompiledSchema;
 use tracing::{info, warn};
 
-use crate::config::FraiseQLConfig;
-use crate::schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator};
+use crate::{
+    config::FraiseQLConfig,
+    schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator},
+};
 
 /// Run the compile command
 ///
@@ -76,8 +78,13 @@ pub async fn run(
         if !type_files.is_empty() || !query_files.is_empty() || !mutation_files.is_empty() {
             // Mode 1: Explicit file lists
             info!("Mode: Explicit file lists");
-            crate::schema::SchemaMerger::merge_explicit_files(input, &type_files, &query_files, &mutation_files)
-                .context("Failed to load explicit schema files")?
+            crate::schema::SchemaMerger::merge_explicit_files(
+                input,
+                &type_files,
+                &query_files,
+                &mutation_files,
+            )
+            .context("Failed to load explicit schema files")?
         } else if let Some(dir) = schema_dir {
             // Mode 2: Auto-discovery directory
             info!("Mode: Auto-discovery from directory: {}", dir);
@@ -101,9 +108,9 @@ pub async fn run(
                             info!("No includes configured, using TOML-only definitions");
                             crate::schema::SchemaMerger::merge_toml_only(input)
                                 .context("Failed to load schema from TOML")?
-                        }
+                        },
                     }
-                }
+                },
             }
         }
     } else {
@@ -130,11 +137,11 @@ pub async fn run(
                 intermediate.security = Some(security_json);
 
                 info!("Security configuration applied successfully");
-            }
+            },
             Err(e) => {
                 warn!("Failed to load fraiseql.toml: {e}");
                 warn!("Continuing with default security configuration");
-            }
+            },
         }
     } else {
         info!("No fraiseql.toml found, using default security configuration");

@@ -1,4 +1,3 @@
-//!
 //! Tests for validating federation directives at schema compilation time:
 //! - @requires/@provides reference valid fields
 //! - No circular dependencies

@@ -1,4 +1,3 @@
-//!
 //! Extended validation tests for complex federation scenarios:
 //! - Complex type hierarchies (4+ subgraphs, nested types)
 //! - Shareable field consistency and conflicts

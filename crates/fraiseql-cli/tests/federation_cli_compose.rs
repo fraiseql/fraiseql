@@ -1,4 +1,3 @@
-//!
 //! Tests for the `fraiseql compose` CLI command:
 //! - Compose multiple subgraph schemas into supergraph
 //! - CLI argument parsing (--subgraph, --output)

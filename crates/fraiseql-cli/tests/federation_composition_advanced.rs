@@ -1,4 +1,3 @@
-//!
 //! Extended composition tests for complex federation scenarios:
 //! - 4+ subgraph composition with shared types
 //! - Field-level conflict detection and resolution
