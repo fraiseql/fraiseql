@@ -20,6 +20,141 @@ use serde::{Deserialize, Serialize};
 
 use super::field_type::{FieldDefinition, FieldType};
 
+/// Role definition for field-level RBAC.
+///
+/// Defines which GraphQL scopes a role grants access to.
+/// Used by the runtime to determine which fields a user can access
+/// based on their assigned roles.
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "name": "admin",
+///   "description": "Administrator with all scopes",
+///   "scopes": ["admin:*"]
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoleDefinition {
+    /// Role name (e.g., "admin", "user", "viewer").
+    pub name: String,
+
+    /// Optional role description for documentation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// List of scopes this role grants access to.
+    /// Scopes follow the format: `action:resource` (e.g., "read:User.email", "admin:*")
+    pub scopes: Vec<String>,
+}
+
+impl RoleDefinition {
+    /// Create a new role definition.
+    #[must_use]
+    pub fn new(name: String, scopes: Vec<String>) -> Self {
+        Self {
+            name,
+            description: None,
+            scopes,
+        }
+    }
+
+    /// Add a description to the role.
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Check if this role has a specific scope.
+    ///
+    /// Supports exact matching and wildcard patterns:
+    /// - `read:User.email` matches exactly
+    /// - `read:*` matches any scope starting with "read:"
+    /// - `read:User.*` matches "read:User.email", "read:User.name", etc.
+    /// - `admin:*` matches any admin scope
+    #[must_use]
+    pub fn has_scope(&self, required_scope: &str) -> bool {
+        self.scopes.iter().any(|scope| {
+            if scope == "*" {
+                return true; // Wildcard matches everything
+            }
+
+            if scope == required_scope {
+                return true; // Exact match
+            }
+
+            // Handle wildcard patterns like "read:*" or "admin:*"
+            if scope.ends_with(":*") {
+                let prefix = &scope[..scope.len() - 2]; // Remove ":*"
+                return required_scope.starts_with(prefix) && required_scope.contains(':');
+            }
+
+            // Handle Type.* wildcard patterns like "read:User.*"
+            if scope.ends_with(".*") {
+                let prefix = &scope[..scope.len() - 1]; // Remove "*", keep the dot
+                return required_scope.starts_with(prefix);
+            }
+
+            false
+        })
+    }
+}
+
+/// Security configuration from fraiseql.toml.
+///
+/// Contains role definitions and other security-related settings
+/// that are compiled into schema.compiled.json.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// Role definitions mapping role names to their granted scopes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub role_definitions: Vec<RoleDefinition>,
+
+    /// Default role when none is specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_role: Option<String>,
+
+    /// Additional security settings (rate limiting, audit logging, etc.)
+    #[serde(flatten)]
+    pub additional: HashMap<String, serde_json::Value>,
+}
+
+impl SecurityConfig {
+    /// Create a new empty security configuration.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a role definition.
+    pub fn add_role(&mut self, role: RoleDefinition) {
+        self.role_definitions.push(role);
+    }
+
+    /// Find a role definition by name.
+    #[must_use]
+    pub fn find_role(&self, name: &str) -> Option<&RoleDefinition> {
+        self.role_definitions.iter().find(|r| r.name == name)
+    }
+
+    /// Get all scopes granted to a role.
+    #[must_use]
+    pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
+        self.find_role(role_name)
+            .map(|role| role.scopes.clone())
+            .unwrap_or_default()
+    }
+
+    /// Check if a role has a specific scope.
+    #[must_use]
+    pub fn role_has_scope(&self, role_name: &str, scope: &str) -> bool {
+        self.find_role(role_name)
+            .map(|role| role.has_scope(scope))
+            .unwrap_or(false)
+    }
+}
+
 /// Complete compiled schema - all type information for serving.
 ///
 /// This is the central type that holds the entire GraphQL schema
@@ -296,6 +431,66 @@ impl CompiledSchema {
         self.federation
             .as_ref()
             .and_then(|fed_json| serde_json::from_value(fed_json.clone()).ok())
+    }
+
+    /// Get security configuration from schema.
+    ///
+    /// # Returns
+    ///
+    /// Security configuration if present (includes role definitions)
+    #[must_use]
+    pub fn security_config(&self) -> Option<SecurityConfig> {
+        self.security
+            .as_ref()
+            .and_then(|sec_json| serde_json::from_value(sec_json.clone()).ok())
+    }
+
+    /// Find a role definition by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `role_name` - Name of the role to find
+    ///
+    /// # Returns
+    ///
+    /// Role definition if found
+    #[must_use]
+    pub fn find_role(&self, role_name: &str) -> Option<RoleDefinition> {
+        self.security_config()
+            .and_then(|config| config.find_role(role_name).cloned())
+    }
+
+    /// Get scopes for a role.
+    ///
+    /// # Arguments
+    ///
+    /// * `role_name` - Name of the role
+    ///
+    /// # Returns
+    ///
+    /// Vector of scopes granted to the role
+    #[must_use]
+    pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
+        self.security_config()
+            .map(|config| config.get_role_scopes(role_name))
+            .unwrap_or_default()
+    }
+
+    /// Check if a role has a specific scope.
+    ///
+    /// # Arguments
+    ///
+    /// * `role_name` - Name of the role
+    /// * `scope` - Scope to check for
+    ///
+    /// # Returns
+    ///
+    /// true if role has the scope, false otherwise
+    #[must_use]
+    pub fn role_has_scope(&self, role_name: &str, scope: &str) -> bool {
+        self.security_config()
+            .map(|config| config.role_has_scope(role_name, scope))
+            .unwrap_or(false)
     }
 
     /// Get raw GraphQL schema SDL.

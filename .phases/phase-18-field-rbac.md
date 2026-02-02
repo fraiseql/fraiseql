@@ -156,11 +156,27 @@ Runtime Executor
 
 **Test Results**: 8 passed, 0 failed ✅
 
-### GREEN Phase (NEXT)
-- [ ] Add RoleDefinition struct to schema.rs
-- [ ] Implement TOML parsing for role definitions
-- [ ] Support scope mappings in compiled schema
-- [ ] Merge field scopes from schema.json with role definitions from TOML
+### GREEN Phase (✅ COMPLETE)
+- ✅ Created RoleDefinition struct in compiled.rs with wildcard scope matching
+  - `has_scope()` method supports exact matches, wildcards (*), action patterns (read:*), and type patterns (User.*)
+  - Full doc comments with examples
+- ✅ Created SecurityConfig struct for role management
+  - Holds role_definitions array and default_role
+  - Methods: find_role(), get_role_scopes(), role_has_scope()
+  - Deserializable from JSON
+- ✅ Added SecurityConfig integration to CompiledSchema
+  - security_config() method extracts role definitions
+  - find_role() method for role lookup
+  - get_role_scopes() and role_has_scope() convenience methods
+- ✅ Updated schema module exports
+  - RoleDefinition and SecurityConfig now public
+- ✅ Implemented 9 comprehensive tests
+  - RoleDefinition construction and wildcard matching (exact, *, prefix:*, Type.*)
+  - SecurityConfig role management
+  - JSON deserialization
+  - CompiledSchema integration with loaded security config
+
+**Test Results**: 17 total tests passing (8 RED + 9 GREEN)
 
 ### REFACTOR Phase (FUTURE)
 - [ ] Extract role validation logic

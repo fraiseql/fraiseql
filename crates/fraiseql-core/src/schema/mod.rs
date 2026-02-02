@@ -46,8 +46,9 @@ pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
     EnumDefinition, EnumValueDefinition, FilterOperator, InputFieldDefinition,
     InputObjectDefinition, InterfaceDefinition, MutationDefinition, MutationOperation,
-    ObserverDefinition, QueryDefinition, RetryConfig, SqlProjectionHint, StaticFilterCondition,
-    SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
+    ObserverDefinition, QueryDefinition, RetryConfig, RoleDefinition, SecurityConfig,
+    SqlProjectionHint, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
+    TypeDefinition, UnionDefinition,
 };
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType,

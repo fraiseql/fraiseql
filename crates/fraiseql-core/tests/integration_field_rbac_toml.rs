@@ -405,3 +405,221 @@ scopes = ["read:User.*", "write:Post.content"]
         assert!(role.get("scopes").is_some(), "Role must have scopes in JSON");
     }
 }
+
+// GREEN Phase: Role Definition struct tests
+
+#[test]
+fn test_role_definition_struct() {
+    use fraiseql_core::schema::RoleDefinition;
+
+    let mut role = RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]);
+    assert_eq!(role.name, "admin");
+    assert_eq!(role.scopes, vec!["admin:*"]);
+    assert!(role.description.is_none());
+
+    role = role.with_description("Administrator with all access".to_string());
+    assert_eq!(
+        role.description,
+        Some("Administrator with all access".to_string())
+    );
+}
+
+#[test]
+fn test_role_has_scope_exact_match() {
+    use fraiseql_core::schema::RoleDefinition;
+
+    let role = RoleDefinition::new(
+        "user".to_string(),
+        vec!["read:User.email".to_string(), "write:Post.content".to_string()],
+    );
+
+    assert!(role.has_scope("read:User.email"));
+    assert!(role.has_scope("write:Post.content"));
+    assert!(!role.has_scope("admin:*"));
+}
+
+#[test]
+fn test_role_has_scope_wildcard_all() {
+    use fraiseql_core::schema::RoleDefinition;
+
+    let role = RoleDefinition::new("admin".to_string(), vec!["*".to_string()]);
+
+    // Wildcard "*" matches everything
+    assert!(role.has_scope("read:User.email"));
+    assert!(role.has_scope("write:Post.title"));
+    assert!(role.has_scope("admin:*"));
+    assert!(role.has_scope("any:scope:format"));
+}
+
+#[test]
+fn test_role_has_scope_wildcard_prefix() {
+    use fraiseql_core::schema::RoleDefinition;
+
+    let role = RoleDefinition::new(
+        "reader".to_string(),
+        vec!["read:*".to_string(), "admin:delete".to_string()],
+    );
+
+    // "read:*" matches any scope starting with "read:"
+    assert!(role.has_scope("read:User.email"));
+    assert!(role.has_scope("read:Post.title"));
+    assert!(role.has_scope("read:Comment.*"));
+    assert!(!role.has_scope("write:User.name"));
+    assert!(role.has_scope("admin:delete"));
+    assert!(!role.has_scope("admin:*"));
+}
+
+#[test]
+fn test_security_config_struct() {
+    use fraiseql_core::schema::{RoleDefinition, SecurityConfig};
+
+    let mut config = SecurityConfig::new();
+    assert!(config.role_definitions.is_empty());
+
+    let admin_role = RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]);
+    let user_role =
+        RoleDefinition::new("user".to_string(), vec!["read:User.*".to_string()]);
+
+    config.add_role(admin_role);
+    config.add_role(user_role);
+
+    assert_eq!(config.role_definitions.len(), 2);
+    assert_eq!(config.find_role("admin").unwrap().name, "admin");
+    assert_eq!(config.find_role("user").unwrap().name, "user");
+    assert!(config.find_role("nonexistent").is_none());
+}
+
+#[test]
+fn test_security_config_get_role_scopes() {
+    use fraiseql_core::schema::{RoleDefinition, SecurityConfig};
+
+    let mut config = SecurityConfig::new();
+    let role = RoleDefinition::new(
+        "editor".to_string(),
+        vec![
+            "read:*".to_string(),
+            "write:Post.*".to_string(),
+            "write:Comment.*".to_string(),
+        ],
+    );
+
+    config.add_role(role);
+
+    let scopes = config.get_role_scopes("editor");
+    assert_eq!(scopes.len(), 3);
+    assert_eq!(scopes[0], "read:*");
+    assert_eq!(scopes[1], "write:Post.*");
+    assert_eq!(scopes[2], "write:Comment.*");
+
+    assert!(config.get_role_scopes("nonexistent").is_empty());
+}
+
+#[test]
+fn test_security_config_role_has_scope() {
+    use fraiseql_core::schema::{RoleDefinition, SecurityConfig};
+
+    let mut config = SecurityConfig::new();
+    let admin_role = RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]);
+
+    config.add_role(admin_role);
+
+    assert!(config.role_has_scope("admin", "admin:delete"));
+    assert!(config.role_has_scope("admin", "admin:anything"));
+    assert!(!config.role_has_scope("user", "admin:*"));
+}
+
+#[test]
+fn test_security_config_from_json() {
+    use fraiseql_core::schema::SecurityConfig;
+
+    let json_str = r#"{
+      "role_definitions": [
+        {
+          "name": "admin",
+          "description": "Full access",
+          "scopes": ["admin:*"]
+        },
+        {
+          "name": "user",
+          "scopes": ["read:User.*", "write:Post.content"]
+        }
+      ],
+      "default_role": "user"
+    }"#;
+
+    let config: SecurityConfig = serde_json::from_str(json_str).expect("Parse JSON");
+    assert_eq!(config.role_definitions.len(), 2);
+    assert_eq!(config.default_role, Some("user".to_string()));
+
+    let admin = config.find_role("admin").expect("Find admin");
+    assert_eq!(admin.name, "admin");
+    assert_eq!(
+        admin.description,
+        Some("Full access".to_string()),
+        "Description should be preserved"
+    );
+    assert_eq!(admin.scopes, vec!["admin:*"]);
+
+    let user = config.find_role("user").expect("Find user");
+    assert!(user.description.is_none(), "User role should have no description");
+    assert_eq!(user.scopes, vec!["read:User.*", "write:Post.content"]);
+}
+
+#[test]
+fn test_compiled_schema_with_security_config() {
+    use fraiseql_core::schema::CompiledSchema;
+
+    let schema_json = r#"{
+      "types": [
+        {
+          "name": "User",
+          "sql_source": "v_user",
+          "fields": [
+            {"name": "id", "field_type": "ID", "nullable": false},
+            {"name": "email", "field_type": "String", "nullable": false, "requiresScope": "read:User.email"}
+          ]
+        }
+      ],
+      "queries": [],
+      "mutations": [],
+      "subscriptions": [],
+      "security": {
+        "role_definitions": [
+          {
+            "name": "admin",
+            "scopes": ["admin:*"]
+          },
+          {
+            "name": "user",
+            "scopes": ["read:User.*", "write:Post.content"]
+          }
+        ],
+        "default_role": "user"
+      }
+    }"#;
+
+    let schema = CompiledSchema::from_json(schema_json).expect("Parse schema");
+
+    // Verify schema was loaded
+    assert_eq!(schema.types.len(), 1);
+
+    // Verify security config was loaded
+    let config = schema.security_config().expect("Get security config");
+    assert_eq!(config.role_definitions.len(), 2);
+
+    // Verify role lookups work
+    let admin_role = schema.find_role("admin").expect("Find admin role");
+    assert_eq!(admin_role.name, "admin");
+    assert_eq!(admin_role.scopes, vec!["admin:*"]);
+
+    // Verify scope checking on schema
+    assert!(schema.role_has_scope("admin", "admin:delete"), "admin:* should match admin:delete");
+    assert!(schema.role_has_scope("admin", "admin:view_logs"), "admin:* should match admin:view_logs");
+    assert!(schema.role_has_scope("user", "read:User.email"), "user should have read:User.* which matches read:User.email");
+    assert!(schema.role_has_scope("user", "write:Post.content"), "user should have write:Post.content");
+    assert!(!schema.role_has_scope("user", "admin:delete"), "user should not have admin scopes");
+
+    // Verify get_role_scopes
+    let user_scopes = schema.get_role_scopes("user");
+    assert_eq!(user_scopes, vec!["read:User.*", "write:Post.content"]);
+}
