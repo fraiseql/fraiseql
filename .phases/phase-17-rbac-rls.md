@@ -34,9 +34,25 @@ Both features integrate with the compilation-first architecture, respecting the 
 
 **Commit**: `56ce5534` - SecurityContext and RLSPolicy foundation
 
+### Completed ✅ (continued)
+
+#### Cycle 2: Executor Integration (DONE)
+- **RED**: ✅ Created 6 integration tests verifying RLS behavior
+  - Admin bypass, tenant isolation, multi-tenant, WHERE clause composition, context metadata
+
+- **GREEN**: ✅ Implemented execute_with_security() public method
+  - RuntimeConfig now holds rls_policy: Option<Arc<dyn RLSPolicy>>
+  - SecurityContext flows through new execute_with_security_internal()
+  - execute_regular_query_with_security() validates token expiration
+  - Infrastructure ready for WHERE clause injection in Cycle 3
+
+- **CLEANUP**: ✅ All tests passing, no regressions, unused imports removed
+
+**Commit**: `a4760c34` - Executor RLS infrastructure
+
 ### In Progress 🔄
 
-#### Cycle 2: Executor Integration (RED PHASE)
+#### Cycle 3: SQL Integration (REFACTOR PHASE)
 
 **Objective**: Wire SecurityContext and RLSPolicy into the query executor so RLS filters are applied before SQL execution.
 
@@ -92,7 +108,28 @@ if let Some(ref rls_policy) = self.rls_policy {
 
 ### Not Started ⏹️
 
-#### Cycle 3: Server Handler Wiring
+#### Cycle 3: SQL Integration (WHERE Clause Composition)
+**Status**: REFACTOR phase - Code structure is in place, needs SQL integration
+
+**Objective**: Integrate RLS WHERE clause composition into query execution
+
+**Key Work**:
+1. Understand ExecutionPlan structure (has sql, parameters, not where_clause field)
+2. Determine WHERE clause composition point:
+   - Option A: Modify QueryPlanner to accept optional RLS filters before planning
+   - Option B: Post-plan SQL modification after planner but before execution
+   - Option C: SQL injection in execute_with_projection() call
+3. Implement WhereClause composition in selected location
+4. Update execute_regular_query_with_security() to modify SQL
+
+**Files to Investigate**:
+- `runtime/planner.rs` - Where does WHERE clause get added to SQL?
+- `runtime/executor.rs` - line 584+ in execute_regular_query for SQL execution pattern
+- `db/traits.rs` - Execute method signatures
+
+**Test**: Verify non-admin user only sees filtered rows by comparing result set
+
+#### Cycle 4: Server Handler Wiring
 - Update HTTP handler to create SecurityContext from JWT + request headers
 - Pass SecurityContext through to executor
 - Handle RLS policy initialization from schema.compiled.json
