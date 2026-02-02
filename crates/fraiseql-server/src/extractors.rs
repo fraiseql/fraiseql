@@ -174,4 +174,49 @@ mod tests {
         let tenant_id = extract_tenant_id(&headers);
         assert_eq!(tenant_id, None);
     }
+
+    #[test]
+    fn test_optional_security_context_creation_from_auth_user() {
+        use chrono::Utc;
+
+        // Simulate an authenticated user from the OIDC middleware
+        let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
+            user_id: "user123".to_string(),
+            scopes: vec!["read:user".to_string(), "write:post".to_string()],
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+        });
+
+        // Create headers with additional metadata
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-request-id", "req-test-123".parse().unwrap());
+        headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
+        headers.insert("x-forwarded-for", "192.0.2.100".parse().unwrap());
+
+        // Create security context using extractor helper logic
+        let security_context = Some(auth_user)
+            .map(|auth_user| {
+                let authenticated_user = auth_user.0;
+                let request_id = extract_request_id(&headers);
+                let ip_address = extract_ip_address(&headers);
+                let tenant_id = extract_tenant_id(&headers);
+
+                let mut context =
+                    fraiseql_core::security::SecurityContext::from_user(authenticated_user, request_id);
+                context.ip_address = ip_address;
+                context.tenant_id = tenant_id;
+                context
+            });
+
+        // Verify context was created correctly
+        assert!(security_context.is_some());
+        let sec_ctx = security_context.unwrap();
+        assert_eq!(sec_ctx.user_id, "user123");
+        assert_eq!(
+            sec_ctx.scopes,
+            vec!["read:user".to_string(), "write:post".to_string()]
+        );
+        assert_eq!(sec_ctx.tenant_id, Some("tenant-acme".to_string()));
+        assert_eq!(sec_ctx.request_id, "req-test-123");
+        assert_eq!(sec_ctx.ip_address, Some("192.0.2.100".to_string()));
+    }
 }
