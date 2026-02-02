@@ -9,9 +9,11 @@ import (
 
 // FieldInfo represents metadata about a struct field
 type FieldInfo struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Nullable bool   `json:"nullable"`
+	Name     string   `json:"name"`
+	Type     string   `json:"type"`
+	Nullable bool     `json:"nullable"`
+	Scope    string   `json:"scope,omitempty"`
+	Scopes   []string `json:"scopes,omitempty"`
 }
 
 // goToGraphQLType converts a Go type to GraphQL type string and nullable flag
@@ -136,7 +138,7 @@ func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
 }
 
 // parseFieldTag parses a fraiseql struct tag
-// Format: fieldname,type=GraphQLType,nullable=true
+// Format: fieldname,type=GraphQLType,nullable=true,scope=read:user.email,scopes=admin;auditor
 func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldInfo, error) {
 	parts := strings.Split(tag, ",")
 	if len(parts) == 0 {
@@ -146,6 +148,9 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 	fieldInfo := FieldInfo{
 		Name: fieldName, // Default to struct field name
 	}
+
+	var hasSingleScope bool
+	var hasMultipleScopes bool
 
 	// First part can be field name override or type spec
 	if parts[0] != "" && !strings.Contains(parts[0], "=") {
@@ -172,7 +177,40 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 			fieldInfo.Type = value
 		case "nullable":
 			fieldInfo.Nullable = value == "true"
+		case "scope":
+			if value == "" {
+				return FieldInfo{}, fmt.Errorf("empty scope value for field %s", fieldName)
+			}
+			if err := validateScope(value, fieldName); err != nil {
+				return FieldInfo{}, err
+			}
+			fieldInfo.Scope = value
+			hasSingleScope = true
+		case "scopes":
+			if value == "" {
+				return FieldInfo{}, fmt.Errorf("empty scopes value for field %s", fieldName)
+			}
+			scopes := strings.Split(value, ";")
+			if len(scopes) == 0 {
+				return FieldInfo{}, fmt.Errorf("empty scopes array for field %s", fieldName)
+			}
+			for _, scope := range scopes {
+				scope = strings.TrimSpace(scope)
+				if scope == "" {
+					return FieldInfo{}, fmt.Errorf("empty scope in scopes array for field %s", fieldName)
+				}
+				if err := validateScope(scope, fieldName); err != nil {
+					return FieldInfo{}, err
+				}
+			}
+			fieldInfo.Scopes = scopes
+			hasMultipleScopes = true
 		}
+	}
+
+	// Ensure not both scope and scopes are specified
+	if hasSingleScope && hasMultipleScopes {
+		return FieldInfo{}, fmt.Errorf("field %s cannot have both scope and scopes", fieldName)
 	}
 
 	// If type not specified in tag, infer it
@@ -193,4 +231,103 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 	}
 
 	return fieldInfo, nil
+}
+
+// validateScope validates scope format: action:resource
+// Valid patterns:
+// - * (global wildcard)
+// - action:resource (read:user.email, write:User.salary)
+// - action:* (admin:*, read:*)
+func validateScope(scope string, fieldName string) error {
+	if scope == "" {
+		return fmt.Errorf("field %s has empty scope", fieldName)
+	}
+
+	// Global wildcard is always valid
+	if scope == "*" {
+		return nil
+	}
+
+	// Must contain at least one colon
+	if !strings.Contains(scope, ":") {
+		return fmt.Errorf("field %s has invalid scope '%s' (missing colon)", fieldName, scope)
+	}
+
+	parts := strings.SplitN(scope, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("field %s has invalid scope '%s'", fieldName, scope)
+	}
+
+	action := parts[0]
+	resource := parts[1]
+
+	// Validate action: [a-zA-Z_][a-zA-Z0-9_]*
+	if !isValidAction(action) {
+		return fmt.Errorf("field %s has invalid action in scope '%s' (must be alphanumeric + underscore)", fieldName, scope)
+	}
+
+	// Validate resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+	if !isValidResource(resource) {
+		return fmt.Errorf("field %s has invalid resource in scope '%s' (must be alphanumeric + underscore + dot, or *)", fieldName, scope)
+	}
+
+	return nil
+}
+
+// isValidAction validates that action matches [a-zA-Z_][a-zA-Z0-9_]*
+func isValidAction(action string) bool {
+	if len(action) == 0 {
+		return false
+	}
+
+	// First character must be letter or underscore
+	first := rune(action[0])
+	if !(isLetter(first) || first == '_') {
+		return false
+	}
+
+	// Rest must be letters, digits, or underscores
+	for i := 1; i < len(action); i++ {
+		ch := rune(action[i])
+		if !(isLetter(ch) || isDigit(ch) || ch == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isValidResource validates that resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+func isValidResource(resource string) bool {
+	if resource == "*" {
+		return true
+	}
+
+	if len(resource) == 0 {
+		return false
+	}
+
+	// First character must be letter or underscore
+	first := rune(resource[0])
+	if !(isLetter(first) || first == '_') {
+		return false
+	}
+
+	// Rest must be letters, digits, underscores, or dots
+	for i := 1; i < len(resource); i++ {
+		ch := rune(resource[i])
+		if !(isLetter(ch) || isDigit(ch) || ch == '_' || ch == '.') {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isLetter(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func isDigit(ch rune) bool {
+	return ch >= '0' && ch <= '9'
 }
