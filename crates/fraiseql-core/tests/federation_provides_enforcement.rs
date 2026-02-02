@@ -1,4 +1,3 @@
-//!
 //! Tests for @provides directive validation at runtime:
 //! - @provides fields should be present in resolver results
 //! - Warning (not error) if @provides contract is broken

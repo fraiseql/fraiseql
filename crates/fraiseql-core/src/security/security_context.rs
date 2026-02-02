@@ -129,7 +129,7 @@ impl SecurityContext {
     pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
             user_id: user.user_id.clone(),
-            roles: vec![],  // Will be populated from JWT claims
+            roles: vec![], // Will be populated from JWT claims
             tenant_id: None,
             scopes: user.scopes.clone(),
             attributes: HashMap::new(),
@@ -284,17 +284,17 @@ mod tests {
     #[test]
     fn test_has_role() {
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec!["admin".to_string(), "moderator".to_string()],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req-1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec!["admin".to_string(), "moderator".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         assert!(context.has_role("admin"));
@@ -305,17 +305,17 @@ mod tests {
     #[test]
     fn test_has_scope() {
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec!["read:user".to_string(), "write:post".to_string()],
-            attributes: HashMap::new(),
-            request_id: "req-1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec!["read:user".to_string(), "write:post".to_string()],
+            attributes:       HashMap::new(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         assert!(context.has_scope("read:user"));
@@ -326,17 +326,17 @@ mod tests {
     #[test]
     fn test_wildcard_scopes() {
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec!["admin:*".to_string()],
-            attributes: HashMap::new(),
-            request_id: "req-1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec!["admin:*".to_string()],
+            attributes:       HashMap::new(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         assert!(context.has_scope("admin:read"));
@@ -348,17 +348,17 @@ mod tests {
     fn test_builder_pattern() {
         let now = Utc::now();
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req-1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
             authenticated_at: now,
-            expires_at: now + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       now + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         }
         .with_role("admin".to_string())
         .with_scopes(vec!["read:user".to_string()])

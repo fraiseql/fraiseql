@@ -53,6 +53,8 @@ pub mod window;
 mod window_parser;
 mod window_projector;
 
+use std::sync::Arc;
+
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSql, AggregationSqlGenerator};
@@ -74,8 +76,6 @@ pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
-
-use std::sync::Arc;
 
 use crate::security::{FieldFilter, FieldFilterConfig, RLSPolicy};
 

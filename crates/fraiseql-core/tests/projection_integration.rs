@@ -1,4 +1,3 @@
-//!
 //! Tests end-to-end SQL projection functionality:
 //! - Schema compilation with projection hints
 //! - Multi-database projection SQL generation

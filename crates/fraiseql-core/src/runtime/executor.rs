@@ -20,7 +20,7 @@ use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, Runti
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
-    db::{projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter, WhereClause},
+    db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
@@ -462,12 +462,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                 }
             })?
         } else {
-            self.execute_with_security_internal(query, variables, security_context)
-                .await
+            self.execute_with_security_internal(query, variables, security_context).await
         }
     }
 
-    /// Internal execution logic with security context (called by execute_with_security with timeout wrapper).
+    /// Internal execution logic with security context (called by execute_with_security with timeout
+    /// wrapper).
     async fn execute_with_security_internal(
         &self,
         query: &str,
@@ -493,9 +493,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Federation(query_name) => {
                 self.execute_federation_query(&query_name, query, variables).await
             },
-            QueryType::IntrospectionSchema => {
-                Ok(self.introspection.schema_response.clone())
-            },
+            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
             },
@@ -572,12 +570,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             };
 
         // 5. Get SQL source from query definition
-        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: "Query has no SQL source".to_string(),
-                path:    None,
-            }
-        })?;
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization)
         let projection_hint = if !plan.projection_fields.is_empty() {
@@ -600,7 +601,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         // and generates the final SQL with both constraints applied
         let results = self
             .adapter
-            .execute_with_projection(sql_source, projection_hint.as_ref(), rls_where_clause.as_ref(), None)
+            .execute_with_projection(
+                sql_source,
+                projection_hint.as_ref(),
+                rls_where_clause.as_ref(),
+                None,
+            )
             .await?;
 
         // 8. Project results to requested fields

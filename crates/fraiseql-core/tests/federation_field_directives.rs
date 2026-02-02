@@ -1,4 +1,3 @@
-//!
 //! These tests define the expected behavior for storing and accessing
 //! field-level federation directives (@requires, @provides, @shareable).
 //!

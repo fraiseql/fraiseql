@@ -1,4 +1,3 @@
-//!
 //! Tests for concurrent query execution under sustained load:
 //! - Multiple concurrent queries
 //! - Connection pool stress testing

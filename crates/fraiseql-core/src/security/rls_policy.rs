@@ -61,9 +61,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::WhereClause;
-use crate::error::Result;
-use crate::security::SecurityContext;
+use crate::{db::WhereClause, error::Result, security::SecurityContext};
 
 /// Row-Level Security (RLS) policy for runtime evaluation.
 ///
@@ -99,11 +97,7 @@ pub trait RLSPolicy: Send + Sync {
     /// let filter = rls.evaluate(&context, "Post")?;
     /// // filter is Some(WhereClause::Field { path: ["author_id"], operator: Eq, value: "u1" })
     /// ```
-    fn evaluate(
-        &self,
-        context: &SecurityContext,
-        type_name: &str,
-    ) -> Result<Option<WhereClause>>;
+    fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>>;
 
     /// Optional: Cache RLS decisions for performance.
     ///
@@ -132,9 +126,9 @@ pub struct DefaultRLSPolicy {
     /// Enable multi-tenant isolation
     pub enable_tenant_isolation: bool,
     /// Field name for tenant isolation (default: "tenant_id")
-    pub tenant_field: String,
+    pub tenant_field:            String,
     /// Field name for owner-based access (default: "author_id")
-    pub owner_field: String,
+    pub owner_field:             String,
 }
 
 impl DefaultRLSPolicy {
@@ -142,8 +136,8 @@ impl DefaultRLSPolicy {
     pub fn new() -> Self {
         Self {
             enable_tenant_isolation: true,
-            tenant_field: "tenant_id".to_string(),
-            owner_field: "author_id".to_string(),
+            tenant_field:            "tenant_id".to_string(),
+            owner_field:             "author_id".to_string(),
         }
     }
 
@@ -173,11 +167,7 @@ impl Default for DefaultRLSPolicy {
 }
 
 impl RLSPolicy for DefaultRLSPolicy {
-    fn evaluate(
-        &self,
-        context: &SecurityContext,
-        _type_name: &str,
-    ) -> Result<Option<WhereClause>> {
+    fn evaluate(&self, context: &SecurityContext, _type_name: &str) -> Result<Option<WhereClause>> {
         // Admins bypass RLS
         if context.is_admin() {
             return Ok(None);
@@ -189,18 +179,18 @@ impl RLSPolicy for DefaultRLSPolicy {
         if self.enable_tenant_isolation {
             if let Some(ref tenant_id) = context.tenant_id {
                 filters.push(WhereClause::Field {
-                    path: vec![self.tenant_field.clone()],
+                    path:     vec![self.tenant_field.clone()],
                     operator: crate::db::WhereOperator::Eq,
-                    value: serde_json::json!(tenant_id.clone()),
+                    value:    serde_json::json!(tenant_id.clone()),
                 });
             }
         }
 
         // Rule 2: Owner-based access (users can only access their own rows)
         filters.push(WhereClause::Field {
-            path: vec![self.owner_field.clone()],
+            path:     vec![self.owner_field.clone()],
             operator: crate::db::WhereOperator::Eq,
-            value: serde_json::json!(context.user_id.clone()),
+            value:    serde_json::json!(context.user_id.clone()),
         });
 
         // Combine all filters with AND
@@ -234,28 +224,24 @@ pub struct CompiledRLSPolicy {
     /// RLS rules indexed by type name
     pub rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
     /// Default RLS rule if no type-specific rule exists
-    pub default_rule: Option<RLSRule>,
+    pub default_rule:  Option<RLSRule>,
 }
 
 /// A single RLS rule for a type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RLSRule {
     /// Rule name (for debugging)
-    pub name: String,
+    pub name:              String,
     /// Expression to evaluate (e.g., "user.id == object.author_id")
-    pub expression: String,
+    pub expression:        String,
     /// Whether this rule result can be cached
-    pub cacheable: bool,
+    pub cacheable:         bool,
     /// Cache TTL in seconds (if cacheable)
     pub cache_ttl_seconds: Option<u64>,
 }
 
 impl RLSPolicy for CompiledRLSPolicy {
-    fn evaluate(
-        &self,
-        context: &SecurityContext,
-        type_name: &str,
-    ) -> Result<Option<WhereClause>> {
+    fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>> {
         // Admins bypass all RLS
         if context.is_admin() {
             return Ok(None);
@@ -303,24 +289,25 @@ fn evaluate_rls_expression(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     #[test]
     fn test_default_rls_policy_admin_bypass() {
         let policy = DefaultRLSPolicy::new();
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec!["admin".to_string()],
-            tenant_id: Some("tenant1".to_string()),
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        Some("tenant1".to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req1".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         let result = policy.evaluate(&context, "Post").unwrap();
@@ -331,41 +318,38 @@ mod tests {
     fn test_default_rls_policy_tenant_isolation() {
         let policy = DefaultRLSPolicy::new();
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec!["user".to_string()],
-            tenant_id: Some("tenant1".to_string()),
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec!["user".to_string()],
+            tenant_id:        Some("tenant1".to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req1".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         let result = policy.evaluate(&context, "Post").unwrap();
-        assert!(
-            result.is_some(),
-            "Non-admin users should have RLS filter applied"
-        );
+        assert!(result.is_some(), "Non-admin users should have RLS filter applied");
     }
 
     #[test]
     fn test_no_rls_policy() {
         let policy = NoRLSPolicy;
         let context = SecurityContext {
-            user_id: "user123".to_string(),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req1".to_string(),
-            ip_address: None,
+            user_id:          "user123".to_string(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req1".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
 
         let result = policy.evaluate(&context, "Post").unwrap();

@@ -1,4 +1,3 @@
-//!
 //! Tests end-to-end analytics functionality:
 //! - Fact table metadata in schema
 //! - Validator rejects invalid schemas

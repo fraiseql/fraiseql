@@ -3,10 +3,13 @@
 //! These tests verify that RLS policies are correctly applied during query execution,
 //! enforcing access control based on SecurityContext.
 
-use fraiseql_core::db::WhereClause;
-use fraiseql_core::runtime::RuntimeConfig;
-use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy, SecurityContext};
 use std::collections::HashMap;
+
+use fraiseql_core::{
+    db::WhereClause,
+    runtime::RuntimeConfig,
+    security::{DefaultRLSPolicy, RLSPolicy, SecurityContext},
+};
 
 /// Test that non-admin users are filtered by RLS policy
 ///
@@ -19,17 +22,17 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
     // Admin user should bypass RLS
     let admin_context = SecurityContext {
-        user_id: "admin1".to_string(),
-        roles: vec!["admin".to_string()],
-        tenant_id: None,
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-admin".to_string(),
-        ip_address: None,
+        user_id:          "admin1".to_string(),
+        roles:            vec!["admin".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-admin".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let admin_result = policy.evaluate(&admin_context, "Post").unwrap();
@@ -37,24 +40,29 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
     // Non-admin user should have RLS filter applied
     let user_context = SecurityContext {
-        user_id: "user1".to_string(),
-        roles: vec!["user".to_string()],
-        tenant_id: None,
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-user".to_string(),
-        ip_address: None,
+        user_id:          "user1".to_string(),
+        roles:            vec!["user".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-user".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let user_result = policy.evaluate(&user_context, "Post").unwrap();
     assert!(user_result.is_some(), "Non-admin users should have RLS filter");
 
     // Verify filter is a WHERE clause on author_id == user_id
-    if let Some(WhereClause::Field { path, operator, value }) = user_result {
+    if let Some(WhereClause::Field {
+        path,
+        operator,
+        value,
+    }) = user_result
+    {
         assert_eq!(path, vec!["author_id".to_string()]);
         assert_eq!(operator, fraiseql_core::db::WhereOperator::Eq);
         assert_eq!(value, serde_json::json!("user1"));
@@ -70,17 +78,17 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
 
     // User in tenant1
     let tenant1_context = SecurityContext {
-        user_id: "user1".to_string(),
-        roles: vec!["user".to_string()],
-        tenant_id: Some("tenant1".to_string()),
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-1".to_string(),
-        ip_address: None,
+        user_id:          "user1".to_string(),
+        roles:            vec!["user".to_string()],
+        tenant_id:        Some("tenant1".to_string()),
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-1".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let result = policy.evaluate(&tenant1_context, "Post").unwrap();
@@ -100,25 +108,22 @@ fn test_rls_allows_access_when_no_policy_matches() {
     let policy = DefaultRLSPolicy::new();
 
     let context = SecurityContext {
-        user_id: "user1".to_string(),
-        roles: vec!["user".to_string()],
-        tenant_id: None,
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-1".to_string(),
-        ip_address: None,
+        user_id:          "user1".to_string(),
+        roles:            vec!["user".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-1".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     // Any type should get a filter (not None)
     let result = policy.evaluate(&context, "UnknownType").unwrap();
-    assert!(
-        result.is_some(),
-        "RLS should apply standard filters even for unknown types"
-    );
+    assert!(result.is_some(), "RLS should apply standard filters even for unknown types");
 }
 
 /// Test WHERE clause composition: user filter AND rls filter
@@ -128,16 +133,16 @@ fn test_where_clause_composition_for_rls() {
 
     // User-provided WHERE clause: published = true
     let user_where = WhereClause::Field {
-        path: vec!["published".to_string()],
+        path:     vec!["published".to_string()],
         operator: WhereOperator::Eq,
-        value: serde_json::json!(true),
+        value:    serde_json::json!(true),
     };
 
     // RLS filter: author_id = user1
     let rls_where = WhereClause::Field {
-        path: vec!["author_id".to_string()],
+        path:     vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value: serde_json::json!("user1"),
+        value:    serde_json::json!("user1"),
     };
 
     // Composed: published = true AND author_id = user1
@@ -157,17 +162,17 @@ fn test_security_context_carries_all_metadata() {
     attrs.insert("region".to_string(), serde_json::json!("us-west-2"));
 
     let context = SecurityContext {
-        user_id: "user123".to_string(),
-        roles: vec!["user".to_string(), "moderator".to_string()],
-        tenant_id: Some("acme-corp".to_string()),
-        scopes: vec!["read:post".to_string(), "write:comment".to_string()],
-        attributes: attrs,
-        request_id: "req-xyz".to_string(),
-        ip_address: Some("192.0.2.1".to_string()),
+        user_id:          "user123".to_string(),
+        roles:            vec!["user".to_string(), "moderator".to_string()],
+        tenant_id:        Some("acme-corp".to_string()),
+        scopes:           vec!["read:post".to_string(), "write:comment".to_string()],
+        attributes:       attrs,
+        request_id:       "req-xyz".to_string(),
+        ip_address:       Some("192.0.2.1".to_string()),
         authenticated_at: now,
-        expires_at: expires,
-        issuer: Some("https://auth.example.com".to_string()),
-        audience: Some("api.example.com".to_string()),
+        expires_at:       expires,
+        issuer:           Some("https://auth.example.com".to_string()),
+        audience:         Some("api.example.com".to_string()),
     };
 
     assert_eq!(context.user_id, "user123");
@@ -191,8 +196,8 @@ fn test_runtime_config_accepts_rls_policy_configuration() {
     assert_eq!(config.max_query_depth, 10);
 
     // Can configure with RLS policy
-    let config_with_rls = RuntimeConfig::default()
-        .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+    let config_with_rls =
+        RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
 
     assert!(config_with_rls.rls_policy.is_some());
 }
@@ -206,17 +211,17 @@ fn test_rls_policy_produces_correct_where_clauses() {
 
     // Non-admin user should get owner-based filter
     let user_context = SecurityContext {
-        user_id: "user456".to_string(),
-        roles: vec!["user".to_string()],
-        tenant_id: None,
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-test".to_string(),
-        ip_address: None,
+        user_id:          "user456".to_string(),
+        roles:            vec!["user".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-test".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();
@@ -226,7 +231,11 @@ fn test_rls_policy_produces_correct_where_clauses() {
 
     // Verify structure
     match result.unwrap() {
-        WhereClause::Field { path, operator, value } => {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => {
             assert_eq!(path, vec!["author_id".to_string()]);
             assert_eq!(operator, WhereOperator::Eq);
             assert_eq!(value, serde_json::json!("user456"));
@@ -244,17 +253,17 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
 
     // User in a tenant
     let user_context = SecurityContext {
-        user_id: "user789".to_string(),
-        roles: vec!["user".to_string()],
-        tenant_id: Some("tenant-acme".to_string()),
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-test".to_string(),
-        ip_address: None,
+        user_id:          "user789".to_string(),
+        roles:            vec!["user".to_string()],
+        tenant_id:        Some("tenant-acme".to_string()),
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-test".to_string(),
+        ip_address:       None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();
@@ -264,11 +273,7 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
     // Should be AND of tenant_id AND author_id
     match result.unwrap() {
         WhereClause::And(clauses) => {
-            assert_eq!(
-                clauses.len(),
-                2,
-                "Should have 2 filters: tenant_id AND author_id"
-            );
+            assert_eq!(clauses.len(), 2, "Should have 2 filters: tenant_id AND author_id");
 
             // Both clauses should be Field conditions
             for clause in clauses {

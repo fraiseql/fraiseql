@@ -1,4 +1,3 @@
-//!
 //! Comprehensive saga coordinator testing for distributed transactions:
 //! - Saga creation and initialization
 //! - Mutation parsing into saga steps

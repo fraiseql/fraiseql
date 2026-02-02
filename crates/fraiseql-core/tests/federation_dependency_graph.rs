@@ -1,4 +1,3 @@
-//!
 //! Tests for building dependency graphs from @requires directives and detecting
 //! circular dependencies.
 //!

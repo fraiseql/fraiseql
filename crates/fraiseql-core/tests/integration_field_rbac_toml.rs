@@ -91,16 +91,9 @@ scopes = ["read:User.*"]
         Some("Administrator with all scopes"),
         "Admin should have description"
     );
-    let admin_scopes = admin_role
-        .get("scopes")
-        .and_then(|v| v.as_array())
-        .expect("admin scopes");
+    let admin_scopes = admin_role.get("scopes").and_then(|v| v.as_array()).expect("admin scopes");
     assert_eq!(admin_scopes.len(), 1, "Admin should have 1 scope");
-    assert_eq!(
-        admin_scopes[0].as_str(),
-        Some("admin:*"),
-        "Admin scope should be admin:*"
-    );
+    assert_eq!(admin_scopes[0].as_str(), Some("admin:*"), "Admin scope should be admin:*");
 
     // Verify second role: user
     let user_role = &roles[1];
@@ -109,20 +102,10 @@ scopes = ["read:User.*"]
         Some("user"),
         "Second role should be user"
     );
-    assert!(
-        user_role.get("description").is_none(),
-        "User should not have description"
-    );
-    let user_scopes = user_role
-        .get("scopes")
-        .and_then(|v| v.as_array())
-        .expect("user scopes");
+    assert!(user_role.get("description").is_none(), "User should not have description");
+    let user_scopes = user_role.get("scopes").and_then(|v| v.as_array()).expect("user scopes");
     assert_eq!(user_scopes.len(), 1, "User should have 1 scope");
-    assert_eq!(
-        user_scopes[0].as_str(),
-        Some("read:User.*"),
-        "User scope should be read:User.*"
-    );
+    assert_eq!(user_scopes[0].as_str(), Some("read:User.*"), "User scope should be read:User.*");
 }
 
 #[test]
@@ -144,10 +127,7 @@ scopes = ["read:*", "write:Post.*", "write:Comment.*"]
         .expect("array");
 
     let editor_role = &roles[0];
-    let scopes = editor_role
-        .get("scopes")
-        .and_then(|v| v.as_array())
-        .expect("scopes");
+    let scopes = editor_role.get("scopes").and_then(|v| v.as_array()).expect("scopes");
 
     assert_eq!(scopes.len(), 3, "Editor should have 3 scopes");
     assert_eq!(scopes[0].as_str(), Some("read:*"));
@@ -190,26 +170,14 @@ scopes = ["admin:*"]
     let role_defs_table = role_defs.as_table().expect("table");
 
     // Verify we have environment-specific overrides
-    assert!(
-        role_defs_table.contains_key("default"),
-        "Should have default environment"
-    );
-    assert!(
-        role_defs_table.contains_key("production"),
-        "Should have production environment"
-    );
-    assert!(
-        role_defs_table.contains_key("staging"),
-        "Should have staging environment"
-    );
+    assert!(role_defs_table.contains_key("default"), "Should have default environment");
+    assert!(role_defs_table.contains_key("production"), "Should have production environment");
+    assert!(role_defs_table.contains_key("staging"), "Should have staging environment");
 
     // Verify production has additional audit scope
     let prod = role_defs_table.get("production").expect("production");
     let prod_table = prod.as_table().expect("table");
-    let prod_scopes = prod_table
-        .get("scopes")
-        .and_then(|v| v.as_array())
-        .expect("scopes");
+    let prod_scopes = prod_table.get("scopes").and_then(|v| v.as_array()).expect("scopes");
     assert_eq!(prod_scopes.len(), 2, "Production should have 2 scopes");
     assert_eq!(prod_scopes[1].as_str(), Some("audit:log_access"));
 }
@@ -255,18 +223,12 @@ scopes = ["read:*"]
     // Verify fraiseql section
     let fraiseql = parsed.get("fraiseql").expect("fraiseql");
     let fraiseql_table = fraiseql.as_table().expect("table");
-    assert_eq!(
-        fraiseql_table.get("version").and_then(|v| v.as_str()),
-        Some("2.0")
-    );
+    assert_eq!(fraiseql_table.get("version").and_then(|v| v.as_str()), Some("2.0"));
 
     // Verify security section
     let security = parsed.get("security").expect("security");
     let security_table = security.as_table().expect("table");
-    assert_eq!(
-        security_table.get("default_role").and_then(|v| v.as_str()),
-        Some("user")
-    );
+    assert_eq!(security_table.get("default_role").and_then(|v| v.as_str()), Some("user"));
 
     // Verify all 4 roles are present
     let roles = security_table
@@ -304,10 +266,7 @@ fn test_role_definition_validation() {
 name = "admin"
 scopes = ["admin:*"]
 "#;
-    assert!(
-        toml::from_str::<toml::Table>(valid_toml).is_ok(),
-        "Valid role should parse"
-    );
+    assert!(toml::from_str::<toml::Table>(valid_toml).is_ok(), "Valid role should parse");
 
     // Invalid: missing name
     let no_name_toml = r#"
@@ -418,10 +377,7 @@ fn test_role_definition_struct() {
     assert!(role.description.is_none());
 
     role = role.with_description("Administrator with all access".to_string());
-    assert_eq!(
-        role.description,
-        Some("Administrator with all access".to_string())
-    );
+    assert_eq!(role.description, Some("Administrator with all access".to_string()));
 }
 
 #[test]
@@ -430,7 +386,10 @@ fn test_role_has_scope_exact_match() {
 
     let role = RoleDefinition::new(
         "user".to_string(),
-        vec!["read:User.email".to_string(), "write:Post.content".to_string()],
+        vec![
+            "read:User.email".to_string(),
+            "write:Post.content".to_string(),
+        ],
     );
 
     assert!(role.has_scope("read:User.email"));
@@ -477,8 +436,7 @@ fn test_security_config_struct() {
     assert!(config.role_definitions.is_empty());
 
     let admin_role = RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]);
-    let user_role =
-        RoleDefinition::new("user".to_string(), vec!["read:User.*".to_string()]);
+    let user_role = RoleDefinition::new("user".to_string(), vec!["read:User.*".to_string()]);
 
     config.add_role(admin_role);
     config.add_role(user_role);
@@ -613,11 +571,26 @@ fn test_compiled_schema_with_security_config() {
     assert_eq!(admin_role.scopes, vec!["admin:*"]);
 
     // Verify scope checking on schema
-    assert!(schema.role_has_scope("admin", "admin:delete"), "admin:* should match admin:delete");
-    assert!(schema.role_has_scope("admin", "admin:view_logs"), "admin:* should match admin:view_logs");
-    assert!(schema.role_has_scope("user", "read:User.email"), "user should have read:User.* which matches read:User.email");
-    assert!(schema.role_has_scope("user", "write:Post.content"), "user should have write:Post.content");
-    assert!(!schema.role_has_scope("user", "admin:delete"), "user should not have admin scopes");
+    assert!(
+        schema.role_has_scope("admin", "admin:delete"),
+        "admin:* should match admin:delete"
+    );
+    assert!(
+        schema.role_has_scope("admin", "admin:view_logs"),
+        "admin:* should match admin:view_logs"
+    );
+    assert!(
+        schema.role_has_scope("user", "read:User.email"),
+        "user should have read:User.* which matches read:User.email"
+    );
+    assert!(
+        schema.role_has_scope("user", "write:Post.content"),
+        "user should have write:Post.content"
+    );
+    assert!(
+        !schema.role_has_scope("user", "admin:delete"),
+        "user should not have admin scopes"
+    );
 
     // Verify get_role_scopes
     let user_scopes = schema.get_role_scopes("user");

@@ -141,17 +141,13 @@ impl SecurityConfig {
     /// Get all scopes granted to a role.
     #[must_use]
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.find_role(role_name)
-            .map(|role| role.scopes.clone())
-            .unwrap_or_default()
+        self.find_role(role_name).map(|role| role.scopes.clone()).unwrap_or_default()
     }
 
     /// Check if a role has a specific scope.
     #[must_use]
     pub fn role_has_scope(&self, role_name: &str, scope: &str) -> bool {
-        self.find_role(role_name)
-            .map(|role| role.has_scope(scope))
-            .unwrap_or(false)
+        self.find_role(role_name).map(|role| role.has_scope(scope)).unwrap_or(false)
     }
 }
 
@@ -456,8 +452,7 @@ impl CompiledSchema {
     /// Role definition if found
     #[must_use]
     pub fn find_role(&self, role_name: &str) -> Option<RoleDefinition> {
-        self.security_config()
-            .and_then(|config| config.find_role(role_name).cloned())
+        self.security_config().and_then(|config| config.find_role(role_name).cloned())
     }
 
     /// Get scopes for a role.

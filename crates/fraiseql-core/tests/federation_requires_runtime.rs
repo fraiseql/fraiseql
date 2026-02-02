@@ -1,4 +1,3 @@
-//!
 //! Tests for validating @requires directives at runtime during entity resolution:
 //! - Required fields present in entity representations
 //! - Error messages when required fields missing

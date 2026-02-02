@@ -1,4 +1,3 @@
-//!
 //! Tests end-to-end query execution scenarios:
 //! - Mock database with sample data
 //! - Query execution with field projection
