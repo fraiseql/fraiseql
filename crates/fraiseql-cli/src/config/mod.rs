@@ -114,4 +114,43 @@ mod tests {
         let config = FraiseQLConfig::default();
         assert!(config.validate().is_ok());
     }
+
+    #[test]
+    fn test_role_definitions_default() {
+        let config = FraiseQLConfig::default();
+        assert!(config.fraiseql.security.role_definitions.is_empty());
+        assert!(config.fraiseql.security.default_role.is_none());
+    }
+
+    #[test]
+    fn test_parse_role_definitions_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[[fraiseql.security.role_definitions]]
+name = "viewer"
+description = "Read-only access"
+scopes = ["read:*"]
+
+[[fraiseql.security.role_definitions]]
+name = "admin"
+description = "Full access"
+scopes = ["admin:*"]
+
+[fraiseql.security]
+default_role = "viewer"
+"#;
+
+        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+
+        assert_eq!(config.fraiseql.security.role_definitions.len(), 2);
+        assert_eq!(config.fraiseql.security.role_definitions[0].name, "viewer");
+        assert_eq!(config.fraiseql.security.role_definitions[0].scopes[0], "read:*");
+        assert_eq!(config.fraiseql.security.role_definitions[1].name, "admin");
+        assert_eq!(config.fraiseql.security.default_role, Some("viewer".to_string()));
+    }
 }

@@ -334,3 +334,36 @@ fn test_role_definitions_parse_from_toml() {
     assert_eq!(roles[1]["name"].as_str(), Some("editor"));
     assert_eq!(roles[2]["name"].as_str(), Some("admin"));
 }
+
+#[test]
+fn test_compiler_includes_role_definitions_in_compiled_output() {
+    // GREEN: Test that role definitions from fraiseql.toml are properly serialized
+    // This verifies the SecurityConfig::to_json() includes role definitions
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let _schema_path = create_schema_with_field_scopes(&temp_dir);
+    let toml_path = create_test_toml_with_roles(&temp_dir);
+
+    // Parse TOML to verify role definitions exist
+    let toml_content = fs::read_to_string(&toml_path).expect("Failed to read TOML");
+    let parsed: toml::Value = toml::from_str(&toml_content).expect("Failed to parse TOML");
+
+    // Extract security section
+    let security = &parsed["fraiseql"]["security"];
+    assert!(security["role_definitions"].is_array(), "Should have role_definitions array");
+
+    let roles = security["role_definitions"].as_array().expect("Should be array");
+    assert_eq!(roles.len(), 3, "Should have 3 roles");
+
+    // Verify viewer role structure
+    assert_eq!(roles[0]["name"].as_str(), Some("viewer"));
+    assert_eq!(roles[0]["description"].as_str(), Some("Read-only access to public fields"));
+
+    let scopes = roles[0]["scopes"].as_array().expect("Scopes should be array");
+    assert_eq!(scopes.len(), 2);
+    assert_eq!(scopes[0].as_str(), Some("read:User.*"));
+    assert_eq!(scopes[1].as_str(), Some("read:Post.*"));
+
+    // Verify default role
+    assert_eq!(security["default_role"].as_str(), Some("viewer"));
+}

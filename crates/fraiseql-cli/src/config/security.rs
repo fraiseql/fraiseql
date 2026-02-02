@@ -292,6 +292,8 @@ pub struct RoleDefinitionConfig {
 
 impl RoleDefinitionConfig {
     /// Convert to core RoleDefinition for schema compilation
+    /// Used in runtime field filtering (Cycle 5)
+    #[allow(dead_code)]
     pub fn to_core_role_definition(&self) -> fraiseql_core::schema::RoleDefinition {
         fraiseql_core::schema::RoleDefinition {
             name: self.name.clone(),
