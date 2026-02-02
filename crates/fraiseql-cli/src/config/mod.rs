@@ -153,4 +153,57 @@ default_role = "viewer"
         assert_eq!(config.fraiseql.security.role_definitions[1].name, "admin");
         assert_eq!(config.fraiseql.security.default_role, Some("viewer".to_string()));
     }
+
+    #[test]
+    fn test_security_config_role_lookup() {
+        let toml_str = r#"
+[[fraiseql.security.role_definitions]]
+name = "viewer"
+scopes = ["read:User.*", "read:Post.*"]
+
+[[fraiseql.security.role_definitions]]
+name = "editor"
+scopes = ["read:*", "write:*"]
+"#;
+
+        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+
+        // Test find_role
+        let viewer = config.fraiseql.security.find_role("viewer");
+        assert!(viewer.is_some());
+        assert_eq!(viewer.unwrap().name, "viewer");
+
+        // Test get_role_scopes
+        let scopes = config.fraiseql.security.get_role_scopes("viewer");
+        assert_eq!(scopes.len(), 2);
+        assert!(scopes.contains(&"read:User.*".to_string()));
+
+        // Test non-existent role
+        let scopes = config.fraiseql.security.get_role_scopes("non-existent");
+        assert!(scopes.is_empty());
+    }
+
+    #[test]
+    fn test_security_config_validation_empty_role_name() {
+        let toml_str = r#"
+[[fraiseql.security.role_definitions]]
+name = ""
+scopes = ["read:*"]
+"#;
+
+        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert!(config.validate().is_err(), "Should fail with empty role name");
+    }
+
+    #[test]
+    fn test_security_config_validation_empty_scopes() {
+        let toml_str = r#"
+[[fraiseql.security.role_definitions]]
+name = "viewer"
+scopes = []
+"#;
+
+        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert!(config.validate().is_err(), "Should fail with empty scopes");
+    }
 }

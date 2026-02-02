@@ -345,7 +345,34 @@ impl SecurityConfig {
         self.error_sanitization.validate()?;
         self.rate_limiting.validate()?;
         self.state_encryption.validate()?;
+
+        // Validate role definitions if present
+        for role in &self.role_definitions {
+            if role.name.is_empty() {
+                anyhow::bail!("Role name cannot be empty");
+            }
+            if role.scopes.is_empty() {
+                anyhow::bail!("Role '{}' must have at least one scope", role.name);
+            }
+        }
+
         Ok(())
+    }
+
+    /// Find a role definition by name
+    /// Used in runtime field filtering (Cycle 5)
+    #[allow(dead_code)]
+    pub fn find_role(&self, name: &str) -> Option<&RoleDefinitionConfig> {
+        self.role_definitions.iter().find(|r| r.name == name)
+    }
+
+    /// Get all scopes for a role
+    /// Used in runtime field filtering (Cycle 5)
+    #[allow(dead_code)]
+    pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
+        self.find_role(role_name)
+            .map(|role| role.scopes.clone())
+            .unwrap_or_default()
     }
 
     /// Convert to JSON representation for schema.json
