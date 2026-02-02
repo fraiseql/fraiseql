@@ -15,6 +15,8 @@ interface FieldDefinition {
   type: string;
   nullable?: boolean;
   description?: string;
+  requiresScope?: string;
+  requiresScopes?: string[];
 }
 
 interface TypeDefinition {
@@ -75,8 +77,49 @@ export class Schema {
    * @param definition The type definition with fields
    */
   static registerType(name: string, definition: TypeDefinition): void {
+    // Validate and extract scopes from fields
+    const validatedDefinition: TypeDefinition = {
+      fields: {},
+      description: definition.description,
+    };
+
+    for (const [fieldName, fieldConfig] of Object.entries(definition.fields)) {
+      const validatedField: FieldDefinition = { ...fieldConfig };
+
+      // Validate scope if present
+      if (fieldConfig.requiresScope) {
+        Schema.validateScope(fieldConfig.requiresScope, name, fieldName);
+      }
+
+      // Validate scopes array if present
+      if (fieldConfig.requiresScopes) {
+        if (fieldConfig.requiresScopes.length === 0) {
+          throw new Error(
+            `Field ${name}.${fieldName} has empty scopes array`
+          );
+        }
+        for (const scope of fieldConfig.requiresScopes) {
+          if (scope === '') {
+            throw new Error(
+              `Field ${name}.${fieldName} has empty scope in scopes array`
+            );
+          }
+          Schema.validateScope(scope, name, fieldName);
+        }
+      }
+
+      // Ensure not both scope and scopes
+      if (fieldConfig.requiresScope && fieldConfig.requiresScopes) {
+        throw new Error(
+          `Field ${name}.${fieldName} cannot have both requiresScope and requiresScopes`
+        );
+      }
+
+      validatedDefinition.fields[fieldName] = validatedField;
+    }
+
     const registry = SchemaRegistry.getInstance();
-    registry.register(name, definition);
+    registry.register(name, validatedDefinition);
   }
 
   /**
@@ -109,11 +152,21 @@ export class Schema {
 
         // Convert fields object to array format
         for (const [fieldName, field] of Object.entries(typeInfo.fields)) {
-          typeObj.fields.push({
+          const fieldObj: any = {
             name: fieldName,
             type: field.type,
             nullable: field.nullable ?? false,
-          });
+          };
+
+          // Include scope fields if present
+          if (field.requiresScope) {
+            fieldObj.requiresScope = field.requiresScope;
+          }
+          if (field.requiresScopes) {
+            fieldObj.requiresScopes = field.requiresScopes;
+          }
+
+          typeObj.fields.push(fieldObj);
         }
 
         types.push(typeObj);
@@ -183,5 +236,119 @@ export class Schema {
   static getTypeNames(): string[] {
     const registry = SchemaRegistry.getInstance();
     return registry.getTypeNames();
+  }
+
+  /**
+   * Get the registry instance (for testing purposes)
+   */
+  static getTypeRegistry(): SchemaRegistry {
+    return SchemaRegistry.getInstance();
+  }
+
+  /**
+   * Validate scope format: action:resource
+   * Valid patterns:
+   * - * (global wildcard)
+   * - action:resource (read:user.email, write:User.salary)
+   * - action:* (admin:*, read:*)
+   */
+  private static validateScope(
+    scope: string,
+    typeName: string,
+    fieldName: string
+  ): void {
+    if (scope === '') {
+      throw new Error(`Field ${typeName}.${fieldName} has empty scope`);
+    }
+
+    // Global wildcard is always valid
+    if (scope === '*') {
+      return;
+    }
+
+    // Must contain at least one colon
+    if (!scope.includes(':')) {
+      throw new Error(
+        `Field ${typeName}.${fieldName} has invalid scope '${scope}' (missing colon)`
+      );
+    }
+
+    const parts = scope.split(':', 2);
+    if (parts.length !== 2) {
+      throw new Error(
+        `Field ${typeName}.${fieldName} has invalid scope '${scope}'`
+      );
+    }
+
+    const action = parts[0];
+    const resource = parts[1];
+
+    // Validate action: [a-zA-Z_][a-zA-Z0-9_]*
+    if (!Schema.isValidAction(action)) {
+      throw new Error(
+        `Field ${typeName}.${fieldName} has invalid action in scope '${scope}' (must be alphanumeric + underscore)`
+      );
+    }
+
+    // Validate resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+    if (!Schema.isValidResource(resource)) {
+      throw new Error(
+        `Field ${typeName}.${fieldName} has invalid resource in scope '${scope}' (must be alphanumeric + underscore + dot, or *)`
+      );
+    }
+  }
+
+  /**
+   * Check if action matches [a-zA-Z_][a-zA-Z0-9_]*
+   */
+  private static isValidAction(action: string): boolean {
+    if (action === '') {
+      return false;
+    }
+
+    // First character must be letter or underscore
+    const firstChar = action[0];
+    if (!/[a-zA-Z_]/.test(firstChar)) {
+      return false;
+    }
+
+    // Rest must be letters, digits, or underscores
+    for (let i = 1; i < action.length; i++) {
+      const ch = action[i];
+      if (!/[a-zA-Z0-9_]/.test(ch)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+   */
+  private static isValidResource(resource: string): boolean {
+    if (resource === '*') {
+      return true;
+    }
+
+    if (resource === '') {
+      return false;
+    }
+
+    // First character must be letter or underscore
+    const firstChar = resource[0];
+    if (!/[a-zA-Z_]/.test(firstChar)) {
+      return false;
+    }
+
+    // Rest must be letters, digits, underscores, or dots
+    for (let i = 1; i < resource.length; i++) {
+      const ch = resource[i];
+      if (!/[a-zA-Z0-9_.]/.test(ch)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
