@@ -182,14 +182,99 @@ fn test_security_context_carries_all_metadata() {
 /// This verifies that the executor can be configured with an RLS policy
 #[test]
 fn test_runtime_config_accepts_rls_policy_configuration() {
+    use std::sync::Arc;
+
     let config = RuntimeConfig::default();
 
     // Should have default values
     assert_eq!(config.query_timeout_ms, 30_000);
     assert_eq!(config.max_query_depth, 10);
 
-    // After adding RLS support, should be able to configure it:
-    // config.with_rls_policy(DefaultRLSPolicy::new())
-    // For now, just verify the base config works
-    let _config_with_defaults = RuntimeConfig::default();
+    // Can configure with RLS policy
+    let config_with_rls = RuntimeConfig::default()
+        .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
+
+    assert!(config_with_rls.rls_policy.is_some());
+}
+
+/// Test RLS policy evaluation produces correct WHERE clauses
+#[test]
+fn test_rls_policy_produces_correct_where_clauses() {
+    use fraiseql_core::db::WhereOperator;
+
+    let policy = DefaultRLSPolicy::new();
+
+    // Non-admin user should get owner-based filter
+    let user_context = SecurityContext {
+        user_id: "user456".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-test".to_string(),
+        ip_address: None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
+    };
+
+    let result = policy.evaluate(&user_context, "Post").unwrap();
+
+    // Should have a WHERE clause
+    assert!(result.is_some(), "Non-admin should have WHERE filter");
+
+    // Verify structure
+    match result.unwrap() {
+        WhereClause::Field { path, operator, value } => {
+            assert_eq!(path, vec!["author_id".to_string()]);
+            assert_eq!(operator, WhereOperator::Eq);
+            assert_eq!(value, serde_json::json!("user456"));
+        },
+        other => panic!("Expected Field clause, got: {:?}", other),
+    }
+}
+
+/// Test RLS filter composition for multi-tenant systems
+#[test]
+fn test_rls_compose_with_tenant_and_owner_filters() {
+    use fraiseql_core::db::WhereOperator;
+
+    let policy = DefaultRLSPolicy::new();
+
+    // User in a tenant
+    let user_context = SecurityContext {
+        user_id: "user789".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: Some("tenant-acme".to_string()),
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-test".to_string(),
+        ip_address: None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
+    };
+
+    let result = policy.evaluate(&user_context, "Post").unwrap();
+
+    assert!(result.is_some(), "Multi-tenant user should have WHERE filter");
+
+    // Should be AND of tenant_id AND author_id
+    match result.unwrap() {
+        WhereClause::And(clauses) => {
+            assert_eq!(
+                clauses.len(),
+                2,
+                "Should have 2 filters: tenant_id AND author_id"
+            );
+
+            // Both clauses should be Field conditions
+            for clause in clauses {
+                assert!(matches!(clause, WhereClause::Field { .. }));
+            }
+        },
+        other => panic!("Expected And clause for multi-tenant, got: {:?}", other),
+    }
 }

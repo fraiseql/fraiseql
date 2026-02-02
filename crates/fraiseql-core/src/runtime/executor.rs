@@ -20,7 +20,7 @@ use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, Runti
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
-    db::{projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
+    db::{projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter, WhereClause},
     error::{FraiseQLError, Result},
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
@@ -529,11 +529,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Execute a regular query with row-level security context.
+    /// Execute a regular query with row-level security (RLS) filtering.
     ///
-    /// This method evaluates RLS policies based on the user's SecurityContext.
-    /// **Note**: Full SQL WHERE clause integration is planned for Cycle 3 (REFACTOR).
-    /// Currently this validates access and evaluates policies but doesn't modify SQL.
+    /// This method:
+    /// 1. Validates the user's security context (token expiration, etc.)
+    /// 2. Evaluates RLS policies to determine what rows the user can access
+    /// 3. Composes RLS filters with user-provided WHERE clauses
+    /// 4. Passes the composed filter to the database adapter for SQL-level filtering
+    ///
+    /// RLS filtering happens at the database level, not in Rust, ensuring:
+    /// - High performance (database can optimize filters)
+    /// - Correct handling of pagination (LIMIT applied after RLS filtering)
+    /// - Type-safe composition via WhereClause enum
     async fn execute_regular_query_with_security(
         &self,
         query: &str,
@@ -548,12 +555,64 @@ impl<A: DatabaseAdapter> Executor<A> {
             });
         }
 
-        // 2. For now, just execute normally. RLS SQL integration comes in Cycle 3.
-        // TODO: Cycle 3 - Integrate RLS filtering into query planner
-        //       - Evaluate RLS policy for this query
-        //       - Compose RLS WHERE clause with user WHERE clause
-        //       - Modify query execution to apply RLS filter
-        self.execute(query, variables).await
+        // 2. Match query to compiled template
+        let query_match = self.matcher.match_query(query, variables)?;
+
+        // 3. Create execution plan
+        let plan = self.planner.plan(&query_match)?;
+
+        // 4. Evaluate RLS policy and build WHERE clause filter
+        let rls_where_clause: Option<WhereClause> =
+            if let Some(ref rls_policy) = self.config.rls_policy {
+                // Evaluate RLS policy with user's security context
+                rls_policy.evaluate(security_context, &query_match.query_def.name)?
+            } else {
+                // No RLS policy configured, allow all access
+                None
+            };
+
+        // 5. Get SQL source from query definition
+        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: "Query has no SQL source".to_string(),
+                path:    None,
+            }
+        })?;
+
+        // 6. Generate SQL projection hint for requested fields (optimization)
+        let projection_hint = if !plan.projection_fields.is_empty() {
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_projection_sql(&plan.projection_fields)
+                .unwrap_or_else(|_| "data".to_string());
+
+            Some(SqlProjectionHint {
+                database:                    "postgresql".to_string(),
+                projection_template:         projection_sql,
+                estimated_reduction_percent: 50,
+            })
+        } else {
+            None
+        };
+
+        // 7. Execute query with RLS WHERE clause filter
+        // The database adapter handles composition of RLS filter with user filters
+        // and generates the final SQL with both constraints applied
+        let results = self
+            .adapter
+            .execute_with_projection(sql_source, projection_hint.as_ref(), rls_where_clause.as_ref(), None)
+            .await?;
+
+        // 8. Project results to requested fields
+        let projector = ResultProjector::new(plan.projection_fields);
+        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // 9. Wrap in GraphQL data envelope
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+
+        // 10. Serialize to JSON string
+        Ok(serde_json::to_string(&response)?)
     }
 
     async fn execute_regular_query(
