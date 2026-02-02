@@ -16,14 +16,16 @@
 
 use std::{sync::Arc, time::Duration};
 
-use super::{ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
+use super::{
+    ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig, filter_fields,
+};
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
     db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     graphql::parse_query,
-    schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
+    schema::{CompiledSchema, IntrospectionResponses, SecurityConfig, SqlProjectionHint},
     security::{FieldAccessError, SecurityContext},
 };
 
@@ -527,6 +529,58 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
+    /// Apply field-level RBAC filtering to projection fields.
+    ///
+    /// Filters the projection fields based on the user's security context and field scope
+    /// requirements. Returns only fields that the user is authorized to access.
+    ///
+    /// # Arguments
+    ///
+    /// * `return_type` - The GraphQL return type name (e.g., "User", "Post")
+    /// * `projection_fields` - The originally requested field names
+    /// * `security_context` - The user's security context with roles
+    ///
+    /// # Returns
+    ///
+    /// Filtered list of accessible field names in the same order as requested
+    fn apply_field_rbac_filtering(
+        &self,
+        return_type: &str,
+        projection_fields: Vec<String>,
+        security_context: &SecurityContext,
+    ) -> Result<Vec<String>> {
+        // Try to extract security config from compiled schema
+        if let Some(ref security_json) = self.schema.security {
+            // Deserialize security config
+            let security_config: SecurityConfig = serde_json::from_value(security_json.clone())
+                .map_err(|_| FraiseQLError::Validation {
+                    message: "Invalid security configuration in compiled schema".to_string(),
+                    path:    Some("schema.security".to_string()),
+                })?;
+
+            // Find the type in the schema
+            if let Some(type_def) = self.schema.types.iter().find(|t| t.name == return_type) {
+                // Filter fields based on user roles and scope requirements
+                let accessible_fields =
+                    filter_fields(security_context, &security_config, &type_def.fields);
+
+                // Map back to field names, preserving order from projection_fields
+                let accessible_names: std::collections::HashSet<String> =
+                    accessible_fields.iter().map(|f| f.name.clone()).collect();
+
+                let filtered: Vec<String> = projection_fields
+                    .into_iter()
+                    .filter(|name| accessible_names.contains(name))
+                    .collect();
+
+                return Ok(filtered);
+            }
+        }
+
+        // If no security config or type not found, return all projection fields (no filtering)
+        Ok(projection_fields)
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -609,15 +663,23 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await?;
 
-        // 8. Project results to requested fields
-        let projector = ResultProjector::new(plan.projection_fields);
+        // 8. Apply field-level RBAC filtering
+        // Filter projection fields based on user roles and field scope requirements
+        let filtered_projection_fields = self.apply_field_rbac_filtering(
+            &query_match.query_def.return_type,
+            plan.projection_fields,
+            security_context,
+        )?;
+
+        // 9. Project results to accessible fields only
+        let projector = ResultProjector::new(filtered_projection_fields);
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
-        // 9. Wrap in GraphQL data envelope
+        // 10. Wrap in GraphQL data envelope
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        // 10. Serialize to JSON string
+        // 11. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
     }
 
