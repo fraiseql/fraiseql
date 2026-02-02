@@ -175,25 +175,33 @@ Both features integrate with the compilation-first architecture, respecting the 
 - Type-safe via WhereClause enum
 - 8 total integration tests (6 + 2 new)
 
-### Cycle 4: Server Handler Wiring (IN PROGRESS)
+### Cycle 4: Server Handler Wiring (COMPLETE)
 - **RED**: ✅ Created tests for request metadata extraction and SecurityContext creation
 - **GREEN**: ✅ Implemented HTTP handler routing through execute_with_security()
   - execute_graphql_request() accepts optional SecurityContext parameter
   - Routes to execute_with_security() when context present
   - Falls back to execute() for unauthenticated requests
-  - Added helper functions: extract_request_id, extract_ip_address, extract_tenant_id
-  - Created security_context extraction from AuthUser + headers
-  - 12 new unit tests for header extraction (all passing)
+  - 7 header extraction unit tests (all passing)
   - 8 RLS integration tests still passing (no regressions)
 
-- **REFACTOR** (IN PROGRESS):
-  - Need to implement custom Axum extractor for optional AuthUser from request extensions
-  - Wire authenticated user from oidc_auth_middleware into SecurityContext
-  - Update handlers to extract and pass SecurityContext automatically
+- **REFACTOR**: ✅ Created custom Axum extractor for optional SecurityContext
+  - New extractors.rs module with OptionalSecurityContext type
+  - Implements FromRequestParts for Axum 0.8 compatibility
+  - Automatically extracts AuthUser from request extensions
+  - Creates SecurityContext from AuthUser + HTTP headers
+  - Moved helper functions to extractors module:
+    - extract_request_id() - gets x-request-id or generates UUID
+    - extract_ip_address() - extracts from x-forwarded-for or x-real-ip
+    - extract_tenant_id() - gets x-tenant-id from headers
+  - Updated graphql handlers to use OptionalSecurityContext extractor
+  - Cleaner handler signatures, reduced code duplication
 
-- **CLEANUP** (TODO):
-  - Remove #[allow(dead_code)] on helper functions once wired up
-  - Update documentation with HTTP handler flow
+- **CLEANUP**: ✅ Added comprehensive SecurityContext creation test
+  - test_optional_security_context_creation_from_auth_user validates full flow
+  - Verified RLS filtering integration at HTTP handler level
+  - All tests passing, zero warnings
+
+**Result**: HTTP handlers now automatically create SecurityContext from authenticated users and request metadata, enabling RLS policy evaluation
 
 ### Cycle 5: TOML Schema Enhancements (FUTURE)
 - RLS rule definitions in TOML
@@ -264,7 +272,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 
 ## Effort Summary
 
-### Completed (Cycles 1-3)
+### Completed (Cycles 1-4)
 - **Cycle 1** (Security Foundation): ~6 hours
   - 2h: SecurityContext implementation (245 lines)
   - 3h: RLSPolicy trait + 3 implementations (504 lines)
@@ -280,12 +288,15 @@ Both features integrate with the compilation-first architecture, respecting the 
   - 30m: Add 2 new integration tests
   - 1h: Documentation and cleanup
 
-**Completed Total**: ~12 hours
-
-### Remaining (Cycles 4-6)
 - **Cycle 4** (Server Handler Wiring): ~3 hours
-  - HTTP handler integration with SecurityContext creation
+  - Created custom Axum extractor for SecurityContext
+  - Updated HTTP handlers to use extractor
+  - Added comprehensive header extraction tests
+  - Refactored for cleaner architecture
 
+**Completed Total**: ~15 hours
+
+### Remaining (Cycles 5-6)
 - **Cycle 5** (TOML Schema Enhancements): ~4 hours
   - RLS rule definitions in TOML
   - Compiler integration
@@ -294,7 +305,7 @@ Both features integrate with the compilation-first architecture, respecting the 
   - Decorator syntax implementation
   - Comprehensive test suite
 
-**Remaining Estimate**: ~13 hours
+**Remaining Estimate**: ~10 hours
 **Total Estimated for Full Implementation**: ~25 hours
 
 ## Next Steps
