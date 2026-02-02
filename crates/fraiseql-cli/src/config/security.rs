@@ -281,6 +281,26 @@ impl ConstantTimeConfig {
     }
 }
 
+/// Field-level RBAC role definition from fraiseql.toml
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RoleDefinitionConfig {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub scopes: Vec<String>,
+}
+
+impl RoleDefinitionConfig {
+    /// Convert to core RoleDefinition for schema compilation
+    pub fn to_core_role_definition(&self) -> fraiseql_core::schema::RoleDefinition {
+        fraiseql_core::schema::RoleDefinition {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            scopes: self.scopes.clone(),
+        }
+    }
+}
+
 /// Complete security configuration from fraiseql.toml
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -295,6 +315,12 @@ pub struct SecurityConfig {
     pub state_encryption: StateEncryptionConfig,
     #[serde(rename = "constant_time")]
     pub constant_time: ConstantTimeConfig,
+    /// Field-level RBAC role definitions
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub role_definitions: Vec<RoleDefinitionConfig>,
+    /// Default role when user has no explicit role assignment
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_role: Option<String>,
 }
 
 impl Default for SecurityConfig {
@@ -305,6 +331,8 @@ impl Default for SecurityConfig {
             rate_limiting: RateLimitConfig::default(),
             state_encryption: StateEncryptionConfig::default(),
             constant_time: ConstantTimeConfig::default(),
+            role_definitions: Vec::new(),
+            default_role: None,
         }
     }
 }
@@ -320,13 +348,33 @@ impl SecurityConfig {
 
     /// Convert to JSON representation for schema.json
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
+        let mut json = serde_json::json!({
             "auditLogging": self.audit_logging.to_json(),
             "errorSanitization": self.error_sanitization.to_json(),
             "rateLimiting": self.rate_limiting.to_json(),
             "stateEncryption": self.state_encryption.to_json(),
             "constantTime": self.constant_time.to_json(),
-        })
+        });
+
+        // Add role definitions if present
+        if !self.role_definitions.is_empty() {
+            json["roleDefinitions"] = serde_json::to_value(
+                self.role_definitions.iter().map(|r| {
+                    serde_json::json!({
+                        "name": r.name,
+                        "description": r.description,
+                        "scopes": r.scopes,
+                    })
+                }).collect::<Vec<_>>()
+            ).unwrap_or_default();
+        }
+
+        // Add default role if present
+        if let Some(default_role) = &self.default_role {
+            json["defaultRole"] = serde_json::json!(default_role);
+        }
+
+        json
     }
 }
 
