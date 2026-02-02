@@ -132,24 +132,44 @@ Runtime Executor
 - 132 total TypeScript tests: ✅ All passing
 - Pre-existing failures: 3 (unrelated to field scopes - observer tests)
 
-## Cycle 3: TOML Schema Support
+## Cycle 3: TOML Schema Support (IN PROGRESS)
 
-### RED Phase
-- [ ] Write failing test for `[[security.role_definitions]]` in TOML
-- [ ] Test parsing role → scope mappings
+### RED Phase (✅ COMPLETE)
+- ✅ Created 8 comprehensive tests for TOML role definitions
+- ✅ Tests verify TOML parsing of `[[security.role_definitions]]`
+- ✅ Tests verify role structure: name, description?, scopes[]
+- ✅ Tests verify multiple scopes per role
+- ✅ Tests verify environment-specific overrides
+- ✅ Tests verify complex TOML with multiple sections
+- ✅ Tests verify scope format compliance
+- ✅ Tests verify compilation flow to schema.json
+- ✅ Test file: crates/fraiseql-core/tests/integration_field_rbac_toml.rs
 
-### GREEN Phase
-- [ ] Add RoleDefinition to schema.rs
+**Test Coverage**:
+- TOML role definitions parsing
+- Role definition structure validation
+- Multiple scopes per role
+- Environment-specific overrides (production/staging)
+- Complex multi-section TOML
+- Scope format validation
+- Compilation to compiled schema
+
+**Test Results**: 8 passed, 0 failed ✅
+
+### GREEN Phase (NEXT)
+- [ ] Add RoleDefinition struct to schema.rs
 - [ ] Implement TOML parsing for role definitions
-- [ ] Support scope mappings
+- [ ] Support scope mappings in compiled schema
+- [ ] Merge field scopes from schema.json with role definitions from TOML
 
-### REFACTOR Phase
+### REFACTOR Phase (FUTURE)
 - [ ] Extract role validation logic
-- [ ] Add environment overrides support
+- [ ] Add environment override resolution
+- [ ] Optimize scope lookup performance
 
-### CLEANUP Phase
-- [ ] Run TOML integration tests
-- [ ] Format and lint
+### CLEANUP Phase (FUTURE)
+- [ ] Run all TOML integration tests
+- [ ] Format and lint (cargo clippy)
 - [ ] Update TOML schema documentation
 
 ## Cycle 4: Compiler Integration
