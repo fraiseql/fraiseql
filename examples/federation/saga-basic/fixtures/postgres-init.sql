@@ -75,7 +75,6 @@ SELECT
         'status', status,
         'createdAt', created_at,
         'updatedAt', updated_at,
-        'data', data,
         'errorMessage', error_message
     ) AS data
 FROM tb_saga;
@@ -88,8 +87,6 @@ SELECT
         'stepIndex', step_index,
         'name', name,
         'status', status,
-        'input', input,
-        'output', output,
         'createdAt', created_at,
         'completedAt', completed_at
     ) AS data
