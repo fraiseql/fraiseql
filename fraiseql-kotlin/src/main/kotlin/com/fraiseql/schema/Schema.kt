@@ -24,7 +24,9 @@ data class TypeDefinition(
 data class FieldDefinition(
     val type: String,
     val nullable: Boolean = false,
-    val description: String? = null
+    val description: String? = null,
+    val scope: String? = null,
+    val scopes: List<String>? = null
 )
 
 /**
@@ -65,10 +67,38 @@ object Schema {
                 val nullable = config["nullable"] as? Boolean ?: false
                 val fieldDesc = config["description"] as? String
 
+                // Extract scope information
+                val scope = config["scope"] as? String
+                @Suppress("UNCHECKED_CAST")
+                val scopes = config["scopes"] as? List<String>
+
+                // Validate scopes if present
+                if (scope != null) {
+                    validateScope(scope, name, fieldName)
+                }
+                if (scopes != null) {
+                    if (scopes.isEmpty()) {
+                        throw RuntimeException("Field $name.$fieldName has empty scopes array")
+                    }
+                    for (s in scopes) {
+                        if (s.isEmpty()) {
+                            throw RuntimeException("Field $name.$fieldName has empty scope in scopes array")
+                        }
+                        validateScope(s, name, fieldName)
+                    }
+                }
+
+                // Ensure not both scope and scopes are specified
+                if (scope != null && scopes != null) {
+                    throw RuntimeException("Field $name.$fieldName cannot have both scope and scopes")
+                }
+
                 fieldDefs[fieldName] = FieldDefinition(
                     type = type,
                     nullable = nullable,
-                    description = fieldDesc
+                    description = fieldDesc,
+                    scope = scope,
+                    scopes = scopes
                 )
             }
         }
@@ -100,6 +130,16 @@ object Schema {
                     put("name", fieldName)
                     put("type", field.type)
                     put("nullable", field.nullable)
+
+                    // Export scope information
+                    if (field.scope != null) {
+                        put("scope", field.scope)
+                    }
+                    if (field.scopes != null) {
+                        putJsonArray("scopes") {
+                            field.scopes.forEach { add(it) }
+                        }
+                    }
                 }
                 fieldsArray.add(fieldObj)
             }
@@ -174,5 +214,108 @@ object Schema {
      */
     fun getTypeNames(): List<String> {
         return SchemaRegistry.getTypeNames()
+    }
+
+    /**
+     * Validate scope format: action:resource
+     * Valid patterns:
+     * - * (global wildcard)
+     * - action:resource (read:user.email, write:User.salary)
+     * - action:* (admin:*, read:*)
+     */
+    private fun validateScope(scope: String, typeName: String, fieldName: String) {
+        if (scope.isEmpty()) {
+            throw RuntimeException("Field $typeName.$fieldName has empty scope")
+        }
+
+        // Global wildcard is always valid
+        if (scope == "*") {
+            return
+        }
+
+        // Must contain at least one colon
+        if (!scope.contains(":")) {
+            throw RuntimeException(
+                "Field $typeName.$fieldName has invalid scope '$scope' (missing colon)"
+            )
+        }
+
+        val parts = scope.split(":", limit = 2)
+        if (parts.size != 2) {
+            throw RuntimeException(
+                "Field $typeName.$fieldName has invalid scope '$scope'"
+            )
+        }
+
+        val action = parts[0]
+        val resource = parts[1]
+
+        // Validate action: [a-zA-Z_][a-zA-Z0-9_]*
+        if (!isValidAction(action)) {
+            throw RuntimeException(
+                "Field $typeName.$fieldName has invalid action in scope '$scope' (must be alphanumeric + underscore)"
+            )
+        }
+
+        // Validate resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+        if (!isValidResource(resource)) {
+            throw RuntimeException(
+                "Field $typeName.$fieldName has invalid resource in scope '$scope' (must be alphanumeric + underscore + dot, or *)"
+            )
+        }
+    }
+
+    /**
+     * Check if action matches [a-zA-Z_][a-zA-Z0-9_]*
+     */
+    private fun isValidAction(action: String): Boolean {
+        if (action.isEmpty()) {
+            return false
+        }
+
+        // First character must be letter or underscore
+        val firstChar = action[0]
+        if (!firstChar.isLetter() && firstChar != '_') {
+            return false
+        }
+
+        // Rest must be letters, digits, or underscores
+        for (i in 1 until action.length) {
+            val ch = action[i]
+            if (!ch.isLetterOrDigit() && ch != '_') {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    /**
+     * Check if resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+     */
+    private fun isValidResource(resource: String): Boolean {
+        if (resource == "*") {
+            return true
+        }
+
+        if (resource.isEmpty()) {
+            return false
+        }
+
+        // First character must be letter or underscore
+        val firstChar = resource[0]
+        if (!firstChar.isLetter() && firstChar != '_') {
+            return false
+        }
+
+        // Rest must be letters, digits, underscores, or dots
+        for (i in 1 until resource.length) {
+            val ch = resource[i]
+            if (!ch.isLetterOrDigit() && ch != '_' && ch != '.') {
+                return false
+            }
+        }
+
+        return true
     }
 }
