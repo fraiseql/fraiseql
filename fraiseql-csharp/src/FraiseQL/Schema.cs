@@ -19,7 +19,54 @@ namespace FraiseQL
         /// </summary>
         public static void RegisterType(string name, Dictionary<string, object> fields, string description = null)
         {
-            registry.Register(name, fields, description);
+            // Validate and extract scopes from fields
+            var validatedFields = new Dictionary<string, object>();
+
+            foreach (var (fieldName, fieldConfig) in fields)
+            {
+                var config = fieldConfig as Dictionary<string, object>;
+                if (config != null)
+                {
+                    // Validate scope if present
+                    if (config.TryGetValue("requiresScope", out var scopeObj) && scopeObj is string scope)
+                    {
+                        ValidateScope(scope, name, fieldName);
+                    }
+
+                    // Validate scopes array if present
+                    if (config.TryGetValue("requiresScopes", out var scopesObj) && scopesObj is List<object> scopes)
+                    {
+                        if (scopes.Count == 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"Field {name}.{fieldName} has empty scopes array");
+                        }
+                        foreach (var s in scopes)
+                        {
+                            if (s is string scopeStr)
+                            {
+                                if (string.IsNullOrEmpty(scopeStr))
+                                {
+                                    throw new InvalidOperationException(
+                                        $"Field {name}.{fieldName} has empty scope in scopes array");
+                                }
+                                ValidateScope(scopeStr, name, fieldName);
+                            }
+                        }
+                    }
+
+                    // Ensure not both scope and scopes
+                    if (config.ContainsKey("requiresScope") && config.ContainsKey("requiresScopes"))
+                    {
+                        throw new InvalidOperationException(
+                            $"Field {name}.{fieldName} cannot have both requiresScope and requiresScopes");
+                    }
+                }
+
+                validatedFields[fieldName] = fieldConfig;
+            }
+
+            registry.Register(name, validatedFields, description);
         }
 
         /// <summary>
@@ -38,13 +85,24 @@ namespace FraiseQL
                 foreach (var (fieldName, fieldConfig) in typeInfo.Fields)
                 {
                     var config = fieldConfig as Dictionary<string, object>;
-                    var field = new
+                    var fieldDict = new Dictionary<string, object>
                     {
-                        name = fieldName,
-                        type = config?.GetValueOrDefault("type", "String") ?? "String",
-                        nullable = config?.GetValueOrDefault("nullable", false) ?? false
+                        { "name", fieldName },
+                        { "type", config?.GetValueOrDefault("type", "String") ?? "String" },
+                        { "nullable", config?.GetValueOrDefault("nullable", false) ?? false }
                     };
-                    fieldsArray.Add(field);
+
+                    // Include scope fields if present
+                    if (config?.ContainsKey("requiresScope") ?? false)
+                    {
+                        fieldDict["requiresScope"] = config["requiresScope"];
+                    }
+                    if (config?.ContainsKey("requiresScopes") ?? false)
+                    {
+                        fieldDict["requiresScopes"] = config["requiresScopes"];
+                    }
+
+                    fieldsArray.Add(fieldDict);
                 }
 
                 var typeObj = new Dictionary<string, object>
@@ -118,6 +176,123 @@ namespace FraiseQL
         public static IEnumerable<string> GetTypeNames()
         {
             return registry.GetTypeNames();
+        }
+
+        /// <summary>
+        /// Validate scope format: action:resource
+        /// Valid patterns:
+        /// - * (global wildcard)
+        /// - action:resource (read:user.email, write:User.salary)
+        /// - action:* (admin:*, read:*)
+        /// </summary>
+        private static void ValidateScope(string scope, string typeName, string fieldName)
+        {
+            if (string.IsNullOrEmpty(scope))
+            {
+                throw new InvalidOperationException($"Field {typeName}.{fieldName} has empty scope");
+            }
+
+            // Global wildcard is always valid
+            if (scope == "*")
+            {
+                return;
+            }
+
+            // Must contain at least one colon
+            if (!scope.Contains(":"))
+            {
+                throw new InvalidOperationException(
+                    $"Field {typeName}.{fieldName} has invalid scope '{scope}' (missing colon)");
+            }
+
+            var parts = scope.Split(new[] { ':' }, 2);
+            if (parts.Length != 2)
+            {
+                throw new InvalidOperationException(
+                    $"Field {typeName}.{fieldName} has invalid scope '{scope}'");
+            }
+
+            var action = parts[0];
+            var resource = parts[1];
+
+            // Validate action: [a-zA-Z_][a-zA-Z0-9_]*
+            if (!IsValidAction(action))
+            {
+                throw new InvalidOperationException(
+                    $"Field {typeName}.{fieldName} has invalid action in scope '{scope}' (must be alphanumeric + underscore)");
+            }
+
+            // Validate resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+            if (!IsValidResource(resource))
+            {
+                throw new InvalidOperationException(
+                    $"Field {typeName}.{fieldName} has invalid resource in scope '{scope}' (must be alphanumeric + underscore + dot, or *)");
+            }
+        }
+
+        /// <summary>
+        /// Check if action matches [a-zA-Z_][a-zA-Z0-9_]*
+        /// </summary>
+        private static bool IsValidAction(string action)
+        {
+            if (string.IsNullOrEmpty(action))
+            {
+                return false;
+            }
+
+            // First character must be letter or underscore
+            var firstChar = action[0];
+            if (!char.IsLetter(firstChar) && firstChar != '_')
+            {
+                return false;
+            }
+
+            // Rest must be letters, digits, or underscores
+            for (int i = 1; i < action.Length; i++)
+            {
+                var ch = action[i];
+                if (!char.IsLetterOrDigit(ch) && ch != '_')
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Check if resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+        /// </summary>
+        private static bool IsValidResource(string resource)
+        {
+            if (resource == "*")
+            {
+                return true;
+            }
+
+            if (string.IsNullOrEmpty(resource))
+            {
+                return false;
+            }
+
+            // First character must be letter or underscore
+            var firstChar = resource[0];
+            if (!char.IsLetter(firstChar) && firstChar != '_')
+            {
+                return false;
+            }
+
+            // Rest must be letters, digits, underscores, or dots
+            for (int i = 1; i < resource.Length; i++)
+            {
+                var ch = resource[i];
+                if (!char.IsLetterOrDigit(ch) && ch != '_' && ch != '.')
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
