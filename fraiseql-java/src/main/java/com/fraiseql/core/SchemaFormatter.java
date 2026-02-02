@@ -117,6 +117,18 @@ public class SchemaFormatter {
                     fieldNode.put("description", fieldInfo.description);
                 }
 
+                // Export scope information
+                if (fieldInfo.requiresScope != null) {
+                    fieldNode.put("requires_scope", fieldInfo.requiresScope);
+                }
+                if (fieldInfo.requiresScopes != null) {
+                    ArrayNode scopesArray = mapper.createArrayNode();
+                    for (String scope : fieldInfo.requiresScopes) {
+                        scopesArray.add(scope);
+                    }
+                    fieldNode.set("requires_scopes", scopesArray);
+                }
+
                 fieldsNode.set(fieldInfo.name, fieldNode);
             }
 

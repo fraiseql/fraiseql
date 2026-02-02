@@ -89,15 +89,104 @@ public class TypeConverter {
                 javaToGraphQL(field.getType()) : annotation.type();
             boolean nullable = annotation.nullable();
 
-            fields.put(fieldName, new GraphQLFieldInfo(
+            // Extract scope information
+            String requiresScope = annotation.requiresScope().isEmpty() ? null : annotation.requiresScope();
+            String[] requiresScopes = annotation.requiresScopes().length == 0 ? null : annotation.requiresScopes();
+
+            // Validate scopes if present
+            if (requiresScope != null) {
+                validateScope(requiresScope, type.getSimpleName(), fieldName);
+            }
+            if (requiresScopes != null) {
+                for (String scope : requiresScopes) {
+                    validateScope(scope, type.getSimpleName(), fieldName);
+                }
+            }
+
+            // Ensure at most one of requiresScope or requiresScopes is set
+            if (requiresScope != null && requiresScopes != null) {
+                throw new RuntimeException(
+                    String.format("Field %s.%s cannot have both requiresScope and requiresScopes",
+                        type.getSimpleName(), fieldName)
+                );
+            }
+
+            GraphQLFieldInfo fieldInfo = new GraphQLFieldInfo(
                 fieldName,
                 graphQLType,
                 nullable,
-                annotation.description()
-            ));
+                annotation.description(),
+                requiresScope,
+                requiresScopes
+            );
+
+            // Set deprecation flag if deprecated reason is provided
+            if (!annotation.deprecated().isEmpty()) {
+                fieldInfo.isDeprecated = true;
+            }
+
+            fields.put(fieldName, fieldInfo);
         }
 
         return fields;
+    }
+
+    /**
+     * Validates scope format: action:resource where:
+     * - action: alphanumeric + underscore (e.g., read, write, admin)
+     * - resource: alphanumeric + underscore + dot + asterisk (e.g., user.email, User.*, *)
+     *
+     * Valid patterns:
+     * - read:user.email
+     * - write:User.salary
+     * - admin:*
+     * - read:*
+     * - *
+     */
+    private static void validateScope(String scope, String typeName, String fieldName) {
+        if (scope == null || scope.isEmpty()) {
+            throw new RuntimeException(
+                String.format("Field %s.%s has empty scope", typeName, fieldName)
+            );
+        }
+
+        // Global wildcard is always valid
+        if ("*".equals(scope)) {
+            return;
+        }
+
+        // Must contain at least one colon
+        if (!scope.contains(":")) {
+            throw new RuntimeException(
+                String.format("Field %s.%s has invalid scope '%s' (missing colon)", typeName, fieldName, scope)
+            );
+        }
+
+        String[] parts = scope.split(":", 2);
+        if (parts.length != 2) {
+            throw new RuntimeException(
+                String.format("Field %s.%s has invalid scope '%s'", typeName, fieldName, scope)
+            );
+        }
+
+        String action = parts[0];
+        String resource = parts[1];
+
+        // Validate action: alphanumeric + underscore
+        if (!action.matches("[a-zA-Z_][a-zA-Z0-9_]*")) {
+            throw new RuntimeException(
+                String.format("Field %s.%s has invalid action in scope '%s' (must be alphanumeric + underscore)",
+                    typeName, fieldName, scope)
+            );
+        }
+
+        // Validate resource: alphanumeric + underscore + dot + asterisk
+        if (!resource.matches("[a-zA-Z_][a-zA-Z0-9_.]*|\\*")) {
+            throw new RuntimeException(
+                String.format("Field %s.%s has invalid resource in scope '%s' (must be alphanumeric + underscore + dot, or *)",
+                    typeName, fieldName, scope)
+            );
+        }
     }
 
     /**
@@ -108,12 +197,31 @@ public class TypeConverter {
         public final String type;
         public final boolean nullable;
         public final String description;
+        public final String requiresScope;
+        public final String[] requiresScopes;
+        public boolean isDeprecated;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
+            this(name, type, nullable, description, null, null);
+        }
+
+        public GraphQLFieldInfo(String name, String type, boolean nullable, String description,
+                              String requiresScope, String[] requiresScopes) {
             this.name = name;
             this.type = type;
             this.nullable = nullable;
             this.description = description;
+            this.requiresScope = requiresScope;
+            this.requiresScopes = requiresScopes;
+            this.isDeprecated = false;
+        }
+
+        public String getRequiresScope() {
+            return requiresScope;
+        }
+
+        public String[] getRequiresScopes() {
+            return requiresScopes;
         }
 
         @Override
