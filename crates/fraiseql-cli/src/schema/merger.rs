@@ -36,8 +36,8 @@ impl SchemaMerger {
         let toml_schema = TomlSchema::from_file(toml_path)
             .context(format!("Failed to load TOML from {toml_path}"))?;
 
-        // Validate TOML
-        toml_schema.validate()?;
+        // Note: TOML validation is skipped here because queries may reference types
+        // from types.json (not yet loaded). Validation happens in the compiler after merge.
 
         // Merge
         Self::merge_values(&types_value, &toml_schema)
@@ -451,19 +451,7 @@ impl SchemaMerger {
             "mutations": mutations_array,
         });
 
-        // Add federation config if enabled
-        if toml_schema.federation.enabled {
-            merged["federation"] = json!({
-                "enabled": true,
-                "apollo_version": toml_schema.federation.apollo_version,
-                "entities": toml_schema.federation.entities.iter().map(|e| json!({
-                    "name": e.name,
-                    "key_fields": e.key_fields,
-                })).collect::<Vec<_>>(),
-            });
-        }
-
-        // Add security configuration
+        // Add security configuration if available in TOML
         merged["security"] = json!({
             "default_policy": toml_schema.security.default_policy,
             "rules": toml_schema.security.rules.iter().map(|r| json!({
@@ -502,57 +490,9 @@ impl SchemaMerger {
             }),
         });
 
-        // Add observers configuration if enabled
-        if toml_schema.observers.enabled {
-            merged["observers"] = json!({
-                "enabled": true,
-                "backend": toml_schema.observers.backend,
-                "redis_url": toml_schema.observers.redis_url,
-                "handlers": toml_schema.observers.handlers.iter().map(|h| json!({
-                    "name": h.name,
-                    "event": h.event,
-                    "action": h.action,
-                    "webhook_url": h.webhook_url,
-                    "retry_strategy": h.retry_strategy,
-                    "max_retries": h.max_retries,
-                    "description": h.description,
-                })).collect::<Vec<_>>(),
-            });
-        }
-
-        // Add caching configuration if enabled
-        if toml_schema.caching.enabled {
-            merged["caching"] = json!({
-                "enabled": true,
-                "backend": toml_schema.caching.backend,
-                "redis_url": toml_schema.caching.redis_url,
-                "rules": toml_schema.caching.rules.iter().map(|r| json!({
-                    "query": r.query,
-                    "ttl_seconds": r.ttl_seconds,
-                    "invalidation_triggers": r.invalidation_triggers,
-                })).collect::<Vec<_>>(),
-            });
-        }
-
-        // Add analytics configuration if enabled
-        if toml_schema.analytics.enabled {
-            merged["analytics"] = json!({
-                "enabled": true,
-                "queries": toml_schema.analytics.queries.iter().map(|q| json!({
-                    "name": q.name,
-                    "sql_source": q.sql_source,
-                    "description": q.description,
-                })).collect::<Vec<_>>(),
-            });
-        }
-
-        // Add schema metadata
-        merged["schema"] = json!({
-            "name": toml_schema.schema.name,
-            "version": toml_schema.schema.version,
-            "description": toml_schema.schema.description,
-            "database_target": toml_schema.schema.database_target,
-        });
+        // Note: Federation, caching, observers, and analytics configuration
+        // are available in TOML but not included in IntermediateSchema to keep
+        // it language-agnostic and focused on schema definition
 
         // Convert to IntermediateSchema
         serde_json::from_value::<IntermediateSchema>(merged)

@@ -198,6 +198,8 @@ impl CodeGenerator {
             observers: Vec::new(),
             // Federation metadata: populated if Apollo Federation is configured
             federation: None,
+            // Security configuration: populated from fraiseql.toml
+            security: None,
             // Raw schema SDL: populated for federation _service query
             schema_sdl: None,
         })

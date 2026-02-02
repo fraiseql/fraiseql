@@ -135,6 +135,7 @@ fn test_schema_to_json_roundtrip() {
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
         federation:    None,
+        security:      None,
         schema_sdl:    None,
     };
 
@@ -329,6 +330,7 @@ fn test_operation_count() {
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
         federation:    None,
+        security:      None,
         schema_sdl:    None,
     };
 
@@ -698,6 +700,7 @@ fn test_vector_field_roundtrip() {
         fact_tables:   std::collections::HashMap::new(),
         observers:     Vec::new(),
         federation:    None,
+        security:      None,
         schema_sdl:    None,
     };
 

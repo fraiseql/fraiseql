@@ -92,6 +92,10 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub federation: Option<serde_json::Value>,
 
+    /// Security configuration (from fraiseql.toml).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub security: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,

@@ -121,6 +121,7 @@ impl SchemaConverter {
             fact_tables,           // Analytics metadata
             observers: Vec::new(), // Observer definitions (populated from IntermediateSchema)
             federation: None,      // Federation metadata
+            security: intermediate.security, // Security configuration from TOML
             schema_sdl: None,      // Raw GraphQL SDL
         };
 

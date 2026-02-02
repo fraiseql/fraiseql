@@ -338,6 +338,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
@@ -377,6 +378,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
@@ -416,6 +418,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
@@ -458,6 +461,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
@@ -500,6 +504,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
@@ -552,6 +557,7 @@ mod tests {
             observers:     Vec::new(),
             fact_tables:   HashMap::default(),
             federation:    None,
+            security:      None,
             schema_sdl:    None,
         };
 
