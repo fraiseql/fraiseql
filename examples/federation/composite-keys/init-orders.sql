@@ -27,12 +27,12 @@ SELECT
     pk_tenant_order,
     jsonb_build_object(
         'id', id,
-        'organizationId', organization_id,
-        'orderId', order_id,
-        'userId', user_id,
+        'organization_id', organization_id,
+        'order_id', order_id,
+        'user_id', user_id,
         'status', status,
         'amount', amount,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_order;
 

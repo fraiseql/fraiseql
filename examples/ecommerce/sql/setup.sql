@@ -86,7 +86,7 @@ SELECT
         'id', id,
         'name', name,
         'description', description,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_category;
 
@@ -99,10 +99,10 @@ SELECT
         'description', p.description,
         'price', p.price,
         'inventory', p.inventory,
-        'categoryId', c.id,
-        'categoryName', c.name,
-        'createdAt', p.created_at,
-        'updatedAt', p.updated_at
+        'category_id', c.id,
+        'category_name', c.name,
+        'created_at', p.created_at,
+        'updated_at', p.updated_at
     ) AS data
 FROM tb_product p
 JOIN tb_category c ON p.fk_category = c.pk_category;
@@ -115,8 +115,8 @@ SELECT
         'name', name,
         'email', email,
         'phone', phone,
-        'joinedDate', joined_date,
-        'createdAt', created_at
+        'joined_date', joined_date,
+        'created_at', created_at
     ) AS data
 FROM tb_customer;
 
@@ -125,12 +125,12 @@ SELECT
     pk_order,
     jsonb_build_object(
         'id', o.id,
-        'customerId', cu.id,
-        'customerName', cu.name,
-        'totalPrice', o.total_price,
+        'customer_id', cu.id,
+        'customer_name', cu.name,
+        'total_price', o.total_price,
         'status', o.status,
-        'createdAt', o.created_at,
-        'updatedAt', o.updated_at
+        'created_at', o.created_at,
+        'updated_at', o.updated_at
     ) AS data
 FROM tb_order o
 JOIN tb_customer cu ON o.fk_customer = cu.pk_customer;
@@ -140,12 +140,12 @@ SELECT
     oi.pk_order_item,
     jsonb_build_object(
         'id', oi.id,
-        'productId', pr.id,
-        'productName', pr.name,
-        'productPrice', pr.price,
+        'product_id', pr.id,
+        'product_name', pr.name,
+        'product_price', pr.price,
         'quantity', oi.quantity,
         'price', oi.price,
-        'createdAt', oi.created_at
+        'created_at', oi.created_at
     ) AS data
 FROM tb_order_item oi
 JOIN tb_product pr ON oi.fk_product = pr.pk_product;

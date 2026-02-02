@@ -40,7 +40,7 @@ SELECT
         'id', id,
         'name', name,
         'email', email,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_user;
 
@@ -51,10 +51,10 @@ SELECT
         'id', p.id,
         'title', p.title,
         'content', p.content,
-        'authorId', u.id,
-        'authorName', u.name,
-        'authorEmail', u.email,
-        'createdAt', p.created_at
+        'author_id', u.id,
+        'author_name', u.name,
+        'author_email', u.email,
+        'created_at', p.created_at
     ) AS data
 FROM tb_post p
 JOIN tb_user u ON p.fk_user = u.pk_user;

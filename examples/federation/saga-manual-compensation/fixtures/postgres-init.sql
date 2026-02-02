@@ -73,12 +73,12 @@ SELECT
     pk_account,
     jsonb_build_object(
         'id', id,
-        'accountNumber', account_number,
-        'accountHolder', account_holder,
+        'account_number', account_number,
+        'account_holder', account_holder,
         'balance', balance,
         'status', status,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_account;
 
@@ -87,12 +87,12 @@ SELECT
     pk_transfer,
     jsonb_build_object(
         'id', id,
-        'transactionId', transaction_id,
+        'transaction_id', transaction_id,
         'amount', amount,
         'status', status,
         'description', description,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_transfer;
 
@@ -101,8 +101,8 @@ SELECT
     pk_log_entry,
     jsonb_build_object(
         'id', id,
-        'transactionId', transaction_id,
-        'eventType', event_type,
+        'transaction_id', transaction_id,
+        'event_type', event_type,
         'details', details,
         'timestamp', timestamp
     ) AS data
@@ -113,11 +113,11 @@ SELECT
     pk_compensation,
     jsonb_build_object(
         'id', id,
-        'transactionId', transaction_id,
-        'compensationType', compensation_type,
-        'originalStep', original_step,
+        'transaction_id', transaction_id,
+        'compensation_type', compensation_type,
+        'original_step', original_step,
         'status', status,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_compensation_record;
 

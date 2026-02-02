@@ -71,11 +71,11 @@ SELECT
     pk_saga,
     jsonb_build_object(
         'id', id,
-        'sagaType', saga_type,
+        'saga_type', saga_type,
         'status', status,
-        'createdAt', created_at,
-        'updatedAt', updated_at,
-        'errorMessage', error_message
+        'created_at', created_at,
+        'updated_at', updated_at,
+        'error_message', error_message
     ) AS data
 FROM tb_saga;
 
@@ -84,11 +84,11 @@ SELECT
     pk_saga_step,
     jsonb_build_object(
         'id', id,
-        'stepIndex', step_index,
+        'step_index', step_index,
         'name', name,
         'status', status,
-        'createdAt', created_at,
-        'completedAt', completed_at
+        'created_at', created_at,
+        'completed_at', completed_at
     ) AS data
 FROM tb_saga_step;
 
@@ -99,8 +99,8 @@ SELECT
         'id', id,
         'name', name,
         'email', email,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_user;
 
@@ -109,10 +109,10 @@ SELECT
     pk_ledger_entry,
     jsonb_build_object(
         'id', id,
-        'orderId', order_id,
-        'eventType', event_type,
+        'order_id', order_id,
+        'event_type', event_type,
         'amount', amount,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_user_order_ledger;
 

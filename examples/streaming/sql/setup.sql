@@ -74,7 +74,7 @@ SELECT
         'type', type,
         'timestamp', timestamp,
         'data', data,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_event;
 
@@ -83,12 +83,12 @@ SELECT
     m.pk_message,
     jsonb_build_object(
         'id', m.id,
-        'userId', u.id,
+        'user_id', u.id,
         'username', u.username,
         'content', m.content,
         'timestamp', m.timestamp,
         'reactions', m.reactions,
-        'createdAt', m.created_at
+        'created_at', m.created_at
     ) AS data
 FROM tb_message m
 JOIN tb_user_activity u ON m.fk_user_activity = u.pk_user_activity;
@@ -100,9 +100,9 @@ SELECT
         'id', id,
         'username', username,
         'status', status,
-        'lastSeen', last_seen,
-        'activeNow', active_now,
-        'updatedAt', updated_at
+        'last_seen', last_seen,
+        'active_now', active_now,
+        'updated_at', updated_at
     ) AS data
 FROM tb_user_activity;
 
@@ -115,7 +115,7 @@ SELECT
         'value', value,
         'timestamp', timestamp,
         'source', source,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_metric;
 

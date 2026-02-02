@@ -25,10 +25,10 @@ SELECT
     pk_order,
     jsonb_build_object(
         'id', id,
-        'userId', user_id,
+        'user_id', user_id,
         'status', status,
         'total', total,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_order;
 

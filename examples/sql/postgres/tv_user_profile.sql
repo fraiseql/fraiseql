@@ -15,7 +15,7 @@ SELECT
         jsonb_build_object(
             'id', id,
             'text', text,
-            'createdAt', created_at
+            'created_at', created_at
         )
         ORDER BY created_at DESC
     ) AS comments_data

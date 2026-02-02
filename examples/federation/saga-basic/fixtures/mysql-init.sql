@@ -34,11 +34,11 @@ SELECT
     pk_order,
     JSON_OBJECT(
         'id', id,
-        'userId', user_id,
+        'user_id', user_id,
         'status', status,
         'total', total,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_order;
 
@@ -47,7 +47,7 @@ SELECT
     pk_order_item,
     JSON_OBJECT(
         'id', id,
-        'productId', product_id,
+        'product_id', product_id,
         'quantity', quantity,
         'price', price
     ) AS data
@@ -101,8 +101,8 @@ SELECT
         'name', name,
         'stock', stock,
         'price', price,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_product;
 
@@ -111,10 +111,10 @@ SELECT
     pk_reservation,
     JSON_OBJECT(
         'id', id,
-        'orderId', order_id,
+        'order_id', order_id,
         'status', status,
-        'createdAt', created_at,
-        'updatedAt', updated_at
+        'created_at', created_at,
+        'updated_at', updated_at
     ) AS data
 FROM tb_reservation;
 
@@ -123,7 +123,7 @@ SELECT
     pk_reservation_item,
     JSON_OBJECT(
         'id', id,
-        'productId', product_id,
+        'product_id', product_id,
         'quantity', quantity
     ) AS data
 FROM tb_reservation_item;

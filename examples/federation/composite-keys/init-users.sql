@@ -37,7 +37,7 @@ SELECT
     jsonb_build_object(
         'id', id,
         'name', name,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_organization;
 
@@ -46,12 +46,12 @@ SELECT
     pk_org_user,
     jsonb_build_object(
         'id', id,
-        'organizationId', organization_id,
-        'userId', user_id,
+        'organization_id', organization_id,
+        'user_id', user_id,
         'name', name,
         'email', email,
         'role', role,
-        'createdAt', created_at
+        'created_at', created_at
     ) AS data
 FROM tb_organization_user;
 
