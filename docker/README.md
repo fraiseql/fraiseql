@@ -1,78 +1,125 @@
-# FraiseQL Docker Setup Guide
+# FraiseQL Docker Guide
 
-This directory contains Docker configuration for running FraiseQL, with support for both development/testing and newcomer onboarding scenarios.
+Docker configuration for running FraiseQL with zero Rust compilation. Get a fully working GraphQL server with tutorial and admin dashboard in under a minute.
 
-## Quick Start (Newcomers)
+---
 
-For the fastest way to try FraiseQL without local Rust compilation:
+## Quick Start (30 Seconds)
+
+### Option 1: Demo (Recommended for First-Time Users)
 
 ```bash
 docker compose -f docker-compose.demo.yml up -d
 ```
 
-Then open:
+Open your browser:
+- **GraphQL IDE**: http://localhost:3000 (Query explorer)
+- **Tutorial**: http://localhost:3001 (6-chapter interactive learning)
+- **Server**: http://localhost:8000 (GraphQL API)
 
-- **GraphQL IDE**: http://localhost:3000
+Stop with:
+```bash
+make demo-stop
+```
+
+### Option 2: Production Pre-built Images
+
+For production deployments with minimal overhead:
+
+```bash
+# Single blog example
+docker compose -f docker-compose.prod.yml up -d
+
+# Or all 3 examples (blog, e-commerce, streaming)
+docker compose -f docker-compose.prod-examples.yml up -d
+```
+
+Services run on:
+- **Blog IDE**: http://localhost:3000
+- **E-Commerce IDE**: http://localhost:3100 (if all examples)
+- **Streaming IDE**: http://localhost:3200 (if all examples)
 - **Tutorial**: http://localhost:3001
-- **FraiseQL Server**: http://localhost:8000
+- **Admin Dashboard**: http://localhost:3002
 
-See [../docs/docker-quickstart.md](../docs/docker-quickstart.md) for detailed instructions.
+### Option 3: Using Make (Easiest)
 
-## Docker Files
+```bash
+# Demo stack
+make demo-start       # Start everything
+make demo-status      # Check health
+make demo-logs        # View logs
+make demo-stop        # Stop everything
+make demo-clean       # Fresh start (removes data)
 
-### `docker-compose.demo.yml`
+# Production stack
+make prod-start       # Single example
+make prod-examples-start  # All examples
+make prod-examples-status # Check health
+```
 
-**Purpose**: Newcomer onboarding platform
+---
+
+## Docker Compose Files
+
+### `docker-compose.demo.yml` - Newcomer Onboarding
+
+**Best for**: Learning, experimentation, first-time users
+
 **Services**:
-
 - PostgreSQL 16 (blog database)
 - FraiseQL Server (GraphQL API)
 - Apollo Sandbox (GraphQL IDE)
 - Tutorial Server (Interactive learning)
+- Admin Dashboard (Debugging & monitoring)
 
 **Usage**:
 ```bash
-# Start all services
-docker compose -f docker-compose.demo.yml up -d
-
-# View logs
-docker compose -f docker-compose.demo.yml logs -f
-
-# Stop all services
-docker compose -f docker-compose.demo.yml down
-
-# Remove data volumes (fresh start)
-docker compose -f docker-compose.demo.yml down -v
+docker compose -f docker-compose.demo.yml up -d      # Start
+docker compose -f docker-compose.demo.yml logs -f    # View logs
+docker compose -f docker-compose.demo.yml down -v    # Stop (fresh start)
 ```
 
-### `../docker-compose.yml`
+### `docker-compose.prod.yml` - Production Single Example
 
-**Purpose**: Development and integration testing
+**Best for**: Production deployments, minimal resource footprint
+
 **Services**:
+- PostgreSQL 16
+- FraiseQL Server
+- Pre-built blog example
 
-- PostgreSQL 16 (primary test database)
+### `docker-compose.prod-examples.yml` - Production Multiple Examples
+
+**Best for**: Showcasing capabilities, testing different scenarios
+
+**Services**:
+- PostgreSQL 16 (multi-example database)
+- 3 FraiseQL instances (blog, e-commerce, streaming)
+- Pre-built examples with sample data
+
+### `docker-compose.yml` - Development & Testing
+
+**Best for**: Developers, running tests, integration work
+
+**Services**:
+- PostgreSQL 16 (primary)
 - MySQL 8.0 (multi-database testing)
 - SQL Server 2022 (enterprise testing)
-- Optional: Redis, NATS (with profiles)
+- Optional: Redis, NATS (use `--profile` flags)
 
 **Usage**:
 ```bash
-# Start core databases
-docker compose up -d
-
-# Start with server
-docker compose --profile with-server up -d
-
-# Start everything
-docker compose --profile with-server --profile with-redis --profile with-nats up -d
+docker compose up -d                    # Core databases only
+docker compose --profile with-server up -d  # Add FraiseQL server
+docker compose --profile with-redis --profile with-nats up -d  # Everything
 ```
 
-### `../docker-compose.test.yml`
+### `docker-compose.test.yml` - Comprehensive Testing
 
-**Purpose**: Comprehensive testing with all integrations
+**Best for**: Running integration tests with all services
+
 **Services**:
-
-- PostgreSQL 16 with pgvector extension
+- PostgreSQL 16 with pgvector
 - MySQL 8.3
 - SQL Server 2022
 - Redis 7
@@ -82,61 +129,92 @@ docker compose --profile with-server --profile with-redis --profile with-nats up
 
 **Usage**:
 ```bash
-# Start all test services
 docker compose -f docker-compose.test.yml up -d
-
-# Run integration tests
 make test-integration
 ```
 
-## Using Make Commands
+---
 
-The recommended way to manage Docker services:
+## Make Commands
+
+Recommended way to manage services:
 
 ```bash
-# Demo (Newcomers)
-make demo-start      # Start demo stack
-make demo-stop       # Stop demo stack
-make demo-logs       # View demo logs
-make demo-status     # Check health
-make demo-restart    # Restart services
-make demo-clean      # Remove volumes and stop
+# Demo Stack (Newcomers)
+make demo-start        # Start demo
+make demo-stop         # Stop demo
+make demo-logs         # View logs
+make demo-status       # Health check
+make demo-restart      # Restart services
+make demo-clean        # Reset with fresh data
 
-# Development (Developers)
-make db-up           # Start test databases
-make db-down         # Stop test databases
-make db-logs         # View database logs
-make db-status       # Check database health
-make db-reset        # Reset with fresh volumes
+# Production Stack (Single Example)
+make prod-start        # Start single example
+make prod-stop         # Stop
+make prod-logs         # View logs
+make prod-status       # Health check
+
+# Production Stack (Multiple Examples)
+make prod-examples-start   # Start all examples
+make prod-examples-stop    # Stop all
+make prod-examples-logs    # View logs
+make prod-examples-status  # Health check
+
+# Development Databases
+make db-up             # Start test databases
+make db-down           # Stop
+make db-logs           # View logs
+make db-status         # Health check
+make db-reset          # Fresh start
+
+# Help
+make help              # All available commands
+make help | grep demo  # Demo commands only
 ```
+
+---
 
 ## Dockerfile
 
 **Location**: `../Dockerfile`
 
-**Build**: Multi-stage build producing optimized runtime image
-- **Stage 1 (Builder)**: Rust 1.84-slim, compiles binaries
-- **Stage 2 (Runtime)**: Debian bookworm-slim, minimal dependencies
+**Type**: Multi-stage build
 
-**Binaries**: `fraiseql-server`, `fraiseql-cli`
+**Stages**:
+1. **Builder**: Rust 1.84-slim - compiles `fraiseql-server` and `fraiseql-cli`
+2. **Runtime**: Debian bookworm-slim - minimal dependencies, optimized image
 
 **Build locally**:
 ```bash
 docker build -t fraiseql:latest .
+docker build -t fraiseql:v2.0.0 .
 ```
 
-## Port Mapping
+**Push to registry**:
+```bash
+docker tag fraiseql:latest myregistry/fraiseql:latest
+docker push myregistry/fraiseql:latest
+```
 
-| Service | Demo Port | Dev Port | Test Port | Purpose |
-|---------|-----------|----------|-----------|---------|
-| FraiseQL Server | 8000 | 8000 | 8000 | GraphQL API |
-| GraphQL IDE | 3000 | - | - | Query explorer |
-| Tutorial | 3001 | - | - | Learning platform |
-| PostgreSQL | 5432 | 5433 | 5433 | Primary database |
-| MySQL | - | 3307 | 3307 | Secondary database |
-| SQL Server | - | 1434 | 1434 | Enterprise database |
-| Redis | - | 6379 | 6380 | Caching |
-| NATS | - | 4223 | 4223 | Message broker |
+---
+
+## Port Reference
+
+| Service | Demo | Prod | Dev | Test | Purpose |
+|---------|------|------|-----|------|---------|
+| FraiseQL Server | 8000 | 8000 | 8000 | 8000 | GraphQL API |
+| GraphQL IDE (Blog) | 3000 | 3000 | - | - | Query explorer |
+| GraphQL IDE (E-Commerce) | - | 3100 | - | - | Advanced queries |
+| GraphQL IDE (Streaming) | - | 3200 | - | - | Real-time data |
+| Tutorial Server | 3001 | 3001 | - | - | Interactive learning |
+| Admin Dashboard | 3002 | 3002 | - | - | Debugging & monitoring |
+| PostgreSQL | 5432 | 5432 | 5433 | 5433 | Primary database |
+| MySQL | - | - | 3307 | 3307 | Secondary database |
+| SQL Server | - | - | 1434 | 1434 | Enterprise database |
+| Redis | - | - | 6379 | 6380 | Caching |
+| NATS | - | - | 4223 | 4223 | Message broker |
+
+---
 
 ## Environment Variables
 
@@ -156,15 +234,15 @@ docker build -t fraiseql:latest .
 
 ### Tutorial Server
 
-- `FRAISEQL_API_URL`: FraiseQL server URL (for tutorial queries)
-- `TUTORIAL_PORT`: Tutorial server port (default: 3001)
+- `FRAISEQL_API_URL`: FraiseQL server URL
+- `TUTORIAL_PORT`: Tutorial server port (default: `3001`)
 - `NODE_ENV`: Node environment (default: `production`)
+
+---
 
 ## Troubleshooting
 
 ### Port Already in Use
-
-If you get "Address already in use" errors:
 
 ```bash
 # Find what's using the port
@@ -173,13 +251,14 @@ lsof -i :8000
 # Kill the process
 kill -9 <PID>
 
-# Or change the port in docker-compose.demo.yml
+# Or modify docker-compose.demo.yml and change the port
 ```
 
-### Service Won't Start
+### Services Won't Start
 
 Check logs:
 ```bash
+docker compose -f docker-compose.demo.yml logs
 docker compose -f docker-compose.demo.yml logs fraiseql-server
 ```
 
@@ -206,31 +285,54 @@ docker compose -f docker-compose.demo.yml exec tutorial \
 
 ### GraphQL IDE Shows Blank Page
 
-Clear browser cache or try incognito window. The IDE needs JavaScript enabled.
+- Clear browser cache
+- Try incognito/private window
+- Ensure JavaScript is enabled
+- Check that port 3000 is actually serving content
+
+---
 
 ## Docker Network
 
-All demo services run on the `fraiseql-demo` network, allowing inter-service communication by hostname:
+Demo services run on the `fraiseql-demo` network for inter-service communication:
 
-- `postgres-blog` - PostgreSQL from server/tutorial
-- `fraiseql-server` - GraphQL API from tutorial
+```
+┌──────────────────┐
+│  postgres-blog   │ (PostgreSQL database)
+└────────┬─────────┘
+         │ (connection string)
+         ↓
+┌──────────────────────────────────────────────────┐
+│ fraiseql-server (GraphQL execution engine)       │
+└────────┬───────────────────────────┬──────┬──────┘
+         │                           │      │
+         ↓                           ↓      ↓
+    tutorial              apollo-sandbox admin-dashboard
+   (learning)             (IDE)           (monitoring)
+```
+
+Service hostnames (from within containers):
+- `postgres-blog` - PostgreSQL
+- `fraiseql-server` - GraphQL API
 - `tutorial` - Tutorial server
+
+---
 
 ## Volume Management
 
 ### Persistent Data
 
-Volumes are preserved between restarts:
+Volumes persist between restarts:
 
 ```bash
-# List volumes
+# List all FraiseQL volumes
 docker volume ls | grep fraiseql
 
-# Inspect volume
+# Inspect a specific volume
 docker volume inspect fraiseql-postgres-blog-data
 ```
 
-### Remove Volumes (Fresh Start)
+### Fresh Start (Remove Data)
 
 ```bash
 # Demo stack
@@ -241,27 +343,39 @@ docker compose down -v
 docker compose -f docker-compose.test.yml down -v
 ```
 
-## Production Considerations
+---
 
-These Docker setups are for **development and learning only**. For production:
+## Production Deployment
 
-1. **Security**
-   - Change default passwords
-   - Use secrets management (Docker Secrets, Kubernetes Secrets)
-   - Enable TLS/SSL
-   - Implement authentication
+These Docker setups are for **development and learning**. For production:
 
-2. **Scalability**
-   - Use Kubernetes or orchestration platform
-   - Implement load balancing
-   - Configure connection pooling
+### Security
 
-3. **Monitoring**
-   - Add logging (ELK, Datadog, etc.)
-   - Implement health checks
-   - Track metrics
+- Change all default passwords
+- Use secrets management (Docker Secrets, Kubernetes Secrets, HashiCorp Vault)
+- Enable TLS/SSL for all connections
+- Implement authentication/authorization
+- Run in isolated networks
 
-See [../docs/deployment/guide.md](../docs/deployment/guide.md) for production deployment.
+### Scalability
+
+- Use Kubernetes or Docker Swarm
+- Implement load balancing (nginx, HAProxy)
+- Configure connection pooling
+- Use managed databases (RDS, Azure Database, etc.)
+- Implement horizontal scaling for stateless services
+
+### Monitoring
+
+- Add centralized logging (ELK stack, Datadog, CloudWatch)
+- Implement health checks and alerting
+- Track metrics (Prometheus, New Relic)
+- Set up distributed tracing (Jaeger)
+- Monitor resource usage
+
+See [../docs/deployment/guide.md](../docs/deployment/guide.md) for comprehensive production deployment guide.
+
+---
 
 ## Building and Publishing Images
 
@@ -269,28 +383,27 @@ For CI/CD pipelines:
 
 ```bash
 # Build for Docker Hub
-docker build -t myrepo/fraiseql:latest .
-
-# Push to registry
-docker push myrepo/fraiseql:latest
+docker build -t myregistry/fraiseql:latest .
 
 # Tag by version
-docker build -t myrepo/fraiseql:v2.0.0 .
-docker push myrepo/fraiseql:v2.0.0
+docker build -t myregistry/fraiseql:v2.0.0 .
+
+# Push to registry
+docker push myregistry/fraiseql:latest
+docker push myregistry/fraiseql:v2.0.0
 ```
 
-## Additional Resources
-
-- **Production Deployment**: [QUICKSTART-PROD.md](QUICKSTART-PROD.md)
-- **Reference Guide**: [QUICKSTART-REFERENCE.md](QUICKSTART-REFERENCE.md)
-- **Platform Overview**: [PLATFORM.md](PLATFORM.md)
+---
 
 ## Next Steps
 
-- **Get Started**: [../docs/docker-quickstart.md](../docs/docker-quickstart.md)
-- **Full Guide**: [../docs/GETTING_STARTED.md](../docs/GETTING_STARTED.md)
+- **Getting Started**: [../docs/GETTING_STARTED.md](../docs/GETTING_STARTED.md)
+- **Docker Quick Start**: [../docs/docker-quickstart.md](../docs/docker-quickstart.md)
+- **Full Documentation**: [../docs/README.md](../docs/README.md)
 - **Examples**: [../examples/README.md](../examples/README.md)
-- **Deployment**: [../docs/deployment/guide.md](../docs/deployment/guide.md)
+- **Production Deployment**: [../docs/deployment/guide.md](../docs/deployment/guide.md)
+
+---
 
 ## Support
 
