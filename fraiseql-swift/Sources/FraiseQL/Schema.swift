@@ -3,6 +3,70 @@ import Foundation
 typealias FieldConfig = [String: Any]
 typealias TypeFields = [String: FieldConfig]
 
+/// Validator for field-level scope format and patterns
+///
+/// Scope format: action:resource
+/// Examples: read:user.email, admin:*, write:Post.*
+///
+/// Rules:
+/// - Action: [a-zA-Z_][a-zA-Z0-9_]*
+/// - Resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+enum ScopeValidator {
+  /// Validates scope format: action:resource
+  ///
+  /// - Parameter scope: The scope string to validate
+  /// - Returns: true if valid, false otherwise
+  static func validate(_ scope: String) -> Bool {
+    if scope.isEmpty {
+      return false
+    }
+
+    if scope == "*" {
+      return true
+    }
+
+    let parts = scope.split(separator: ":", maxSplits: 1)
+    guard parts.count == 2 else {
+      return false
+    }
+
+    let action = String(parts[0])
+    let resource = String(parts[1])
+
+    guard !action.isEmpty, !resource.isEmpty else {
+      return false
+    }
+
+    return isValidAction(action) && isValidResource(resource)
+  }
+
+  /// Validates a list of scopes
+  ///
+  /// - Parameter scopes: The list of scopes to validate
+  /// - Returns: true if all are valid, false otherwise
+  static func validateAll(_ scopes: [String]) -> Bool {
+    guard !scopes.isEmpty else { return false }
+    return scopes.allSatisfy(validate)
+  }
+
+  /// Checks if action matches pattern: [a-zA-Z_][a-zA-Z0-9_]*
+  private static func isValidAction(_ action: String) -> Bool {
+    guard !action.isEmpty else { return false }
+    let first = action.first!
+    guard first.isLetter || first == "_" else { return false }
+    return action.dropFirst().allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+  }
+
+  /// Checks if resource matches pattern: [a-zA-Z_][a-zA-Z0-9_.]*|*
+  private static func isValidResource(_ resource: String) -> Bool {
+    if resource == "*" { return true }
+    guard !resource.isEmpty else { return false }
+    let first = resource.first!
+    guard first.isLetter || first == "_" else { return false }
+    return resource.dropFirst().allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }
+  }
+}
+
 struct FieldDefinition: Codable {
   let name: String
   let type: String
@@ -65,11 +129,24 @@ public enum Schema {
       for (fieldName, fieldConfig) in typeInfo.fields {
         let fieldType = fieldConfig["type"] as? String ?? "String"
         let nullable = fieldConfig["nullable"] as? Bool ?? false
-        fieldsArray.append([
+
+        var field: [String: Any] = [
           "name": fieldName,
           "type": fieldType,
           "nullable": nullable
-        ])
+        ]
+
+        // Add scope if present
+        if let scope = fieldConfig["requiresScope"] as? String {
+          field["requiresScope"] = scope
+        }
+
+        // Add scopes if present
+        if let scopes = fieldConfig["requiresScopes"] as? [String] {
+          field["requiresScopes"] = scopes
+        }
+
+        fieldsArray.append(field)
       }
 
       var typeObj: [String: Any] = [
@@ -118,6 +195,10 @@ public enum Schema {
 
   public static func getTypeNames() -> [String] {
     return SchemaRegistry.shared.getTypeNames()
+  }
+
+  public static func getType(_ name: String) -> TypeInfo? {
+    return SchemaRegistry.shared.getType(name)
   }
 }
 
