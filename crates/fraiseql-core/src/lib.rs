@@ -128,6 +128,7 @@ pub mod graphql;
 pub mod apq;
 pub mod cache;
 pub mod db;
+pub mod design;
 pub mod federation;
 pub mod security;
 pub mod utils;
