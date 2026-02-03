@@ -3,6 +3,7 @@
 //! Usage: fraiseql lint schema.json [--federation] [--cost] [--cache] [--auth] [--compilation]
 //!        fraiseql lint schema.json --format=json
 //!        fraiseql lint schema.json --fail-on-critical
+//!        fraiseql lint schema.json --verbose --fail-on-warning
 
 use anyhow::Result;
 use serde::Serialize;
@@ -11,6 +12,27 @@ use std::path::Path;
 
 use fraiseql_core::design::DesignAudit;
 use crate::output::CommandResult;
+
+/// Lint command options
+#[derive(Debug, Clone)]
+pub struct LintOptions {
+    /// Only show federation audit
+    pub federation: bool,
+    /// Only show cost audit
+    pub cost: bool,
+    /// Only show cache audit
+    pub cache: bool,
+    /// Only show auth audit
+    pub auth: bool,
+    /// Only show compilation audit
+    pub compilation: bool,
+    /// Exit with error if any critical issues found
+    pub fail_on_critical: bool,
+    /// Exit with error if any warning or critical issues found
+    pub fail_on_warning: bool,
+    /// Show detailed issue descriptions
+    pub verbose: bool,
+}
 
 /// Lint output response
 #[derive(Debug, Serialize)]
@@ -50,7 +72,7 @@ pub struct CategoryScores {
 }
 
 /// Run lint command on a schema
-pub fn run(schema_path: &str) -> Result<CommandResult> {
+pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     // Check if file exists
     if !Path::new(schema_path).exists() {
         return Ok(CommandResult::error(
@@ -68,6 +90,26 @@ pub fn run(schema_path: &str) -> Result<CommandResult> {
 
     // Run design audit
     let audit = DesignAudit::from_schema_json(&schema_json)?;
+
+    // Check if any category filter is active
+    let has_filters = opts.federation || opts.cost || opts.cache || opts.auth || opts.compilation;
+
+    // Check for fail conditions if enabled
+    if opts.fail_on_critical && audit.severity_count(fraiseql_core::design::IssueSeverity::Critical) > 0 {
+        return Ok(CommandResult::error(
+            "lint",
+            "Design audit failed: critical issues found",
+            "DESIGN_AUDIT_FAILED",
+        ));
+    }
+
+    if opts.fail_on_warning && audit.severity_count(fraiseql_core::design::IssueSeverity::Warning) > 0 {
+        return Ok(CommandResult::error(
+            "lint",
+            "Design audit failed: warning issues found",
+            "DESIGN_AUDIT_FAILED",
+        ));
+    }
 
     // Calculate category scores
     let fed_score = if audit.federation_issues.is_empty() {
@@ -132,6 +174,19 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
+    fn default_opts() -> LintOptions {
+        LintOptions {
+            federation: false,
+            cost: false,
+            cache: false,
+            auth: false,
+            compilation: false,
+            fail_on_critical: false,
+            fail_on_warning: false,
+            verbose: false,
+        }
+    }
+
     #[test]
     fn test_lint_valid_schema() {
         let schema_json = r#"{
@@ -156,7 +211,7 @@ mod tests {
         file.write_all(schema_json.as_bytes()).unwrap();
         let path = file.path().to_str().unwrap();
 
-        let result = run(path);
+        let result = run(path, default_opts());
         assert!(result.is_ok());
 
         let cmd_result = result.unwrap();
@@ -167,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_lint_file_not_found() {
-        let result = run("nonexistent_schema.json");
+        let result = run("nonexistent_schema.json", default_opts());
         assert!(result.is_ok());
 
         let cmd_result = result.unwrap();
@@ -183,7 +238,7 @@ mod tests {
         file.write_all(schema_json.as_bytes()).unwrap();
         let path = file.path().to_str().unwrap();
 
-        let result = run(path);
+        let result = run(path, default_opts());
         assert!(result.is_ok());
 
         let cmd_result = result.unwrap();

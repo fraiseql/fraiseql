@@ -154,6 +154,38 @@ enum Commands {
         /// Path to schema.json or schema.compiled.json
         #[arg(value_name = "SCHEMA")]
         schema: String,
+
+        /// Only show federation audit
+        #[arg(long)]
+        federation: bool,
+
+        /// Only show cost audit
+        #[arg(long)]
+        cost: bool,
+
+        /// Only show cache audit
+        #[arg(long)]
+        cache: bool,
+
+        /// Only show auth audit
+        #[arg(long)]
+        auth: bool,
+
+        /// Only show compilation audit
+        #[arg(long)]
+        compilation: bool,
+
+        /// Exit with error if any critical issues found
+        #[arg(long)]
+        fail_on_critical: bool,
+
+        /// Exit with error if any warning or critical issues found
+        #[arg(long)]
+        fail_on_warning: bool,
+
+        /// Show detailed issue descriptions
+        #[arg(long)]
+        verbose: bool,
     },
 
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
@@ -324,12 +356,34 @@ async fn main() {
             Err(e) => Err(e),
         },
 
-        Commands::Lint { schema } => match commands::lint::run(&schema) {
-            Ok(result) => {
-                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
-                Ok(())
-            },
-            Err(e) => Err(e),
+        Commands::Lint {
+            schema,
+            federation,
+            cost,
+            cache,
+            auth,
+            compilation,
+            fail_on_critical,
+            fail_on_warning,
+            verbose,
+        } => {
+            let opts = commands::lint::LintOptions {
+                federation,
+                cost,
+                cache,
+                auth,
+                compilation,
+                fail_on_critical,
+                fail_on_warning,
+                verbose,
+            };
+            match commands::lint::run(&schema, opts) {
+                Ok(result) => {
+                    println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                    Ok(())
+                },
+                Err(e) => Err(e),
+            }
         },
 
         Commands::Federation { command } => match command {
