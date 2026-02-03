@@ -12,6 +12,7 @@ pub mod types;
 pub mod query;
 pub mod federation;
 pub mod schema;
+pub mod admin;
 
 // Re-export commonly used types
 pub use types::{ApiResponse, ApiError};
@@ -33,5 +34,9 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         // Schema export endpoints
         .route("/schema.graphql", get(schema::export_sdl_handler::<A>))
         .route("/schema.json", get(schema::export_json_handler::<A>))
+        // Admin endpoints
+        .route("/admin/reload-schema", post(admin::reload_schema_handler::<A>))
+        .route("/admin/cache/clear", post(admin::cache_clear_handler::<A>))
+        .route("/admin/config", get(admin::config_handler::<A>))
         .with_state(state)
 }
