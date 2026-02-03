@@ -43,6 +43,14 @@ struct Cli {
     #[arg(short, long, global = true)]
     debug: bool,
 
+    /// Output as JSON (machine-readable)
+    #[arg(long, global = true)]
+    json: bool,
+
+    /// Suppress output (exit code only)
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
