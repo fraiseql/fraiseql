@@ -27,6 +27,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod commands;
 mod config;
+mod output;
 mod schema;
 
 /// FraiseQL CLI - Compile GraphQL schemas to optimized SQL execution
@@ -106,6 +107,24 @@ enum Commands {
         /// When provided, validates that indexed columns exist in database views
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
+    },
+
+    /// Explain query execution plan and complexity
+    ///
+    /// Shows GraphQL query execution plan, SQL, and complexity analysis.
+    Explain {
+        /// GraphQL query string
+        #[arg(value_name = "QUERY")]
+        query: String,
+    },
+
+    /// Calculate query complexity score
+    ///
+    /// Quick analysis of query complexity (depth, field count, score).
+    Cost {
+        /// GraphQL query string
+        #[arg(value_name = "QUERY")]
+        query: String,
     },
 
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
@@ -236,6 +255,22 @@ async fn main() {
                 database.as_deref(),
             )
             .await
+        },
+
+        Commands::Explain { query } => match commands::explain::run(&query) {
+            Ok(result) => {
+                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                Ok(())
+            },
+            Err(e) => Err(e),
+        },
+
+        Commands::Cost { query } => match commands::cost::run(&query) {
+            Ok(result) => {
+                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                Ok(())
+            },
+            Err(e) => Err(e),
         },
 
         Commands::GenerateViews {
