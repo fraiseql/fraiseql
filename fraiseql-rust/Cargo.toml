@@ -1,3 +1,6 @@
+[workspace]
+# Exclude from parent workspace - this is a standalone SDK
+
 [package]
 name = "fraiseql-rust"
 version = "1.0.0"
@@ -6,6 +9,8 @@ authors = ["FraiseQL Contributors"]
 description = "Rust authoring language for FraiseQL with 100% feature parity"
 repository = "https://github.com/fraiseql/fraiseql"
 license = "Apache-2.0"
+keywords = ["graphql", "authorization", "rbac", "schema"]
+categories = ["database", "network-programming"]
 
 [lib]
 name = "fraiseql_rust"
@@ -23,5 +28,9 @@ nursery = "warn"
 [[test]]
 name = "integration_test"
 path = "tests/integration_test.rs"
+
+[[test]]
+name = "phase18_cycle16_scope_extraction_test"
+path = "tests/phase18_cycle16_scope_extraction_test.rs"
 
 [dev-dependencies]

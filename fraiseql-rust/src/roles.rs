@@ -40,6 +40,12 @@ impl std::fmt::Display for RoleMatchStrategy {
     }
 }
 
+impl Default for RoleMatchStrategy {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
 /// Configuration for role-based access control
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoleRequiredConfig {

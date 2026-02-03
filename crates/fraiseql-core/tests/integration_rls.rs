@@ -247,8 +247,6 @@ fn test_rls_policy_produces_correct_where_clauses() {
 /// Test RLS filter composition for multi-tenant systems
 #[test]
 fn test_rls_compose_with_tenant_and_owner_filters() {
-    use fraiseql_core::db::WhereOperator;
-
     let policy = DefaultRLSPolicy::new();
 
     // User in a tenant

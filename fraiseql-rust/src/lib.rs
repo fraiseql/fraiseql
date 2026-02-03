@@ -9,10 +9,14 @@
 pub mod authorization;
 pub mod roles;
 pub mod policies;
+pub mod field;
+pub mod schema;
 
 pub use authorization::{AuthorizeConfig, AuthorizeBuilder};
 pub use roles::{RoleMatchStrategy, RoleRequiredConfig, RoleRequiredBuilder};
 pub use policies::{AuthzPolicyType, AuthzPolicyConfig, AuthzPolicyBuilder};
+pub use field::Field;
+pub use schema::{SchemaRegistry, ScopeValidationError, validate_scope};
 
 #[cfg(test)]
 mod tests {
