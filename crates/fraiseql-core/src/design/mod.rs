@@ -9,6 +9,7 @@ pub mod cost;
 pub mod cache;
 pub mod authorization;
 pub mod schema_patterns;
+pub mod compilation;
 
 use serde::{Deserialize, Serialize};
 
@@ -143,6 +144,7 @@ impl DesignAudit {
         cache::analyze(&schema, &mut audit);
         authorization::analyze(&schema, &mut audit);
         schema_patterns::analyze(&schema, &mut audit);
+        compilation::analyze(&schema, &mut audit);
 
         Ok(audit)
     }

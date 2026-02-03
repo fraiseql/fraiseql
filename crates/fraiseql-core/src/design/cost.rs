@@ -1,10 +1,17 @@
-//! Cost analysis design rules
+//! Cost analysis design rules (FraiseQL-calibrated)
 //!
-//! Detects query complexity issues:
-//! - Worst-case complexity scenarios
-//! - Unbounded pagination fields
-//! - Field multiplier patterns (lists within lists)
-//! - Missing depth limits
+//! **FraiseQL Philosophy**: Cost rules check if queries will compile to
+//! **deterministic, predictable SQL** at build time.
+//!
+//! FraiseQL compiles queries to deterministic SQL plans at schema time, not query time.
+//! This means costs must be calculable without knowing query values:
+//!
+//! - **Compiled Query Determinism**: Will the SQL execute in constant time or does it degrade?
+//! - **JSONB Nesting Cost**: Multiple nested JSONB aggregations = exponential cardinality
+//! - **Bounded Pagination**: Compiler needs default limits to pre-compute costs
+//! - **Field Multiplier Chains**: lists[].items[].details[] = O(n³) JSONB size
+//!
+//! Rules detect patterns that force runtime decisions or defy compile-time cost calculation
 
 use super::{CostWarning, DesignAudit, IssueSeverity};
 use serde_json::Value;
@@ -74,12 +81,12 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                                 audit.cost_warnings.push(CostWarning {
                                     severity,
                                     message: format!(
-                                        "{}.{} has high complexity multiplier ({})",
+                                        "Compiled JSONB cost: {}.{} can reach {} cardinality - May not compile to deterministic SQL",
                                         type_name,
                                         field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown"),
                                         max_complexity
                                     ),
-                                    suggestion: "Consider adding pagination limits or depth constraints to this field".to_string(),
+                                    suggestion: "Reduce JSONB nesting depth or add pagination limits so compiler can guarantee constant-time execution".to_string(),
                                     worst_case_complexity: Some(max_complexity),
                                 });
                             }
@@ -113,10 +120,10 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
                                 audit.cost_warnings.push(CostWarning {
                                     severity: IssueSeverity::Warning,
                                     message: format!(
-                                        "List field {} has no default pagination limit",
+                                        "Unbounded pagination on {}: No default limit - Compiler can't pre-compute worst-case JSONB cardinality",
                                         field_name
                                     ),
-                                    suggestion: "Add a default_limit to prevent unbounded queries".to_string(),
+                                    suggestion: "Add defaultLimit so compiler can guarantee deterministic query cost at compile time".to_string(),
                                     worst_case_complexity: None,
                                 });
                             }
@@ -179,12 +186,13 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
                                     audit.cost_warnings.push(CostWarning {
                                         severity: IssueSeverity::Warning,
                                         message: format!(
-                                            "Field multiplier detected: {}.{} returns list of {} which has list fields",
+                                            "JSONB multiplier chain: {}.{} lists {} which has {} nested lists - O(n²) cardinality",
                                             type_name,
                                             field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown"),
-                                            inner_type
+                                            inner_type,
+                                            nested_lists.len()
                                         ),
-                                        suggestion: "Consider paginating nested lists separately or using connection patterns".to_string(),
+                                        suggestion: "Limit pagination on both levels to keep JSONB cardinality bounded. E.g., paginate inner lists separately.".to_string(),
                                         worst_case_complexity: None,
                                     });
                                 }

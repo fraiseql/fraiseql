@@ -1,28 +1,37 @@
-//! Federation-specific design rules
+//! Federation-specific design rules (FraiseQL-calibrated)
 //!
-//! Detects architectural anti-patterns related to federation:
-//! - Over-federation (entity spread across too many subgraphs)
-//! - Circular dependencies between subgraphs
-//! - Missing or incomplete federation keys
-//! - Fragmented entity resolution
+//! **FraiseQL Philosophy**: Federation rules check if schema boundaries are
+//! optimized for JSONB view batching at compile time, NOT for service boundaries.
+//!
+//! FraiseQL compiles queries to deterministic SQL using JSONB views for entity
+//! aggregation. The compiler can batch-fetch related entities efficiently only if:
+//! 1. Primary entities are in a single subgraph (primary = owns the table)
+//! 2. References to other entities are explicit and non-circular
+//! 3. Entity type metadata enables compile-time JSONB structure optimization
+//!
+//! Rules detect:
+//! - **JSONB Fragmentation**: Entity duplicated in 3+ subgraphs (can't batch efficiently)
+//! - **Circular JSONB Chains**: A → B → A patterns cause nested JSONB inefficiency
+//! - **Missing Metadata**: Missing type info prevents compile-time optimization
+//! - **Reference Direction Ambiguity**: Bidirectional references without clarity
 
 use super::{DesignAudit, FederationIssue, IssueSeverity};
 use serde_json::Value;
 
-/// Analyze federation patterns in the schema
+/// Analyze federation patterns through lens of JSONB batching optimization
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
-    // Check for over-federation
-    check_over_federation(schema, audit);
+    // Check for JSONB fragmentation (entity in multiple subgraphs)
+    check_jsonb_fragmentation(schema, audit);
 
-    // Check for circular dependencies
-    check_circular_dependencies(schema, audit);
+    // Check for circular reference chains that hurt JSONB nesting
+    check_circular_jsonb_chains(schema, audit);
 
-    // Check for missing federation keys
-    check_missing_federation_keys(schema, audit);
+    // Check for missing type metadata needed for compilation
+    check_missing_compilation_metadata(schema, audit);
 }
 
-/// Detect entities spread across too many subgraphs (>= 3)
-fn check_over_federation(schema: &Value, audit: &mut DesignAudit) {
+/// Detect JSONB fragmentation: entity in 3+ subgraphs can't be batched efficiently
+fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         // Count entity occurrences across subgraphs
         let mut entity_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -61,15 +70,15 @@ fn check_over_federation(schema: &Value, audit: &mut DesignAudit) {
                     .map(|sgs| sgs.clone())
                     .unwrap_or_default();
 
-                // Issue a warning for the consolidation issue
+                // Issue a warning for JSONB fragmentation
                 audit.federation_issues.push(FederationIssue {
                     severity: IssueSeverity::Warning,
                     message: format!(
-                        "{} entity spread across {} subgraphs: {}",
+                        "JSONB fragmentation: {} entity in {} subgraphs ({}). Can't batch fetch in single JSONB view.",
                         entity, count, subgraph_list.join(", ")
                     ),
                     suggestion: format!(
-                        "Consolidate {} in a single primary subgraph and use federation references for access",
+                        "Move {} to primary subgraph only. Other subgraphs should reference via 'references' without owning the type.",
                         entity
                     ),
                     entity: Some(entity.clone()),
@@ -80,10 +89,10 @@ fn check_over_federation(schema: &Value, audit: &mut DesignAudit) {
                     audit.federation_issues.push(FederationIssue {
                         severity: IssueSeverity::Warning,
                         message: format!(
-                            "{} is duplicated in subgraph (occurrence {})",
+                            "Duplicate {} definition breaks JSONB batching (occurrence {})",
                             entity, i + 1
                         ),
-                        suggestion: "Remove this duplicate and use federation references instead".to_string(),
+                        suggestion: "Remove this duplicate. Duplicates prevent compile-time batch optimization.".to_string(),
                         entity: Some(entity.clone()),
                     });
                 }
@@ -92,8 +101,8 @@ fn check_over_federation(schema: &Value, audit: &mut DesignAudit) {
     }
 }
 
-/// Detect circular dependencies between subgraphs
-fn check_circular_dependencies(schema: &Value, audit: &mut DesignAudit) {
+/// Detect circular JSONB chains: A → B → A patterns cause nested JSONB inefficiency
+fn check_circular_jsonb_chains(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         // Build dependency graph
         let mut graph: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
@@ -127,8 +136,13 @@ fn check_circular_dependencies(schema: &Value, audit: &mut DesignAudit) {
         for cycle in cycles {
             audit.federation_issues.push(FederationIssue {
                 severity: IssueSeverity::Critical,
-                message: format!("Circular dependency detected: {}", cycle.join(" → ")),
-                suggestion: "Refactor schema to remove circular references or use federation references in one direction only".to_string(),
+                message: format!(
+                    "Circular JSONB reference chain: {} - Causes nested JSONB inefficiency at compile time",
+                    cycle.join(" → ")
+                ),
+                suggestion: format!(
+                    "Break the cycle by using one-directional references. E.g., User → Post (forward), but Post references user_id only (no back-reference)."
+                ),
                 entity: None,
             });
         }
@@ -189,8 +203,8 @@ fn dfs_cycle_detection(
     rec_stack.remove(node);
 }
 
-/// Check for missing federation keys
-fn check_missing_federation_keys(schema: &Value, _audit: &mut DesignAudit) {
+/// Check for missing type metadata needed by compiler for JSONB optimization
+fn check_missing_compilation_metadata(schema: &Value, _audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         for subgraph in subgraphs {
             if let Some(entities) = subgraph.get("entities").and_then(|v| v.as_array()) {
