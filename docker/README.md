@@ -279,6 +279,12 @@ docker build -t myrepo/fraiseql:v2.0.0 .
 docker push myrepo/fraiseql:v2.0.0
 ```
 
+## Additional Resources
+
+- **Production Deployment**: [QUICKSTART-PROD.md](QUICKSTART-PROD.md)
+- **Reference Guide**: [QUICKSTART-REFERENCE.md](QUICKSTART-REFERENCE.md)
+- **Platform Overview**: [PLATFORM.md](PLATFORM.md)
+
 ## Next Steps
 
 - **Get Started**: [../docs/docker-quickstart.md](../docs/docker-quickstart.md)
