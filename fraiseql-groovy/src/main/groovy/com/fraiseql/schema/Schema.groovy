@@ -63,11 +63,23 @@ class Schema {
       if (typeInfo) {
         List<Map<String, Object>> fieldsArray = []
         typeInfo.fields.each { fieldName, fieldConfig ->
-          fieldsArray << [
+          Map<String, Object> field = [
             name: fieldName,
             type: fieldConfig.type ?: 'String',
             nullable: fieldConfig.nullable ?: false
           ]
+
+          // Add scope if present
+          if (fieldConfig.scope) {
+            field.scope = fieldConfig.scope
+          }
+
+          // Add scopes if present
+          if (fieldConfig.scopes) {
+            field.scopes = fieldConfig.scopes
+          }
+
+          fieldsArray << field
         }
 
         Map<String, Object> typeObj = [
