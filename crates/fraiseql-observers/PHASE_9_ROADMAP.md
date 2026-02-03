@@ -11,6 +11,7 @@
 Phase 9 represents the next evolution of the FraiseQL Observer System, building on the production-ready foundation of Phase 8 to add enterprise-grade observability, advanced resilience patterns, and expanded ecosystem support.
 
 While Phase 8 delivered **reliability, performance, and availability**, Phase 9 focuses on:
+
 - **Observability**: Distributed tracing, advanced debugging
 - **Enterprise Resilience**: Saga patterns, distributed transactions
 - **Ecosystem Integration**: Multi-database support, extended action types
@@ -36,6 +37,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ### Remaining Opportunities
 
 **High Priority** (Enterprise demand):
+
 1. Distributed tracing for cross-service debugging
 2. Event replay and time-travel debugging
 3. Advanced saga patterns for distributed transactions
@@ -43,6 +45,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 5. Enhanced action types (AWS Lambda, Apache Kafka, etc.)
 
 **Medium Priority** (Operational excellence):
+
 1. Machine learning-based anomaly detection
 2. Advanced event filtering and routing
 3. Performance prediction and auto-scaling
@@ -50,6 +53,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 5. Integration with popular APM tools (DataDog, New Relic)
 
 **Lower Priority** (Nice-to-have):
+
 1. GraphQL subscriptions for real-time events
 2. Event enrichment pipeline
 3. Advanced schema versioning
@@ -64,6 +68,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Enable tracing across microservices for end-to-end debugging
 
 **Features**:
+
 - OpenTelemetry integration (OTEL standards)
 - Jaeger/Zipkin compatibility
 - Trace context propagation
@@ -71,6 +76,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Performance bottleneck identification
 
 **Business Value**:
+
 - Reduce MTTR (Mean Time To Recovery) by 50%
 - Enable debugging across service boundaries
 - Visualize service interactions
@@ -82,6 +88,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 15+ KB documentation
 
 **Key Files**:
+
 - `src/tracing/mod.rs` - OTEL integration
 - `src/tracing/propagation.rs` - Context propagation
 - `src/actions/traced_webhook.rs` - Traced action wrapper
@@ -93,6 +100,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Ability to replay events and debug historical scenarios
 
 **Features**:
+
 - Event replay from checkpoint or timestamp
 - Time-travel debugging (see state at any point)
 - Dry-run execution (test without side effects)
@@ -100,6 +108,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Failure injection for chaos testing
 
 **Business Value**:
+
 - Debug production issues without re-triggering
 - Test fixes before applying to live events
 - Understand historical behavior
@@ -112,6 +121,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 20+ KB documentation
 
 **Key Files**:
+
 - `src/replay/mod.rs` - Replay engine
 - `src/replay/time_travel.rs` - State snapshots
 - `src/cli/replay_command.rs` - CLI integration
@@ -123,6 +133,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Support long-running distributed transactions with rollback
 
 **Features**:
+
 - Choreography-based sagas
 - Orchestration-based sagas
 - Compensating transactions (rollback logic)
@@ -130,6 +141,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Failure handling and recovery
 
 **Business Value**:
+
 - Support complex multi-step business processes
 - Guaranteed consistency across services
 - Automatic rollback on failures
@@ -142,6 +154,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 25+ KB documentation
 
 **Key Files**:
+
 - `src/sagas/mod.rs` - Saga engine
 - `src/sagas/choreography.rs` - Choreography mode
 - `src/sagas/orchestration.rs` - Orchestration mode
@@ -153,6 +166,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Native support for MySQL, SQL Server, MongoDB
 
 **Features**:
+
 - Native MySQL support with native LISTEN equivalent
 - SQL Server with Service Broker or Query Notifications
 - MongoDB with change streams
@@ -160,6 +174,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Database-agnostic query builder enhancements
 
 **Business Value**:
+
 - Support broader ecosystem of customers
 - Reduce complexity for non-PostgreSQL environments
 - Enable data warehouse scenarios
@@ -171,6 +186,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 30+ KB documentation
 
 **Key Files**:
+
 - `src/db/mysql/mod.rs` - MySQL adapter
 - `src/db/sql_server/mod.rs` - SQL Server adapter
 - `src/db/mongodb/mod.rs` - MongoDB adapter
@@ -182,6 +198,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Support AWS Lambda, Kafka, gRPC, GraphQL
 
 **Features**:
+
 - AWS Lambda invocation with automatic retries
 - Apache Kafka event publishing
 - gRPC service calls
@@ -189,6 +206,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Custom plugin system for user-defined actions
 
 **Business Value**:
+
 - Integrate with popular cloud services
 - Enable event streaming architectures
 - Support modern API patterns
@@ -200,6 +218,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 10+ KB documentation per type
 
 **Key Files**:
+
 - `src/actions/lambda.rs` - AWS Lambda action
 - `src/actions/kafka.rs` - Kafka action
 - `src/actions/grpc.rs` - gRPC action
@@ -212,6 +231,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Native integration with DataDog, New Relic, Dynatrace
 
 **Features**:
+
 - DataDog APM tracing export
 - New Relic event export
 - Dynatrace integration
@@ -219,6 +239,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Performance prediction
 
 **Business Value**:
+
 - Seamless integration with existing observability tools
 - Unified monitoring dashboards
 - Performance insights and recommendations
@@ -230,6 +251,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 8+ KB documentation per integration
 
 **Key Files**:
+
 - `src/observability/datadog.rs` - DataDog integration
 - `src/observability/new_relic.rs` - New Relic integration
 - `src/observability/dynatrace.rs` - Dynatrace integration
@@ -241,6 +263,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Detect unusual patterns and potential issues automatically
 
 **Features**:
+
 - Statistical anomaly detection
 - ML model training on historical data
 - Real-time anomaly scoring
@@ -248,6 +271,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Root cause analysis suggestions
 
 **Business Value**:
+
 - Proactive issue detection before customer impact
 - Reduced mean time to detection (MTTD)
 - Automatic root cause categorization
@@ -262,6 +286,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Key Libraries**: TensorFlow/PyTorch bindings or native Rust ML
 
 **Key Files**:
+
 - `src/ml/anomaly_detection.rs` - Anomaly detector
 - `src/ml/model_training.rs` - Model training
 - `src/ml/predictions.rs` - Predictions
@@ -273,6 +298,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: Enrich events with additional context before processing
 
 **Features**:
+
 - Custom enrichment stages
 - External data lookups
 - Geolocation enrichment
@@ -281,6 +307,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Caching for enrichment data
 
 **Business Value**:
+
 - Better insights into event context
 - More intelligent routing decisions
 - Richer analytics
@@ -293,6 +320,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 12+ KB documentation
 
 **Key Files**:
+
 - `src/enrichment/mod.rs` - Enrichment engine
 - `src/enrichment/strategies.rs` - Built-in strategies
 
@@ -303,6 +331,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: More sophisticated event routing and filtering
 
 **Features**:
+
 - Complex filter expressions (beyond DSL)
 - Dynamic routing rules
 - Load balancing across observers
@@ -310,6 +339,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Event sampling and rate limiting
 
 **Business Value**:
+
 - Fine-grained control over event flow
 - Cost optimization through sampling
 - Gradual rollout of observer changes
@@ -322,6 +352,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - 15+ KB documentation
 
 **Key Files**:
+
 - `src/routing/mod.rs` - Routing engine
 - `src/routing/filters.rs` - Advanced filters
 - `src/routing/splitting.rs` - Traffic splitting
@@ -333,6 +364,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Objective**: GraphQL API for querying events and subscriptions for real-time updates
 
 **Features**:
+
 - GraphQL API for event queries
 - Subscription support for real-time events
 - Schema introspection
@@ -340,6 +372,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - Mutation support for manual triggers
 
 **Business Value**:
+
 - Modern API for client applications
 - Real-time dashboards
 - Advanced querying capabilities
@@ -354,6 +387,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 **Key Libraries**: Async-graphql or Juniper
 
 **Key Files**:
+
 - `src/api/graphql/schema.rs` - GraphQL schema
 - `src/api/graphql/subscriptions.rs` - Subscriptions
 
@@ -423,6 +457,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Estimated Total Effort
 
 **Phase 9 Complete**:
+
 - **Timeline**: 12-16 months (sequential implementation)
 - **Code**: 4,000-6,000 lines
 - **Tests**: 500+ new tests
@@ -430,6 +465,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - **Team Size**: 2-3 engineers
 
 **Per Subphase**:
+
 - **Development**: 3-6 weeks per subphase
 - **Testing**: 1-2 weeks per subphase
 - **Documentation**: 1 week per subphase
@@ -440,6 +476,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Success Criteria for Phase 9
 
 ### Technical Criteria
+
 - [ ] All 10 subphases implemented and tested
 - [ ] 500+ new tests with 100% pass rate
 - [ ] 150+ KB of documentation
@@ -448,6 +485,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - [ ] 10-100x performance improvements in specific areas
 
 ### Business Criteria
+
 - [ ] Support for top 3 database backends
 - [ ] Integration with 3+ APM platforms
 - [ ] Support for 5+ new action types
@@ -455,6 +493,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 - [ ] Support for distributed transactions (sagas)
 
 ### Customer Criteria
+
 - [ ] Deploy at 5+ enterprise customers
 - [ ] Positive feedback on new features
 - [ ] Use of all major subphases
@@ -465,6 +504,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Risk Analysis
 
 ### High Risk
+
 1. **Distributed Tracing Complexity**
    - OTEL integration complex
    - Mitigation: Start with Jaeger, expand later
@@ -476,6 +516,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
    - Effort: Phase 9.3 needs thorough QA
 
 ### Medium Risk
+
 1. **Multi-Database Support**
    - Different event notification mechanisms
    - Mitigation: Start with MySQL (similar to PostgreSQL)
@@ -487,6 +528,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
    - Effort: Phase 9.6 manageable with good abstraction
 
 ### Low Risk
+
 1. **GraphQL API**
    - Lots of mature libraries available
    - Mitigation: Use async-graphql
@@ -497,11 +539,13 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Dependencies & Prerequisites
 
 ### From Phase 8
+
 - ✅ Checkpoint system (Phase 8.1) - needed for replay
 - ✅ Metrics export (Phase 8.7) - foundation for observability
 - ✅ CLI tools (Phase 8.10) - needed for replay commands
 
 ### External Dependencies
+
 - OpenTelemetry SDK (for Phase 9.1)
 - MySQL driver - `mysql_async`
 - SQL Server driver - `tiberius`
@@ -515,6 +559,7 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Backward Compatibility
 
 **Phase 9 Design Principle**:
+
 - All Phase 9 features are **additive and opt-in**
 - Phase 1-8 functionality unchanged
 - All features independently deployable
@@ -525,17 +570,20 @@ While Phase 8 delivered **reliability, performance, and availability**, Phase 9 
 ## Next Immediate Steps
 
 ### This Week
+
 1. Review this roadmap with stakeholders
 2. Validate priorities with customers
 3. Identify resource requirements
 
 ### Next Sprint
+
 1. Create detailed design for Phase 9.1 (Distributed Tracing)
 2. Prototype OpenTelemetry integration
 3. Design trace context propagation strategy
 4. Set up test infrastructure for tracing
 
 ### In 2 Weeks
+
 1. Begin Phase 9.1 implementation
 2. Create comprehensive tracing documentation
 3. Build example applications with tracing

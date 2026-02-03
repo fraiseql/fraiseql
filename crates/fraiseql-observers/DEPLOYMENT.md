@@ -157,6 +157,7 @@ See `examples/` directory for complete configuration examples:
 **File**: `docker-compose.postgres-only.yml`
 
 **Services**:
+
 - PostgreSQL (database + triggers)
 - Observer worker (in-process)
 
@@ -183,6 +184,7 @@ docker-compose -f docker-compose.postgres-only.yml down
 **File**: `docker-compose.postgres-redis.yml`
 
 **Services**:
+
 - PostgreSQL (database + triggers)
 - Redis (dedup + cache)
 - Observer worker
@@ -213,6 +215,7 @@ docker-compose -f docker-compose.postgres-redis.yml down
 **File**: `docker-compose.nats-distributed.yml`
 
 **Services**:
+
 - PostgreSQL (database + triggers)
 - NATS JetStream (event bus)
 - Redis (shared dedup + cache)
@@ -252,6 +255,7 @@ docker-compose -f docker-compose.nats-distributed.yml down
 **File**: `docker-compose.multi-database.yml`
 
 **Services**:
+
 - PostgreSQL x3 (3 databases)
 - NATS JetStream (centralized event bus)
 - Redis (shared dedup + cache)

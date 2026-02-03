@@ -424,6 +424,7 @@ metrics.counter("saga.compensated", tags!("type": "order")).increment();
 
 ```yaml
 # Prometheus alerting rules
+
 - alert: SagaFailureRateHigh
   expr: rate(saga_failed[5m]) > 0.05
   for: 5m
@@ -560,6 +561,7 @@ pub async fn saga_health_metrics() -> Result<HealthMetrics> {
 
 ```
 Saga Steps:
+
 1. Validate order (Order Service)
 2. Process payment (Payment Service)
 3. Reserve inventory (Inventory Service)
@@ -578,6 +580,7 @@ Saga Steps:
 
 ```
 Saga Steps:
+
 1. Create account (Auth Service)
 2. Initialize payment method (Billing Service)
 3. Send welcome email (Email Service)
@@ -595,6 +598,7 @@ Saga Steps:
 
 ```
 Saga Steps:
+
 1. Verify sender account (Sender Bank)
 2. Reserve funds (Sender Bank)
 3. Receive funds (Recipient Bank)

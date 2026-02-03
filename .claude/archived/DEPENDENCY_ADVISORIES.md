@@ -15,11 +15,13 @@
 **Dependency Path**: `fraiseql-server` → `sqlx` → `sqlx-mysql` → `rsa`
 
 **Details**:
+
 - Title: Marvin Attack - potential key recovery through timing sidechannels
 - Root cause: `rsa` crate does not implement constant-time operations
 - **Why we accept this**: RSA is used transitively by MySQL's TLS implementation only. All FraiseQL cryptographic operations use other libraries (sha2, hmac, aes-gcm) which are hardened.
 
 **Action**:
+
 - Monitor for updates to `rsa` crate
 - Consider alternative MySQL driver if available in future
 - Not blocking for GA release
@@ -33,12 +35,14 @@
 **Dependency Path**: `fraiseql-cli` → `notify` → `notify-types` → `instant`
 
 **Details**:
+
 - The `instant` crate is no longer maintained
 - However, it provides only a simple monotonic clock wrapper
 - No security vulnerabilities reported
 - **Why we accept this**: Used only for file watching in CLI during development, not in server runtime
 
 **Action**:
+
 - Monitor for performance-critical issues
 - Consider migrating to `std::time::Instant` in future Rust versions
 - Not blocking for GA release
@@ -52,12 +56,14 @@
 **Dependency Path**: `fraiseql-arrow` → `clickhouse` → `polonius-the-crab` → `macro_rules_attribute` → `paste`
 
 **Details**:
+
 - The `paste` crate is no longer maintained
 - However, it's a well-established macro utility with no known vulnerabilities
 - Widely used in Rust ecosystem
 - **Why we accept this**: Transitive dependency through ClickHouse driver. Core FraiseQL doesn't depend on it directly.
 
 **Action**:
+
 - Monitor for macro expansion issues
 - Consider eliminating ClickHouse driver in future if not actively used
 - Not blocking for GA release
@@ -75,21 +81,25 @@
 ## Phase 5 Hardening Plan
 
 ### Week 1: Dependency Audit
+
 - [ ] Run `cargo audit` before each release
 - [ ] Document any new advisories
 - [ ] Assess risk vs. migration cost
 
 ### Week 2: Evaluation & Remediation
+
 - [ ] Evaluate alternatives to unmaintained crates
 - [ ] Test alternative implementations
 - [ ] Plan migration if beneficial
 
 ### Week 3: Implementation (if needed)
+
 - [ ] Update crates that have fixes available
 - [ ] Test thoroughly
 - [ ] Document changes
 
 ### Week 4: Verification
+
 - [ ] Run full audit suite
 - [ ] Verify no new warnings introduced
 - [ ] Document final status

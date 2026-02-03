@@ -11,6 +11,7 @@
 ## Overview
 
 SQLite is ideal for:
+
 - ✅ Local development on laptop
 - ✅ CI/CD testing environments
 - ✅ Small production deployments (< 100k requests/day)
@@ -18,6 +19,7 @@ SQLite is ideal for:
 - ✅ Microservices on edge devices
 
 It's not ideal for:
+
 - ❌ High-concurrency applications (> 1000 concurrent users)
 - ❌ Deployments requiring automatic failover
 - ❌ Applications needing complex transactions

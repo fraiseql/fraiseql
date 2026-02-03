@@ -5,20 +5,24 @@ Complete guide for deploying, monitoring, and maintaining FraiseQL in production
 ## Quick Navigation
 
 ### Core Guides
+
 - **[Deployment Guide](../deployment/guide.md)** — Deploy FraiseQL to production
 - **[Operations Guide](guide.md)** — Day-to-day operations and maintenance
 - **[Observability Guide](observability.md)** — Monitoring, metrics, and observability
 
 ### Infrastructure & Integration
+
 - **[Distributed Tracing](distributed-tracing.md)** — Set up distributed tracing
 - **[Structured Logging](structured-logging.md)** — Configure structured logging
 - **[Configuration Guide](../configuration/)** — Security, TLS, rate limiting
 
 ### Reference
+
 - **[Health Checks](reference/health-checks.md)** — Health check endpoints and patterns
 - **[Metrics Reference](reference/metrics.md)** — Prometheus metrics catalog
 
 ### Advanced
+
 - **[Observability Architecture](observability-architecture.md)** — Deep dive into observability design
 - **[Configuration](configuration.md)** — Advanced observability configuration
 - **[Analysis Guide](analysis-guide.md)** — Analyzing observability data

@@ -399,6 +399,7 @@ provider_config:
 ```
 
 **Deployment Flow**:
+
 1. Stop service on server 1
 2. Deploy new version
 3. Start service and run health checks
@@ -416,6 +417,7 @@ provider_config:
 ```
 
 **Deployment Flow**:
+
 1. Deploy to all servers (without stopping old version)
 2. Run health checks on new version
 3. If healthy, stop old version and switch traffic

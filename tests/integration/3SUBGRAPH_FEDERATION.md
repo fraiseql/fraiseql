@@ -21,12 +21,14 @@ This documentation covers the 3-subgraph federation architecture where FraiseQL 
 ### Subgraph Responsibilities
 
 **Users Subgraph (Port 4001)**
+
 - Owns: User entity with `id` and `identifier` fields
 - Exposes: `users` query
 - Key: `id` (primary)
 - Database: PostgreSQL on port 5432
 
 **Orders Subgraph (Port 4002)**
+
 - Owns: Order entity with `id` and `status` fields
 - Extends: User (references users via `user` field)
 - References: Product (will reference products via `products` field)
@@ -35,6 +37,7 @@ This documentation covers the 3-subgraph federation architecture where FraiseQL 
 - Database: PostgreSQL on port 5433
 
 **Products Subgraph (Port 4003)**
+
 - Owns: Product entity with `id`, `name`, and `price` fields
 - References: Order (may be referenced by orders)
 - Exposes: `products` query
@@ -44,6 +47,7 @@ This documentation covers the 3-subgraph federation architecture where FraiseQL 
 ### Apollo Router Gateway (Port 4000)
 
 Apollo Router v1.31.1 composes the three subgraph schemas into a unified GraphQL API:
+
 - Handles query federation across all 3 subgraphs
 - Routes requests to appropriate subgraph
 - Resolves cross-subgraph entity references
@@ -169,34 +173,42 @@ type Product @key(fields: "id") {
 ## Test Scenarios
 
 ### Test 1: Setup Validation
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_setup_validation`
 
 Validates all 3 subgraphs and gateway are operational:
+
 - ✓ Users subgraph health check (4001)
 - ✓ Orders subgraph health check (4002)
 - ✓ Products subgraph health check (4003)
 - ✓ Apollo Router gateway health check (4000)
 
 ### Test 2: Direct Queries to Products
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_direct_queries`
 
 Verifies products subgraph responds to direct queries:
+
 - Query products directly via gateway
 - Validate products array returned
 - Check products have `id`, `name`, `price` fields
 
 ### Test 3: Orders with Products (2-Hop)
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_order_with_products`
 
 Tests extended relationships within 2 subgraphs:
+
 - Query orders from orders subgraph
 - Fetch products through order references
 - Validate nested structure
 
 ### Test 4: Full 3-Hop Federation (Users → Orders → Products)
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_federation_users_orders_products`
 
 Core test for complete 3-hop federation:
+
 - Query users with limit 2
 - Fetch all orders for each user
 - Fetch all products for each order
@@ -204,34 +216,42 @@ Core test for complete 3-hop federation:
 - Validate proper nesting at all 3 levels
 
 ### Test 5: Entity Resolution Chain
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_entity_resolution_chain`
 
 Validates entity resolution across 3 subgraph boundaries:
+
 1. Get user from users subgraph
 2. Resolve orders for that user
 3. Resolve products for those orders
 4. Verify consistent identifiers throughout chain
 
 ### Test 6: Cross-Boundary Federation
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_cross_boundary_federation`
 
 Tests multi-level federation boundaries:
+
 - Products referenced from orders
 - Orders referenced from users
 - Validates federation propagation across 3 levels
 
 ### Test 7: Mutation Propagation
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_mutation_propagation`
 
 Validates mutation requests propagate correctly:
+
 - Structure accepts mutation syntax
 - Responses handle cross-subgraph mutations
 - Note: Full mutation support implementation-dependent
 
 ### Test 8: Batch Entity Resolution
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_batch_entity_resolution`
 
 Performance test for high-cardinality resolution:
+
 - Query 5 users with 3 orders each
 - Each order has 2 products
 - Total: 5 × 3 × 2 = 30 product references
@@ -239,18 +259,22 @@ Performance test for high-cardinality resolution:
 - Validate all references resolved correctly
 
 ### Test 9: Gateway Composition
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_gateway_composition`
 
 Verifies Apollo Router schema composition:
+
 - Introspection query returns all types
 - All federation directives present
 - Composed schema includes all 3 subgraph definitions
 - Query planning validates for complex queries
 
 ### Test 10: Performance Benchmark
+
 **File:** `federation_docker_compose_integration.rs::test_three_subgraph_performance`
 
 Measures end-to-end 3-hop federation performance:
+
 - 10 users with all orders and products
 - Warm-up query (for JIT effects)
 - Timed measurement
@@ -319,6 +343,7 @@ docker-compose down -v  # -v removes volumes
 ### Successful Test Output
 
 ```
+
 --- Test: 3-subgraph setup validation ---
 ✓ Users subgraph is ready: http://localhost:4001/graphql
 ✓ Orders subgraph is ready: http://localhost:4002/graphql
@@ -339,6 +364,7 @@ docker-compose down -v  # -v removes volumes
 ## Common Issues & Troubleshooting
 
 ### Issue: Services not starting
+
 **Symptoms:** `docker-compose ps` shows service status as `Exited` or `Unhealthy`
 
 **Solution:**
@@ -355,6 +381,7 @@ docker-compose up -d
 ```
 
 ### Issue: Apollo Router not discovering subgraphs
+
 **Symptoms:** Gateway health check fails, introspection returns empty
 
 **Solution:**
@@ -364,6 +391,7 @@ docker-compose up -d
 4. Restart router: `docker-compose restart apollo-router`
 
 ### Issue: 3-hop queries timeout
+
 **Symptoms:** Queries >5 seconds or timeout
 
 **Solution:**
@@ -374,6 +402,7 @@ docker-compose up -d
 5. Profile individual subgraph performance
 
 ### Issue: Products subgraph not available
+
 **Symptoms:** Error: "Products subgraph not found" or port 4003 not responding
 
 **Solution:**
@@ -383,6 +412,7 @@ docker-compose up -d
 4. Check federation.toml for products service configuration
 
 ### Issue: Cross-subgraph references fail
+
 **Symptoms:** null values for nested fields, "entity not found" errors
 
 **Solution:**
@@ -463,6 +493,7 @@ CREATE TABLE products (
 ## Next Steps
 
 After validating 3-subgraph federation:
+
 1. **Task #6**: Apollo Router schema composition validation
 2. **Phase 2**: Add 4+ subgraph support
 3. **Phase 3**: Advanced federation patterns (interfaces, unions)

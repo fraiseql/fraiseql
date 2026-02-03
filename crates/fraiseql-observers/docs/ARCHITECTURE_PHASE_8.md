@@ -62,6 +62,7 @@ Phase 8 transforms the FraiseQL Observer System from a functional baseline (Phas
 **Purpose**: Guarantee zero event loss by persisting progress.
 
 **How It Works**:
+
 1. Every processed event updates a checkpoint in PostgreSQL
 2. On restart, the system resumes from the last checkpoint
 3. No events are lost, even if the observer crashes
@@ -99,6 +100,7 @@ CREATE TABLE observer_checkpoints (
 **Purpose**: Reduce latency by executing multiple actions in parallel.
 
 **How It Works**:
+
 1. Instead of executing actions sequentially (A → B → C: 300ms)
 2. Execute all actions concurrently (A, B, C in parallel: 100ms)
 3. Reduces latency by 5x
@@ -137,6 +139,7 @@ Total: 300ms                       Total: 100ms (3x improvement)
 **Purpose**: Prevent duplicate side effects from processing the same event twice.
 
 **How It Works**:
+
 1. Hash each event to create a unique fingerprint
 2. Check Redis for recent fingerprints (5-minute window)
 3. Skip processing if the event was recently processed
@@ -175,6 +178,7 @@ Event 1 (duplicate): Order#123 created (from retry)
 **Purpose**: Achieve 100x performance improvement for repeated queries/computations.
 
 **How It Works**:
+
 1. Cache action results in Redis with TTL
 2. Subsequent identical requests return cached result immediately
 3. Dramatically reduces external API calls
@@ -215,6 +219,7 @@ Cache Hit Rate**: ~80% for typical workloads
 **Purpose**: Enable full-text searchable audit trail for compliance and debugging.
 
 **How It Works**:
+
 1. Every event is automatically indexed in Elasticsearch
 2. Supports complex search queries (by entity, timestamp, status, etc.)
 3. Provides compliance-ready audit logging
@@ -235,6 +240,7 @@ pub struct HttpSearchBackend {
 
 **Example Queries**:
 ```
+
 1. All orders created in the last 24 hours
    Query: entity_type:Order AND event_kind:created AND timestamp:[now-1d TO now]
 
@@ -254,6 +260,7 @@ pub struct HttpSearchBackend {
 **Purpose**: Handle asynchronous long-running operations without blocking.
 
 **How It Works**:
+
 1. Long-running actions (email, webhooks) are queued instead of blocking
 2. Worker pool processes jobs asynchronously
 3. Automatic retries with exponential backoff
@@ -293,6 +300,7 @@ Attempt 5: wait 800ms → Max 30s delay reached
 **Purpose**: Production monitoring and alerting.
 
 **How It Works**:
+
 1. Collect metrics on all observer operations
 2. Export to Prometheus for scraping
 3. Create dashboards and alerts
@@ -334,6 +342,7 @@ groups:
 **Purpose**: Prevent cascading failures when external services fail.
 
 **How It Works**:
+
 1. Monitor action success/failure rates
 2. If failure rate exceeds threshold, "break" the circuit
 3. Fast-fail without calling external service
@@ -381,6 +390,7 @@ Service recovers:
 **Purpose**: High availability with automatic failover.
 
 **How It Works**:
+
 1. Multiple listeners run concurrently
 2. Each listener tracks its own checkpoint
 3. Coordinator tracks listener health
@@ -410,6 +420,7 @@ Service recovers:
 
 **Failover Sequence**:
 ```
+
 1. Listener 1 running (last checkpoint: event 500)
 2. Listener 1 crashes
 3. Health monitor detects no heartbeat (60s timeout)
@@ -610,6 +621,7 @@ histogram_quantile(0.99, observer_action_duration_seconds)  # P99 latency
 ### Recommended Alerts
 
 ```
+
 1. DLQ backlog > 100 items
    Indicates actions failing faster than recovery
 
@@ -683,6 +695,7 @@ ObserverRuntimeConfig {
 **Symptoms**: `observer_dlq_items_total` growing continuously
 
 **Root Causes**:
+
 1. External service unavailable
 2. Configuration error (invalid webhook URL, bad credentials)
 3. Data issue (malformed event)
@@ -700,6 +713,7 @@ fraiseql-observers metrics --metric observer_actions_failed_total
 ```
 
 **Resolution**:
+
 1. Fix underlying issue (restore service, update config)
 2. Verify with test event
 3. Retry DLQ items
@@ -715,6 +729,7 @@ fraiseql-observers dlq retry-all --observer obs-webhook
 **Symptoms**: Increasing latency, throughput declining
 
 **Root Causes**:
+
 1. Cache hit rate dropping (evictions, expired)
 2. External service slow (circuit breaker not helping)
 3. Resource exhaustion (CPU, memory, connections)
@@ -732,6 +747,7 @@ fraiseql-observers status --detailed
 ```
 
 **Resolution**:
+
 1. Increase cache TTL if appropriate
 2. Scale external service or use alternative
 3. Increase worker pool size

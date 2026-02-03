@@ -220,6 +220,7 @@ Use FraiseQL DSL to filter events:
 ```
 
 **Available Functions**:
+
 - `field.changed()` - True if field was modified (UPDATE only)
 - `field.old_value()` - Previous value before UPDATE
 - `field.new_value()` - New value after UPDATE
@@ -285,6 +286,7 @@ SlackAction.with_env('SLACK_WEBHOOK_URL', '#alerts', 'Payment failed: {id}')
 ```
 
 **Template Variables**:
+
 - `{field_name}` - Insert field value
 - `${field_name}` - Currency formatting
 - `{_json}` - Full JSON payload
@@ -349,6 +351,7 @@ Automatic retry with backoff strategies:
 ```
 
 **Backoff Formulas**:
+
 - **Exponential**: `delay = min(initial * 2^attempt, max)`
 - **Linear**: `delay = min(initial * attempt, max)`
 - **Fixed**: `delay = initial`
@@ -596,6 +599,7 @@ Webhook.create('https://api.example.com/webhook', headers={
 ### 6. Performance
 
 **Limit observer count per entity**:
+
 - < 5 observers per entity: ✅ Excellent
 - 5-10 observers per entity: ⚠️ Monitor performance
 - > 10 observers per entity: ❌ Consider refactoring
@@ -887,6 +891,7 @@ HAVING AVG(attempt_count) > 2;
 ```
 
 **Solutions**:
+
 1. Increase timeout for slow endpoints
 2. Optimize webhook payload size
 3. Check network latency
@@ -897,6 +902,7 @@ HAVING AVG(attempt_count) > 2;
 **Symptom**: Observer runtime consuming excessive memory
 
 **Causes**:
+
 - Large event payloads (> 1MB)
 - Too many concurrent observers
 - Memory leak in action handler
@@ -938,6 +944,7 @@ poll_interval_ms = 5000  # Batch processing
 ```
 
 **Trade-offs**:
+
 - Lower interval: Lower latency, higher CPU usage
 - Higher interval: Higher throughput, higher latency
 
@@ -953,6 +960,7 @@ batch_size = 1000 # High volume
 ```
 
 **Recommendations**:
+
 - < 100 events/min: batch_size = 10
 - 100-1000 events/min: batch_size = 100
 - > 1000 events/min: batch_size = 1000
@@ -992,6 +1000,7 @@ FOR EACH ROW EXECUTE FUNCTION core.fn_log_entity_change('Order');
 ### Do observers slow down INSERT/UPDATE/DELETE?
 
 Minimal impact:
+
 - Change log insertion: ~1-2ms overhead
 - Observer execution: Async, does not block transaction
 - Bulk operations: Use `DISABLE TRIGGER` for large imports
@@ -1047,6 +1056,7 @@ ObserverBuilder.create('onOrderCreated')
 ## Further Reading
 
 For more information on optimizing observer performance and security, see the Architecture documentation:
+
 - [Performance Optimization](../architecture/performance/advanced-optimization.md)
 - [Security Model](../architecture/security/security-model.md)
 

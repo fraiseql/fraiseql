@@ -48,6 +48,7 @@ Rate limits are applied using the following key extraction logic:
 ### 1. Authenticated Requests
 
 For requests with authentication credentials:
+
 - **Key**: User ID
 - **Limit**: `rps_per_user` (higher limit)
 - **Use case**: Trusted authenticated users get higher quotas
@@ -55,6 +56,7 @@ For requests with authentication credentials:
 ### 2. Unauthenticated Requests
 
 For requests without authentication:
+
 - **Key**: Client IP address
 - **Limit**: `rps_per_ip` (lower limit)
 - **Use case**: Protects against anonymous abuse

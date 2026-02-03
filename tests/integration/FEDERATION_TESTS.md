@@ -5,6 +5,7 @@ This document describes the 2-subgraph federation integration tests for Apollo F
 ## Overview
 
 The 2-subgraph federation tests validate the core federation patterns:
+
 - **Users Subgraph** (Port 4001): Owns User entity
 - **Orders Subgraph** (Port 4002): Owns Order, extends User via HTTP federation
 - **Apollo Router Gateway** (Port 4000): Composes subgraphs and executes federated queries
@@ -12,9 +13,11 @@ The 2-subgraph federation tests validate the core federation patterns:
 ## Test Scenarios
 
 ### 1. Setup Validation
+
 **Test**: `test_two_subgraph_setup_validation`
 
 Validates that the Docker Compose environment is ready:
+
 - Users subgraph is accessible
 - Orders subgraph is accessible
 - Apollo Router gateway is accessible
@@ -24,13 +27,16 @@ Validates that the Docker Compose environment is ready:
 ---
 
 ### 2. Direct Subgraph Queries
+
 **Test**: `test_two_subgraph_direct_subgraph_queries`
 
 Queries each subgraph directly (without federation):
+
 - Query users from users subgraph
 - Query orders from orders subgraph
 
 **Expected Outcome**:
+
 - Users subgraph returns user entities
 - Orders subgraph returns order entities
 
@@ -39,14 +45,17 @@ Queries each subgraph directly (without federation):
 ---
 
 ### 3. HTTP Federation from Orders
+
 **Test**: `test_two_subgraph_http_federation_from_orders`
 
 Tests if orders subgraph can resolve User information via HTTP federation:
+
 - Orders subgraph extends User type
 - Query orders with user information
 - User data comes from users subgraph via HTTP
 
 **Expected Outcome**:
+
 - Orders can be queried
 - User information is either resolved or error message indicates configuration state
 
@@ -55,9 +64,11 @@ Tests if orders subgraph can resolve User information via HTTP federation:
 ---
 
 ### 4. Federation Through Gateway
+
 **Test**: `test_two_subgraph_federation_through_gateway`
 
 Executes a federated query through Apollo Router gateway:
+
 - Query users from gateway (routed to users subgraph)
 - Query orders for each user (routed to orders subgraph)
 - Orders subgraph resolves User references via HTTP federation
@@ -79,6 +90,7 @@ query {
 ```
 
 **Expected Outcome**:
+
 - Query succeeds without errors
 - Returns users with their orders
 - Federation compositing works correctly
@@ -88,14 +100,17 @@ query {
 ---
 
 ### 5. Entity Resolution Consistency
+
 **Test**: `test_two_subgraph_entity_resolution_consistency`
 
 Validates that entities are consistently resolved across subgraphs:
+
 1. Get a user ID from users subgraph
 2. Query the same user through orders subgraph
 3. Verify the user data matches
 
 **Expected Outcome**:
+
 - User can be resolved from both subgraphs
 - User ID and identifier are consistent
 
@@ -104,14 +119,17 @@ Validates that entities are consistently resolved across subgraphs:
 ---
 
 ### 6. Data Consistency
+
 **Test**: `test_two_subgraph_data_consistency`
 
 Compares data retrieved via direct and federated queries:
+
 1. Query users directly from users subgraph
 2. Query users through gateway
 3. Verify data matches
 
 **Expected Outcome**:
+
 - User counts are the same
 - User IDs are the same
 - Data is consistent across query paths
@@ -121,14 +139,17 @@ Compares data retrieved via direct and federated queries:
 ---
 
 ### 7. Performance Benchmark
+
 **Test**: `test_two_subgraph_federation_performance`
 
 Measures federation query latency:
+
 - Query 10 users with their orders through gateway
 - Measure total execution time
 - Verify reasonable latency
 
 **Expected Outcome**:
+
 - Query completes in < 5 seconds
 - Performance is acceptable for production use
 
@@ -148,6 +169,7 @@ cd tests/integration
 ```
 
 This script will:
+
 1. Start Docker Compose environment
 2. Wait for services to be healthy
 3. Run all 2-subgraph tests
@@ -208,6 +230,7 @@ For CI environments, use the script:
 ```
 
 The script will:
+
 - Exit with code 0 on success
 - Exit with non-zero code on failure
 - Provide detailed output for troubleshooting
@@ -216,6 +239,7 @@ The script will:
 
 ### ✓ All Tests Pass
 Federation is working correctly. Subgraphs can:
+
 - Respond independently
 - Compose through gateway
 - Resolve extended entities via HTTP

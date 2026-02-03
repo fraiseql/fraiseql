@@ -21,21 +21,25 @@ schema/
 ## Domains
 
 ### Auth Domain
+
 - **Types**: User, Session
 - **Queries**: getUser, getCurrentUser
 - **Mutations**: login, logout
 
 ### Products Domain
+
 - **Types**: Product, Category
 - **Queries**: getProduct, listProducts, getCategory, listCategories
 - **Mutations**: createProduct, updateProduct
 
 ### Orders Domain
+
 - **Types**: Order, OrderItem
 - **Queries**: getOrder, getUserOrders, getOrderItems
 - **Mutations**: createOrder, updateOrderStatus
 
 ### Inventory Domain
+
 - **Types**: Inventory, Warehouse
 - **Queries**: getInventory, checkGlobalStock, listWarehouses
 - **Mutations**: updateInventory, reserveInventory
@@ -50,6 +54,7 @@ fraiseql compile fraiseql.toml
 ```
 
 This will:
+
 - Auto-discover all domains in the `schema/` directory
 - Load `types.json` from each domain (auth, products, orders, inventory)
 - Merge all types, queries, and mutations
@@ -72,6 +77,7 @@ root_dir = "schema"
 ```
 
 This tells FraiseQL to:
+
 1. Look in the `schema/` directory
 2. Find all subdirectories (auth, products, orders, inventory)
 3. Load `types.json`, `queries.json`, `mutations.json` from each

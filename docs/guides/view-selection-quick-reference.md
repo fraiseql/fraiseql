@@ -53,12 +53,14 @@ Query slow (>1s)? → Migrate to ta_*
 ## When to Use Each Pattern
 
 ### ✅ Use `v_*` when
+
 - Single table or 1-2 table join
 - Query already fast (<500ms)
 - Query patterns vary (unpredictable)
 - Storage is limited
 
 ### ✅ Use `tv_*` when
+
 - 3+ table joins with JSONB composition
 - Complex nesting (User → Posts → Comments → Likes)
 - High read volume (>100 req/sec)
@@ -66,12 +68,14 @@ Query slow (>1s)? → Migrate to ta_*
 - GraphQL subscriptions need fast updates
 
 ### ✅ Use `va_*` when
+
 - Analytics on small dataset (<100K rows)
 - Query already fast (<1s)
 - Query patterns vary
 - Storage is limited
 
 ### ✅ Use `ta_*` when
+
 - Analytics on large dataset (>1M rows)
 - Time-series data with range queries
 - Query time > 1 second
@@ -79,6 +83,7 @@ Query slow (>1s)? → Migrate to ta_*
 - Column-oriented operations (aggregations)
 
 ### ❌ Don't use table-backed views when
+
 - Storage is severely constrained
 - Write volume unpredictable (>1K/min writes)
 - Query patterns are highly dynamic
@@ -414,16 +419,19 @@ Did query time improve >5x?
 ## Related Guides
 
 **Detailed Documentation**:
+
 - [Full View Selection Guide](../architecture/database/view-selection-guide.md) — Comprehensive decision guide with all 4 patterns
 - [tv_* Table Pattern](../architecture/database/tv-table-pattern.md) — Deep dive into JSON plane table-backed views
 - [ta_* Table Pattern](../architecture/database/ta-table-pattern.md) — Deep dive into Arrow plane table-backed views
 - [Schema Conventions](../specs/schema-conventions.md) — Database naming and structure conventions
 
 **Supplementary Guides**:
+
 - [Migration Checklist](./view-selection-migration-checklist.md) — Step-by-step workflow for v_→tv_ or va_→ta_ migrations
 - [Performance Testing](./view-selection-performance-testing.md) — Methodology for benchmarking and validating improvements
 
 **How to Use These Guides**:
+
 1. **New to view selection?** Start here (Quick Reference) → then read Full View Selection Guide
 2. **Ready to migrate?** Use Migration Checklist → benchmark with Performance Testing guide
 3. **Deep technical details?** Read tv_* and ta_* patterns

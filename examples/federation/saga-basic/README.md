@@ -15,6 +15,7 @@ An **e-commerce order processing saga** that coordinates between three microserv
 When a customer places an order, the saga orchestrates these steps:
 
 ```
+
 1. Verify User Exists (Users Service)
    ↓
 2. Charge Payment (Payment Service - simulated)
@@ -98,6 +99,7 @@ Wait for all services to become healthy (check Docker Desktop or run `docker-com
 ```
 
 This runs an automated test that:
+
 - Verifies all services are healthy
 - Executes a complete order saga (4 steps)
 - Validates data persistence
@@ -192,6 +194,7 @@ Result: Order not created, inventory unchanged, charge refunded
 Every saga step must be **idempotent** - running it twice has the same effect as running it once.
 
 In this example:
+
 - Payment charging uses a `chargeId` to prevent duplicate charges
 - Inventory reservation uses `reservationId` for consistency
 - Order creation is idempotent if the same `orderId` is used
@@ -219,6 +222,7 @@ The saga coordinator tracks state in PostgreSQL:
 ### 4. **Recovery**
 
 If a service crashes mid-saga:
+
 1. Restart the service
 2. Coordinator detects incomplete sagas
 3. Resumes from the last completed step
@@ -306,6 +310,7 @@ Edit the saga definition in `/saga-coordination/` to add more steps or change th
 ### 3. Test Failure Paths
 
 The example shows the success path. Test failure by:
+
 - Setting product stock to 0 (inventory failure)
 - Stopping a service mid-saga (crash recovery)
 - Injecting errors in service responses
@@ -330,6 +335,7 @@ SELECT * FROM sagas WHERE status = 'FAILED';
 ### 5. Production Deployment
 
 For production, see `/docs/FEDERATION_DEPLOYMENT.md` and `/docs/SAGA_PATTERNS.md` for:
+
 - Kubernetes deployment manifests
 - High-availability saga coordination
 - Distributed tracing setup

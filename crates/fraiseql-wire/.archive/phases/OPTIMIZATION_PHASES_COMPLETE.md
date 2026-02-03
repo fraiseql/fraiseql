@@ -115,6 +115,7 @@ NET SAVINGS: 20-25ms per query startup
 
 ```
 Measured Performance (Phases 1-6 combined):
+
 - PostgreSQL native: 52ms baseline
 - fraiseql-wire: 51.9ms
 

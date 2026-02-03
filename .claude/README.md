@@ -97,6 +97,7 @@ cargo test
 git commit -m "feat(scope): Description
 
 ## Changes
+
 - Change 1
 - Change 2
 

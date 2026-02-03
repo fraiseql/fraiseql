@@ -255,12 +255,14 @@ query {
 ### Trade-offs & Security
 
 **JWT vs Sessions**:
+
 - JWT: Stateless, scales horizontally, no server storage
 - Sessions: Stateful, easier to revoke, more control
 
 **FraiseQL recommends JWT** for simplicity and scalability.
 
 **Security Considerations**:
+
 - ✅ Hash passwords with bcrypt (cost 12+)
 - ✅ Use HTTPS only (TLS 1.3+)
 - ✅ Store secret key in environment (not git)
@@ -480,6 +482,7 @@ query GetNextPage {
 | Last page (offset 1M) | ~500ms | Index scan from end |
 
 **Optimization**:
+
 - ✅ Add database index on creation date
 - ✅ Use offset-based cursor for small pages
 - ✅ Consider keyset pagination for very large datasets
@@ -629,6 +632,7 @@ CREATE INDEX idx_users_name_search ON users USING GIN (
 ```
 
 With index:
+
 - Unfiltered search: ~100ms
 - Filtered search: ~20ms
 - Multiple filters: ~50ms
@@ -1079,15 +1083,18 @@ pub async fn update_user(
 
 ```
 Without cache:
+
 - Query time: 50ms
 - Database load: 100 queries/sec
 
 With L1 cache (50% hit rate):
+
 - Query time: 25ms (average)
 - Database load: 50 queries/sec
 - Reduction: 50%
 
 With L1+L2 cache (80% hit rate):
+
 - Query time: 10ms (average)
 - Database load: 20 queries/sec
 - Reduction: 80%

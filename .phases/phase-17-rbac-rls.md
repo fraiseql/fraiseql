@@ -3,6 +3,7 @@
 ## Objective
 
 Implement runtime authorization for GraphQL queries through:
+
 1. **Field-Level RBAC**: Scope-based access control (already partially implemented via JWT filtering)
 2. **Row-Level Security (RLS)**: Tenant isolation and owner-based record access (new in this phase)
 
@@ -13,6 +14,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 ### Completed ✅
 
 #### Cycle 1: Security Foundation (DONE)
+
 - **RED**: ✅ Created test files for SecurityContext and RLSPolicy
 - **GREEN**: ✅ Implemented SecurityContext struct with:
   - User identity: `user_id`, `roles`, `tenant_id`
@@ -37,6 +39,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 ### Completed ✅ (continued)
 
 #### Cycle 2: Executor Integration (DONE)
+
 - **RED**: ✅ Created 6 integration tests verifying RLS behavior
   - Admin bypass, tenant isolation, multi-tenant, WHERE clause composition, context metadata
 
@@ -53,6 +56,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 ### Completed ✅ (continued)
 
 #### Cycle 3: SQL Integration (DONE)
+
 - **REFACTOR**: ✅ Integrated WHERE clause filtering into RLS query execution
   - Added WhereClause import to executor.rs
   - Evaluate RLS policy → Option<WhereClause>
@@ -74,6 +78,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 **Commit**: `21fb495b` - WHERE clause RLS integration
 
 **Key Architecture Insights**:
+
 - DatabaseAdapter.execute_with_projection() already supported WHERE clauses
 - Was passing None as third parameter (line 597 before changes)
 - TenantEnforcer provides proven reference pattern for clause composition
@@ -82,17 +87,20 @@ Both features integrate with the compilation-first architecture, respecting the 
 ### Not Started ⏹️
 
 #### Cycle 4: Server Handler Wiring
+
 - Update HTTP handler to create SecurityContext from JWT + request headers
 - Pass SecurityContext through to executor.execute_with_security()
 - Extract user info from JWT claims (user_id, roles, tenant_id, scopes, attributes)
 - Handle RLS policy initialization from schema.compiled.json
 
 **Files to Modify**:
+
 - Server handler (location TBD based on framework)
 - JWT token extraction middleware
 - ExecutionContext integration
 
 #### Cycle 5: TOML Schema Enhancements
+
 - Add RLS rule definitions to TOML schema
 - Update compiler to extract rules from TOML and embed in schema.compiled.json
 - Schema structure:
@@ -111,6 +119,7 @@ Both features integrate with the compilation-first architecture, respecting the 
   ```
 
 #### Cycle 5: Field-Level RBAC Completion
+
 - **Current State**: Scope-based JWT filtering exists but decorator syntax is missing
 - **Gap**: No `@scope` decorator in Python/TypeScript SDKs
 - **Implementation**:
@@ -120,6 +129,7 @@ Both features integrate with the compilation-first architecture, respecting the 
   - Integration with FieldFilter (already in security module)
 
 #### Cycle 6: Integration Tests
+
 - Multi-tenant RLS test suite
 - Owner-based access control tests
 - Admin bypass verification tests
@@ -129,21 +139,25 @@ Both features integrate with the compilation-first architecture, respecting the 
 ## Architecture Compliance
 
 ✅ **Compilation-First Boundary Respected**:
+
 - Policies defined in fraiseql.toml → embedded in schema.compiled.json
 - Runtime evaluation with actual SecurityContext (user, tenant, attributes)
 - No dynamic policy changes (immutable compiled schema)
 
 ✅ **Type Safety**:
+
 - SecurityContext carries all user info
 - RLSPolicy trait for pluggable policies
 - WHERE clause composition via `WhereClause::And()` (type-safe)
 
 ✅ **No Breaking Changes**:
+
 - RLS policy is optional (config defaults to None)
 - Existing queries work without RLS
 - Backward compatible with current field filtering
 
 ✅ **Performance**:
+
 - WHERE clause composition happens once per query
 - Optional caching via `RLSPolicy::cache_result()`
 - Indexes on tenant_id, author_id support RLS queries
@@ -157,18 +171,21 @@ Both features integrate with the compilation-first architecture, respecting the 
 ## Cycle Breakdown
 
 ### Cycle 1: Security Foundation (COMPLETE)
+
 - SecurityContext struct with user info and permissions
 - RLSPolicy trait with evaluate() method
 - DefaultRLSPolicy reference implementation
 - 6 integration tests
 
 ### Cycle 2: Executor Infrastructure (COMPLETE)
+
 - RuntimeConfig.rls_policy field
 - execute_with_security() public method
 - execute_with_security_internal() routing
 - execute_regular_query_with_security() handler
 
 ### Cycle 3: WHERE Clause Integration (COMPLETE)
+
 - Evaluate RLS policy → Option<WhereClause>
 - Pass to execute_with_projection()
 - Database adapter handles SQL composition
@@ -176,6 +193,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 - 8 total integration tests (6 + 2 new)
 
 ### Cycle 4: Server Handler Wiring (COMPLETE)
+
 - **RED**: ✅ Created tests for request metadata extraction and SecurityContext creation
 - **GREEN**: ✅ Implemented HTTP handler routing through execute_with_security()
   - execute_graphql_request() accepts optional SecurityContext parameter
@@ -204,6 +222,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 **Result**: HTTP handlers now automatically create SecurityContext from authenticated users and request metadata, enabling RLS policy evaluation
 
 ### Cycle 5: TOML Schema Enhancements (FUTURE)
+
 - RLS rule definitions in TOML
 - Compiler extracts and embeds rules
 - RLS configuration from schema.compiled.json
@@ -251,11 +270,13 @@ Both features integrate with the compilation-first architecture, respecting the 
 ## Files Modified / Created (Cycles 1-3)
 
 ### Created ✅
+
 - `crates/fraiseql-core/src/security/security_context.rs` (245 lines) - Cycle 1
 - `crates/fraiseql-core/src/security/rls_policy.rs` (504 lines) - Cycle 1
 - `crates/fraiseql-core/tests/integration_rls.rs` (309 lines) - Cycles 1-3
 
 ### Modified ✅
+
 - `crates/fraiseql-core/src/runtime/executor.rs`
   - Added WhereClause import (Cycle 3)
   - Implemented execute_with_security() (Cycle 2)
@@ -273,6 +294,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 ## Effort Summary
 
 ### Completed (Cycles 1-4)
+
 - **Cycle 1** (Security Foundation): ~6 hours
   - 2h: SecurityContext implementation (245 lines)
   - 3h: RLSPolicy trait + 3 implementations (504 lines)
@@ -297,6 +319,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 **Completed Total**: ~15 hours
 
 ### Remaining (Cycles 5-6)
+
 - **Cycle 5** (TOML Schema Enhancements): ~4 hours
   - RLS rule definitions in TOML
   - Compiler integration
@@ -311,6 +334,7 @@ Both features integrate with the compilation-first architecture, respecting the 
 ## Next Steps
 
 ### Immediate (Cycle 4: Server Handler Wiring)
+
 1. Identify server HTTP handler location
 2. Extract user claims from JWT token
 3. Create SecurityContext from user info
@@ -318,11 +342,13 @@ Both features integrate with the compilation-first architecture, respecting the 
 5. Wire HTTP response handling
 
 ### Short-term (Cycle 5: TOML Enhancements)
+
 1. Add RLS rule definitions to TOML schema
 2. Update compiler to extract rules and embed in schema.compiled.json
 3. Parse rules at runtime and create policy instances
 
 ### Medium-term (Cycle 6: Field-Level RBAC)
+
 1. Add @scope decorator syntax to Python/TypeScript SDKs
 2. Generate scope requirements in schema.json
 3. Enforce scopes in executor before field projection

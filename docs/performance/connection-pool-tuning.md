@@ -23,6 +23,7 @@ Connection pooling is essential for GraphQL API performance. A properly tuned co
 
 ```
 Behavior:
+
 1. Server starts with 0 connections
 2. First request creates 1 connection
 3. Pool grows to max_size (10) as needed
@@ -34,6 +35,7 @@ Behavior:
 ### Small Applications (Development, Low Traffic)
 
 **Characteristics**:
+
 - < 100 requests/hour
 - < 10 concurrent connections needed
 - Single server deployment
@@ -47,6 +49,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ```
 
 **Expected Metrics**:
+
 - Pool utilization: 20-40%
 - Connection reuse: High
 - Latency: < 50ms p95
@@ -54,6 +57,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ### Medium Applications (Staging, Moderate Traffic)
 
 **Characteristics**:
+
 - 1K-10K requests/hour
 - 10-50 concurrent connections
 - Single or dual server
@@ -67,6 +71,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ```
 
 **Expected Metrics**:
+
 - Pool utilization: 40-70%
 - Connection reuse: High
 - Latency: < 100ms p95
@@ -74,6 +79,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ### Large Applications (Production)
 
 **Characteristics**:
+
 - 100K+ requests/hour
 - 50-200 concurrent connections
 - Multiple servers (load balanced)
@@ -87,6 +93,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ```
 
 **Expected Metrics**:
+
 - Pool utilization: 50-80%
 - Connection reuse: High
 - Latency: < 150ms p95
@@ -100,6 +107,7 @@ let adapter = PostgresAdapter::with_pool_size(
 max_pool_size = (core_count × 2) + effective_spindle_count
 
 For typical cloud VMs:
+
 - 2 cores:  5 connections
 - 4 cores:  10 connections (default)
 - 8 cores:  20 connections
@@ -110,6 +118,7 @@ For typical cloud VMs:
 ### Rationale
 
 Each connection:
+
 - Occupies ~1-2 MB of database memory
 - Requires PostgreSQL backend process (~5-10 MB)
 - Handles one query at a time

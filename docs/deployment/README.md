@@ -40,18 +40,21 @@ See [Production Deployment Guide](guide.md) for Kubernetes manifests and best pr
 ## Key Sections
 
 ### Pre-Deployment
+
 - System requirements (CPU, memory, network)
 - Database setup and credentials
 - SSL/TLS certificates
 - Configuration validation
 
 ### Deployment Strategies
+
 - **Docker Compose** — For small deployments
 - **Kubernetes** — For cloud-native deployments
 - **Bare Metal** — For on-premises deployments
 - **Managed Services** — AWS, Google Cloud, Azure
 
 ### Post-Deployment
+
 - Health checks and readiness probes
 - Monitoring and observability setup
 - Performance tuning
@@ -81,6 +84,7 @@ curl http://localhost:8080/metrics
 ## Troubleshooting
 
 Common deployment issues:
+
 - Connection timeouts
 - Certificate validation errors
 - Database authentication failures

@@ -27,14 +27,17 @@ FraiseQL baseline performance (on single 2-core 4GB instance):
 
 ```
 Simple query (single row fetch):
+
 - Latency: 2-5ms
 - Throughput: 200+ req/sec
 
 Complex query (10 nested fields):
+
 - Latency: 10-50ms
 - Throughput: 100+ req/sec
 
 Pagination query (100 rows):
+
 - Latency: 20-100ms
 - Throughput: 50+ req/sec
 ```
@@ -105,6 +108,7 @@ CREATE INDEX idx_posts_search ON posts USING GIN(
 ```
 
 Performance impact:
+
 - Without indexes: 500-5000ms for filtered queries
 - With indexes: 5-50ms for filtered queries
 - Index overhead: ~1ms per INSERT
@@ -118,6 +122,7 @@ Analyze query execution:
 EXPLAIN ANALYZE SELECT * FROM users WHERE email = 'test@example.com';
 
 -- Look for:
+
 -- - Sequential Scan (bad - use index)
 -- - Index Scan (good)
 -- - Join condition properly indexed (good)
@@ -140,6 +145,7 @@ connection_timeout_ms = 5000
 ```
 
 Recommended settings:
+
 - Light workload: min=5, max=20
 - Medium workload: min=10, max=50
 - Heavy workload: min=20, max=100
@@ -176,6 +182,7 @@ Prevent expensive queries:
 ```
 
 Adjust based on your use case:
+
 - Public API: Conservative limits (complexity=1000, depth=5)
 - Internal API: Generous limits (complexity=10000, depth=20)
 
@@ -209,6 +216,7 @@ query GetUsers {
 ```
 
 Difference:
+
 - Bad query: 50ms
 - Good query: 10ms
 - Improvement: 80% faster
@@ -239,6 +247,7 @@ query UsersPaginated {
 ```
 
 Performance comparison:
+
 - All at once: 500-1000ms + memory issues
 - With pagination: 10-50ms per page + constant memory
 
@@ -261,6 +270,7 @@ docker stats fraiseql
 ```
 
 When to scale vertically:
+
 - Database waiting on CPU
 - Connection pool utilization >80%
 - Single bottleneck identified
@@ -290,6 +300,7 @@ server {
 ```
 
 Scaling performance:
+
 - 1 instance: 100 req/sec (CPU maxed)
 - 3 instances: 280 req/sec (CPU at 80%)
 - Improvement: 180% more throughput
@@ -336,6 +347,7 @@ max_entries = 10000
 ```
 
 Which queries to cache:
+
 - ✅ Static data (user profiles, configurations)
 - ✅ Popular queries (top users, trending posts)
 - ❌ Real-time data (current user auth, live notifications)
@@ -358,6 +370,7 @@ Database query
 ```
 
 Performance impact:
+
 - No cache: 50ms per query
 - L1 cache (80% hit): 10ms average
 - L1+L2 cache (95% hit): 5ms average
@@ -401,6 +414,7 @@ sudo cargo flamegraph --bin fraiseql-server
 ```
 
 Common bottlenecks:
+
 - JSON serialization: Optimize field selection
 - Database queries: Add indexes
 - GraphQL validation: Simplify complex schemas
@@ -468,6 +482,7 @@ max_complexity = 5000
 cache_ttl = 60
 
 # Plus:
+
 - Read replicas for database
 - Redis for cross-server caching
 - CDN for static content
@@ -488,6 +503,7 @@ max_complexity = 10000
 cache_ttl = 30
 
 # Plus:
+
 - Database sharding by user_id
 - Redis cluster for caching
 - GraphQL query batching
@@ -550,6 +566,7 @@ Create Grafana dashboards to monitor:
 
 ```yaml
 # Alert if latency is high
+
 - alert: HighQueryLatency
   expr: fraiseql_query_duration_seconds_p99 > 1.0
   for: 5m
@@ -557,6 +574,7 @@ Create Grafana dashboards to monitor:
     summary: "Query latency above 1s"
 
 # Alert if error rate is high
+
 - alert: HighErrorRate
   expr: rate(fraiseql_query_errors_total[5m]) > 0.01
   for: 5m
@@ -564,6 +582,7 @@ Create Grafana dashboards to monitor:
     summary: "Error rate above 1%"
 
 # Alert if connection pool is full
+
 - alert: ConnectionPoolExhausted
   expr: fraiseql_connection_pool_active >= fraiseql_connection_pool_max
   for: 2m

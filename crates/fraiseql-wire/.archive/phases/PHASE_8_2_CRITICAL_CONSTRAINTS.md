@@ -377,6 +377,7 @@ same filtering, same performance.
 ## Rationale: Why This Boundary Matters
 
 fraiseql-wire's value proposition is **simplicity**:
+
 - One query shape (WHERE + ORDER BY only)
 - Minimal protocol (Simple Query only)
 - Predictable performance (no query planning)

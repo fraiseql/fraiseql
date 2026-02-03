@@ -16,6 +16,7 @@ A **money transfer saga** between bank accounts that shows:
 When a customer transfers money between accounts:
 
 ```
+
 1. Verify Sender Account (Bank Service)
    - Check account exists and is not frozen
    ↓
@@ -109,6 +110,7 @@ docker-compose up -d
 ```
 
 This tests:
+
 - Successful transfer between accounts
 - Idempotent transfers (same request, same result)
 - Partial failures with manual compensation

@@ -19,6 +19,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** that transforms schema de
 FraiseQL v2 now includes comprehensive production hardening for enterprise deployments:
 
 ### 1. Security Audit & Fixes ✅
+
 - **13 comprehensive security tests** covering SQL injection, XSS, CSRF, authentication, and secrets handling
 - Input validation on all query boundaries
 - Parameterized queries prevent SQL injection
@@ -27,6 +28,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - No hardcoded secrets in code
 
 ### 2. Dependency Management ✅
+
 - **CVE audits** completed with `cargo audit`
 - Critical security updates: `lru` 0.12 → 0.16 (timing sidechannel fix)
 - `rustls-pemfile` 2.0 → 2.2 (security updates)
@@ -34,6 +36,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - Zero known critical vulnerabilities
 
 ### 3. Observability Integration ✅
+
 - **25 comprehensive tests** covering OpenTelemetry integration
 - **W3C Trace Context** standard compliance
 - Distributed tracing with 32-char hex trace IDs, 16-char hex span IDs
@@ -43,6 +46,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - Thread-safe concurrent span/metric/log handling
 
 ### 4. Operational Tools ✅
+
 - **14 comprehensive tests** for production operations
 - **Three-tier health check endpoints**:
   - `/health` - Overall health with uptime
@@ -54,6 +58,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - **Atomic operations** for thread-safe shutdown coordination
 
 ### 5. Documentation Updates ✅
+
 - Updated OBSERVABILITY.md with OpenTelemetry integration details
 - Updated OPERATIONS_GUIDE.md with health checks and graceful shutdown
 - Comprehensive health probe configuration for Kubernetes
@@ -67,6 +72,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 ### Core Features
 
 #### 1. Apollo Federation v2 Support ⭐
+
 - Full **Apollo Federation v2 specification** compliance
 - **@key** directive for entity identification across services
 - **@extends** directive for type extension across services
@@ -78,6 +84,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - Multi-service type composition and cross-subgraph queries
 
 #### 2. Saga-Based Distributed Transactions ⭐
+
 - **Saga Orchestration** for distributed transaction coordination
 - **Forward execution** with multi-step transaction flows
 - **Automatic compensation** for transactional rollback
@@ -88,6 +95,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - 483+ test scenarios covering all patterns
 
 #### 3. Multi-Database Federation ⭐
+
 - **PostgreSQL** (primary, all features)
 - **MySQL** (secondary, core features)
 - **SQLite** (local development, testing)
@@ -97,6 +105,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - Multi-database federation chains validated
 
 #### 4. Python & TypeScript Schema Authoring ⭐
+
 - **Python decorators** for schema definition
 - **TypeScript decorators** for schema definition
 - JSON schema compilation format
@@ -104,6 +113,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - Type-safe schema generation
 
 #### 5. Automatic Query Optimization
+
 - Build-time query compilation
 - SQL template generation
 - Zero-cost abstractions
@@ -131,18 +141,21 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 ## 📈 Quality Metrics
 
 ### Testing
+
 - ✅ **1,700+ tests** passing
 - ✅ **95%+ code coverage** in critical paths
 - ✅ **18 comprehensive test suites**
 - ✅ **Zero test flakiness**
 
 ### Code Quality
+
 - ✅ **Zero clippy warnings** (pedantic mode)
 - ✅ **Zero security vulnerabilities** (OIDC, TLS, input validation)
 - ✅ **Zero hardcoded secrets**
 - ✅ **100% production-grade code**
 
 ### Performance
+
 - ✅ **Entity resolution**: <5ms (local), <20ms (direct DB), <200ms (HTTP)
 - ✅ **Saga execution**: <300ms (3-step typical)
 - ✅ **Query latency**: <50ms (typical)
@@ -150,6 +163,7 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 - ✅ **Memory efficiency**: <100MB per 1M rows
 
 ### Documentation
+
 - ✅ **3,000+ lines** of user documentation
 - ✅ **3 working examples** with Docker Compose
 - ✅ **Comprehensive troubleshooting guide**
@@ -160,16 +174,19 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 ## 📚 Documentation
 
 ### Getting Started
+
 - **[SAGA_GETTING_STARTED.md](docs/SAGA_GETTING_STARTED.md)** - Saga basics and patterns
 - **[FAQ.md](docs/FAQ.md)** - 20+ frequently asked questions
 - **[README.md](README.md)** - Project overview and setup
 
 ### Advanced Usage
+
 - **[SAGA_PATTERNS.md](docs/SAGA_PATTERNS.md)** - Advanced saga patterns
 - **[FEDERATION_SAGAS.md](docs/FEDERATION_SAGAS.md)** - Federation + saga integration
 - **[MIGRATION_PHASE_15_TO_16.md](docs/MIGRATION_PHASE_15_TO_16.md)** - Upgrade guide
 
 ### Reference
+
 - **[PHASE_16_READINESS.md](docs/PHASE_16_READINESS.md)** - Readiness checklist
 - **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)** - Limitations and workarounds
 - **[TEST_COVERAGE.md](docs/TEST_COVERAGE.md)** - Test inventory
@@ -182,12 +199,14 @@ FraiseQL v2 now includes comprehensive production hardening for enterprise deplo
 Three complete working examples with Docker Compose:
 
 ### 1. **saga-basic** - E-Commerce Order Processing
+
 - 3 services: Users, Orders, Inventory
 - Forward execution: Create order → Reserve inventory → Process payment
 - Compensation: Reverse each step on failure
 - Run: `cd examples/federation/saga-basic && docker-compose up`
 
 ### 2. **saga-manual-compensation** - Banking Transfer
+
 - 2 services: Bank, Payment
 - Manual compensation logic
 - Idempotency validation
@@ -195,6 +214,7 @@ Three complete working examples with Docker Compose:
 - Run: `cd examples/federation/saga-manual-compensation && docker-compose up`
 
 ### 3. **saga-complex** - Travel Booking
+
 - 5 services: Flights, Hotels, Cars, Payments, Notifications
 - Complex multi-service coordination
 - Parallel execution optimization
@@ -210,6 +230,7 @@ All examples include test scripts validating complete flows.
 **Breaking Changes**: None - full backward compatibility
 
 **Recommended Actions**:
+
 1. Review [MIGRATION_PHASE_15_TO_16.md](docs/MIGRATION_PHASE_15_TO_16.md)
 2. Update to Phase 16 CLI: `cargo build --release -p fraiseql-cli`
 3. Recompile existing schemas (optional, but recommended)
@@ -248,6 +269,7 @@ See **[README.md](README.md)** for detailed setup instructions.
 All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)**
 
 ### Phase 17+ Features (Not in GA):
+
 - 🔜 Arrow Flight integration (alternative execution engine)
 - 🔜 Field-level authorization (RBAC)
 - 🔜 Advanced caching (Redis backend)
@@ -262,6 +284,7 @@ All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMI
 ## 🔐 Security
 
 ### Implemented
+
 - ✅ OIDC authentication
 - ✅ TLS/HTTPS support
 - ✅ Input validation on all boundaries
@@ -270,6 +293,7 @@ All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMI
 - ✅ Secrets management via environment variables
 
 ### Verified
+
 - ✅ Security audit passed (lightweight review)
 - ✅ Dependency scanning complete
 - ✅ No critical vulnerabilities
@@ -279,11 +303,13 @@ All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMI
 ## 📞 Support
 
 ### Documentation
+
 - [FAQ.md](docs/FAQ.md) - Common questions
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
 - [PHASE_16_READINESS.md](docs/PHASE_16_READINESS.md) - Feature completeness
 
 ### Community
+
 - GitHub Issues: [Report bugs](https://github.com/anthropics/fraiseql/issues)
 - Discussions: [Get help](https://github.com/anthropics/fraiseql/discussions)
 
@@ -292,9 +318,11 @@ All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMI
 ## 📝 Changelog
 
 ### v2.0.0 (2026-01-29) - Phase 16 Complete
+
 **Major Release**: Apollo Federation v2 + Saga Orchestration
 
 **Highlights**:
+
 - ✅ Full Apollo Federation v2 compliance (109/109 items)
 - ✅ Saga-based distributed transactions (483 tests)
 - ✅ Multi-database federation support
@@ -304,6 +332,7 @@ All known limitations are documented in **[KNOWN_LIMITATIONS.md](docs/KNOWN_LIMI
 - ✅ Production-grade security & performance
 
 **What's Included**:
+
 - Core federation features (@key, @extends, @external, @requires, @provides, @shareable)
 - Saga coordinator with forward execution and compensation
 - Recovery manager for stuck sagas

@@ -26,6 +26,7 @@ All critical end-to-end data flows have been validated across the system:
 ## Flow 8.1: GraphQL → PostgreSQL Query Execution
 
 ### Test Setup
+
 - GraphQL server running on localhost:3000
 - PostgreSQL test database configured
 - Multiple data types in test schema
@@ -42,6 +43,7 @@ query GetUsers {
   }
 }
 ```
+
 - ✅ Query parses successfully
 - ✅ PostgreSQL SQL generated correctly
 - ✅ Results returned as GraphQL objects
@@ -62,6 +64,7 @@ query FilteredUsers {
   }
 }
 ```
+
 - ✅ WHERE clause generated correctly
 - ✅ ORDER BY applied correctly
 - ✅ LIMIT enforced
@@ -81,6 +84,7 @@ query UserOrders {
   }
 }
 ```
+
 - ✅ JOINs generated automatically
 - ✅ Nested objects populated correctly
 - ✅ No N+1 query problems detected
@@ -97,12 +101,14 @@ query CustomScalars {
   }
 }
 ```
+
 - ✅ DateTime types preserved with timezone
 - ✅ JSON custom scalar handles nested objects
 - ✅ Enum values mapped correctly
 - ✅ NULL values handled gracefully
 
 ### Results
+
 - ✅ **Total Queries**: 47 executed
 - ✅ **All Parsing**: Success
 - ✅ **All SQL Generation**: Correct
@@ -115,6 +121,7 @@ query CustomScalars {
 ## Flow 8.2: Observer Events → Job Queue → Action Execution
 
 ### Test Setup
+
 - Observer system configured
 - Redis job queue running
 - Webhook test server listening on localhost:8001
@@ -128,6 +135,7 @@ Rule: On User.created event, execute webhook
 Condition: user.is_active = true
 Action: POST to https://webhook.example.com/users
 ```
+
 - ✅ Rule created successfully
 - ✅ Stored in PostgreSQL
 - ✅ Conditions parse correctly
@@ -142,6 +150,7 @@ EntityEvent:
   data: { is_active: true, email: "test@example.com" }
   org_id: "org-1"
 ```
+
 - ✅ Event received by observer
 - ✅ Conditions evaluated (is_active=true matches)
 - ✅ Matching detected
@@ -162,6 +171,7 @@ JobExecutor worker:
     Body: { event_type: "created", user: {...} }
   - Makes HTTP request
 ```
+
 - ✅ Webhook receives request
 - ✅ Request payload correct
 - ✅ job_executed metric incremented
@@ -174,6 +184,7 @@ Prometheus metrics recorded:
   job_executed_total{action_type="webhook"}: 1
   job_duration_seconds{action_type="webhook"}: 0.045s
 ```
+
 - ✅ All metrics incremented
 - ✅ Labels correct
 - ✅ Duration recorded
@@ -185,6 +196,7 @@ Prometheus metrics recorded:
 - Email: ✅ SMTP delivery attempted
 
 ### Results
+
 - ✅ **Total Observer Rules**: 12 created
 - ✅ **Events Triggered**: 24
 - ✅ **Jobs Queued**: 24
@@ -199,6 +211,7 @@ Prometheus metrics recorded:
 ## Flow 8.3: GraphQL → ClickHouse Analytics → Arrow Flight Export
 
 ### Test Setup
+
 - ClickHouse running (or simulated)
 - Arrow Flight server on localhost:50051
 - Test data schema with events
@@ -219,6 +232,7 @@ mutation CreateEvent {
   }
 }
 ```
+
 - ✅ Mutation accepted
 - ✅ Event stored in PostgreSQL
 - ✅ Queued for ClickHouse ingestion
@@ -232,6 +246,7 @@ ClickHouse Query:
   ORDER BY created_at DESC
   LIMIT 10
 ```
+
 - ✅ Row appears in ClickHouse
 - ✅ Timestamp preserved with timezone
 - ✅ JSON metadata stored correctly
@@ -244,6 +259,7 @@ Flight Request:
     query: "SELECT event_type, COUNT(*) as count FROM fraiseql_events GROUP BY event_type"
   }
 ```
+
 - ✅ Flight server accepts request
 - ✅ ClickHouse executes query
 - ✅ Results converted to Arrow batches
@@ -270,6 +286,7 @@ Arrow Format vs JSON:
 ```
 
 ### Results
+
 - ✅ **Events Inserted**: 1,000
 - ✅ **ClickHouse Rows**: 1,000 (100% match)
 - ✅ **Arrow Queries**: 47 executed
@@ -282,6 +299,7 @@ Arrow Format vs JSON:
 ## Flow 8.4: Multi-Tenancy Isolation
 
 ### Test Setup
+
 - Two organizations: org-1, org-2
 - Test users in each org
 - Observer rules scoped to org
@@ -301,6 +319,7 @@ mutation CreateUserOrgA {
   }
 }
 ```
+
 - ✅ User created with org_id=org-1
 - ✅ Stored in PostgreSQL
 - ✅ Indexed by org_id
@@ -317,6 +336,7 @@ mutation CreateUserOrgB {
   }
 }
 ```
+
 - ✅ User created with org_id=org-2
 - ✅ Stored in separate row
 - ✅ Indexed correctly
@@ -332,6 +352,7 @@ query OrgAUsers {
 }
 # Context: org_id = "org-1"
 ```
+
 - ✅ Returns only org-1 users (1 result)
 - ✅ Query WHERE clause includes org_id filter
 - ✅ org-2 users NOT visible
@@ -348,6 +369,7 @@ query OrgBUsers {
 }
 # Context: org_id = "org-2"
 ```
+
 - ✅ Returns only org-2 users (1 result)
 - ✅ org-1 users NOT visible
 - ✅ Filtering enforced at database level
@@ -358,6 +380,7 @@ query OrgBUsers {
 Direct SQL attempt:
   SELECT * FROM users WHERE org_id != current_org_id
 ```
+
 - ✅ Application layer prevents this query
 - ✅ Schema enforces org_id on all entities
 - ✅ No backdoor access possible
@@ -368,11 +391,13 @@ ClickHouse Query:
   SELECT COUNT(*) FROM fraiseql_events
   WHERE org_id = 'org-1'
 ```
+
 - ✅ Events from org-1 only counted
 - ✅ org-2 events not included
 - ✅ Bloom filters on org_id index working
 
 ### Results
+
 - ✅ **Orgs Created**: 2
 - ✅ **Users per Org**: 1
 - ✅ **Cross-Org Leaks**: 0
@@ -384,6 +409,7 @@ ClickHouse Query:
 ## Flow 8.5: Error Recovery (ClickHouse Failure & Recovery)
 
 ### Test Setup
+
 - ClickHouse initially running
 - Job queue buffering enabled
 - Event ingestion pipeline active
@@ -392,17 +418,20 @@ ClickHouse Query:
 
 **Step 1: Normal Operation**
 ```
+
 1. Event created via GraphQL
 2. Event queued for ClickHouse
 3. Worker ingests 100 events/sec
 4. ClickHouse receives and stores
 ```
+
 - ✅ Normal flow working
 
 **Step 2: Simulate ClickHouse Crash**
 ```bash
 docker stop fraiseql-clickhouse-test
 ```
+
 - ✅ Connection pool detects failure
 - ✅ Transient error handling triggered
 
@@ -420,6 +449,7 @@ During outage (while ClickHouse stopped):
 ```bash
 docker start fraiseql-clickhouse-test
 ```
+
 - ✅ Connection pool detects recovery
 - ✅ Health check passes
 
@@ -442,6 +472,7 @@ Validation:
 ```
 
 ### Results
+
 - ✅ **Buffered Events**: 50
 - ✅ **Recovery Time**: <5 seconds
 - ✅ **Data Lost**: 0
@@ -453,6 +484,7 @@ Validation:
 ## Flow 8.6: Authentication & Authorization
 
 ### Test Setup
+
 - OAuth provider simulated (GitHub)
 - Token validation configured
 - Refresh token rotation enabled
@@ -468,6 +500,7 @@ GitHub OAuth Flow:
   4. Exchange code for access_token
   5. access_token = "ghu_1234567890abcdef"
 ```
+
 - ✅ Token obtained successfully
 
 **Step 2: Access with Valid Token**
@@ -483,6 +516,7 @@ query GetUser {
   }
 }
 ```
+
 - ✅ Token validated
 - ✅ User context extracted (org_id, user_id)
 - ✅ Query executed with auth context
@@ -500,6 +534,7 @@ query GetUser {
   }
 }
 ```
+
 - ✅ Token validation fails
 - ✅ Response: 401 Unauthorized
 - ✅ Error message: "Invalid token"
@@ -512,6 +547,7 @@ Token expiration flow:
   2. Wait 1 hour + 1 minute
   3. Try to use token
 ```
+
 - ✅ Token detected as expired
 - ✅ Response: 401 Unauthorized
 - ✅ Client can use refresh_token
@@ -529,6 +565,7 @@ Refresh flow:
     expires_in: 3600
   }
 ```
+
 - ✅ New access_token issued
 - ✅ New refresh_token issued
 - ✅ Old tokens invalidated
@@ -548,11 +585,13 @@ Both tokens have:
 
 Queries automatically filtered by org_id
 ```
+
 - ✅ Both can access org-1 data
 - ✅ Neither can access other orgs
 - ✅ org_id enforced by auth context
 
 ### Results
+
 - ✅ **Valid Tokens**: Accepted
 - ✅ **Invalid Tokens**: Rejected (401)
 - ✅ **Expired Tokens**: Rejected (401)

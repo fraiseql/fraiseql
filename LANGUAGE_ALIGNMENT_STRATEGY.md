@@ -143,9 +143,11 @@ TOML File (fraiseql.toml - Single Source of Truth)
 ## Language Tier System
 
 ### Tier 1: Fully Supported (Production)
+
 **Requirement**: Type system + query decorators + full JSON output
 
 **Languages**:
+
 - Python (3.10+)
 - TypeScript (4.0+)
 - Java (17+)
@@ -156,9 +158,11 @@ TOML File (fraiseql.toml - Single Source of Truth)
 ---
 
 ### Tier 2: Community Supported (Ready)
+
 **Requirement**: Basic type definitions + JSON output (no decorators needed)
 
 **Languages**:
+
 - Go (1.18+)
 - PHP (8.0+)
 - Ruby (3.0+)
@@ -180,9 +184,11 @@ TOML File (fraiseql.toml - Single Source of Truth)
 ---
 
 ### Tier 3: Minimal Support (Basic)
+
 **Requirement**: JSON builders (no syntax sugar)
 
 **Languages**:
+
 - Node.js (18+)
 - Dart (3.0+)
 - Elixir (1.14+)
@@ -203,9 +209,11 @@ FraiseQL.defineType("User")
 ---
 
 ### Tier 4: Future (Planned)
+
 **Requirement**: YAML-only (no language support needed)
 
 **Languages**:
+
 - Scala (2.13+)
 - Groovy (3.0+)
 - Clojure (1.11+)
@@ -528,11 +536,13 @@ fraiseql.export_schema("types.json")
 ```
 
 **Language does**:
+
 - ✅ Type definitions with field metadata
 - ✅ Query/mutation declarations with args
 - ✅ Generate types.json (types + queries only)
 
 **TOML provides**:
+
 - ✅ Type bindings (sql_source, description)
 - ✅ Query return types, descriptions, args metadata
 - ✅ All configuration (security, federation, etc.)
@@ -553,10 +563,12 @@ fraiseql.ExportSchema("types.json")
 ```
 
 **Language does**:
+
 - ✅ Struct/class definitions with tags/attributes
 - ✅ Generate JSON representation
 
 **TOML provides**:
+
 - ✅ All metadata and configuration
 
 ---
@@ -572,10 +584,12 @@ const User = FraiseQL.type("User")
 ```
 
 **Language does**:
+
 - ✅ Builder API for types
 - ✅ JSON output
 
 **TOML provides**:
+
 - ✅ All metadata and configuration
 
 ---
@@ -583,21 +597,25 @@ const User = FraiseQL.type("User")
 ## Migration Path from Current to TOML-Based
 
 ### Phase 1: Deprecation (v2.0.0 alpha to beta)
+
 - Current implementations continue to work
 - Add deprecation warnings if using language security modules
 - Recommend TOML approach for new projects
 
 ### Phase 2: TOML Support (v2.0.0 beta to GA)
+
 - Implement fraiseql-cli merger: language output + TOML → compiled schema
 - Document TOML configuration
 - Create TOML examples for all use cases
 
 ### Phase 3: Migration (v2.1.0)
+
 - Default to TOML
 - Language modules simplified to stubs
 - Encourage migration via guides
 
 ### Phase 4: Consolidation (v2.2.0+)
+
 - Remove complex features from language modules
 - Tier 3/4 languages require TOML only
 - Language modules become optional
@@ -607,6 +625,7 @@ const User = FraiseQL.type("User")
 ## Implementation Steps
 
 ### Step 1: TOML Schema Design (1-2 days)
+
 - ✅ **DONE** - See above TOML specification
 - All configuration options documented
 - Examples for each feature
@@ -629,6 +648,7 @@ fraiseql-cli compile fraiseql.toml --output schema.compiled.json
 ```
 
 **Changes**:
+
 - Parse TOML configuration
 - Merge types.json + TOML
 - Validate combined schema
@@ -636,23 +656,27 @@ fraiseql-cli compile fraiseql.toml --output schema.compiled.json
 
 ### Step 3: Tier 1 Languages (3-5 days each)
 Update Python, TypeScript, Java to:
+
 - Generate minimal types.json (types + queries only)
 - Remove federation/security code
 - Keep decorators/builders for DX
 
 ### Step 4: Tier 2 Languages (2-3 days each)
 Implement Go, PHP, Ruby, Kotlin, C#, Rust:
+
 - Struct/class tags → types.json
 - JSON builder pattern
 - Basic type system only
 
 ### Step 5: Tier 3 Languages (1-2 days each)
 Implement Node.js, Dart, Elixir, Swift:
+
 - Simple builder API
 - JSON output
 - No decorators
 
 ### Step 6: Documentation (2-3 days)
+
 - TOML configuration guide
 - Tier system explanation
 - Migration guide from current to TOML
@@ -663,6 +687,7 @@ Implement Node.js, Dart, Elixir, Swift:
 ## Benefits of TOML-Based Approach
 
 ### For Users
+
 - ✅ Single source of truth (fraiseql.toml)
 - ✅ Language-agnostic configuration
 - ✅ Easy to modify without recompiling language
@@ -670,6 +695,7 @@ Implement Node.js, Dart, Elixir, Swift:
 - ✅ Clear organization of all settings
 
 ### For Maintainers
+
 - ✅ 85% reduction in per-language scope
 - ✅ All 16 languages can reach Tier 2+ quickly
 - ✅ Core team implements features once (in TOML parser)
@@ -677,6 +703,7 @@ Implement Node.js, Dart, Elixir, Swift:
 - ✅ Easier to add new features (just extend TOML)
 
 ### For Community
+
 - ✅ Can implement language in 600-1000 LOC vs 6500-12000
 - ✅ Tier 3/4 languages become feasible
 - ✅ Language generators become simple, maintainable
@@ -758,6 +785,7 @@ enabled = true
 ## Recommended Decision
 
 ### Option A: TOML-First (Recommended)
+
 - Implement TOML support in CLI
 - Update Tier 1 languages to use TOML
 - Implement Tier 2/3/4 languages with TOML
@@ -765,6 +793,7 @@ enabled = true
 - **Timeline**: 6 weeks, all 16 languages at Tier 2+
 
 ### Option B: Hybrid (Current + TOML)
+
 - Keep current Tier 1 implementations
 - Add TOML support as alternative
 - Implement Tier 2/3/4 with TOML
@@ -772,6 +801,7 @@ enabled = true
 - **Timeline**: 8 weeks, 3 languages Tier 1, rest Tier 2+
 
 ### Option C: Status Quo (No Change)
+
 - Keep current implementation
 - Only Tier 1 (3 languages) works
 - Others stuck at security-only

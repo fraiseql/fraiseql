@@ -116,6 +116,7 @@ fraiseql compile fraiseql.toml
 ```
 
 The compiler will:
+
 1. Find all subdirectories in `schema/`
 2. Load `types.json`, `queries.json`, `mutations.json` from each
 3. Merge everything into one compiled schema
@@ -269,14 +270,17 @@ Add `README.md` to each domain:
 Handles user authentication and session management.
 
 ## Types
+
 - User: User account with email and profile
 - Session: Authentication session token
 
 ## Queries
+
 - getUser(id): Get user by ID
 - getCurrentUser(): Get authenticated user
 
 ## Mutations
+
 - login(email, password): Create session
 - logout(): Invalidate session
 - register(email, password): Create new user
@@ -285,6 +289,7 @@ Handles user authentication and session management.
 None - core domain
 
 ## Cross-Domain Usage
+
 - Orders domain references User
 - Products domain references User (vendor)
 ```
@@ -298,6 +303,7 @@ fraiseql compile fraiseql.toml --check
 ```
 
 This validates:
+
 - No duplicate type names
 - All referenced types are defined
 - All queries reference existing types
@@ -348,6 +354,7 @@ schema/
 ```
 
 Consider:
+
 - Nested domain structure
 - Domain groups (commerce, services, etc.)
 - Separate compilation per team
@@ -463,5 +470,6 @@ These are potential future enhancements to FraiseQL.
 ---
 
 **See Also**:
+
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Detailed migration instructions
 - `examples/` - Working examples

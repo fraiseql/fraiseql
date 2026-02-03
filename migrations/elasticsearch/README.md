@@ -292,6 +292,7 @@ curl -X PUT "localhost:9200/fraiseql-events-write/_settings" \
 ### Field Mapping Optimization
 
 Use `keyword` for fields you filter/aggregate on (not full-text search):
+
 - event_type, entity_type, event_id, entity_id: `keyword` ✅
 - search_text (combined field): `text` ✅
 
@@ -417,6 +418,7 @@ curl "localhost:9200/fraiseql-events-*/_stats/search"
 ### Alerts
 
 Set up alerts for:
+
 - Cluster health status != GREEN
 - Disk usage > 80%
 - Index creation failures

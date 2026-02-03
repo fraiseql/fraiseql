@@ -72,6 +72,7 @@ error_tracking:                      ~0.5μs  (2 counters)
 complete_query_instrumentation:      ~75μs
 
 Breakdown:
+
 - Query submission:                  ~0.1μs
 - Authentication (3 ops):            ~1.2μs
 - Query startup (1 histogram):       ~0.5μs

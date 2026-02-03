@@ -571,6 +571,7 @@ Coolify needs SSH key for some operations:
 ### 5. Enable SSL/TLS
 
 Ensure:
+
 - [ ] HTTPS configured
 - [ ] Certificate valid and not expired
 - [ ] HSTS enabled (via Caddy config)

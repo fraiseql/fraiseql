@@ -10,6 +10,7 @@ Tools and guides for FraiseQL development and testing.
 ## Testing
 
 ### Test Strategies
+
 - **[Testing Strategy](../testing-strategy.md)** — Complete testing approach
   - Unit testing
   - Integration testing
@@ -18,12 +19,14 @@ Tools and guides for FraiseQL development and testing.
   - Test data management
 
 ### E2E Testing
+
 - **[E2E Testing Guide](e2e-testing.md)** — End-to-end testing with real services
 - **[Test Coverage](TEST_COVERAGE.md)** — Measure and improve test coverage
 
 ## Performance
 
 ### Benchmarking
+
 - **[Benchmarking Guide](benchmarking.md)** — Performance benchmarking with Criterion
   - Set up benchmark infrastructure
   - Run and interpret results
@@ -31,6 +34,7 @@ Tools and guides for FraiseQL development and testing.
   - CI/CD integration
 
 ### Profiling
+
 - **[Profiling Guide](PROFILING_GUIDE.md)** — Profile and optimize code
   - Identify bottlenecks
   - Flame graphs

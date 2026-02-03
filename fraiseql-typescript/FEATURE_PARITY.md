@@ -116,6 +116,7 @@ All features in Python can be expressed identically in TypeScript, producing equ
 TypeScript implementation of FraiseQL v2 Schema Authoring achieves complete feature parity with Python.
 
 Users can:
+
 - ✅ Express every type system feature (types, enums, interfaces, unions, inputs)
 - ✅ Define all operation types (queries, mutations, subscriptions)
 - ✅ Apply field-level metadata (scopes, deprecation, documentation)

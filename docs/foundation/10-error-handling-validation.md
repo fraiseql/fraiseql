@@ -5,6 +5,7 @@
 FraiseQL's error handling and validation strategy ensures predictable, safe query execution across compile-time and runtime boundaries. Unlike traditional GraphQL servers that discover errors at runtime, FraiseQL catches entire classes of errors during compilation, leaving only narrow categories of runtime errors (database failures, timeouts, authorization denials) to handle.
 
 This topic explains:
+
 - **Error hierarchy**: All 14 error types with classification (client vs server, retryable vs permanent)
 - **Validation layers**: When errors are caught (schema compilation, query compilation, parameter binding, authorization, execution)
 - **Error handling patterns**: How to handle errors in client applications, HTTP responses, and recovery strategies
@@ -33,6 +34,7 @@ Authoring Layer          Compilation Layer        Runtime Layer
 ## Error Hierarchy
 
 FraiseQL uses a unified error type that represents all possible failures. Errors are classified by:
+
 1. **Source**: Where the error originated (GraphQL, Database, Authorization, etc.)
 2. **Severity**: Client error (4xx) vs Server error (5xx)
 3. **Retryability**: Whether the operation can be safely retried
@@ -92,6 +94,7 @@ ConnectionPool, Timeout, Cancelled
 ```
 
 Safe to retry with exponential backoff. Examples:
+
 - Connection pool exhausted → retry when connections available
 - Query timeout → retry with possibly reduced complexity
 - Client cancellation → external event, user can retry manually
@@ -570,6 +573,7 @@ CREATE TABLE tb_user (
 );
 
 -- If insert violates constraint:
+
 -- Error: Database { sql_state: "23514" } (CHECK constraint violation)
 ```
 

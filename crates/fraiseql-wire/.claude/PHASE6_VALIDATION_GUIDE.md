@@ -168,12 +168,14 @@ Why LIMIT?
 
 ```rust
 // Each iteration:
+
 1. Create fresh FraiseClient connection (exercises full startup)
 2. Execute query: SELECT data FROM users LIMIT {size}
 3. Measure total time from query start to last row received
 4. Iterate N times for statistical significance
 
 // Result:
+
 - Small sets: 100 iterations for precision
 - Large sets: 10 iterations (longer per iteration)
 ```

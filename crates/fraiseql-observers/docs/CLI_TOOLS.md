@@ -39,6 +39,7 @@ fraiseql-observers status [OPTIONS]
 #### Options
 
 ```
+
 --listener ID         Show specific listener status
 --detailed, -d        Show detailed information
 ```
@@ -86,6 +87,7 @@ fraiseql-observers debug-event [OPTIONS]
 #### Options
 
 ```
+
 --event-id ID         Inspect specific event
 --history N           Show recent N events
 --entity-type TYPE    Filter by entity type (Order, User, etc.)
@@ -472,6 +474,7 @@ fraiseql-observers metrics [OPTIONS]
 #### Options
 
 ```
+
 --metric NAME       Show specific metric
 --help              Show metric documentation
 --format FORMAT     Output format

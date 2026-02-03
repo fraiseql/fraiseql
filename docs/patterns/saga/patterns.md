@@ -539,11 +539,13 @@ match saga.status {
 ### Transient vs Permanent Errors
 
 **Transient Errors** (retry-able):
+
 - Network timeout
 - Service temporarily unavailable
 - Database connection dropped
 
 **Permanent Errors** (don't retry):
+
 - Validation failure
 - Authorization error
 - Business rule violation

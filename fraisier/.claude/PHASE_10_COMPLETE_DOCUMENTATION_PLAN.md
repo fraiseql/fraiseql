@@ -31,6 +31,7 @@ This phase creates a complete documentation system covering:
 ### Deliverables
 
 #### 1. REST API Reference (`docs/API_REFERENCE.md`)
+
 - All HTTP endpoints with examples
 - Request/response formats
 - Status codes and error handling
@@ -45,6 +46,7 @@ This phase creates a complete documentation system covering:
 GET /api/v1/deployments
 
 **Parameters**:
+
 - environment (optional): Filter by environment
 - status (optional): Filter by status (pending, in_progress, success, failed)
 - limit (optional): Max results (default 100)
@@ -113,6 +115,7 @@ curl -H "Authorization: Bearer $TOKEN" \
    - Provider status
 
 #### 2. Webhook Reference (`docs/WEBHOOK_REFERENCE.md`)
+
 - Webhook events and payloads
 - Signature verification
 - Retry logic
@@ -156,6 +159,7 @@ Fired when a deployment finishes
 ```
 
 #### 3. CLI Reference (`docs/CLI_REFERENCE.md`)
+
 - All CLI commands with options
 - Common usage patterns
 - Exit codes
@@ -173,6 +177,7 @@ fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 ```
 
 **Options**:
+
 - `--version VERSION`: Specific version to deploy (default: latest)
 - `--strategy STRATEGY`: Deployment strategy (rolling, blue-green, canary)
 - `--health-check-delay SECONDS`: Wait time before health checks
@@ -197,6 +202,7 @@ fraisier deploy my_api production --wait --timeout 600
 ```
 
 **Exit Codes**:
+
 - 0: Success
 - 1: General error
 - 2: Invalid arguments
@@ -206,6 +212,7 @@ fraisier deploy my_api production --wait --timeout 600
 ```
 
 #### 4. Event Reference (`docs/EVENT_REFERENCE.md`)
+
 - All event types (deployment, health check, metrics)
 - Event structure
 - Event filtering
@@ -260,6 +267,7 @@ registry.register(
 ### Deliverables
 
 #### 1. SQLite Quick Start (`docs/GETTING_STARTED_SQLITE.md`)
+
 - Installation
 - Configuration
 - First deployment
@@ -331,18 +339,21 @@ fraisier history my_api development
 ```
 
 #### 2. PostgreSQL Production Setup (`docs/GETTING_STARTED_POSTGRES.md`)
+
 - Installation
 - Configuration for production
 - Performance tuning
 - Backup strategy
 
 #### 3. MySQL Setup (`docs/GETTING_STARTED_MYSQL.md`)
+
 - Installation
 - Configuration
 - MySQL-specific settings
 - Compatibility notes
 
 #### 4. Docker Compose Setup (`docs/GETTING_STARTED_DOCKER.md`)
+
 - Full stack (Fraisier + PostgreSQL + Prometheus + Grafana)
 - Single command setup
 - Common customizations
@@ -375,6 +386,7 @@ nats sub "fraisier.>"
 ### Deliverables
 
 #### 1. Bare Metal Provider Guide (`docs/PROVIDER_BARE_METAL.md`)
+
 - SSH setup and keys
 - systemd service creation
 - Health check configuration
@@ -452,6 +464,7 @@ WantedBy=multi-user.target
 ```
 
 #### 2. Docker Compose Provider Guide (`docs/PROVIDER_DOCKER_COMPOSE.md`)
+
 - docker-compose file setup
 - Service configuration
 - Port mapping
@@ -459,6 +472,7 @@ WantedBy=multi-user.target
 - Network setup
 
 #### 3. Coolify Provider Guide (`docs/PROVIDER_COOLIFY.md`)
+
 - Coolify API setup
 - Project and service configuration
 - Authentication
@@ -553,6 +567,7 @@ scrape_configs:
    - CPU spikes
 
 Each scenario includes:
+
 - Error message
 - Causes
 - Solutions (3-5 steps)
@@ -569,6 +584,7 @@ Each scenario includes:
 ### Deliverables
 
 #### 1. Simple Web Service (`docs/examples/simple-web-service/`)
+
 - Flask API deployed to Docker Compose
 - Health checks
 - Environment configuration
@@ -587,18 +603,21 @@ simple-web-service/
 ```
 
 #### 2. Microservices with Monitoring (`docs/examples/microservices-monitoring/`)
+
 - Multiple services (API, Worker, Database)
 - Full monitoring stack (Prometheus, Grafana)
 - NATS integration
 - Alerting configured
 
 #### 3. Multi-Environment Deployment (`docs/examples/multi-environment/`)
+
 - Dev, staging, production
 - Different configurations per environment
 - Progressive rollout strategy
 - Automated testing in each environment
 
 #### 4. High-Availability Setup (`docs/examples/ha-setup/`)
+
 - Load-balanced deployment
 - Database replication
 - Backup and recovery
@@ -672,14 +691,17 @@ simple-web-service/
 ### Timeline
 
 **Day 1** (8 hours):
+
 - Phase 10.1: API Reference (4 hours)
 - Phase 10.2: Getting Started Guides (4 hours)
 
 **Day 2** (8 hours):
+
 - Phase 10.3: Provider Guides (4 hours)
 - Phase 10.4: Monitoring Setup (4 hours)
 
 **Day 3** (8 hours):
+
 - Phase 10.5: Troubleshooting Guide (4 hours)
 - Phase 10.6: Real-World Examples (3 hours)
 - Phase 10.7: FAQ and Advanced Topics (1 hour - will finish next)
@@ -747,6 +769,7 @@ docs/
 ## What Comes After
 
 Once Phase 10 is complete, you'll have:
+
 - ✅ Complete, production-ready Fraisier
 - ✅ Comprehensive documentation for all use cases
 - ✅ Real-world examples users can copy

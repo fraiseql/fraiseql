@@ -15,6 +15,7 @@ A **travel booking saga** that shows:
 ### The Travel Booking Saga Flow
 
 ```
+
 1. Reserve Flight (Flight Service)
    ├─ Check availability
    ├─ Hold seat for 15 minutes
@@ -111,6 +112,7 @@ Step 3: ✓ Reserved Car
 Step 4: ✗ Payment failed
 
 Compensation (parallel):
+
 - Release Flight hold
 - Release Hotel hold
 - Release Car hold
@@ -121,6 +123,7 @@ All compensations parallel: ~100ms
 ### 3. Service Independence
 
 Each service:
+
 - Has its own database
 - Implements its own GraphQL schema
 - Handles its own errors
@@ -181,6 +184,7 @@ docker-compose up -d
 ```
 
 Tests:
+
 - Successful booking (all steps succeed)
 - Payment failure (all steps compensate)
 - Flight unavailable (failure detection)
@@ -239,6 +243,7 @@ If a service is temporarily unavailable:
 
 ```
 Retry policy:
+
 - Attempt 1: 100ms delay
 - Attempt 2: 200ms delay
 - Attempt 3: 400ms delay
@@ -271,6 +276,7 @@ Payment.refund() fails
 Key metrics for complex sagas:
 
 ```
+
 - Booking success rate: Should be 98%+
 - Booking latency: Should be <500ms p99
 - Compensation rate: Should be <2%

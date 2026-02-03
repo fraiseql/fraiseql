@@ -193,6 +193,7 @@ python stream_events.py
 ## Congratulations! 🎉
 
 You've successfully:
+
 - ✅ Connected to FraiseQL Arrow Flight server
 - ✅ Executed a GraphQL query via Arrow Flight
 - ✅ Converted Arrow data to Polars (zero-copy)
@@ -201,6 +202,7 @@ You've successfully:
 ## Next Steps
 
 ### Learn More
+
 - **[Architecture Deep Dive](./architecture.md)** - Understand the design
 - **[Migration Guide](./migration-guide.md)** - Adopt in your codebase
 
@@ -214,21 +216,25 @@ Arrow Flight supports Python, R, Rust, Java, and other languages. See the [archi
 ```
 Error: Error connecting to grpc://localhost:50051
 ```
+
 **Solution**: Ensure FraiseQL is running (`docker-compose ps`) and Arrow Flight is enabled.
 
 ### "No data returned"
 ```
 ✅ Success! Fetched 0 rows
 ```
+
 **Solution**: Check your GraphQL query is valid. Try a simple query without filters first.
 
 ### "Module not found: pyarrow"
 ```
 ModuleNotFoundError: No module named 'pyarrow'
 ```
+
 **Solution**: Install dependencies: `pip install pyarrow polars`
 
 ### "Batch is empty"
+
 **Solution**: The dataset doesn't have data matching your filters. Try removing date filters or limits.
 
 ## Example Queries

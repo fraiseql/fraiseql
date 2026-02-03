@@ -155,6 +155,7 @@ impl ChangeLogListener {
 ```
 
 **Testing Strategy**:
+
 - [ ] Test checkpoint loads correct state from DB
 - [ ] Test checkpoint saves after batch processing
 - [ ] Test recovery on restart (process same entries, skip to next)
@@ -245,6 +246,7 @@ impl ConcurrentActionExecutor {
 ```
 
 **Testing Strategy**:
+
 - [ ] Verify all actions execute even if one fails
 - [ ] Verify timeout doesn't wait for all actions
 - [ ] Measure latency reduction (should be ~max, not ~sum)
@@ -333,6 +335,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
 ```
 
 **Testing Strategy**:
+
 - [ ] Identical events within window are deduplicated
 - [ ] Events outside window are processed
 - [ ] Different entities are not deduplicated
@@ -442,6 +445,7 @@ impl CacheInvalidationManager {
 ```
 
 **Testing Strategy**:
+
 - [ ] Cache hit returns same result
 - [ ] Cache miss executes action
 - [ ] Failed actions not cached
@@ -541,6 +545,7 @@ pub struct SearchResults {
 ```
 
 **Testing Strategy**:
+
 - [ ] Events indexed after processing
 - [ ] Search retrieves indexed events
 - [ ] Time range filtering works
@@ -697,6 +702,7 @@ CREATE INDEX idx_jobs_priority ON observer_jobs(priority DESC) WHERE status = 'p
 ```
 
 **Testing Strategy**:
+
 - [ ] Jobs enqueued correctly
 - [ ] Workers dequeue and process
 - [ ] Successful jobs marked completed
@@ -825,6 +831,7 @@ rate(cache_hits[5m]) / (rate(cache_hits[5m]) + rate(cache_misses[5m]))
 ```
 
 **Testing Strategy**:
+
 - [ ] Metrics increment on events
 - [ ] Histograms record durations
 - [ ] Per-action-type metrics tracked
@@ -874,6 +881,7 @@ impl MultiListener {
 ```
 
 **Testing Strategy**:
+
 - [ ] Two listeners don't duplicate-process events
 - [ ] One listener failure doesn't stop processing
 - [ ] All listeners can process independently
@@ -991,6 +999,7 @@ impl WebhookActionWithCircuitBreaker {
 ```
 
 **Testing Strategy**:
+
 - [ ] Closed state allows requests
 - [ ] Open state after threshold failures
 - [ ] HalfOpen allows limited requests
@@ -1212,6 +1221,7 @@ PERSISTENCE & OBSERVABILITY
 ## 📋 Implementation Phases
 
 ### Phase 8.0: Foundation & Planning (2 days)
+
 - [x] Architecture deep dive (COMPLETED)
 - [ ] API design for all new traits
 - [ ] Database migrations planning
@@ -1219,6 +1229,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Testing strategy finalization
 
 ### Phase 8.1: Persistent Checkpoints (3 days)
+
 - [ ] Implement `CheckpointStore` trait
 - [ ] `PostgresCheckpointStore` implementation
 - [ ] Database migrations (checkpoints table)
@@ -1228,6 +1239,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Benchmark: 10k checkpoint saves/sec
 
 ### Phase 8.2: Concurrent Action Execution (2 days)
+
 - [ ] `ConcurrentActionExecutor` implementation
 - [ ] FuturesUnordered integration
 - [ ] Timeout per action
@@ -1236,6 +1248,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Latency benchmarking
 
 ### Phase 8.3: Event Deduplication (2 days)
+
 - [ ] `DeduplicationStore` trait
 - [ ] `RedisDeduplicationStore` implementation
 - [ ] Time window configuration
@@ -1243,6 +1256,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Tests (hit, miss, TTL expiration)
 
 ### Phase 8.4: Redis Caching Layer (3 days)
+
 - [ ] `CacheBackend` trait
 - [ ] `RedisCacheBackend` implementation
 - [ ] `CachedActionExecutor` wrapper
@@ -1252,6 +1266,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Benchmark: 50k cache operations/sec
 
 ### Phase 8.5: Elasticsearch Integration (3 days)
+
 - [ ] `SearchBackend` trait
 - [ ] `ElasticsearchBackend` implementation
 - [ ] Document mapping design
@@ -1261,6 +1276,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Performance tests
 
 ### Phase 8.6: Job Queue System (3 days)
+
 - [ ] `JobQueue` trait
 - [ ] `PostgresJobQueue` implementation
 - [ ] `Job` struct and schema
@@ -1270,6 +1286,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Tests (enqueue, dequeue, retry)
 
 ### Phase 8.7: Prometheus Metrics (2 days)
+
 - [ ] `ObserverMetrics` struct
 - [ ] Counter/Gauge/Histogram setup
 - [ ] Integration into executor
@@ -1278,6 +1295,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Dashboard templates
 
 ### Phase 8.8: Circuit Breaker (2 days)
+
 - [ ] `CircuitBreaker` implementation
 - [ ] State machine (Closed/Open/HalfOpen)
 - [ ] Integration into action executors
@@ -1285,6 +1303,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Tests (state transitions, recovery)
 
 ### Phase 8.9: Multi-Listener Failover (2 days)
+
 - [ ] `MultiListener` coordinator
 - [ ] Shared checkpoint coordination
 - [ ] Concurrent listener tests
@@ -1292,6 +1311,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Load balancing tests
 
 ### Phase 8.10: DX CLI Tools (3 days)
+
 - [ ] `fraiseql-observers status` command
 - [ ] `fraiseql-observers debug-event` command
 - [ ] `fraiseql-observers dlq` commands
@@ -1301,6 +1321,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Help documentation
 
 ### Phase 8.11: Documentation & Examples (3 days)
+
 - [ ] README updates for all features
 - [ ] Architecture guides
 - [ ] Configuration examples
@@ -1310,6 +1331,7 @@ PERSISTENCE & OBSERVABILITY
 - [ ] Example applications
 
 ### Phase 8.12: Testing & QA (3 days)
+
 - [ ] Full test suite run (target: 200+ tests)
 - [ ] Integration tests across features
 - [ ] Performance benchmarks

@@ -85,6 +85,7 @@ Now migrate your data science and analytics scripts to Arrow Flight.
 ### Analytics Script Checklist
 
 Identify scripts that:
+
 - [ ] Process large datasets (10k+ rows)
 - [ ] Run daily/weekly reports
 - [ ] Generate ML features
@@ -450,28 +451,33 @@ No data loss, no breaking changes.
 ## Complete Checklist
 
 ### Phase 1
+
 - [ ] Arrow Flight port 50051 accessible
 - [ ] HTTP/JSON still working
 - [ ] No downtime
 
 ### Phase 2
+
 - [ ] Analytics scripts migrated
 - [ ] Performance benchmarked (15-50x faster)
 - [ ] Results verified vs old version
 
 ### Phase 3
+
 - [ ] ClickHouse running
 - [ ] Migrations applied
 - [ ] Events flowing (~1M/sec)
 - [ ] Real-time queries working
 
 ### Phase 4
+
 - [ ] Elasticsearch running
 - [ ] Index templates applied
 - [ ] Events indexed
 - [ ] Support team trained on search
 
 ### Production
+
 - [ ] Monitoring configured
 - [ ] Alerting enabled
 - [ ] Runbooks updated

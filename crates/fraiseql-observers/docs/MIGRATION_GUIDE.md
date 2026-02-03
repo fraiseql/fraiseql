@@ -458,6 +458,7 @@ EOF
 ### Redis Data
 
 No data migration needed for Redis:
+
 - Checkpoint is just metadata
 - Cache is ephemeral (can be cleared)
 - Dedup can start fresh
@@ -724,6 +725,7 @@ After Phase 8 migration, verify:
 ## Conclusion
 
 Phase 8 migration is a methodical process that can be done safely with:
+
 1. Gradual feature rollout
 2. Comprehensive testing at each stage
 3. Continuous monitoring

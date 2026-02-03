@@ -152,6 +152,7 @@ pub fn compare_state_token(expected: &str, actual: &str) -> bool
 ## Testing Constant-Time Comparison
 
 Unit tests are included in `constant_time.rs` covering:
+
 - Basic equality/inequality
 - Different lengths
 - Null bytes and all byte values

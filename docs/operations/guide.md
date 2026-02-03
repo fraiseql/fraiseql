@@ -160,6 +160,7 @@ readinessProbe:
 ```
 
 **What It Checks**:
+
 - ✅ Database connectivity
 - ✅ Cache/Redis connectivity (if enabled)
 - ✅ Configuration validity
@@ -199,6 +200,7 @@ livenessProbe:
 ```
 
 **What It Checks**:
+
 - ✅ Process is running
 - ✅ Response time (detects hangs)
 - ✅ Process ID still valid
@@ -264,6 +266,7 @@ spec:
 FraiseQL handles graceful shutdown with signal handling:
 
 **How It Works**:
+
 1. Server receives `SIGTERM` signal
 2. Stops accepting new requests
 3. Waits for in-flight requests to complete (up to grace period)
@@ -295,6 +298,7 @@ kill -TERM <pid>
 ```
 
 **Load Balancer Configuration**:
+
 - Set connection drain timeout = grace period (30s)
 - Stop sending new requests on SIGTERM
 - Wait for in-flight requests to complete
@@ -526,6 +530,7 @@ setup.kibana.host: "kibana.example.com:5601"
 ```
 
 **Log Retention**:
+
 - Hot storage (Elasticsearch): 90 days (searchable)
 - Cold storage (S3 Glacier): 7 years (compliance)
 - Cost: ~$0.50/GB for hot, ~$0.004/GB for cold
@@ -610,6 +615,7 @@ Communication: Weekly summary
 
 **Phase 3: Mitigation** (15 min - ongoing)
 Based on root cause, implement fix:
+
 - Application bug? Deploy hotfix
 - Database issue? Restart service, check connections
 - Resource exhaustion? Scale up, restart
@@ -663,10 +669,12 @@ Based on root cause, implement fix:
 [Technical description]
 
 **Mitigation in Progress**:
+
 - Action 1: [Status]
 - Action 2: [Status]
 
 **Current Impact**:
+
 - Error rate: [X]%
 - Latency: [Y]ms
 - Affected customers: [~N]
@@ -688,6 +696,7 @@ Based on root cause, implement fix:
 [# queries affected, % of traffic, customer segments]
 
 **What We'll Do**:
+
 - [Preventive measure 1] - Target: [DATE]
 - [Preventive measure 2] - Target: [DATE]
 
@@ -718,6 +727,7 @@ We [describe what we did to fix it]
 
 NEXT STEPS:
 We will implement:
+
 1. [Prevention 1] - Target: [DATE]
 2. [Prevention 2] - Target: [DATE]
 
@@ -777,6 +787,7 @@ Contact: support@fraiseql.com
 **Estimated Time**: 2-3 minutes
 
 **Success Criteria**:
+
 - [ ] Health check returns 200 OK
 - [ ] Error rate drops to baseline within 2 minutes
 - [ ] No new errors in logs
@@ -788,6 +799,7 @@ Contact: support@fraiseql.com
 **When to Use**: Data corruption, data loss, database unresponsive
 
 **Prerequisites**:
+
 - Automated backups enabled (recommended: every 6 hours)
 - Backups stored in S3 or similar (separate from primary database)
 - Restore procedures tested monthly
@@ -844,6 +856,7 @@ Contact: support@fraiseql.com
 **Estimated Time**: 30-45 minutes
 
 **Success Criteria**:
+
 - [ ] Data restored to correct state
 - [ ] Health check passes
 - [ ] Error rate returns to baseline
@@ -917,6 +930,7 @@ Contact: support@fraiseql.com
 **Estimated Time**: 10-15 minutes to revoke, 1-2 hours for investigation
 
 **Success Criteria**:
+
 - [ ] Old key returns 401 Unauthorized
 - [ ] New key works correctly
 - [ ] Customer notified with new key
@@ -986,6 +1000,7 @@ Contact: support@fraiseql.com
 **Estimated Time**: 5-10 minutes
 
 **Success Criteria**:
+
 - [ ] Legitimate traffic flowing
 - [ ] Error rate unchanged
 - [ ] No security regression
@@ -998,17 +1013,20 @@ Contact: support@fraiseql.com
 ### On-Call Team Structure
 
 **Roles**:
+
 - **Primary On-Call**: Handles all alerts, first responder
 - **Backup On-Call**: Takes over if primary unavailable
 - **On-Call Manager**: Escalation point for complex decisions
 - **Incident Commander** (for CRITICAL): Coordinates response
 
 **Schedule**:
+
 - Weekly rotation (Monday 00:00 UTC → next Monday)
 - 30 min overlap for knowledge transfer
 - Backup covers nights/weekends if primary unavailable
 
 **On-Call Requirements**:
+
 - [ ] Full training (5 days, see training plan)
 - [ ] All tool access verified
 - [ ] Knowledge assessment (80%+ pass)
@@ -1055,6 +1073,7 @@ Contact: support@fraiseql.com
 - [ ] Sign-off meeting
 
 **Customization Checklist**:
+
 - [ ] Adjust training schedule to your team
 - [ ] Add organization-specific procedures
 - [ ] Update emergency contact list
@@ -1085,6 +1104,7 @@ Contact: support@fraiseql.com
 ### Continuous Improvement
 
 **Monthly Incident Review**:
+
 - [ ] Review all incidents from past month
 - [ ] Discuss response times and effectiveness
 - [ ] Identify patterns or trends
@@ -1092,6 +1112,7 @@ Contact: support@fraiseql.com
 - [ ] Schedule quarterly training refresher
 
 **Quarterly Training Refresher** (4 hours):
+
 - [ ] Runbook exercises (practice all procedures)
 - [ ] Mock incident drill (new scenario)
 - [ ] System changes review (new features)
@@ -1113,6 +1134,7 @@ Every 6 hours:
 ```
 
 **Process**:
+
 1. Export database (pg_dump)
 2. Compress with gzip (10-15× reduction)
 3. Encrypt with KMS
@@ -1120,11 +1142,13 @@ Every 6 hours:
 5. Verify integrity (monthly restore test)
 
 **Retention**:
+
 - Keep 30 days of backups (4 per day × 30 = 120 backups)
 - Auto-delete older backups
 - Cost: ~$1-2/month for standard backups
 
 **Customization Checklist**:
+
 - [ ] Set up backup schedule
 - [ ] Configure S3 bucket with encryption
 - [ ] Test restore procedure (weekly)
@@ -1145,6 +1169,7 @@ Every 6 hours:
 - To improve: Increase backup frequency or implement WAL archiving
 
 **Improvement Options**:
+
 - Higher backup frequency: Every hour (more cost)
 - WAL archiving: Continuous log backup (best RTO/RPO)
 - Replication: Multi-region replication (Phase 16+)
@@ -1156,6 +1181,7 @@ Every 6 hours:
 Before going to production, customize this guide for your deployment:
 
 ### Infrastructure
+
 - [ ] Choose monitoring tool (Prometheus, DataDog, etc.)
 - [ ] Set up health check monitoring
 - [ ] Configure alerting (PagerDuty, Slack, etc.)
@@ -1164,6 +1190,7 @@ Before going to production, customize this guide for your deployment:
 - [ ] Test backup restoration procedure
 
 ### Team & On-Call
+
 - [ ] Define on-call schedule
 - [ ] Assign team members
 - [ ] Create emergency contact list
@@ -1172,6 +1199,7 @@ Before going to production, customize this guide for your deployment:
 - [ ] Run mock incident drills
 
 ### SLA/SLO
+
 - [ ] Define SLA targets (with business/legal)
 - [ ] Document credit policy
 - [ ] Set alert thresholds (based on your baseline)
@@ -1179,6 +1207,7 @@ Before going to production, customize this guide for your deployment:
 - [ ] Communicate SLA to customers
 
 ### Procedures
+
 - [ ] Customize runbooks to your environment
 - [ ] Update IP addresses, hostnames, credentials
 - [ ] Customize communication templates
@@ -1186,6 +1215,7 @@ Before going to production, customize this guide for your deployment:
 - [ ] Document where credentials are stored
 
 ### Documentation
+
 - [ ] Update this guide with your values
 - [ ] Create organization-specific procedures
 - [ ] Link to your dashboards/tools

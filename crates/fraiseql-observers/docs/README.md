@@ -122,6 +122,7 @@ For Production → All (recommended)
 **Solution**: Enable Phase 8.1 (Persistent Checkpoints)
 
 **Steps**:
+
 1. Read: [Architecture Guide - 8.1](ARCHITECTURE_PHASE_8.md#phase-81-persistent-checkpoints)
 2. Follow: [Integration Guide - 8.1](INTEGRATION_GUIDE.md#phase-81-persistent-checkpoints)
 3. Configure: [Configuration Examples](CONFIGURATION_EXAMPLES.md#production-setup)
@@ -137,6 +138,7 @@ For Production → All (recommended)
 **Solution**: Enable Phase 8.2 (Concurrent Execution)
 
 **Steps**:
+
 1. Read: [Architecture Guide - 8.2](ARCHITECTURE_PHASE_8.md#phase-82-concurrent-action-execution)
 2. Follow: [Integration Guide - 8.2](INTEGRATION_GUIDE.md#phase-82-concurrent-action-execution)
 3. Benchmark: [Performance Tuning](PERFORMANCE_TUNING.md)
@@ -152,6 +154,7 @@ For Production → All (recommended)
 **Solution**: Enable Phase 8.3 (Event Deduplication)
 
 **Steps**:
+
 1. Read: [Architecture Guide - 8.3](ARCHITECTURE_PHASE_8.md#phase-83-event-deduplication)
 2. Follow: [Integration Guide - 8.3](INTEGRATION_GUIDE.md#phase-83-event-deduplication)
 3. Monitor: [CLI Tools - DLQ](CLI_TOOLS.md#3-dlq-commands)
@@ -180,6 +183,7 @@ For Production → All (recommended)
 **Solution**: Use CLI tools for diagnosis
 
 **Steps**:
+
 1. Check status: `fraiseql-observers status`
 2. View DLQ: `fraiseql-observers dlq stats`
 3. Debug event: `fraiseql-observers debug-event --event-id evt-123`
@@ -197,6 +201,7 @@ For Production → All (recommended)
 **Solution**: Enable Phase 8.8 (Circuit Breaker)
 
 **Steps**:
+
 1. Read: [Architecture Guide - 8.8](ARCHITECTURE_PHASE_8.md#phase-88-circuit-breaker-pattern)
 2. Follow: [Integration Guide - 8.8](INTEGRATION_GUIDE.md#phase-88-circuit-breaker)
 3. Configure: Circuit breaker thresholds in [Configuration Examples](CONFIGURATION_EXAMPLES.md)
@@ -212,6 +217,7 @@ For Production → All (recommended)
 **Solution**: Follow [Migration Guide](MIGRATION_GUIDE.md)
 
 **Key Points**:
+
 - Gradual rollout (4-6 weeks, low risk)
 - Feature-by-feature enablement
 - Comprehensive testing at each stage
@@ -226,6 +232,7 @@ For Production → All (recommended)
 ### What is a Listener?
 
 A listener is a background process that:
+
 1. Connects to PostgreSQL with `LISTEN`
 2. Waits for events (from database mutations)
 3. Processes each event through observers
@@ -238,6 +245,7 @@ A listener is a background process that:
 ### What is a Checkpoint?
 
 A checkpoint is a saved marker that tracks:
+
 - Which event was last processed
 - When it was processed
 - By which listener
@@ -249,6 +257,7 @@ A checkpoint is a saved marker that tracks:
 ### What is Deduplication?
 
 Prevents the same event from being processed twice:
+
 1. Hash each event
 2. Check Redis for recent hash
 3. Skip if already processed (within TTL)
@@ -260,6 +269,7 @@ Prevents the same event from being processed twice:
 ### What is Caching?
 
 Stores results of expensive operations:
+
 1. User lookups from API
 2. Price calculations
 3. Permission checks
@@ -347,6 +357,7 @@ Results + Dead Letter Queue (for failures)
 ## Documentation Quality
 
 All documentation includes:
+
 - ✅ Real-world code examples
 - ✅ Complete syntax references
 - ✅ Common scenarios

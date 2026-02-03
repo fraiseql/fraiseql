@@ -70,6 +70,7 @@ def list_orders(user_id: int) -> List[Order]:
 ```
 
 ### Process
+
 1. **Parse decorators** (`@schema.type`, `@schema.query`)
 2. **Extract type definitions** (class attributes → fields)
 3. **Extract query definitions** (function signatures → GraphQL queries)
@@ -118,6 +119,7 @@ Schema {
 Parsed schema from Phase 1
 
 ### Process
+
 1. **Introspect database** (connect to schema database to verify tables/columns exist)
 2. **Extract column types** (INT, VARCHAR, TIMESTAMP, BOOLEAN, etc.)
 3. **Build GraphQL type definitions** (convert database types to GraphQL types)
@@ -209,6 +211,7 @@ tb_orders   | created_at   | timestamp | false       | now()
 schema.json with all type and query information
 
 ### Process
+
 1. **Validate foreign keys** (fk_user_id in orders table → references tb_users)
 2. **Verify type compatibility** (parameter types match column types)
 3. **Check for circular references** (detect and warn about cycles)
@@ -231,11 +234,13 @@ Validation report (warnings + errors):
 
 ```
 Relationship Validation Results:
+
 - Errors: 0
 - Warnings: 1
 - N+1 Risks Detected: 1
 
 Warnings:
+
 1. Relationship: User → Orders
    Pattern: Many-to-one (1 user, N orders)
    Recommendation: Use view or batch query to avoid N+1
@@ -249,6 +254,7 @@ Warnings:
 Validated schema.json with relationship information
 
 ### Process
+
 1. **Compute query complexity** (how many joins, filters, aggregations)
 2. **Estimate data volume** (based on database statistics)
 3. **Detect potential N+1 patterns** (accessing related objects in loops)
@@ -282,11 +288,13 @@ Query analysis report with optimization recommendations:
 
 ```
 Query Pattern Analysis:
+
 - Simple lookups (O(1)): 5 queries
 - List queries (O(N)): 3 queries
 - Aggregations (O(N)): 2 queries
 
 Recommendations:
+
 1. Add index on tb_orders(fk_user_id)
 2. Consider materialized view for user order totals
 3. Add column tb_orders(total_count) for common aggregation
@@ -300,6 +308,7 @@ Recommendations:
 Query patterns and complexity analysis from Phase 4
 
 ### Process
+
 1. **Generate optimal SQL** (write efficient base queries)
 2. **Determine join strategies** (inner join vs. left join vs. subquery)
 3. **Optimize WHERE clauses** (order conditions, use indexes)
@@ -353,6 +362,7 @@ Compiled SQL templates (one per query):
 
 ```
 Compiled SQL Templates:
+
 - getUser: 1 template (simple lookup)
 - listOrders: 1 template (list with filter)
 - getUserWithOrders: 3 templates (user + orders with pagination)
@@ -372,6 +382,7 @@ Memory footprint: ~50KB
 Query definitions with permission annotations
 
 ### Process
+
 1. **Parse permission decorators** (`@schema.permission()`)
 2. **Generate permission checks** (compile into efficient runtime checks)
 3. **Create permission context** (what user info needed, when evaluated)
@@ -402,6 +413,7 @@ class UserProfile:
 
 ```
 Permission Rules (Compiled):
+
 1. delete_user:
    - Type: Mutation permission
    - Rule: user_role = 'admin'
@@ -422,6 +434,7 @@ Compiled authorization bytecode:
 
 ```
 Authorization Bytecode:
+
 - Byte size: ~2KB
 - Runtime checks: 12
 - Pre-execution filters: 5
@@ -437,6 +450,7 @@ Authorization Bytecode:
 All previous phases' outputs (SQL templates, auth rules, type definitions)
 
 ### Process
+
 1. **Merge all metadata** (types, queries, mutations, permissions)
 2. **Create runtime-ready format** (binary optimized for speed)
 3. **Add version information** (schema version, FraiseQL version)
@@ -514,6 +528,7 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
 ✅ Compilation Complete
 
 Compiled Schema Statistics:
+
 - Types: 12
 - Queries: 24
 - Mutations: 8
@@ -654,6 +669,7 @@ Can run multiple versions, gradually migrate clients
 ### 4. Deployment Safety
 ```
 Compile server before deploying:
+
 - All queries validated
 - All permissions verified
 - All indexes recommended
@@ -705,6 +721,7 @@ docker push registry/fraiseql-server:latest
 
 ```
 Typical project:
+
 - Schema definitions: 50 types, 30 queries
 - Compilation time: 2-5 seconds
 - Breakdown:
@@ -724,6 +741,7 @@ Total: ~3 seconds for full recompilation
 Query execution with pre-compiled schema:
 
 Traditional GraphQL Server:
+
 1. Parse query (5ms)
 2. Validate against schema (3ms)
 3. Resolve fields (10ms)
@@ -731,6 +749,7 @@ Traditional GraphQL Server:
 Total: 68ms
 
 FraiseQL:
+
 1. Look up query template (0.1ms)
 2. Bind parameters (0.5ms)
 3. Execute pre-optimized SQL (50ms)

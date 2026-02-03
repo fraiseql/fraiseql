@@ -140,6 +140,7 @@ All **twelve authoring languages** now have **identical feature sets**:
 All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 total tests:
 
 ### AuthorizationSpec (11 tests)
+
 - Simple rules and policy references
 - Fluent chaining and builder pattern
 - Caching configuration
@@ -148,6 +149,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 - Serialization to Map
 
 ### RoleBasedAccessControlSpec (18 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (Any, All, Exactly)
 - Role hierarchies and inheritance
@@ -156,6 +158,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 - Custom error messages and descriptions
 
 ### AttributeBasedAccessControlSpec (16 tests)
+
 - ABAC policy definition and configuration
 - Clearance levels and departments
 - Time-based access control
@@ -164,6 +167,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 - Caching and audit logging
 
 ### AuthzPolicySpec (19 tests)
+
 - All policy types (Rbac, Abac, Custom, Hybrid)
 - Policy composition and patterns
 - Caching and audit logging
@@ -175,6 +179,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 ## Scala Language Specifics
 
 ### Idiomatic Scala Patterns
+
 - Sealed traits for algebraic data types
 - Case classes for immutable data
 - Builder pattern with mutable builders returning self
@@ -183,6 +188,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 - Collection types (List, Map)
 
 ### Scala Features Used
+
 - Sealed traits for exhaustiveness checking
 - Case classes with automatic equals/hashCode/toString
 - Companion objects for factory methods
@@ -192,6 +198,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 - ScalaTest for testing with expressive assertions
 
 ### Build Configuration
+
 - SBT (Scala Build Tool) with build.sbt
 - Scala 2.13.12 LTS version
 - Fatal warnings enabled for code quality
@@ -223,6 +230,7 @@ All tests in `src/test/scala/com/fraiseql/security/SecuritySpec.scala` with 44 t
 The following languages still need implementation:
 
 ### Optional
+
 - **Groovy** - Groovy/Gradle ecosystem
 - **Clojure** - Functional JVM
 - **Dart** - Flutter/web
@@ -231,6 +239,7 @@ The following languages still need implementation:
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -238,6 +247,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Scala-specific advantages:
+
 - Functional programming paradigm
 - Strong type system with type inference
 - Pattern matching for safe branching

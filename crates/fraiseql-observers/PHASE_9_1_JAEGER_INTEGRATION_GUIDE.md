@@ -494,6 +494,7 @@ impl Drop for Observer {
 ### Jaeger UI Not Loading
 
 **Check**:
+
 - Port 16686 is accessible
 - Docker container is running: `docker ps | grep jaeger`
 - No firewall blocking: `telnet localhost 16686`
@@ -501,6 +502,7 @@ impl Drop for Observer {
 ### High Memory Usage
 
 **Solutions**:
+
 1. Reduce sample rate: `JAEGER_SAMPLE_RATE=0.01`
 2. Reduce batch timeout: `JAEGER_EXPORT_TIMEOUT_MS=10000`
 3. Limit traces in Jaeger: Set `MEMORY_MAX_TRACES=10000`
@@ -510,6 +512,7 @@ impl Drop for Observer {
 ## Jaeger Version Compatibility
 
 Tested with:
+
 - Jaeger 1.35+
 - HTTP collector (port 14268)
 - gRPC collector (port 14250)

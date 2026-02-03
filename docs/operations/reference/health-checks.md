@@ -52,11 +52,13 @@ Host: localhost:8000
 ```
 
 **Fields**:
+
 - `status` (string): `"healthy"` or `"degraded"` or `"unhealthy"`
 - `timestamp` (u64): Unix timestamp when checked
 - `uptime_seconds` (u64): Seconds since server started
 
 **Interpretation**:
+
 - `200 OK` → System is running normally
 - `500 Internal Server Error` → System encountered fatal error
 
@@ -95,18 +97,21 @@ Host: localhost:8000
 ```
 
 **Fields**:
+
 - `ready` (bool): Can service accept requests?
 - `database_connected` (bool): Can reach primary database?
 - `cache_available` (bool): Is cache/Redis available?
 - `reason` (string|null): Human-readable reason if not ready
 
 **Interpretation**:
+
 - `200 OK` → Service is ready, add to load balancer
 - `503 Service Unavailable` → Service not ready, remove from load balancer
 
 **Typical Response Time**: 50-200ms (includes dependency checks)
 
 **When to Return 503**:
+
 - Database connection fails
 - Critical cache unavailable (if required by schema)
 - Configuration invalid
@@ -134,17 +139,20 @@ Host: localhost:8000
 ```
 
 **Fields**:
+
 - `alive` (bool): Is process responding?
 - `pid` (u32): Process ID
 - `response_time_ms` (u32): Time to respond in milliseconds
 
 **Interpretation**:
+
 - `200 OK` → Process is alive and responsive
 - `5xx Server Error` → Process hung or crashed
 
 **Typical Response Time**: 1-5ms
 
 **What It Doesn't Check**:
+
 - ❌ Database connectivity
 - ❌ Cache availability
 - ❌ Configuration validity
@@ -378,11 +386,13 @@ backend fraiseql_be
 ### Failure Thresholds
 
 **Readiness Probe**:
+
 - `failureThreshold: 3` means remove after 3 consecutive failures
 - At 10-second intervals = 30 seconds to remove from LB
 - Good for: Database maintenance, brief unavailability
 
 **Liveness Probe**:
+
 - `failureThreshold: 3` means restart after 3 consecutive failures
 - At 10-second intervals = 30 seconds before restart
 - Good for: Detecting hung processes that don't respond
@@ -394,6 +404,7 @@ backend fraiseql_be
 ### Issue: Readiness Probe Failing
 
 **Symptoms**:
+
 - Pod not added to service
 - Cannot reach service from other pods
 - Health check returns 503
@@ -413,6 +424,7 @@ kubectl exec -it pod/fraiseql-xxx -- \
 ```
 
 **Solutions**:
+
 1. Check database URL configuration: `echo $DATABASE_URL`
 2. Verify database is accessible: `psql $DATABASE_URL`
 3. Check database credentials
@@ -423,6 +435,7 @@ kubectl exec -it pod/fraiseql-xxx -- \
 ### Issue: Liveness Probe Failing (Pod Restarting)
 
 **Symptoms**:
+
 - Pod keeps restarting
 - `kubectl get pod` shows `CrashLoopBackOff` or restarting
 - Liveness probe returns 5xx error
@@ -440,6 +453,7 @@ kubectl describe pod/fraiseql-xxx
 ```
 
 **Solutions**:
+
 1. Increase `initialDelaySeconds` if app takes time to start
 2. Check for memory/CPU limits causing throttling
 3. Look for hanging transactions in logs
@@ -449,6 +463,7 @@ kubectl describe pod/fraiseql-xxx
 ### Issue: Health Checks Timing Out
 
 **Symptoms**:
+
 - Probe timeout errors
 - Liveness probe failing but `/live` works manually
 
@@ -468,6 +483,7 @@ time curl http://localhost:8000/live
 ```
 
 **Solutions**:
+
 1. Increase `timeoutSeconds` if network is slow
 2. Increase container resources (CPU/memory limits)
 3. Optimize database queries
@@ -481,11 +497,13 @@ time curl http://localhost:8000/live
 ### 1. Health Check Intervals
 
 **Recommended Intervals** (Kubernetes):
+
 - `/ready`: 10 second interval (detect failures quickly)
 - `/live`: 10 second interval (restart dead processes)
 - `initialDelaySeconds`: 5-30 (depends on startup time)
 
 **Trade-offs**:
+
 - Shorter intervals = Faster failure detection, more overhead
 - Longer intervals = Less overhead, slower failure response
 
@@ -512,6 +530,7 @@ terminationGracePeriodSeconds: 30  # Matches server timeout
 ```
 
 Ensure these align:
+
 1. Server's request timeout: 30s
 2. Container's termination grace period: 30s
 3. Load balancer's connection drain: 30s
@@ -522,6 +541,7 @@ Monitor the health check endpoints themselves:
 
 ```yaml
 # Prometheus alerts
+
 - alert: HighReadinessFailureRate
   expr: rate(readiness_failures_total[5m]) > 0.1
   for: 2m

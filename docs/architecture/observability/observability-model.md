@@ -1286,6 +1286,7 @@ JAEGER_AGENT_PORT=6831
 **Solution:**
 
 ```
+
 1. Check trace span: query.execution (5000ms)
    ├─ validation: 2ms ✓ Fast
    ├─ authorization: 3ms ✓ Fast
@@ -1312,6 +1313,7 @@ JAEGER_AGENT_PORT=6831
 **Solution:**
 
 ```
+
 1. Find error log:
    "Authorization check failed"
    "rule": "owner_or_admin"

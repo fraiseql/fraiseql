@@ -190,6 +190,7 @@ curl -X POST http://localhost:8000/graphql \
 ## Advanced: User Federation
 
 Keycloak can federate users from:
+
 - LDAP/Active Directory
 - Database (custom providers)
 - Other identity providers
@@ -236,6 +237,7 @@ if user.has_role("api-admin") {
 **Cause**: Realm doesn't exist or wrong URL.
 
 **Solution**:
+
 - Verify realm name in Keycloak
 - Check `KEYCLOAK_REALM` environment variable
 - Try accessing `http://localhost:8080/realms/fraiseql/.well-known/openid-configuration`
@@ -245,6 +247,7 @@ if user.has_role("api-admin") {
 **Cause**: Client ID or secret is wrong.
 
 **Solution**:
+
 - Verify client ID in Keycloak
 - Copy client secret from "Credentials" tab
 - Check environment variables match exactly
@@ -254,6 +257,7 @@ if user.has_role("api-admin") {
 **Cause**: Callback URL doesn't match Keycloak configuration.
 
 **Solution**:
+
 - Update "Valid redirect URIs" in client settings
 - Include all redirect URLs (dev, staging, production)
 - Check for trailing slashes and protocol (http vs https)
@@ -354,6 +358,7 @@ Keycloak
 ```
 
 Each realm has:
+
 - Separate clients with different credentials
 - Different OIDC configurations
 - Environment-specific roles and policies

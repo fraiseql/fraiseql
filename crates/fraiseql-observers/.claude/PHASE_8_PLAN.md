@@ -23,11 +23,13 @@ Phase 8 builds on the production-ready Observer System (Phase 1-7) by adding ent
 ## 📊 Current Status (Phase 1-7 Completed)
 
 ### What's Completed
+
 - ✅ Phase 1-6: Core observer system, action execution, event processing
 - ✅ Phase 7: ChangeLogListener polling, Debezium integration, E2E tests
 - ✅ Quality: 100/100 tests passing, clippy-pedantic compliant, production-ready
 
 ### Phase 7 Quick Stats
+
 - 100 tests (74 Phase 1-6 + 26 Phase 7)
 - 500+ LOC Phase 7 implementation
 - Zero unsafe code
@@ -59,6 +61,7 @@ CREATE INDEX idx_observer_checkpoints_listener_id
 ```
 
 **Implementation**:
+
 - Add `CheckpointStore` trait (like `DeadLetterQueue`, `EventSource`)
 - Create `PostgresCheckpointStore` implementation
 - Update `ChangeLogListener` to:
@@ -67,6 +70,7 @@ CREATE INDEX idx_observer_checkpoints_listener_id
   - Use checkpoint for resume-from-id
 
 **Benefits**:
+
 - ✅ Zero event loss on crash/restart
 - ✅ Exactly-once semantics (with DLQ)
 - ✅ Audit trail of processing
@@ -125,12 +129,14 @@ impl ActionResultCache {
 ```
 
 **Integration Points**:
+
 - New `cache` module with `RedisCacheBackend`
 - Update `ObserverExecutor` to optionally use `ActionResultCache`
 - Configuration for Redis connection + TTL
 - Cache invalidation hooks when related entities change
 
 **Benefits**:
+
 - ✅ Reduced API calls (webhooks, external services)
 - ✅ Faster observer processing
 - ✅ Better reliability (fallback to cache on API failures)
@@ -183,18 +189,21 @@ impl EventSearchIndex {
 ```
 
 **Integration Points**:
+
 - New `search` module with `SearchBackend` trait
 - `ElasticsearchBackend` implementation
 - Hook into `ObserverExecutor` to index events after processing
 - API endpoint `/api/observers/search` for querying events
 
 **Features**:
+
 - Full-text search on entity data
 - Filter by event type, entity type, date range
 - Faceted search (group by entity type, etc.)
 - Audit trail of all events
 
 **Benefits**:
+
 - ✅ Complete audit trail queryable
 - ✅ Troubleshooting and debugging
 - ✅ Compliance and regulatory requirements
@@ -299,6 +308,7 @@ CREATE INDEX idx_job_queue_created_at ON job_queue(created_at DESC);
 ```
 
 **Benefits**:
+
 - ✅ Non-blocking observer processing
 - ✅ Automatic retries with backoff
 - ✅ Job tracking and audit trail
@@ -350,6 +360,7 @@ impl ObserverMetrics {
 ```
 
 **Metrics to Track**:
+
 - Events processed per second
 - Action execution time by type (webhook, email, cache, etc.)
 - DLQ queue size
@@ -359,6 +370,7 @@ impl ObserverMetrics {
 - Observer matching success rate
 
 **Benefits**:
+
 - ✅ Production monitoring
 - ✅ Performance debugging
 - ✅ Alerting on anomalies
@@ -403,6 +415,7 @@ impl MultiListener {
 ```
 
 **Benefits**:
+
 - ✅ Horizontal scaling
 - ✅ Automatic failover
 - ✅ Load distribution
@@ -413,6 +426,7 @@ impl MultiListener {
 ## 📋 Implementation Phases (Phase 8)
 
 ### 8.0: Planning & Architecture Review (1 day)
+
 - [ ] Review existing Observer System design
 - [ ] Design persistent checkpoint storage
 - [ ] Design Redis caching integration
@@ -421,6 +435,7 @@ impl MultiListener {
 - [ ] Create detailed implementation plan
 
 ### 8.1: Persistent Checkpoints (1 day)
+
 - [ ] Create `CheckpointStore` trait
 - [ ] Implement `PostgresCheckpointStore`
 - [ ] Add migrations for `observer_checkpoints` table
@@ -429,6 +444,7 @@ impl MultiListener {
 - [ ] Verify recovery on restart
 
 ### 8.2: Redis Caching Layer (1.5 days)
+
 - [ ] Create `CacheBackend` trait
 - [ ] Implement `RedisCacheBackend`
 - [ ] Create `ActionResultCache` wrapper
@@ -438,6 +454,7 @@ impl MultiListener {
 - [ ] Add metrics for cache operations
 
 ### 8.3: Elasticsearch Integration (1.5 days)
+
 - [ ] Create `SearchBackend` trait
 - [ ] Implement `ElasticsearchBackend`
 - [ ] Create `EventSearchIndex` wrapper
@@ -447,6 +464,7 @@ impl MultiListener {
 - [ ] Document search capabilities
 
 ### 8.4: Job Queue System (1.5 days)
+
 - [ ] Create `JobQueue` trait
 - [ ] Implement `PostgresJobQueue`
 - [ ] Add migrations for `job_queue` table
@@ -456,6 +474,7 @@ impl MultiListener {
 - [ ] Write job processing tests
 
 ### 8.5: Metrics & Observability (1 day)
+
 - [ ] Create `ObserverMetrics` struct
 - [ ] Integrate Prometheus instrumentation
 - [ ] Add metrics to executor
@@ -464,6 +483,7 @@ impl MultiListener {
 - [ ] Write metrics validation tests
 
 ### 8.6: Multiple Listeners (1 day)
+
 - [ ] Design leader election (or shared polling)
 - [ ] Implement `MultiListener` coordinator
 - [ ] Update checkpoint system for multiple listeners
@@ -472,6 +492,7 @@ impl MultiListener {
 - [ ] Document scaling patterns
 
 ### 8.7: Documentation & Examples (1 day)
+
 - [ ] Update README with Phase 8 features
 - [ ] Create example: Persistent checkpoints
 - [ ] Create example: Redis caching
@@ -481,6 +502,7 @@ impl MultiListener {
 - [ ] Add troubleshooting guide
 
 ### 8.8: Quality Assurance & Polish (1 day)
+
 - [ ] Run full clippy check
 - [ ] Run all tests
 - [ ] Performance benchmarks
@@ -531,6 +553,7 @@ crates/fraiseql-observers/
 ## 🧪 Testing Strategy for Phase 8
 
 ### Unit Tests
+
 - Checkpoint persistence and recovery
 - Cache hit/miss scenarios
 - Search indexing and querying
@@ -538,6 +561,7 @@ crates/fraiseql-observers/
 - Metrics collection
 
 ### Integration Tests
+
 - Listener restart with checkpoint recovery
 - Cache invalidation flows
 - End-to-end job processing
@@ -545,6 +569,7 @@ crates/fraiseql-observers/
 - Failover scenarios
 
 ### Performance Tests
+
 - Checkpoint load/save performance
 - Cache lookup latency
 - Elasticsearch query performance
@@ -570,6 +595,7 @@ crates/fraiseql-observers/
 ## 🔄 Integration with Existing Code
 
 Phase 8 builds on Phase 1-7 with:
+
 - ✅ Uses existing `EntityEvent` and `ActionConfig` types
 - ✅ Extends trait-based architecture (new traits for each feature)
 - ✅ Maintains `#![forbid(unsafe_code)]`
@@ -582,6 +608,7 @@ Phase 8 builds on Phase 1-7 with:
 ## 📊 Phase 8 Impact
 
 ### Before Phase 8
+
 - ✅ Core observer system works
 - ⚠️ Events lost on crash
 - ⚠️ No audit trail of processing
@@ -590,6 +617,7 @@ Phase 8 builds on Phase 1-7 with:
 - ⚠️ Single point of failure
 
 ### After Phase 8
+
 - ✅ Zero event loss (persistent checkpoints)
 - ✅ Complete audit trail (Elasticsearch)
 - ✅ Non-blocking long-running actions (job queue)

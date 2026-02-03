@@ -183,6 +183,7 @@ Auth0 Rules (legacy) or Actions allow custom logic:
      }
    };
    ```
+
 6. Click "Save" → "Deploy"
 
 Then access in FraiseQL:
@@ -247,6 +248,7 @@ if user.has_role("admin") {
 **Cause**: Client ID or secret is incorrect.
 
 **Solution**:
+
 - Copy from Auth0 dashboard exactly
 - Verify environment variables
 - Check no spaces or special characters
@@ -256,6 +258,7 @@ if user.has_role("admin") {
 **Cause**: Callback URL doesn't match Auth0 configuration.
 
 **Solution**:
+
 - Update "Allowed Callback URLs" in settings
 - Check for `http://` vs `https://`
 - Verify port number matches
@@ -266,6 +269,7 @@ if user.has_role("admin") {
 **Cause**: Requested scope not available.
 
 **Solution**:
+
 - Auth0 by default supports: `openid profile email`
 - For custom scopes, define in API settings
 - Make sure API is connected to application

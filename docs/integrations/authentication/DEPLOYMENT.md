@@ -496,11 +496,13 @@ Failover: Automatic via RDS
 ## Cost Optimization
 
 **Development**:
+
 - Single instance
 - Shared database
 - ~$50/month
 
 **Production**:
+
 - 3x instances (HA)
 - PostgreSQL managed service
 - Monitoring and backups

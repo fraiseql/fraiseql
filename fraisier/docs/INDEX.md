@@ -7,29 +7,34 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 ## Quick Navigation
 
 ### For Getting Started
+
 - **New to Fraisier?** Start with [../README.md](../README.md)
 - **Setting up development?** See [../DEVELOPMENT.md](../DEVELOPMENT.md)
 - **Your first deployment?** See [GETTING_STARTED_DOCKER.md](GETTING_STARTED_DOCKER.md) (10 min) or [GETTING_STARTED_SQLITE.md](GETTING_STARTED_SQLITE.md) (5 min)
 
 ### For Production Deployment
+
 - **Quick setup (Docker)?** See [GETTING_STARTED_DOCKER.md](GETTING_STARTED_DOCKER.md)
 - **Setup guide (your DB)?** See [GETTING_STARTED_POSTGRES.md](GETTING_STARTED_POSTGRES.md), [GETTING_STARTED_MYSQL.md](GETTING_STARTED_MYSQL.md), [GETTING_STARTED_SQLITE.md](GETTING_STARTED_SQLITE.md)
 - **Your deployment method?** See [PROVIDER_BARE_METAL.md](PROVIDER_BARE_METAL.md), [PROVIDER_DOCKER_COMPOSE.md](PROVIDER_DOCKER_COMPOSE.md), or [PROVIDER_COOLIFY.md](PROVIDER_COOLIFY.md)
 - **Real-world examples?** See [REAL_WORLD_EXAMPLES.md](REAL_WORLD_EXAMPLES.md) (4 complete configurations)
 
 ### For API & Integration
+
 - **REST API?** See [API_REFERENCE.md](API_REFERENCE.md)
 - **CLI commands?** See [CLI_REFERENCE.md](CLI_REFERENCE.md)
 - **Webhooks?** See [WEBHOOK_REFERENCE.md](WEBHOOK_REFERENCE.md)
 - **Event types?** See [EVENT_REFERENCE.md](EVENT_REFERENCE.md)
 
 ### For Development
+
 - **Project standards?** See [../.claude/CLAUDE.md](../.claude/CLAUDE.md)
 - **What needs building?** See [../ROADMAP.md](../ROADMAP.md)
 - **Writing tests?** See [TESTING.md](TESTING.md)
 - **Understanding architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ### For Operations
+
 - **Monitoring setup?** See [MONITORING_SETUP.md](MONITORING_SETUP.md)
 - **Troubleshooting?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) (50+ scenarios)
 - **FAQ?** See [FAQ_AND_ADVANCED_TOPICS.md](FAQ_AND_ADVANCED_TOPICS.md) (40+ Q&A)
@@ -163,48 +168,56 @@ fraisier/
 ## Document Purposes
 
 ### README.md
+
 **What**: Quick start and project overview
 **When to read**: First encounter with Fraisier
 **Length**: ~250 lines
 **Content**: Purpose, quick start, config examples, architecture diagram
 
 ### DEVELOPMENT.md
+
 **What**: How to set up development environment and workflow
 **When to read**: Getting started with development
 **Length**: ~400 lines
 **Content**: Prerequisites, setup, common tasks, testing, debugging, IDE setup
 
 ### ROADMAP.md
+
 **What**: What features are planned and in what order
 **When to read**: Understanding project status and direction
 **Length**: ~300 lines
 **Content**: Vision, 4 phases, current blockers, success criteria, version history
 
 ### .claude/CLAUDE.md
+
 **What**: Development standards, principles, and conventions specific to Fraisier
 **When to read**: Before writing code
 **Length**: ~400 lines
 **Content**: Architecture principles, testing strategy, common tasks, code patterns, debugging
 
 ### ARCHITECTURE.md
+
 **What**: Technical architecture, component overview, data flow
 **When to read**: Understanding how code is organized
 **Length**: ~500 lines
 **Content**: High-level diagram, component details, data flows, design patterns, extension points
 
 ### DEPLOYMENT_GUIDE.md
+
 **What**: How to deploy Fraisier and manage services in production
 **When to read**: Before deploying to production
 **Length**: ~600 lines
 **Content**: Prerequisites, installation, configuration, systemd setup, webhooks, monitoring, troubleshooting
 
 ### TESTING.md
+
 **What**: Testing strategy, examples, and best practices
 **When to read**: Before writing tests
 **Length**: ~400 lines
 **Content**: Test structure, how to run tests, unit/integration/E2E examples, mocking, coverage
 
 ### PRD.md (This directory)
+
 **What**: Complete product requirements and specifications
 **When to read**: Understanding full scope and features
 **Length**: ~1,300 lines
@@ -234,11 +247,13 @@ fraisier/
 ## Related Documentation
 
 ### FraiseQL Framework
+
 - **Framework README**: See `../../README.md` (parent repo)
 - **Framework Architecture**: See `../../docs/`
 - **Language Bindings**: See `../../fraiseql-python/`, `../../fraiseql-typescript/`, etc.
 
 ### GitHub Repository
+
 - **Main Repo**: https://github.com/fraiseql/fraiseql
 - **Issues**: https://github.com/fraiseql/fraiseql/issues
 - **Discussions**: https://github.com/fraiseql/fraiseql/discussions
@@ -278,11 +293,13 @@ fraisier/
 ## Contributing to Documentation
 
 ### Before Editing
+
 1. Read this INDEX to understand structure
 2. Check document purpose and audience
 3. Maintain consistent tone and style
 
 ### Style Guide
+
 - Clear, concise language
 - Active voice preferred
 - Use headers for organization
@@ -290,6 +307,7 @@ fraisier/
 - Link to related documentation
 
 ### Sections to Update
+
 - Update document version above when making changes
 - Update "Last Updated" date
 - Keep INDEX.md synchronized with new files

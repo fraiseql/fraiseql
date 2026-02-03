@@ -85,23 +85,27 @@ In priority order:
 ## What's Been Done (This Session)
 
 ### Deployers (Phase 1.1)
+
 - ✅ **APIDeployer**: Complete with migrations, rollback, health checks
 - ✅ **ETLDeployer**: Complete with rollback via git
 - ✅ **ScheduledDeployer**: Complete with systemd timer management
 - ✅ **26 tests**: Full coverage for all deployer types
 
 ### Database (Phase 1.2)
+
 - ✅ **FraisierDB**: Trinity pattern implementation with UUID, business keys, audit trail
 - ✅ **Three views**: v_fraise_status, v_deployment_history, v_webhook_event_history
 - ✅ **24 tests**: All CRUD operations verified
 - ✅ **Multi-database support**: Prepared for SQLite + PostgreSQL reconciliation
 
 ### Git Providers (Phase 1.3)
+
 - ✅ **4 Providers**: GitHub, GitLab, Gitea, Bitbucket
 - ✅ **22 tests**: Signature verification + event parsing
 - ✅ **Full coverage**: Push, PR, ping events supported
 
 ### Documentation
+
 - ✅ **CLAUDE.md**: 400-line development guide
 - ✅ **PHASE_1_PROGRESS.md**: Session progress report
 - ✅ **TRINITY_PATTERNS.md**: 540-line database architecture guide
@@ -112,6 +116,7 @@ In priority order:
 ## What's Next (Immediate)
 
 ### Phase 1.3: Webhook Handler
+
 - [ ] Implement FastAPI `/webhook` route
 - [ ] Implement `/providers` endpoint (list supported providers)
 - [ ] Implement `/health` endpoint
@@ -119,11 +124,13 @@ In priority order:
 - [ ] Write 10+ webhook handler tests
 
 ### Phase 1.4: CLI Status Commands
+
 - [ ] Fix `fraisier status` implementation
 - [ ] Implement `fraisier deploy` verification
 - [ ] Add output formatting with Rich
 
 ### Phase 1.5: Final Verification
+
 - [ ] Run full test suite with coverage
 - [ ] Ensure all tests pass with no warnings
 - [ ] Verify ruff linting passes
@@ -157,11 +164,13 @@ In priority order:
 
 ```
 Write Side (tb_*):
+
 - tb_fraise_state      ← Current state
 - tb_deployment        ← History log
 - tb_webhook_event     ← Webhook log
 
 Read Side (v_*):
+
 - v_fraise_status      ← Computed state
 - v_deployment_history ← Filtered history
 - v_webhook_event_history ← Linked webhooks

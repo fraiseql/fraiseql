@@ -20,6 +20,7 @@ SCRAM-SHA-256 is a salted challenge-response authentication mechanism defined in
 - Defense against MitM attacks
 
 **Requirements**:
+
 - PostgreSQL 10 or later
 - User password must be set using SCRAM-SHA-256
 
@@ -36,11 +37,13 @@ url = "postgresql://username:password@localhost:5432/fraiseql"
 SCRAM-SHA-256-PLUS adds channel binding to SCRAM-SHA-256, providing additional protection by binding the authentication to the TLS connection itself.
 
 **Requirements**:
+
 - PostgreSQL 11 or later
 - TLS connection required
 - Explicit channel binding support in driver
 
 **When to use**:
+
 - Multi-tenant deployments
 - Highly sensitive data
 - High-security compliance requirements (SOC2, ISO 27001)
@@ -163,6 +166,7 @@ RUST_LOG=debug fraiseql-server start
 **Cause**: Password mismatch or authentication method incompatibility
 
 **Solution**:
+
 1. Verify the password is correct
 2. Check PostgreSQL server is using SCRAM: `SHOW password_encryption;`
 3. Reset the password: `ALTER USER fraiseql_user WITH PASSWORD 'password';`
@@ -173,6 +177,7 @@ RUST_LOG=debug fraiseql-server start
 **Cause**: PostgreSQL version < 10 or MD5-only configuration
 
 **Solution**:
+
 1. Upgrade PostgreSQL to 10+
 2. Update `password_encryption` in `postgresql.conf`
 3. Restart PostgreSQL: `sudo systemctl restart postgresql`
@@ -183,6 +188,7 @@ RUST_LOG=debug fraiseql-server start
 **Cause**: PostgreSQL version < 11 or TLS not configured
 
 **Solution**:
+
 1. For SCRAM-SHA-256-PLUS, upgrade to PostgreSQL 11+
 2. Enable TLS: Add `sslmode=require` to connection string
 3. Verify TLS certificates are valid
@@ -208,6 +214,7 @@ RUST_LOG=debug fraiseql-server start
 sudo -u postgres psql
 
 # In psql:
+
 -- Enable SCRAM for future password changes
 ALTER SYSTEM SET password_encryption = 'scram-sha256';
 

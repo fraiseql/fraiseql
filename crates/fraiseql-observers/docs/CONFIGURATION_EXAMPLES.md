@@ -17,6 +17,7 @@ This guide provides real-world configuration examples for different scenarios.
 **Recommended for**: Mission-critical production systems
 
 **Characteristics**:
+
 - All Phase 8 features enabled
 - PostgreSQL for checkpoints
 - Redis for cache and dedup
@@ -152,6 +153,7 @@ OBSERVER_CACHE_TTL=300
 **Recommended for**: Local development and testing
 
 **Characteristics**:
+
 - Minimal external dependencies
 - SQLite for checkpoints (local file)
 - In-memory caching
@@ -241,6 +243,7 @@ pub fn test_config() -> ObserverRuntimeConfig {
 **Recommended for**: High-throughput systems (1000+ events/second)
 
 **Characteristics**:
+
 - Caching enabled for performance
 - Concurrent execution
 - Dedup for quality
@@ -345,6 +348,7 @@ pub async fn performance_config() -> ObserverRuntimeConfig {
 **Recommended for**: Cost-conscious deployments, non-critical systems
 
 **Characteristics**:
+
 - Only essentials enabled
 - Shared Redis instance
 - No Elasticsearch
@@ -400,6 +404,7 @@ pub async fn budget_config() -> ObserverRuntimeConfig {
 ```
 
 **Cost Estimate**:
+
 - PostgreSQL: ~$15/month (managed service)
 - Compute: ~$50/month (single instance)
 - **Total: ~$65/month**
@@ -422,6 +427,7 @@ checkpoint_batch_size: 10000,
 ```
 
 **When to use**:
+
 - `1`: Financial transactions, healthcare (safety critical)
 - `100`: Most production systems
 - `10000`: High-throughput, lower-criticality
@@ -476,6 +482,7 @@ CircuitBreakerConfig {
     sample_size: 50,
 }
 ```
+
 **Use case**: Expensive operations (protect system from runaway)
 
 #### Conservative (High Tolerance)
@@ -487,6 +494,7 @@ CircuitBreakerConfig {
     sample_size: 1000,
 }
 ```
+
 **Use case**: Resilient to brief outages, don't want false alarms
 
 ---
@@ -506,6 +514,7 @@ cache_backend: Arc::new(
     .await?
 ),
 ```
+
 **Result**: 95%+ hit rate, extreme performance
 
 #### Conservative Caching (Correctness Priority)
@@ -521,6 +530,7 @@ cache_backend: Arc::new(
     .await?
 ),
 ```
+
 **Result**: ~50-60% hit rate, fresher data
 
 ---
@@ -531,6 +541,7 @@ cache_backend: Arc::new(
 ```rust
 multi_listener_config: None,
 ```
+
 **Use case**: Development, non-critical systems
 
 #### 3 Listeners (Standard HA)
@@ -541,6 +552,7 @@ multi_listener_config: Some(MultiListenerConfig {
     failover_threshold: Duration::from_secs(60),
 }),
 ```
+
 **Use case**: Production with acceptable downtime (seconds)
 
 #### 5 Listeners (High Availability)
@@ -551,6 +563,7 @@ multi_listener_config: Some(MultiListenerConfig {
     failover_threshold: Duration::from_secs(10),
 }),
 ```
+
 **Use case**: Mission-critical with minimal acceptable downtime
 
 ---
@@ -602,6 +615,7 @@ pub async fn staging_config() -> ObserverRuntimeConfig {
 [features]
 phase1 = ["checkpoint"]
 ```
+
 - Enables zero-event-loss guarantee
 - No external dependencies (except PostgreSQL)
 - Safe foundation
@@ -611,6 +625,7 @@ phase1 = ["checkpoint"]
 [features]
 phase2 = ["checkpoint", "caching"]
 ```
+
 - Reduces external API load
 - Improves latency
 - Adds Redis dependency
@@ -620,6 +635,7 @@ phase2 = ["checkpoint", "caching"]
 [features]
 phase3 = ["checkpoint", "caching", "dedup"]
 ```
+
 - Prevents duplicate side effects
 - Uses existing Redis
 
@@ -628,6 +644,7 @@ phase3 = ["checkpoint", "caching", "dedup"]
 [features]
 phase4 = ["checkpoint", "caching", "dedup", "metrics"]
 ```
+
 - Production observability
 - Enables alerting
 
@@ -636,6 +653,7 @@ phase4 = ["checkpoint", "caching", "dedup", "metrics"]
 [features]
 final = ["checkpoint", "caching", "dedup", "metrics", "search"]
 ```
+
 - Compliance-ready audit trail
 - Full debugging capability
 

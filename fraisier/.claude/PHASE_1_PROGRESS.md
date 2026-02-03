@@ -108,6 +108,7 @@
 ## Metrics
 
 ### Code Coverage
+
 - **Deployers**: 100% interface coverage, 90%+ line coverage
 - **Database**: 95%+ coverage (schema + all methods tested)
 - **Config**: 95%+ coverage
@@ -115,6 +116,7 @@
 - **Overall**: 90%+ target on track
 
 ### Test Statistics
+
 - **Total Tests Created**: 99+
 - **Test Files**: 5 files
   - test_deployers.py: 26 tests
@@ -127,6 +129,7 @@
 - **Edge Cases Covered**: 30+ (errors, timeouts, missing files, invalid signatures, webhook flows)
 
 ### Commits This Session
+
 1. `af2dd399` - docs(fraisier): Comprehensive project documentation (3,800+ lines)
 2. `f5280f85` - feat(fraisier): Complete deployer implementations (192 lines)
 3. `97a9f9e8` - test(fraisier): Comprehensive unit/integration tests (915 lines)
@@ -230,12 +233,14 @@ fraises = config.list_fraises()
 ## Files Modified/Created
 
 ### Code (Production)
+
 - ✅ `fraisier/deployers/api.py` - Enhanced with migrations and rollback
 - ✅ `fraisier/deployers/etl.py` - Added complete rollback implementation
 - ✅ `fraisier/deployers/scheduled.py` - Added complete rollback implementation
 - 📋 `fraisier/webhook.py` - Needs webhook routes implementation
 
 ### Documentation
+
 - ✅ `fraisier/.claude/CLAUDE.md` (400 lines)
 - ✅ `fraisier/.claude/PHASE_1_IMPLEMENTATION_PLAN.md` (detailed plan)
 - ✅ `fraisier/.claude/PHASE_1_PROGRESS.md` (this file)
@@ -247,6 +252,7 @@ fraises = config.list_fraises()
 - ✅ `fraisier/docs/INDEX.md` (300 lines)
 
 ### Tests (Test Code)
+
 - ✅ `tests/__init__.py`
 - ✅ `tests/conftest.py` (shared fixtures)
 - ✅ `tests/test_deployers.py` (26 tests)
@@ -255,6 +261,7 @@ fraises = config.list_fraises()
 - ✅ `tests/test_git_providers.py` (22 tests)
 
 ### CI/CD
+
 - ✅ `.github/workflows/fraisier-ci.yml` (separate pipeline)
 
 ---
@@ -300,17 +307,20 @@ pytest tests/test_deployers.py::TestAPIDeployer::test_execute_success -v
 ## Next Steps
 
 ### Immediately (Subphase 1.3)
+
 1. Implement webhook handler FastAPI routes
 2. Implement background task execution for deployments
 3. Write 10+ webhook handler tests
 4. Test webhook → deployer integration
 
 ### Short-term (Subphase 1.5)
+
 1. Fix CLI status commands with real implementation
 2. Add E2E CLI tests
 3. Add webhook integration tests
 
 ### Final (Quality Assurance)
+
 1. Run full pytest with coverage report
 2. Ensure ruff linting passes
 3. Type checking with mypy

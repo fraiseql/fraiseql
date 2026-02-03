@@ -1913,6 +1913,7 @@ query {
 **Execution:**
 
 ```
+
 1. Users subgraph (PostgreSQL):
    - WHERE_operators = [_eq, _ne, _like, _ilike, _regex, _jsonb_has_key, ...]
    - Receives: email { _like: "%@example.com" }

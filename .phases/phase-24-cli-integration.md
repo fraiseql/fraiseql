@@ -12,6 +12,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 - **Problem**: CLI merger and configuration integration incomplete
 
 **Phase 24 Goal**: Complete the TOML-based workflow by:
+
 1. **Fix schema merger bug** (types as map instead of array)
 2. **Implement full TOML config parsing** (all sections)
 3. **Integrate security/observers/analytics** at compile time
@@ -21,13 +22,16 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ## Known Issues to Fix
 
 ### 1. Schema Merger Bug
+
 **Current**: `types.json` from language SDKs is array, but merger treats it as object/map
 **Impact**: Types not properly merged into compiled schema
 **Fix**: Update merger to handle array format from SDKs, convert to proper structure
 
 ### 2. TOML Config Incomplete
+
 **Current**: `fraiseql.toml` schema partially defined
 **Missing**:
+
 - Complete security section (rules, policies, field auth, enterprise features)
 - Observers configuration (handlers, webhooks)
 - Analytics fact tables
@@ -36,11 +40,13 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 **Fix**: Define complete TOML schema matching all operational features
 
 ### 3. Runtime Configuration Loading
+
 **Current**: Server loads compiled schema but doesn't extract security/observers config
 **Missing**: Runtime initialization of security policies, observers, rate limiting
 **Fix**: Server should initialize from security/observers sections of compiled schema
 
 ### 4. Environment Variable Overrides
+
 **Current**: No way to override TOML config at runtime
 **Missing**: Support for env vars like `FRAISEQL_SECURITY_RATE_LIMIT_ENABLED`
 **Fix**: Load compiled schema, then override with environment variables
@@ -50,12 +56,14 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 1: Fix Schema Merger (RED → GREEN → REFACTOR → CLEANUP)
 
 **RED**: Write integration test that verifies:
+
 - types.json array with 3 types
 - fraiseql.toml with security/queries
 - Merged schema has correct array structure for types/queries
 - Security config properly embedded
 
 **GREEN**: Fix merger.rs to:
+
 1. Parse types.json as array
 2. Build intermediate schema with arrays (not objects)
 3. Convert types array to structured format expected by IntermediateSchema
@@ -67,6 +75,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 2: Implement TOML Security Config
 
 **RED**: Write test for complete security section parsing:
+
 - Rules with caching
 - Policies (RBAC/ABAC)
 - Field-level authorization
@@ -81,6 +90,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 3: Implement Full Config Loading
 
 **RED**: Write test for complete fraiseql.toml loading:
+
 - Schema metadata
 - Database settings
 - Types/queries/mutations
@@ -99,6 +109,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 4: Implement Environment Variable Overrides
 
 **RED**: Write test showing env vars override compiled schema:
+
 - `FRAISEQL_SECURITY_RATE_LIMIT_ENABLED` overrides TOML setting
 - `FRAISEQL_DATABASE_URL` overrides compiled URL
 - Invalid env vars logged but don't crash
@@ -112,6 +123,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 5: Create Integration Tests (All 16 Languages)
 
 **RED**: Write integration test that:
+
 - Exports types.json from each language SDK
 - Creates fraiseql.toml with security/queries/mutations
 - Compiles schema
@@ -127,6 +139,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ### Cycle 6: Fix Runtime Security Loading
 
 **RED**: Write test showing server loads security config from compiled schema:
+
 - Server initializes rate limiting from config
 - Server sets up audit logging
 - Server loads authorization policies
@@ -152,17 +165,20 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 ## Deliverables
 
 ### Core Fixes
+
 - Fixed merger.rs (types as array)
 - Complete TomlSchema implementation
 - Environment variable override system
 - Runtime configuration loading
 
 ### Integration
+
 - Integration test suite (16 languages)
 - End-to-end examples (Python + TOML + CLI + Server)
 - Updated documentation
 
 ### Quality
+
 - 100% linting pass
 - All tests passing
 - No TODO markers remaining
@@ -172,6 +188,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 [ ] Not Started | [x] In Progress | [ ] Complete
 
 **Current Progress**:
+
 - ✅ Cycle 1 (REFACTOR phase): Schema merger bug fixed
   - Merger now handles types.json arrays correctly
   - Converts language SDK output to proper IntermediateSchema format
@@ -187,6 +204,7 @@ Fix schema merger bug and fully integrate TOML-based configuration throughout th
 - ⏳ Cycle 6: Runtime security loading (pending)
 
 **Key Achievements**:
+
 - Schema merger bug 100% fixed
 - Types.json from all 16 SDKs now properly merge with TOML
 - Security/observers/analytics/caching configurations embed correctly

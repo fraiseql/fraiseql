@@ -228,6 +228,7 @@ ORDER BY avg_ms DESC;
 -- SELECT * FROM v_user WHERE email = $email;
 
 -- Look for:
+
 -- - Sequential scans (should be index scans)
 -- - High costs (optimization opportunity)
 -- - Buffer hits (cache effectiveness)
@@ -684,6 +685,7 @@ LIMIT 1;
 
 ```sql
 -- EXPLAIN ANALYZE shows:
+
 -- - Sequential scans → Need index
 -- - High costs → Optimization opportunity
 -- - Buffer hits → Good cache performance

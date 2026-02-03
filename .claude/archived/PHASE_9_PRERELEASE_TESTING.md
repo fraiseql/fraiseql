@@ -40,6 +40,7 @@ docker-compose -f docker-compose.elasticsearch.yml ps
 ```
 
 **Verification**:
+
 - [ ] PostgreSQL 5433 responding
 - [ ] NATS 4222 responding
 - [ ] Redis 6379 responding
@@ -63,6 +64,7 @@ cargo check --all-features
 ```
 
 **Verification**:
+
 - [ ] Zero compilation errors
 - [ ] Zero clippy warnings
 - [ ] All features compile
@@ -83,6 +85,7 @@ cargo test -p fraiseql-core --all-features
 ```
 
 **Expected Results**:
+
 - [ ] All observer tests pass (255+ tests)
 - [ ] All arrow tests pass (8+ clickhouse tests)
 - [ ] All core tests pass
@@ -114,6 +117,7 @@ EOF
 ```
 
 **Verification**:
+
 - [ ] fraiseql_events table exists with 8 columns
 - [ ] Indexes on event_type, entity_type, org_id created
 - [ ] TTL configured for 90 days
@@ -130,6 +134,7 @@ curl -s http://localhost:9200/_ilm/policy | jq '.policies | keys'
 ```
 
 **Verification**:
+
 - [ ] fraiseql-events template exists
 - [ ] fraiseql-requests template exists (if created)
 - [ ] ILM policy configured
@@ -142,6 +147,7 @@ cargo test --test integration_test --features clickhouse -- --ignored --nocaptur
 ```
 
 **Verification**:
+
 - [ ] Events generated successfully
 - [ ] ClickHouse inserted rows successfully
 - [ ] Query returns expected data
@@ -164,6 +170,7 @@ cargo test --test stress_tests --features clickhouse million_row -- --ignored --
 ```
 
 **Verification**:
+
 - [ ] 1M rows inserted without errors
 - [ ] Throughput meets or exceeds 100k rows/sec
 - [ ] Memory usage under 500MB
@@ -182,6 +189,7 @@ cargo test --test stress_tests --features clickhouse sustained_load_10k -- --ign
 ```
 
 **Verification**:
+
 - [ ] 3M events (10k/sec × 300 sec) inserted without loss
 - [ ] Memory remains constant (no leaks)
 - [ ] Latency stable throughout test
@@ -204,6 +212,7 @@ cargo test --test chaos_tests --features clickhouse nats_partition -- --ignored 
 ```
 
 **Verification**:
+
 - [ ] ClickHouse crash: Sink recovers and flushes on restart
 - [ ] Elasticsearch down: Graceful degradation, no crash
 - [ ] NATS partition: Local buffer maintains, sync on recovery
@@ -243,6 +252,7 @@ Memory (1M rows):
 ```
 
 **Verification**:
+
 - [ ] Benchmarks execute without panicking
 - [ ] Real numbers captured (update documentation if different)
 - [ ] Performance meets or exceeds Phase 9 targets
@@ -267,11 +277,13 @@ cargo run --example clickhouse_sink --features clickhouse
 ```
 
 **Verification**:
+
 - [ ] Example runs without errors
 - [ ] Events visible in ClickHouse:
   ```sql
   SELECT COUNT(*) FROM fraiseql_events;
   ```
+
 - [ ] Materialized views updated:
   ```sql
   SELECT COUNT(*) FROM fraiseql_events_hourly;
@@ -301,6 +313,7 @@ Verify all documentation is accurate:
 ```
 
 **Verification**:
+
 - [ ] Getting-started tutorial works as-is
 - [ ] Migration guide Phase 1 succeeds
 - [ ] All code examples in docs are accurate
@@ -325,6 +338,7 @@ git log --oneline | grep "phase-9\|Phase 9" | head -20
 ```
 
 **Verification**:
+
 - [ ] All services stopped cleanly
 - [ ] No uncommitted changes
 - [ ] Phase 9 commits documented
@@ -338,6 +352,7 @@ After running all tests, create a results summary:
 **File**: `/home/lionel/code/fraiseql/.claude/PHASE_9_RELEASE_RESULTS.md`
 
 Include:
+
 - ✅/❌ Checklist completion
 - Actual vs target performance numbers
 - Any failures and root causes
@@ -349,6 +364,7 @@ Include:
 ## Go/No-Go Criteria
 
 ### Must Pass (Blocking)
+
 - [ ] All unit tests pass
 - [ ] ClickHouse schema applied successfully
 - [ ] Elasticsearch templates applied successfully
@@ -357,6 +373,7 @@ Include:
 - [ ] Code compiles with zero warnings
 
 ### Should Pass (High Priority)
+
 - [ ] Stress tests pass (1M rows)
 - [ ] Sustained load test passes
 - [ ] Chaos tests pass (resilience verified)
@@ -364,6 +381,7 @@ Include:
 - [ ] Documentation examples work
 
 ### Nice to Have
+
 - [ ] Code coverage >80%
 - [ ] Performance exceeds targets by >20%
 - [ ] All CLI examples work

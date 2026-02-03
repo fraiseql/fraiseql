@@ -630,11 +630,13 @@ impl JsonStream {
 3. Integration testing & bug fixes (1 day)
 
 **Week 2**:
+
 4. 8.6.3: Memory Bounds (3-4 days)
 5. 8.6.4: Adaptive Chunking (4-5 days)
 6. Partial integration & testing (1 day)
 
 **Week 3**:
+
 7. 8.6.5: Pause/Resume (5-7 days) — OR defer to 8.7
 8. 8.6.6: Cancellation Backpressure (2-3 days)
 9. Full integration, benchmarks, documentation (2-3 days)

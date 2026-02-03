@@ -101,9 +101,11 @@ Apollo Router v1.31.1 acts as the composition gateway for FraiseQL federation, u
 ## Test Scenarios
 
 ### Test 1: Discovers All 3 Subgraphs
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_discovers_subgraphs`
 
 Verifies Apollo Router can discover and introspect all three subgraphs:
+
 - ✓ Users subgraph discovered
 - ✓ Orders subgraph discovered
 - ✓ Products subgraph discovered
@@ -115,9 +117,11 @@ Verifies Apollo Router can discover and introspect all three subgraphs:
 - Counts total types in schema (should be >15)
 
 ### Test 2: Schema Composition
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_schema_composition`
 
 Validates proper schema composition with all subgraph definitions:
+
 - ✓ Query type present
 - ✓ Root queries available (users, orders, products)
 - ✓ Schema properly merged from all sources
@@ -128,9 +132,11 @@ Validates proper schema composition with all subgraph definitions:
 - Verify all root queries accessible
 
 ### Test 3: SDL Completeness
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_sdl_completeness`
 
 Checks Schema Definition Language completeness via introspection:
+
 - ✓ Schema has Query type
 - ✓ All types properly defined
 - ✓ Fields correctly associated with types
@@ -142,9 +148,11 @@ Checks Schema Definition Language completeness via introspection:
 - Count types to ensure complete schema
 
 ### Test 4: Federation Directives
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_federation_directives`
 
 Validates federation directives are present in composed schema:
+
 - ✓ @skip directive available
 - ✓ @include directive available
 - ✓ Federation-specific directives present
@@ -156,9 +164,11 @@ Validates federation directives are present in composed schema:
 - Check federation directive availability
 
 ### Test 5: Query Routing
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_query_routing`
 
 Verifies Apollo Router correctly routes queries to appropriate subgraphs:
+
 - ✓ Users query routed to users subgraph
 - ✓ Orders query routed to orders subgraph
 - ✓ Products query routed to products subgraph
@@ -171,9 +181,11 @@ Verifies Apollo Router correctly routes queries to appropriate subgraphs:
 - Verify success for each
 
 ### Test 6: Error Handling
+
 **File:** `federation_docker_compose_integration.rs::test_apollo_router_error_handling`
 
 Tests Apollo Router error handling for malformed/invalid queries:
+
 - ✓ Invalid field selection errors
 - ✓ Non-existent field errors
 - ✓ Malformed query errors
@@ -206,6 +218,7 @@ subgraphs:
 ### Router Configuration
 
 Apollo Router reads `tests/integration/fixtures/router.yaml` for:
+
 - Server configuration (port 4000)
 - Logging levels
 - Introspection settings
@@ -323,6 +336,7 @@ query {
 ## Troubleshooting
 
 ### Issue: Apollo Router fails to discover subgraphs
+
 **Symptoms:** Router doesn't start, logs show "failed to introspect subgraph"
 
 **Solution:**
@@ -340,6 +354,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 ```
 
 ### Issue: Composed schema missing types
+
 **Symptoms:** Introspection shows incomplete types, queries fail
 
 **Solution:**
@@ -349,6 +364,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 4. Restart router: `docker-compose restart apollo-router`
 
 ### Issue: Query routing failures
+
 **Symptoms:** "Unknown field" errors, fields return null
 
 **Solution:**
@@ -358,6 +374,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 4. Review Apollo Router logs for query planning errors
 
 ### Issue: Federation directive errors
+
 **Symptoms:** "@key directive missing", "type mismatch"
 
 **Solution:**
@@ -389,24 +406,28 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 ## Federation Best Practices
 
 ### 1. Schema Design
+
 - Define clear @key fields for entities
 - Use @extends for type extensions
 - Keep types logically separated by subgraph
 - Document federation boundaries
 
 ### 2. Naming Conventions
+
 - Use consistent type names across subgraphs
 - Use PascalCase for types
 - Use camelCase for fields
 - Avoid reserved GraphQL keywords
 
 ### 3. Key Fields
+
 - Use immutable fields (id, uuid)
 - Avoid composite keys unless necessary
 - Document key field semantics
 - Index key fields in database
 
 ### 4. Testing
+
 - Test schema discovery at startup
 - Verify query routing for each type
 - Test cross-subgraph queries
@@ -477,6 +498,7 @@ curl -X POST http://localhost:4003/graphql \
 ## Next Steps
 
 After validating Apollo Router composition:
+
 1. Monitor query planning for complex queries
 2. Implement query caching for repeated requests
 3. Add custom directives for business logic

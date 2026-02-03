@@ -46,6 +46,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Performance characteristics | 80+ | ✅ Complete |
 
 **Test Files** (27 files):
+
 - `federation_core_tests.rs` - Core @key/@extends functionality
 - `federation_requires_runtime.rs` - @requires directive enforcement
 - `federation_provides_directive.rs` - @provides functionality
@@ -79,6 +80,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Persistence & durability | 40+ | ✅ Complete |
 
 **Test Files** (9 files - Cycles 1-13):
+
 - `federation_saga_coordinator.rs` - Core saga execution
 - `federation_saga_compensation.rs` - Compensation strategies
 - `federation_saga_recovery.rs` - Recovery and stuck saga handling
@@ -90,6 +92,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 - `federation_saga_integration.rs` - End-to-end saga flows
 
 **Saga Test Cycles** (13 completed):
+
 - Cycle 1: Saga Coordinator Foundation
 - Cycle 2: Compensation Strategies
 - Cycle 3: Recovery Management
@@ -113,6 +116,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Error reporting | 8+ | ✅ Complete |
 
 **Test Files**:
+
 - `cli_federation_validation.rs` - Federation schema validation (9 tests)
 - `federation_cross_subgraph_validation.rs` - Cross-subgraph validation
 - `federation_directive_validation.rs` - Directive validation
@@ -154,6 +158,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Example validation | 20+ | ✅ Complete |
 
 **Scenarios Tested**:
+
 - Basic federation (Users + Orders)
 - Manual compensation (Banking transfers)
 - Complex sagas (Travel booking - 5 services)
@@ -176,6 +181,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | SQL Server | 80+ | ✅ Complete |
 
 **Test Focus**:
+
 - Connection pooling
 - Query execution
 - Type conversions
@@ -200,6 +206,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Saga Performance | Benchmark | 100-1K steps | ✅ Complete |
 
 **Results** (Phase 16):
+
 - Entity resolution: <5ms (local), <20ms (direct DB), <200ms (HTTP)
 - Saga execution: 312ms (3-step), scales linearly
 - Memory efficiency: <100MB for 1M row streams
@@ -221,6 +228,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | federation-3subgraph | Local integration | ✅ Passing |
 
 **What's Tested**:
+
 - Example setup & initialization
 - Saga workflows (forward & compensation)
 - Multi-service coordination
@@ -311,21 +319,25 @@ The following are intentionally not heavily tested:
 ### Test Characteristics
 
 ✅ **Deterministic**:
+
 - No flaky tests
 - Repeatable results
 - No timing dependencies
 
 ✅ **Isolated**:
+
 - No test interdependencies
 - Independent database setup
 - Clean teardown
 
 ✅ **Fast**:
+
 - Unit tests: <100ms
 - Integration tests: <1s
 - Full suite: ~20s
 
 ✅ **Comprehensive**:
+
 - Happy path + error cases
 - Edge cases covered
 - Performance validated
@@ -348,6 +360,7 @@ The following are intentionally not heavily tested:
 ### Test Coverage Gates
 
 All PRs must pass:
+
 - ✅ All unit tests (1,200+)
 - ✅ All integration tests (150+)
 - ✅ Clippy with pedantic (zero warnings)

@@ -20,6 +20,7 @@ Prevent resource exhaustion and ensure fair sharing of system capacity.
 ### Components
 
 #### 1.1 Token Bucket Rate Limiter
+
 **Files**: `crates/fraiseql-server/src/rate_limit.rs` (NEW, ~200 lines)
 
 ```rust
@@ -37,6 +38,7 @@ impl RateLimiter {
 ```
 
 **Features**:
+
 - Per-client rate limiting (enforce max QPS)
 - Per-action rate limiting (webhook calls, Slack messages, emails)
 - Separate limits for read vs write operations
@@ -61,9 +63,11 @@ email_max_per_sec = 5
 ```
 
 #### 1.2 Admission Control
+
 **Files**: `crates/fraiseql-server/src/admission.rs` (NEW, ~150 lines)
 
 **Features**:
+
 - Queue depth monitoring (reject if queue > threshold)
 - Memory usage limits (GC or reject if >80%)
 - Database connection pool saturation (queue if at capacity)
@@ -92,9 +96,11 @@ impl AdmissionController {
 ```
 
 #### 1.3 Backpressure Handling
+
 **Files**: Modified `crates/fraiseql-observers/src/queued_executor.rs` (~50 lines)
 
 **Features**:
+
 - Queue rejection policies (fail-fast vs queue):
   - `FailFast`: Reject if queue full (fast but loses events)
   - `QueueAll`: Always queue (buffers memory if consumers slow)
@@ -103,6 +109,7 @@ impl AdmissionController {
 - Metrics for backpressure events
 
 #### 1.4 Configuration
+
 **Files**: Modified `crates/fraiseql-observers/src/config.rs` (~30 lines)
 
 ```toml
@@ -119,11 +126,13 @@ memory_threshold_percent = 80
 ```
 
 ### Tests
+
 - Unit: Rate limiter token calculation, window sliding
 - Integration: Concurrent requests, backpressure triggering
 - Load: 10k QPS burst handling
 
 ### Verification
+
 - [ ] `cargo clippy` clean
 - [ ] `cargo test rate_limit*` passes
 - [ ] Load test: 10k QPS for 60 seconds, no rejections
@@ -137,6 +146,7 @@ memory_threshold_percent = 80
 Document and automate deployment to Kubernetes, Docker, systemd.
 
 ### 2.1 Kubernetes Manifests
+
 **Files**: `k8s/` directory (NEW, ~400 lines)
 
 ```yaml
@@ -212,6 +222,7 @@ data:
 ```
 
 ### 2.2 Docker Compose (Development)
+
 **Files**: `docker-compose.yml` (UPDATED, includes all services)
 
 ```yaml
@@ -259,6 +270,7 @@ services:
 ```
 
 ### 2.3 Systemd Service (Single-Node)
+
 **Files**: `systemd/fraiseql.service` (NEW)
 
 ```ini
@@ -279,6 +291,7 @@ WantedBy=multi-user.target
 ```
 
 ### 2.4 Terraform/CloudFormation
+
 **Files**: `infrastructure/` directory (NEW, ~500 lines)
 
 - RDS PostgreSQL (managed, automated backups)
@@ -288,12 +301,14 @@ WantedBy=multi-user.target
 - Load balancer setup
 
 ### Tests
+
 - [ ] Docker image builds and runs
 - [ ] K8s manifests are valid (`kubectl apply --dry-run`)
 - [ ] Healthchecks respond correctly
 - [ ] Service discovery works
 
 ### Verification
+
 - [ ] Docker: `docker-compose up` works
 - [ ] Kubernetes: 3 replicas healthy
 - [ ] Systemd: Service starts and stays running
@@ -306,6 +321,7 @@ WantedBy=multi-user.target
 Handle transient failures without cascading, degrade gracefully under load.
 
 ### 3.1 Circuit Breaker Pattern
+
 **Files**: `crates/fraiseql-observers/src/circuit_breaker.rs` (NEW, ~250 lines)
 
 ```rust
@@ -348,15 +364,18 @@ impl CircuitBreaker {
 ```
 
 **Per-action circuit breakers**:
+
 - Webhook action: threshold=5 failures in 60s → open
 - Slack action: threshold=3 failures in 60s → open
 - Email action: threshold=2 failures in 60s → open
 - Database queries: threshold=10 failures → open
 
 ### 3.2 Enhanced Retry Logic
+
 **Files**: Modified `crates/fraiseql-observers/src/job_queue/backoff.rs` (~100 lines)
 
 **Enhancements**:
+
 - Jitter to prevent thundering herd
 - Per-error-type backoff (timeout vs auth failure)
 - Exponential backoff with cap (max 5 minutes)
@@ -389,9 +408,11 @@ pub fn calculate_backoff(
 ```
 
 ### 3.3 Graceful Degradation
+
 **Files**: Modified `crates/fraiseql-server/src/handler.rs` (~50 lines)
 
 **Features**:
+
 - If Redis unavailable: Queue in-memory (with persistence to disk)
 - If ClickHouse unavailable: Buffer events locally
 - If Elasticsearch unavailable: Skip indexing (fallback to direct search)
@@ -416,6 +437,7 @@ impl QueuedObserverExecutor {
 ```
 
 ### 3.4 Error Handling
+
 **Files**: Modified `crates/fraiseql-core/src/error.rs` (~30 lines)
 
 **New error types**:
@@ -444,6 +466,7 @@ impl ObserverError {
 ```
 
 ### Tests
+
 - [ ] Circuit breaker transitions correctly (Closed → Open → HalfOpen → Closed)
 - [ ] Permanent errors not retried
 - [ ] Exponential backoff with jitter works
@@ -451,6 +474,7 @@ impl ObserverError {
 - [ ] In-memory queue persists during Redis outage
 
 ### Verification
+
 - [ ] Chaos test: Kill Redis, verify in-memory fallback
 - [ ] Load test: Circuit breaker prevents cascading failures
 - [ ] Backoff test: Jitter prevents thundering herd
@@ -463,15 +487,18 @@ impl ObserverError {
 Achieve target performance benchmarks (15-50x Arrow vs HTTP).
 
 ### 4.1 Profiling
+
 **Tools**: Flamegraph, Criterion benchmarks
 
 **What to profile**:
+
 - Event → rule matching latency
 - Rule → action dispatch latency
 - Arrow conversion latency
 - JSON serialization overhead
 
 ### 4.2 Optimization Targets
+
 - Connection pooling (PostgreSQL, Redis, ClickHouse)
 - Query plan caching
 - Rule compilation caching
@@ -479,11 +506,13 @@ Achieve target performance benchmarks (15-50x Arrow vs HTTP).
 - Batch processing (multiple events per operation)
 
 ### Tests
+
 - [ ] Flamegraph shows no surprises
 - [ ] Arrow performance: >15x vs HTTP baseline
 - [ ] Event latency: <100ms p95
 
 ### Verification
+
 - [ ] Run benchmarks: `cargo bench`
 - [ ] Compare: baseline vs optimized
 - [ ] Document: bottlenecks and optimization strategies
@@ -493,8 +522,10 @@ Achieve target performance benchmarks (15-50x Arrow vs HTTP).
 ## Phase 10.5: Complete Authentication & Enhance Authorization (2 days) ✅ 100% COMPLETE
 
 ### Status: 100% Complete (2,800+ LOC) ✅
+
 **Implementation Date**: January 25, 2026
 **Already Implemented**:
+
 - ✅ JWT validation (HS256, RS256, RS384, RS512) - `crates/fraiseql-core/src/security/auth_middleware.rs` (1,480 LOC)
 - ✅ OAuth2/OIDC provider - `crates/fraiseql-server/src/auth/oidc_provider.rs` (342 LOC)
 - ✅ Session management with refresh tokens - `crates/fraiseql-server/src/auth/session.rs` (384 LOC)
@@ -509,9 +540,11 @@ Achieve target performance benchmarks (15-50x Arrow vs HTTP).
 Complete OAuth integrations and add operation-level RBAC (mutations).
 
 ### 5.1 OAuth Provider Integration (✅ 100% COMPLETE)
+
 **Existing**: `crates/fraiseql-server/src/auth/oidc_provider.rs` (342 LOC)
 
 **What's done** ✅:
+
 - Generic OIDC provider trait supporting any OIDC service ✅
 - Authorization code flow ✅
 - Token refresh ✅
@@ -540,7 +573,9 @@ pub struct KeycloakOAuth { /* wraps OidcProvider */ }
 ```
 
 ### 5.2 JWT & Session Management (ALREADY COMPLETE ✅)
+
 **Existing**:
+
 - `crates/fraiseql-server/src/auth/jwt.rs` (282 LOC) - validation & claims parsing
 - `crates/fraiseql-server/src/auth/session.rs` (384 LOC) - session store
 - `crates/fraiseql-server/src/auth/session_postgres.rs` (200 LOC) - PostgreSQL backend
@@ -548,6 +583,7 @@ pub struct KeycloakOAuth { /* wraps OidcProvider */ }
 **Status**: Production-ready, no changes needed.
 
 ### 5.3 Operation-Level RBAC (NEEDS IMPLEMENTATION)
+
 **Existing**: Field-level access control only
 **Needed**: Mutation authorization (create/update/delete operations)
 
@@ -586,15 +622,18 @@ pub fn require_mutation_permission(
 ```
 
 **Roles**:
+
 - **Admin**: All operations
 - **Operator**: Create/update/execute actions, but not delete rules
 - **Viewer**: Read-only, no mutations
 - **Custom roles**: Define in configuration
 
 ### 5.4 API Keys (NEW)
+
 **Files**: `crates/fraiseql-server/src/auth/api_key.rs` (NEW, ~150 lines)
 
 **Features**:
+
 - Create API keys for service-to-service auth
 - Key scoping (read-only vs full access)
 - Expiration policy (90 day rotation)
@@ -625,6 +664,7 @@ impl ApiKeyStore {
 ```
 
 ### 5.5 Integration with Existing Auth
+
 **Files**: Modified `crates/fraiseql-server/src/auth/middleware.rs` (~50 lines)
 
 ```rust
@@ -653,6 +693,7 @@ pub async fn auth_middleware(req: HttpRequest, next: Next) -> Result<HttpRespons
 ```
 
 ### 5.6 Configuration
+
 **Files**: Modified `crates/fraiseql-server/src/config.rs` (~30 lines, OIDC part exists)
 
 ```toml
@@ -702,6 +743,7 @@ pub fn apply_field_masking(
 ```
 
 ### Tests
+
 - [ ] GitHub OAuth integration works
 - [ ] Google OAuth integration works
 - [ ] JWT validation rejects invalid tokens (already tested)
@@ -710,6 +752,7 @@ pub fn apply_field_masking(
 - [ ] Field-level access control still works (regression)
 
 ### Verification
+
 - [ ] `cargo clippy` clean
 - [ ] `cargo test auth*` passes
 - [ ] HTTP 401 on missing auth
@@ -722,9 +765,11 @@ pub fn apply_field_masking(
 ## Phase 10.6: Multi-Tenancy & Data Isolation (2 days) ✅ 100% COMPLETE
 
 ### Status: 100% Complete (277+ LOC) ✅
+
 **Implementation Date**: January 25, 2026
 
 **What Was Implemented**:
+
 - ✅ Tenant ID field in audit logs - `crates/fraiseql-core/src/security/audit.rs` (222 LOC)
 - ✅ Tenant/org ID recognized in validation - `crates/fraiseql-core/src/validation/input_processor.rs`
 - ✅ JWT claims can include org_id/tenant_id - extracted in `crates/fraiseql-server/src/auth/middleware.rs`
@@ -746,6 +791,7 @@ pub fn apply_field_masking(
 Enforce strict data isolation between organizations at query execution level.
 
 ### 6.1 Request Context Enrichment (HIGHEST PRIORITY)
+
 **Files**: Modified `crates/fraiseql-server/src/logging.rs` (~30 lines)
 
 **Current**:
@@ -797,6 +843,7 @@ pub async fn tenant_context_middleware(req: HttpRequest, next: Next) -> Result<H
 ```
 
 ### 6.2 Query-Level Isolation Enforcement
+
 **Files**: `crates/fraiseql-core/src/tenant.rs` (NEW, ~200 lines)
 
 **Tenant filter middleware for all database queries**:
@@ -849,6 +896,7 @@ pub async fn observer_rules(
 ```
 
 ### 6.3 Storage Layer Isolation
+
 **Files**: `crates/fraiseql-arrow/src/tenant.rs` (NEW, ~100 lines)
 
 **ClickHouse views per organization**:
@@ -883,6 +931,7 @@ SELECT * FROM fraiseql_events WHERE org_id = '123-456...'
 ```
 
 ### 6.4 Job Queue Isolation
+
 **Files**: Modified `crates/fraiseql-observers/src/job_queue/redis.rs` (~30 lines)
 
 **Separate Redis queues per organization** (already has org_id in events, just needs routing):
@@ -907,6 +956,7 @@ pub async fn dequeue(&self, org_id: &str, count: usize) -> Result<Vec<Job>> {
 ```
 
 ### 6.5 Quota Enforcement
+
 **Files**: `crates/fraiseql-server/src/quota.rs` (NEW, ~150 lines)
 
 **Per-organization quotas** (stored in database):
@@ -964,15 +1014,18 @@ pub async fn create_rule(&self, ctx: &RequestContext, rule: ObserverRule) -> Res
 ```
 
 ### 6.6 Audit Logging (ALREADY PARTIALLY DONE ✅)
+
 **Existing**: `crates/fraiseql-core/src/security/audit.rs` (222 LOC)
 
 **What's done**:
+
 - ✅ Audit log schema includes org_id/tenant_id
 - ✅ User tracking (user_id, username)
 - ✅ Query logging
 - ✅ IP address and user agent tracking
 
 **What needs enhancement** (~20 lines):
+
 - Add mutation tracking (who created/updated/deleted what)
 - Add resource identifiers to audit logs
 - Connect audit logging to quota enforcement
@@ -991,6 +1044,7 @@ pub struct AuditEntry {
 ```
 
 ### 6.7 Tenant Initialization
+
 **Database schema changes** (existing tables need org_id):
 ```sql
 -- All existing tables need org_id column
@@ -1014,6 +1068,7 @@ CREATE INDEX idx_events_org_id ON fraiseql_events(org_id);
 ```
 
 ### Tests
+
 - [ ] Org A cannot read Org B's rules (query isolation)
 - [ ] Org A cannot execute Org B's actions (authorization)
 - [ ] Org A jobs isolated in separate queue (queue isolation)
@@ -1022,6 +1077,7 @@ CREATE INDEX idx_events_org_id ON fraiseql_events(org_id);
 - [ ] Cross-org data access returns empty (security test)
 
 ### Verification
+
 - [ ] Run data isolation tests: `cargo test tenant*`
 - [ ] Run quota tests: `cargo test quota*`
 - [ ] Run audit tests: `cargo test audit*`
@@ -1035,6 +1091,7 @@ CREATE INDEX idx_events_org_id ON fraiseql_events(org_id);
 Trace requests end-to-end for debugging and performance analysis.
 
 ### 7.1 OpenTelemetry Integration
+
 **Files**: `crates/fraiseql-server/src/tracing.rs` (NEW, ~150 lines)
 
 ```rust
@@ -1065,7 +1122,9 @@ pub async fn tracing_middleware(req: HttpRequest, next: Next) -> Result<HttpResp
 ```
 
 ### 7.2 Instrumentation Points
+
 **Spans for**:
+
 - HTTP request handling
 - Database queries
 - Rule evaluation
@@ -1073,6 +1132,7 @@ pub async fn tracing_middleware(req: HttpRequest, next: Next) -> Result<HttpResp
 - Job queue operations
 
 ### Tests
+
 - [ ] Traces exported to Jaeger
 - [ ] Span hierarchy is correct
 - [ ] Attributes are recorded
@@ -1085,6 +1145,7 @@ pub async fn tracing_middleware(req: HttpRequest, next: Next) -> Result<HttpResp
 Secure handling of sensitive configuration (webhook URLs, API keys, tokens).
 
 ### 8.1 HashiCorp Vault Integration
+
 **Files**: `crates/fraiseql-server/src/secrets.rs` (NEW, ~200 lines)
 
 ```rust
@@ -1112,6 +1173,7 @@ impl SecretManager {
 ```
 
 ### 8.2 Configuration
+
 **No secrets in TOML**:
 ```toml
 [webhook_actions.example]
@@ -1135,6 +1197,7 @@ fraiseql-server --config fraiseql.toml
 ```
 
 ### Tests
+
 - [ ] Secret fetching works
 - [ ] Cache invalidation works
 - [ ] Rotation without restart works
@@ -1147,20 +1210,25 @@ fraiseql-server --config fraiseql.toml
 Ensure data recovery from failures.
 
 ### 9.1 Backup Strategy
+
 **Components to backup**:
+
 - PostgreSQL (observer rules, user data)
 - Redis (job queue state)
 - ClickHouse (event analytics)
 - Elasticsearch (operational search indices)
 
 **Backup frequency**:
+
 - PostgreSQL: Hourly snapshots + WAL replication
 - Redis: Daily dumps (AOF enabled for persistence)
 - ClickHouse: Daily snapshots
 - Elasticsearch: Daily snapshots
 
 ### 9.2 Recovery Runbook
+
 **Document**:
+
 1. Restore PostgreSQL from hourly backup
 2. Restore Redis AOF or dump
 3. Restore ClickHouse from snapshot
@@ -1172,6 +1240,7 @@ Ensure data recovery from failures.
 **Expected RPO**: Last hourly backup (max 1 hour data loss)
 
 ### 9.3 Disaster Recovery Tests
+
 - Quarterly restore from backup
 - Document any issues found
 - Update runbook
@@ -1181,6 +1250,7 @@ Ensure data recovery from failures.
 ## Phase 10.10: Encryption at Rest & In Transit (1-2 days) ✅ COMPLETE
 
 ### Status: 100% Complete ✅
+
 **Implementation Date**: January 25, 2026
 **Total LOC Added**: 370 lines (tls.rs + tls_listener.rs)
 
@@ -1188,6 +1258,7 @@ Ensure data recovery from failures.
 Protect data from unauthorized access.
 
 **What Was Implemented**:
+
 - ✅ Server-side TLS support with rustls
 - ✅ Certificate and private key loading from PEM files (PKCS8, PKCS1, SEC1 formats)
 - ✅ TLS listener abstraction for accepting encrypted connections
@@ -1197,6 +1268,7 @@ Protect data from unauthorized access.
 - ✅ Complete test coverage (9 tests, all passing)
 
 **Files Implemented**:
+
 1. `crates/fraiseql-server/src/tls.rs` (285 LOC) - Main TLS setup module
    - TlsSetup struct for managing server & database TLS
    - Certificate and private key loading
@@ -1255,6 +1327,7 @@ verify_cert = true
 ```
 
 ### 10.2 At-Rest Encryption
+
 **ClickHouse** (if supported by version):
 ```sql
 CREATE TABLE fraiseql_events (
@@ -1280,6 +1353,7 @@ WITH SETTINGS
 ```
 
 ### Tests ✅
+
 - ✅ TLS disabled scenario works correctly
 - ✅ Database TLS configuration defaults applied
 - ✅ PostgreSQL URL TLS parameters applied
@@ -1295,6 +1369,7 @@ WITH SETTINGS
 ### Deployment Notes
 
 **Production TLS Setup**:
+
 1. Use reverse proxy (nginx, Envoy, AWS ELB) for server-side TLS termination
    - Simplifies certificate rotation
    - Offloads crypto to specialized hardware
@@ -1306,12 +1381,14 @@ WITH SETTINGS
    - Implement certificate rotation policy
 
 **Database Connection TLS**:
+
 - PostgreSQL: Use `sslmode=require` or `sslmode=verify-full` for production
 - Redis: Use TLS endpoint and `rediss://` protocol
 - ClickHouse: Use HTTPS with certificate verification
 - Elasticsearch: Use HTTPS with certificate verification and authentication
 
 **mTLS for Arrow Flight** (Optional):
+
 - Enable `require_client_cert = true` for zero-trust architecture
 - Distribute client certificates to authorized clients
 - Implement certificate validation and revocation
@@ -1392,6 +1469,7 @@ COMPLETED (Jan 25, 2026)
 **PHASE 10 PRODUCTION HARDENING: 🟢 COMPLETE**
 
 **Summary**:
+
 - ✅ Phase 10.5: Authentication (OAuth + RBAC) - Complete
 - ✅ Phase 10.6: Multi-Tenancy & Data Isolation - Complete
 - ✅ Phase 10.8: Secrets Management (KMS) - Complete

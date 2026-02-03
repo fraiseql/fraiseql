@@ -67,6 +67,7 @@ Fraisier now has a comprehensive documentation system that mirrors FraiseQL Core
 ### If You're Starting Fresh
 
 ```
+
 1. Read 00_START_HERE.md (5 min)
    ↓ (now you understand what Fraisier is)
 2. Read PHASE_1_PROGRESS.md (10 min)
@@ -80,6 +81,7 @@ Fraisier now has a comprehensive documentation system that mirrors FraiseQL Core
 ### If You're Implementing a Feature
 
 ```
+
 1. Find the task in PHASE_1_IMPLEMENTATION_PLAN.md
 2. Reference relevant section in CLAUDE.md
 3. Check code patterns in QUICK_REFERENCE.md
@@ -92,6 +94,7 @@ Fraisier now has a comprehensive documentation system that mirrors FraiseQL Core
 ### If You're Debugging
 
 ```
+
 1. Check QUICK_REFERENCE.md "Common Issues" section
 2. Look at related test for expected behavior
 3. Check TRINITY_PATTERNS.md if database-related
@@ -129,23 +132,27 @@ This documentation system provides:
 ## Key Features
 
 ### 1. Multiple Entry Points
+
 - **Starting fresh?** → 00_START_HERE.md
 - **Lost?** → INDEX.md (search there)
 - **Need a code snippet?** → QUICK_REFERENCE.md
 - **Want deep knowledge?** → CLAUDE.md, TRINITY_PATTERNS.md
 
 ### 2. Clear Navigation
+
 - All files link to each other
 - INDEX.md organized by topic AND role
 - Quick lookup tables for common questions
 
 ### 3. Practical Examples
+
 - Code patterns in QUICK_REFERENCE.md
 - SQL examples in TRINITY_PATTERNS.md
 - Test patterns in CLAUDE.md
 - CLI examples in QUICK_REFERENCE.md
 
 ### 4. Self-Service
+
 - Developers can find answers without asking
 - No "where do I find X?" moments
 - Reduces onboarding time
@@ -190,6 +197,7 @@ This documentation system provides:
 **Fraisier** has 8 focused documentation files (designed from scratch)
 
 Fraisier's system is intentionally simpler:
+
 - Fewer files = easier to navigate
 - Clear naming = easier to find things
 - Strategic cross-references = prevent getting lost
@@ -200,15 +208,18 @@ Fraisier's system is intentionally simpler:
 ## Maintenance
 
 ### Monthly
+
 - [ ] Review for stale content
 - [ ] Update PHASE_1_PROGRESS.md
 
 ### Per Commit
+
 - [ ] Does documentation need updates?
 - [ ] Did you add a new pattern? → Update QUICK_REFERENCE.md
 - [ ] Did workflow change? → Update CLAUDE.md
 
 ### Per Phase
+
 - [ ] Create new PHASE_X_IMPLEMENTATION_PLAN.md
 - [ ] Create PHASE_X_PROGRESS.md
 - [ ] Archive old phase docs
@@ -218,6 +229,7 @@ Fraisier's system is intentionally simpler:
 ## Summary
 
 Fraisier's documentation system:
+
 1. Mirrors FraiseQL Core's structure (at appropriate scale)
 2. Provides multiple entry points for different user roles
 3. Enables self-service learning for new developers

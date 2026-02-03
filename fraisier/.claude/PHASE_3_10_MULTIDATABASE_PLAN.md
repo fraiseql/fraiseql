@@ -10,6 +10,7 @@
 ## Overview
 
 Apply proven FraiseQL database patterns to Fraisier:
+
 - **Abstract Interface**: Single `FraiserDatabaseAdapter` trait
 - **Multiple Implementations**: PostgreSQL, MySQL, SQLite
 - **Feature Flags**: Conditional imports and configuration
@@ -43,6 +44,7 @@ Apply proven FraiseQL database patterns to Fraisier:
 **File**: `fraisier/db/adapter.py` (~200 lines)
 
 **Deliverables**:
+
 1. `FraiserDatabaseAdapter` abstract trait
 2. `DatabaseType` enum (SQLITE, POSTGRESQL, MYSQL)
 3. `QueryResult` typed result wrapper
@@ -112,6 +114,7 @@ class FraiserDatabaseAdapter(ABC):
 **File**: `fraisier/db/sqlite_adapter.py` (~250 lines)
 
 **Deliverables**:
+
 1. `SqliteAdapter` implementation
 2. Async connection handling (aiosqlite)
 3. Row factory for dict results
@@ -142,6 +145,7 @@ class SqliteAdapter(FraiserDatabaseAdapter):
 ```
 
 **Migration Path**:
+
 - Keep existing SQLite schema
 - Wrap current code in adapter
 - Add async/await gradually
@@ -161,6 +165,7 @@ class SqliteAdapter(FraiserDatabaseAdapter):
 **File**: `fraisier/db/postgres_adapter.py` (~300 lines)
 
 **Deliverables**:
+
 1. `PostgresAdapter` implementation
 2. Connection pooling (psycopg3 pool)
 3. Parameter substitution ($1, $2, etc.)
@@ -212,6 +217,7 @@ class PostgresAdapter(FraiserDatabaseAdapter):
 ```
 
 **Dependencies**:
+
 - `psycopg[binary]>=3.1.0` - PostgreSQL driver
 - Connection pooling built-in (psycopg3)
 
@@ -225,6 +231,7 @@ class PostgresAdapter(FraiserDatabaseAdapter):
 - Health check with reconnection
 
 **Schema Migration**:
+
 - Create migration scripts for Fraisier schema
 - Support existing SQLite schema structure
 - Add indexes for deployment queries
@@ -236,6 +243,7 @@ class PostgresAdapter(FraiserDatabaseAdapter):
 **File**: `fraisier/db/mysql_adapter.py` (~250 lines)
 
 **Deliverables**:
+
 1. `MysqlAdapter` implementation
 2. Connection pooling (asyncpg-like)
 3. Parameter substitution (%)
@@ -281,6 +289,7 @@ class MysqlAdapter(FraiserDatabaseAdapter):
 ```
 
 **Dependencies**:
+
 - `aiomysql>=0.2.0` - MySQL driver with connection pooling
 
 **Tests**: 20 tests
@@ -297,11 +306,13 @@ class MysqlAdapter(FraiserDatabaseAdapter):
 **File**: `fraisier/db/factory.py` (~100 lines)
 
 **Deliverables**:
+
 1. `get_database_adapter()` factory function
 2. Configuration from environment variables
 3. Automatic connection pool initialization
 
 **Configuration Priority**:
+
 1. Environment variables
 2. Config file (.env, config.yaml)
 3. Hardcoded defaults (SQLite for dev)
@@ -404,6 +415,7 @@ class TestPostgresAdapter:
 ```
 
 #### MySQL Tests (20 tests)
+
 - Similar structure to PostgreSQL
 - Test % parameter handling
 - Pool sizing validation
@@ -415,6 +427,7 @@ class TestPostgresAdapter:
 **File**: `fraisier/db/migrations/` (~500 lines total)
 
 **Deliverables**:
+
 1. Base migration interface
 2. SQLite migration (schema creation)
 3. PostgreSQL migration (schema + indexes)
@@ -454,6 +467,7 @@ async def run_migrations(adapter: FraiserDatabaseAdapter):
 **File**: `fraisier/database.py` (modifications)
 
 **Strategy**:
+
 1. Keep current `get_db()` API working
 2. Have it use adapter internally
 3. Gradually migrate callsites to async/await
@@ -549,6 +563,7 @@ fraisier list
 ## Files to Create/Modify
 
 ### New Files (8)
+
 1. `fraisier/db/adapter.py` - Base trait
 2. `fraisier/db/sqlite_adapter.py` - SQLite impl
 3. `fraisier/db/postgres_adapter.py` - PostgreSQL impl
@@ -559,10 +574,12 @@ fraisier list
 8. `fraisier/db/__init__.py` - Package exports
 
 ### Modified Files (2)
+
 1. `fraisier/database.py` - Integration layer
 2. `fraisier/cli.py` - No changes needed (adapter handles it)
 
 ### Total Lines of Code
+
 - **Production Code**: ~1,200 lines
 - **Test Code**: ~1,000 lines
 - **Migration SQL**: ~300 lines

@@ -69,6 +69,7 @@ impl ServerCertVerifier for NoVerifier {
 ### Attack Scenario
 
 ```
+
 1. Attacker positions themselves on network (ARP spoofing, DNS hijacking, BGP hijacking)
 2. Intercepts traffic to PostgreSQL/Redis/ClickHouse
 3. Presents their own self-signed certificate
@@ -183,6 +184,7 @@ fn build_json_path(path: &[String]) -> String {
 SELECT * FROM users
 WHERE data->'field'); DROP TABLE users; --' = 'value'
 -- Executes as TWO statements:
+
 -- 1. WHERE data->'field')
 -- 2. DROP TABLE users; --
 ```
@@ -190,6 +192,7 @@ WHERE data->'field'); DROP TABLE users; --' = 'value'
 ### Attack Scenario
 
 ```
+
 1. Attacker sends GraphQL query with malicious field name
 2. Field name bypasses GraphQL structural validation
 3. Field name is interpolated directly into SQL
@@ -331,6 +334,7 @@ let (user, password) = if let Some(auth) = auth {
 ### Attack Scenario
 
 ```
+
 1. Attacker gains local access to server (cloud VM escape, container breakout)
 2. Uses memory dump tools (gdb, valgrind, core dump analysis)
 3. Searches heap for plaintext passwords
@@ -601,6 +605,7 @@ pub struct OAuthStateStore {
 
 **CSRF Attack Timeline:**
 ```
+
 1. Attacker crafts CSRF link:
    https://fraiseql.example.com/oauth/callback?state=<random_state>&code=<attacker_code>
 

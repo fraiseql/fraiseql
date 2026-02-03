@@ -27,6 +27,7 @@ SELECT * FROM va_orders WHERE created_at >= NOW() - INTERVAL '7 days'
 ```
 
 **Document**:
+
 - Current execution time: ______ ms
 - Current memory usage: ______ MB
 - Current CPU: ______ %
@@ -95,6 +96,7 @@ GROUP BY fk_post;
 ```
 
 **Document**:
+
 - Entity hierarchy: ________________________
 - Composition depth: _____ levels
 - Intermediate views created: ___________________
@@ -122,6 +124,7 @@ CREATE TABLE ta_orders (
 ```
 
 **Document**:
+
 - Columns extracted: ________________________
 - Denormalized filters: ____________________
 - Indexes planned: _________________________
@@ -204,6 +207,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 ```
 
 **Document**:
+
 - Table created: ☐ Yes | Date: _______
 - Indexes created: ☐ Yes | Count: _______
 - Initial population: ______ rows inserted
@@ -232,6 +236,7 @@ SELECT pg_size_pretty(pg_total_relation_size('tv_user_profile'));
 ```
 
 **Document**:
+
 - Rows inserted: ______
 - JSONB null count: ______
 - Storage used: ______
@@ -261,6 +266,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 ```
 
 **Document**:
+
 - Triggers created: ☐ Yes | Count: _______
 - Test write executed: ☐ Yes
 - Auto-refresh verified: ☐ Yes | Time: ______ ms
@@ -283,6 +289,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 ```
 
 **Document**:
+
 - Schedule created: ☐ Yes | Interval: _______
 - Manual test result: ________________
 
@@ -313,6 +320,7 @@ SELECT
 ```
 
 **Document**:
+
 - Old view time: ______ ms
 - New view time: ______ ms
 - Speedup: ______ x
@@ -338,6 +346,7 @@ class UserProfile:
 ```
 
 **Document**:
+
 - Binding updated: ☐ Yes
 - File(s) modified: ________________________
 - Compilation tested: ☐ Yes
@@ -364,6 +373,7 @@ pytest tests/ -v -k "user_profile"
 ```
 
 **Document**:
+
 - Test suite run: ☐ Passed | ☐ Failed
 - Regressions found: ________________________
 - Subscription latency improvement: ______ ms
@@ -381,6 +391,7 @@ pytest tests/ -v -k "user_profile"
 - [ ] Backups verified
 
 **Approvals**:
+
 - Architect: _________________ Date: _______
 - DBA: _________________ Date: _______
 - Product: _________________ Date: _______
@@ -432,6 +443,7 @@ SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
 - [ ] Service restarted cleanly
 
 **Document**:
+
 - Deployment time: _______
 - Downtime: _______ seconds (if any)
 - Errors: ________________________
@@ -465,6 +477,7 @@ WHERE tablename = 'tv_user_profile';
 ```
 
 **Document**:
+
 - Monitoring period: 24 hours ☐ Completed
 - Issues found: ________________________
 - Performance met expectations: ☐ Yes | ☐ No
@@ -487,6 +500,7 @@ class UserProfile:
 ```
 
 **Document**:
+
 - Rollback initiated: ☐ Yes | Date: _______
 - Reason: ________________________
 - Recovery time: ______ minutes
@@ -504,6 +518,7 @@ class UserProfile:
 - [ ] Updated SLOs/alerts
 
 **Files Updated**:
+
 - [ ] Confluence/Wiki: ________________________
 - [ ] Runbook: ________________________
 - [ ] SLO document: ________________________
@@ -517,6 +532,7 @@ class UserProfile:
 - [ ] Training completed (if needed)
 
 **Communications**:
+
 - [ ] Slack announcement: ☐ Sent | Time: _______
 - [ ] Team meeting: ☐ Held | Date: _______
 - [ ] Documentation link shared: ☐ Yes
@@ -530,6 +546,7 @@ class UserProfile:
 - [ ] Quarterly review scheduled
 
 **Maintenance Schedule**:
+
 - Weekly staleness check: _______ (assigned to)
 - Monthly performance review: _______ (assigned to)
 - Quarterly refresh strategy review: _______ (assigned to)
@@ -639,16 +656,19 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ## Supplementary Resources
 
 **Related Guides** (also available in this series):
+
 - [Quick Reference](./view-selection-quick-reference.md) — Use before starting migration (decision matrix, benchmarks)
 - [Performance Testing](./view-selection-performance-testing.md) — Use for validation in Phase 2 (benchmarking methodology)
 
 **Core Documentation**:
+
 - [View Selection Guide](../architecture/database/view-selection-guide.md) — Comprehensive decision framework
 - [tv_* Table Pattern](../architecture/database/tv-table-pattern.md) — JSON plane patterns and examples
 - [ta_* Table Pattern](../architecture/database/ta-table-pattern.md) — Arrow plane patterns and examples
 - [Schema Conventions](../specs/schema-conventions.md) — Database naming and structure
 
 **Suggested Reading Order**:
+
 1. Quick Reference (this guide)
 2. View Selection Guide (full decision framework)
 3. This Checklist (migration workflow)

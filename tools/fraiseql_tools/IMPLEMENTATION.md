@@ -36,6 +36,7 @@ tools/fraiseql_tools/
 **Purpose**: Load and parse FraiseQL schema.json files.
 
 **Implementation**:
+
 - Uses standard `json` module (no external dependencies)
 - Validates presence of required keys: `types`, `version`
 - Returns complete schema dictionary for downstream processing
@@ -52,6 +53,7 @@ schema = load_schema("schema.json")
 **Purpose**: Generate complete DDL for table-backed JSON views (tv_*).
 
 **Implementation**:
+
 - Validates inputs (entity exists, refresh_strategy valid)
 - Extracts fields from entity type
 - Renders base table template with context substitution
@@ -61,12 +63,14 @@ schema = load_schema("schema.json")
 - Returns concatenated DDL string
 
 **Template Rendering**:
+
 - Uses custom `_render_template()` function for Jinja2-like syntax
 - Supports `{{ variable }}` substitution with nested access (`{{ field.name }}`)
 - Supports `{% if %}...{% endif %}` conditional blocks
 - Supports `{% for item in list %}...{% endfor %}` loops
 
 **Output Includes**:
+
 1. CREATE TABLE with JSONB storage and materialization metadata
 2. 5+ indexes (entity_id, updated_at, is_stale, JSONB GIN, composition)
 3. Trigger or scheduled refresh functions
@@ -78,6 +82,7 @@ schema = load_schema("schema.json")
 **Purpose**: Generate complete DDL for table-backed Arrow columnar views (ta_*).
 
 **Implementation**:
+
 - Similar to tv_ddl but optimized for Arrow Flight
 - Always uses scheduled refresh strategy (Arrow not ideal for triggers)
 - Generates per-field Arrow IPC RecordBatch columns
@@ -86,6 +91,7 @@ schema = load_schema("schema.json")
 - Includes monitoring functions specific to Arrow views
 
 **Output Includes**:
+
 1. CREATE TABLE with Arrow columnar storage (BYTEA columns)
 2. Batch metadata and Flight protocol tracking
 3. Scheduled refresh functions (full and incremental)
@@ -96,12 +102,14 @@ schema = load_schema("schema.json")
 **Purpose**: Generate helper views for efficient nested relationship loading.
 
 **Implementation**:
+
 - Validates entity and relationships exist
 - Generates composition views for each relationship
 - Creates batch composition helper function
 - Returns DDL for loading related entities efficiently
 
 **Output Includes**:
+
 1. Composition views (cv_*) for each relationship
 2. Batch composition helper function
 3. Comments describing relationship structure
@@ -111,6 +119,7 @@ schema = load_schema("schema.json")
 **Purpose**: Recommend refresh strategy based on workload characteristics.
 
 **Implementation**:
+
 - Decision logic based on three metrics:
   - Write-to-read ratio
   - Latency requirements
@@ -118,6 +127,7 @@ schema = load_schema("schema.json")
 - Returns "trigger-based" or "scheduled"
 
 **Decision Rules**:
+
 - Favor trigger-based if:
   - Latency < 100ms AND read-heavy (ratio < 0.1)
   - Reads heavily outweigh writes (ratio < 0.01) AND latency < 500ms
@@ -134,6 +144,7 @@ schema = load_schema("schema.json")
 **Purpose**: Validate generated DDL for common issues.
 
 **Implementation**:
+
 - Checks for unresolved template variables (`{{ ... }}`)
 - Validates presence of CREATE statements
 - Verifies idempotency (DROP IF EXISTS usage)
@@ -199,6 +210,7 @@ Common context passed to all templates:
 ### tv_base.sql (120 lines)
 
 Base table-backed JSON view with:
+
 - JSONB payload storage
 - Materialization tracking (created_at, updated_at, view_generated_at)
 - Staleness tracking (is_stale, staleness_detected_at)
@@ -207,6 +219,7 @@ Base table-backed JSON view with:
 - Comments for all columns
 
 **Key Columns**:
+
 - `entity_json JSONB`: Complete entity representation
 - `is_stale BOOLEAN`: Staleness flag for refresh tracking
 - `composition_ids TEXT[]`: Tracking which views include this entity
@@ -215,6 +228,7 @@ Base table-backed JSON view with:
 ### ta_base.sql (100 lines)
 
 Table-backed Arrow columnar view with:
+
 - Per-field Arrow IPC RecordBatch storage (BYTEA columns)
 - Batch metadata (row_count, batch_size_bytes, compression)
 - Arrow Flight metadata (dictionary_encoded_fields, field_compression_codecs)
@@ -222,6 +236,7 @@ Table-backed Arrow columnar view with:
 - 4 indexes (batch_number, updated_at, is_stale, row_count)
 
 **Key Columns**:
+
 - `col_<field> BYTEA`: Arrow IPC RecordBatch for each field
 - `batch_number INTEGER`: Sequential batch ordering
 - `row_count INTEGER`: Rows in batch
@@ -230,6 +245,7 @@ Table-backed Arrow columnar view with:
 ### refresh_trigger.sql (180 lines)
 
 Trigger-based refresh with:
+
 - `refresh_tv_*_on_change()`: Trigger function marking entries stale
 - `refresh_tv_*_entry(p_entity_id)`: Synchronous single-entity refresh
 - `refresh_tv_*_batch(p_entity_ids[])`: Batch refresh function
@@ -238,6 +254,7 @@ Trigger-based refresh with:
 - Refresh log integration
 
 **Functions**:
+
 - Trigger fires AFTER INSERT/UPDATE/DELETE on source table
 - Marks affected entries stale immediately
 - Supports synchronous refresh on-demand
@@ -245,6 +262,7 @@ Trigger-based refresh with:
 ### refresh_scheduled.sql (220 lines)
 
 Scheduled batch refresh with:
+
 - `refresh_state_*` table: Refresh state tracking
 - `schedule_next_refresh_*()`: Schedule next refresh
 - `refresh_ta_*_full()`: Complete materialization
@@ -254,6 +272,7 @@ Scheduled batch refresh with:
 - Error handling with rollback
 
 **Features**:
+
 - Full refresh with batch processing
 - Incremental refresh for stale entries
 - Health check with time-since-refresh metrics
@@ -262,18 +281,21 @@ Scheduled batch refresh with:
 ### composition_view.sql (120 lines)
 
 Composition views for relationships with:
+
 - `cv_*_*` views: Join parent and related entities
 - `batch_compose_*()`: Batch loading of related entities
 - JSON aggregation for nested relationships
 - Temporary tables for composition tracking
 
 **Pattern**:
+
 - For each relationship, create view joining parent and related
 - Provide batch function for loading multiple parents with all relationships
 
 ### monitoring.sql (280 lines)
 
 Monitoring and observability functions with:
+
 - `get_view_statistics_*()`: Size, staleness, quality metrics
 - `get_arrow_view_statistics_*()`: Arrow-specific metrics
 - `analyze_staleness_*()`: Staleness severity analysis
@@ -283,6 +305,7 @@ Monitoring and observability functions with:
 - `vw_*_dashboard`: Dashboard view combining all metrics
 
 **Metrics**:
+
 - Total entities, table size, avg payload
 - Stale entity count and percentage
 - Data quality score
@@ -294,6 +317,7 @@ Monitoring and observability functions with:
 ### ValueError Exceptions
 
 Raised for invalid inputs:
+
 - Entity not found in schema
 - Invalid refresh_strategy value
 - Missing required schema fields
@@ -303,12 +327,14 @@ Raised for invalid inputs:
 ### FileNotFoundError
 
 Raised when:
+
 - Schema file doesn't exist
 - Template file not found in templates directory
 
 ### JSONDecodeError
 
 Raised when:
+
 - Schema file contains invalid JSON
 - Includes error location info
 
@@ -333,6 +359,7 @@ Raised when:
 ## Dependencies
 
 **No external Python dependencies required**. Uses only:
+
 - `json`: Standard library JSON parsing
 - `re`: Standard library regex for template rendering
 - `pathlib`: Standard library path handling
@@ -375,6 +402,7 @@ Raised when:
 ### Test Coverage
 
 All functions tested:
+
 - ✅ load_schema: Valid and invalid paths
 - ✅ generate_tv_ddl: Trigger and scheduled strategies
 - ✅ generate_ta_ddl: Scheduled refresh strategy
@@ -383,6 +411,7 @@ All functions tested:
 - ✅ validate_generated_ddl: Valid and invalid DDL
 
 Error cases tested:
+
 - ✅ Non-existent entity
 - ✅ Invalid refresh_strategy
 - ✅ Missing schema file
@@ -402,6 +431,7 @@ CREATE OR REPLACE FUNCTION refresh_tv_user_on_change() (...)
 ### Documentation
 
 Comprehensive comments included:
+
 - Table-level: Purpose and usage
 - Column-level: Data meaning and constraints
 - Function-level: Purpose and parameters
@@ -410,6 +440,7 @@ Comprehensive comments included:
 ### Extensibility
 
 Generated views support:
+
 - Adding new fields (update entity definition)
 - Custom indexes (add after generation)
 - Additional monitoring functions
@@ -426,6 +457,7 @@ Generated views support:
 ### Future Enhancements
 
 Potential improvements:
+
 - Support for additional database backends (MySQL, SQLite)
 - Partitioning strategies for very large views
 - Custom refresh conditions
@@ -506,6 +538,7 @@ All implementation files are located under:
 ```
 
 Key files:
+
 - `views.py`: 560+ lines of core implementation
 - `__init__.py`: Public API exports
 - `templates/*.sql`: 6 SQL template files (1100+ lines total)

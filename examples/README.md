@@ -11,6 +11,7 @@ Complete, runnable reference applications for learning FraiseQL without local co
 **Location**: `examples/basic/`
 
 Introductory example with simple schema:
+
 - 2 types: `User`, `Post`
 - 1-to-many relationship
 - 5 sample users, 10 sample posts
@@ -23,12 +24,14 @@ Run with: `docker compose -f docker/docker-compose.demo.yml up -d`
 **Location**: `examples/ecommerce/`
 
 Real-world schema with complex relationships:
+
 - 5 types: `Category`, `Product`, `Customer`, `Order`, `OrderItem`
 - Multiple nested relationships
 - 5 categories, 12 products, 5 customers, 7 orders
 - Advanced filtering, aggregation, and relationship traversal
 
 **Queries**:
+
 - Product listing and filtering
 - Customer order history
 - Inventory management
@@ -41,12 +44,14 @@ Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
 **Location**: `examples/streaming/`
 
 Real-time event-driven architecture:
+
 - 4 types: `Event`, `Message`, `UserActivity`, `LiveMetrics`
 - 4 GraphQL subscriptions for real-time data
 - Event streaming patterns
 - Metrics aggregation
 
 **Subscriptions**:
+
 - `onEvent` - System events
 - `onMessage` - Real-time messaging
 - `onUserStatusChange` - Presence tracking
@@ -71,6 +76,7 @@ make examples-logs
 ```
 
 Access:
+
 - Blog IDE: http://localhost:3000
 - E-Commerce IDE: http://localhost:3100
 - Streaming IDE: http://localhost:3200
@@ -137,6 +143,7 @@ clickhouse-client < clickhouse/arrow_integration.sql
 ### 1. Basic Query Example
 
 The most basic example showing how to:
+
 - Load a compiled schema
 - Create an executor
 - Execute a simple GraphQL query
@@ -375,6 +382,7 @@ async fn check_rate_limit() {
 Have a useful example pattern? Submit a PR!
 
 Requirements for example PRs:
+
 - Working example code
 - Clear documentation
 - Follows project style guide

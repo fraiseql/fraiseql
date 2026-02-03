@@ -4,6 +4,7 @@
 Implement Apollo Federation v2 specification for multi-graph composition.
 
 ## Success Criteria
+
 - [x] Entity resolution (direct DB and HTTP)
 - [x] Federated query execution
 - [x] SAGA-based distributed transactions
@@ -14,6 +15,7 @@ Implement Apollo Federation v2 specification for multi-graph composition.
 ## Deliverables
 
 ### Federation Implementation
+
 - Entity resolver (`federation/entity_resolver.rs`)
 - Direct database resolution (`federation/direct_db_resolver.rs`)
 - HTTP subgraph resolution (`federation/http_resolver.rs`)
@@ -22,6 +24,7 @@ Implement Apollo Federation v2 specification for multi-graph composition.
 - Schema composition (`federation/composition_validator.rs`)
 
 ### Key Modules (26 total)
+
 - Query builder and mutation builder
 - Dependency graph resolution
 - Connection management and pooling
@@ -29,6 +32,7 @@ Implement Apollo Federation v2 specification for multi-graph composition.
 - Federation-specific types
 
 ### Test Results
+
 - ✅ Entity resolution tests
 - ✅ Mutation coordination tests
 - ✅ SAGA execution tests
@@ -36,12 +40,14 @@ Implement Apollo Federation v2 specification for multi-graph composition.
 - ✅ End-to-end federation flows
 
 ### Documentation
+
 - Federation architecture guide
 - SAGA pattern explanation
 - Multi-graph composition guide
 - Error handling in federation
 
 ## Notes
+
 - Direct database resolution avoids HTTP roundtrips
 - SAGA pattern ensures distributed consistency
 - Automatic compensation on failures

@@ -12,6 +12,7 @@
 **All Fraisier tables follow this strict column declaration order** (consistent with PrintOptim):
 
 ```
+
 1. id (TEXT/UUID)                           - Public, API-facing identifier
 2. identifier (TEXT)                        - Business key, human-readable
 3. pk_* (INTEGER PRIMARY KEY)               - Internal key (ALWAYS LAST)
@@ -21,6 +22,7 @@
 ```
 
 **Why This Order?**
+
 - ✅ Consistent across entire organization
 - ✅ Easy scanning: trinity identifiers always first 3 columns
 - ✅ Clear hierarchy: public → business → internal
@@ -45,6 +47,7 @@ CREATE TABLE tb_fraise_state (
 ```
 
 **Purpose**:
+
 - Internal use only (never expose to API)
 - Fast integer joins (75% smaller than UUID)
 - Deterministic allocation supports reproducible PKs
@@ -71,6 +74,7 @@ CREATE TABLE tb_fraise_state (
 ```
 
 **Purpose**:
+
 - Public API identifier (what external systems see)
 - Cross-database synchronization key
 - Human-friendly debugging (UUID can encode table info)
@@ -100,6 +104,7 @@ CREATE TABLE tb_fraise_state (
 ```
 
 **Purpose**:
+
 - Human-readable alternative to UUID
 - Query by semantic meaning, not ID
 - Business logic key
@@ -489,6 +494,7 @@ def reconcile_databases(local_db, cloud_db):
 ```
 
 **Key Points**:
+
 - ✅ `id` (UUID) is unique across databases
 - ✅ `identifier` (business key) is human-readable for matching
 - ✅ `updated_at` resolves conflicts deterministically

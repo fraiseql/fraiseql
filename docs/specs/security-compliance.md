@@ -426,12 +426,14 @@ SBOMs include all components in dependency tree:
 
 ```python
 # Direct dependencies (in pyproject.toml or requirements.txt)
+
 - psycopg 3.1.18
 - graphql-core 3.2.0
 - pydantic 2.5.0
 - starlette 0.36.0
 
 # Transitive dependencies (dependencies of dependencies)
+
 - typing-extensions 4.9.0
 - pydantic-core 2.14.2
 - anyio 4.1.0
@@ -479,6 +481,7 @@ Each component includes SPDX license identifier(s):
 
 ```python
 # Permissive licenses (generally safe)
+
 - MIT
 - Apache-2.0
 - BSD-3-Clause
@@ -486,6 +489,7 @@ Each component includes SPDX license identifier(s):
 - ISC
 
 # Copyleft licenses (may have restrictions)
+
 - GPL-2.0-only
 - GPL-3.0-only
 - AGPL-3.0-only (network copyleft)

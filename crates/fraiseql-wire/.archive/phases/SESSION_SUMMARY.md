@@ -256,6 +256,7 @@ psql -U postgres -c "DROP DATABASE fraiseql_bench"
 ### Manual GitHub Actions Trigger
 
 ```
+
 1. Go to https://github.com/fraiseql/fraiseql-wire
 2. Actions tab → Benchmarks workflow
 3. Run workflow → Select branch → Run

@@ -484,6 +484,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
    ```bash
    openssl x509 -enddate -noout -in /etc/fraiseql/cert.pem
    ```
+
 8. **Use different keys per environment** (dev, staging, production)
 9. **Store private keys in secrets management** (HashiCorp Vault, AWS Secrets Manager)
 10. **Enable certificate pinning** for critical database connections

@@ -382,11 +382,13 @@ ObserverRuntime (in-process routing)
 #### Why Subscriptions Don't Use NATS Directly
 
 **Subscriptions** use their own transport adapters (graphql-ws, Kafka) because:
+
 - Clients connect directly to FraiseQL server (WebSocket)
 - No intermediate message bus needed for latency-sensitive UI
 - GraphQL protocol expectations (graphql-ws spec)
 
 **Observers** can optionally use NATS because:
+
 - Actions are asynchronous (latency tolerance)
 - May need polyglot consumers (Python, Go, etc.)
 - Benefits from distributed event streaming
@@ -1347,6 +1349,7 @@ Authorization enforced at **event capture time** (not delivery time):
 **Example: User creates order in UI, sees confirmation**
 
 ```
+
 1. Mutation committed (1ms)
 2. Event inserted into tb_entity_change_log (1ms)
 3. ChangeLogListener polls (0-100ms, average 50ms)

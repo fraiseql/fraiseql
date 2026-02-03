@@ -61,6 +61,7 @@ Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observa
 **Objective**: Collect metrics from all components
 
 **Features**:
+
 - Counter metrics (events processed, actions executed)
 - Gauge metrics (batch size, latency, queue depth)
 - Histogram metrics (duration distributions)
@@ -68,6 +69,7 @@ Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observa
 - Custom metric registration
 
 **Key Metrics**:
+
 - `observer_events_processed_total` - Total events
 - `observer_event_duration_ms` - Event processing latency
 - `observer_actions_executed_total` - Total actions
@@ -77,6 +79,7 @@ Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observa
 - `observer_condition_matches_total` - Condition matches
 
 **Deliverables**:
+
 - `src/metrics/mod.rs` - Metrics module
 - `src/metrics/collector.rs` - Prometheus collector
 - `src/metrics/registry.rs` - Metric registration
@@ -91,6 +94,7 @@ Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observa
 **Objective**: Reduce boilerplate for tracing instrumentation
 
 **Features**:
+
 - `#[traced]` macro for automatic span creation
 - `#[instrument]` macro for structured logging
 - Automatic duration measurement
@@ -107,6 +111,7 @@ async fn process_event(event: &Event) -> Result<()> {
 ```
 
 **Deliverables**:
+
 - `fraiseql-observers-macros/` - Macro crate
 - `src/macros/mod.rs` - Macro definitions
 - `PHASE_9_2_MACROS_GUIDE.md` - Documentation
@@ -120,6 +125,7 @@ async fn process_event(event: &Event) -> Result<()> {
 **Objective**: Link logs and traces for unified debugging
 
 **Features**:
+
 - Automatic trace ID injection into logs
 - Structured logging fields
 - Correlation ID propagation
@@ -134,6 +140,7 @@ async fn process_event(event: &Event) -> Result<()> {
 ```
 
 **Deliverables**:
+
 - `src/logging/mod.rs` - Logging integration
 - `src/logging/correlation.rs` - Correlation ID handling
 - `src/logging/structured.rs` - Structured logging
@@ -148,6 +155,7 @@ async fn process_event(event: &Event) -> Result<()> {
 **Objective**: Export traces via gRPC (faster than HTTP)
 
 **Features**:
+
 - gRPC collector support
 - Async export (non-blocking)
 - Connection pooling
@@ -163,6 +171,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 ```
 
 **Deliverables**:
+
 - `src/tracing/grpc_exporter.rs` - gRPC implementation
 - `src/tracing/grpc_config.rs` - gRPC configuration
 - `PHASE_9_2_GRPC_GUIDE.md` - Documentation
@@ -176,6 +185,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Objective**: Propagate trace context across system boundaries
 
 **Features**:
+
 - OpenTelemetry context API
 - Baggage propagation
 - Multi-format support (HTTP, gRPC, AWS)
@@ -183,12 +193,14 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - Sampling decision propagation
 
 **Formats Supported**:
+
 - W3C Trace Context (HTTP)
 - gRPC Metadata
 - AWS X-Ray Headers
 - Datadog Headers (APM)
 
 **Deliverables**:
+
 - `src/tracing/baggage.rs` - Baggage handling
 - `src/tracing/context.rs` - Context management
 - `src/tracing/propagators/` - Format-specific propagators
@@ -235,6 +247,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
    - Checkpoint recovery tracking
 
 **Deliverables**:
+
 - `dashboards/` - Dashboard JSON files
 - `dashboards/system-overview.json` - System overview
 - `dashboards/event-processing.json` - Event processing
@@ -244,6 +257,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - `PHASE_9_2_DASHBOARDS_GUIDE.md` - Documentation
 
 **Grafana Integration**:
+
 - Import via Grafana UI
 - Auto-setup script
 - Docker Compose with pre-loaded dashboards
@@ -260,6 +274,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - **Fri**: Documentation and examples
 
 **Deliverables**:
+
 - Metrics module (150+ lines)
 - Macros crate (200+ lines)
 - 50+ tests
@@ -273,6 +288,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - **Fri**: Documentation
 
 **Deliverables**:
+
 - Logging module (120+ lines)
 - gRPC exporter (200+ lines)
 - 50+ tests
@@ -285,6 +301,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - **Thu-Fri**: Testing and documentation
 
 **Deliverables**:
+
 - Context propagation (180+ lines)
 - 5 dashboard templates
 - 60+ tests
@@ -299,6 +316,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Decision**: Use Prometheus client library with Registry pattern
 
 **Rationale**:
+
 - Industry standard
 - Works with Prometheus, Grafana, Datadog, New Relic
 - Simple and efficient
@@ -311,6 +329,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Decision**: Inject trace ID as structured field in all logs
 
 **Rationale**:
+
 - Works with all logging backends (Loki, ELK, CloudWatch)
 - Standard practice in microservices
 - Easy filtering and correlation
@@ -322,6 +341,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Decision**: Procedural macros in separate crate
 
 **Rationale**:
+
 - Cleaner separation of concerns
 - Easier to maintain and test
 - Can evolve independently
@@ -334,6 +354,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Decision**: Async gRPC client with connection pooling
 
 **Rationale**:
+
 - Lower latency than HTTP (Proto binary format)
 - Connection reuse reduces overhead
 - Async prevents blocking on export
@@ -346,6 +367,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 **Decision**: Pre-built JSON templates in Git
 
 **Rationale**:
+
 - Version controlled
 - Easy to customize
 - Import directly into Grafana
@@ -389,6 +411,7 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 ## Testing Strategy
 
 ### Unit Tests (80+)
+
 - Metrics collection and registration
 - Macro expansion and compilation
 - Log formatting and correlation
@@ -396,6 +419,7 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 - Context propagation
 
 ### Integration Tests (40+)
+
 - Metrics export to Prometheus
 - Log correlation in trace
 - gRPC connectivity
@@ -403,6 +427,7 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 - Dashboard rendering
 
 ### E2E Tests (30+)
+
 - Full stack tracing + metrics
 - Metrics scraped by Prometheus
 - Logs correlated with traces
@@ -414,20 +439,24 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 ## Performance Considerations
 
 ### Metrics Overhead
+
 - Counter: < 0.1ms per operation
 - Gauge: < 0.5ms per operation
 - Histogram: < 1ms per operation
 
 ### Logging Overhead
+
 - Trace ID injection: < 0.05ms per log
 - Structured logging: < 0.2ms per log
 
 ### gRPC Exporter
+
 - Export latency: 5-20ms (vs 100-500ms for HTTP)
 - Throughput: 10,000+ spans/sec
 - Batch processing: No per-span overhead
 
 ### Overall Impact
+
 - Tracing + Metrics + Logging: ~5-10% overhead
 - Can be reduced to <1% with sampling
 
@@ -523,18 +552,21 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 ## Rollout Plan
 
 ### Phase 1: Metrics & Macros
+
 - ✅ Implement Prometheus metrics
 - ✅ Add macro-based instrumentation
 - ✅ Test integration
 - ✅ Deploy to staging
 
 ### Phase 2: Logging & gRPC
+
 - ✅ Add log correlation
 - ✅ Implement gRPC exporter
 - ✅ Verify performance
 - ✅ Deploy to production
 
 ### Phase 3: Context & Dashboards
+
 - ✅ Implement baggage propagation
 - ✅ Create dashboard templates
 - ✅ Document integration
@@ -583,16 +615,19 @@ This builds on Phase 9.2's complete trace data for debugging.
 ## Success Metrics
 
 ### Adoption Metrics
+
 - % of observer operations traced
 - % of dashboards actively used
 - Log correlation usage rate
 
 ### Performance Metrics
+
 - Overhead < 10% (with sampling)
 - Export latency < 20ms (gRPC)
 - Metrics scrape success > 99%
 
 ### Quality Metrics
+
 - Test pass rate: 100%
 - Code coverage: > 85%
 - Documentation completeness: 100%

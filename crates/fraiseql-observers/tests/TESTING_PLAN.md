@@ -26,6 +26,7 @@ Phase 8.12 implements comprehensive testing and QA procedures to validate all Ph
 ```
 
 **Target Distribution**:
+
 - Unit Tests: 60% (existing + new)
 - Integration Tests: 30% (new)
 - End-to-End Tests: 10% (new)
@@ -273,6 +274,7 @@ Phase 8.12 implements comprehensive testing and QA procedures to validate all Ph
 
 **Measurements**:
 ```
+
 - Throughput: events/second
 - Latency: P50, P95, P99, max
 - Memory: peak, average, growth rate
@@ -330,6 +332,7 @@ Phase 8.12 implements comprehensive testing and QA procedures to validate all Ph
 
 **Scenarios**:
 ```
+
 1. Database connection loss
    - Listener pauses and resumes
    - No event loss
@@ -477,6 +480,7 @@ Network: < 100 Mbps average
 
 **Test Cases**:
 ```
+
 1. Single listener: baseline
 2. 2 listeners: verify coordination overhead < 5%
 3. 3 listeners: verify scaling
@@ -493,6 +497,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Start 3 listeners
 2. Verify leader elected
 3. Process 1000 events
@@ -518,6 +523,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Start 3 listeners (primary + 2 secondaries)
 2. Kill secondary listener
 3. Verify system continues processing
@@ -539,6 +545,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Start observer system
 2. Stop PostgreSQL
 3. Verify system detects failure
@@ -561,6 +568,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. System running with cache/dedup enabled
 2. Stop Redis
 3. Verify system continues (with cache/dedup disabled)
@@ -583,6 +591,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Start 3 listeners in separate containers
 2. Create network partition (listener-1 isolated)
 3. Verify new leader elected in main partition
@@ -608,6 +617,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Insert order into database
 2. Trigger observer (via trigger or manual)
 3. Verify event created
@@ -636,6 +646,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Process order with broken webhook
 2. Verify DLQ item created
 3. Fix webhook endpoint
@@ -657,6 +668,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Process 100 orders (create)
 2. Measure average latency: L1
 3. Process same 100 orders (duplicate)
@@ -675,6 +687,7 @@ Network: < 100 Mbps average
 
 **Scenario**:
 ```
+
 1. Start 3 listeners
 2. Process 1000 events
 3. All listeners processing

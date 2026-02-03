@@ -52,6 +52,7 @@ Runtime Executor
 ## Cycle 1: Python SDK Scope Decorator (COMPLETE)
 
 ### RED Phase (✅ COMPLETE)
+
 - ✅ Created 9 comprehensive tests for field scope requirements
 - ✅ 8 tests passing (field extraction working)
 - ✅ 1 test failing (registry not including requires_scope)
@@ -59,6 +60,7 @@ Runtime Executor
 - ✅ Test file: fraiseql-python/tests/test_field_scope.py
 
 **Test Coverage**:
+
 - Single scope requirements
 - Custom scope formats
 - Scope + description together
@@ -67,6 +69,7 @@ Runtime Executor
 - Edge cases (empty scope, special characters)
 
 ### GREEN Phase (✅ COMPLETE)
+
 - ✅ Updated SchemaRegistry.register_type() to include scope data
 - ✅ Updated SchemaRegistry.register_interface() to include scope data
 - ✅ Modified type decorator to pass extracted scope to registry
@@ -75,6 +78,7 @@ Runtime Executor
 - ✅ No regressions in existing tests
 
 ### REFACTOR Phase (✅ COMPLETE)
+
 - ✅ Created fraiseql/scope.py module with comprehensive validation
   - validate_scope() function for format validation
   - ScopeValidationError exception for clear error messages
@@ -89,6 +93,7 @@ Runtime Executor
   - Export ScopeValidationError, validate_scope, describe_scope_format
 
 **Scope Format Specification**:
+
 - Format: `action:resource`
 - Actions: letters, numbers, underscores (e.g., read, write, admin_read)
 - Resources:
@@ -98,6 +103,7 @@ Runtime Executor
   - Custom identifiers (e.g., view_pii, audit_log)
 
 ### CLEANUP Phase (✅ COMPLETE)
+
 - ✅ Ran all Python tests (55 passing, 2 skipped)
 - ✅ Formatted and linted with ruff (all checks passing)
 - ✅ Added noqa comments for intentional camelCase in tests
@@ -105,6 +111,7 @@ Runtime Executor
 - ✅ Updated Python SDK documentation in scope.py module docstring
 
 **Test Results**:
+
 - 22 scope validation tests: ✅ All passing
 - 18 field scope declaration/wildcard/edge case tests: ✅ All passing
 - 55 core tests (decorators, types, field_scope): ✅ All passing
@@ -113,6 +120,7 @@ Runtime Executor
 ## Cycle 2: TypeScript SDK Scope Decorator (COMPLETE)
 
 ### RED Phase (✅ COMPLETE)
+
 - ✅ Created 18 comprehensive tests for field scope requirements
 - ✅ Tests verify field() function accepts requiresScope
 - ✅ Tests verify schema registration with scoped fields
@@ -123,6 +131,7 @@ Runtime Executor
 - ✅ Test file: fraiseql-typescript/tests/field-scope.test.ts
 
 **Test Coverage**:
+
 - Single and custom scope formats
 - Scope with description and deprecation
 - Wildcard patterns
@@ -132,6 +141,7 @@ Runtime Executor
 - Schema export/import with metadata preservation
 
 ### GREEN Phase (✅ ALREADY COMPLETE)
+
 - ✅ field() function already accepts FieldMetadata with requiresScope
 - ✅ FieldMetadata interface already includes requiresScope: string | string[]
 - ✅ SchemaRegistry.registerType() already preserves field metadata
@@ -140,18 +150,21 @@ Runtime Executor
 - ✅ No additional implementation needed - feature was already present
 
 ### REFACTOR Phase (✅ COMPLETE - No changes needed)
+
 - ✅ TypeScript implementation already clean and well-designed
 - ✅ Full support for both single scope (string) and multiple scopes (array)
 - ✅ Field metadata properly extends through type system
 - ✅ No validation logic needed (compile-time TypeScript types enforce correctness)
 
 ### CLEANUP Phase (✅ COMPLETE)
+
 - ✅ All TypeScript tests pass (18 passing, 3 skipped)
 - ✅ Formatted with prettier
 - ✅ ESLint checks pass
 - ✅ No regressions in existing tests (132 total tests passing)
 
 **Test Results**:
+
 - 18 field scope tests: ✅ All passing
 - 3 placeholder tests: ⏭️ Skipped (Cycles 4-5)
 - 132 total TypeScript tests: ✅ All passing
@@ -160,6 +173,7 @@ Runtime Executor
 ## Cycle 3: TOML Schema Support (IN PROGRESS)
 
 ### RED Phase (✅ COMPLETE)
+
 - ✅ Created 8 comprehensive tests for TOML role definitions
 - ✅ Tests verify TOML parsing of `[[security.role_definitions]]`
 - ✅ Tests verify role structure: name, description?, scopes[]
@@ -171,6 +185,7 @@ Runtime Executor
 - ✅ Test file: crates/fraiseql-core/tests/integration_field_rbac_toml.rs
 
 **Test Coverage**:
+
 - TOML role definitions parsing
 - Role definition structure validation
 - Multiple scopes per role
@@ -182,6 +197,7 @@ Runtime Executor
 **Test Results**: 8 passed, 0 failed ✅
 
 ### GREEN Phase (✅ COMPLETE)
+
 - ✅ Created RoleDefinition struct in compiled.rs with wildcard scope matching
   - `has_scope()` method supports exact matches, wildcards (*), action patterns (read:*), and type patterns (User.*)
   - Full doc comments with examples
@@ -204,6 +220,7 @@ Runtime Executor
 **Test Results**: 17 total tests passing (8 RED + 9 GREEN)
 
 ### REFACTOR Phase (✅ COMPLETE)
+
 - ✅ Code already clean and well-structured
 - ✅ Wildcard matching logic properly encapsulated in has_scope()
 - ✅ SecurityConfig provides role management abstraction
@@ -211,6 +228,7 @@ Runtime Executor
 - ✅ No premature optimization needed (scope lookups are O(n) per role, acceptable)
 
 ### CLEANUP Phase (✅ COMPLETE)
+
 - ✅ All TOML integration tests pass (17 tests)
 - ✅ Formatted with cargo fmt
 - ✅ No clippy warnings on new code
@@ -224,24 +242,28 @@ Runtime Executor
 **Status**: RED ✅ → GREEN ✅ → REFACTOR ✅ → CLEANUP ✅
 
 ### RED Phase (✅ COMPLETE)
+
 - ✅ Created 8 tests for compiler merge scenarios
 - ✅ Tests verify field scopes preserved from schema.json
 - ✅ Tests verify role definitions parsed from TOML
 - ✅ Tests verify both inputs coexist without conflict
 
 ### GREEN Phase (✅ COMPLETE)
+
 - ✅ Extended SecurityConfig with role_definitions and default_role
 - ✅ Updated SecurityConfig::to_json() to serialize roles
 - ✅ Compiler now embeds role definitions in compiled schema
 - ✅ All 8 integration tests passing
 
 ### REFACTOR Phase (✅ COMPLETE)
+
 - ✅ Added find_role() helper for role lookups
 - ✅ Added get_role_scopes() helper to retrieve scopes
 - ✅ Extended validation to check role names/scopes
 - ✅ Added 3 new validation tests (total now 16)
 
 ### CLEANUP Phase (✅ COMPLETE)
+
 - ✅ Code formatted with cargo fmt
 - ✅ All 8 integration tests passing
 - ✅ All 16 config tests passing
@@ -250,40 +272,48 @@ Runtime Executor
 ## Cycle 5: Runtime Field Filtering
 
 ### RED Phase
+
 - [ ] Write failing test: SecurityContext with roles → scope checks
 - [ ] Test field projection respects scope requirements
 - [ ] Test missing scope returns error/null
 
 ### GREEN Phase
+
 - [ ] Implement scope checking in executor
 - [ ] Load role mappings from compiled schema
 - [ ] Filter fields during projection
 
 ### REFACTOR Phase
+
 - [ ] Extract scope matching logic
 - [ ] Add caching for scope lookups
 
 ### CLEANUP Phase
+
 - [ ] All integration tests pass
 - [ ] Zero regressions in RLS tests
 
 ## Cycle 6: End-to-End Integration Tests
 
 ### RED Phase
+
 - [ ] Write failing E2E test: Python decorator → compiled → runtime filtering
 - [ ] Test TypeScript decorator → compiled → runtime filtering
 - [ ] Test TOML overrides affect field visibility
 
 ### GREEN Phase
+
 - [ ] Create test schema with scoped fields
 - [ ] Execute query with different user roles
 - [ ] Verify field visibility matches scopes
 
 ### REFACTOR Phase
+
 - [ ] Add edge case tests (nested objects, arrays, null handling)
 - [ ] Performance tests
 
 ### CLEANUP Phase
+
 - [ ] All E2E tests pass
 - [ ] Full documentation complete
 
@@ -307,20 +337,24 @@ Runtime Executor
 ## Files to Create/Modify
 
 ### Python SDK
+
 - `python-sdk/fraiseql/field.py` - field() function with scope parameter
 - `python-sdk/fraiseql/schema.py` - update to include scope metadata
 - `python-sdk/tests/test_field_scope.py` - decorator tests
 
 ### TypeScript SDK
+
 - `typescript-sdk/src/field.ts` - field() function
 - `typescript-sdk/src/schema.ts` - update schema generator
 - `typescript-sdk/tests/field-scope.test.ts` - decorator tests
 
 ### Compiler
+
 - `crates/fraiseql-core/src/schema/compiled.rs` - RoleDefinition struct
 - `crates/fraiseql-core/src/compiler/scope_merger.rs` - merge decorators + TOML
 
 ### Runtime
+
 - `crates/fraiseql-core/src/runtime/field_filter.rs` - scope enforcement
 - `crates/fraiseql-core/tests/integration_field_rbac.rs` - E2E tests
 

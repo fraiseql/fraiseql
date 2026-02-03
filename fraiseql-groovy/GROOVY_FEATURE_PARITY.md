@@ -31,6 +31,7 @@
 - `AuthzPolicyBuilder` - Policy builder
 
 ### Test Coverage (44 tests, Spock)
+
 - `AuthorizationSpec` (11 tests)
 - `RoleBasedAccessControlSpec` (18 tests)
 - `AuthzPolicySpec` (15 tests)
@@ -59,6 +60,7 @@ All **thirteen authoring languages** at 100% parity:
 ## Implementation Notes
 
 Groovy-specific advantages:
+
 - Dynamic language with Groovy idioms
 - Seamless Java interoperability
 - Closures and metaprogramming support

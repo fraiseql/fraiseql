@@ -7,6 +7,7 @@
 **Timeline**: 2-3 weeks
 
 **Success Criteria**:
+
 - ✅ Bare Metal provider fully implemented (SSH/systemd)
 - ✅ Docker Compose provider fully implemented
 - ✅ Coolify provider fully implemented
@@ -22,6 +23,7 @@
 ## Current State Assessment
 
 ### ✅ What's Ready (from Phase 1)
+
 - Core deployer interface (BaseDeployer)
 - CLI infrastructure
 - Database layer with trinity pattern
@@ -30,6 +32,7 @@
 - Documentation system
 
 ### ⚠️ What's Needed for Phase 2
+
 - Provider abstraction layer
 - Bare Metal deployment support
 - Docker Compose integration
@@ -142,6 +145,7 @@ class ProviderRegistry:
 **File**: `fraisier/providers/bare_metal.py` (NEW)
 
 **Features**:
+
 - SSH connection to remote servers
 - Systemd service management
 - Git pull on remote
@@ -181,6 +185,7 @@ class BareMetalProvider(BaseProvider):
 ```
 
 **Implementation Steps**:
+
 1. Use `subprocess` with `ssh` commands (no additional dependencies)
 2. Implement SSH key-based authentication
 3. Execute systemd commands on remote
@@ -188,6 +193,7 @@ class BareMetalProvider(BaseProvider):
 5. Error handling for SSH failures
 
 **Tests** (12 tests):
+
 - pre_flight_check (success, failure)
 - deploy_service (success, failure, health check)
 - rollback_service (success, failure)
@@ -243,6 +249,7 @@ with DeploymentLock(service_name, provider_name):
 **File**: `fraisier/providers/docker_compose.py` (NEW)
 
 **Features**:
+
 - Docker Compose file management
 - Service up/down/restart
 - Port mapping configuration
@@ -272,6 +279,7 @@ class DockerComposeProvider(BaseProvider):
 ```
 
 **Implementation Steps**:
+
 1. Parse docker-compose.yaml
 2. Update environment variables for version
 3. Run docker-compose commands
@@ -279,6 +287,7 @@ class DockerComposeProvider(BaseProvider):
 5. Track container IDs for rollback
 
 **Tests** (12 tests):
+
 - deploy_service (success, failure)
 - compose file validation
 - port mapping
@@ -293,6 +302,7 @@ class DockerComposeProvider(BaseProvider):
 **Purpose**: Helper for managing docker-compose.yaml
 
 **Features**:
+
 - Load/parse YAML
 - Substitute environment variables
 - Update service images
@@ -308,6 +318,7 @@ class DockerComposeProvider(BaseProvider):
 **File**: `fraisier/providers/coolify.py` (NEW)
 
 **Features**:
+
 - Coolify API integration
 - Project and application management
 - Deployment triggering
@@ -342,6 +353,7 @@ class CoolifyProvider(BaseProvider):
 ```
 
 **Implementation Steps**:
+
 1. Create CoolifyClient for API communication
 2. Implement OAuth/token-based auth
 3. Handle polling and timeouts
@@ -349,6 +361,7 @@ class CoolifyProvider(BaseProvider):
 5. Error handling for API failures
 
 **Tests** (12 tests):
+
 - API authentication
 - deploy_service (success, failure, timeout)
 - status polling
@@ -363,6 +376,7 @@ class CoolifyProvider(BaseProvider):
 **Purpose**: HTTP client for Coolify API
 
 **Features**:
+
 - Authenticated requests
 - Error handling
 - Response parsing
@@ -377,6 +391,7 @@ class CoolifyProvider(BaseProvider):
 **File**: `tests/test_providers.py` (NEW)
 
 **Tests** (50+ tests total):
+
 - BareMetalProvider: 12 tests
 - DockerComposeProvider: 12 tests
 - CoolifyProvider: 12 tests
@@ -407,6 +422,7 @@ def test_bare_metal_pre_flight_check(bare_metal_provider, mock_subprocess):
 **File**: `tests/test_provider_integration.py` (NEW)
 
 **Tests** (15+ tests):
+
 - Multi-provider deployment workflow
 - Provider switching
 - Fallback on provider failure
@@ -418,6 +434,7 @@ def test_bare_metal_pre_flight_check(bare_metal_provider, mock_subprocess):
 **File**: `fraisier/cli.py` (MODIFY)
 
 **New Commands**:
+
 - `fraisier providers` - List available providers
 - `fraisier provider-info` - Show provider configuration
 - `fraisier provider-test` - Run pre-flight checks
@@ -526,6 +543,7 @@ CREATE TABLE tb_deployment_lock (
 ## Files to Create
 
 ### New Files
+
 - `fraisier/providers/__init__.py` - Provider abstraction
 - `fraisier/providers/bare_metal.py` - Bare Metal implementation
 - `fraisier/providers/docker_compose.py` - Docker Compose implementation
@@ -537,6 +555,7 @@ CREATE TABLE tb_deployment_lock (
 - `tests/test_provider_integration.py` - Integration tests
 
 ### Modified Files
+
 - `fraisier/cli.py` - Add provider commands
 - `fraisier/database.py` - Add provider config tables
 - `fraisier/deployers/base.py` - Update interface
@@ -548,6 +567,7 @@ CREATE TABLE tb_deployment_lock (
 ## Success Criteria per Subphase
 
 ### 2.1: Provider Abstraction & Bare Metal
+
 - ✅ Provider interface defined
 - ✅ Registry mechanism working
 - ✅ Bare Metal provider complete
@@ -556,6 +576,7 @@ CREATE TABLE tb_deployment_lock (
 - ✅ SSH integration working
 
 ### 2.2: Docker Compose Provider
+
 - ✅ Docker Compose provider complete
 - ✅ Compose file parsing working
 - ✅ Service management working
@@ -563,6 +584,7 @@ CREATE TABLE tb_deployment_lock (
 - ✅ docker-compose commands working
 
 ### 2.3: Coolify Provider & Integration
+
 - ✅ Coolify provider complete
 - ✅ API client working
 - ✅ Status polling working
@@ -593,6 +615,7 @@ CREATE TABLE tb_deployment_lock (
 ## Next Phase Dependency
 
 Phase 2 enables Phase 3 (Production Hardening):
+
 - Monitoring and alerting
 - Multi-region deployments
 - Blue-green deployments

@@ -29,6 +29,7 @@ SQL projection optimization delivers **42-55% latency reduction** across all dat
 ### 1. SQL Projection Benchmark
 
 **Test Environment**:
+
 - Framework: Criterion.rs (100 samples per benchmark)
 - Database: PostgreSQL 16 (Docker)
 - Machine: Linux x86_64
@@ -45,6 +46,7 @@ Measurements for projecting specific fields from a single object:
 | 20 | 2.716 µs | 2.716 µs | 2.717 µs | [2.716-2.717] µs | ✅ |
 
 **Analysis**:
+
 - Linear scaling: ~130ns per field
 - Base overhead: ~200ns
 - Variance: ±1ns (exceptional consistency)
@@ -61,6 +63,7 @@ Fetching full JSONB objects:
 | 10000 | 26.142 ms | Normal | 14% | ⚠️ |
 
 **Analysis**:
+
 - Throughput: ~240 Kelem/s
 - Outliers increase at larger row counts (CPU/memory effects)
 - Baseline for comparison with projection
@@ -76,6 +79,7 @@ With SQL projection (`jsonb_build_object`):
 | 10000 | 10.776 ms | Normal | 12% | **54.9%** ⚡ |
 
 **Analysis**:
+
 - Throughput: ~270 Kelem/s (+12.5% vs unoptimized)
 - Scaling: Linear with no exponential degradation
 - Outliers: Slightly elevated (projection adds overhead on outlier paths)
@@ -97,6 +101,7 @@ Reason: Network payload reduction has greater impact with more rows
 ### 2. Adapter Comparison Benchmark
 
 **Test Environment**:
+
 - Database: PostgreSQL 16
 - Test Data: 1M rows in `v_benchmark_data` view
 - Samples: 20-30 per benchmark
@@ -111,6 +116,7 @@ Reason: Network payload reduction has greater impact with more rows
 | SQL Projection Only | 427 Kelem/s | **+78%** | Database-level projection only |
 
 **Analysis**:
+
 - Pure SQL projection outperforms hybrid approach
 - Network reduction is the primary bottleneck
 - Expected scaling: 1.67-1.78x improvement
@@ -132,6 +138,7 @@ Overall: Excellent consistency (all <3%)
 ### 3. End-to-End Pipeline Benchmark
 
 **Test Environment**:
+
 - Complete GraphQL execution: Parse → Plan → Bind → Execute → Project
 - Test Query: `{ users { id name email created_at } }`
 - Samples: 10-20 per benchmark
@@ -145,6 +152,7 @@ Overall: Excellent consistency (all <3%)
 | 1M rows | 3.64 s | 274 Kelem/s | 12% | ✅ |
 
 **Analysis**:
+
 - Linear scaling: ~36.4µs per 1000 rows
 - Throughput: ~260 Kelem/s average
 - No exponential degradation
@@ -238,12 +246,14 @@ Set at Phase 3 planning:
 
 ```
 Query Execution Targets:
+
 - Simple queries: <5ms           → Measured: 927ns ✅
 - 10-table join: <50ms p95       → Measured: 10.4ms ✅
 - Aggregations: <20ms            → Measured: 10.8ms ✅
 - Projection improvement: 20-30% → Measured: 42-55% ✅✅
 
 Subscription Targets:
+
 - Event delivery: <100ms p95     → Tested in Phase 5
 - Throughput: >1K events/sec     → Tested in Phase 5
 ```
@@ -305,12 +315,14 @@ Subscription Targets:
 ### Measurement Setup
 
 **Hardware**:
+
 - CPU: Linux x86_64 (mixed cores)
 - Memory: 8GB available
 - Storage: SSD (Docker volume)
 - Network: Localhost (Docker internal)
 
 **Software**:
+
 - Rust: Latest stable (locked in Cargo.lock)
 - PostgreSQL: 16-alpine
 - Criterion.rs: Statistical benchmarking library
@@ -326,6 +338,7 @@ Criterion::default()
 ```
 
 **Outlier Detection**:
+
 - Method: Interquartile Range (IQR)
 - Threshold: 1.5 × IQR above/below quartiles
 - Automatic flagging in results
@@ -333,6 +346,7 @@ Criterion::default()
 ### Reproducibility
 
 **Controlling Variables**:
+
 - Same PostgreSQL instance for all runs
 - Same test data (1M rows)
 - Same query templates
@@ -341,6 +355,7 @@ Criterion::default()
 - Sequential execution (single-threaded per benchmark)
 
 **Validation**:
+
 - Multiple runs at different times: Consistent results
 - Linear regression on scaling: R² = 0.98+
 - Baseline runs: Identical variance
@@ -391,6 +406,7 @@ Pattern: More benefit when network is the bottleneck
 **Improvement**: **42.3%**
 
 **At Scale** (1M users):
+
 - Time saved: ~6.8 seconds per query
 - Queries/second improvement: 15.8 QPS → 26.5 QPS
 - Throughput increase: **+68%**

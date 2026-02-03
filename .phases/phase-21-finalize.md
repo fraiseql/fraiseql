@@ -4,6 +4,7 @@
 Transform working code into production-ready, evergreen repository.
 
 ## Success Criteria
+
 - [ ] Remove all code archaeology
 - [ ] Remove all phase markers from code
 - [ ] Archive development documentation
@@ -14,6 +15,7 @@ Transform working code into production-ready, evergreen repository.
 ## Tasks
 
 ### 1. Quality Control Review
+
 - [ ] API design is intuitive and consistent
 - [ ] Error handling is comprehensive
 - [ ] Edge cases are covered
@@ -21,6 +23,7 @@ Transform working code into production-ready, evergreen repository.
 - [ ] No unnecessary complexity
 
 ### 2. Security Audit
+
 - [ ] Input validation on all boundaries
 - [ ] No secrets in code or config
 - [ ] Dependencies are minimal and audited
@@ -29,6 +32,7 @@ Transform working code into production-ready, evergreen repository.
 - [ ] Sensitive data properly handled
 
 ### 3. Code Archaeology Removal
+
 - [ ] Remove all `// Phase X:` comments
 - [ ] Remove all `# TODO: Phase` markers
 - [ ] Remove all debugging code
@@ -37,6 +41,7 @@ Transform working code into production-ready, evergreen repository.
 - [ ] Verify clean `git grep "phase|todo|fixme|hack"` results
 
 ### 4. Documentation Polish
+
 - [ ] README is accurate and complete
 - [ ] API documentation is current
 - [ ] No references to development phases
@@ -44,6 +49,7 @@ Transform working code into production-ready, evergreen repository.
 - [ ] Release notes prepared
 
 ### 5. Final Verification
+
 - [ ] All tests pass
 - [ ] All lints pass (zero warnings)
 - [ ] Build succeeds in release mode
@@ -54,6 +60,7 @@ Transform working code into production-ready, evergreen repository.
 ⏳ **IN PROGRESS - Ready to begin**
 
 **Next Steps**:
+
 1. Run code archaeology scan
 2. Remove development markers
 3. Archive .claude/ docs

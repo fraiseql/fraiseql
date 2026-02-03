@@ -128,6 +128,7 @@ GET /deployments?environment=production&status=success&limit=10&offset=0
 ```
 
 **Query Parameters**:
+
 - `environment` (string, optional): Filter by environment (dev, staging, production, etc.)
 - `status` (string, optional): Filter by status (pending, in_progress, success, failed, cancelled)
 - `fraise` (string, optional): Filter by fraise name
@@ -197,6 +198,7 @@ GET /deployments/{deployment_id}
 ```
 
 **Path Parameters**:
+
 - `deployment_id` (string, required): Deployment ID (e.g., dep_00001)
 
 **Response** (200 OK):
@@ -258,6 +260,7 @@ POST /deployments/{fraise}/{environment}
 ```
 
 **Path Parameters**:
+
 - `fraise` (string, required): Fraise name (e.g., my_api)
 - `environment` (string, required): Target environment (e.g., production)
 
@@ -283,6 +286,7 @@ POST /deployments/{fraise}/{environment}
 ```
 
 **Request Parameters**:
+
 - `version` (string, optional): Specific version to deploy (default: latest)
 - `strategy` (string, optional): Deployment strategy
   - `rolling`: One instance at a time (default)
@@ -343,6 +347,7 @@ DELETE /deployments/{deployment_id}
 ```
 
 **Path Parameters**:
+
 - `deployment_id` (string, required): Deployment ID to cancel
 
 **Response** (202 Accepted):
@@ -370,6 +375,7 @@ POST /deployments/{fraise}/{environment}/rollback
 ```
 
 **Path Parameters**:
+
 - `fraise` (string, required): Fraise name
 - `environment` (string, required): Target environment
 
@@ -382,6 +388,7 @@ POST /deployments/{fraise}/{environment}/rollback
 ```
 
 **Request Parameters**:
+
 - `to_version` (string, optional): Specific version to rollback to (default: previous)
 - `reason` (string, optional): Reason for rollback (for audit logging)
 
@@ -421,9 +428,11 @@ GET /deployments/{deployment_id}/logs?lines=100&follow=false
 ```
 
 **Path Parameters**:
+
 - `deployment_id` (string, required): Deployment ID
 
 **Query Parameters**:
+
 - `lines` (integer, optional): Number of lines to return (default: 100, max: 1000)
 - `follow` (boolean, optional): Stream logs (SSE) (default: false)
 - `level` (string, optional): Filter by log level (info, warn, error)
@@ -485,6 +494,7 @@ GET /deployments/{deployment_id}/events
 ```
 
 **Path Parameters**:
+
 - `deployment_id` (string, required): Deployment ID
 
 **Response** (200 OK):
@@ -542,6 +552,7 @@ GET /fraises?environment=production&type=api&limit=50&offset=0
 ```
 
 **Query Parameters**:
+
 - `environment` (string, optional): Filter by environment
 - `type` (string, optional): Filter by type (api, etl, scheduled)
 - `limit` (integer, optional): Max results (default: 50)
@@ -599,6 +610,7 @@ GET /fraises/{fraise_name}
 ```
 
 **Path Parameters**:
+
 - `fraise_name` (string, required): Fraise name
 
 **Response** (200 OK):
@@ -666,9 +678,11 @@ GET /fraises/{fraise_name}/status?environment=production
 ```
 
 **Path Parameters**:
+
 - `fraise_name` (string, required): Fraise name
 
 **Query Parameters**:
+
 - `environment` (string, optional): Specific environment (returns all if not specified)
 
 **Response** (200 OK):
@@ -708,9 +722,11 @@ GET /fraises/{fraise_name}/history?environment=production&limit=20
 ```
 
 **Path Parameters**:
+
 - `fraise_name` (string, required): Fraise name
 
 **Query Parameters**:
+
 - `environment` (string, optional): Filter by environment
 - `limit` (integer, optional): Max results (default: 20)
 - `status` (string, optional): Filter by status (success, failed, cancelled)
@@ -799,6 +815,7 @@ GET /environments/{environment_name}/status
 ```
 
 **Path Parameters**:
+
 - `environment_name` (string, required): Environment name
 
 **Response** (200 OK):
@@ -900,6 +917,7 @@ fraisier_active_deployments{environment="staging"} 1
 All API endpoints are subject to rate limiting:
 
 **Default Limits**:
+
 - Authenticated users: 1000 requests per hour
 - Read operations: 2000 requests per hour
 - Write operations: 100 requests per hour
@@ -929,6 +947,7 @@ X-RateLimit-Reset: 1705929510
 List endpoints support cursor-based pagination:
 
 **Query Parameters**:
+
 - `limit` (integer): Results per page (default: 50, max: 500)
 - `offset` (integer): Pagination offset (default: 0)
 
@@ -953,6 +972,7 @@ List endpoints support cursor-based pagination:
 List endpoints support filtering:
 
 **Query Parameters**:
+
 - `q` (string): Free-text search across name, description
 - `sort` (string): Sort by field (- prefix for descending)
 - `field` (string): Filter by specific field value

@@ -241,20 +241,24 @@ let policy = FailurePolicy::DLQ; // Move to queue on failure
 ## Condition DSL
 
 ### Basic Comparisons
+
 - `status = 'active'` - String equality
 - `total > 100` - Numeric comparison
 - `amount >= 50` - Greater than or equal
 - `count < 10` - Less than
 
 ### Change Detection
+
 - `CHANGED(field_name)` - Field value changed
 - `CHANGED_TO(field_name, 'value')` - Field changed to specific value
 - `CHANGED_FROM(field_name, 'value')` - Field changed from specific value
 
 ### Field Checks
+
 - `HAS_FIELD(email)` - Field exists in event data
 
 ### Logical Operators
+
 - `condition1 AND condition2` - Both must be true
 - `condition1 OR condition2` - At least one must be true
 - `NOT condition` - Invert condition
@@ -297,6 +301,7 @@ cargo test -p fraiseql-observers -- --nocapture
 ```
 
 ### Test Categories
+
 - Configuration validation (12 tests)
 - Failure policies (6 tests)
 - Event kinds (6 tests)
@@ -366,6 +371,7 @@ pub enum FraiseQLError {
 ```
 
 Error classification:
+
 - **Transient**: Will retry (timeout, connection refused)
 - **Permanent**: Won't retry (invalid config, unsupported type)
 

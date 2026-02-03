@@ -21,6 +21,7 @@ Before diving into FraiseQL's architecture and capabilities, you need to underst
 **Definition:** A complete specification of your API's structure, including all types, fields, relationships, and validation rules.
 
 In FraiseQL, a schema is authored once (in Python or TypeScript) and defines:
+
 - What types exist (User, Order, Product, etc.)
 - What fields each type has (name, email, created_at, etc.)
 - What relationships exist (User has many Orders)
@@ -420,6 +421,7 @@ Python/TypeScript Schema → Compiler → Optimized SQL Templates
 ```
 
 At build time:
+
 - ✅ Types validated against database
 - ✅ Relationships verified
 - ✅ SQL generated and optimized
@@ -434,6 +436,7 @@ GraphQL Query → Pre-compiled SQL Template → Database → Results
 ```
 
 At runtime:
+
 - ✅ Query validated (type check)
 - ✅ Authorization verified
 - ✅ Parameters bound to SQL

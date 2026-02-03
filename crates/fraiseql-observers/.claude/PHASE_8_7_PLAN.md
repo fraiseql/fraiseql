@@ -7,6 +7,7 @@
 ## Problem Statement
 
 **Without Metrics**:
+
 - No visibility into system performance
 - Can't track event processing rates
 - No alerting on failures or slowdowns
@@ -14,6 +15,7 @@
 - Can't optimize bottlenecks
 
 **With Prometheus Metrics**:
+
 - Real-time monitoring dashboards
 - Performance trend tracking
 - Automated alerting on thresholds
@@ -74,6 +76,7 @@ System Metrics
 ## Implementation Steps
 
 ### Step 1: Metrics Registry (50 lines)
+
 **File**: `src/metrics/mod.rs`
 
 Central registry for all metrics:
@@ -118,10 +121,12 @@ impl ObserverMetrics {
 ```
 
 Tests (2):
+
 - test_metrics_creation
 - test_metrics_registration
 
 ### Step 2: Event Processing Instrumentation (60 lines)
+
 **File**: `src/executor.rs` (modifications)
 
 Add metrics collection to observer executor:
@@ -142,11 +147,13 @@ pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummar
 ```
 
 Tests (3):
+
 - test_event_processing_metrics
 - test_event_metrics_on_success
 - test_event_metrics_on_failure
 
 ### Step 3: Action Execution Instrumentation (80 lines)
+
 **File**: `src/traits.rs` (modifications)
 
 Wrap action executor to track metrics:
@@ -185,6 +192,7 @@ impl<E: ActionExecutor> ActionExecutor for MetricsActionExecutor<E> {
 ```
 
 Tests (5):
+
 - test_action_success_metrics
 - test_action_failure_metrics
 - test_action_duration_histogram
@@ -192,6 +200,7 @@ Tests (5):
 - test_metrics_wrapper_transparent
 
 ### Step 4: Queue Metrics (50 lines)
+
 **File**: `src/queue/mod.rs` (modifications)
 
 Add metrics to job queue operations:
@@ -224,12 +233,14 @@ pub async fn mark_deadletter(&self, job_id: &str, reason: &str) -> Result<()> {
 ```
 
 Tests (4):
+
 - test_queue_enqueue_metrics
 - test_queue_retry_metrics
 - test_queue_deadletter_metrics
 - test_queue_depth_tracking
 
 ### Step 5: Cache Metrics (40 lines)
+
 **File**: `src/cache/mod.rs` (modifications)
 
 Track cache hit rates:
@@ -258,11 +269,13 @@ fn update_hit_rate(&self) {
 ```
 
 Tests (3):
+
 - test_cache_hit_metrics
 - test_cache_miss_metrics
 - test_cache_hit_rate_calculation
 
 ### Step 6: Dedup Metrics (30 lines)
+
 **File**: `src/dedup/mod.rs` (modifications)
 
 Track deduplication effectiveness:
@@ -291,11 +304,13 @@ fn update_dedup_rate(&self) {
 ```
 
 Tests (3):
+
 - test_dedup_check_metrics
 - test_dedup_duplicate_tracking
 - test_dedup_rate_calculation
 
 ### Step 7: Checkpoint Metrics (30 lines)
+
 **File**: `src/checkpoint/mod.rs` (modifications)
 
 Track checkpoint operations:
@@ -320,11 +335,13 @@ pub async fn recover(&self, listener_id: &str) -> Result<Option<CheckpointState>
 ```
 
 Tests (3):
+
 - test_checkpoint_save_metrics
 - test_checkpoint_recovery_metrics
 - test_checkpoint_duration_tracking
 
 ### Step 8: HTTP Metrics Endpoint (100 lines)
+
 **File**: `src/metrics/http.rs`
 
 Expose metrics via HTTP for Prometheus scraping:
@@ -351,15 +368,18 @@ async fn handle_metrics(
 ```
 
 **Optional HTTP framework support**:
+
 - Works with axum (already used in some services)
 - Can also integrate with hyper or actix
 - Simple standalone or part of larger API
 
 Tests (2):
+
 - test_metrics_endpoint_response
 - test_prometheus_format_compliance
 
 ### Step 9: Metrics Configuration (40 lines)
+
 **File**: `src/config.rs` (modifications)
 
 Add metrics configuration:
@@ -391,13 +411,16 @@ impl Default for MetricsConfig {
 ```
 
 Tests (2):
+
 - test_metrics_config_defaults
 - test_metrics_config_custom
 
 ### Step 10: Tests & Integration (100 lines)
+
 **File**: `src/metrics/tests.rs`
 
 Comprehensive test suite:
+
 - Metrics creation and registration (2 tests)
 - Counter increment/reset (3 tests)
 - Gauge set/update (3 tests)
@@ -410,6 +433,7 @@ Comprehensive test suite:
 ## Dependencies Required
 
 Check Cargo.toml:
+
 - `prometheus` ✅ (already in optional dependencies)
 - `axum` (optional, for HTTP endpoint)
 - `hyper` (optional, for standalone server)
@@ -453,6 +477,7 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 ## Success Criteria
 
 ✅ **Functional**:
+
 - [ ] All metrics correctly tracked
 - [ ] Counter increments on events
 - [ ] Gauges update on state changes
@@ -460,18 +485,21 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 - [ ] HTTP endpoint serves Prometheus format
 
 ✅ **Quality**:
+
 - [ ] 150+ tests passing (18 new)
 - [ ] 100% Clippy compliant
 - [ ] Zero unsafe code
 - [ ] All error paths tested
 
 ✅ **Performance**:
+
 - [ ] Metrics collection < 1ms overhead
 - [ ] Counter operations < 1μs
 - [ ] Gauge updates < 10μs
 - [ ] Histogram observations < 100μs
 
 ✅ **Reliability**:
+
 - [ ] Metrics survive component failures
 - [ ] No data loss during high load
 - [ ] Thread-safe metric operations

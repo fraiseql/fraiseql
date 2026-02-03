@@ -5,6 +5,7 @@
 The **compiled schema** (`schema.compiled.json`) is the artifact produced by the FraiseQL compiler. It contains the complete GraphQL schema in a form optimized for runtime execution: no Python/TypeScript code, no type annotations, no decorators—just pure JSON containing all type definitions, operations, and metadata needed to execute queries.
 
 This is FraiseQL's "binary interface" between compilation and runtime:
+
 - **Input**: `schema.json` (from Python/TypeScript authoring)
 - **Process**: Compilation validates, resolves, optimizes
 - **Output**: `schema.compiled.json` (loaded directly by Rust server)

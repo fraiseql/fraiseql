@@ -117,6 +117,7 @@ All **fifteen authoring languages** at 100% parity:
 All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 
 ### AuthorizationTests (11 tests)
+
 - Creating simple rules
 - Using policy references
 - Fluent builder pattern and chaining
@@ -130,6 +131,7 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 - Equality testing
 
 ### RoleBasedAccessControlTests (18 tests)
+
 - Single role requirement
 - Multiple roles
 - Role matching strategy: ANY
@@ -150,6 +152,7 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 - Equality testing
 
 ### AttributeBasedAccessControlTests (16 tests)
+
 - ABAC policy definition
 - Multiple attributes
 - Clearance level checking
@@ -168,6 +171,7 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 - Equality testing
 
 ### AuthzPolicyTests (19 tests)
+
 - RBAC policy type
 - ABAC policy type
 - Custom policy type
@@ -193,12 +197,14 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 ## Dart Language Specifics
 
 ### Type-Safe Design
+
 - Strong type system with null safety
 - Immutable classes using `const` constructors
 - Enum support with associated values
 - Generic collections (List, Map)
 
 ### Dart Features Used
+
 - Enums with named values
 - Classes with `const` constructors for immutability
 - Custom `==` operator and `hashCode` for value equality
@@ -208,6 +214,7 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 - `pub` package manager
 
 ### Build Configuration
+
 - Pubspec.yaml as package manifest
 - Dart SDK 3.0.0 or higher
 - Test framework for comprehensive testing
@@ -236,11 +243,13 @@ All tests in `test/fraiseql_security_test.dart` with 44 total tests:
 ## Remaining Authoring Languages
 
 ### Optional
+
 - **Elixir** - Distributed systems (future phase)
 
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -248,6 +257,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Dart-specific advantages:
+
 - Strong null safety prevents null reference errors
 - Fast compilation with hot reload during development
 - Excellent for mobile (Flutter) and web applications

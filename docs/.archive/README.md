@@ -7,12 +7,15 @@ This directory contains historical and future-phase documentation that is not pa
 Documentation for completed development phases (preserved for historical reference):
 
 ### Phase 5: Performance Analysis
+
 - `phases/PHASE_5_PERFORMANCE_ANALYSIS.md` — Performance analysis work
 
 ### Phase 6: Dashboards and Monitoring
+
 - `phases/PHASE_6_DASHBOARDS_AND_MONITORING.md` — Dashboard configuration
 
 ### Phase 7: End-to-End Integration
+
 - `phases/PHASE_7_END_TO_END_INTEGRATION.md` — Integration testing
 
 ## Future Phases
@@ -20,6 +23,7 @@ Documentation for completed development phases (preserved for historical referen
 Planning documentation for future work (not part of current roadmap):
 
 ### Future Phases 8+
+
 - `future-phases/PHASE_16_READINESS.md` — Old phase planning (references deprecated phases 15-16)
 - `future-phases/MIGRATION_PHASE_15_TO_16.md` — Old migration guide
 - `future-phases/PHASE_8_6_JOB_QUEUE.md` — Job queue feature planning
@@ -30,6 +34,7 @@ Planning documentation for future work (not part of current roadmap):
 Documentation for features that were planned but not implemented in v2.0.0:
 
 ### Endpoint Runtime (Future Sub-project)
+
 - `deprecated/ENDPOINT_RUNTIME_ARCHIVE.md` — Archived Endpoint Runtime planning
 - `deprecated/endpoint-runtime-archive-20260201.tar.gz` — Full Endpoint Runtime documentation archive
 

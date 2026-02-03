@@ -10,7 +10,9 @@
 ## 📚 Documentation Map
 
 ### 🚀 START HERE
+
 **→ [`FRAISEQL_V2_ROAD_TO_PRODUCTION.md`](FRAISEQL_V2_ROAD_TO_PRODUCTION.md)**
+
 - Executive summary (what, why, how long)
 - Critical blockers (4 items, ranked)
 - Current state snapshot
@@ -21,7 +23,9 @@
 ---
 
 ### 📋 DETAILED IMPLEMENTATION PLAN
+
 **→ [`IMPLEMENTATION_PLAN_2_WEEK_TO_PRODUCTION.md`](IMPLEMENTATION_PLAN_2_WEEK_TO_PRODUCTION.md)**
+
 - Day-by-day breakdown of all 10 working days
 - Every task with code examples
 - Acceptance criteria for each task
@@ -32,7 +36,9 @@
 ---
 
 ### 🏗️ PHASE-BY-PHASE SPECIFICATIONS
+
 **→ [`PHASE_10_ROADMAP.md`](PHASE_10_ROADMAP.md)**
+
 - Phase 10.1-10.10 detailed specs
 - Components to build
 - Implementation code snippets
@@ -43,7 +49,9 @@
 ---
 
 ### ✅ TESTING & VALIDATION
+
 **→ [`PHASE_9_PRERELEASE_TESTING.md`](PHASE_9_PRERELEASE_TESTING.md)**
+
 - 10-phase pre-release test checklist
 - Arrow Flight validation
 - Client library testing
@@ -52,6 +60,7 @@
 - **Read this before executing Phase 9.9**
 
 **→ [`PHASE_9_RELEASE_RESULTS.md`](PHASE_9_RELEASE_RESULTS.md)**
+
 - Phase 9 test results (already run)
 - 1,693/1,701 tests passing ✅
 - Go decision: 🟢 GO FOR PRODUCTION
@@ -60,7 +69,9 @@
 ---
 
 ### 📊 COMPLETION STATUS
+
 **→ [`PHASE_8_6_COMPLETION_SUMMARY.md`](PHASE_8_6_COMPLETION_SUMMARY.md)**
+
 - Phase 8.6 (Job Queue) completion details
 - 8 tasks completed
 - 16 integration tests
@@ -70,7 +81,9 @@
 ---
 
 ### 📈 IMPLEMENTATION STATUS
+
 **→ [`WORK_STATUS.md`](WORK_STATUS.md)**
+
 - Current session progress
 - Completed work (Phase 9, 8.6, 8.7)
 - Next steps recommendations
@@ -111,6 +124,7 @@
 ## 🔍 Implementation Status: Phase 10 Production Hardening
 
 ### ✅ Phase 10.5: Authentication & Authorization (100% COMPLETE)
+
 - **2,800+ LOC implemented**
 - JWT validation (HS256, RS256, RS384, RS512) ✅
 - OAuth2/OIDC provider with generic implementation ✅
@@ -127,6 +141,7 @@
 - All 25+ provider tests passing ✅
 
 ### ✅ Phase 10.6: Multi-Tenancy & Data Isolation (100% COMPLETE)
+
 - **277+ LOC implemented**
 - org_id field in audit logs ✅
 - JWT claims can extract org_id ✅
@@ -138,6 +153,7 @@
   - 10 unit tests (all passing) ✅
 
 ### ✅ Phase 10.8: Secrets Management (100% COMPLETE)
+
 - **KMS-backed secrets with caching**
 - BaseKmsProvider trait ✅
 - VaultKmsProvider for HashiCorp Vault Transit engine ✅
@@ -147,6 +163,7 @@
 - AES-256-GCM local encryption ✅
 
 ### ✅ Phase 10.9: Backup & Disaster Recovery (100% COMPLETE)
+
 - **BackupProvider trait for all backends**
 - BackupManager orchestration ✅
 - Database-specific implementations:
@@ -157,6 +174,7 @@
 - Recovery runbook (RTO: 1 hour, RPO: hourly) ✅
 
 ### ✅ Phase 10.10: Encryption at Rest & In Transit (100% COMPLETE)
+
 - **370 LOC implemented**
 - TLS server configuration ✅
 - Certificate and key loading (PKCS8, PKCS1, SEC1) ✅
@@ -173,12 +191,14 @@
 ## ✨ Key Insights
 
 ### 1. Timeline is Realistic
+
 **Was**: 4 weeks estimated
 **Now**: 2 weeks (auth 85% done, multi-tenancy schema exists)
 **Why**: Deep code audit revealed most infrastructure already in place
 
 ### 2. Implementation is Straightforward
 Each task has:
+
 - ✅ Code examples
 - ✅ Acceptance criteria
 - ✅ Test strategies
@@ -187,6 +207,7 @@ Each task has:
 **No guessing required** - just follow the plan
 
 ### 3. Risk is Low
+
 - ✅ Auth foundation solid (1,480 LOC JWT validation)
 - ✅ Multi-tenancy structure in place (audit logs have tenant_id)
 - ✅ Operations are standard patterns (Vault, TLS, backups)
@@ -197,23 +218,27 @@ Each task has:
 ## 🚀 How to Execute
 
 ### Step 1: Review the Plan
+
 1. Read `FRAISEQL_V2_ROAD_TO_PRODUCTION.md` (15 min)
 2. Understand critical path and timeline
 3. Confirm you're ready to commit 2 weeks
 
 ### Step 2: Execute Day 1
+
 1. Read `IMPLEMENTATION_PLAN_2_WEEK_TO_PRODUCTION.md` → Week 1, Day 1
 2. Run Phase 9.9 pre-release testing (4 hours)
 3. Document results in `PHASE_9_RELEASE_RESULTS_FINAL.md`
 4. Commit: "feat(phase-9): Pre-release testing complete"
 
 ### Step 3: Execute Days 2-9
+
 1. Follow day-by-day breakdown in implementation plan
 2. Copy code examples into your editor
 3. Run tests after each task
 4. Commit at end of each phase
 
 ### Step 4: Release Day 10
+
 1. Run final integration tests
 2. Complete security audit
 3. Sign off on go/no-go checklist
@@ -224,11 +249,13 @@ Each task has:
 ## 📊 Success Metrics
 
 ### Code Quality
+
 - [ ] 1,700+ tests passing
 - [ ] Zero clippy warnings
 - [ ] Zero CVEs (cargo audit)
 
 ### Security
+
 - [ ] OAuth + RBAC + API keys implemented
 - [ ] Multi-tenant isolation enforced
 - [ ] Secrets in Vault (not config files)
@@ -236,12 +263,14 @@ Each task has:
 - [ ] Security audit passed
 
 ### Operations
+
 - [ ] Backup/restore tested
 - [ ] Monitoring configured
 - [ ] Runbooks written
 - [ ] Deployment automated
 
 ### Performance
+
 - [ ] Arrow: 15-50x vs HTTP ✅
 - [ ] Latency: <100ms p95 ✅
 - [ ] Throughput: 10k+ QPS ✅
@@ -251,22 +280,26 @@ Each task has:
 ## 📞 Questions?
 
 ### "What if I get stuck?"
+
 1. Check implementation plan code examples
 2. Run the specific tests mentioned
 3. Look at acceptance criteria
 
 ### "What if timeline slips?"
+
 - Phase 9.9 testing: Must complete (unblocks decision)
 - Phase 10.5: Complete (auth critical)
 - Phase 10.6: Complete (multi-tenancy critical)
 - Phases 10.8-10.10: Can compress if needed
 
 ### "Can I do this in parallel?"
+
 - Phase 9.9 (testing): Can parallelize with 10.5 start
 - Phases 10.5 & 10.6: Sequential (10.5 enables 10.6)
 - Phases 10.8-10.10: Fully parallelizable
 
 ### "What's the rollback plan?"
+
 - Each phase is a separate commit
 - Can revert any phase if issues found
 - Integration tests catch regressions
@@ -276,12 +309,14 @@ Each task has:
 ## 🎯 Final Checklist
 
 Before starting:
+
 - [ ] Read FRAISEQL_V2_ROAD_TO_PRODUCTION.md
 - [ ] Read IMPLEMENTATION_PLAN_2_WEEK_TO_PRODUCTION.md (Day 1 section)
 - [ ] Understand: You have 2 weeks, 10 working days
 - [ ] Confirmed: Ready to commit time
 
 Ready to execute:
+
 - [ ] Clone plan code examples
 - [ ] Run Phase 9.9 tests
 - [ ] Begin Day 1

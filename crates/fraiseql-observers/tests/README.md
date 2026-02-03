@@ -43,10 +43,12 @@ The integration tests validate:
 ### Prerequisites
 
 **Required**:
+
 - Rust toolchain (1.70+)
 - Redis server running on `localhost:6379` (or set `REDIS_URL` env var)
 
 **Optional**:
+
 - NATS server on `localhost:4222` (for NATS tests)
 - PostgreSQL database (for checkpoint tests)
 
@@ -133,6 +135,7 @@ REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features 
 **Error**: Test hangs or times out
 
 **Solution**:
+
 - Ensure Redis is responsive: `redis-cli ping` should return `PONG`
 - Check network connectivity
 - Increase test timeout: `cargo test -- --test-threads=1 --timeout=60`
@@ -154,6 +157,7 @@ cargo bench --bench observer_benchmarks
 ```
 
 Benchmark results:
+
 - **Event processing**: 1K-10K events/sec (without I/O)
 - **Cache hit**: <1ms (100x faster than cache miss)
 - **Dedup overhead**: ~0.1ms per event
@@ -162,6 +166,7 @@ Benchmark results:
 ## Manual Testing
 
 For manual testing with Docker Compose, see:
+
 - `DEPLOYMENT.md` - Complete deployment guide
 - `docker-compose.*.yml` - Docker Compose configurations
 - `examples/*.toml` - Configuration examples

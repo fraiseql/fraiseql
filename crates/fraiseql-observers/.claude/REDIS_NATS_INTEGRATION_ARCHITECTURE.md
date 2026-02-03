@@ -9,6 +9,7 @@
 ## Executive Summary
 
 This document defines the integration architecture for combining:
+
 - **Phase 2 (NATS)**: Event transport with at-least-once delivery
 - **Phase 8.1 (Checkpoints)**: Zero-event-loss recovery (already integrated)
 - **Phase 8.2 (Concurrent)**: Parallel action execution
@@ -206,6 +207,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 ```
 
 **Key Decisions**:
+
 - ✅ Dedup key = `event.id` (UUIDv4) - globally unique across all transports
 - ✅ Check dedup **before** processing (early return for duplicates)
 - ✅ Mark as processed **only if all actions succeeded** (allow retries on failure)
@@ -289,6 +291,7 @@ impl<E: ActionExecutor + Send + Sync> ActionExecutor for CachedActionExecutor<E>
 ```
 
 **Key Decisions**:
+
 - ✅ Cache key = `event.id` + action params hash
 - ✅ Cache **only successful** action results (don't cache failures)
 - ✅ Default TTL: 60 seconds (configurable per cache backend)
@@ -505,11 +508,13 @@ PostgreSQL LISTEN/NOTIFY → ObserverExecutor → Sequential Actions
 ```
 
 **Benefits**:
+
 - ✅ Simplest deployment (single binary + database)
 - ✅ No external dependencies
 - ✅ Low latency (<10ms)
 
 **Limitations**:
+
 - ❌ Single instance only
 - ❌ No deduplication (trust database triggers)
 - ❌ Sequential action execution (slower)
@@ -542,12 +547,14 @@ ActionExecutor
 ```
 
 **Benefits**:
+
 - ✅ 5x faster (concurrent execution)
 - ✅ 100x faster for cache hits
 - ✅ Duplicate prevention
 - ✅ Still simple deployment (1 process)
 
 **Limitations**:
+
 - ❌ Single instance only
 - ❌ Requires Redis
 
@@ -596,12 +603,14 @@ PostgreSQL → PostgresNatsBridge → NATS JetStream
 ```
 
 **Benefits**:
+
 - ✅ Horizontal scaling (add workers as needed)
 - ✅ Multi-region capable
 - ✅ Fault isolation (observer failures don't affect main app)
 - ✅ Load balancing (NATS competing consumers)
 
 **Requirements**:
+
 - ✅ NATS cluster
 - ✅ Redis cluster
 - ✅ Shared dedup store (critical for exactly-once effects)
@@ -613,6 +622,7 @@ PostgreSQL → PostgresNatsBridge → NATS JetStream
 **Use Case**: Unified event stream across heterogeneous databases
 
 **Database Bridges**:
+
 - PostgreSQL → PostgresNatsBridge → NATS
 - MySQL → MySQLNatsBridge → NATS
 - SQL Server → MSSQLNatsBridge → NATS
@@ -627,6 +637,7 @@ MSSQL → MSSQL Bridge ────┘
 ```
 
 **Benefits**:
+
 - ✅ Unified event stream across all databases
 - ✅ Database-agnostic observers
 - ✅ Cross-database workflows
@@ -800,6 +811,7 @@ run_executors = false
 **Decision**: Check dedup before `process_event()`, not before each action
 
 **Rationale**:
+
 - ✅ Prevents entire observer execution (faster)
 - ✅ Single Redis lookup per event (not N lookups)
 - ✅ Clearer semantics: "event processed once"
@@ -816,6 +828,7 @@ run_executors = false
 **Decision**: Cache individual action results, not entire event processing
 
 **Rationale**:
+
 - ✅ Higher hit rate (same action config reused across events)
 - ✅ Composable with concurrent execution
 - ✅ Finer-grained TTL control
@@ -831,6 +844,7 @@ run_executors = false
 **Decision**: Only mark event as processed if **all actions succeeded**
 
 **Rationale**:
+
 - ✅ Allows retry on transient failures
 - ✅ At-least-once execution preserved
 - ✅ Dead Letter Queue handles permanent failures
@@ -845,6 +859,7 @@ run_executors = false
 **Decision**: Checkpoint store for bridges, dedup store for event processing
 
 **Rationale**:
+
 - ✅ Different semantics (cursor vs event identity)
 - ✅ Different lifetimes (checkpoint = permanent, dedup = 5 min)
 - ✅ Different backends (checkpoint = PostgreSQL, dedup = Redis)

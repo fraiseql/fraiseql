@@ -12,6 +12,7 @@
 Phase 9.1 introduces **OpenTelemetry (OTEL) integration** to enable distributed tracing across microservice architectures. This allows developers to trace individual event processing flows from entry to completion, understand latency bottlenecks, and debug issues across service boundaries.
 
 ### Key Objectives
+
 - Enable cross-service request tracing
 - Identify performance bottlenecks
 - Support Jaeger/Zipkin backends
@@ -19,6 +20,7 @@ Phase 9.1 introduces **OpenTelemetry (OTEL) integration** to enable distributed 
 - Zero performance overhead when disabled
 
 ### Expected Impact
+
 - **50% reduction in MTTR** (Mean Time To Recovery)
 - **Complete visibility** across service boundaries
 - **Performance bottleneck identification**
@@ -77,12 +79,14 @@ Root Span: Event Processing (event_id, checkpoint_offset)
 **Objective**: Set up OpenTelemetry SDK and basic instrumentation
 
 **Components**:
+
 1. Add OTEL dependencies
 2. Initialize OTEL provider
 3. Create tracer instances
 4. Set up Jaeger exporter
 
 **Key Files**:
+
 - `src/tracing/mod.rs` - Tracing module (new)
 - `src/tracing/otel.rs` - OTEL initialization (new)
 - `src/tracing/exporter.rs` - Jaeger exporter config (new)
@@ -127,6 +131,7 @@ pub fn init_tracing(config: TracingConfig) -> Result<()> {
 ```
 
 **Success Criteria**:
+
 - [ ] OTEL SDK initializes without errors
 - [ ] Jaeger exporter connects successfully
 - [ ] No runtime panics
@@ -139,12 +144,14 @@ pub fn init_tracing(config: TracingConfig) -> Result<()> {
 **Objective**: Enable trace context propagation across service boundaries
 
 **Components**:
+
 1. Trace context extraction from events
 2. W3C Trace Context format support
 3. Propagation to external services
 4. Context injection into requests
 
 **Key Files**:
+
 - `src/tracing/propagation.rs` (new)
 - `src/actions/traced_webhook.rs` (new - wrapper)
 
@@ -184,6 +191,7 @@ pub fn inject_trace_context(
 ```
 
 **Success Criteria**:
+
 - [ ] Trace context extracted from events
 - [ ] Headers properly formatted (W3C standard)
 - [ ] Context propagated to webhook calls
@@ -196,12 +204,14 @@ pub fn inject_trace_context(
 **Objective**: Add tracing to core listener and executor
 
 **Components**:
+
 1. Listener root span creation
 2. Event processing span
 3. Condition evaluation span
 4. Action executor span
 
 **Key Files**:
+
 - `src/listener/mod.rs` - Add span creation
 - `src/executor/mod.rs` - Add span wrapping
 - `src/condition/mod.rs` - Add condition evaluation span
@@ -244,6 +254,7 @@ pub async fn process_event(event: Event) -> Result<()> {
 ```
 
 **Span Attributes** (Phase 9.1):
+
 - `event_id`: Event identifier
 - `entity_type`: Type of entity
 - `kind`: Event kind (created, updated, deleted)
@@ -253,6 +264,7 @@ pub async fn process_event(event: Event) -> Result<()> {
 - `error`: Error message if failed
 
 **Success Criteria**:
+
 - [ ] Root span created per event
 - [ ] Child spans for each phase
 - [ ] All critical attributes recorded
@@ -305,22 +317,26 @@ impl<A: Action> Action for TracedAction<A> {
 **Action-Specific Attributes**:
 
 **Webhook**:
+
 - `target_url`: Webhook URL
 - `http_method`: GET, POST, etc.
 - `http_status`: Response status code
 - `response_time_ms`: Latency
 
 **Email**:
+
 - `recipient_count`: Number of recipients
 - `template_name`: Email template
 - `delivery_status`: Sent, failed, bounced
 
 **Slack**:
+
 - `channel`: Channel name/ID
 - `thread_id`: Thread ID if reply
 - `message_length`: Message size
 
 **Success Criteria**:
+
 - [ ] All action types traced
 - [ ] Action-specific attributes recorded
 - [ ] Trace context propagated to webhooks
@@ -334,6 +350,7 @@ impl<A: Action> Action for TracedAction<A> {
 **Objective**: Configure Jaeger backend for trace collection and visualization
 
 **Components**:
+
 1. Jaeger exporter configuration
 2. Sampling strategy
 3. Local Jaeger setup for development
@@ -389,6 +406,7 @@ pub struct JaegerConfig {
 ```
 
 **Success Criteria**:
+
 - [ ] Jaeger backend receives traces
 - [ ] Traces visible in Jaeger UI (http://localhost:16686)
 - [ ] Service dependency map generated
@@ -458,6 +476,7 @@ fn test_trace_context_headers() {
 ```
 
 **Success Criteria**:
+
 - [ ] 80+ tests passing
 - [ ] 100% test pass rate
 - [ ] Performance overhead < 5% with tracing enabled
@@ -526,6 +545,7 @@ let headers = trace_ctx.to_headers();
 ```
 
 **Success Criteria**:
+
 - [ ] 25+ KB of documentation
 - [ ] 10+ working examples
 - [ ] Clear setup instructions
@@ -632,6 +652,7 @@ tracing:
 ## Success Criteria for Phase 9.1
 
 ### Implementation ✅
+
 - [ ] OTEL SDK integrated
 - [ ] Jaeger exporter configured
 - [ ] Context propagation working
@@ -641,6 +662,7 @@ tracing:
 - [ ] No unsafe code
 
 ### Quality ✅
+
 - [ ] Tests: 100% pass rate
 - [ ] Coverage: ~95%
 - [ ] Documentation: 50+ KB
@@ -648,6 +670,7 @@ tracing:
 - [ ] Backward compatible
 
 ### Performance ✅
+
 - [ ] Overhead < 5% when enabled
 - [ ] Zero overhead when disabled
 - [ ] Jaeger export working
@@ -655,6 +678,7 @@ tracing:
 - [ ] Sampling working
 
 ### User Acceptance ✅
+
 - [ ] Easy to enable/disable
 - [ ] Clear configuration
 - [ ] Good documentation
@@ -666,24 +690,30 @@ tracing:
 ## Risks & Mitigations
 
 ### Risk 1: OTEL Complexity
+
 **Severity**: MEDIUM
 **Mitigation**:
+
 - Start with Jaeger only (simple exporter)
 - Expand to Zipkin later
 - Comprehensive documentation
 - Internal training
 
 ### Risk 2: Performance Overhead
+
 **Severity**: LOW
 **Mitigation**:
+
 - Sampling support built-in
 - Batch processing for production
 - Performance tests included
 - Easy to disable if issues
 
 ### Risk 3: Breaking Changes
+
 **Severity**: LOW
 **Mitigation**:
+
 - All features opt-in
 - No API changes
 - Can deploy without enabling
@@ -693,21 +723,25 @@ tracing:
 ## Timeline & Deliverables
 
 ### Week 1 (Core Setup)
+
 - ✅ OTEL integration
 - ✅ Context propagation
 - Deliverable: Basic tracing working
 
 ### Week 2 (Core Instrumentation)
+
 - ✅ Listener/executor tracing
 - ✅ Action tracing
 - Deliverable: End-to-end traces
 
 ### Week 3 (Integration & Testing)
+
 - ✅ Jaeger integration
 - ✅ Comprehensive tests
 - Deliverable: Production-ready tests
 
 ### Week 4 (Documentation & Examples)
+
 - ✅ 50+ KB documentation
 - ✅ Working examples
 - ✅ Troubleshooting guide
@@ -718,6 +752,7 @@ tracing:
 ## Next Phase (9.2) Dependencies
 
 Phase 9.2 (Event Replay) will depend on:
+
 - ✅ Phase 9.1 tracing context (completed)
 - ✅ Event replay mechanism (new in 9.2)
 - ✅ Time-travel state restoration

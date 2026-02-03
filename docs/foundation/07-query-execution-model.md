@@ -69,6 +69,7 @@ query GetUserProfile($userId: Int!) {
 ```
 
 ### Server Processing
+
 1. **Receive HTTP request** (POST /graphql)
 2. **Parse JSON** (extract query, variables, operation name)
 3. **Extract operation** (find GetUserProfile operation)
@@ -167,6 +168,7 @@ bindings = [request.variables["userId"]]
 ```
 
 ### Output
+
 - ✅ All parameters validated against types
 - ✅ All required parameters present
 - ✅ SQL statement ready for execution
@@ -278,6 +280,7 @@ WHERE pk_user_id = $1  -- Uses primary key index (very fast)
 LIMIT 1
 
 -- Result:
+
 -- pk_user_id | email            | created_at
 -- 123        | user@example.com | 2026-01-01 10:00:00
 ```
@@ -480,6 +483,7 @@ T+27ms:   └─ Send HTTP response
 
 Total Time: 27ms
 Breakdown:
+
 - Parsing & lookup: 2ms (4%)
 - Authorization: <1ms (2%)
 - Database queries: 20ms (74%)
@@ -566,6 +570,7 @@ except DatabaseError as e:
 ### 1. Deterministic Performance
 ```
 Every query has predictable performance:
+
 - Lookup time: O(1)
 - Parameter validation: O(P) where P = number of parameters
 - Authorization: O(1) or O(1) per result
@@ -578,6 +583,7 @@ Total: Predictable and reproducible
 ### 2. No Query Interpretation
 ```
 Traditional GraphQL:
+
 - Parse query (5ms)
 - Validate against schema (3ms)
 - Determine resolver chain (2ms)
@@ -585,6 +591,7 @@ Traditional GraphQL:
 Total: Variable
 
 FraiseQL:
+
 - Look up pre-compiled template (0.1ms)
 - Execute SQL template (20-50ms)
 Total: Fast and consistent
@@ -607,6 +614,7 @@ FraiseQL uses compiled templates that are already optimized.
 ### 4. Authorization Integrated
 ```
 Permission checks happen at two points:
+
 1. Pre-execution: Fast fail if not authorized
    Example: "user_role = 'admin'" → Check before SQL
 2. Post-fetch: Filter results based on permission
@@ -736,21 +744,25 @@ return {
 Typical Query Performance:
 
 Simple lookup (1 result):
+
 - Latency: 10-20ms
 - Database time: 5-15ms
 - Server overhead: 2-5ms
 
 List query (100 results):
+
 - Latency: 30-50ms
 - Database time: 20-40ms
 - Server overhead: 5-10ms
 
 Complex join (1000 results):
+
 - Latency: 100-200ms
 - Database time: 80-180ms
 - Server overhead: 10-20ms
 
 Factors:
+
 - Database server performance (latency, index tuning)
 - Network latency (distance to database)
 - Result size (more results = slower formatting)
@@ -762,11 +774,13 @@ Factors:
 Server Capacity (with connection pooling):
 
 For single FraiseQL server (4 CPUs, 8GB RAM):
+
 - Simple queries: 1000-2000 QPS
 - Average queries: 500-1000 QPS
 - Complex queries: 100-500 QPS
 
 Limiting factors:
+
 - Database connection pool size
 - Database capacity
 - Network bandwidth

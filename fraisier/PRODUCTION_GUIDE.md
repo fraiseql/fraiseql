@@ -301,6 +301,7 @@ fraisier rollback my_api production --to previous
 ### Basic Deployment Flow
 
 ```
+
 1. Connect to infrastructure
    └─ Verify connectivity
    └─ Check credentials
@@ -704,6 +705,7 @@ A: You can't (by design). Health checks are critical for safety. Fix the health 
 
 ### Q: What happens if a deployment fails?
 A: Fraisier automatically:
+
 1. Stops the failed deployment
 2. Reverts any changes (git, migrations rolled back)
 3. Restarts the previous version

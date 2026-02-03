@@ -13,6 +13,7 @@ Phase 8 features provide multiple performance optimization paths. This guide hel
 fraiseql-observers metrics > baseline-metrics.txt
 
 # Key metrics to capture
+
 - observer_events_processed_total
 - observer_action_duration_seconds (P50, P95, P99)
 - observer_cache_hit_rate
@@ -192,6 +193,7 @@ checkpoint_batch_size: 100,
 | 1000 | 80k/s | Up to 1000 events | Analytics, non-critical |
 
 **Decision Guide**:
+
 - Batch size = Expected events during system restart time
 - If restart takes 30 seconds at 1000 events/sec → Batch size 1000 is acceptable
 

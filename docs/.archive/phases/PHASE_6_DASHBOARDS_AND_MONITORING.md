@@ -121,6 +121,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 ### Alert Group 1: Entity Resolution (4 alerts)
 
 #### 1. EntityResolutionLatencySLOBreach
+
 - **Metric**: p99 latency > 100ms
 - **Duration**: 5 minutes
 - **Severity**: WARNING
@@ -128,6 +129,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/entity-resolution-latency`
 
 #### 2. EntityResolutionErrorRateHigh
+
 - **Metric**: Error rate > 1%
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -135,6 +137,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/entity-resolution-errors`
 
 #### 3. EntityResolutionComplete Failure
+
 - **Metric**: 0 resolutions per second for 2+ minutes
 - **Duration**: 2 minutes
 - **Severity**: CRITICAL
@@ -142,6 +145,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/entity-resolution-down`
 
 #### 4. EntityCacheHitRateLow
+
 - **Metric**: Cache hit rate < 70%
 - **Duration**: 10 minutes
 - **Severity**: WARNING
@@ -151,6 +155,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 ### Alert Group 2: Subgraph Communication (4 alerts)
 
 #### 5. SubgraphRequestLatencySLOBreach
+
 - **Metric**: p99 latency > 500ms
 - **Duration**: 5 minutes
 - **Severity**: WARNING
@@ -158,6 +163,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/subgraph-latency`
 
 #### 6. SubgraphRequestErrorRateHigh
+
 - **Metric**: Error rate > 5%
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -165,6 +171,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/subgraph-request-errors`
 
 #### 7. SubgraphAvailabilityBelowSLO
+
 - **Metric**: Availability < 99.9%
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -172,6 +179,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/subgraph-availability-slo`
 
 #### 8. SubgraphNoRequests
+
 - **Metric**: 0 requests per second for 2+ minutes
 - **Duration**: 2 minutes
 - **Severity**: CRITICAL
@@ -181,6 +189,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 ### Alert Group 3: Mutations (3 alerts)
 
 #### 9. MutationErrorRateHigh
+
 - **Metric**: Error rate > 1%
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -188,6 +197,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/mutation-errors`
 
 #### 10. MutationLatencySLOBreach
+
 - **Metric**: p99 latency > 1000ms
 - **Duration**: 5 minutes
 - **Severity**: WARNING
@@ -195,6 +205,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/mutation-latency`
 
 #### 11. MutationNoRequests
+
 - **Metric**: 0 mutations per second for 10+ minutes
 - **Duration**: 10 minutes
 - **Severity**: INFO (Non-actionable, normal during quiet periods)
@@ -204,6 +215,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 ### Alert Group 4: Aggregate System (4 alerts)
 
 #### 12. FederationErrorRateHigh
+
 - **Metric**: Total errors > 10/sec
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -211,6 +223,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/overall-error-rate`
 
 #### 13. FederationSystemDegraded
+
 - **Metric**: Total throughput < 1 operation/sec
 - **Duration**: 5 minutes
 - **Severity**: CRITICAL
@@ -218,6 +231,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 - **Runbook**: `/federation/system-degradation`
 
 #### 14. DeduplicationEffectivenessLow
+
 - **Metric**: Dedup ratio < 50%
 - **Duration**: 15 minutes
 - **Severity**: INFO
@@ -231,6 +245,7 @@ All deliverables are production-ready and integrated with existing Prometheus/Gr
 The dashboards and alerts reference 18 federation-specific metrics:
 
 ### Entity Resolution Metrics
+
 - `federation_entity_resolutions_total` - Counter: Total entity resolutions
 - `federation_entity_resolutions_errors` - Counter: Failed resolutions
 - `federation_entity_resolution_duration_us` - Histogram: Resolution latency
@@ -238,20 +253,24 @@ The dashboards and alerts reference 18 federation-specific metrics:
 - `federation_deduplication_ratio` - Gauge: Unique/total ratio
 
 ### Subgraph Communication Metrics
+
 - `federation_subgraph_requests_total` - Counter: Total requests
 - `federation_subgraph_requests_errors` - Counter: Failed requests
 - `federation_subgraph_request_duration_us` - Histogram: Request latency
 
 ### Mutation Metrics
+
 - `federation_mutations_total` - Counter: Total mutations
 - `federation_mutations_errors` - Counter: Failed mutations
 - `federation_mutation_duration_us` - Histogram: Mutation latency
 
 ### Caching Metrics
+
 - `federation_entity_cache_hits` - Counter: Cache hits
 - `federation_entity_cache_misses` - Counter: Cache misses
 
 ### Aggregate Metrics
+
 - `federation_errors_total` - Counter: All federation errors
 
 ---
@@ -261,6 +280,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 ### Critical Alerts (Immediate Response Required)
 
 #### EntityResolutionErrorRateHigh / SubgraphRequestErrorRateHigh
+
 1. Check Grafana dashboards for recent anomalies
 2. View federation logs (query entity resolution errors)
 3. Verify subgraph connectivity (ping subgraph health endpoints)
@@ -268,6 +288,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 5. Escalate to On-Call Engineer if persists > 5 minutes
 
 #### EntityResolutionComplete Failure
+
 1. **IMMEDIATE**: Check if federation service is running
 2. Verify database connectivity
 3. Check service logs for panics or fatal errors
@@ -275,6 +296,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 5. Page on-call engineer immediately
 
 #### SubgraphAvailabilityBelowSLO
+
 1. Check which subgraph(s) are affected (use logs)
 2. Verify network connectivity to subgraph
 3. Check subgraph health endpoints
@@ -284,6 +306,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 ### Warning Alerts (Investigation Required)
 
 #### EntityResolutionLatencySLOBreach
+
 1. Check Grafana for database query duration spikes
 2. Review database metrics (CPU, memory, connection pool)
 3. Check for unoptimized queries via query logs
@@ -291,6 +314,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 5. Follow up within 1 hour if not self-healed
 
 #### SubgraphRequestLatencySLOBreach
+
 1. Check which subgraph is slow
 2. Contact subgraph team with timing data
 3. Review network latency metrics
@@ -302,6 +326,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 ## Dashboard Setup & Deployment
 
 ### Prerequisites
+
 - Prometheus with federation metrics scraping configured
 - Grafana 8.0+ with Prometheus datasource
 - Alert notification channels (Slack, PagerDuty, email)
@@ -436,6 +461,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 ## Next Steps
 
 ### Immediate Actions (Before Production)
+
 1. Import dashboards into Grafana
 2. Configure alert notification channels
 3. Set up PagerDuty/Slack integration
@@ -443,6 +469,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 5. Train on-call team on alerts
 
 ### Phase 7: End-to-End Integration Testing
+
 - Complete federation query flow with observability
 - Verify spans appear in Jaeger
 - Verify metrics in Prometheus
@@ -450,6 +477,7 @@ The dashboards and alerts reference 18 federation-specific metrics:
 - Test alert triggering with synthetic load
 
 ### Continuous Monitoring
+
 - Review alert effectiveness weekly
 - Tune thresholds based on baselines
 - Update runbooks with new findings

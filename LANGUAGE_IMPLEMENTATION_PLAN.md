@@ -191,6 +191,7 @@ fraiseql-cli compile fraiseql.toml --output schema.compiled.json
 ## Configuration
 
 All configuration now lives in `fraiseql.toml`:
+
 - Security (RBAC, ABAC, custom rules)
 - Federation (entities, relationships)
 - Observers (event handlers)
@@ -212,6 +213,7 @@ class Email(str):
 ```
 
 ### Effort Estimate: 2-3 days
+
 - Remove 5000 LOC of config code
 - Simplify decorators
 - Update tests and docs
@@ -226,6 +228,7 @@ class Email(str):
 **Timeline**: 3 days
 
 #### Key Changes
+
 1. Remove federation/observers/security/analytics modules
 2. Update decorators to be type-definition only
 3. Simplify schema export to types.json
@@ -245,6 +248,7 @@ Same pattern as Python - types + queries in code, everything else in TOML.
 **Timeline**: 2-3 days
 
 #### Key Changes
+
 1. Remove federation/security/observer builders
 2. Keep annotation-based type definitions
 3. Simplify configuration
@@ -389,6 +393,7 @@ fraiseql-cli compile fraiseql.toml
 ```
 
 #### Effort Estimate: 2 days
+
 - Simplify tag system
 - Write JSON exporter
 - Create minimal tests
@@ -818,6 +823,7 @@ fn compile(schema: Schema) -> Result<CompiledSchema> {
 ### For Each Language Tier
 
 #### Tier 1 (Python, TypeScript, Java)
+
 - ✅ Reduced to <4000 LOC each
 - ✅ Export types.json (not full schema.json)
 - ✅ All config moves to TOML
@@ -826,6 +832,7 @@ fn compile(schema: Schema) -> Result<CompiledSchema> {
 - ✅ Tests pass for type/query definitions
 
 #### Tier 2 (Go, PHP, Ruby, Kotlin, C#, Rust)
+
 - ✅ Implemented in 500-1000 LOC each
 - ✅ Generate types.json from language structures
 - ✅ Pass 10+ tests covering type system
@@ -833,6 +840,7 @@ fn compile(schema: Schema) -> Result<CompiledSchema> {
 - ✅ Work with fraiseql-cli
 
 #### Tier 3 (Node.js, Dart, Elixir, Swift)
+
 - ✅ Implemented in 300-500 LOC each
 - ✅ Builder API for type/query definition
 - ✅ Generate types.json
@@ -840,12 +848,14 @@ fn compile(schema: Schema) -> Result<CompiledSchema> {
 - ✅ README with examples
 
 #### Tier 4 (Scala, Groovy, Clojure)
+
 - ✅ YAML schema support
 - ✅ TOML includes YAML definitions
 - ✅ fraiseql-cli merges YAML + TOML
 - ✅ No language-specific code needed
 
 ### Cross-Cutting
+
 - ✅ fraiseql-cli supports TOML + types.json merger
 - ✅ All 16 languages produce compatible types.json
 - ✅ Complete TOML documentation

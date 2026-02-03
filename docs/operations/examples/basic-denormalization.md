@@ -344,6 +344,7 @@ ANALYZE tf_sales;
 
 -- ------------------------------------------------------------
 -- Rollback (if needed):
+
 -- ------------------------------------------------------------
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
@@ -387,6 +388,7 @@ GO
 
 -- ------------------------------------------------------------
 -- Rollback (if needed):
+
 -- ------------------------------------------------------------
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id ON tf_sales;
 -- GO
@@ -537,6 +539,7 @@ git commit -m "feat: denormalize region_id for 12.5x speedup
 Migrated dimensions->>'region' to direct region_id column.
 
 Impact:
+
 - 8,500 queries/day affected
 - p95 latency: 1,250ms → 100ms (12.7x improvement)
 - Storage cost: +15 MB

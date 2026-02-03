@@ -463,6 +463,7 @@ async def coordinate_multi_region_deployment():
 **Problem**: `ConnectionError: Failed to connect to NATS`
 
 **Solutions**:
+
 1. Verify NATS is running: `docker-compose ps nats`
 2. Check NATS_SERVERS is correct: `echo $NATS_SERVERS`
 3. Verify network connectivity: `curl http://localhost:8222/varz`
@@ -473,6 +474,7 @@ async def coordinate_multi_region_deployment():
 **Problem**: Published events not reaching handlers
 
 **Solutions**:
+
 1. Verify event filter matches: Check EventFilter conditions
 2. Check subscriber registration: `registry.get_subscription_count()`
 3. Review NATS stream subscriptions
@@ -484,6 +486,7 @@ async def coordinate_multi_region_deployment():
 **Problem**: `Error: stream limit exceeded`
 
 **Solutions**:
+
 1. Check disk space: `df -h /data/nats`
 2. Adjust retention: Update `NATS_*_EVENTS_RETENTION` env vars
 3. Reduce max stream size: Update `NATS_STREAM_MAX_SIZE`
@@ -494,6 +497,7 @@ async def coordinate_multi_region_deployment():
 **Problem**: Handlers registered but not called
 
 **Solutions**:
+
 1. Verify handler registration: `registry.get_subscriptions_for_event_type("event.type")`
 2. Check async/sync mismatch: Ensure `is_async=True` for async handlers
 3. Review handler exceptions: Check logs for errors

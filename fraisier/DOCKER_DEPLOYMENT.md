@@ -48,6 +48,7 @@ The Dockerfile uses a multi-stage build for optimal image size:
 2. **Runtime Stage**: Minimal image with only runtime dependencies
 
 This results in:
+
 - Smaller image size (~500MB vs 1.5GB)
 - Better security (no build tools in production)
 - Faster deployments
@@ -126,6 +127,7 @@ curl http://localhost:8001/metrics
 ### Grafana Dashboards
 
 Grafana is automatically configured with:
+
 - **Fraisier Deployments Dashboard**: Shows deployment metrics, error rates, latency
 - **System Metrics**: CPU, memory, disk usage
 
@@ -169,6 +171,7 @@ docker exec fraisier-postgres pg_isready -U fraisier -d fraisier
 ### Automatic Setup
 
 The PostgreSQL initialization script (`scripts/postgres-init.sql`) automatically:
+
 - Creates necessary extensions (uuid-ossp, pg_trgm)
 - Creates schemas and tables
 - Sets up indexes and permissions
@@ -239,6 +242,7 @@ docker-compose restart prometheus
 ### Custom Prometheus Configuration
 
 Edit `monitoring/prometheus.yml` to:
+
 - Add custom scrape targets
 - Configure alerting
 - Add custom dashboards
@@ -350,9 +354,11 @@ postgres:
 
 ```bash
 # Increase retention
+
 --storage.tsdb.retention.time=30d
 
 # Increase scrape parallelism
+
 --query.max-concurrency=20
 ```
 
@@ -367,6 +373,7 @@ grafana:
 ## CI/CD Integration
 
 See `.github/workflows/ci.yml` for GitHub Actions pipeline that:
+
 - Runs tests on every PR
 - Builds Docker image
 - Pushes to registry

@@ -59,6 +59,7 @@ fraisier.[event_type].[region]
 ```
 
 **Examples**:
+
 - `fraisier.deployment.started.us-east-1`
 - `fraisier.health_check.passed.us-west-2`
 - `fraisier.deployment.failed.default`
@@ -103,6 +104,7 @@ All events share a common structure:
 ```
 
 **Top-Level Fields**:
+
 - `event_id` (string): Unique event identifier
 - `event_type` (string): Type of event (e.g., deployment.started)
 - `timestamp` (ISO 8601): When event occurred
@@ -148,6 +150,7 @@ Emitted when a deployment begins.
 ```
 
 **Typical Handlers**:
+
 - Log deployment start
 - Notify Slack/Discord
 - Create monitoring dashboard
@@ -196,6 +199,7 @@ Emitted when a deployment finishes successfully.
 ```
 
 **Typical Handlers**:
+
 - Send success notification
 - Record deployment in database
 - Update dashboard
@@ -244,6 +248,7 @@ Emitted when a deployment fails.
 ```
 
 **Typical Handlers**:
+
 - Send critical alert (Slack, PagerDuty)
 - Create incident in issue tracker
 - Trigger automatic rollback (if not already done)

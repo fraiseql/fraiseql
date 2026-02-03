@@ -52,12 +52,14 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 ### For GraphQL API Teams
 
 **[SQL Projection Optimization](./projection-optimization.md)**
+
 - How projection works
 - Best practices for query design
 - Troubleshooting and FAQ
 - Real-world examples
 
 **[Connection Pool Tuning](./connection-pool-tuning.md)**
+
 - Pool size configuration
 - Monitoring and alerts
 - Optimization techniques
@@ -66,6 +68,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 ### For DevOps / Infrastructure
 
 **[Migration & Deployment](../deployment/migration-projection.md)**
+
 - Zero-breaking-changes upgrade path
 - Performance testing methodology
 - Rollback procedures
@@ -74,6 +77,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 ### For Engineers / Researchers
 
 **[Benchmark Results](./projection-baseline-results.md)**
+
 - Raw performance data
 - Statistical methodology
 - Database-specific analysis
@@ -89,6 +93,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 ```
 
 **Expected**:
+
 - Latency: 50-100ms p95
 - Throughput: 1K-5K req/s
 - Memory: Low (small pool)
@@ -103,11 +108,13 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 ```
 
 **Expected**:
+
 - Latency: 20-50ms p95
 - Throughput: 5K-20K req/s
 - Memory: Moderate
 
 **Tuning**:
+
 1. Run load tests
 2. Monitor pool utilization
 3. Adjust pool size if needed
@@ -122,11 +129,13 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 ```
 
 **Expected**:
+
 - Latency: 10-30ms p95
 - Throughput: 20K+ req/s
 - Memory: Optimized
 
 **Tuning**:
+
 1. Pre-warm pool on startup
 2. Monitor pool metrics
 3. Set up alerts
@@ -208,6 +217,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 **Symptoms**: Errors about too many connections
 
 **Solutions**:
+
 1. Increase pool size
 2. Optimize slow queries
 3. Add indexes to database
@@ -365,6 +375,7 @@ FROM query_log WHERE timestamp > now() - interval 1 minute"'
 ---
 
 **Next**: Choose a guide above based on your role:
+
 - 👨‍💻 **Developer**: Read [Projection Optimization](./projection-optimization.md)
 - 🏗️ **Architect**: Read [Connection Pool Tuning](./connection-pool-tuning.md)
 - 🚀 **DevOps**: Read [Migration Guide](../deployment/migration-projection.md)

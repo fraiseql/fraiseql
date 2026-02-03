@@ -65,6 +65,7 @@ Choose the deployment strategy that matches your risk tolerance:
 **Rollback Effort**: Minimal
 
 **Timeline**:
+
 - **Week 1**: Deploy to non-production (staging/test)
 - **Week 2**: Deploy to 10% of production capacity
 - **Week 3**: Monitor metrics, deploy to 50%
@@ -72,6 +73,7 @@ Choose the deployment strategy that matches your risk tolerance:
 - **Weeks 5-6**: Stabilization and optimization
 
 **Phases**:
+
 1. Checkpoints enabled only (safety first)
 2. Add concurrent execution (performance)
 3. Add deduplication (correctness)
@@ -86,11 +88,13 @@ Choose the deployment strategy that matches your risk tolerance:
 **Rollback Effort**: Significant
 
 **Timeline**:
+
 - **Day 1**: Build and test
 - **Day 2**: Production deployment
 - **Days 3-7**: Stabilization
 
 **Prerequisites**:
+
 - All Phase 1-7 systems stable
 - Experienced operations team
 - Comprehensive monitoring
@@ -103,11 +107,13 @@ Choose the deployment strategy that matches your risk tolerance:
 **Rollback Effort**: Easy
 
 **Canary Phases**:
+
 - **Week 1**: Canary to 5% traffic
 - **Week 2**: Expand to 25% traffic
 - **Week 3**: 100% traffic
 
 **Monitoring**:
+
 - Compare canary vs baseline metrics
 - Watch for anomalies
 - Hold at each step for 48 hours

@@ -7,12 +7,14 @@
 ## Problem Statement
 
 **Without Job Queue**:
+
 - Long-running actions block event processing
 - No way to process actions with long timeouts
 - Failed actions don't retry automatically
 - Worker capacity unconstrained
 
 **With Job Queue**:
+
 - Actions enqueued asynchronously
 - Worker pool processes jobs concurrently
 - Exponential backoff retries (configurable)
@@ -48,16 +50,19 @@ Action execution
 ### Three Trait Abstractions
 
 **1. JobQueue Trait**
+
 - Abstract job persistence and retrieval
 - Redis implementation (RedisPersistentJobQueue)
 - Support for multiple workers
 
 **2. JobWorker Trait**
+
 - Worker pool implementation
 - Handles job execution and retries
 - Per-job timeout support
 
 **3. JobRetryPolicy Trait**
+
 - Configurable retry strategies
 - Exponential backoff
 - Maximum attempt limits
@@ -65,6 +70,7 @@ Action execution
 ## Implementation Steps
 
 ### Step 1: Job Data Structures (40 lines)
+
 **File**: `src/queue/mod.rs`
 
 Create fundamental types:
@@ -101,11 +107,13 @@ pub struct JobResult {
 ```
 
 Tests (3):
+
 - test_job_creation
 - test_job_status_transitions
 - test_job_result_serialization
 
 ### Step 2: JobQueue Trait (100 lines)
+
 **File**: `src/queue/mod.rs`
 
 Abstract queue interface:
@@ -146,12 +154,14 @@ pub struct QueueStats {
 ```
 
 Tests (4):
+
 - test_enqueue_job
 - test_dequeue_order
 - test_mark_success
 - test_stats_calculation
 
 ### Step 3: Redis JobQueue Implementation (250 lines)
+
 **File**: `src/queue/redis.rs`
 
 Redis-backed persistent queue:
@@ -178,12 +188,14 @@ impl RedisJobQueue {
 ```
 
 Key operations:
+
 - Use Redis BLMOVE for atomic dequeue+move to processing
 - Store job metadata in Redis hashes
 - Sorted sets for retry scheduling by timestamp
 - Use Lua scripts for atomic operations
 
 Tests (6):
+
 - test_redis_enqueue
 - test_redis_dequeue
 - test_redis_mark_processing
@@ -192,6 +204,7 @@ Tests (6):
 - test_redis_deadletter
 
 ### Step 4: Retry Policy Trait (60 lines)
+
 **File**: `src/queue/mod.rs`
 
 Configurable retry strategies:
@@ -236,6 +249,7 @@ pub struct FixedBackoffPolicy {
 ```
 
 Tests (5):
+
 - test_exponential_backoff_calculation
 - test_exponential_backoff_cap
 - test_linear_backoff
@@ -243,6 +257,7 @@ Tests (5):
 - test_no_retry_after_max_attempts
 
 ### Step 5: Worker Pool (200 lines)
+
 **File**: `src/queue/worker.rs`
 
 Concurrent job processing:
@@ -335,6 +350,7 @@ where
 ```
 
 Tests (8):
+
 - test_worker_processes_job
 - test_worker_handles_success
 - test_worker_handles_failure_with_retry
@@ -345,6 +361,7 @@ Tests (8):
 - test_worker_error_recovery
 
 ### Step 6: JobWorkerPool Manager (150 lines)
+
 **File**: `src/queue/worker.rs`
 
 Manage multiple worker instances:
@@ -407,12 +424,14 @@ where
 ```
 
 Tests (4):
+
 - test_pool_starts_workers
 - test_pool_processes_jobs
 - test_pool_stops_gracefully
 - test_pool_stats
 
 ### Step 7: Action Integration (80 lines)
+
 **File**: `src/executor.rs`
 
 Integrate queue with observer executor:
@@ -462,14 +481,17 @@ impl ObserverExecutor {
 ```
 
 Tests (3):
+
 - test_quick_action_inline
 - test_slow_action_queued
 - test_queue_disabled_inline
 
 ### Step 8: Tests & Integration (150 lines)
+
 **File**: `src/queue/tests.rs`
 
 Comprehensive test suite:
+
 - Job lifecycle tests (create → queue → process → success/retry/deadletter)
 - Worker pool tests (start, process, stop)
 - Retry policy tests (exponential, linear, fixed backoff)
@@ -477,6 +499,7 @@ Comprehensive test suite:
 - Integration tests (queue + executor + worker together)
 
 Test coverage targets:
+
 - Job creation and serialization: 3 tests
 - Queue operations: 6 tests
 - Retry policies: 5 tests
@@ -490,6 +513,7 @@ Test coverage targets:
 ## Dependencies Required
 
 Check if already in Cargo.toml:
+
 - `uuid` ✅ (already used for event IDs)
 - `chrono` ✅ (already used for timestamps)
 - `tokio` ✅ (already used for async)
@@ -536,24 +560,28 @@ phase8 = ["checkpoint", "dedup", "caching", "search", "queue", "metrics"]
 ## Success Criteria
 
 ✅ **Functional**:
+
 - [ ] Job enqueueing and dequeueing works
 - [ ] Retry policies calculate backoff correctly
 - [ ] Worker pool processes jobs concurrently
 - [ ] Dead letter queue captures failed jobs
 
 ✅ **Quality**:
+
 - [ ] 160+ tests passing (33 new)
 - [ ] 100% Clippy compliant
 - [ ] Zero unsafe code
 - [ ] All error paths tested
 
 ✅ **Performance**:
+
 - [ ] Job enqueue < 5ms
 - [ ] Job dequeue < 5ms
 - [ ] Worker processes 100+ jobs/sec
 - [ ] Minimal memory overhead per job
 
 ✅ **Reliability**:
+
 - [ ] Retries work with exponential backoff
 - [ ] Dead letter queue for unrecoverable failures
 - [ ] Worker graceful shutdown

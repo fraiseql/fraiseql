@@ -73,6 +73,7 @@ impl StateStore for InMemoryStateStore {
 ```
 
 **Integration Steps**:
+
 1. Create `StateEncryption` instance with generated/configured key
 2. Pass to `InMemoryStateStore::new()`
 3. Store encrypts before DashMap insertion
@@ -156,6 +157,7 @@ impl StateStore for RedisStateStore {
 ```
 
 **Integration Steps**:
+
 1. Add `StateEncryption` parameter to `RedisStateStore::new()`
 2. Encrypt plaintext before Redis SET
 3. Decrypt after Redis GET
@@ -210,6 +212,7 @@ let (_provider_name, expiry) = state.state_store.retrieve(&query.state).await?;
 **No Changes Needed**: The `retrieve()` method now handles decryption internally.
 
 The flow remains the same:
+
 1. Client sends `state` parameter (unencrypted, for lookup key)
 2. Server retrieves encrypted state from store
 3. Store automatically decrypts and verifies
@@ -221,6 +224,7 @@ The flow remains the same:
 **Current**: Single key per deployment (sufficient for initial release)
 
 **Future Enhancement** (if needed):
+
 - Add key version byte to encrypted state
 - Support multiple keys during rotation period
 - Implement key versioning in EncryptedState format
@@ -275,6 +279,7 @@ STATE_ENCRYPTION_KEY=<base64-encoded-32-bytes>
 ### Backward Compatibility
 
 This is a **breaking change** for existing state stores:
+
 - All existing unencrypted states become invalid
 - Deploy with session reset (requires re-login)
 - OAuth flows in progress during deployment will fail

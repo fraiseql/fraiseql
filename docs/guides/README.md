@@ -9,15 +9,24 @@ Practical how-to guides for operators, developers, and DevOps teams.
 - **[Language Generators](language-generators.md)** — Schema authoring in Python, TypeScript, Go, Java, PHP
 - **[Patterns](PATTERNS.md)** — Common schema design patterns and best practices
 
+## 🎯 Evaluation & Decision Making
+
+**Before you start building:**
+
+- **[Choosing FraiseQL](choosing-fraiseql.md)** — Is FraiseQL right for your project? Use case analysis and decision matrix
+- **[Consistency Model](consistency-model.md)** — Understand FraiseQL's CAP theorem choice (CP: Consistency + Partition Tolerance)
+
 ## 🛠️ Development Guides
 
 ### Testing & Profiling
+
 - **[Testing Strategy](testing-strategy.md)** — Unit, integration, E2E, and performance testing
 - **[E2E Testing](development/e2e-testing.md)** — End-to-end testing with real services
 - **[Profiling Guide](development/PROFILING_GUIDE.md)** — Profile and optimize code
 - **[Benchmarking](development/benchmarking.md)** — Performance benchmarking with Criterion
 
 ### Code Quality
+
 - **[Linting](development/LINTING.md)** — Code quality and linting standards
 - **[Test Coverage](development/TEST_COVERAGE.md)** — Measure and improve test coverage
 - **[Developer Guide](development/DEVELOPER_GUIDE.md)** — Development environment setup
@@ -32,6 +41,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 ## 🔗 Integrations
 
 See [Integrations Guide](../integrations/) for:
+
 - **Federation** — Multi-database composition with SAGA patterns
 - **Authentication** — Auth0, Google, Keycloak, SCRAM setup
 - **Arrow Flight** — High-performance analytics integration
@@ -48,6 +58,8 @@ See [Integrations Guide](../integrations/) for:
 
 **I want to...**
 
+- **Evaluate if FraiseQL is right for me** → [Choosing FraiseQL](choosing-fraiseql.md)
+- **Understand consistency guarantees** → [Consistency Model](consistency-model.md)
 - **Get started quickly** → [Language Generators](language-generators.md)
 - **Design a schema** → [Patterns](PATTERNS.md)
 - **Deploy to production** → [Production Deployment](production-deployment.md)

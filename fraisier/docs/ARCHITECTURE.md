@@ -52,6 +52,7 @@ Fraisier is a deployment orchestrator built as the reference implementation of a
 **Responsibility**: User interface for command-line operations
 
 **Commands**:
+
 - `fraisier list` - List all fraises
 - `fraisier deploy <fraise> <environment>` - Deploy a service
 - `fraisier status <fraise> <environment>` - Check status
@@ -61,6 +62,7 @@ Fraisier is a deployment orchestrator built as the reference implementation of a
 - `fraisier config validate` - Validate configuration
 
 **Architecture**:
+
 - Uses Click framework for CLI building
 - Delegates to deployers based on fraise type
 - Returns formatted output via Rich library
@@ -75,9 +77,11 @@ User Input → CLI Command → Config Loader → Deployer → Result
 **Responsibility**: Load and resolve fraise configurations
 
 **Key Classes**:
+
 - `FraisierConfig` - Main configuration loader
 
 **Features**:
+
 - Loads YAML from standard locations
 - Resolves hierarchical structure (fraise → environment → specific config)
 - Supports environment variable substitution
@@ -114,22 +118,26 @@ class BaseDeployer(ABC):
 **Implementations**:
 
 #### APIDeployer
+
 - **For**: Web services, APIs
 - **Operations**: Git pull, database migrations, systemd restart, health check
 - **Config**: app_path, systemd_service, git_repo, health_check
 
 #### ETLDeployer
+
 - **For**: Data processing pipelines
 - **Operations**: Git pull, script execution, log capture
 - **Config**: script_path, dependencies
 
 #### ScheduledDeployer
+
 - **For**: Cron jobs, timers
 - **Operations**: Schedule setup, execution, result recording
 - **Config**: schedule, script, dependencies
 
 **Deployment Flow**:
 ```
+
 1. Load fraise configuration
 2. Get current version (what's running)
 3. Get latest version (from git/source)
@@ -186,6 +194,7 @@ class WebhookEvent:
 ```
 
 **Provider Registry**:
+
 - Dynamic provider loading
 - Auto-detection from webhook headers
 - Pluggable architecture for custom providers
@@ -308,6 +317,7 @@ Database Recording
 ```
 
 **Endpoints**:
+
 - `POST /webhook` - Universal endpoint (auto-detects provider)
 - `POST /webhook?provider=github` - Explicit provider
 - `GET /health` - Health check
@@ -414,6 +424,7 @@ result = deployer.execute()
 ```
 
 **Benefits**:
+
 - Easy to add new fraise types
 - Each type encapsulates logic
 - Consistent interface
@@ -427,6 +438,7 @@ event = provider.parse_webhook_event(headers, payload)
 ```
 
 **Benefits**:
+
 - Universal webhook endpoint
 - Support any Git platform
 - Extensible for custom providers
@@ -444,6 +456,7 @@ history = db.get_recent_deployments()
 ```
 
 **Benefits**:
+
 - Clean separation of concerns
 - Write operations are events
 - Read views can be optimized independently
@@ -457,6 +470,7 @@ fraise = config.get_fraise("my_api")
 ```
 
 **Benefits**:
+
 - Single source of truth
 - Easy to swap implementations
 - Testable

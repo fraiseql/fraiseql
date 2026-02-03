@@ -11,6 +11,7 @@ docker compose -f docker-compose.demo.yml up -d
 ```
 
 Then open:
+
 - **GraphQL IDE**: http://localhost:3000
 - **Tutorial**: http://localhost:3001
 - **FraiseQL Server**: http://localhost:8000
@@ -23,6 +24,7 @@ See [../docs/docker-quickstart.md](../docs/docker-quickstart.md) for detailed in
 
 **Purpose**: Newcomer onboarding platform
 **Services**:
+
 - PostgreSQL 16 (blog database)
 - FraiseQL Server (GraphQL API)
 - Apollo Sandbox (GraphQL IDE)
@@ -47,6 +49,7 @@ docker compose -f docker-compose.demo.yml down -v
 
 **Purpose**: Development and integration testing
 **Services**:
+
 - PostgreSQL 16 (primary test database)
 - MySQL 8.0 (multi-database testing)
 - SQL Server 2022 (enterprise testing)
@@ -68,6 +71,7 @@ docker compose --profile with-server --profile with-redis --profile with-nats up
 
 **Purpose**: Comprehensive testing with all integrations
 **Services**:
+
 - PostgreSQL 16 with pgvector extension
 - MySQL 8.3
 - SQL Server 2022
@@ -207,6 +211,7 @@ Clear browser cache or try incognito window. The IDE needs JavaScript enabled.
 ## Docker Network
 
 All demo services run on the `fraiseql-demo` network, allowing inter-service communication by hostname:
+
 - `postgres-blog` - PostgreSQL from server/tutorial
 - `fraiseql-server` - GraphQL API from tutorial
 - `tutorial` - Tutorial server

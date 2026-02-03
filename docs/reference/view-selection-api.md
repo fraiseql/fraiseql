@@ -420,6 +420,7 @@ client.do_get(flight.Ticket(json.dumps({
 **Function**: `@fraiseql.type(view: str = None)`
 
 **Parameters**:
+
 - `view` (optional): View name to use (e.g., "v_user", "tv_user_profile")
 - Default: Infers from type name (e.g., `User` → `v_user`)
 

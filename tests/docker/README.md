@@ -51,6 +51,7 @@ docker compose down -v
 All databases use test credentials for development:
 
 ### PostgreSQL
+
 - **Host**: localhost:5433 (Docker) → 5432 (container)
 - **User**: test_user
 - **Password**: test_password
@@ -64,6 +65,7 @@ postgresql://test_user:test_password@localhost:5433/fraiseql
 **Note**: Port 5433 is used to avoid conflicts if you have PostgreSQL running on the host system on the default port 5432.
 
 ### MySQL
+
 - **Host**: localhost:3306
 - **User**: test_user
 - **Password**: test_password
@@ -76,6 +78,7 @@ mysql://test_user:test_password@localhost:3306/fraiseql
 ```
 
 ### SQL Server
+
 - **Host**: localhost:1433
 - **User**: sa (System Administrator)
 - **Password**: SqlServer@123

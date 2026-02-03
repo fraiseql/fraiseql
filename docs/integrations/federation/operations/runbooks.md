@@ -75,6 +75,7 @@ LIMIT 5;
 ```
 
 **Action Items**:
+
 - Check database CPU/Memory utilization
 - Look for missing indexes on key columns
 - Review table statistics (analyze table)
@@ -95,6 +96,7 @@ curl -s https://subgraph-users.internal/metrics | grep http_requests_total
 ```
 
 **Action Items**:
+
 - Contact subgraph team with timing data
 - Check network routing (geo proximity)
 - Consider caching strategy for frequently-accessed entities
@@ -153,6 +155,7 @@ kubectl logs -l app=fraiseql --all-containers --tail=1000 | \
 ## High Error Rate Response
 
 **Alerts**:
+
 - `EntityResolutionErrorRateHigh` (>1%)
 - `SubgraphRequestErrorRateHigh` (>5%)
 - `MutationErrorRateHigh` (>1%)
@@ -317,6 +320,7 @@ grep -r "CACHE.*TTL\|CACHE.*TIMEOUT" src/
 ### Resolution
 
 **For Query Pattern Change**:
+
 - Update alert threshold based on new baseline
 - Document new query patterns
 - Consider caching strategy adjustments
@@ -615,6 +619,7 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
 
 ```yaml
 # prometheus-rules.yml
+
 - alert: EntityResolutionLatencySLOBreach
   expr: histogram_quantile(0.99, rate(federation_entity_resolution_duration_us[5m])) / 1000 > 52 * 1.5  # 50% above baseline
   for: 5m
@@ -646,6 +651,7 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
 ### Tuning Process
 
 ```
+
 1. Establish baseline (see above)
 2. Set initial threshold at baseline + 50%
 3. Monitor for false positives over 1 week
@@ -717,6 +723,7 @@ for: 15m  # Also increased duration for stability
 **Threshold**: 75ms p99
 
 **Rationale**:
+
 - SLO target: 100ms
 - Historical baseline: 52ms
 - Threshold: 75ms (43% above baseline, 25% below SLO)
@@ -728,6 +735,7 @@ for: 15m  # Also increased duration for stability
 **Response Time**: 15 minutes (avg, from alert to investigation start)
 
 **Root Causes**:
+
 - Database index missing (most common)
 - Subgraph latency high
 - High deduplication overhead (many unique entities)

@@ -27,6 +27,7 @@ auth_start_max_requests = 100
 ```
 
 This configuration is then:
+
 1. Compiled into `schema.json` during the build process
 2. Baked into `schema.compiled.json` by the Rust CLI
 3. Read by the runtime server and applied to all requests
@@ -137,6 +138,7 @@ Tracks security-relevant events for compliance and monitoring.
 | `flush_interval_secs` | integer | 5 | Seconds between automatic flushes |
 
 **Events Logged**:
+
 - JWT validations
 - OIDC provider interactions
 - Session token creation/validation
@@ -158,6 +160,7 @@ Prevents information leakage through error messages.
 | `user_facing_format` | string | "generic" | Error message format: "generic", "simple", "detailed" |
 
 **User-Facing Messages**:
+
 - Generic: "Authentication failed"
 - Simple: "Invalid credentials"
 - Detailed: "JWT signature verification failed" (not recommended)
@@ -183,6 +186,7 @@ Protects authentication endpoints from brute-force attacks.
 | `failed_login_window_secs` | integer | 3600 | 1 hour (immutable) |
 
 **Limits Apply To**:
+
 - Per-IP: Public authentication endpoints (/auth/start, /auth/callback)
 - Per-User: Authenticated endpoints (/auth/refresh, /auth/logout)
 - Per-User: Failed login attempts (5 failures = 1 hour lockout)
@@ -200,6 +204,7 @@ Encrypts OAuth state parameter to prevent CSRF and state tampering.
 | `key_size` | integer | 32 | Key size in bytes: 256-bit (immutable) |
 
 **Key Management**:
+
 - Key cannot be stored in TOML (security risk)
 - Must be provided via `STATE_ENCRYPTION_KEY` environment variable
 - Generate: `openssl rand -base64 32`
@@ -385,12 +390,14 @@ The TOML configuration is validated at **compile time**:
 ### Validation Rules
 
 ✅ **Always Enforced**:
+
 - `leak_sensitive_details` must be `false` (security constraint)
 - Rate limit windows must be positive
 - Key sizes must be 16, 24, or 32 bytes
 - Nonce size must be 12 bytes
 
 ❌ **Compilation Fails If**:
+
 - `fraiseql.toml` cannot be parsed
 - `leak_sensitive_details = true`
 - Any rate limit window is 0 or negative
@@ -410,17 +417,20 @@ Failed to compile schema
 ## Security Guarantees
 
 ✅ **Compile-Time**:
+
 - All configurations validated before deployment
 - Dangerous settings (like leaking details) rejected
 - Invalid configurations prevent compilation
 
 ✅ **Runtime**:
+
 - Security policies immutable once compiled
 - Environment variables can only override values, not disable security
 - Constant-time operations always enabled
 - Error sanitization always applied
 
 ✅ **Deployment**:
+
 - All security settings in version control (except encryption keys)
 - Changes require recompilation
 - Environment variables for sensitive data only
@@ -438,6 +448,7 @@ Failed to compile schema
 ## Migration from Previous Versions
 
 If upgrading from v2.0:
+
 - Create `fraiseql.toml` with security section
 - Copy your authorization/federation configuration
 - Run `fraiseql compile` to generate new schema

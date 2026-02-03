@@ -214,6 +214,7 @@ Throughput: 274 Kelem/s (19% improvement ⚡)
 ### Supported Scenarios
 
 ✅ Works with:
+
 - All GraphQL queries (automatically optimized)
 - Nested field selections
 - Aliases
@@ -303,6 +304,7 @@ A: Yes, it's been extensively tested. No breaking changes or behavioral changes.
 **Problem**: You don't see `jsonb_build_object` in logs
 
 **Solutions**:
+
 1. Check log level: `RUST_LOG=fraiseql_core::runtime=debug`
 2. Check database: Non-PostgreSQL uses server-side fallback
 3. Check query: Introspection queries don't use projection
@@ -330,6 +332,7 @@ A: Yes, it's been extensively tested. No breaking changes or behavioral changes.
 **Problem**: Results look different after upgrade
 
 **Answer**: This shouldn't happen. Please report a bug with:
+
 - Example query
 - Expected vs actual results
 - Database type & version
@@ -353,6 +356,7 @@ A: Yes, it's been extensively tested. No breaking changes or behavioral changes.
 ---
 
 **Related Documentation**:
+
 - [Projection Optimization Guide](../performance/projection-optimization.md)
 - [Performance Baselines](../performance/projection-baseline-results.md)
 - [Deployment Guide](./README.md)

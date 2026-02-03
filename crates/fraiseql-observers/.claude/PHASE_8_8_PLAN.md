@@ -7,6 +7,7 @@
 ## Problem Statement
 
 **Without Circuit Breaker**:
+
 - Cascading failures when downstream services are unavailable
 - Continuous retry attempts against failing services waste resources
 - No automatic recovery or graceful degradation
@@ -14,6 +15,7 @@
 - Hard to maintain stability under failure conditions
 
 **With Circuit Breaker**:
+
 - Fast fail when services are unavailable (fail-fast principle)
 - Automatic recovery with exponential backoff
 - Graceful degradation with fallback options
@@ -73,6 +75,7 @@ Circuit Breaker Metrics
 ## Implementation Steps
 
 ### Step 1: Circuit Breaker Core (100 lines)
+
 **File**: `src/resilience/mod.rs`
 
 Core state machine and configuration:
@@ -118,12 +121,14 @@ impl CircuitBreaker {
 ```
 
 Tests (4):
+
 - test_circuit_breaker_closed_state
 - test_circuit_breaker_open_state
 - test_circuit_breaker_half_open_recovery
 - test_circuit_breaker_timeout_calculation
 
 ### Step 2: Action Executor Integration (80 lines)
+
 **File**: `src/traits.rs` (modifications)
 
 Wrap ActionExecutor with circuit breaker:
@@ -155,6 +160,7 @@ impl<E: ActionExecutor> ActionExecutor for CircuitBreakerActionExecutor<E> {
 ```
 
 Tests (5):
+
 - test_circuit_breaker_action_executor_closed
 - test_circuit_breaker_action_executor_open
 - test_circuit_breaker_action_executor_half_open
@@ -162,6 +168,7 @@ Tests (5):
 - test_circuit_breaker_recovery_process
 
 ### Step 3: Per-Endpoint Circuit Breakers (100 lines)
+
 **File**: `src/resilience/per_endpoint.rs`
 
 Manage separate circuit breakers per endpoint/service:
@@ -188,12 +195,14 @@ impl PerEndpointCircuitBreaker {
 ```
 
 Tests (4):
+
 - test_per_endpoint_independent_breakers
 - test_per_endpoint_state_isolation
 - test_per_endpoint_reset
 - test_per_endpoint_statistics
 
 ### Step 4: Resilience Strategies (80 lines)
+
 **File**: `src/resilience/strategies.rs`
 
 Different failure handling strategies:
@@ -224,6 +233,7 @@ impl ResilientExecutor {
 ```
 
 Tests (5):
+
 - test_strategy_fail_fast
 - test_strategy_fallback
 - test_strategy_retry_with_breaker
@@ -231,6 +241,7 @@ Tests (5):
 - test_strategy_metrics_tracking
 
 ### Step 5: Graceful Degradation (60 lines)
+
 **File**: `src/resilience/degradation.rs`
 
 Graceful service degradation under load:
@@ -259,12 +270,14 @@ pub enum DegradationLevel {
 ```
 
 Tests (4):
+
 - test_degradation_levels
 - test_degradation_automatic_transition
 - test_degradation_recovery
 - test_degradation_with_fallback
 
 ### Step 6: Configuration (50 lines)
+
 **File**: `src/config.rs` (modifications)
 
 Add circuit breaker configuration:
@@ -297,13 +310,16 @@ impl Default for CircuitBreakerConfig {
 ```
 
 Tests (2):
+
 - test_circuit_breaker_config_defaults
 - test_circuit_breaker_config_validation
 
 ### Step 7: Comprehensive Tests (150 lines)
+
 **File**: `src/resilience/tests.rs`
 
 Full test coverage:
+
 - State transition tests (6)
 - Failure rate calculation tests (4)
 - Per-endpoint isolation tests (4)
@@ -315,6 +331,7 @@ Full test coverage:
 ## Dependencies Required
 
 Check Cargo.toml:
+
 - `dashmap` ✅ (already present for concurrent collections)
 - `tokio` ✅ (already present for async/await)
 
@@ -357,6 +374,7 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics", "resil
 ## Success Criteria
 
 ✅ **Functional**:
+
 - [ ] Circuit breaker correctly transitions between states
 - [ ] Failure rate calculation is accurate
 - [ ] Per-endpoint isolation working
@@ -364,17 +382,20 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics", "resil
 - [ ] Graceful degradation level transitions
 
 ✅ **Quality**:
+
 - [ ] 175+ tests passing (23 new)
 - [ ] 100% Clippy compliant
 - [ ] Zero unsafe code
 - [ ] All error paths tested
 
 ✅ **Performance**:
+
 - [ ] State check < 1μs
 - [ ] Metrics update < 10μs
 - [ ] No memory leaks on circuit state changes
 
 ✅ **Reliability**:
+
 - [ ] Circuit state survives component failures
 - [ ] Per-endpoint breakers independent
 - [ ] Graceful degradation smooth transitions

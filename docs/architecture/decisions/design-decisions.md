@@ -1034,6 +1034,7 @@ class Post:
 FraiseQL's architectural decisions stem from these core principles:
 
 ```
+
 1. Predictability: Same inputs, same outputs (determinism)
 2. Security: Deny by default, explicit allow
 3. Database-centric: Database as source of truth, not app

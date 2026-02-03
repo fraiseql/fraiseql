@@ -61,11 +61,13 @@ START: What query plane are you working in?
 ### GraphQL Queries
 
 **Simple Cases (Use v_*)**:
+
 - ✅ Query single user by ID → `v_user`
 - ✅ Query list of posts → `v_post`
 - ✅ Query user with one related entity → `v_user` (no deep nesting)
 
 **Complex Cases (Use tv_*)**:
+
 - ✅ User profile with posts, comments, and likes
 - ✅ Order with line items, customer, and shipment
 - ✅ Dashboard requiring pre-aggregated data
@@ -74,11 +76,13 @@ START: What query plane are you working in?
 ### Analytics Queries
 
 **Small Datasets (Use va_*)**:
+
 - ✅ Daily sales summary (computed once per day)
 - ✅ Weekly user metrics (5K rows)
 - ✅ Monthly revenue report (1K rows)
 
 **Large Datasets (Use ta_*)**:
+
 - ✅ 10M+ transaction history
 - ✅ 100K+ event stream (append-only)
 - ✅ Time-series analytics (millions of data points)
@@ -203,6 +207,7 @@ class User: ...
 ```
 
 **Before/After**:
+
 - **Before**: 3-5 second page load + database spike during peak traffic
 - **After**: 100-200ms page load, consistent performance
 
@@ -245,6 +250,7 @@ registry.get("ta_orders")
 ```
 
 **Before/After**:
+
 - **Before**: 5-10 second queries, dashboard timeouts, other queries blocked
 - **After**: 50-100ms queries, instant dashboard, no impact to OLTP
 
@@ -282,6 +288,7 @@ class User:
 ```
 
 **When to use which**:
+
 - Simple queries: `@fraiseql.type(view="v_user")` (no view specified)
 - Complex queries: `@fraiseql.type(view="tv_user_profile")` (explicit view)
 

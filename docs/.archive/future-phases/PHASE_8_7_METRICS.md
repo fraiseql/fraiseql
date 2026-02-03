@@ -94,6 +94,7 @@ Phase 8.7 adds comprehensive Prometheus metrics to the FraiseQL observer system,
   fraiseql_observer_action_duration_seconds_sum{action_type="webhook"} 850.5
   fraiseql_observer_action_duration_seconds_count{action_type="webhook"} 3500
   ```
+
 - **Use**: Monitor action performance and detect slowdowns
 - **Query**: `histogram_quantile(0.99, rate(fraiseql_observer_action_duration_seconds_bucket[5m]))`
 
@@ -243,12 +244,14 @@ fraiseql_observer_dlq_items > 10
 A pre-built Grafana dashboard is available at `docs/monitoring/grafana-dashboard-8.7.json`.
 
 Import into Grafana:
+
 1. Click "Create" → "Import"
 2. Upload `grafana-dashboard-8.7.json`
 3. Select your Prometheus data source
 4. Click "Import"
 
 Dashboard includes:
+
 - Event processing rates
 - Cache effectiveness gauges
 - Deduplication savings
@@ -345,6 +348,7 @@ This allows running without Prometheus in environments that don't need it.
 ## Next Steps
 
 After implementing Phase 8.7:
+
 - **Phase 8.6**: Job Queue System (uses metrics for monitoring)
 - **Phase 8.5**: Elasticsearch Integration
 - **Phase 8.8+**: Alerting, advanced observability, distributed tracing
@@ -362,6 +366,7 @@ Check that Prometheus is scraping the /metrics endpoint. Verify in Prometheus UI
 ### High cardinality warnings
 
 Label values are restricted to predefined enums to prevent cardinality explosion:
+
 - action_type: webhook, slack, email, sms, push, search, cache
 - error_type: execution_failed, permanently_failed, invalid_config, etc.
 

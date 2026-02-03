@@ -1,8 +1,10 @@
 # FraiseQL v2 Documentation
 
-**Version:** 2.0.0
-**Status:** Complete and production-ready
-**Last Updated:** February 1, 2026 (v2.0.0 Documentation Restructuring)
+**Version:** 2.0.0-alpha.1
+**Status:** Alpha release - Ready for community testing
+**Last Updated:** February 3, 2026
+
+> ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [ALPHA_LIMITATIONS.md](ALPHA_LIMITATIONS.md) for what's deferred. New to alpha? Start with the [Alpha Testing Guide](ALPHA_TESTING_GUIDE.md).
 
 ---
 
@@ -11,8 +13,10 @@
 **New to FraiseQL?** Start here:
 
 1. Read the main [README.md](../README.md) (5 minutes)
-2. Follow the [Reading Order Guide](reading-order.md) for your role
-3. Bookmark the [Glossary](GLOSSARY.md) for reference
+2. **[Alpha Testing Guide](ALPHA_TESTING_GUIDE.md)** ⭐ — How to test and provide feedback
+3. **[Alpha Limitations](ALPHA_LIMITATIONS.md)** — What's not in this release
+4. Follow the [Reading Order Guide](reading-order.md) for your role
+5. Bookmark the [Glossary](GLOSSARY.md) for reference
 
 ---
 
@@ -25,6 +29,7 @@
 Perfect for developers new to FraiseQL or those wanting deep architectural understanding.
 
 FraiseQL foundations documentation covers:
+
 - What is FraiseQL? — Understanding FraiseQL's compiled GraphQL approach
 - Core Concepts — Terminology and mental models
 - Database-Centric Architecture — View types (v_*, tv_*, va_*, ta_*), fact tables, calendar dimensions
@@ -45,6 +50,7 @@ FraiseQL foundations documentation covers:
 High-performance columnar data delivery for analytics and cross-language integration.
 
 See [integrations/arrow-flight/](integrations/arrow-flight/) for guides on:
+
 - Overview and quick start
 - System design and dual-dataplane architecture
 - Step-by-step tutorial
@@ -93,6 +99,8 @@ Detailed technical specifications for implementers.
 
 Practical how-to guides for operators, developers, and DevOps teams.
 
+- **Evaluation**: ⭐ **[Choosing FraiseQL](guides/choosing-fraiseql.md)** — Should you use FraiseQL? Use case analysis and decision matrix
+- **Architecture**: ⭐ **[Consistency Model](guides/consistency-model.md)** — Understanding FraiseQL's CAP theorem choice (Consistency + Partition Tolerance)
 - **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/PATTERNS.md)
 - **Deployment**: [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
 - **Operations**: [Monitoring](guides/monitoring.md), [Observability](guides/observability.md), [Analytics Patterns](guides/analytics-patterns.md)

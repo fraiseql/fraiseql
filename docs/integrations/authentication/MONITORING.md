@@ -5,6 +5,7 @@ This guide covers monitoring, logging, and observability for FraiseQL's authenti
 ## Overview
 
 FraiseQL provides built-in support for:
+
 - Structured event logging
 - Metrics collection
 - Performance monitoring

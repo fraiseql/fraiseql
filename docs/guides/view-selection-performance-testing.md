@@ -7,6 +7,7 @@
 **Duration**: 30-60 minutes per test
 
 **Related Guides in This Series**:
+
 - [Quick Reference](./view-selection-quick-reference.md) — Use to decide if testing is needed
 - [Migration Checklist](./view-selection-migration-checklist.md) — Use after testing to plan rollout
 
@@ -15,6 +16,7 @@
 ## Overview
 
 Before migrating from logical views (v_*, va_*) to table-backed views (tv_*, ta_*), you must validate that:
+
 1. The table-backed view is actually faster
 2. The speedup justifies the storage and maintenance overhead
 3. Performance is consistent under production load
@@ -83,6 +85,7 @@ GROUP BY DATE(created_at);
 ```
 
 **Document**:
+
 - Query set: ________________________
 - Expected use frequency: ________ per second
 - Data: Production size? ☐ Yes ☐ Partial (______%)
@@ -111,6 +114,7 @@ SELECT * FROM v_user_full WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 | I/O time (ms) | _____ | _____ | _____ | _____ |
 
 **Key Indicators to Look For**:
+
 - Sequential scans (slow): _____ count
 - Nested loop joins (often slow): _____ count
 - Sort operations (expensive): _____ count
@@ -149,6 +153,7 @@ print(f"Average: {avg_time:.2f}ms, Min: {min_time:.2f}ms, Max: {max_time:.2f}ms,
 ```
 
 **Record**:
+
 - Average time (10 runs): ______ ms
 - Min: ______ ms
 - Max: ______ ms
@@ -271,6 +276,7 @@ SELECT * FROM tv_user_profile WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 | I/O time (ms) | _____ | vs _____ | _____ % less |
 
 **Decision Point**:
+
 - Is tv_* faster? ☐ Yes | ☐ No
 - Speedup >= 5x? ☐ Yes | ☐ No (if not, investigate)
 
@@ -287,6 +293,7 @@ print(f"Speedup: {mean(times_v) / mean(times_tv):.1f}x")
 ```
 
 **Record**:
+
 - Average time (10 runs): ______ ms
 - vs Logical view: ______ x faster
 - Consistency: ☐ Stable (<20% variance) | ☐ Inconsistent (investigate)
@@ -350,6 +357,7 @@ print(f"Refresh latency: {latency:.0f}ms")
 ```
 
 **Record**:
+
 - Refresh strategy: ☐ Trigger | ☐ Scheduled
 - Refresh latency: ______ ms (target: <100ms for trigger, <5min for scheduled)
 - Acceptable? ☐ Yes | ☐ No
@@ -368,6 +376,7 @@ SELECT * FROM refresh_tv_user_profile();
 ```
 
 **Record**:
+
 - Refresh time (single record): ______ ms
 - Refresh time (full table): ______ s
 - CPU impact: ☐ Low | ☐ Medium | ☐ High
@@ -417,6 +426,7 @@ SELECT
 ```
 
 **Record**:
+
 - Source table (tb_user): ______ MB
 - Logical view (v_user_full): ______ MB (storage: 0)
 - Table-backed view (tv_user_profile): ______ MB
@@ -436,6 +446,7 @@ Fill out this matrix to decide if migration is justified:
 | **Total Score** | | 100% | **_____** |
 
 **Scoring**:
+
 - Query speedup: 5-10x = 100, 10-50x = 95, >50x = 90, <5x = 0
 - P95 latency: <100ms = 100, 100-300ms = 80, 300-1000ms = 50, >1s = 0
 - Storage: <10% = 100, 10-30% = 90, 30-50% = 70, >50% = 0
@@ -475,29 +486,34 @@ Fill out this matrix to decide if migration is justified:
 # Performance Testing Report: [View Name]
 
 ## Executive Summary
+
 - Speedup: _____ x
 - Storage overhead: ______ %
 - Decision: ☐ Proceed | ☐ Revisit | ☐ Reject
 
 ## Test Environment
+
 - Database: _________ version _________
 - Dataset size: ______ GB (_____ % of production)
 - Concurrent connections: _____
 - Test date: _________
 
 ## Baseline (Logical View)
+
 - Average response: ______ ms
 - P95 response: ______ ms
 - Throughput: ______ q/s
 - CPU: ______ % (peak)
 
 ## Table-Backed View
+
 - Average response: ______ ms (_____ x faster)
 - P95 response: ______ ms (_____ x faster)
 - Throughput: ______ q/s
 - CPU: ______ % (peak)
 
 ## Additional Metrics
+
 - Refresh latency: ______ ms
 - Storage used: ______ MB (______ % overhead)
 - Data accuracy: ☐ Verified (100% match)
@@ -507,6 +523,7 @@ Fill out this matrix to decide if migration is justified:
 [Your conclusion and reasoning]
 
 ## Approval
+
 - Tester: _________________ Date: _______
 - DBA: _________________ Date: _______
 - Architect: _________________ Date: _______
@@ -586,6 +603,7 @@ SELECT * FROM pg_locks WHERE relation::regclass::text LIKE 'tv_%';
 ### Problem: Table-Backed View Not Faster
 
 **Possible Causes**:
+
 1. Missing indexes on table-backed view
 2. JSONB column not indexed (GIN)
 3. Statistics not updated
@@ -608,6 +626,7 @@ SELECT COUNT(*) FROM v_user_profile;  -- Different?
 ### Problem: High Storage Overhead
 
 **Possible Causes**:
+
 1. Unnecessary JSONB composition (large nested structures)
 2. Indexes too large relative to data
 3. Historical data not cleaned up
@@ -631,11 +650,13 @@ WHERE tablename = 'tv_user_profile';
 ### Problem: Refresh Latency Unacceptable
 
 **Possible Causes**:
+
 1. Trigger overhead too high (too many writes)
 2. Refresh function doing full table scan
 3. Competing queries blocking refresh
 
 **Resolution**:
+
 - Switch from trigger-based to scheduled batch
 - Optimize refresh function with WHERE clause
 - Schedule during low-traffic window
@@ -645,20 +666,24 @@ WHERE tablename = 'tv_user_profile';
 ## Resources
 
 **Supplementary Guides** (part of this series):
+
 - [Quick Reference](./view-selection-quick-reference.md) — Quick decision matrix and benchmarks
 - [Migration Checklist](./view-selection-migration-checklist.md) — Step-by-step migration workflow
 
 **Core Documentation**:
+
 - [View Selection Guide](../architecture/database/view-selection-guide.md) — Full decision framework
 - [tv_* Table Pattern](../architecture/database/tv-table-pattern.md) — JSON plane patterns
 - [ta_* Table Pattern](../architecture/database/ta-table-pattern.md) — Arrow plane patterns
 - [Schema Conventions](../specs/schema-conventions.md) — Database design conventions
 
 **External References**:
+
 - [PostgreSQL EXPLAIN Documentation](https://www.postgresql.org/docs/current/sql-explain.html)
 - [PostgreSQL Query Performance Tuning](https://www.postgresql.org/docs/current/performance-tips.html)
 
 **Suggested Workflow**:
+
 1. Use Quick Reference to decide if migration is needed
 2. Use this guide to validate performance improvements
 3. Use Migration Checklist to plan and execute rollout

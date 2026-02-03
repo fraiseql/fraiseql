@@ -138,6 +138,7 @@ All **eleven authoring languages** now have **identical feature sets**:
 All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tests:
 
 ### Authorization Tests (11 tests)
+
 - Simple rules and policy references
 - Fluent chaining and builder pattern
 - Caching configuration
@@ -146,6 +147,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 - Serialization to Dictionary
 
 ### RoleBasedAccessControlTests (18 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (any, all, exactly)
 - Role hierarchies and inheritance
@@ -154,6 +156,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 - Custom error messages and descriptions
 
 ### AttributeBasedAccessControlTests (16 tests)
+
 - ABAC policy definition and configuration
 - Clearance levels and departments
 - Time-based access control
@@ -162,6 +165,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 - Caching and audit logging
 
 ### AuthzPolicyTests (19 tests)
+
 - All policy types (rbac, abac, custom, hybrid)
 - Policy composition and patterns
 - Caching and audit logging
@@ -173,6 +177,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 ## Swift Language Specifics
 
 ### Idiomatic Swift Patterns
+
 - Enums with associated values using String raw values
 - Struct value types with initializers
 - Builder pattern using @discardableResult
@@ -181,6 +186,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 - Dictionary-based serialization with `toDictionary()`
 
 ### Swift Features Used
+
 - Property-based builders with @discardableResult
 - Struct immutability with let properties
 - Enum conformance to Codable and String RawValue
@@ -189,6 +195,7 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 - Standard library types (Array, Dictionary, String)
 
 ### Build Configuration
+
 - Swift Package Manager (SPM)
 - Swift 5.9+ with 2021 language level
 - iOS 16+, macOS 13+, tvOS 16+, watchOS 9+
@@ -220,9 +227,11 @@ All tests in `Tests/FraiseQLSecurityTests/SecurityTests.swift` with 44 total tes
 The following languages still need implementation:
 
 ### High Priority
+
 - **Scala** - JVM functional programming
 
 ### Optional
+
 - **Groovy** - Groovy/Gradle ecosystem
 - **Clojure** - Functional JVM
 - **Dart** - Flutter/web
@@ -231,6 +240,7 @@ The following languages still need implementation:
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -238,6 +248,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Swift-specific advantages:
+
 - Native iOS/macOS/tvOS/watchOS development
 - Memory safety with automatic reference counting
 - Type safety with strong static typing

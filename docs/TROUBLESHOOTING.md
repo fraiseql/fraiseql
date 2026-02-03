@@ -63,6 +63,7 @@ extend type User @key(fields: "id") { id: ID! }
 ### Problem: Saga stuck in EXECUTING
 
 **Solution**:
+
 1. Check subgraph service health: `curl http://service:4000/graphql`
 2. Restart if needed: `docker-compose restart service`
 3. Force recovery: `recovery_manager.recover_saga().await?`
@@ -113,6 +114,7 @@ Reduce connection pool: `export DATABASE_POOL_SIZE=10`
 ### Problem: Database connection lost
 
 **Solution**:
+
 1. Check health: `docker-compose exec postgres pg_isready -U fraiseql`
 2. Restart: `docker-compose restart postgres`
 

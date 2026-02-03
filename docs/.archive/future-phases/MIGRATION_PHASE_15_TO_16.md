@@ -9,6 +9,7 @@
 Phase 16 introduces **Apollo Federation v2 support** and **enhanced saga orchestration** while maintaining backward compatibility with Phase 15 schemas. This guide explains how to migrate existing Phase 15 implementations.
 
 **Key Changes**:
+
 - ✅ Full Apollo Federation v2 compliance (@key, @extends, @requires, @provides, @external, @shareable)
 - ✅ Runtime directive enforcement for @requires/@provides
 - ✅ 3 complete saga examples (basic, manual compensation, complex)
@@ -26,6 +27,7 @@ Phase 16 introduces **Apollo Federation v2 support** and **enhanced saga orchest
 Phase 15 supported basic federation. Phase 16 adds full spec compliance:
 
 **New Directives**:
+
 - `@requires(fields: "...")` - Specify fields needed for field resolution
 - `@provides(fields: "...")` - Declare fields available to other services
 - `@external` - Mark fields resolved by other services
@@ -52,6 +54,7 @@ type User @key(fields: "id") {
 ### 2. Saga Enhancements
 
 **What Changed**:
+
 - Better compensation handling with manual/automatic strategies
 - Improved recovery manager for stuck sagas
 - Idempotency support via transactionId/requestId
@@ -92,11 +95,13 @@ grep -r "@extends\|@external" crates/ --include="*.py" --include="*.ts" --includ
 ```
 
 **No action needed if**:
+
 - Simple types without federation
 - Basic @key usage only
 - No field dependencies
 
 **Action needed if**:
+
 - Using @extends directives
 - Field resolution dependencies
 - Distributed sagas across services
@@ -163,6 +168,7 @@ saga.execute_parallel(steps, ParallelConfig {
 **Required Changes**: None. Existing sagas work unchanged.
 
 **Recommended Additions**:
+
 - Add idempotency via `request_id` in mutation steps
 - Use recovery manager for stuck sagas
 - Add compensation strategies documentation
@@ -178,6 +184,7 @@ cargo test --all-features
 **Expected Result**: ✅ All tests pass (backward compatible)
 
 **If tests fail**:
+
 1. Check compiler messages
 2. See the current [FAQ.md](../../FAQ.md) for common issues
 
@@ -190,11 +197,13 @@ cargo test --all-features
 This project has been migrated to FraiseQL Phase 16 (Apollo Federation v2).
 
 ### What's Changed
+
 - ✅ Full Apollo Federation v2 support
 - ✅ Enhanced saga orchestration
 - ✅ Backward compatible with Phase 15
 
 ### New Features Available
+
 - @requires/@provides directives for field dependencies
 - Parallel saga execution
 - Improved recovery for stuck sagas
@@ -234,6 +243,7 @@ type User @key(fields: "id") {
 ```
 
 **Migration Path**:
+
 1. Add @requires directive:
 ```graphql
 type User @key(fields: "id") {
@@ -242,6 +252,7 @@ type User @key(fields: "id") {
   displayName: String! @requires(fields: "email")
 }
 ```
+
 2. Ensure database queries include email
 3. Test entity resolution
 
@@ -363,6 +374,7 @@ All Phase 15 code works unchanged in Phase 16.
 ## Performance Impact
 
 **Migration Performance**:
+
 - ✅ No slowdown for existing features
 - ✅ New @requires validation adds <1ms per entity resolution
 - ✅ Optional parallel saga execution adds 0 overhead if not used
@@ -395,6 +407,7 @@ After migration, review the current documentation for:
 ### Issue: Tests fail after migration
 
 **Solution**:
+
 1. Check compiler messages for new validation errors
 2. Run with debug logging: `RUST_LOG=debug cargo test`
 3. Check the [troubleshooting guide](../../TROUBLESHOOTING.md)
@@ -416,6 +429,7 @@ SELECT id, email, profile FROM users WHERE id = $1
 ### Issue: Saga compensation not working
 
 **Solution**:
+
 1. Verify compensation mutation exists in schema
 2. Check saga state: `SELECT * FROM sagas WHERE id = 'saga-id'`
 3. Enable debug logs: `RUST_LOG=fraiseql=debug`
@@ -433,6 +447,7 @@ SELECT id, email, profile FROM users WHERE id = $1
 ## Migration Timeline
 
 **Recommended Timeline**:
+
 - Week 1: Review schema and plan changes
 - Week 2: Update to Phase 16 CLI and test
 - Week 3: Add new directives (optional)
@@ -445,6 +460,7 @@ SELECT id, email, profile FROM users WHERE id = $1
 ## What Stays the Same
 
 ✅ **No Changes Required For**:
+
 - Existing GraphQL queries
 - Existing database schemas
 - Existing saga definitions

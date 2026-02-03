@@ -96,11 +96,13 @@ Choose transport based on your use case.
 ## Real-World Performance (100,000 row query)
 
 **HTTP/JSON Approach**:
+
 - Time: 30 seconds
 - Memory: 250 MB
 - Format: JSON strings
 
 **Arrow Flight Approach**:
+
 - Time: 2 seconds (15x faster ⚡)
 - Memory: 50 MB (5x less 💾)
 - Format: Columnar binary (zero-copy)
@@ -181,6 +183,7 @@ Arrow Flight supports Python, R, Rust, and ClickHouse clients. See [getting star
 Arrow Flight is **100% backwards compatible**. Existing HTTP/JSON clients work unchanged.
 
 **Adopt Arrow Flight in 4 phases**:
+
 1. **Phase 1**: Enable Arrow Flight server (30 min, no changes)
 2. **Phase 2**: Migrate analytics scripts (1-2 weeks, 15x faster)
 3. **Phase 3**: Enable Observer events → ClickHouse (1 week, real-time analytics)

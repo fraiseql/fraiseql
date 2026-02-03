@@ -401,6 +401,7 @@ Clear path to memory safety and adaptive performance."
 ```
 Status: ⏳ Ready for review
 Requirements:
+
 - ✅ Error semantics documented
 - ✅ Pre-enqueue enforcement strategy
 - ✅ Default unbounded
@@ -415,6 +416,7 @@ Next: 8.6.4 (Adaptive Chunking)
 ```
 Status: 📋 Planned
 Dependencies:
+
 - 8.6.1 (Occupancy metrics) ✅
 - 8.6.3 (Memory bounds) ⏳
 

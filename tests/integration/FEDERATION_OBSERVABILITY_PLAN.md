@@ -96,6 +96,7 @@ federation_entity_deduplication_ratio (gauge)
 ```
 
 **Data moved to structured logs**:
+
 - Specific typename being resolved → logged in entity_resolution event
 - Which subgraph provided data → logged in subgraph_request event
 - Hop level → logged in federation_query event
@@ -125,6 +126,7 @@ federation_subgraph_error_rate_percent (gauge)
 ```
 
 **Data moved to structured logs**:
+
 - HTTP status code → logged in subgraph_request event
 - Entity counts → logged in subgraph_request event
 - Specific error message → logged in error event
@@ -145,6 +147,7 @@ federation_query_subgraph_calls_total (counter)
 ```
 
 **Data moved to structured logs**:
+
 - Hop level (1, 2, or 3) → logged in federation_query event
 - Subgraph names called → logged in federation_query event
 - Query complexity → logged in federation_query event
@@ -180,6 +183,7 @@ federation_mutation_duration_ms (histogram)
 ```
 
 **Metrics NOT included** (not implemented):
+
 - ~~`federation_mutation_conflicts_total`~~ - Conflict detection not in code
 - ~~`federation_mutation_sync_failures`~~ - Replication sync not in code
 
@@ -213,6 +217,7 @@ federation_errors_total (counter)
 **Selected**: Jaeger (via OpenTelemetry OTLP HTTP export)
 
 **Rationale**:
+
 - Simple all-in-one deployment (single Docker container)
 - OTLP HTTP protocol (no gRPC complexity)
 - 4-hour retention by default (sufficient for dev/staging)
@@ -291,6 +296,7 @@ let request = client
 ```
 
 Subgraph returns in response headers (if it supports tracing):
+
 - `traceparent`: Updated with subgraph's span info
 
 ### 3.3 Structured Logging Design
@@ -586,6 +592,7 @@ Runbook: See section 5.3
 **When to page**: Immediately
 
 **Resolution Steps**:
+
 1. Check subgraph status: `curl http://localhost:4001/health`
 2. Check subgraph logs: `docker-compose logs users-subgraph`
 3. Check network connectivity: `ping users-subgraph`
@@ -627,10 +634,12 @@ Runbook: See section 5.3
 4. Set up Jaeger container in docker-compose
 
 **Files to Create**:
+
 - `crates/fraiseql-server/src/federation/health_checker.rs`
 - `crates/fraiseql-server/src/federation/mod.rs` (or extend existing)
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/metrics_server.rs` (add federation counters & histograms)
 - `crates/fraiseql-server/src/routes/health.rs` (add /health/federation endpoint)
 - `tests/integration/docker-compose.yml` (add Jaeger service)
@@ -672,6 +681,7 @@ fn test_metrics_updated_from_health_checks() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Health checker runs continuously in background
 - [ ] Metrics update every 30 seconds
 - [ ] Error window tracks last 60 seconds
@@ -707,9 +717,11 @@ fn test_metrics_updated_from_health_checks() {
 4. Add span attributes (5-7 per span as specified in section 3.2.3)
 
 **Files to Create**:
+
 - `crates/fraiseql-core/src/federation/tracing.rs` (federation-specific tracing utilities)
 
 **Files to Modify**:
+
 - `crates/fraiseql-core/src/federation/entity_resolver.rs`
 - `crates/fraiseql-core/src/federation/http_resolver.rs`
 - `crates/fraiseql-core/src/federation/direct_db_resolver.rs`
@@ -756,6 +768,7 @@ async fn test_span_attributes_set_correctly() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All federation functions wrapped in spans
 - [ ] Trace context propagates through subgraph calls
 - [ ] Jaeger UI shows complete trace waterfall
@@ -787,6 +800,7 @@ async fn test_span_attributes_set_correctly() {
 3. Verify all metrics visible in `/metrics` Prometheus endpoint
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/metrics_server.rs` (add record_* methods)
 - `crates/fraiseql-core/src/federation/entity_resolver.rs` (call record_entity_resolution)
 - `crates/fraiseql-core/src/federation/http_resolver.rs` (call record_subgraph_request)
@@ -833,6 +847,7 @@ fn test_cache_metrics_recorded() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All federation operations record metrics
 - [ ] No metrics lost on error paths
 - [ ] Error metrics incremented correctly
@@ -863,9 +878,11 @@ fn test_cache_metrics_recorded() {
 3. Ensure trace_id and request_id included in all logs
 
 **Files to Create**:
+
 - `crates/fraiseql-core/src/federation/logging.rs` (federation log context)
 
 **Files to Modify**:
+
 - `crates/fraiseql-server/src/logging.rs` (add FederationLogContext to StructuredLogEntry)
 - `crates/fraiseql-core/src/federation/entity_resolver.rs` (emit logs)
 - `crates/fraiseql-core/src/federation/http_resolver.rs` (emit logs)
@@ -902,6 +919,7 @@ fn test_error_logs_include_error_message() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All federation operations emit structured logs
 - [ ] Trace context (trace_id) in all logs
 - [ ] JSON format valid
@@ -936,6 +954,7 @@ fn test_error_logs_include_error_message() {
 4. Profile to identify hotspots if budget exceeded
 
 **Files to Create**:
+
 - `crates/fraiseql-core/tests/federation_observability_perf.rs`
 
 **Tests**:
@@ -970,6 +989,7 @@ fn test_memory_overhead_within_budget() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Latency overhead < 2% validated
 - [ ] CPU overhead < 1% validated
 - [ ] Memory overhead < 5% validated
@@ -1000,11 +1020,13 @@ fn test_memory_overhead_within_budget() {
    - Error trend (time series)
 
 **Deferred to Phase 2 (not Phase 1)**:
+
 - Mutation execution dashboard
 - Hop latency breakdown dashboard
 - Query complexity analysis dashboard
 
 **Files to Create**:
+
 - `tests/integration/dashboards/federation_overview.json`
 - `tests/integration/dashboards/entity_resolution.json`
 - `tests/integration/alerts.yml` (alert rule definitions)
@@ -1030,6 +1052,7 @@ fn test_alert_rules_valid() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Both dashboards render without errors
 - [ ] Metrics queries return data
 - [ ] Alerts trigger on test data
@@ -1062,6 +1085,7 @@ fn test_alert_rules_valid() {
    - How to respond to alerts
 
 **Files to Create**:
+
 - `tests/integration/FEDERATION_OBSERVABILITY_RUNBOOK.md`
 - `tests/integration/FEDERATION_OBSERVABILITY_OPERATIONS_GUIDE.md`
 - `crates/fraiseql-core/tests/federation_observability_integration.rs`
@@ -1092,6 +1116,7 @@ fn test_runbook_completeness() {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Complete end-to-end observability validated
 - [ ] All runbooks documented
 - [ ] Operators trained on dashboards
@@ -1143,6 +1168,7 @@ fn test_runbook_completeness() {
 
 ```
 Core Federation Observability:
+
 - crates/fraiseql-server/src/federation/health_checker.rs
 - crates/fraiseql-core/src/federation/tracing.rs
 - crates/fraiseql-core/src/federation/logging.rs
@@ -1150,11 +1176,13 @@ Core Federation Observability:
 - crates/fraiseql-core/tests/federation_observability_integration.rs
 
 Dashboards & Alerts:
+
 - tests/integration/dashboards/federation_overview.json
 - tests/integration/dashboards/entity_resolution.json
 - tests/integration/alerts.yml
 
 Documentation:
+
 - tests/integration/FEDERATION_OBSERVABILITY_RUNBOOK.md
 - tests/integration/FEDERATION_OBSERVABILITY_OPERATIONS_GUIDE.md
 ```
@@ -1163,18 +1191,21 @@ Documentation:
 
 ```
 Server-side:
+
 - crates/fraiseql-server/src/metrics_server.rs
 - crates/fraiseql-server/src/routes/health.rs
 - crates/fraiseql-server/src/observability/tracing.rs
 - crates/fraiseql-server/src/logging.rs
 
 Federation-side:
+
 - crates/fraiseql-core/src/federation/entity_resolver.rs
 - crates/fraiseql-core/src/federation/http_resolver.rs
 - crates/fraiseql-core/src/federation/direct_db_resolver.rs
 - crates/fraiseql-core/src/federation/mutation_executor.rs
 
 Configuration:
+
 - tests/integration/docker-compose.yml (add Jaeger)
 ```
 

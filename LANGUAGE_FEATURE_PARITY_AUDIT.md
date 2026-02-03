@@ -23,7 +23,9 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 ### ✅ **FULLY IMPLEMENTED** (3 languages)
 
 #### Python - 8,111 LOC, 44 tests
+
 **Modules Implemented**:
+
 - ✅ `__init__.py` - Package initialization
 - ✅ `decorators.py` - @type, @query, @mutation decorators
 - ✅ `types.py` - Type system (Object, Input, Scalar, Enum, Union, Interface)
@@ -39,7 +41,9 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 **Status**: Production-ready, comprehensive implementation
 
 #### TypeScript - 20,364 LOC, 9 tests
+
 **Modules Implemented**:
+
 - ✅ `index.ts` - Package exports
 - ✅ `decorators.ts` - @type, @query, @mutation decorators
 - ✅ `types.ts` - Type system
@@ -54,7 +58,9 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 **Status**: Most comprehensive implementation (20k LOC), production-ready
 
 #### Java - 14,129 LOC, 35 tests
+
 **Modules Implemented**:
+
 - ✅ Annotation-based type system
 - ✅ Builder pattern for schema construction
 - ✅ 56 custom scalars
@@ -71,7 +77,9 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 ### 🟡 **PARTIALLY IMPLEMENTED** (3 languages)
 
 #### Go - 3,728 LOC, 7 tests
+
 **Modules Implemented**:
+
 - ✅ `decorators.go` - Type/query decorators
 - ✅ `types.go` - Type system
 - ✅ `schema.go` - Schema compilation
@@ -82,13 +90,16 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 - ✅ `security.go` - Authorization
 
 **Missing**:
+
 - ❌ Federation module
 - ❌ Test coverage minimal (7 tests)
 
 **Status**: ~90% complete, missing federation
 
 #### PHP - 9,920 LOC, 18 tests
+
 **Modules Implemented**:
+
 - ✅ Type system decorators
 - ✅ Query/mutation builders
 - ✅ Scalar types
@@ -99,18 +110,22 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 - ✅ Security/authorization
 
 **Missing**:
+
 - ❌ Federation module (claimed but not verified)
 - ❌ Unclear implementation details
 
 **Status**: ~85% complete, federation status unclear
 
 #### Kotlin - 1,256 LOC, 9 tests
+
 **Modules Implemented**:
+
 - ✅ Type annotations
 - ✅ Security module (RBAC, ABAC, custom rules)
 - ✅ Builder pattern support
 
 **Missing**:
+
 - ❌ Federation
 - ❌ Observers
 - ❌ Analytics
@@ -125,11 +140,14 @@ FraiseQL v2 claims **100% feature parity across 16 authoring languages**, but th
 These languages have **ONLY the security module** implemented and claim 100% parity, which is **misleading**:
 
 #### Node.js - 1,436 LOC, 5 tests
+
 **Implemented**:
+
 - ✅ `security.ts` - RBAC, ABAC, custom rules
 - ✅ `index.ts` - Package exports
 
 **Missing**:
+
 - ❌ Type system
 - ❌ Decorators
 - ❌ Schema compilation
@@ -141,7 +159,9 @@ These languages have **ONLY the security module** implemented and claim 100% par
 **Status**: ~5% complete (security only)
 
 #### Ruby - 1,386 LOC, 7 tests
+
 **Implemented**:
+
 - ✅ `security.rb` - Authorization module
 
 **Missing**: All other modules
@@ -149,7 +169,9 @@ These languages have **ONLY the security module** implemented and claim 100% par
 **Status**: ~3% complete
 
 #### C# - 1,384 LOC, 7 tests
+
 **Implemented**:
+
 - ✅ Security module only
 
 **Missing**: All other modules
@@ -157,7 +179,9 @@ These languages have **ONLY the security module** implemented and claim 100% par
 **Status**: ~3% complete
 
 #### Rust - 1,547 LOC, 2 tests
+
 **Implemented**:
+
 - ✅ Security module
 
 **Missing**: All other modules
@@ -165,21 +189,27 @@ These languages have **ONLY the security module** implemented and claim 100% par
 **Status**: ~3% complete
 
 #### Scala - 742 LOC, 6 tests
+
 **Status**: ~3% complete (security only)
 
 #### Groovy - 666 LOC, 6 tests
+
 **Status**: ~3% complete (security only)
 
 #### Swift - 1,197 LOC, 0 tests
+
 **Status**: ~3% complete (security only)
 
 #### Dart - 1,111 LOC, 3 tests
+
 **Status**: ~3% complete (security only)
 
 #### Elixir - 296 LOC, 3 tests
+
 **Status**: ~3% complete (security only)
 
 #### Clojure - 228 LOC, 4 tests
+
 **Status**: ~3% complete (security only)
 
 ---

@@ -410,6 +410,7 @@ CREATE INDEX CONCURRENTLY idx_tf_sales_region_id
 ANALYZE tf_sales;
 
 -- Rollback (if needed):
+
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 
@@ -429,6 +430,7 @@ CREATE INDEX CONCURRENTLY idx_users_created_at
 ANALYZE users;
 
 -- Rollback (if needed):
+
 -- DROP INDEX IF EXISTS idx_users_created_at;
 
 
@@ -477,6 +479,7 @@ UPDATE STATISTICS tf_sales WITH FULLSCAN;
 GO
 
 -- Rollback (if needed):
+
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id ON tf_sales;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 -- GO
@@ -570,6 +573,7 @@ fraiseql-cli analyze \
 Impact = (Queries Per Day) × (Speedup Factor)
 
 Example:
+
 - 8,500 queries/day × 12.5x speedup = 106,250 impact score
 ```
 

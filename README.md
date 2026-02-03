@@ -4,11 +4,13 @@
 **Status:** Alpha release available
 **Date:** February 2026
 
+> ⚠️ **ALPHA RELEASE**: This is pre-release software. Expect potential breaking changes before v2.0.0 GA (April 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's not included. We appreciate your feedback! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
+
 FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
-This is a **solo-authored project** with comprehensive testing (7,600+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
+This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
-See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for development details, [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture, or [`.phases/README.md`](.phases/README.md) for development history.
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
 
 ---
 
@@ -43,7 +45,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Automatic Persisted Queries (APQ) with query allowlisting
 - Query result caching with automatic invalidation
 - Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
-- 7,600+ tests, all passing
+- 2,400+ tests, all passing
 
 ---
 
@@ -52,6 +54,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 The workflow is straightforward:
 
 ```
+
 1. Define Schema                    2. Compile to SQL
    (Python/TypeScript/YAML)            (fraiseql-cli compile)
 
@@ -79,7 +82,7 @@ The workflow is straightforward:
 
 The key insight: move optimization from runtime to compile time. Your schema is analyzed once at build, then queries are executed efficiently without interpretation.
 
-**Automatic WHERE type generation:** FraiseQL generates filter input types at compile time based on GraphQL scalar types. For each scalar type in your schema (String, Int, DateTime, etc.), it checks a capability manifest to see which operators your database supports, then generates filter types with only those operators included. PostgreSQL gets 150+ operators for String type alone (regex, LIKE variants, full-text search); SQLite gets just the basic ones. No manual filter type definitions needed, and no fake abstractions—each database gets a truthful GraphQL schema that matches what it can actually do.
+**Automatic WHERE type generation:** Instead of manually defining filter types (like `UserFilter`, `PostFilter`, etc.), FraiseQL generates them at compile time. For each scalar type in your schema (String, Int, DateTime, etc.), it checks your database's capabilities and generates only the operators that database actually supports. PostgreSQL gets regex, full-text search, array operators, and network operators; SQLite gets only basic comparison operators. Across all scalar types, FraiseQL supports 150+ operators total. The result: no fake abstractions, no "unsupported operator" errors at runtime. Your GraphQL schema truthfully reflects what your database can do.
 
 ---
 
@@ -97,6 +100,26 @@ The key insight: move optimization from runtime to compile time. Your schema is 
 
 ---
 
+## Consistency Model
+
+FraiseQL prioritizes **strong consistency over distributed availability**. This is intentional and fundamental to the architecture.
+
+**The choice:** Consistency + Partition Tolerance (CP in CAP theorem)
+
+- ✅ Mutations block until completely committed
+- ✅ You see the result immediately (no stale data)
+- ✅ Distributed transactions via SAGA with automatic compensation
+- ❌ If a service is down, mutations fail rather than approximate
+
+**Good for:** Banking, inventory management, healthcare, enterprise SaaS
+**Not for:** Real-time analytics, social media, presence tracking
+
+FraiseQL refuses to serve approximately-correct data. If a partition occurs or a SAGA step fails, the client gets an error—not a "best guess" response.
+
+See [Consistency Model Guide](docs/guides/consistency-model.md) for complete explanation, including why we chose CP and when you should use a different system.
+
+---
+
 ## Security
 
 FraiseQL prevents SQL injection through parameterized queries:
@@ -108,6 +131,7 @@ FraiseQL prevents SQL injection through parameterized queries:
 - Identifiers validated at parse time
 
 Additional security features:
+
 - Audit logging for all mutations and admin operations
 - Rate limiting on authentication endpoints
 - Error messages sanitized (no implementation details to clients)
@@ -121,24 +145,27 @@ See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) f
 
 ## Getting Started
 
+> **Upgrading from v1?** FraiseQL v2 is a complete architectural redesign and is not backwards compatible with v1. A migration guide is coming in beta (March 2026). For now, treat v2 as a fresh start. See [Alpha Limitations](docs/ALPHA_LIMITATIONS.md#breaking-changes-from-v1) for details.
+
 ### 1. Define Schema
 
 Create `schema.py`:
 
 ```python
-from fraiseql import type as fraiseql_type, query as fraiseql_query, schema
+import fraiseql
+from fraiseql.scalars import ID, Email
 
-@fraiseql_type
+@fraiseql.type
 class User:
-    id: int
+    id: ID
     name: str
-    email: str | None
+    email: Email | None
 
-@fraiseql_query(sql_source="v_users")
+@fraiseql.query
 def users(limit: int = 10) -> list[User]:
-    pass
+    return fraiseql.config(sql_source="v_user", returns_list=True)
 
-schema.export_schema("schema.json")
+fraiseql.export_schema("schema.json")
 ```
 
 Run: `python schema.py`
@@ -174,36 +201,33 @@ That's the basic flow. For more examples and language-specific guides, see the d
 
 ## Language Support
 
-FraiseQL v2 supports 15+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
+FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
-**Tier 1 (Production Ready):**
-- Python
-- TypeScript
-- Go
-- PHP
+**Ready for Alpha (v2.0.0-alpha.1):**
+- Python ✅
+- TypeScript ✅
+- Go ✅
+- PHP ✅
+- Java ✅
+- Kotlin ✅
+- Ruby ✅
+- Scala ✅
+- Clojure ✅
+- Swift ✅
+- Dart ✅
+- C# ✅
+- Groovy ✅
+- Elixir ✅
+- Rust ✅
+- Node.js ✅
 
-**Tier 2 (Ready):**
-- Java
-- Kotlin
-- Ruby
-- Scala
-
-**Tier 3 (Ready):**
-- Clojure
-- Swift
-- Dart
-- C#
-- Groovy
-- Elixir
-- Rust
-
-Also supports:
+**Configuration Languages:**
 - YAML (configuration-driven schemas)
 - GraphQL SDL (standard schema syntax)
 
-Pick one canonical language for your organization. It's straightforward to convert between languages if needed.
+Pick any language for your alpha testing. Full feature parity across all languages is complete.
 
-See `docs/language-generators.md` for examples in each language.
+See `docs/guides/language-generators.md` for examples in each supported language.
 
 ---
 
@@ -226,10 +250,9 @@ The project includes comprehensive documentation:
 - `docs/enterprise/` — RBAC, audit logging, key management
 
 **Getting started:**
-- `docs/language-generators.md` — Examples for each supported language
-- `docs/e2e-testing.md` — Testing setup and CI/CD integration
-
-See `.phases/README.md` for development history and phase completion details.
+- `docs/guides/language-generators.md` — Examples for each supported language
+- `docs/guides/development/e2e-testing.md` — Testing setup and CI/CD integration
+- `docs/ALPHA_TESTING_GUIDE.md` — Essential guide for alpha testers
 
 ---
 
@@ -315,7 +338,7 @@ Current release: **v2.0.0-alpha.1** (all planned features complete)
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
 - ✅ Event system with webhooks (extensible provider architecture), NATS JetStream messaging, and job dispatch
 - ✅ Multi-tenant isolation with per-tenant data scoping
-- ✅ Comprehensive test suite (7,600+ tests across all components)
+- ✅ Comprehensive test suite (2,400+ tests across all components)
 - ✅ Production deployment guides and monitoring setup
 
 **Next steps:**
@@ -324,13 +347,13 @@ Current release: **v2.0.0-alpha.1** (all planned features complete)
 - Performance optimization based on usage patterns
 - Path to v2.0.0 GA
 
-See `.phases/README.md` for detailed development history and phase completion status.
-
 ---
 
 ## Contact & Contributions
 
 For bugs, features, or questions:
-- GitHub issues
-- GitHub discussions
-- Review `.claude/CLAUDE.md` for contribution guidelines
+
+- [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) — Report bugs and request features
+- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) — Ask questions and share ideas
+- [Contributing Guide](CONTRIBUTING.md) — How to contribute code and documentation
+- Email: lionel.hamayon@evolution-digitale.fr

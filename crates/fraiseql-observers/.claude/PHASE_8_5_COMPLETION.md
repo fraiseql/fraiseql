@@ -13,6 +13,7 @@ Phase 8.5 successfully implements enterprise-grade Elasticsearch integration for
 
 ### SearchBackend Trait
 Abstract persistence layer enabling pluggable search implementations:
+
 - `index_event(&self, event: &IndexedEvent) -> Result<()>` - Index single event
 - `index_batch(&self, events: &[IndexedEvent]) -> Result<()>` - Bulk index events
 - `search(&self, query, tenant_id, limit) -> Result<Vec<IndexedEvent>>` - Full-text search
@@ -39,6 +40,7 @@ pub struct IndexedEvent {
 
 ### HttpSearchBackend Implementation
 HTTP-based Elasticsearch communication via reqwest:
+
 - No elasticsearch crate dependency (loose coupling)
 - Automatic index creation with proper Elasticsearch mappings
 - Date-based index naming: `events-YYYY-MM-DD` (daily sharding)
@@ -62,6 +64,7 @@ pub struct SearchStats {
 
 ### Date-Based Index Sharding
 Each event is indexed to a daily index based on its timestamp:
+
 - Index name format: `events-YYYY-MM-DD`
 - Example: `events-2026-01-22`, `events-2026-01-21`
 - Benefits:
@@ -72,6 +75,7 @@ Each event is indexed to a daily index based on its timestamp:
 
 ### Elasticsearch Mappings
 Semantic field types for optimal search:
+
 - `event_type`: keyword (exact matching)
 - `entity_type`: keyword (exact matching)
 - `entity_id`: keyword (exact matching)
@@ -111,6 +115,7 @@ POST /_bulk
 ## Files Created
 
 ### `/src/search/mod.rs` (350+ lines)
+
 - IndexedEvent struct definition
 - IndexedEvent::from_event() factory method
 - IndexedEvent::index_name() for date-based sharding
@@ -119,6 +124,7 @@ POST /_bulk
 - Comprehensive unit tests (7 tests)
 
 ### `/src/search/http.rs` (350+ lines)
+
 - HttpSearchBackend struct with reqwest::Client
 - HttpSearchBackend::new() constructor
 - HttpSearchBackend::health_check() for connectivity verification
@@ -130,12 +136,14 @@ POST /_bulk
 ## Files Modified
 
 ### `/src/lib.rs`
+
 - Added `pub mod search;` declaration
 - Added search module re-exports:
   - `pub use search::{IndexedEvent, SearchBackend, SearchStats};`
   - `#[cfg(feature = "search")] pub use search::http::HttpSearchBackend;`
 
 ### Code Cleanup (Phases 1-7 quality improvements)
+
 - `/src/actions.rs`: Removed unused `#[allow(unused_self)]` attributes
 - `/src/concurrent/mod.rs`: Fixed unused variable naming, restored necessary imports
 - `/src/condition.rs`: Removed unused `#[allow(unused_self)]` attributes
@@ -143,12 +151,14 @@ POST /_bulk
 ## Test Results
 
 ### Total Tests: 127 ✅
+
 - Phase 1-7 baseline: 100 tests
 - Phase 8.0-8.4: 20 tests
 - Phase 8.5 new: 7 tests
 - All tests passing: 100%
 
 ### New Phase 8.5 Tests
+
 1. `test_indexed_event_creation` - Factory method
 2. `test_indexed_event_index_name` - Date-based sharding
 3. `test_search_stats_new` - Initial stats
@@ -192,23 +202,28 @@ search = []  # Elasticsearch integration (no direct dependency)
 ## Performance Characteristics
 
 ### Indexing
+
 - Single event: ~5-10ms via HTTP
 - Batch events: ~50-100ms for 100 events via bulk API
 - Elasticsearch network latency: ~5ms (local), ~50ms (remote)
 
 ### Querying
+
 - Full-text search: ~20-50ms
 - Entity queries: ~10-20ms (indexed terms)
 - Time-range queries: ~15-30ms (optimized for daily indices)
 
 ### Retention
+
 - Delete by query: ~100-500ms depending on index size
 - Index deletion: <10ms per index
 
 ## Design Decisions
 
 ### 1. HTTP-Based Instead of elasticsearch Crate
+
 **Why**:
+
 - elasticsearch crate has only pre-release versions
 - HTTP-based enables loose coupling
 - Easy to swap implementations
@@ -216,7 +231,9 @@ search = []  # Elasticsearch integration (no direct dependency)
 - Clear request/response semantics
 
 ### 2. Date-Based Index Sharding
+
 **Why**:
+
 - Efficient retention policies (delete entire indices)
 - Time-range queries optimized by date
 - Index lifecycle management
@@ -224,7 +241,9 @@ search = []  # Elasticsearch integration (no direct dependency)
 - Easier troubleshooting and monitoring
 
 ### 3. Multi-Tenant Isolation via Query Filter
+
 **Why**:
+
 - No separate indices per tenant (cost/overhead)
 - Filtering at query level ensures isolation
 - Tenant_id in all query paths
@@ -232,7 +251,9 @@ search = []  # Elasticsearch integration (no direct dependency)
 - Consistent with Phase 1-7 architecture
 
 ### 4. Trait-Based Abstraction
+
 **Why**:
+
 - Pluggable backends for different search systems
 - Easy to mock for testing
 - Independent of external libraries
@@ -270,6 +291,7 @@ Tenant_id filtered results returned
 ## Compliance & Audit Trail
 
 ### Audit Trail Features
+
 - Complete event data stored: event_type, entity_type, entity_id, timestamp
 - All actions logged: actions_executed array
 - Success/failure tracking: success_count, failure_count
@@ -277,12 +299,14 @@ Tenant_id filtered results returned
 - Tenant isolation: tenant_id in every record
 
 ### Retention Policies
+
 - `delete_old_events(days_old)` removes events older than N days
 - Date-based indices enable efficient bulk deletion
 - Configurable retention windows
 - Compliance with data retention regulations
 
 ### Multi-Tenant Support
+
 - Every search includes tenant_id filter
 - Tenant_id is indexed as keyword (exact matching)
 - No cross-tenant data leakage possible
@@ -291,12 +315,14 @@ Tenant_id filtered results returned
 ## Known Limitations & Future Work
 
 ### Current Limitations
+
 1. No aggregations API yet (Phase 8.6+)
 2. No result pagination (handled at app layer)
 3. No query caching (Phase 8.4 handles action result caching)
 4. No scoring/relevance tuning yet
 
 ### Future Enhancements (8.6-8.12)
+
 1. Aggregation support (event counts, action success rates)
 2. Saved searches (compliance report templates)
 3. Alerting on search results
@@ -306,6 +332,7 @@ Tenant_id filtered results returned
 ## Deployment Considerations
 
 ### Prerequisites
+
 - Elasticsearch 7.x or higher
 - HTTP connectivity from application to Elasticsearch cluster
 - 100MB+ storage for typical event volumes
@@ -320,12 +347,14 @@ let backend = HttpSearchBackend::new(env!("ELASTICSEARCH_URL"));
 ```
 
 ### Monitoring
+
 - Track SearchStats::total_indexed, successful_indexes, failed_indexes
 - Monitor Elasticsearch cluster health via health_check()
 - Log all database errors for troubleshooting
 - Alert on index failure rates > 5%
 
 ### Scaling
+
 - Date-based indices enable efficient archival to cold storage
 - Index lifecycle policies can auto-move old indices
 - Elasticsearch can handle millions of events

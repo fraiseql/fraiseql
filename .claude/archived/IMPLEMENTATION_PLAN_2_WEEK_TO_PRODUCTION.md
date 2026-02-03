@@ -11,12 +11,14 @@
 
 ### What
 Complete Phase 9.9 testing + finish Phase 10 hardening (auth, multi-tenancy, ops):
+
 - Test all 9,000+ lines of Arrow Flight code
 - Complete OAuth provider wrappers + operation-level RBAC
 - Enforce multi-tenant isolation (org_id in all queries)
 - Add secrets management, backup/DR, encryption
 
 ### Why
+
 - Phase 9 (Arrow Flight) is code-complete but untested
 - Auth is 85% done, just needs completion
 - Multi-tenancy infrastructure is in place, needs enforcement
@@ -58,6 +60,7 @@ cargo test --package fraiseql-arrow --all-features
 ```
 
 **Acceptance Criteria**:
+
 - ✅ `cargo test` passes with 1,693+ tests
 - ✅ Zero panics in Arrow Flight server
 - ✅ All gRPC endpoints respond correctly
@@ -74,6 +77,7 @@ cargo bench --features "benchmark"
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Arrow batch processing: >100k rows/sec
 - ✅ End-to-end latency: <100ms p95
 - ✅ Memory usage: <500MB for 1M rows
@@ -94,6 +98,7 @@ cargo run --example arrow_flight_client
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Python PyArrow client connects
 - ✅ R arrow library client connects
 - ✅ Rust tokio client connects
@@ -106,6 +111,7 @@ cat > .claude/PHASE_9_RELEASE_RESULTS_FINAL.md << 'EOF'
 # Phase 9 Release Decision
 
 ## Test Results
+
 - Tests: 1,693/1,701 passing (99.5%)
 - Benchmarks: 15-50x Arrow vs HTTP ✅
 - Clients: All 3 languages working ✅
@@ -115,6 +121,7 @@ cat > .claude/PHASE_9_RELEASE_RESULTS_FINAL.md << 'EOF'
 🟢 GO FOR PRODUCTION - All critical tests pass
 
 ## Deploy Strategy
+
 1. Internal testing (1 week)
 2. Beta release (2 weeks)
 3. GA announcement (week 4)
@@ -125,6 +132,7 @@ git commit -m "feat(phase-9): Pre-release testing complete - GO FOR PRODUCTION"
 ```
 
 **Acceptance Criteria**:
+
 - ✅ `.claude/PHASE_9_RELEASE_RESULTS_FINAL.md` created
 - ✅ Decision documented (GO/NO-GO)
 - ✅ Git commit includes test results
@@ -374,6 +382,7 @@ tenant = "12345678-1234-1234-1234-123456789012"
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All 4 OAuth providers implement common trait
 - ✅ Tests pass for each provider
 - ✅ Configuration is flexible and extensible
@@ -594,6 +603,7 @@ impl MutationRoot {
 ```
 
 **Acceptance Criteria**:
+
 - ✅ `cargo clippy` clean
 - ✅ `cargo test operation*` passes
 - ✅ All mutation endpoints check permissions
@@ -807,6 +817,7 @@ async fn revoke_api_key(
 ```
 
 **Acceptance Criteria**:
+
 - ✅ `cargo test api_key*` passes
 - ✅ Keys are never logged in plaintext
 - ✅ Constant-time comparison prevents timing attacks
@@ -837,6 +848,7 @@ git add -A
 git commit -m "feat(phase-10.5): Complete authentication & authorization
 
 ## Changes
+
 - OAuth provider wrappers: GitHub, Google, Keycloak, Azure AD
 - Operation-level RBAC for mutations (admin, operator, viewer)
 - API key management with secure hashing and expiration
@@ -845,6 +857,7 @@ git commit -m "feat(phase-10.5): Complete authentication & authorization
 - Database migrations for api_keys table
 
 ## Implementation Details
+
 - JWT validation: HS256, RS256, RS384, RS512 (already done - just wired)
 - OAuth: Generic OIDC provider with provider-specific wrappers
 - RBAC: Role-based permissions per resource (rules, actions, settings)
@@ -987,6 +1000,7 @@ fn get_user_agent(req: &HttpRequest) -> Option<String> {
 ```
 
 **Acceptance Criteria**:
+
 - ✅ RequestContext has org_id field
 - ✅ Middleware extracts org_id from JWT
 - ✅ HTTP 400 if org_id missing from JWT
@@ -1232,6 +1246,7 @@ impl QueryRoot {
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All repository methods accept RequestContext
 - ✅ All queries include org_id in WHERE clause
 - ✅ Cross-org access returns empty/not found
@@ -1302,6 +1317,7 @@ git add -A
 git commit -m "feat(phase-10.6): Enforce multi-tenancy & org isolation
 
 ## Changes
+
 - Enhanced RequestContext with org_id extraction from JWT
 - Middleware automatically enriches context with org_id + roles
 - All repository methods now accept RequestContext parameter
@@ -1310,6 +1326,7 @@ git commit -m "feat(phase-10.6): Enforce multi-tenancy & org isolation
 - GraphQL queries automatically filtered by org_id
 
 ## Implementation Details
+
 - org_id comes from JWT org_id claim (cannot be spoofed)
 - RequestContext passed through all handler/resolver layers
 - Every query pattern includes: WHERE id = ? AND org_id = ?
@@ -1426,6 +1443,7 @@ smtp_password_secret = "secret/fraiseql/smtp-password"
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Vault client connects and fetches secrets
 - ✅ Caching works (5-min TTL)
 - ✅ No secrets in logs or config files
@@ -1443,29 +1461,34 @@ smtp_password_secret = "secret/fraiseql/smtp-password"
 ## Backup Strategy
 
 ### PostgreSQL (Observer Rules, User Data)
+
 - Automated: Daily snapshots via AWS RDS
 - Manual: `pg_dump fraiseql > backup.sql`
 - Frequency: Every 6 hours
 - Retention: 30 days
 
 ### Redis (Job Queue State)
+
 - Automated: RDB dump every 6 hours
 - Manual: `redis-cli BGSAVE`
 - AOF enabled for durability
 - Retention: 7 days
 
 ### ClickHouse (Event Analytics)
+
 - Automated: Daily snapshots
 - Manual: `clickhouse-backup create fraiseql`
 - Retention: 90 days (on disk), 30 days (backed up)
 
 ### Elasticsearch (Operational Search)
+
 - Automated: Daily ILM snapshots
 - Retention: 7 days
 
 ## Recovery Procedure
 
 ### Time to Recovery (RTO)
+
 - Total: < 1 hour
 - DB restore: 10-20 min
 - Redis restore: 5 min
@@ -1527,6 +1550,7 @@ kubectl scale deployment fraiseql-worker --replicas=2
 ```
 
 **Acceptance Criteria**:
+
 - ✅ Runbook is clear and tested
 - ✅ All backup commands documented
 - ✅ Expected recovery time < 1 hour
@@ -1581,6 +1605,7 @@ verify_cert = true
 ```
 
 **Acceptance Criteria**:
+
 - ✅ All connections use TLS 1.3
 - ✅ Certificate validation enforced
 - ✅ `cargo test` passes
@@ -1628,6 +1653,7 @@ cargo bench
 # FraiseQL v2 GA Release Checklist
 
 ## Code Quality
+
 - [ ] 1,700+ tests passing
 - [ ] Zero clippy warnings
 - [ ] Zero vulnerabilities (cargo audit)
@@ -1635,6 +1661,7 @@ cargo bench
 - [ ] All TODOs addressed
 
 ## Security
+
 - [ ] Auth fully implemented (OAuth + RBAC + API keys)
 - [ ] Multi-tenancy enforced (org_id in all queries)
 - [ ] Secrets managed (Vault integration)
@@ -1643,6 +1670,7 @@ cargo bench
 - [ ] No hardcoded secrets in code
 
 ## Operations
+
 - [ ] Backup/restore tested
 - [ ] Monitoring configured (Prometheus)
 - [ ] Alerting configured (PagerDuty)
@@ -1650,12 +1678,14 @@ cargo bench
 - [ ] Deployment automated (K8s)
 
 ## Performance
+
 - [ ] Arrow: 15-50x vs HTTP ✅
 - [ ] Latency: <100ms p95 ✅
 - [ ] Throughput: 10k+ QPS ✅
 - [ ] Memory: <500MB per instance ✅
 
 ## Documentation
+
 - [ ] README updated
 - [ ] API docs current
 - [ ] Deployment guide complete
@@ -1663,12 +1693,14 @@ cargo bench
 - [ ] No references to "Phase" in user docs
 
 ## Stakeholder Sign-Off
+
 - [ ] Product owner: Features complete ✅
 - [ ] Security team: Vulnerabilities resolved ✅
 - [ ] DevOps/SRE: Deployment ready ✅
 - [ ] Tech lead: Architecture sound ✅
 
 ## Go/No-Go Decision
+
 - **DECISION**: 🟢 GO FOR PRODUCTION
 - **Date**: January 31, 2026
 - **Approved by**: [You]
@@ -1685,6 +1717,7 @@ git add -A
 git commit -m "feat(phase-10): Production hardening complete - GA READY
 
 ## Changes
+
 - Phase 10.5: Complete authentication (OAuth + RBAC + API keys)
 - Phase 10.6: Enforce multi-tenancy (org_id isolation)
 - Phase 10.8: Secrets management (Vault integration)
@@ -1710,6 +1743,7 @@ git commit -m "feat(phase-10): Production hardening complete - GA READY
 🟢 GO FOR PRODUCTION - All critical items complete
 
 Ready for:
+
 1. Internal testing (1 week)
 2. Beta release (2 weeks)
 3. GA announcement (week 4)
@@ -1730,6 +1764,7 @@ FraiseQL v2 is a production-ready compiled GraphQL execution engine with advance
 ## What's New
 
 ### 🔐 Enterprise Security
+
 - OAuth2/OIDC authentication (GitHub, Google, Keycloak, Azure AD)
 - Role-based access control (admin, operator, viewer)
 - API key management for service-to-service auth
@@ -1737,12 +1772,14 @@ FraiseQL v2 is a production-ready compiled GraphQL execution engine with advance
 - Field-level access control and PII masking
 
 ### ⚡ Arrow Flight Analytics (15-50x faster than JSON)
+
 - Zero-copy columnar data export
 - gRPC streaming for real-time analytics
 - Cross-language clients (Python, R, Rust)
 - Direct ClickHouse/Elasticsearch integration
 
 ### 📋 Observer System
+
 - Event matching with complex conditions
 - Action execution (webhooks, Slack, email)
 - Redis-backed distributed job queue
@@ -1750,6 +1787,7 @@ FraiseQL v2 is a production-ready compiled GraphQL execution engine with advance
 - 14+ Prometheus metrics + Grafana dashboards
 
 ### 🛡️ Production Ready
+
 - Distributed tracing (OpenTelemetry)
 - Comprehensive audit logging
 - Backup & disaster recovery
@@ -1757,6 +1795,7 @@ FraiseQL v2 is a production-ready compiled GraphQL execution engine with advance
 - Rate limiting & admission control
 
 ## Performance
+
 - GraphQL queries: <50ms p95
 - Arrow Flight: <100ms p95 for 1M rows
 - Throughput: 10k+ QPS per instance
@@ -1766,6 +1805,7 @@ FraiseQL v2 is a production-ready compiled GraphQL execution engine with advance
 See [Migration Guide](docs/migration-guide.md) for upgrading from v1.
 
 ## Support
+
 - Issues: https://github.com/fraiseql/fraiseql/issues
 - Discussions: https://github.com/fraiseql/fraiseql/discussions
 - Documentation: https://fraiseql.dev
@@ -1832,6 +1872,7 @@ FraiseQL is open source. See LICENSE file for details.
 ## 🚀 Ready to Execute
 
 This plan is **detailed, actionable, and ready to implement**. Each task has:
+
 - Clear acceptance criteria
 - Code examples
 - Test strategy

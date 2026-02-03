@@ -24,6 +24,7 @@
 ## 🚨 Critical Blockers: Before GA Launch
 
 ### 1. **Phase 9 Pre-Release Testing** (4 hours) 🔴 BLOCKING
+
 **Status**: Not yet executed
 **Blocks**: Phase 9 production announcement
 **Impact**: 9,000+ lines of untested Arrow Flight code cannot ship
@@ -37,6 +38,7 @@ See .claude/PHASE_9_PRERELEASE_TESTING.md
 ```
 
 **Verification Points**:
+
 - ✅ Arrow Flight server starts and routes requests
 - ✅ GraphQL → Arrow conversion is accurate
 - ✅ All client libraries connect (Python, R, Rust)
@@ -47,11 +49,13 @@ See .claude/PHASE_9_PRERELEASE_TESTING.md
 ---
 
 ### 2. **Phase 10.5: Complete Authentication & Authorization** (2 days) 🟡 MOSTLY DONE
+
 **Status**: ✅ 85% Complete (2,100+ LOC already implemented)
 **Blocks**: Operation-level RBAC for mutations
 **Risk**: Low (core auth infrastructure exists)
 
 **What's already done** ✅:
+
 - ✅ JWT validation (HS256, RS256, RS384, RS512) - 1,480 LOC
 - ✅ OAuth2/OIDC provider - 342 LOC
 - ✅ Session management with refresh tokens - 384 LOC
@@ -63,6 +67,7 @@ See .claude/PHASE_9_PRERELEASE_TESTING.md
 - ✅ Audit logging with user tracking
 
 **What needs completion** (2 days):
+
 - Complete OAuth provider wrappers (GitHub, Google, Keycloak, Azure AD)
 - Add operation-level RBAC (mutations: create/update/delete)
 - Add API key management for service-to-service auth
@@ -72,17 +77,20 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.5** for details (now shows what
 ---
 
 ### 3. **Phase 10.6: Enforce Multi-Tenancy & Data Isolation** (2 days) 🟡 PARTIALLY DONE
+
 **Status**: ⚠️ 30% Complete (Data model exists, enforcement missing)
 **Blocks**: Safe multi-org deployments
 **Risk**: Data leakage if query filters not applied consistently
 
 **What's already done** ✅:
+
 - ✅ Tenant ID field in audit logs (222 LOC)
 - ✅ Tenant/org ID recognized in validation
 - ✅ JWT claims can extract org_id
 - ✅ Rate limiting infrastructure (just needs org_id wiring)
 
 **What needs implementation** (2 days):
+
 - **Highest Priority**: Add org_id to RequestContext, apply org filters to ALL database queries
 - Separate ClickHouse partitions per organization
 - Job queue isolation (org-specific Redis keys)
@@ -98,11 +106,13 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for updated implementation 
 ## 🟡 Important Gaps: Before 1.0 Release
 
 ### 4. **Phase 8.14: Schema Versioning & Migration** (2-3 days)
+
 **Status**: Not implemented
 **Impact**: Breaking changes will require migration tooling
 **Needed**: If schema will evolve post-GA
 
 **What to build**:
+
 - Arrow schema versioning (currently implicit v1)
 - Migration framework: v1 → v2 schema transformations
 - Backward compatibility guarantees (support 2-3 versions back)
@@ -112,10 +122,12 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for updated implementation 
 ---
 
 ### 5. **Phase 10.8: Secrets Management** (1-2 days)
+
 **Status**: Not implemented
 **Risk**: Webhook URLs, Slack tokens, SMTP passwords exposed in config
 
 **What to build**:
+
 - HashiCorp Vault integration (or sealed secrets)
 - Secret references in observer rules (e.g., `${vault://webhook-url}`)
 - Secret rotation without service restart
@@ -125,10 +137,12 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for updated implementation 
 ---
 
 ### 6. **Phase 10.10: Encryption at Rest & In Transit** (1-2 days)
+
 **Status**: Not implemented
 **Risk**: Unencrypted data in Redis, ClickHouse, Elasticsearch
 
 **What to build**:
+
 - TLS for all connections (Arrow Flight, NATS, Redis, ClickHouse, Elasticsearch)
 - Encryption at rest for ClickHouse (if supported by version)
 - Key rotation strategy
@@ -137,10 +151,12 @@ See `.claude/PHASE_10_ROADMAP.md` → **Phase 10.6** for updated implementation 
 ---
 
 ### 7. **Phase 10.9: Backup & Disaster Recovery** (1 day)
+
 **Status**: Not planned
 **Impact**: Cannot recover from data loss
 
 **What to build**:
+
 - Daily backups of observer rules
 - Point-in-time recovery for ClickHouse
 - Redis persistence verification
@@ -194,6 +210,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 
 **Total Effort**: 2 weeks (vs 4 weeks originally)
 **Outcome**: Production-ready FraiseQL v2 GA release with:
+
 - ✅ Secure auth (OAuth2/OIDC + JWT + API keys)
 - ✅ Multi-tenant isolation (org_id enforcement)
 - ✅ Secrets management (Vault)
@@ -205,6 +222,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 ## ✅ Production Readiness Checklist
 
 ### Code Quality
+
 - [ ] Phase 9.9 testing executed (all critical blockers passed)
 - [ ] Phase 10.5 Auth implemented (all endpoints secured)
 - [ ] Phase 10.6 Multi-tenancy enforced (if SaaS)
@@ -214,6 +232,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - [ ] Code compiles with `--all-features`
 
 ### Security
+
 - [ ] Authentication on all endpoints (OAuth2/OIDC + JWT)
 - [ ] Authorization enforced (RBAC on rules & actions)
 - [ ] Secrets not in config (using Vault or equivalent)
@@ -223,6 +242,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - [ ] No hardcoded credentials in code
 
 ### Operations
+
 - [ ] Backup/restore procedure documented and tested
 - [ ] Disaster recovery runbook created
 - [ ] Monitoring & alerts configured (Prometheus + Grafana)
@@ -232,6 +252,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - [ ] Deployment runbook created (K8s, Docker, systemd)
 
 ### Documentation
+
 - [ ] README updated (what FraiseQL v2 does, limitations)
 - [ ] API documentation complete and accurate
 - [ ] Deployment guide for production (TLS, auth, backups)
@@ -241,6 +262,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - [ ] No references to development phases in user docs
 
 ### Stakeholder Sign-Off
+
 - [ ] Product owner: feature completeness ✓
 - [ ] Security team: vulnerability assessment ✓
 - [ ] DevOps/SRE: deployment readiness ✓
@@ -251,6 +273,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 ## 🎯 Go/No-Go Decision Framework
 
 ### GO for Production ✅ if:
+
 1. ✅ Phase 9.9 testing passes (all critical tests)
 2. ✅ Phase 10.5 Auth implemented and tested
 3. ✅ Multi-tenant isolation enforced (if SaaS)
@@ -261,6 +284,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 8. ✅ Performance targets met
 
 ### NO-GO 🛑 if:
+
 1. ❌ Phase 9.9 testing fails (untested Arrow Flight code)
 2. ❌ Auth not implemented (open to network attacks)
 3. ❌ Data isolation not enforced (multi-tenant data leakage risk)
@@ -273,6 +297,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 ## 📋 Key Decisions for Production
 
 ### Database & Storage
+
 - **GraphQL Queries**: PostgreSQL (primary) or other supported RDBMS
 - **Observer Rules**: Same database as GraphQL (SQL Server, MySQL, SQLite in dev)
 - **Event Streaming**: NATS JetStream (persistent, distributed)
@@ -281,6 +306,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - **Operational Search**: Elasticsearch (full-text indexing, ILM policies)
 
 ### Deployment
+
 - **Container**: Docker (provided Dockerfile in crates)
 - **Orchestration**: Kubernetes (recommended for HA) or systemd (single-node)
 - **Configuration**: TOML + environment variable overrides
@@ -290,6 +316,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - **Tracing**: OpenTelemetry (optional, for request correlation)
 
 ### Security Model
+
 - **Authentication**: OAuth2/OIDC (federated) + JWT (session tokens) + API keys (service-to-service)
 - **Authorization**: Role-based access control (admin, operator, viewer)
 - **Encryption**: TLS 1.3+ for all network connections, at-rest encryption if supported
@@ -297,6 +324,7 @@ NEXT WEEK: Data Isolation & Operational Hardening
 - **Audit**: Log all rule changes, action executions, and API access
 
 ### High Availability
+
 - **Stateless servers**: Multiple FraiseQL instances behind load balancer
 - **Distributed queue**: Redis cluster (not single-node)
 - **Database replication**: PostgreSQL replication (primary/replica)
@@ -309,18 +337,21 @@ NEXT WEEK: Data Isolation & Operational Hardening
 ## 🚀 After Production: Post-GA Roadmap
 
 ### Phase 9.10: Cross-Language Arrow Schema Authoring (2 weeks)
+
 - Python library for defining Arrow schemas
 - TypeScript library for Arrow schema definitions
 - CLI tools for schema validation and registration
 - JSON schema format for language interoperability
 
 ### Phase 11: Advanced Features (TBD)
+
 - Job dependencies and workflow orchestration
 - Custom backoff algorithms
 - GraphQL subscriptions (real-time updates)
 - Advanced caching strategies
 
 ### Phase 12+: Enterprise Features (TBD)
+
 - SAML/LDAP authentication
 - Advanced RBAC with attribute-based control
 - Data retention policies (GDPR, HIPAA)

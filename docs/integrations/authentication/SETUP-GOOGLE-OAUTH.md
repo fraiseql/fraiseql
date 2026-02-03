@@ -154,6 +154,7 @@ http://localhost:8000/auth/callback?code=...&state=...
 ```
 
 This endpoint will:
+
 - Validate the state (CSRF protection)
 - Exchange the code for tokens
 - Get user info from Google
@@ -236,6 +237,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
 **Cause**: The redirect URI in your request doesn't match the configured URI.
 
 **Solution**:
+
 - Check the exact URL registered in Google Cloud Console
 - Ensure `http://` vs `https://` match
 - Ensure port number matches
@@ -246,6 +248,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
 **Cause**: Client ID from the request doesn't match the one in Google Cloud.
 
 **Solution**:
+
 - Verify the `GOOGLE_CLIENT_ID` environment variable is set correctly
 - Copy-paste from Google Cloud Console (don't type manually)
 
@@ -254,6 +257,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
 **Cause**: CSRF protection failed - state parameter doesn't match.
 
 **Solution**:
+
 - This usually means the state cache expired (10 minutes)
 - User took too long to authenticate
 - Restart the login flow
@@ -263,6 +267,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
 **Cause**: Authorization code already used or expired.
 
 **Solution**:
+
 - Authorization codes expire in 10 minutes
 - Can only be used once
 - Start the login flow again
@@ -292,6 +297,7 @@ For production:
    GOOGLE_CLIENT_SECRET=<secret>
    OAUTH_REDIRECT_URI=https://yourdomain.com/auth/callback
    ```
+
 3. Ensure database is backed up
 4. Enable HTTPS with valid certificate
 5. Set secure cookie flags if using cookies
@@ -311,6 +317,7 @@ Google allows multiple accounts in development:
 ## Rate Limiting
 
 Google applies rate limits:
+
 - 100,000 requests per day per project
 - Most apps won't hit this limit
 - If needed, request quota increase in Google Cloud Console

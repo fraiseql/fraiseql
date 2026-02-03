@@ -35,6 +35,7 @@ Complex federation scenarios including circular references, 4+ subgraphs, field 
 ### Pattern 1: Circular References (User ↔ Company)
 
 **Problem**:
+
 - Users belong to companies
 - Companies have users
 - Federation composability issue if not handled correctly
@@ -163,6 +164,7 @@ query {
 ```
 
 This requires:
+
 1. Users service (owns User)
 2. Companies service (extends User, owns Company)
 3. Orders service (extends Company, owns Order)

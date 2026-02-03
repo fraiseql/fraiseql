@@ -31,6 +31,7 @@
 ## Phase 8.0: Foundation & Planning (Day 1)
 
 ### Deliverables
+
 - [x] Deep architecture analysis (DONE)
 - [x] Design document (DONE)
 - [ ] Development environment setup
@@ -111,6 +112,7 @@ criterion_main!(benches);
 Enable zero-loss event processing with automatic recovery on restart
 
 ### Deliverables
+
 - [ ] `CheckpointStore` trait (abstraction boundary)
 - [ ] `PostgresCheckpointStore` implementation
 - [ ] Database migrations
@@ -417,6 +419,7 @@ mod tests {
 ```
 
 ### 8.1.6: Acceptance Criteria
+
 - [x] Checkpoints saved to PostgreSQL
 - [x] Checkpoints loaded on startup
 - [x] Recovery test passes (no duplicate processing)
@@ -442,6 +445,7 @@ mod tests {
 - **8.12**: Testing & QA (200+ tests, benchmarks)
 
 Each phase includes:
+
 - Complete trait definition
 - Implementation(s)
 - Database schema (if needed)
@@ -476,12 +480,14 @@ Each phase includes:
 ## Success Metrics
 
 ### Code Quality
+
 - 250+ tests passing
 - 100% clippy compliant
 - Zero unsafe code
 - <5% code duplication
 
 ### Performance
+
 - Checkpoint: 10k saves/sec
 - Concurrent actions: 5x latency reduction
 - Cache hits: 80%+
@@ -489,12 +495,14 @@ Each phase includes:
 - Metrics: <1% overhead
 
 ### Reliability
+
 - Zero event loss (checkpoint verified)
 - Deduplication effective (no double-processes)
 - Circuit breaker prevents cascading failures
 - Multi-listener failover automatic
 
 ### Observability
+
 - All operations instrumented
 - Prometheus metrics queryable
 - Log levels appropriate

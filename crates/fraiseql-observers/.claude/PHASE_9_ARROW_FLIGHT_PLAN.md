@@ -10,6 +10,7 @@
 ## Executive Summary
 
 Integrate Apache Arrow Flight as a high-performance data delivery layer for:
+
 1. Observer event streaming to analytics platforms
 2. GraphQL query results in columnar format (handled in fraiseql-core)
 3. Bulk data exports for data warehouses
@@ -387,6 +388,7 @@ Stream events via Flight DoGet RPC
 Format: "events:<entity_type>:<start_time>:<end_time>:<batch_size>"
 
 Examples:
+
 - "events:Order:2026-01-01T00:00:00Z:2026-01-31T23:59:59Z:10000"
 - "events:*:now-1h:now:5000"  (all types, last hour)
 - "events:User:now-1d:now:1000"  (users, last day)
@@ -580,6 +582,7 @@ fn bench_flight_streaming(c: &mut Criterion) {
 ```
 
 **Performance Targets**:
+
 - Conversion: 100,000 events/sec
 - Streaming: 1,000,000 events/sec
 - Memory: <100MB for 1M events buffered
@@ -634,6 +637,7 @@ services:
 ## Success Criteria
 
 ### Functional
+
 - ✅ Flight server starts and accepts connections
 - ✅ Events converted to Arrow RecordBatches
 - ✅ Streaming batches work (10K+ events)
@@ -641,6 +645,7 @@ services:
 - ✅ Data correctness validated (all fields match)
 
 ### Performance
+
 - ✅ 100,000+ events/sec conversion rate
 - ✅ 1,000,000+ events/sec streaming throughput
 - ✅ <10ms first batch latency
@@ -648,6 +653,7 @@ services:
 - ✅ 10x bandwidth reduction vs JSON
 
 ### Documentation
+
 - ✅ Architecture diagram
 - ✅ Client integration examples (Python/R/Java)
 - ✅ Deployment guide with Docker Compose

@@ -743,6 +743,7 @@ if __name__ == "__main__":
 ## Testing Examples
 
 For comprehensive test examples, see:
+
 - `tests/test_nats_config.py` - Configuration tests
 - `tests/test_nats_integration.py` - Integration tests
 - `tests/test_subscribers.py` - Subscriber tests

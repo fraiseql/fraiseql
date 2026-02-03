@@ -260,6 +260,7 @@ def delete_post(id: ID!) -> Boolean:
 **Authorization evaluation:**
 
 ```
+
 1. Create post: Check if user is authenticated
    → If yes, allow
    → If no, deny (E_AUTH_PERMISSION_401)
@@ -457,6 +458,7 @@ class User:
 Masking is applied **after** authorization check:
 
 ```
+
 1. Authorization check: Can user access field?
    ├─ If no → Return null error
    └─ If yes → Continue
@@ -1038,6 +1040,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
 **Investigation steps:**
 
 ```
+
 1. Check if user is authenticated
    → Query: SELECT authenticated_at FROM tb_user WHERE id = 'user-456'
 
@@ -1067,6 +1070,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
 **Investigation steps:**
 
 ```
+
 1. Check RLS rule on type
    → Query: SELECT rls_rule FROM tb_schema_types WHERE name = 'Post'
 

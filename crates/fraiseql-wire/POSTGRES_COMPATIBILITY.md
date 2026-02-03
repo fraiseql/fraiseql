@@ -103,6 +103,7 @@ fraiseql-wire maintains **semantic versioning**:
 ### Current Policy (0.1.0)
 
 ```
+
 0.1.0 → 0.2.0: May include breaking API changes (pre-1.0)
 0.1.0 → 1.0.0: Stable API (no breaking changes in 1.x)
 ```

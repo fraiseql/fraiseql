@@ -5,18 +5,21 @@ System monitoring, schema exploration, and query debugging interface for FraiseQ
 ## Features
 
 ### 📊 System Overview
+
 - **Real-time health monitoring** - System and service status
 - **Uptime tracking** - Server uptime since startup
 - **Request metrics** - Total requests, error rates, average query time
 - **Service status** - Monitor FraiseQL Server connection
 
 ### 📋 Schema Explorer
+
 - **Type browsing** - View all custom GraphQL types
 - **Type details** - Explore fields and relationships
 - **Kind filtering** - Filter by OBJECT, INTERFACE, ENUM, SCALAR, INPUT
 - **Descriptions** - See documentation for each type
 
 ### 🐛 Query Debugger
+
 - **GraphQL execution** - Test queries against live server
 - **Query analysis** - Complexity assessment (simple/moderate/complex)
 - **Field counting** - Understand query scope
@@ -24,12 +27,14 @@ System monitoring, schema exploration, and query debugging interface for FraiseQ
 - **Result visualization** - View formatted query results
 
 ### 📈 Performance Metrics
+
 - **Request histogram** - Distribution of response times
 - **Time window selection** - Analyze last 10 min/1 hour/4 hours/24 hours
 - **Error tracking** - Monitor error rates and patterns
 - **Performance stats** - Min/max/average query times
 
 ### 📝 System Logs
+
 - **Log aggregation** - Centralized system logging
 - **Filterable logs** - View all, requests only, or errors only
 - **Timestamps** - Exact timing for each event
@@ -277,6 +282,7 @@ Response:
 
 ### Overview
 System health dashboard with key metrics:
+
 - Current status (Healthy/Unhealthy)
 - System uptime
 - Total requests processed
@@ -292,6 +298,7 @@ System health dashboard with key metrics:
 
 ### Schema Explorer
 Browse the entire GraphQL schema:
+
 - List of all types in the schema
 - Type kind (OBJECT, INTERFACE, ENUM, etc.)
 - Description for each type
@@ -305,6 +312,7 @@ Browse the entire GraphQL schema:
 
 ### Query Debugger
 Test GraphQL queries in real-time:
+
 1. Paste a GraphQL query
 2. Click "Execute Query" (or Ctrl+Enter)
 3. View results in JSON format
@@ -357,6 +365,7 @@ query GetUserWithPosts {
 
 ### Metrics
 Performance analysis and trending:
+
 - Select time window (10 min, 1 hour, 4 hours, 24 hours)
 - View request statistics (total, avg, min, max)
 - See error rate trends
@@ -371,6 +380,7 @@ Performance analysis and trending:
 
 ### Logs
 Centralized system logging:
+
 - Filter by type: All, Requests, Errors
 - Timestamps for each event
 - Status indicators (success/error)
@@ -418,6 +428,7 @@ Centralized system logging:
 ## In-Memory Metrics Storage
 
 The admin dashboard stores metrics in memory:
+
 - **Requests**: Last 1000 requests tracked
 - **Errors**: Last 100 errors tracked
 - **Query Times**: Last 1000 execution times tracked
@@ -502,16 +513,19 @@ docker compose -f docker/docker-compose.demo.yml logs admin-dashboard
 ```
 
 ### Metrics not showing
+
 - Metrics only display after queries are executed
 - Reset by restarting the admin dashboard
 - Use `/api/metrics` endpoint to verify data
 
 ### FraiseQL Server connection fails
+
 - Verify server is running: `curl http://localhost:8000/health`
 - Check `FRAISEQL_API_URL` environment variable
 - Ensure services are on same Docker network
 
 ### Data doesn't persist after restart
+
 - In-memory storage is cleared on restart
 - For production, implement persistent metrics storage
 - Consider integrating with Prometheus/Grafana

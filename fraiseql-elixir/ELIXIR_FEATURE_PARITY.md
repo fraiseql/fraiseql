@@ -122,6 +122,7 @@ All **sixteen authoring languages** at 100% parity:
 All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 
 ### AuthorizationTests (11 tests)
+
 - Creating simple rules
 - Using policy references
 - Fluent builder pattern and chaining
@@ -134,6 +135,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 - Equality testing via pattern matching
 
 ### RoleBasedAccessControlTests (18 tests)
+
 - Single role requirement
 - Multiple roles
 - Role matching strategy: ANY (:any)
@@ -152,6 +154,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 - Equality testing
 
 ### AttributeBasedAccessControlTests (16 tests)
+
 - ABAC policy definition
 - Multiple attributes
 - Clearance level checking
@@ -169,6 +172,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 - Equality testing
 
 ### AuthzPolicyTests (19 tests)
+
 - RBAC policy type (:rbac)
 - ABAC policy type (:abac)
 - Custom policy type (:custom)
@@ -193,6 +197,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 ## Elixir Language Specifics
 
 ### Functional Programming Paradigm
+
 - Immutable data structures (maps, keyword lists)
 - Pattern matching for data decomposition
 - Atoms as constants/tags
@@ -200,6 +205,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 - No mutable state by default
 
 ### Elixir Features Used
+
 - Modules for organization
 - Keyword lists for named parameters with defaults
 - Maps for structured data
@@ -209,6 +215,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 - Mix for build and dependency management
 
 ### Build Configuration
+
 - Mix as build tool
 - Elixir 1.14 LTS
 - mix.exs for project configuration
@@ -238,6 +245,7 @@ All tests in `test/fraiseql/security_test.exs` with 44 total tests using ExUnit:
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -245,6 +253,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Elixir-specific advantages:
+
 - Immutable data by default prevents state bugs
 - Pattern matching enables elegant code
 - Hot code reloading during development

@@ -80,9 +80,11 @@ A complete Fraisier v0.1.0 would have:
 This sequence will give you ~80% completeness with maximum value:
 
 #### Phase 3.10-A: Complete Migration Layer (~2-3 hours)
+
 **Why First**: Enables multi-database deployments in production
 
 **Deliverables**:
+
 - `fraisier/db/migrations/` system
 - SQLite migration files
 - PostgreSQL migration files
@@ -102,9 +104,11 @@ async def init_database(adapter):
 ---
 
 #### Phase 3.10-B: Observability Integration (~3-4 hours)
+
 **Why Next**: Complete the Phase 3 + Phase 3.10 integration
 
 **Deliverables**:
+
 - Database operation metrics (queries, connections, errors)
 - Structured logging for all DB operations
 - Audit logging for deployment-related changes
@@ -126,6 +130,7 @@ async def init_database(adapter):
 ---
 
 #### Phase 4: Deployment Providers (~4-5 hours per provider)
+
 **Why Critical**: Deployments only work with providers
 
 **Phase 4.1: Bare Metal Provider** (SSH + systemd)
@@ -155,9 +160,11 @@ async def init_database(adapter):
 ---
 
 #### Phase 5: Advanced Deployment Patterns (~3-4 hours)
+
 **Why Important**: Production deployments need sophisticated strategies
 
 **Deliverables**:
+
 - Rolling deployment with health checks
 - Blue-Green deployment with traffic switching
 - Canary deployment with metrics-based promotion
@@ -170,9 +177,11 @@ async def init_database(adapter):
 ---
 
 #### Phase 6: Comprehensive E2E Testing (~4-5 hours)
+
 **Why Critical**: Validates everything works together
 
 **Test Scenarios**:
+
 - Full deployment flow for each provider
 - Multi-database deployment recording
 - Health check validation
@@ -186,9 +195,11 @@ async def init_database(adapter):
 ---
 
 #### Phase 7: Docker & Infrastructure (~3-4 hours)
+
 **Why Important**: Enables easy deployment
 
 **Deliverables**:
+
 - Dockerfile for Fraisier
 - docker-compose.yml (Fraisier + PostgreSQL + Prometheus + Grafana)
 - Kubernetes manifests
@@ -201,9 +212,11 @@ async def init_database(adapter):
 ---
 
 #### Phase 8: Documentation (~4-5 hours)
+
 **Why High Value**: Users can actually use it
 
 **Deliverables**:
+
 - API reference documentation
 - Getting started guide (per database type)
 - Provider setup guides (3 providers)
@@ -274,6 +287,7 @@ Together: ~14-18 additional hours = **production-ready, well-documented**
 ## Implementation Strategy
 
 ### Strategy A: "Must-Have Only" (19 hours)
+
 **Best if**: You want something usable quickly
 **Gives you**: Working multi-database deployment system
 **Missing**: Advanced patterns, docs, testing infrastructure
@@ -285,6 +299,7 @@ Phase 3.10-B (Observability) → Phase 4 (Providers) → Done
 ```
 
 ### Strategy B: "Complete Foundation" (33-37 hours)
+
 **Best if**: You want production-grade but willing to spend time
 **Gives you**: Fully working, tested, documented system
 **Missing**: Nothing critical
@@ -301,6 +316,7 @@ Phase 3.10-A (Migrations)
 ```
 
 ### Strategy C: "Enterprise Ready" (Full 40 hours)
+
 **Best if**: You want everything, want to invest
 **Gives you**: Complete, tested, documented, containerized
 **Missing**: Nothing
@@ -413,18 +429,21 @@ Given you said you want "best completeness":
 Let me know your preference and I can start immediately:
 
 ### Option A: "Get it Working" (Fastest path to functionality)
+
 - **3.10-A → 3.10-B → 4.1** (8-12 hours)
 - You'll have Bare Metal deployments with full observability
 - Good for: Testing, internal use, MVP
 - Missing: Docker/Coolify, advanced patterns, documentation
 
 ### Option B: "Production Grade" (Best balance)
+
 - **3.10-A → 3.10-B → 4 → 6 → 8** (23-28 hours)
 - You'll have all providers, tested, documented
 - Good for: v0.1.0 release with confidence
 - Missing: Advanced patterns, Docker setup (but documented)
 
 ### Option C: "Complete Everything" (Best completeness)
+
 - **All phases 3.10-A through 8** (34-40 hours)
 - You'll have literally everything
 - Good for: Enterprise release, reference implementation
@@ -437,6 +456,7 @@ Let me know your preference and I can start immediately:
 ## Next Steps When Ready
 
 Once you decide, I'll:
+
 1. Create detailed implementation plans for selected phases
 2. Set up comprehensive test suites
 3. Track progress with verification reports

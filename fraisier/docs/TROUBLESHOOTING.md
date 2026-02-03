@@ -25,11 +25,13 @@
 ### Issue: Cannot connect to Fraisier API
 
 **Symptoms**:
+
 - `Connection refused` error
 - API endpoint unreachable
 - Cannot list deployments or services
 
 **Causes**:
+
 1. Fraisier service not running
 2. Wrong hostname/port
 3. Firewall blocking connection
@@ -92,11 +94,13 @@ fraisier list
 ### Issue: Authentication token invalid or expired
 
 **Symptoms**:
+
 - `401 Unauthorized` error
 - Token rejected
 - Need to re-authenticate
 
 **Causes**:
+
 1. Token expired
 2. Wrong token format
 3. Token revoked
@@ -138,11 +142,13 @@ fraisier auth login
 ### Issue: Deployment stuck in "pending" state
 
 **Symptoms**:
+
 - Deployment status shows "pending" for hours
 - No progress in logs
 - Cannot cancel deployment
 
 **Causes**:
+
 1. Provider temporarily unavailable
 2. Network connectivity issues
 3. Resource constraints
@@ -202,11 +208,13 @@ curl http://localhost:9090/api/v1/query?query=fraisier_active_deployments
 ### Issue: Deployment fails with "Health check failed"
 
 **Symptoms**:
+
 - Deployment progresses but stops at health checks
 - Error: `Health check failed: connection refused`
 - Application started but not responding
 
 **Causes**:
+
 1. Application not starting properly
 2. Port configuration mismatch
 3. Health check endpoint not implemented
@@ -280,12 +288,14 @@ curl -v http://localhost:8000/health
 ### Issue: Deployment succeeds but application not working
 
 **Symptoms**:
+
 - Deployment shows success
 - Health checks pass
 - But application has errors
 - Users report issues
 
 **Causes**:
+
 1. Health check too simplistic
 2. Database not initialized
 3. Migrations not run
@@ -345,11 +355,13 @@ nslookup db.example.com
 ### Issue: Health checks flaky/intermittent failures
 
 **Symptoms**:
+
 - Health checks sometimes pass, sometimes fail
 - Random failures without code changes
 - Deployment succeeds eventually after retries
 
 **Causes**:
+
 1. Application slow to start
 2. Database not ready
 3. External service timeout
@@ -408,11 +420,13 @@ curl -v http://localhost:8000/health
 ### Issue: Cannot connect to database
 
 **Symptoms**:
+
 - Deployment fails with `database connection failed`
 - Application logs show connection refused
 - Cannot query database
 
 **Causes**:
+
 1. Database server not running
 2. Wrong connection string
 3. Firewall blocking access
@@ -481,11 +495,13 @@ psql postgresql://user:password@localhost/fraisier -c "SELECT 1;"
 ### Issue: Database queries slow
 
 **Symptoms**:
+
 - Deployments take longer than expected
 - High database CPU usage
 - Logs show slow query warnings
 
 **Causes**:
+
 1. Missing indexes
 2. Inefficient queries
 3. Too many connections
@@ -537,11 +553,13 @@ WHERE duration > interval '5 minutes';
 ### Issue: Docker image build fails
 
 **Symptoms**:
+
 - Deployment fails during build phase
 - Error in Dockerfile
 - Build times out
 
 **Causes**:
+
 1. Dockerfile syntax error
 2. Missing dependencies
 3. Network issues during build
@@ -598,11 +616,13 @@ docker logs $(docker ps -lq)
 ### Issue: Container exits immediately
 
 **Symptoms**:
+
 - Container starts then stops
 - Status shows `Exited (1) 2 minutes ago`
 - No application logs visible
 
 **Causes**:
+
 1. Application crashes on startup
 2. Missing required file
 3. Permission denied
@@ -654,11 +674,13 @@ docker run -it my-api env
 ### Issue: SSH key authentication fails
 
 **Symptoms**:
+
 - Permission denied (publickey)
 - Cannot SSH to server
 - Key not accepted
 
 **Causes**:
+
 1. Wrong SSH key
 2. Key not added to authorized_keys
 3. Key permissions incorrect
@@ -715,11 +737,13 @@ ssh -v -i ~/.ssh/fraisier deploy@prod-1.example.com
 ### Issue: SSH connection timeout
 
 **Symptoms**:
+
 - `Connection timed out` after long wait
 - Cannot reach server via SSH
 - Network seems offline
 
 **Causes**:
+
 1. Server offline or unreachable
 2. Firewall blocking port 22
 3. SSH service not running
@@ -776,11 +800,13 @@ ssh -v prod-1.example.com
 ### Issue: NATS connection failed
 
 **Symptoms**:
+
 - Error: `Failed to connect to NATS`
 - Events not being published
 - No connection to event bus
 
 **Causes**:
+
 1. NATS server not running
 2. Wrong NATS URL
 3. Firewall blocking port
@@ -830,11 +856,13 @@ echo $NATS_SERVERS
 ### Issue: Events not being received
 
 **Symptoms**:
+
 - Deployment events published but not received
 - No subscribers receiving messages
 - Event log shows published but not delivered
 
 **Causes**:
+
 1. Subscriber not connected
 2. Filter too restrictive
 3. Event type mismatch
@@ -889,11 +917,13 @@ nats sub "fraisier.>" --verbose
 ### Issue: Metrics not appearing in Prometheus
 
 **Symptoms**:
+
 - Grafana dashboards empty
 - No metrics collected
 - Prometheus scrape jobs failing
 
 **Causes**:
+
 1. Fraisier metrics endpoint not responding
 2. Prometheus scrape config wrong
 3. Firewall blocking metrics port
@@ -947,11 +977,13 @@ curl http://localhost:9090/api/v1/query?query=up
 ### Issue: Deployments very slow
 
 **Symptoms**:
+
 - Deployments take 10+ minutes
 - No obvious errors
 - System resources not maxed out
 
 **Causes**:
+
 1. Slow network
 2. Large code repository
 3. Database queries slow
@@ -1001,11 +1033,13 @@ health_check:
 ### Issue: Old deployments/logs taking up too much space
 
 **Symptoms**:
+
 - Disk usage growing
 - Database large
 - Deployment logs accumulating
 
 **Causes**:
+
 1. Long retention period
 2. Too many deployments recorded
 3. Large log files

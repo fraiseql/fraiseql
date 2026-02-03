@@ -33,6 +33,7 @@ fraisier [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
 ```
 
 **Global Options**:
+
 - `--version`: Show version and exit
 - `--help`: Show help and exit
 - `--config CONFIG`: Path to fraises.yaml (default: ./fraises.yaml)
@@ -70,10 +71,12 @@ fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 ```
 
 **Arguments**:
+
 - `FRAISE` (required): Service name to deploy
 - `ENVIRONMENT` (required): Target environment (development, staging, production, etc.)
 
 **Options**:
+
 - `--version VERSION`: Specific version to deploy (default: latest from Git)
 - `--strategy STRATEGY`: Deployment strategy (default: rolling)
   - `rolling`: One instance at a time with health checks
@@ -119,6 +122,7 @@ fraisier deploy my_api production -y
 ```
 
 **Exit Codes**:
+
 - 0: Success
 - 1: General error
 - 2: Invalid arguments
@@ -139,10 +143,12 @@ fraisier rollback [OPTIONS] FRAISE ENVIRONMENT
 ```
 
 **Arguments**:
+
 - `FRAISE` (required): Service name to rollback
 - `ENVIRONMENT` (required): Target environment
 
 **Options**:
+
 - `--to-version VERSION`: Specific version to rollback to (default: previous version)
 - `--reason REASON`: Reason for rollback (for audit logging)
 - `--wait`: Wait for rollback to complete
@@ -179,6 +185,7 @@ fraisier pause DEPLOYMENT_ID
 ```
 
 **Arguments**:
+
 - `DEPLOYMENT_ID` (required): Deployment ID to pause
 
 **Example**:
@@ -198,6 +205,7 @@ fraisier resume DEPLOYMENT_ID
 ```
 
 **Arguments**:
+
 - `DEPLOYMENT_ID` (required): Deployment ID to resume
 
 **Example**:
@@ -217,6 +225,7 @@ fraisier cancel DEPLOYMENT_ID
 ```
 
 **Arguments**:
+
 - `DEPLOYMENT_ID` (required): Deployment ID to cancel
 
 **Example**:
@@ -238,10 +247,12 @@ fraisier status [OPTIONS] FRAISE [ENVIRONMENT]
 ```
 
 **Arguments**:
+
 - `FRAISE` (required): Service name
 - `ENVIRONMENT` (optional): Specific environment (show all if not specified)
 
 **Options**:
+
 - `--long / -l`: Show detailed information
 - `--watch / -w`: Watch status (update every 5 seconds)
 - `--interval SECONDS`: Update interval (default: 5)
@@ -285,6 +296,7 @@ fraisier list [OPTIONS]
 ```
 
 **Options**:
+
 - `--environment ENV`: Filter by environment
 - `--type TYPE`: Filter by type (api, etl, scheduled)
 - `--status STATUS`: Filter by status (healthy, degraded, unhealthy)
@@ -320,6 +332,7 @@ fraisier health [OPTIONS]
 ```
 
 **Options**:
+
 - `--environment ENV`: Check specific environment only
 - `--watch / -w`: Watch health (auto-update)
 - `--interval SECONDS`: Update interval (default: 5)
@@ -350,10 +363,12 @@ fraisier history [OPTIONS] FRAISE [ENVIRONMENT]
 ```
 
 **Arguments**:
+
 - `FRAISE` (required): Service name
 - `ENVIRONMENT` (optional): Specific environment
 
 **Options**:
+
 - `--limit N`: Show last N deployments (default: 20)
 - `--status STATUS`: Filter by status (success, failed, cancelled)
 - `--since TIME`: Show deployments after this time (ISO 8601 or "1h", "1d", "1w")
@@ -403,9 +418,11 @@ fraisier logs [OPTIONS] DEPLOYMENT_ID
 ```
 
 **Arguments**:
+
 - `DEPLOYMENT_ID` (required): Deployment ID
 
 **Options**:
+
 - `--lines N`: Show last N lines (default: 100, max: 1000)
 - `--follow / -f`: Follow logs (stream new lines)
 - `--level LEVEL`: Filter by log level (info, warn, error)
@@ -445,6 +462,7 @@ fraisier config [OPTIONS] ACTION
 ```
 
 **Actions**:
+
 - `show`: Display current configuration
 - `validate`: Validate configuration file
 - `init`: Initialize configuration file
@@ -473,6 +491,7 @@ fraisier env [OPTIONS] ACTION [ENVIRONMENT]
 ```
 
 **Actions**:
+
 - `list`: List all environments
 - `show`: Show environment details
 - `add`: Add new environment
@@ -508,6 +527,7 @@ fraisier db [OPTIONS] ACTION
 ```
 
 **Actions**:
+
 - `init`: Initialize database schema
 - `migrate`: Run database migrations
 - `status`: Check database status
@@ -515,6 +535,7 @@ fraisier db [OPTIONS] ACTION
 - `restore`: Restore database from backup
 
 **Options**:
+
 - `--database TYPE`: Database type (sqlite, postgresql, mysql)
 - `--path PATH`: Database path/connection string
 
@@ -553,6 +574,7 @@ fraisier metrics [OPTIONS]
 ```
 
 **Options**:
+
 - `--service SERVICE`: Filter by service
 - `--environment ENV`: Filter by environment
 - `--watch / -w`: Watch metrics (auto-update)
@@ -585,6 +607,7 @@ fraisier alerts [OPTIONS] ACTION
 ```
 
 **Actions**:
+
 - `list`: List active alerts
 - `show`: Show alert details
 - `acknowledge`: Acknowledge alert
@@ -619,12 +642,14 @@ fraisier webhook [OPTIONS] ACTION
 ```
 
 **Actions**:
+
 - `list`: List webhooks
 - `add`: Add webhook
 - `remove`: Remove webhook
 - `test`: Test webhook delivery
 
 **Options**:
+
 - `--event EVENT`: Filter by event type
 
 **Examples**:
@@ -657,6 +682,7 @@ fraisier auth [OPTIONS] ACTION
 ```
 
 **Actions**:
+
 - `login`: Authenticate with Fraisier
 - `logout`: Remove stored credentials
 - `token`: Display current auth token

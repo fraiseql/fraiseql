@@ -5,6 +5,7 @@ This directory contains database migrations for the ClickHouse analytics databas
 ## Overview
 
 The migrations set up:
+
 1. **fraiseql_events** - Main table storing all observer events (90-day TTL)
 2. **fraiseql_events_hourly** - Hourly aggregations by entity and event type
 3. **fraiseql_org_daily** - Daily organization statistics
@@ -217,6 +218,7 @@ LIMIT 50;
 ### Adjust batch size if needed
 
 The Arrow Flight sink default batch size is 10,000 rows. Adjust if:
+
 - Batches are taking >100ms: reduce batch_size
 - Memory pressure: reduce batch_size
 - Network latency high: increase batch_size

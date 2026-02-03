@@ -814,6 +814,7 @@ Problem: Instance 3 has different behavior
 
 ```
 Correct deployment:
+
 1. Deploy new code version
 2. Wait for ready signal (health check)
 3. Verify schema matches

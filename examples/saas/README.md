@@ -19,24 +19,28 @@ schema/
 ## Domains
 
 ### Accounts Domain
+
 - **Account**: SaaS account with subscription tier
 - **AccountUser**: User membership in an account
 - **Queries**: getAccount, getAccountBySlug, listAccountUsers
 - **Mutations**: createAccount, updateAccount
 
 ### Billing Domain
+
 - **Subscription**: Account subscription and billing information
 - **Invoice**: Billing invoices
 - **Queries**: getSubscription, listInvoices
 - **Mutations**: updateSubscription, cancelSubscription
 
 ### Teams Domain
+
 - **Team**: Team within an account
 - **TeamMember**: Team membership with roles
 - **Queries**: listTeams, getTeam, listTeamMembers
 - **Mutations**: createTeam, addTeamMember
 
 ### Integrations Domain
+
 - **Integration**: Third-party service configuration
 - **WebhookLog**: Webhook delivery tracking
 - **Queries**: listIntegrations, getIntegration, listWebhookLogs
@@ -64,6 +68,7 @@ Account
 ```
 
 ### Domain Boundaries
+
 - **Accounts** owns account identity
 - **Billing** handles subscriptions and payments
 - **Teams** manages org structure
@@ -71,6 +76,7 @@ Account
 
 ### Security
 Role-based access control per domain:
+
 - Account owner: account settings
 - Billing admin: subscription management
 - Team lead: team management

@@ -26,12 +26,14 @@ FraiseQL v2's security model is based on these core principles:
 
 ### 1. **Schema-Driven Security**
 Authorization rules are defined as **schema metadata**, not runtime logic. This enables:
+
 - Compile-time validation of access patterns
 - Static analysis for security violations
 - Deterministic behavior across all queries
 
 ### 2. **Defense in Depth**
 Multiple layers of protection:
+
 1. **Transport Layer** - TLS/SSL encryption
 2. **Authentication Layer** - JWT/OIDC token validation
 3. **Authorization Layer** - Field-level and operation-level access control
@@ -39,12 +41,14 @@ Multiple layers of protection:
 5. **Database Layer** - Parameterized queries, database-level permissions
 
 ### 3. **Fail Secure**
+
 - Default to denying access (unless explicitly allowed)
 - Errors don't leak sensitive information
 - Graceful degradation under load
 - No silent failures
 
 ### 4. **Zero Trust**
+
 - All requests validated, even from "trusted" internal services
 - All database connections use credentials
 - All user input treated as potentially malicious
@@ -86,12 +90,14 @@ Multiple layers of protection:
 ### ✅ Verified and Tested
 
 **Authentication**
+
 - JWT token validation (HS256, RS256, RS384, RS512)
 - OAuth2/OIDC provider support (GitHub, Google, Keycloak, Azure AD)
 - Token expiration and refresh mechanism
 - Secure token storage and transmission
 
 **Authorization**
+
 - Role-Based Access Control (RBAC) with multiple strategies
 - Attribute-Based Access Control (ABAC)
 - Field-level access control
@@ -99,30 +105,35 @@ Multiple layers of protection:
 - Custom authorization rules with context variables
 
 **Encryption**
+
 - TLS/SSL for transport (configurable min version)
 - HTTPS enforcement (optional in production)
 - Certificate pinning support
 - Modern cipher suite selection
 
 **Input Validation**
+
 - GraphQL query schema validation
 - Field name validation
 - Type checking at compile time
 - Parameterized queries (prevent SQL injection)
 
 **Query Safety**
+
 - Query depth limits (prevents deeply nested attacks)
 - Query complexity scoring
 - Timeout enforcement (default: 30 seconds, configurable)
 - Rate limiting (per-IP or global)
 
 **Error Handling**
+
 - Error message sanitization (no schema leakage)
 - Introspection control (can be disabled)
 - Stack trace hiding in production
 - Graceful error responses
 
 **Audit Logging**
+
 - Mutation tracking with user context
 - Access decision logging
 - Authentication event logging
@@ -217,6 +228,7 @@ Expression evaluated with context variables → Boolean result → Access grante
 ```
 
 Example context variables:
+
 - `$user.id` - User ID
 - `$user.roles` - User's roles
 - `$user.attributes` - Custom user attributes
@@ -240,6 +252,7 @@ tls_min_version = "TLSv1.2"
 ```
 
 **Certificate Management**:
+
 - Use certificates issued by trusted CAs (not self-signed in production)
 - Implement certificate rotation before expiry
 - Monitor certificate expiration dates
@@ -247,12 +260,14 @@ tls_min_version = "TLSv1.2"
 ### At Rest
 
 **Database Security**:
+
 - Credentials in environment variables (not config files)
 - Database user with minimal required privileges
 - Connection pooling with idle timeouts
 - Encrypted database connections (SSL/TLS)
 
 **No Secrets in Code**:
+
 - All secrets stored as environment variables
 - Config files committed to version control must not contain secrets
 - Use secret management systems (Vault, sealed-secrets, etc.)
@@ -278,6 +293,7 @@ let sql = format!("SELECT * FROM users WHERE id = {} AND status = '{}'", user_id
 ### Validation
 
 All user input:
+
 1. Validated against schema at parse time
 2. Type-checked at compile time
 3. Parameterized before database execution
@@ -360,17 +376,20 @@ If query exceeds limit:
 ### What's Logged
 
 **Authentication Events**:
+
 - Login attempts (success/failure)
 - Token validation (success/failure)
 - Token refresh operations
 - Session creation/destruction
 
 **Authorization Events**:
+
 - Authorization check results (allow/deny)
 - Failed access attempts
 - Permission changes
 
 **Mutation Events**:
+
 - All INSERT, UPDATE, DELETE operations
 - User making change
 - Fields modified
@@ -378,6 +397,7 @@ If query exceeds limit:
 - Timestamp
 
 **Security Events**:
+
 - Rate limit violations
 - Query complexity violations
 - Connection pool exhaustion
@@ -409,11 +429,13 @@ export RUST_LOG="fraiseql=info,fraiseql_core::security=debug"
 ### Retention
 
 Logs are written to:
+
 - **STDOUT** (development)
 - **File** (production - configure in system setup)
 - **Cloud logging** (optional - CloudLogging, DataDog, etc.)
 
 Recommend retention:
+
 - **Critical events**: 1 year
 - **Mutation events**: 90 days
 - **Access logs**: 30 days
@@ -478,12 +500,14 @@ cargo update --aggressive
 ### Security Guarantees vs. Limitations
 
 **What FraiseQL Guarantees**:
+
 - ✅ No SQL injection (parameterized queries)
 - ✅ Authorization enforced on every query
 - ✅ No unintended schema exposure (introspection disabled)
 - ✅ Timeouts prevent DoS via expensive queries
 
 **What Requires Additional Setup**:
+
 - ⚠️ Transport encryption (TLS must be enabled)
 - ⚠️ Authentication (JWT/OIDC must be configured)
 - ⚠️ Secrets management (use environment variables)
@@ -496,6 +520,7 @@ cargo update --aggressive
 For production deployments:
 
 ### Required
+
 - [ ] Enable HTTPS/TLS
 - [ ] Configure CORS to specific origins (not wildcard)
 - [ ] Enable JWT/OIDC authentication
@@ -506,6 +531,7 @@ For production deployments:
 - [ ] Store secrets in environment variables
 
 ### Recommended
+
 - [ ] Enable audit logging
 - [ ] Set up log monitoring/alerting
 - [ ] Configure database TLS
@@ -516,6 +542,7 @@ For production deployments:
 - [ ] Set up security monitoring/SOC
 
 ### Optional
+
 - [ ] Implement certificate pinning
 - [ ] Use secrets management system
 - [ ] Set up database encryption

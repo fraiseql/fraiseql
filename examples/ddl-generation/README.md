@@ -40,6 +40,7 @@ python3 examples/ddl-generation/example_basic.py
 ```
 
 Output:
+
 - Loads `user.json` schema
 - Generates `tv_user` table-backed view with trigger-based refresh
 - Validates DDL
@@ -52,6 +53,7 @@ python3 examples/ddl-generation/example_arrow.py
 ```
 
 Output:
+
 - Loads `orders.json` schema
 - Generates `ta_order` Arrow columnar view with scheduled refresh
 - Includes monitoring functions
@@ -310,12 +312,14 @@ SELECT * FROM get_view_statistics_user();
 ### Missing Template Variables
 
 If you see errors like `Undefined template variable: entity_name`:
+
 - Ensure all required context is passed to `generate_tv_ddl()` or `generate_ta_ddl()`
 - Check schema is valid and contains the specified entity
 
 ### Validation Warnings
 
 Common validation warnings:
+
 - "Low comment count": Add more COMMENT ON statements (normal for small views)
 - "Low index count": Consider field types and query patterns
 - "Unresolved template syntax": Check for malformed {{ }} or {% %} in output
@@ -323,6 +327,7 @@ Common validation warnings:
 ### Invalid Entity
 
 If you get "Entity 'User' not found in schema":
+
 - Verify entity name matches exactly (case-sensitive)
 - Check schema file is valid JSON
 - Ensure types are defined in schema
@@ -330,6 +335,7 @@ If you get "Entity 'User' not found in schema":
 ## Documentation
 
 For more details, see:
+
 - [FraiseQL Documentation](https://fraiseql.dev)
 - [PostgreSQL DDL Syntax](https://www.postgresql.org/docs/current/sql-syntax.html)
 - [JSONB Operations](https://www.postgresql.org/docs/current/datatype-json.html)

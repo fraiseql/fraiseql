@@ -90,6 +90,7 @@ def test_export_types_json_minimal():
 ```
 
 #### GREEN
+
 - Remove `federation.py`, `security.py`, `observers.py`, `analytics.py`
 - Simplify `decorators.py` to not generate those sections
 - Update `registry.py` to only track types
@@ -98,12 +99,14 @@ def test_export_types_json_minimal():
 - Update tests to match new API
 
 #### REFACTOR
+
 - Extract type serialization logic to clean helper function
 - Consolidate duplicate field validation code
 - Improve error messages for type mismatches
 - Add docstrings for public API
 
 #### CLEANUP
+
 - Run `uv run ruff check --fix`
 - Remove commented code
 - Update examples to show fraiseql.toml workflow
@@ -132,6 +135,7 @@ test('export types generates minimal types.json', () => {
 ```
 
 #### GREEN
+
 - Remove `federation.ts`, `observers.ts`, `analytics.ts`
 - Simplify `decorators.ts` similarly
 - Remove views.ts (federation-specific)
@@ -139,11 +143,13 @@ test('export types generates minimal types.json', () => {
 - Rename `exportSchema()` → `exportTypes()`
 
 #### REFACTOR
+
 - Clean up type system, remove field-level federation/security
 - Consolidate validation logic
 - Improve type safety
 
 #### CLEANUP
+
 - Run `npm run lint:fix`
 - Format with prettier
 - Update examples and README
@@ -172,6 +178,7 @@ void testExportTypesGeneratesMinimalJson() throws IOException {
 ```
 
 #### GREEN
+
 - Remove large federation package (~2,000 LOC)
 - Remove security package (~3,000 LOC)
 - Remove observers package (~1,500 LOC)
@@ -181,11 +188,13 @@ void testExportTypesGeneratesMinimalJson() throws IOException {
 - Rename `exportSchema()` → `exportTypes()`
 
 #### REFACTOR
+
 - Consolidate annotation processing
 - Improve Java code organization
 - Remove complex field-level configuration
 
 #### CLEANUP
+
 - Run Maven linting: `mvn clean compile`
 - Format with standard Java formatters
 - Update pom.xml if needed (remove unused dependencies)
@@ -221,6 +230,7 @@ def test_python_toml_workflow():
 ```
 
 #### GREEN
+
 - Create complete fraiseql.toml examples for each language
 - Create Python/TS/Java examples that show types.json generation
 - Document the three compile workflows
@@ -228,11 +238,13 @@ def test_python_toml_workflow():
 - Create end-to-end test combining language SDK + TOML
 
 #### REFACTOR
+
 - Ensure examples are consistent across languages
 - Create shared TOML template/documentation
 - Validate all workflows work correctly
 
 #### CLEANUP
+
 - Write comprehensive migration guide
 - Update main README
 - Update each language's README
@@ -319,6 +331,7 @@ def test_python_toml_workflow():
 ## Implementation Progress
 
 ### Cycle 1: Python Refactoring - COMPLETE ✅
+
 - **RED**: Wrote tests for minimal types.json export
 - **GREEN**: Implemented `export_types()` function
 - **REFACTOR**: Removed federation/security/observers/analytics modules (1,365 LOC)
@@ -329,6 +342,7 @@ def test_python_toml_workflow():
 - **Result**: 3,491 → ~850 LOC (77% reduction)
 
 ### Cycle 2: TypeScript Refactoring - COMPLETE ✅
+
 - **RED**: Wrote tests for minimal types.json export
 - **GREEN**: Implemented `exportTypes()` function
 - **REFACTOR**: Removed federation/observers/analytics/views modules (2,166 LOC)
@@ -339,6 +353,7 @@ def test_python_toml_workflow():
 - **Result**: 4,433 → ~2,100 LOC (53% reduction)
 
 ### Cycle 3: Java Refactoring - COMPLETE ✅
+
 - **RED**: Created test file ExportTypesMinimalTest.java with 7 test methods
 - **GREEN**: Implemented `exportTypes()` in Java with minimal schema export (COMPLETE)
 - **REFACTOR**: Removed federation/security/observers/analytics code (COMPLETE)
@@ -353,6 +368,7 @@ def test_python_toml_workflow():
 - **Status**: Cycle 3 complete; all phases done
 
 ### Cycle 4: Integration & Documentation - COMPLETE ✅
+
 - **RED**: Created comprehensive integration test suite (test_toml_workflow.py)
 - **GREEN**: Created fraiseql.toml example and language SDK examples (Python, TypeScript, Java)
 - **REFACTOR**: Validated all workflows and ensured consistency across languages
@@ -377,6 +393,7 @@ def test_python_toml_workflow():
 [ ] Not Started | [ ] In Progress | [x] Complete
 
 **Final Achievement**:
+
 - ✅ Python: 4/4 cycles complete (RED/GREEN/REFACTOR/CLEANUP)
 - ✅ TypeScript: 4/4 cycles complete (RED/GREEN/REFACTOR/CLEANUP)
 - ✅ Java: 4/4 cycles complete (RED/GREEN/REFACTOR/CLEANUP)

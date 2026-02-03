@@ -73,6 +73,7 @@ docker-compose ps
 ```
 
 This creates:
+
 - 3 local PostgreSQL databases
 - 3 FraiseQL instances on ports 4001-4003
 - Apollo Router on port 4000
@@ -179,6 +180,7 @@ cd deployment/azure
 ```
 
 The gateway will:
+
 1. Discover each subgraph's schema
 2. Compose a federated schema
 3. Create a unified GraphQL endpoint
@@ -240,6 +242,7 @@ curl -X POST https://gateway.example.com/graphql \
 - Azure to AWS: $0.02/GB egress
 
 For typical SaaS (1TB/month federation traffic):
+
 - US-EU-APAC triangle: ~$50-100/month egress
 
 ## Troubleshooting

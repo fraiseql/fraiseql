@@ -5,6 +5,7 @@
 **Timeline**: 1-2 weeks
 
 **Success Criteria**:
+
 - ✅ CLI commands work (list, deploy, status, history, stats)
 - ✅ Deployers execute successfully (API, ETL, Scheduled)
 - ✅ Database records deployments accurately
@@ -112,6 +113,7 @@
 **Tests Needed**: (in `tests/test_deployers.py`)
 ```python
 # Test each method with mocked subprocess
+
 - test_api_deployer_get_current_version()
 - test_api_deployer_get_latest_version()
 - test_api_deployer_execute_success()
@@ -134,11 +136,13 @@
 **Current State**: 40% complete
 
 **Analysis**:
+
 - Structure is reasonable (lines 1-94)
 - Missing: More robust error handling, logging, actual ETL execution
 - The deployer mostly verifies the script exists, which is probably OK for MVP
 
 **Changes Needed**:
+
 1. Consider if more logic needed (update docs if scope is limited)
 2. Add better error messages
 3. Verify script execution (optional - might be out of scope)
@@ -158,6 +162,7 @@
 **Current State**: 40% complete
 
 **Changes Needed**:
+
 1. Verify systemd timer operations are correct
 2. Add error handling for missing timers
 3. Consider rollback strategy (might be N/A for scheduled jobs)
@@ -241,6 +246,7 @@ def test_db(tmp_path):
     # Initialize with schema, return path
 
 # Then tests
+
 - test_record_deployment()
 - test_update_fraise_state()
 - test_get_fraise_state()
@@ -320,6 +326,7 @@ def test_db(tmp_path):
 #### Task 1.3.2: Create Test Infrastructure
 
 **Files**:
+
 - `tests/__init__.py` (new)
 - `tests/conftest.py` (new)
 - `tests/fixtures.py` (new - optional)
@@ -392,6 +399,7 @@ tests/
 **Total Tests Target**: 80+ tests
 
 **Coverage Target**: 100% on critical paths:
+
 - All deployer execute() methods
 - All database record/query methods
 - CLI commands
@@ -545,6 +553,7 @@ def test_something(mock_run):
 ## Definition of Done for Phase 1
 
 ### Code Quality
+
 - [ ] All code has type hints (Python 3.10+ style)
 - [ ] All public functions have docstrings
 - [ ] No TODOs without associated issues
@@ -552,6 +561,7 @@ def test_something(mock_run):
 - [ ] Code formatted with Ruff
 
 ### Testing
+
 - [ ] 80+ tests written
 - [ ] 90%+ code coverage
 - [ ] All critical paths at 100% coverage
@@ -559,6 +569,7 @@ def test_something(mock_run):
 - [ ] CI/CD green (GitHub Actions)
 
 ### Functionality
+
 - [ ] `fraisier list` works
 - [ ] `fraisier deploy` works (dry-run and actual)
 - [ ] `fraisier status` shows real status
@@ -569,11 +580,13 @@ def test_something(mock_run):
 - [ ] Database records all operations
 
 ### Documentation
+
 - [ ] All changes documented in code
 - [ ] ROADMAP.md updated with progress
 - [ ] No new TODOs added without explanation
 
 ### Version Control
+
 - [ ] Changes committed with scope prefix: `feat(fraisier): ...`
 - [ ] Commit messages are clear and descriptive
 - [ ] Branch: `feature/fraisier/phase-1-foundation` (or similar)
@@ -607,24 +620,28 @@ def test_something(mock_run):
 **After Phase 1, you should have**:
 
 ✅ A deployable CLI that:
+
 - Lists fraises from YAML
 - Deploys to test environments
 - Shows deployment status
 - Displays deployment history
 
 ✅ A working webhook server that:
+
 - Accepts GitHub/GitLab/Gitea webhooks
 - Routes to correct fraise/environment
 - Triggers background deployments
 - Records events in database
 
 ✅ Comprehensive test suite with:
+
 - 80+ tests
 - 90%+ coverage
 - All critical paths verified
 - CI/CD automation
 
 ✅ Professional code quality:
+
 - Type hints throughout
 - Clear documentation
 - Ruff linting pass

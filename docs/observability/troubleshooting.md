@@ -537,6 +537,7 @@ EXPLAIN ANALYZE
 SELECT * FROM tf_sales WHERE region_id = 'US';
 
 -- Look for:
+
 -- ✅ "Index Scan using idx_tf_sales_region" (good)
 -- ❌ "Seq Scan on tf_sales" (bad - index not used)
 ```

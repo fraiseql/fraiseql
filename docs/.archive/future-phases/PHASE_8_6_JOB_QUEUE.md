@@ -115,6 +115,7 @@ pub trait JobQueue: Send + Sync {
 
 #### 3. QueuedObserverExecutor
 Wraps `ObserverExecutor` to queue actions instead of executing them:
+
 - Evaluates conditions (fast, in-memory)
 - Creates Job for each action
 - Enqueues to Redis
@@ -122,6 +123,7 @@ Wraps `ObserverExecutor` to queue actions instead of executing them:
 
 #### 4. JobExecutor Worker
 Background worker that:
+
 - Dequeues batches of jobs
 - Executes in parallel with configurable concurrency
 - Handles transient failures with backoff
@@ -406,6 +408,7 @@ tail -f /var/log/fraiseql/job-worker.log
 ```
 
 **Fix**:
+
 1. Ensure workers are running: `ps aux | grep fraiseql-job-worker`
 2. Check Redis is accessible: `redis-cli PING`
 3. Check worker configuration matches queue config
@@ -428,6 +431,7 @@ redis-cli -u redis://localhost:6379 LRANGE queue:dlq 0 -1
 ```
 
 **Fix**:
+
 1. Identify root cause (network, auth, service down, etc.)
 2. For transient errors:
    - Service issue? Fix underlying service
@@ -455,6 +459,7 @@ tail -100 /var/log/fraiseql/job-worker.log | grep -i error
 ```
 
 **Fix**:
+
 1. Check observer executor is configured correctly
 2. Check network connectivity to action targets (webhooks, email servers, etc.)
 3. Increase log level: `RUST_LOG=debug`
@@ -474,6 +479,7 @@ redis-cli -u redis://localhost:6379 LLEN queue:processing
 ```
 
 **Fix**:
+
 1. Reduce `batch_size` (fewer jobs in memory at once)
 2. Reduce `worker_concurrency` (fewer parallel jobs)
 3. Check for jobs stuck in "processing" state (timeout, network hang)
@@ -494,6 +500,7 @@ redis-cli -u redis://localhost:6379 LLEN queue:processing
 ```
 
 **Fix**:
+
 1. Increase worker concurrency if queue is backing up
 2. Add more workers if single worker is bottleneck
 3. Reduce batch timeout if waiting unnecessarily

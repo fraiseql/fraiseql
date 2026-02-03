@@ -22,6 +22,7 @@ This guide provides step-by-step integration instructions for each Phase 8 featu
 **Purpose**: Guarantee zero-event-loss recovery on restart
 
 ### Prerequisites
+
 - PostgreSQL 12+
 - Network access to database
 
@@ -109,6 +110,7 @@ observer_checkpoints:
 **Purpose**: Execute multiple actions in parallel for 5x latency improvement
 
 ### Prerequisites
+
 - Phase 1-7 already working
 - Understanding of action execution
 
@@ -180,6 +182,7 @@ time cargo run --example process_100_events --features concurrent
 **Purpose**: Prevent duplicate side effects from event retries
 
 ### Prerequisites
+
 - Redis 6.0+
 - Network access to Redis
 - Understanding of event hashing
@@ -257,6 +260,7 @@ dedup_skips / events_processed = dedup_rate
 **Purpose**: Achieve 100x performance improvement with caching
 
 ### Prerequisites
+
 - Redis 6.0+
 - Understanding of cache invalidation
 - Stable query/computation patterns
@@ -343,6 +347,7 @@ observer_cache_hit_rate  // Should be 70-80%+
 **Purpose**: Enable full-text search and compliance audit trail
 
 ### Prerequisites
+
 - Elasticsearch 7.0+
 - Network access to Elasticsearch
 - Understanding of document indexing
@@ -488,6 +493,7 @@ curl -X PUT "localhost:9200/_ilm/policy/fraiseql_events_policy" \
 **Purpose**: Handle async long-running operations
 
 ### Prerequisites
+
 - Redis 6.0+
 - Understanding of job processing
 - Need for async task handling
@@ -572,6 +578,7 @@ fraiseql-observers status | grep workers
 **Purpose**: Production monitoring and alerting
 
 ### Prerequisites
+
 - Prometheus 2.0+
 - Grafana (optional)
 - Understanding of metrics
@@ -685,6 +692,7 @@ groups:
 **Purpose**: Prevent cascading failures
 
 ### Prerequisites
+
 - Understanding of circuit breaker pattern
 - External service reliability concerns
 
@@ -749,6 +757,7 @@ fraiseql-observers status | grep -i circuit
 **Purpose**: High availability with automatic failover
 
 ### Prerequisites
+
 - Multiple listener instances available
 - Shared checkpoint store (PostgreSQL)
 - Understanding of HA concepts
@@ -839,6 +848,7 @@ fraiseql-observers status
 **Purpose**: Developer experience and debugging
 
 ### Prerequisites
+
 - Rust toolchain
 - Observer system running
 - Understanding of CLI usage
@@ -999,6 +1009,7 @@ let executor = executor
 ## Support
 
 For integration help:
+
 - Check Architecture Guide: `ARCHITECTURE_PHASE_8.md`
 - Review Configuration Examples: `CONFIGURATION_EXAMPLES.md`
 - Troubleshoot Issues: `TROUBLESHOOTING.md`

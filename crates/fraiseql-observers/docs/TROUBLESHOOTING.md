@@ -5,6 +5,7 @@
 Start with this checklist to identify the issue:
 
 ```
+
 1. System not processing events?
    → Check: Listener health status
    → Run: fraiseql-observers status
@@ -39,6 +40,7 @@ Status: Unable to process events
 ```
 
 **Root Causes**:
+
 1. Listener process crashed
 2. Database connection failed
 3. PostgreSQL LISTEN/NOTIFY not available
@@ -106,6 +108,7 @@ Listener appears running
 ```
 
 **Root Causes**:
+
 1. Condition always evaluates to false
 2. Dead action (invalid configuration)
 3. Listener stuck waiting for external service
@@ -183,6 +186,7 @@ Failure Rate: 85%
 ```
 
 **Root Causes**:
+
 1. External service unavailable (network, credential, endpoint issue)
 2. Configuration error (invalid webhook URL)
 3. Data validation failing
@@ -290,6 +294,7 @@ Slack message posted multiple times
 ```
 
 **Root Causes**:
+
 1. Deduplication not enabled
 2. Deduplication window too short
 3. Event hash collision (rare)
@@ -364,6 +369,7 @@ Cache hit rate declining
 ```
 
 **Root Causes**:
+
 1. Cache evictions (not enough memory)
 2. Redis connection pool exhausted
 3. Database connection leak
@@ -456,6 +462,7 @@ Events stop processing
 ```
 
 **Root Causes**:
+
 1. Health check interval too long (doesn't detect failure fast)
 2. Failover threshold too short (false positives)
 3. Listeners not sharing checkpoint store
@@ -538,6 +545,7 @@ All requests fail until timeout
 ```
 
 **Root Causes**:
+
 1. Failure threshold too low (too sensitive)
 2. Sample size too small (not enough data)
 3. Timeout too long (stuck open too long)
@@ -694,18 +702,21 @@ When reporting issues, include:
 ## Prevention: Best Practices
 
 ### 1. Automated Monitoring
+
 - Set up Prometheus scraping
 - Create dashboards for key metrics
 - Configure alerts for thresholds
 - Regular metric review (weekly)
 
 ### 2. Gradual Rollout
+
 - Test configuration changes in staging
 - Deploy with small listener pool first
 - Monitor for 24 hours before scaling
 - Gradual feature enablement
 
 ### 3. Backup Strategies
+
 - Regular PostgreSQL backups
 - Redis persistence enabled
 - Elasticsearch snapshots

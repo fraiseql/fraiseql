@@ -1320,6 +1320,7 @@ class OrderCreated:
 When a database change occurs:
 
 ```
+
 1. Event Capture
    - PostgreSQL: LISTEN/NOTIFY triggers
    - MySQL: CDC via Debezium

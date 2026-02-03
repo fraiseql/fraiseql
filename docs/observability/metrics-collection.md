@@ -710,6 +710,7 @@ query {
 
 ```sql
 -- Query result:
+
 -- id    | name          | email
 -- ------|---------------|------------------
 -- 1001  | Alice Johnson | alice@example.com  # ❌ NOT logged

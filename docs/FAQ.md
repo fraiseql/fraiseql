@@ -22,6 +22,7 @@
 A: FraiseQL is a compiled GraphQL execution engine that transforms schema definitions into optimized SQL at build time. It eliminates runtime overhead by pre-compiling queries, enabling high-performance, deterministic GraphQL execution.
 
 **Key Features**:
+
 - Compiled GraphQL execution (no runtime interpretation)
 - Apollo Federation v2 support
 - Saga orchestration for distributed transactions
@@ -36,6 +37,7 @@ A: FraiseQL is a compiled GraphQL execution engine that transforms schema defini
 A: **Yes**, FraiseQL v2 is fully production-ready.
 
 Current status:
+
 - ✅ All 6 development phases complete
 - ✅ 572 commits, 2,293+ tests passing
 - ✅ All core federation features implemented and tested
@@ -50,6 +52,7 @@ See [RELEASE_NOTES.md](../RELEASE_NOTES.md) for release details.
 ### Q: What databases does FraiseQL support?
 
 A: FraiseQL currently supports:
+
 - **PostgreSQL** (primary, all features)
 - **MySQL** (secondary, core features)
 - **SQLite** (local development, testing)
@@ -83,6 +86,7 @@ This maps to your existing `users` table.
 ### Q: What is Apollo Federation v2?
 
 A: Apollo Federation v2 is a specification for composing multiple GraphQL services into a single gateway. It allows:
+
 - **Type extensions** across services
 - **Reference resolution** by key fields
 - **Field requirements** (@requires directive)
@@ -178,12 +182,14 @@ See [federation guide](integrations/federation/guide.md).
 ### Q: When should I use sagas?
 
 A: Use sagas when:
+
 - ✅ A business operation spans multiple services
 - ✅ All steps must succeed together (ACID-like semantics)
 - ✅ You need automatic rollback on failure
 - ✅ Each step has a compensating action
 
 Don't use sagas when:
+
 - ❌ Operations are independent (no coordination needed)
 - ❌ Manual intervention is always acceptable
 - ❌ Eventual consistency is sufficient
@@ -283,6 +289,7 @@ A: Performance varies by distance:
 | HTTP subgraph | <200ms | Full round-trip |
 
 Optimize with:
+
 - ✅ Database indexes on @key fields
 - ✅ Connection pooling (PgBouncer, ProxySQL)
 - ✅ Result caching
@@ -353,6 +360,7 @@ kubectl get pods  # Verify running
 ```
 
 **Manual** (advanced):
+
 1. Build binary: `cargo build --release`
 2. Set environment variables
 3. Run: `./target/release/fraiseql-server`
@@ -520,6 +528,7 @@ A: Check these resources in order:
 ### Q: Can I contribute to FraiseQL?
 
 A: **Yes!** We welcome contributions. See [CONTRIBUTING.md](../CONTRIBUTING.md) for:
+
 - Development setup
 - Code style guidelines
 - Testing requirements

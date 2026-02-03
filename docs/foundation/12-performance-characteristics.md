@@ -62,24 +62,28 @@ Measured on 4-core 8GB server with PostgreSQL on same machine:
 
 ```
 Single Row Fetch (user by ID):
+
 - Latency: 3-4ms
 - Throughput: 250+ req/sec
 - Database time: 1-2ms
 - Server overhead: 1-2ms
 
 List with Pagination (100 items):
+
 - Latency: 15-25ms
 - Throughput: 50-70 req/sec
 - Database time: 12-20ms
 - Server overhead: 2-5ms
 
 Nested Query (user + posts + comments):
+
 - Latency: 40-60ms
 - Throughput: 20-30 req/sec
 - Database time: 35-50ms
 - Server overhead: 3-10ms
 
 Analytical (1K rows with aggregation):
+
 - Latency: 500-800ms
 - Throughput: 2-3 req/sec
 - Database time: 480-750ms
@@ -145,6 +149,7 @@ Complexity is calculated as:
 Complexity = base_cost + (field_count × field_cost) + (nesting_level × depth_cost)
 
 Example:
+
 - Base query cost: 1
 - 10 fields × 0.5 cost each: 5
 - Nesting level 2 × 1.5 cost: 3
@@ -164,6 +169,7 @@ query {
   }
 }
 ```
+
 - Complexity: 2
 - Execution plan: Single indexed SELECT
 - Latency: 2-5ms
@@ -180,6 +186,7 @@ query {
   }
 }
 ```
+
 - Complexity: 4
 - Execution plan: SELECT with LIMIT/OFFSET
 - Latency: 10-20ms
@@ -199,6 +206,7 @@ query {
   }
 }
 ```
+
 - Complexity: 6
 - Execution plan: 2 SQL queries (user + posts)
 - Latency: 15-30ms
@@ -220,6 +228,7 @@ query {
   }
 }
 ```
+
 - Complexity: 18
 - Execution plan: 5 SQL queries
 - Latency: 100-200ms
@@ -337,6 +346,7 @@ LIMIT 50;
 ```
 
 Good plans have:
+
 - ✅ Index Scan (not Sequential Scan)
 - ✅ Correct join conditions
 - ✅ Proper sort method (indexed)
@@ -384,6 +394,7 @@ curl http://localhost:8080/metrics | grep database_pool
 ### Key Metrics to Track
 
 ```
+
 1. Latency Percentiles
    - P50 (median): 20ms is good
    - P95 (95th %ile): 100ms is acceptable
@@ -528,6 +539,7 @@ ORDER BY users.id, posts.id;
 ```
 
 Performance impact:
+
 - N+1 version: 100 users × 10ms each = 1000ms
 - Batched version: Single 20ms query
 
@@ -558,6 +570,7 @@ query {
 ```
 
 Performance impact:
+
 - With all fields: 100 users × 5KB = 500KB network + 100ms
 - With 2 fields: 100 users × 100B = 10KB network + 5ms
 
@@ -585,6 +598,7 @@ query {
 ```
 
 Performance impact:
+
 - Unbounded: 1,000,000 rows × 50 bytes = 50MB + 5000ms
 - With limit: 50 rows × 50 bytes = 2.5KB + 5ms
 
@@ -610,10 +624,12 @@ CREATE INDEX idx_post_status ON tb_post(status);
 
 ```
 Single server baseline:
+
 - Throughput: 200 req/sec
 - Can handle: 200 concurrent users at 1 req/sec each
 
 Scaling to 1000 users:
+
 - Need: 5 servers (for safety)
 - Cost: $500/month for FraiseQL servers
 - Database: Still single $100/month PostgreSQL
@@ -632,10 +648,12 @@ Cache hit rate: 70% (most users viewing same posts)
 Analytical query baseline: 100 req/sec (complex queries)
 
 Scaling to 250 concurrent queries:
+
 - Need: 2-3 FraiseQL servers
 - Database: Multi-core, optimized for analytics
 
 Cache strategy:
+
 - Queries executed once per minute: 70% hit rate
 - Effective throughput: 100 × (0.3 + 0.7×100) = 7000 req/sec
 - Actually needed: 250 req/sec
@@ -650,16 +668,19 @@ Cache strategy:
 Simple query baseline: 200 req/sec per server
 
 Scaling to 10,000 req/sec:
+
 - Need: 50 FraiseQL servers (10,000 / 200)
 - Database: Must be dedicated, heavily optimized
 - Connection pool: 50 servers × 50 connections = 2500 connections to DB
 
 Cost breakdown:
+
 - FraiseQL servers: $5000/month (50 servers)
 - Database: $2000/month (enterprise PostgreSQL)
 - Load balancer: $300/month
 
 Optimization opportunities:
+
 1. Cache: 70% hit rate → 8000 req/sec from cache, 2000 from DB
    - Reduces DB servers needed: 2000 / 200 = 10 servers
    - Reduces cost: $1000/month database savings
@@ -710,6 +731,7 @@ FraiseQL's performance model is built on **compile-time optimization** and **det
 The key insight: **Your performance ceiling is your database, not FraiseQL.** Once you hit database saturation, optimize there (indexes, query plans, replication) rather than adding more FraiseQL servers.
 
 Most teams achieve acceptable performance with:
+
 1. Proper database indexes
 2. Simple connection pool tuning
 3. Optional caching layer for analytical queries

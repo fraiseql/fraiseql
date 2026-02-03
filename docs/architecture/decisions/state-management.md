@@ -188,6 +188,7 @@ Event {
 }
 
 # Event triggers:
+
 1. Subscriptions (OnPostCreated)
    ├─ Subscribers notified
    └─ Delta plane events sent

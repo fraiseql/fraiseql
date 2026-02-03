@@ -74,6 +74,7 @@ min_speedup = 10.0     # Only major wins
 
 ```yaml
 # Prometheus alerts
+
 - alert: ObservabilityMetricsLag
   expr: time() - max(fraiseql_metrics_last_write) > 300
   annotations:

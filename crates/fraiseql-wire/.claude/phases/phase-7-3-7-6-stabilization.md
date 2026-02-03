@@ -387,6 +387,7 @@ cargo test --lib error_tests
 ## Connection Errors
 
 ### Error: "connection refused"
+
 - **Cause**: Postgres is not running or not listening on the specified address
 - **Solution**:
   1. Verify Postgres is running: `pg_isready`
@@ -394,6 +395,7 @@ cargo test --lib error_tests
   3. Verify firewall allows connections
 
 ### Error: "authentication failed"
+
 - **Cause**: Wrong username/password
 - **Solution**:
   1. Verify credentials with `psql -U myuser -W`
@@ -401,6 +403,7 @@ cargo test --lib error_tests
   3. Verify user has login privilege
 
 ### Error: "connection closed"
+
 - **Cause**: Postgres closed the connection unexpectedly
 - **Solution**:
   1. Check Postgres logs for errors
@@ -410,6 +413,7 @@ cargo test --lib error_tests
 ## Query Errors
 
 ### Error: "invalid result schema"
+
 - **Cause**: Query doesn't return exactly one column named `data`
 - **Solution**:
   1. Use `SELECT data FROM ...` not `SELECT *`
@@ -417,6 +421,7 @@ cargo test --lib error_tests
   3. Check view definition matches v_entity pattern
 
 ### Error: "sql error"
+
 - **Cause**: Query syntax error or table not found
 - **Solution**:
   1. Test query directly with `psql`
@@ -426,6 +431,7 @@ cargo test --lib error_tests
 ## Performance Issues
 
 ### Throughput is lower than expected
+
 - **Cause**: Network, chunk size, or predicate issues
 - **Solution**:
   1. Increase chunk_size (see PERFORMANCE_TUNING.md)
@@ -433,6 +439,7 @@ cargo test --lib error_tests
   3. Verify network latency to Postgres
 
 ### Memory usage is high
+
 - **Cause**: chunk_size is too large or query returns large JSON values
 - **Solution**:
   1. Reduce chunk_size
@@ -442,6 +449,7 @@ cargo test --lib error_tests
 ## Network Issues
 
 ### Queries time out
+
 - **Cause**: Slow network or large result set
 - **Solution**:
   1. Check network latency: `ping postgres-host`
@@ -451,6 +459,7 @@ cargo test --lib error_tests
 ## Developer Issues
 
 ### "invalid connection state"
+
 - **Cause**: Trying to use connection after it's closed
 - **Solution**:
   1. Create new FraiseClient for each query

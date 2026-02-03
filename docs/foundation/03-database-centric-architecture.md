@@ -64,26 +64,31 @@ Client (direct result)
 This design choice has profound consequences:
 
 **1. Simplicity**
+
 - No custom resolver code needed
 - Schema definition = API definition
 - What you see in the schema is what you get
 
 **2. Performance**
+
 - Database handles all query optimization
 - No application-level coordination overhead
 - SQL is optimized at compile time
 
 **3. Correctness**
+
 - Database constraints enforced
 - Transactions guarantee consistency
 - Relationships are explicit (foreign keys)
 
 **4. Consistency**
+
 - Single source of truth (the database)
 - No cache invalidation problems
 - All clients see consistent data
 
 **5. Debuggability**
+
 - Look at the SQL, understand the query
 - No hidden resolver logic
 - Performance bottlenecks are clear (database metrics)
@@ -876,6 +881,7 @@ Fact Table (tf_*)
 ```
 
 This structure enables:
+
 - **Measures:** Direct aggregation (SUM, AVG, COUNT) at database speed
 - **Dimensions:** Flexible grouping without schema changes
 - **Filters:** Instant WHERE clause evaluation via indexes
@@ -1106,28 +1112,33 @@ FraiseQL's database-centric design manifests in four layers:
 ### Immediate Benefits
 
 **1. Clarity**
+
 - What you see is what you get
 - Database schema = API definition
 - No hidden resolver logic
 
 **2. Performance**
+
 - Database optimization at compile time
 - N+1 queries eliminated (database handles it)
 - Fact tables enable 100x analytics speedup
 - Deterministic query performance
 
 **3. Consistency**
+
 - Single source of truth
 - No cache invalidation complexity
 - Database constraints enforced
 - ACID transactions guaranteed
 
 **4. Security**
+
 - Authorization rules compiled into SQL
 - Row-level security possible
 - Parameterized queries prevent injection
 
 **5. Debuggability**
+
 - Look at the SQL, understand the query
 - No hidden resolver logic
 - Performance bottlenecks are clear (database metrics)
@@ -1138,26 +1149,31 @@ FraiseQL's database-centric design manifests in four layers:
 ### Design Constraints
 
 **1. Schema Must Be Structured**
+
 - Requires clear database design (normalization, keys, constraints)
 - Not suitable for unstructured/document-based data
 - Fact tables require denormalization at ETL time
 
 **2. Database Must Be Primary Data Source**
+
 - Multi-source federation limited
 - Aggregating multiple APIs requires federation pattern
 - REST/GraphQL/etc. as secondary sources only
 
 **3. Schema Changes Require Recompilation**
+
 - Not suitable for dynamic, runtime schema changes
 - Schema must be known at compile time
 - Deployment is required for schema changes
 
 **4. Database Expertise Required**
+
 - Team must understand SQL, indexes, relationships, triggers
 - DBA involvement necessary for analytics (fact tables, calendars)
 - Schema design quality directly affects API performance
 
 **5. Analytics Requires ETL Discipline**
+
 - Dimensions must be denormalized at ETL time
 - Calendar dimensions must be pre-computed
 - No joins allowed in analytics queries (enforced by architecture)

@@ -100,6 +100,7 @@ traceparent: 00-{trace-id}-{span-id}-{trace-flags}
 ```
 
 **Components**:
+
 - **Version** (2 hex digits): `00` (v1)
 - **Trace ID** (32 hex digits): Unique request identifier across all services
   - Generated: `uuid()` as 32-char hex (e.g., `4bf92f3577b34da6a3ce929d0e0e4736`)

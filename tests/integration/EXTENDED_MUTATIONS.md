@@ -27,9 +27,11 @@ Orders Subgraph (extended User)
 ## Test Scenarios
 
 ### 1. Direct User Mutation (Authoritative)
+
 **Test**: `test_extended_mutation_user_from_authoritative_subgraph`
 
 Tests creating a user directly in the users subgraph (the authoritative owner):
+
 - Users subgraph is authoritative for User entity
 - Direct mutations should execute locally without federation
 
@@ -54,9 +56,11 @@ mutation {
 ---
 
 ### 2. Extended User Mutation (HTTP Propagation)
+
 **Test**: `test_extended_mutation_update_user_from_extended_subgraph`
 
 Tests updating a user from the orders subgraph (which extends User):
+
 - Orders subgraph extends User from users subgraph
 - Update request must propagate via HTTP to users subgraph
 - Orders subgraph acts as a proxy
@@ -75,6 +79,7 @@ mutation {
 ```
 
 **Expected Outcome**:
+
 - Either mutation succeeds with HTTP propagation, or
 - Error message indicates extended mutations not configured (acceptable in MVP)
 
@@ -83,9 +88,11 @@ mutation {
 ---
 
 ### 3. Order Creation with User Reference
+
 **Test**: `test_extended_mutation_create_order_with_user_reference`
 
 Tests creating an order that references an existing user:
+
 - Orders subgraph owns Order entity
 - Order has foreign key reference to User (from extended type)
 - Tests entity linking through federation
@@ -115,9 +122,11 @@ mutation {
 ---
 
 ### 4. Mutation Error Handling
+
 **Test**: `test_extended_mutation_error_handling`
 
 Tests error scenarios:
+
 - Updating non-existent user
 - Invalid input validation
 - Error message propagation
@@ -129,9 +138,11 @@ Tests error scenarios:
 ---
 
 ### 5. Data Consistency After Mutation
+
 **Test**: `test_extended_mutation_data_consistency_after_mutation`
 
 Tests data consistency after mutations:
+
 1. Get user before mutation
 2. Update user
 3. Query user again and verify update persisted
@@ -143,9 +154,11 @@ Tests data consistency after mutations:
 ---
 
 ### 6. Mutation Through Gateway
+
 **Test**: `test_extended_mutation_through_gateway`
 
 Tests executing mutations through Apollo Router gateway:
+
 - Gateway receives mutation request
 - Routes to appropriate subgraph (or handles directly)
 - Returns result
@@ -164,6 +177,7 @@ mutation {
 ```
 
 **Expected Outcome**:
+
 - Either mutation succeeds through gateway, or
 - Error indicates gateway mutations not yet implemented (acceptable in MVP)
 
@@ -172,9 +186,11 @@ mutation {
 ---
 
 ### 7. Mutation Performance
+
 **Test**: `test_extended_mutation_performance`
 
 Tests mutation performance:
+
 - Create 5 orders in sequence
 - Measure total time
 - Verify reasonable latency
@@ -222,6 +238,7 @@ RUST_LOG=debug cargo test test_extended_mutation_ --ignored --nocapture
 
 ### ✓ All Tests Pass
 Extended mutations are fully implemented:
+
 - Mutations on extended entities propagate via HTTP
 - Data consistency is maintained
 - Performance is acceptable
@@ -229,6 +246,7 @@ Extended mutations are fully implemented:
 
 ### ⚠ HTTP Propagation Fails
 This is expected in early implementations:
+
 - Extended mutations may not yet be implemented
 - Check federation.toml configuration
 - Verify HTTP federation is enabled
@@ -236,12 +254,14 @@ This is expected in early implementations:
 
 ### ✗ Data Consistency Fails
 Indicates data integrity issue:
+
 - Mutation executed but didn't persist
 - Check database constraints
 - Verify entity references are correct
 
 ### ✗ Performance Issues
 Investigate if:
+
 - Network latency is high
 - Database queries are slow
 - Connection pooling is needed
@@ -256,6 +276,7 @@ docker-compose logs -f orders-subgraph
 ```
 
 Look for:
+
 - Mutation parsing errors
 - Entity resolution attempts
 - HTTP federation requests to users subgraph
@@ -292,6 +313,7 @@ cat tests/integration/services/orders/federation.toml
 ```
 
 Should show:
+
 - federation.enabled = true
 - [[federation.subgraphs]] with User entry
 - HTTP URL pointing to users subgraph
@@ -308,6 +330,7 @@ Should show:
 ## Implementation Status
 
 ### ✅ Implemented
+
 - Mutation tests with various scenarios
 - Error handling test cases
 - Data consistency validation
@@ -315,12 +338,14 @@ Should show:
 - Test helpers and setup
 
 ### 🚧 In Progress / Future
+
 - HTTP mutation propagation in Rust runtime
 - Extended mutation handler in orders subgraph
 - Gateway mutation routing
 - Composite mutation scenarios
 
 ### 📋 Future Enhancements
+
 - Distributed transaction support
 - Compensation-based saga pattern for failed mutations
 - Mutation authorization checks
@@ -376,6 +401,7 @@ mutation {
 ### "updateUser mutation returns error"
 
 Possible causes:
+
 1. User ID doesn't exist - verify with query first
 2. Extended mutations not implemented yet - check Rust implementation
 3. HTTP federation not configured - check federation.toml
@@ -384,6 +410,7 @@ Possible causes:
 ### "Mutation succeeds but data doesn't change"
 
 Possible causes:
+
 1. Query targets wrong database/subgraph
 2. Transaction didn't commit
 3. Caching returning stale data
@@ -392,6 +419,7 @@ Possible causes:
 ### "HTTP propagation timeout"
 
 Possible causes:
+
 1. Users subgraph not accessible from orders subgraph
 2. Firewall blocking inter-service communication
 3. Users subgraph is slow or crashed
@@ -424,6 +452,7 @@ After extended mutation tests pass:
 ## Contact & Support
 
 For issues with extended mutations:
+
 1. Check test output for specific errors
 2. Review service logs: `docker-compose logs [service]`
 3. Verify federation configuration: `federation.toml`

@@ -22,6 +22,7 @@
 **A:** Fraisier is a lightweight deployment orchestrator that manages application deployments across multiple infrastructure providers (Bare Metal, Docker Compose, Coolify, Kubernetes). It handles versioning, health checks, rollbacks, and monitoring.
 
 **Key features**:
+
 - Multi-provider support (Bare Metal SSH+systemd, Docker Compose, Coolify)
 - Deployment strategies (rolling, blue-green, canary)
 - Health checks and automatic rollback
@@ -33,6 +34,7 @@
 ### Q: What databases does Fraisier support?
 
 **A:** Fraisier supports these databases for storing deployment state and metadata:
+
 - **SQLite** - Development and testing (default)
 - **PostgreSQL** - Production recommended (HA, replication support)
 - **MySQL** - Secondary option for production
@@ -42,6 +44,7 @@
 ### Q: Can I use Fraisier without NATS?
 
 **A:** No. NATS with JetStream is required for:
+
 - Event streaming (deployment events, health check results)
 - Real-time monitoring and alerting
 - Event sourcing and audit trails
@@ -64,6 +67,7 @@ You can use a simple NATS deployment (single server) for development and small d
 | **Cost** | Minimal | Significant (requires k8s expertise) |
 
 **Choose Fraisier if**:
+
 - You have < 10 services
 - You deploy < 100 times/day
 - You need multi-provider support
@@ -71,6 +75,7 @@ You can use a simple NATS deployment (single server) for development and small d
 - You prefer operational simplicity
 
 **Choose Kubernetes if**:
+
 - You have 50+ services
 - You deploy 1000+ times/day
 - You need automatic scaling
@@ -167,12 +172,14 @@ fraisier status my_service production
 ### Q: Can I run Fraisier in the cloud?
 
 **A:** Yes. Fraisier runs on any Linux server with:
+
 - Docker installed
 - PostgreSQL access
 - NATS access
 - SSH access to deployment targets
 
 **Cloud deployment options**:
+
 - **AWS**: EC2 instance with RDS (PostgreSQL) and managed NATS
 - **GCP**: Compute Engine with Cloud SQL and NATS
 - **Azure**: Virtual Machine with Azure Database for PostgreSQL
@@ -192,6 +199,7 @@ v1 instance 1  →  v2 instance 1
 v1 instance 2  →  v2 instance 2
 v1 instance 3  →  v2 instance 3
 ```
+
 - **Pros**: Simple, no downtime, fast
 - **Cons**: Temporary mixed versions, errors affect old users
 - **Best for**: Stateless services, backward-compatible changes
@@ -206,6 +214,7 @@ Switch traffic (single operation)
   ↓
 Red   (v1): kept as rollback
 ```
+
 - **Pros**: Zero downtime, atomic switch, instant rollback
 - **Cons**: 2x resources needed, complex switch logic
 - **Best for**: Breaking changes, high-risk updates
@@ -220,6 +229,7 @@ v2: 25% traffic (if no errors)
   ↓
 v2: 100% traffic (gradual rollout)
 ```
+
 - **Pros**: Risk-minimized, catches errors early, gradual rollout
 - **Cons**: Requires traffic splitting capability, longer deployment
 - **Best for**: Large deployments, risky changes, production-critical
@@ -309,6 +319,7 @@ provider_config:
 ```
 
 **For safety**:
+
 1. Always run migrations **before** service restart
 2. Make migrations **idempotent** (safe to run multiple times)
 3. Use database transactions for safety
@@ -328,6 +339,7 @@ max_parallel_deployments: 1  # Replace 1 at a time
 ```
 
 For stateful services (databases, persistent sessions):
+
 - Use connection draining
 - Implement graceful shutdown (30s timeout)
 - Migrate state before switching
@@ -926,18 +938,21 @@ monitoring:
 ## Additional Resources
 
 ### Documentation
+
 - [Getting Started Guide](GETTING_STARTED_DOCKER.md)
 - [API Reference](API_REFERENCE.md)
 - [Troubleshooting Guide](TROUBLESHOOTING.md)
 - [Real-World Examples](REAL_WORLD_EXAMPLES.md)
 
 ### External Resources
+
 - [NATS Documentation](https://docs.nats.io)
 - [Prometheus Documentation](https://prometheus.io/docs)
 - [Docker Documentation](https://docs.docker.com)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs)
 
 ### Community
+
 - GitHub Issues: https://github.com/fraiseql/fraisier/issues
 - Discussions: https://github.com/fraiseql/fraisier/discussions
 - Email: support@fraiseql.io

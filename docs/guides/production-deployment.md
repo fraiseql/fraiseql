@@ -634,6 +634,7 @@ DATABASE_URL = "postgresql://user:pass@db.example.com:5432/fraiseql?sslmode=requ
 
 # Kubernetes pod with client certificates
 containers:
+
 - name: fraiseql
   env:
   - name: SSL_CERT_FILE
@@ -650,6 +651,7 @@ containers:
     mountPath: /etc/ssl/private
     readOnly: true
 volumes:
+
 - name: tls-certs
   secret:
     secretName: fraiseql-tls-certs

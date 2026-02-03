@@ -4,6 +4,7 @@
 Establish core FraiseQL v2 architecture and GraphQL query execution engine.
 
 ## Success Criteria
+
 - [x] GraphQL parser and schema compiler
 - [x] Query executor with template-based execution
 - [x] HTTP server with GraphQL endpoint
@@ -14,11 +15,13 @@ Establish core FraiseQL v2 architecture and GraphQL query execution engine.
 ## Deliverables
 
 ### Crates Created
+
 - **fraiseql-core**: 30+ modules, GraphQL compilation and execution
 - **fraiseql-server**: 15+ modules, HTTP server and middleware
 - **fraiseql-error**: Shared error types
 
 ### Key Components Implemented
+
 - GraphQL parser (`compiler/parser.rs`)
 - Schema validation (`compiler/validator.rs`)
 - Query executor (`runtime/executor.rs`)
@@ -27,18 +30,21 @@ Establish core FraiseQL v2 architecture and GraphQL query execution engine.
 - Automatic Persisted Queries (APQ)
 
 ### Test Results
+
 - ✅ 156 GraphQL parser tests
 - ✅ 321 query execution tests
 - ✅ Full integration test suite
 - ✅ E2E GraphQL endpoint tests
 
 ### Documentation
+
 - Architecture guide
 - API documentation
 - Quick start guide
 - Configuration reference
 
 ## Notes
+
 - Zero runtime compilation - all SQL templates generated at build time
 - Modular middleware system for extensibility
 - Clean separation of concerns between compiler and runtime

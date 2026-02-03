@@ -168,18 +168,22 @@ time curl -X POST http://localhost:4001/graphql \
 ## Performance Expectations
 
 ### Baseline (Single Subgraph)
+
 - Query: <5ms
 - Batch 100: ~10ms
 
 ### Federation (Two Subgraphs)
+
 - Query: 5-20ms
 - Batch 100: ~20-30ms
 
 ### Multi-Cloud (Three Subgraphs)
+
 - Query: 20-50ms
 - Batch 100: ~50-100ms
 
 ### Advanced (Four+ Subgraphs)
+
 - Query: 50-200ms (depends on depth)
 - Batch 100: ~100-300ms
 

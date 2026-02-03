@@ -13,11 +13,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Status**: Basic OIDC support only
 **Impact**: No fine-grained role-based access control (RBAC)
 **Current Implementation**:
+
 - OIDC token validation
 - Bearer token authentication
 - Basic token extraction from GraphQL extensions
 
 **Limitations**:
+
 - ❌ No field-level permission enforcement
 - ❌ No row-level security (RLS)
 - ❌ No custom authorization middleware
@@ -35,11 +37,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Limited performance optimization options
 
 **Current Implementation**:
+
 - Query result caching with TTL
 - APQ (Automatic Persisted Queries) support
 - No external cache backend
 
 **Limitations**:
+
 - ❌ No Redis cache backend
 - ❌ No distributed caching
 - ❌ No cache coherency across instances
@@ -57,11 +61,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Alternative execution engine not available
 
 **Current**:
+
 - Arrow Flight service stub exists
 - Not fully integrated with query execution
 - Passes protocol validation but does not execute queries
 
 **Limitations**:
+
 - ❌ Arrow queries cannot execute
 - ❌ Flight data plane integration incomplete
 - ❌ Column-oriented execution not available
@@ -80,11 +86,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Real-time push updates not available
 
 **Current**:
+
 - WebSocket transport layer implemented
 - GraphQL subscription protocol partially implemented
 - No event streaming backend
 
 **Limitations**:
+
 - ❌ No subscription execution
 - ❌ No event streaming from database
 - ❌ No live query support
@@ -101,11 +109,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Cannot execute custom logic on requests/responses
 
 **Current**:
+
 - Middleware infrastructure exists
 - No custom webhook support
 - No pre/post-request hooks
 
 **Limitations**:
+
 - ❌ No custom request transformations
 - ❌ No webhook execution on mutations
 - ❌ No event-driven workflows
@@ -124,6 +134,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Current**: No file upload handling
 
 **Limitations**:
+
 - ❌ No multipart form data support
 - ❌ No S3/cloud storage integration
 - ❌ No file transformation pipeline
@@ -140,11 +151,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Limited visibility into performance and errors
 
 **Current**:
+
 - Distributed tracing with OpenTelemetry
 - Structured logging with tracing crate
 - Basic metrics collection
 
 **Limitations**:
+
 - ❌ No APM integration (DataDog, New Relic, etc.)
 - ❌ No automatic performance profiling
 - ❌ No error tracking integration (Sentry, etc.)
@@ -174,11 +187,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Individual mutations are atomic per subgraph, not across federation
 
 **Current**:
+
 - Saga system provides distributed transaction semantics
 - Individual database operations are atomic
 - Federation mutations are not ACID-compliant across services
 
 **Limitations**:
+
 - ❌ No multi-service ACID transactions
 - ❌ No distributed locks
 - ❌ Saga-based compensation is best-effort
@@ -195,6 +210,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: All major databases supported
 
 **Limitations**:
+
 - ⚠️ MySQL: Limited full-text search support
 - ⚠️ SQLite: No advanced window functions
 - ⚠️ SQL Server: Limited JSON operators
@@ -215,6 +231,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 - Cannot extend B in another service
 
 **Limitations**:
+
 - ❌ No multiple levels of extension
 - ❌ No complex inheritance chains
 
@@ -232,6 +249,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Current**: Only object types can be federated
 
 **Limitations**:
+
 - ❌ Cannot extend interfaces
 - ❌ No interface-based federation patterns
 
@@ -247,6 +265,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Cannot federate union types
 
 **Limitations**:
+
 - ❌ Cannot extend unions
 
 **Workaround**: Use interfaces or concrete types
@@ -283,6 +302,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Current**: Top-level sagas only
 
 **Limitations**:
+
 - ❌ No recursive saga composition
 - ❌ Cannot chain sagas programmatically
 
@@ -297,16 +317,19 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 #### 11.1 Entity Resolution Latency
 
 **Baseline Performance** (Phase 16):
+
 - Local (same database, indexed key): <5ms
 - Direct database (different service): <20ms
 - HTTP subgraph: <200ms
 
 **Not Optimized For**:
+
 - ❌ Millions of entity references per query
 - ❌ Unindexed key lookups
 - ❌ High-latency subgraph networks
 
 **Workaround**:
+
 - Add database indexes on @key fields
 - Use connection pooling
 - Optimize subgraph latency
@@ -321,6 +344,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Large result sets consume memory
 
 **Limitations**:
+
 - ⚠️ Full result buffering (no streaming responses yet)
 - ❌ No pagination enforced at schema level
 
@@ -336,11 +360,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 **Impact**: Schema changes require careful management
 
 **Current**:
+
 - Can add new types/fields
 - Can deprecate fields
 - Schema composition must be recompiled
 
 **Limitations**:
+
 - ❌ No zero-downtime schema updates
 - ❌ No schema versioning
 - ❌ Breaking changes require service restart
@@ -367,12 +393,14 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 ### What's Guaranteed Stable (Phase 16)
 
 ✅ **Stable APIs** (will not change):
+
 - GraphQL execution with federation
 - Saga coordination and compensation
 - Database connection management
 - Entity resolution protocol
 
 ✅ **Stable Formats** (backward compatible):
+
 - Compiled schema JSON format
 - GraphQL query/mutation execution results
 - Saga execution semantics
@@ -382,11 +410,13 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 ### What's Not Guaranteed Stable (Phase 16)
 
 ⚠️ **Internal APIs** (may change):
+
 - Internal Rust trait definitions
 - Configuration schema (additions OK, breaking changes possible)
 - Observability event structure
 
 ⚠️ **Experimental Features**:
+
 - Arrow Flight integration
 - Custom middleware (if added in Phase 17)
 - Advanced caching (if added in Phase 18)
@@ -409,23 +439,27 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 ## Migration Path: Current → Future
 
 **Phase 16 → Phase 17** (Code Quality Review):
+
 - Security audit
 - Performance optimization
 - Arrow Flight completion
 - Field-level authorization
 
 **Phase 17 → Phase 18** (Advanced Features):
+
 - Redis caching
 - File uploads
 - Webhooks
 - Advanced logging
 
 **Phase 18 → Phase 19** (Real-Time):
+
 - GraphQL subscriptions
 - Event streaming
 - Schema versioning
 
 **Phase 20+** (Enterprise):
+
 - Nested sagas
 - Multi-service transactions
 - Advanced federation patterns

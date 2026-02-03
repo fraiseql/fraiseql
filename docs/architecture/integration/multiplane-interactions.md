@@ -396,6 +396,7 @@ Result: Arrow query impacts JSON latency tail (p99, p99.9)
 **Mitigation:**
 
 ```
+
 1. Use lower isolation level for Arrow (READ_COMMITTED)
    ├─ Faster (fewer conflicts)
    ├─ Weaker consistency guarantee

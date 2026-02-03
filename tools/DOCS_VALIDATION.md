@@ -130,6 +130,7 @@ fi
 ### Optional: External URL Validation
 
 When using `--check-external`:
+
 - Attempts HTTP HEAD request to external URLs
 - Detects unreachable URLs
 - Slower (adds 1-2 seconds per URL)
@@ -138,6 +139,7 @@ When using `--check-external`:
 ### Markdown Linting
 
 The GitHub Actions workflow also runs `markdownlint` which checks:
+
 - MD001: Heading levels
 - MD003: Heading style consistency
 - MD024: Multiple headings with same content
@@ -321,12 +323,14 @@ jobs:
 ### Keeping Validators Updated
 
 The validators handle:
+
 - Standard markdown link syntax `[text](link)` and `[text]: link`
 - Both relative and absolute paths
 - Directory references (README.md lookup)
 - Fragment anchors `#anchor`
 
 If you add new link formats:
+
 1. Update regex patterns in both validators
 2. Add test cases
 3. Run full validation
@@ -398,6 +402,7 @@ stage('Validate Docs') {
 ## Future Improvements
 
 Potential enhancements:
+
 - [ ] Cache external link checks
 - [ ] Generate link report (HTML/JSON)
 - [ ] Suggest fixes for broken links

@@ -62,12 +62,14 @@ Quick navigation for all Fraisier development resources.
 ## By Role
 
 ### If You're Starting Fresh
+
 1. Read: [00_START_HERE.md](00_START_HERE.md) (5 min)
 2. Read: [PHASE_1_PROGRESS.md](PHASE_1_PROGRESS.md) (10 min)
 3. Check: [CLAUDE.md](CLAUDE.md) Development Workflow section (10 min)
 4. Start implementing based on [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md)
 
 ### If You're Implementing a Feature
+
 1. Check: [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for task
 2. Read: [CLAUDE.md](CLAUDE.md) relevant section (Architecture, Testing, etc.)
 3. Reference: [TRINITY_PATTERNS.md](TRINITY_PATTERNS.md) if database-related
@@ -75,12 +77,14 @@ Quick navigation for all Fraisier development resources.
 5. Follow: [CLAUDE.md](CLAUDE.md) Code Review Checklist before committing
 
 ### If You're Debugging
+
 1. Check: [CLAUDE.md](CLAUDE.md) Troubleshooting section
 2. Reference: [TRINITY_PATTERNS.md](TRINITY_PATTERNS.md) Database Inspection section
 3. Look at: Relevant test in `tests/` for expected behavior
 4. Check: Git history with `git log --oneline`
 
 ### If You're Reviewing Code
+
 1. Use: [CLAUDE.md](CLAUDE.md) Code Review Checklist
 2. Verify: Test coverage with `pytest --cov`
 3. Check: Linting with `ruff check`
@@ -91,6 +95,7 @@ Quick navigation for all Fraisier development resources.
 ## Phase 1 Task Tracker
 
 ### ✅ Completed
+
 - [x] APIDeployer implementation (100%)
 - [x] ETLDeployer implementation (100%)
 - [x] ScheduledDeployer implementation (100%)
@@ -103,10 +108,12 @@ Quick navigation for all Fraisier development resources.
 - [x] Development guide (CLAUDE.md)
 
 ### 🔄 In Progress
+
 - [ ] Webhook handler (FastAPI routes)
 - [ ] Webhook handler tests (10 tests planned)
 
 ### ⏳ Pending
+
 - [ ] CLI status commands implementation
 - [ ] Final Phase 1 verification
 
@@ -136,6 +143,7 @@ See [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for detaile
 ## Files Explained
 
 ### In `.claude/` (Development Guide)
+
 - **00_START_HERE.md** - Navigation and overview (this is your entry point)
 - **INDEX.md** - This file (documentation map)
 - **CLAUDE.md** - Development standards, architecture, testing
@@ -144,6 +152,7 @@ See [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for detaile
 - **TRINITY_PATTERNS.md** - Database architecture guide
 
 ### In `docs/` (User Documentation)
+
 - **INDEX.md** - Documentation overview
 - **ARCHITECTURE.md** - System architecture
 - **DEPLOYMENT_GUIDE.md** - How to deploy
@@ -151,6 +160,7 @@ See [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for detaile
 - **DEVELOPMENT.md** - Development guide
 
 ### In `fraisier/` (Source Code)
+
 - **cli.py** - Command-line interface
 - **config.py** - Configuration loading (fraises.yaml)
 - **database.py** - SQLite layer with trinity pattern
@@ -165,6 +175,7 @@ See [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for detaile
 - **webhook.py** - Webhook handler (in progress)
 
 ### In `tests/` (Test Suite)
+
 - **conftest.py** - Shared fixtures
 - **test_deployers.py** - Deployer unit tests (26 tests)
 - **test_database.py** - Database integration tests (24 tests)

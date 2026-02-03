@@ -301,6 +301,7 @@ grep connection_pool_size fraiseql-server/config.toml
 **Cause**: Query is too expensive to execute (many list fields or nested lists).
 
 **Complexity Scoring**:
+
 - Scalar field = 1 point
 - Object field = 1 point
 - List field = 5 points (multiplied by nested list counts)
@@ -609,6 +610,7 @@ curl -H "Authorization: Bearer $JWT_TOKEN" http://localhost:8080/graphql
 ### High Memory Usage
 
 **Symptom**:
+
 - Server process consuming > 1GB RAM
 - System becoming unresponsive
 - OOM killer terminating process
@@ -657,6 +659,7 @@ grep connection_pool_size fraiseql-server/config.toml
 ### Slow Queries
 
 **Symptom**:
+
 - Queries taking > 5 seconds
 - P99 latency > 30 seconds
 - Timeout errors during high load
@@ -718,6 +721,7 @@ psql $DATABASE_URL -c "
 ### High CPU Usage
 
 **Symptom**:
+
 - CPU at 100% during normal load
 - Server not responding to requests
 
@@ -916,6 +920,7 @@ introspection_enabled = true  # Only in development!
 ### Before Reporting Issues
 
 Provide:
+
 1. **Exact error message** (full stack trace if available)
 2. **Minimal reproducible example** (GraphQL query that fails)
 3. **Configuration** (sanitized config.toml, no secrets)
@@ -948,6 +953,7 @@ RUST_LOG=debug fraiseql-server -c config.toml 2>&1 | tail -50
 ---
 
 **Remember**: Most issues can be resolved by:
+
 1. Checking logs with appropriate log level
 2. Verifying configuration is correct
 3. Testing connectivity to database

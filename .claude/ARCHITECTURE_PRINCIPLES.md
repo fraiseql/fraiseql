@@ -263,6 +263,7 @@ server.serve().await?;
 ## Adding New Features
 
 ### Core Features (Required)
+
 **Location**: `fraiseql-core/`
 
 **When:**
@@ -274,6 +275,7 @@ server.serve().await?;
 **Example:** Adding window functions to GraphQL queries
 
 ### HTTP Features (Server-level)
+
 **Location**: `fraiseql-server/src/`
 
 **When:**
@@ -285,6 +287,7 @@ server.serve().await?;
 **Example:** Adding a new `/export` endpoint
 
 ### Optional Subsystems (New Crate)
+
 **Location**: `fraiseql-<feature>/` + Cargo feature
 
 **When:**
@@ -354,6 +357,7 @@ let introspection = IntrospectionResponses::build(&schema);
 ## Testing Strategy
 
 ### Unit Tests
+
 **Pattern:** Mock all external dependencies via traits
 
 ```rust
@@ -371,6 +375,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 ```
 
 ### Integration Tests
+
 **Pattern:** Test full request/response flows
 
 ```rust
@@ -383,6 +388,7 @@ async fn test_graphql_query_execution() {
 ```
 
 ### Feature Tests
+
 **Pattern:** Test feature combinations
 
 ```bash
@@ -406,12 +412,14 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 ```
 
 ### 2. Authentication Layers
+
 - OIDC token validation (external identity providers)
 - JWT validation for sessions
 - Bearer token for metrics endpoints
 - TLS/mTLS for transport security
 
 ### 3. Input Validation
+
 - GraphQL query complexity limits
 - Request size limits
 - Rate limiting (per-IP, per-user)
@@ -527,6 +535,7 @@ use fraiseql_observers::ObserverRuntime;
 ## Decision Log
 
 ### Why Generic `Server<A>` Instead of Concrete Types?
+
 **Decision:** Keep `Server<A: DatabaseAdapter>` generic
 
 **Reason:**
@@ -536,6 +545,7 @@ use fraiseql_observers::ObserverRuntime;
 - No runtime type erasure overhead
 
 ### Why Separate fraiseql-observers Crate?
+
 **Decision:** Keep observers as separate optional crate
 
 **Reason:**
@@ -545,6 +555,7 @@ use fraiseql_observers::ObserverRuntime;
 - Independent testing and versioning
 
 ### Why Remove RuntimeServer?
+
 **Decision:** Consolidated to single `Server<A>` implementation
 
 **Reason:**
@@ -558,6 +569,7 @@ use fraiseql_observers::ObserverRuntime;
 ## Future Directions
 
 ### Potential Extensions
+
 - GraphQL Federation (Phase 16 work shows this is underway)
 - Distributed tracing (OpenTelemetry integration)
 - APQ over Redis (currently in-memory)
@@ -565,6 +577,7 @@ use fraiseql_observers::ObserverRuntime;
 - More database backends (CockroachDB, YugabyteDB)
 
 ### NOT Planned
+
 - Resolvers (conflicts with compilation model)
 - Runtime schema changes (use compilation pipeline)
 - JavaScript/Python plugins (use compiled approach)
@@ -574,12 +587,14 @@ use fraiseql_observers::ObserverRuntime;
 ## Quick Reference
 
 ### Key Files
+
 - `fraiseql-core/src/runtime/executor.rs` - Core execution engine
 - `fraiseql-server/src/server.rs` - HTTP server implementation
 - `fraiseql-server/src/server_config.rs` - Configuration schema
 - `fraiseql-server/src/main.rs` - Binary entry point
 
 ### Key Traits
+
 - `DatabaseAdapter` - Database backend abstraction
 - `OAuthProvider` - Authentication provider abstraction
 - `StorageBackend` - File storage abstraction

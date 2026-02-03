@@ -12,6 +12,7 @@ bash BENCHMARK_QUICK_START.sh setup
 ```
 
 This will:
+
 - Start Docker Compose with PostgreSQL, MySQL, SQLite, and SQL Server
 - Wait for services to be healthy
 - Load benchmark dataset
@@ -136,6 +137,7 @@ cargo bench --bench full_pipeline_comparison --features "postgres,wire-backend"
 ```
 
 Metrics:
+
 - Parse time
 - Authorization check time
 - Query planning time
@@ -161,6 +163,7 @@ cargo bench --bench federation_bench
 ```
 
 Measures:
+
 - Cross-schema query planning
 - Result merging overhead
 - Authorization enforcement
@@ -174,6 +177,7 @@ cargo bench --bench micro_benchmarks -p fraiseql-wire
 ```
 
 Measures microsecond-scale operations:
+
 - JSON parsing
 - Frame chunking
 - Error handling
@@ -187,6 +191,7 @@ cargo bench --bench saga_performance_bench
 ```
 
 Measures:
+
 - State machine transitions
 - Saga recovery
 - Concurrent operation handling
@@ -202,6 +207,7 @@ open target/criterion/report/index.html
 ```
 
 Reports include:
+
 - Performance graphs with confidence intervals
 - Regression detection (comparing to baseline)
 - Throughput analysis
@@ -301,11 +307,13 @@ psql postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_frais
 ### Benchmark Results Too Noisy
 
 Benchmarks may vary based on:
+
 - System load
 - Background processes
 - Thermal throttling
 
 Solutions:
+
 - Run on idle system
 - Run multiple times and average
 - Increase sample size (Criterion default: 100)

@@ -9,6 +9,7 @@
 ## Current Implementation (Phase 1)
 
 ### Approach: ASCII Art Diagrams
+
 - **Rationale:**
   - Renders correctly on GitHub markdown without build dependencies
   - Version-controllable in plain text
@@ -39,6 +40,7 @@
 ### Proposed Approach: D2 Diagramming Language
 
 D2 is a modern diagramming language that produces professional diagrams from code:
+
 - Open source (GitHub: terrastruct/d2)
 - Renders SVG output (scalable, beautiful)
 - Version-controllable source code
@@ -88,6 +90,7 @@ Compiled Schema -> Runtime: loads
 ### D2 Diagrams to Implement
 
 #### Topic 1.1: What is FraiseQL?
+
 - [ ] Comparison matrix: FraiseQL vs Apollo Server
 - [ ] Comparison matrix: FraiseQL vs Hasura
 - [ ] Comparison matrix: FraiseQL vs Custom REST
@@ -96,6 +99,7 @@ Compiled Schema -> Runtime: loads
 **Effort:** 1-2 hours per diagram
 
 #### Topic 1.3: Database-Centric Architecture
+
 - [ ] Four-tier view system (v_*, tv_*, va_*, ta_*)
 - [ ] Architecture layers (Authoring → Compilation → Runtime)
 - [ ] Data flow (request → SQL execution)
@@ -105,6 +109,7 @@ Compiled Schema -> Runtime: loads
 **Effort:** 2-3 hours per diagram
 
 #### Topic 1.4: Design Principles
+
 - [ ] Design principles relationship (how 5 principles work together)
 - [ ] Compile-time optimization workflow
 - [ ] Type safety enforcement layers
@@ -187,6 +192,7 @@ classes: {
 }
 
 # Consistent arrow styling
+
 *.a -> *.b: {
   stroke: #666
   stroke-width: 2
@@ -208,6 +214,7 @@ classes: {
 | **Effort to Convert** | N/A | 20-25 hours |
 
 ### Verdict
+
 - **Phase 1:** ASCII (unblock content writing)
 - **Phase 2+:** D2 (visual polish and professionalism)
 
@@ -216,6 +223,7 @@ classes: {
 ## Success Criteria for D2 Implementation
 
 When D2 migration begins:
+
 - [ ] D2 CLI integrated into documentation build pipeline
 - [ ] All Phase 1 diagrams converted to D2
 - [ ] Consistent styling applied across all diagrams

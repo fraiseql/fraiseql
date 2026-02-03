@@ -56,6 +56,7 @@ url = "postgresql://fraiseql_user:password@localhost:5432/fraiseql_db"
 ```
 
 FraiseQL automatically:
+
 1. Extracts the username and password from the connection string
 2. Negotiates SCRAM-SHA-256 with the PostgreSQL server
 3. Performs secure challenge-response authentication
@@ -78,6 +79,7 @@ client_key = "/path/to/client.key"
 ```
 
 When both TLS and SCRAM are enabled:
+
 1. TLS connection is established first
 2. SCRAM-SHA-256-PLUS negotiates with TLS channel binding
 3. Authentication is tied to the TLS session (prevents replay attacks)
@@ -173,6 +175,7 @@ FraiseQL securely handles passwords:
 ### Memory Security
 
 FraiseQL uses the `zeroize` crate to:
+
 - Immediately zero password memory after use
 - Prevent password fragments in memory dumps
 - Automatic on drop (no manual cleanup needed)

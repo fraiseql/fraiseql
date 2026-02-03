@@ -7,6 +7,7 @@
 **Analogous to**: `ta_*` tables for Arrow plane (analytics), but `tv_*` for JSON plane (GraphQL).
 
 **Key difference**: Unlike logical views (`v_*`), tv_* tables are actual PostgreSQL tables with:
+
 - Physical storage on disk (materialized JSONB data)
 - Trigger-based or scheduled refresh mechanism
 - Denormalized JSONB composition for complex queries
@@ -45,6 +46,7 @@
 
 **Logical view (v_user_full)** - Real-time composition:
 ```
+
 1. Fetch user (1ms)
 2. Fetch posts (2-3s via JOIN)
 3. Compose posts array (500-800ms)
@@ -57,6 +59,7 @@ Total: 5-10 seconds
 
 **Table-backed view (tv_user_profile)** - Pre-computed:
 ```
+
 1. Fetch pre-composed JSONB (100-200ms)
 Total: 100-200ms
 ```
@@ -152,6 +155,7 @@ Choose based on your latency and overhead requirements:
 **Best for**: GraphQL subscriptions, <1min latency requirements
 
 **Characteristics**:
+
 - Fires after every INSERT/UPDATE/DELETE on source tables
 - Latency: <100ms per operation
 - Overhead: Per-row cost (scales with write volume)
@@ -204,6 +208,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile_on_comment
 **Best for**: Nightly dashboards, acceptable staleness (minutes to hours)
 
 **Characteristics**:
+
 - Batched refresh at fixed intervals
 - Latency: Minutes to hours
 - Overhead: Batch cost (no per-row overhead)
@@ -260,6 +265,7 @@ $$ LANGUAGE plpgsql;
 **Best for**: Development, bulk data loads, manual ETL
 
 **Characteristics**:
+
 - Manual refresh on demand
 - Latency: On-demand
 - Overhead: Only when called
@@ -472,6 +478,7 @@ SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_use
 **Cause**: DDL changed without updating schema binding.
 
 **Solution**:
+
 1. Update PostgreSQL DDL (helper views + tv_* table)
 2. Update GraphQL schema binding (authoring layer)
 3. Re-populate tv_* table
@@ -480,6 +487,7 @@ SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_use
 ## Examples
 
 See `/home/lionel/code/fraiseql/examples/sql/postgres/` for complete DDL examples:
+
 - `tv_user_profile.sql` - User profile with nested posts and comments
 - `tv_order_summary.sql` - Order with line items and customer details
 

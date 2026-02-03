@@ -7,6 +7,7 @@
 ## Problem Statement
 
 **Without Multi-Listener Failover**:
+
 - Single listener is a single point of failure
 - No automatic failover when listener crashes
 - Manual intervention required to resume event processing
@@ -14,6 +15,7 @@
 - No shared state between listener instances
 
 **With Multi-Listener Failover**:
+
 - Multiple listeners process events in parallel
 - Automatic failover to backup listeners
 - Shared checkpoint coordination prevents duplication
@@ -81,6 +83,7 @@ LISTEN                              LISTEN
 ## Implementation Steps
 
 ### Step 1: Listener State Machine (100 lines)
+
 **File**: `src/listener/state.rs`
 
 Listener lifecycle management:
@@ -110,12 +113,14 @@ impl ListenerStateMachine {
 ```
 
 Tests (4):
+
 - test_listener_state_transitions
 - test_listener_state_duration_tracking
 - test_listener_invalid_transitions
 - test_listener_state_recovery
 
 ### Step 2: Distributed Checkpoint Leasing (120 lines)
+
 **File**: `src/listener/lease.rs`
 
 Lease-based distributed coordination:
@@ -139,6 +144,7 @@ impl CheckpointLease {
 ```
 
 Tests (5):
+
 - test_lease_acquisition
 - test_lease_renewal
 - test_lease_expiration
@@ -146,6 +152,7 @@ Tests (5):
 - test_lease_multiple_listeners
 
 ### Step 3: Multi-Listener Coordinator (150 lines)
+
 **File**: `src/listener/coordinator.rs`
 
 Coordinates multiple listeners:
@@ -182,6 +189,7 @@ pub struct ListenerHealth {
 ```
 
 Tests (6):
+
 - test_listener_registration
 - test_listener_deregistration
 - test_listener_health_check
@@ -190,6 +198,7 @@ Tests (6):
 - test_coordinator_state_consistency
 
 ### Step 4: Failover Logic (100 lines)
+
 **File**: `src/listener/failover.rs`
 
 Automatic failover handling:
@@ -217,6 +226,7 @@ impl FailoverManager {
 ```
 
 Tests (5):
+
 - test_failure_detection
 - test_failover_trigger
 - test_failover_checkpoint_consistency
@@ -224,6 +234,7 @@ Tests (5):
 - test_failover_recovery
 
 ### Step 5: Listener Integration (100 lines)
+
 **File**: `src/listener/mod.rs` (modifications)
 
 Update listener to use coordinator:
@@ -251,12 +262,14 @@ impl ChangeLogListener {
 ```
 
 Tests (4):
+
 - test_listener_with_coordinator
 - test_listener_lease_acquisition_in_batch
 - test_listener_checkpoint_update
 - test_listener_failover_handling
 
 ### Step 6: Configuration (50 lines)
+
 **File**: `src/config.rs` (modifications)
 
 Add multi-listener configuration:
@@ -292,10 +305,12 @@ impl Default for MultiListenerConfig {
 ```
 
 Tests (2):
+
 - test_multi_listener_config_defaults
 - test_multi_listener_config_validation
 
 ### Step 7: Metrics Integration (50 lines)
+
 **File**: `src/metrics/mod.rs` (modifications)
 
 Add listener metrics:
@@ -312,9 +327,11 @@ pub struct ListenerMetrics {
 ```
 
 ### Step 8: Comprehensive Tests (120 lines)
+
 **File**: `src/listener/tests.rs`
 
 Full test coverage:
+
 - Multi-listener state machine tests (4)
 - Lease management tests (5)
 - Coordinator tests (6)
@@ -327,6 +344,7 @@ Full test coverage:
 ## Dependencies Required
 
 Check Cargo.toml:
+
 - `uuid` ✅ (already present)
 - `tokio` ✅ (already present)
 - `dashmap` ✅ (already present)
@@ -365,6 +383,7 @@ pub use listener::{
 ## Success Criteria
 
 ✅ **Functional**:
+
 - [ ] Multi-listener registration and discovery working
 - [ ] Lease-based checkpoint coordination correct
 - [ ] Automatic failover triggers on listener failure
@@ -373,6 +392,7 @@ pub use listener::{
 - [ ] Leader election deterministic
 
 ✅ **Quality**:
+
 - [ ] 200+ tests passing (27 new)
 - [ ] 100% Clippy compliant
 - [ ] Zero unsafe code
@@ -380,6 +400,7 @@ pub use listener::{
 - [ ] Deadlock-free coordination
 
 ✅ **Reliability**:
+
 - [ ] No checkpoint duplication on failover
 - [ ] No event loss during recovery
 - [ ] State survives listener crashes
@@ -387,6 +408,7 @@ pub use listener::{
 - [ ] Health monitoring detects failures < 60s
 
 ✅ **Performance**:
+
 - [ ] Lease acquisition < 100ms
 - [ ] Failover detection < 30s
 - [ ] Checkpoint updates < 50ms

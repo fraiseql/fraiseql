@@ -32,6 +32,7 @@ A comprehensive, browser-based learning platform for understanding FraiseQL's co
 ### 📊 Visual Diagrams
 
 Includes SVG diagrams showing:
+
 - **Compilation Pipeline**: How FraiseQL transforms schemas
 - **Relationships & N+1**: Traditional vs optimized queries
 - **Architecture Overview**: Demo stack components
@@ -228,6 +229,7 @@ curl http://localhost:3001/api/schema/type/User
 ### Query Executor
 
 Users can write and execute GraphQL queries with:
+
 - **Real-time execution** against FraiseQL server
 - **SQL visualization** showing pre-compiled SQL
 - **Timing information** including execution time and query complexity
@@ -242,6 +244,7 @@ Users can write and execute GraphQL queries with:
 ### Schema Explorer
 
 Browse the GraphQL schema:
+
 - Lists available types (User, Post, etc.)
 - Shows field information
 - Displays relationships between types
@@ -261,12 +264,14 @@ Browse the GraphQL schema:
 ### SQL Visualization
 
 For each executed query, the tutorial shows:
+
 - **Compiled SQL** - The pre-optimized SQL that FraiseQL generated
 - **Query Analysis** - Complexity assessment (Simple/Moderate/Complex)
 - **Execution Time** - How long the query took
 - **Record Count** - Number of results returned
 
 This helps users understand:
+
 1. What SQL is generated from GraphQL
 2. Why FraiseQL is faster (pre-optimized)
 3. How compile-time optimization works
@@ -409,6 +414,7 @@ curl http://localhost:3001/health
 ### Scaling
 
 Tutorial is stateless (progress stored in browser):
+
 - Can run multiple replicas
 - No shared state needed
 - Use load balancer for availability

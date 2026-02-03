@@ -160,21 +160,25 @@ cargo build --release
 ## 📚 Documentation
 
 ### Getting Started
+
 - [Quick Start Guide](./docs/QUICK_START.md)
 - [Installation Guide](./docs/INSTALLATION.md)
 - [Configuration Guide](./docs/CONFIGURATION.md)
 
 ### Development
+
 - [Architecture Overview](./docs/ARCHITECTURE.md)
 - [Schema Definition](./docs/SCHEMA_DEFINITION.md)
 - [Query Execution](./docs/QUERY_EXECUTION.md)
 
 ### Advanced
+
 - [Migration from v1](./docs/MIGRATION.md)
 - [Performance Tuning](./docs/PERFORMANCE.md)
 - [Security Best Practices](./docs/SECURITY.md)
 
 ### API Reference
+
 - [GraphQL API](https://docs.fraiseql.dev/api/graphql)
 - [REST Endpoints](https://docs.fraiseql.dev/api/rest)
 - [CLI Reference](https://docs.fraiseql.dev/cli)
@@ -443,18 +447,21 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideline
 ## 📅 Roadmap
 
 ### v2.0.0-a2 (Expected: Early February)
+
 - Real-time subscriptions
 - GraphQL federation support
 - Custom directive improvements
 - Performance optimizations
 
 ### v2.0.0-beta (Expected: Mid-February)
+
 - API stabilization
 - Comprehensive documentation
 - Community feedback integration
 - Production hardening
 
 ### v2.0.0 GA (Expected: Late February)
+
 - Full production support
 - SLA commitments
 - Long-term support plan
@@ -465,10 +472,12 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideline
 ## 🏆 Credits
 
 ### Core Team
+
 - Lionel Hamayon (Architecture, Core Engine)
 - FraiseQL Contributors
 
 ### Special Thanks
+
 - Beta testers and early adopters
 - Security researchers
 - Documentation contributors

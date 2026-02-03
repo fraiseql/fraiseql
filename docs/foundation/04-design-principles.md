@@ -408,6 +408,7 @@ These principles together enable a powerful property: **complete query auditabil
 ### Real-World Consequence: Performance Optimization
 
 ```
+
 1. Add database index (Simplicity: you're working with the database)
 2. Recompile schema (Compile-time: detect optimization opportunity)
 3. API automatically uses new index (Determinism: no code changes needed)
@@ -459,6 +460,7 @@ The five design principles of FraiseQL are:
 5. **Simplicity Over Flexibility** - Assume single relational database, optimize for that
 
 These principles work together to create a GraphQL system that is:
+
 - **Simple:** Minimal code needed
 - **Predictable:** Deterministic behavior enables optimization
 - **Safe:** Type safety at every layer

@@ -99,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial release (0.1.0)
 - Async JSON streaming from Postgres 17
 - Connection via TCP or Unix sockets
@@ -112,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backpressure via async channels
 
 ### Constraints
+
 - Single `data` column (json/jsonb)
 - View naming convention: `v_{entity}`
 - Read-only (no writes)

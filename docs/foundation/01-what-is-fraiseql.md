@@ -142,6 +142,7 @@ CREATE TABLE tb_orders (
 ### 4. Operational Simplicity
 
 Traditional GraphQL requires:
+
 - Custom resolver code
 - N+1 query prevention logic
 - Cache invalidation strategies
@@ -173,24 +174,28 @@ def get_user(user_id: int) -> User:
 ### ✅ FraiseQL is Ideal For
 
 **1. Data-Centric Applications**
+
 - Databases are your primary data source
 - GraphQL is an API layer over relational databases
 - You want type-safe database access
 - Example: E-commerce, SaaS, analytics platforms
 
 **2. Performance-Critical Systems**
+
 - Latency and throughput matter
 - You need predictable query performance
 - N+1 queries are unacceptable
 - Example: High-volume APIs, real-time platforms, data pipelines
 
 **3. Structured Data Domains**
+
 - Data follows clear schemas (not fully unstructured)
 - Relationships are well-defined (foreign keys)
 - Authorization is role/permission-based
 - Example: Business applications, operational systems
 
 **4. Teams That Want Simplicity**
+
 - Your team wants less custom code
 - You prefer convention over configuration
 - You want clear, debuggable query execution
@@ -280,23 +285,27 @@ query GetUserAnalytics {
 ### ❌ FraiseQL Is Not Ideal For
 
 **1. Highly Dynamic APIs**
+
 - Your schema changes frequently (not at build time)
 - You need runtime schema customization
 - GraphQL is more than a database API
 - **Alternative:** Apollo Server, WunderGraph
 
 **2. Unstructured or Document-Based Data**
+
 - Data doesn't fit relational schema
 - You need flexible document queries
 - **Alternative:** Hasura, PostGraphile, custom resolvers
 
 **3. Microservices Federation Heavy**
+
 - You're aggregating many external APIs
 - GraphQL is orchestration layer, not data access
 - You need extensive transformation logic
 - **Alternative:** Apollo Federation, WunderGraph
 
 **4. Extremely Simple APIs**
+
 - Your API is trivial (why pay compilation cost?)
 - You just need a REST wrapper
 - **Alternative:** Simple REST API, GraphQL for simple cases
@@ -354,24 +363,28 @@ query GetUserAnalytics {
 ### Ideal Users: Your Target Audience
 
 **1. Python Data Engineers**
+
 - Building data platforms
 - Need typed, performant APIs
 - Familiar with databases
 - Want GraphQL without complexity
 
 **2. TypeScript/Node Teams**
+
 - Building SaaS applications
 - Want type-safe backend
 - Performance-conscious
 - Prefer conventions over custom code
 
 **3. DevOps/SRE Teams**
+
 - Operating database-centric systems
 - Want predictable performance
 - Need observability
 - Prefer less custom code to maintain
 
 **4. Technical Architects**
+
 - Designing new systems
 - Need clear performance model
 - Want proven patterns

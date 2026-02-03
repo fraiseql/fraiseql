@@ -1048,6 +1048,7 @@ See [Typed Streaming Guide](docs/TYPED_STREAMING.md) for details.
 ## Implementation Checklist
 
 ### Code Changes
+
 - [ ] Make QueryBuilder generic: `QueryBuilder<T: DeserializeOwned>`
 - [ ] Add default type parameter: `T = serde_json::Value`
 - [ ] Create `TypedJsonStream<T>` struct
@@ -1058,6 +1059,7 @@ See [Typed Streaming Guide](docs/TYPED_STREAMING.md) for details.
 - [ ] All existing APIs preserve generic type
 
 ### Tests
+
 - [ ] Basic struct deserialization works
 - [ ] Field type mismatches produce clear errors
 - [ ] Missing fields produce clear errors
@@ -1077,6 +1079,7 @@ See [Typed Streaming Guide](docs/TYPED_STREAMING.md) for details.
 - [ ] Integration with real Postgres
 
 ### Documentation
+
 - [ ] QueryBuilder<T> rustdoc
 - [ ] TypedJsonStream<T> rustdoc
 - [ ] FraiseClient::query::<T>() rustdoc
@@ -1089,12 +1092,14 @@ See [Typed Streaming Guide](docs/TYPED_STREAMING.md) for details.
 - [ ] Advanced types guide
 
 ### Performance
+
 - [ ] Benchmark: Typed vs JSON streaming
 - [ ] Benchmark: Deserialization overhead
 - [ ] Verify < 2% overhead
 - [ ] Memory impact analysis
 
 ### Quality
+
 - [ ] > 90% test coverage
 - [ ] Zero clippy warnings
 - [ ] Format with rustfmt

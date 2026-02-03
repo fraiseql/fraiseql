@@ -25,6 +25,7 @@ Security audit identified **4 findings** that require remediation:
 ### 1. 🚨 CORS Misconfiguration (CRITICAL)
 
 **Locations**:
+
 - `crates/fraiseql-server/src/runtime_middleware/cors.rs` - `AllowOrigin::any()`
 - `crates/fraiseql-server/src/middleware/cors.rs` - `.allow_origin(Any)`
 
@@ -51,11 +52,13 @@ Security audit identified **4 findings** that require remediation:
 **Count**: 48 TODO markers found across codebase
 
 **Sample Locations**:
+
 - `crates/fraiseql-server/src/lib.rs` - Multiple doc comment TODOs
 - Various query optimization TODOs
 - Schema validation TODOs
 
 **Action**: Review each TODO and either:
+
 1. Fix the issue (if critical)
 2. Convert to known limitations documentation
 3. Remove if no longer relevant
@@ -81,6 +84,7 @@ Security audit identified **4 findings** that require remediation:
 **Count**: ~60 println!/eprintln! in production code
 
 **Locations**:
+
 - `crates/fraiseql-core/src/compiler/mod.rs` - Debug compiler output
 - `crates/fraiseql-core/src/db/postgres/adapter.rs` - DEBUG: SQL prints
 - `crates/fraiseql-wire/src/connection/tls.rs` - TLS warnings
@@ -125,6 +129,7 @@ tracing::debug!("SQL with projection = {}", sql);
 ## Security Model Assessment
 
 **✅ Verified Secure**:
+
 - SQL injection prevention (parameterized queries used throughout)
 - No unescaped user input in queries
 - Input validation on HTTP boundaries
@@ -135,6 +140,7 @@ tracing::debug!("SQL with projection = {}", sql);
 - Audit logging of sensitive operations
 
 **⚠️ Needs Configuration**:
+
 - CORS: Must restrict to specific origins in production
 - TLS: Can be disabled (intended for development)
 - Introspection: Can be disabled per security profile
@@ -146,17 +152,20 @@ tracing::debug!("SQL with projection = {}", sql);
 ## Remediation Plan (GREEN Phase)
 
 ### Priority 1: CRITICAL (Before GA)
+
 - [ ] Fix CORS to restrict origins
   - Create environment variable for allowed origins
   - Add configuration documentation
   - Add warning if running with AllowOrigin::any()
 
 ### Priority 2: HIGH (Finalization)
+
 - [ ] Remove all 25 phase markers
 - [ ] Review and resolve all 48 TODO markers
 - [ ] Replace debug prints with structured logging
 
 ### Priority 3: MEDIUM (Documentation)
+
 - [ ] Document security model
 - [ ] Create security hardening guide
 - [ ] Add production deployment checklist

@@ -356,6 +356,7 @@ Prepare for v1.0.0 release
 
 ```bash
 # Step 1
+
 1. Review all public APIs
 2. Create API audit document
 3. Verify examples still work
@@ -366,6 +367,7 @@ Prepare for v1.0.0 release
 
 ```bash
 # Step 2
+
 1. Review error.rs completeness
 2. Document error recovery strategies
 3. Create error handling guide
@@ -376,6 +378,7 @@ Prepare for v1.0.0 release
 
 ```bash
 # Step 3
+
 1. Define semantic versioning policy
 2. Document deprecation procedures
 3. Create compatibility policy file
@@ -385,6 +388,7 @@ Prepare for v1.0.0 release
 
 ```bash
 # Step 4
+
 1. Write deployment checklist
 2. Create configuration guide
 3. Write monitoring guide
@@ -396,6 +400,7 @@ Prepare for v1.0.0 release
 
 ```bash
 # Step 5
+
 1. Bump version to 1.0.0
 2. Update all documentation
 3. Update CHANGELOG

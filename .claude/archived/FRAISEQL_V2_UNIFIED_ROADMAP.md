@@ -1,6 +1,7 @@
 # FraiseQL v2: Unified Development Roadmap (Historical Reference)
 
 **⚠️ NOTE**: This document is now a HISTORICAL REFERENCE. For efficient, compact planning, see:
+
 - **`.claude/FRAISEQL_V2_IMPLEMENTATION_PLAN.md`** (NEW - 60% smaller, token-optimized)
 - **`.claude/PHASE_9_10_PLAN.md`** (NEW - Cross-language Arrow Flight SDK)
 
@@ -119,10 +120,12 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 ### 🔄 Remaining Subphases (Prioritized)
 
 #### Phase 8.7: Prometheus Metrics (✅ COMPLETE - January 24, 2026)
+
 **Effort**: 2-3 days (COMPLETED)
 **Status**: ✅ DONE
 
 **Deliverables Completed**:
+
 - ✅ Metrics registry integration (14 metrics total)
 - ✅ HTTP /metrics endpoint (Axum handler)
 - ✅ Feature-gated implementation (zero overhead when disabled)
@@ -145,6 +148,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 ---
 
 #### Phase 8.6: Job Queue System (🔄 READY TO START - Plan Complete)
+
 **Effort**: 3-4 days
 **Dependency**: Phase 8.7 ✅ (SATISFIED)
 **Status**: 🔄 Plan created and ready for implementation
@@ -152,6 +156,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 **Plan Location**: `.claude/PHASE_8_6_PLAN.md` (comprehensive, 400+ lines)
 
 **Deliverables**:
+
 - `JobQueue` trait + Redis implementation
 - Worker pool management
 - Exponential backoff retry with jitter
@@ -161,6 +166,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 - Full test coverage and documentation
 
 **Use Cases**:
+
 - Long-running video processing
 - Report generation
 - Batch email sends
@@ -173,9 +179,11 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 ---
 
 #### Phase 8.5: Elasticsearch Integration (MEDIUM PRIORITY)
+
 **Effort**: 3 days
 
 **Deliverables**:
+
 - Full-text searchable event audit trail
 - Compliance-ready logging
 - Event search API
@@ -183,6 +191,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine** with a **high-performance
 ---
 
 #### Phase 8.8-8.11: Resilience & Tooling (LOWER PRIORITY)
+
 **Total Effort**: 7-8 days
 
 - Circuit Breaker Pattern
@@ -288,10 +297,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.1: Arrow Flight Foundation ✅ COMPLETE
+
 **Status**: Complete (January 2026)
 **Implementation**: `crates/fraiseql-arrow/` (2,637 lines)
 
 **Completed Deliverables**:
+
 - ✅ `fraiseql-arrow` crate fully implemented
 - ✅ Arrow Flight server with all RPC methods:
   - `DoGet` - Fetch data stream (680 lines in flight_server.rs)
@@ -309,10 +320,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.2: GraphQL Results → Arrow Conversion ✅ COMPLETE
+
 **Status**: Complete (January 2026)
 **Implementation**: `crates/fraiseql-arrow/` + `crates/fraiseql-core/arrow_executor.rs`
 
 **Completed Deliverables**:
+
 - ✅ SQL Row → Arrow RecordBatch converter (451 lines in convert.rs)
 - ✅ GraphQL type → Arrow schema mapping (178 lines in schema_gen.rs)
 - ✅ Database row to Arrow Value conversion (279 lines in db_convert.rs)
@@ -322,6 +335,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 - ✅ Configurable batch sizing and row limits
 
 **Performance Status**:
+
 - ✅ Batch conversion implemented (ready for real query executor)
 - ✅ Type mapping complete: GraphQL scalars → Arrow data types
 - ⚠️ Performance targets (1M rows/sec) pending real query executor integration
@@ -332,10 +346,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.3: Observer Events → Arrow Streaming ✅ COMPLETE
+
 **Status**: Complete (January 2026)
 **Implementation**: `crates/fraiseql-observers/arrow_bridge.rs` + `crates/fraiseql-arrow/event_schema.rs`
 
 **Completed Deliverables**:
+
 - ✅ `EntityEvent` → Arrow RecordBatch converter (300+ lines in arrow_bridge.rs)
 - ✅ NATS → Arrow Flight bridge for event streaming
 - ✅ Event Arrow schema with 8 fields (event_schema.rs, 148 lines):
@@ -359,10 +375,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.4: ClickHouse Integration ✅ COMPLETE
+
 **Status**: Complete (January 25, 2026)
 **Implementation**: `crates/fraiseql-arrow/src/clickhouse_sink.rs` (552 lines) + `migrations/clickhouse/` (141 lines SQL + 332 lines docs)
 
 **Completed Deliverables**:
+
 - ✅ ClickHouse sink with batching and retry logic (552 lines)
   - Configurable batch size (default 10,000)
   - Timeout-based flushing (default 5 seconds)
@@ -386,6 +404,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 **Performance**: 1M+ events/sec ingestion, <100ms per batch
 
 **Files Created**:
+
 - clickhouse_sink.rs (552 lines)
 - 001_events_table.sql (141 lines)
 - migrations/clickhouse/README.md (332 lines)
@@ -399,10 +418,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.5: Explicit DDL Generation for Table-Backed Views ✅ COMPLETE
+
 **Status**: Complete (January 24, 2026)
 **Implementation**: `crates/fraiseql-cli/src/generate/` + Python/TypeScript helpers
 
 **Completed Deliverables**:
+
 - ✅ Python DDL generation helper library (6 functions + 6 templates)
 - ✅ TypeScript DDL generation library (6 functions)
 - ✅ CLI `generate-views` subcommand
@@ -420,10 +441,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.5b: Elasticsearch Integration (Operational Dataplane) ✅ COMPLETE
+
 **Status**: Complete (January 2026)
 **Implementation**: `crates/fraiseql-observers/src/elasticsearch_sink.rs` (406 lines)
 
 **Completed Deliverables**:
+
 - ✅ Elasticsearch sink for operational event search
 - ✅ Event and request log indexes
 - ✅ ILM policy for 90-day retention
@@ -440,10 +463,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.6: Cross-Language Client Examples ✅ COMPLETE
+
 **Status**: Complete (January 25, 2026)
 **Implementation**: `examples/` directory with 3 language clients + documentation
 
 **Completed Deliverables**:
+
 - ✅ **Python client** (210 lines)
   - FraiseQLClient class with PyArrow + Polars integration
   - Methods: query_graphql(), stream_events(), stream_events_batched()
@@ -480,10 +505,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.7: Integration Testing & Benchmarks ✅ COMPLETE
+
 **Status**: Complete (January 25, 2026)
 **Implementation**: `tests/` and `benches/` directories with comprehensive test suite
 
 **Completed Deliverables**:
+
 - ✅ **Test Harness** (160 lines)
   - TestEnv struct managing all service connections
   - Health checking (30s timeout)
@@ -515,6 +542,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
   - Real benchmark execution with actual timing
 
 **Benchmark Data**:
+
 - Query speedup: 3.0x-378.8x faster
 - Compression ratio: 0.6-0.7x JSON size
 - Event throughput: 260+ million events/sec
@@ -529,10 +557,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.8: Documentation & Migration Guide ✅ COMPLETE
+
 **Status**: Complete (January 25, 2026)
 **Implementation**: `docs/arrow-flight/` directory with comprehensive user-facing documentation
 
 **Completed Deliverables**:
+
 - ✅ **README.md** (650 lines)
   - Feature overview and quick start (5 minutes)
   - Architecture overview with dual-dataplane diagram
@@ -580,6 +610,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 **Total Documentation**: 2,000+ lines of production-quality user docs
 
 **Framework Created**:
+
 - docs/arrow-flight/client-integration/ (Python, R, Rust, ClickHouse)
 - docs/arrow-flight/deployment/ (Docker, Kubernetes, monitoring)
 - docs/arrow-flight/performance/ (tuning guides)
@@ -591,10 +622,12 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 #### Phase 9.9: Pre-Release Testing & Verification ⏳ PENDING
+
 **Status**: Testing plan created, execution pending
 **Documentation**: `.claude/PHASE_9_PRERELEASE_TESTING.md` (439 lines)
 
 **Critical Note**: Phase 9.1-9.8 are code-complete, but the following have NOT been verified with actual execution:
+
 - ❌ Unit tests (code exists, not run)
 - ❌ Integration tests (code exists, not run)
 - ❌ Stress tests (code exists, not run)
@@ -604,6 +637,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 - ❌ Performance claims (based on documentation, not actual execution)
 
 **Pre-Release Testing Plan** (10 phases, ~4 hours):
+
 1. Environment setup (15 min) - Start Docker services
 2. Compilation & linting (10 min) - Zero warnings
 3. Unit tests (10 min) - 255+ tests
@@ -616,6 +650,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 10. Cleanup (10 min) - Services down, repo clean
 
 **Go/No-Go Criteria**:
+
 - Must pass: All unit tests, ClickHouse schema, Elasticsearch templates, E2E pipeline, zero panics, clean compilation
 - Should pass: Stress tests, chaos tests, performance benchmarks, documentation examples
 - Nice to have: Code coverage >80%, performance exceeds targets
@@ -635,23 +670,28 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ### Implementation Status
 
 **Partially Implemented** ⚠️:
+
 - `AdmissionController` (concurrent request limiting, backpressure control) in `crates/fraiseql-server/src/resilience/backpressure.rs`
 - Resilience module structure (minimal)
 
 **Fully Documented** 📋:
+
 - Comprehensive Phase 10 specs in `docs/endpoint-runtime/10-PHASE-10-POLISH.md` (36+ KB)
 
 ---
 
 ### Phase 10.1: Admission Control & Backpressure
+
 **Status**: ⚠️ Partial Implementation
 
 **Completed**:
+
 - ✅ AdmissionController with concurrent request limiting
 - ✅ Backpressure signal propagation
 - ✅ Basic queue management
 
 **Remaining**:
+
 - ❌ Request prioritization (high-priority queries first)
 - ❌ Graceful degradation under load
 - ❌ Integration with Arrow Flight
@@ -660,9 +700,11 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 ### Phase 10.2: Deployment Patterns
+
 **Status**: 📋 Documented (spec only, 36+ KB)
 
 **Planned**:
+
 - Zero-downtime deployment support
 - Feature flags for gradual rollouts
 - Canary deployment patterns
@@ -672,9 +714,11 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 ### Phase 10.3: Advanced Resilience Patterns
+
 **Status**: 📋 Documented (spec only)
 
 **Planned**:
+
 - Circuit breaker for database connections
 - Multi-region failover
 - Request timeout handling
@@ -683,9 +727,11 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ---
 
 ### Phase 10.4: Performance Optimization
+
 **Status**: 📋 Documented (spec only)
 
 **Planned**:
+
 - Query plan caching
 - Connection pooling tuning
 - Memory allocation optimization
@@ -699,6 +745,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 **Historical Reference**: Previous Phase 11 work (RBAC system) was superseded by Phase 8 & 9 focus
 
 ### Potential Areas for Future Work:
+
 - Advanced security features (row-level security, column masking)
 - Multi-tenancy enhancements
 - Advanced analytics pipelines
@@ -712,6 +759,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ## Updated Timeline
 
 ### Q1 2026 (Current - January 25)
+
 - ✅ **Completed**:
   - ✅ Phase 8.7: Prometheus Metrics (Jan 24, COMPLETE)
   - ✅ Phase 9.1: Arrow Flight Foundation (COMPLETE)
@@ -726,11 +774,13 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
   - **Or**: Complete Phase 9.4-9.5 implementation (ClickHouse, Elasticsearch)
 
 ### Q2 2026
+
 - 📋 **Early**: Phase 9.4 (ClickHouse Integration) or Phase 9.5 (Elasticsearch Analytics)
 - 📋 **Mid**: Phase 9.6-9.8 (Client examples, testing, documentation)
 - 📋 **Late**: Phase 8.6 + Phase 8.5 (Remaining Observer features)
 
 ### Q3 2026
+
 - 📋 **Early**: Phase 10 (Production Hardening - complete 90% of implementation)
 - 📋 **Mid**: Phase 11 (Future features - scope TBD)
 - 📋 **Late**: Documentation finalization, release prep, performance tuning
@@ -740,17 +790,20 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ## Success Metrics
 
 ### Performance (Arrow Flight)
+
 - ✅ 50x throughput improvement over HTTP/JSON
 - ✅ 10x latency reduction for large result sets
 - ✅ 5x memory efficiency (columnar format)
 - ✅ 1M+ rows/sec streaming capability
 
 ### Developer Experience
+
 - ✅ Zero-copy data access in Python/R/Java
 - ✅ Simple client integration (<50 lines of code)
 - ✅ Comprehensive examples and docs
 
 ### Production Readiness
+
 - ✅ TLS security for Flight
 - ✅ Prometheus metrics for monitoring
 - ✅ Docker/K8s deployment support
@@ -784,6 +837,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
 ## Next Actions
 
 ### Immediate (Next Session)
+
 1. ✅ **Start Phase 8.6 Implementation** (Job Queue System)
    - Reference: `.claude/PHASE_8_6_PLAN.md` (comprehensive plan ready)
    - Timeline: 3-4 days following 8 tasks
@@ -798,6 +852,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
    - Job serialization and persistence
 
 ### Following Tasks
+
 4. ✅ **Task 3** (1 day): Job executor/worker
    - JobExecutor implementation
    - Worker pool management
@@ -809,6 +864,7 @@ Apache Arrow Flight serves as a **unified, high-performance data delivery mechan
    - Comprehensive test coverage
 
 ### After Phase 8.6 Complete
+
 1. 📋 **Create Phase 9.1 detailed plan** (Arrow Flight Foundation)
 2. 📋 **Start Phase 9.1** implementation (if timeline allows)
 3. 📋 Or continue with **Phase 8.5** (Elasticsearch Integration) if preferred

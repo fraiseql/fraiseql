@@ -11,6 +11,7 @@
 ## Executive Summary
 
 Phase 8.6 adds a distributed job queue system for asynchronous action execution. This enables:
+
 - Non-blocking action execution (fire-and-forget for expensive operations)
 - Reliable retry logic with exponential backoff
 - Dead letter queue for failed jobs
@@ -33,6 +34,7 @@ Phase 8.6 adds a distributed job queue system for asynchronous action execution.
 
 ### Problem
 With synchronous action execution:
+
 - Single slow webhook blocks all event processing
 - No way to defer expensive operations (batch 1000 emails, send in background)
 - Failed actions are retried immediately (wasting resources)
@@ -199,6 +201,7 @@ Metrics Integration (Phase 8.7):
 **File:** `crates/fraiseql-observers/src/job_queue/mod.rs` (NEW)
 
 Implement:
+
 - `Job` struct with all fields
 - `JobState` enum
 - `JobError` enum for failure reasons
@@ -207,6 +210,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/job_queue/traits.rs` (NEW)
 
 Implement:
+
 - `JobQueue` trait with all methods
 - Mock implementation for testing
 
@@ -223,6 +227,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/job_queue/redis.rs` (NEW)
 
 Implement:
+
 - `RedisJobQueue` struct
 - Connection pooling
 - Enqueue: Push to queue list
@@ -234,6 +239,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/job_queue/dlq.rs` (NEW)
 
 Implement:
+
 - Dead Letter Queue storage
 - Job status queries
 - DLQ inspection operations
@@ -252,6 +258,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/job_queue/executor.rs` (NEW)
 
 Implement:
+
 - `JobExecutor` struct
 - Main worker loop (run() method)
 - Parallel execution of job batches
@@ -261,6 +268,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/job_queue/backoff.rs` (NEW)
 
 Implement:
+
 - Backoff calculation (linear, exponential, random)
 - Follows same BackoffStrategy from executor.rs
 
@@ -278,6 +286,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/queued_executor.rs` (NEW)
 
 Implement:
+
 - `QueuedObserverExecutor` wrapper
 - Constructor that takes inner executor + job queue
 - New process_event() that:
@@ -300,6 +309,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/factory.rs` (MODIFY)
 
 Add:
+
 - Optional queued execution mode
 - Configuration option to enable job queue
 - Factory method to build with queued executor
@@ -307,6 +317,7 @@ Add:
 **File:** `crates/fraiseql-observers/src/config.rs` (MODIFY)
 
 Add:
+
 - JobQueueConfig struct
 - Redis connection parameters
 - Worker configuration (concurrency, batch size)
@@ -315,6 +326,7 @@ Add:
 **File:** `Cargo.toml` (MODIFY)
 
 Add:
+
 - Optional redis dependency (if not already present)
 - redis feature flag
 
@@ -332,6 +344,7 @@ Add:
 **File:** `crates/fraiseql-observers/src/metrics/registry.rs` (MODIFY)
 
 Add metrics:
+
 - `job_queued_total` (counter)
 - `job_executed_total` (counter with action_type label)
 - `job_failed_total` (counter with action_type, error_type labels)
@@ -343,6 +356,7 @@ Add metrics:
 **File:** `crates/fraiseql-observers/src/job_queue/executor.rs` (MODIFY)
 
 Instrument:
+
 - Record metrics when jobs are executed
 - Track retry attempts
 - Monitor DLQ growth
@@ -361,6 +375,7 @@ Instrument:
 **File:** `docs/monitoring/PHASE_8_6_JOB_QUEUE.md` (NEW)
 
 Document:
+
 - Architecture overview
 - Configuration examples
 - Running workers
@@ -371,6 +386,7 @@ Document:
 **File:** `examples/job_queue_example.rs` (NEW)
 
 Example showing:
+
 - Setting up job queue
 - Running worker
 - Processing jobs
@@ -389,6 +405,7 @@ Example showing:
 **Files:** `tests/job_queue_integration.rs` (NEW)
 
 Test:
+
 - End-to-end job queueing and execution
 - Retry logic with backoff
 - DLQ handling
@@ -456,6 +473,7 @@ phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics", "job_q
 ```
 
 When `job_queue` feature is disabled:
+
 - `QueuedObserverExecutor` not available
 - `JobQueue` implementations are no-ops
 - No Redis dependency needed
@@ -465,21 +483,25 @@ When `job_queue` feature is disabled:
 ## Architecture Decisions
 
 ### Why Redis + NATS?
+
 - Redis: Fast, proven, already optional dependency in Phase 8
 - NATS: Reliable delivery, multi-worker support, integrates with existing transport
 
 ### Why separate workers?
+
 - Non-blocking event processing
 - Horizontal scalability (run N workers)
 - Better resource utilization
 - Can upgrade/restart workers without stopping event processing
 
 ### Why job IDs?
+
 - Track job status after event returns
 - Allow client polling for completion
 - Enable job replay/inspection
 
 ### Why DLQ instead of auto-delete?
+
 - Retain failed jobs for investigation
 - Allow manual retry
 - Monitor for systemic failures
@@ -489,6 +511,7 @@ When `job_queue` feature is disabled:
 ## Integration with Phase 8.7 Metrics
 
 New metrics dashboard panels (add to grafana-dashboard-8.7.json):
+
 - Job queue depth over time
 - Job execution rate by action type
 - Job retry frequency
@@ -515,6 +538,7 @@ fraiseql_observer_job_dlq_items > 100
 ## Hybrid Implementation Strategy
 
 ### Phase 1 (Claude - Architecture & Examples):
+
 1. Design job queue architecture
 2. Implement Job struct and JobQueue trait
 3. Implement RedisJobQueue (core logic)
@@ -523,12 +547,14 @@ fraiseql_observer_job_dlq_items > 100
 6. Implement metrics integration
 
 ### Phase 2 (Local Model - Pattern Application):
+
 1. Apply backoff retry pattern to JobExecutor
 2. Generate integration tests
 3. Apply metrics recording patterns
 4. Generate configuration examples
 
 ### Phase 3 (Claude - Verification):
+
 1. Review all code
 2. Run full test suite
 3. Verify metrics are recorded correctly
@@ -539,6 +565,7 @@ fraiseql_observer_job_dlq_items > 100
 ## Success Metrics for Phase 8.6
 
 After completion:
+
 - ✅ Actions execute asynchronously via job queue
 - ✅ Event processing returns in <100ms (no action wait)
 - ✅ Jobs automatically retry on transient failures
@@ -553,6 +580,7 @@ After completion:
 ## Dependencies
 
 Required:
+
 - redis crate (optional, only with job_queue feature)
 - existing deps: tokio, serde, uuid, chrono
 
@@ -561,6 +589,7 @@ Required:
 ## Acceptance Criteria (Complete)
 
 ### Implementation Completeness
+
 - ✅ Job struct with all fields and serialization
 - ✅ JobQueue trait with all operations
 - ✅ RedisJobQueue implementation
@@ -571,12 +600,14 @@ Required:
 - ✅ Feature flag working (with/without job_queue)
 
 ### Metrics & Monitoring
+
 - ✅ Job metrics integrated with Phase 8.7
 - ✅ Dashboard panels for job queue
 - ✅ PromQL alert examples
 - ✅ Worker can emit metrics
 
 ### Code Quality
+
 - ✅ No clippy warnings
 - ✅ Comprehensive doc comments
 - ✅ Thread-safe implementations
@@ -584,6 +615,7 @@ Required:
 - ✅ Feature-gated properly
 
 ### Testing
+
 - ✅ Unit tests for Job struct
 - ✅ Unit tests for JobQueue trait
 - ✅ Integration tests for Redis queue
@@ -592,6 +624,7 @@ Required:
 - ✅ All existing tests still pass
 
 ### Documentation
+
 - ✅ Architecture documentation
 - ✅ Configuration examples
 - ✅ Monitoring queries
@@ -627,6 +660,7 @@ Required:
 ## Next Steps After Phase 8.6
 
 After job queue completion:
+
 1. **Phase 8.5**: Elasticsearch Integration (uses job queue for indexing)
 2. **Phase 8.8**: Circuit breaker resilience for actions
 3. **Phase 8.9**: Multi-database support

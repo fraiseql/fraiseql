@@ -5,6 +5,7 @@ Integration guides for connecting FraiseQL with external services and databases.
 ## Quick Navigation
 
 ### Federation (Multi-Database)
+
 - **[Federation Quick Start](federation/guide.md)** — Get started with federation
 - **[Federation API Reference](federation/api-reference.md)** — API reference for federation
 - **[Deployment](federation/deployment.md)** — Deploy federated systems
@@ -12,6 +13,7 @@ Integration guides for connecting FraiseQL with external services and databases.
 - **[Readiness Checklist](federation/readiness-checklist.md)** — Pre-deployment checklist
 
 ### Authentication
+
 - **[Authentication Guide](authentication/README.md)** — Overview and setup
 - **[Auth0 Setup](authentication/SETUP-AUTH0.md)**
 - **[Google OAuth Setup](authentication/SETUP-GOOGLE-OAUTH.md)**
@@ -22,11 +24,13 @@ Integration guides for connecting FraiseQL with external services and databases.
 - **[Troubleshooting](authentication/TROUBLESHOOTING.md)**
 
 ### Arrow Flight (Analytics)
+
 - **[Arrow Flight Guide](arrow-flight/getting-started.md)** — Get started
 - **[Architecture](arrow-flight/architecture.md)** — Design and architecture
 - **[Migration Guide](arrow-flight/migration-guide.md)** — Migrate from GraphQL
 
 ### Monitoring & Visualization
+
 - **[Grafana Dashboard](monitoring/grafana-dashboard-8.7.json)** — Pre-built dashboard
 
 ## Federation Features

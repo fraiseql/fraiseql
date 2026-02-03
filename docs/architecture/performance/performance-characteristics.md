@@ -224,6 +224,7 @@ Total on deadlock:    70ms (retry succeeds)
 
 ```
 Timing (1000 INSERT statements):
+
 - Transaction start: 1ms
 - Validate all inputs: 50ms
 - Database batch INSERT: 100ms
@@ -311,6 +312,7 @@ At overflow:
 
 ```
 Hit rate vs latency:
+
 - 0% hit rate:   50ms average (always query database)
 - 50% hit rate:  30ms average (half from cache)
 - 75% hit rate:  18ms average
@@ -628,12 +630,14 @@ createUsersBatch([...1000 users...])
 
 ```
 Before (all in transaction):
+
 1. Create user (2ms)
 2. Send welcome email (500ms) ← Slow!
 3. Log audit event (10ms)
 → Total: 512ms
 
 After (async):
+
 1. Create user (2ms)
 2. Commit ✓
 3. Queue email (async)
@@ -704,6 +708,7 @@ def track_cache():
 
 ```
 Throughput scales linearly:
+
 1 instance:  2,000 req/sec
 2 instances: 4,000 req/sec
 10 instances: 20,000 req/sec
@@ -729,6 +734,7 @@ Master database:        Handles mutations
 Read replicas (5 copies): Handle queries
 
 Distribution:
+
 - Mutations: All to master (10%)
 - Queries: Distributed to 5 read replicas (90%)
 
@@ -739,6 +745,7 @@ Result: Can scale queries 5x beyond master capacity
 
 ```
 Shard by user_id:
+
 - User 1-100K:   Shard A
 - User 100K-200K: Shard B
 - User 200K-300K: Shard C
@@ -829,6 +836,7 @@ Alert: Connection pool exhausted
 ### 11.1 Systematic Tuning Process
 
 ```
+
 1. Establish baseline
    - Measure current p50, p95, p99 latency
    - Measure throughput (req/sec)

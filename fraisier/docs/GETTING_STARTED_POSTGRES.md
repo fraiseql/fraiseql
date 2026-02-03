@@ -11,6 +11,7 @@
 ## Overview
 
 PostgreSQL is ideal for:
+
 - ✅ Production deployments (millions of requests/day)
 - ✅ High-concurrency applications (1000+ concurrent users)
 - ✅ Multi-region deployments with replication

@@ -116,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 **Core Features**:
+
 - Streaming JSON queries via Postgres Simple Query protocol
 - TCP and Unix socket connection support
 - TLS support with native and rustls backends
@@ -128,18 +129,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bounded memory usage (O(chunk_size), not O(result_size))
 
 **Architecture**:
+
 - From-scratch Postgres wire protocol implementation (no libpq dependency)
 - Bounded async channels for backpressure
 - Non-blocking cancellation via CancelRequest message
 - Streaming-first APIs: `Stream<Item = Result<serde_json::Value, FraiseError>>`
 
 **Observability**:
+
 - Structured error types with detailed context
 - Metrics hooks for instrumentation
 - Tracing support via `tracing` crate
 - Diagnostic examples (error_handling.rs)
 
 **Testing**:
+
 - 120+ integration tests covering:
   - Connection lifecycle (TCP, Unix sockets, TLS)
   - Authentication (SCRAM-SHA256, password)
@@ -153,6 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration benchmarks against real Postgres
 
 **Performance** (v0.1.0 baseline):
+
 - Memory efficiency: 2000x lower than tokio-postgres for 10K rows
   - fraiseql-wire: O(chunk_size), typically 1.3 KB
   - tokio-postgres: O(result_size), 2.6 MB for 10K rows
@@ -160,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Throughput: 100K-500K rows/sec depending on JSON complexity
 
 **Documentation**:
+
 - `README.md` – Overview, examples, philosophy
 - `QUICK_START.md` – Installation and first steps
 - `TESTING_GUIDE.md` – Running unit, integration, and load tests
@@ -199,6 +205,7 @@ If you need these, use `tokio-postgres`, `sqlx`, or `sqlalchemy`.
 Upgrading from an earlier version? No prior releases exist. This is the initial release.
 
 Future versions will follow semantic versioning:
+
 - 0.2.x, 0.3.x, etc. – may include breaking API changes
 - 1.0.0+ – stable API guarantee
 
@@ -226,6 +233,7 @@ grep "^version" Cargo.toml
 git tag -a v0.1.0 -m "Release v0.1.0 - Streaming JSON query engine for Postgres 17
 
 Features:
+
 - Streaming JSON queries via simple query protocol
 - TCP and Unix socket support
 - TLS and SCRAM-SHA256 authentication
@@ -356,6 +364,7 @@ git add CHANGELOG.md
 git commit -m "release(v0.1.0): Initial stable release
 
 Features:
+
 - Streaming JSON queries via Postgres simple query protocol
 - TLS and SCRAM-SHA256 authentication
 - Hybrid SQL + Rust predicates

@@ -380,5 +380,6 @@ RUST_LOG=info fraiseql-observer --config config.toml
 ---
 
 For more information, see:
+
 - [Architecture Documentation](../.claude/REDIS_NATS_INTEGRATION_ARCHITECTURE.md)
 - [Implementation Progress](../.claude/IMPLEMENTATION_PROGRESS.md)

@@ -29,6 +29,7 @@ docker-compose up -d
 ```
 
 This starts:
+
 - **PostgreSQL 1** (port 5432): users database
 - **PostgreSQL 2** (port 5433): orders database
 - **Users Service** (port 4001): owns User entity
@@ -117,6 +118,7 @@ Response:
 ```
 
 Federation automatically:
+
 1. Queries User from users-service (owns entity)
 2. Uses user ID to resolve Order from orders-service
 3. Returns complete response

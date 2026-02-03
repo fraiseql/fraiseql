@@ -11,11 +11,13 @@
 ### Hardware Requirements
 
 **Minimum** (dev/staging):
+
 - 2 CPU cores
 - 4GB RAM
 - 10GB disk
 
 **Recommended** (production):
+
 - 4 CPU cores per service
 - 16GB RAM minimum
 - 100GB disk (SSD)
@@ -437,6 +439,7 @@ watch -n 10 /opt/fraiseql/health_check.sh
 **Define alerts**:
 ```yaml
 # Alert: High query latency
+
 - alert: HighQueryLatency
   expr: fraiseql_query_duration_ms{quantile="0.95"} > 500
   for: 5m
@@ -444,6 +447,7 @@ watch -n 10 /opt/fraiseql/health_check.sh
     summary: "Query latency >500ms"
 
 # Alert: Low cache hit rate
+
 - alert: LowCacheHitRate
   expr: fraiseql_cache_hit_rate < 0.5
   for: 10m
@@ -451,6 +455,7 @@ watch -n 10 /opt/fraiseql/health_check.sh
     summary: "Cache hit rate <50%"
 
 # Alert: Service down
+
 - alert: ServiceDown
   expr: up{job="fraiseql"} == 0
   for: 1m
@@ -525,16 +530,19 @@ cat > /opt/fraiseql/DEPLOYMENT_INFO.md << 'EOF'
 **Gateway**: Apollo Router v1.31.1
 
 ## Baseline Performance
+
 - 2-hop query: $(measure_2hop_latency)ms
 - 3-hop query: $(measure_3hop_latency)ms
 - Cache hit rate: $(measure_cache_hit_rate)%
 
 ## Configuration
+
 - Cache TTL: 24 hours
 - Pool size: 10 connections
 - Max entries: 50,000
 
 ## Monitoring
+
 - Prometheus: http://localhost:9090
 - Logs: docker-compose logs [service]
 - Health: /opt/fraiseql/health_check.sh
@@ -550,16 +558,19 @@ tar czf /mnt/backups/fraiseql/config_$(date +%Y%m%d).tar.gz \
 ### 7.2 Maintenance Schedule
 
 **Daily**:
+
 - Monitor error rate (<0.1%)
 - Check cache hit rate (60-80%)
 - Run health checks
 
 **Weekly**:
+
 - Review query latency trends
 - Verify backup completion
 - Check disk usage
 
 **Monthly**:
+
 - Run full test suite
 - Performance review
 - Security audit
@@ -589,6 +600,7 @@ curl http://localhost:4000/graphql -d '{"query":"{ users { id } }"}'
 ### 8.2 Failover Procedure
 
 **Single-region failover** (manual):
+
 1. Detect service failure
 2. Review logs for root cause
 3. Restart failed service: `docker-compose restart [service]`
@@ -597,6 +609,7 @@ curl http://localhost:4000/graphql -d '{"query":"{ users { id } }"}'
 6. Document incident
 
 **For multi-region** (future - Phase 16):
+
 - See FEDERATION_INTEGRATION_REPORT.md "Scaling Considerations"
 
 ---
@@ -660,6 +673,7 @@ docker stats                   # CPU/Memory usage?
 ## Production Checklist
 
 ### Pre-Production
+
 - [ ] All 44 tests passing locally
 - [ ] Performance baselines established
 - [ ] Documentation reviewed
@@ -668,6 +682,7 @@ docker stats                   # CPU/Memory usage?
 - [ ] Monitoring configured
 
 ### Deployment Day
+
 - [ ] Environment variables configured
 - [ ] Services built/pulled
 - [ ] Volumes mounted correctly
@@ -678,6 +693,7 @@ docker stats                   # CPU/Memory usage?
 - [ ] Monitoring active
 
 ### Post-Deployment
+
 - [ ] Document deployment info
 - [ ] Set up backup schedule
 - [ ] Configure alerts
@@ -718,6 +734,7 @@ curl http://localhost:4000/graphql -d '{"query":"{ __typename }"}'
 ```bash
 # After running in production for 1 week:
 # Record these numbers:
+
 - Query latency p95: _____ ms
 - Cache hit rate: _____ %
 - Error rate: _____ %
@@ -739,17 +756,20 @@ curl http://localhost:4000/graphql -d '{"query":"{ __typename }"}'
 ## Support & Escalation
 
 ### Level 1 (Operations Team)
+
 - Service health checks
 - Log review
 - Basic diagnostics
 - See QUICK_REFERENCE.md "Debugging Checklist"
 
 ### Level 2 (Engineering)
+
 - Performance analysis
 - Query optimization
 - See QUERY_OPTIMIZATION.md
 
 ### Level 3 (Architecture)
+
 - Multi-region expansion
 - Schema changes
 - See FEDERATION_INTEGRATION_REPORT.md "Next Steps"

@@ -23,6 +23,7 @@
 A **saga** is a pattern for managing distributed transactions across multiple services in a microservices architecture. Instead of relying on a single database transaction, sagas coordinate actions across multiple services while maintaining data consistency.
 
 Sagas break a long-running business transaction into a series of **steps**:
+
 - **Forward steps**: Perform the business operation
 - **Compensation steps**: Undo the operation if something fails downstream
 
@@ -31,6 +32,7 @@ Sagas break a long-running business transaction into a series of **steps**:
 When a customer places an order, multiple services might be involved:
 
 ```
+
 1. Debit customer's account (Payment Service)
 2. Reserve inventory (Inventory Service)
 3. Schedule delivery (Shipping Service)
@@ -38,6 +40,7 @@ When a customer places an order, multiple services might be involved:
 ```
 
 If step 3 fails (no delivery available), a saga automatically:
+
 - Compensates step 2 (returns inventory to shelf)
 - Compensates step 1 (refunds customer)
 - Updates order status to "cancelled"
@@ -49,6 +52,7 @@ If step 3 fails (no delivery available), a saga automatically:
 ### Problems They Solve
 
 **Traditional Distributed Transactions (2-Phase Commit)**
+
 - Slow: Locks resources for extended periods
 - Fragile: Coordinator failure can leave system in inconsistent state
 - Expensive: Requires support from all involved systems
@@ -76,6 +80,7 @@ If step 3 fails (no delivery available), a saga automatically:
 ### Saga Coordinator
 
 The **saga coordinator** orchestrates the execution of all steps in a saga. It:
+
 - Receives the initial saga request
 - Executes forward steps in sequence
 - Handles failures and triggers compensation
@@ -104,11 +109,13 @@ SagaStep {
 ### Saga Store
 
 The **saga store** persists saga state to disk. This allows:
+
 - Saga recovery after failures
 - Audit trail of all operations
 - Idempotency (running same step twice produces same result)
 
 Supported backends:
+
 - PostgreSQL (recommended for production)
 - MySQL
 - SQLite (development/testing)

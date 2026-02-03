@@ -170,6 +170,7 @@ All **eight authoring languages** now have **identical feature sets**:
 ## Test Coverage - Kotlin Phase 12
 
 ### AuthorizationTest (11 tests)
+
 - Builder and fluent API
 - Rule expressions and policy references
 - Recursive and operation-specific rules
@@ -177,6 +178,7 @@ All **eight authoring languages** now have **identical feature sets**:
 - Annotation support
 
 ### RoleBasedAccessControlTest (18 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (ANY, ALL, EXACTLY)
 - Role hierarchies and inheritance
@@ -185,6 +187,7 @@ All **eight authoring languages** now have **identical feature sets**:
 - Annotation support with all parameters
 
 ### AttributeBasedAccessControlTest (16 tests)
+
 - ABAC policy definition and configuration
 - Clearance levels and departments
 - Time-based access control
@@ -193,6 +196,7 @@ All **eight authoring languages** now have **identical feature sets**:
 - Caching and audit logging
 
 ### AuthzPolicyTest (19 tests)
+
 - All policy types (RBAC, ABAC, CUSTOM, HYBRID)
 - Policy composition and patterns
 - Caching and audit logging
@@ -204,6 +208,7 @@ All **eight authoring languages** now have **identical feature sets**:
 ## Kotlin Language Specifics
 
 ### Idiomatic Kotlin Patterns
+
 - Uses sealed classes for type-safe enumerations
 - Data classes for immutable configurations
 - Builder pattern with apply for fluent API
@@ -213,6 +218,7 @@ All **eight authoring languages** now have **identical feature sets**:
 - JUnit5 with Kotlin test assertions
 
 ### Kotlin Features Used
+
 - Sealed classes for enums with object pattern
 - Data classes for immutable configurations
 - Inline reified functions support
@@ -222,6 +228,7 @@ All **eight authoring languages** now have **identical feature sets**:
 - JUnit5 and Kotlin.test integration
 
 ### Build Configuration
+
 - Gradle with Kotlin DSL (build.gradle.kts)
 - Kotlin 1.9.20 compiler
 - JVM target 11 (compatible with Java 11+)
@@ -253,12 +260,14 @@ All **eight authoring languages** now have **identical feature sets**:
 The following languages still need implementation:
 
 ### Medium Priority
+
 - **C#/.NET** - Enterprise ecosystem
 - **Rust** - Native performance, memory safety
 - **Swift** - iOS/macOS development
 - **Scala** - JVM functional programming
 
 ### Optional
+
 - **Groovy** - Groovy/Gradle ecosystem
 - **Clojure** - Functional JVM
 - **Dart** - Flutter/web
@@ -267,6 +276,7 @@ The following languages still need implementation:
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with Rust
 - Support compile-time schema validation
@@ -274,6 +284,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Kotlin-specific advantages:
+
 - Sealed classes for type-safe enumerations
 - Data classes for automatic equals/hashCode/toString
 - Annotation first-class support

@@ -356,6 +356,7 @@ Example:
 traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
 
 Components:
+
 - 00: Version (always 00 for current version)
 - 0af7651916cd43dd8448eb211c80319c: Trace ID (32 hex digits)
 - b7ad6b7169203331: Span ID (16 hex digits)

@@ -35,6 +35,7 @@ ORDER BY id
 LIMIT 100 OFFSET 10000000;
 
 -- Database must:
+
 -- 1. Sort 20M rows by id
 -- 2. Skip first 10M rows
 -- 3. Return next 100 rows
@@ -54,6 +55,7 @@ ORDER BY id
 LIMIT 100;
 
 -- Database must:
+
 -- 1. Use index on id to find starting point
 -- 2. Read next 100 rows
 -- 3. Return
@@ -556,6 +558,7 @@ ON tb_user(status, created_at, id);
 
 ```
 Sequential pagination through 1M rows:
+
 - Keyset pagination: 1,000 pages × 5ms = 5 seconds ✅
 - OFFSET/LIMIT: 1,000 pages × (2ms + offset) = 500+ seconds ❌
 ```

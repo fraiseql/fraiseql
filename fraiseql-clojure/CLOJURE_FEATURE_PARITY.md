@@ -120,6 +120,7 @@ All **fourteen authoring languages** at 100% parity:
 All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 
 ### AuthorizationSpec (11 tests)
+
 - Simple rules and policy references
 - Fluent chaining and builder pattern
 - Caching configuration
@@ -128,6 +129,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 - Serialization to Map
 
 ### RoleBasedAccessControlSpec (18 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (Any, All, Exactly)
 - Role hierarchies and inheritance
@@ -136,6 +138,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 - Custom error messages and descriptions
 
 ### AttributeBasedAccessControlSpec (16 tests)
+
 - ABAC policy definition and configuration
 - Clearance levels and departments
 - Time-based access control
@@ -144,6 +147,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 - Caching and audit logging
 
 ### AuthzPolicySpec (19 tests)
+
 - All policy types (Rbac, Abac, Custom, Hybrid)
 - Policy composition and patterns
 - Caching and audit logging
@@ -155,6 +159,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 ## Clojure Language Specifics
 
 ### Functional Programming Paradigm
+
 - Immutable data structures (maps, keywords)
 - Pure functions for transformations
 - Keywords as constants instead of enums
@@ -163,6 +168,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 - No mutable state by default
 
 ### Clojure Features Used
+
 - Keywords for enum-like values
 - Maps for immutable configurations
 - Functions returning maps (data-driven)
@@ -172,6 +178,7 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 - clojure.test for testing framework
 
 ### Build Configuration
+
 - Leiningen (lein) as build tool
 - Clojure 1.11.1 LTS
 - project.clj for configuration
@@ -203,12 +210,14 @@ All tests in `test/fraiseql/security_test.clj` with 44 total tests:
 The following languages still need implementation:
 
 ### Optional
+
 - **Dart** - Flutter/web
 - **Elixir** - Distributed systems
 
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -216,6 +225,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Clojure-specific advantages:
+
 - Functional programming paradigm
 - Immutable data by default
 - Powerful macro system

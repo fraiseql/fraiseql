@@ -138,6 +138,7 @@ schema = load_schema("schema.json")
 Generate DDL for table-backed JSON view.
 
 Parameters:
+
 - `schema`: Schema dict from load_schema()
 - `entity`: Entity name (e.g., "User")
 - `view`: View suffix without "tv_" (e.g., "user")
@@ -152,6 +153,7 @@ Returns: Complete PostgreSQL DDL as string
 Generate DDL for table-backed Arrow columnar view.
 
 Parameters:
+
 - `schema`: Schema dict from load_schema()
 - `entity`: Entity name (e.g., "Order")
 - `view`: View suffix without "ta_" (e.g., "order")
@@ -165,6 +167,7 @@ Returns: Complete PostgreSQL DDL as string
 Generate composition views for relationships.
 
 Parameters:
+
 - `schema`: Schema dict from load_schema()
 - `entity`: Entity name
 - `relationships`: List of relationship field names
@@ -176,6 +179,7 @@ Returns: DDL for composition views
 Get recommended refresh strategy.
 
 Parameters:
+
 - `write_volume`: Expected writes per minute
 - `latency_requirement_ms`: Maximum acceptable staleness in milliseconds
 - `read_volume`: Expected reads per minute
@@ -187,6 +191,7 @@ Returns: "trigger-based" or "scheduled"
 Validate generated DDL.
 
 Parameters:
+
 - `sql`: Generated DDL string
 
 Returns: List of validation warnings (empty if valid)
@@ -196,6 +201,7 @@ Returns: List of validation warnings (empty if valid)
 ### JSON Views (tv_*)
 
 Stores entities as JSONB with:
+
 - Complete entity representation
 - Materialization tracking
 - Staleness tracking for efficient refresh
@@ -203,6 +209,7 @@ Stores entities as JSONB with:
 - Monitoring and health check functions
 
 Use for:
+
 - Fast JSON queries
 - Document-oriented access patterns
 - GraphQL query resolution
@@ -211,6 +218,7 @@ Use for:
 ### Arrow Views (ta_*)
 
 Stores entities as Arrow IPC RecordBatches with:
+
 - Per-field columnar storage
 - Batch-level metadata
 - Arrow Flight protocol support
@@ -218,6 +226,7 @@ Stores entities as Arrow IPC RecordBatches with:
 - Bulk analytics queries
 
 Use for:
+
 - Columnar analytics
 - Arrow Flight streaming
 - Bulk exports
@@ -365,6 +374,7 @@ ls -la /home/lionel/code/fraiseql/tools/fraiseql_tools/templates/
 4. Use generated views in FraiseQL queries
 
 For detailed documentation, see:
+
 - `IMPLEMENTATION.md`: Technical architecture
 - `examples/ddl-generation/README.md`: Complete usage guide
 - Template files: `templates/*.sql`

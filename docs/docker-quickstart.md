@@ -140,6 +140,7 @@ lsof -i :5432  # Check port 5432
 ```
 
 **If ports are occupied**, either:
+
 1. Stop the service using the port
 2. Or modify `docker-compose.demo.yml` to use different ports
 

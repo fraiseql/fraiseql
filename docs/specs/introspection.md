@@ -999,6 +999,7 @@ query {
 FraiseQL's three-tier introspection policy system provides flexible security for different deployment environments. By using DISABLED introspection in production and AUTHENTICATED or PUBLIC in development, you achieve both security (preventing schema reconnaissance) and usability (allowing development tools to function).
 
 **Key Takeaways**:
+
 - ✅ Use DISABLED in production (prevents schema exposure)
 - ✅ Use AUTHENTICATED in staging (requires authentication)
 - ✅ Use PUBLIC in development (full schema access)

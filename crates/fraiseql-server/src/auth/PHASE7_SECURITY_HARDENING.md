@@ -196,6 +196,7 @@ init_audit_logger(audit_logger);
 **File**: `src/auth/error_sanitizer.rs`
 
 All errors automatically sanitized through `AuthErrorSanitizer`:
+
 - User-facing: Generic, safe messages
 - Internal: Detailed for logging
 
@@ -211,11 +212,13 @@ All errors automatically sanitized through `AuthErrorSanitizer`:
 ### Audit Log Monitoring
 
 **What to monitor**:
+
 - AuthFailure spike → potential attack
 - RateLimited frequency → adjust limits if needed
 - SessionRevoked rate → normal logout activity
 
 **Alert thresholds**:
+
 - 100+ AuthFailure events/minute → potential attack
 - 50+ RateLimited events/minute → DoS detected
 - SessionRevoked > 10x normal → session revocation event
@@ -223,6 +226,7 @@ All errors automatically sanitized through `AuthErrorSanitizer`:
 ### Rate Limiting Metrics
 
 **Metrics to track**:
+
 - Requests per endpoint
 - Rate limit rejections (429 responses)
 - Per-IP vs per-user limit hits
@@ -233,6 +237,7 @@ All errors automatically sanitized through `AuthErrorSanitizer`:
 ### Error Message Auditing
 
 **Verify**:
+
 - No error messages contain technical details
 - No error messages leak system internals
 - Consistency across all error types
@@ -292,6 +297,7 @@ cargo test -p fraiseql-server auth::integration_security_tests
 **Symptom**: Legitimate users getting 429 errors
 
 **Solution**:
+
 1. Increase `max_requests` in RateLimitConfig
 2. Increase `window_secs` for longer allowance window
 3. Monitor legitimate traffic patterns first
@@ -303,6 +309,7 @@ cargo test -p fraiseql-server auth::integration_security_tests
 **Root Cause**: Session reset during deployment (expected)
 
 **Solution**:
+
 1. This is intentional - users re-authenticate
 2. All previous sessions invalidated
 3. Normal after deploying Phase 7
@@ -312,6 +319,7 @@ cargo test -p fraiseql-server auth::integration_security_tests
 **Symptom**: Disk space usage high
 
 **Solution**:
+
 1. Reduce log level if set to DEBUG
 2. Implement log rotation (daily/hourly)
 3. Use external log aggregation (ELK, Splunk)
@@ -340,6 +348,7 @@ export STATE_ENCRYPTION_KEY=$(openssl rand -base64 32)
 **Why**: Encryption, constant-time comparison, audit logging add ~10ms total
 
 **Mitigation**:
+
 - Encryption (< 1ms)
 - Constant-time comparison (< 1ms)
 - Audit logging (< 1ms, async possible)

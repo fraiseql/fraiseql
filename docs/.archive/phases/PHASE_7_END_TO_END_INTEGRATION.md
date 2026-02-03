@@ -17,6 +17,7 @@ Phase 7 delivers comprehensive end-to-end integration testing that validates the
 - **Alert Simulation Testing** verifying alert conditions trigger correctly under synthetic load
 
 All integration tests run against a complete federation setup with:
+
 - 2-3 subgraph federation topology
 - Entity resolution via database and HTTP
 - Mutation execution with distributed tracing
@@ -50,6 +51,7 @@ let federation = FederationExecutor::new(users_subgraph, posts_subgraph, metrics
 ```
 
 **Execution Steps**:
+
 1. Create trace context with unique trace_id
 2. Execute query: `query { user(id: "1") { name, posts { title, author { name } } } }`
 3. Capture emitted spans, metrics, and logs
@@ -129,6 +131,7 @@ mutation {
 ```
 
 **Validations**:
+
 - Tracing: Mutation span includes child spans for each subgraph mutation
 - Metrics: `federation_mutations_total` and `federation_mutation_duration_us` recorded
 - Logging: Mutation resolution logs include mutation context
@@ -291,6 +294,7 @@ RUST_LOG=debug cargo test federation_observability_integration --all-features --
 ### Test Execution Output
 
 Each test produces detailed output showing:
+
 - Trace structure (tree of spans)
 - Metrics collected (before/after)
 - Logs emitted (with trace IDs)
@@ -306,6 +310,7 @@ Each test produces detailed output showing:
 **Objective**: Diagnose slow federation queries using traces
 
 **Steps**:
+
 1. Find query in Jaeger with trace_id from logs
 2. Examine span breakdown:
    - `federation.query.execute` (total time)
@@ -323,6 +328,7 @@ Each test produces detailed output showing:
 **Objective**: Debug unusual metric behavior
 
 **Steps**:
+
 1. Identify anomalous metric:
    - Error rate spike: Check logs for error_message
    - Latency spike: Check Jaeger traces for slow spans
@@ -336,6 +342,7 @@ Each test produces detailed output showing:
 **Objective**: Respond when observability pipeline breaks
 
 **Steps**:
+
 1. Verify federation is still working (return results)
 2. Check each component:
    - Tracing: Test span creation in logs
@@ -487,6 +494,7 @@ Each test produces detailed output showing:
 ## Next Steps
 
 ### Immediate Actions (Before Production Deployment)
+
 1. Deploy tracing collector (Jaeger) to staging
 2. Configure Prometheus scraping for federation metrics
 3. Set up log aggregation with ELK stack
@@ -494,6 +502,7 @@ Each test produces detailed output showing:
 5. Train on-call team on observability tools
 
 ### Ongoing Monitoring
+
 1. Review slow query traces daily
 2. Baseline metric values over first week
 3. Tune alert thresholds based on actual data
@@ -501,6 +510,7 @@ Each test produces detailed output showing:
 5. Monitor observability overhead (<2% latency)
 
 ### Future Enhancements
+
 1. Custom trace sampling policies
 2. Metric cardinality control
 3. Advanced correlation queries (trace + logs + metrics)
@@ -525,6 +535,7 @@ Each test produces detailed output showing:
 **Federation Observability System Status**: 🟢 PRODUCTION READY
 
 All 7 phases complete:
+
 - Phase 1: APQ & Distributed Tracing ✅
 - Phase 2: Health Checks & Connection Pooling ✅
 - Phase 3: Metrics Collection ✅
@@ -534,6 +545,7 @@ All 7 phases complete:
 - Phase 7: End-to-End Integration Testing ✅
 
 **Total Deliverables**:
+
 - 13 federation metrics
 - 2 Grafana dashboards (14 panels)
 - 15 Prometheus alerts

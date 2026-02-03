@@ -133,6 +133,7 @@ Impact:
 Reason: Frequently filtered with high selectivity (8%)
 
 Access patterns:
+
 - Filter (WHERE):     6,500 queries/day
 - Sort (ORDER BY):    1,200 queries/day
 - Aggregate (GROUP BY): 800 queries/day
@@ -146,11 +147,13 @@ Access patterns:
 
 ```
 JSONB Filter Cost:
+
 - Full table scan: 1,000,000 rows
 - JSONB parse per row: 0.05ms
 - Total: 1,000,000 × 0.05ms = 50,000ms
 
 Direct Column Cost (with index):
+
 - B-tree index lookup: log₂(1,000,000) = ~20 comparisons
 - Index lookup: 20 × 0.001ms = 0.02ms
 - Scan matched rows (8% selectivity): 80,000 × 0.0001ms = 8ms
@@ -163,11 +166,13 @@ Speedup: 50,000ms ÷ 8.02ms ≈ 6,234x (capped at 100x in practice)
 
 ```
 JSON Filter Cost:
+
 - Full table scan: 1,000,000 rows
 - JSON parse per row: 0.1ms (text parsing slower than JSONB)
 - Total: 1,000,000 × 0.1ms = 100,000ms
 
 Direct Column Cost (with nonclustered index):
+
 - Index seek: log₂(1,000,000) × 0.001ms = 0.02ms
 - RID lookups: 80,000 × 0.0002ms = 16ms
 - Total: 16.02ms
@@ -188,11 +193,13 @@ Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
 
 ```
 New Column Storage:
+
 - Column size: 4 bytes (INTEGER) or ~20 bytes (TEXT average)
 - Rows: 1,000,000
 - Total: 1,000,000 × 20 bytes = 20 MB
 
 Index Storage (B-tree):
+
 - Index overhead: ~2.5x column size
 - Total: 20 MB × 2.5 = 50 MB
 
@@ -357,6 +364,7 @@ Impact:
 Reason: Sorted in 90% of queries, no index exists
 
 Query patterns:
+
 - ORDER BY created_at DESC: 2,880 queries/day
 - WHERE created_at > '...': 320 queries/day
 ```
@@ -411,6 +419,7 @@ CREATE INDEX idx_products_legacy_sku ON products (legacy_sku);
 DROP INDEX idx_products_legacy_sku;
 
 -- Benefits:
+
 -- - Faster writes (no index maintenance)
 -- - Reduced storage (reclaim disk space)
 ```
@@ -442,6 +451,7 @@ Impact:
 Reason: Index created 2 years ago, never used
 
 Statistics:
+
 - Total scans: 0
 - Last used: Never
 - Index size: 12 MB
@@ -507,6 +517,7 @@ CREATE INDEX idx_mv_monthly_revenue_region_month
 ON mv_monthly_revenue (region_id, month);
 
 -- Refresh strategy (choose one):
+
 -- 1. On-demand: REFRESH MATERIALIZED VIEW mv_monthly_revenue;
 -- 2. Periodic: Cron job every hour
 -- 3. Incremental: Trigger on base table updates
@@ -540,11 +551,13 @@ Impact:
 Reason: Expensive aggregate with stable results
 
 Aggregation:
+
 - GROUP BY: region_id, month
 - Aggregates: SUM(revenue), COUNT(*), AVG(order_value)
 - Data staleness acceptable: 1 hour
 
 Refresh Strategy:
+
 - Recommended: Periodic (every 1 hour)
 - Alternatives: On-demand, Incremental
 ```

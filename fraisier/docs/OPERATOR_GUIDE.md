@@ -236,6 +236,7 @@ fraisier deploy <fraise> <environment> --dry-run
 ```
 
 Output shows:
+
 - Current version
 - Target version
 - Provider being used
@@ -417,6 +418,7 @@ journalctl -u postgresql -f
 #### "Fraises.yaml not found"
 
 Fraisier looks in these locations (in order):
+
 1. File specified with `-c` flag
 2. `/opt/fraisier/fraises.yaml`
 3. `./fraises.yaml`
@@ -439,6 +441,7 @@ fraisier webhooks --limit 10
 ```
 
 If webhook isn't being processed:
+
 1. Verify webhook URL is accessible from git provider
 2. Check API key/token is valid
 3. Verify webhook secret matches configuration
@@ -487,22 +490,26 @@ echo $?  # Should be 0 for success
 ### Regular Tasks
 
 #### Daily
+
 - Monitor deployment history for errors
 - Check provider availability
 - Verify health check success rate
 
 #### Weekly
+
 - Review deployment statistics: `fraisier stats --days 7`
 - Check database size and growth
 - Clean up stale locks (if any)
 
 #### Monthly
+
 - Archive old deployments (>90 days)
 - Analyze database performance
 - Review and optimize slow queries
 - Update provider credentials/keys
 
 #### Quarterly
+
 - Full database backup
 - Performance baseline review
 - Upgrade Fraisier if updates available

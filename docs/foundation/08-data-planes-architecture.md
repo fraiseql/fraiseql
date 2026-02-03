@@ -141,11 +141,13 @@ Total:             ~28.6ms
 **Throughput:**
 ```
 Single server (4 CPUs, 8GB RAM):
+
 - Simple queries: 1000-2000 QPS
 - Average queries: 500-1000 QPS
 - Complex queries: 100-500 QPS
 
 Limiting factors:
+
 - Database connection pool size
 - Database capacity
 - Network bandwidth
@@ -333,6 +335,7 @@ Streaming results:      2-4s
 Total:                 ~2.5-4.5s
 
 Factors:
+
 - Query complexity
 - Result set size
 - Network bandwidth
@@ -343,11 +346,13 @@ Factors:
 **Throughput:**
 ```
 Single server (4 CPUs, 8GB RAM):
+
 - Small exports (1K-10K rows): 50-100 QPS
 - Medium exports (10K-100K rows): 10-50 QPS
 - Large exports (100K+ rows): 1-10 QPS
 
 Limiting factors:
+
 - Network bandwidth (Arrow streams are fast but still network-bound)
 - CPU (columnar encoding/compression)
 - Client processing speed

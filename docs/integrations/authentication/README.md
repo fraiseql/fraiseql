@@ -124,20 +124,24 @@ curl -X POST http://localhost:8000/auth/start \
 ### By Role
 
 **Developers**
+
 - Start: [API Reference](./API-REFERENCE.md)
 - Then: [Setup Guide](./SETUP-GOOGLE-OAUTH.md) for your provider
 - Reference: [Custom SessionStore](./IMPLEMENT-SESSION-STORE.md) if needed
 
 **DevOps / Site Reliability Engineers**
+
 - Start: [Deployment Guide](./DEPLOYMENT.md)
 - Then: [Monitoring Guide](./MONITORING.md)
 - Reference: [Troubleshooting](./TROUBLESHOOTING.md)
 
 **Security / Compliance Teams**
+
 - Start: [Security Checklist](./SECURITY-CHECKLIST.md)
 - Reference: [Deployment Guide](./DEPLOYMENT.md) for architecture
 
 **Support / Operations**
+
 - Start: [Troubleshooting Guide](./TROUBLESHOOTING.md)
 - Reference: [Monitoring Guide](./MONITORING.md) for dashboards
 

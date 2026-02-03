@@ -23,11 +23,13 @@ If: 50 types × 3 strategies × 3 hop_levels × 3 subgraphs = 1,350 combinations
 This will overwhelm Prometheus storage and slow down queries.
 
 **Impact**:
+
 - Storage bloat (1000x growth with real-world cardinality)
 - Query timeout in dashboards
 - Memory exhaustion in Prometheus instance
 
 **Fix Needed**:
+
 1. Reduce labels per metric (max 2-3 per metric)
 2. Separate high-cardinality concerns:
    - `federation_entity_resolutions_total` - By: resolution_strategy, status
@@ -74,6 +76,7 @@ This will overwhelm Prometheus storage and slow down queries.
    ```
 
 **Fix Needed**:
+
 1. Define metrics precisely with examples
 2. Specify exact calculation method
 3. Validate that metric computation is possible with available data
@@ -84,6 +87,7 @@ This will overwhelm Prometheus storage and slow down queries.
 **Problem**: The plan mentions a "background health check runner" but leaves critical details undefined.
 
 **Undefined**:
+
 - ✗ How often does it run? (Every 5s? 30s? 1m?)
 - ✗ Where does it run? (Main thread? Separate tokio task?)
 - ✗ How is it triggered? (Interval? Event-based?)
@@ -94,6 +98,7 @@ This will overwhelm Prometheus storage and slow down queries.
 **Impact**: Cannot implement Phase 3 without these details.
 
 **Fix Needed**:
+
 1. Specify health check interval (suggest: 30 seconds for readiness, 5 seconds for liveness)
 2. Specify implementation approach (tokio::spawn background task)
 3. Specify error count window (rolling 60-second window with bucket-based aggregation)
@@ -105,6 +110,7 @@ This will overwhelm Prometheus storage and slow down queries.
 **Problem**: Plan mentions W3C Trace Context but doesn't specify where traces go.
 
 **Undefined**:
+
 - ✗ Which tracing backend? (Jaeger? Tempo? OpenTelemetry Collector?)
 - ✗ How are traces exported? (HTTP? gRPC? OTLP?)
 - ✗ Sampling strategy? (Sample all? 10%? Adaptive?)
@@ -114,6 +120,7 @@ This will overwhelm Prometheus storage and slow down queries.
 **Impact**: Phase 1 cannot proceed without backend choice.
 
 **Fix Needed**:
+
 1. Choose tracing backend (Jaeger for simplicity, Tempo for scalability)
 2. Specify export protocol (OTLP HTTP for Tempo)
 3. Define sampling strategy (all federation queries in dev, 10% in production)
@@ -126,7 +133,9 @@ This will overwhelm Prometheus storage and slow down queries.
 
 **Example**:
 ```
+
 **Tests**:
+
 - [ ] Trace creation for entity resolution
 - [ ] Trace propagation through HTTP calls
 - [ ] Span attributes correctly set
@@ -134,6 +143,7 @@ This will overwhelm Prometheus storage and slow down queries.
 ```
 
 This is useless without:
+
 - Actual test code
 - Test data (sample entities, queries)
 - Assertions (what makes test pass?)
@@ -142,6 +152,7 @@ This is useless without:
 **Impact**: Phase 6 validation cannot be verified, quality is unknown.
 
 **Fix Needed**:
+
 1. Specify actual test scenarios:
    ```
    test_federation_entity_resolution_creates_span:
@@ -173,6 +184,7 @@ In `federation_docker_compose_integration.rs`, there's no conflict detection log
 **Impact**: Cannot implement Phase 5 dashboards or Phase 6 tests for features that don't exist.
 
 **Fix Needed**:
+
 1. Remove mutation conflict metrics until conflict detection is implemented
 2. Remove replication/sync metrics from dashboard unless mutation executor supports it
 3. Focus on metrics that match implemented functionality
@@ -203,6 +215,7 @@ Issue: But 3-hop queries should be < 250ms
 **Impact**: Alerts either miss problems or fire too often (alert fatigue).
 
 **Fix Needed**:
+
 1. Align alert thresholds to SLO targets:
    - 1-hop: SLO 30ms p99 → Alert at 45ms (1.5× SLO)
    - 2-hop: SLO 100ms p99 → Alert at 150ms (1.5× SLO)
@@ -219,6 +232,7 @@ Issue: But 3-hop queries should be < 250ms
 **Example**:
 ```
 Subgraph Request Span specifies:
+
 - federation.subgraph_name: string
 - federation.operation_type: "query" | "mutation"
 - federation.entity_count: int
@@ -229,12 +243,14 @@ Subgraph Request Span specifies:
 ```
 
 But the code pattern shown only adds 2 attributes. This inconsistency will cause either:
+
 1. Incomplete implementation (missing attributes)
 2. Span bloat (too much data per span)
 
 **Impact**: Either spans don't have needed info, or tracing becomes heavyweight.
 
 **Fix Needed**:
+
 1. Audit which attributes are actually needed for troubleshooting
 2. Keep essential attributes only (name, duration, status, entity_count)
 3. Put detailed data (http_status, response_entity_count) in logs, not spans
@@ -247,6 +263,7 @@ But the code pattern shown only adds 2 attributes. This inconsistency will cause
 ### 9. Missing Connection Pool Metrics
 
 The plan doesn't monitor subgraph HTTP connection pool health, which is critical:
+
 - Are connections being reused?
 - Is the pool saturated?
 - Are connections timing out?
@@ -261,6 +278,7 @@ federation_http_pool_wait_time_ms: Histogram
 ### 10. Query Complexity Not Tracked
 
 The plan doesn't measure query complexity (field count, nesting depth), which affects:
+
 - Entity resolution strategy choice
 - Performance expectations
 - Cache hit rates
@@ -274,6 +292,7 @@ federation_query_complexity: Histogram
 ### 11. Inconsistent Terminology
 
 The plan uses multiple terms for similar concepts:
+
 - "hop_level" vs "max_hops" vs "max_hop_level"
 - "subgraph_count" vs "subgraph_name"
 - "typename" vs "type_name"
@@ -292,6 +311,7 @@ Phase 5 says "Alert runbooks" should be created, but they're not in the plan. Th
 **Threshold**: P99 > 300ms for 5 minutes
 
 ### Troubleshooting Steps
+
 1. Check subgraph health: /health/federation
 2. Query slowest subgraph directly
 3. Check connection pool stats
@@ -299,6 +319,7 @@ Phase 5 says "Alert runbooks" should be created, but they're not in the plan. Th
 5. Check if rate-limiting active
 
 ### Escalation Path
+
 - If persists > 15min: page on-call
 - Check if data migration in progress
 ```
@@ -308,11 +329,13 @@ Phase 5 says "Alert runbooks" should be created, but they're not in the plan. Th
 Some proposed dashboards are complex to implement:
 
 **Dashboard 5.5 (Heatmap)**:
+
 - Requires aggregating P99 latency over time buckets
 - Needs color scale mapping (green/yellow/red)
 - May be difficult to query efficiently in Grafana
 
 **Dashboard 5.2 (Entity Resolution)**:
+
 - "Slowest types to resolve" - requires sorting/ranking
 - "Strategy Distribution" pie chart - need high-cardinality tracking (per-type)
 - "Cache entries growth trend" - need time-series of cache size
@@ -322,11 +345,13 @@ Some proposed dashboards are complex to implement:
 ### 14. Overhead Budget Not Defined
 
 The plan doesn't specify:
+
 - Maximum acceptable observability overhead
 - How to measure overhead
 - Fallback if overhead is too high
 
 **Suggestion**: Define overhead budget:
+
 - Tracing overhead: < 1% latency increase
 - Metrics recording: < 0.5% latency increase
 - Health checks: < 2% CPU utilization
@@ -351,6 +376,7 @@ How do we add instrumentation without breaking existing code?
 ### 17. Performance Benchmarks
 
 Phase 6 mentions "performance benchmarks within threshold" but:
+
 - No baseline defined
 - No acceptance criteria specified
 - Which operations are benchmarked?
@@ -416,6 +442,7 @@ Phase 6 mentions "performance benchmarks within threshold" but:
 Current: Tracing → Metrics → Health → Logging → Dashboard → Testing
 
 **Recommended**:
+
 1. Health checks first (need subgraph status before other phases)
 2. Core metrics (counters and basic histograms)
 3. Tracing (once backend chosen)
@@ -426,6 +453,7 @@ Current: Tracing → Metrics → Health → Logging → Dashboard → Testing
 ### Documentation Additions Needed
 
 Before implementing, create:
+
 - Metric cardinality budget document
 - Tracing architecture decision record (ADR)
 - Health check implementation specification
@@ -440,6 +468,7 @@ Before implementing, create:
 The plan is too ambitious and under-specified for implementation. It reads like a feature wishlist rather than a technical specification.
 
 **Recommendation**:
+
 - ✅ Keep Parts 1-2 (assessment and requirements) - these are solid
 - ⚠️ Rewrite Part 3 (implementation) with specific details and realistic scope
 - ⚠️ Simplify Part 5 (dashboards) - phase 1 should have 2-3 dashboards, not 5

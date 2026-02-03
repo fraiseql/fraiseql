@@ -151,6 +151,7 @@ All **ten authoring languages** now have **identical feature sets**:
 All tests organized in `tests/integration_test.rs` with 44 total tests:
 
 ### Authorization Tests (11 tests)
+
 - Simple rules and policy references
 - Fluent chaining and builder pattern
 - Caching configuration
@@ -159,6 +160,7 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 - Serialization to HashMap
 
 ### RoleBasedAccessControlTest (18 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (ANY, ALL, EXACTLY)
 - Role hierarchies and inheritance
@@ -167,6 +169,7 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 - Custom error messages and descriptions
 
 ### AttributeBasedAccessControlTest (16 tests)
+
 - ABAC policy definition and configuration
 - Clearance levels and departments
 - Time-based access control
@@ -175,6 +178,7 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 - Caching and audit logging
 
 ### AuthzPolicyTest (19 tests)
+
 - All policy types (RBAC, ABAC, CUSTOM, HYBRID)
 - Policy composition and patterns
 - Caching and audit logging
@@ -186,6 +190,7 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 ## Rust Language Specifics
 
 ### Idiomatic Rust Patterns
+
 - Enums for sum types (RoleMatchStrategy, AuthzPolicyType)
 - Builder pattern with immutable structs
 - `IntoIterator` trait bounds for flexible input
@@ -194,18 +199,21 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 - Module organization with `mod.rs` alternative
 
 ### Zero-Cost Abstractions
+
 - No runtime reflection (compile-time only)
 - All builders inline optimized by LLVM
 - Zero-copy string handling where possible
 - Static dispatch via concrete types
 
 ### Type Safety
+
 - Enum variants prevent invalid states
 - Builder pattern enforces valid construction
 - No null pointers (Option types)
 - Copy semantics for simple types (RoleMatchStrategy, AuthzPolicyType)
 
 ### Build Configuration
+
 - Cargo with strict linting configuration
 - Clippy all/pedantic/cargo = "deny"
 - unsafe_code = "forbid"
@@ -237,10 +245,12 @@ All tests organized in `tests/integration_test.rs` with 44 total tests:
 The following languages still need implementation:
 
 ### High Priority
+
 - **Swift** - iOS/macOS development
 - **Scala** - JVM functional programming
 
 ### Optional
+
 - **Groovy** - Groovy/Gradle ecosystem
 - **Clojure** - Functional JVM
 - **Dart** - Flutter/web
@@ -249,6 +259,7 @@ The following languages still need implementation:
 ## Notes
 
 All implementations:
+
 - Generate standard GraphQL JSON
 - Have zero runtime FFI with other languages
 - Support compile-time schema validation
@@ -256,6 +267,7 @@ All implementations:
 - Maintain feature parity at 100%
 
 Rust-specific advantages:
+
 - Memory safety without garbage collection
 - Zero-cost abstractions and performance
 - Fearless concurrency with move semantics

@@ -70,6 +70,7 @@ query {
 ```
 
 The gateway automatically:
+
 - Queries User from users-service (owns entity)
 - Resolves Order from orders-service (extends User)
 - Returns complete response
@@ -81,6 +82,7 @@ The gateway automatically:
 ### Subgraphs
 
 A **subgraph** is a FraiseQL instance that:
+
 - Owns a subset of entity types
 - May extend types from other subgraphs
 - Participates in federated composition
@@ -88,6 +90,7 @@ A **subgraph** is a FraiseQL instance that:
 ### Entity Ownership
 
 Each entity type is owned by exactly one subgraph:
+
 - The owner defines the complete schema
 - Other subgraphs can extend it with additional fields
 - Only the owner can create/update/delete entities
@@ -182,6 +185,7 @@ class User:
 ```
 
 **Important:** External fields can only be used in:
+
 - `@requires` clauses
 - Entity identification
 - Reference resolution

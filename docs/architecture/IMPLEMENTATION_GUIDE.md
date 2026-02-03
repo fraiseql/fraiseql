@@ -491,6 +491,7 @@ git add .
 git commit -m "feat(db): Implement PostgreSQL adapter
 
 ## Changes
+
 - Add PostgresAdapter struct
 - Implement DatabaseAdapter trait
 - Add connection pooling with deadpool

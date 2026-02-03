@@ -7,6 +7,7 @@
 **Analogous to**: `tv_*` tables for JSON plane (GraphQL), but `ta_*` for Arrow plane (analytics).
 
 **Key difference**: Unlike logical views (`va_*`), ta_* tables are actual PostgreSQL tables with:
+
 - Physical storage on disk (materialized data)
 - Trigger-based or scheduled refresh mechanism
 - BRIN indexes for fast time-series queries
@@ -87,6 +88,7 @@ Choose based on your latency and overhead requirements:
 **Best for**: Dashboards with <1min latency requirements
 
 **Characteristics**:
+
 - Fires after every INSERT/UPDATE/DELETE on source table
 - Latency: <10ms per row
 - Overhead: Per-row cost (scales with write volume)
@@ -128,6 +130,7 @@ CREATE TRIGGER trg_refresh_ta_orders
 **Best for**: Nightly BI reports, acceptable staleness (minutes to hours)
 
 **Characteristics**:
+
 - Batched refresh at fixed intervals
 - Latency: Minutes to hours
 - Overhead: Batch cost (no per-row overhead)
@@ -152,6 +155,7 @@ SELECT cron.schedule(
 **Best for**: Development, debugging, manual ETL pipelines
 
 **Characteristics**:
+
 - Manual refresh on demand
 - Latency: On-demand
 - Overhead: Only when called
@@ -198,6 +202,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Use cases for command-based refresh**:
+
 - **Manual refresh after bulk import**: Load 1M rows via COPY, then refresh ta_*
 - **Testing**: Verify trigger logic by manual refresh comparison
 - **ETL integration**: External pipeline calls refresh after data sync
@@ -380,6 +385,7 @@ SELECT blocknum, blkcount FROM pgstattuple_approx('ta_orders_created_at_brin');
 **Cause**: DDL changed without updating Arrow schema.
 
 **Solution**:
+
 1. Update PostgreSQL DDL
 2. Update Arrow schema in `metadata.rs`
 3. Run integration tests to verify
@@ -388,6 +394,7 @@ SELECT blocknum, blkcount FROM pgstattuple_approx('ta_orders_created_at_brin');
 ## Examples
 
 See `/home/lionel/code/fraiseql/examples/sql/postgres/` for complete DDL examples:
+
 - `ta_orders.sql` - Orders table-backed Arrow view
 - `ta_users.sql` - Users table-backed Arrow view
 

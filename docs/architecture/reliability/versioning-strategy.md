@@ -37,6 +37,7 @@ MAJOR.MINOR.PATCH
 ### 1.2 Version Examples
 
 ```
+
 2.0.0   → Framework v2, first release
 2.1.0   → Add new feature, backward-compatible with 2.0.x
 2.1.1   → Bug fix, backward-compatible with 2.1.0
@@ -48,6 +49,7 @@ MAJOR.MINOR.PATCH
 For beta testing and early access:
 
 ```
+
 2.0.0-beta.1    → Beta version, may have breaking changes
 2.0.0-rc.1      → Release candidate, likely stable
 2.0.0-rc.2      → Second RC before GA
@@ -449,6 +451,7 @@ When a feature is deprecated, the changelog includes:
 ### v2.1.0 (Deprecation Announcement)
 
 #### Deprecated
+
 - **`regex` operator**: Use `contains` operator instead. Will be removed in v2.5.0.
   - **Reason**: Regex performance overhead; most use cases better served by `contains`
   - **Migration**: Replace `{name: {regex: "/pattern/"}}` with `{name: {contains: "pattern"}}`
@@ -869,6 +872,7 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
 To migrate from Framework v2.0 to v2.1:
 
 ```
+
 1. Deploy new runtime instance with Framework v2.1
 2. Route new requests to v2.1 instance
 3. Keep v2.0 instance running for existing clients
@@ -1026,6 +1030,7 @@ Host: api.example.com
 Accept: application/json
 
 Response:
+
 200 OK
 X-FraiseQL-Version: 2.1.0
 Content-Type: application/json
@@ -1147,11 +1152,13 @@ Every release includes a detailed changelog:
 ## ✨ New Features
 
 ### Keyset Pagination Support
+
 - Added `@cursor` directive for keyset-based pagination
 - Supports stateless pagination for large result sets
 - Example: `posts(first: 20, after: "cursor123") { id title }`
 
 ### New Operators
+
 - Added `startsWith` operator for string filtering
 - Added `endsWith` operator for string filtering
 - Operators work with both `String` and `Text` types
@@ -1318,12 +1325,14 @@ When a MAJOR version reaches end of life:
 **Support ended:** January 1, 2027
 
 Applications running v2.x will continue to function, but:
+
 - ❌ No new security patches
 - ❌ No bug fixes
 - ❌ No technical support
 - ✅ v2.x instances remain functional (no forced upgrades)
 
 To continue receiving support:
+
 1. Upgrade to v3.x or later
 2. Follow upgrade guide: https://docs.fraiseql.io/migration/v2-to-v3
 

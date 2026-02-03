@@ -201,18 +201,22 @@ A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](opera
 ## Troubleshooting
 
 ### "cannot find schema file"
+
 - Make sure `schema.json` is in your project root (same level as `Cargo.toml`)
 - Use absolute path: `CompiledSchema::from_file("/path/to/schema.json")?`
 
 ### "serde_json not found"
+
 - Add to `Cargo.toml`: `serde_json = "1.0"`
 - Run: `cargo build`
 
 ### "tokio not found"
+
 - Add to `Cargo.toml`: `tokio = { version = "1", features = ["full"] }`
 - Run: `cargo build`
 
 ### "Query failed with error"
+
 - Check your query syntax against the schema
 - Use the error message to identify the issue
 - See [patterns guide](guides/PATTERNS.md) for query help

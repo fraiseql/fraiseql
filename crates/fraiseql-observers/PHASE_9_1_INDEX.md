@@ -131,6 +131,7 @@
 - Sampling behavior verification
 
 **`src/tracing/mod.rs`**
+
 - Module organization
 - Public API exports
 - All tracers and utilities exported

@@ -918,6 +918,7 @@ T4: Clients must replay from last sequence_number
 **Automatic (no human intervention):**
 
 ```
+
 1. Instance crashes
 2. Kubernetes detects unhealthy pod (10-30s)
 3. Spins up new pod
@@ -946,6 +947,7 @@ kubectl logs pod-name
 **Automatic:**
 
 ```
+
 1. Query fails with connection error
 2. Runtime closes stale connection
 3. Reopens connection (exponential backoff)
@@ -962,6 +964,7 @@ Data loss: None
 **Steps:**
 
 ```
+
 1. Monitor: Detect database not responding (< 5 seconds)
 2. Alert: Page on-call DBA
 3. Investigate: Check database logs, network connectivity
@@ -982,6 +985,7 @@ Data loss: None (if durability persisted)
 **Steps (assume multi-datacenter setup):**
 
 ```
+
 1. Monitor: Detect all instances/database in region down
 2. Alert: Page incident commander
 3. Failover:

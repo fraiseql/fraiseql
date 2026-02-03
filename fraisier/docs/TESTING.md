@@ -558,6 +558,7 @@ ruff check fraisier/ && ruff format fraisier/ --check
 See `.github/workflows/fraisier-ci.yml` for full CI setup.
 
 Runs:
+
 1. Linting (ruff)
 2. Tests (pytest)
 3. Coverage report

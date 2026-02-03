@@ -5,6 +5,7 @@ Real-world benchmarks comparing HTTP/JSON vs Arrow Flight across various query s
 ## Query Performance: HTTP/JSON vs Arrow Flight
 
 All benchmarks executed on:
+
 - **Hardware**: Modern server (8 cores, 16GB RAM)
 - **FraiseQL**: v2.0 with both HTTP and Arrow Flight enabled
 - **Database**: PostgreSQL 15 with 1M+ test records
@@ -249,10 +250,12 @@ elif large_analytics:
 ### Throughput Limits
 
 **Single FraiseQL Instance**:
+
 - HTTP/JSON: Limited to ~1,000 queries/sec
 - Arrow Flight: Supports 50,000+ queries/sec
 
 **Why the difference?**
+
 - JSON serialization is expensive (40% of time)
 - Arrow is binary format (minimal CPU)
 - gRPC multiplexing vs HTTP connection overhead
@@ -262,6 +265,7 @@ elif large_analytics:
 ### Linear Growth (Good)
 ```
 Arrow Flight throughput scales linearly with hardware:
+
 - 4 cores: 10k queries/sec
 - 8 cores: 20k queries/sec
 - 16 cores: 40k queries/sec
@@ -270,6 +274,7 @@ Arrow Flight throughput scales linearly with hardware:
 ### Exponential Growth (Bad)
 ```
 HTTP/JSON becomes exponentially more expensive:
+
 - 100 rows: 50ms
 - 1k rows: 200ms
 - 10k rows: 3s

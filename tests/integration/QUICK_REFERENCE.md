@@ -48,6 +48,7 @@ Client → Apollo Router (4000) → {Users, Orders, Products} Subgraphs
 ```
 
 **Ports**:
+
 - **4000**: Apollo Router (main API)
 - **4001**: Users subgraph
 - **4002**: Orders subgraph
@@ -303,6 +304,7 @@ test test_federation_batch_vs_sequential_performance ... ok
 ## Documentation Map
 
 **For...** | **Read...**
+
 ---|---
 Getting started | This file (QUICK_REFERENCE.md)
 Full overview | FEDERATION_INTEGRATION_REPORT.md

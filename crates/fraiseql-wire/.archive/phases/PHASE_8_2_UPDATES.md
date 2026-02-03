@@ -17,6 +17,7 @@
 
 ```
 Typing does NOT affect:
+
 - SQL generation
 - Filtering (where_sql, where_rust, order_by)
 - Ordering (ORDER BY is identical)
@@ -24,6 +25,7 @@ Typing does NOT affect:
 - Chunking, cancellation, backpressure
 
 Typing ONLY affects:
+
 - Consumer-side deserialization at poll_next()
 - Error messages (type name included)
 ```
@@ -226,6 +228,7 @@ Use this checklist from `PHASE_8_2_CRITICAL_CONSTRAINTS.md`:
 
 ```
 Before Merge:
+
 - [ ] Type isolation verified: SQL is identical for all T
 - [ ] No "typed query planning": No conditionals based on T
 - [ ] Predicates are JSON-based: where_rust takes &Value

@@ -66,6 +66,7 @@ In multi-tenant systems, composite keys typically include:
 Entity Key = TenantId + EntityId
 
 Examples:
+
 - User: (tenant_id: "acme-corp", user_id: "550e8400-...")
 - Order: (tenant_id: "acme-corp", order_id: "650e8400-...")
 - Product: (tenant_id: "acme-corp", product_id: "750e8400-...")
@@ -74,9 +75,11 @@ Examples:
 ## Test Scenarios
 
 ### 1. Setup Validation
+
 **Test**: `test_composite_key_setup_validation`
 
 Validates that the environment supports composite key operations:
+
 - Database schema has composite key structure
 - Services can query entities
 - Data exists for testing
@@ -86,9 +89,11 @@ Validates that the environment supports composite key operations:
 ---
 
 ### 2. Single Field Key (Baseline)
+
 **Test**: `test_composite_key_single_field_federation`
 
 Tests single-field keys as baseline (current implementation):
+
 - User entity with single UUID key
 - Resolution from extended subgraph
 - Validates infrastructure foundation
@@ -108,9 +113,11 @@ query {
 ---
 
 ### 3. Multi-Field Key Resolution
+
 **Test**: `test_composite_key_multi_field_resolution`
 
 Tests multi-field composite key infrastructure:
+
 - Multiple fields available for key composition
 - Resolution with combined fields
 - Infrastructure readiness for true composite keys
@@ -130,9 +137,11 @@ query {
 ---
 
 ### 4. Tenant Isolation
+
 **Test**: `test_tenant_isolation_with_composite_keys`
 
 Tests multi-tenant data isolation patterns:
+
 - Users from different tenants are isolated
 - Composite key includes tenant identifier
 - Cross-tenant queries fail or return null
@@ -148,9 +157,11 @@ Query Tenant A data with Tenant A credentials → Success
 ---
 
 ### 5. Batch Entity Resolution
+
 **Test**: `test_composite_key_entity_batch_resolution`
 
 Tests resolving multiple entities with composite keys:
+
 - Query 5+ users simultaneously
 - Each with composite key structure
 - All resolved consistently
@@ -170,9 +181,11 @@ query {
 ---
 
 ### 6. Mutation with Isolation
+
 **Test**: `test_composite_key_mutation_with_isolation`
 
 Tests mutations preserve tenant isolation:
+
 - Create entity within tenant context
 - Entity tagged with tenant_id in composite key
 - Mutation respects isolation boundaries
@@ -196,9 +209,11 @@ mutation {
 ---
 
 ### 7. Cross-Subgraph Federation
+
 **Test**: `test_composite_key_federation_across_boundaries`
 
 Tests composite key federation across subgraph boundaries:
+
 - Orders subgraph references User via composite key
 - User resolution includes all composite key fields
 - Isolation maintained across federation
@@ -225,9 +240,11 @@ mutation {
 ---
 
 ### 8. Gateway Resolution
+
 **Test**: `test_composite_key_gateway_resolution`
 
 Tests gateway-level composite key handling:
+
 - Gateway routes queries with composite keys
 - Multi-level resolution maintains isolation
 - Consistency across resolution layers
@@ -254,9 +271,11 @@ query {
 ---
 
 ### 9. Performance at Scale
+
 **Test**: `test_composite_key_performance`
 
 Tests composite key performance:
+
 - Resolve 20 users with composite keys
 - Each user has multiple orders
 - Measure total latency
@@ -403,6 +422,7 @@ class Query:
 ### Query-Level Isolation
 
 ```
+
 1. Client request arrives with tenant context
 2. Gateway validates tenant_id in request
 3. Query executed with tenant_id filter
@@ -412,6 +432,7 @@ class Query:
 ### Mutation-Level Isolation
 
 ```
+
 1. Mutation includes tenant_id
 2. System validates mutation is for client's tenant
 3. Entity created with tenant_id in composite key
@@ -421,6 +442,7 @@ class Query:
 ### Federation-Level Isolation
 
 ```
+
 1. Entity extension includes tenant_id
 2. Cross-subgraph query includes tenant_id
 3. Each subgraph filters by tenant_id
@@ -456,18 +478,21 @@ CREATE INDEX idx_user_id ON tb_user(user_id);
 ## Implementation Status
 
 ### ✅ Implemented (MVP)
+
 - Single field keys with UUID (current infrastructure)
 - Entity resolution within subgraphs
 - Federation across subgraphs
 - Batch queries
 
 ### 🚧 In Progress / Future
+
 - Multi-field composite keys (infrastructure ready)
 - Multi-tenant isolation enforcement
 - Tenant context propagation
 - Row-level security
 
 ### 📋 Future Enhancements
+
 - Automatic tenant_id injection in queries
 - Tenant-scoped caching
 - Cross-tenant analytics (secure)
@@ -509,6 +534,7 @@ curl -X POST http://localhost:4001/graphql \
 ## Testing Checklist
 
 ### MVP (Single Field Keys)
+
 - [ ] Single field resolution works
 - [ ] Entity queries succeed
 - [ ] Cross-subgraph resolution works
@@ -516,6 +542,7 @@ curl -X POST http://localhost:4001/graphql \
 - [ ] Mutations preserve entity references
 
 ### Multi-Tenant Ready (Infrastructure)
+
 - [ ] Multiple fields available in key
 - [ ] Tenant_id included in schema
 - [ ] Composite key indexing efficient
@@ -523,6 +550,7 @@ curl -X POST http://localhost:4001/graphql \
 - [ ] Isolation model documented
 
 ### Production Ready (Future)
+
 - [ ] Multi-field composite keys implemented
 - [ ] Tenant isolation enforced at query level
 - [ ] Tenant context auto-injected
@@ -534,6 +562,7 @@ curl -X POST http://localhost:4001/graphql \
 ### "Composite key query returns wrong data"
 
 Possible causes:
+
 1. Tenant context not passed in query
 2. Database missing tenant_id column
 3. Index not using composite key prefix
@@ -542,6 +571,7 @@ Possible causes:
 ### "Cross-tenant data visible"
 
 Critical issue! Check:
+
 1. Isolation not enforced at gateway level
 2. Subgraph queries missing tenant_id filter
 3. Extended types not including tenant_id
@@ -550,6 +580,7 @@ Critical issue! Check:
 ### "Composite key performance slow"
 
 Check:
+
 1. Composite index missing or incorrect
 2. Query not using index (EXPLAIN plan)
 3. Too many subgraph calls (batching needed)

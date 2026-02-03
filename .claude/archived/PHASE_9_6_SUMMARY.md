@@ -20,6 +20,7 @@ All 4 steps completed successfully:
 ### ✅ Step 1: Python Client with PyArrow + Polars (COMPLETE)
 
 **Files Created**:
+
 - `examples/python/fraiseql_client.py` (210 lines)
   - `FraiseQLClient` class with async Arrow Flight integration
   - `query_graphql()` - Execute GraphQL queries, return Polars DataFrame
@@ -40,6 +41,7 @@ All 4 steps completed successfully:
   - Code examples with error handling
 
 **Key Features**:
+
 - Zero-copy Arrow deserialization to Polars DataFrame
 - JSON ticket encoding for Flight requests
 - Batch callback support for large datasets
@@ -53,6 +55,7 @@ All 4 steps completed successfully:
 ### ✅ Step 2: R Client with arrow Package (COMPLETE)
 
 **Files Created**:
+
 - `examples/r/fraiseql_client.R` (165 lines)
   - `connect_fraiseql()` - gRPC connection to Flight server
   - `query_graphql()` - Execute GraphQL, return data.frame
@@ -74,6 +77,7 @@ All 4 steps completed successfully:
   - Performance characteristics
 
 **Key Features**:
+
 - Native R data.frame integration
 - jsonlite for JSON serialization
 - Compatible with dplyr/tidyr for analytics pipelines
@@ -87,6 +91,7 @@ All 4 steps completed successfully:
 ### ✅ Step 3: Rust Native Client (COMPLETE)
 
 **Files Created**:
+
 - `examples/rust/flight_client/Cargo.toml`
   - Dependencies: arrow-flight, arrow, tokio, tonic, serde_json, tracing
   - Standalone workspace (independent of main fraiseql workspace)
@@ -109,6 +114,7 @@ All 4 steps completed successfully:
   - Dependency overview
 
 **Key Features**:
+
 - Type-safe Arrow Flight client
 - Async/await with Tokio
 - Direct RecordBatch consumption (zero-copy)
@@ -123,6 +129,7 @@ All 4 steps completed successfully:
 ### ✅ Step 4: ClickHouse Direct Integration (COMPLETE)
 
 **Files Created**:
+
 - `examples/clickhouse/arrow_integration.sql` (350+ lines)
 
 **Sections Implemented**:
@@ -165,6 +172,7 @@ All 4 steps completed successfully:
    - Mutation operation tracking
 
 **Key Features**:
+
 - Real-time aggregations on ingested events
 - Complex JSON extraction and analysis
 - Performance tuning patterns
@@ -180,6 +188,7 @@ All 4 steps completed successfully:
 ### Main Examples README
 
 Updated `/home/lionel/code/fraiseql/examples/README.md` with new "Arrow Flight Client Examples" section:
+
 - Python client overview and quick start
 - R client overview and quick start
 - Rust Flight Client overview and quick start
@@ -192,14 +201,17 @@ Updated `/home/lionel/code/fraiseql/examples/README.md` with new "Arrow Flight C
 ## Integration with Previous Phases
 
 ### Phase 9.4: ClickHouse Integration ✅
+
 - Python, R, and Rust clients can consume data from ClickHouse
 - ClickHouse Arrow integration SQL demonstrates analytics on Phase 9.4 events
 
 ### Phase 9.5: Elasticsearch Integration ✅
+
 - Python/R clients can query and stream data through FraiseQL server
 - Examples demonstrate Observer Events streaming endpoint
 
 ### Phase 9.1-9.3: Arrow Flight Foundation ✅
+
 - All clients consume from FraiseQL Arrow Flight server
 - Ticket types: GraphQLQuery, ObserverEvents
 - Zero-copy Arrow deserialization demonstrated
@@ -287,6 +299,7 @@ All clients achieve **zero-copy** Arrow deserialization:
 ## Code Quality
 
 ### Rust Client
+
 - ✅ Type-safe: Explicit type annotations, Result error handling
 - ✅ Async-first: Tokio runtime, async/await patterns
 - ✅ Error handling: Proper error propagation, tracing logs
@@ -294,18 +307,21 @@ All clients achieve **zero-copy** Arrow deserialization:
 - ✅ Memory safe: No unsafe blocks required
 
 ### Python Client
+
 - ✅ Type annotations: Modern Python 3.10+ union syntax (X | None)
 - ✅ Zero-copy: Direct Arrow → Polars deserialization
 - ✅ CLI integration: argparse subcommands
 - ✅ Syntax: Validated with py_compile
 
 ### R Client
+
 - ✅ Roxygen documentation: All functions documented
 - ✅ Error handling: Try/catch patterns
 - ✅ Integration: Compatible with base R and tidyverse
 - ✅ Syntax: Structure validated
 
 ### SQL Examples
+
 - ✅ Production patterns: PREWHERE, sampling, aggregations
 - ✅ Monitoring: System table queries
 - ✅ Documentation: Comprehensive comments
@@ -315,12 +331,14 @@ All clients achieve **zero-copy** Arrow deserialization:
 ## Next Steps
 
 ### Phase 9.7: Integration Testing & Benchmarks
+
 - End-to-end tests for each client
 - Performance benchmarks vs HTTP/JSON
 - Stress tests (1M+ rows)
 - Network failure recovery testing
 
 ### Phase 9.8: Documentation & Migration Guide
+
 - Arrow Flight architecture guide
 - Client library documentation
 - Migration guide from HTTP/JSON
@@ -328,6 +346,7 @@ All clients achieve **zero-copy** Arrow deserialization:
 - Troubleshooting guide
 
 ### Phase 10: Production Hardening
+
 - Admission control for concurrent clients
 - Graceful degradation under load
 - Connection pooling optimization

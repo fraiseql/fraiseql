@@ -85,6 +85,7 @@ cargo test
 git commit -m "feat(scope): Clear description of work
 
 ## Changes
+
 - Change 1
 - Change 2
 
@@ -236,6 +237,7 @@ log_level = "info"
 ```
 
 **Runtime Loading**:
+
 - Configuration is embedded in compiled schema as JSON
 - Server loads configuration at startup
 - Environment variables override compiled settings for production
@@ -381,6 +383,7 @@ pub fn from_file(path: &str) -> Result<Self> {
 <type>(<scope>): <description>
 
 ## Changes
+
 - Specific change 1
 - Specific change 2
 

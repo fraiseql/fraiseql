@@ -401,6 +401,7 @@ conn = psycopg.connect(db_url)
 ```
 
 Services are on network `app-network`, so use:
+
 - `db` instead of `localhost`
 - `redis` instead of `127.0.0.1`
 
@@ -476,6 +477,7 @@ provider_config:
 ```
 
 **Flow**:
+
 1. Build new image
 2. Stop current service
 3. Start new service
@@ -490,6 +492,7 @@ provider_config:
 ```
 
 **Flow**:
+
 1. Build new image as `api-green`
 2. Start green service
 3. Run health checks on green

@@ -11,6 +11,7 @@
 The Federation Observability System is a comprehensive, production-ready implementation of distributed tracing, metrics collection, structured logging, and operational monitoring for Apollo Federation v2 in FraiseQL.
 
 **Key Achievements**:
+
 - ✅ 7 complete phases with full integration testing
 - ✅ 13 federation-specific metrics with lock-free collection
 - ✅ W3C Trace Context support with automatic propagation
@@ -27,6 +28,7 @@ The Federation Observability System is a comprehensive, production-ready impleme
 ### Phase 1: APQ & Distributed Tracing (✅ Complete)
 
 **Delivered**:
+
 - Automatic Persistent Query (APQ) support
 - W3C Trace Context generation and parsing
 - `FederationTraceContext` struct with 128-bit trace IDs
@@ -34,6 +36,7 @@ The Federation Observability System is a comprehensive, production-ready impleme
 - HTTP traceparent header support (format: `00-{trace_id}-{parent_span_id}-{trace_flags}`)
 
 **Files**:
+
 - `crates/fraiseql-core/src/federation/tracing.rs` (150 lines)
 
 **Key Features**:
@@ -55,6 +58,7 @@ pub fn to_traceparent(&self) -> String
 ### Phase 2: Health Checks & Connection Pooling (✅ Complete)
 
 **Delivered**:
+
 - Federation health check endpoints
 - Connection pool management
 - Database health validation
@@ -62,9 +66,11 @@ pub fn to_traceparent(&self) -> String
 - Pool metrics exposure
 
 **Files**:
+
 - `crates/fraiseql-core/src/federation/health.rs` (200+ lines)
 
 **Key Metrics**:
+
 - Pool utilization (total, idle, active, waiting)
 - Connection latency
 - Subgraph health status
@@ -75,6 +81,7 @@ pub fn to_traceparent(&self) -> String
 ### Phase 3: Metrics Collection (✅ Complete)
 
 **Delivered**:
+
 - 13 federation-specific Prometheus metrics
 - Lock-free atomic operations (no contention)
 - Histogram latency tracking (microsecond precision)
@@ -82,6 +89,7 @@ pub fn to_traceparent(&self) -> String
 - Gauge metrics for ratios (hit rate, dedup)
 
 **Files**:
+
 - Metrics integrated in `federation/entity_resolver.rs`
 
 **13 Federation Metrics**:
@@ -113,6 +121,7 @@ metrics.record_cache_hit();
 ### Phase 4: Structured Logging (✅ Complete)
 
 **Delivered**:
+
 - Structured JSON logging with serde support
 - `FederationLogContext` for operation metadata
 - Trace ID propagation in all logs
@@ -120,6 +129,7 @@ metrics.record_cache_hit();
 - Query and request correlation IDs
 
 **Files**:
+
 - `crates/fraiseql-core/src/federation/logging.rs` (306 lines)
 
 **Log Context Fields**:
@@ -164,12 +174,14 @@ pub struct FederationLogContext {
 ### Phase 5: Performance Validation (✅ Complete)
 
 **Delivered**:
+
 - Comprehensive performance test suite
 - 5 latency test scenarios
 - Observability overhead measurement
 - All budgets exceeded validation
 
 **Files**:
+
 - `crates/fraiseql-core/tests/federation_observability_perf.rs` (408 lines)
 - `docs/PHASE_5_PERFORMANCE_ANALYSIS.md` (420 lines)
 
@@ -196,6 +208,7 @@ pub struct FederationLogContext {
    - Overhead: **-13.56%** (actual improvement)
 
 **Budget Validation**:
+
 - ✅ Latency overhead: < 2% (actual: -22.3%, outperforms)
 - ✅ CPU overhead: < 1% (lock-free operations, minimal)
 - ✅ Memory overhead: < 5% (buffers sized appropriately)
@@ -206,12 +219,14 @@ pub struct FederationLogContext {
 ### Phase 6: Dashboards & Monitoring (✅ Complete)
 
 **Delivered**:
+
 - 2 Grafana dashboards (14 panels total)
 - 15 Prometheus alert rules
 - SLO-based alert thresholds
 - Operational runbooks linked to alerts
 
 **Files**:
+
 - `tests/integration/dashboards/federation_overview.json` (2.1 KB, 7 panels)
 - `tests/integration/dashboards/entity_resolution.json` (2.3 KB, 7 panels)
 - `tests/integration/alert_rules.yml` (8.2 KB, 15 alerts)
@@ -262,6 +277,7 @@ pub struct FederationLogContext {
 ### Phase 7: End-to-End Integration Testing (✅ Complete)
 
 **Delivered**:
+
 - 6 comprehensive integration tests
 - Complete observability pipeline validation
 - W3C Trace Context propagation verification
@@ -269,6 +285,7 @@ pub struct FederationLogContext {
 - Production readiness sign-off
 
 **Files**:
+
 - `crates/fraiseql-core/tests/federation_observability_integration.rs` (650 lines)
 - `docs/FEDERATION_OBSERVABILITY_RUNBOOKS.md` (1500+ lines)
 - `docs/PHASE_7_END_TO_END_INTEGRATION.md` (512 lines)
@@ -420,6 +437,7 @@ Res.        Request    Exec.
 **Goal**: Minimize cardinality explosion while maintaining visibility
 
 **Approach**:
+
 - Keep metrics to 13 core metrics (not 1350+)
 - NO high-cardinality labels (typename, subgraph names in metrics)
 - High-cardinality data → Structured logs instead
@@ -474,6 +492,7 @@ Res.        Request    Exec.
 Before deploying to production:
 
 ### Prerequisites
+
 - [ ] PostgreSQL database with federation schema
 - [ ] Jaeger deployment for trace collection
 - [ ] Prometheus for metrics scraping
@@ -482,6 +501,7 @@ Before deploying to production:
 - [ ] Alert notification channels (Slack, PagerDuty, email)
 
 ### Configuration
+
 - [ ] Import dashboards into Grafana
 - [ ] Load alert rules into Prometheus
 - [ ] Configure alert notification destinations
@@ -490,6 +510,7 @@ Before deploying to production:
 - [ ] Document runbooks and SLOs
 
 ### Validation
+
 - [ ] Run full test suite: `cargo test --all-features`
 - [ ] Verify all 6 integration tests pass
 - [ ] Confirm metrics endpoint responds: `/metrics`
@@ -498,6 +519,7 @@ Before deploying to production:
 - [ ] Validate alert rules load without errors
 
 ### Operational Preparation
+
 - [ ] Brief on-call team on observability tools
 - [ ] Share operational runbooks
 - [ ] Set up PagerDuty escalation policy
@@ -532,6 +554,7 @@ Before deploying to production:
 - Net change: **-8.1% (faster!)**
 
 Why faster? Observability metrics collection is concurrent with query execution:
+
 - Lock-free atomic operations don't block
 - Span creation is asynchronous
 - Log batching improves throughput

@@ -318,6 +318,7 @@ Macros automatically integrate with existing Phase 9.1 infrastructure:
 ### Trace Context Propagation
 
 When `#[traced]` creates a span, it automatically:
+
 1. Creates a child span under the current trace context
 2. Preserves trace ID across function boundaries
 3. Updates span ID for this function level
@@ -714,6 +715,7 @@ async fn hybrid_function() {
 ## Next Phase: Phase 9.2.C
 
 After macros work well, Phase 9.2.C adds:
+
 - Log correlation with trace IDs
 - Structured logging fields
 - Correlation ID propagation
@@ -798,6 +800,7 @@ Phase 9.2.B provides two powerful macros:
 These macros eliminate boilerplate instrumentation code while integrating seamlessly with Phase 9.1 distributed tracing and Jaeger visualization.
 
 **Key Benefits**:
+
 - ✅ Reduces instrumentation boilerplate
 - ✅ Automatic timing and error tracking
 - ✅ Seamless Phase 9.1 integration

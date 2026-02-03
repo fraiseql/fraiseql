@@ -510,6 +510,7 @@ sudo -u fraisier cp /opt/fraisier/data/fraisier.db /opt/fraisier/backups/fraisie
 sudo crontab -e
 
 # Add:
+
 0 2 * * * /usr/bin/sqlite3 /opt/fraisier/data/fraisier.db ".backup /opt/fraisier/backups/fraisier-$(date +\%Y\%m\%d).db"
 ```
 

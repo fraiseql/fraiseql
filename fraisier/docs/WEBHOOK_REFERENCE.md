@@ -32,6 +32,7 @@ fraisier webhook add [OPTIONS] WEBHOOK_URL
 ```
 
 **Options**:
+
 - `--event EVENT`: Event type (repeatable, at least one required)
 - `--secret SECRET`: Webhook secret for signature verification
 - `--active / --inactive`: Enable/disable webhook (default: active)
@@ -377,6 +378,7 @@ After all retries fail, the webhook is marked as failed and logged.
 ### Request Format
 
 All webhooks are sent as HTTP POST with:
+
 - **Content-Type**: `application/json`
 - **Timeout**: 30 seconds (configurable)
 - **Retries**: 3 attempts (configurable)
@@ -623,6 +625,7 @@ fraisier webhook list [OPTIONS]
 ```
 
 **Options**:
+
 - `--event EVENT`: Filter by event type
 - `--status STATUS`: Filter by status (active, failed, disabled)
 - `--long / -l`: Detailed output
@@ -679,6 +682,7 @@ fraisier webhook update WEBHOOK_ID [OPTIONS]
 ```
 
 **Options**:
+
 - `--active / --inactive`: Enable/disable
 - `--event EVENT`: Update event subscriptions (repeatable)
 - `--url URL`: Update URL
@@ -720,6 +724,7 @@ fraisier webhook logs WEBHOOK_ID [OPTIONS]
 ```
 
 **Options**:
+
 - `--limit N`: Show last N deliveries (default: 50)
 - `--status STATUS`: Filter by status (success, failed, pending)
 - `--since TIME`: Show since this time (e.g., "1h", "1d")

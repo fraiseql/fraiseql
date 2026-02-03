@@ -9,6 +9,7 @@ Common issues and solutions for FraiseQL authentication.
 **Symptoms**: OAuth provider returns "Invalid Redirect URI"
 
 **Causes**:
+
 - Redirect URI not registered with provider
 - Protocol mismatch (http vs https)
 - Port number incorrect
@@ -38,6 +39,7 @@ echo $OAUTH_REDIRECT_URI
 **Symptoms**: After OAuth provider redirects, getting "Invalid State" error
 
 **Causes**:
+
 - State parameter expired (>10 minutes)
 - User took too long to authenticate
 - State cache cleared
@@ -68,6 +70,7 @@ state_expiry = now + 600;
 **Symptoms**: Authorization code rejected by OAuth provider
 
 **Causes**:
+
 - Code already used
 - Code expired (>10 minutes)
 - Wrong client credentials
@@ -100,6 +103,7 @@ curl -v https://oauth2.googleapis.com/token
 **Symptoms**: User can see OAuth provider login, but fails there
 
 **Causes**:
+
 - User account doesn't exist
 - Wrong username/password
 - Account locked/disabled
@@ -133,6 +137,7 @@ curl -v https://oauth2.googleapis.com/token
 **Symptoms**: Token was just issued but getting "Token Expired" error
 
 **Causes**:
+
 - Server clock skew
 - Token actually expired
 - Wrong JWT issuer
@@ -170,6 +175,7 @@ print(f'Expires in: {payload[\"exp\"] - int(time.time())} seconds')
 **Symptoms**: Token rejected with "Invalid Signature"
 
 **Causes**:
+
 - Public key mismatch
 - Token modified
 - Wrong algorithm
@@ -202,6 +208,7 @@ docker restart fraiseql
 **Symptoms**: Refresh endpoint returns "Token Not Found"
 
 **Causes**:
+
 - Refresh token revoked
 - Session expired
 - Database connection issue
@@ -234,6 +241,7 @@ docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
 **Symptoms**: Server fails to start, "Connection refused" to database
 
 **Causes**:
+
 - Database not running
 - Wrong host/port
 - Firewall blocking
@@ -317,6 +325,7 @@ psql $DATABASE_URL -c "\d _system.sessions;"
 **Symptoms**: OAuth flow takes >2 seconds
 
 **Causes**:
+
 - OAuth provider slow
 - Network latency
 - Database slow
@@ -350,6 +359,7 @@ RUST_LOG=debug
 **Symptoms**: Server using >80% CPU
 
 **Causes**:
+
 - Many simultaneous logins
 - Infinite loop in validation
 - Key rotation loop
@@ -381,6 +391,7 @@ limit_req_zone $binary_remote_addr zone=auth:10m rate=1r/s;
 **Symptoms**: Memory grows over time or reaches limit
 
 **Causes**:
+
 - Sessions not expiring
 - Memory leak in dependencies
 - Cache growing unbounded
@@ -412,6 +423,7 @@ docker update --memory 512m fraiseql
 **Symptoms**: Can't connect to OAuth provider
 
 **Causes**:
+
 - Provider down
 - Network connectivity
 - Firewall/proxy blocking
@@ -514,6 +526,7 @@ curl http://localhost:8000/health/auth | jq .
 ---
 
 See Also:
+
 - [Deployment Guide](./DEPLOYMENT.md)
 - [Monitoring Guide](./MONITORING.md)
 - [Security Checklist](./SECURITY-CHECKLIST.md)

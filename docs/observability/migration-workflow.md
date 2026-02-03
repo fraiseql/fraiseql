@@ -483,6 +483,7 @@ git commit -m "feat: use denormalized region_id for better performance
 Migrated dimensions->>'region' to direct region_id column.
 
 Expected impact:
+
 - 8,500 queries/day affected
 - 12.5x speedup
 - p95 latency: 1,250ms → 100ms

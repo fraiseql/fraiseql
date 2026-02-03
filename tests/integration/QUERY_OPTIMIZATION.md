@@ -5,6 +5,7 @@
 Federation queries introduce latency through multiple subgraph hops. This guide provides strategies to optimize federation query performance in FraiseQL, including caching, batching, and query design patterns.
 
 **Performance Targets**:
+
 - Simple 2-hop query (users → orders): <100ms
 - Complex 3-hop query (users → orders → products): <500ms
 - Batch query (10 users, 3 hops each): <1000ms
@@ -229,6 +230,7 @@ Result: 20 bytes per user (10x reduction)
 #### Expected Improvement
 
 For types with >10 fields:
+
 - Bandwidth reduction: 50-95%
 - Latency reduction: 20-37%
 - Network cost reduction: 50-95%
@@ -260,6 +262,7 @@ pub struct RemoteDatabaseConfig {
 #### Performance Impact
 
 With connection pooling:
+
 - First request: 50ms (create connection)
 - Subsequent requests: 5-10ms (reuse connection)
 - **2.5-10x faster** for repeated queries
@@ -286,6 +289,7 @@ query {
 ```
 
 Cost:
+
 - 1000 users × 5 orders × 100 products × 20 categories × 50 attributes = 500M fields
 - Execution time: >30 seconds
 - Memory usage: >10GB
@@ -309,6 +313,7 @@ query {
 ```
 
 Cost:
+
 - 10 users × 5 orders × 3 products = 150 fields
 - Execution time: 100ms
 - Memory usage: <10MB
@@ -344,6 +349,7 @@ query {
 ```
 
 Impact:
+
 - Cacheable queries: 65-80% hit rate
 - Hardcoded queries: 10-20% hit rate (due to variable differences)
 
@@ -357,6 +363,7 @@ cargo test test_federation_query_performance_baseline --ignored --nocapture
 ```
 
 Measures:
+
 - First execution latency
 - Consistency across repeated executions
 - Baseline for optimization comparison
@@ -374,6 +381,7 @@ cargo test test_federation_repeated_query_performance --ignored --nocapture
 ```
 
 Measures:
+
 - Performance across 3 repeated executions
 - Connection pooling effectiveness
 - Consistency
@@ -393,6 +401,7 @@ cargo test test_federation_batch_vs_sequential_performance --ignored --nocapture
 ```
 
 Measures:
+
 - Batch query performance
 - Sequential query simulation
 - Batching efficiency ratio
@@ -412,6 +421,7 @@ cargo test test_federation_large_result_set_performance --ignored --nocapture
 ```
 
 Measures:
+
 - Scalability with result size
 - Throughput (items/sec)
 - Memory efficiency
@@ -432,6 +442,7 @@ cargo test test_federation_query_complexity_scaling --ignored --nocapture
 ```
 
 Measures:
+
 - How query depth affects performance
 - Field count impact
 - Complexity overhead
@@ -451,6 +462,7 @@ cargo test test_federation_concurrent_query_performance --ignored --nocapture
 ```
 
 Measures:
+
 - Connection pool handling
 - Concurrent request performance
 - Resource utilization
@@ -469,6 +481,7 @@ cargo test test_federation_mutation_impact_on_performance --ignored --nocapture
 ```
 
 Measures:
+
 - Query consistency
 - Performance after repeated executions
 - Cache stability
@@ -487,6 +500,7 @@ cargo test test_federation_different_query_patterns_performance --ignored --noca
 ```
 
 Measures:
+
 - Simple filter queries
 - Nested expansion
 - Deep nesting
@@ -610,6 +624,7 @@ curl -X POST http://localhost:4002/graphql \
 ```
 
 **Solutions**:
+
 1. Add database indexes on foreign key fields
 2. Enable query caching
 3. Batch entity resolution
@@ -619,12 +634,14 @@ curl -X POST http://localhost:4002/graphql \
 ### Issue: Cache hit rate <50%
 
 **Causes**:
+
 - Not using query variables
 - Dynamic query strings
 - Different variable values for each query
 - Cache TTL too short
 
 **Solutions**:
+
 1. Use parameterized queries with variables
 2. Increase cache TTL if data is stable
 3. Pre-warm cache with common queries
@@ -633,11 +650,13 @@ curl -X POST http://localhost:4002/graphql \
 ### Issue: High memory usage with caching
 
 **Causes**:
+
 - Too many unique queries
 - Large result sets cached
 - Cache not evicting old entries
 
 **Solutions**:
+
 1. Reduce max cache entries (from 10,000 to 5,000)
 2. Lower TTL (from 24h to 1h)
 3. Implement selective caching (cache only specific queries)

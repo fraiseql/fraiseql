@@ -190,14 +190,17 @@ This handles the bulk of violations in the existing, pre-operators code.
 3. ✅ Add missing `# Errors` sections (39 violations)
 
 **Day 1 - Afternoon (Phase 2b & 2c)** (~2-3 hours):
+
 4. ✅ Modernize format strings (95 violations)
 5. ✅ Add `#[must_use]` attributes (67 violations)
 
 **Day 2 - Morning (Phase 2d & 2e)** (~1-2 hours):
+
 6. ✅ Clean up dead code (13 violations)
 7. ✅ Fix numeric precision and other warnings (~10 violations)
 
 **Day 2 - Afternoon (Phase 3)** (~30 minutes):
+
 8. ✅ Configuration and final verification
 
 ## Risk Assessment

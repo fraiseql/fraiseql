@@ -21,6 +21,7 @@ This document lists all Prometheus metrics exposed by FraiseQL v2 for monitoring
 Metrics tracking GraphQL query execution.
 
 #### `graphql_requests_total`
+
 - **Type**: Counter
 - **Description**: Total number of GraphQL requests received
 - **Labels**: (none)
@@ -28,6 +29,7 @@ Metrics tracking GraphQL query execution.
 - **Use Case**: Query volume trends
 
 #### `graphql_errors_total`
+
 - **Type**: Counter
 - **Description**: Total number of GraphQL requests that resulted in errors
 - **Labels**: (none)
@@ -36,6 +38,7 @@ Metrics tracking GraphQL query execution.
 - **Formula**: `error_rate = graphql_errors_total / graphql_requests_total`
 
 #### `graphql_duration_ms`
+
 - **Type**: Gauge
 - **Description**: Average GraphQL query execution time in milliseconds
 - **Labels**: (none)
@@ -48,6 +51,7 @@ Metrics tracking GraphQL query execution.
 Metrics tracking database operations.
 
 #### `database_queries_total`
+
 - **Type**: Counter
 - **Description**: Total database queries executed (underlying SQL operations)
 - **Labels**: (none)
@@ -56,6 +60,7 @@ Metrics tracking database operations.
 - **Note**: One GraphQL query may generate multiple database queries
 
 #### `database_query_duration_ms`
+
 - **Type**: Gauge
 - **Description**: Average database query execution time
 - **Labels**: (none)
@@ -67,6 +72,7 @@ Metrics tracking database operations.
 Metrics tracking cache effectiveness.
 
 #### `cache_hit_ratio`
+
 - **Type**: Gauge
 - **Description**: Cache hit ratio (0.0 to 1.0)
 - **Labels**: (none)
@@ -79,6 +85,7 @@ Metrics tracking cache effectiveness.
 - **Target**: > 0.6 for read-heavy workloads
 
 #### `cache_entries`
+
 - **Type**: Gauge
 - **Description**: Current number of entries in cache
 - **Labels**: (none)
@@ -90,6 +97,7 @@ Metrics tracking cache effectiveness.
 Metrics tracking validation errors and failures.
 
 #### `validation_errors_total`
+
 - **Type**: Counter
 - **Description**: Schema validation errors
 - **Labels**: (none)
@@ -97,6 +105,7 @@ Metrics tracking validation errors and failures.
 - **Use Case**: Schema quality monitoring, client error detection
 
 #### `parse_errors_total`
+
 - **Type**: Counter
 - **Description**: GraphQL query parse errors
 - **Labels**: (none)
@@ -104,6 +113,7 @@ Metrics tracking validation errors and failures.
 - **Use Case**: Malformed query detection
 
 #### `execution_errors_total`
+
 - **Type**: Counter
 - **Description**: Runtime execution errors (database errors, timeouts, etc.)
 - **Labels**: (none)
@@ -182,6 +192,7 @@ Example Prometheus alerting rules for FraiseQL:
 
 ```yaml
 groups:
+
 - name: fraiseql
   interval: 30s
   rules:
@@ -245,6 +256,7 @@ groups:
 ### Dashboard 1: Service Overview
 
 **Panels**:
+
 - **QPS Chart** (line): `rate(graphql_requests_total[5m])`
 - **Error Rate Chart** (line): `rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m])`
 - **Latency Gauge**: `graphql_duration_ms`
@@ -253,6 +265,7 @@ groups:
 ### Dashboard 2: Performance Monitoring
 
 **Panels**:
+
 - **Query Latency** (line): `graphql_duration_ms` over time
 - **Database Latency** (line): `database_query_duration_ms` over time
 - **Database QPS** (line): `rate(database_queries_total[5m])`
@@ -261,6 +274,7 @@ groups:
 ### Dashboard 3: Error Analysis
 
 **Panels**:
+
 - **Error Rate** (line): `rate(graphql_errors_total[5m])`
 - **Validation Errors** (line): `rate(validation_errors_total[5m])`
 - **Parse Errors** (line): `rate(parse_errors_total[5m])`
@@ -343,6 +357,7 @@ All FraiseQL metrics follow these conventions:
 ```
 Allowed error budget: (1 - 0.999) = 0.1% of requests
 Per month (assuming 1M requests/day):
+
 - Total requests: 30M
 - Allowed errors: 30,000
 - Available errors per request rate
@@ -367,6 +382,7 @@ histogram_quantile(0.95, rate(graphql_duration_ms_bucket[5m])) > 100
 ## Performance Baselines
 
 **Typical Production Values**:
+
 - QPS: 100-10,000 (depends on schema complexity)
 - Latency: 10-100ms (depends on database and query complexity)
 - Error rate: < 0.1%

@@ -95,6 +95,7 @@ scrape_configs:
 ### Event Processing Metrics
 
 **`events_processed_total` (Counter)**
+
 - Description: Total number of events processed
 - Type: Counter (always increasing)
 - Use: Monitor event throughput
@@ -105,6 +106,7 @@ metrics.events_processed_total.inc_by(5.0);
 ```
 
 **`event_processing_duration_ms` (Histogram)**
+
 - Description: Distribution of event processing duration
 - Type: Histogram (P50, P95, P99, etc.)
 - Use: Analyze latency distribution
@@ -114,6 +116,7 @@ metrics.event_processing_duration_ms.observe(150.0);
 ```
 
 **`events_in_flight` (Gauge)**
+
 - Description: Number of events currently being processed
 - Type: Gauge (can increase/decrease)
 - Use: Monitor concurrency
@@ -126,6 +129,7 @@ metrics.events_in_flight.dec();    // Processing completed
 ### Action Execution Metrics
 
 **`actions_executed_total` (Counter)**
+
 - Description: Total number of actions executed
 - Type: Counter
 - Use: Monitor action volume
@@ -135,6 +139,7 @@ metrics.actions_executed_total.inc();
 ```
 
 **`action_success_total` (Counter)**
+
 - Description: Total number of successful actions
 - Type: Counter
 - Use: Calculate success rate
@@ -144,6 +149,7 @@ metrics.action_success_total.inc();
 ```
 
 **`action_failure_total` (Counter)**
+
 - Description: Total number of failed actions
 - Type: Counter
 - Use: Monitor error rate
@@ -153,6 +159,7 @@ metrics.action_failure_total.inc();
 ```
 
 **`action_duration_ms` (Histogram)**
+
 - Description: Action execution duration distribution
 - Type: Histogram
 - Use: Analyze action performance
@@ -162,6 +169,7 @@ metrics.action_duration_ms.observe(50.0);
 ```
 
 **`action_timeout_total` (Counter)**
+
 - Description: Total number of action timeouts
 - Type: Counter
 - Use: Monitor timeout frequency
@@ -173,6 +181,7 @@ metrics.action_timeout_total.inc();
 ### Queue Metrics
 
 **`queue_depth` (Gauge)**
+
 - Description: Current number of pending jobs
 - Type: Gauge
 - Use: Monitor queue backlog
@@ -184,6 +193,7 @@ metrics.queue_depth.dec();
 ```
 
 **`queue_jobs_enqueued_total` (Counter)**
+
 - Description: Total jobs enqueued
 - Type: Counter
 - Use: Monitor job throughput
@@ -193,6 +203,7 @@ metrics.queue_jobs_enqueued_total.inc();
 ```
 
 **`queue_jobs_processed_total` (Counter)**
+
 - Description: Total jobs processed from queue
 - Type: Counter
 - Use: Monitor processing rate
@@ -202,6 +213,7 @@ metrics.queue_jobs_processed_total.inc();
 ```
 
 **`queue_retry_total` (Counter)**
+
 - Description: Total jobs retried
 - Type: Counter
 - Use: Monitor retry frequency
@@ -211,6 +223,7 @@ metrics.queue_retry_total.inc();
 ```
 
 **`queue_deadletter_total` (Counter)**
+
 - Description: Total jobs moved to dead letter queue
 - Type: Counter
 - Use: Monitor permanent failures
@@ -222,6 +235,7 @@ metrics.queue_deadletter_total.inc();
 ### Cache Metrics
 
 **`cache_hits_total` (Counter)**
+
 - Description: Total cache hits
 - Type: Counter
 - Use: Monitor cache effectiveness
@@ -231,6 +245,7 @@ metrics.cache_hits_total.inc();
 ```
 
 **`cache_misses_total` (Counter)**
+
 - Description: Total cache misses
 - Type: Counter
 - Use: Monitor cache misses
@@ -240,6 +255,7 @@ metrics.cache_misses_total.inc();
 ```
 
 **`cache_hit_rate` (Gauge)**
+
 - Description: Current cache hit rate (0-100%)
 - Type: Gauge
 - Use: Monitor cache efficiency
@@ -253,6 +269,7 @@ metrics.cache_hit_rate.set(rate);
 ### Deduplication Metrics
 
 **`dedup_checks_total` (Counter)**
+
 - Description: Total deduplication checks performed
 - Type: Counter
 - Use: Monitor dedup volume
@@ -262,6 +279,7 @@ metrics.dedup_checks_total.inc();
 ```
 
 **`dedup_duplicates_found_total` (Counter)**
+
 - Description: Total duplicates found
 - Type: Counter
 - Use: Monitor duplicate rate
@@ -271,6 +289,7 @@ metrics.dedup_duplicates_found_total.inc();
 ```
 
 **`dedup_hit_rate` (Gauge)**
+
 - Description: Deduplication hit rate (0-100%)
 - Type: Gauge
 - Use: Monitor duplicate detection effectiveness
@@ -283,6 +302,7 @@ metrics.dedup_hit_rate.set(rate);
 ### Checkpoint Metrics
 
 **`checkpoint_saves_total` (Counter)**
+
 - Description: Total checkpoint saves
 - Type: Counter
 - Use: Monitor checkpoint frequency
@@ -292,6 +312,7 @@ metrics.checkpoint_saves_total.inc();
 ```
 
 **`checkpoint_save_duration_ms` (Histogram)**
+
 - Description: Checkpoint save duration distribution
 - Type: Histogram
 - Use: Monitor checkpoint performance
@@ -301,6 +322,7 @@ metrics.checkpoint_save_duration_ms.observe(75.0);
 ```
 
 **`checkpoint_recovery_total` (Counter)**
+
 - Description: Total checkpoint recovery operations
 - Type: Counter
 - Use: Monitor recovery frequency
@@ -421,6 +443,7 @@ dedup_hit_rate
 ### System Overview Dashboard
 
 Key panels:
+
 - Event processing rate (events/sec)
 - Event latency P50, P95, P99
 - Action success rate (%)
@@ -446,6 +469,7 @@ Query: queue_depth
 ### Troubleshooting Dashboard
 
 Key panels:
+
 - Failed actions (count)
 - Action timeouts (count)
 - Dead letter queue size
@@ -518,6 +542,7 @@ Query: rate(action_failure_total[1m]) / rate(action_executed_total[1m])
 
 ```yaml
 groups:
+
 - name: observer_alerts
   rules:
 
@@ -714,6 +739,7 @@ metrics.events_processed_total.inc_by(batch_size as f64);
 ## Next Phase: Phase 9.2.B
 
 After metrics collection is working, Phase 9.2.B adds:
+
 - Automatic span creation via macros
 - `#[traced]` macro for automatic instrumentation
 - `#[instrument]` macro for structured logging

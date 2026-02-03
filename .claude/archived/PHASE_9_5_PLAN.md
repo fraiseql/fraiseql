@@ -39,6 +39,7 @@ Phase 9.5 implements helper libraries and tooling to **explicitly** generate DDL
 ### Solution
 
 Provide **explicit, intentional** tools to generate DDL for chosen views:
+
 - Developer reads Phase 9.4 guides → Decides to use tv_user_profile
 - Developer calls `generate_tv_ddl()` → Gets ready-to-run SQL
 - Developer reviews SQL → Approves before deploying
@@ -667,9 +668,11 @@ psql -h prod-db -U postgres mydb < all_views.sql
 ## Files to Create
 
 ### Documentation
+
 - [ ] `docs/guides/ddl-generation-guide.md` - Usage guide
 
 ### Python Package
+
 - [ ] `tools/fraiseql_tools/views.py` - Main implementation
 - [ ] `tools/fraiseql_tools/templates/tv_base.sql` - TV template
 - [ ] `tools/fraiseql_tools/templates/ta_base.sql` - TA template
@@ -680,19 +683,23 @@ psql -h prod-db -U postgres mydb < all_views.sql
 - [ ] `tools/fraiseql_tools/tests/test_views.py` - Tests
 
 ### TypeScript Package
+
 - [ ] `packages/@fraiseql/tools/src/views.ts` - Implementation
 - [ ] `packages/@fraiseql/tools/tests/views.test.ts` - Tests
 
 ### CLI
+
 - [ ] `crates/fraiseql-cli/src/commands/generate_views.rs` - Command implementation
 - [ ] `crates/fraiseql-cli/tests/generate_views.rs` - Tests
 
 ### Examples
+
 - [ ] `examples/ddl-generation/python-example.py`
 - [ ] `examples/ddl-generation/typescript-example.ts`
 - [ ] `examples/ddl-generation/cli-example.sh`
 
 ### Test Schemas
+
 - [ ] `examples/ddl-generation/test_schemas/user.json` - Simple entity
 - [ ] `examples/ddl-generation/test_schemas/user_with_posts.json` - With relationships
 - [ ] `examples/ddl-generation/test_schemas/orders.json` - For ta_* testing
@@ -712,16 +719,19 @@ psql -h prod-db -U postgres mydb < all_views.sql
 ## Verification Strategy
 
 ### Pre-Implementation
+
 - [ ] Review this plan with team
 - [ ] Confirm template structure
 - [ ] Identify any schema.json parsing edge cases
 
 ### During Implementation
+
 - [ ] Test each function individually
 - [ ] Run unit tests for each helper
 - [ ] Verify generated SQL syntax
 
 ### Post-Implementation
+
 - [ ] Run full test suite
 - [ ] Test all three usage paths (Python, TS, CLI)
 - [ ] Run examples on test schemas

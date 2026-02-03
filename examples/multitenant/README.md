@@ -36,6 +36,7 @@ fraiseql compile fraiseql.toml
 ## Scaling
 
 Add more domains:
+
 - `schema/documents/` - Document management
 - `schema/workflows/` - Workflow automation
 - `schema/analytics/` - Usage analytics

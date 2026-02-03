@@ -103,6 +103,7 @@ interface GenerateTvOptions {
 ```
 
 **Returns:** Complete SQL DDL string containing:
+
 - Table definition with JSONB storage
 - Indexes (entity_id, updated_at, is_stale, GIN for JSON)
 - Optional composition views for nested relationships
@@ -139,6 +140,7 @@ interface GenerateTaOptions {
 ```
 
 **Returns:** Complete SQL DDL with:
+
 - Table definition with Arrow IPC-encoded columnar storage
 - Columns for each entity field storing Arrow RecordBatches
 - Batch metadata (row count, size, compression)
@@ -171,6 +173,7 @@ interface CompositionOptions {
 ```
 
 **Returns:** SQL for:
+
 - Composition views (cv_*) for each relationship
 - Batch composition helper function
 
@@ -479,6 +482,7 @@ try {
 ## TypeScript Strict Mode
 
 All code is fully typed and passes TypeScript strict mode:
+
 - No `any` types
 - No implicit `unknown`
 - Full null safety
@@ -491,6 +495,7 @@ All code is fully typed and passes TypeScript strict mode:
 - **Validation**: ~1ms per view
 
 Suitable for:
+
 - Build-time generation
 - CI/CD pipelines
 - Interactive development tools
@@ -505,6 +510,7 @@ npm test -- tests/views.test.ts
 ```
 
 Covers:
+
 - All public functions
 - Error handling and edge cases
 - Type safety
@@ -528,6 +534,7 @@ Covers:
 ## Contributing
 
 This library is part of the FraiseQL project. Contributions should:
+
 - Maintain TypeScript strict mode compliance
 - Include comprehensive JSDoc comments
 - Add tests for new functionality

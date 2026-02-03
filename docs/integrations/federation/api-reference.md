@@ -50,6 +50,7 @@ class User:
 ```
 
 **Parameters**:
+
 - `fields: list[str]` - Field names that comprise the key (supports composite keys)
 
 **Multiple Keys** (federation v2):
@@ -93,6 +94,7 @@ class User:
 **Parameters**: None
 
 **Notes**:
+
 - Can only be used once per type
 - Must be combined with `@key`
 - Extended fields must be marked with `@external()`
@@ -117,6 +119,7 @@ class User:
 **Parameters**: None
 
 **Usage**:
+
 - Mark fields that come from the authoritative subgraph
 - Can only be used on extended types
 - External fields should match the authoritative schema
@@ -139,6 +142,7 @@ class User:
 ```
 
 **Parameters**:
+
 - `fields: list[str]` - Field names needed from authoritative subgraph
 
 **Example: Conditional Resolution**:
@@ -167,6 +171,7 @@ class Order:
 ```
 
 **Parameters**:
+
 - `from_fields: list[str]` - Fields used to compute the provided field
 
 ---
@@ -188,6 +193,7 @@ class Product:
 **Parameters**: None
 
 **Usage**:
+
 - Allows multiple services to implement the same field
 - Useful for overrides or specialized implementations
 - Federation gateway decides which to use
@@ -275,12 +281,14 @@ class Query:
 ```
 
 **Parameter Types**:
+
 - `str`, `int`, `float`, `bool` - Scalar arguments
 - `ID` - Special ID type
 - `Optional[T]` - Nullable argument
 - `list[T]` - List argument
 
 **Return Types**:
+
 - `T` - Single entity (non-nullable)
 - `Optional[T]` - Nullable entity
 - `list[T]` - List of entities
@@ -395,6 +403,7 @@ class User {
 ```
 
 **Parameters**:
+
 - `fields: string[]` - Key field names
 - Composite keys supported: `@Key({ fields: ['org_id', 'user_id'] })`
 - Multiple keys supported: `@Key(...) @Key(...)`
@@ -962,12 +971,15 @@ pub fn new(adapter: Arc<dyn DatabaseAdapter>) -> Self;
 ## Troubleshooting
 
 ### Python: "Type not registered in federation"
+
 **Solution**: Ensure `@type` decorator is applied before `@key`
 
 ### TypeScript: "Decorator order invalid"
+
 **Solution**: Apply class decorators before field decorators
 
 ### Rust: "Strategy not found for type"
+
 **Solution**: Ensure configuration includes all federation types
 
 ---

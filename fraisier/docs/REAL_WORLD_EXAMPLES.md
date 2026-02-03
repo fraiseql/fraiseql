@@ -1136,6 +1136,7 @@ groups:
 ## Common Deployment Patterns Checklist
 
 ### Simple Web Service
+
 - [ ] Single API server with PostgreSQL
 - [ ] SSH + systemd deployment
 - [ ] Health checks configured
@@ -1144,6 +1145,7 @@ groups:
 - [ ] Rollback procedure tested
 
 ### Microservices
+
 - [ ] Multiple services defined
 - [ ] Service discovery working
 - [ ] Network isolation configured
@@ -1152,6 +1154,7 @@ groups:
 - [ ] Graceful shutdown handling
 
 ### Multi-Environment
+
 - [ ] Dev environment working
 - [ ] Staging environment mirrors production
 - [ ] Promotion workflow defined
@@ -1160,6 +1163,7 @@ groups:
 - [ ] Smoke tests for each environment
 
 ### HA/DR
+
 - [ ] Load balancer configured
 - [ ] Database replication working
 - [ ] Automated backups scheduled

@@ -31,6 +31,7 @@ Phase 8.7 adds comprehensive Prometheus metrics to the observer system for produ
 
 ### Problem
 Operations teams cannot:
+
 - See how many events are being processed
 - Track cache hit rates (is caching effective?)
 - Monitor deduplication performance
@@ -39,6 +40,7 @@ Operations teams cannot:
 
 ### Solution
 Create metrics registry with:
+
 1. Global metrics (events processed, errors)
 2. Cache metrics (hits, misses, evictions)
 3. Dedup metrics (detected duplicates, saved processing)
@@ -141,6 +143,7 @@ pub struct MetricsRegistry;
 **File:** `crates/fraiseql-observers/src/metrics/registry.rs` (NEW)
 
 Implement:
+
 - `MetricsRegistry::new()` - Create and register all metrics
 - Metric definitions with proper labels
 - Error handling for metric registration
@@ -166,6 +169,7 @@ pub async fn metrics_handler() -> String {
 ```
 
 Implement:
+
 - Axum handler for GET /metrics
 - TextEncoder for Prometheus format
 - Content-Type: text/plain
@@ -181,6 +185,7 @@ Implement:
 **File:** `crates/fraiseql-observers/src/executor.rs` (MODIFY)
 
 Instrument:
+
 1. `process_event()` - Increment events_processed on entry
 2. Success path - Track successful events
 3. Error path - Track failures
@@ -211,6 +216,7 @@ pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummar
 **File:** `crates/fraiseql-observers/src/cached_executor.rs` (MODIFY)
 
 Pattern:
+
 - On cache hit: `metrics.cache_hits.inc()`
 - On cache miss: `metrics.cache_misses.inc()`
 - On eviction: `metrics.cache_evictions.inc()`
@@ -222,6 +228,7 @@ Will be delegated to local model after example is complete.
 **File:** `crates/fraiseql-observers/src/deduped_executor.rs` (MODIFY)
 
 Pattern:
+
 - On duplicate detected: `metrics.dedup_detected.inc()`
 - On processing skipped: `metrics.dedup_skipped.inc()`
 
@@ -244,6 +251,7 @@ metrics.action_duration
 **File:** `docs/monitoring/grafana-dashboard-8.7.json` (NEW)
 
 Dashboard panels:
+
 - Events processed (graph)
 - Cache hit rate % (gauge)
 - Dedup effectiveness (graph)
@@ -256,6 +264,7 @@ Dashboard panels:
 **File:** `docs/monitoring/PHASE_8_7_METRICS.md` (NEW)
 
 Sections:
+
 - Metric definitions
 - How to access /metrics endpoint
 - Prometheus scrape config example
@@ -377,6 +386,7 @@ fraiseql_observer_dlq_items
 ## Acceptance Criteria
 
 ### Implementation Completeness
+
 - ✅ MetricsRegistry created and functional
 - ✅ All metric types defined and registered
 - ✅ GET /metrics endpoint exposed on fraiseql-server
@@ -384,6 +394,7 @@ fraiseql_observer_dlq_items
 - ✅ Zero unsafe code in metrics module
 
 ### Instrumentation Coverage
+
 - ✅ Events processing tracked
 - ✅ Cache operations tracked
 - ✅ Deduplication tracked
@@ -391,6 +402,7 @@ fraiseql_observer_dlq_items
 - ✅ Errors tracked with appropriate labels
 
 ### Code Quality
+
 - ✅ No clippy warnings
 - ✅ Comprehensive doc comments
 - ✅ No performance regression
@@ -398,6 +410,7 @@ fraiseql_observer_dlq_items
 - ✅ Feature-gated properly (metrics feature)
 
 ### Monitoring Usability
+
 - ✅ Grafana dashboard provided
 - ✅ Prometheus scrape config example
 - ✅ Alert examples (high error rate, etc.)
@@ -405,6 +418,7 @@ fraiseql_observer_dlq_items
 - ✅ Integration testing with mock metrics
 
 ### Testing
+
 - ✅ Unit tests for MetricsRegistry
 - ✅ Integration test for /metrics endpoint
 - ✅ Verify metrics increment correctly
@@ -434,6 +448,7 @@ fraiseql_observer_dlq_items
 ## Hybrid Implementation Strategy
 
 ### Phase (Claude - Me):
+
 1. Design metrics registry architecture
 2. Implement MetricsRegistry module with all metrics
 3. Implement Axum handler for /metrics
@@ -442,12 +457,14 @@ fraiseql_observer_dlq_items
 6. Write documentation
 
 ### Phase 2 (Local Model - Pattern Application):
+
 1. Apply cache instrumentation pattern to cached_executor.rs
 2. Apply dedup instrumentation pattern to deduped_executor.rs
 3. Apply action instrumentation pattern to all action types (7 files)
 4. Generate integration test for metrics collection
 
 ### Phase 3 (Claude - Verification):
+
 1. Review all instrumentation changes
 2. Run full test suite
 3. Verify metrics are correctly recorded
@@ -458,6 +475,7 @@ fraiseql_observer_dlq_items
 ## Success Metrics for Phase 8.7
 
 After completion:
+
 - ✅ GET /metrics endpoint returns valid Prometheus metrics
 - ✅ Dashboard displays real-time event processing stats
 - ✅ Cache hit rate clearly visible (should be >80% for repeated events)
@@ -470,6 +488,7 @@ After completion:
 ## Next Steps (Phase 8.6+)
 
 After Phase 8.7 completes:
+
 1. **Phase 8.6:** Job Queue System (uses metrics for monitoring)
 2. **Phase 8.5:** Elasticsearch Integration
 3. **Phase 8.8-8.11:** Resilience, tooling, docs

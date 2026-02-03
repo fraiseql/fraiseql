@@ -68,6 +68,7 @@ scrape_configs:
 ### Key Metrics
 
 **Deployment Metrics**:
+
 - `fraisier_deployments_total` - Total deployments (gauge)
 - `fraisier_deployment_duration_seconds` - Deployment duration (histogram)
 - `fraisier_deployment_failures_total` - Failed deployments (counter)
@@ -75,11 +76,13 @@ scrape_configs:
 - `fraisier_health_checks_failed` - Failed health checks (counter)
 
 **Service Metrics**:
+
 - `fraisier_requests_total` - Total API requests
 - `fraisier_request_duration_seconds` - Request latency
 - `fraisier_errors_total` - Total errors
 
 **System Metrics**:
+
 - `fraisier_database_connections` - Active database connections
 - `fraisier_database_query_duration_seconds` - Query latency
 - `fraisier_nats_events_published` - NATS events published

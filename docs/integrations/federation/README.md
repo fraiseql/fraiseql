@@ -41,15 +41,18 @@ query {
 ## Documentation
 
 ### Guides
+
 - **[Quick Start Guide](guide.md)** — Get started with federation
 - **[Deployment Guide](deployment.md)** — Deploy to production
 - **[SAGA Patterns](sagas.md)** — Distributed transaction patterns
 
 ### Reference
+
 - **[API Reference](api-reference.md)** — Complete Python, TypeScript, Rust API
 - **[Readiness Checklist](readiness-checklist.md)** — Pre-deployment verification
 
 ### Operations
+
 - **[Observability](operations/observability.md)** — Monitor federation queries
 - **[Runbooks](operations/runbooks.md)** — Troubleshooting runbooks
 
@@ -87,11 +90,13 @@ query {
 ## When to Use Federation
 
 ✅ **Use federation when**:
+
 - Multiple databases with different data domains
 - Need transactional consistency across databases
 - Want transparent query composition
 
 ❌ **Don't use federation when**:
+
 - Single database (use direct schema)
 - Need extreme performance (use analytical Arrow Flight instead)
 

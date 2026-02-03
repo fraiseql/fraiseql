@@ -29,6 +29,7 @@ fraiseql.toml (updated with domain discovery)
 Analyze your schema and identify 3-10 domain boundaries.
 
 Examples:
+
 - auth: User, Session, Role
 - products: Product, Category, Inventory
 - orders: Order, OrderItem, Shipment
@@ -42,6 +43,7 @@ mkdir -p schema/{auth,products,orders}
 ### Step 3: Split Types.json Into Domains
 
 For each domain:
+
 1. Extract types, queries, mutations
 2. Create `schema/{domain}/types.json`
 3. Validate JSON with `jq . schema/{domain}/types.json`

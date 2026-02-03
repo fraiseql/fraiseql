@@ -293,6 +293,7 @@ Complete security checklist for FraiseQL authentication deployment.
 
 ```bash
 # Simulate breach
+
 1. Manually revoke all sessions
 2. Verify users can't use old tokens
 3. Verify users can log back in
@@ -324,6 +325,7 @@ Complete security checklist for FraiseQL authentication deployment.
 ---
 
 See Also:
+
 - [Deployment Guide](./DEPLOYMENT.md)
 - [Monitoring Guide](./MONITORING.md)
 - [Troubleshooting](./TROUBLESHOOTING.md)

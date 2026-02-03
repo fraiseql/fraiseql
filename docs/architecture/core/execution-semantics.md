@@ -702,6 +702,7 @@ mutation CreatePostAndComment {
 **Example mutation execution:**
 
 ```
+
 1. BEGIN TRANSACTION
 2. Validate input ✅
 3. Check authorization ✅

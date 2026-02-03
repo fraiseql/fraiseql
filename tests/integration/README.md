@@ -17,6 +17,7 @@ Apollo Router (Gateway)       [Port 4000]
 ## Entity Federation Pattern
 
 **Trinity Pattern** - Each entity table uses:
+
 - `pk_{entity}`: BIGINT surrogate key (GENERATED ALWAYS AS IDENTITY)
 - `id`: UUID federation key (globally unique, federation primary key)
 - `identifier`: TEXT semantic key (human-readable)
@@ -35,12 +36,14 @@ CREATE TABLE tb_user (
 ## Services
 
 ### Users Subgraph (Port 4001)
+
 - **Owns**: `User` entity
 - **Key**: `@key(fields=["id"])` with UUID
 - **Database**: PostgreSQL (users database)
 - **Mutations**: create_user, update_user, delete_user
 
 ### Orders Subgraph (Port 4002)
+
 - **Owns**: `Order` entity
 - **Key**: `@key(fields=["id"])` with UUID
 - **Extends**: `User` from users subgraph (HTTP federation)
@@ -49,6 +52,7 @@ CREATE TABLE tb_user (
 - **Mutations**: create_order, update_order_status, delete_order
 
 ### Products Subgraph (Port 4003)
+
 - **Owns**: `Product` entity
 - **Key**: `@key(fields=["id"])` with UUID
 - **Extends**: `Order` from orders subgraph (HTTP federation)
@@ -57,6 +61,7 @@ CREATE TABLE tb_user (
 - **Mutations**: create_product, update_product_stock, update_product_price, delete_product
 
 ### Apollo Router Gateway (Port 4000)
+
 - Composes all three subgraphs
 - Executes federated queries
 - Handles entity resolution across boundaries
@@ -64,6 +69,7 @@ CREATE TABLE tb_user (
 ## Quick Start
 
 ### Prerequisites
+
 - Docker and Docker Compose installed
 - At least 2GB free memory
 
@@ -148,14 +154,17 @@ docker-compose logs -f apollo-router
 ### Initial Data
 
 **Users** (10 seeded):
+
 - IDs: 550e8400-e29b-41d4-a716-446655440001 through ...10
 - Identifiers: user{1-10}@example.com
 
 **Orders** (10 seeded):
+
 - IDs: 650e8400-e29b-41d4-a716-446655440001 through ...10
 - References: User IDs via foreign key
 
 **Products** (10 seeded):
+
 - IDs: 750e8400-e29b-41d4-a716-446655440001 through ...10
 
 ### Add Test Data
@@ -177,6 +186,7 @@ curl -X POST http://localhost:4001/graphql \
 ## Testing
 
 ### Manual Testing Checklist
+
 - [ ] All services start and health checks pass
 - [ ] Users subgraph responds to queries
 - [ ] Orders subgraph responds and extends User
@@ -236,17 +246,20 @@ key_columns = ["id"]
 ## Architecture Decisions
 
 ### Why Trinity Pattern?
+
 - **Surrogate Key (pk_{entity})**: Efficient indexing, sequential
 - **Federation Key (id UUID)**: Globally unique across services
 - **Semantic Key (identifier)**: Human-readable for debugging
 
 ### Why Views for Federation?
+
 - FraiseQL queries against v_{entity} views
 - Views filter to federation-relevant columns
 - Decouples internal schema from federation contracts
 - Example: `v_user` exposes only [id, email, name, identifier]
 
 ### Why HTTP Federation Strategy?
+
 - PostgreSQL databases on different hosts
 - DirectDB strategy requires cross-database drivers
 - HTTP is simpler, more observable, easier to debug
@@ -295,6 +308,7 @@ curl -X POST http://localhost:4000/graphql \
 ## Performance Characteristics
 
 With full environment running:
+
 - **Local query** (single subgraph): ~5ms
 - **Federated query** (2 subgraphs): ~15-30ms
 - **3-hop query**: ~50-100ms
@@ -303,6 +317,7 @@ With full environment running:
 ## Next Steps
 
 After basic harness verification:
+
 1. Run integration test suite (8 pending test scenarios)
 2. Benchmark federation performance
 3. Test Python/TypeScript schema equivalence

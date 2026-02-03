@@ -357,6 +357,7 @@ prometheus_port = 9090
 Key metrics to monitor:
 
 ```
+
 - Federation Latency (P50, P95, P99)
 - Entity Resolution Success Rate
 - Cache Hit Rate

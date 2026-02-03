@@ -20,6 +20,7 @@ Integrate ClickHouse as the analytics database for FraiseQL observer events, con
 **File**: `crates/fraiseql-arrow/src/clickhouse_sink.rs`
 
 **Key Components**:
+
 - **ClickHouseSinkConfig**: Configuration with environment variable support
   - url: "http://localhost:8123" (default)
   - database: "default"
@@ -56,6 +57,7 @@ Integrate ClickHouse as the analytics database for FraiseQL observer events, con
     - Connection refused, timeout, TEMPORARY_ERROR, 503 → Retriable
 
 **Testing**:
+
 - 8 unit tests, all passing
 - Config validation (empty fields, invalid ranges)
 - Defaults verification (batch_size=10k, timeout=5s)
@@ -84,6 +86,7 @@ TTL timestamp + INTERVAL 90 DAY
 ```
 
 **Design Rationale**:
+
 - MergeTree for real-time analytics
 - Monthly partitions for efficient cleanup
 - Ordered by (entity_type, timestamp) for common queries
@@ -91,6 +94,7 @@ TTL timestamp + INTERVAL 90 DAY
 - Bloom filter indexes on event_type, entity_type, org_id
 
 **Materialized Views** (auto-updating):
+
 1. **fraiseql_events_hourly**
    - Hourly counts by entity_type and event_type
    - Aggregates: event_count, unique_entities
@@ -110,6 +114,7 @@ TTL timestamp + INTERVAL 90 DAY
    - Used for: Event type analysis, anomaly detection
 
 **Helper Functions**:
+
 - count_events_by_entity_type(hours): Get entity type counts
 - org_activity_summary(org_id, days): Get org stats
 - get_entity_events(entity_id, limit): Get recent events
@@ -119,6 +124,7 @@ TTL timestamp + INTERVAL 90 DAY
 **File**: `migrations/clickhouse/README.md`
 
 **Sections**:
+
 - Schema overview with design rationale
 - Auto-application via Docker Compose mount
 - Manual application (clickhouse-client, HTTP API)
@@ -146,6 +152,7 @@ TTL timestamp + INTERVAL 90 DAY
 **File**: `docker-compose.clickhouse.yml` (already present)
 
 Services:
+
 - **ClickHouse**: Port 8123 (HTTP), 9000 (native)
   - Auto-applies migrations from ./migrations/clickhouse/
   - Health check: SELECT 1
@@ -160,6 +167,7 @@ Services:
 **File**: `crates/fraiseql-arrow/examples/clickhouse_sink.rs` (already present)
 
 Demonstrates:
+
 - Configuration creation and validation
 - Sink instantiation
 - Test event generation
@@ -188,6 +196,7 @@ Feature-gated to avoid runtime overhead when not needed.
 **File**: `crates/fraiseql-arrow/src/error.rs` (already integrated)
 
 Added variants:
+
 - `Configuration(String)`: Config validation errors
 - `Conversion(String)`: Arrow → EventRow conversion errors
 - `External(String)`: ClickHouse/network errors
@@ -267,10 +276,12 @@ test_is_transient_error ....................... ok
 ```
 
 ### Compilation
+
 - ✅ `cargo check --features clickhouse` - Clean
 - ✅ `cargo clippy -p fraiseql-arrow --features clickhouse` - No warnings
 
 ### Code Quality
+
 - ✅ Zero unsafe code
 - ✅ All public items documented
 - ✅ Feature-gated (no overhead when disabled)
@@ -281,16 +292,19 @@ test_is_transient_error ....................... ok
 ## Integration Points
 
 ### With Arrow Flight
+
 - Consumes RecordBatches from existing arrow_bridge
 - Uses same 8-column schema (event_schema.rs)
 - No changes to existing Arrow infrastructure
 
 ### With Observer System
+
 - Reads from NATS JetStream (same as other sinks)
 - Parallel to Elasticsearch sink (dual dataplane)
 - Configured via ObserverRuntimeConfig
 
 ### With Docker Compose
+
 - Auto-applies migrations on startup
 - Shares fraiseql_network with other services
 - Health checks integrated
@@ -333,6 +347,7 @@ FRAISEQL_CLICKHOUSE_MAX_RETRIES=3
 ## What's Ready
 
 ### ✅ Production Ready
+
 - Sink implementation fully tested
 - Configuration validated
 - Error handling with retries
@@ -341,6 +356,7 @@ FRAISEQL_CLICKHOUSE_MAX_RETRIES=3
 - Documentation comprehensive
 
 ### ✅ Feature Complete
+
 - Batch insertion with configurable size
 - Timeout-based flushing
 - Retry logic with exponential backoff
@@ -348,6 +364,7 @@ FRAISEQL_CLICKHOUSE_MAX_RETRIES=3
 - Helper functions for common queries
 
 ### ✅ Dual Dataplane
+
 - Analytics dataplane complete (Arrow → ClickHouse)
 - Operational dataplane next (JSON → Elasticsearch in Phase 9.5)
 
@@ -437,6 +454,7 @@ export FRAISEQL_CLICKHOUSE_BATCH_TIMEOUT_SECS=5
 ## Next Phase: 9.5 - Elasticsearch Integration
 
 Will add:
+
 - JSON → Elasticsearch document conversion
 - Full-text search capabilities
 - Incident response queries
@@ -448,6 +466,7 @@ Will add:
 ## Session Summary
 
 **Work Done**:
+
 - ✅ Verified complete ClickHouse sink implementation (552 lines)
 - ✅ Created SQL migrations for events table and views (141 lines)
 - ✅ Wrote comprehensive migration documentation (332 lines)
@@ -458,12 +477,14 @@ Will add:
 **Time Investment**: Single session (discovery + documentation)
 
 **Code Quality**:
+
 - ✅ Zero clippy warnings in fraiseql-arrow
 - ✅ Comprehensive error handling
 - ✅ Feature-gated (no overhead when disabled)
 - ✅ Production-ready implementation
 
 **Test Coverage**:
+
 - ✅ Unit tests for configuration validation
 - ✅ Unit tests for error classification
 - ✅ Integration example ready to run

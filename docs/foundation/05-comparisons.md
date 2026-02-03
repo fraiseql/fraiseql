@@ -13,6 +13,7 @@ FraiseQL is one of several approaches to building GraphQL APIs. This topic compa
 **Key Question:** Which approach is right for your project?
 
 The answer depends on:
+
 - Your data source (relational database vs. mixed sources)
 - Your team's expertise (database, backend, frontend)
 - Your performance requirements (predictability vs. flexibility)
@@ -56,6 +57,7 @@ type Query {
 ```
 
 Each field can resolve from different sources:
+
 - Database query
 - REST API call
 - Cache lookup
@@ -78,6 +80,7 @@ const resolvers = {
 ```
 
 **Ecosystem & Plugins**
+
 - Apollo Server Extensions (authentication, logging, monitoring)
 - Data loader (N+1 prevention)
 - Apollo Federation (schema stitching)
@@ -116,6 +119,7 @@ const dataLoaders = {
 ```
 
 **Performance Unpredictability**
+
 - Query performance depends on resolver implementation
 - N+1 problems can hide until production
 - No compile-time visibility into query costs
@@ -256,6 +260,7 @@ actions:
 This converts back to the multi-source problem (like Apollo).
 
 **Runtime Performance**
+
 - No compile-time query analysis
 - Permission checks at runtime
 - No optimization of permission rules
@@ -302,6 +307,7 @@ dataSources:
 ```
 
 **Flexible Data Source Support**
+
 - Relational databases (PostgreSQL, MySQL, MongoDB)
 - GraphQL APIs
 - REST APIs
@@ -353,6 +359,7 @@ export default async function GetUserRecommendations(
 ```
 
 **Middle-Ground Positioning**
+
 - Not as fast as Hasura (requires more code)
 - Not as predictable as FraiseQL (runtime interpretation)
 - Not as flexible as Apollo (no custom middleware)
@@ -402,6 +409,7 @@ def get_user(user_id: int):
 ```
 
 **Familiarity**
+
 - Every developer knows REST
 - No GraphQL learning curve
 - Mature tooling and libraries
@@ -464,6 +472,7 @@ Inconsistent APIs everywhere
 **Documentation Burden**
 ```
 Each endpoint needs separate documentation:
+
 - GET /users/{id}
 - GET /users/{id}/orders
 - GET /users/{id}/recommendations
@@ -595,6 +604,7 @@ but PostgreSQL gets features first.
 **Best Choice: FraiseQL**
 
 Why:
+
 - Well-defined schema (products, orders, users, cart)
 - Deterministic queries (catalog, recommendations)
 - Performance is critical (search must be fast)
@@ -630,6 +640,7 @@ def user_recommendations(user_id: int) -> List[Product]:
 **Best Choice: Apollo Server**
 
 Why:
+
 - Multiple data sources (can't consolidate into one DB)
 - Custom business logic needed (computations, complex auth)
 - Flexibility more important than performance predictability
@@ -646,6 +657,7 @@ Why:
 **Best Choice: Hasura**
 
 Why:
+
 - Time to launch is critical
 - Schema is already defined (existing database)
 - Standard operations are sufficient
@@ -662,6 +674,7 @@ Why:
 **Best Choice: FraiseQL or Apollo Server**
 
 Why:
+
 - GraphQL eliminates over-fetching (good for mobile)
 - FraiseQL for predictable performance
 - Apollo Server for complex aggregation (if needed)

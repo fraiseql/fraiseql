@@ -14,14 +14,17 @@ Phase 8.6 implements a complete distributed job queue system for asynchronous ac
 ## Tasks Completed
 
 ### ✅ Task 1-3 (Prior Session): Foundation
+
 - Job definition with configurable retry and backoff strategies
 - Redis-backed job queue with persistent storage
 - Job executor worker with parallel processing
 
 ### ✅ Task 4: QueuedObserverExecutor Wrapper
+
 **File**: `crates/fraiseql-observers/src/queued_executor.rs` (175 lines)
 
 Wraps `ObserverExecutor` to queue actions instead of executing immediately:
+
 - Evaluates event matching and conditions synchronously (fast path)
 - Queues actions as jobs for async execution
 - Returns job IDs for status tracking
@@ -30,17 +33,21 @@ Wraps `ObserverExecutor` to queue actions instead of executing immediately:
 **Tests**: 4 unit tests (all passing)
 
 ### ✅ Task 5: Configuration & Factory Support
+
 **Files**:
+
 - `crates/fraiseql-observers/src/config.rs` (JobQueueConfig struct)
 - `crates/fraiseql-observers/src/factory.rs` (executor factory methods)
 
 Features:
+
 - `JobQueueConfig` with validation and environment variable support
 - `build_job_queue()` helper to create Redis queue from config
 - `build_with_queue()` factory method for queued executors
 - `ProcessEventQueued` trait for interface polymorphism
 
 **Config Fields**:
+
 - `url`: Redis connection URL (default: `redis://localhost:6379`)
 - `batch_size`: Jobs per batch (1-1000)
 - `batch_timeout_secs`: Batch timeout (1-300)
@@ -53,9 +60,11 @@ Features:
 **Tests**: 4 factory tests + 4 config validation tests (all passing)
 
 ### ✅ Task 6: Metrics Integration
+
 **File**: `crates/fraiseql-observers/src/metrics/registry.rs`
 
 Added 7 new Prometheus metrics:
+
 1. `job_queued_total` (IntCounter) - Jobs added to queue
 2. `job_executed_total` (IntCounterVec[action_type]) - Successfully executed jobs
 3. `job_failed_total` (IntCounterVec[action_type, error_type]) - Failed jobs
@@ -65,17 +74,21 @@ Added 7 new Prometheus metrics:
 7. `job_dlq_items` (IntGauge) - Items in dead letter queue
 
 **Instrumentation**:
+
 - `QueuedObserverExecutor`: Records `job_queued()`
 - `JobExecutor`: Records `job_executed()`, `job_failed()`, `job_retry_attempt()`
 
 **Tests**: 7 metrics tests + instrumentation validation (all passing)
 
 ### ✅ Task 7: Documentation & Examples
+
 **Files**:
+
 - `docs/monitoring/PHASE_8_6_JOB_QUEUE.md` (600+ lines)
 - `crates/fraiseql-observers/examples/job_queue_example.rs` (200+ lines)
 
 **Documentation Covers**:
+
 - Architecture and data flow
 - Component descriptions
 - Configuration reference with examples
@@ -88,6 +101,7 @@ Added 7 new Prometheus metrics:
 - Migration guide
 
 **Example Demonstrates**:
+
 - Configuration setup
 - Job queue initialization
 - Observer setup with webhook actions
@@ -96,6 +110,7 @@ Added 7 new Prometheus metrics:
 - Worker execution
 
 ### ✅ Task 8: Integration Testing
+
 **File**: `crates/fraiseql-observers/tests/job_queue_integration.rs` (454 lines)
 
 16 comprehensive integration tests:
@@ -177,24 +192,28 @@ Prometheus Metrics
 ## Key Features
 
 ### 1. Asynchronous Processing
+
 - Non-blocking action execution
 - Fire-and-forget pattern
 - Immediate response to client
 - Background workers handle actual execution
 
 ### 2. Reliability
+
 - **At-least-once delivery**: RPOPLPUSH ensures jobs aren't lost
 - **Automatic retry**: Configurable attempts with backoff
 - **Transient vs permanent errors**: Smart retry logic
 - **Dead Letter Queue**: Failed jobs for investigation
 
 ### 3. Configurability
+
 - 8 configuration parameters
 - Environment variable overrides
 - Validation on startup
 - Sensible defaults
 
 ### 4. Observability
+
 - 7 Prometheus metrics
 - Per-action-type tracking
 - Queue depth monitoring
@@ -202,6 +221,7 @@ Prometheus Metrics
 - Performance histograms
 
 ### 5. Scalability
+
 - Redis as distributed queue backend
 - Multiple workers can process same queue
 - Configurable batch sizes
@@ -253,12 +273,14 @@ crates/fraiseql-observers/
 ## Testing
 
 ### Unit Tests
+
 - Config validation (4 tests)
 - Metrics recording (7 tests)
 - Job lifecycle (2 tests)
 - Factory creation (4 tests)
 
 ### Integration Tests
+
 - Configuration validation (4 tests)
 - Job creation (3 tests)
 - Retry logic (1 test)
@@ -277,16 +299,19 @@ crates/fraiseql-observers/
 ## Performance Characteristics
 
 ### Latency
+
 - Event → queue: <10ms (just serialization)
 - Queue → worker: 100-500ms (depending on poll_interval)
 - Execution: Depends on action (webhooks: 100-5000ms)
 
 ### Throughput
+
 - Queue: 10,000+ jobs/sec (Redis limit)
 - Executor: Depends on action type and concurrency
 - Metrics: Negligible overhead
 
 ### Reliability
+
 - At-least-once: Yes (RPOPLPUSH semantics)
 - Data loss: No (Redis persistence)
 - Max retries: Configurable (1-100)
@@ -372,12 +397,14 @@ These can be added in future phases as needed.
 ## Next Steps
 
 ### For Production Use
+
 1. Deploy Redis instance
 2. Update configuration (TOML or env vars)
 3. Start JobExecutor worker
 4. Monitor metrics in Prometheus/Grafana
 
 ### For Enhancement
+
 1. Add circuit breaker pattern
 2. Implement job priorities
 3. Add distributed tracing
@@ -385,6 +412,7 @@ These can be added in future phases as needed.
 5. Add job replay capability
 
 ### Future Phases
+
 - Phase 8.5: Elasticsearch search integration
 - Phase 8.8+: Resilience patterns
 - Phase 10: Production hardening (auth, rate limiting)

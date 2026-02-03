@@ -21,6 +21,7 @@ Federation observability instrumentation introduces **measurable negative overhe
 ## Performance Test Results
 
 ### Test Environment
+
 - **Platform**: Linux (Arch) with development kernel 6.18.6-arch1-1
 - **Runtime**: Tokio async runtime
 - **Database Adapter**: Mock in-memory adapter
@@ -38,6 +39,7 @@ Status:               ✅ PASS (< 2% budget)
 ```
 
 **Analysis**:
+
 - Resolving 100 user entities takes ~160µs baseline
 - With tracing, metrics, and logging: ~116µs (actual speedup)
 - Likely due to: Better code layout, JIT compilation, instruction cache hits
@@ -51,6 +53,7 @@ Status:                ✅ PASS (< 2% budget)
 ```
 
 **Analysis**:
+
 - Multi-type batch resolution (75 User + 50 Order representations)
 - Grouped by typename internally (2 batches resolved separately)
 - With observability: Still faster than baseline
@@ -65,6 +68,7 @@ Status:               ✅ PASS (< 2% budget)
 ```
 
 **Analysis**:
+
 - Deduplication reduces 100 entity references to 10 actual resolves
 - Queries serve cached/deduplicated results
 - With logging: Actually faster (better memory locality)
@@ -79,6 +83,7 @@ Status:               ✅ PASS (< 2% budget)
 ```
 
 **Analysis**:
+
 - Largest test: 1000 entity references (all unique)
 - Baseline: ~1.25ms per resolution cycle
 - With observability: ~1.08ms (speedup scales to larger batches)
@@ -103,6 +108,7 @@ Status:               ✅ PASS (< 2% budget)
 ### CPU Overhead (Target: < 1%)
 
 **Expected Analysis** (from instrumentation overhead):
+
 - UUID generation: ~50-100ns per query
 - Trace span creation: ~200-300ns per query
 - FederationLogContext serialization: ~500-800ns per query
@@ -110,23 +116,27 @@ Status:               ✅ PASS (< 2% budget)
 - **Total per query**: ~1-2µs
 
 **Relative to query duration**:
+
 - For 100µs query: ~2% CPU overhead
 - For 1ms query: ~0.2% CPU overhead
 - For 10ms query: ~0.02% CPU overhead
 
 **Actual measurements via production Prometheus**:
+
 - Will be measured in production with real workloads
 - Expected: < 0.5% based on instrumentation cost analysis
 
 ### Memory Overhead (Target: < 5%)
 
 **Expected Analysis** (from data structures):
+
 - FederationTraceContext: ~300 bytes (trace_id, span_id, flags)
 - FederationSpan (per batch): ~500 bytes per child span
 - FederationLogContext: ~400 bytes per log entry
 - MetricsCollector: ~5KB static (per-process)
 
 **Relative to query working set**:
+
 - Typical query working set: 50-200KB (parsed query, execution state)
 - Observability overhead: ~1-2KB per request
 - **Relative overhead**: ~1-4% of query memory
@@ -184,11 +194,13 @@ info!(..., context = json, ...);             // ~100-200ns logging
 ### 1. Negative Overhead is Real (Not Noise)
 
 The consistently negative overhead across all test cases (8-31% faster) is **not random variation**:
+
 - Pattern holds across different batch sizes
 - Pattern holds across different data layouts
 - Reason: Better code locality with observability instrumentation
 
 **Mechanism**:
+
 - Observability code gets inlined/optimized by Rust compiler
 - Creates better instruction cache behavior
 - Reduces branch mispredicts (especially in tight loops)
@@ -196,6 +208,7 @@ The consistently negative overhead across all test cases (8-31% faster) is **not
 ### 2. Overhead Scales Sublinearly
 
 For 10x larger batches (100 vs 1000 users):
+
 - Baseline increases: 162µs → 1251µs (7.7x)
 - With observability: 116µs → 1081µs (9.3x)
 - **Relative overhead**: -28% → -14% (improving with scale)
@@ -205,6 +218,7 @@ For 10x larger batches (100 vs 1000 users):
 ### 3. No Latency Jitter Observed
 
 Test results show consistent timing without anomalies:
+
 - Warm-up phase: 3-5 iterations sufficient to stabilize
 - No outliers even in lowest percentiles
 - Indicates: No garbage collection, lock contention, or memory pressure
@@ -313,6 +327,7 @@ let log_ctx = FederationLogContext {
 | Structured logging | ~5-10µs | ~1-2µs | ✅ 5x better |
 
 **Why better**:
+
 - Simplified span model (federation-specific)
 - Async-native logging (no blocking)
 - Pre-allocated buffers for metrics
@@ -338,6 +353,7 @@ All performance budgets exceeded (actually improved). No additional testing need
 ### 2. Monitoring Strategy
 
 Deploy with:
+
 - **Baseline**: Measure first week of production traffic
 - **Validation**: Ensure < 2% latency increase (expect decrease instead)
 - **Alerting**: No alerts needed (overhead is negligible)
@@ -345,6 +361,7 @@ Deploy with:
 ### 3. Future Optimization Opportunities
 
 If profiling shows issues:
+
 1. **Reduce JSON serialization**: Cache pre-built JSON contexts
 2. **Batch metric updates**: Accumulate 10-100 observations before flushing
 3. **Conditional logging**: Only log high-latency queries (top 1%)
@@ -363,6 +380,7 @@ Proceed to Phase 6: Dashboards & Monitoring
 See: `crates/fraiseql-core/tests/federation_observability_perf.rs`
 
 Tests included:
+
 1. `test_entity_resolution_latency_overhead` - Single-type batch
 2. `test_mixed_batch_resolution_latency` - Multi-type batch
 3. `test_deduplication_latency_impact` - High-duplication scenario
@@ -391,6 +409,7 @@ cargo test --test federation_observability_perf -- --nocapture
 ### Relative to Query Execution
 
 For typical federation query (1-10ms):
+
 - Instrumentation overhead: 2-3µs
 - Relative impact: **0.02-0.3%**
 - Well within all budgets

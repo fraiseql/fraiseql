@@ -109,6 +109,7 @@ with get_connection() as conn:
 ## Common Issues
 
 ### "AttributeError: module 'subprocess' has no attribute 'run'"
+
 **Fix**: Mock subprocess correctly in tests
 ```python
 with patch("subprocess.run") as mock_run:
@@ -117,6 +118,7 @@ with patch("subprocess.run") as mock_run:
 ```
 
 ### "ModuleNotFoundError: No module named 'fraisier'"
+
 **Fix**: Install in development mode
 ```bash
 cd fraisier
@@ -124,6 +126,7 @@ pip install -e ".[dev]"
 ```
 
 ### "Database locked" errors
+
 **Fix**: Close database connections properly
 ```python
 # Good
@@ -137,6 +140,7 @@ conn = sqlite3.connect(db_path)
 ```
 
 ### "Tests have no coverage"
+
 **Fix**: Run pytest with --cov flag
 ```bash
 pytest --cov=fraisier --cov-report=html
@@ -199,6 +203,7 @@ def deploy_fraise(
 git commit -m "feat(fraisier): Add new deployer type
 
 ## Changes
+
 - Added MyTypeDeployer implementation
 - Added 5 unit tests
 - Updated config validation
@@ -315,6 +320,7 @@ id → identifier → pk_* → fk_* → domain_columns → audit_columns
 ```
 
 **Why?**
+
 - `id`: Public UUID for sync across databases
 - `identifier`: Business key for human-readable lookups
 - `pk_*`: Internal primary key (INTEGER in SQLite, BIGINT in PostgreSQL)

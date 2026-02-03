@@ -266,11 +266,13 @@ Measured on standard hardware (2-core VM, 4GB RAM):
 ### Optimization Impact
 
 **Without Optimization**:
+
 - 3-hop query: ~150ms average
 - Repeat queries: ~150ms each (no caching)
 - 10 sequential queries: ~1500ms
 
 **With Optimization** (caching + batching):
+
 - 3-hop query (first): ~150ms
 - Repeat queries: <1ms (cache hit)
 - 10 sequential queries: ~5ms + 1×150ms = ~155ms
@@ -397,17 +399,20 @@ curl -X POST http://localhost:4000/graphql \
 ### Configuration Files
 
 **docker-compose.yml**:
+
 - Users service: port 4001, PostgreSQL 5432
 - Orders service: port 4002, PostgreSQL 5433
 - Products service: port 4003, PostgreSQL 5434
 - Apollo Router: port 4000
 
 **fixtures/supergraph.yaml**:
+
 - Defines subgraph endpoints
 - Federation metadata
 - Service discovery
 
 **services/{users|orders|products}/federation.toml**:
+
 - Federation directives
 - Entity key definitions
 - Type extensions
@@ -429,11 +434,13 @@ curl http://localhost:4000/.well-known/apollo/server-health
 ### Scaling Considerations
 
 **Single Region (Current)**:
+
 - Suitable for: Dev, staging, small production (<1000 req/s)
 - Cost: ~$200/month (3 compute + 3 databases)
 - Latency: <200ms p95
 
 **Multi-Region** (Future - Phase 16):
+
 - Requires: Replication, failover, load balancing
 - Suitable for: Enterprise, global distribution
 - Cost: $3.7k-$29k/month depending on phase
@@ -442,6 +449,7 @@ curl http://localhost:4000/.well-known/apollo/server-health
 ### Monitoring Setup
 
 **Metrics to Track**:
+
 - Query latency (p50, p95, p99)
 - Cache hit rate (target: 60-80%)
 - Error rate (target: <0.1%)
@@ -478,6 +486,7 @@ docker-compose exec -T postgres-users psql -U postgres < users_backup.sql
 ### Upgrades & Maintenance
 
 **Rolling Update Process**:
+
 1. Update service image in docker-compose.yml
 2. Rebuild: `docker-compose build --no-cache [service]`
 3. Stop service: `docker-compose stop [service]`
@@ -525,6 +534,7 @@ time curl http://localhost:4001/graphql -d '{"query":"{ users { id } }"}'
 **Symptoms**: Repeated queries still slow
 
 **Solution**:
+
 - Use query variables (not hardcoded values)
 - Check cache TTL configuration
 - Monitor cache eviction rate
@@ -587,16 +597,19 @@ curl -X POST http://localhost:4001/graphql \
 ## Success Metrics
 
 ### Test Pass Rate
+
 - **Target**: 100% of federation tests passing
 - **Actual**: 44/44 tests passing ✅
 - **Performance tests**: 8/8 passing ✅
 
 ### Performance
+
 - **2-hop latency**: Target <100ms, Actual 30-50ms ✅
 - **3-hop latency**: Target <500ms, Actual 100-150ms ✅
 - **Cache hit rate**: Target 60-80%, Achievable with optimization ✅
 
 ### Code Quality
+
 - **Compiler warnings**: 0 ✅
 - **Test coverage**: 44 federation scenarios ✅
 - **Documentation**: 7 comprehensive guides ✅
@@ -606,12 +619,14 @@ curl -X POST http://localhost:4001/graphql \
 ## What's Included
 
 ### Test Files
+
 - `federation_docker_compose_integration.rs` (3,478 lines)
   - 44 test scenarios across 8 categories
   - Comprehensive assertions and error handling
   - Performance benchmarks included
 
 ### Documentation Files
+
 - `FEDERATION_INTEGRATION_REPORT.md` (this file) - Complete overview
 - `3SUBGRAPH_FEDERATION.md` - 3-subgraph detailed guide
 - `APOLLO_ROUTER.md` - Gateway composition guide
@@ -621,11 +636,13 @@ curl -X POST http://localhost:4001/graphql \
 - `COMPOSITE_KEYS.md` - Multi-field keys
 
 ### Automation
+
 - `run_3subgraph_tests.sh` - Automated test runner
 - `docker-compose.yml` - Service orchestration
 - `fixtures/` - SQL initialization, configs
 
 ### Infrastructure
+
 - 3 PostgreSQL databases (users, orders, products)
 - 3 FraiseQL subgraph services
 - Apollo Router v1.31.1 gateway
@@ -663,11 +680,13 @@ curl -X POST http://localhost:4001/graphql \
 ## References
 
 ### External Documentation
+
 - [Apollo Federation Docs](https://www.apollographql.com/docs/apollo-server/federation/introduction/)
 - [Apollo Router Docs](https://www.apollographql.com/docs/router/)
 - [GraphQL Federation Spec](https://specs.apollo.dev/federation/v2.3)
 
 ### Internal Documentation
+
 - [FraiseQL Core Architecture](../../.claude/CLAUDE.md)
 - [Implementation Roadmap](../../.claude/IMPLEMENTATION_PLAN_2_WEEK_TO_PRODUCTION.md)
 - [Cache Module](../../crates/fraiseql-core/src/cache/)
@@ -678,6 +697,7 @@ curl -X POST http://localhost:4001/graphql \
 ## Support & Debugging
 
 ### Getting Help
+
 1. Check **QUERY_OPTIMIZATION.md** for performance issues
 2. Check **APOLLO_ROUTER.md** for gateway issues
 3. Check **3SUBGRAPH_FEDERATION.md** for federation issues

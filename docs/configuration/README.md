@@ -5,12 +5,14 @@ Complete configuration reference for FraiseQL security, networking, and operatio
 ## Quick Navigation
 
 ### Security Configuration
+
 - **[Security Configuration](SECURITY_CONFIGURATION.md)** — Overview of all security settings
 - **[TLS/SSL Configuration](TLS_CONFIGURATION.md)** — Configure HTTPS and mutual TLS
 - **[Rate Limiting](RATE_LIMITING.md)** — Brute-force protection and request throttling
 - **[Runtime Security Initialization](SECURITY_RUNTIME_INITIALIZATION.md)** — Initialize security subsystems at startup
 
 ### Database Configuration
+
 - **[PostgreSQL Authentication](POSTGRESQL_AUTHENTICATION.md)** — PostgreSQL connection and authentication
 
 ## Environment Variables
@@ -42,18 +44,21 @@ FRAISEQL_DATABASE_POOL_TIMEOUT=30
 ## Common Scenarios
 
 ### Production Setup
+
 1. Enable TLS: [TLS Configuration](TLS_CONFIGURATION.md)
 2. Set rate limits: [Rate Limiting](RATE_LIMITING.md)
 3. Configure security: [Security Configuration](SECURITY_CONFIGURATION.md)
 4. Database connection: [PostgreSQL Authentication](POSTGRESQL_AUTHENTICATION.md)
 
 ### Development Setup
+
 1. Disable TLS (use HTTP)
 2. Increase rate limits for testing
 3. Use minimal security hardening
 4. Local database connection
 
 ### Enterprise Deployment
+
 1. mTLS for service-to-service communication
 2. Strict rate limiting
 3. Security audit logging enabled

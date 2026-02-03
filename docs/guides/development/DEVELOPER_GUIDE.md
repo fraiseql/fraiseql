@@ -241,6 +241,7 @@ mod tests {
 ### Test Coverage
 
 Aim for:
+
 - **Critical paths**: 100% coverage (business logic)
 - **Error handling**: 100% coverage (every error branch)
 - **Edge cases**: 90%+ coverage

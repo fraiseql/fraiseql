@@ -310,6 +310,7 @@ async fn process_event(event: Event) -> Result<()> {
 ```
 
 **Result**: Logs and traces have matching `trace_id`, enabling:
+
 - Filter logs by trace ID in Loki
 - Click trace ID in logs to view full trace in Jaeger
 - Correlate logs and traces for complete debugging context
@@ -639,6 +640,7 @@ TIMESTAMP [LEVEL] SERVICE EVENT trace_id=VALUE field=VALUE
 ## Next Phase: Phase 9.2.D
 
 After log correlation works well, Phase 9.2.D adds:
+
 - gRPC exporter for Jaeger (faster than HTTP)
 - Connection pooling
 - Configurable batch sizes
@@ -685,6 +687,7 @@ Phase 9.2.C provides automatic trace ID correlation with structured logging, ena
 4. **Performance Analysis**: Correlate latency measurements (traces) with event logs
 
 **Key Benefits**:
+
 - ✅ Automatic trace ID injection
 - ✅ Supports W3C, X-Trace-Id, Jaeger, custom formats
 - ✅ Integrates seamlessly with Phase 9.1 and 9.2.B

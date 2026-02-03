@@ -13,6 +13,7 @@ docker compose -f docker/docker-compose.prod.yml up -d
 ```
 
 That's it! Open your browser:
+
 - **GraphQL IDE**: http://localhost:3000
 - **Tutorial**: http://localhost:3001
 - **Admin Dashboard**: http://localhost:3002
@@ -24,6 +25,7 @@ docker compose -f docker/docker-compose.prod-examples.yml up -d
 ```
 
 Then explore:
+
 - **Blog IDE**: http://localhost:3000 (simple)
 - **E-Commerce IDE**: http://localhost:3100 (intermediate)
 - **Streaming IDE**: http://localhost:3200 (advanced)
@@ -107,6 +109,7 @@ Press the "Play" button → See results instantly!
 ### 4. Explore
 
 Try these queries:
+
 - Get all posts
 - Get user with posts
 - Filter by email
@@ -416,6 +419,7 @@ docker pull fraiseql/dashboard:latest
 ```
 
 **Built on every commit to main branch**
+
 **Available at**: https://hub.docker.com/r/fraiseql
 
 ---
@@ -499,22 +503,26 @@ examples/
 ## Next Steps
 
 ### 1. Explore (5 minutes)
+
 - Open GraphQL IDE: http://localhost:3000
 - Try sample queries
 - Understand GraphQL basics
 
 ### 2. Learn (30 minutes)
+
 - Go to tutorial: http://localhost:3001
 - Complete all chapters
 - Run hands-on queries
 
 ### 3. Experiment (1 hour)
+
 - Use Admin Dashboard: http://localhost:3002
 - Try different queries
 - Explore schema
 - Check performance metrics
 
 ### 4. Deep Dive (2+ hours)
+
 - Switch to e-commerce example
 - Explore streaming example
 - Read documentation

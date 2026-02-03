@@ -138,17 +138,20 @@ NATS JetStream (durable, at-least-once semantics)
 ## Component Responsibilities
 
 ### fraiseql-arrow
+
 - **Flight Server**: gRPC server implementing Apache Arrow Flight protocol
 - **Schema Registry**: Generates Arrow schemas from GraphQL types
 - **RecordBatch Streaming**: Converts SQL rows to Arrow columnar format
 - **Ticket Encoding**: Encodes/decodes Flight ticket protocol
 
 ### fraiseql-core
+
 - **Query Execution** (unchanged): Parse GraphQL, execute SQL
 - **Row → Arrow Converter** (NEW): Converts database rows to Arrow RecordBatch
 - **Row → JSON Converter** (unchanged): Existing HTTP/JSON path
 
 ### fraiseql-observers
+
 - **NATS Integration** (unchanged): Event sourcing infrastructure
 - **Arrow Bridge** (NEW): Converts EntityEvent → RecordBatch
 - **ClickHouse Sink** (NEW): Batches and inserts to ClickHouse
@@ -163,12 +166,14 @@ NATS JetStream (durable, at-least-once semantics)
 
 ```
 Use Cases:
+
 - "How many orders per hour?" → Materialized views
 - "Top 10 products by revenue?" → GROUP BY aggregations
 - "Daily active users trend?" → Time-series aggregations
 - "Extract features for ML model" → Arrow → NumPy/TensorFlow
 
 Characteristics:
+
 - Data format: Columnar binary (Arrow)
 - Query language: SQL aggregations (SUM, COUNT, GROUP BY)
 - Performance: 1M+ events/sec ingestion
@@ -182,12 +187,14 @@ Characteristics:
 
 ```
 Use Cases:
+
 - "Find all failed orders with error_code PAYMENT_DECLINED"
 - "Show me events for user-123 in the last hour"
 - "Search all events containing 'refund'"
 - "Incident response: all errors in past 10 minutes"
 
 Characteristics:
+
 - Data format: JSONB documents
 - Query language: Elasticsearch DSL (match, term, range, bool)
 - Performance: <100ms search queries
@@ -214,6 +221,7 @@ fraiseql-server (HTTP:8080)
     ↓
 PostgreSQL
 ```
+
 - **Best for**: Simple web applications
 - **Trade-offs**: No Arrow Flight, no analytics benefits
 - **Setup time**: 5 minutes
@@ -229,6 +237,7 @@ NATS JetStream
     ├─→ ClickHouse (analytics)
     └─→ Elasticsearch (operational)
 ```
+
 - **Best for**: Production applications with analytics needs
 - **Trade-offs**: More infrastructure (but purpose-built)
 - **Setup time**: 1-2 hours
@@ -241,6 +250,7 @@ fraiseql-server (Arrow:50051)
     ↓
 PostgreSQL
 ```
+
 - **Best for**: Pure analytics workloads
 - **Trade-offs**: No web client support
 - **Status**: Not yet implemented
@@ -281,16 +291,19 @@ PostgreSQL
 ## Security Considerations
 
 ### Authentication
+
 - Current: Open (for Phase 9, suitable for internal networks)
 - Phase 10: gRPC mTLS for Arrow Flight (mutual TLS)
 - Phase 10: Same JWT validation as HTTP/JSON API
 
 ### Authorization
+
 - Arrow Flight inherits GraphQL permissions
 - Same role-based access control (RBAC) applies
 - Query still validated before Arrow conversion
 
 ### Network
+
 - **Recommendation**: Arrow Flight should be internal-only
   - Not exposed to public internet
   - Bind to internal network interface
@@ -298,6 +311,7 @@ PostgreSQL
 - HTTPS/TLS added in Phase 10
 
 ### Encryption
+
 - **In Transit**: Will add TLS in Phase 10
 - **At Rest**: ClickHouse/Elasticsearch handle encryption
 - **Data**: No sensitive data in Arrow batches (just query results)

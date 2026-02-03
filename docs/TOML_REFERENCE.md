@@ -20,6 +20,7 @@ Complete reference for `fraiseql.toml` configuration in FraiseQL v2.
 ## Overview
 
 `fraiseql.toml` defines the operational configuration for your GraphQL API:
+
 - Queries and mutations
 - Security (rate limiting, authentication, audit logging)
 - Federation (cross-service composition)
@@ -512,6 +513,7 @@ invalidate_on = ["User"]
 ---
 
 For more information:
+
 - [Migration Guide](./MIGRATION_GUIDE.md)
 - [API Documentation](./API.md)
 - [Examples](../tests/integration/examples/)

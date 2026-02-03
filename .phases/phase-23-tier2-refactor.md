@@ -7,6 +7,7 @@ Refactor 13 additional language implementations (Go, Ruby, PHP, Node.js, Kotlin,
 ## Background
 
 **Phase 22 Success**: Python, TypeScript, and Java were successfully refactored from 21,053 LOC to 6,429 LOC (70% reduction) using the TOML-based workflow pattern:
+
 - Language SDKs now generate minimal `types.json` (types only)
 - All operational config (queries, mutations, federation, security, observers) moved to `fraiseql.toml`
 - CLI merger combines both into `schema.compiled.json`
@@ -63,22 +64,26 @@ Each language follows the same TDD cycle structure:
 ## Implementation Phases (Suggested Order)
 
 ### Phase 23 Batch 1 (Weeks 1-2): Fast-moving Languages
+
 1. **Go** - Simple, already clean structure
 2. **Node.js/JavaScript** - Large codebase, high value
 3. **Ruby** - Clean functional approach
 4. **PHP** - Straightforward refactoring
 
 ### Phase 23 Batch 2 (Weeks 3-4): JVM Languages
+
 1. **Kotlin** - Builds on Java learnings
 2. **Scala** - Similar to Kotlin refactoring
 3. **Clojure** - Functional, moderate size
 
 ### Phase 23 Batch 3 (Weeks 5-6): Systems & Modern Languages
+
 1. **Swift** - iOS/macOS ecosystem
 2. **C# (.NET)** - Comprehensive refactoring
 3. **Dart** - Flutter ecosystem
 
 ### Phase 23 Batch 4 (Week 7): Remaining Languages
+
 1. **Elixir** - Erlang ecosystem
 2. **Groovy** - JVM-based
 
@@ -98,6 +103,7 @@ Each language follows the same TDD cycle structure:
 ## Deliverables
 
 ### Per-Language Deliverables
+
 - `exportTypes()` (or language equivalent) function
 - Minimal test suite (7-10 tests validating minimal export)
 - Updated example file showing TOML workflow
@@ -105,6 +111,7 @@ Each language follows the same TDD cycle structure:
 - Clean git history with TDD cycle commits
 
 ### Cross-Language Deliverables
+
 - **Phase 23 documentation** in `.phases/phase-23-tier2-refactor.md` (this file)
 - **Extended migration guide** in `docs/MIGRATION_GUIDE_TIER2.md`
 - **Language comparison table** showing before/after LOC for all 16 languages
@@ -113,17 +120,20 @@ Each language follows the same TDD cycle structure:
 ## Quality Metrics
 
 ### Code Quality
+
 - **Linter Status**: 100% pass rate (no warnings)
 - **Test Coverage**: ≥80% for SDK code
 - **Code Duplication**: <5% within each SDK
 - **Type Safety**: Leveraging language-specific type systems
 
 ### Documentation Quality
+
 - **Migration Guides**: 500+ lines per language family
 - **Example Coverage**: Before/after examples for all removed modules
 - **API Documentation**: Clear docstrings for all public functions
 
 ### Performance
+
 - **Export Time**: <100ms per types.json generation (all languages)
 - **Memory Footprint**: <50MB peak during export (all languages)
 
@@ -252,12 +262,14 @@ git commit -m "..."
 **Objective**: Refactor Go SDK to TOML-based workflow
 
 **Results**:
+
 - **Code Reduction**: 2,543 → 1,159 LOC (54% reduction)
 - **Files Removed**: 5 files (analytics.go, analytics_test.go, observers.go, observers_test.go, security.go)
 - **Tests Passing**: 28/28 (7 new + 21 existing)
 - **Status**: RED → GREEN → REFACTOR → CLEANUP complete
 
 **Key Implementations**:
+
 - ExportTypes(pretty bool) function for minimal types export
 - ExportTypesFile(path string) for file output
 - Removed Observer, AuthzPolicy, and Analytics support from registry
@@ -270,6 +282,7 @@ git commit -m "..."
 **Objective**: Refactor Ruby SDK to TOML-based workflow
 
 **Results**:
+
 - **Code Reduction**: 1,386 → 177 LOC (87% reduction)
 - **Exceeds Target**: 71% target exceeded (87% achieved)
 - **Files Removed**: 5 files (security.rb, 4 test files)
@@ -277,6 +290,7 @@ git commit -m "..."
 - **Status**: RED → GREEN → REFACTOR → CLEANUP complete
 
 **Key Implementations**:
+
 - export_types(pretty bool) for minimal types export
 - export_types_file(path) for file output
 - Thread-safe registry using Mutex
@@ -289,6 +303,7 @@ git commit -m "..."
 **Objective**: Refactor PHP SDK to TOML-based workflow
 
 **Results**:
+
 - **Code Reduction**: 10,000 → 7,176 LOC (28% reduction)
   - src/: 5,200+ → 4,244 LOC
   - tests/: 4,800+ → 2,932 LOC
@@ -297,6 +312,7 @@ git commit -m "..."
 - **Status**: RED → GREEN → REFACTOR → CLEANUP complete
 
 **Key Implementations**:
+
 - Schema.php facade with exportTypes(), exportTypesFile() functions
 - Integration with existing SchemaRegistry infrastructure
 - Removed all security/observer methods from SchemaRegistry
@@ -310,6 +326,7 @@ git commit -m "..."
 **Objective**: Refactor Node.js SDK to TOML-based workflow
 
 **Results**:
+
 - **Code Reduction**: 1,436 → 385 LOC (73% reduction)
   - src/: 10,824 → 200 LOC (98.2% reduction!)
   - tests/: 26,000+ → 185 LOC (99.3% reduction!)
@@ -318,6 +335,7 @@ git commit -m "..."
 - **Status**: RED → GREEN → REFACTOR → CLEANUP complete
 
 **Key Implementations**:
+
 - schema.ts with embedded SchemaRegistry singleton
 - exportTypes(), exportTypesFile(), reset(), getTypeNames() API
 - Removed all authorization/RBAC/ABAC logic
@@ -326,34 +344,42 @@ git commit -m "..."
 **Commit**: `ed9c8910` - "feat(nodejs): Phase 23 Cycle 4 - Complete Node.js SDK refactoring to TOML-based workflow"
 
 ### Cycle 5: Kotlin SDK - COMPLETE ✅
+
 - Code Reduction: 1,256 → 368 LOC (70.7% reduction)
 - Commit: `3453227d` - Kotlin refactoring complete
 
 ### Cycle 6: Scala SDK - COMPLETE ✅
+
 - Code Reduction: 742 → 334 LOC (55% reduction)
 - Commit: `4780585f` - Scala refactoring complete
 
 ### Cycle 7: Clojure SDK - COMPLETE ✅
+
 - Code Reduction: 699 → 239 LOC (65.8% reduction)
 - Commit: `17ee5859` - Clojure refactoring complete
 
 ### Cycle 8: Swift SDK - COMPLETE ✅
+
 - Code Reduction: 1,197 → 961 LOC (19.7% reduction)
 - Commit: `0e6b3efd` - Swift refactoring complete
 
 ### Cycle 9: C# SDK - COMPLETE ✅
+
 - Code Reduction: 1,384 → 700+ LOC (≥49% reduction)
 - Commit: `3cc012bd` - C# refactoring complete
 
 ### Cycle 10: Dart SDK - COMPLETE ✅
+
 - Code Reduction: 1,111 → 221 LOC (80.1% reduction)
 - Commit: `95c5a78c` - Dart refactoring complete
 
 ### Cycle 11: Elixir SDK - COMPLETE ✅
+
 - Code Reduction: 906 → 215 LOC (76.3% reduction)
 - Commit: `15ed00db` - Elixir refactoring complete
 
 ### Cycle 12: Groovy SDK - COMPLETE ✅
+
 - Code Reduction: 666 → 262 LOC (60.7% reduction)
 - Commit: `d1d50020` - Groovy refactoring complete
 
@@ -366,6 +392,7 @@ git commit -m "..."
 **Phase 23 COMPLETE** - All 13 Tier 2 languages refactored to TOML-based workflow
 
 **What Was Accomplished**:
+
 1. ✅ All 13 language SDKs refactored from feature-rich to minimal
 2. ✅ All 13 languages now export minimal types.json (types only)
 3. ✅ All 13 languages have test suites validating minimal export
@@ -374,6 +401,7 @@ git commit -m "..."
 6. ✅ Comprehensive test coverage (7-8 tests per language)
 
 **Metrics**:
+
 - Total languages refactored: 13/13 (100%)
 - Average code reduction: 62.5%
 - Languages exceeding 70% reduction: 6 languages (Ruby, Dart, Elixir, Kotlin, Clojure, Node.js)
@@ -381,6 +409,7 @@ git commit -m "..."
 - Combined LOC reduction: Estimated 12,000+ LOC removed
 
 **Key Achievements**:
+
 - Established consistent TDD pattern (RED → GREEN → REFACTOR → CLEANUP) across all languages
 - Created reusable template for minimal SDK architecture
 - Unified all 16 languages (including Phase 22 Tier 1) under TOML-based workflow

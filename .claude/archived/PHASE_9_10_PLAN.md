@@ -29,17 +29,20 @@ Clients in Any Language (PyArrow, R, Go, Java, C#, Node.js, etc.)
 ## Problem Statement
 
 ### Current State
+
 - Arrow schemas defined in Rust code (type definitions)
 - EntityEvent, User schemas hardcoded in `fraiseql-arrow`
 - No standard schema format for other languages to reference
 
 ### Gap
+
 - **Python developer**: Can't define Arrow schema without writing Rust
 - **Go backend**: Can't validate Arrow schemas without Rust tooling
 - **Java system**: No way to introspect Arrow schema format
 - **TypeScript web app**: Can't understand Arrow table structure
 
 ### Impact
+
 - Schema validation happens only in Rust
 - Other languages guess schema structure
 - Schema changes require Rust recompilation
@@ -433,11 +436,13 @@ tests/
 ## Key Difference from Original Plan
 
 ### Original Phase 9.10 (INCORRECT)
+
 - Implement Arrow Flight servers in 5 languages (Go, Java, C#, Node.js, C++)
 - Generate client code in 5 languages
 - Cross-language server interop
 
 ### Revised Phase 9.10 (CORRECT)
+
 - Author Arrow schemas in ANY language (Python, TypeScript, YAML, etc.)
 - Compile to `.arrow-schema` format
 - Single Rust Arrow Flight server
