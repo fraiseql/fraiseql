@@ -4,6 +4,7 @@ import ujson.*
 import scala.io.Source
 import java.nio.file.{Files, Paths}
 import scala.jdk.CollectionConverters.*
+import scala.util.matching.Regex
 
 /**
  * Facade for schema management and minimal types export (TOML-based workflow)
@@ -22,8 +23,56 @@ case class FieldDefinition(
   name: String,
   `type`: String,
   nullable: Boolean = false,
-  description: Option[String] = None
+  description: Option[String] = None,
+  scope: Option[String] = None,
+  scopes: Option[List[String]] = None
 )
+
+/**
+ * Validator for field-level scope format and patterns
+ *
+ * Scope format: action:resource
+ * Examples: read:user.email, admin:*, write:Post.*
+ *
+ * Rules:
+ * - Action: [a-zA-Z_][a-zA-Z0-9_]*
+ * - Resource: [a-zA-Z_][a-zA-Z0-9_.]*|*
+ */
+object ScopeValidator {
+  private val actionPattern: Regex = "^[a-zA-Z_][a-zA-Z0-9_]*$".r
+  private val resourcePattern: Regex = "^([a-zA-Z_][a-zA-Z0-9_.]*|\\*)$".r
+
+  /**
+   * Validates scope format: action:resource
+   *
+   * @param scope The scope string to validate
+   * @return true if valid, false otherwise
+   */
+  def validate(scope: String): Boolean = {
+    if (scope.isEmpty) return false
+    if (scope == "*") return true
+
+    val parts = scope.split(':')
+    if (parts.length != 2) return false
+
+    val action = parts(0)
+    val resource = parts(1)
+
+    if (action.isEmpty || resource.isEmpty) return false
+
+    actionPattern.matches(action) && resourcePattern.matches(resource)
+  }
+
+  /**
+   * Validates a list of scopes
+   *
+   * @param scopes The list of scopes to validate
+   * @return true if all are valid, false otherwise
+   */
+  def validateAll(scopes: List[String]): Boolean = {
+    scopes.nonEmpty && scopes.forall(validate)
+  }
+}
 
 case class TypeInfo(
   name: String,
@@ -88,6 +137,18 @@ object Schema {
             "type" -> fieldMap.getOrElse("type", "String").asInstanceOf[String],
             "nullable" -> fieldMap.getOrElse("nullable", false).asInstanceOf[Boolean]
           )
+
+          // Add scope if present
+          fieldMap.get("scope").foreach { scope =>
+            field("scope") = scope.asInstanceOf[String]
+          }
+
+          // Add scopes if present
+          fieldMap.get("scopes").foreach { scopes =>
+            val scopesList = scopes.asInstanceOf[List[String]]
+            field("scopes") = Arr(scopesList.map(Str(_)): _*)
+          }
+
           field
         }.toList
 
