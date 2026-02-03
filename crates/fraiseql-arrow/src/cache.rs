@@ -32,6 +32,7 @@ struct CacheEntry {
 /// ```no_run
 /// use fraiseql_arrow::cache::QueryCache;
 /// use std::collections::HashMap;
+/// use std::sync::Arc;
 ///
 /// let cache = QueryCache::new(60); // 60-second TTL
 ///

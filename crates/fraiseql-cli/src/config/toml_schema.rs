@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 ///
 /// Expects structure:
-/// ```
+/// ```text
 /// schema/
 /// ├── auth/
 /// │   ├── types.json
