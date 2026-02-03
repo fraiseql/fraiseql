@@ -13,6 +13,7 @@ pub mod query;
 pub mod federation;
 pub mod schema;
 pub mod admin;
+pub mod design;
 pub mod openapi;
 
 // Re-export commonly used types
@@ -39,5 +40,7 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         .route("/admin/reload-schema", post(admin::reload_schema_handler::<A>))
         .route("/admin/cache/clear", post(admin::cache_clear_handler::<A>))
         .route("/admin/config", get(admin::config_handler::<A>))
+        // Design audit endpoints
+        .route("/design/audit", post(design::overall_design_audit_handler::<A>))
         .with_state(state)
 }
