@@ -30,7 +30,7 @@ use crate::{
     routes::{
         PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler,
         graphql_handler, health_handler, introspection_handler, metrics_handler,
-        metrics_json_handler, playground_handler, subscription_handler,
+        metrics_json_handler, playground_handler, subscription_handler, api,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -295,7 +295,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(&self.config.metrics_path, get(metrics_handler::<A>))
                     .route(&self.config.metrics_json_path, get(metrics_json_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
-                    .with_state(state);
+                    .with_state(state.clone());
 
                 app = app.merge(metrics_router);
             } else {
@@ -304,6 +304,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 );
             }
         }
+
+        // Design quality audit API routes
+        info!("Design audit API endpoints available at /api/v1/design/*");
+        let api_router = api::routes(state.clone());
+        app = app.nest("/api/v1", api_router);
 
         // Add HTTP metrics middleware (tracks requests and response status codes)
         // This runs on ALL routes, even when metrics endpoints are disabled
