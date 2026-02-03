@@ -13,6 +13,7 @@ pub mod query;
 pub mod federation;
 pub mod schema;
 pub mod admin;
+pub mod openapi;
 
 // Re-export commonly used types
 pub use types::{ApiResponse, ApiError};
