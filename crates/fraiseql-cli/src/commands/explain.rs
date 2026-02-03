@@ -5,7 +5,6 @@
 use anyhow::Result;
 use fraiseql_core::graphql::{complexity::ComplexityAnalyzer, parse_query};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use crate::output::CommandResult;
 
