@@ -1,0 +1,661 @@
+# CI/CD Integration Guide
+
+**Integrate FraiseQL design quality checks into your development workflow**
+
+This guide shows how to enforce design quality standards in continuous integration pipelines.
+
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [GitHub Actions](#github-actions)
+- [GitLab CI](#gitlab-ci)
+- [CircleCI](#circleci)
+- [Local Pre-commit Hooks](#local-pre-commit-hooks)
+- [Slack Notifications](#slack-notifications)
+- [Failing Builds](#failing-builds)
+- [Design Quality Reports](#design-quality-reports)
+
+---
+
+## Quick Start
+
+### 1. Install Agents
+
+**Python Schema Auditor**:
+```bash
+pip install -r examples/agents/python/requirements.txt
+```
+
+**TypeScript Federation Analyzer**:
+```bash
+cd examples/agents/typescript
+npm install
+npm run build
+```
+
+### 2. Start fraiseql-server
+
+```bash
+cargo build --release -p fraiseql-server
+./target/release/fraiseql-server
+```
+
+Server runs on `http://localhost:8080` by default.
+
+### 3. Run Analysis
+
+**Python**:
+```bash
+python examples/agents/python/schema_auditor.py schema.compiled.json
+```
+
+**TypeScript**:
+```bash
+npx federation-analyzer --schema schema.compiled.json
+```
+
+---
+
+## GitHub Actions
+
+### Setup
+
+1. Add workflow file:
+
+```yaml
+# .github/workflows/design-quality.yml
+name: Design Quality Check
+
+on:
+  pull_request:
+    paths:
+      - 'schema/**'
+      - 'schema.compiled.json'
+      - '*.toml'
+  workflow_dispatch:
+
+jobs:
+  design-quality:
+    runs-on: ubuntu-latest
+    services:
+      fraiseql-server:
+        image: fraiseql/fraiseql-server:latest
+        ports:
+          - 8080:8080
+        env:
+          DATABASE_URL: sqlite::memory:
+          FRAISEQL_SCHEMA_PATH: schema.compiled.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r examples/agents/python/requirements.txt
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/health; then
+              echo "Server ready"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 1
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run design audit
+        run: |
+          python examples/agents/python/schema_auditor.py \
+            schema.compiled.json \
+            --api-endpoint http://localhost:8080 \
+            --output design-audit-report.html
+
+      - name: Check design score
+        run: |
+          python examples/agents/python/schema_auditor.py \
+            schema.compiled.json \
+            --api-endpoint http://localhost:8080 \
+            --fail-if-below 70
+        continue-on-error: true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: design-audit-report
+          path: design-audit-report.html
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('design-audit-report.html', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 📊 Design Quality Audit\nSee artifacts for detailed HTML report'
+            });
+```
+
+### Features
+
+- ✅ Runs on schema changes
+- ✅ Waits for server startup
+- ✅ Generates HTML report
+- ✅ Comments on PR
+- ✅ Fails build if score < 70
+- ✅ Uploads report as artifact
+
+---
+
+## GitLab CI
+
+### Setup
+
+1. Add to `.gitlab-ci.yml`:
+
+```yaml
+design-quality:
+  stage: test
+  image: python:3.11
+  services:
+    - name: fraiseql/fraiseql-server:latest
+      alias: fraiseql-server
+      variables:
+        DATABASE_URL: sqlite::memory:
+        FRAISEQL_SCHEMA_PATH: schema.compiled.json
+  before_script:
+    - pip install -r examples/agents/python/requirements.txt
+    - |
+      for i in {1..30}; do
+        if python -c "import requests; requests.get('http://fraiseql-server:8080/health')" 2>/dev/null; then
+          echo "Server ready"
+          break
+        fi
+        echo "Waiting for server... ($i/30)"
+        sleep 1
+      done
+  script:
+    - |
+      python examples/agents/python/schema_auditor.py \
+        schema.compiled.json \
+        --api-endpoint http://fraiseql-server:8080 \
+        --output design-audit-report.html
+    - |
+      python examples/agents/python/schema_auditor.py \
+        schema.compiled.json \
+        --api-endpoint http://fraiseql-server:8080 \
+        --fail-if-below 70
+  artifacts:
+    paths:
+      - design-audit-report.html
+    reports:
+      # Could generate JUnit XML for GitLab
+      junit: design-audit-results.xml
+    expire_in: 30 days
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+```
+
+### Features
+
+- ✅ Services (containerized server)
+- ✅ Automatic retry logic
+- ✅ Artifacts with expiration
+- ✅ Only runs on MR/main
+- ✅ Blocks merge if score low
+
+---
+
+## CircleCI
+
+### Setup
+
+1. Add to `.circleci/config.yml`:
+
+```yaml
+version: 2.1
+
+jobs:
+  design-quality:
+    docker:
+      - image: cimg/python:3.11
+      - image: fraiseql/fraiseql-server:latest
+        environment:
+          DATABASE_URL: sqlite::memory:
+          FRAISEQL_SCHEMA_PATH: schema.compiled.json
+    steps:
+      - checkout
+
+      - run:
+          name: Install Python dependencies
+          command: pip install -r examples/agents/python/requirements.txt
+
+      - run:
+          name: Wait for fraiseql-server
+          command: |
+            for i in {1..30}; do
+              if curl -f http://localhost:8080/health; then
+                echo "Server ready"
+                exit 0
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 1
+            done
+            echo "Server failed to start"
+            exit 1
+
+      - run:
+          name: Run design audit
+          command: |
+            python examples/agents/python/schema_auditor.py \
+              schema.compiled.json \
+              --api-endpoint http://localhost:8080 \
+              --output design-audit-report.html \
+              --format html
+
+      - run:
+          name: Check design score
+          command: |
+            python examples/agents/python/schema_auditor.py \
+              schema.compiled.json \
+              --api-endpoint http://localhost:8080 \
+              --fail-if-below 70
+
+      - store_artifacts:
+          path: design-audit-report.html
+          destination: design-audit/report.html
+
+workflows:
+  test:
+    jobs:
+      - design-quality:
+          filters:
+            branches:
+              only:
+                - main
+                - /^feature\/.*/
+```
+
+### Features
+
+- ✅ Docker services
+- ✅ Artifact storage
+- ✅ Branch filtering
+- ✅ Workflow orchestration
+
+---
+
+## Local Pre-commit Hooks
+
+### Setup
+
+1. Create `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+# Hook to run design audit before committing
+
+set -e
+
+SCHEMA_FILE="schema.compiled.json"
+API_ENDPOINT="${FRAISEQL_API_ENDPOINT:-http://localhost:8080}"
+THRESHOLD="${DESIGN_QUALITY_THRESHOLD:-70}"
+
+# Check if schema file changed
+if ! git diff --cached --name-only | grep -q "$SCHEMA_FILE"; then
+  exit 0
+fi
+
+echo "Running design quality check..."
+
+# Check if server is running
+if ! curl -f "$API_ENDPOINT/health" > /dev/null 2>&1; then
+  echo "Error: fraiseql-server not running at $API_ENDPOINT"
+  echo "Start server with: fraiseql-server"
+  exit 1
+fi
+
+# Run audit
+python examples/agents/python/schema_auditor.py \
+  "$SCHEMA_FILE" \
+  --api-endpoint "$API_ENDPOINT" \
+  --fail-if-below "$THRESHOLD" \
+  --quiet
+
+if [ $? -eq 0 ]; then
+  echo "✅ Design quality check passed"
+  exit 0
+else
+  echo "❌ Design quality check failed"
+  echo "Fix issues or override with: git commit --no-verify"
+  exit 1
+fi
+```
+
+2. Make executable:
+
+```bash
+chmod +x .git/hooks/pre-commit
+```
+
+3. Install globally (optional):
+
+```bash
+mkdir -p ~/.githooks
+cp .git/hooks/pre-commit ~/.githooks/pre-commit
+chmod +x ~/.githooks/pre-commit
+git config --global core.hooksPath ~/.githooks
+```
+
+### Features
+
+- ✅ Runs before commit
+- ✅ Checks schema changes only
+- ✅ Can override with `--no-verify`
+- ✅ Configurable threshold
+- ✅ Uses environment variables
+
+---
+
+## Slack Notifications
+
+### GitHub Actions
+
+Add to workflow:
+
+```yaml
+- name: Notify Slack
+  if: failure()
+  uses: slackapi/slack-github-action@v1.24.0
+  with:
+    payload: |
+      {
+        "text": "Design quality check failed",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "*Design Quality Alert*\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*PR:* #${{ github.event.pull_request.number }}"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "View Report"
+                },
+                "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }
+            ]
+          }
+        ]
+      }
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+```
+
+### GitLab CI
+
+Add to pipeline:
+
+```yaml
+slack-notify:
+  stage: .post
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST $SLACK_WEBHOOK_URL \
+        -H 'Content-type: application/json' \
+        -d '{
+          "text": "Design quality check failed",
+          "attachments": [{
+            "color": "danger",
+            "fields": [
+              {
+                "title": "Repository",
+                "value": "'$CI_PROJECT_PATH'",
+                "short": true
+              },
+              {
+                "title": "Branch",
+                "value": "'$CI_COMMIT_BRANCH'",
+                "short": true
+              },
+              {
+                "title": "Details",
+                "value": "'$CI_PIPELINE_URL'",
+                "short": false
+              }
+            ]
+          }]
+        }'
+  when: on_failure
+  only:
+    - main
+    - merge_requests
+```
+
+---
+
+## Failing Builds
+
+### Threshold Strategy
+
+```python
+# Different thresholds for different contexts
+if branch == "main":
+    threshold = 90  # Strict for main
+elif pr.is_from_team_member:
+    threshold = 75  # Reasonable for team
+else:
+    threshold = 60  # Lenient for contributors
+```
+
+### Exit Codes
+
+```
+0: Score >= threshold (pass)
+1: Score < threshold (fail)
+2: API error (fail, but different)
+3: Configuration error
+```
+
+### Gradual Enforcement
+
+```bash
+# Week 1: Report only (no blocking)
+python schema_auditor.py --fail-if-below 0
+
+# Week 2: Warn at 50
+python schema_auditor.py --fail-if-below 50
+
+# Week 3: Enforce at 70
+python schema_auditor.py --fail-if-below 70
+
+# Week 4: Enforce at 80 (production standard)
+python schema_auditor.py --fail-if-below 80
+```
+
+---
+
+## Design Quality Reports
+
+### Historical Tracking
+
+Store reports for trend analysis:
+
+```bash
+# Save report with timestamp
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+python schema_auditor.py \
+  schema.compiled.json \
+  --output "reports/design-audit-$TIMESTAMP.json" \
+  --format json
+```
+
+### Dashboard Example
+
+```html
+<!-- Simple HTML dashboard -->
+<html>
+<head>
+  <title>Design Quality Trend</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>Design Quality Trend</h1>
+  <canvas id="trendChart"></canvas>
+
+  <script>
+    const reports = [
+      { date: '2024-01-01', score: 65 },
+      { date: '2024-01-02', score: 68 },
+      { date: '2024-01-03', score: 72 },
+      { date: '2024-01-04', score: 75 },
+    ];
+
+    new Chart(document.getElementById('trendChart'), {
+      type: 'line',
+      data: {
+        labels: reports.map(r => r.date),
+        datasets: [{
+          label: 'Design Score',
+          data: reports.map(r => r.score),
+          borderColor: '#667eea',
+          fill: false,
+        }],
+      },
+      options: {
+        scales: {
+          y: { min: 0, max: 100 }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+```
+
+---
+
+## Best Practices
+
+### 1. **Progressive Enforcement**
+
+Start lenient, gradually increase standards:
+
+```yaml
+# Month 1: Informational only
+fail_threshold: 0
+
+# Month 2: Warn at medium
+fail_threshold: 60
+
+# Month 3: Enforce at good
+fail_threshold: 75
+
+# Month 4+: Enforce at excellent
+fail_threshold: 85
+```
+
+### 2. **Team Communication**
+
+Send results to Slack/Discord:
+
+```bash
+# Extract score from JSON report
+SCORE=$(jq '.data.overall_score' report.json)
+echo "Design Quality Score: $SCORE/100" > /dev/slack
+```
+
+### 3. **Exemptions**
+
+Allow explicit overrides for well-justified exceptions:
+
+```bash
+# Skip if approved by architect
+if git log -1 --format=%B | grep -q "DESIGN-OVERRIDE: APPROVED"; then
+  exit 0
+fi
+```
+
+### 4. **Benchmarking**
+
+Track improvement over time:
+
+```bash
+# Compare to previous version
+PREV_SCORE=$(git show HEAD:design-score.txt)
+CURR_SCORE=$(python schema_auditor.py --json | jq '.data.overall_score')
+echo "Score: $PREV_SCORE → $CURR_SCORE"
+```
+
+---
+
+## Troubleshooting
+
+### Server Not Found
+
+```bash
+# Check server is running
+curl http://localhost:8080/health
+
+# Start server
+cargo run -p fraiseql-server
+
+# Or use Docker
+docker run -p 8080:8080 fraiseql/fraiseql-server
+```
+
+### Schema Compilation Failure
+
+```bash
+# Compile schema first
+fraiseql-cli compile schema.json -o schema.compiled.json
+
+# Then run audit
+python schema_auditor.py schema.compiled.json
+```
+
+### API Errors
+
+```bash
+# Check API endpoint
+curl http://api.example.com/api/v1/design/audit
+
+# Enable verbose logging
+RUST_LOG=debug fraiseql-server
+```
+
+---
+
+## Next Steps
+
+- Run on all PRs with `fail-if-below 75`
+- Set up Slack notifications for failures
+- Create dashboard for historical tracking
+- Train team on design patterns
+- Review and fix violations
+
+See [LINTING_RULES.md](./LINTING_RULES.md) for how to fix specific violations.
