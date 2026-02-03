@@ -1,5 +1,6 @@
 //! HTTP routes.
 
+pub mod api;
 pub mod graphql;
 pub mod health;
 pub mod introspection;
