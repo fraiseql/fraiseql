@@ -20,7 +20,7 @@
 #![allow(clippy::struct_excessive_bools)] // IntermediateAutoParams uses bools for flags
 #![allow(clippy::derive_partial_eq_without_eq)] // Some structs shouldn't implement Eq
 
-use std::process;
+use std::{process, str::FromStr};
 
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -127,6 +127,25 @@ enum Commands {
         query: String,
     },
 
+    /// Analyze schema for optimization opportunities
+    ///
+    /// Provides recommendations across 6 categories:
+    /// performance, security, federation, complexity, caching, indexing
+    Analyze {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+    },
+
+    /// Export federation dependency graph
+    ///
+    /// Visualize federation structure in multiple formats.
+    Federation {
+        /// Schema path (positional argument passed to subcommand)
+        #[command(subcommand)]
+        command: FederationCommands,
+    },
+
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
     GenerateViews {
         /// Path to schema.json
@@ -210,6 +229,20 @@ enum ValidateCommands {
 }
 
 #[derive(Subcommand)]
+enum FederationCommands {
+    /// Export federation graph
+    Graph {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output format (json, dot, mermaid)
+        #[arg(short, long, value_name = "FORMAT", default_value = "json")]
+        format: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum IntrospectCommands {
     /// Introspect database for fact tables (tf_* tables)
     Facts {
@@ -271,6 +304,32 @@ async fn main() {
                 Ok(())
             },
             Err(e) => Err(e),
+        },
+
+        Commands::Analyze { schema } => match commands::analyze::run(&schema) {
+            Ok(result) => {
+                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                Ok(())
+            },
+            Err(e) => Err(e),
+        },
+
+        Commands::Federation { command } => match command {
+            FederationCommands::Graph { schema, format } => {
+                match commands::federation::graph::GraphFormat::from_str(&format) {
+                    Ok(fmt) => match commands::federation::graph::run(&schema, fmt) {
+                        Ok(result) => {
+                            println!(
+                                "{}",
+                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                            );
+                            Ok(())
+                        },
+                        Err(e) => Err(e),
+                    },
+                    Err(e) => Err(anyhow::anyhow!(e)),
+                }
+            },
         },
 
         Commands::GenerateViews {
