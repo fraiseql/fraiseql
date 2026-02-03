@@ -70,6 +70,168 @@ pub struct DesignAuditResponse {
     pub compilation: CategoryAuditResponse,
 }
 
+/// Federation audit endpoint - JSONB batching analysis
+pub async fn federation_audit_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+    Json(req): Json<DesignAuditRequest>,
+) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
+    let audit = DesignAudit::from_schema_json(&req.schema.to_string())
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema: {}", e)))?;
+
+    let issues: Vec<DesignIssueResponse> = audit
+        .federation_issues
+        .iter()
+        .map(|issue| DesignIssueResponse {
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
+            suggestion: issue.suggestion.clone(),
+            affected: issue.entity.clone(),
+        })
+        .collect();
+
+    let score = if issues.is_empty() {
+        100
+    } else {
+        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 10)).clamp(0, 100) as u8
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data: CategoryAuditResponse { score, issues },
+    }))
+}
+
+/// Cost audit endpoint - Compiled query determinism analysis
+pub async fn cost_audit_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+    Json(req): Json<DesignAuditRequest>,
+) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
+    let audit = DesignAudit::from_schema_json(&req.schema.to_string())
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema: {}", e)))?;
+
+    let issues: Vec<DesignIssueResponse> = audit
+        .cost_warnings
+        .iter()
+        .map(|warning| DesignIssueResponse {
+            severity: format!("{:?}", warning.severity).to_lowercase(),
+            message: warning.message.clone(),
+            suggestion: warning.suggestion.clone(),
+            affected: warning
+                .worst_case_complexity
+                .map(|c| format!("complexity: {}", c)),
+        })
+        .collect();
+
+    let score = if issues.is_empty() {
+        100
+    } else {
+        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 8)).clamp(0, 100) as u8
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data: CategoryAuditResponse { score, issues },
+    }))
+}
+
+/// Cache audit endpoint - JSONB coherency analysis
+pub async fn cache_audit_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+    Json(req): Json<DesignAuditRequest>,
+) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
+    let audit = DesignAudit::from_schema_json(&req.schema.to_string())
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema: {}", e)))?;
+
+    let issues: Vec<DesignIssueResponse> = audit
+        .cache_issues
+        .iter()
+        .map(|issue| DesignIssueResponse {
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
+            suggestion: issue.suggestion.clone(),
+            affected: issue.affected.clone(),
+        })
+        .collect();
+
+    let score = if issues.is_empty() {
+        100
+    } else {
+        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 6)).clamp(0, 100) as u8
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data: CategoryAuditResponse { score, issues },
+    }))
+}
+
+/// Authorization audit endpoint - Auth boundary analysis
+pub async fn auth_audit_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+    Json(req): Json<DesignAuditRequest>,
+) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
+    let audit = DesignAudit::from_schema_json(&req.schema.to_string())
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema: {}", e)))?;
+
+    let issues: Vec<DesignIssueResponse> = audit
+        .auth_issues
+        .iter()
+        .map(|issue| DesignIssueResponse {
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
+            suggestion: issue.suggestion.clone(),
+            affected: issue.affected_field.clone(),
+        })
+        .collect();
+
+    let score = if issues.is_empty() {
+        100
+    } else {
+        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 12)).clamp(0, 100) as u8
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data: CategoryAuditResponse { score, issues },
+    }))
+}
+
+/// Compilation audit endpoint - Type suitability analysis
+pub async fn compilation_audit_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+    Json(req): Json<DesignAuditRequest>,
+) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
+    let audit = DesignAudit::from_schema_json(&req.schema.to_string())
+        .map_err(|e| ApiError::parse_error(format!("Invalid schema: {}", e)))?;
+
+    let issues: Vec<DesignIssueResponse> = audit
+        .schema_issues
+        .iter()
+        .map(|issue| DesignIssueResponse {
+            severity: format!("{:?}", issue.severity).to_lowercase(),
+            message: issue.message.clone(),
+            suggestion: issue.suggestion.clone(),
+            affected: issue.affected_type.clone(),
+        })
+        .collect();
+
+    let score = if issues.is_empty() {
+        100
+    } else {
+        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 10)).clamp(0, 100) as u8
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data: CategoryAuditResponse { score, issues },
+    }))
+}
+
 /// Overall design audit endpoint
 pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
@@ -149,31 +311,36 @@ pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
     let fed_score = if federation_issues.is_empty() {
         100
     } else {
-        (100u32 - (federation_issues.len() as u32 * 10)).max(0).min(100) as u8
+        let count = u32::try_from(federation_issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 10)).clamp(0, 100) as u8
     };
 
     let cost_score = if cost_issues.is_empty() {
         100
     } else {
-        (100u32 - (cost_issues.len() as u32 * 8)).max(0).min(100) as u8
+        let count = u32::try_from(cost_issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 8)).clamp(0, 100) as u8
     };
 
     let cache_score = if cache_issues.is_empty() {
         100
     } else {
-        (100u32 - (cache_issues.len() as u32 * 6)).max(0).min(100) as u8
+        let count = u32::try_from(cache_issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 6)).clamp(0, 100) as u8
     };
 
     let auth_score = if auth_issues.is_empty() {
         100
     } else {
-        (100u32 - (auth_issues.len() as u32 * 12)).max(0).min(100) as u8
+        let count = u32::try_from(auth_issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 12)).clamp(0, 100) as u8
     };
 
     let comp_score = if compilation_issues.is_empty() {
         100
     } else {
-        (100u32 - (compilation_issues.len() as u32 * 10)).max(0).min(100) as u8
+        let count = u32::try_from(compilation_issues.len()).unwrap_or(u32::MAX);
+        (100u32 - (count * 10)).clamp(0, 100) as u8
     };
 
     let response = DesignAuditResponse {

@@ -41,7 +41,7 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                 for field in fields {
                     if let Some(multiplier) = field.get("complexity_multiplier").and_then(|v| v.as_u64()) {
                         let current = type_multipliers.entry(type_name.clone()).or_insert(0);
-                        *current = (*current as u64 + multiplier).min(10000) as u32;
+                        *current = (u64::from(*current) + multiplier).min(10000) as u32;
                     }
                 }
             }
@@ -68,7 +68,7 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                             // Calculate compound complexity
                             let base_multiplier = field.get("complexity_multiplier").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                             let inner_multiplier = type_multipliers.get(&inner_type).copied().unwrap_or(0);
-                            let compound = u32::try_from((base_multiplier as u64 * inner_multiplier as u64).min(10000)).unwrap_or(10000);
+                            let compound = u32::try_from((u64::from(base_multiplier) * u64::from(inner_multiplier)).min(10000)).unwrap_or(10000);
 
                             if compound > 1000 || base_multiplier > 50 {
                                 let severity = if compound > 5000 {

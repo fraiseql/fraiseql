@@ -67,7 +67,7 @@ fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
             if *count >= 3 {
                 let subgraph_list = entity_subgraphs
                     .get(entity)
-                    .map(|sgs| sgs.clone())
+                    .cloned()
                     .unwrap_or_default();
 
                 // Issue a warning for JSONB fragmentation

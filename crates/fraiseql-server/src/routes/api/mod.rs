@@ -41,6 +41,11 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         .route("/admin/cache/clear", post(admin::cache_clear_handler::<A>))
         .route("/admin/config", get(admin::config_handler::<A>))
         // Design audit endpoints
+        .route("/design/federation-audit", post(design::federation_audit_handler::<A>))
+        .route("/design/cost-audit", post(design::cost_audit_handler::<A>))
+        .route("/design/cache-audit", post(design::cache_audit_handler::<A>))
+        .route("/design/auth-audit", post(design::auth_audit_handler::<A>))
+        .route("/design/compilation-audit", post(design::compilation_audit_handler::<A>))
         .route("/design/audit", post(design::overall_design_audit_handler::<A>))
         .with_state(state)
 }

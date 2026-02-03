@@ -146,6 +146,16 @@ enum Commands {
         command: FederationCommands,
     },
 
+    /// Lint schema for FraiseQL design quality
+    ///
+    /// Analyzes schema using FraiseQL-calibrated design rules.
+    /// Detects JSONB batching issues, compilation problems, auth boundaries, etc.
+    Lint {
+        /// Path to schema.json or schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+    },
+
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
     GenerateViews {
         /// Path to schema.json
@@ -307,6 +317,14 @@ async fn main() {
         },
 
         Commands::Analyze { schema } => match commands::analyze::run(&schema) {
+            Ok(result) => {
+                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                Ok(())
+            },
+            Err(e) => Err(e),
+        },
+
+        Commands::Lint { schema } => match commands::lint::run(&schema) {
             Ok(result) => {
                 println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
                 Ok(())

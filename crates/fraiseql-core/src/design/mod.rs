@@ -238,19 +238,19 @@ impl DesignAudit {
         let mut issues = Vec::new();
 
         for issue in &self.federation_issues {
-            issues.push(format!("{}: {}", format!("{:?}", issue.severity), issue.message));
+            issues.push(format!("{:?}: {}", issue.severity, issue.message));
         }
         for warning in &self.cost_warnings {
-            issues.push(format!("{}: {}", format!("{:?}", warning.severity), warning.message));
+            issues.push(format!("{:?}: {}", warning.severity, warning.message));
         }
         for issue in &self.cache_issues {
-            issues.push(format!("{}: {}", format!("{:?}", issue.severity), issue.message));
+            issues.push(format!("{:?}: {}", issue.severity, issue.message));
         }
         for issue in &self.auth_issues {
-            issues.push(format!("{}: {}", format!("{:?}", issue.severity), issue.message));
+            issues.push(format!("{:?}: {}", issue.severity, issue.message));
         }
         for issue in &self.schema_issues {
-            issues.push(format!("{}: {}", format!("{:?}", issue.severity), issue.message));
+            issues.push(format!("{:?}: {}", issue.severity, issue.message));
         }
 
         issues
