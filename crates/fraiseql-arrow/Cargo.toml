@@ -40,6 +40,9 @@ async-trait = "0.1"
 # Date/time parsing
 chrono = { version = "0.4", features = ["serde"] }
 
+# UUID generation (used in handshake for session tokens)
+uuid = { version = "1", features = ["v4"] }
+
 # FraiseQL core (for Executor and query execution)
 # Must have arrow feature enabled for RecordBatch support
 fraiseql-core = { path = "../fraiseql-core", features = ["arrow"] }
@@ -49,6 +52,7 @@ clickhouse = { version = "0.14", features = ["inserter"], optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
+tokio-stream = "0.1"
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"] }
 tempfile = "3"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
