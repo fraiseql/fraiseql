@@ -478,3 +478,43 @@ fn test_prometheus_config_exists() {
         "Prometheus configuration must exist"
     );
 }
+
+// ============================================================================
+// Cycle 10.8: Deployment Security Guide & Documentation
+// ============================================================================
+
+#[test]
+fn test_deployment_guide_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("docs/DEPLOYMENT.md").exists(),
+        "Deployment guide must exist"
+    );
+}
+
+#[test]
+fn test_deployment_security_guide_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("docs/DEPLOYMENT_SECURITY.md").exists(),
+        "Deployment security guide must exist"
+    );
+}
+
+#[test]
+fn test_deployment_checklist_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("docs/DEPLOYMENT_CHECKLIST.md").exists(),
+        "Deployment checklist must exist"
+    );
+}
+
+#[test]
+fn test_deployment_runbooks_exist() {
+    let root = workspace_root();
+    assert!(
+        root.join("docs/DEPLOYMENT_RUNBOOKS.md").exists(),
+        "Deployment runbooks must exist"
+    );
+}
