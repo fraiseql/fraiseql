@@ -2,14 +2,16 @@
 
 ## Executive Summary
 
-**MAJOR MILESTONE**: Successfully completed Phase 1, Phase 7, and Phase 8 of the FraiseQL stub implementation. Federation saga pattern now fully functional with forward execution, LIFO compensation, and comprehensive state tracking. All 1464 fraiseql-core tests passing.
+**MAJOR MILESTONE**: Successfully completed Phase 1-3 (Arrow Flight core + auth + metadata) and Phase 7-8 (Federation saga pattern). Arrow Flight server now handles GraphQL queries with JWT authentication, schema metadata, and admin actions. All 73 fraiseql-arrow tests + 1464 fraiseql-core tests passing.
 
 **Status**:
 - ✅ Phase 1: Arrow Flight Core Integration - COMPLETE
+- ✅ Phase 2: Arrow Flight Authentication - COMPLETE
+- ✅ Phase 3: Arrow Flight Metadata & Actions - COMPLETE
+- 🟡 Phase 4-6: API Endpoint Infrastructure - READY TO START
 - ✅ Phase 7: Federation Saga Execution - COMPLETE
 - ✅ Phase 8: Federation Saga Compensation - COMPLETE
 - 🟡 Phase 9: Federation Saga Integration - READY TO START
-- 🟢 Phases 2-6: Arrow Flight Extensions - UNBLOCKED
 
 ## Completed Work (5 Commits - Phase 1 Complete)
 
@@ -199,10 +201,10 @@ No clippy warnings, clean compilation, circular dependency resolved.
 - **2.1**: ✅ COMPLETE - Implement handshake() with JWT extraction
 - **2.2**: ✅ COMPLETE - Add SecurityContext Integration
 
-### Phase 3: Arrow Flight Metadata & Actions (🟢 READY - no blockers)
-- **3.1**: 🟡 READY - Implement get_flight_info()
-- **3.2**: 🟡 READY - Implement do_action() + list_actions()
-- **3.3**: 🟡 READY - Observer Events Integration
+### Phase 3: Arrow Flight Metadata & Actions ✅ COMPLETE
+- **3.1**: ✅ COMPLETE - Implement get_flight_info()
+- **3.2**: ✅ COMPLETE - Implement do_action() + list_actions()
+- **3.3**: 🟢 DEFERRED - Observer Events Integration (Phase 19+)
 
 ### Phase 4: API Endpoint Infrastructure (🟢 READY - no blockers)
 - **4.1**: 🟡 READY - Extend AppState with Cache
@@ -250,6 +252,43 @@ No clippy warnings, clean compilation, circular dependency resolved.
 **Files Modified**:
 - `crates/fraiseql-arrow/src/flight_server.rs` (+195 lines)
 - `crates/fraiseql-arrow/Cargo.toml` (added uuid dependency)
+
+### Phase 3: Arrow Flight Metadata & Actions ✅ COMPLETE
+**Commits**:
+- `58124dc3 - feat(arrow): Implement get_flight_info for Arrow Flight schema retrieval`
+- `dcf28aba - feat(arrow): Implement do_action and list_actions for Flight operations`
+
+**Cycles Completed**:
+- ✅ 3.1: Get Flight Info for schema metadata
+  - Extracts FlightTicket from FlightDescriptor path
+  - Returns appropriate schema based on ticket type
+  - Supports: GraphQLQuery, ObserverEvents, OptimizedView, BulkExport, BatchedQueries
+  - Serializes schema to Arrow IPC format
+  - 2 tests covering valid and invalid views
+
+- ✅ 3.2: Do Action & List Actions for admin operations
+  - Implements three Flight actions: ClearCache, RefreshSchemaRegistry, HealthCheck
+  - Returns ActionType stream with descriptions
+  - Handles unknown actions with proper error codes
+  - 3 tests covering action enumeration and execution
+
+**Implementation Details**:
+- FlightTicket encoding: JSON serialization for human readability during development
+- Schema retrieval: Direct lookup from schema registry for optimized views
+- Action handlers: Simple stream-based responses without async complexity
+- State management: Cache clearing, health status reporting
+
+**Files Modified**:
+- `crates/fraiseql-arrow/src/flight_server.rs` (+382 lines, Phase 3.1 + 3.2)
+
+**Test Results**:
+- ✅ All 73 fraiseql-arrow tests passing (70 → 73)
+- New tests added:
+  - test_get_flight_info_for_optimized_view
+  - test_get_flight_info_invalid_view
+  - test_list_actions_returns_action_types
+  - test_do_action_health_check
+  - test_do_action_unknown_action
 
 ### Phase 8: Federation Saga Compensation ✅ COMPLETE
 - **Status**: ✅ COMPLETE - All 4 cycles implemented
