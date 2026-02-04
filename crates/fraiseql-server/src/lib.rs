@@ -111,6 +111,9 @@ pub mod auth;
 // Secrets management
 pub mod secrets;
 
+// Phase 12: Secrets Manager Interface
+pub mod secrets_manager;
+
 // Backup and disaster recovery
 pub mod backup;
 
