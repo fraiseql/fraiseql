@@ -75,6 +75,9 @@ pub mod fragments;
 /// Query complexity analysis and DoS prevention.
 pub mod complexity;
 
+/// Field-level RBAC directive (@require_permission).
+pub mod require_permission_directive;
+
 // ============================================================================
 // Re-exports for convenient access
 // ============================================================================
@@ -87,7 +90,15 @@ pub use directive_evaluator::{
 pub use fragment_resolver::{FragmentError, FragmentResolver};
 pub use fragments::FragmentGraph;
 pub use parser::parse_query;
+pub use require_permission_directive::RequirePermissionDirective;
 pub use types::{
     Directive, FieldSelection, FragmentDefinition, GraphQLArgument, GraphQLType, ParsedQuery,
     VariableDefinition,
 };
+
+// ============================================================================
+// Test modules
+// ============================================================================
+
+#[cfg(test)]
+mod directive_rbac_tests;
