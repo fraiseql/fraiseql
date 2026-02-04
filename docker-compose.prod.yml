@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  fraiseql:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8815:8815"
+    environment:
+      RUST_LOG: warn
+      DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD}@postgres:5432/fraiseql
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fraiseql-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8815/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: fraiseql
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-net
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --appendfsync everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fraiseql-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./tools/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - fraiseql-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+
+networks:
+  fraiseql-net:
+    driver: bridge

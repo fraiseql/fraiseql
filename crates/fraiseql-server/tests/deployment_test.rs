@@ -409,3 +409,41 @@ fn test_hardened_manifest_security_hardening() {
         "Must address read-only filesystem"
     );
 }
+
+// ============================================================================
+// Cycle 10.6: Docker Compose & Local Development
+// ============================================================================
+
+#[test]
+fn test_docker_compose_prod_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("docker-compose.prod.yml").exists(),
+        "docker-compose.prod.yml must exist"
+    );
+}
+
+#[test]
+fn test_env_example_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join(".env.example").exists(),
+        ".env.example must exist for configuration reference"
+    );
+}
+
+#[test]
+fn test_docker_compose_files_valid_yaml() {
+    let root = workspace_root();
+    let files = vec![
+        root.join("docker-compose.yml"),
+        root.join("docker-compose.prod.yml"),
+    ];
+
+    for path in files {
+        let content = fs::read_to_string(&path)
+            .expect(&format!("Failed to read {:?}", path));
+        let _: serde_yaml::Value = serde_yaml::from_str(&content)
+            .expect(&format!("{:?} must be valid YAML", path));
+    }
+}
