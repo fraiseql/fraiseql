@@ -1,4 +1,4 @@
-// Phase 12.3 Cycle 4: Mapper Integration (GREEN)
+// Phase 12.3 Cycle 4: Mapper Integration (REFACTOR)
 //! Mapper integration for transparent field-level encryption/decryption
 //!
 //! Provides automatic encryption on write operations and decryption on read
@@ -16,6 +16,38 @@
 //! - Batch operation support
 //! - Transaction awareness
 //! - Comprehensive error handling
+//!
+//! # Usage Pattern
+//!
+//! ```ignore
+//! // Create mapper with encrypted field configuration
+//! let mapper = FieldMapper::new(
+//!     adapter,
+//!     vec!["email".to_string(), "phone".to_string()]
+//! );
+//!
+//! // On INSERT: encrypt plaintext
+//! let encrypted = mapper.encrypt_field("email", "user@example.com").await?;
+//!
+//! // On SELECT: decrypt ciphertext
+//! let plaintext = mapper.decrypt_field("email", &ciphertext).await?;
+//!
+//! // Batch operations
+//! let mappings = mapper.encrypt_fields(&[
+//!     ("email".to_string(), "user@example.com".to_string()),
+//!     ("name".to_string(), "John Doe".to_string()),
+//! ]).await?;
+//! ```
+//!
+//! # Type Support
+//!
+//! The mapper works with any data that can be converted to/from UTF-8:
+//! - Strings (primary use case)
+//! - Numbers (as strings)
+//! - Dates/times (as formatted strings)
+//! - JSON (as JSON strings)
+//! - UUIDs (as UUID strings)
+//! - Custom types (via ToString/FromStr)
 
 use super::database_adapter::{DatabaseFieldAdapter, EncryptedFieldAdapter};
 use crate::secrets_manager::SecretsError;
@@ -244,6 +276,35 @@ impl FieldMapper {
     pub fn has_encrypted_fields(&self) -> bool {
         !self.field_encryption_map.is_empty()
     }
+
+    /// Register field for encryption
+    ///
+    /// Can be used to dynamically add encrypted fields after mapper creation.
+    pub fn register_encrypted_field(&mut self, field_name: impl Into<String>) {
+        self.field_encryption_map.insert(field_name.into(), true);
+    }
+
+    /// Unregister field from encryption
+    pub fn unregister_encrypted_field(&mut self, field_name: &str) {
+        self.field_encryption_map.remove(field_name);
+    }
+
+    /// Get count of encrypted fields
+    pub fn encrypted_field_count(&self) -> usize {
+        self.field_encryption_map.len()
+    }
+
+    /// Validate field encryption configuration
+    ///
+    /// Returns error if configuration is inconsistent or incomplete.
+    pub fn validate_configuration(&self) -> Result<(), SecretsError> {
+        if self.encrypted_fields().is_empty() {
+            return Err(SecretsError::ValidationError(
+                "No encrypted fields configured".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -312,5 +373,19 @@ mod tests {
 
         let empty_map: HashMap<String, bool> = HashMap::new();
         assert!(empty_map.is_empty());
+    }
+
+    #[test]
+    fn test_field_mapping_not_encrypted() {
+        let mapping = FieldMapping::new("name", false, b"John Doe".to_vec());
+        assert_eq!(mapping.field_name(), "name");
+        assert!(!mapping.is_encrypted());
+    }
+
+    #[test]
+    fn test_field_mapping_value_access() {
+        let data = b"sensitive data".to_vec();
+        let mapping = FieldMapping::new("field", true, data.clone());
+        assert_eq!(mapping.value(), data.as_slice());
     }
 }
