@@ -447,3 +447,34 @@ fn test_docker_compose_files_valid_yaml() {
             .expect(&format!("{:?} must be valid YAML", path));
     }
 }
+
+// ============================================================================
+// Cycle 10.7: SBOM Generation & Vulnerability Scanning
+// ============================================================================
+
+#[test]
+fn test_sbom_generation_script_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("tools/generate-sbom.sh").exists(),
+        "SBOM generation script must exist"
+    );
+}
+
+#[test]
+fn test_vulnerability_scan_script_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("tools/scan-vulnerabilities.sh").exists(),
+        "Vulnerability scan script must exist"
+    );
+}
+
+#[test]
+fn test_prometheus_config_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("tools/prometheus.yml").exists(),
+        "Prometheus configuration must exist"
+    );
+}
