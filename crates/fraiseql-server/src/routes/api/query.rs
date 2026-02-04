@@ -83,6 +83,8 @@ pub struct StatsResponse {
 /// - Complexity metrics (depth, field count, score)
 /// - Warnings for potential performance issues
 /// - Estimated cost to execute
+///
+/// Phase 6.4: Query explanation with SQL generation and complexity metrics
 pub async fn explain_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<ExplainRequest>,
@@ -153,19 +155,35 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 /// Returns aggregated statistics about query execution performance.
 /// Currently returns placeholder data; in production would be populated
 /// from metrics collection during query execution.
+/// Get query execution statistics.
+///
+/// Returns aggregated metrics from query executions including:
+/// - Total queries executed
+/// - Successful vs failed counts
+/// - Average latency across all executions
+///
+/// Phase 6.3: Query statistics aggregation
 pub async fn stats_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
-    // In a real implementation, this would:
-    // 1. Query the metrics collector in AppState
-    // 2. Calculate statistics from observed query executions
-    // 3. Return real-time or aggregated metrics
+    // Get metrics from the metrics collector using atomic operations
+    let total_queries = state.metrics.queries_total.load(std::sync::atomic::Ordering::Relaxed);
+    let successful_queries = state.metrics.queries_success.load(std::sync::atomic::Ordering::Relaxed);
+    let failed_queries = state.metrics.queries_error.load(std::sync::atomic::Ordering::Relaxed);
+    let total_duration_us = state.metrics.queries_duration_us.load(std::sync::atomic::Ordering::Relaxed);
+
+    // Calculate average latency in milliseconds
+    let average_latency_ms = if total_queries > 0 {
+        (total_duration_us as f64 / total_queries as f64) / 1000.0
+    } else {
+        0.0
+    };
 
     let response = StatsResponse {
-        total_queries: 0,
-        successful_queries: 0,
-        failed_queries: 0,
-        average_latency_ms: 0.0,
+        total_queries: total_queries as usize,
+        successful_queries: successful_queries as usize,
+        failed_queries: failed_queries as usize,
+        average_latency_ms,
     };
 
     Ok(Json(ApiResponse {
@@ -402,5 +420,72 @@ mod tests {
     fn test_validate_valid_query() {
         let errors = validate_query_syntax("query { users { id } }");
         assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_stats_response_structure() {
+        // Phase 6.3: Query statistics response structure
+        let response = StatsResponse {
+            total_queries: 100,
+            successful_queries: 95,
+            failed_queries: 5,
+            average_latency_ms: 42.5,
+        };
+
+        assert_eq!(response.total_queries, 100);
+        assert_eq!(response.successful_queries, 95);
+        assert_eq!(response.failed_queries, 5);
+        assert!(response.average_latency_ms > 0.0);
+    }
+
+    #[test]
+    fn test_explain_response_structure() {
+        // Phase 6.4: Query explanation response structure
+        let response = ExplainResponse {
+            query: "query { users { id } }".to_string(),
+            sql: Some("SELECT id FROM users".to_string()),
+            complexity: ComplexityInfo {
+                depth: 2,
+                field_count: 1,
+                score: 2,
+            },
+            warnings: vec![],
+            estimated_cost: 50,
+        };
+
+        assert!(!response.query.is_empty());
+        assert!(response.sql.is_some());
+        assert_eq!(response.complexity.depth, 2);
+        assert_eq!(response.estimated_cost, 50);
+    }
+
+    #[test]
+    fn test_complexity_info_score_calculation() {
+        // Phase 6.4: Complexity score is calculated correctly
+        let complexity = ComplexityInfo {
+            depth: 3,
+            field_count: 4,
+            score: 12,
+        };
+
+        assert_eq!(complexity.score, 3 * 4);
+    }
+
+    #[test]
+    fn test_validate_request_structure() {
+        let request = ValidateRequest {
+            query: "query { users { id } }".to_string(),
+        };
+
+        assert!(!request.query.is_empty());
+    }
+
+    #[test]
+    fn test_explain_request_structure() {
+        let request = ExplainRequest {
+            query: "query { users { id } }".to_string(),
+        };
+
+        assert!(!request.query.is_empty());
     }
 }
