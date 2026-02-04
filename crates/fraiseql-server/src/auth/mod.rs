@@ -9,6 +9,7 @@ pub mod handlers;
 pub mod jwt;
 pub mod middleware;
 pub mod monitoring;
+pub mod oauth;
 pub mod oidc_provider;
 pub mod operation_rbac;
 pub mod provider;
@@ -42,6 +43,9 @@ mod rate_limiting_tests;
 #[cfg(test)]
 mod integration_security_tests;
 
+#[cfg(test)]
+mod oauth_tests;
+
 pub use audit_logger::{
     AuditEntry, AuditEventType, AuditLogger, SecretType, StructuredAuditLogger, get_audit_logger,
     init_audit_logger,
@@ -74,4 +78,10 @@ pub use security_config::{
 pub use security_init::{
     init_security_config, init_default_security_config, log_security_config,
     validate_security_config,
+};
+pub use oauth::{
+    OAuth2Client, OIDCClient, OIDCProviderConfig, IdTokenClaims,
+    OAuthSession, ExternalAuthProvider, ProviderRegistry, ProviderType, OAuth2ClientConfig,
+    PKCEChallenge, StateParameter, NonceParameter, TokenRefreshScheduler, ProviderFailoverManager,
+    OAuthAuditEvent,
 };
