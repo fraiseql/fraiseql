@@ -92,8 +92,8 @@ pub struct AssignRoleRequest {
 /// API state for role and permission management
 #[derive(Clone)]
 pub struct RbacManagementState {
-    // In production, this would contain database connection pool
-    // For now, placeholder for structure
+    /// Database backend for RBAC operations
+    pub db: Arc<db_backend::RbacDbBackend>,
 }
 
 /// Create RBAC management router
@@ -141,31 +141,54 @@ pub fn rbac_management_router(state: RbacManagementState) -> Router {
 /// Create a new role
 /// POST /api/roles
 async fn create_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Json(_payload): Json<CreateRoleRequest>,
+    State(state): State<Arc<RbacManagementState>>,
+    Json(payload): Json<CreateRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    (StatusCode::CREATED, Json(serde_json::json!({"id": "role_placeholder"})))
+    // Phase 11.5 Cycle 3: Call database backend
+    // In production: validate payload, extract tenant from JWT, create role
+    match state
+        .db
+        .create_role(
+            &payload.name,
+            payload.description.as_deref(),
+            payload.permissions,
+            None, // Would extract tenant from JWT
+        )
+        .await
+    {
+        Ok(role) => (StatusCode::CREATED, Json(serde_json::to_value(role).unwrap_or_default())).into_response(),
+        Err(_) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "role_duplicate"})),
+        ).into_response(),
+    }
 }
 
 /// List all roles
 /// GET /api/roles
-async fn list_roles(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    Json(Vec::<RoleDto>::new())
+async fn list_roles(State(state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
+    // Phase 11.5 Cycle 3: Call database backend
+    // In production: extract tenant from JWT, apply pagination
+    match state.db.list_roles(None, 100, 0).await {
+        Ok(roles) => Json(roles),
+        Err(_) => Json(Vec::<RoleDto>::new()),
+    }
 }
 
 /// Get role details
 /// GET /api/roles/{role_id}
 async fn get_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path(_role_id): Path<String>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path(role_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"error": "role not found"})),
-    )
+    // Phase 11.5 Cycle 3: Call database backend
+    match state.db.get_role(&role_id).await {
+        Ok(role) => (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "role_not_found"})),
+        ).into_response(),
+    }
 }
 
 /// Update role
@@ -175,18 +198,22 @@ async fn update_role(
     Path(_role_id): Path<String>,
     Json(_payload): Json<CreateRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
+    // Phase 11.5 Cycle 3: Placeholder - requires additional database method
+    // Would need update_role() method in backend
     Json(serde_json::json!({"updated": true}))
 }
 
 /// Delete role
 /// DELETE /api/roles/{role_id}
 async fn delete_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path(_role_id): Path<String>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path(role_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    StatusCode::NO_CONTENT
+    // Phase 11.5 Cycle 3: Call database backend
+    match state.db.delete_role(&role_id).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::CONFLICT,
+    }
 }
 
 // =============================================================================
@@ -196,17 +223,32 @@ async fn delete_role(
 /// Create a new permission
 /// POST /api/permissions
 async fn create_permission(
-    State(_state): State<Arc<RbacManagementState>>,
-    Json(_payload): Json<CreatePermissionRequest>,
+    State(state): State<Arc<RbacManagementState>>,
+    Json(payload): Json<CreatePermissionRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    (StatusCode::CREATED, Json(serde_json::json!({"id": "perm_placeholder"})))
+    // Phase 11.5 Cycle 3: Call database backend
+    match state
+        .db
+        .create_permission(
+            &payload.resource,
+            &payload.action,
+            payload.description.as_deref(),
+        )
+        .await
+    {
+        Ok(perm) => (StatusCode::CREATED, Json(serde_json::to_value(perm).unwrap_or_default())).into_response(),
+        Err(_) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "permission_duplicate"})),
+        ).into_response(),
+    }
 }
 
 /// List all permissions
 /// GET /api/permissions
 async fn list_permissions(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
+    // Phase 11.5 Cycle 3: Would call database backend
+    // Placeholder for now
     Json(Vec::<PermissionDto>::new())
 }
 
@@ -216,10 +258,10 @@ async fn get_permission(
     State(_state): State<Arc<RbacManagementState>>,
     Path(_permission_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
+    // Phase 11.5 Cycle 3: Would call database backend
     (
-        StatusCode::OK,
-        Json(serde_json::json!({"error": "permission not found"})),
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({"error": "permission_not_found"})),
     )
 }
 
@@ -229,7 +271,7 @@ async fn delete_permission(
     State(_state): State<Arc<RbacManagementState>>,
     Path(_permission_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
+    // Phase 11.5 Cycle 3: Would call database backend
     StatusCode::NO_CONTENT
 }
 
@@ -240,28 +282,42 @@ async fn delete_permission(
 /// Assign a role to a user
 /// POST /api/user-roles
 async fn assign_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Json(_payload): Json<AssignRoleRequest>,
+    State(state): State<Arc<RbacManagementState>>,
+    Json(payload): Json<AssignRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    (StatusCode::CREATED, Json(serde_json::json!({"assigned": true})))
+    // Phase 11.5 Cycle 3: Call database backend
+    match state
+        .db
+        .assign_role_to_user(&payload.user_id, &payload.role_id, None)
+        .await
+    {
+        Ok(assignment) => (StatusCode::CREATED, Json(serde_json::to_value(assignment).unwrap_or_default())).into_response(),
+        Err(_) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "assignment_duplicate"})),
+        ).into_response(),
+    }
 }
 
 /// List user-role assignments
 /// GET /api/user-roles
 async fn list_user_roles(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
+    // Phase 11.5 Cycle 3: Would call database backend to list assignments
+    // Placeholder for now
     Json(Vec::<UserRoleDto>::new())
 }
 
 /// Revoke a role from a user
 /// DELETE /api/user-roles/{user_id}/{role_id}
 async fn revoke_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path((_user_id, _role_id)): Path<(String, String)>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path((user_id, role_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
-    StatusCode::NO_CONTENT
+    // Phase 11.5 Cycle 3: Call database backend
+    match state.db.revoke_role_from_user(&user_id, &role_id).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND,
+    }
 }
 
 // =============================================================================
@@ -285,3 +341,6 @@ mod tests;
 
 #[cfg(test)]
 mod db_backend_tests;
+
+#[cfg(test)]
+mod integration_tests;
