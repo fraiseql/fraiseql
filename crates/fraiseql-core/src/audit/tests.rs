@@ -100,7 +100,7 @@ fn test_audit_event_missing_user_id() {
         "create",
         "success",
     );
-    event.user_id = "".to_string();
+    event.user_id = String::new();
 
     assert!(event.validate().is_err());
 }

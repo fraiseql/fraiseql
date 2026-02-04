@@ -104,6 +104,8 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 # UUID
 uuid = {version = "1.0", features = ["v4", "serde"]}
+# Testing utilities
+tempfile = "3.8"
 
 [workspace.lints.clippy]
 # Deny all warnings in CI (priority -1 lets individual lints override)

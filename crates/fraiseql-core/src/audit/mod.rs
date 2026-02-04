@@ -177,21 +177,30 @@ impl AuditEvent {
     }
 
     /// Validate the audit event.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> AuditResult<()> {
         // Validate required fields
         if self.user_id.is_empty() {
-            return Err("user_id cannot be empty".to_string());
+            return Err(AuditError::ValidationError(
+                "user_id cannot be empty".to_string(),
+            ));
         }
 
         // Validate status is one of allowed values
         match self.status.as_str() {
             "success" | "failure" | "denied" => {}
-            _ => return Err(format!("Invalid status: {}", self.status)),
+            _ => {
+                return Err(AuditError::ValidationError(format!(
+                    "Invalid status: {}",
+                    self.status
+                )))
+            }
         }
 
         // Validate that status=failure has error_message
         if self.status == "failure" && self.error_message.is_none() {
-            return Err("failure status requires error_message".to_string());
+            return Err(AuditError::ValidationError(
+                "failure status requires error_message".to_string(),
+            ));
         }
 
         Ok(())
@@ -285,5 +294,14 @@ impl Default for AuditQueryFilters {
     }
 }
 
+/// File-based audit backend
+pub mod file_backend;
+
+// Re-export backends for convenience
+pub use file_backend::FileAuditBackend;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod file_backend_tests;
