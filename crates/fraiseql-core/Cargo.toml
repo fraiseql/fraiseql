@@ -68,9 +68,11 @@ async-trait.workspace = true
 deadpool-postgres.workspace = true
 
 # Arrow Flight integration (optional)
+# Note: fraiseql-arrow depends on fraiseql-core, not the other way around
+# to avoid circular dependency. fraiseql-arrow provides the Flight server
+# and concrete Arrow conversion implementations.
 arrow = {version = "53", optional = true}
 arrow-array = {version = "53", optional = true}
-fraiseql-arrow = {path = "../fraiseql-arrow", optional = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
@@ -92,7 +94,9 @@ test-postgres = []
 test-sqlserver = ["sqlserver"]
 wire-backend = ["fraiseql-wire"]
 # Arrow Flight integration for high-performance analytics
-arrow = ["dep:arrow", "dep:arrow-array", "dep:fraiseql-arrow"]
+# Provides arrow_executor module for Arrow RecordBatch conversion.
+# For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
+arrow = ["dep:arrow", "dep:arrow-array"]
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"

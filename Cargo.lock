@@ -2519,7 +2519,6 @@ dependencies = [
  "dashmap 6.1.0",
  "deadpool",
  "deadpool-postgres",
- "fraiseql-arrow",
  "fraiseql-wire",
  "futures",
  "graphql-parser",
