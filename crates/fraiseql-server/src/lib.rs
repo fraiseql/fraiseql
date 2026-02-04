@@ -114,6 +114,9 @@ pub mod secrets;
 // Phase 12: Secrets Manager Interface
 pub mod secrets_manager;
 
+// Field-level encryption for sensitive database fields
+pub mod encryption;
+
 // Backup and disaster recovery
 pub mod backup;
 
