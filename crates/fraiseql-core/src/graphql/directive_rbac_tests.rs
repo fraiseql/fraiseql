@@ -12,9 +12,13 @@ use std::collections::HashMap;
 use serde_json::json;
 
 use crate::graphql::{
-    directive_evaluator::{DirectiveHandler, DirectiveResult, EvaluationContext, OperationType},
+    directive_evaluator::{
+        CustomDirectiveEvaluator, DirectiveHandler, DirectiveResult, EvaluationContext,
+        OperationType,
+    },
     RequirePermissionDirective, // Re-export for creating handler
 };
+use std::sync::Arc;
 
 // ============================================================================
 // Test 1: Permission Directive Handler Registration
@@ -361,4 +365,39 @@ fn test_permission_matching_case_sensitive() {
         Ok(DirectiveResult::Skip) => {}      // Also acceptable
         _ => panic!("Permissions should be case-sensitive"),
     }
+}
+
+// ============================================================================
+// Test 6: Custom Directive Evaluator Integration
+// ============================================================================
+
+/// Test that RequirePermissionDirective can be registered with CustomDirectiveEvaluator
+#[test]
+fn test_register_with_custom_evaluator() {
+    let directive = Arc::new(RequirePermissionDirective::new());
+    let evaluator = CustomDirectiveEvaluator::new().with_handler(directive);
+
+    // Verify the directive is registered
+    assert!(
+        evaluator.has_handler("require_permission"),
+        "require_permission directive should be registered"
+    );
+
+    let handlers = evaluator.handler_names();
+    assert!(
+        handlers.contains(&"require_permission"),
+        "require_permission should be in handler list"
+    );
+}
+
+/// Test that multiple handlers can be registered
+#[test]
+fn test_multiple_handlers_with_require_permission() {
+    let permission_directive = Arc::new(RequirePermissionDirective::new());
+    let evaluator = CustomDirectiveEvaluator::new()
+        .with_handler(permission_directive);
+
+    assert!(evaluator.has_handler("require_permission"));
+    let handlers = evaluator.handler_names();
+    assert_eq!(handlers.len(), 1);
 }
