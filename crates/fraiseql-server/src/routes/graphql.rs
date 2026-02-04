@@ -159,6 +159,15 @@ impl<A: DatabaseAdapter> AppState<A> {
     pub fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
         self.config.as_ref()
     }
+
+    /// Get sanitized configuration for safe API exposure.
+    ///
+    /// Phase 4.2: Returns configuration with sensitive data redacted
+    pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
+        self.config.as_ref().map(|cfg| {
+            crate::routes::api::types::SanitizedConfig::from_config(cfg)
+        })
+    }
 }
 
 /// GraphQL HTTP handler for POST requests.
@@ -523,6 +532,91 @@ mod tests {
         // Documents: AppState must have server_config() accessor
         let _note = "AppState::server_config() -> Option<&Arc<ServerConfig>>";
         assert!(_note.len() > 0);
+    }
+
+    // Phase 4.2: Tests for Configuration Access with Sanitization
+    #[test]
+    fn test_sanitized_config_from_server_config() {
+        // SanitizedConfig should extract non-sensitive fields
+        use crate::routes::api::types::SanitizedConfig;
+
+        let config = crate::config::ServerConfig {
+            port: 8080,
+            host: "0.0.0.0".to_string(),
+            workers: Some(4),
+            tls: None,
+            limits: None,
+        };
+
+        let sanitized = SanitizedConfig::from_config(&config);
+
+        assert_eq!(sanitized.port, 8080, "Port should be preserved");
+        assert_eq!(sanitized.host, "0.0.0.0", "Host should be preserved");
+        assert_eq!(sanitized.workers, Some(4), "Workers count should be preserved");
+        assert!(!sanitized.tls_enabled, "TLS should be false when not configured");
+        assert!(sanitized.is_sanitized(), "Should be marked as sanitized");
+    }
+
+    #[test]
+    fn test_sanitized_config_indicates_tls_without_exposing_keys() {
+        // SanitizedConfig should indicate TLS is present without exposing keys
+        use crate::routes::api::types::SanitizedConfig;
+        use std::path::PathBuf;
+
+        let config = crate::config::ServerConfig {
+            port: 8080,
+            host: "localhost".to_string(),
+            workers: None,
+            tls: Some(crate::config::TlsConfig {
+                cert_file: PathBuf::from("/path/to/cert.pem"),
+                key_file: PathBuf::from("/path/to/key.pem"),
+            }),
+            limits: None,
+        };
+
+        let sanitized = SanitizedConfig::from_config(&config);
+
+        assert!(sanitized.tls_enabled, "TLS should be true when configured");
+        // Verify that sensitive paths are NOT in the sanitized config
+        let json = serde_json::to_string(&sanitized).unwrap();
+        assert!(!json.contains("cert"), "Certificate file path should not be exposed");
+        assert!(!json.contains("key"), "Key file path should not be exposed");
+    }
+
+    #[test]
+    fn test_sanitized_config_redaction() {
+        // Verify configuration redaction happens correctly
+        use crate::routes::api::types::SanitizedConfig;
+
+        let config1 = crate::config::ServerConfig {
+            port: 8000,
+            host: "127.0.0.1".to_string(),
+            workers: None,
+            tls: None,
+            limits: None,
+        };
+
+        let config2 = crate::config::ServerConfig {
+            port: 8000,
+            host: "127.0.0.1".to_string(),
+            workers: None,
+            tls: Some(crate::config::TlsConfig {
+                cert_file: std::path::PathBuf::from("secret.cert"),
+                key_file: std::path::PathBuf::from("secret.key"),
+            }),
+            limits: None,
+        };
+
+        let san1 = SanitizedConfig::from_config(&config1);
+        let san2 = SanitizedConfig::from_config(&config2);
+
+        // Both should have same public fields
+        assert_eq!(san1.port, san2.port);
+        assert_eq!(san1.host, san2.host);
+
+        // But TLS status should differ
+        assert!(!san1.tls_enabled);
+        assert!(san2.tls_enabled);
     }
 
 }

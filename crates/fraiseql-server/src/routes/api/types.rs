@@ -92,3 +92,50 @@ impl<T: Serialize> ApiResponse<T> {
         })
     }
 }
+
+/// Sanitized server configuration for API exposure.
+///
+/// Phase 4.2: Configuration access with secret redaction
+///
+/// Removes sensitive fields like database URLs, API keys, and tokens
+/// while preserving operational settings for client consumption.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SanitizedConfig {
+    /// Server port
+    pub port: u16,
+
+    /// Server host address
+    pub host: String,
+
+    /// Number of worker threads
+    pub workers: Option<usize>,
+
+    /// Whether TLS is enabled
+    pub tls_enabled: bool,
+
+    /// Indicates configuration has been sanitized
+    pub sanitized: bool,
+}
+
+impl SanitizedConfig {
+    /// Create sanitized configuration from ServerConfig.
+    ///
+    /// Removes sensitive fields:
+    /// - TLS private keys and certificates (replaced with boolean flag)
+    /// - Database connection strings (not included)
+    /// - API keys and tokens (not included)
+    pub fn from_config(config: &crate::config::ServerConfig) -> Self {
+        Self {
+            port: config.port,
+            host: config.host.clone(),
+            workers: config.workers,
+            tls_enabled: config.tls.is_some(),
+            sanitized: true,
+        }
+    }
+
+    /// Verify configuration has been properly sanitized.
+    pub fn is_sanitized(&self) -> bool {
+        self.sanitized
+    }
+}
