@@ -7,11 +7,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AuditLoggingConfig {
+    /// Enable audit logging
     pub enabled:                bool,
-    pub log_level:              String, // "debug", "info", "warn"
+    /// Log level threshold ("debug", "info", "warn")
+    pub log_level:              String,
+    /// Include sensitive data in audit logs
     pub include_sensitive_data: bool,
+    /// Use asynchronous logging
     pub async_logging:          bool,
+    /// Buffer size for async logging
     pub buffer_size:            u32,
+    /// Interval to flush logs in seconds
     pub flush_interval_secs:    u32,
 }
 
@@ -46,11 +52,16 @@ impl AuditLoggingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ErrorSanitizationConfig {
+    /// Enable error sanitization
     pub enabled:                bool,
+    /// Use generic error messages for users
     pub generic_messages:       bool,
+    /// Log full errors internally
     pub internal_logging:       bool,
+    /// Never leak sensitive details (security flag)
     pub leak_sensitive_details: bool,
-    pub user_facing_format:     String, // "generic", "simple", "detailed"
+    /// User-facing error format ("generic", "simple", "detailed")
+    pub user_facing_format:     String,
 }
 
 impl Default for ErrorSanitizationConfig {
@@ -95,7 +106,9 @@ impl ErrorSanitizationConfig {
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RateLimitingPerEndpoint {
+    /// Maximum requests per window
     pub max_requests: u32,
+    /// Time window in seconds
     pub window_secs:  u64,
 }
 
@@ -114,24 +127,32 @@ impl RateLimitingPerEndpoint {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RateLimitConfig {
+    /// Enable rate limiting
     pub enabled: bool,
 
-    // Per-IP limits (public endpoints)
+    /// Max requests for auth start endpoint (per IP)
     pub auth_start_max_requests: u32,
+    /// Time window for auth start in seconds
     pub auth_start_window_secs:  u64,
 
+    /// Max requests for auth callback endpoint (per IP)
     pub auth_callback_max_requests: u32,
+    /// Time window for auth callback in seconds
     pub auth_callback_window_secs:  u64,
 
-    // Per-user limits (authenticated endpoints)
+    /// Max requests for auth refresh endpoint (per user)
     pub auth_refresh_max_requests: u32,
+    /// Time window for auth refresh in seconds
     pub auth_refresh_window_secs:  u64,
 
+    /// Max requests for auth logout endpoint (per user)
     pub auth_logout_max_requests: u32,
+    /// Time window for auth logout in seconds
     pub auth_logout_window_secs:  u64,
 
-    // Failed login limiting
+    /// Max failed login attempts per IP
     pub failed_login_max_requests: u32,
+    /// Time window for failed login tracking in seconds
     pub failed_login_window_secs:  u64,
 }
 
@@ -202,10 +223,15 @@ impl RateLimitConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct StateEncryptionConfig {
+    /// Enable state encryption
     pub enabled:              bool,
-    pub algorithm:            String, // "chacha20-poly1305"
+    /// Encryption algorithm ("chacha20-poly1305")
+    pub algorithm:            String,
+    /// Enable automatic key rotation
     pub key_rotation_enabled: bool,
+    /// Nonce size in bytes (typically 12 for 96-bit)
     pub nonce_size:           u32,
+    /// Key size in bytes (16, 24, or 32)
     pub key_size:             u32,
 }
 
@@ -249,10 +275,15 @@ impl StateEncryptionConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ConstantTimeConfig {
+    /// Enable constant-time comparisons
     pub enabled:                 bool,
+    /// Apply constant-time comparison to JWT tokens
     pub apply_to_jwt:            bool,
+    /// Apply constant-time comparison to session tokens
     pub apply_to_session_tokens: bool,
+    /// Apply constant-time comparison to CSRF tokens
     pub apply_to_csrf_tokens:    bool,
+    /// Apply constant-time comparison to refresh tokens
     pub apply_to_refresh_tokens: bool,
 }
 
@@ -284,9 +315,12 @@ impl ConstantTimeConfig {
 /// Field-level RBAC role definition from fraiseql.toml
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RoleDefinitionConfig {
+    /// Role name identifier
     pub name:        String,
+    /// Role description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Permission scopes assigned to this role
     pub scopes:      Vec<String>,
 }
 
@@ -307,14 +341,19 @@ impl RoleDefinitionConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SecurityConfig {
+    /// Audit logging configuration
     #[serde(rename = "audit_logging")]
     pub audit_logging:      AuditLoggingConfig,
+    /// Error sanitization configuration
     #[serde(rename = "error_sanitization")]
     pub error_sanitization: ErrorSanitizationConfig,
+    /// Rate limiting configuration
     #[serde(rename = "rate_limiting")]
     pub rate_limiting:      RateLimitConfig,
+    /// State encryption configuration
     #[serde(rename = "state_encryption")]
     pub state_encryption:   StateEncryptionConfig,
+    /// Constant-time comparison configuration
     #[serde(rename = "constant_time")]
     pub constant_time:      ConstantTimeConfig,
     /// Field-level RBAC role definitions

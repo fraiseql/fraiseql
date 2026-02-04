@@ -10,26 +10,37 @@ use crate::output::CommandResult;
 
 /// Request for explain command
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ExplainRequest {
+    /// GraphQL query to analyze
     pub query: String,
 }
 
 /// Response with execution plan and complexity info
 #[derive(Debug, Serialize)]
 pub struct ExplainResponse {
+    /// The analyzed query string
     pub query:          String,
+    /// Compiled SQL representation (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sql:            Option<String>,
+    /// Estimated query execution cost
     pub estimated_cost: usize,
+    /// Complexity metrics
     pub complexity:     ComplexityInfo,
+    /// Warnings about query structure
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings:       Vec<String>,
 }
 
+/// Complexity analysis metrics for a query
 #[derive(Debug, Serialize)]
 pub struct ComplexityInfo {
+    /// Maximum nesting depth of the query
     pub depth:       usize,
+    /// Total number of fields requested
     pub field_count: usize,
+    /// Overall complexity score
     pub score:       usize,
 }
 

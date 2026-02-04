@@ -296,8 +296,11 @@ impl Default for DatabaseConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct TypeDefinition {
+    /// SQL source table or view
     pub sql_source:  String,
+    /// Human-readable type description
     pub description: Option<String>,
+    /// Field definitions
     pub fields:      BTreeMap<String, FieldDefinition>,
 }
 
@@ -314,10 +317,13 @@ impl Default for TypeDefinition {
 /// Field definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FieldDefinition {
+    /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
     #[serde(rename = "type")]
-    pub field_type:  String, // ID, String, Int, Boolean, DateTime, etc.
+    pub field_type:  String,
+    /// Whether field can be null
     #[serde(default)]
     pub nullable:    bool,
+    /// Field description
     pub description: Option<String>,
 }
 
@@ -325,11 +331,16 @@ pub struct FieldDefinition {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct QueryDefinition {
+    /// Return type name
     pub return_type:  String,
+    /// Whether query returns an array
     #[serde(default)]
     pub return_array: bool,
+    /// SQL source for the query
     pub sql_source:   String,
+    /// Query description
     pub description:  Option<String>,
+    /// Query arguments
     pub args:         Vec<ArgumentDefinition>,
 }
 
@@ -349,10 +360,15 @@ impl Default for QueryDefinition {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct MutationDefinition {
+    /// Return type name
     pub return_type: String,
+    /// SQL function or procedure source
     pub sql_source:  String,
-    pub operation:   String, // CREATE, UPDATE, DELETE
+    /// Operation type (CREATE, UPDATE, DELETE)
+    pub operation:   String,
+    /// Mutation description
     pub description: Option<String>,
+    /// Mutation arguments
     pub args:        Vec<ArgumentDefinition>,
 }
 
@@ -371,12 +387,17 @@ impl Default for MutationDefinition {
 /// Argument definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ArgumentDefinition {
+    /// Argument name
     pub name:        String,
+    /// Argument type
     #[serde(rename = "type")]
     pub arg_type:    String,
+    /// Whether argument is required
     #[serde(default)]
     pub required:    bool,
+    /// Default value if not provided
     pub default:     Option<serde_json::Value>,
+    /// Argument description
     pub description: Option<String>,
 }
 
@@ -384,9 +405,12 @@ pub struct ArgumentDefinition {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct FederationConfig {
+    /// Enable Apollo federation
     #[serde(default)]
     pub enabled:        bool,
+    /// Apollo federation version
     pub apollo_version: Option<u32>,
+    /// Federated entities
     pub entities:       Vec<FederationEntity>,
 }
 
@@ -403,7 +427,9 @@ impl Default for FederationConfig {
 /// Federation entity
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FederationEntity {
+    /// Entity name
     pub name:       String,
+    /// Key fields for entity resolution
     pub key_fields: Vec<String>,
 }
 
@@ -411,10 +437,15 @@ pub struct FederationEntity {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SecuritySettings {
+    /// Default policy to apply if none specified
     pub default_policy: Option<String>,
+    /// Custom authorization rules
     pub rules:          Vec<AuthorizationRule>,
+    /// Authorization policies
     pub policies:       Vec<AuthorizationPolicy>,
+    /// Field-level authorization rules
     pub field_auth:     Vec<FieldAuthRule>,
+    /// Enterprise security configuration
     pub enterprise:     EnterpriseSecurityConfig,
 }
 
@@ -433,34 +464,50 @@ impl Default for SecuritySettings {
 /// Authorization rule (custom expressions)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthorizationRule {
+    /// Rule name
     pub name:              String,
+    /// Rule expression or condition
     pub rule:              String,
+    /// Rule description
     pub description:       Option<String>,
+    /// Whether rule result can be cached
     #[serde(default)]
     pub cacheable:         bool,
+    /// Cache time-to-live in seconds
     pub cache_ttl_seconds: Option<u32>,
 }
 
 /// Authorization policy (RBAC/ABAC)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthorizationPolicy {
+    /// Policy name
     pub name:              String,
+    /// Policy type (RBAC, ABAC, CUSTOM, HYBRID)
     #[serde(rename = "type")]
-    pub policy_type:       String, // RBAC, ABAC, CUSTOM, HYBRID
+    pub policy_type:       String,
+    /// Optional rule expression
     pub rule:              Option<String>,
+    /// Roles this policy applies to
     pub roles:             Vec<String>,
-    pub strategy:          Option<String>, // ANY, ALL, EXACTLY
+    /// Combination strategy (ANY, ALL, EXACTLY)
+    pub strategy:          Option<String>,
+    /// Attributes for attribute-based access control
     #[serde(default)]
     pub attributes:        Vec<String>,
+    /// Policy description
     pub description:       Option<String>,
+    /// Cache time-to-live in seconds
     pub cache_ttl_seconds: Option<u32>,
 }
 
 /// Field-level authorization rule
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FieldAuthRule {
+    /// Type name this rule applies to
     pub type_name:  String,
+    /// Field name this rule applies to
     pub field_name: String,
+    /// Policy to enforce
     pub policy:     String,
 }
 
@@ -468,15 +515,25 @@ pub struct FieldAuthRule {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct EnterpriseSecurityConfig {
+    /// Enable rate limiting
     pub rate_limiting_enabled:        bool,
+    /// Max requests per auth endpoint
     pub auth_endpoint_max_requests:   u32,
+    /// Rate limit window in seconds
     pub auth_endpoint_window_seconds: u64,
+    /// Enable audit logging
     pub audit_logging_enabled:        bool,
+    /// Audit log backend service
     pub audit_log_backend:            String,
+    /// Audit log retention in days
     pub audit_retention_days:         u32,
+    /// Enable error sanitization
     pub error_sanitization:           bool,
+    /// Hide implementation details in errors
     pub hide_implementation_details:  bool,
+    /// Enable constant-time token comparison
     pub constant_time_comparison:     bool,
+    /// Enable PKCE for OAuth flows
     pub pkce_enabled:                 bool,
 }
 
@@ -501,10 +558,14 @@ impl Default for EnterpriseSecurityConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ObserversConfig {
+    /// Enable observers system
     #[serde(default)]
     pub enabled:   bool,
-    pub backend:   String, // redis, nats, postgresql, mysql, in-memory
+    /// Backend service (redis, nats, postgresql, mysql, in-memory)
+    pub backend:   String,
+    /// Redis connection URL
     pub redis_url: Option<String>,
+    /// Event handlers
     pub handlers:  Vec<EventHandler>,
 }
 
@@ -522,12 +583,19 @@ impl Default for ObserversConfig {
 /// Event handler configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EventHandler {
+    /// Handler name
     pub name:           String,
+    /// Event type to handle
     pub event:          String,
-    pub action:         String, // slack, email, sms, webhook, push, etc.
+    /// Action to perform (slack, email, sms, webhook, push, etc.)
+    pub action:         String,
+    /// Webhook URL for webhook actions
     pub webhook_url:    Option<String>,
+    /// Retry strategy
     pub retry_strategy: Option<String>,
+    /// Maximum retry attempts
     pub max_retries:    Option<u32>,
+    /// Handler description
     pub description:    Option<String>,
 }
 
@@ -535,10 +603,14 @@ pub struct EventHandler {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CachingConfig {
+    /// Enable caching
     #[serde(default)]
     pub enabled:   bool,
-    pub backend:   String, // redis, memory, postgresql
+    /// Cache backend (redis, memory, postgresql)
+    pub backend:   String,
+    /// Redis connection URL
     pub redis_url: Option<String>,
+    /// Cache invalidation rules
     pub rules:     Vec<CacheRule>,
 }
 
@@ -556,8 +628,11 @@ impl Default for CachingConfig {
 /// Cache invalidation rule
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CacheRule {
+    /// Query pattern to cache
     pub query:                 String,
+    /// Time-to-live in seconds
     pub ttl_seconds:           u32,
+    /// Events that trigger cache invalidation
     pub invalidation_triggers: Vec<String>,
 }
 
@@ -565,8 +640,10 @@ pub struct CacheRule {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AnalyticsConfig {
+    /// Enable analytics
     #[serde(default)]
     pub enabled: bool,
+    /// Analytics queries
     pub queries: Vec<AnalyticsQuery>,
 }
 
@@ -582,8 +659,11 @@ impl Default for AnalyticsConfig {
 /// Analytics query definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AnalyticsQuery {
+    /// Query name
     pub name:        String,
+    /// SQL source for the query
     pub sql_source:  String,
+    /// Query description
     pub description: Option<String>,
 }
 
@@ -591,14 +671,23 @@ pub struct AnalyticsQuery {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ObservabilityConfig {
+    /// Enable Prometheus metrics
     pub prometheus_enabled:            bool,
+    /// Port for Prometheus metrics endpoint
     pub prometheus_port:               u16,
+    /// Enable OpenTelemetry tracing
     pub otel_enabled:                  bool,
+    /// OpenTelemetry exporter type
     pub otel_exporter:                 String,
+    /// Jaeger endpoint for trace collection
     pub otel_jaeger_endpoint:          Option<String>,
+    /// Enable health check endpoint
     pub health_check_enabled:          bool,
+    /// Health check interval in seconds
     pub health_check_interval_seconds: u32,
+    /// Log level threshold
     pub log_level:                     String,
+    /// Log output format (json, text)
     pub log_format:                    String,
 }
 

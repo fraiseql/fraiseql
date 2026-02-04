@@ -447,12 +447,16 @@ pub struct IntermediateUnion {
 /// Auto-params configuration in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAutoParams {
+    /// Enable automatic limit parameter
     #[serde(default)]
     pub limit:        bool,
+    /// Enable automatic offset parameter
     #[serde(default)]
     pub offset:       bool,
+    /// Enable automatic where clause parameter
     #[serde(rename = "where", default)]
     pub where_clause: bool,
+    /// Enable automatic order_by parameter
     #[serde(default)]
     pub order_by:     bool,
 }
@@ -667,30 +671,40 @@ pub struct IntermediateAppliedDirective {
 /// Fact table definition in intermediate format (Analytics)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFactTable {
+    /// Name of the fact table
     pub table_name:           String,
+    /// Measure columns (numeric aggregates)
     pub measures:             Vec<IntermediateMeasure>,
+    /// Dimension metadata
     pub dimensions:           IntermediateDimensions,
+    /// Denormalized filter columns
     pub denormalized_filters: Vec<IntermediateFilter>,
 }
 
 /// Measure column definition
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMeasure {
+    /// Measure column name
     pub name:     String,
+    /// SQL data type of the measure
     pub sql_type: String,
+    /// Whether the column can be NULL
     pub nullable: bool,
 }
 
 /// Dimensions metadata
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensions {
+    /// Dimension name
     pub name:  String,
+    /// Paths to dimension fields within JSONB
     pub paths: Vec<IntermediateDimensionPath>,
 }
 
 /// Dimension path within JSONB
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensionPath {
+    /// Path name identifier
     pub name:      String,
     /// JSON path (accepts both "`json_path`" and "path" for cross-language compat)
     #[serde(alias = "path")]
@@ -703,8 +717,11 @@ pub struct IntermediateDimensionPath {
 /// Denormalized filter column
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFilter {
+    /// Filter column name
     pub name:     String,
+    /// SQL data type of the filter
     pub sql_type: String,
+    /// Whether this column should be indexed
     pub indexed:  bool,
 }
 
