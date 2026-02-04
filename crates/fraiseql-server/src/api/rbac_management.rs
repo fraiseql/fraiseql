@@ -277,5 +277,11 @@ async fn query_permission_audit(
     Json(Vec::<serde_json::Value>::new())
 }
 
+/// Database backend for RBAC operations
+pub mod db_backend;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod db_backend_tests;
