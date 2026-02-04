@@ -29,6 +29,9 @@ struct LeaseInfo {
     renewable: bool,
 }
 
+// Constants for Vault API
+const VAULT_API_VERSION: &str = "v1";
+
 /// Secrets backend for HashiCorp Vault
 ///
 /// Provides dynamic secrets, credential rotation, and lease management
@@ -89,17 +92,7 @@ impl SecretsBackend for VaultBackend {
         let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
 
         // Extract secret from response data
-        // For KV2 engine: response.data.data contains actual secret
-        // For dynamic credentials: response.data contains username/password
-        let secret_str = if let Some(data_obj) = response.data.get("data") {
-            // KV2 format
-            serde_json::to_string(data_obj)
-                .map_err(|e| SecretsError::BackendError(format!("Failed to serialize KV2 secret: {}", e)))?
-        } else {
-            // Dynamic credentials or generic secret
-            serde_json::to_string(&response.data)
-                .map_err(|e| SecretsError::BackendError(format!("Failed to serialize secret: {}", e)))?
-        };
+        let secret_str = Self::extract_secret_from_response(&response, name)?;
 
         Ok((secret_str, expiry))
     }
@@ -163,6 +156,26 @@ impl VaultBackend {
         self.tls_verify
     }
 
+    /// Extract secret data from Vault API response
+    ///
+    /// Handles both KV2 format (nested data.data) and dynamic credentials (flat data)
+    fn extract_secret_from_response(response: &VaultResponse, path: &str) -> Result<String, SecretsError> {
+        // For KV2 engine: response.data.data contains actual secret
+        // For dynamic credentials: response.data contains username/password
+        if let Some(data_obj) = response.data.get("data") {
+            serde_json::to_string(data_obj)
+                .map_err(|e| SecretsError::BackendError(
+                    format!("Failed to serialize KV2 secret from {}: {}", path, e)
+                ))
+        } else {
+            // Dynamic credentials or generic secret
+            serde_json::to_string(&response.data)
+                .map_err(|e| SecretsError::BackendError(
+                    format!("Failed to serialize secret from {}: {}", path, e)
+                ))
+        }
+    }
+
     /// Fetch secret from Vault HTTP API
     async fn fetch_secret(&self, name: &str) -> Result<VaultResponse, SecretsError> {
         let client = reqwest::Client::builder()
@@ -170,8 +183,7 @@ impl VaultBackend {
             .build()
             .map_err(|e| SecretsError::BackendError(format!("Failed to create HTTP client: {}", e)))?;
 
-        // Build URL: addr/v1/{name}
-        let url = format!("{}/v1/{}", self.addr, name);
+        let url = self.build_vault_url(name);
 
         // Build request headers with X-Vault-Token
         let response = client
@@ -180,25 +192,30 @@ impl VaultBackend {
             .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
             .send()
             .await
-            .map_err(|e| SecretsError::BackendError(format!("Vault HTTP request failed: {}", e)))?;
+            .map_err(|e| SecretsError::BackendError(format!("Vault HTTP request failed for {}: {}", name, e)))?;
 
         match response.status() {
             reqwest::StatusCode::OK => {
                 response
                     .json::<VaultResponse>()
                     .await
-                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse Vault response: {}", e)))
+                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse Vault response for {}: {}", name, e)))
             }
             reqwest::StatusCode::NOT_FOUND => {
                 Err(SecretsError::NotFound(format!("Secret not found in Vault: {}", name)))
             }
             reqwest::StatusCode::FORBIDDEN => {
-                Err(SecretsError::BackendError(format!("Permission denied accessing secret: {}", name)))
+                Err(SecretsError::BackendError(format!("Permission denied accessing Vault secret: {}", name)))
             }
             status => {
-                Err(SecretsError::BackendError(format!("Vault request failed with status {}: {}", status, name)))
+                Err(SecretsError::BackendError(format!("Vault request failed with status {} for {}", status, name)))
             }
         }
+    }
+
+    /// Build Vault API URL for a secret path
+    fn build_vault_url(&self, path: &str) -> String {
+        format!("{}/{}/{}", self.addr.trim_end_matches('/'), VAULT_API_VERSION, path)
     }
 }
 
