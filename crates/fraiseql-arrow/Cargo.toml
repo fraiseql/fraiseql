@@ -44,8 +44,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 
 # FraiseQL core (for Executor and query execution)
-# Must have arrow feature enabled for RecordBatch support
-fraiseql-core = { path = "../fraiseql-core", features = ["arrow"] }
+fraiseql-core = { path = "../fraiseql-core" }
 
 # ClickHouse client (optional)
 clickhouse = { version = "0.14", features = ["inserter"], optional = true }
