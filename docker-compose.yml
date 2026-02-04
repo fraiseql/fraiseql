@@ -1,193 +1,47 @@
-# FraiseQL v2 - Development & Testing Stack
-#
-# Core Services (for integration tests):
-# - PostgreSQL database (primary test database)
-# - MySQL database (multi-db adapter testing)
-# - SQL Server database (enterprise adapter testing)
-#
-# Optional Services:
-# - FraiseQL server (full stack) - use profile: with-server
-# - Redis (caching) - use profile: with-redis
-# - NATS (distributed events) - use profile: with-nats
-#
-# Usage:
-#   # For integration tests (all three databases):
-#   docker compose up -d
-#
-#   # Full development stack with server:
-#   docker compose --profile with-server up -d
-#
-#   # With optional services:
-#   docker compose --profile with-redis --profile with-nats up -d
-#
-#   # Full everything:
-#   docker compose --profile with-server --profile with-redis --profile with-nats up -d
-#
-#   # Check status:
-#   docker compose ps
-#
-#   # View logs:
-#   docker compose logs -f postgres
-#   docker compose logs -f mysql
-#   docker compose logs -f sqlserver
-#
-#   # Stop all:
-#   docker compose down
-
-version: '3.9'
+version: '3.8'
 
 services:
-  # PostgreSQL Database - Primary database for FraiseQL
-  postgres:
-    image: postgres:16-alpine
-    container_name: fraiseql-postgres
-    environment:
-      POSTGRES_DB: test_fraiseql
-      POSTGRES_USER: fraiseql_test
-      POSTGRES_PASSWORD: fraiseql_test_password
-      POSTGRES_INITDB_ARGS: "-c max_connections=200"
+  fraiseql:
+    build: .
     ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - fraiseql
-    restart: unless-stopped
-
-  # MySQL Database - For multi-database adapter testing
-  mysql:
-    image: mysql:8.0
-    container_name: fraiseql-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: fraiseql_test_password
-      MYSQL_USER: fraiseql_test
-      MYSQL_PASSWORD: fraiseql_test_password
-      MYSQL_DATABASE: test_fraiseql
-      MYSQL_ROOT_HOST: "%"
-    ports:
-      - "3307:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./tests/sql/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fraiseql_test", "-pfraiseql_test_password"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - fraiseql
-    restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password --sql_mode=""
-
-  # SQL Server Database - For enterprise adapter testing
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: fraiseql-sqlserver
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
-      MSSQL_PID: "Express"
-      MSSQL_TCP_PORT: 1433
-    ports:
-      - "1434:1433"
-    volumes:
-      - sqlserver_data:/var/opt/mssql
-      - ./tests/sql/sqlserver/entrypoint-simple.sh:/docker-entrypoint.sh
-    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
-    healthcheck:
-      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "FraiseQL_Test1234", "-Q", "SELECT 1", "-C"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    networks:
-      - fraiseql
-    restart: unless-stopped
-
-  # FraiseQL Server (optional - use with-server profile)
-  fraiseql-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fraiseql-server
-    ports:
-      - "8000:8000"
+      - "8815:8815"
     environment:
       RUST_LOG: debug
-      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/fraiseql
-      FRAISEQL_BIND_ADDR: 0.0.0.0:8000
-      FRAISEQL_SCHEMA_PATH: /app/schemas/schema.compiled.json
-      FRAISEQL_POOL_MIN_SIZE: 5
-      FRAISEQL_POOL_MAX_SIZE: 20
-      FRAISEQL_CORS_ENABLED: "true"
-      FRAISEQL_COMPRESSION_ENABLED: "true"
+      DATABASE_URL: postgresql://fraiseql:fraiseql@postgres:5432/fraiseql
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./schemas:/app/schemas:ro
     networks:
-      - fraiseql
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    profiles:
-      - with-server
+      - fraiseql-net
 
-  # Redis (optional - for caching)
-  redis:
-    image: redis:7-alpine
-    container_name: fraiseql-redis
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_DB: fraiseql
     ports:
-      - "6379:6379"
+      - "5432:5432"
     volumes:
-      - redis_data:/data
-    networks:
-      - fraiseql
-    profiles:
-      - with-redis
-
-  # NATS (optional - for distributed event transport)
-  nats:
-    image: nats:2.10-alpine
-    container_name: fraiseql-nats
-    command: ["--jetstream", "--store_dir", "/data"]
-    ports:
-      - "4222:4222"   # Client connections
-      - "8222:8222"   # HTTP monitoring
-    volumes:
-      - nats_data:/data
-    networks:
-      - fraiseql
-    profiles:
-      - with-nats
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - fraiseql-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - fraiseql-net
 
 volumes:
   postgres_data:
-    driver: local
-  mysql_data:
-    driver: local
-  sqlserver_data:
-    driver: local
-  redis_data:
-    driver: local
-  nats_data:
-    driver: local
 
 networks:
-  fraiseql:
+  fraiseql-net:
     driver: bridge

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraiseql-config
+  namespace: default
+  labels:
+    app: fraiseql
+data:
+  RUST_LOG: "info"

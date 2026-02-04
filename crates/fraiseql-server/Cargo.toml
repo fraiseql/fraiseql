@@ -119,6 +119,8 @@ tempfile = "3.13"
 tokio-test = "0.4"
 # Utilities for E2E tests
 tokio-util = "0.7"
+# YAML parsing for deployment tests
+serde_yaml = "0.9"
 
 [features]
 default = []

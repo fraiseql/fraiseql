@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraiseql
+  namespace: default
+  labels:
+    app: fraiseql
+    version: v2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fraiseql
+  template:
+    metadata:
+      labels:
+        app: fraiseql
+    spec:
+      containers:
+      - name: fraiseql
+        image: fraiseql:latest
+        ports:
+        - containerPort: 8815
+          name: http

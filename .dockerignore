@@ -1,7 +1,11 @@
 # Git
 .git
 .gitignore
-.github
+.gitattributes
+
+# Version control
+.hg
+.svn
 
 # IDE
 .vscode
@@ -11,58 +15,34 @@
 *~
 .DS_Store
 
-# Rust
+# Build artifacts
 target/
-# Note: Cargo.lock is needed for reproducible builds
-.cargo/registry
-.cargo/git
-
-# Node (language generators)
-node_modules/
-package-lock.json
-yarn.lock
-.eslintcache
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv
-venv/
-env/
-*.egg-info/
 dist/
 build/
+*.o
+*.a
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+vendor/
 
 # Documentation
 docs/
 *.md
 
-# Tests (but keep test SQL and E2E schemas)
-# tests/ - commented out, needed for E2E tests
-.circleci
-.github
+# Tests
+tests/
+**/*_test.rs
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
 
 # Development
-.env
-.env.local
-.env.*.local
-.claude/
-.local
-
-# Database files
-*.db
-*.sqlite
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+.phases/
 *.log
-logs/
-
-# Temporary
-tmp/
-temp/
-*.tmp
+.env.local

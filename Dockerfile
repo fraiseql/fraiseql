@@ -1,66 +1,75 @@
-# FraiseQL v2 - Multi-stage Docker build
-#
-# Build stage: Compile Rust codebase
-# Runtime stage: Slim production image
+# syntax=docker/dockerfile:1.4
 
-# ============================================================================
-# STAGE 1: BUILDER
-# ============================================================================
-FROM rust:1.84-slim AS builder
+# Build arguments for cross-compilation
+ARG TARGETARCH
+ARG TARGETVARIANT
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
+# Stage 1: Builder - use rust image for target arch
+FROM --platform=$BUILDPLATFORM rust:1.85-slim AS builder
+
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+# Set Rust target based on architecture
+RUN case "$TARGETARCH" in \
+      amd64) TARGET="x86_64-unknown-linux-gnu" ;; \
+      arm64) TARGET="aarch64-unknown-linux-gnu" ;; \
+      arm) TARGET="armv7-unknown-linux-gnueabihf" ;; \
+      ppc64le) TARGET="powerpc64le-unknown-linux-gnu" ;; \
+      *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
+    esac && \
+    echo "$TARGET" > /tmp/rust_target.txt && \
+    rustup target add "$TARGET"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
-WORKDIR /app
-
-# Copy workspace and crates
+WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
-# Build release binaries
-RUN cargo build --release -p fraiseql-server --locked
-RUN cargo build --release -p fraiseql-cli --locked
+RUN TARGET=$(cat /tmp/rust_target.txt) && \
+    cargo build --release --target "$TARGET" -p fraiseql-server
 
-# ============================================================================
-# STAGE 2: RUNTIME
-# ============================================================================
+# Stage 2: Runtime
 FROM debian:bookworm-slim
 
-# Install runtime dependencies (PostgreSQL client, etc.)
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libssl3 \
+LABEL org.opencontainers.image.version="2.1.0" \
+      org.opencontainers.image.vendor="FraiseQL" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.description="FraiseQL GraphQL execution engine" \
+      org.opencontainers.image.documentation="https://github.com/fraiseql/fraiseql" \
+      security.compliance="production" \
+      security.hardenings="non-root,readonly-capable,capabilities-dropped"
+
+# Security updates
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libpq5 \
+    ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Non-root user (UID 65532 for distroless compatibility)
+RUN groupadd -g 65532 fraiseql && \
+    useradd -r -u 65532 -g fraiseql -s /sbin/nologin -d /app fraiseql
+
+# Create app directory with minimal permissions
+RUN mkdir -p /app && chown -R fraiseql:fraiseql /app
 
 WORKDIR /app
 
-# Copy compiled binary from builder
-COPY --from=builder /app/target/release/fraiseql-server /usr/local/bin/
+# Copy binary from builder (auto-detects target arch from build stage)
+COPY --from=builder --chown=fraiseql:fraiseql /build/target/*/release/fraiseql-server .
 
-# Copy schema compilation CLI
-COPY --from=builder /app/target/release/fraiseql-cli /usr/local/bin/
+USER fraiseql
+EXPOSE 8815
 
-# Create schema directory
-RUN mkdir -p /app/schemas
-
-# Expose GraphQL endpoint port
-EXPOSE 8000
+ENV RUST_LOG=info
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8815/health || exit 1
 
-# Default environment
-ENV RUST_LOG=info
-ENV DATABASE_URL=postgresql://localhost/fraiseql
-ENV FRAISEQL_BIND_ADDR=0.0.0.0:8000
-ENV FRAISEQL_SCHEMA_PATH=/app/schemas/schema.compiled.json
-
-# Run server
-CMD ["fraiseql-server"]
+CMD ["./fraiseql-server"]
