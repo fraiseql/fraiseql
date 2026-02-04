@@ -19,9 +19,11 @@ use crate::secrets_manager::SecretsError;
 mod field_encryption_tests;
 mod database_adapter_tests;
 mod query_builder_integration_tests;
+mod mapper_integration_tests;
 
 pub mod database_adapter;
 pub mod query_builder;
+pub mod mapper;
 
 const NONCE_SIZE: usize = 12;  // 96 bits for GCM
 #[allow(dead_code)]
