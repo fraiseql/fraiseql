@@ -297,11 +297,18 @@ impl Default for AuditQueryFilters {
 /// File-based audit backend
 pub mod file_backend;
 
+/// PostgreSQL audit backend
+pub mod postgres_backend;
+
 // Re-export backends for convenience
 pub use file_backend::FileAuditBackend;
+pub use postgres_backend::PostgresAuditBackend;
 
 #[cfg(test)]
 mod tests;
 
 #[cfg(test)]
 mod file_backend_tests;
+
+#[cfg(test)]
+mod postgres_backend_tests;
