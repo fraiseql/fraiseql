@@ -300,9 +300,13 @@ pub mod file_backend;
 /// PostgreSQL audit backend
 pub mod postgres_backend;
 
+/// Syslog audit backend
+pub mod syslog_backend;
+
 // Re-export backends for convenience
 pub use file_backend::FileAuditBackend;
 pub use postgres_backend::PostgresAuditBackend;
+pub use syslog_backend::SyslogAuditBackend;
 
 #[cfg(test)]
 mod tests;
@@ -312,3 +316,6 @@ mod file_backend_tests;
 
 #[cfg(test)]
 mod postgres_backend_tests;
+
+#[cfg(test)]
+mod syslog_backend_tests;
