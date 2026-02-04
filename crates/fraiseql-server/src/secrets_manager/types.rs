@@ -53,6 +53,7 @@ pub struct Secret(String);
 
 impl Secret {
     /// Create new Secret wrapper
+    #[must_use]
     pub fn new(value: String) -> Self {
         Secret(value)
     }
@@ -61,21 +62,25 @@ impl Secret {
     ///
     /// Should only be called when actually using the secret
     /// Not called in logging or debugging code
+    #[must_use]
     pub fn expose(&self) -> &str {
         &self.0
     }
 
     /// Convert to owned String (consumes Secret)
+    #[must_use]
     pub fn into_exposed(self) -> String {
         self.0
     }
 
     /// Check if secret is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Get length of secret
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }

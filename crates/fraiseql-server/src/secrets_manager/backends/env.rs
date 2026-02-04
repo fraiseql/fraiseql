@@ -16,12 +16,17 @@ use super::super::{SecretsBackend, SecretsError};
 /// let secret = backend.get_secret("DATABASE_PASSWORD").await?;
 /// // Returns: "secret123"
 /// ```
+///
+/// # Note
+/// Environment variables do not have expiry times. The backend returns a fixed 365-day
+/// TTL for all environment variables to indicate they don't expire naturally.
 #[derive(Clone, Debug)]
 pub struct EnvBackend;
 
 #[async_trait::async_trait]
 impl SecretsBackend for EnvBackend {
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+        validate_secret_name(name)?;
         std::env::var(name)
             .map_err(|_| SecretsError::NotFound(format!("Environment variable {} not found", name)))
     }
@@ -58,6 +63,16 @@ impl Default for EnvBackend {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Validate secret name format
+fn validate_secret_name(name: &str) -> Result<(), SecretsError> {
+    if name.is_empty() {
+        return Err(SecretsError::ValidationError(
+            "Secret name cannot be empty".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
