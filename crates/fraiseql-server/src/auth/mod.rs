@@ -55,7 +55,7 @@ pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
     auth_callback, auth_logout, auth_refresh, auth_start,
 };
-pub use jwt::{Claims, JwtValidator};
+pub use jwt::{Claims, JwtValidator, generate_rs256_token, generate_hs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oidc_provider::OidcProvider;

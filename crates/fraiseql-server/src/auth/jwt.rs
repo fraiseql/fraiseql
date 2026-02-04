@@ -1,9 +1,7 @@
 // JWT validation and claims parsing
 use std::collections::HashMap;
 
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
-#[cfg(test)]
-use jsonwebtoken::{EncodingKey, Header, encode};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{
@@ -202,13 +200,46 @@ impl JwtValidator {
     }
 }
 
+/// Generate a JWT token with RS256 signature
+///
+/// # Arguments
+/// * `claims` - The JWT claims to sign
+/// * `private_key_pem` - RSA private key in PEM format
+///
+/// # Errors
+/// Returns error if token generation or signing fails
+pub fn generate_rs256_token(claims: &Claims, private_key_pem: &[u8]) -> Result<String> {
+    let encoding_key = EncodingKey::from_rsa_pem(private_key_pem).map_err(|e| {
+        AuthError::Internal {
+            message: format!("Failed to parse private key: {}", e),
+        }
+    })?;
+
+    let header = Header::new(Algorithm::RS256);
+    encode(&header, claims, &encoding_key).map_err(|e| AuthError::Internal {
+        message: format!("Failed to generate RS256 token: {}", e),
+    })
+}
+
+/// Generate a JWT token with HMAC secret (HS256)
+///
+/// # Arguments
+/// * `claims` - The JWT claims to sign
+/// * `secret` - The shared secret for HMAC
+///
+/// # Errors
+/// Returns error if token generation or signing fails
+pub fn generate_hs256_token(claims: &Claims, secret: &[u8]) -> Result<String> {
+    let encoding_key = EncodingKey::from_secret(secret);
+    encode(&Header::default(), claims, &encoding_key).map_err(|e| AuthError::Internal {
+        message: format!("Failed to generate HS256 token: {}", e),
+    })
+}
+
 /// Generate a JWT token (for testing and token creation)
 #[cfg(test)]
 pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
-    let encoding_key = EncodingKey::from_secret(secret);
-    encode(&Header::default(), claims, &encoding_key).map_err(|e| AuthError::Internal {
-        message: format!("Failed to generate token: {}", e),
-    })
+    generate_hs256_token(claims, secret)
 }
 
 #[cfg(test)]

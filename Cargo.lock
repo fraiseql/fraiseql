@@ -2458,6 +2458,7 @@ dependencies = [
  "arrow-flight",
  "arrow-schema",
  "async-trait",
+ "chrono",
  "clickhouse",
  "criterion",
  "dashmap 6.1.0",

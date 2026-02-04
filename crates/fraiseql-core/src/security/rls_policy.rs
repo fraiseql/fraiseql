@@ -59,9 +59,21 @@
 //! description = "Admins have full access"
 //! ```
 
+use std::sync::Arc;
+use std::time::SystemTime;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{db::WhereClause, error::Result, security::SecurityContext};
+
+/// Cache entry for RLS policy decisions with TTL support
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    /// The cached RLS evaluation result
+    result:     Option<WhereClause>,
+    /// When this cache entry expires
+    expires_at: SystemTime,
+}
 
 /// Row-Level Security (RLS) policy for runtime evaluation.
 ///
@@ -219,12 +231,40 @@ impl RLSPolicy for NoRLSPolicy {
 /// Custom RLS policy that can be configured from schema.compiled.json
 ///
 /// This allows schema authors to define RLS rules without writing Rust code.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Supports caching of policy evaluation results for performance optimization.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CompiledRLSPolicy {
     /// RLS rules indexed by type name
     pub rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
     /// Default RLS rule if no type-specific rule exists
     pub default_rule:  Option<RLSRule>,
+    /// Cache for policy evaluation results (not serialized)
+    #[serde(skip)]
+    cache:             Arc<parking_lot::RwLock<std::collections::HashMap<String, CacheEntry>>>,
+}
+
+impl std::fmt::Debug for CompiledRLSPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompiledRLSPolicy")
+            .field("rules_by_type", &self.rules_by_type)
+            .field("default_rule", &self.default_rule)
+            .field("cache", &"<cached>")
+            .finish()
+    }
+}
+
+impl CompiledRLSPolicy {
+    /// Create a new compiled RLS policy with caching enabled
+    pub fn new(
+        rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
+        default_rule: Option<RLSRule>,
+    ) -> Self {
+        Self {
+            rules_by_type,
+            default_rule,
+            cache: Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
+        }
+    }
 }
 
 /// A single RLS rule for a type
@@ -242,7 +282,7 @@ pub struct RLSRule {
 
 impl RLSPolicy for CompiledRLSPolicy {
     fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>> {
-        // Admins bypass all RLS
+        // Admins bypass all RLS (never cache admin access)
         if context.is_admin() {
             return Ok(None);
         }
@@ -255,36 +295,142 @@ impl RLSPolicy for CompiledRLSPolicy {
             .or(self.default_rule.as_ref());
 
         if let Some(rule) = rule {
-            // Evaluate the RLS expression
-            // This is a simplified example - a real implementation would use a
-            // proper expression evaluator (e.g., Rhai, WASM, or custom DSL)
-            let _filter = evaluate_rls_expression(&rule.expression, context)?;
-            // For now, return None (would be implemented in full)
-            Ok(None)
+            // Check cache for cacheable rules
+            let cache_key = if rule.cacheable {
+                Some(format!("{}:{}", context.user_id, type_name))
+            } else {
+                None
+            };
+
+            // Try to retrieve from cache
+            if let Some(ref key) = cache_key {
+                let cache = self.cache.read();
+                if let Some(entry) = cache.get(key) {
+                    if SystemTime::now() < entry.expires_at {
+                        return Ok(entry.result.clone());
+                    }
+                }
+                drop(cache);
+            }
+
+            // Evaluate the RLS expression and generate WHERE clause
+            let result = evaluate_rls_expression(&rule.expression, context)?;
+
+            // Cache the result if rule is cacheable
+            if let Some(key) = cache_key {
+                if let Some(ttl_secs) = rule.cache_ttl_seconds {
+                    let expires_at = SystemTime::now() + std::time::Duration::from_secs(ttl_secs);
+                    let entry = CacheEntry {
+                        result: result.clone(),
+                        expires_at,
+                    };
+                    let mut cache = self.cache.write();
+                    cache.insert(key, entry);
+                }
+            }
+
+            Ok(result)
         } else {
             Ok(None)
         }
     }
 
-    fn cache_result(&self, _cache_key: &str, _result: &Option<WhereClause>) {
-        // TODO: Implement caching if cacheable rules exist
+    fn cache_result(&self, cache_key: &str, result: &Option<WhereClause>) {
+        // Direct cache storage with default TTL of 300 seconds
+        let expires_at = SystemTime::now() + std::time::Duration::from_secs(300);
+        let entry = CacheEntry {
+            result: result.clone(),
+            expires_at,
+        };
+        let mut cache = self.cache.write();
+        cache.insert(cache_key.to_string(), entry);
     }
 }
 
 /// Helper function to evaluate RLS expressions
 ///
-/// This is a placeholder for a full expression evaluator.
-/// In production, this would use:
+/// Supports simple expressions like:
+/// - `user.id == object.author_id` - Equality comparison
+/// - `user.roles includes 'admin'` - Role/array membership
+/// - `user.tenant_id == object.tenant_id` - Tenant isolation
+///
+/// In production, consider using:
 /// - Rhai for dynamic expression evaluation
 /// - WASM for sandboxed custom policies
 /// - A domain-specific language (DSL)
 fn evaluate_rls_expression(
-    _expression: &str,
-    _context: &SecurityContext,
+    expression: &str,
+    context: &SecurityContext,
 ) -> Result<Option<WhereClause>> {
-    // TODO: Implement expression evaluation
-    // For now, this is a placeholder that returns no filter
+    let expr = expression.trim();
+
+    // Pattern 1: Simple equality - "user.id == object.field_name"
+    if let Some(eq_parts) = expr.split_once("==") {
+        let left = eq_parts.0.trim();
+        let right = eq_parts.1.trim();
+
+        // Left side: user.{field}
+        if left.starts_with("user.") {
+            let user_field = &left[5..];
+            let user_value = extract_user_value(user_field, context);
+
+            // Right side: object.{field} or literal
+            if right.starts_with("object.") {
+                // Return a field comparison filter
+                let object_field = &right[7..];
+                return Ok(Some(WhereClause::Field {
+                    path:     vec![object_field.to_string()],
+                    operator: crate::db::WhereOperator::Eq,
+                    value:    user_value.unwrap_or(serde_json::Value::Null),
+                }));
+            } else if serde_json::from_str::<serde_json::Value>(right).is_ok() {
+                // Literal value comparison
+                return Ok(Some(WhereClause::Field {
+                    path:     vec!["_literal_".to_string()],
+                    operator: crate::db::WhereOperator::Eq,
+                    value:    serde_json::json!(user_value),
+                }));
+            }
+        }
+    }
+
+    // Pattern 2: Membership test - "user.roles includes 'admin'"
+    if expr.contains("includes") {
+        if let Some(includes_parts) = expr.split_once("includes") {
+            let left = includes_parts.0.trim();
+            let right = includes_parts.1.trim().trim_matches(|c| c == '\'' || c == '"');
+
+            if left == "user.roles" && context.has_role(right) {
+                // User has the required role - no RLS filter needed
+                return Ok(None);
+            }
+        }
+    }
+
+    // Pattern 3: Tenant isolation - "user.tenant_id == object.tenant_id"
+    if expr.contains("tenant_id") && expr.contains("==") {
+        if let Some(tenant_id) = &context.tenant_id {
+            return Ok(Some(WhereClause::Field {
+                path:     vec!["tenant_id".to_string()],
+                operator: crate::db::WhereOperator::Eq,
+                value:    serde_json::json!(tenant_id),
+            }));
+        }
+    }
+
+    // If no pattern matched or couldn't evaluate, return None (no filter)
+    // In production, this should probably return an error for unparseable expressions
     Ok(None)
+}
+
+/// Extract a value from user context by field name
+fn extract_user_value(field: &str, context: &SecurityContext) -> Option<serde_json::Value> {
+    match field {
+        "id" | "user_id" => Some(serde_json::json!(context.user_id)),
+        "tenant_id" => context.tenant_id.as_ref().map(|t| serde_json::json!(t)),
+        "roles" => Some(serde_json::json!(context.roles)),
+        custom => context.get_attribute(custom).cloned(),
+    }
 }
 
 #[cfg(test)]

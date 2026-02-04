@@ -37,6 +37,9 @@ dashmap = "6.1"
 # Async utilities
 async-trait = "0.1"
 
+# Date/time parsing
+chrono = { version = "0.4", features = ["serde"] }
+
 # ClickHouse client (optional)
 clickhouse = { version = "0.14", features = ["inserter"], optional = true }
 

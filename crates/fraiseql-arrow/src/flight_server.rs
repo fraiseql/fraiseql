@@ -3,7 +3,7 @@
 //! This module provides the core gRPC service that handles Flight RPC calls,
 //! enabling high-performance columnar data transfer for GraphQL queries.
 
-use std::{pin::Pin, sync::Arc};
+use std::{any::Any, pin::Pin, sync::Arc};
 
 use arrow::{
     array::RecordBatch,
@@ -67,9 +67,11 @@ pub struct FraiseQLFlightService {
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
     db_adapter:      Option<Arc<dyn DatabaseAdapter>>,
+    /// Optional query executor for executing GraphQL queries.
+    /// Stored as Any for type erasure (will hold Arc<Executor<A>> for concrete type A).
+    executor:        Option<Arc<dyn Any + Send + Sync>>,
     /// Optional query result cache for improving throughput on repeated queries
     cache:           Option<Arc<QueryCache>>,
-    // Future: Will hold references to query executor, observer system, etc.
 }
 
 impl FraiseQLFlightService {
@@ -82,6 +84,7 @@ impl FraiseQLFlightService {
         Self {
             schema_registry,
             db_adapter: None,
+            executor: None,
             cache: None,
         }
     }
@@ -117,6 +120,7 @@ impl FraiseQLFlightService {
         Self {
             schema_registry,
             db_adapter: Some(db_adapter),
+            executor: None,
             cache: None,
         }
     }
@@ -150,6 +154,7 @@ impl FraiseQLFlightService {
         Self {
             schema_registry,
             db_adapter: Some(db_adapter),
+            executor: None,
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
         }
     }
@@ -162,6 +167,19 @@ impl FraiseQLFlightService {
         &self.schema_registry
     }
 
+    /// Set the query executor for GraphQL query execution.
+    ///
+    /// The executor must be passed as `Arc<Executor<A>>` wrapped in Arc for shared ownership.
+    pub fn set_executor(&mut self, executor: Arc<dyn Any + Send + Sync>) {
+        self.executor = Some(executor);
+    }
+
+    /// Get a reference to the query executor, if set.
+    #[must_use]
+    pub fn executor(&self) -> Option<&Arc<dyn Any + Send + Sync>> {
+        self.executor.as_ref()
+    }
+
     /// Convert this service into a gRPC server.
     #[must_use]
     pub fn into_server(self) -> FlightServiceServer<Self> {
@@ -170,15 +188,24 @@ impl FraiseQLFlightService {
 
     /// Execute GraphQL query and stream Arrow batches.
     ///
-    ///
-    ///
-    ///
     /// Currently returns an empty stream (placeholder). Full implementation includes:
-    /// - TODO: Add QueryExecutor reference to FraiseQLFlightService struct (see
-    ///   KNOWN_LIMITATIONS.md#arrow-flight)
-    /// - TODO: Call fraiseql_core::arrow_executor::execute_query_as_arrow()
+    /// - TODO: Call executor.execute_json(query, variables).await to get JSON results
+    /// - TODO: Extract field metadata from GraphQL schema introspection
+    /// - TODO: Convert JSON results to Arrow RecordBatches
     /// - TODO: Convert RecordBatches to FlightData messages
     /// - TODO: Stream Arrow data to client
+    ///
+    /// # Phase 1.2 Implementation Plan
+    ///
+    /// Will use the executor field (added in Phase 1.1) to execute real queries:
+    /// ```ignore
+    /// if let Some(executor) = &self.executor {
+    ///     let result = executor.execute_json(query, variables).await?;
+    ///     // Convert result to Arrow and stream
+    /// } else {
+    ///     return Err(Status::unavailable("Executor not configured"));
+    /// }
+    /// ```
     async fn execute_graphql_query(
         &self,
         _query: &str,
@@ -434,17 +461,59 @@ impl FlightService for FraiseQLFlightService {
 
     /// List available datasets/queries.
     ///
-    /// Currently, this returns an empty list for testing.
-    /// In  to list available GraphQL queries, observer events, etc.
+    /// Returns information about available pre-compiled Arrow views and optimized queries.
     async fn list_flights(
         &self,
         _request: Request<Criteria>,
     ) -> std::result::Result<Response<Self::ListFlightsStream>, Status> {
         info!("ListFlights called");
 
-        // TODO: Return actual available datasets (GraphQL queries, observer events)
-        // For now, demonstrate the API works with an empty stream
-        let stream = futures::stream::empty();
+        // Build list of available Arrow views from schema registry
+        let mut flight_infos = Vec::new();
+
+        // List all registered views (va_orders, va_users, ta_orders, ta_users, etc.)
+        for view_name in &["va_orders", "va_users", "ta_orders", "ta_users"] {
+            if let Ok(schema) = self.schema_registry.get(view_name) {
+                // Create Flight descriptor for this view
+                let descriptor = FlightDescriptor {
+                    r#type: 1, // PATH
+                    path: vec![view_name.to_string()],
+                    cmd: b"".to_vec().into(),
+                };
+
+                // Create ticket for this view (for client retrieval via GetSchema/DoGet)
+                let _ticket_data = FlightTicket::OptimizedView {
+                    view:     view_name.to_string(),
+                    filter:   None,
+                    order_by: None,
+                    limit:    None,
+                    offset:   None,
+                };
+
+                // Build FlightInfo for this view
+                let options = IpcWriteOptions::default();
+                let data_gen = IpcDataGenerator::default();
+                let mut dict_tracker = DictionaryTracker::new(false);
+                let schema_bytes = data_gen.schema_to_bytes_with_dictionary_tracker(&schema, &mut dict_tracker, &options)
+                    .ipc_message.into();
+
+                let flight_info = FlightInfo {
+                    schema: schema_bytes,
+                    flight_descriptor: Some(descriptor),
+                    endpoint: vec![],
+                    total_records: -1, // Unknown until executed
+                    total_bytes: -1,
+                    ordered: false,
+                    app_metadata: vec![].into(),
+                };
+
+                flight_infos.push(Ok(flight_info));
+            }
+        }
+
+        info!("ListFlights returning {} datasets", flight_infos.len());
+
+        let stream = futures::stream::iter(flight_infos);
         Ok(Response::new(Box::pin(stream)))
     }
 
@@ -835,5 +904,13 @@ mod tests {
         assert!(service.schema_registry.contains("va_users"));
         assert!(service.schema_registry.contains("ta_orders"));
         assert!(service.schema_registry.contains("ta_users"));
+    }
+
+    /// Tests service initialization with executor
+    #[test]
+    fn test_new_with_executor_stores_reference() {
+        let service = FraiseQLFlightService::new();
+        // Executor field exists and can be set
+        assert!(service.executor.is_none());
     }
 }

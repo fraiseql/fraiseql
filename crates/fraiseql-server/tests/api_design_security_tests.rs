@@ -310,10 +310,14 @@ fn test_design_audit_request_is_serializable() {
     let schema = json!({
         "types": [{"name": "User", "fields": []}]
     });
-    
+
     let req = DesignAuditRequest { schema };
-    
+
     // Should not panic on serialization
-    let _json_str = serde_json::to_string(&req.schema);
-    assert!(true);
+    let result = serde_json::to_string(&req.schema);
+    assert!(result.is_ok(), "Schema should serialize successfully");
+
+    let json_str = result.unwrap();
+    assert!(!json_str.is_empty(), "Serialized schema should not be empty");
+    assert!(json_str.contains("\"types\""), "Serialized schema should contain 'types' field");
 }

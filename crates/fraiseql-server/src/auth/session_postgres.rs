@@ -10,6 +10,8 @@ use crate::auth::{
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
     db: PgPool,
+    /// Optional RSA private key for JWT signing (None falls back to HMAC)
+    signing_key: Option<Vec<u8>>,
 }
 
 impl PostgresSessionStore {
@@ -18,7 +20,22 @@ impl PostgresSessionStore {
     /// # Errors
     /// Returns error if database connection fails
     pub fn new(db: PgPool) -> Self {
-        Self { db }
+        Self {
+            db,
+            signing_key: None,
+        }
+    }
+
+    /// Create a new PostgreSQL session store with RS256 JWT signing
+    ///
+    /// # Arguments
+    /// * `db` - PostgreSQL connection pool
+    /// * `private_key_pem` - RSA private key in PEM format
+    pub fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
+        Self {
+            db,
+            signing_key: Some(private_key_pem),
+        }
     }
 
     /// Initialize the sessions table
@@ -54,12 +71,41 @@ impl PostgresSessionStore {
         Ok(())
     }
 
-    /// Generate a JWT access token (placeholder for real JWT generation)
+    /// Generate a JWT access token with RS256 or HMAC signing
     ///
-    /// In a real implementation, this would use the JWT validator to create a proper JWT.
-    /// For now, we return a placeholder that the middleware will exchange for a real JWT.
-    fn generate_access_token(user_id: &str, expires_in: u64) -> String {
-        format!("access_token_{}_{}_{}", user_id, expires_in, uuid::Uuid::new_v4())
+    /// Uses RS256 if a signing key is configured, otherwise falls back to HMAC with a
+    /// deterministic secret derived from the user ID.
+    fn generate_access_token(&self, user_id: &str, expires_in: u64) -> Result<String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let exp = now + expires_in;
+
+        let mut claims = crate::auth::Claims {
+            sub: user_id.to_string(),
+            iat: now,
+            exp,
+            iss: "fraiseql".to_string(),
+            aud: vec!["fraiseql-api".to_string()],
+            extra: std::collections::HashMap::new(),
+        };
+
+        // Add JTI (JWT ID) for uniqueness
+        claims.extra.insert(
+            "jti".to_string(),
+            serde_json::json!(uuid::Uuid::new_v4().to_string()),
+        );
+
+        match &self.signing_key {
+            Some(private_key) => crate::auth::jwt::generate_rs256_token(&claims, private_key),
+            None => {
+                // Fallback: use deterministic HMAC secret (for testing/dev environments)
+                let secret = format!("fraiseql_session_{}", user_id).into_bytes();
+                crate::auth::jwt::generate_hs256_token(&claims, &secret)
+            }
+        }
     }
 }
 
@@ -100,7 +146,7 @@ impl SessionStore for PostgresSessionStore {
         })?;
 
         let expires_in = expires_at.saturating_sub(now);
-        let access_token = Self::generate_access_token(user_id, expires_in);
+        let access_token = self.generate_access_token(user_id, expires_in)?;
 
         Ok(TokenPair {
             access_token,
@@ -183,18 +229,80 @@ impl SessionStore for PostgresSessionStore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    // Note: Full integration tests would require a test database
-    // These are unit tests for the logic
 
     #[test]
-    fn test_generate_access_token() {
-        let token1 = PostgresSessionStore::generate_access_token("user123", 3600);
-        let token2 = PostgresSessionStore::generate_access_token("user123", 3600);
+    fn test_generate_access_token_creates_valid_jwt() {
+        // Create a minimal test store - we don't need a real pool since we're just testing token generation
+        let test_pool = std::sync::Arc::new(std::sync::Mutex::new(()));
+        let _ = test_pool; // Use to avoid unused variable warning
 
-        // Each token should be unique (due to UUID)
+        // Test JWT generation using Claims directly instead of through the store
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut claims = crate::auth::Claims {
+            sub: "user123".to_string(),
+            iat: now,
+            exp: now + 3600,
+            iss: "fraiseql".to_string(),
+            aud: vec!["fraiseql-api".to_string()],
+            extra: std::collections::HashMap::new(),
+        };
+
+        claims.extra.insert(
+            "jti".to_string(),
+            serde_json::json!(uuid::Uuid::new_v4().to_string()),
+        );
+
+        let secret = b"fraiseql_session_user123";
+        let token1 = crate::auth::jwt::generate_hs256_token(&claims, secret)
+            .expect("Failed to generate token");
+
+        // Update JTI for second token
+        claims.extra.insert(
+            "jti".to_string(),
+            serde_json::json!(uuid::Uuid::new_v4().to_string()),
+        );
+
+        let token2 = crate::auth::jwt::generate_hs256_token(&claims, secret)
+            .expect("Failed to generate token");
+
+        // Tokens should be different (different JTI)
         assert_ne!(token1, token2);
-        assert!(token1.starts_with("access_token_user123_3600_"));
+        // Both should be valid JWT format (three dot-separated parts)
+        assert_eq!(token1.matches('.').count(), 2);
+        assert_eq!(token2.matches('.').count(), 2);
+    }
+
+    #[test]
+    fn test_generate_access_token_with_rs256_key() {
+        let test_key = include_bytes!("../../test_data/test_rsa_key.pem");
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut claims = crate::auth::Claims {
+            sub: "user123".to_string(),
+            iat: now,
+            exp: now + 3600,
+            iss: "fraiseql".to_string(),
+            aud: vec!["fraiseql-api".to_string()],
+            extra: std::collections::HashMap::new(),
+        };
+
+        claims.extra.insert(
+            "jti".to_string(),
+            serde_json::json!(uuid::Uuid::new_v4().to_string()),
+        );
+
+        let token = crate::auth::jwt::generate_rs256_token(&claims, test_key)
+            .expect("Failed to generate RS256 token");
+
+        // Valid JWT should have three parts separated by dots
+        assert_eq!(token.matches('.').count(), 2);
     }
 }

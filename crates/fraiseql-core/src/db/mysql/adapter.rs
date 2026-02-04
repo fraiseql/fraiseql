@@ -178,13 +178,37 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        _projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // For now, fall back to standard query until MySQL projection is optimized
-        // TODO: Implement MySQL-specific JSON_OBJECT projection
-        self.execute_where_query(view, where_clause, limit, None).await
+        // If no projection provided, fall back to standard query
+        if projection.is_none() {
+            return self.execute_where_query(view, where_clause, limit, None).await;
+        }
+
+        let projection = projection.unwrap();
+
+        // Build SQL with MySQL-specific JSON_OBJECT projection
+        // The projection_template contains the SELECT clause with JSON_OBJECT calls
+        // e.g., "JSON_OBJECT('id', data->'$.id', 'email', data->'$.email')"
+        let mut sql = format!("SELECT {} FROM `{}`", projection.projection_template, view);
+
+        // Add WHERE clause if present
+        if let Some(clause) = where_clause {
+            let generator = super::where_generator::MySqlWhereGenerator::new();
+            let where_sql = generator.generate(clause)?;
+            sql.push_str(" WHERE ");
+            sql.push_str(&where_sql);
+        }
+
+        // Add LIMIT if present
+        if let Some(lim) = limit {
+            sql.push_str(&format!(" LIMIT {lim}"));
+        }
+
+        // Execute the query
+        self.execute_raw(&sql).await
     }
 
     async fn execute_where_query(

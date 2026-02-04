@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-// TODO: Add documentation incrementally - allowing for now to focus on actionable warnings
+// Missing docs allowed for internal items - public API is fully documented
 #![allow(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]

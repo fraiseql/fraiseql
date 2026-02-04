@@ -961,7 +961,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Execute _entities query resolving federation entities.
     async fn execute_entities_query(
         &self,
-        _query: &str,
+        query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
         // Get federation metadata from schema
@@ -999,12 +999,31 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Create federation resolver
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
 
-        // Create field selection (for now, select all requested fields)
-        // TODO: Extract actual field selection from GraphQL query AST
-        let selection = crate::federation::FieldSelection::new(vec![
-            "__typename".to_string(),
-            "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
-        ]);
+        // Extract actual field selection from GraphQL query AST
+        let selection = match crate::federation::selection_parser::parse_field_selection(query) {
+            Ok(sel) if !sel.fields.is_empty() => {
+                // Ensure __typename is always selected
+                let mut fields = sel.fields;
+                if !fields.contains(&"__typename".to_string()) {
+                    fields.push("__typename".to_string());
+                }
+                crate::federation::FieldSelection::new(fields)
+            }
+            _ => {
+                // Fallback to wildcard if parsing fails or no fields extracted
+                crate::federation::FieldSelection::new(vec![
+                    "__typename".to_string(),
+                    "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
+                ])
+            }
+        };
+
+        // Extract or create trace context for federation operations
+        // Note: Trace context should ideally be passed from HTTP headers via ExecutionContext,
+        // but for now we create a new context for tracing federation operations.
+        // The trace context could be injected through the query variables or a request-scoped store
+        // in future versions to correlate with the incoming HTTP trace headers.
+        let trace_context = crate::federation::FederationTraceContext::new();
 
         // Batch load entities from database with tracing support
         let entities = crate::federation::batch_load_entities_with_tracing(
@@ -1012,7 +1031,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &fed_resolver,
             Arc::clone(&self.adapter),
             &selection,
-            None, // TODO: Extract trace context from HTTP headers for distributed tracing
+            Some(trace_context),
         )
         .await?;
 

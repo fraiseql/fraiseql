@@ -193,13 +193,38 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        _projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::schema::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // For now, fall back to standard query until SQLite projection is optimized
-        // TODO: Implement SQLite-specific json_object projection
-        self.execute_where_query(view, where_clause, limit, None).await
+        // If no projection provided, fall back to standard query
+        if projection.is_none() {
+            return self.execute_where_query(view, where_clause, limit, None).await;
+        }
+
+        let projection = projection.unwrap();
+
+        // Build SQL with SQLite-specific json_object projection
+        // The projection_template contains the SELECT clause with json_object() calls
+        // SQLite uses double quotes for identifiers, not backticks
+        // e.g., "json_object('id', data->'$.id', 'email', data->'$.email')"
+        let mut sql = format!("SELECT {} FROM \"{}\"", projection.projection_template, view);
+
+        // Add WHERE clause if present
+        if let Some(clause) = where_clause {
+            let generator = super::where_generator::SqliteWhereGenerator::new();
+            let where_sql = generator.generate(clause)?;
+            sql.push_str(" WHERE ");
+            sql.push_str(&where_sql);
+        }
+
+        // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
+        if let Some(lim) = limit {
+            sql.push_str(&format!(" LIMIT {lim}"));
+        }
+
+        // Execute the query
+        self.execute_raw(&sql).await
     }
 
     async fn execute_where_query(
