@@ -131,6 +131,7 @@ pub mod db;
 pub mod design;
 pub mod federation;
 pub mod security;
+pub mod tenancy;
 pub mod utils;
 pub mod validation;
 
@@ -142,6 +143,7 @@ pub mod arrow_executor;
 pub use config::FraiseQLConfig;
 pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
+pub use tenancy::TenantContext;
 
 /// Version of the FraiseQL core library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
