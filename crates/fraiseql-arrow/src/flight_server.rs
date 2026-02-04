@@ -913,4 +913,26 @@ mod tests {
         // Executor field exists and can be set
         assert!(service.executor.is_none());
     }
+
+    /// Tests that executor accessor works
+    #[test]
+    fn test_executor_accessor_returns_none_initially() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.executor().is_none());
+    }
+
+    /// Tests that executor can be set and retrieved
+    #[test]
+    fn test_executor_can_be_set_and_retrieved() {
+        let mut service = FraiseQLFlightService::new();
+
+        // Create a dummy executor placeholder (using String which implements Sized)
+        let dummy: Arc<dyn Any + Send + Sync> = Arc::new("test".to_string());
+        service.set_executor(dummy.clone());
+
+        assert!(service.executor().is_some());
+        let retrieved = service.executor().unwrap();
+        // Verify we can downcast it back
+        let _: &String = retrieved.downcast_ref().expect("Should downcast to &String");
+    }
 }
