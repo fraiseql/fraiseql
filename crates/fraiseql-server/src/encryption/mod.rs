@@ -25,6 +25,7 @@ mod schema_detection_tests;
 mod transaction_integration_tests;
 mod compliance_tests;
 mod performance_tests;
+mod error_recovery_tests;
 
 pub mod database_adapter;
 pub mod query_builder;
@@ -34,6 +35,7 @@ pub mod schema;
 pub mod transaction;
 pub mod compliance;
 pub mod performance;
+pub mod error_recovery;
 
 const NONCE_SIZE: usize = 12;  // 96 bits for GCM
 #[allow(dead_code)]
