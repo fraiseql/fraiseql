@@ -105,6 +105,21 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
     }))
 }
 
+/// Cache statistics response.
+///
+/// Phase 5.4: Cache metrics exposure
+#[derive(Debug, Serialize)]
+pub struct CacheStatsResponse {
+    /// Number of entries currently in cache
+    pub entries_count: usize,
+    /// Whether cache is enabled
+    pub cache_enabled: bool,
+    /// Cache TTL in seconds
+    pub ttl_secs: u64,
+    /// Human-readable message
+    pub message: String,
+}
+
 /// Clear cache entries by scope.
 ///
 /// Supports three clearing scopes:
@@ -113,23 +128,31 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
 /// - **pattern**: Clear entries matching a glob pattern
 ///
 /// Requires admin token authentication.
+///
+/// Phase 5.1-5.3: Cache clearing implementation
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
     Json(req): Json<CacheClearRequest>,
 ) -> Result<Json<ApiResponse<CacheClearResponse>>, ApiError> {
     // Validate scope and required parameters
     match req.scope.as_str() {
         "all" => {
-            // Placeholder: Would iterate through all cache entries
-            let response = CacheClearResponse {
-                success: true,
-                entries_cleared: 0,
-                message: "Cleared all cache entries".to_string(),
-            };
-            Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data: response,
-            }))
+            // Phase 5.1: Clear all cache entries
+            if let Some(cache) = state.cache() {
+                let entries_before = cache.len();
+                cache.clear();
+                let response = CacheClearResponse {
+                    success: true,
+                    entries_cleared: entries_before,
+                    message: format!("Cleared {} cache entries", entries_before),
+                };
+                Ok(Json(ApiResponse {
+                    status: "success".to_string(),
+                    data: response,
+                }))
+            } else {
+                Err(ApiError::internal_error("Cache not configured"))
+            }
         }
         "entity" => {
             if req.entity_type.is_none() {
@@ -138,19 +161,27 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 ));
             }
 
-            // Placeholder: Would find and clear entries for this entity
-            let response = CacheClearResponse {
-                success: true,
-                entries_cleared: 0,
-                message: format!(
-                    "Cleared cache for entity type '{}'",
-                    req.entity_type.unwrap_or_default()
-                ),
-            };
-            Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data: response,
-            }))
+            // Phase 5.2: Clear entries for this entity type
+            if let Some(cache) = state.cache() {
+                let entity_type = req.entity_type.as_ref().unwrap();
+                // Convert entity type to view name pattern (e.g., User → v_user)
+                let view_name = format!("v_{}", entity_type.to_lowercase());
+                let entries_cleared = cache.invalidate_views(&[&view_name]);
+                let response = CacheClearResponse {
+                    success: true,
+                    entries_cleared,
+                    message: format!(
+                        "Cleared {} cache entries for entity type '{}'",
+                        entries_cleared, entity_type
+                    ),
+                };
+                Ok(Json(ApiResponse {
+                    status: "success".to_string(),
+                    data: response,
+                }))
+            } else {
+                Err(ApiError::internal_error("Cache not configured"))
+            }
         }
         "pattern" => {
             if req.pattern.is_none() {
@@ -159,25 +190,69 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 ));
             }
 
-            // Placeholder: Would find and clear entries matching pattern
-            let response = CacheClearResponse {
-                success: true,
-                entries_cleared: 0,
-                message: format!(
-                    "Cleared cache matching pattern '{}'",
-                    req.pattern.unwrap_or_default()
-                ),
-            };
-            Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data: response,
-            }))
+            // Phase 5.3: Clear entries matching pattern
+            if let Some(cache) = state.cache() {
+                let pattern = req.pattern.as_ref().unwrap();
+                let entries_cleared = cache.invalidate_pattern(pattern);
+                let response = CacheClearResponse {
+                    success: true,
+                    entries_cleared,
+                    message: format!(
+                        "Cleared {} cache entries matching pattern '{}'",
+                        entries_cleared, pattern
+                    ),
+                };
+                Ok(Json(ApiResponse {
+                    status: "success".to_string(),
+                    data: response,
+                }))
+            } else {
+                Err(ApiError::internal_error("Cache not configured"))
+            }
         }
         _ => {
             Err(ApiError::validation_error(
                 "scope must be 'all', 'entity', or 'pattern'",
             ))
         }
+    }
+}
+
+/// Get cache statistics.
+///
+/// Returns current cache metrics including entry count, enabled status, and TTL.
+///
+/// Requires admin token authentication.
+///
+/// Phase 5.4: Cache metrics exposure
+pub async fn cache_stats_handler<A: DatabaseAdapter>(
+    State(state): State<AppState<A>>,
+) -> Result<Json<ApiResponse<CacheStatsResponse>>, ApiError> {
+    if let Some(cache) = state.cache() {
+        let response = CacheStatsResponse {
+            entries_count: cache.len(),
+            cache_enabled: true,
+            ttl_secs: 60, // Default TTL from QueryCache::new(60)
+            message: format!(
+                "Cache contains {} entries with 60-second TTL",
+                cache.len()
+            ),
+        };
+        Ok(Json(ApiResponse {
+            status: "success".to_string(),
+            data: response,
+        }))
+    } else {
+        let response = CacheStatsResponse {
+            entries_count: 0,
+            cache_enabled: false,
+            ttl_secs: 0,
+            message: "Cache is not configured".to_string(),
+        };
+        Ok(Json(ApiResponse {
+            status: "success".to_string(),
+            data: response,
+        }))
     }
 }
 

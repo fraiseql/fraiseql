@@ -127,6 +127,113 @@ impl QueryCache {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Invalidate cache entries for specific views by name.
+    ///
+    /// Removes all entries whose queries mention any of the given view names.
+    /// Used for entity-based cache invalidation (e.g., "v_user", "v_order").
+    ///
+    /// # Arguments
+    ///
+    /// * `view_names` - View names to invalidate (e.g., ["v_user"])
+    ///
+    /// # Returns
+    ///
+    /// Count of entries removed
+    pub fn invalidate_views(&self, view_names: &[&str]) -> usize {
+        let mut removed = 0;
+        let mut to_remove = Vec::new();
+
+        for entry in self.entries.iter() {
+            let query = entry.key();
+            for view_name in view_names {
+                if query.contains(view_name) {
+                    to_remove.push(query.clone());
+                    break;
+                }
+            }
+        }
+
+        for query in to_remove {
+            if self.entries.remove(&query).is_some() {
+                removed += 1;
+            }
+        }
+
+        removed
+    }
+
+    /// Invalidate cache entries matching a glob pattern.
+    ///
+    /// Removes all entries whose queries match the given glob pattern.
+    /// Used for pattern-based cache invalidation (e.g., "*_user", "SELECT * FROM v_*").
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - Glob pattern to match against queries
+    ///
+    /// # Returns
+    ///
+    /// Count of entries removed
+    pub fn invalidate_pattern(&self, pattern: &str) -> usize {
+        let mut removed = 0;
+        let mut to_remove = Vec::new();
+
+        for entry in self.entries.iter() {
+            let query = entry.key();
+            // Simple wildcard matching: * matches any sequence of characters
+            if self.matches_pattern(query, pattern) {
+                to_remove.push(query.clone());
+            }
+        }
+
+        for query in to_remove {
+            if self.entries.remove(&query).is_some() {
+                removed += 1;
+            }
+        }
+
+        removed
+    }
+
+    /// Check if a query matches a pattern with * wildcards.
+    fn matches_pattern(&self, query: &str, pattern: &str) -> bool {
+        // Simple wildcard matching implementation
+        let pattern_parts: Vec<&str> = pattern.split('*').collect();
+
+        if pattern_parts.len() == 1 {
+            // No wildcards, exact match
+            return query == pattern;
+        }
+
+        let mut pos = 0;
+        for (i, part) in pattern_parts.iter().enumerate() {
+            if part.is_empty() {
+                continue;
+            }
+
+            if i == 0 {
+                // First part must match at the beginning
+                if !query.starts_with(part) {
+                    return false;
+                }
+                pos = part.len();
+            } else if i == pattern_parts.len() - 1 {
+                // Last part must match at the end
+                if !query.ends_with(part) {
+                    return false;
+                }
+            } else {
+                // Middle parts must be found after current position
+                match query[pos..].find(part) {
+                    Some(idx) => pos += idx + part.len(),
+                    None => return false,
+                }
+            }
+        }
+
+        true
+    }
 }
 
 impl Default for QueryCache {
@@ -229,5 +336,77 @@ mod tests {
     fn test_cache_default_ttl() {
         let cache = QueryCache::default();
         assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_invalidate_views() {
+        let cache = QueryCache::new(60);
+        cache.put("SELECT * FROM v_user WHERE id = 1", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_user WHERE id = 2", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_order WHERE id = 1", Arc::new(vec![]));
+
+        assert_eq!(cache.len(), 3);
+
+        let removed = cache.invalidate_views(&["v_user"]);
+        assert_eq!(removed, 2);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get("SELECT * FROM v_order WHERE id = 1").is_some());
+    }
+
+    #[test]
+    fn test_invalidate_views_multiple() {
+        let cache = QueryCache::new(60);
+        cache.put("SELECT * FROM v_user", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_product", Arc::new(vec![]));
+
+        assert_eq!(cache.len(), 3);
+
+        let removed = cache.invalidate_views(&["v_user", "v_product"]);
+        assert_eq!(removed, 2);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get("SELECT * FROM v_order").is_some());
+    }
+
+    #[test]
+    fn test_invalidate_pattern_wildcard() {
+        let cache = QueryCache::new(60);
+        cache.put("SELECT * FROM v_user_detail", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_user_summary", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+
+        assert_eq!(cache.len(), 3);
+
+        let removed = cache.invalidate_pattern("*v_user*");
+        assert_eq!(removed, 2);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get("SELECT * FROM v_order").is_some());
+    }
+
+    #[test]
+    fn test_invalidate_pattern_prefix() {
+        let cache = QueryCache::new(60);
+        cache.put("SELECT * FROM v_user", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+        cache.put("INSERT INTO v_user VALUES", Arc::new(vec![]));
+
+        assert_eq!(cache.len(), 3);
+
+        let removed = cache.invalidate_pattern("SELECT * FROM*");
+        assert_eq!(removed, 2);
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn test_invalidate_pattern_no_match() {
+        let cache = QueryCache::new(60);
+        cache.put("SELECT * FROM v_user", Arc::new(vec![]));
+        cache.put("SELECT * FROM v_order", Arc::new(vec![]));
+
+        assert_eq!(cache.len(), 2);
+
+        let removed = cache.invalidate_pattern("*v_product*");
+        assert_eq!(removed, 0);
+        assert_eq!(cache.len(), 2);
     }
 }

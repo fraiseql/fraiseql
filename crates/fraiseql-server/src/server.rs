@@ -414,6 +414,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let admin_router = Router::new()
                     .route("/api/v1/admin/reload-schema", post(api::admin::reload_schema_handler::<A>))
                     .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
+                    .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
                     .with_state(state.clone());
