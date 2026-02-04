@@ -300,3 +300,59 @@ fn test_helm_configmap_template_exists() {
         "Helm configmap template must exist"
     );
 }
+
+// ============================================================================
+// Cycle 10.4: Kubernetes Base Manifests
+// ============================================================================
+
+#[test]
+fn test_k8s_ingress_manifest_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/ingress.yaml").exists(),
+        "Kubernetes ingress manifest must exist"
+    );
+}
+
+#[test]
+fn test_k8s_hpa_manifest_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/hpa.yaml").exists(),
+        "Kubernetes HPA manifest must exist"
+    );
+}
+
+#[test]
+fn test_k8s_manifests_valid_yaml() {
+    let root = workspace_root();
+    let manifests = vec![
+        root.join("deploy/kubernetes/deployment.yaml"),
+        root.join("deploy/kubernetes/service.yaml"),
+        root.join("deploy/kubernetes/configmap.yaml"),
+        root.join("deploy/kubernetes/ingress.yaml"),
+        root.join("deploy/kubernetes/hpa.yaml"),
+    ];
+
+    for manifest_path in manifests {
+        let content = fs::read_to_string(&manifest_path)
+            .expect(&format!("Failed to read {:?}", manifest_path));
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&content)
+            .expect(&format!("{:?} must be valid YAML", manifest_path));
+        assert!(
+            parsed.get("apiVersion").is_some(),
+            "{:?} must have apiVersion",
+            manifest_path
+        );
+        assert!(
+            parsed.get("kind").is_some(),
+            "{:?} must have kind",
+            manifest_path
+        );
+        assert!(
+            parsed.get("metadata").is_some(),
+            "{:?} must have metadata",
+            manifest_path
+        );
+    }
+}
