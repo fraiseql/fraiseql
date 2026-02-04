@@ -17,6 +17,9 @@ use rand::Rng;
 use crate::secrets_manager::SecretsError;
 
 mod field_encryption_tests;
+mod database_adapter_tests;
+
+pub mod database_adapter;
 
 const NONCE_SIZE: usize = 12;  // 96 bits for GCM
 #[allow(dead_code)]
