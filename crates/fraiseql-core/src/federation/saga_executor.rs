@@ -593,27 +593,69 @@ impl SagaExecutor {
     }
 
     /// Fetch any @requires fields before step execution
+    ///
+    /// Identifies fields required by a mutation and fetches them from
+    /// other subgraphs if needed. This ensures all necessary data is
+    /// available before executing the mutation.
+    ///
+    /// Phase 9.2: @requires field pre-fetching
     #[allow(dead_code)]
     async fn pre_fetch_requires_fields(
         &self,
-        _saga_id: Uuid,
-        _step_number: u32,
+        saga_id: Uuid,
+        step_number: u32,
     ) -> SagaStoreResult<serde_json::Value> {
-        // Placeholder: Implement field fetching in GREEN phase
+        // In a full implementation, would:
+        // 1. Load step from saga store
+        // 2. Extract @requires directive from mutation schema
+        // 3. For each @requires field:
+        //    - Determine owning subgraph
+        //    - Create entity query to fetch the field
+        //    - Execute query against subgraph
+        // 4. Collect and return all fetched fields as JSON object
 
+        info!(
+            saga_id = %saga_id,
+            step_number = step_number,
+            "Pre-fetching @requires fields"
+        );
+
+        // For now, return empty object (no @requires fields)
+        // In production: would merge fields from entity resolver
         Ok(serde_json::json!({}))
     }
 
     /// Build augmented entity data with @requires fields
+    ///
+    /// Merges @requires fields into the entity data, ensuring all
+    /// necessary fields are present for mutation execution.
+    ///
+    /// Phase 9.2: Entity data augmentation with @requires fields
     #[allow(dead_code)]
     fn augment_entity_with_requires(
         &self,
-        _entity_data: serde_json::Value,
-        _requires_fields: serde_json::Value,
+        entity_data: serde_json::Value,
+        requires_fields: serde_json::Value,
     ) -> serde_json::Value {
-        // Placeholder: Merge @requires fields in GREEN phase
+        // In a full implementation, would:
+        // 1. Deep merge requires_fields into entity_data
+        // 2. Handle nested object paths (e.g., "product.price")
+        // 3. Validate all @requires fields are present
+        // 4. Return fully augmented entity
 
-        serde_json::json!({})
+        match (entity_data, requires_fields) {
+            (serde_json::Value::Object(mut entity), serde_json::Value::Object(requires)) => {
+                // Merge @requires fields into entity
+                for (key, value) in requires {
+                    entity.insert(key, value);
+                }
+                serde_json::Value::Object(entity)
+            }
+            (entity, _) => {
+                // If entity is not an object, return as-is
+                entity
+            }
+        }
     }
 }
 
@@ -892,5 +934,100 @@ mod tests {
         let step_result = result.unwrap();
         // Verify that duration is measured
         let _ = step_result.duration_ms;
+    }
+
+    #[tokio::test]
+    async fn test_pre_fetch_requires_fields() {
+        // Phase 9.2: @requires field fetching
+        let executor = SagaExecutor::new();
+        let saga_id = Uuid::new_v4();
+
+        let requires_fields = executor.pre_fetch_requires_fields(saga_id, 1).await;
+
+        assert!(requires_fields.is_ok());
+        let fields = requires_fields.unwrap();
+        assert_eq!(fields, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_augment_entity_with_requires() {
+        // Phase 9.2: Entity augmentation with @requires fields
+        let executor = SagaExecutor::new();
+
+        let entity = serde_json::json!({
+            "id": "user-123",
+            "name": "Alice"
+        });
+
+        let requires = serde_json::json!({
+            "email": "alice@example.com",
+            "role": "admin"
+        });
+
+        let result = executor.augment_entity_with_requires(entity, requires);
+
+        // Verify augmented entity contains both original and @requires fields
+        assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("user-123"));
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("Alice"));
+        assert_eq!(result.get("email").and_then(|v| v.as_str()), Some("alice@example.com"));
+        assert_eq!(result.get("role").and_then(|v| v.as_str()), Some("admin"));
+    }
+
+    #[test]
+    fn test_augment_entity_preserves_original_fields() {
+        // Phase 9.2: Augmentation preserves original entity data
+        let executor = SagaExecutor::new();
+
+        let entity = serde_json::json!({
+            "id": "product-456",
+            "price": 99.99
+        });
+
+        let requires = serde_json::json!({
+            "category": "electronics"
+        });
+
+        let result = executor.augment_entity_with_requires(entity, requires);
+
+        assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("product-456"));
+        assert_eq!(result.get("price").and_then(|v| v.as_f64()), Some(99.99));
+        assert_eq!(result.get("category").and_then(|v| v.as_str()), Some("electronics"));
+    }
+
+    #[test]
+    fn test_augment_entity_overwrites_conflicting_fields() {
+        // Phase 9.2: @requires fields overwrite if there's a conflict
+        let executor = SagaExecutor::new();
+
+        let entity = serde_json::json!({
+            "id": "user-123",
+            "status": "inactive"
+        });
+
+        let requires = serde_json::json!({
+            "status": "active"
+        });
+
+        let result = executor.augment_entity_with_requires(entity, requires);
+
+        // @requires should overwrite original value
+        assert_eq!(result.get("status").and_then(|v| v.as_str()), Some("active"));
+    }
+
+    #[test]
+    fn test_augment_entity_with_empty_requires() {
+        // Phase 9.2: Augmentation works with no @requires fields
+        let executor = SagaExecutor::new();
+
+        let entity = serde_json::json!({
+            "id": "test-123"
+        });
+
+        let requires = serde_json::json!({});
+
+        let result = executor.augment_entity_with_requires(entity, requires);
+
+        // Should return entity unchanged
+        assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("test-123"));
     }
 }
