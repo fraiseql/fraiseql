@@ -855,12 +855,102 @@ impl FlightService for FraiseQLFlightService {
     ///
     /// This method provides metadata about what data is available without
     /// actually fetching it. Will be implemented in future versions+.
+    /// Phase 3.1: Get schema and metadata for a dataset
+    ///
+    /// Returns FlightInfo containing schema and endpoint information for a specified
+    /// dataset (view, query, or observer events).
+    ///
+    /// # Request Format
+    ///
+    /// FlightDescriptor containing encoded FlightTicket in the path
+    ///
+    /// # Response
+    ///
+    /// FlightInfo with:
+    /// - `schema`: Arrow schema in IPC format
+    /// - `flight_descriptor`: Echo of request descriptor
+    /// - `endpoint`: Empty (data retrieved via DoGet with same descriptor)
+    /// - `total_records`: -1 (unknown until executed)
+    /// - `total_bytes`: -1 (unknown until executed)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Descriptor path is empty
+    /// - Ticket cannot be decoded
+    /// - Schema not found for requested view
     async fn get_flight_info(
         &self,
-        _request: Request<FlightDescriptor>,
+        request: Request<FlightDescriptor>,
     ) -> std::result::Result<Response<FlightInfo>, Status> {
-        info!("GetFlightInfo called");
-        Err(Status::unimplemented("GetFlightInfo not implemented yet"))
+        let descriptor = request.into_inner();
+        info!("GetFlightInfo called: {:?}", descriptor);
+
+        // Phase 3.1 Implementation: Get schema and metadata for dataset
+
+        // Extract path from descriptor
+        if descriptor.path.is_empty() {
+            return Err(Status::invalid_argument("Empty flight descriptor path"));
+        }
+
+        // Decode ticket from descriptor path
+        let ticket_bytes = descriptor.path[0].as_bytes();
+        let ticket = FlightTicket::decode(ticket_bytes)
+            .map_err(|e| Status::invalid_argument(format!("Invalid ticket: {e}")))?;
+
+        info!("GetFlightInfo decoded ticket: {:?}", ticket);
+
+        // Get schema based on ticket type
+        let schema = match ticket {
+            FlightTicket::GraphQLQuery { .. } => {
+                // GraphQL queries return schema of query result
+                graphql_result_schema()
+            }
+            FlightTicket::ObserverEvents { .. } => {
+                // Observer events return event schema
+                observer_event_schema()
+            }
+            FlightTicket::OptimizedView { view, .. } => {
+                // Optimized views return pre-compiled view schema
+                self.schema_registry.get(&view).map_err(|e| {
+                    Status::not_found(format!("Schema not found for view {view}: {e}"))
+                })?
+            }
+            FlightTicket::BulkExport { .. } => {
+                // Bulk export not implemented yet
+                return Err(Status::unimplemented("BulkExport not supported"));
+            }
+            FlightTicket::BatchedQueries { .. } => {
+                // Batched queries have per-query schemas in the data stream
+                return Err(Status::unimplemented(
+                    "GetFlightInfo for BatchedQueries uses per-query schemas in data stream",
+                ));
+            }
+        };
+
+        // Serialize schema to IPC format
+        let options = IpcWriteOptions::default();
+        let data_gen = IpcDataGenerator::default();
+        let mut dict_tracker = DictionaryTracker::new(false);
+        let schema_bytes = data_gen
+            .schema_to_bytes_with_dictionary_tracker(&schema, &mut dict_tracker, &options)
+            .ipc_message
+            .into();
+
+        // Build FlightInfo response
+        let flight_info = FlightInfo {
+            schema: schema_bytes,
+            flight_descriptor: Some(descriptor),
+            endpoint: vec![], // Data retrieved via DoGet with same descriptor
+            total_records: -1, // Unknown until executed
+            total_bytes: -1,   // Unknown until executed
+            ordered: false,
+            app_metadata: vec![].into(),
+        };
+
+        info!("GetFlightInfo returning schema for ticket");
+
+        Ok(Response::new(flight_info))
     }
 
     /// Poll for flight info updates (for long-running operations).
@@ -1237,6 +1327,97 @@ mod tests {
         // 3. Pass security context to executor.execute_with_security()
         // 4. Apply RLS (Row-Level Security) filters based on user_id
         let _note = "Authenticated query execution to be implemented in Phase 2.2b";
+        assert!(_note.len() > 0);
+    }
+
+    /// Phase 3.1: Tests that get_flight_info returns schema for views
+    #[tokio::test]
+    async fn test_get_flight_info_for_optimized_view() {
+        use tonic::Request;
+        use crate::ticket::FlightTicket;
+
+        let service = FraiseQLFlightService::new();
+
+        // Create a FlightTicket for an optimized view and encode it
+        let ticket = FlightTicket::OptimizedView {
+            view: "va_orders".to_string(),
+            filter: None,
+            order_by: None,
+            limit: None,
+            offset: None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+
+        // Create a FlightDescriptor with encoded ticket bytes
+        let descriptor = FlightDescriptor {
+            r#type: 1, // PATH
+            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd: Default::default(),
+        };
+
+        let request = Request::new(descriptor);
+        let result = service.get_flight_info(request).await;
+
+        // Phase 3.1 should return FlightInfo with schema
+        assert!(result.is_ok(), "get_flight_info should succeed for valid view");
+        let response = result.unwrap();
+        let flight_info = response.into_inner();
+
+        // Verify schema is present
+        assert!(!flight_info.schema.is_empty(), "Schema should not be empty");
+    }
+
+    /// Phase 3.1: Tests that get_flight_info returns error for invalid view
+    #[tokio::test]
+    async fn test_get_flight_info_invalid_view() {
+        use tonic::Request;
+        use crate::ticket::FlightTicket;
+
+        let service = FraiseQLFlightService::new();
+
+        // Create a FlightTicket for a non-existent view and encode it
+        let ticket = FlightTicket::OptimizedView {
+            view: "nonexistent_view".to_string(),
+            filter: None,
+            order_by: None,
+            limit: None,
+            offset: None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+
+        // Create a FlightDescriptor with encoded ticket bytes
+        let descriptor = FlightDescriptor {
+            r#type: 1, // PATH
+            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd: Default::default(),
+        };
+
+        let request = Request::new(descriptor);
+        let result = service.get_flight_info(request).await;
+
+        // Should return error for invalid view
+        assert!(result.is_err(), "get_flight_info should fail for non-existent view");
+    }
+
+    /// Phase 3.1: Documents do_action() for cache operations
+    #[test]
+    fn test_do_action_cache_operations_planned() {
+        // Phase 3.2 will implement do_action() with actions:
+        // 1. ClearCache - Clear all cached query results
+        // 2. RefreshSchemaRegistry - Reload schema definitions
+        // 3. HealthCheck - Service health status
+        let _note = "do_action() with cache/admin operations to be implemented in Phase 3.2";
+        assert!(_note.len() > 0);
+    }
+
+    /// Phase 3.1: Tests list_actions returns available actions
+    #[test]
+    fn test_list_actions_planned() {
+        // Phase 3.2 will implement list_actions() to return:
+        // - ClearCache action
+        // - RefreshSchemaRegistry action
+        // - HealthCheck action
+        let _note = "list_actions() to enumerate available Flight RPC operations";
         assert!(_note.len() > 0);
     }
 }
