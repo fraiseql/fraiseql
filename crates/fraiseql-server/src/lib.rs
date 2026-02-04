@@ -72,6 +72,7 @@
 #![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
 
 // Original fraiseql-server modules
+pub mod api;
 pub mod error;
 pub mod extractors;
 pub mod federation;
