@@ -126,6 +126,7 @@ pub mod graphql;
 
 // Infrastructure
 pub mod apq;
+pub mod audit;
 pub mod cache;
 pub mod db;
 pub mod design;
