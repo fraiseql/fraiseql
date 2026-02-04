@@ -233,3 +233,70 @@ fn test_ci_docker_build_workflow_multi_arch() {
         "Must support arm64"
     );
 }
+
+// ============================================================================
+// Cycle 10.3: Helm Chart Creation
+// ============================================================================
+
+#[test]
+fn test_helm_values_yaml_exists() {
+    let root = workspace_root();
+    let values_path = root.join("deploy/kubernetes/helm/fraiseql/values.yaml");
+    assert!(
+        values_path.exists(),
+        "Helm values.yaml must exist"
+    );
+}
+
+#[test]
+fn test_helm_values_structure() {
+    let root = workspace_root();
+    let values_path = root.join("deploy/kubernetes/helm/fraiseql/values.yaml");
+    let values_content = fs::read_to_string(&values_path)
+        .expect("Failed to read values.yaml");
+    let values: serde_yaml::Value =
+        serde_yaml::from_str(&values_content).expect("values.yaml must be valid YAML");
+
+    // Required top-level keys
+    assert!(values.get("image").is_some(), "Must have 'image' section");
+    assert!(values.get("replicaCount").is_some(), "Must have 'replicaCount'");
+    assert!(values.get("service").is_some(), "Must have 'service' section");
+    assert!(values.get("resources").is_some(), "Must have 'resources' section");
+}
+
+#[test]
+fn test_helm_templates_directory_exists() {
+    let root = workspace_root();
+    let templates_dir = root.join("deploy/kubernetes/helm/fraiseql/templates");
+    assert!(
+        templates_dir.exists(),
+        "Helm templates directory must exist"
+    );
+}
+
+#[test]
+fn test_helm_deployment_template_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/helm/fraiseql/templates/deployment.yaml").exists(),
+        "Helm deployment template must exist"
+    );
+}
+
+#[test]
+fn test_helm_service_template_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/helm/fraiseql/templates/service.yaml").exists(),
+        "Helm service template must exist"
+    );
+}
+
+#[test]
+fn test_helm_configmap_template_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/helm/fraiseql/templates/configmap.yaml").exists(),
+        "Helm configmap template must exist"
+    );
+}
