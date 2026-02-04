@@ -356,3 +356,56 @@ fn test_k8s_manifests_valid_yaml() {
         );
     }
 }
+
+// ============================================================================
+// Cycle 10.5: Hardened K8s Manifests
+// ============================================================================
+
+#[test]
+fn test_hardened_k8s_manifest_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/kubernetes/fraiseql-hardened.yaml").exists(),
+        "Hardened K8s manifest must exist"
+    );
+}
+
+#[test]
+fn test_hardened_manifest_contains_security_policies() {
+    let root = workspace_root();
+    let content = fs::read_to_string(root.join("deploy/kubernetes/fraiseql-hardened.yaml"))
+        .expect("Failed to read hardened manifest");
+
+    assert!(
+        content.contains("PodSecurityPolicy"),
+        "Must include PodSecurityPolicy"
+    );
+    assert!(
+        content.contains("NetworkPolicy"),
+        "Must include NetworkPolicy"
+    );
+    assert!(
+        content.contains("PodDisruptionBudget"),
+        "Must include PodDisruptionBudget"
+    );
+}
+
+#[test]
+fn test_hardened_manifest_security_hardening() {
+    let root = workspace_root();
+    let content = fs::read_to_string(root.join("deploy/kubernetes/fraiseql-hardened.yaml"))
+        .expect("Failed to read hardened manifest");
+
+    assert!(
+        content.contains("runAsNonRoot: true"),
+        "Must run as non-root"
+    );
+    assert!(
+        content.contains("allowPrivilegeEscalation: false"),
+        "Must disable privilege escalation"
+    );
+    assert!(
+        content.contains("readOnlyRootFilesystem"),
+        "Must address read-only filesystem"
+    );
+}
