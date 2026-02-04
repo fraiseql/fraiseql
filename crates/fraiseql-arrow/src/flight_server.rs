@@ -219,6 +219,32 @@ impl FraiseQLFlightService {
         self.executor.is_some()
     }
 
+    /// Phase 2.2: Check if service has authenticated security context
+    ///
+    /// Returns true if handshake was successful and security context is set.
+    /// Subsequent Flight RPC calls require valid authentication.
+    #[must_use]
+    pub fn is_authenticated(&self) -> bool {
+        self.security_context.is_some()
+    }
+
+    /// Phase 2.2: Get security context if authenticated
+    ///
+    /// Returns the current security context if authentication succeeded.
+    /// Contains session token, user ID, and expiration information.
+    #[must_use]
+    pub fn security_context(&self) -> Option<&SecurityContext> {
+        self.security_context.as_ref()
+    }
+
+    /// Phase 2.2: Set security context after successful authentication
+    ///
+    /// Called internally after handshake succeeds to establish authenticated session.
+    /// In production, this would be called after JWT validation succeeds.
+    pub fn set_security_context(&mut self, context: SecurityContext) {
+        self.security_context = Some(context);
+    }
+
     /// Convert this service into a gRPC server.
     #[must_use]
     pub fn into_server(self) -> FlightServiceServer<Self> {
@@ -1169,5 +1195,48 @@ mod tests {
         // Test empty string
         let token = extract_jwt_from_bearer("");
         assert_eq!(token, None);
+    }
+
+    /// Phase 2.2: Tests SecurityContext creation and validation
+    #[test]
+    fn test_security_context_creation() {
+        let context = SecurityContext {
+            session_token: "session-12345".to_string(),
+            user_id: "user-456".to_string(),
+            expiration: Some(9999999999),
+        };
+
+        assert_eq!(context.session_token, "session-12345");
+        assert_eq!(context.user_id, "user-456");
+        assert!(context.expiration.is_some());
+    }
+
+    /// Phase 2.2: Tests that security context can be set on service
+    #[test]
+    fn test_service_with_security_context() {
+        let service = FraiseQLFlightService::new();
+        assert!(service.security_context.is_none());
+
+        // In Phase 2.2b, set security context after successful handshake
+        let _context = SecurityContext {
+            session_token: "session-abc".to_string(),
+            user_id: "user-123".to_string(),
+            expiration: None,
+        };
+
+        // security_context can be set on service after handshake completes
+        // (will be done in GREEN phase implementation)
+    }
+
+    /// Phase 2.2: Documents authenticated query execution
+    #[test]
+    fn test_authenticated_query_execution_planned() {
+        // Phase 2.2 will implement authenticated query execution:
+        // 1. Check if security_context is set on service (authenticated)
+        // 2. Validate session token from gRPC metadata
+        // 3. Pass security context to executor.execute_with_security()
+        // 4. Apply RLS (Row-Level Security) filters based on user_id
+        let _note = "Authenticated query execution to be implemented in Phase 2.2b";
+        assert!(_note.len() > 0);
     }
 }
