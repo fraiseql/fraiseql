@@ -2,13 +2,14 @@
 
 ## Executive Summary
 
-**MAJOR MILESTONE**: Successfully completed Phase 1-3 (Arrow Flight core + auth + metadata) and Phase 7-8 (Federation saga pattern). Arrow Flight server now handles GraphQL queries with JWT authentication, schema metadata, and admin actions. All 73 fraiseql-arrow tests + 1464 fraiseql-core tests passing.
+**MAJOR MILESTONE**: Successfully completed Phase 1-4 (Arrow Flight + API Infrastructure) and Phase 7-8 (Federation saga pattern). Arrow Flight server now handles GraphQL queries with JWT authentication, schema metadata, admin actions, and configuration access. API infrastructure ready for endpoint implementation. All 73 fraiseql-arrow + 16 fraiseql-server tests + 1464 fraiseql-core tests passing.
 
 **Status**:
 - ✅ Phase 1: Arrow Flight Core Integration - COMPLETE
 - ✅ Phase 2: Arrow Flight Authentication - COMPLETE
 - ✅ Phase 3: Arrow Flight Metadata & Actions - COMPLETE
-- 🟡 Phase 4-6: API Endpoint Infrastructure - READY TO START
+- ✅ Phase 4: API Endpoint Infrastructure - COMPLETE
+- 🟡 Phase 5-6: API Endpoints - READY TO START
 - ✅ Phase 7: Federation Saga Execution - COMPLETE
 - ✅ Phase 8: Federation Saga Compensation - COMPLETE
 - 🟡 Phase 9: Federation Saga Integration - READY TO START
@@ -289,6 +290,52 @@ No clippy warnings, clean compilation, circular dependency resolved.
   - test_list_actions_returns_action_types
   - test_do_action_health_check
   - test_do_action_unknown_action
+
+### Phase 4: API Endpoint Infrastructure ✅ COMPLETE
+**Commits**:
+- `fbc2cf99 - feat(server): Implement Phase 4.1 - Extend AppState with cache and config`
+- `5fc6964f - feat(server): Implement Phase 4.2 - Configuration access with sanitization`
+- `035856a5 - feat(server): Document Phase 4.3 - Schema Access Pattern`
+
+**Cycles Completed**:
+- ✅ 4.1: Extend AppState with Cache
+  - Added cache: Option<Arc<QueryCache>> field to AppState<A>
+  - Added config: Option<Arc<ServerConfig>> field to AppState<A>
+  - Implemented with_cache() constructor
+  - Implemented with_cache_and_config() constructor
+  - 6 tests covering field presence and constructor behavior
+
+- ✅ 4.2: Configuration Access with Sanitization
+  - Created SanitizedConfig struct for safe API exposure
+  - Implemented secret redaction for TLS paths, database URLs
+  - Preserve operational settings: port, host, workers, tls_enabled
+  - Added AppState::sanitized_config() method
+  - Boolean tls_enabled flag instead of exposing certificate paths
+  - 5 tests covering config sanitization and redaction verification
+
+- ✅ 4.3: Schema Access Pattern
+  - Documented executor provides schema access
+  - Schema available to API endpoints via state.executor
+  - CompiledSchema accessed through executor methods (private type)
+  - 2 documentation tests
+
+**Implementation Details**:
+- fraiseql-arrow now required dependency of fraiseql-server (for QueryCache)
+- SanitizedConfig redacts: TLS cert/key paths, database connection strings
+- AppState accessors: cache(), server_config(), sanitized_config()
+- Cache and config are optional fields (None when not configured)
+
+**Files Modified**:
+- `crates/fraiseql-server/src/routes/graphql.rs` (+200 lines)
+- `crates/fraiseql-server/src/routes/api/types.rs` (+50 lines)
+- `crates/fraiseql-server/Cargo.toml` (dependency changes)
+
+**Test Results**:
+- ✅ All 16 fraiseql-server graphql tests passing (6 → 16)
+- New tests added:
+  - Phase 4.1: test_appstate_has_cache_field, test_appstate_with_cache_constructor, test_appstate_cache_accessor, test_appstate_server_config_accessor
+  - Phase 4.2: test_sanitized_config_from_server_config, test_sanitized_config_indicates_tls_without_exposing_keys, test_sanitized_config_redaction
+  - Phase 4.3: test_appstate_executor_provides_access_to_schema, test_schema_access_for_api_endpoints
 
 ### Phase 8: Federation Saga Compensation ✅ COMPLETE
 - **Status**: ✅ COMPLETE - All 4 cycles implemented
