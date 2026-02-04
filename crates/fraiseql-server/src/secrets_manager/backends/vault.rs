@@ -82,6 +82,17 @@ impl SecretCache {
         None
     }
 
+    /// Get cached secret with expiry information
+    async fn get_with_expiry(&self, key: &str) -> Option<(String, chrono::DateTime<Utc>)> {
+        let entries = self.entries.read().await;
+        if let Some(cached) = entries.get(key) {
+            if cached.expires_at > Utc::now() {
+                return Some((cached.value.clone(), cached.expires_at));
+            }
+        }
+        None
+    }
+
     /// Store secret in cache with expiry
     async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>,
                  lease_id: Option<String>, renewable: bool) {
@@ -197,11 +208,8 @@ impl SecretsBackend for VaultBackend {
 
         // Check cache first
         let cache = self.cache.read().await;
-        if let Some(cached_value) = cache.get(name).await {
-            // Try to get expiry from cache entry (use default if not stored)
-            if let Some(cached) = cache.entries.read().await.get(name) {
-                return Ok((cached_value, cached.expires_at));
-            }
+        if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
+            return Ok((cached_value, cached_expiry));
         }
         drop(cache);  // Release read lock before fetching
 
@@ -350,6 +358,43 @@ impl VaultBackend {
         format!("{}/{}/{}", self.addr.trim_end_matches('/'), VAULT_API_VERSION, path)
     }
 
+    /// Build HTTP request to Vault with standard headers
+    #[allow(dead_code)]
+    fn build_vault_request(&self, client: &reqwest::Client, url: String) -> reqwest::RequestBuilder {
+        client
+            .post(&url)
+            .header("X-Vault-Token", self.token.clone())
+            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+    }
+
+    /// Handle Transit engine response for encrypt/decrypt
+    async fn handle_transit_response(
+        &self,
+        response: reqwest::Response,
+        data_field: &str,
+        operation: &str,
+    ) -> Result<String, SecretsError> {
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body = response
+                    .json::<serde_json::Value>()
+                    .await
+                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse Transit response: {}", e)))?;
+
+                body["data"][data_field]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| SecretsError::EncryptionError(format!("Missing {} in response", data_field)))
+            }
+            reqwest::StatusCode::NOT_FOUND => {
+                Err(SecretsError::NotFound("Transit key not found".to_string()))
+            }
+            status => {
+                Err(SecretsError::EncryptionError(format!("Vault Transit {} failed with status {}", operation, status)))
+            }
+        }
+    }
+
     /// Encrypt plaintext using Vault Transit engine
     ///
     /// # Arguments
@@ -360,10 +405,6 @@ impl VaultBackend {
     /// Encrypted ciphertext in Vault's standard format
     pub async fn encrypt_field(&self, key_name: &str, plaintext: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
-
-        let request_body = serde_json::json!({
-            "plaintext": STANDARD_NO_PAD.encode(plaintext)
-        });
 
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(!self.tls_verify)
@@ -377,34 +418,17 @@ impl VaultBackend {
             key_name
         );
 
-        let response = client
-            .post(&url)
-            .header("X-Vault-Token", self.token.clone())
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+        let request_body = serde_json::json!({
+            "plaintext": STANDARD_NO_PAD.encode(plaintext)
+        });
+
+        let response = self.build_vault_request(&client, url)
             .json(&request_body)
             .send()
             .await
             .map_err(|e| SecretsError::BackendError(format!("Vault Transit encrypt request failed: {}", e)))?;
 
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                let body = response
-                    .json::<serde_json::Value>()
-                    .await
-                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse encrypt response: {}", e)))?;
-
-                body["data"]["ciphertext"]
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| SecretsError::EncryptionError("Missing ciphertext in response".to_string()))
-            }
-            reqwest::StatusCode::NOT_FOUND => {
-                Err(SecretsError::NotFound(format!("Transit key not found: {}", key_name)))
-            }
-            status => {
-                Err(SecretsError::EncryptionError(format!("Vault Transit encrypt failed with status {}", status)))
-            }
-        }
+        self.handle_transit_response(response, "ciphertext", "encrypt").await
     }
 
     /// Decrypt ciphertext using Vault Transit engine
@@ -418,10 +442,6 @@ impl VaultBackend {
     pub async fn decrypt_field(&self, key_name: &str, ciphertext: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
 
-        let request_body = serde_json::json!({
-            "ciphertext": ciphertext
-        });
-
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(!self.tls_verify)
             .build()
@@ -434,38 +454,24 @@ impl VaultBackend {
             key_name
         );
 
-        let response = client
-            .post(&url)
-            .header("X-Vault-Token", self.token.clone())
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+        let request_body = serde_json::json!({
+            "ciphertext": ciphertext
+        });
+
+        let response = self.build_vault_request(&client, url)
             .json(&request_body)
             .send()
             .await
             .map_err(|e| SecretsError::BackendError(format!("Vault Transit decrypt request failed: {}", e)))?;
 
-        match response.status() {
-            reqwest::StatusCode::OK => {
-                let body = response
-                    .json::<serde_json::Value>()
-                    .await
-                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse decrypt response: {}", e)))?;
+        // Get plaintext from response
+        let plaintext_b64 = self.handle_transit_response(response, "plaintext", "decrypt").await?;
 
-                let plaintext_b64 = body["data"]["plaintext"]
-                    .as_str()
-                    .ok_or_else(|| SecretsError::EncryptionError("Missing plaintext in response".to_string()))?;
-
-                STANDARD_NO_PAD.decode(plaintext_b64)
-                    .ok()
-                    .and_then(|bytes| String::from_utf8(bytes).ok())
-                    .ok_or_else(|| SecretsError::EncryptionError("Failed to decode plaintext".to_string()))
-            }
-            reqwest::StatusCode::NOT_FOUND => {
-                Err(SecretsError::NotFound(format!("Transit key not found: {}", key_name)))
-            }
-            status => {
-                Err(SecretsError::EncryptionError(format!("Vault Transit decrypt failed with status {}", status)))
-            }
-        }
+        // Decode base64 to get original plaintext
+        STANDARD_NO_PAD.decode(&plaintext_b64)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .ok_or_else(|| SecretsError::EncryptionError("Failed to decode plaintext".to_string()))
     }
 }
 
