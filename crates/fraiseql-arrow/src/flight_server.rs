@@ -188,32 +188,95 @@ impl FraiseQLFlightService {
 
     /// Execute GraphQL query and stream Arrow batches.
     ///
-    /// Currently returns an empty stream (placeholder). Full implementation includes:
-    /// - TODO: Call executor.execute_json(query, variables).await to get JSON results
-    /// - TODO: Extract field metadata from GraphQL schema introspection
-    /// - TODO: Convert JSON results to Arrow RecordBatches
-    /// - TODO: Convert RecordBatches to FlightData messages
-    /// - TODO: Stream Arrow data to client
+    /// Converts GraphQL query results to Arrow Flight format for efficient columnar transfer.
     ///
-    /// # Phase 1.2 Implementation Plan
+    /// # Current Implementation
     ///
-    /// Will use the executor field (added in Phase 1.1) to execute real queries:
-    /// ```ignore
-    /// if let Some(executor) = &self.executor {
-    ///     let result = executor.execute_json(query, variables).await?;
-    ///     // Convert result to Arrow and stream
-    /// } else {
-    ///     return Err(Status::unavailable("Executor not configured"));
-    /// }
-    /// ```
+    /// Returns placeholder Arrow data. For real execution, see Phase 1.2b integration plan.
+    ///
+    /// # Phase 1.2b Integration Plan
+    ///
+    /// Once the executor integration is available (after solving circular dependency):
+    /// - Downcast executor to concrete Executor<A> type
+    /// - Call executor.execute_json(query, variables).await
+    /// - Parse JSON result to extract fields and types
+    /// - Convert results to Arrow RecordBatches using RowToArrowConverter
+    /// - Stream as FlightData messages (schema + batches)
+    ///
+    /// # Integration Point
+    ///
+    /// fraiseql-server will provide the integration by:
+    /// 1. Creating FraiseQLFlightService<A> (generic over adapter type)
+    /// 2. Setting executor via set_executor() with concrete Executor<A>
+    /// 3. Providing a callback/wrapper for real query execution
     async fn execute_graphql_query(
         &self,
-        _query: &str,
+        query: &str,
         _variables: Option<serde_json::Value>,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
-        // TODO: Execute actual GraphQL query and convert RecordBatches to FlightData
-        let stream = futures::stream::empty();
+        // Phase 1.2a: Return placeholder Arrow data
+        // Phase 1.2b: Wire up real executor execution
+
+        // Generate placeholder schema and data for demonstration
+        let fields = vec![
+            ("id".to_string(), "ID".to_string(), false),
+            ("result".to_string(), "String".to_string(), true),
+        ];
+
+        info!("Executing GraphQL query (placeholder): {}", query);
+
+        // Check if executor is configured
+        if self.executor.is_some() {
+            info!("Executor is configured - real execution would happen in Phase 1.2b");
+        }
+
+        // Generate placeholder rows with the query as result
+        let mut rows = Vec::with_capacity(1);
+        let mut row = std::collections::HashMap::new();
+        row.insert("id".to_string(), serde_json::json!("1"));
+        row.insert("result".to_string(), serde_json::json!(query));
+        rows.push(row);
+
+        // Convert to Arrow schema and data
+        let arrow_schema = crate::schema_gen::generate_arrow_schema(&fields);
+        let arrow_values = rows
+            .iter()
+            .map(|row| {
+                vec![
+                    row.get("id").cloned().and_then(|v| match v {
+                        serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
+                        _ => None,
+                    }),
+                    row.get("result").cloned().and_then(|v| match v {
+                        serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
+                        _ => None,
+                    }),
+                ]
+            })
+            .collect::<Vec<_>>();
+
+        // Convert to RecordBatches
+        let config = crate::convert::ConvertConfig {
+            batch_size: 10_000,
+            max_rows:   None,
+        };
+        let converter = crate::convert::RowToArrowConverter::new(arrow_schema.clone(), config);
+
+        let batches = arrow_values
+            .chunks(config.batch_size)
+            .map(|chunk| converter.convert_batch(chunk.to_vec()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
+
+        // Stream schema first, then batches
+        let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
+        messages.push(Ok(schema_to_flight_data(&arrow_schema)?));
+        for batch in batches {
+            messages.push(record_batch_to_flight_data(&batch));
+        }
+
+        let stream = futures::stream::iter(messages);
         Ok(stream)
     }
 
