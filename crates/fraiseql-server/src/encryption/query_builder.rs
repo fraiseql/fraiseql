@@ -1,8 +1,45 @@
-// Phase 12.3 Cycle 3: Query Builder Integration (GREEN)
+// Phase 12.3 Cycle 3: Query Builder Integration (REFACTOR)
 //! Query builder integration for transparent field-level encryption/decryption
 //!
 //! Provides automatic encryption on write operations and decryption on read
 //! operations at the query layer without application code changes.
+//!
+//! # Overview
+//!
+//! This module validates SQL queries to ensure encrypted fields are not used in
+//! operations that require plaintext comparison or ordering:
+//!
+//! - **WHERE clauses**: Encrypted fields cannot be directly compared
+//! - **ORDER BY clauses**: Encrypted ciphertext does not preserve plaintext order
+//! - **JOIN conditions**: Encrypted fields are not comparable
+//! - **GROUP BY clauses**: Encrypted ciphertext values are not stable
+//! - **IS NULL**: Allowed (NULL stored at database level, not encrypted)
+//!
+//! # Alternatives for Encrypted Field Queries
+//!
+//! When you need to query encrypted fields, consider:
+//!
+//! 1. **Deterministic Hash Index**
+//!    - Hash plaintext to deterministic value
+//!    - Store hash in separate index column
+//!    - Query using hash value
+//!    - Vulnerable to rainbow table attacks - only use for non-sensitive data
+//!
+//! 2. **Plaintext Copy Column**
+//!    - Store plaintext in unencrypted column (for non-sensitive subsets)
+//!    - Encrypt separate column for full value
+//!    - Query plaintext column, decrypt full value when needed
+//!
+//! 3. **Application-Level Filtering**
+//!    - SELECT all rows with encryption keys available
+//!    - Decrypt in application
+//!    - Filter in memory
+//!    - Works for reasonable result sets
+//!
+//! 4. **Vault-Native Encryption**
+//!    - Use Vault Transit engine's encrypt/decrypt
+//!    - Store encrypted data in separate "searchable" column
+//!    - Query using Vault API for pattern matching
 
 use crate::secrets_manager::SecretsError;
 use std::collections::HashSet;
@@ -155,6 +192,51 @@ impl QueryBuilderIntegration {
     pub fn encrypted_fields(&self) -> Vec<String> {
         self.encrypted_fields.iter().cloned().collect()
     }
+
+    /// Check if field is encrypted
+    pub fn is_encrypted(&self, field: &str) -> bool {
+        self.encrypted_fields.contains(&field.to_string())
+    }
+
+    /// Get encrypted fields that appear in field list
+    pub fn get_encrypted_fields_in_list(&self, fields: &[&str]) -> Vec<String> {
+        fields
+            .iter()
+            .filter(|f| self.is_encrypted(f))
+            .map(|f| f.to_string())
+            .collect()
+    }
+
+    /// Validate entire query structure
+    ///
+    /// Performs comprehensive validation across multiple clauses.
+    pub fn validate_query(
+        &self,
+        query_type: QueryType,
+        where_fields: &[&str],
+        order_by_fields: &[&str],
+        join_fields: &[&str],
+    ) -> Result<(), SecretsError> {
+        // Validate based on query type
+        match query_type {
+            QueryType::Insert | QueryType::Update => {
+                // For INSERT/UPDATE, encrypted fields must be handled by adapter
+                // No clause restrictions for write operations
+                Ok(())
+            }
+            QueryType::Select => {
+                // For SELECT, validate all clause restrictions
+                self.validate_where_clause(where_fields)?;
+                self.validate_order_by_clause(order_by_fields)?;
+                self.validate_join_condition(join_fields)?;
+                Ok(())
+            }
+            QueryType::Delete => {
+                // For DELETE, encrypted fields not needed, no restrictions
+                Ok(())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -253,5 +335,42 @@ mod tests {
         assert_eq!(fields.len(), 2);
         assert!(fields.contains(&"email".to_string()));
         assert!(fields.contains(&"phone".to_string()));
+    }
+
+    #[test]
+    fn test_is_encrypted() {
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
+        assert!(qbi.is_encrypted("email"));
+        assert!(!qbi.is_encrypted("name"));
+    }
+
+    #[test]
+    fn test_get_encrypted_fields_in_list() {
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string(), "phone".to_string()]);
+        let result = qbi.get_encrypted_fields_in_list(&["name", "email", "phone"]);
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"email".to_string()));
+        assert!(result.contains(&"phone".to_string()));
+    }
+
+    #[test]
+    fn test_validate_query_insert_allows_encrypted() {
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
+        let result = qbi.validate_query(QueryType::Insert, &[], &[], &[]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_query_select_rejects_encrypted_where() {
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
+        let result = qbi.validate_query(QueryType::Select, &["email"], &[], &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_query_delete_allows_encrypted() {
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
+        let result = qbi.validate_query(QueryType::Delete, &[], &[], &[]);
+        assert!(result.is_ok());
     }
 }
