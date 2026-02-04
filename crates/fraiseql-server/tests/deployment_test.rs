@@ -129,3 +129,107 @@ fn test_docker_compose_exists() {
         "docker-compose.yml must exist for local development"
     );
 }
+
+// ============================================================================
+// Cycle 10.2: Multi-Stage Dockerfile with Multi-Architecture Support
+// ============================================================================
+
+#[test]
+fn test_dockerfile_has_build_stage() {
+    let root = workspace_root();
+    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
+        .expect("Failed to read Dockerfile");
+    assert!(
+        dockerfile.contains("rust:") && dockerfile.contains("builder"),
+        "Must have Rust builder stage"
+    );
+    assert!(
+        dockerfile.contains("AS builder"),
+        "Builder stage must be named 'builder'"
+    );
+}
+
+#[test]
+fn test_dockerfile_production_stage() {
+    let root = workspace_root();
+    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
+        .expect("Failed to read Dockerfile");
+    assert!(
+        dockerfile.contains("FROM debian:bookworm-slim"),
+        "Production stage must use debian:bookworm-slim"
+    );
+    assert!(
+        dockerfile.contains("COPY --from=builder"),
+        "Must copy from builder stage"
+    );
+}
+
+#[test]
+fn test_dockerfile_security_hardening() {
+    let root = workspace_root();
+    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
+        .expect("Failed to read Dockerfile");
+    assert!(
+        dockerfile.contains("useradd"),
+        "Non-root user must be created"
+    );
+    assert!(
+        dockerfile.contains("USER"),
+        "Must switch to non-root user"
+    );
+    assert!(
+        dockerfile.contains("HEALTHCHECK"),
+        "Health check must be configured"
+    );
+}
+
+#[test]
+fn test_dockerfile_multi_arch_support() {
+    let root = workspace_root();
+    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
+        .expect("Failed to read Dockerfile");
+    assert!(
+        dockerfile.contains("ARG TARGETARCH") || dockerfile.contains("TARGETPLATFORM"),
+        "Multi-arch build arguments required"
+    );
+}
+
+#[test]
+fn test_dockerfile_hardened_variant_exists() {
+    let root = workspace_root();
+    assert!(
+        root.join("deploy/docker/Dockerfile.hardened").exists(),
+        "Hardened Dockerfile variant must exist"
+    );
+}
+
+#[test]
+fn test_dockerfile_hardened_variant_content() {
+    let root = workspace_root();
+    let hardened = fs::read_to_string(root.join("deploy/docker/Dockerfile.hardened"))
+        .expect("Failed to read hardened Dockerfile");
+    // Hardened variant should use netcat instead of curl for health check
+    assert!(
+        hardened.contains("nc -z") || hardened.contains("netcat"),
+        "Hardened variant should use netcat for health check"
+    );
+}
+
+#[test]
+fn test_ci_docker_build_workflow_multi_arch() {
+    let root = workspace_root();
+    let workflow = fs::read_to_string(root.join(".github/workflows/build-docker.yml"))
+        .expect("Failed to read build-docker.yml");
+    assert!(
+        workflow.contains("platforms:"),
+        "Must specify platforms for multi-arch builds"
+    );
+    assert!(
+        workflow.contains("linux/amd64"),
+        "Must support amd64"
+    );
+    assert!(
+        workflow.contains("linux/arm64"),
+        "Must support arm64"
+    );
+}
