@@ -160,6 +160,34 @@ impl StructSchema {
             .collect()
     }
 
+    /// Internal filter helper to reduce duplication
+    fn filter_fields<F>(&self, predicate: F) -> Vec<&SchemaFieldInfo>
+    where
+        F: Fn(&&SchemaFieldInfo) -> bool,
+    {
+        self.all_fields.iter().filter(predicate).collect()
+    }
+
+    /// Get fields that are marked as nullable
+    pub fn nullable_encrypted_fields(&self) -> Vec<&SchemaFieldInfo> {
+        self.filter_fields(|f| f.is_encrypted && f.nullable)
+    }
+
+    /// Get fields requiring specific encryption key
+    pub fn fields_for_key(&self, key_ref: &str) -> Vec<&SchemaFieldInfo> {
+        self.filter_fields(|f| f.key_reference == key_ref)
+    }
+
+    /// Count encrypted fields
+    pub fn encrypted_field_count(&self) -> usize {
+        self.encrypted_fields.len()
+    }
+
+    /// Count total fields
+    pub fn total_field_count(&self) -> usize {
+        self.all_fields.len()
+    }
+
     /// Validate schema configuration
     pub fn validate(&self) -> Result<(), SecretsError> {
         if self.type_name.is_empty() {
@@ -241,6 +269,36 @@ impl SchemaRegistry {
         self.schemas.keys().map(|s| s.as_str()).collect()
     }
 
+    /// Get list of all types that have encrypted fields
+    pub fn types_with_encryption(&self) -> Vec<&str> {
+        self.schemas
+            .iter()
+            .filter(|(_, schema)| !schema.encrypted_fields.is_empty())
+            .map(|(name, _)| name.as_str())
+            .collect()
+    }
+
+    /// Get all encryption keys used across all schemas
+    pub fn all_encryption_keys(&self) -> Vec<String> {
+        let mut keys = std::collections::HashSet::new();
+        for schema in self.schemas.values() {
+            for field in &schema.encrypted_fields {
+                keys.insert(field.key_reference.clone());
+            }
+        }
+        let mut sorted: Vec<_> = keys.into_iter().collect();
+        sorted.sort();
+        sorted
+    }
+
+    /// Validate all registered schemas
+    pub fn validate_all(&self) -> Result<(), SecretsError> {
+        for schema in self.schemas.values() {
+            schema.validate()?;
+        }
+        Ok(())
+    }
+
     /// Unregister schema
     pub fn unregister(&mut self, type_name: &str) -> Option<StructSchema> {
         self.schemas.remove(type_name)
@@ -254,6 +312,14 @@ impl SchemaRegistry {
     /// Count registered schemas
     pub fn count(&self) -> usize {
         self.schemas.len()
+    }
+
+    /// Count total encrypted fields across all schemas
+    pub fn total_encrypted_fields(&self) -> usize {
+        self.schemas
+            .values()
+            .map(|schema| schema.encrypted_fields.len())
+            .sum()
     }
 }
 
@@ -486,5 +552,117 @@ mod tests {
     fn test_schema_registry_default_instance() {
         let registry = SchemaRegistry::default();
         assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_struct_schema_nullable_encrypted_fields() {
+        let mut schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email")
+            .with_nullable(true);
+        let phone = SchemaFieldInfo::new("phone", "String", true, "encryption/phone")
+            .with_nullable(false);
+        let name = SchemaFieldInfo::new("name", "String", false, "")
+            .with_nullable(true);
+        schema.add_field(email);
+        schema.add_field(phone);
+        schema.add_field(name);
+        let nullable = schema.nullable_encrypted_fields();
+        assert_eq!(nullable.len(), 1);
+        assert_eq!(nullable[0].field_name, "email");
+    }
+
+    #[test]
+    fn test_struct_schema_fields_for_key() {
+        let mut schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        let phone = SchemaFieldInfo::new("phone", "String", true, "encryption/email");
+        let ssn = SchemaFieldInfo::new("ssn", "String", true, "encryption/ssn");
+        schema.add_field(email);
+        schema.add_field(phone);
+        schema.add_field(ssn);
+        let email_fields = schema.fields_for_key("encryption/email");
+        assert_eq!(email_fields.len(), 2);
+    }
+
+    #[test]
+    fn test_struct_schema_encrypted_field_count() {
+        let mut schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        let phone = SchemaFieldInfo::new("phone", "String", true, "encryption/phone");
+        schema.add_field(email);
+        schema.add_field(phone);
+        assert_eq!(schema.encrypted_field_count(), 2);
+    }
+
+    #[test]
+    fn test_struct_schema_total_field_count() {
+        let mut schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        let name = SchemaFieldInfo::new("name", "String", false, "");
+        schema.add_field(email);
+        schema.add_field(name);
+        assert_eq!(schema.total_field_count(), 2);
+    }
+
+    #[test]
+    fn test_schema_registry_types_with_encryption() {
+        let mut registry = SchemaRegistry::new();
+        let mut user_schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        user_schema.add_field(email);
+        registry.register(user_schema).unwrap();
+
+        let mut product_schema = StructSchema::new("Product");
+        let name = SchemaFieldInfo::new("name", "String", false, "");
+        product_schema.add_field(name);
+        registry.register(product_schema).unwrap();
+
+        let encrypted_types = registry.types_with_encryption();
+        assert_eq!(encrypted_types.len(), 1);
+        assert_eq!(encrypted_types[0], "User");
+    }
+
+    #[test]
+    fn test_schema_registry_all_encryption_keys() {
+        let mut registry = SchemaRegistry::new();
+        let mut user_schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        let phone = SchemaFieldInfo::new("phone", "String", true, "encryption/phone");
+        user_schema.add_field(email);
+        user_schema.add_field(phone);
+        registry.register(user_schema).unwrap();
+
+        let keys = registry.all_encryption_keys();
+        assert_eq!(keys.len(), 2);
+        assert!(keys.contains(&"encryption/email".to_string()));
+        assert!(keys.contains(&"encryption/phone".to_string()));
+    }
+
+    #[test]
+    fn test_schema_registry_validate_all() {
+        let mut registry = SchemaRegistry::new();
+        let mut schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        schema.add_field(email);
+        registry.register(schema).unwrap();
+        assert!(registry.validate_all().is_ok());
+    }
+
+    #[test]
+    fn test_schema_registry_total_encrypted_fields() {
+        let mut registry = SchemaRegistry::new();
+        let mut user_schema = StructSchema::new("User");
+        let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
+        let phone = SchemaFieldInfo::new("phone", "String", true, "encryption/phone");
+        user_schema.add_field(email);
+        user_schema.add_field(phone);
+        registry.register(user_schema).unwrap();
+
+        let mut product_schema = StructSchema::new("Product");
+        let sku = SchemaFieldInfo::new("sku", "String", true, "encryption/sku");
+        product_schema.add_field(sku);
+        registry.register(product_schema).unwrap();
+
+        assert_eq!(registry.total_encrypted_fields(), 3);
     }
 }
