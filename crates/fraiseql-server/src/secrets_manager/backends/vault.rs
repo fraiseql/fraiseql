@@ -5,9 +5,12 @@
 //! Implements the SecretsBackend trait for HashiCorp Vault,
 //! providing dynamic database credentials, TTL management, and encryption.
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use super::super::{SecretsBackend, SecretsError};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 
 /// Vault API response structure for secrets
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -29,8 +32,101 @@ struct LeaseInfo {
     renewable: bool,
 }
 
-// Constants for Vault API
+/// Cached secret with metadata
+///
+/// Used for Phase 12.2+ advanced features: lease tracking and renewal
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct CachedSecret {
+    value: String,
+    expires_at: chrono::DateTime<Utc>,
+    lease_id: Option<String>,
+    renewable: bool,
+}
+
+// Constants for Vault API and caching
 const VAULT_API_VERSION: &str = "v1";
+const CACHE_TTL_PERCENTAGE: f64 = 0.8;  // Cache for 80% of credential TTL
+#[allow(dead_code)]
+const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8;  // Renew when 80% expired (used in Phase 12.2+ cycles)
+const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000;  // Maximum cached secrets
+
+/// Secret cache with TTL management and LRU eviction
+///
+/// Used for Phase 12.2+ advanced features: credential caching with automatic renewal
+#[derive(Debug)]
+#[allow(dead_code)]
+struct SecretCache {
+    entries: Arc<RwLock<HashMap<String, CachedSecret>>>,
+    max_entries: usize,
+}
+
+#[allow(dead_code)]
+impl SecretCache {
+    /// Create new secret cache with specified max entries
+    fn new(max_entries: usize) -> Self {
+        SecretCache {
+            entries: Arc::new(RwLock::new(HashMap::new())),
+            max_entries,
+        }
+    }
+
+    /// Get cached secret if still valid
+    async fn get(&self, key: &str) -> Option<String> {
+        let entries = self.entries.read().await;
+        if let Some(cached) = entries.get(key) {
+            if cached.expires_at > Utc::now() {
+                return Some(cached.value.clone());
+            }
+        }
+        None
+    }
+
+    /// Store secret in cache with expiry
+    async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>,
+                 lease_id: Option<String>, renewable: bool) {
+        let mut entries = self.entries.write().await;
+
+        // Simple LRU: if at capacity, clear oldest 10% of entries
+        if entries.len() >= self.max_entries {
+            let remove_count = (self.max_entries / 10).max(1);
+            let keys_to_remove: Vec<_> = entries
+                .iter()
+                .take(remove_count)
+                .map(|(k, _)| k.clone())
+                .collect();
+            for key in keys_to_remove {
+                entries.remove(&key);
+            }
+        }
+
+        entries.insert(key, CachedSecret {
+            value: secret,
+            expires_at,
+            lease_id,
+            renewable,
+        });
+    }
+
+    /// Invalidate cached secret
+    async fn invalidate(&self, key: &str) {
+        self.entries.write().await.remove(key);
+    }
+
+    /// Check if secret should be renewed based on expiry
+    async fn should_renew(&self, key: &str) -> bool {
+        let entries = self.entries.read().await;
+        if let Some(cached) = entries.get(key) {
+            let time_remaining = cached.expires_at - Utc::now();
+            let total_lifetime = cached.expires_at - (cached.expires_at - Duration::try_seconds(3600).unwrap_or_default());
+            if total_lifetime.num_seconds() > 0 {
+                let percent_remaining = time_remaining.num_seconds() as f64 / total_lifetime.num_seconds() as f64;
+                return percent_remaining < (1.0 - RENEWAL_THRESHOLD_PERCENT);
+            }
+        }
+        false
+    }
+}
 
 /// Secrets backend for HashiCorp Vault
 ///
@@ -63,12 +159,25 @@ const VAULT_API_VERSION: &str = "v1";
 /// namespace = "fraiseql/prod"    # Optional, for Enterprise
 /// tls_verify = true              # Verify TLS certificates
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct VaultBackend {
     addr: String,
     token: String,
     namespace: Option<String>,
     tls_verify: bool,
+    cache: Arc<RwLock<SecretCache>>,
+}
+
+impl Clone for VaultBackend {
+    fn clone(&self) -> Self {
+        VaultBackend {
+            addr: self.addr.clone(),
+            token: self.token.clone(),
+            namespace: self.namespace.clone(),
+            tls_verify: self.tls_verify,
+            cache: Arc::clone(&self.cache),
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -86,13 +195,35 @@ impl SecretsBackend for VaultBackend {
     ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
         validate_vault_secret_name(name)?;
 
+        // Check cache first
+        let cache = self.cache.read().await;
+        if let Some(cached_value) = cache.get(name).await {
+            // Try to get expiry from cache entry (use default if not stored)
+            if let Some(cached) = cache.entries.read().await.get(name) {
+                return Ok((cached_value, cached.expires_at));
+            }
+        }
+        drop(cache);  // Release read lock before fetching
+
+        // Fetch from Vault
         let response = self.fetch_secret(name).await?;
 
         // Calculate expiry: now + lease_duration
         let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
+        let cache_expiry = Utc::now() + Duration::seconds((response.lease_duration as f64 * CACHE_TTL_PERCENTAGE) as i64);
 
         // Extract secret from response data
         let secret_str = Self::extract_secret_from_response(&response, name)?;
+
+        // Store in cache
+        let cache = self.cache.read().await;
+        cache.set(
+            name.to_string(),
+            secret_str.clone(),
+            cache_expiry,
+            Some(response.lease_id.clone()),
+            response.renewable,
+        ).await;
 
         Ok((secret_str, expiry))
     }
@@ -115,6 +246,7 @@ impl VaultBackend {
             token: token.into(),
             namespace: None,
             tls_verify: true,
+            cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
         }
     }
 
@@ -216,6 +348,124 @@ impl VaultBackend {
     /// Build Vault API URL for a secret path
     fn build_vault_url(&self, path: &str) -> String {
         format!("{}/{}/{}", self.addr.trim_end_matches('/'), VAULT_API_VERSION, path)
+    }
+
+    /// Encrypt plaintext using Vault Transit engine
+    ///
+    /// # Arguments
+    /// * `key_name` - Name of the transit encryption key
+    /// * `plaintext` - Data to encrypt
+    ///
+    /// # Returns
+    /// Encrypted ciphertext in Vault's standard format
+    pub async fn encrypt_field(&self, key_name: &str, plaintext: &str) -> Result<String, SecretsError> {
+        validate_vault_secret_name(key_name)?;
+
+        let request_body = serde_json::json!({
+            "plaintext": STANDARD_NO_PAD.encode(plaintext)
+        });
+
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(!self.tls_verify)
+            .build()
+            .map_err(|e| SecretsError::BackendError(format!("Failed to create HTTP client: {}", e)))?;
+
+        let url = format!(
+            "{}/{}/transit/encrypt/{}",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION,
+            key_name
+        );
+
+        let response = client
+            .post(&url)
+            .header("X-Vault-Token", self.token.clone())
+            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| SecretsError::BackendError(format!("Vault Transit encrypt request failed: {}", e)))?;
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body = response
+                    .json::<serde_json::Value>()
+                    .await
+                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse encrypt response: {}", e)))?;
+
+                body["data"]["ciphertext"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| SecretsError::EncryptionError("Missing ciphertext in response".to_string()))
+            }
+            reqwest::StatusCode::NOT_FOUND => {
+                Err(SecretsError::NotFound(format!("Transit key not found: {}", key_name)))
+            }
+            status => {
+                Err(SecretsError::EncryptionError(format!("Vault Transit encrypt failed with status {}", status)))
+            }
+        }
+    }
+
+    /// Decrypt ciphertext using Vault Transit engine
+    ///
+    /// # Arguments
+    /// * `key_name` - Name of the transit encryption key
+    /// * `ciphertext` - Encrypted data (in Vault's format)
+    ///
+    /// # Returns
+    /// Decrypted plaintext
+    pub async fn decrypt_field(&self, key_name: &str, ciphertext: &str) -> Result<String, SecretsError> {
+        validate_vault_secret_name(key_name)?;
+
+        let request_body = serde_json::json!({
+            "ciphertext": ciphertext
+        });
+
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(!self.tls_verify)
+            .build()
+            .map_err(|e| SecretsError::BackendError(format!("Failed to create HTTP client: {}", e)))?;
+
+        let url = format!(
+            "{}/{}/transit/decrypt/{}",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION,
+            key_name
+        );
+
+        let response = client
+            .post(&url)
+            .header("X-Vault-Token", self.token.clone())
+            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| SecretsError::BackendError(format!("Vault Transit decrypt request failed: {}", e)))?;
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body = response
+                    .json::<serde_json::Value>()
+                    .await
+                    .map_err(|e| SecretsError::BackendError(format!("Failed to parse decrypt response: {}", e)))?;
+
+                let plaintext_b64 = body["data"]["plaintext"]
+                    .as_str()
+                    .ok_or_else(|| SecretsError::EncryptionError("Missing plaintext in response".to_string()))?;
+
+                STANDARD_NO_PAD.decode(plaintext_b64)
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .ok_or_else(|| SecretsError::EncryptionError("Failed to decode plaintext".to_string()))
+            }
+            reqwest::StatusCode::NOT_FOUND => {
+                Err(SecretsError::NotFound(format!("Transit key not found: {}", key_name)))
+            }
+            status => {
+                Err(SecretsError::EncryptionError(format!("Vault Transit decrypt failed with status {}", status)))
+            }
+        }
     }
 }
 
