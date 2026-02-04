@@ -75,6 +75,50 @@ impl FieldEncryption {
         FieldEncryption { cipher }
     }
 
+    /// Generate random nonce for encryption
+    ///
+    /// Uses cryptographically secure random number generation to ensure
+    /// each encryption produces a unique nonce, preventing pattern analysis.
+    #[allow(dead_code)]
+    fn generate_nonce() -> [u8; NONCE_SIZE] {
+        let mut nonce_bytes = [0u8; NONCE_SIZE];
+        rand::thread_rng().fill(&mut nonce_bytes);
+        nonce_bytes
+    }
+
+    /// Validate and extract nonce from encrypted data
+    ///
+    /// # Arguments
+    /// * `encrypted` - Encrypted data with nonce prefix
+    ///
+    /// # Returns
+    /// Tuple of (nonce, ciphertext) or error if too short
+    #[allow(dead_code)]
+    fn extract_nonce_and_ciphertext(encrypted: &[u8]) -> Result<([u8; NONCE_SIZE], &[u8]), SecretsError> {
+        if encrypted.len() < NONCE_SIZE {
+            return Err(SecretsError::EncryptionError(
+                format!("Encrypted data too short (need ≥{} bytes, got {})", NONCE_SIZE, encrypted.len()),
+            ));
+        }
+
+        let mut nonce = [0u8; NONCE_SIZE];
+        nonce.copy_from_slice(&encrypted[0..NONCE_SIZE]);
+        let ciphertext = &encrypted[NONCE_SIZE..];
+
+        Ok((nonce, ciphertext))
+    }
+
+    /// Convert bytes to UTF-8 string with context
+    ///
+    /// Provides clear error messages on encoding failures for debugging
+    #[allow(dead_code)]
+    fn bytes_to_utf8(bytes: Vec<u8>, context: &str) -> Result<String, SecretsError> {
+        String::from_utf8(bytes)
+            .map_err(|e| SecretsError::EncryptionError(
+                format!("Invalid UTF-8 in {}: {}", context, e)
+            ))
+    }
+
     /// Encrypt plaintext field using AES-256-GCM
     ///
     /// Generates random 96-bit nonce, encrypts with authenticated encryption,
@@ -89,11 +133,9 @@ impl FieldEncryption {
     /// # Errors
     /// Returns EncryptionError if encryption fails
     pub fn encrypt(&self, plaintext: &str) -> Result<Vec<u8>, SecretsError> {
-        let mut rng = rand::thread_rng();
-        let mut nonce_bytes = [0u8; NONCE_SIZE];
-        rng.fill(&mut nonce_bytes);
-
+        let nonce_bytes = Self::generate_nonce();
         let nonce = Nonce::from_slice(&nonce_bytes);
+
         let ciphertext = self
             .cipher
             .encrypt(nonce, plaintext.as_bytes())
@@ -122,23 +164,15 @@ impl FieldEncryption {
     /// - Decryption fails (wrong key or corrupted data)
     /// - Plaintext is not valid UTF-8
     pub fn decrypt(&self, encrypted: &[u8]) -> Result<String, SecretsError> {
-        if encrypted.len() < NONCE_SIZE {
-            return Err(SecretsError::EncryptionError(
-                "Encrypted data too short for nonce".to_string(),
-            ));
-        }
+        let (nonce_bytes, ciphertext) = Self::extract_nonce_and_ciphertext(encrypted)?;
 
-        let nonce_bytes = &encrypted[0..NONCE_SIZE];
-        let ciphertext = &encrypted[NONCE_SIZE..];
-
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
         let plaintext_bytes = self
             .cipher
             .decrypt(nonce, ciphertext)
             .map_err(|e| SecretsError::EncryptionError(format!("Decryption failed: {}", e)))?;
 
-        String::from_utf8(plaintext_bytes)
-            .map_err(|e| SecretsError::EncryptionError(format!("Invalid UTF-8 in decrypted data: {}", e)))
+        Self::bytes_to_utf8(plaintext_bytes, "decrypted data")
     }
 
     /// Encrypt field with additional context for audit/security
@@ -153,11 +187,9 @@ impl FieldEncryption {
     /// # Returns
     /// Encrypted data in format: [12-byte nonce][ciphertext + 16-byte tag]
     pub fn encrypt_with_context(&self, plaintext: &str, context: &str) -> Result<Vec<u8>, SecretsError> {
-        let mut rng = rand::thread_rng();
-        let mut nonce_bytes = [0u8; NONCE_SIZE];
-        rng.fill(&mut nonce_bytes);
-
+        let nonce_bytes = Self::generate_nonce();
         let nonce = Nonce::from_slice(&nonce_bytes);
+
         let payload = Payload {
             msg: plaintext.as_bytes(),
             aad: context.as_bytes(),
@@ -187,16 +219,9 @@ impl FieldEncryption {
     /// # Errors
     /// Returns EncryptionError if context doesn't match or decryption fails
     pub fn decrypt_with_context(&self, encrypted: &[u8], context: &str) -> Result<String, SecretsError> {
-        if encrypted.len() < NONCE_SIZE {
-            return Err(SecretsError::EncryptionError(
-                "Encrypted data too short for nonce".to_string(),
-            ));
-        }
+        let (nonce_bytes, ciphertext) = Self::extract_nonce_and_ciphertext(encrypted)?;
 
-        let nonce_bytes = &encrypted[0..NONCE_SIZE];
-        let ciphertext = &encrypted[NONCE_SIZE..];
-
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
         let payload = Payload {
             msg: ciphertext,
             aad: context.as_bytes(),
@@ -207,8 +232,7 @@ impl FieldEncryption {
             .decrypt(nonce, payload)
             .map_err(|e| SecretsError::EncryptionError(format!("Decryption with context failed: {}", e)))?;
 
-        String::from_utf8(plaintext_bytes)
-            .map_err(|e| SecretsError::EncryptionError(format!("Invalid UTF-8 in decrypted data: {}", e)))
+        Self::bytes_to_utf8(plaintext_bytes, "decrypted data with context")
     }
 }
 
