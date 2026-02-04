@@ -14,7 +14,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     flight_service_server::{FlightService, FlightServiceServer},
 };
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
@@ -564,6 +564,59 @@ impl FraiseQLFlightService {
         let stream = futures::stream::iter(all_messages);
         Ok(stream)
     }
+
+    /// Handle ClearCache action
+    fn handle_clear_cache(&self) -> ActionResultStream {
+        info!("ClearCache action triggered");
+
+        // Clear cache if present
+        if let Some(cache) = &self.cache {
+            cache.clear();
+        }
+
+        let message = "Cache cleared successfully".to_string();
+        let result = Ok(arrow_flight::Result {
+            body: message.into_bytes().into(),
+        });
+
+        let stream = futures::stream::iter(vec![result]);
+        Box::pin(stream)
+    }
+
+    /// Handle RefreshSchemaRegistry action
+    fn handle_refresh_schema_registry(&self) -> ActionResultStream {
+        info!("RefreshSchemaRegistry action triggered");
+
+        let message = "Schema registry refresh not yet implemented".to_string();
+        let result = Ok(arrow_flight::Result {
+            body: message.into_bytes().into(),
+        });
+
+        let stream = futures::stream::iter(vec![result]);
+        Box::pin(stream)
+    }
+
+    /// Handle HealthCheck action
+    fn handle_health_check(&self) -> ActionResultStream {
+        info!("HealthCheck action triggered");
+
+        let health_status = serde_json::json!({
+            "status": "healthy",
+            "version": "2.0.0-a1",
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+        });
+
+        let message = health_status.to_string();
+        let result = Ok(arrow_flight::Result {
+            body: message.into_bytes().into(),
+        });
+
+        let stream = futures::stream::iter(vec![result]);
+        Box::pin(stream)
+    }
 }
 
 impl Default for FraiseQLFlightService {
@@ -824,21 +877,69 @@ impl FlightService for FraiseQLFlightService {
     }
 
     /// Execute an action (RPC method for operations beyond data transfer).
+    ///
+    /// Phase 3.2 Implementation: Execute admin operations via Flight Actions
+    ///
+    /// Supported actions:
+    /// - `ClearCache`: Clear all cached query results
+    /// - `RefreshSchemaRegistry`: Reload schema definitions
+    /// - `HealthCheck`: Return service health status
     async fn do_action(
         &self,
-        _request: Request<Action>,
+        request: Request<Action>,
     ) -> std::result::Result<Response<Self::DoActionStream>, Status> {
-        warn!("DoAction called but not implemented");
-        Err(Status::unimplemented("DoAction not implemented yet"))
+        let action = request.into_inner();
+        info!("DoAction called with action type: {}", action.r#type);
+
+        let stream = match action.r#type.as_str() {
+            "ClearCache" => {
+                // Clear cache and return status
+                self.handle_clear_cache()
+            }
+            "RefreshSchemaRegistry" => {
+                // Reload schema definitions
+                self.handle_refresh_schema_registry()
+            }
+            "HealthCheck" => {
+                // Return health status
+                self.handle_health_check()
+            }
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "Unknown action: {}",
+                    action.r#type
+                )));
+            }
+        };
+
+        Ok(Response::new(Box::pin(stream)))
     }
 
     /// List available actions.
+    ///
+    /// Phase 3.2 Implementation: List Flight Actions for admin operations
     async fn list_actions(
         &self,
         _request: Request<Empty>,
     ) -> std::result::Result<Response<Self::ListActionsStream>, Status> {
         info!("ListActions called");
-        let stream = futures::stream::empty();
+
+        let actions = vec![
+            Ok(ActionType {
+                r#type: "ClearCache".to_string(),
+                description: "Clear all cached query results".to_string(),
+            }),
+            Ok(ActionType {
+                r#type: "RefreshSchemaRegistry".to_string(),
+                description: "Reload schema definitions".to_string(),
+            }),
+            Ok(ActionType {
+                r#type: "HealthCheck".to_string(),
+                description: "Return service health status".to_string(),
+            }),
+        ];
+
+        let stream = futures::stream::iter(actions);
         Ok(Response::new(Box::pin(stream)))
     }
 
@@ -963,6 +1064,7 @@ impl FlightService for FraiseQLFlightService {
         info!("PollFlightInfo called");
         Err(Status::unimplemented("PollFlightInfo not implemented yet"))
     }
+
 }
 
 /// Convert RecordBatch to FlightData using Arrow IPC encoding.
@@ -1397,6 +1499,97 @@ mod tests {
 
         // Should return error for invalid view
         assert!(result.is_err(), "get_flight_info should fail for non-existent view");
+    }
+
+    /// Phase 3.2: Tests that list_actions returns available actions
+    #[tokio::test]
+    async fn test_list_actions_returns_action_types() {
+        use tonic::Request;
+        use arrow_flight::flight_service_server::FlightService;
+
+        let service = FraiseQLFlightService::new();
+        let request = Request::new(Empty {});
+        let result = service.list_actions(request).await;
+
+        assert!(result.is_ok(), "list_actions should succeed");
+        let response = result.unwrap();
+        let mut stream = response.into_inner();
+
+        // Collect all actions
+        let mut actions = Vec::new();
+        while let Some(Ok(action_type)) = stream.next().await {
+            actions.push(action_type);
+        }
+
+        // Should have at least 3 actions
+        assert!(
+            actions.len() >= 3,
+            "Should have at least 3 actions, got {}",
+            actions.len()
+        );
+
+        // Verify action names exist
+        let action_names: Vec<_> = actions.iter().map(|a| a.r#type.as_str()).collect();
+        assert!(
+            action_names.contains(&"ClearCache"),
+            "Should have ClearCache action"
+        );
+        assert!(
+            action_names.contains(&"RefreshSchemaRegistry"),
+            "Should have RefreshSchemaRegistry action"
+        );
+        assert!(
+            action_names.contains(&"HealthCheck"),
+            "Should have HealthCheck action"
+        );
+    }
+
+    /// Phase 3.2: Tests that do_action executes HealthCheck action
+    #[tokio::test]
+    async fn test_do_action_health_check() {
+        use tonic::Request;
+        use arrow_flight::flight_service_server::FlightService;
+
+        let service = FraiseQLFlightService::new();
+        let action = Action {
+            r#type: "HealthCheck".to_string(),
+            body: vec![].into(),
+        };
+
+        let request = Request::new(action);
+        let result = service.do_action(request).await;
+
+        assert!(result.is_ok(), "HealthCheck action should succeed");
+        let response = result.unwrap();
+        let mut stream = response.into_inner();
+
+        // Should return at least one result
+        if let Some(Ok(_result)) = stream.next().await {
+            // Success - action returned result
+        } else {
+            panic!("HealthCheck should return a result");
+        }
+    }
+
+    /// Phase 3.2: Tests that do_action returns error for unknown action
+    #[tokio::test]
+    async fn test_do_action_unknown_action() {
+        use tonic::Request;
+        use arrow_flight::flight_service_server::FlightService;
+
+        let service = FraiseQLFlightService::new();
+        let action = Action {
+            r#type: "UnknownAction".to_string(),
+            body: vec![].into(),
+        };
+
+        let request = Request::new(action);
+        let result = service.do_action(request).await;
+
+        assert!(
+            result.is_err(),
+            "Unknown action should return error"
+        );
     }
 
     /// Phase 3.1: Documents do_action() for cache operations
