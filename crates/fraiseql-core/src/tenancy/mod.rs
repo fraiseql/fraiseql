@@ -238,3 +238,6 @@ mod tests;
 
 #[cfg(test)]
 mod jwt_extraction_tests;
+
+#[cfg(test)]
+mod query_filter_tests;
