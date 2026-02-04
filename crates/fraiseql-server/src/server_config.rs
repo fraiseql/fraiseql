@@ -75,6 +75,30 @@ pub struct DatabaseTlsConfig {
     pub ca_bundle_path: Option<PathBuf>,
 }
 
+/// Rate limiting configuration for GraphQL requests.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitingConfig {
+    /// Enable rate limiting (default: true for security).
+    #[serde(default = "default_rate_limiting_enabled")]
+    pub enabled: bool,
+
+    /// Requests per second per IP address.
+    #[serde(default = "default_rate_limit_rps_per_ip")]
+    pub rps_per_ip: u32,
+
+    /// Requests per second per authenticated user.
+    #[serde(default = "default_rate_limit_rps_per_user")]
+    pub rps_per_user: u32,
+
+    /// Burst capacity (maximum accumulated tokens).
+    #[serde(default = "default_rate_limit_burst_size")]
+    pub burst_size: u32,
+
+    /// Cleanup interval for stale entries (seconds).
+    #[serde(default = "default_rate_limit_cleanup_interval")]
+    pub cleanup_interval_secs: u64,
+}
+
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -138,11 +162,14 @@ pub struct ServerConfig {
     #[serde(default = "default_playground_path")]
     pub playground_path: String,
 
-    /// Enable GraphQL playground/IDE.
+    /// Enable GraphQL playground/IDE (default: false for production safety).
     ///
     /// When enabled, serves a GraphQL IDE (GraphiQL or Apollo Sandbox)
     /// at the configured `playground_path`.
-    #[serde(default = "default_true")]
+    ///
+    /// **Security**: Disabled by default for production safety. Set to true for development environments only.
+    /// The playground exposes schema information and can be a reconnaissance vector for attackers.
+    #[serde(default)]
     pub playground_enabled: bool,
 
     /// Which GraphQL IDE to use.
@@ -178,6 +205,46 @@ pub struct ServerConfig {
     /// **Security**: Use a strong, random token (e.g., 32+ characters).
     #[serde(default)]
     pub metrics_token: Option<String>,
+
+    /// Enable admin API endpoints (default: false for production safety).
+    ///
+    /// **Security**: Disabled by default. When enabled, requires `admin_token` to be set.
+    /// Admin endpoints allow schema reloading, cache management, and config inspection.
+    #[serde(default)]
+    pub admin_api_enabled: bool,
+
+    /// Bearer token for admin API authentication.
+    ///
+    /// Required when `admin_api_enabled` is true. Requests must include:
+    /// `Authorization: Bearer <token>`
+    ///
+    /// **Security**: Use a strong, random token (minimum 32 characters).
+    /// This token grants access to sensitive operations like schema reloading.
+    #[serde(default)]
+    pub admin_token: Option<String>,
+
+    /// Enable introspection endpoint (default: false for production safety).
+    ///
+    /// **Security**: Disabled by default. When enabled, the introspection endpoint
+    /// exposes the complete GraphQL schema structure. Combined with `introspection_require_auth`,
+    /// you can optionally protect it with OIDC authentication.
+    #[serde(default)]
+    pub introspection_enabled: bool,
+
+    /// Require authentication for introspection endpoint (default: true).
+    ///
+    /// When true and OIDC is configured, introspection requires same auth as GraphQL endpoint.
+    /// When false, introspection is publicly accessible (use only in development).
+    #[serde(default = "default_true")]
+    pub introspection_require_auth: bool,
+
+    /// Require authentication for design audit API endpoints (default: true).
+    ///
+    /// Design audit endpoints expose system architecture and optimization opportunities.
+    /// When true and OIDC is configured, design endpoints require same auth as GraphQL endpoint.
+    /// When false, design endpoints are publicly accessible (use only in development).
+    #[serde(default = "default_true")]
+    pub design_api_require_auth: bool,
 
     /// Database connection pool minimum size.
     #[serde(default = "default_pool_min_size")]
@@ -242,6 +309,23 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub database_tls: Option<DatabaseTlsConfig>,
+
+    /// Rate limiting configuration for GraphQL requests.
+    ///
+    /// When configured, enables per-IP and per-user rate limiting with token bucket algorithm.
+    /// Defaults to enabled with sensible per-IP limits for security-by-default.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [rate_limiting]
+    /// enabled = true
+    /// rps_per_ip = 100      # 100 requests/second per IP
+    /// rps_per_user = 1000   # 1000 requests/second per authenticated user
+    /// burst_size = 500      # Allow bursts up to 500 requests
+    /// ```
+    #[serde(default)]
+    pub rate_limiting: Option<RateLimitingConfig>,
 
     /// Observer runtime configuration (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
@@ -326,18 +410,24 @@ impl Default for ServerConfig {
             metrics_path: default_metrics_path(),
             metrics_json_path: default_metrics_json_path(),
             playground_path: default_playground_path(),
-            playground_enabled: true,
+            playground_enabled: false, // Disabled by default for security
             playground_tool: PlaygroundTool::default(),
             subscription_path: default_subscription_path(),
             subscriptions_enabled: true,
             metrics_enabled: false, // Disabled by default for security
             metrics_token: None,
+            admin_api_enabled: false, // Disabled by default for security
+            admin_token: None,
+            introspection_enabled: false, // Disabled by default for security
+            introspection_require_auth: true, // Require auth when enabled
+            design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
             auth: None,         // No auth by default
             tls: None,          // TLS disabled by default
             database_tls: None, // Database TLS disabled by default
+            rate_limiting: None, // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
         }
@@ -345,6 +435,19 @@ impl Default for ServerConfig {
 }
 
 impl ServerConfig {
+    /// Check if running in production mode.
+    ///
+    /// Production mode is detected via `FRAISEQL_ENV` environment variable.
+    /// - `production` or `prod` (or any value other than `development`/`dev`) → production mode
+    /// - `development` or `dev` → development mode
+    #[must_use]
+    pub fn is_production_mode() -> bool {
+        let env = std::env::var("FRAISEQL_ENV")
+            .unwrap_or_else(|_| "production".to_string())
+            .to_lowercase();
+        env != "development" && env != "dev"
+    }
+
     /// Validate configuration.
     ///
     /// # Errors
@@ -355,6 +458,8 @@ impl ServerConfig {
     /// - `auth` config is set but invalid (e.g., empty issuer)
     /// - `tls` is enabled but cert or key path is missing
     /// - TLS minimum version is invalid
+    /// - In production mode: `playground_enabled` is true
+    /// - In production mode: `cors_enabled` is true but `cors_origins` is empty
     pub fn validate(&self) -> Result<(), String> {
         if self.metrics_enabled {
             match &self.metrics_token {
@@ -367,6 +472,20 @@ impl ServerConfig {
                     return Err(
                         "metrics_token must be at least 16 characters for security.".to_string()
                     );
+                },
+                Some(_) => {},
+            }
+        }
+
+        // Admin API validation
+        if self.admin_api_enabled {
+            match &self.admin_token {
+                None => {
+                    return Err("admin_api_enabled is true but admin_token is not set. \
+                         Set FRAISEQL_ADMIN_TOKEN or admin_token in config.".to_string());
+                },
+                Some(token) if token.len() < 32 => {
+                    return Err("admin_token must be at least 32 characters for security.".to_string());
                 },
                 Some(_) => {},
             }
@@ -436,6 +555,30 @@ impl ServerConfig {
                 if !ca_path.exists() {
                     return Err(format!("CA bundle file not found: {}", ca_path.display()));
                 }
+            }
+        }
+
+        // Production safety validation
+        if Self::is_production_mode() {
+            // Playground should be disabled in production
+            if self.playground_enabled {
+                return Err(
+                    "playground_enabled is true in production mode. \
+                     Disable the playground or set FRAISEQL_ENV=development. \
+                     The playground exposes sensitive schema information."
+                        .to_string(),
+                );
+            }
+
+            // CORS origins must be explicitly configured in production
+            if self.cors_enabled && self.cors_origins.is_empty() {
+                return Err(
+                    "cors_enabled is true but cors_origins is empty in production mode. \
+                     This allows requests from ANY origin, which is a security risk. \
+                     Explicitly configure cors_origins with your allowed domains, \
+                     or disable CORS and set FRAISEQL_ENV=development to bypass this check."
+                        .to_string(),
+                );
             }
         }
 
@@ -529,6 +672,26 @@ fn default_verify_certs() -> bool {
     true
 }
 
+fn default_rate_limiting_enabled() -> bool {
+    true
+}
+
+fn default_rate_limit_rps_per_ip() -> u32 {
+    100
+}
+
+fn default_rate_limit_rps_per_user() -> u32 {
+    1000
+}
+
+fn default_rate_limit_burst_size() -> u32 {
+    500
+}
+
+fn default_rate_limit_cleanup_interval() -> u64 {
+    300
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -585,7 +748,10 @@ mod tests {
 
     #[test]
     fn test_validate_metrics_disabled_ok() {
-        let config = ServerConfig::default();
+        let config = ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
         assert!(config.validate().is_ok());
     }
 
@@ -618,6 +784,7 @@ mod tests {
         let config = ServerConfig {
             metrics_enabled: true,
             metrics_token: Some("a-secure-token-that-is-long-enough".to_string()),
+            cors_enabled: false,
             ..ServerConfig::default()
         };
         assert!(config.validate().is_ok());
@@ -823,5 +990,47 @@ mod tests {
         assert_eq!(restored.clickhouse_https, db_tls.clickhouse_https);
         assert_eq!(restored.elasticsearch_https, db_tls.elasticsearch_https);
         assert_eq!(restored.ca_bundle_path, db_tls.ca_bundle_path);
+    }
+
+    #[test]
+    fn test_admin_api_disabled_by_default() {
+        let config = ServerConfig::default();
+        assert!(!config.admin_api_enabled, "Admin API should be disabled by default for security");
+        assert!(config.admin_token.is_none());
+    }
+
+    #[test]
+    fn test_validate_admin_api_enabled_without_token_fails() {
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: None,
+            ..ServerConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("admin_token is not set"));
+    }
+
+    #[test]
+    fn test_validate_admin_api_enabled_with_short_token_fails() {
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: Some("short".to_string()), // < 32 chars
+            ..ServerConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("at least 32 characters"));
+    }
+
+    #[test]
+    fn test_validate_admin_api_enabled_with_valid_token_ok() {
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: Some("a-very-secure-admin-token-that-is-long-enough".to_string()),
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }

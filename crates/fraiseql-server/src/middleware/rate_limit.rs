@@ -124,6 +124,11 @@ impl RateLimiter {
         }
     }
 
+    /// Get rate limiter configuration.
+    pub fn config(&self) -> &RateLimitConfig {
+        &self.config
+    }
+
     /// Check if request is allowed for given IP.
     pub async fn check_ip_limit(&self, ip: &str) -> bool {
         if !self.config.enabled {

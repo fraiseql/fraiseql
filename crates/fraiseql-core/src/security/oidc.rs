@@ -65,6 +65,9 @@ use crate::security::{
 ///
 /// Configure this with your identity provider's issuer URL.
 /// The validator will automatically discover JWKS endpoint.
+///
+/// **SECURITY CRITICAL**: You MUST configure the `audience` field to prevent
+/// token confusion attacks. See the `audience` field documentation for details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcConfig {
     /// Issuer URL (e.g., "https://your-tenant.auth0.com/")
@@ -73,10 +76,17 @@ pub struct OidcConfig {
     /// Should include trailing slash if provider expects it.
     pub issuer: String,
 
-    /// Expected audience claim (optional).
+    /// Expected audience claim (REQUIRED for security).
     ///
-    /// If set, tokens must have this value in their `aud` claim.
-    /// For Auth0, this is typically your API identifier.
+    /// **SECURITY CRITICAL**: This field is mandatory. Tokens must have this value in their `aud` claim.
+    /// This prevents token confusion attacks where tokens from one service can be used in another.
+    ///
+    /// For Auth0, this is typically your API identifier (e.g., "https://api.example.com").
+    /// For other providers, use a unique identifier that represents your application.
+    ///
+    /// Set at least one of:
+    /// - `audience` (primary audience)
+    /// - `additional_audiences` (secondary audiences)
     #[serde(default)]
     pub audience: Option<String>,
 
@@ -271,6 +281,17 @@ impl OidcConfig {
         if !self.issuer.starts_with("https://") && !self.issuer.starts_with("http://localhost") {
             return Err(SecurityError::SecurityConfigError(
                 "OIDC issuer must use HTTPS (except localhost for development)".to_string(),
+            ));
+        }
+
+        // CRITICAL SECURITY FIX: Audience validation is now mandatory
+        // This prevents token confusion attacks where tokens intended for service A
+        // can be used for service B.
+        if self.audience.is_none() && self.additional_audiences.is_empty() {
+            return Err(SecurityError::SecurityConfigError(
+                "OIDC audience is REQUIRED for security. Set 'audience' in auth config to your API identifier. \
+                 This prevents token confusion attacks where tokens from one service can be used in another. \
+                 Example: audience = \"https://api.example.com\" or audience = \"my-api-id\"".to_string(),
             ));
         }
 
@@ -897,6 +918,7 @@ mod tests {
     fn test_oidc_config_validate_localhost_allowed() {
         let config = OidcConfig {
             issuer: "http://localhost:8080".to_string(),
+            audience: Some("my-api".to_string()),
             ..Default::default()
         };
         let result = config.validate();
@@ -907,6 +929,7 @@ mod tests {
     fn test_oidc_config_validate_https_required() {
         let config = OidcConfig {
             issuer: "https://secure.example.com".to_string(),
+            audience: Some("https://api.example.com".to_string()),
             ..Default::default()
         };
         let result = config.validate();

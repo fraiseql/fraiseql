@@ -33,19 +33,8 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         // Federation endpoints
         .route("/federation/subgraphs", get(federation::subgraphs_handler::<A>))
         .route("/federation/graph", get(federation::graph_handler::<A>))
-        // Schema export endpoints
-        .route("/schema.graphql", get(schema::export_sdl_handler::<A>))
-        .route("/schema.json", get(schema::export_json_handler::<A>))
-        // Admin endpoints
-        .route("/admin/reload-schema", post(admin::reload_schema_handler::<A>))
-        .route("/admin/cache/clear", post(admin::cache_clear_handler::<A>))
-        .route("/admin/config", get(admin::config_handler::<A>))
-        // Design audit endpoints
-        .route("/design/federation-audit", post(design::federation_audit_handler::<A>))
-        .route("/design/cost-audit", post(design::cost_audit_handler::<A>))
-        .route("/design/cache-audit", post(design::cache_audit_handler::<A>))
-        .route("/design/auth-audit", post(design::auth_audit_handler::<A>))
-        .route("/design/compilation-audit", post(design::compilation_audit_handler::<A>))
-        .route("/design/audit", post(design::overall_design_audit_handler::<A>))
+        // Schema export endpoints are now conditionally added in server.rs with optional auth
+        // Admin endpoints are now conditionally added in server.rs with auth middleware
+        // Design audit endpoints are now conditionally added in server.rs with optional auth
         .with_state(state)
 }

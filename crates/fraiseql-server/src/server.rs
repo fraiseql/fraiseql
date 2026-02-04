@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use axum::{Router, middleware, routing::get};
+use axum::{Router, middleware, routing::{get, post}};
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
@@ -24,7 +24,7 @@ use {
 use crate::{
     Result, ServerError,
     middleware::{
-        BearerAuthState, OidcAuthState, bearer_auth_middleware, cors_layer_restricted,
+        BearerAuthState, OidcAuthState, RateLimiter, bearer_auth_middleware, cors_layer_restricted,
         metrics_middleware, oidc_auth_middleware, trace_layer,
     },
     routes::{
@@ -42,6 +42,7 @@ pub struct Server<A: DatabaseAdapter> {
     executor:             Arc<Executor<A>>,
     subscription_manager: Arc<SubscriptionManager>,
     oidc_validator:       Option<Arc<OidcValidator>>,
+    rate_limiter:         Option<Arc<RateLimiter>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -101,6 +102,30 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize rate limiter if configured
+        let rate_limiter = if let Some(ref rate_config) = config.rate_limiting {
+            if rate_config.enabled {
+                info!(
+                    rps_per_ip = rate_config.rps_per_ip,
+                    rps_per_user = rate_config.rps_per_user,
+                    "Initializing rate limiting"
+                );
+                let limiter_config = crate::middleware::RateLimitConfig {
+                    enabled: true,
+                    rps_per_ip: rate_config.rps_per_ip,
+                    rps_per_user: rate_config.rps_per_user,
+                    burst_size: rate_config.burst_size,
+                    cleanup_interval_secs: rate_config.cleanup_interval_secs,
+                };
+                Some(Arc::new(RateLimiter::new(limiter_config)))
+            } else {
+                info!("Rate limiting disabled by configuration");
+                None
+            }
+        } else {
+            None
+        };
+
         // Initialize observer runtime
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
@@ -114,6 +139,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             executor,
             subscription_manager,
             oidc_validator,
+            rate_limiter,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -163,6 +189,30 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize rate limiter if configured
+        let rate_limiter = if let Some(ref rate_config) = config.rate_limiting {
+            if rate_config.enabled {
+                info!(
+                    rps_per_ip = rate_config.rps_per_ip,
+                    rps_per_user = rate_config.rps_per_user,
+                    "Initializing rate limiting"
+                );
+                let limiter_config = crate::middleware::RateLimitConfig {
+                    enabled: true,
+                    rps_per_ip: rate_config.rps_per_ip,
+                    rps_per_user: rate_config.rps_per_user,
+                    burst_size: rate_config.burst_size,
+                    cleanup_interval_secs: rate_config.cleanup_interval_secs,
+                };
+                Some(Arc::new(RateLimiter::new(limiter_config)))
+            } else {
+                info!("Rate limiting disabled by configuration");
+                None
+            }
+        } else {
+            None
+        };
+
         // Initialize observer runtime
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
@@ -172,6 +222,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             executor,
             subscription_manager,
             oidc_validator,
+            rate_limiter,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -246,7 +297,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build base routes (always available without auth)
         let mut app = Router::new()
             .route(&self.config.health_path, get(health_handler::<A>))
-            .route(&self.config.introspection_path, get(introspection_handler::<A>))
             .with_state(state.clone())
             .merge(graphql_router);
 
@@ -278,6 +328,52 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(subscription_router);
         }
 
+        // Conditionally add introspection endpoint (with optional auth)
+        if self.config.introspection_enabled {
+            if self.config.introspection_require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!(
+                        introspection_path = %self.config.introspection_path,
+                        "Introspection endpoint enabled (OIDC auth required)"
+                    );
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    let introspection_router = Router::new()
+                        .route(&self.config.introspection_path, get(introspection_handler::<A>))
+                        .route_layer(middleware::from_fn_with_state(auth_state.clone(), oidc_auth_middleware))
+                        .with_state(state.clone());
+                    app = app.merge(introspection_router);
+
+                    // Schema export endpoints follow same auth as introspection
+                    let schema_router = Router::new()
+                        .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
+                        .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                        .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                        .with_state(state.clone());
+                    app = app.merge(schema_router);
+                } else {
+                    warn!(
+                        "introspection_require_auth is true but no OIDC configured - introspection and schema export disabled"
+                    );
+                }
+            } else {
+                info!(
+                    introspection_path = %self.config.introspection_path,
+                    "Introspection endpoint enabled (no auth required - USE ONLY IN DEVELOPMENT)"
+                );
+                let introspection_router = Router::new()
+                    .route(&self.config.introspection_path, get(introspection_handler::<A>))
+                    .with_state(state.clone());
+                app = app.merge(introspection_router);
+
+                // Schema export endpoints available without auth when introspection enabled without auth
+                let schema_router = Router::new()
+                    .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
+                    .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                    .with_state(state.clone());
+                app = app.merge(schema_router);
+            }
+        }
+
         // Conditionally add metrics routes (protected by bearer token)
         if self.config.metrics_enabled {
             if let Some(ref token) = self.config.metrics_token {
@@ -305,8 +401,77 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        // Design quality audit API routes
-        info!("Design audit API endpoints available at /api/v1/design/*");
+        // Conditionally add admin routes (protected by bearer token)
+        if self.config.admin_api_enabled {
+            if let Some(ref token) = self.config.admin_token {
+                info!(
+                    "Admin API endpoints enabled (bearer token required)"
+                );
+
+                let auth_state = BearerAuthState::new(token.clone());
+
+                // Create a separate admin router with auth middleware applied
+                let admin_router = Router::new()
+                    .route("/api/v1/admin/reload-schema", post(api::admin::reload_schema_handler::<A>))
+                    .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
+                    .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
+                    .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
+                    .with_state(state.clone());
+
+                app = app.merge(admin_router);
+            } else {
+                warn!(
+                    "admin_api_enabled is true but admin_token is not set - admin endpoints disabled"
+                );
+            }
+        }
+
+        // Conditionally add design audit endpoints (with optional auth)
+        if self.config.design_api_require_auth {
+            if let Some(ref validator) = self.oidc_validator {
+                info!(
+                    "Design audit API endpoints enabled (OIDC auth required)"
+                );
+                let auth_state = OidcAuthState::new(validator.clone());
+                let design_router = Router::new()
+                    .route("/design/federation-audit", post(api::design::federation_audit_handler::<A>))
+                    .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
+                    .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
+                    .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
+                    .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                    .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .with_state(state.clone());
+                app = app.nest("/api/v1", design_router);
+            } else {
+                warn!(
+                    "design_api_require_auth is true but no OIDC configured - design endpoints unprotected"
+                );
+                // Add unprotected design endpoints
+                let design_router = Router::new()
+                    .route("/design/federation-audit", post(api::design::federation_audit_handler::<A>))
+                    .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
+                    .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
+                    .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
+                    .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                    .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
+                    .with_state(state.clone());
+                app = app.nest("/api/v1", design_router);
+            }
+        } else {
+            info!("Design audit API endpoints enabled (no auth required)");
+            let design_router = Router::new()
+                .route("/design/federation-audit", post(api::design::federation_audit_handler::<A>))
+                .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
+                .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
+                .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
+                .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
+                .with_state(state.clone());
+            app = app.nest("/api/v1", design_router);
+        }
+
+        // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
 
@@ -338,6 +503,48 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 self.config.cors_origins.clone()
             };
             app = app.layer(cors_layer_restricted(origins));
+        }
+
+        // Add rate limiting middleware if configured
+        if let Some(ref limiter) = self.rate_limiter {
+            use axum::extract::ConnectInfo;
+            use std::net::SocketAddr;
+
+            info!("Enabling rate limiting middleware");
+            let limiter_clone = limiter.clone();
+            app = app.layer(middleware::from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req, next: axum::middleware::Next| {
+                let limiter = limiter_clone.clone();
+                async move {
+                    let ip = addr.ip().to_string();
+
+                    // Check rate limit
+                    if !limiter.check_ip_limit(&ip).await {
+                        warn!(ip = %ip, "IP rate limit exceeded");
+                        use axum::http::StatusCode;
+                        use axum::response::IntoResponse;
+                        return (
+                            StatusCode::TOO_MANY_REQUESTS,
+                            [("Content-Type", "application/json"), ("Retry-After", "60")],
+                            r#"{"errors":[{"message":"Rate limit exceeded. Please retry after 60 seconds."}]}"#,
+                        ).into_response();
+                    }
+
+                    // Get remaining tokens for headers
+                    let remaining = limiter.get_ip_remaining(&ip).await;
+                    let mut response = next.run(req).await;
+
+                    // Add rate limit headers
+                    let headers = response.headers_mut();
+                    if let Ok(limit_value) = format!("{}", limiter.config().rps_per_ip).parse() {
+                        headers.insert("X-RateLimit-Limit", limit_value);
+                    }
+                    if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
+                        headers.insert("X-RateLimit-Remaining", remaining_value);
+                    }
+
+                    response
+                }
+            }));
         }
 
         app

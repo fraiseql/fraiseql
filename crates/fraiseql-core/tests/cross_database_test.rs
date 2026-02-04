@@ -29,7 +29,7 @@ mod tests {
         // - email (TEXT/VARCHAR)
         // - created_at (TIMESTAMPTZ)
 
-        let expected_fields = vec!["id", "name", "email", "created_at"];
+        let expected_fields = ["id", "name", "email", "created_at"];
 
         // In actual implementation, would test against all DB adapters
         assert_eq!(expected_fields.len(), 4, "User table should have 4 fields");

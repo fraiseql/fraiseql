@@ -455,12 +455,10 @@ fn test_severity_count() {
 
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
-    let critical_count = audit.severity_count(IssueSeverity::Critical);
-    let warning_count = audit.severity_count(IssueSeverity::Warning);
+    let _critical_count = audit.severity_count(IssueSeverity::Critical);
+    let _warning_count = audit.severity_count(IssueSeverity::Warning);
 
-    // Should classify issues by severity
-    assert!(critical_count >= 0);
-    assert!(warning_count >= 0);
+    // Should classify issues by severity (counts are always non-negative)
 }
 
 // ============================================================================
@@ -483,7 +481,7 @@ fn test_design_audit_complete_response() {
 
     // Should calculate overall score
     let overall_score = audit.score();
-    assert!(overall_score >= 0 && overall_score <= 100);
+    assert!(overall_score <= 100);
 }
 
 #[test]
@@ -602,9 +600,8 @@ fn test_federation_circular_two_way() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    // Should handle without panicking
+    // Should handle without panicking - verify schema analysis succeeds
     let _count = audit.federation_issues.len();
-    assert!(true, "Schema analysis should succeed");
 }
 
 #[test]
@@ -653,9 +650,8 @@ fn test_cost_two_level_nesting_may_warn() {
             {"name": "Post", "fields": [{"name": "id", "type": "ID"}]}
         ]
     }"#;
-    let audit = DesignAudit::from_schema_json(schema).unwrap();
-    // Two-level may or may not warn depending on multiplier
-    assert!(audit.cost_warnings.len() >= 0);
+    let _audit = DesignAudit::from_schema_json(schema).unwrap();
+    // Two-level may or may not warn depending on multiplier (no assertion needed)
 }
 
 #[test]
@@ -738,8 +734,6 @@ fn test_cache_consistent_ttl_across_subgraphs() {
 }
 
 #[test]
-
-#[test]
 fn test_cache_mismatched_ttl_detection() {
     // Test that cache analysis runs without error
     let schema = r#"{
@@ -748,9 +742,8 @@ fn test_cache_mismatched_ttl_detection() {
             {"name": "posts", "entities": ["Post"]}
         ]
     }"#;
-    let audit = DesignAudit::from_schema_json(schema).unwrap();
-    // Verify cache analysis runs successfully
-    assert!(audit.cache_issues.len() >= 0);
+    let _audit = DesignAudit::from_schema_json(schema).unwrap();
+    // Verify cache analysis runs successfully (no assertion needed for len >= 0)
 }
 
 #[test]
@@ -765,9 +758,9 @@ fn test_cost_deep_nesting_analysis() {
             {"name": "L5", "fields": [{"name": "id", "type": "ID"}]}
         ]
     }"#;
-    let audit = DesignAudit::from_schema_json(schema).unwrap();
+    let _audit = DesignAudit::from_schema_json(schema).unwrap();
     // Deep nesting should be analyzed
-    assert!(audit.cost_warnings.len() >= 0);
+    // Cost warnings analysis runs successfully (no assertion needed)
 }
 
 #[test]
@@ -779,9 +772,9 @@ fn test_federation_circular_reference_handling() {
             {"name": "posts", "entities": ["Post"]}
         ]
     }"#;
-    let audit = DesignAudit::from_schema_json(schema).unwrap();
+    let _audit = DesignAudit::from_schema_json(schema).unwrap();
     // Should handle schema gracefully
-    assert!(audit.federation_issues.len() >= 0);
+    // Federation analysis runs successfully (no assertion needed)
 }
 
 #[test]
@@ -794,9 +787,9 @@ fn test_federation_three_way_handling() {
             {"name": "c", "entities": ["C"]}
         ]
     }"#;
-    let audit = DesignAudit::from_schema_json(schema).unwrap();
+    let _audit = DesignAudit::from_schema_json(schema).unwrap();
     // Should handle multiple subgraphs without error
-    assert!(audit.federation_issues.len() >= 0);
+    // Federation analysis runs successfully (no assertion needed)
 }
 
 #[test]

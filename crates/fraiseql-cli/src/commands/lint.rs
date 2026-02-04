@@ -91,9 +91,6 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     // Run design audit
     let audit = DesignAudit::from_schema_json(&schema_json)?;
 
-    // Check if any category filter is active
-    let has_filters = opts.federation || opts.cost || opts.cache || opts.auth || opts.compilation;
-
     // Check for fail conditions if enabled
     if opts.fail_on_critical && audit.severity_count(fraiseql_core::design::IssueSeverity::Critical) > 0 {
         return Ok(CommandResult::error(

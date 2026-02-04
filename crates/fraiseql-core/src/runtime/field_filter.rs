@@ -93,7 +93,7 @@ mod tests {
     fn create_test_context(roles: Vec<&str>) -> SecurityContext {
         SecurityContext {
             user_id:          "test-user".to_string(),
-            roles:            roles.iter().map(|r| r.to_string()).collect(),
+            roles:            roles.iter().map(|&r| r.to_string()).collect(),
             tenant_id:        None,
             scopes:           vec![],
             attributes:       std::collections::HashMap::new(),
