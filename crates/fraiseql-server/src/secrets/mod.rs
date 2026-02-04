@@ -1,36 +1,24 @@
-//! Secrets management with KMS-backed encryption.
+//! Secrets management with KMS-backed encryption and database schemas.
 //!
-//! Provides both startup-time cached encryption (fast, for configuration) and
-//! per-request KMS operations (slower, for sensitive data).
-//!
-//! # Architecture
-//!
-//! This implementation follows the v1 KeyManager pattern:
-//! - **Startup-time**: Generate and cache a data encryption key at startup for fast local
-//!   encryption
-//! - **Per-request**: Use KMS directly for high-security operations (slower but per-request
-//!   isolation)
-//!
-//! # Usage
-//!
-//! ```ignore
-//! use fraiseql_server::secrets::SecretManager;
-//! use fraiseql_core::security::VaultConfig;
-//!
-//! // Initialize at startup
-//! let mut manager = SecretManager::new(vault_provider).await?;
-//!
-//! // Fast local encryption (microseconds, no KMS call)
-//! let encrypted_local = manager.local_encrypt(b"secret").await?;
-//!
-//! // KMS-backed encryption (50-200ms, per-request)
-//! let encrypted_kms = manager.encrypt(b"highly-sensitive", "prod-key").await?;
-//! ```
+//! This module provides both:
+//! 1. Startup-time cached encryption (fast, for configuration)
+//! 2. Per-request KMS operations (slower, for sensitive data)
+//! 3. Database schema definitions for secrets management
 
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::security::{BaseKmsProvider, DataKeyPair, EncryptedData, KmsError, KmsResult};
 use tokio::sync::RwLock;
+
+pub mod schemas;
+
+#[cfg(test)]
+mod schema_tests;
+
+pub use schemas::{
+    SecretRotationAudit, EncryptionKey, ExternalAuthProviderRecord, OAuthSessionRecord,
+    SchemaMigration,
+};
 
 /// Secret manager combining cached and per-request encryption.
 pub struct SecretManager {
