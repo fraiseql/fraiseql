@@ -28,6 +28,7 @@ mod performance_tests;
 mod error_recovery_tests;
 mod rotation_tests;
 mod refresh_tests;
+mod rotation_api_tests;
 
 pub mod database_adapter;
 pub mod query_builder;
@@ -40,6 +41,7 @@ pub mod performance;
 pub mod error_recovery;
 pub mod credential_rotation;
 pub mod refresh_trigger;
+pub mod rotation_api;
 
 const NONCE_SIZE: usize = 12;  // 96 bits for GCM
 #[allow(dead_code)]
