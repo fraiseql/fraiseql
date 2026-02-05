@@ -4,16 +4,15 @@ Complete architectural documentation for FraiseQL v2.
 
 ---
 
-## 🚀 NEW: Rust Core Implementation Architecture
+## 🚀 Rust Core Implementation
 
-**Complete Rust implementation design for Phases 2-5**
+**Complete Rust implementation for FraiseQL v2.0.0-alpha.1**
 
 | Document | Description | Lines | Status |
 |----------|-------------|-------|--------|
-| **[RUST_CORE_ARCHITECTURE.md](RUST_CORE_ARCHITECTURE.md)** | Complete core runtime architecture | 1,500+ | ✅ Ready |
-| **[CODE_EXAMPLES.md](CODE_EXAMPLES.md)** | Runnable code examples | 800+ | ✅ Ready |
-| **[ADVANCED_FEATURES_ARCHITECTURE.md](ADVANCED_FEATURES_ARCHITECTURE.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Ready |
-| **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** | Day-by-day implementation plan | 1,000+ | ✅ Ready |
+| **[RUST_CORE_ARCHITECTURE.md](RUST_CORE_ARCHITECTURE.md)** | Complete core runtime architecture | 1,500+ | ✅ Complete |
+| **[CODE_EXAMPLES.md](CODE_EXAMPLES.md)** | Runnable code examples | 800+ | ✅ Complete |
+| **[ADVANCED_FEATURES_ARCHITECTURE.md](ADVANCED_FEATURES_ARCHITECTURE.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Complete |
 
 **Core Features Designed:**
 
@@ -31,8 +30,6 @@ Complete architectural documentation for FraiseQL v2.
 - ✅ **Subscriptions** - Database-driven event streams (LISTEN/NOTIFY)
 - ✅ **Observability** - Metrics, traces, logs via middleware
 - ✅ **Extension Points** - Custom auth rules, validators, hooks
-
-**Start implementing:** [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) → Phase 2 (Database Layer)
 
 ---
 
