@@ -254,10 +254,14 @@ pub struct TomlSchema {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SchemaMetadata {
+    /// Schema name
     pub name:            String,
+    /// Schema version
     pub version:         String,
+    /// Optional schema description
     pub description:     Option<String>,
-    pub database_target: String, // postgresql, mysql, sqlite, sqlserver
+    /// Target database (postgresql, mysql, sqlite, sqlserver)
+    pub database_target: String,
 }
 
 impl Default for SchemaMetadata {
@@ -275,9 +279,13 @@ impl Default for SchemaMetadata {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
+    /// Database connection URL
     pub url:             String,
+    /// Connection pool size
     pub pool_size:       u32,
+    /// SSL mode (disable, allow, prefer, require)
     pub ssl_mode:        String,
+    /// Connection timeout in seconds
     pub timeout_seconds: u32,
 }
 

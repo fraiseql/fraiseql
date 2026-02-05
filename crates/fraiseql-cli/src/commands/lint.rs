@@ -15,6 +15,7 @@ use crate::output::CommandResult;
 
 /// Lint command options
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct LintOptions {
     /// Only show federation audit
     pub federation: bool,

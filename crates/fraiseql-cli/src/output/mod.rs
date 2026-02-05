@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 
 /// Context for command execution - holds formatter and logging options
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CliContext {
     /// Output formatter (JSON/text/quiet mode)
     pub formatter: OutputFormatter,
@@ -21,6 +22,7 @@ pub struct CliContext {
 
 impl CliContext {
     /// Create a new CLI context
+    #[allow(dead_code)]
     pub fn new(json_mode: bool, quiet_mode: bool, verbose: bool, debug: bool) -> Self {
         Self {
             formatter: OutputFormatter::new(json_mode, quiet_mode),
@@ -30,6 +32,7 @@ impl CliContext {
     }
 
     /// Print a result and return the exit code
+    #[allow(dead_code)]
     pub fn print_result(&self, result: &CommandResult) -> i32 {
         let output = self.formatter.format(result);
         if !output.is_empty() {
@@ -153,6 +156,7 @@ pub struct CommandResult {
 
     /// Exit code for the process: 0=success, 1=error, 2=validation-failed
     #[serde(skip)]
+    #[allow(dead_code)]
     pub exit_code: i32,
 }
 
@@ -200,6 +204,7 @@ impl CommandResult {
     }
 
     /// Create a validation failure result
+    #[allow(dead_code)]
     pub fn validation_failed(command: &str, errors: Vec<String>) -> Self {
         Self {
             status: "validation-failed".to_string(),
@@ -214,6 +219,7 @@ impl CommandResult {
     }
 
     /// Create an error result from an anyhow::Error
+    #[allow(dead_code)]
     pub fn from_error(command: &str, error: anyhow::Error) -> Self {
         Self::error(command, &error.to_string(), "INTERNAL_ERROR")
     }

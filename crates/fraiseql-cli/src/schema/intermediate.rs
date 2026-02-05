@@ -728,10 +728,15 @@ pub struct IntermediateFilter {
 /// Aggregate query definition (Analytics)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAggregateQuery {
+    /// Aggregate query name
     pub name:            String,
+    /// Fact table to aggregate from
     pub fact_table:      String,
+    /// Automatically generate GROUP BY clauses
     pub auto_group_by:   bool,
+    /// Automatically generate aggregate functions
     pub auto_aggregates: bool,
+    /// Optional description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description:     Option<String>,
 }

@@ -2482,7 +2482,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2504,7 +2504,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "axum 0.7.9",
  "serde",
@@ -2567,7 +2567,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "arrow",
  "async-nats",
@@ -2605,7 +2605,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers-macros"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2614,7 +2614,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.0.0-a1"
+version = "2.0.0-beta.1"
 dependencies = [
  "aes-gcm",
  "anyhow",

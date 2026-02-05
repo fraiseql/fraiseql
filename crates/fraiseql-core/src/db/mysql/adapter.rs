@@ -194,12 +194,16 @@ impl DatabaseAdapter for MySqlAdapter {
         // e.g., "JSON_OBJECT('id', data->'$.id', 'email', data->'$.email')"
         let mut sql = format!("SELECT {} FROM `{}`", projection.projection_template, view);
 
+        // Collect WHERE clause params (if any)
+        let mut params: Vec<serde_json::Value> = Vec::new();
+
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
             let generator = super::where_generator::MySqlWhereGenerator::new();
-            let where_sql = generator.generate(clause)?;
+            let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
+            params = where_params;
         }
 
         // Add LIMIT if present
@@ -208,7 +212,7 @@ impl DatabaseAdapter for MySqlAdapter {
         }
 
         // Execute the query
-        self.execute_raw(&sql).await
+        self.execute_raw(&sql, params).await
     }
 
     async fn execute_where_query(

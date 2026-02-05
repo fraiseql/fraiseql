@@ -18,9 +18,11 @@ use tracing::info;
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct FraiseQLConfig {
+    /// Project metadata (name, version, description)
     #[serde(rename = "project")]
     pub project: ProjectConfig,
 
+    /// FraiseQL-specific settings
     #[serde(rename = "fraiseql")]
     pub fraiseql: FraiseQLSettings,
 }
@@ -29,8 +31,11 @@ pub struct FraiseQLConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ProjectConfig {
+    /// Project name
     pub name:        String,
+    /// Project version
     pub version:     String,
+    /// Optional project description
     pub description: Option<String>,
 }
 
@@ -48,8 +53,11 @@ impl Default for ProjectConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct FraiseQLSettings {
+    /// Path to the GraphQL schema file
     pub schema_file: String,
+    /// Path to the output compiled schema file
     pub output_file: String,
+    /// Security configuration
     #[serde(rename = "security")]
     pub security:    SecurityConfig,
 }

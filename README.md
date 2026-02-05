@@ -1,10 +1,10 @@
 # FraiseQL v2
 
-**Version:** 2.0.0-alpha.1
-**Status:** Alpha release available
+**Version:** 2.0.0-beta.1
+**Status:** Beta release available
 **Date:** February 2026
 
-> ⚠️ **ALPHA RELEASE**: This is pre-release software. Expect potential breaking changes before v2.0.0 GA (April 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's not included. We appreciate your feedback! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
+> 🎯 **BETA RELEASE**: Core features are production-ready. API is stable, but minor changes may occur before v2.0.0 GA (April 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's coming next. Feedback welcome! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
 
 FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
