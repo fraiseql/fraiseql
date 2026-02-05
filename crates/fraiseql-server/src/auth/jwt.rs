@@ -1,7 +1,7 @@
 // JWT validation and claims parsing
 use std::collections::HashMap;
 
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, EncodingKey, Header, encode};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{
@@ -209,11 +209,10 @@ impl JwtValidator {
 /// # Errors
 /// Returns error if token generation or signing fails
 pub fn generate_rs256_token(claims: &Claims, private_key_pem: &[u8]) -> Result<String> {
-    let encoding_key = EncodingKey::from_rsa_pem(private_key_pem).map_err(|e| {
-        AuthError::Internal {
+    let encoding_key =
+        EncodingKey::from_rsa_pem(private_key_pem).map_err(|e| AuthError::Internal {
             message: format!("Failed to parse private key: {}", e),
-        }
-    })?;
+        })?;
 
     let header = Header::new(Algorithm::RS256);
     encode(&header, claims, &encoding_key).map_err(|e| AuthError::Internal {

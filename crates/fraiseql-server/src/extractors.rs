@@ -46,10 +46,7 @@ where
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         async move {
             // Try to extract AuthUser from extensions
-            let auth_user: Option<AuthUser> = parts
-                .extensions
-                .get::<AuthUser>()
-                .cloned();
+            let auth_user: Option<AuthUser> = parts.extensions.get::<AuthUser>().cloned();
 
             // Extract request headers
             let headers = &parts.headers;
@@ -84,19 +81,13 @@ fn extract_request_id(headers: &axum::http::HeaderMap) -> String {
 /// Extract client IP address from headers.
 fn extract_ip_address(headers: &axum::http::HeaderMap) -> Option<String> {
     // Check X-Forwarded-For first (for proxied requests)
-    if let Some(forwarded_for) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         // X-Forwarded-For can contain multiple IPs, use the first one
         return forwarded_for.split(',').next().map(|ip| ip.trim().to_string());
     }
 
     // Check X-Real-IP
-    if let Some(real_ip) = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
         return Some(real_ip.to_string());
     }
 
@@ -105,10 +96,7 @@ fn extract_ip_address(headers: &axum::http::HeaderMap) -> Option<String> {
 
 /// Extract tenant ID from headers.
 fn extract_tenant_id(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
+    headers.get("x-tenant-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string())
 }
 
 #[cfg(test)]
@@ -181,8 +169,8 @@ mod tests {
 
         // Simulate an authenticated user from the OIDC middleware
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read:user".to_string(), "write:post".to_string()],
+            user_id:    "user123".to_string(),
+            scopes:     vec!["read:user".to_string(), "write:post".to_string()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         });
 
@@ -193,28 +181,24 @@ mod tests {
         headers.insert("x-forwarded-for", "192.0.2.100".parse().unwrap());
 
         // Create security context using extractor helper logic
-        let security_context = Some(auth_user)
-            .map(|auth_user| {
-                let authenticated_user = auth_user.0;
-                let request_id = extract_request_id(&headers);
-                let ip_address = extract_ip_address(&headers);
-                let tenant_id = extract_tenant_id(&headers);
+        let security_context = Some(auth_user).map(|auth_user| {
+            let authenticated_user = auth_user.0;
+            let request_id = extract_request_id(&headers);
+            let ip_address = extract_ip_address(&headers);
+            let tenant_id = extract_tenant_id(&headers);
 
-                let mut context =
-                    fraiseql_core::security::SecurityContext::from_user(authenticated_user, request_id);
-                context.ip_address = ip_address;
-                context.tenant_id = tenant_id;
-                context
-            });
+            let mut context =
+                fraiseql_core::security::SecurityContext::from_user(authenticated_user, request_id);
+            context.ip_address = ip_address;
+            context.tenant_id = tenant_id;
+            context
+        });
 
         // Verify context was created correctly
         assert!(security_context.is_some());
         let sec_ctx = security_context.unwrap();
         assert_eq!(sec_ctx.user_id, "user123");
-        assert_eq!(
-            sec_ctx.scopes,
-            vec!["read:user".to_string(), "write:post".to_string()]
-        );
+        assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);
         assert_eq!(sec_ctx.tenant_id, Some("tenant-acme".to_string()));
         assert_eq!(sec_ctx.request_id, "req-test-123");
         assert_eq!(sec_ctx.ip_address, Some("192.0.2.100".to_string()));

@@ -3,8 +3,9 @@
 use std::{env, path::Path, sync::Arc};
 
 use fraiseql_core::db::postgres::PostgresAdapter;
-use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig};
-use fraiseql_server::server_config::RateLimitingConfig;
+use fraiseql_server::{
+    CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
@@ -85,10 +86,12 @@ async fn main() -> anyhow::Result<()> {
 
     // Introspection configuration from environment
     if let Ok(introspection_enabled) = env::var("FRAISEQL_INTROSPECTION_ENABLED") {
-        config.introspection_enabled = introspection_enabled == "true" || introspection_enabled == "1";
+        config.introspection_enabled =
+            introspection_enabled == "true" || introspection_enabled == "1";
     }
     if let Ok(introspection_require_auth) = env::var("FRAISEQL_INTROSPECTION_REQUIRE_AUTH") {
-        config.introspection_require_auth = introspection_require_auth != "false" && introspection_require_auth != "0";
+        config.introspection_require_auth =
+            introspection_require_auth != "false" && introspection_require_auth != "0";
     }
 
     // Rate limiting configuration from environment
@@ -109,10 +112,10 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(rps_per_ip) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP") {
         if let Ok(value) = rps_per_ip.parse() {
             let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
-                enabled: true,
-                rps_per_ip: 100,
-                rps_per_user: 1000,
-                burst_size: 500,
+                enabled:               true,
+                rps_per_ip:            100,
+                rps_per_user:          1000,
+                burst_size:            500,
                 cleanup_interval_secs: 300,
             });
             rate_config.rps_per_ip = value;
@@ -122,10 +125,10 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(rps_per_user) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER") {
         if let Ok(value) = rps_per_user.parse() {
             let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
-                enabled: true,
-                rps_per_ip: 100,
-                rps_per_user: 1000,
-                burst_size: 500,
+                enabled:               true,
+                rps_per_ip:            100,
+                rps_per_user:          1000,
+                burst_size:            500,
                 cleanup_interval_secs: 300,
             });
             rate_config.rps_per_user = value;
@@ -135,10 +138,10 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(burst_size) = env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE") {
         if let Ok(value) = burst_size.parse() {
             let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
-                enabled: true,
-                rps_per_ip: 100,
-                rps_per_user: 1000,
-                burst_size: 500,
+                enabled:               true,
+                rps_per_ip:            100,
+                rps_per_user:          1000,
+                burst_size:            500,
                 cleanup_interval_secs: 300,
             });
             rate_config.burst_size = value;

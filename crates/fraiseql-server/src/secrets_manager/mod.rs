@@ -6,15 +6,15 @@
 //! - Environment variables for configuration
 //! - Local files for development/testing
 
+use std::{fmt, sync::Arc};
+
 use chrono::{DateTime, Utc};
-use std::fmt;
-use std::sync::Arc;
 
 pub mod backends;
 pub mod types;
 
 pub use backends::{EnvBackend, FileBackend, VaultBackend};
-pub use types::{SecretsBackend, Secret};
+pub use types::{Secret, SecretsBackend};
 
 /// Primary secrets manager that caches and rotates credentials
 pub struct SecretsManager {

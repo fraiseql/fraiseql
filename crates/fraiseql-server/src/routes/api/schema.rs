@@ -5,15 +5,18 @@
 //! - Exporting schema as JSON for programmatic access
 
 use axum::{
-    extract::State,
     Json,
-    response::{Response, IntoResponse},
+    extract::State,
     http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
-use crate::routes::api::types::{ApiResponse, ApiError};
-use crate::routes::graphql::AppState;
+
+use crate::routes::{
+    api::types::{ApiError, ApiResponse},
+    graphql::AppState,
+};
 
 /// Response containing GraphQL SDL schema.
 #[derive(Debug, Serialize)]
@@ -69,7 +72,7 @@ pub async fn export_json_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -126,7 +129,7 @@ type Mutation {
   createPost(title: String!, content: String!): Post
 }
 "#
-        .to_string()
+    .to_string()
 }
 
 /// Generate example JSON schema.

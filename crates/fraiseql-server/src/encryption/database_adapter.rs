@@ -13,11 +13,12 @@
 //! - Context-based authenticated encryption for audit trails
 //! - Key rotation support via cache invalidation
 
-use super::FieldEncryption;
-use crate::secrets_manager::{SecretsManager, SecretsError};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
 use tokio::sync::RwLock;
+
+use super::FieldEncryption;
+use crate::secrets_manager::{SecretsError, SecretsManager};
 
 /// Trait for managing encrypted fields in database adapters
 ///
@@ -70,13 +71,13 @@ pub trait EncryptedFieldAdapter: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct EncryptionContext {
     /// User ID performing the operation
-    pub user_id: String,
+    pub user_id:    String,
     /// Field name being encrypted
     pub field_name: String,
     /// Operation type (insert, update, select)
-    pub operation: String,
+    pub operation:  String,
     /// Timestamp of operation
-    pub timestamp: String,
+    pub timestamp:  String,
 }
 
 impl EncryptionContext {
@@ -88,10 +89,10 @@ impl EncryptionContext {
         timestamp: impl Into<String>,
     ) -> Self {
         Self {
-            user_id: user_id.into(),
+            user_id:    user_id.into(),
             field_name: field_name.into(),
-            operation: operation.into(),
-            timestamp: timestamp.into(),
+            operation:  operation.into(),
+            timestamp:  timestamp.into(),
         }
     }
 
@@ -107,7 +108,7 @@ impl EncryptionContext {
 /// Cached encryption cipher for a field
 #[derive(Clone)]
 struct CachedEncryption {
-    cipher: FieldEncryption,
+    cipher:   FieldEncryption,
     /// Key name from Vault - kept for debugging and audit trail (used in Phase 12.3+ cycles)
     #[allow(dead_code)]
     key_name: String,
@@ -121,9 +122,9 @@ pub struct DatabaseFieldAdapter {
     /// Secrets manager for fetching encryption keys
     secrets_manager: Arc<SecretsManager>,
     /// Mapping of field names to encryption key names in Vault
-    field_keys: HashMap<String, String>,
+    field_keys:      HashMap<String, String>,
     /// Cached cipher instances per field
-    ciphers: Arc<RwLock<HashMap<String, CachedEncryption>>>,
+    ciphers:         Arc<RwLock<HashMap<String, CachedEncryption>>>,
 }
 
 impl DatabaseFieldAdapter {
@@ -143,10 +144,7 @@ impl DatabaseFieldAdapter {
     ///
     /// let adapter = DatabaseFieldAdapter::new(secrets_manager, field_keys);
     /// ```
-    pub fn new(
-        secrets_manager: Arc<SecretsManager>,
-        field_keys: HashMap<String, String>,
-    ) -> Self {
+    pub fn new(secrets_manager: Arc<SecretsManager>, field_keys: HashMap<String, String>) -> Self {
         Self {
             secrets_manager,
             field_keys,
@@ -164,13 +162,12 @@ impl DatabaseFieldAdapter {
         drop(cache);
 
         // Fetch key from SecretsManager
-        let key_name = self
-            .field_keys
-            .get(field_name)
-            .ok_or_else(|| SecretsError::NotFound(format!(
+        let key_name = self.field_keys.get(field_name).ok_or_else(|| {
+            SecretsError::NotFound(format!(
                 "Encryption key for field '{}' not configured",
                 field_name
-            )))?;
+            ))
+        })?;
 
         let key_str = self.secrets_manager.get_secret(key_name).await?;
         let key_bytes = key_str.as_bytes().to_vec();
@@ -190,7 +187,7 @@ impl DatabaseFieldAdapter {
         cache.insert(
             field_name.to_string(),
             CachedEncryption {
-                cipher: cipher.clone(),
+                cipher:   cipher.clone(),
                 key_name: key_name.clone(),
             },
         );
@@ -205,8 +202,7 @@ impl DatabaseFieldAdapter {
     /// * `field_name` - Database field name to be encrypted
     /// * `key_name` - Vault secret name for the encryption key
     pub fn register_field(&mut self, field_name: impl Into<String>, key_name: impl Into<String>) {
-        self.field_keys
-            .insert(field_name.into(), key_name.into());
+        self.field_keys.insert(field_name.into(), key_name.into());
     }
 
     /// Invalidate cipher cache, forcing fresh key retrieval from SecretsManager
@@ -241,7 +237,11 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
         self.field_keys.keys().cloned().collect()
     }
 
-    async fn encrypt_value(&self, field_name: &str, plaintext: &str) -> Result<Vec<u8>, SecretsError> {
+    async fn encrypt_value(
+        &self,
+        field_name: &str,
+        plaintext: &str,
+    ) -> Result<Vec<u8>, SecretsError> {
         let cipher = self.get_cipher(field_name).await.map_err(|e| {
             SecretsError::EncryptionError(format!(
                 "Failed to get encryption cipher for field '{}': {}",
@@ -249,17 +249,19 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
             ))
         })?;
 
-        cipher
-            .encrypt(plaintext)
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to encrypt value for field '{}': {}",
-                    field_name, e
-                ))
-            })
+        cipher.encrypt(plaintext).map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to encrypt value for field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 
-    async fn decrypt_value(&self, field_name: &str, ciphertext: &[u8]) -> Result<String, SecretsError> {
+    async fn decrypt_value(
+        &self,
+        field_name: &str,
+        ciphertext: &[u8],
+    ) -> Result<String, SecretsError> {
         let cipher = self.get_cipher(field_name).await.map_err(|e| {
             SecretsError::EncryptionError(format!(
                 "Failed to get decryption cipher for field '{}': {}",
@@ -267,14 +269,12 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
             ))
         })?;
 
-        cipher
-            .decrypt(ciphertext)
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to decrypt value for field '{}': {}",
-                    field_name, e
-                ))
-            })
+        cipher.decrypt(ciphertext).map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to decrypt value for field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 
     async fn encrypt_with_context(
@@ -290,14 +290,12 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
             ))
         })?;
 
-        cipher
-            .encrypt_with_context(plaintext, context)
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to encrypt value with context for field '{}': {}",
-                    field_name, e
-                ))
-            })
+        cipher.encrypt_with_context(plaintext, context).map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to encrypt value with context for field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 
     async fn decrypt_with_context(
@@ -313,14 +311,12 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
             ))
         })?;
 
-        cipher
-            .decrypt_with_context(ciphertext, context)
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to decrypt value with context for field '{}': {}",
-                    field_name, e
-                ))
-            })
+        cipher.decrypt_with_context(ciphertext, context).map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to decrypt value with context for field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 }
 

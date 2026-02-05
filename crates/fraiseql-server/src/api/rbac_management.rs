@@ -2,58 +2,59 @@
 //!
 //! REST API endpoints for managing roles, permissions, and user-role associations.
 
+use std::sync::Arc;
+
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// Role definition for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoleDto {
     /// Unique role identifier
-    pub id: String,
+    pub id:          String,
     /// Human-readable role name
-    pub name: String,
+    pub name:        String,
     /// Optional role description
     pub description: Option<String>,
     /// List of permission IDs assigned to this role
     pub permissions: Vec<String>,
     /// Tenant ID for multi-tenancy
-    pub tenant_id: Option<String>,
+    pub tenant_id:   Option<String>,
     /// Creation timestamp (ISO 8601)
-    pub created_at: String,
+    pub created_at:  String,
     /// Last update timestamp (ISO 8601)
-    pub updated_at: String,
+    pub updated_at:  String,
 }
 
 /// Permission definition for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionDto {
     /// Unique permission identifier
-    pub id: String,
+    pub id:          String,
     /// Permission resource and action (e.g., "query:read", "mutation:write")
-    pub resource: String,
-    pub action: String,
+    pub resource:    String,
+    pub action:      String,
     /// Optional permission description
     pub description: Option<String>,
     /// Creation timestamp (ISO 8601)
-    pub created_at: String,
+    pub created_at:  String,
 }
 
 /// User-Role association for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRoleDto {
     /// User ID
-    pub user_id: String,
+    pub user_id:     String,
     /// Role ID
-    pub role_id: String,
+    pub role_id:     String,
     /// Tenant ID for multi-tenancy
-    pub tenant_id: Option<String>,
+    pub tenant_id:   Option<String>,
     /// Assignment timestamp (ISO 8601)
     pub assigned_at: String,
 }
@@ -62,7 +63,7 @@ pub struct UserRoleDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoleRequest {
     /// Role name
-    pub name: String,
+    pub name:        String,
     /// Optional description
     pub description: Option<String>,
     /// Initial permissions to assign
@@ -73,9 +74,9 @@ pub struct CreateRoleRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePermissionRequest {
     /// Resource name
-    pub resource: String,
+    pub resource:    String,
     /// Action name
-    pub action: String,
+    pub action:      String,
     /// Optional description
     pub description: Option<String>,
 }
@@ -118,14 +119,8 @@ pub fn rbac_management_router(state: RbacManagementState) -> Router {
         .route("/api/roles", post(create_role).get(list_roles))
         .route("/api/roles/:role_id", get(get_role).put(update_role).delete(delete_role))
         // Permission endpoints
-        .route(
-            "/api/permissions",
-            post(create_permission).get(list_permissions),
-        )
-        .route(
-            "/api/permissions/:permission_id",
-            get(get_permission).delete(delete_permission),
-        )
+        .route("/api/permissions", post(create_permission).get(list_permissions))
+        .route("/api/permissions/:permission_id", get(get_permission).delete(delete_permission))
         // User-role assignment endpoints
         .route("/api/user-roles", post(assign_role).get(list_user_roles))
         .route("/api/user-roles/:user_id/:role_id", delete(revoke_role))
@@ -156,11 +151,10 @@ async fn create_role(
         )
         .await
     {
-        Ok(role) => (StatusCode::CREATED, Json(serde_json::to_value(role).unwrap_or_default())).into_response(),
-        Err(_) => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({"error": "role_duplicate"})),
-        ).into_response(),
+        Ok(role) => (StatusCode::CREATED, Json(serde_json::to_value(role).unwrap_or_default()))
+            .into_response(),
+        Err(_) => (StatusCode::CONFLICT, Json(serde_json::json!({"error": "role_duplicate"})))
+            .into_response(),
     }
 }
 
@@ -183,11 +177,11 @@ async fn get_role(
 ) -> impl IntoResponse {
     // Phase 11.5 Cycle 3: Call database backend
     match state.db.get_role(&role_id).await {
-        Ok(role) => (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response(),
-        Err(_) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "role_not_found"})),
-        ).into_response(),
+        Ok(role) => {
+            (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response()
+        },
+        Err(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "role_not_found"})))
+            .into_response(),
     }
 }
 
@@ -229,18 +223,15 @@ async fn create_permission(
     // Phase 11.5 Cycle 3: Call database backend
     match state
         .db
-        .create_permission(
-            &payload.resource,
-            &payload.action,
-            payload.description.as_deref(),
-        )
+        .create_permission(&payload.resource, &payload.action, payload.description.as_deref())
         .await
     {
-        Ok(perm) => (StatusCode::CREATED, Json(serde_json::to_value(perm).unwrap_or_default())).into_response(),
-        Err(_) => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({"error": "permission_duplicate"})),
-        ).into_response(),
+        Ok(perm) => (StatusCode::CREATED, Json(serde_json::to_value(perm).unwrap_or_default()))
+            .into_response(),
+        Err(_) => {
+            (StatusCode::CONFLICT, Json(serde_json::json!({"error": "permission_duplicate"})))
+                .into_response()
+        },
     }
 }
 
@@ -286,16 +277,15 @@ async fn assign_role(
     Json(payload): Json<AssignRoleRequest>,
 ) -> impl IntoResponse {
     // Phase 11.5 Cycle 3: Call database backend
-    match state
-        .db
-        .assign_role_to_user(&payload.user_id, &payload.role_id, None)
-        .await
-    {
-        Ok(assignment) => (StatusCode::CREATED, Json(serde_json::to_value(assignment).unwrap_or_default())).into_response(),
-        Err(_) => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({"error": "assignment_duplicate"})),
-        ).into_response(),
+    match state.db.assign_role_to_user(&payload.user_id, &payload.role_id, None).await {
+        Ok(assignment) => {
+            (StatusCode::CREATED, Json(serde_json::to_value(assignment).unwrap_or_default()))
+                .into_response()
+        },
+        Err(_) => {
+            (StatusCode::CONFLICT, Json(serde_json::json!({"error": "assignment_duplicate"})))
+                .into_response()
+        },
     }
 }
 

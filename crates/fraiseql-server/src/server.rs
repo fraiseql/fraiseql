@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use axum::{Router, middleware, routing::{get, post}};
+use axum::{
+    Router, middleware,
+    routing::{get, post},
+};
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
@@ -28,9 +31,9 @@ use crate::{
         metrics_middleware, oidc_auth_middleware, trace_layer,
     },
     routes::{
-        PlaygroundState, SubscriptionState, graphql::AppState, graphql_get_handler,
+        PlaygroundState, SubscriptionState, api, graphql::AppState, graphql_get_handler,
         graphql_handler, health_handler, introspection_handler, metrics_handler,
-        metrics_json_handler, playground_handler, subscription_handler, api,
+        metrics_json_handler, playground_handler, subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -111,10 +114,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Initializing rate limiting"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
-                    enabled: true,
-                    rps_per_ip: rate_config.rps_per_ip,
-                    rps_per_user: rate_config.rps_per_user,
-                    burst_size: rate_config.burst_size,
+                    enabled:               true,
+                    rps_per_ip:            rate_config.rps_per_ip,
+                    rps_per_user:          rate_config.rps_per_user,
+                    burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))
@@ -207,10 +210,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Initializing rate limiting"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
-                    enabled: true,
-                    rps_per_ip: rate_config.rps_per_ip,
-                    rps_per_user: rate_config.rps_per_user,
-                    burst_size: rate_config.burst_size,
+                    enabled:               true,
+                    rps_per_ip:            rate_config.rps_per_ip,
+                    rps_per_user:          rate_config.rps_per_user,
+                    burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))
@@ -348,7 +351,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let auth_state = OidcAuthState::new(validator.clone());
                     let introspection_router = Router::new()
                         .route(&self.config.introspection_path, get(introspection_handler::<A>))
-                        .route_layer(middleware::from_fn_with_state(auth_state.clone(), oidc_auth_middleware))
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state.clone(),
+                            oidc_auth_middleware,
+                        ))
                         .with_state(state.clone());
                     app = app.merge(introspection_router);
 
@@ -356,7 +362,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let schema_router = Router::new()
                         .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                         .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
-                        .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            oidc_auth_middleware,
+                        ))
                         .with_state(state.clone());
                     app = app.merge(schema_router);
                 } else {
@@ -374,7 +383,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .with_state(state.clone());
                 app = app.merge(introspection_router);
 
-                // Schema export endpoints available without auth when introspection enabled without auth
+                // Schema export endpoints available without auth when introspection enabled without
+                // auth
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
@@ -413,15 +423,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Conditionally add admin routes (protected by bearer token)
         if self.config.admin_api_enabled {
             if let Some(ref token) = self.config.admin_token {
-                info!(
-                    "Admin API endpoints enabled (bearer token required)"
-                );
+                info!("Admin API endpoints enabled (bearer token required)");
 
                 let auth_state = BearerAuthState::new(token.clone());
 
                 // Create a separate admin router with auth middleware applied
                 let admin_router = Router::new()
-                    .route("/api/v1/admin/reload-schema", post(api::admin::reload_schema_handler::<A>))
+                    .route(
+                        "/api/v1/admin/reload-schema",
+                        post(api::admin::reload_schema_handler::<A>),
+                    )
                     .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
@@ -439,16 +450,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Conditionally add design audit endpoints (with optional auth)
         if self.config.design_api_require_auth {
             if let Some(ref validator) = self.oidc_validator {
-                info!(
-                    "Design audit API endpoints enabled (OIDC auth required)"
-                );
+                info!("Design audit API endpoints enabled (OIDC auth required)");
                 let auth_state = OidcAuthState::new(validator.clone());
                 let design_router = Router::new()
-                    .route("/design/federation-audit", post(api::design::federation_audit_handler::<A>))
+                    .route(
+                        "/design/federation-audit",
+                        post(api::design::federation_audit_handler::<A>),
+                    )
                     .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
                     .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
                     .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
-                    .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                    .route(
+                        "/design/compilation-audit",
+                        post(api::design::compilation_audit_handler::<A>),
+                    )
                     .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(state.clone());
@@ -459,11 +474,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 );
                 // Add unprotected design endpoints
                 let design_router = Router::new()
-                    .route("/design/federation-audit", post(api::design::federation_audit_handler::<A>))
+                    .route(
+                        "/design/federation-audit",
+                        post(api::design::federation_audit_handler::<A>),
+                    )
                     .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
                     .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
                     .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
-                    .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                    .route(
+                        "/design/compilation-audit",
+                        post(api::design::compilation_audit_handler::<A>),
+                    )
                     .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
                     .with_state(state.clone());
                 app = app.nest("/api/v1", design_router);
@@ -475,7 +496,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
                 .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
                 .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
-                .route("/design/compilation-audit", post(api::design::compilation_audit_handler::<A>))
+                .route(
+                    "/design/compilation-audit",
+                    post(api::design::compilation_audit_handler::<A>),
+                )
                 .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
                 .with_state(state.clone());
             app = app.nest("/api/v1", design_router);
@@ -517,8 +541,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Add rate limiting middleware if configured
         if let Some(ref limiter) = self.rate_limiter {
-            use axum::extract::ConnectInfo;
             use std::net::SocketAddr;
+
+            use axum::extract::ConnectInfo;
 
             info!("Enabling rate limiting middleware");
             let limiter_clone = limiter.clone();

@@ -10,45 +10,46 @@
 //! - OAuth tokens
 
 use aes_gcm::{
-    aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, Payload},
 };
 use rand::Rng;
+
 use crate::secrets_manager::SecretsError;
 
-mod field_encryption_tests;
-mod database_adapter_tests;
-mod query_builder_integration_tests;
-mod mapper_integration_tests;
 mod audit_logging_tests;
-mod schema_detection_tests;
-mod transaction_integration_tests;
 mod compliance_tests;
-mod performance_tests;
+mod dashboard_tests;
+mod database_adapter_tests;
 mod error_recovery_tests;
-mod rotation_tests;
+mod field_encryption_tests;
+mod mapper_integration_tests;
+mod performance_tests;
+mod query_builder_integration_tests;
 mod refresh_tests;
 mod rotation_api_tests;
-mod dashboard_tests;
+mod rotation_tests;
+mod schema_detection_tests;
+mod transaction_integration_tests;
 
-pub mod database_adapter;
-pub mod query_builder;
-pub mod mapper;
 pub mod audit_logging;
-pub mod schema;
-pub mod transaction;
 pub mod compliance;
-pub mod performance;
-pub mod error_recovery;
 pub mod credential_rotation;
+pub mod dashboard;
+pub mod database_adapter;
+pub mod error_recovery;
+pub mod mapper;
+pub mod performance;
+pub mod query_builder;
 pub mod refresh_trigger;
 pub mod rotation_api;
-pub mod dashboard;
+pub mod schema;
+pub mod transaction;
 
-const NONCE_SIZE: usize = 12;  // 96 bits for GCM
+const NONCE_SIZE: usize = 12; // 96 bits for GCM
 #[allow(dead_code)]
-const TAG_SIZE: usize = 16;    // 128 bits authentication tag (used in Phase 12.3+ cycles)
-const KEY_SIZE: usize = 32;    // 256 bits for AES-256
+const TAG_SIZE: usize = 16; // 128 bits authentication tag (used in Phase 12.3+ cycles)
+const KEY_SIZE: usize = 32; // 256 bits for AES-256
 
 /// Cipher for field-level encryption using AES-256-GCM
 ///
@@ -89,15 +90,10 @@ impl FieldEncryption {
     /// If key length is not exactly 32 bytes
     pub fn new(key: &[u8]) -> Self {
         if key.len() != KEY_SIZE {
-            panic!(
-                "Encryption key must be exactly {} bytes, got {}",
-                KEY_SIZE,
-                key.len()
-            );
+            panic!("Encryption key must be exactly {} bytes, got {}", KEY_SIZE, key.len());
         }
 
-        let cipher = Aes256Gcm::new_from_slice(key)
-            .expect("Key size already validated");
+        let cipher = Aes256Gcm::new_from_slice(key).expect("Key size already validated");
 
         FieldEncryption { cipher }
     }
@@ -121,11 +117,15 @@ impl FieldEncryption {
     /// # Returns
     /// Tuple of (nonce, ciphertext) or error if too short
     #[allow(dead_code)]
-    fn extract_nonce_and_ciphertext(encrypted: &[u8]) -> Result<([u8; NONCE_SIZE], &[u8]), SecretsError> {
+    fn extract_nonce_and_ciphertext(
+        encrypted: &[u8],
+    ) -> Result<([u8; NONCE_SIZE], &[u8]), SecretsError> {
         if encrypted.len() < NONCE_SIZE {
-            return Err(SecretsError::EncryptionError(
-                format!("Encrypted data too short (need ≥{} bytes, got {})", NONCE_SIZE, encrypted.len()),
-            ));
+            return Err(SecretsError::EncryptionError(format!(
+                "Encrypted data too short (need ≥{} bytes, got {})",
+                NONCE_SIZE,
+                encrypted.len()
+            )));
         }
 
         let mut nonce = [0u8; NONCE_SIZE];
@@ -140,10 +140,9 @@ impl FieldEncryption {
     /// Provides clear error messages on encoding failures for debugging
     #[allow(dead_code)]
     fn bytes_to_utf8(bytes: Vec<u8>, context: &str) -> Result<String, SecretsError> {
-        String::from_utf8(bytes)
-            .map_err(|e| SecretsError::EncryptionError(
-                format!("Invalid UTF-8 in {}: {}", context, e)
-            ))
+        String::from_utf8(bytes).map_err(|e| {
+            SecretsError::EncryptionError(format!("Invalid UTF-8 in {}: {}", context, e))
+        })
     }
 
     /// Encrypt plaintext field using AES-256-GCM
@@ -213,7 +212,11 @@ impl FieldEncryption {
     ///
     /// # Returns
     /// Encrypted data in format: [12-byte nonce][ciphertext + 16-byte tag]
-    pub fn encrypt_with_context(&self, plaintext: &str, context: &str) -> Result<Vec<u8>, SecretsError> {
+    pub fn encrypt_with_context(
+        &self,
+        plaintext: &str,
+        context: &str,
+    ) -> Result<Vec<u8>, SecretsError> {
         let nonce_bytes = Self::generate_nonce();
         let nonce = Nonce::from_slice(&nonce_bytes);
 
@@ -222,10 +225,9 @@ impl FieldEncryption {
             aad: context.as_bytes(),
         };
 
-        let ciphertext = self
-            .cipher
-            .encrypt(nonce, payload)
-            .map_err(|e| SecretsError::EncryptionError(format!("Encryption with context failed: {}", e)))?;
+        let ciphertext = self.cipher.encrypt(nonce, payload).map_err(|e| {
+            SecretsError::EncryptionError(format!("Encryption with context failed: {}", e))
+        })?;
 
         let mut result = nonce_bytes.to_vec();
         result.extend_from_slice(&ciphertext);
@@ -245,7 +247,11 @@ impl FieldEncryption {
     ///
     /// # Errors
     /// Returns EncryptionError if context doesn't match or decryption fails
-    pub fn decrypt_with_context(&self, encrypted: &[u8], context: &str) -> Result<String, SecretsError> {
+    pub fn decrypt_with_context(
+        &self,
+        encrypted: &[u8],
+        context: &str,
+    ) -> Result<String, SecretsError> {
         let (nonce_bytes, ciphertext) = Self::extract_nonce_and_ciphertext(encrypted)?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -254,10 +260,9 @@ impl FieldEncryption {
             aad: context.as_bytes(),
         };
 
-        let plaintext_bytes = self
-            .cipher
-            .decrypt(nonce, payload)
-            .map_err(|e| SecretsError::EncryptionError(format!("Decryption with context failed: {}", e)))?;
+        let plaintext_bytes = self.cipher.decrypt(nonce, payload).map_err(|e| {
+            SecretsError::EncryptionError(format!("Decryption with context failed: {}", e))
+        })?;
 
         Self::bytes_to_utf8(plaintext_bytes, "decrypted data with context")
     }
@@ -272,7 +277,7 @@ mod tests {
     fn test_field_encryption_creation() {
         let key = [0u8; KEY_SIZE];
         let _cipher = FieldEncryption::new(&key);
-        assert!(true);  // Just verify creation succeeds
+        assert!(true); // Just verify creation succeeds
     }
 
     /// Test basic encryption/decryption roundtrip
@@ -352,7 +357,7 @@ mod tests {
             "4532015112830366",
             "sk_live_abc123def456",
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-            "",  // Empty string
+            "", // Empty string
             "with\nspecial\nchars\t!@#$%",
             "unicode: 你好世界 🔐",
         ];
@@ -368,7 +373,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "must be exactly 32 bytes")]
     fn test_field_encryption_invalid_key_size() {
-        let invalid_key = [0u8; 16];  // Too short
+        let invalid_key = [0u8; 16]; // Too short
         let _cipher = FieldEncryption::new(&invalid_key);
     }
 
@@ -396,7 +401,7 @@ mod tests {
         let key = [0u8; KEY_SIZE];
         let cipher = FieldEncryption::new(&key);
 
-        let short_data = vec![0u8; 5];  // Too short for nonce
+        let short_data = vec![0u8; 5]; // Too short for nonce
         let result = cipher.decrypt(&short_data);
         assert!(result.is_err());
     }

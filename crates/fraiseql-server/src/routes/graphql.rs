@@ -15,7 +15,7 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
@@ -26,7 +26,6 @@ use crate::{
     tracing_utils,
     validation::RequestValidator,
 };
-use fraiseql_core::security::SecurityContext;
 
 /// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
@@ -164,9 +163,9 @@ impl<A: DatabaseAdapter> AppState<A> {
     ///
     /// Phase 4.2: Returns configuration with sensitive data redacted
     pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
-        self.config.as_ref().map(|cfg| {
-            crate::routes::api::types::SanitizedConfig::from_config(cfg)
-        })
+        self.config
+            .as_ref()
+            .map(|cfg| crate::routes::api::types::SanitizedConfig::from_config(cfg))
     }
 }
 
@@ -277,7 +276,6 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // For now, execute without security context
     execute_graphql_request(state, request, trace_context, None).await
 }
-
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
@@ -541,11 +539,11 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config = crate::config::ServerConfig {
-            port: 8080,
-            host: "0.0.0.0".to_string(),
+            port:    8080,
+            host:    "0.0.0.0".to_string(),
             workers: Some(4),
-            tls: None,
-            limits: None,
+            tls:     None,
+            limits:  None,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -560,18 +558,19 @@ mod tests {
     #[test]
     fn test_sanitized_config_indicates_tls_without_exposing_keys() {
         // SanitizedConfig should indicate TLS is present without exposing keys
-        use crate::routes::api::types::SanitizedConfig;
         use std::path::PathBuf;
 
+        use crate::routes::api::types::SanitizedConfig;
+
         let config = crate::config::ServerConfig {
-            port: 8080,
-            host: "localhost".to_string(),
+            port:    8080,
+            host:    "localhost".to_string(),
             workers: None,
-            tls: Some(crate::config::TlsConfig {
+            tls:     Some(crate::config::TlsConfig {
                 cert_file: PathBuf::from("/path/to/cert.pem"),
-                key_file: PathBuf::from("/path/to/key.pem"),
+                key_file:  PathBuf::from("/path/to/key.pem"),
             }),
-            limits: None,
+            limits:  None,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -589,22 +588,22 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config1 = crate::config::ServerConfig {
-            port: 8000,
-            host: "127.0.0.1".to_string(),
+            port:    8000,
+            host:    "127.0.0.1".to_string(),
             workers: None,
-            tls: None,
-            limits: None,
+            tls:     None,
+            limits:  None,
         };
 
         let config2 = crate::config::ServerConfig {
-            port: 8000,
-            host: "127.0.0.1".to_string(),
+            port:    8000,
+            host:    "127.0.0.1".to_string(),
             workers: None,
-            tls: Some(crate::config::TlsConfig {
+            tls:     Some(crate::config::TlsConfig {
                 cert_file: std::path::PathBuf::from("secret.cert"),
-                key_file: std::path::PathBuf::from("secret.key"),
+                key_file:  std::path::PathBuf::from("secret.key"),
             }),
-            limits: None,
+            limits:  None,
         };
 
         let san1 = SanitizedConfig::from_config(&config1);
@@ -633,5 +632,4 @@ mod tests {
         let _note = "API routes can access schema via state.executor for introspection";
         assert!(_note.len() > 0);
     }
-
 }

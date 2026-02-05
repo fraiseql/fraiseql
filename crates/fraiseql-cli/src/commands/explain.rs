@@ -58,22 +58,19 @@ pub fn run(query: &str) -> Result<CommandResult> {
 
     if depth > 10 {
         warnings.push(format!(
-            "Query depth {} exceeds recommended maximum of 10 - consider breaking into multiple queries",
-            depth
+            "Query depth {depth} exceeds recommended maximum of 10 - consider breaking into multiple queries"
         ));
     }
 
     if field_count > 50 {
         warnings.push(format!(
-            "Query requests {} fields - consider using pagination or field selection",
-            field_count
+            "Query requests {field_count} fields - consider using pagination or field selection"
         ));
     }
 
     if score > 500 {
         warnings.push(format!(
-            "Query complexity score {} is high - consider optimizing query structure",
-            score
+            "Query complexity score {score} is high - consider optimizing query structure"
         ));
     }
 

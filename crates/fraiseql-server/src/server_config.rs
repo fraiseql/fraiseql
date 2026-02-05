@@ -167,8 +167,9 @@ pub struct ServerConfig {
     /// When enabled, serves a GraphQL IDE (GraphiQL or Apollo Sandbox)
     /// at the configured `playground_path`.
     ///
-    /// **Security**: Disabled by default for production safety. Set to true for development environments only.
-    /// The playground exposes schema information and can be a reconnaissance vector for attackers.
+    /// **Security**: Disabled by default for production safety. Set to true for development
+    /// environments only. The playground exposes schema information and can be a
+    /// reconnaissance vector for attackers.
     #[serde(default)]
     pub playground_enabled: bool,
 
@@ -424,9 +425,9 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,         // No auth by default
-            tls: None,          // TLS disabled by default
-            database_tls: None, // Database TLS disabled by default
+            auth: None,          // No auth by default
+            tls: None,           // TLS disabled by default
+            database_tls: None,  // Database TLS disabled by default
             rate_limiting: None, // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
@@ -482,10 +483,13 @@ impl ServerConfig {
             match &self.admin_token {
                 None => {
                     return Err("admin_api_enabled is true but admin_token is not set. \
-                         Set FRAISEQL_ADMIN_TOKEN or admin_token in config.".to_string());
+                         Set FRAISEQL_ADMIN_TOKEN or admin_token in config."
+                        .to_string());
                 },
                 Some(token) if token.len() < 32 => {
-                    return Err("admin_token must be at least 32 characters for security.".to_string());
+                    return Err(
+                        "admin_token must be at least 32 characters for security.".to_string()
+                    );
                 },
                 Some(_) => {},
             }
@@ -562,23 +566,19 @@ impl ServerConfig {
         if Self::is_production_mode() {
             // Playground should be disabled in production
             if self.playground_enabled {
-                return Err(
-                    "playground_enabled is true in production mode. \
+                return Err("playground_enabled is true in production mode. \
                      Disable the playground or set FRAISEQL_ENV=development. \
                      The playground exposes sensitive schema information."
-                        .to_string(),
-                );
+                    .to_string());
             }
 
             // CORS origins must be explicitly configured in production
             if self.cors_enabled && self.cors_origins.is_empty() {
-                return Err(
-                    "cors_enabled is true but cors_origins is empty in production mode. \
+                return Err("cors_enabled is true but cors_origins is empty in production mode. \
                      This allows requests from ANY origin, which is a security risk. \
                      Explicitly configure cors_origins with your allowed domains, \
                      or disable CORS and set FRAISEQL_ENV=development to bypass this check."
-                        .to_string(),
-                );
+                    .to_string());
             }
         }
 
@@ -995,7 +995,10 @@ mod tests {
     #[test]
     fn test_admin_api_disabled_by_default() {
         let config = ServerConfig::default();
-        assert!(!config.admin_api_enabled, "Admin API should be disabled by default for security");
+        assert!(
+            !config.admin_api_enabled,
+            "Admin API should be disabled by default for security"
+        );
         assert!(config.admin_token.is_none());
     }
 

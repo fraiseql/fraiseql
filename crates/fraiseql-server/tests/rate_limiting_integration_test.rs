@@ -25,11 +25,7 @@ mod tests {
         // First 5 requests should be allowed
         for i in 0..5 {
             let allowed = limiter.check_ip_limit("192.168.1.1").await;
-            assert!(
-                allowed,
-                "Request {} should be allowed within rate limit",
-                i + 1
-            );
+            assert!(allowed, "Request {} should be allowed within rate limit", i + 1);
         }
 
         // 6th request should be denied
@@ -65,10 +61,10 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_disabled() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: false,
-            rps_per_ip: 1,
-            rps_per_user: 1,
-            burst_size: 1,
+            enabled:               false,
+            rps_per_ip:            1,
+            rps_per_user:          1,
+            burst_size:            1,
             cleanup_interval_secs: 300,
         });
 
@@ -95,10 +91,10 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_user_limit() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 3,
-            burst_size: 3,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          3,
+            burst_size:            3,
             cleanup_interval_secs: 300,
         });
 
@@ -114,10 +110,10 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_independent_users() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 2,
-            burst_size: 2,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          2,
+            burst_size:            2,
             cleanup_interval_secs: 300,
         });
 
@@ -135,10 +131,10 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_user_remaining() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 10,
-            burst_size: 10,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          10,
+            burst_size:            10,
             cleanup_interval_secs: 300,
         });
 
@@ -166,10 +162,10 @@ mod tests {
     async fn test_rate_limiter_burst_capacity() {
         // Test that burst_size determines maximum accumulated tokens
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 100,
-            burst_size: 5,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          100,
+            burst_size:            5,
             cleanup_interval_secs: 300,
         });
 

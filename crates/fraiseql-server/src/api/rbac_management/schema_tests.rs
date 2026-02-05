@@ -167,7 +167,8 @@ mod schema_verification {
         // - assigned_at (TIMESTAMPTZ, NOT NULL, DEFAULT NOW())
         // - PRIMARY KEY (user_id, role_id, tenant_id)
         // - UNIQUE(user_id, role_id)
-        // - Indexes: idx_user_roles_user_id, idx_user_roles_role_id, idx_user_roles_tenant_id, idx_user_roles_user_tenant
+        // - Indexes: idx_user_roles_user_id, idx_user_roles_role_id, idx_user_roles_tenant_id,
+        //   idx_user_roles_user_tenant
         assert!(true);
     }
 
@@ -212,7 +213,8 @@ mod schema_verification {
     fn test_composite_indexes_for_performance() {
         // Composite indexes should support common query patterns:
         // - audit_log query by tenant and time: idx_audit_log_composite (tenant_id, timestamp DESC)
-        // - audit_log query by event type and time: idx_audit_log_event_time (event_type, timestamp DESC)
+        // - audit_log query by event type and time: idx_audit_log_event_time (event_type, timestamp
+        //   DESC)
         // - user_roles query by user and tenant: idx_user_roles_user_tenant (user_id, tenant_id)
         assert!(true);
     }

@@ -2,8 +2,8 @@
 //! Credential rotation REST API endpoints for status, manual rotation,
 //! history retrieval, and configuration management.
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Rotation status levels
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -34,27 +34,27 @@ impl std::fmt::Display for RotationStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationStatusResponse {
     /// Current active version number
-    pub current_version: u16,
+    pub current_version:           u16,
     /// TTL for each version in days
-    pub ttl_days: u32,
+    pub ttl_days:                  u32,
     /// Last rotation timestamp
-    pub last_rotation: Option<DateTime<Utc>>,
+    pub last_rotation:             Option<DateTime<Utc>>,
     /// Estimated next rotation time
-    pub next_rotation: Option<DateTime<Utc>>,
+    pub next_rotation:             Option<DateTime<Utc>>,
     /// Current status level
-    pub status: RotationStatus,
+    pub status:                    RotationStatus,
     /// Is automatic refresh enabled
-    pub auto_refresh_enabled: bool,
+    pub auto_refresh_enabled:      bool,
     /// Total versions for this key
-    pub versions_total: usize,
+    pub versions_total:            usize,
     /// Active versions count
-    pub versions_active: usize,
+    pub versions_active:           usize,
     /// Expired versions count
-    pub versions_expired: usize,
+    pub versions_expired:          usize,
     /// Last rotation duration in milliseconds
     pub last_rotation_duration_ms: u64,
     /// Total auto-refresh checks performed
-    pub auto_refresh_checks: u64,
+    pub auto_refresh_checks:       u64,
 }
 
 impl RotationStatusResponse {
@@ -98,9 +98,9 @@ impl RotationStatusResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManualRotationRequest {
     /// Key ID to rotate (optional, defaults to primary)
-    pub key_id: Option<String>,
+    pub key_id:  Option<String>,
     /// Reason for rotation
-    pub reason: Option<String>,
+    pub reason:  Option<String>,
     /// Dry-run mode (validate without applying)
     pub dry_run: Option<bool>,
 }
@@ -113,11 +113,11 @@ pub struct ManualRotationResponse {
     /// Old version number
     pub old_version: u16,
     /// Rotation status: "success" or "failed"
-    pub status: String,
+    pub status:      String,
     /// Rotation duration in milliseconds
     pub duration_ms: u64,
     /// Error message if failed
-    pub error: Option<String>,
+    pub error:       Option<String>,
 }
 
 impl ManualRotationResponse {
@@ -148,19 +148,19 @@ impl ManualRotationResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationHistoryRecord {
     /// When rotation occurred
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:    DateTime<Utc>,
     /// Previous version
-    pub old_version: u16,
+    pub old_version:  u16,
     /// New version
-    pub new_version: u16,
+    pub new_version:  u16,
     /// Rotation reason
-    pub reason: Option<String>,
+    pub reason:       Option<String>,
     /// Operation duration in milliseconds
-    pub duration_ms: u64,
+    pub duration_ms:  u64,
     /// "auto" or "manual"
     pub triggered_by: String,
     /// User ID if manually triggered
-    pub user_id: Option<String>,
+    pub user_id:      Option<String>,
 }
 
 /// Rotation history response
@@ -169,11 +169,11 @@ pub struct RotationHistoryResponse {
     /// Pagination: total count
     pub total_count: usize,
     /// Pagination: offset used
-    pub offset: usize,
+    pub offset:      usize,
     /// Pagination: limit used
-    pub limit: usize,
+    pub limit:       usize,
     /// History records
-    pub records: Vec<RotationHistoryRecord>,
+    pub records:     Vec<RotationHistoryRecord>,
 }
 
 impl RotationHistoryResponse {
@@ -238,17 +238,17 @@ impl RotationConfigResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationConfigUpdateRequest {
     /// Is auto-refresh enabled
-    pub auto_refresh_enabled: Option<bool>,
+    pub auto_refresh_enabled:         Option<bool>,
     /// Check interval in hours
     pub refresh_check_interval_hours: Option<u32>,
     /// Refresh threshold percentage
-    pub refresh_threshold_percent: Option<u32>,
+    pub refresh_threshold_percent:    Option<u32>,
     /// TTL in days
-    pub ttl_days: Option<u32>,
+    pub ttl_days:                     Option<u32>,
     /// Quiet hours start (0-23)
-    pub quiet_hours_start: Option<u32>,
+    pub quiet_hours_start:            Option<u32>,
     /// Quiet hours end (0-23)
-    pub quiet_hours_end: Option<u32>,
+    pub quiet_hours_end:              Option<u32>,
 }
 
 impl RotationConfigUpdateRequest {
@@ -302,43 +302,43 @@ impl std::fmt::Display for ScheduleType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationScheduleResponse {
     /// Schedule type
-    pub schedule_type: ScheduleType,
+    pub schedule_type:       ScheduleType,
     /// Schedule value (cron expression or interval in days)
-    pub schedule_value: String,
+    pub schedule_value:      String,
     /// Next scheduled rotation time
     pub next_scheduled_time: Option<DateTime<Utc>>,
     /// Is schedule enabled
-    pub enabled: bool,
+    pub enabled:             bool,
 }
 
 impl RotationScheduleResponse {
     /// Create manual schedule (default)
     pub fn manual() -> Self {
         Self {
-            schedule_type: ScheduleType::Manual,
-            schedule_value: "manual".to_string(),
+            schedule_type:       ScheduleType::Manual,
+            schedule_value:      "manual".to_string(),
             next_scheduled_time: None,
-            enabled: false,
+            enabled:             false,
         }
     }
 
     /// Create cron schedule
     pub fn cron(expression: impl Into<String>, next_time: DateTime<Utc>) -> Self {
         Self {
-            schedule_type: ScheduleType::Cron,
-            schedule_value: expression.into(),
+            schedule_type:       ScheduleType::Cron,
+            schedule_value:      expression.into(),
             next_scheduled_time: Some(next_time),
-            enabled: true,
+            enabled:             true,
         }
     }
 
     /// Create interval schedule
     pub fn interval(days: u32, next_time: DateTime<Utc>) -> Self {
         Self {
-            schedule_type: ScheduleType::Interval,
-            schedule_value: format!("{} days", days),
+            schedule_type:       ScheduleType::Interval,
+            schedule_value:      format!("{} days", days),
             next_scheduled_time: Some(next_time),
-            enabled: true,
+            enabled:             true,
         }
     }
 }
@@ -347,7 +347,7 @@ impl RotationScheduleResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationScheduleUpdateRequest {
     /// Schedule type
-    pub schedule_type: ScheduleType,
+    pub schedule_type:  ScheduleType,
     /// Schedule value
     pub schedule_value: String,
 }
@@ -356,9 +356,9 @@ pub struct RotationScheduleUpdateRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestScheduleResponse {
     /// Validation status
-    pub valid: bool,
+    pub valid:      bool,
     /// Error message if invalid
-    pub error: Option<String>,
+    pub error:      Option<String>,
     /// Next 10 scheduled times
     pub next_times: Vec<DateTime<Utc>>,
 }
@@ -376,8 +376,8 @@ impl TestScheduleResponse {
     /// Create invalid schedule test
     pub fn invalid(error: impl Into<String>) -> Self {
         Self {
-            valid: false,
-            error: Some(error.into()),
+            valid:      false,
+            error:      Some(error.into()),
             next_times: Vec::new(),
         }
     }
@@ -387,20 +387,20 @@ impl TestScheduleResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiErrorResponse {
     /// Error code
-    pub error: String,
+    pub error:   String,
     /// Error message
     pub message: String,
     /// Additional error details
-    pub code: Option<String>,
+    pub code:    Option<String>,
 }
 
 impl ApiErrorResponse {
     /// Create new error response
     pub fn new(error: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            error: error.into(),
+            error:   error.into(),
             message: message.into(),
-            code: None,
+            code:    None,
         }
     }
 
@@ -497,15 +497,15 @@ pub struct CompliancePresetsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PresetInfo {
     /// Preset name
-    pub name: ConfigPreset,
+    pub name:                 ConfigPreset,
     /// Description
-    pub description: String,
+    pub description:          String,
     /// TTL days for this preset
-    pub ttl_days: u32,
+    pub ttl_days:             u32,
     /// Refresh check interval hours
     pub check_interval_hours: u32,
     /// Refresh threshold percentage
-    pub threshold_percent: u32,
+    pub threshold_percent:    u32,
 }
 
 impl CompliancePresetsResponse {
@@ -514,32 +514,32 @@ impl CompliancePresetsResponse {
         Self {
             presets: vec![
                 PresetInfo {
-                    name: ConfigPreset::Hipaa,
-                    description: "HIPAA compliance requirements".to_string(),
-                    ttl_days: 365,
+                    name:                 ConfigPreset::Hipaa,
+                    description:          "HIPAA compliance requirements".to_string(),
+                    ttl_days:             365,
                     check_interval_hours: 24,
-                    threshold_percent: 80,
+                    threshold_percent:    80,
                 },
                 PresetInfo {
-                    name: ConfigPreset::PciDss,
-                    description: "PCI-DSS compliance requirements".to_string(),
-                    ttl_days: 365,
+                    name:                 ConfigPreset::PciDss,
+                    description:          "PCI-DSS compliance requirements".to_string(),
+                    ttl_days:             365,
                     check_interval_hours: 24,
-                    threshold_percent: 80,
+                    threshold_percent:    80,
                 },
                 PresetInfo {
-                    name: ConfigPreset::Gdpr,
-                    description: "GDPR data minimization requirements".to_string(),
-                    ttl_days: 90,
+                    name:                 ConfigPreset::Gdpr,
+                    description:          "GDPR data minimization requirements".to_string(),
+                    ttl_days:             90,
                     check_interval_hours: 24,
-                    threshold_percent: 75,
+                    threshold_percent:    75,
                 },
                 PresetInfo {
-                    name: ConfigPreset::Soc2,
-                    description: "SOC 2 compliance requirements".to_string(),
-                    ttl_days: 365,
+                    name:                 ConfigPreset::Soc2,
+                    description:          "SOC 2 compliance requirements".to_string(),
+                    ttl_days:             365,
                     check_interval_hours: 24,
-                    threshold_percent: 80,
+                    threshold_percent:    80,
                 },
             ],
         }
@@ -550,19 +550,19 @@ impl CompliancePresetsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationHistoryQuery {
     /// Limit (default 100, max 1000)
-    pub limit: Option<usize>,
+    pub limit:        Option<usize>,
     /// Offset for pagination
-    pub offset: Option<usize>,
+    pub offset:       Option<usize>,
     /// From date filter (ISO format)
-    pub from: Option<String>,
+    pub from:         Option<String>,
     /// To date filter (ISO format)
-    pub to: Option<String>,
+    pub to:           Option<String>,
     /// Reason filter
-    pub reason: Option<String>,
+    pub reason:       Option<String>,
     /// Triggered by filter (auto or manual)
     pub triggered_by: Option<String>,
     /// Export format (json, csv, json-lines)
-    pub format: Option<String>,
+    pub format:       Option<String>,
 }
 
 impl RotationHistoryQuery {
@@ -581,9 +581,9 @@ impl RotationHistoryQuery {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationStatusDisplay {
     /// Status response
-    pub status: RotationStatusResponse,
+    pub status:             RotationStatusResponse,
     /// Urgency score (0-100)
-    pub urgency_score: u32,
+    pub urgency_score:      u32,
     /// Recommended action
     pub recommended_action: String,
 }
@@ -671,13 +671,13 @@ mod tests {
     fn test_rotation_history_record_creation() {
         let now = Utc::now();
         let record = RotationHistoryRecord {
-            timestamp: now,
-            old_version: 1,
-            new_version: 2,
-            reason: Some("test".to_string()),
-            duration_ms: 50,
+            timestamp:    now,
+            old_version:  1,
+            new_version:  2,
+            reason:       Some("test".to_string()),
+            duration_ms:  50,
             triggered_by: "manual".to_string(),
-            user_id: Some("user123".to_string()),
+            user_id:      Some("user123".to_string()),
         };
         assert_eq!(record.old_version, 1);
         assert_eq!(record.new_version, 2);
@@ -686,12 +686,12 @@ mod tests {
     #[test]
     fn test_rotation_config_update_validation() {
         let update = RotationConfigUpdateRequest {
-            auto_refresh_enabled: Some(true),
+            auto_refresh_enabled:         Some(true),
             refresh_check_interval_hours: Some(24),
-            refresh_threshold_percent: Some(80),
-            ttl_days: Some(365),
-            quiet_hours_start: None,
-            quiet_hours_end: None,
+            refresh_threshold_percent:    Some(80),
+            ttl_days:                     Some(365),
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
         };
         assert!(update.validate().is_ok());
     }
@@ -699,12 +699,12 @@ mod tests {
     #[test]
     fn test_rotation_config_update_invalid_threshold() {
         let update = RotationConfigUpdateRequest {
-            auto_refresh_enabled: None,
+            auto_refresh_enabled:         None,
             refresh_check_interval_hours: None,
-            refresh_threshold_percent: Some(100), // Invalid
-            ttl_days: None,
-            quiet_hours_start: None,
-            quiet_hours_end: None,
+            refresh_threshold_percent:    Some(100), // Invalid
+            ttl_days:                     None,
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
         };
         assert!(update.validate().is_err());
     }
@@ -712,12 +712,12 @@ mod tests {
     #[test]
     fn test_rotation_config_update_invalid_ttl() {
         let update = RotationConfigUpdateRequest {
-            auto_refresh_enabled: None,
+            auto_refresh_enabled:         None,
             refresh_check_interval_hours: None,
-            refresh_threshold_percent: None,
-            ttl_days: Some(400), // Invalid
-            quiet_hours_start: None,
-            quiet_hours_end: None,
+            refresh_threshold_percent:    None,
+            ttl_days:                     Some(400), // Invalid
+            quiet_hours_start:            None,
+            quiet_hours_end:              None,
         };
         assert!(update.validate().is_err());
     }
@@ -799,24 +799,24 @@ mod tests {
     #[test]
     fn test_rotation_history_query_effective_limit() {
         let query1 = RotationHistoryQuery {
-            limit: Some(50),
-            offset: None,
-            from: None,
-            to: None,
-            reason: None,
+            limit:        Some(50),
+            offset:       None,
+            from:         None,
+            to:           None,
+            reason:       None,
             triggered_by: None,
-            format: None,
+            format:       None,
         };
         assert_eq!(query1.effective_limit(), 50);
 
         let query2 = RotationHistoryQuery {
-            limit: Some(5000),
-            offset: None,
-            from: None,
-            to: None,
-            reason: None,
+            limit:        Some(5000),
+            offset:       None,
+            from:         None,
+            to:           None,
+            reason:       None,
             triggered_by: None,
-            format: None,
+            format:       None,
         };
         assert_eq!(query2.effective_limit(), 1000); // Capped
     }

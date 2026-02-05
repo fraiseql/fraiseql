@@ -699,8 +699,8 @@ mod tests {
     #[test]
     fn test_openapi_spec_parses_as_json() {
         let spec = get_openapi_spec();
-        let parsed: serde_json::Value = serde_json::from_str(&spec)
-            .expect("OpenAPI spec should be valid JSON");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&spec).expect("OpenAPI spec should be valid JSON");
         assert!(parsed.is_object());
     }
 
@@ -720,11 +720,7 @@ mod tests {
         let spec = get_openapi_spec();
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
-        assert_eq!(
-            parsed["openapi"].as_str(),
-            Some("3.0.0"),
-            "Should be OpenAPI 3.0.0"
-        );
+        assert_eq!(parsed["openapi"].as_str(), Some("3.0.0"), "Should be OpenAPI 3.0.0");
     }
 
     #[test]

@@ -3,21 +3,21 @@
 //! All API endpoints are under `/api/v1/` and return structured JSON responses.
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 
-pub mod types;
-pub mod query;
-pub mod federation;
-pub mod schema;
 pub mod admin;
 pub mod design;
+pub mod federation;
 pub mod openapi;
+pub mod query;
+pub mod schema;
+pub mod types;
 
 // Re-export commonly used types
-pub use types::{ApiResponse, ApiError};
+pub use types::{ApiError, ApiResponse};
 
 /// Build API router with all v1 endpoints.
 ///

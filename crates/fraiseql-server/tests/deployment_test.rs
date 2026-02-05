@@ -19,64 +19,46 @@ fn workspace_root() -> std::path::PathBuf {
 #[test]
 fn test_dockerfile_exists() {
     let root = workspace_root();
-    assert!(
-        root.join("Dockerfile").exists(),
-        "Dockerfile must exist at project root"
-    );
+    assert!(root.join("Dockerfile").exists(), "Dockerfile must exist at project root");
 }
 
 #[test]
 fn test_dockerignore_exists() {
     let root = workspace_root();
-    assert!(
-        root.join(".dockerignore").exists(),
-        ".dockerignore must exist at project root"
-    );
+    assert!(root.join(".dockerignore").exists(), ".dockerignore must exist at project root");
 }
 
 #[test]
 fn test_deploy_docker_directory_exists() {
     let root = workspace_root();
-    assert!(
-        root.join("deploy/docker").exists(),
-        "deploy/docker directory must exist"
-    );
+    assert!(root.join("deploy/docker").exists(), "deploy/docker directory must exist");
 }
 
 #[test]
 fn test_dockerfile_multi_arch_buildkit() {
     let root = workspace_root();
-    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
-        .expect("Failed to read Dockerfile");
+    let dockerfile =
+        fs::read_to_string(root.join("Dockerfile")).expect("Failed to read Dockerfile");
     // BuildKit syntax for multi-arch builds
     assert!(
         dockerfile.contains("syntax=docker/dockerfile:1.4"),
         "BuildKit syntax required in Dockerfile"
     );
-    assert!(
-        dockerfile.contains("rust:"),
-        "Must have Rust builder stage"
-    );
+    assert!(dockerfile.contains("rust:"), "Must have Rust builder stage");
 }
 
 #[test]
 fn test_helm_chart_valid() {
     let root = workspace_root();
     let chart_path = root.join("deploy/kubernetes/helm/fraiseql/Chart.yaml");
-    assert!(
-        chart_path.exists(),
-        "Helm Chart.yaml must exist"
-    );
+    assert!(chart_path.exists(), "Helm Chart.yaml must exist");
 
     let chart_content = fs::read_to_string(&chart_path).expect("Failed to read Chart.yaml");
     let chart: serde_yaml::Value =
         serde_yaml::from_str(&chart_content).expect("Chart.yaml must be valid YAML");
 
     // Validate Chart.yaml structure
-    assert!(
-        chart.get("apiVersion").is_some(),
-        "Chart must have apiVersion"
-    );
+    assert!(chart.get("apiVersion").is_some(), "Chart must have apiVersion");
     assert!(chart.get("name").is_some(), "Chart must have name");
     assert!(chart.get("version").is_some(), "Chart must have version");
 }
@@ -85,19 +67,13 @@ fn test_helm_chart_valid() {
 fn test_kube_manifests_exist() {
     let root = workspace_root();
     let manifests_dir = root.join("deploy/kubernetes");
-    assert!(
-        manifests_dir.exists(),
-        "deploy/kubernetes directory must exist"
-    );
+    assert!(manifests_dir.exists(), "deploy/kubernetes directory must exist");
 
     assert!(
         root.join("deploy/kubernetes/deployment.yaml").exists(),
         "deployment.yaml must exist"
     );
-    assert!(
-        root.join("deploy/kubernetes/service.yaml").exists(),
-        "service.yaml must exist"
-    );
+    assert!(root.join("deploy/kubernetes/service.yaml").exists(), "service.yaml must exist");
     assert!(
         root.join("deploy/kubernetes/configmap.yaml").exists(),
         "configmap.yaml must exist"
@@ -115,10 +91,7 @@ fn test_ci_cd_workflows_exist() {
         root.join(".github/workflows/build-docker.yml").exists(),
         "Docker build workflow required"
     );
-    assert!(
-        root.join(".github/workflows/build-sbom.yml").exists(),
-        "SBOM workflow required"
-    );
+    assert!(root.join(".github/workflows/build-sbom.yml").exists(), "SBOM workflow required");
 }
 
 #[test]
@@ -137,57 +110,42 @@ fn test_docker_compose_exists() {
 #[test]
 fn test_dockerfile_has_build_stage() {
     let root = workspace_root();
-    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
-        .expect("Failed to read Dockerfile");
+    let dockerfile =
+        fs::read_to_string(root.join("Dockerfile")).expect("Failed to read Dockerfile");
     assert!(
         dockerfile.contains("rust:") && dockerfile.contains("builder"),
         "Must have Rust builder stage"
     );
-    assert!(
-        dockerfile.contains("AS builder"),
-        "Builder stage must be named 'builder'"
-    );
+    assert!(dockerfile.contains("AS builder"), "Builder stage must be named 'builder'");
 }
 
 #[test]
 fn test_dockerfile_production_stage() {
     let root = workspace_root();
-    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
-        .expect("Failed to read Dockerfile");
+    let dockerfile =
+        fs::read_to_string(root.join("Dockerfile")).expect("Failed to read Dockerfile");
     assert!(
         dockerfile.contains("FROM debian:bookworm-slim"),
         "Production stage must use debian:bookworm-slim"
     );
-    assert!(
-        dockerfile.contains("COPY --from=builder"),
-        "Must copy from builder stage"
-    );
+    assert!(dockerfile.contains("COPY --from=builder"), "Must copy from builder stage");
 }
 
 #[test]
 fn test_dockerfile_security_hardening() {
     let root = workspace_root();
-    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
-        .expect("Failed to read Dockerfile");
-    assert!(
-        dockerfile.contains("useradd"),
-        "Non-root user must be created"
-    );
-    assert!(
-        dockerfile.contains("USER"),
-        "Must switch to non-root user"
-    );
-    assert!(
-        dockerfile.contains("HEALTHCHECK"),
-        "Health check must be configured"
-    );
+    let dockerfile =
+        fs::read_to_string(root.join("Dockerfile")).expect("Failed to read Dockerfile");
+    assert!(dockerfile.contains("useradd"), "Non-root user must be created");
+    assert!(dockerfile.contains("USER"), "Must switch to non-root user");
+    assert!(dockerfile.contains("HEALTHCHECK"), "Health check must be configured");
 }
 
 #[test]
 fn test_dockerfile_multi_arch_support() {
     let root = workspace_root();
-    let dockerfile = fs::read_to_string(root.join("Dockerfile"))
-        .expect("Failed to read Dockerfile");
+    let dockerfile =
+        fs::read_to_string(root.join("Dockerfile")).expect("Failed to read Dockerfile");
     assert!(
         dockerfile.contains("ARG TARGETARCH") || dockerfile.contains("TARGETPLATFORM"),
         "Multi-arch build arguments required"
@@ -220,18 +178,9 @@ fn test_ci_docker_build_workflow_multi_arch() {
     let root = workspace_root();
     let workflow = fs::read_to_string(root.join(".github/workflows/build-docker.yml"))
         .expect("Failed to read build-docker.yml");
-    assert!(
-        workflow.contains("platforms:"),
-        "Must specify platforms for multi-arch builds"
-    );
-    assert!(
-        workflow.contains("linux/amd64"),
-        "Must support amd64"
-    );
-    assert!(
-        workflow.contains("linux/arm64"),
-        "Must support arm64"
-    );
+    assert!(workflow.contains("platforms:"), "Must specify platforms for multi-arch builds");
+    assert!(workflow.contains("linux/amd64"), "Must support amd64");
+    assert!(workflow.contains("linux/arm64"), "Must support arm64");
 }
 
 // ============================================================================
@@ -242,18 +191,14 @@ fn test_ci_docker_build_workflow_multi_arch() {
 fn test_helm_values_yaml_exists() {
     let root = workspace_root();
     let values_path = root.join("deploy/kubernetes/helm/fraiseql/values.yaml");
-    assert!(
-        values_path.exists(),
-        "Helm values.yaml must exist"
-    );
+    assert!(values_path.exists(), "Helm values.yaml must exist");
 }
 
 #[test]
 fn test_helm_values_structure() {
     let root = workspace_root();
     let values_path = root.join("deploy/kubernetes/helm/fraiseql/values.yaml");
-    let values_content = fs::read_to_string(&values_path)
-        .expect("Failed to read values.yaml");
+    let values_content = fs::read_to_string(&values_path).expect("Failed to read values.yaml");
     let values: serde_yaml::Value =
         serde_yaml::from_str(&values_content).expect("values.yaml must be valid YAML");
 
@@ -268,10 +213,7 @@ fn test_helm_values_structure() {
 fn test_helm_templates_directory_exists() {
     let root = workspace_root();
     let templates_dir = root.join("deploy/kubernetes/helm/fraiseql/templates");
-    assert!(
-        templates_dir.exists(),
-        "Helm templates directory must exist"
-    );
+    assert!(templates_dir.exists(), "Helm templates directory must exist");
 }
 
 #[test]
@@ -339,21 +281,9 @@ fn test_k8s_manifests_valid_yaml() {
             .expect(&format!("Failed to read {:?}", manifest_path));
         let parsed: serde_yaml::Value = serde_yaml::from_str(&content)
             .expect(&format!("{:?} must be valid YAML", manifest_path));
-        assert!(
-            parsed.get("apiVersion").is_some(),
-            "{:?} must have apiVersion",
-            manifest_path
-        );
-        assert!(
-            parsed.get("kind").is_some(),
-            "{:?} must have kind",
-            manifest_path
-        );
-        assert!(
-            parsed.get("metadata").is_some(),
-            "{:?} must have metadata",
-            manifest_path
-        );
+        assert!(parsed.get("apiVersion").is_some(), "{:?} must have apiVersion", manifest_path);
+        assert!(parsed.get("kind").is_some(), "{:?} must have kind", manifest_path);
+        assert!(parsed.get("metadata").is_some(), "{:?} must have metadata", manifest_path);
     }
 }
 
@@ -376,18 +306,9 @@ fn test_hardened_manifest_contains_security_policies() {
     let content = fs::read_to_string(root.join("deploy/kubernetes/fraiseql-hardened.yaml"))
         .expect("Failed to read hardened manifest");
 
-    assert!(
-        content.contains("PodSecurityPolicy"),
-        "Must include PodSecurityPolicy"
-    );
-    assert!(
-        content.contains("NetworkPolicy"),
-        "Must include NetworkPolicy"
-    );
-    assert!(
-        content.contains("PodDisruptionBudget"),
-        "Must include PodDisruptionBudget"
-    );
+    assert!(content.contains("PodSecurityPolicy"), "Must include PodSecurityPolicy");
+    assert!(content.contains("NetworkPolicy"), "Must include NetworkPolicy");
+    assert!(content.contains("PodDisruptionBudget"), "Must include PodDisruptionBudget");
 }
 
 #[test]
@@ -396,18 +317,12 @@ fn test_hardened_manifest_security_hardening() {
     let content = fs::read_to_string(root.join("deploy/kubernetes/fraiseql-hardened.yaml"))
         .expect("Failed to read hardened manifest");
 
-    assert!(
-        content.contains("runAsNonRoot: true"),
-        "Must run as non-root"
-    );
+    assert!(content.contains("runAsNonRoot: true"), "Must run as non-root");
     assert!(
         content.contains("allowPrivilegeEscalation: false"),
         "Must disable privilege escalation"
     );
-    assert!(
-        content.contains("readOnlyRootFilesystem"),
-        "Must address read-only filesystem"
-    );
+    assert!(content.contains("readOnlyRootFilesystem"), "Must address read-only filesystem");
 }
 
 // ============================================================================
@@ -441,10 +356,9 @@ fn test_docker_compose_files_valid_yaml() {
     ];
 
     for path in files {
-        let content = fs::read_to_string(&path)
-            .expect(&format!("Failed to read {:?}", path));
-        let _: serde_yaml::Value = serde_yaml::from_str(&content)
-            .expect(&format!("{:?} must be valid YAML", path));
+        let content = fs::read_to_string(&path).expect(&format!("Failed to read {:?}", path));
+        let _: serde_yaml::Value =
+            serde_yaml::from_str(&content).expect(&format!("{:?} must be valid YAML", path));
     }
 }
 
@@ -486,10 +400,7 @@ fn test_prometheus_config_exists() {
 #[test]
 fn test_deployment_guide_exists() {
     let root = workspace_root();
-    assert!(
-        root.join("docs/DEPLOYMENT.md").exists(),
-        "Deployment guide must exist"
-    );
+    assert!(root.join("docs/DEPLOYMENT.md").exists(), "Deployment guide must exist");
 }
 
 #[test]

@@ -24,7 +24,7 @@
 //!
 //! # Design Decisions
 //!
-//! - **Arc<dyn EventTransport>**: Runtime transport selection without monomorphization bloat
+//! - **`Arc<dyn EventTransport>`**: Runtime transport selection without monomorphization bloat
 //! - **Stream-based API**: Natural tokio integration with backpressure
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
 //! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event

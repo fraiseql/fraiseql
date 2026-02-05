@@ -2,10 +2,15 @@
 //! Automatic key refresh triggering with background job coordination,
 //! TTL monitoring, and non-blocking refresh during operations.
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
 use chrono::{DateTime, Timelike, Utc};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
 
 /// Status of refresh job
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,26 +43,26 @@ impl std::fmt::Display for RefreshJobStatus {
 #[derive(Debug, Clone)]
 pub struct RefreshConfig {
     /// Enable automatic refresh (default: true)
-    pub enabled: bool,
+    pub enabled:                   bool,
     /// Check interval in hours (default: 24)
-    pub check_interval_hours: u32,
+    pub check_interval_hours:      u32,
     /// TTL consumption threshold to trigger refresh (default: 80)
     pub refresh_threshold_percent: u32,
     /// Quiet hours start (0-23, None = disabled)
-    pub quiet_hours_start: Option<u32>,
+    pub quiet_hours_start:         Option<u32>,
     /// Quiet hours end (0-23)
-    pub quiet_hours_end: Option<u32>,
+    pub quiet_hours_end:           Option<u32>,
 }
 
 impl RefreshConfig {
     /// Create default refresh config (daily check, 80% threshold)
     pub fn new() -> Self {
         Self {
-            enabled: true,
-            check_interval_hours: 24,
+            enabled:                   true,
+            check_interval_hours:      24,
             refresh_threshold_percent: 80,
-            quiet_hours_start: None,
-            quiet_hours_end: None,
+            quiet_hours_start:         None,
+            quiet_hours_end:           None,
         }
     }
 
@@ -99,32 +104,32 @@ impl Default for RefreshConfig {
 #[derive(Debug, Clone)]
 pub struct RefreshTrigger {
     /// Refresh configuration
-    config: Arc<RefreshConfig>,
+    config:                   Arc<RefreshConfig>,
     /// Last refresh check time
-    last_check: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_check:               Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh completion time
-    last_refresh: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_refresh:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh duration in milliseconds
     last_refresh_duration_ms: Arc<AtomicU64>,
     /// Total refreshes performed
-    total_refreshes: Arc<AtomicU64>,
+    total_refreshes:          Arc<AtomicU64>,
     /// Failed refreshes count
-    failed_refreshes: Arc<AtomicU64>,
+    failed_refreshes:         Arc<AtomicU64>,
     /// Refresh pending flag
-    refresh_pending: Arc<AtomicBool>,
+    refresh_pending:          Arc<AtomicBool>,
 }
 
 impl RefreshTrigger {
     /// Create new refresh trigger
     pub fn new(config: RefreshConfig) -> Self {
         Self {
-            config: Arc::new(config),
-            last_check: Arc::new(std::sync::Mutex::new(None)),
-            last_refresh: Arc::new(std::sync::Mutex::new(None)),
+            config:                   Arc::new(config),
+            last_check:               Arc::new(std::sync::Mutex::new(None)),
+            last_refresh:             Arc::new(std::sync::Mutex::new(None)),
             last_refresh_duration_ms: Arc::new(AtomicU64::new(0)),
-            total_refreshes: Arc::new(AtomicU64::new(0)),
-            failed_refreshes: Arc::new(AtomicU64::new(0)),
-            refresh_pending: Arc::new(AtomicBool::new(false)),
+            total_refreshes:          Arc::new(AtomicU64::new(0)),
+            failed_refreshes:         Arc::new(AtomicU64::new(0)),
+            refresh_pending:          Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -145,7 +150,8 @@ impl RefreshTrigger {
         }
 
         // Check quiet hours if configured
-        if let (Some(start), Some(end)) = (self.config.quiet_hours_start, self.config.quiet_hours_end)
+        if let (Some(start), Some(end)) =
+            (self.config.quiet_hours_start, self.config.quiet_hours_end)
         {
             let now = Utc::now();
             let hour = now.hour() as u32;
@@ -258,11 +264,11 @@ impl Default for RefreshTrigger {
 #[derive(Debug, Clone)]
 pub struct RefreshJob {
     /// Job status
-    status: Arc<std::sync::Mutex<RefreshJobStatus>>,
+    status:             Arc<std::sync::Mutex<RefreshJobStatus>>,
     /// Job start time
-    start_time: Arc<std::sync::Mutex<Option<Instant>>>,
+    start_time:         Arc<std::sync::Mutex<Option<Instant>>>,
     /// Job last error message
-    last_error: Arc<std::sync::Mutex<Option<String>>>,
+    last_error:         Arc<std::sync::Mutex<Option<String>>>,
     /// Job is shutting down
     shutdown_requested: Arc<AtomicBool>,
 }
@@ -271,19 +277,16 @@ impl RefreshJob {
     /// Create new refresh job
     pub fn new() -> Self {
         Self {
-            status: Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
-            start_time: Arc::new(std::sync::Mutex::new(None)),
-            last_error: Arc::new(std::sync::Mutex::new(None)),
+            status:             Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
+            start_time:         Arc::new(std::sync::Mutex::new(None)),
+            last_error:         Arc::new(std::sync::Mutex::new(None)),
             shutdown_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
     /// Mark job as running
     pub fn start(&self) -> Result<(), String> {
-        let mut status = self
-            .status
-            .lock()
-            .map_err(|e| format!("Failed to lock status: {}", e))?;
+        let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
 
         if *status != RefreshJobStatus::Idle {
             return Err(format!("Job already running: {}", status));
@@ -300,26 +303,18 @@ impl RefreshJob {
 
     /// Mark job as succeeded
     pub fn complete_success(&self) -> Result<(), String> {
-        let mut status = self
-            .status
-            .lock()
-            .map_err(|e| format!("Failed to lock status: {}", e))?;
+        let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         *status = RefreshJobStatus::Success;
         Ok(())
     }
 
     /// Mark job as failed with error
     pub fn complete_failure(&self, error: impl Into<String>) -> Result<(), String> {
-        let mut status = self
-            .status
-            .lock()
-            .map_err(|e| format!("Failed to lock status: {}", e))?;
+        let mut status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         *status = RefreshJobStatus::Failed;
 
-        let mut last_error = self
-            .last_error
-            .lock()
-            .map_err(|e| format!("Failed to lock error: {}", e))?;
+        let mut last_error =
+            self.last_error.lock().map_err(|e| format!("Failed to lock error: {}", e))?;
         *last_error = Some(error.into());
 
         Ok(())
@@ -337,10 +332,7 @@ impl RefreshJob {
 
     /// Get current job status
     pub fn status(&self) -> Result<RefreshJobStatus, String> {
-        let status = self
-            .status
-            .lock()
-            .map_err(|e| format!("Failed to lock status: {}", e))?;
+        let status = self.status.lock().map_err(|e| format!("Failed to lock status: {}", e))?;
         Ok(*status)
     }
 
@@ -356,10 +348,7 @@ impl RefreshJob {
 
     /// Get last error message
     pub fn last_error(&self) -> Result<Option<String>, String> {
-        let error = self
-            .last_error
-            .lock()
-            .map_err(|e| format!("Failed to lock error: {}", e))?;
+        let error = self.last_error.lock().map_err(|e| format!("Failed to lock error: {}", e))?;
         Ok(error.clone())
     }
 }
@@ -376,7 +365,7 @@ pub struct RefreshManager {
     /// Refresh trigger
     trigger: Arc<RefreshTrigger>,
     /// Refresh job
-    job: Arc<RefreshJob>,
+    job:     Arc<RefreshJob>,
 }
 
 impl RefreshManager {
@@ -384,7 +373,7 @@ impl RefreshManager {
     pub fn new(config: RefreshConfig) -> Self {
         Self {
             trigger: Arc::new(RefreshTrigger::new(config)),
-            job: Arc::new(RefreshJob::new()),
+            job:     Arc::new(RefreshJob::new()),
         }
     }
 
@@ -479,10 +468,7 @@ impl RefreshManager {
 
     /// Get health status of refresh system
     pub fn health_status(&self) -> RefreshHealthStatus {
-        let job_status = self
-            .job
-            .status()
-            .unwrap_or(RefreshJobStatus::Failed);
+        let job_status = self.job.status().unwrap_or(RefreshJobStatus::Failed);
 
         if !self.is_enabled() {
             RefreshHealthStatus::Disabled
@@ -490,9 +476,7 @@ impl RefreshManager {
             RefreshHealthStatus::Running
         } else if self.refresh_pending() {
             RefreshHealthStatus::Pending
-        } else if job_status == RefreshJobStatus::Failed
-            && self.trigger.failed_refreshes() > 2
-        {
+        } else if job_status == RefreshJobStatus::Failed && self.trigger.failed_refreshes() > 2 {
             RefreshHealthStatus::Degraded
         } else {
             RefreshHealthStatus::Healthy
@@ -501,8 +485,7 @@ impl RefreshManager {
 
     /// Check if should retry refresh (has pending but not max retries)
     pub fn should_retry_refresh(&self) -> bool {
-        self.refresh_pending()
-            && self.trigger.failed_refreshes() < 5
+        self.refresh_pending() && self.trigger.failed_refreshes() < 5
     }
 
     /// Reset refresh state for retry

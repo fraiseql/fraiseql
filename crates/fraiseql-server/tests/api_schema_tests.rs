@@ -232,10 +232,7 @@ fn test_json_schema_federation_metadata() {
     let response = JsonSchemaResponse { schema };
 
     assert!(response.schema["federation"]["enabled"].as_bool().unwrap());
-    assert_eq!(
-        response.schema["federation"]["subgraphs"].as_array().unwrap().len(),
-        2
-    );
+    assert_eq!(response.schema["federation"]["subgraphs"].as_array().unwrap().len(), 2);
 }
 
 #[test]
@@ -262,12 +259,11 @@ fn test_json_schema_minimal() {
 
 #[test]
 fn test_api_response_wrapper_graphql_schema() {
-    use fraiseql_server::routes::api::types::ApiResponse;
-    use fraiseql_server::routes::api::schema::GraphQLSchemaResponse;
+    use fraiseql_server::routes::api::{schema::GraphQLSchemaResponse, types::ApiResponse};
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: GraphQLSchemaResponse {
+        data:   GraphQLSchemaResponse {
             schema: "type Query { hello: String }".to_string(),
         },
     };
@@ -278,12 +274,11 @@ fn test_api_response_wrapper_graphql_schema() {
 
 #[test]
 fn test_api_response_wrapper_json_schema() {
-    use fraiseql_server::routes::api::types::ApiResponse;
-    use fraiseql_server::routes::api::schema::JsonSchemaResponse;
+    use fraiseql_server::routes::api::{schema::JsonSchemaResponse, types::ApiResponse};
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: JsonSchemaResponse {
+        data:   JsonSchemaResponse {
             schema: serde_json::json!({"types": []}),
         },
     };

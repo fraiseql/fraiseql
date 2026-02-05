@@ -11,95 +11,95 @@ use serde_json::Value as JsonValue;
 #[derive(Debug, Clone)]
 pub struct SecurityConfigFromSchema {
     /// Audit logging configuration
-    pub audit_logging: AuditLoggingSettings,
+    pub audit_logging:      AuditLoggingSettings,
     /// Error sanitization configuration
     pub error_sanitization: ErrorSanitizationSettings,
     /// Rate limiting configuration
-    pub rate_limiting: RateLimitingSettings,
+    pub rate_limiting:      RateLimitingSettings,
     /// State encryption configuration
-    pub state_encryption: StateEncryptionSettings,
+    pub state_encryption:   StateEncryptionSettings,
 }
 
 #[derive(Debug, Clone)]
 pub struct AuditLoggingSettings {
-    pub enabled: bool,
-    pub log_level: String,
+    pub enabled:                bool,
+    pub log_level:              String,
     pub include_sensitive_data: bool,
-    pub async_logging: bool,
-    pub buffer_size: u32,
-    pub flush_interval_secs: u32,
+    pub async_logging:          bool,
+    pub buffer_size:            u32,
+    pub flush_interval_secs:    u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct ErrorSanitizationSettings {
-    pub enabled: bool,
-    pub generic_messages: bool,
-    pub internal_logging: bool,
+    pub enabled:                bool,
+    pub generic_messages:       bool,
+    pub internal_logging:       bool,
     pub leak_sensitive_details: bool,
-    pub user_facing_format: String,
+    pub user_facing_format:     String,
 }
 
 #[derive(Debug, Clone)]
 pub struct RateLimitingSettings {
-    pub enabled: bool,
-    pub auth_start_max_requests: u32,
-    pub auth_start_window_secs: u64,
+    pub enabled:                    bool,
+    pub auth_start_max_requests:    u32,
+    pub auth_start_window_secs:     u64,
     pub auth_callback_max_requests: u32,
-    pub auth_callback_window_secs: u64,
-    pub auth_refresh_max_requests: u32,
-    pub auth_refresh_window_secs: u64,
-    pub auth_logout_max_requests: u32,
-    pub auth_logout_window_secs: u64,
-    pub failed_login_max_requests: u32,
-    pub failed_login_window_secs: u64,
+    pub auth_callback_window_secs:  u64,
+    pub auth_refresh_max_requests:  u32,
+    pub auth_refresh_window_secs:   u64,
+    pub auth_logout_max_requests:   u32,
+    pub auth_logout_window_secs:    u64,
+    pub failed_login_max_requests:  u32,
+    pub failed_login_window_secs:   u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct StateEncryptionSettings {
-    pub enabled: bool,
-    pub algorithm: String,
+    pub enabled:              bool,
+    pub algorithm:            String,
     pub key_rotation_enabled: bool,
-    pub nonce_size: u32,
-    pub key_size: u32,
+    pub nonce_size:           u32,
+    pub key_size:             u32,
 }
 
 impl Default for SecurityConfigFromSchema {
     fn default() -> Self {
         Self {
-            audit_logging: AuditLoggingSettings {
-                enabled: true,
-                log_level: "info".to_string(),
+            audit_logging:      AuditLoggingSettings {
+                enabled:                true,
+                log_level:              "info".to_string(),
                 include_sensitive_data: false,
-                async_logging: true,
-                buffer_size: 1000,
-                flush_interval_secs: 5,
+                async_logging:          true,
+                buffer_size:            1000,
+                flush_interval_secs:    5,
             },
             error_sanitization: ErrorSanitizationSettings {
-                enabled: true,
-                generic_messages: true,
-                internal_logging: true,
+                enabled:                true,
+                generic_messages:       true,
+                internal_logging:       true,
                 leak_sensitive_details: false,
-                user_facing_format: "generic".to_string(),
+                user_facing_format:     "generic".to_string(),
             },
-            rate_limiting: RateLimitingSettings {
-                enabled: true,
-                auth_start_max_requests: 100,
-                auth_start_window_secs: 60,
+            rate_limiting:      RateLimitingSettings {
+                enabled:                    true,
+                auth_start_max_requests:    100,
+                auth_start_window_secs:     60,
                 auth_callback_max_requests: 50,
-                auth_callback_window_secs: 60,
-                auth_refresh_max_requests: 10,
-                auth_refresh_window_secs: 60,
-                auth_logout_max_requests: 20,
-                auth_logout_window_secs: 60,
-                failed_login_max_requests: 5,
-                failed_login_window_secs: 3600,
+                auth_callback_window_secs:  60,
+                auth_refresh_max_requests:  10,
+                auth_refresh_window_secs:   60,
+                auth_logout_max_requests:   20,
+                auth_logout_window_secs:    60,
+                failed_login_max_requests:  5,
+                failed_login_window_secs:   3600,
             },
-            state_encryption: StateEncryptionSettings {
-                enabled: true,
-                algorithm: "chacha20-poly1305".to_string(),
+            state_encryption:   StateEncryptionSettings {
+                enabled:              true,
+                algorithm:            "chacha20-poly1305".to_string(),
                 key_rotation_enabled: false,
-                nonce_size: 12,
-                key_size: 32,
+                nonce_size:           12,
+                key_size:             32,
             },
         }
     }
@@ -111,27 +111,18 @@ impl SecurityConfigFromSchema {
         let mut config = Self::default();
 
         if let Some(audit) = value.get("auditLogging").and_then(|v| v.as_object()) {
-            config.audit_logging.enabled = audit
-                .get("enabled")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-            config.audit_logging.log_level = audit
-                .get("logLevel")
-                .and_then(|v| v.as_str())
-                .unwrap_or("info")
-                .to_string();
-            config.audit_logging.include_sensitive_data = audit
-                .get("includeSensitiveData")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+            config.audit_logging.enabled =
+                audit.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+            config.audit_logging.log_level =
+                audit.get("logLevel").and_then(|v| v.as_str()).unwrap_or("info").to_string();
+            config.audit_logging.include_sensitive_data =
+                audit.get("includeSensitiveData").and_then(|v| v.as_bool()).unwrap_or(false);
             config.audit_logging.async_logging =
                 audit.get("asyncLogging").and_then(|v| v.as_bool()).unwrap_or(true);
             config.audit_logging.buffer_size =
                 audit.get("bufferSize").and_then(|v| v.as_u64()).unwrap_or(1000) as u32;
-            config.audit_logging.flush_interval_secs = audit
-                .get("flushIntervalSecs")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(5) as u32;
+            config.audit_logging.flush_interval_secs =
+                audit.get("flushIntervalSecs").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
         }
 
         if let Some(error_san) = value.get("errorSanitization").and_then(|v| v.as_object()) {
@@ -161,44 +152,31 @@ impl SecurityConfigFromSchema {
                     auth_start.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
-            if let Some(auth_callback) =
-                rate_limit.get("authCallback").and_then(|v| v.as_object())
+            if let Some(auth_callback) = rate_limit.get("authCallback").and_then(|v| v.as_object())
             {
-                config.rate_limiting.auth_callback_max_requests = auth_callback
-                    .get("maxRequests")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(50) as u32;
+                config.rate_limiting.auth_callback_max_requests =
+                    auth_callback.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(50) as u32;
                 config.rate_limiting.auth_callback_window_secs =
                     auth_callback.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
-            if let Some(auth_refresh) =
-                rate_limit.get("authRefresh").and_then(|v| v.as_object())
-            {
-                config.rate_limiting.auth_refresh_max_requests = auth_refresh
-                    .get("maxRequests")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(10) as u32;
+            if let Some(auth_refresh) = rate_limit.get("authRefresh").and_then(|v| v.as_object()) {
+                config.rate_limiting.auth_refresh_max_requests =
+                    auth_refresh.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(10) as u32;
                 config.rate_limiting.auth_refresh_window_secs =
                     auth_refresh.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
             if let Some(auth_logout) = rate_limit.get("authLogout").and_then(|v| v.as_object()) {
-                config.rate_limiting.auth_logout_max_requests = auth_logout
-                    .get("maxRequests")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(20) as u32;
+                config.rate_limiting.auth_logout_max_requests =
+                    auth_logout.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
                 config.rate_limiting.auth_logout_window_secs =
                     auth_logout.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(60);
             }
 
-            if let Some(failed_login) =
-                rate_limit.get("failedLogin").and_then(|v| v.as_object())
-            {
-                config.rate_limiting.failed_login_max_requests = failed_login
-                    .get("maxRequests")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(5) as u32;
+            if let Some(failed_login) = rate_limit.get("failedLogin").and_then(|v| v.as_object()) {
+                config.rate_limiting.failed_login_max_requests =
+                    failed_login.get("maxRequests").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
                 config.rate_limiting.failed_login_window_secs =
                     failed_login.get("windowSecs").and_then(|v| v.as_u64()).unwrap_or(3600);
             }

@@ -35,7 +35,8 @@ fn test_introspection_enabled_with_auth_required_passes_validation() {
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: true,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(
@@ -49,7 +50,8 @@ fn test_introspection_enabled_without_auth_passes_validation() {
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(
@@ -63,7 +65,8 @@ fn test_introspection_disabled_with_any_auth_setting_passes_validation() {
     let config = ServerConfig {
         introspection_enabled: false,
         introspection_require_auth: true,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(
@@ -77,17 +80,15 @@ fn test_introspection_configuration_serialization() {
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: true,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     let toml_str = toml::to_string(&config).expect("Serialization should work");
     let restored: ServerConfig = toml::from_str(&toml_str).expect("Deserialization should work");
 
     assert_eq!(restored.introspection_enabled, config.introspection_enabled);
-    assert_eq!(
-        restored.introspection_require_auth,
-        config.introspection_require_auth
-    );
+    assert_eq!(restored.introspection_require_auth, config.introspection_require_auth);
 }
 
 #[test]
@@ -98,7 +99,8 @@ fn test_introspection_independent_from_admin() {
         introspection_require_auth: false,
         admin_api_enabled: true,
         admin_token: Some("admin-token-32-characters-long-x".to_string()),
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -119,7 +121,8 @@ fn test_introspection_dev_config() {
         introspection_enabled: true,
         introspection_require_auth: false,
         playground_enabled: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -132,7 +135,8 @@ fn test_introspection_production_config() {
         introspection_enabled: false,
         introspection_require_auth: true,
         playground_enabled: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -148,7 +152,8 @@ fn test_schema_export_follows_introspection_setting() {
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -160,7 +165,8 @@ fn test_schema_export_disabled_when_introspection_disabled() {
     // When introspection is disabled, schema export should not be available either
     let config = ServerConfig {
         introspection_enabled: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -173,7 +179,8 @@ fn test_schema_export_protected_with_auth() {
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: true,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -191,7 +198,8 @@ fn test_all_debug_endpoints_can_be_disabled() {
         introspection_enabled: false,
         playground_enabled: false,
         admin_api_enabled: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());
@@ -204,13 +212,15 @@ fn test_introspection_and_playground_independence() {
         introspection_enabled: true,
         playground_enabled: false,
         introspection_require_auth: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     let config_b = ServerConfig {
         introspection_enabled: false,
         playground_enabled: false, // Both disabled by default for production safety
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config_a.validate().is_ok());
@@ -224,7 +234,8 @@ fn test_introspection_path_customization() {
         introspection_enabled: true,
         introspection_path: "/api/introspection".to_string(),
         introspection_require_auth: false,
-        cors_enabled: false, ..ServerConfig::default()
+        cors_enabled: false,
+        ..ServerConfig::default()
     };
 
     assert!(config.validate().is_ok());

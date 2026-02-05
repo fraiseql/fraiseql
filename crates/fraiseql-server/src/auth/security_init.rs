@@ -7,7 +7,7 @@ use serde_json::Value as JsonValue;
 use tracing::{debug, info, warn};
 
 use super::security_config::SecurityConfigFromSchema;
-use crate::auth::{error::Result, AuthError};
+use crate::auth::{AuthError, error::Result};
 
 /// Initialize security configuration from compiled schema JSON string
 ///
@@ -69,14 +69,12 @@ fn init_security_config_from_value(schema_json: &JsonValue) -> Result<SecurityCo
     debug!("Initializing security configuration from schema");
 
     // Extract security section from schema
-    let security_value = schema_json
-        .get("security")
-        .ok_or_else(|| {
-            warn!("No security configuration found in schema, using defaults");
-            AuthError::ConfigError {
-                message: "Missing security configuration in schema".to_string(),
-            }
-        })?;
+    let security_value = schema_json.get("security").ok_or_else(|| {
+        warn!("No security configuration found in schema, using defaults");
+        AuthError::ConfigError {
+            message: "Missing security configuration in schema".to_string(),
+        }
+    })?;
 
     // Parse security configuration from schema
     let mut config = SecurityConfigFromSchema::from_json(security_value).map_err(|e| {

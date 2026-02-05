@@ -367,8 +367,8 @@ mod schema_tests {
         // secret_rotation_audit: INDEX(secret_name, rotation_timestamp DESC)
         // encryption_keys: UNIQUE(name), INDEX(status)
         // external_auth_providers: UNIQUE(tenant_id, provider_name)
-        // oauth_sessions: INDEX(user_id), INDEX(provider_user_id, provider_type), INDEX(token_expiry)
-        // Supports common queries
+        // oauth_sessions: INDEX(user_id), INDEX(provider_user_id, provider_type),
+        // INDEX(token_expiry) Supports common queries
         assert!(true);
     }
 

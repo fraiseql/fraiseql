@@ -5,12 +5,12 @@
 //!        fraiseql lint schema.json --fail-on-critical
 //!        fraiseql lint schema.json --verbose --fail-on-warning
 
-use anyhow::Result;
-use serde::Serialize;
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
+use anyhow::Result;
 use fraiseql_core::design::DesignAudit;
+use serde::Serialize;
+
 use crate::output::CommandResult;
 
 /// Lint command options
@@ -18,32 +18,32 @@ use crate::output::CommandResult;
 #[allow(dead_code)]
 pub struct LintOptions {
     /// Only show federation audit
-    pub federation: bool,
+    pub federation:       bool,
     /// Only show cost audit
-    pub cost: bool,
+    pub cost:             bool,
     /// Only show cache audit
-    pub cache: bool,
+    pub cache:            bool,
     /// Only show auth audit
-    pub auth: bool,
+    pub auth:             bool,
     /// Only show compilation audit
-    pub compilation: bool,
+    pub compilation:      bool,
     /// Exit with error if any critical issues found
     pub fail_on_critical: bool,
     /// Exit with error if any warning or critical issues found
-    pub fail_on_warning: bool,
+    pub fail_on_warning:  bool,
     /// Show detailed issue descriptions
-    pub verbose: bool,
+    pub verbose:          bool,
 }
 
 /// Lint output response
 #[derive(Debug, Serialize)]
 pub struct LintResponse {
     /// Overall design score (0-100)
-    pub overall_score: u8,
+    pub overall_score:   u8,
     /// Severity counts
     pub severity_counts: SeverityCounts,
     /// Category scores
-    pub categories: CategoryScores,
+    pub categories:      CategoryScores,
 }
 
 /// Severity counts in audit
@@ -52,24 +52,24 @@ pub struct SeverityCounts {
     /// Critical issues
     pub critical: usize,
     /// Warning issues
-    pub warning: usize,
+    pub warning:  usize,
     /// Info issues
-    pub info: usize,
+    pub info:     usize,
 }
 
 /// Category scores
 #[derive(Debug, Serialize)]
 pub struct CategoryScores {
     /// Federation audit score
-    pub federation: u8,
+    pub federation:    u8,
     /// Cost audit score
-    pub cost: u8,
+    pub cost:          u8,
     /// Cache audit score
-    pub cache: u8,
+    pub cache:         u8,
     /// Authorization audit score
     pub authorization: u8,
     /// Compilation audit score
-    pub compilation: u8,
+    pub compilation:   u8,
 }
 
 /// Run lint command on a schema
@@ -93,7 +93,9 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     let audit = DesignAudit::from_schema_json(&schema_json)?;
 
     // Check for fail conditions if enabled
-    if opts.fail_on_critical && audit.severity_count(fraiseql_core::design::IssueSeverity::Critical) > 0 {
+    if opts.fail_on_critical
+        && audit.severity_count(fraiseql_core::design::IssueSeverity::Critical) > 0
+    {
         return Ok(CommandResult::error(
             "lint",
             "Design audit failed: critical issues found",
@@ -101,7 +103,9 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
         ));
     }
 
-    if opts.fail_on_warning && audit.severity_count(fraiseql_core::design::IssueSeverity::Warning) > 0 {
+    if opts.fail_on_warning
+        && audit.severity_count(fraiseql_core::design::IssueSeverity::Warning) > 0
+    {
         return Ok(CommandResult::error(
             "lint",
             "Design audit failed: warning issues found",
@@ -147,19 +151,19 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
 
     let severity_counts = SeverityCounts {
         critical: audit.severity_count(fraiseql_core::design::IssueSeverity::Critical),
-        warning: audit.severity_count(fraiseql_core::design::IssueSeverity::Warning),
-        info: audit.severity_count(fraiseql_core::design::IssueSeverity::Info),
+        warning:  audit.severity_count(fraiseql_core::design::IssueSeverity::Warning),
+        info:     audit.severity_count(fraiseql_core::design::IssueSeverity::Info),
     };
 
     let response = LintResponse {
         overall_score: audit.score(),
         severity_counts,
         categories: CategoryScores {
-            federation: fed_score,
-            cost: cost_score,
-            cache: cache_score,
+            federation:    fed_score,
+            cost:          cost_score,
+            cache:         cache_score,
             authorization: auth_score,
-            compilation: comp_score,
+            compilation:   comp_score,
         },
     };
 
@@ -168,20 +172,22 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     fn default_opts() -> LintOptions {
         LintOptions {
-            federation: false,
-            cost: false,
-            cache: false,
-            auth: false,
-            compilation: false,
+            federation:       false,
+            cost:             false,
+            cache:            false,
+            auth:             false,
+            compilation:      false,
             fail_on_critical: false,
-            fail_on_warning: false,
-            verbose: false,
+            fail_on_warning:  false,
+            verbose:          false,
         }
     }
 

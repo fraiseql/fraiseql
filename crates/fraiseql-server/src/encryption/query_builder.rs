@@ -41,8 +41,9 @@
 //!    - Store encrypted data in separate "searchable" column
 //!    - Query using Vault API for pattern matching
 
-use crate::secrets_manager::SecretsError;
 use std::collections::HashSet;
+
+use crate::secrets_manager::SecretsError;
 
 /// Query type for validation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -200,11 +201,7 @@ impl QueryBuilderIntegration {
 
     /// Get encrypted fields that appear in field list
     pub fn get_encrypted_fields_in_list(&self, fields: &[&str]) -> Vec<String> {
-        fields
-            .iter()
-            .filter(|f| self.is_encrypted(f))
-            .map(|f| f.to_string())
-            .collect()
+        fields.iter().filter(|f| self.is_encrypted(f)).map(|f| f.to_string()).collect()
     }
 
     /// Validate entire query structure
@@ -223,18 +220,18 @@ impl QueryBuilderIntegration {
                 // For INSERT/UPDATE, encrypted fields must be handled by adapter
                 // No clause restrictions for write operations
                 Ok(())
-            }
+            },
             QueryType::Select => {
                 // For SELECT, validate all clause restrictions
                 self.validate_where_clause(where_fields)?;
                 self.validate_order_by_clause(order_by_fields)?;
                 self.validate_join_condition(join_fields)?;
                 Ok(())
-            }
+            },
             QueryType::Delete => {
                 // For DELETE, encrypted fields not needed, no restrictions
                 Ok(())
-            }
+            },
         }
     }
 }

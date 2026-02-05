@@ -2,23 +2,28 @@
 //! Performance optimization for encryption operations including batching,
 //! parallelization, caching, and metrics collection.
 
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
+
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
 
 /// Operation metrics for performance monitoring
 #[derive(Debug, Clone)]
 pub struct OperationMetrics {
     /// Operation type (encrypt, decrypt)
-    pub operation: String,
+    pub operation:   String,
     /// Latency in microseconds
-    pub latency_us: u64,
+    pub latency_us:  u64,
     /// Success indicator
-    pub success: bool,
+    pub success:     bool,
     /// Timestamp
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
     /// Field count (for batch operations)
     pub field_count: usize,
 }
@@ -51,13 +56,13 @@ impl OperationMetrics {
 #[derive(Debug, Clone)]
 pub struct EncryptionBatch {
     /// Batch ID
-    pub batch_id: String,
+    pub batch_id:   String,
     /// Fields to encrypt
-    pub fields: Vec<(String, String)>,
+    pub fields:     Vec<(String, String)>,
     /// Batch creation time
     pub created_at: DateTime<Utc>,
     /// Maximum batch size
-    pub max_size: usize,
+    pub max_size:   usize,
 }
 
 impl EncryptionBatch {
@@ -72,7 +77,11 @@ impl EncryptionBatch {
     }
 
     /// Add field to batch
-    pub fn add_field(&mut self, field_name: impl Into<String>, plaintext: impl Into<String>) -> bool {
+    pub fn add_field(
+        &mut self,
+        field_name: impl Into<String>,
+        plaintext: impl Into<String>,
+    ) -> bool {
         if self.fields.len() >= self.max_size {
             return false;
         }
@@ -99,15 +108,15 @@ impl EncryptionBatch {
 /// Key cache with LRU eviction
 pub struct KeyCache {
     /// Cached keys
-    cache: HashMap<String, Vec<u8>>,
+    cache:        HashMap<String, Vec<u8>>,
     /// Maximum cache size
-    max_size: usize,
+    max_size:     usize,
     /// Access order for LRU
     access_order: Vec<String>,
     /// Cache hits
-    hits: Arc<AtomicU64>,
+    hits:         Arc<AtomicU64>,
     /// Cache misses
-    misses: Arc<AtomicU64>,
+    misses:       Arc<AtomicU64>,
 }
 
 impl KeyCache {
@@ -159,10 +168,7 @@ impl KeyCache {
 
     /// Get cache statistics
     pub fn stats(&self) -> (u64, u64) {
-        (
-            self.hits.load(Ordering::Relaxed),
-            self.misses.load(Ordering::Relaxed),
-        )
+        (self.hits.load(Ordering::Relaxed), self.misses.load(Ordering::Relaxed))
     }
 
     /// Get hit rate
@@ -170,11 +176,7 @@ impl KeyCache {
         let hits = self.hits.load(Ordering::Relaxed) as f64;
         let misses = self.misses.load(Ordering::Relaxed) as f64;
         let total = hits + misses;
-        if total > 0.0 {
-            hits / total
-        } else {
-            0.0
-        }
+        if total > 0.0 { hits / total } else { 0.0 }
     }
 
     /// Get cache size
@@ -203,11 +205,11 @@ impl Default for KeyCache {
 /// Performance metrics collector
 pub struct PerformanceMonitor {
     /// Collected metrics
-    metrics: Vec<OperationMetrics>,
+    metrics:     Vec<OperationMetrics>,
     /// Maximum metrics to retain
     max_metrics: usize,
     /// Performance SLOs
-    slos: HashMap<String, u64>,
+    slos:        HashMap<String, u64>,
 }
 
 impl PerformanceMonitor {
@@ -347,10 +349,7 @@ impl PerformanceMonitor {
 
     /// Get all SLO violations
     pub fn check_all_slos(&self) -> Vec<(String, bool)> {
-        self.slos
-            .iter()
-            .map(|(op, _)| (op.clone(), self.check_slo(op)))
-            .collect()
+        self.slos.iter().map(|(op, _)| (op.clone(), self.check_slo(op))).collect()
     }
 
     /// Get metric count
@@ -414,8 +413,7 @@ mod tests {
 
     #[test]
     fn test_operation_metrics_failure() {
-        let metric = OperationMetrics::new("decrypt", 2000, 3)
-            .with_failure();
+        let metric = OperationMetrics::new("decrypt", 2000, 3).with_failure();
         assert!(!metric.success);
     }
 

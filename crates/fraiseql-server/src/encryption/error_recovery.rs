@@ -2,9 +2,12 @@
 //! Error recovery for encryption operations including Vault outages,
 //! key expiry, network partitions, and graceful degradation strategies.
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+
 use chrono::{DateTime, Duration, Utc};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
 /// Recovery strategy for encryption failures
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,19 +76,19 @@ impl std::fmt::Display for ErrorCategory {
 #[derive(Debug, Clone)]
 pub struct RecoveryError {
     /// Error category
-    pub category: ErrorCategory,
+    pub category:    ErrorCategory,
     /// Human-readable message
-    pub message: String,
+    pub message:     String,
     /// Recovery strategy recommendation
-    pub strategy: RecoveryStrategy,
+    pub strategy:    RecoveryStrategy,
     /// Recovery suggestion for user
-    pub suggestion: String,
+    pub suggestion:  String,
     /// Timestamp of error
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
     /// Retry count so far
     pub retry_count: u32,
     /// Can retry
-    pub retryable: bool,
+    pub retryable:   bool,
 }
 
 impl RecoveryError {
@@ -149,10 +152,7 @@ impl RecoveryError {
 
     /// Check if cache fallback is appropriate for this error
     pub fn should_use_cache(&self) -> bool {
-        matches!(
-            self.strategy,
-            RecoveryStrategy::UseCache | RecoveryStrategy::ReadOnly
-        )
+        matches!(self.strategy, RecoveryStrategy::UseCache | RecoveryStrategy::ReadOnly)
     }
 
     /// Estimate milliseconds to wait before retry based on retry count
@@ -165,11 +165,11 @@ impl RecoveryError {
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     /// Maximum number of retries
-    pub max_retries: u32,
+    pub max_retries:        u32,
     /// Initial backoff delay in milliseconds
     pub initial_backoff_ms: u64,
     /// Maximum backoff delay in milliseconds
-    pub max_backoff_ms: u64,
+    pub max_backoff_ms:     u64,
     /// Backoff multiplier for exponential growth
     pub backoff_multiplier: f64,
 }
@@ -178,9 +178,9 @@ impl RetryConfig {
     /// Create new retry config
     pub fn new() -> Self {
         Self {
-            max_retries: 3,
+            max_retries:        3,
             initial_backoff_ms: 100,
-            max_backoff_ms: 5000,
+            max_backoff_ms:     5000,
             backoff_multiplier: 2.0,
         }
     }
@@ -233,13 +233,13 @@ pub struct CircuitBreaker {
     /// Success threshold to close
     success_threshold: u32,
     /// Current failure count
-    failure_count: Arc<AtomicU64>,
+    failure_count:     Arc<AtomicU64>,
     /// Current success count
-    success_count: Arc<AtomicU64>,
+    success_count:     Arc<AtomicU64>,
     /// Circuit state
-    state: Arc<atomic::AtomicUsize>,
+    state:             Arc<atomic::AtomicUsize>,
     /// Last state change time
-    last_change: Arc<std::sync::Mutex<DateTime<Utc>>>,
+    last_change:       Arc<std::sync::Mutex<DateTime<Utc>>>,
 }
 
 mod atomic {
@@ -248,8 +248,8 @@ mod atomic {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     #[repr(usize)]
     pub enum CircuitState {
-        Closed = 0,
-        Open = 1,
+        Closed   = 0,
+        Open     = 1,
         HalfOpen = 2,
     }
 
@@ -312,7 +312,7 @@ impl CircuitBreaker {
         match state {
             CircuitState::Closed => {
                 self.failure_count.store(0, Ordering::Relaxed);
-            }
+            },
             CircuitState::HalfOpen => {
                 let success = self.success_count.fetch_add(1, Ordering::Relaxed) + 1;
                 if success >= self.success_threshold as u64 {
@@ -323,8 +323,8 @@ impl CircuitBreaker {
                         *last = Utc::now();
                     }
                 }
-            }
-            CircuitState::Open => {}
+            },
+            CircuitState::Open => {},
         }
     }
 
@@ -340,26 +340,23 @@ impl CircuitBreaker {
                         *last = Utc::now();
                     }
                 }
-            }
+            },
             CircuitState::Open => {
                 // Could transition to HalfOpen after timeout
-            }
+            },
             CircuitState::HalfOpen => {
                 self.state.store(CircuitState::Open);
                 self.success_count.store(0, Ordering::Relaxed);
                 if let Ok(mut last) = self.last_change.lock() {
                     *last = Utc::now();
                 }
-            }
+            },
         }
     }
 
     /// Check if operation allowed
     pub fn is_allowed(&self) -> bool {
-        matches!(
-            self.state.load(),
-            CircuitState::Closed | CircuitState::HalfOpen
-        )
+        matches!(self.state.load(), CircuitState::Closed | CircuitState::HalfOpen)
     }
 
     /// Get current state
@@ -462,8 +459,7 @@ mod tests {
 
     #[test]
     fn test_recovery_error_with_retry_count() {
-        let error = RecoveryError::new(ErrorCategory::NetworkError, "Timeout")
-            .with_retry_count(2);
+        let error = RecoveryError::new(ErrorCategory::NetworkError, "Timeout").with_retry_count(2);
         assert_eq!(error.retry_count, 2);
     }
 

@@ -48,8 +48,8 @@ pub async fn create_provider(
                 })?
                 .to_string();
 
-            let provider = Auth0OAuth::new(client_id, client_secret, auth0_domain, redirect_uri)
-                .await?;
+            let provider =
+                Auth0OAuth::new(client_id, client_secret, auth0_domain, redirect_uri).await?;
             Ok(Box::new(provider))
         },
         "github" => {
@@ -100,8 +100,8 @@ pub async fn create_provider(
                 })?
                 .to_string();
 
-            let provider = OktaOAuth::new(client_id, client_secret, okta_domain, redirect_uri)
-                .await?;
+            let provider =
+                OktaOAuth::new(client_id, client_secret, okta_domain, redirect_uri).await?;
             Ok(Box::new(provider))
         },
         "azure_ad" => {
@@ -133,8 +133,7 @@ mod tests {
 
     #[test]
     fn test_auth0_role_mapping() {
-        let roles =
-            auth0::Auth0OAuth::map_auth0_roles_to_fraiseql(vec!["admin".to_string()]);
+        let roles = auth0::Auth0OAuth::map_auth0_roles_to_fraiseql(vec!["admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
     }
 

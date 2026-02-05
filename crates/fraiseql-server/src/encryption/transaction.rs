@@ -4,9 +4,11 @@
 //! Tracks transaction metadata, user context, and ensures consistent
 //! encryption key usage throughout transaction lifecycle.
 
-use crate::secrets_manager::SecretsError;
-use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+
+use crate::secrets_manager::SecretsError;
 
 /// Transaction isolation level
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,29 +62,29 @@ impl std::fmt::Display for TransactionState {
 #[derive(Debug, Clone)]
 pub struct TransactionContext {
     /// Unique transaction ID
-    pub transaction_id: String,
+    pub transaction_id:  String,
     /// User initiating transaction
-    pub user_id: String,
+    pub user_id:         String,
     /// User session ID
-    pub session_id: String,
+    pub session_id:      String,
     /// HTTP request ID for correlation
-    pub request_id: String,
+    pub request_id:      String,
     /// Transaction start time
-    pub started_at: DateTime<Utc>,
+    pub started_at:      DateTime<Utc>,
     /// Isolation level
     pub isolation_level: IsolationLevel,
     /// Current state
-    pub state: TransactionState,
+    pub state:           TransactionState,
     /// Encryption key version used in transaction
-    pub key_version: u32,
+    pub key_version:     u32,
     /// List of operations in transaction
-    pub operations: Vec<String>,
+    pub operations:      Vec<String>,
     /// Additional context data
-    pub metadata: HashMap<String, String>,
+    pub metadata:        HashMap<String, String>,
     /// User role for access control
-    pub user_role: Option<String>,
+    pub user_role:       Option<String>,
     /// Client IP address for audit
-    pub client_ip: Option<String>,
+    pub client_ip:       Option<String>,
 }
 
 impl TransactionContext {
@@ -189,11 +191,11 @@ impl TransactionContext {
 #[derive(Debug, Clone)]
 pub struct Savepoint {
     /// Savepoint name
-    pub name: String,
+    pub name:              String,
     /// Transaction ID this savepoint belongs to
-    pub transaction_id: String,
+    pub transaction_id:    String,
     /// Created at timestamp
-    pub created_at: DateTime<Utc>,
+    pub created_at:        DateTime<Utc>,
     /// Operations before savepoint
     pub operations_before: usize,
 }
@@ -206,9 +208,9 @@ impl Savepoint {
         operations_count: usize,
     ) -> Self {
         Self {
-            name: name.into(),
-            transaction_id: transaction_id.into(),
-            created_at: Utc::now(),
+            name:              name.into(),
+            transaction_id:    transaction_id.into(),
+            created_at:        Utc::now(),
             operations_before: operations_count,
         }
     }
@@ -219,7 +221,7 @@ pub struct TransactionManager {
     /// Active transactions by ID
     active_transactions: HashMap<String, TransactionContext>,
     /// Savepoints by transaction ID
-    savepoints: HashMap<String, Vec<Savepoint>>,
+    savepoints:          HashMap<String, Vec<Savepoint>>,
 }
 
 impl TransactionManager {
@@ -227,7 +229,7 @@ impl TransactionManager {
     pub fn new() -> Self {
         Self {
             active_transactions: HashMap::new(),
-            savepoints: HashMap::new(),
+            savepoints:          HashMap::new(),
         }
     }
 
@@ -263,10 +265,7 @@ impl TransactionManager {
             self.savepoints.remove(txn_id);
             Ok(())
         } else {
-            Err(SecretsError::ValidationError(format!(
-                "Transaction {} not found",
-                txn_id
-            )))
+            Err(SecretsError::ValidationError(format!("Transaction {} not found", txn_id)))
         }
     }
 
@@ -277,10 +276,7 @@ impl TransactionManager {
             self.savepoints.remove(txn_id);
             Ok(())
         } else {
-            Err(SecretsError::ValidationError(format!(
-                "Transaction {} not found",
-                txn_id
-            )))
+            Err(SecretsError::ValidationError(format!("Transaction {} not found", txn_id)))
         }
     }
 
@@ -294,10 +290,7 @@ impl TransactionManager {
                 .push(savepoint);
             Ok(())
         } else {
-            Err(SecretsError::ValidationError(format!(
-                "Transaction {} not found",
-                txn_id
-            )))
+            Err(SecretsError::ValidationError(format!("Transaction {} not found", txn_id)))
         }
     }
 
@@ -313,10 +306,7 @@ impl TransactionManager {
                     return Ok(());
                 }
             }
-            Err(SecretsError::ValidationError(format!(
-                "Savepoint {} not found",
-                name
-            )))
+            Err(SecretsError::ValidationError(format!("Savepoint {} not found", name)))
         } else {
             Err(SecretsError::ValidationError(format!(
                 "Transaction {} has no savepoints",
@@ -327,10 +317,7 @@ impl TransactionManager {
 
     /// Get list of active transaction IDs
     pub fn active_transactions(&self) -> Vec<&str> {
-        self.active_transactions
-            .keys()
-            .map(|s| s.as_str())
-            .collect()
+        self.active_transactions.keys().map(|s| s.as_str()).collect()
     }
 
     /// Count active transactions
@@ -391,8 +378,7 @@ mod tests {
 
     #[test]
     fn test_transaction_context_with_key_version() {
-        let ctx = TransactionContext::new("user123", "sess456", "req789")
-            .with_key_version(2);
+        let ctx = TransactionContext::new("user123", "sess456", "req789").with_key_version(2);
         assert_eq!(ctx.key_version, 2);
     }
 
@@ -406,22 +392,21 @@ mod tests {
 
     #[test]
     fn test_transaction_context_with_metadata() {
-        let ctx = TransactionContext::new("user123", "sess456", "req789")
-            .with_metadata("source", "api");
+        let ctx =
+            TransactionContext::new("user123", "sess456", "req789").with_metadata("source", "api");
         assert_eq!(ctx.metadata.get("source"), Some(&"api".to_string()));
     }
 
     #[test]
     fn test_transaction_context_with_role() {
-        let ctx = TransactionContext::new("user123", "sess456", "req789")
-            .with_role("admin");
+        let ctx = TransactionContext::new("user123", "sess456", "req789").with_role("admin");
         assert_eq!(ctx.user_role, Some("admin".to_string()));
     }
 
     #[test]
     fn test_transaction_context_with_client_ip() {
-        let ctx = TransactionContext::new("user123", "sess456", "req789")
-            .with_client_ip("192.168.1.1");
+        let ctx =
+            TransactionContext::new("user123", "sess456", "req789").with_client_ip("192.168.1.1");
         assert_eq!(ctx.client_ip, Some("192.168.1.1".to_string()));
     }
 

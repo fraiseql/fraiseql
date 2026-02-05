@@ -22,13 +22,13 @@ pub struct Auth0OAuth {
 /// Auth0 user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct Auth0User {
-    pub sub:      String,
-    pub email:    String,
+    pub sub:            String,
+    pub email:          String,
     pub email_verified: Option<bool>,
-    pub name:     Option<String>,
-    pub picture:  Option<String>,
-    pub locale:   Option<String>,
-    pub nickname: Option<String>,
+    pub name:           Option<String>,
+    pub picture:        Option<String>,
+    pub locale:         Option<String>,
+    pub nickname:       Option<String>,
 }
 
 /// Auth0 roles claim
@@ -53,14 +53,9 @@ impl Auth0OAuth {
     ) -> Result<Self> {
         let issuer_url = format!("https://{}", auth0_domain);
 
-        let oidc = OidcProvider::new(
-            "auth0",
-            &issuer_url,
-            &client_id,
-            &client_secret,
-            &redirect_uri,
-        )
-        .await?;
+        let oidc =
+            OidcProvider::new("auth0", &issuer_url, &client_id, &client_secret, &redirect_uri)
+                .await?;
 
         Ok(Self {
             oidc,
@@ -110,10 +105,10 @@ impl Auth0OAuth {
                     // Direct role matches
                     "admin" | "fraiseql-admin" | "administrators" | "fraiseql_admin" => {
                         Some("admin".to_string())
-                    }
+                    },
                     "operator" | "fraiseql-operator" | "operators" | "fraiseql_operator" => {
                         Some("operator".to_string())
-                    }
+                    },
                     "viewer" | "fraiseql-viewer" | "viewers" | "fraiseql_viewer" | "user"
                     | "fraiseql-user" => Some("viewer".to_string()),
                     // Common patterns

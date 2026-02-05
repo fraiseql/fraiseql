@@ -2,46 +2,47 @@
 //! Database schema definitions for secrets management, encryption keys,
 //! external authentication providers, and OAuth sessions.
 
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Secret rotation audit record
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SecretRotationAudit {
     /// Unique audit record ID
-    pub id: String,
+    pub id:                 String,
     /// Secret name that was rotated
-    pub secret_name: String,
+    pub secret_name:        String,
     /// When rotation occurred
     pub rotation_timestamp: DateTime<Utc>,
     /// User or system that performed rotation
-    pub rotated_by: Option<String>,
+    pub rotated_by:         Option<String>,
     /// ID of previous secret version
     pub previous_secret_id: Option<String>,
     /// ID of new secret version
-    pub new_secret_id: Option<String>,
+    pub new_secret_id:      Option<String>,
     /// Rotation status: "success", "failed"
-    pub status: String,
+    pub status:             String,
     /// Error message if failed
-    pub error_message: Option<String>,
+    pub error_message:      Option<String>,
     /// Additional metadata (JSON)
-    pub metadata: HashMap<String, String>,
+    pub metadata:           HashMap<String, String>,
 }
 
 impl SecretRotationAudit {
     /// Create new secret rotation audit record
     pub fn new(secret_name: impl Into<String>, status: impl Into<String>) -> Self {
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
-            secret_name: secret_name.into(),
+            id:                 uuid::Uuid::new_v4().to_string(),
+            secret_name:        secret_name.into(),
             rotation_timestamp: Utc::now(),
-            rotated_by: None,
+            rotated_by:         None,
             previous_secret_id: None,
-            new_secret_id: None,
-            status: status.into(),
-            error_message: None,
-            metadata: HashMap::new(),
+            new_secret_id:      None,
+            status:             status.into(),
+            error_message:      None,
+            metadata:           HashMap::new(),
         }
     }
 
@@ -84,23 +85,23 @@ impl SecretRotationAudit {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EncryptionKey {
     /// Unique key ID
-    pub id: String,
+    pub id:                     String,
     /// Key name (e.g., "fraiseql/database-encryption")
-    pub name: String,
+    pub name:                   String,
     /// Encrypted key material (stored as encrypted bytes)
     pub key_material_encrypted: Vec<u8>,
     /// Encryption algorithm (e.g., "AES-256-GCM")
-    pub algorithm: String,
+    pub algorithm:              String,
     /// Version number (incremented on rotation)
-    pub version: u16,
+    pub version:                u16,
     /// When key was created
-    pub created_at: DateTime<Utc>,
+    pub created_at:             DateTime<Utc>,
     /// When key was last rotated
-    pub rotated_at: Option<DateTime<Utc>>,
+    pub rotated_at:             Option<DateTime<Utc>>,
     /// Key status: "active", "rotating", "retired"
-    pub status: String,
+    pub status:                 String,
     /// Additional metadata (JSON)
-    pub metadata: HashMap<String, String>,
+    pub metadata:               HashMap<String, String>,
 }
 
 impl EncryptionKey {
@@ -319,11 +320,11 @@ impl OAuthSessionRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemaMigration {
     /// Migration file name (e.g., "0013_secrets_audit.sql")
-    pub filename: String,
+    pub filename:    String,
     /// Full SQL migration script
     pub sql_content: String,
     /// When migration was created
-    pub created_at: DateTime<Utc>,
+    pub created_at:  DateTime<Utc>,
     /// Migration description
     pub description: Option<String>,
 }
@@ -415,10 +416,13 @@ CREATE INDEX IF NOT EXISTS idx_oauth_sessions_expiry
 "#;
 
         Self {
-            filename: "0013_secrets_audit.sql".to_string(),
+            filename:    "0013_secrets_audit.sql".to_string(),
             sql_content: sql.to_string(),
-            created_at: Utc::now(),
-            description: Some("Create secrets audit, encryption keys, auth providers, and OAuth sessions tables".to_string()),
+            created_at:  Utc::now(),
+            description: Some(
+                "Create secrets audit, encryption keys, auth providers, and OAuth sessions tables"
+                    .to_string(),
+            ),
         }
     }
 }
@@ -555,7 +559,8 @@ mod tests {
             "old_token",
             Utc::now() + chrono::Duration::hours(1),
         );
-        let refreshed = session.refresh_tokens("new_token", Utc::now() + chrono::Duration::hours(2));
+        let refreshed =
+            session.refresh_tokens("new_token", Utc::now() + chrono::Duration::hours(2));
         assert_eq!(refreshed.access_token_encrypted, "new_token");
         assert!(refreshed.last_refreshed.is_some());
     }

@@ -7,8 +7,8 @@ fn test_openapi_spec_is_valid_json() {
     let spec_json = get_openapi_spec();
 
     // Should be valid JSON
-    let parsed: serde_json::Value = serde_json::from_str(&spec_json)
-        .expect("OpenAPI spec should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&spec_json).expect("OpenAPI spec should be valid JSON");
 
     assert!(parsed.is_object(), "OpenAPI spec should be a JSON object");
 }
@@ -170,20 +170,16 @@ fn test_openapi_spec_documents_http_methods() {
     let paths = &spec["paths"];
 
     // Check explain endpoint uses POST
-    let explain_post = paths["_api_v1_query_explain"].get("post")
+    let explain_post = paths["_api_v1_query_explain"]
+        .get("post")
         .or_else(|| paths["/api/v1/query/explain"].get("post"));
-    assert!(
-        explain_post.is_some(),
-        "Explain should use POST method"
-    );
+    assert!(explain_post.is_some(), "Explain should use POST method");
 
     // Check subgraphs endpoint uses GET
-    let subgraphs_get = paths["_api_v1_federation_subgraphs"].get("get")
+    let subgraphs_get = paths["_api_v1_federation_subgraphs"]
+        .get("get")
         .or_else(|| paths["/api/v1/federation/subgraphs"].get("get"));
-    assert!(
-        subgraphs_get.is_some(),
-        "Subgraphs should use GET method"
-    );
+    assert!(subgraphs_get.is_some(), "Subgraphs should use GET method");
 }
 
 #[test]
@@ -215,10 +211,7 @@ fn test_openapi_spec_has_security_scheme() {
     let spec: serde_json::Value = serde_json::from_str(&spec_json).unwrap();
 
     let security_schemes = &spec["components"]["securitySchemes"];
-    assert!(
-        !security_schemes.is_null(),
-        "Should define security schemes for authentication"
-    );
+    assert!(!security_schemes.is_null(), "Should define security schemes for authentication");
 }
 
 #[test]
@@ -231,19 +224,20 @@ fn test_openapi_spec_endpoints_have_descriptions() {
     let paths = &spec["paths"];
 
     // Check that at least one endpoint has description
-    let has_descriptions = paths.as_object().map(|paths| {
-        paths.iter().any(|(_, endpoint)| {
-            endpoint.get("post")
-                .or_else(|| endpoint.get("get"))
-                .and_then(|op| op.get("description"))
-                .is_some()
+    let has_descriptions = paths
+        .as_object()
+        .map(|paths| {
+            paths.iter().any(|(_, endpoint)| {
+                endpoint
+                    .get("post")
+                    .or_else(|| endpoint.get("get"))
+                    .and_then(|op| op.get("description"))
+                    .is_some()
+            })
         })
-    }).unwrap_or(false);
+        .unwrap_or(false);
 
-    assert!(
-        has_descriptions,
-        "Endpoints should have descriptions"
-    );
+    assert!(has_descriptions, "Endpoints should have descriptions");
 }
 
 #[test]

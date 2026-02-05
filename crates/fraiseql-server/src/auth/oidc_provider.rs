@@ -78,7 +78,7 @@ impl OidcProvider {
     ///
     /// # Arguments
     /// * `name` - Provider name (for logging)
-    /// * `issuer_url` - The issuer URL (e.g., "https://accounts.google.com")
+    /// * `issuer_url` - The issuer URL (e.g., <https://accounts.google.com>)
     /// * `client_id` - OAuth client ID
     /// * `client_secret` - OAuth client secret
     /// * `redirect_uri` - Redirect URI after authentication

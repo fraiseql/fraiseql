@@ -5,14 +5,14 @@
 //! - Validating GraphQL query syntax
 //! - Retrieving query statistics and performance data
 
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{Json, extract::State};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
-use crate::routes::api::types::{ApiResponse, ApiError};
-use crate::routes::graphql::AppState;
+
+use crate::routes::{
+    api::types::{ApiError, ApiResponse},
+    graphql::AppState,
+};
 
 /// Request to explain a query.
 #[derive(Debug, Deserialize)]
@@ -25,13 +25,13 @@ pub struct ExplainRequest {
 #[derive(Debug, Serialize)]
 pub struct ExplainResponse {
     /// Original query that was analyzed
-    pub query: String,
+    pub query:          String,
     /// Generated SQL equivalent (if available)
-    pub sql: Option<String>,
+    pub sql:            Option<String>,
     /// Complexity metrics for the query
-    pub complexity: ComplexityInfo,
+    pub complexity:     ComplexityInfo,
     /// Warning messages for potential issues
-    pub warnings: Vec<String>,
+    pub warnings:       Vec<String>,
     /// Estimated cost to execute the query
     pub estimated_cost: usize,
 }
@@ -40,11 +40,11 @@ pub struct ExplainResponse {
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct ComplexityInfo {
     /// Maximum nesting depth of the query
-    pub depth: usize,
+    pub depth:       usize,
     /// Total number of fields requested
     pub field_count: usize,
     /// Combined complexity score (depth × field_count)
-    pub score: usize,
+    pub score:       usize,
 }
 
 /// Request to validate a query.
@@ -58,7 +58,7 @@ pub struct ValidateRequest {
 #[derive(Debug, Serialize)]
 pub struct ValidateResponse {
     /// Whether the query is syntactically valid
-    pub valid: bool,
+    pub valid:  bool,
     /// List of validation errors (if any)
     pub errors: Vec<String>,
 }
@@ -67,11 +67,11 @@ pub struct ValidateResponse {
 #[derive(Debug, Serialize)]
 pub struct StatsResponse {
     /// Total number of queries executed
-    pub total_queries: usize,
+    pub total_queries:      usize,
     /// Number of successful query executions
     pub successful_queries: usize,
     /// Number of failed query executions
-    pub failed_queries: usize,
+    pub failed_queries:     usize,
     /// Average latency in milliseconds
     pub average_latency_ms: f64,
 }
@@ -113,7 +113,7 @@ pub async fn explain_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -128,8 +128,8 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     if req.query.trim().is_empty() {
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: ValidateResponse {
-                valid: false,
+            data:   ValidateResponse {
+                valid:  false,
                 errors: vec!["Query cannot be empty".to_string()],
             },
         }));
@@ -139,14 +139,11 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     let errors = validate_query_syntax(&req.query);
     let valid = errors.is_empty();
 
-    let response = ValidateResponse {
-        valid,
-        errors,
-    };
+    let response = ValidateResponse { valid, errors };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -168,9 +165,11 @@ pub async fn stats_handler<A: DatabaseAdapter>(
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
     // Get metrics from the metrics collector using atomic operations
     let total_queries = state.metrics.queries_total.load(std::sync::atomic::Ordering::Relaxed);
-    let successful_queries = state.metrics.queries_success.load(std::sync::atomic::Ordering::Relaxed);
+    let successful_queries =
+        state.metrics.queries_success.load(std::sync::atomic::Ordering::Relaxed);
     let failed_queries = state.metrics.queries_error.load(std::sync::atomic::Ordering::Relaxed);
-    let total_duration_us = state.metrics.queries_duration_us.load(std::sync::atomic::Ordering::Relaxed);
+    let total_duration_us =
+        state.metrics.queries_duration_us.load(std::sync::atomic::Ordering::Relaxed);
 
     // Calculate average latency in milliseconds
     let average_latency_ms = if total_queries > 0 {
@@ -188,7 +187,7 @@ pub async fn stats_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -217,13 +216,13 @@ fn calculate_depth(query: &str) -> usize {
             '{' => {
                 current_depth += 1;
                 max_depth = max_depth.max(current_depth);
-            }
+            },
             '}' => {
                 if current_depth > 0 {
                     current_depth -= 1;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -243,19 +242,19 @@ fn count_fields(query: &str) -> usize {
                 if in_braces > 0 {
                     in_braces -= 1;
                 }
-            }
+            },
             ',' => {
                 if in_braces > 0 {
                     count += 1;
                 }
-            }
+            },
             '\n' if in_braces > 0 => {
                 // Rough approximation: each line in field list is a field
                 if !query.contains(',') {
                     count += 1;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -328,16 +327,13 @@ fn validate_query_syntax(query: &str) -> Vec<String> {
     let open_braces = query.matches('{').count();
     let close_braces = query.matches('}').count();
     if open_braces != close_braces {
-        errors.push(format!(
-            "Mismatched braces: {} opening, {} closing",
-            open_braces, close_braces
-        ));
+        errors
+            .push(format!("Mismatched braces: {} opening, {} closing", open_braces, close_braces));
     }
 
     // Check for at least query/mutation/subscription keyword
-    let has_operation = query.contains("query")
-        || query.contains("mutation")
-        || query.contains("subscription");
+    let has_operation =
+        query.contains("query") || query.contains("mutation") || query.contains("subscription");
 
     if !has_operation {
         errors.push("Query must contain query, mutation, or subscription operation".to_string());
@@ -371,9 +367,9 @@ mod tests {
     #[test]
     fn test_generate_warnings_deep() {
         let complexity = ComplexityInfo {
-            depth: 15,
+            depth:       15,
             field_count: 5,
-            score: 75,
+            score:       75,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -383,9 +379,9 @@ mod tests {
     #[test]
     fn test_generate_warnings_high_score() {
         let complexity = ComplexityInfo {
-            depth: 3,
+            depth:       3,
             field_count: 200,
-            score: 600,
+            score:       600,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -395,9 +391,9 @@ mod tests {
     #[test]
     fn test_estimate_cost() {
         let complexity = ComplexityInfo {
-            depth: 2,
+            depth:       2,
             field_count: 3,
-            score: 6,
+            score:       6,
         };
         let cost = estimate_cost(&complexity);
         assert!(cost > 0);
@@ -426,9 +422,9 @@ mod tests {
     fn test_stats_response_structure() {
         // Phase 6.3: Query statistics response structure
         let response = StatsResponse {
-            total_queries: 100,
+            total_queries:      100,
             successful_queries: 95,
-            failed_queries: 5,
+            failed_queries:     5,
             average_latency_ms: 42.5,
         };
 
@@ -442,14 +438,14 @@ mod tests {
     fn test_explain_response_structure() {
         // Phase 6.4: Query explanation response structure
         let response = ExplainResponse {
-            query: "query { users { id } }".to_string(),
-            sql: Some("SELECT id FROM users".to_string()),
-            complexity: ComplexityInfo {
-                depth: 2,
+            query:          "query { users { id } }".to_string(),
+            sql:            Some("SELECT id FROM users".to_string()),
+            complexity:     ComplexityInfo {
+                depth:       2,
                 field_count: 1,
-                score: 2,
+                score:       2,
             },
-            warnings: vec![],
+            warnings:       vec![],
             estimated_cost: 50,
         };
 
@@ -463,9 +459,9 @@ mod tests {
     fn test_complexity_info_score_calculation() {
         // Phase 6.4: Complexity score is calculated correctly
         let complexity = ComplexityInfo {
-            depth: 3,
+            depth:       3,
             field_count: 4,
-            score: 12,
+            score:       12,
         };
 
         assert_eq!(complexity.score, 3 * 4);

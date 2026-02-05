@@ -2,6 +2,7 @@
 //! Backend for reading secrets from environment variables
 
 use chrono::{Duration, Utc};
+
 use super::super::{SecretsBackend, SecretsError};
 
 /// Secrets backend that reads from environment variables
@@ -68,9 +69,7 @@ impl Default for EnvBackend {
 /// Validate secret name format
 fn validate_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
-        return Err(SecretsError::ValidationError(
-            "Secret name cannot be empty".to_string(),
-        ));
+        return Err(SecretsError::ValidationError("Secret name cannot be empty".to_string()));
     }
     Ok(())
 }
@@ -97,7 +96,7 @@ mod tests {
 
         assert!(result.is_err());
         match result {
-            Err(SecretsError::NotFound(_)) => {}
+            Err(SecretsError::NotFound(_)) => {},
             _ => panic!("Expected NotFound error"),
         }
     }
@@ -121,7 +120,7 @@ mod tests {
 
         assert!(result.is_err());
         match result {
-            Err(SecretsError::RotationError(_)) => {}
+            Err(SecretsError::RotationError(_)) => {},
             _ => panic!("Expected RotationError"),
         }
     }

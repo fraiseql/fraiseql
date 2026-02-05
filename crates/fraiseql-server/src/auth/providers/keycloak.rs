@@ -51,7 +51,7 @@ impl KeycloakOAuth {
     /// # Arguments
     /// * `client_id` - Keycloak client ID (configured in Keycloak realm)
     /// * `client_secret` - Keycloak client secret
-    /// * `keycloak_url` - Base Keycloak URL (e.g., "https://keycloak.example.com")
+    /// * `keycloak_url` - Base Keycloak URL (e.g., <https://keycloak.example.com>)
     /// * `realm` - Keycloak realm name (e.g., "master", "fraiseql")
     /// * `redirect_uri` - Redirect URI after authentication
     pub async fn new(

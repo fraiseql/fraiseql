@@ -238,7 +238,8 @@ fn test_query_permission_audit_filter_by_user() {
 /// Test filtering audit logs by permission
 #[test]
 fn test_query_permission_audit_filter_by_permission() {
-    // GET /api/audit/permissions?permission_id={perm_id} should return only that permission's accesses
+    // GET /api/audit/permissions?permission_id={perm_id} should return only that permission's
+    // accesses
     assert!(true);
 }
 

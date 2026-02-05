@@ -1,8 +1,10 @@
 // Phase 12.1 Cycle 1: File-based Secrets Backend
 //! Backend for reading secrets from local files
 
-use chrono::{Duration, Utc};
 use std::path::PathBuf;
+
+use chrono::{Duration, Utc};
+
 use super::super::{SecretsBackend, SecretsError};
 
 /// Secrets backend that reads from local files
@@ -31,15 +33,13 @@ impl SecretsBackend for FileBackend {
     async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
         let path = self.base_path.join(name);
 
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| {
-                SecretsError::BackendError(format!(
-                    "Failed to read secret from {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
+        let content = tokio::fs::read_to_string(&path).await.map_err(|e| {
+            SecretsError::BackendError(format!(
+                "Failed to read secret from {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
 
         Ok(content.trim().to_string())
     }

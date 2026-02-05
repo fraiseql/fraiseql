@@ -4,22 +4,20 @@
 fn test_federation_subgraphs_response_structure() {
     use fraiseql_server::routes::api::federation::SubgraphsResponse;
 
-    let response = SubgraphsResponse {
-        subgraphs: vec![],
-    };
+    let response = SubgraphsResponse { subgraphs: vec![] };
 
     assert!(response.subgraphs.is_empty());
 }
 
 #[test]
 fn test_federation_subgraph_info_structure() {
-    use fraiseql_server::routes::api::federation::{SubgraphsResponse, SubgraphInfo};
+    use fraiseql_server::routes::api::federation::{SubgraphInfo, SubgraphsResponse};
 
     let subgraph = SubgraphInfo {
-        name: "users".to_string(),
-        url: "http://users.example.com/graphql".to_string(),
+        name:     "users".to_string(),
+        url:      "http://users.example.com/graphql".to_string(),
         entities: vec!["User".to_string(), "Query".to_string()],
-        healthy: true,
+        healthy:  true,
     };
 
     assert_eq!(subgraph.name, "users");
@@ -40,7 +38,7 @@ fn test_federation_graph_response_structure() {
     use fraiseql_server::routes::api::federation::GraphResponse;
 
     let response = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: r#"{"subgraphs":[]}"#.to_string(),
     };
 
@@ -62,7 +60,7 @@ fn test_federation_graph_json_format() {
     }"#;
 
     let response = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: json_content.to_string(),
     };
 
@@ -98,17 +96,15 @@ fn test_federation_graph_mermaid_format() {
 
 #[test]
 fn test_subgraphs_response_json_serialization() {
-    use fraiseql_server::routes::api::federation::{SubgraphsResponse, SubgraphInfo};
+    use fraiseql_server::routes::api::federation::{SubgraphInfo, SubgraphsResponse};
 
     let response = SubgraphsResponse {
-        subgraphs: vec![
-            SubgraphInfo {
-                name: "users".to_string(),
-                url: "http://users.local/graphql".to_string(),
-                entities: vec!["User".to_string()],
-                healthy: true,
-            },
-        ],
+        subgraphs: vec![SubgraphInfo {
+            name:     "users".to_string(),
+            url:      "http://users.local/graphql".to_string(),
+            entities: vec!["User".to_string()],
+            healthy:  true,
+        }],
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -122,7 +118,7 @@ fn test_graph_response_json_serialization() {
     use fraiseql_server::routes::api::federation::GraphResponse;
 
     let response = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: "{}".to_string(),
     };
 
@@ -133,27 +129,27 @@ fn test_graph_response_json_serialization() {
 
 #[test]
 fn test_multiple_subgraphs() {
-    use fraiseql_server::routes::api::federation::{SubgraphsResponse, SubgraphInfo};
+    use fraiseql_server::routes::api::federation::{SubgraphInfo, SubgraphsResponse};
 
     let response = SubgraphsResponse {
         subgraphs: vec![
             SubgraphInfo {
-                name: "users".to_string(),
-                url: "http://users.local/graphql".to_string(),
+                name:     "users".to_string(),
+                url:      "http://users.local/graphql".to_string(),
                 entities: vec!["User".to_string()],
-                healthy: true,
+                healthy:  true,
             },
             SubgraphInfo {
-                name: "posts".to_string(),
-                url: "http://posts.local/graphql".to_string(),
+                name:     "posts".to_string(),
+                url:      "http://posts.local/graphql".to_string(),
                 entities: vec!["Post".to_string()],
-                healthy: true,
+                healthy:  true,
             },
             SubgraphInfo {
-                name: "comments".to_string(),
-                url: "http://comments.local/graphql".to_string(),
+                name:     "comments".to_string(),
+                url:      "http://comments.local/graphql".to_string(),
                 entities: vec!["Comment".to_string()],
-                healthy: false,
+                healthy:  false,
             },
         ],
     };
@@ -166,17 +162,17 @@ fn test_multiple_subgraphs() {
 
 #[test]
 fn test_subgraph_with_multiple_entities() {
-    use fraiseql_server::routes::api::federation::{SubgraphsResponse, SubgraphInfo};
+    use fraiseql_server::routes::api::federation::{SubgraphInfo, SubgraphsResponse};
 
     let subgraph = SubgraphInfo {
-        name: "users".to_string(),
-        url: "http://users.local/graphql".to_string(),
+        name:     "users".to_string(),
+        url:      "http://users.local/graphql".to_string(),
         entities: vec![
             "User".to_string(),
             "Query".to_string(),
             "Mutation".to_string(),
         ],
-        healthy: true,
+        healthy:  true,
     };
 
     assert_eq!(subgraph.entities.len(), 3);
@@ -189,7 +185,7 @@ fn test_federation_graph_empty() {
 
     let empty_json = r#"{"subgraphs": [], "edges": []}"#;
     let response = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: empty_json.to_string(),
     };
 
@@ -212,7 +208,7 @@ fn test_federation_graph_with_entities() {
     }"#;
 
     let response = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: graph_json.to_string(),
     };
 
@@ -226,14 +222,11 @@ fn test_federation_graph_with_entities() {
 
 #[test]
 fn test_api_response_wrapper_federation() {
-    use fraiseql_server::routes::api::types::ApiResponse;
-    use fraiseql_server::routes::api::federation::SubgraphsResponse;
+    use fraiseql_server::routes::api::{federation::SubgraphsResponse, types::ApiResponse};
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: SubgraphsResponse {
-            subgraphs: vec![],
-        },
+        data:   SubgraphsResponse { subgraphs: vec![] },
     };
 
     assert_eq!(response.status, "success");

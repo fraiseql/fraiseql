@@ -11,32 +11,32 @@ fn test_api_modules_exist() {
 /// Test API query endpoint types are correctly defined.
 #[test]
 fn test_api_query_response_types_defined() {
-    use fraiseql_server::routes::api::query::{ExplainResponse, ValidateResponse, StatsResponse};
+    use fraiseql_server::routes::api::query::{ExplainResponse, StatsResponse, ValidateResponse};
 
     // Verify response types exist and are properly structured
     let explain = ExplainResponse {
-        query: "test".to_string(),
-        sql: None,
-        complexity: fraiseql_server::routes::api::query::ComplexityInfo {
-            depth: 1,
+        query:          "test".to_string(),
+        sql:            None,
+        complexity:     fraiseql_server::routes::api::query::ComplexityInfo {
+            depth:       1,
             field_count: 1,
-            score: 1,
+            score:       1,
         },
-        warnings: vec![],
+        warnings:       vec![],
         estimated_cost: 100,
     };
     assert_eq!(explain.query, "test");
 
     let validate = ValidateResponse {
-        valid: true,
+        valid:  true,
         errors: vec![],
     };
     assert!(validate.valid);
 
     let stats = StatsResponse {
-        total_queries: 0,
+        total_queries:      0,
         successful_queries: 0,
-        failed_queries: 0,
+        failed_queries:     0,
         average_latency_ms: 0.0,
     };
     assert_eq!(stats.total_queries, 0);
@@ -45,15 +45,13 @@ fn test_api_query_response_types_defined() {
 /// Test API federation endpoint types are correctly defined.
 #[test]
 fn test_api_federation_response_types_defined() {
-    use fraiseql_server::routes::api::federation::{SubgraphsResponse, GraphResponse};
+    use fraiseql_server::routes::api::federation::{GraphResponse, SubgraphsResponse};
 
-    let subgraphs = SubgraphsResponse {
-        subgraphs: vec![],
-    };
+    let subgraphs = SubgraphsResponse { subgraphs: vec![] };
     assert!(subgraphs.subgraphs.is_empty());
 
     let graph = GraphResponse {
-        format: "json".to_string(),
+        format:  "json".to_string(),
         content: "{}".to_string(),
     };
     assert_eq!(graph.format, "json");
@@ -86,7 +84,7 @@ fn test_api_error_types_defined() {
 
     let response: ApiResponse<String> = ApiResponse {
         status: "success".to_string(),
-        data: "test data".to_string(),
+        data:   "test data".to_string(),
     };
     assert_eq!(response.status, "success");
 }

@@ -14,10 +14,7 @@ fn test_admin_api_disabled_by_default() {
         !config.admin_api_enabled,
         "Admin API should be disabled by default for security"
     );
-    assert!(
-        config.admin_token.is_none(),
-        "Admin token should be None when disabled"
-    );
+    assert!(config.admin_token.is_none(), "Admin token should be None when disabled");
 }
 
 #[test]
@@ -58,17 +55,12 @@ fn test_admin_api_enabled_with_short_token_fails_validation() {
 fn test_admin_api_enabled_with_valid_token_passes_validation() {
     let config = ServerConfig {
         admin_api_enabled: true,
-        admin_token: Some(
-            "a-very-secure-admin-token-that-is-long-enough-for-security".to_string(),
-        ),
+        admin_token: Some("a-very-secure-admin-token-that-is-long-enough-for-security".to_string()),
         cors_enabled: false, // Disable CORS to avoid production mode validation
         ..ServerConfig::default()
     };
 
-    assert!(
-        config.validate().is_ok(),
-        "Validation should pass with valid token (32+ chars)"
-    );
+    assert!(config.validate().is_ok(), "Validation should pass with valid token (32+ chars)");
 }
 
 #[test]
@@ -96,10 +88,7 @@ fn test_admin_token_minimum_length_is_32_characters() {
         cors_enabled: false, // Disable CORS to avoid production mode validation
         ..ServerConfig::default()
     };
-    assert!(
-        config_31_chars.validate().is_err(),
-        "31-character token should fail"
-    );
+    assert!(config_31_chars.validate().is_err(), "31-character token should fail");
 
     // Test with exactly 32 characters (minimum)
     let config_32_chars = ServerConfig {
@@ -108,10 +97,7 @@ fn test_admin_token_minimum_length_is_32_characters() {
         cors_enabled: false, // Disable CORS to avoid production mode validation
         ..ServerConfig::default()
     };
-    assert!(
-        config_32_chars.validate().is_ok(),
-        "32-character token should pass"
-    );
+    assert!(config_32_chars.validate().is_ok(), "32-character token should pass");
 }
 
 #[test]
@@ -156,8 +142,5 @@ fn test_admin_config_with_empty_token_string_fails() {
     };
 
     let result = config.validate();
-    assert!(
-        result.is_err(),
-        "Empty token string should fail validation"
-    );
+    assert!(result.is_err(), "Empty token string should fail validation");
 }

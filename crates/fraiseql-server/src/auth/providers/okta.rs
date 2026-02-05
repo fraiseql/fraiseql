@@ -22,14 +22,14 @@ pub struct OktaOAuth {
 /// Okta user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct OktaUser {
-    pub sub:      String,
-    pub email:    String,
+    pub sub:            String,
+    pub email:          String,
     pub email_verified: Option<bool>,
-    pub name:     Option<String>,
-    pub given_name: Option<String>,
-    pub family_name: Option<String>,
-    pub picture:  Option<String>,
-    pub locale:   Option<String>,
+    pub name:           Option<String>,
+    pub given_name:     Option<String>,
+    pub family_name:    Option<String>,
+    pub picture:        Option<String>,
+    pub locale:         Option<String>,
 }
 
 /// Okta groups claim
@@ -54,14 +54,9 @@ impl OktaOAuth {
     ) -> Result<Self> {
         let issuer_url = format!("https://{}", okta_domain);
 
-        let oidc = OidcProvider::new(
-            "okta",
-            &issuer_url,
-            &client_id,
-            &client_secret,
-            &redirect_uri,
-        )
-        .await?;
+        let oidc =
+            OidcProvider::new("okta", &issuer_url, &client_id, &client_secret, &redirect_uri)
+                .await?;
 
         Ok(Self {
             oidc,
@@ -111,10 +106,10 @@ impl OktaOAuth {
                     // Direct group matches
                     "fraiseql-admin" | "fraiseql_admin" | "admin" | "administrators" => {
                         Some("admin".to_string())
-                    }
+                    },
                     "fraiseql-operator" | "fraiseql_operator" | "operator" | "operators" => {
                         Some("operator".to_string())
-                    }
+                    },
                     "fraiseql-viewer" | "fraiseql_viewer" | "viewer" | "viewers" | "user"
                     | "fraiseql-user" | "read_only" => Some("viewer".to_string()),
                     // Common Okta patterns
@@ -136,7 +131,7 @@ impl OktaOAuth {
                         } else {
                             None
                         }
-                    }
+                    },
                 }
             })
             .collect()
@@ -176,10 +171,7 @@ impl OktaOAuth {
     ///
     /// Okta provides the user ID in the 'sub' (subject) claim
     pub fn get_okta_id(raw_claims: &serde_json::Value) -> Option<String> {
-        raw_claims
-            .get("sub")
-            .and_then(|sub| sub.as_str())
-            .map(|s| s.to_string())
+        raw_claims.get("sub").and_then(|sub| sub.as_str()).map(|s| s.to_string())
     }
 }
 

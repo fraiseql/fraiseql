@@ -5,13 +5,16 @@
 //! - Exporting federation dependency graphs in multiple formats (JSON, DOT, Mermaid)
 
 use axum::{
-    extract::{State, Query},
     Json,
+    extract::{Query, State},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
-use serde::{Serialize, Deserialize};
-use crate::routes::api::types::{ApiResponse, ApiError};
-use crate::routes::graphql::AppState;
+use serde::{Deserialize, Serialize};
+
+use crate::routes::{
+    api::types::{ApiError, ApiResponse},
+    graphql::AppState,
+};
 
 /// Response containing federation subgraph information.
 #[derive(Debug, Serialize)]
@@ -24,20 +27,20 @@ pub struct SubgraphsResponse {
 #[derive(Debug, Serialize, Clone)]
 pub struct SubgraphInfo {
     /// Name of the subgraph
-    pub name: String,
+    pub name:     String,
     /// GraphQL endpoint URL for the subgraph
-    pub url: String,
+    pub url:      String,
     /// Entity types managed by this subgraph
     pub entities: Vec<String>,
     /// Health status of the subgraph
-    pub healthy: bool,
+    pub healthy:  bool,
 }
 
 /// Federation graph in various formats.
 #[derive(Debug, Serialize)]
 pub struct GraphResponse {
     /// Format of the graph (json, dot, or mermaid)
-    pub format: String,
+    pub format:  String,
     /// Graph content in the specified format
     pub content: String,
 }
@@ -67,13 +70,11 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
     // 3. Return actual subgraph information
 
     // Placeholder: Return empty list
-    let response = SubgraphsResponse {
-        subgraphs: vec![],
-    };
+    let response = SubgraphsResponse { subgraphs: vec![] };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -95,11 +96,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
     // Validate format parameter
     let format = match query.format.as_str() {
         "json" | "dot" | "mermaid" => query.format,
-        _ => {
-            return Err(ApiError::validation_error(
-                "format must be 'json', 'dot', or 'mermaid'"
-            ))
-        }
+        _ => return Err(ApiError::validation_error("format must be 'json', 'dot', or 'mermaid'")),
     };
 
     // Generate graph in the requested format
@@ -112,7 +109,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -137,7 +134,7 @@ fn generate_json_graph() -> String {
   "subgraphs": [],
   "edges": []
 }"#
-        .to_string()
+    .to_string()
 }
 
 /// Generate Graphviz (DOT) representation of federation graph.
@@ -152,7 +149,7 @@ fn generate_dot_graph() -> String {
   // posts [label="posts\n[Post]"];
   // users -> posts [label="User", style=dashed];
 }"#
-        .to_string()
+    .to_string()
 }
 
 /// Generate Mermaid diagram representation of federation graph.
@@ -202,10 +199,10 @@ mod tests {
     #[test]
     fn test_subgraph_info_creation() {
         let info = SubgraphInfo {
-            name: "test".to_string(),
-            url: "http://test.local".to_string(),
+            name:     "test".to_string(),
+            url:      "http://test.local".to_string(),
             entities: vec!["Entity1".to_string()],
-            healthy: true,
+            healthy:  true,
         };
 
         assert_eq!(info.name, "test");
@@ -214,9 +211,7 @@ mod tests {
 
     #[test]
     fn test_subgraphs_response_creation() {
-        let response = SubgraphsResponse {
-            subgraphs: vec![],
-        };
+        let response = SubgraphsResponse { subgraphs: vec![] };
 
         assert!(response.subgraphs.is_empty());
     }
@@ -224,7 +219,7 @@ mod tests {
     #[test]
     fn test_graph_response_creation() {
         let response = GraphResponse {
-            format: "json".to_string(),
+            format:  "json".to_string(),
             content: "{}".to_string(),
         };
 

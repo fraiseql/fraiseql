@@ -4,8 +4,9 @@
 //! Provides compliance validators, audit trail enforcement, and compliance reporting
 //! for regulated industries.
 
-use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
+
+use chrono::{DateTime, Duration, Utc};
 
 /// Compliance framework
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,29 +60,29 @@ impl std::fmt::Display for ComplianceStatus {
 #[derive(Debug, Clone)]
 pub struct ComplianceConfig {
     /// Framework
-    pub framework: ComplianceFramework,
+    pub framework:            ComplianceFramework,
     /// Enabled for this instance
-    pub enabled: bool,
+    pub enabled:              bool,
     /// Audit log retention days
     pub audit_retention_days: i32,
     /// Encryption required
-    pub encryption_required: bool,
+    pub encryption_required:  bool,
     /// Encryption algorithm
     pub encryption_algorithm: String,
     /// Key rotation required (days, 0 = not required)
-    pub key_rotation_days: i32,
+    pub key_rotation_days:    i32,
     /// Additional settings
-    pub settings: HashMap<String, String>,
+    pub settings:             HashMap<String, String>,
 }
 
 impl ComplianceConfig {
     /// Create new compliance config
     pub fn new(framework: ComplianceFramework) -> Self {
         let (retention, rotation, algorithm) = match framework {
-            ComplianceFramework::HIPAA => (2190, 365, "aes256-gcm"),      // 6 years, 1 year
-            ComplianceFramework::PCIDSS => (365, 365, "aes256-gcm"),       // 1 year, 1 year
-            ComplianceFramework::GDPR => (2555, 0, "aes256-gcm"),          // ~7 years, as needed
-            ComplianceFramework::SOC2 => (365, 0, "aes256-gcm"),           // 1 year, as needed
+            ComplianceFramework::HIPAA => (2190, 365, "aes256-gcm"), // 6 years, 1 year
+            ComplianceFramework::PCIDSS => (365, 365, "aes256-gcm"), // 1 year, 1 year
+            ComplianceFramework::GDPR => (2555, 0, "aes256-gcm"),    // ~7 years, as needed
+            ComplianceFramework::SOC2 => (365, 0, "aes256-gcm"),     // 1 year, as needed
         };
 
         Self {
@@ -124,17 +125,17 @@ impl ComplianceConfig {
 #[derive(Debug, Clone)]
 pub struct ComplianceCheckResult {
     /// Framework
-    pub framework: ComplianceFramework,
+    pub framework:   ComplianceFramework,
     /// Requirement name
     pub requirement: String,
     /// Status
-    pub status: ComplianceStatus,
+    pub status:      ComplianceStatus,
     /// Description of requirement
     pub description: String,
     /// Evidence/details
-    pub details: String,
+    pub details:     String,
     /// Last checked
-    pub checked_at: DateTime<Utc>,
+    pub checked_at:  DateTime<Utc>,
 }
 
 impl ComplianceCheckResult {
@@ -186,14 +187,14 @@ impl ComplianceValidator {
 
     /// Check if framework enabled
     pub fn is_framework_enabled(&self, framework: ComplianceFramework) -> bool {
-        self.configs
-            .get(&framework)
-            .map(|c| c.enabled)
-            .unwrap_or(false)
+        self.configs.get(&framework).map(|c| c.enabled).unwrap_or(false)
     }
 
     /// Get framework config
-    pub fn get_framework_config(&self, framework: ComplianceFramework) -> Option<&ComplianceConfig> {
+    pub fn get_framework_config(
+        &self,
+        framework: ComplianceFramework,
+    ) -> Option<&ComplianceConfig> {
         self.configs.get(&framework)
     }
 
@@ -216,7 +217,10 @@ impl ComplianceValidator {
     }
 
     /// Get results for framework
-    pub fn results_for_framework(&self, framework: ComplianceFramework) -> Vec<&ComplianceCheckResult> {
+    pub fn results_for_framework(
+        &self,
+        framework: ComplianceFramework,
+    ) -> Vec<&ComplianceCheckResult> {
         self.filter_results(|r| r.framework == framework)
     }
 
@@ -260,11 +264,7 @@ impl ComplianceValidator {
 
     /// Get enabled frameworks
     pub fn enabled_frameworks(&self) -> Vec<ComplianceFramework> {
-        self.configs
-            .iter()
-            .filter(|(_, c)| c.enabled)
-            .map(|(f, _)| *f)
-            .collect()
+        self.configs.iter().filter(|(_, c)| c.enabled).map(|(f, _)| *f).collect()
     }
 
     /// Get compliance status for all enabled frameworks
@@ -274,10 +274,7 @@ impl ComplianceValidator {
             return ComplianceStatus::Unknown;
         }
 
-        let statuses: Vec<_> = enabled
-            .iter()
-            .map(|f| self.check_framework_status(*f))
-            .collect();
+        let statuses: Vec<_> = enabled.iter().map(|f| self.check_framework_status(*f)).collect();
 
         let all_compliant = statuses.iter().all(|s| *s == ComplianceStatus::Compliant);
         let any_compliant = statuses.iter().any(|s| *s == ComplianceStatus::Compliant);
@@ -322,17 +319,17 @@ impl Default for ComplianceValidator {
 #[derive(Debug, Clone)]
 pub struct ComplianceReport {
     /// Report generation time
-    pub generated_at: DateTime<Utc>,
+    pub generated_at:        DateTime<Utc>,
     /// Framework
-    pub framework: ComplianceFramework,
+    pub framework:           ComplianceFramework,
     /// Overall status
-    pub overall_status: ComplianceStatus,
+    pub overall_status:      ComplianceStatus,
     /// Check results
-    pub results: Vec<ComplianceCheckResult>,
+    pub results:             Vec<ComplianceCheckResult>,
     /// Summary statistics
-    pub compliant_count: usize,
+    pub compliant_count:     usize,
     pub non_compliant_count: usize,
-    pub partial_count: usize,
+    pub partial_count:       usize,
 }
 
 impl ComplianceReport {
@@ -351,9 +348,14 @@ impl ComplianceReport {
 
     /// Add results
     pub fn with_results(mut self, results: Vec<ComplianceCheckResult>) -> Self {
-        self.compliant_count = results.iter().filter(|r| r.status == ComplianceStatus::Compliant).count();
-        self.non_compliant_count = results.iter().filter(|r| r.status == ComplianceStatus::NonCompliant).count();
-        self.partial_count = results.iter().filter(|r| r.status == ComplianceStatus::PartiallyCompliant).count();
+        self.compliant_count =
+            results.iter().filter(|r| r.status == ComplianceStatus::Compliant).count();
+        self.non_compliant_count =
+            results.iter().filter(|r| r.status == ComplianceStatus::NonCompliant).count();
+        self.partial_count = results
+            .iter()
+            .filter(|r| r.status == ComplianceStatus::PartiallyCompliant)
+            .count();
 
         if self.compliant_count == results.len() && !results.is_empty() {
             self.overall_status = ComplianceStatus::Compliant;
@@ -460,15 +462,13 @@ mod tests {
 
     #[test]
     fn test_compliance_config_with_retention() {
-        let config = ComplianceConfig::new(ComplianceFramework::HIPAA)
-            .with_retention_days(1000);
+        let config = ComplianceConfig::new(ComplianceFramework::HIPAA).with_retention_days(1000);
         assert_eq!(config.audit_retention_days, 1000);
     }
 
     #[test]
     fn test_compliance_config_with_key_rotation() {
-        let config = ComplianceConfig::new(ComplianceFramework::GDPR)
-            .with_key_rotation_days(180);
+        let config = ComplianceConfig::new(ComplianceFramework::GDPR).with_key_rotation_days(180);
         assert_eq!(config.key_rotation_days, 180);
     }
 
@@ -647,8 +647,7 @@ mod tests {
             ComplianceStatus::Compliant,
             "Encrypted",
         );
-        let report = ComplianceReport::new(ComplianceFramework::HIPAA)
-            .with_results(vec![result]);
+        let report = ComplianceReport::new(ComplianceFramework::HIPAA).with_results(vec![result]);
         assert_eq!(report.overall_status, ComplianceStatus::Compliant);
         assert_eq!(report.compliant_count, 1);
     }
@@ -669,8 +668,7 @@ mod tests {
             ComplianceStatus::Compliant,
             "Encrypted",
         );
-        let report = ComplianceReport::new(ComplianceFramework::HIPAA)
-            .with_results(vec![result]);
+        let report = ComplianceReport::new(ComplianceFramework::HIPAA).with_results(vec![result]);
         let header = ComplianceReport::to_csv_header();
         assert!(header.contains("Framework"));
         let rows = report.to_csv_rows();
@@ -717,10 +715,8 @@ mod tests {
         validator.record_result(hipaa_compliant);
         validator.record_result(pcidss_compliant);
 
-        let results = validator.results_for_framework_status(
-            ComplianceFramework::HIPAA,
-            ComplianceStatus::Compliant,
-        );
+        let results = validator
+            .results_for_framework_status(ComplianceFramework::HIPAA, ComplianceStatus::Compliant);
         assert_eq!(results.len(), 1);
     }
 

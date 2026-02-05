@@ -2,10 +2,15 @@
 //! Credential rotation and key lifecycle management including versioning,
 //! TTL tracking, automatic refresh, and multi-version decryption support.
 
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
 use chrono::{DateTime, Duration, Utc};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
 /// Key version identifier (0 = unversioned/legacy, 1-65535 = versioned)
 pub type KeyVersion = u16;
@@ -38,15 +43,15 @@ impl std::fmt::Display for KeyVersionStatus {
 #[derive(Debug, Clone)]
 pub struct KeyVersionMetadata {
     /// Version identifier
-    pub version: KeyVersion,
+    pub version:           KeyVersion,
     /// When this version was issued
-    pub issued_at: DateTime<Utc>,
+    pub issued_at:         DateTime<Utc>,
     /// When this version expires (TTL)
-    pub expires_at: DateTime<Utc>,
+    pub expires_at:        DateTime<Utc>,
     /// Current status in lifecycle
-    pub status: KeyVersionStatus,
+    pub status:            KeyVersionStatus,
     /// Is this the current version for new encryptions?
-    pub is_current: bool,
+    pub is_current:        bool,
     /// Reason for compromised status (if applicable)
     pub compromise_reason: Option<String>,
 }
@@ -101,20 +106,20 @@ impl KeyVersionMetadata {
     /// Update status based on current time
     pub fn update_status(&mut self) {
         match self.status {
-            KeyVersionStatus::Compromised => {} // Never change compromised status
+            KeyVersionStatus::Compromised => {}, // Never change compromised status
             KeyVersionStatus::Active => {
                 if self.is_expired() {
                     self.status = KeyVersionStatus::Expired;
                 } else if self.is_expiring_soon() {
                     self.status = KeyVersionStatus::Expiring;
                 }
-            }
+            },
             KeyVersionStatus::Expiring => {
                 if self.is_expired() {
                     self.status = KeyVersionStatus::Expired;
                 }
-            }
-            KeyVersionStatus::Expired => {} // Remains expired
+            },
+            KeyVersionStatus::Expired => {}, // Remains expired
         }
     }
 
@@ -150,23 +155,23 @@ impl std::fmt::Display for RotationSchedule {
 #[derive(Debug, Clone)]
 pub struct RotationConfig {
     /// TTL for each key version (days)
-    pub ttl_days: u32,
+    pub ttl_days:                  u32,
     /// When to trigger refresh (percentage of TTL consumed)
     pub refresh_threshold_percent: u32,
     /// Rotation schedule
-    pub schedule: RotationSchedule,
+    pub schedule:                  RotationSchedule,
     /// Maximum number of historical versions to retain
-    pub max_retained_versions: usize,
+    pub max_retained_versions:     usize,
 }
 
 impl RotationConfig {
     /// Create default rotation config (annual rotation, 80% refresh)
     pub fn new() -> Self {
         Self {
-            ttl_days: 365,
+            ttl_days:                  365,
             refresh_threshold_percent: 80,
-            schedule: RotationSchedule::Manual,
-            max_retained_versions: 10,
+            schedule:                  RotationSchedule::Manual,
+            max_retained_versions:     10,
         }
     }
 
@@ -199,11 +204,11 @@ impl Default for RotationConfig {
 #[derive(Debug, Clone)]
 pub struct RotationMetrics {
     /// Total number of rotations
-    total_rotations: Arc<AtomicU64>,
+    total_rotations:           Arc<AtomicU64>,
     /// Number of failed rotations
-    failed_rotations: Arc<AtomicU64>,
+    failed_rotations:          Arc<AtomicU64>,
     /// Last rotation timestamp
-    last_rotation: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_rotation:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Rotation duration (milliseconds)
     last_rotation_duration_ms: Arc<AtomicU64>,
 }
@@ -212,9 +217,9 @@ impl RotationMetrics {
     /// Create new rotation metrics
     pub fn new() -> Self {
         Self {
-            total_rotations: Arc::new(AtomicU64::new(0)),
-            failed_rotations: Arc::new(AtomicU64::new(0)),
-            last_rotation: Arc::new(std::sync::Mutex::new(None)),
+            total_rotations:           Arc::new(AtomicU64::new(0)),
+            failed_rotations:          Arc::new(AtomicU64::new(0)),
+            last_rotation:             Arc::new(std::sync::Mutex::new(None)),
             last_rotation_duration_ms: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -280,29 +285,27 @@ impl Default for RotationMetrics {
 #[derive(Debug, Clone)]
 pub struct VersionedKeyStorage {
     /// Map of version ID to key metadata
-    versions: Arc<std::sync::Mutex<HashMap<KeyVersion, KeyVersionMetadata>>>,
+    versions:        Arc<std::sync::Mutex<HashMap<KeyVersion, KeyVersionMetadata>>>,
     /// Current active version
     current_version: Arc<std::sync::Mutex<KeyVersion>>,
     /// Next version number to assign
-    next_version: Arc<AtomicU64>,
+    next_version:    Arc<AtomicU64>,
 }
 
 impl VersionedKeyStorage {
     /// Create new versioned key storage
     pub fn new() -> Self {
         Self {
-            versions: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            versions:        Arc::new(std::sync::Mutex::new(HashMap::new())),
             current_version: Arc::new(std::sync::Mutex::new(0)),
-            next_version: Arc::new(AtomicU64::new(1)),
+            next_version:    Arc::new(AtomicU64::new(1)),
         }
     }
 
     /// Add a new key version
     pub fn add_version(&self, metadata: KeyVersionMetadata) -> Result<KeyVersion, String> {
-        let mut versions = self
-            .versions
-            .lock()
-            .map_err(|e| format!("Failed to lock versions: {}", e))?;
+        let mut versions =
+            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
 
         let version = metadata.version;
         versions.insert(version, metadata);
@@ -311,10 +314,8 @@ impl VersionedKeyStorage {
 
     /// Set current version
     pub fn set_current_version(&self, version: KeyVersion) -> Result<(), String> {
-        let versions = self
-            .versions
-            .lock()
-            .map_err(|e| format!("Failed to lock versions: {}", e))?;
+        let versions =
+            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
 
         if !versions.contains_key(&version) {
             return Err(format!("Version {} not found", version));
@@ -339,19 +340,15 @@ impl VersionedKeyStorage {
 
     /// Get version metadata by ID
     pub fn get_version(&self, version: KeyVersion) -> Result<Option<KeyVersionMetadata>, String> {
-        let versions = self
-            .versions
-            .lock()
-            .map_err(|e| format!("Failed to lock versions: {}", e))?;
+        let versions =
+            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
         Ok(versions.get(&version).cloned())
     }
 
     /// Get all versions sorted by issue date (newest first)
     pub fn get_all_versions(&self) -> Result<Vec<KeyVersionMetadata>, String> {
-        let versions = self
-            .versions
-            .lock()
-            .map_err(|e| format!("Failed to lock versions: {}", e))?;
+        let versions =
+            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
 
         let mut all_versions: Vec<_> = versions.values().cloned().collect();
         all_versions.sort_by(|a, b| b.issued_at.cmp(&a.issued_at));
@@ -375,7 +372,7 @@ impl Default for VersionedKeyStorage {
 #[derive(Debug, Clone)]
 pub struct CredentialRotationManager {
     /// Rotation configuration
-    config: Arc<RotationConfig>,
+    config:  Arc<RotationConfig>,
     /// Versioned key storage
     storage: Arc<VersionedKeyStorage>,
     /// Rotation metrics
@@ -386,7 +383,7 @@ impl CredentialRotationManager {
     /// Create new credential rotation manager
     pub fn new(config: RotationConfig) -> Self {
         Self {
-            config: Arc::new(config),
+            config:  Arc::new(config),
             storage: Arc::new(VersionedKeyStorage::new()),
             metrics: Arc::new(RotationMetrics::new()),
         }
@@ -474,36 +471,27 @@ impl CredentialRotationManager {
     /// Check if any version needs attention (expiring or expired)
     pub fn has_versions_needing_attention(&self) -> Result<bool, String> {
         let history = self.get_version_history()?;
-        Ok(history.iter().any(|m| {
-            m.is_expiring_soon() || m.status == KeyVersionStatus::Compromised
-        }))
+        Ok(history
+            .iter()
+            .any(|m| m.is_expiring_soon() || m.status == KeyVersionStatus::Compromised))
     }
 
     /// Get active versions count
     pub fn active_versions_count(&self) -> Result<usize, String> {
         let history = self.get_version_history()?;
-        Ok(history
-            .iter()
-            .filter(|m| m.status == KeyVersionStatus::Active)
-            .count())
+        Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Active).count())
     }
 
     /// Get expired versions count
     pub fn expired_versions_count(&self) -> Result<usize, String> {
         let history = self.get_version_history()?;
-        Ok(history
-            .iter()
-            .filter(|m| m.status == KeyVersionStatus::Expired)
-            .count())
+        Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Expired).count())
     }
 
     /// Get compromised versions count
     pub fn compromised_versions_count(&self) -> Result<usize, String> {
         let history = self.get_version_history()?;
-        Ok(history
-            .iter()
-            .filter(|m| m.status == KeyVersionStatus::Compromised)
-            .count())
+        Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Compromised).count())
     }
 
     /// Check if current version needs refresh
@@ -535,9 +523,7 @@ impl CredentialRotationManager {
 
     /// Get time since last rotation
     pub fn time_since_last_rotation(&self) -> Option<Duration> {
-        self.metrics
-            .last_rotation()
-            .map(|last| Utc::now() - last)
+        self.metrics.last_rotation().map(|last| Utc::now() - last)
     }
 
     /// Mark specific version as compromised
@@ -639,9 +625,7 @@ mod tests {
 
     #[test]
     fn test_rotation_config_builder() {
-        let config = RotationConfig::new()
-            .with_ttl_days(90)
-            .with_refresh_threshold(75);
+        let config = RotationConfig::new().with_ttl_days(90).with_refresh_threshold(75);
         assert_eq!(config.ttl_days, 90);
         assert_eq!(config.refresh_threshold_percent, 75);
     }
@@ -705,8 +689,8 @@ mod tests {
     #[test]
     fn test_credential_rotation_manager_extract_version() {
         let version_bytes = [0u8, 5u8]; // Version 5 in big-endian
-        let version = CredentialRotationManager::extract_version_from_ciphertext(&version_bytes)
-            .unwrap();
+        let version =
+            CredentialRotationManager::extract_version_from_ciphertext(&version_bytes).unwrap();
         assert_eq!(version, 5);
     }
 

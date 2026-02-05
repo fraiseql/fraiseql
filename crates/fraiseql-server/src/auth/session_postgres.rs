@@ -9,7 +9,7 @@ use crate::auth::{
 
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
-    db: PgPool,
+    db:          PgPool,
     /// Optional RSA private key for JWT signing (None falls back to HMAC)
     signing_key: Option<Vec<u8>>,
 }
@@ -93,10 +93,9 @@ impl PostgresSessionStore {
         };
 
         // Add JTI (JWT ID) for uniqueness
-        claims.extra.insert(
-            "jti".to_string(),
-            serde_json::json!(uuid::Uuid::new_v4().to_string()),
-        );
+        claims
+            .extra
+            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         match &self.signing_key {
             Some(private_key) => crate::auth::jwt::generate_rs256_token(&claims, private_key),
@@ -104,7 +103,7 @@ impl PostgresSessionStore {
                 // Fallback: use deterministic HMAC secret (for testing/dev environments)
                 let secret = format!("fraiseql_session_{}", user_id).into_bytes();
                 crate::auth::jwt::generate_hs256_token(&claims, &secret)
-            }
+            },
         }
     }
 }
@@ -232,7 +231,8 @@ mod tests {
 
     #[test]
     fn test_generate_access_token_creates_valid_jwt() {
-        // Create a minimal test store - we don't need a real pool since we're just testing token generation
+        // Create a minimal test store - we don't need a real pool since we're just testing token
+        // generation
         let test_pool = std::sync::Arc::new(std::sync::Mutex::new(()));
         let _ = test_pool; // Use to avoid unused variable warning
 
@@ -243,28 +243,26 @@ mod tests {
             .as_secs();
 
         let mut claims = crate::auth::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 
-        claims.extra.insert(
-            "jti".to_string(),
-            serde_json::json!(uuid::Uuid::new_v4().to_string()),
-        );
+        claims
+            .extra
+            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         let secret = b"fraiseql_session_user123";
         let token1 = crate::auth::jwt::generate_hs256_token(&claims, secret)
             .expect("Failed to generate token");
 
         // Update JTI for second token
-        claims.extra.insert(
-            "jti".to_string(),
-            serde_json::json!(uuid::Uuid::new_v4().to_string()),
-        );
+        claims
+            .extra
+            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         let token2 = crate::auth::jwt::generate_hs256_token(&claims, secret)
             .expect("Failed to generate token");
@@ -286,18 +284,17 @@ mod tests {
             .as_secs();
 
         let mut claims = crate::auth::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 
-        claims.extra.insert(
-            "jti".to_string(),
-            serde_json::json!(uuid::Uuid::new_v4().to_string()),
-        );
+        claims
+            .extra
+            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         let token = crate::auth::jwt::generate_rs256_token(&claims, test_key)
             .expect("Failed to generate RS256 token");

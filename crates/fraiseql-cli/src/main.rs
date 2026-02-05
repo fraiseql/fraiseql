@@ -379,7 +379,10 @@ async fn main() {
             };
             match commands::lint::run(&schema, opts) {
                 Ok(result) => {
-                    println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                    println!(
+                        "{}",
+                        output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                    );
                     Ok(())
                 },
                 Err(e) => Err(e),

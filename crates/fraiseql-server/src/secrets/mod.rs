@@ -16,8 +16,8 @@ pub mod schemas;
 mod schema_tests;
 
 pub use schemas::{
-    SecretRotationAudit, EncryptionKey, ExternalAuthProviderRecord, OAuthSessionRecord,
-    SchemaMigration,
+    EncryptionKey, ExternalAuthProviderRecord, OAuthSessionRecord, SchemaMigration,
+    SecretRotationAudit,
 };
 
 /// Secret manager combining cached and per-request encryption.

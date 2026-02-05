@@ -49,20 +49,20 @@
 //! - UUIDs (as UUID strings)
 //! - Custom types (via ToString/FromStr)
 
+use std::{collections::HashMap, sync::Arc};
+
 use super::database_adapter::{DatabaseFieldAdapter, EncryptedFieldAdapter};
 use crate::secrets_manager::SecretsError;
-use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Field mapping result containing both value and encryption status
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// Field name
-    field_name: String,
+    field_name:   String,
     /// Whether field is encrypted
     is_encrypted: bool,
     /// Field value (plaintext for encrypted fields)
-    value: Vec<u8>,
+    value:        Vec<u8>,
 }
 
 impl FieldMapping {
@@ -106,7 +106,7 @@ impl FieldMapping {
 /// Transparently encrypts/decrypts fields during read/write operations.
 pub struct FieldMapper {
     /// Field adapter for encryption/decryption
-    adapter: Arc<DatabaseFieldAdapter>,
+    adapter:              Arc<DatabaseFieldAdapter>,
     /// Field encryption configuration
     field_encryption_map: HashMap<String, bool>,
 }
@@ -118,10 +118,7 @@ impl FieldMapper {
     ///
     /// * `adapter` - Field adapter for encryption/decryption
     /// * `encrypted_fields` - List of fields that should be encrypted
-    pub fn new(
-        adapter: Arc<DatabaseFieldAdapter>,
-        encrypted_fields: Vec<String>,
-    ) -> Self {
+    pub fn new(adapter: Arc<DatabaseFieldAdapter>, encrypted_fields: Vec<String>) -> Self {
         let mut field_encryption_map = HashMap::new();
         for field in encrypted_fields {
             field_encryption_map.insert(field, true);
@@ -135,10 +132,7 @@ impl FieldMapper {
 
     /// Check if field is marked for encryption
     pub fn is_field_encrypted(&self, field_name: &str) -> bool {
-        self.field_encryption_map
-            .get(field_name)
-            .copied()
-            .unwrap_or(false)
+        self.field_encryption_map.get(field_name).copied().unwrap_or(false)
     }
 
     /// Encrypt field value before write operation
@@ -150,7 +144,7 @@ impl FieldMapper {
     ///
     /// # Returns
     ///
-    /// Encrypted bytes in format: [nonce][ciphertext][tag]
+    /// Encrypted bytes in format: \[nonce\]\[ciphertext\]\[tag\]
     pub async fn encrypt_field(
         &self,
         field_name: &str,
@@ -163,15 +157,12 @@ impl FieldMapper {
             )));
         }
 
-        self.adapter
-            .encrypt_value(field_name, plaintext)
-            .await
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to encrypt field '{}': {}",
-                    field_name, e
-                ))
-            })
+        self.adapter.encrypt_value(field_name, plaintext).await.map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to encrypt field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 
     /// Decrypt field value after read operation
@@ -196,15 +187,12 @@ impl FieldMapper {
             )));
         }
 
-        self.adapter
-            .decrypt_value(field_name, ciphertext)
-            .await
-            .map_err(|e| {
-                SecretsError::EncryptionError(format!(
-                    "Failed to decrypt field '{}': {}",
-                    field_name, e
-                ))
-            })
+        self.adapter.decrypt_value(field_name, ciphertext).await.map_err(|e| {
+            SecretsError::EncryptionError(format!(
+                "Failed to decrypt field '{}': {}",
+                field_name, e
+            ))
+        })
     }
 
     /// Encrypt multiple fields (batch operation)
@@ -219,11 +207,7 @@ impl FieldMapper {
         for (field_name, plaintext) in fields {
             if self.is_field_encrypted(field_name) {
                 let encrypted = self.encrypt_field(field_name, plaintext).await?;
-                results.push(FieldMapping::new(
-                    field_name.clone(),
-                    true,
-                    encrypted,
-                ));
+                results.push(FieldMapping::new(field_name.clone(), true, encrypted));
             } else {
                 // Unencrypted field - pass through as bytes
                 results.push(FieldMapping::new(
@@ -249,18 +233,10 @@ impl FieldMapper {
         for (field_name, ciphertext) in fields {
             if self.is_field_encrypted(field_name) {
                 let plaintext = self.decrypt_field(field_name, ciphertext).await?;
-                results.push(FieldMapping::new(
-                    field_name.clone(),
-                    true,
-                    plaintext.into_bytes(),
-                ));
+                results.push(FieldMapping::new(field_name.clone(), true, plaintext.into_bytes()));
             } else {
                 // Unencrypted field - pass through unchanged
-                results.push(FieldMapping::new(
-                    field_name.clone(),
-                    false,
-                    ciphertext.clone(),
-                ));
+                results.push(FieldMapping::new(field_name.clone(), false, ciphertext.clone()));
             }
         }
 

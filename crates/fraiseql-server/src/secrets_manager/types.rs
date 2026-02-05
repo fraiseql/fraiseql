@@ -1,8 +1,9 @@
 // Phase 12.1 Cycle 1: Secrets Manager Types
 //! Core types for secrets management
 
-use chrono::{DateTime, Utc};
 use std::fmt;
+
+use chrono::{DateTime, Utc};
 
 use super::SecretsError;
 

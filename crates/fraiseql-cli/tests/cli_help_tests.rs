@@ -5,12 +5,7 @@ use std::process::Command;
 /// Helper function to run CLI command with --help flag
 fn get_help_output(args: &[&str]) -> String {
     let mut cmd = Command::new("cargo");
-    cmd.arg("run")
-        .arg("-p")
-        .arg("fraiseql-cli")
-        .arg("--")
-        .args(args)
-        .arg("--help");
+    cmd.arg("run").arg("-p").arg("fraiseql-cli").arg("--").args(args).arg("--help");
 
     let output = cmd.output().expect("Failed to run command");
     String::from_utf8_lossy(&output.stdout).to_string()
@@ -146,46 +141,31 @@ fn test_federation_graph_help_shows_quiet_flag() {
 fn test_compile_help_shows_usage_example() {
     let help = get_help_output(&["compile"]);
     // Help text should contain some indication of how to use the command
-    assert!(
-        help.len() > 20,
-        "compile help should contain substantial documentation"
-    );
+    assert!(help.len() > 20, "compile help should contain substantial documentation");
 }
 
 #[test]
 fn test_validate_help_shows_usage_example() {
     let help = get_help_output(&["validate"]);
-    assert!(
-        help.len() > 20,
-        "validate help should contain substantial documentation"
-    );
+    assert!(help.len() > 20, "validate help should contain substantial documentation");
 }
 
 #[test]
 fn test_explain_help_shows_usage_example() {
     let help = get_help_output(&["explain"]);
-    assert!(
-        help.len() > 20,
-        "explain help should contain substantial documentation"
-    );
+    assert!(help.len() > 20, "explain help should contain substantial documentation");
 }
 
 #[test]
 fn test_cost_help_shows_usage_example() {
     let help = get_help_output(&["cost"]);
-    assert!(
-        help.len() > 20,
-        "cost help should contain substantial documentation"
-    );
+    assert!(help.len() > 20, "cost help should contain substantial documentation");
 }
 
 #[test]
 fn test_analyze_help_shows_usage_example() {
     let help = get_help_output(&["analyze"]);
-    assert!(
-        help.len() > 20,
-        "analyze help should contain substantial documentation"
-    );
+    assert!(help.len() > 20, "analyze help should contain substantial documentation");
 }
 
 #[test]
