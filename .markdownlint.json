@@ -1,0 +1,31 @@
+{
+  "extends": "markdownlint/style/relaxed",
+  "line-length": false,
+  "no-hard-tabs": true,
+  "no-trailing-spaces": true,
+  "no-multiple-blanks": {
+    "maximum": 3
+  },
+  "list-marker-space": true,
+  "blanks-around-lists": true,
+  "blanks-around-headings": true,
+  "no-duplicate-heading": {
+    "siblings_only": true
+  },
+  "fenced-code-language": {
+    "severity": "warning"
+  },
+  "no-emphasis-as-heading": {
+    "severity": "warning"
+  },
+  "table-pipe-alignment": false,
+  "table-column-alignment": false,
+  "table-columns": false,
+  "md060": false,
+  "md056": false,
+  "required-headings": false,
+  "required-heading-increment": false,
+  "proper-names": false,
+  "no-inline-html": false,
+  "no-bare-urls": false
+}
