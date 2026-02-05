@@ -66,5 +66,5 @@ FRAISEQL_DATABASE_POOL_TIMEOUT=30
 
 ---
 
-**Version**: v2.0.0
-**Last Updated**: February 1, 2026
+**Version**: v2.0.0-alpha.1
+**Last Updated**: February 5, 2026

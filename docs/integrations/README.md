@@ -66,5 +66,5 @@ See [Arrow Flight Guide](arrow-flight/getting-started.md).
 
 ---
 
-**Version**: v2.0.0
-**Last Updated**: February 1, 2026
+**Version**: v2.0.0-alpha.1
+**Last Updated**: February 5, 2026

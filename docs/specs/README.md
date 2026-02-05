@@ -24,6 +24,14 @@ Detailed technical specifications for implementers and integrators.
 | [introspection.md](introspection.md) | GraphQL introspection policies | 967 | 25 min |
 | [pagination-keyset.md](pagination-keyset.md) | Keyset-based pagination | 710 | 30 min |
 
+### Analytics & Aggregation
+
+| Document | Description | Lines | Est. Time |
+|----------|-------------|-------|-----------|
+| [aggregation-operators.md](aggregation-operators.md) | Aggregation functions (SUM, AVG, COUNT, etc) | 900+ | 45 min |
+| [window-operators.md](window-operators.md) | Window functions (ROW_NUMBER, LAG, LEAD, etc) | 850+ | 40 min |
+| [analytical-schema-conventions.md](analytical-schema-conventions.md) | Fact table and analytics patterns | 600+ | 30 min |
+
 ### Data Formats
 
 | Document | Description | Lines | Est. Time |
