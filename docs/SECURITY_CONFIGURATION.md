@@ -1,39 +1,33 @@
-# Security Migration Guide: v2.0 → v2.1
+# Security Configuration Guide
 
-This guide helps you migrate from FraiseQL v2.0 to v2.1, which introduces significant security improvements.
+This guide covers security features and configuration options available in FraiseQL v2.0.0-alpha.1.
 
-## Overview of Security Changes
+## Overview of Security Features
 
-FraiseQL v2.1 adopts a **fail-secure** approach to security configuration, changing several defaults to prioritize production safety:
+FraiseQL adopts a **fail-secure** approach to security configuration, prioritizing production safety through secure defaults and explicit opt-in for public features:
 
-| Feature | v2.0 Default | v2.1 Default | Impact |
-|---------|-------------|-------------|--------|
-| Playground | Enabled | **Disabled** | Schema exposure protection |
-| Introspection | Always enabled | **Disabled** | Schema exposure protection |
-| Admin API | Always enabled | **Disabled** | Critical operation protection |
-| JWT Audience | Optional | **Required** | Token confusion prevention |
-| CORS Origins | Not validated | **Validated in production** | CSRF protection |
+| Feature | Default | Why |
+|---------|---------|-----|
+| Playground | **Disabled** | Schema exposure protection |
+| Introspection | **Disabled** | Schema exposure protection |
+| Admin API | **Disabled** | Critical operation protection |
+| JWT Audience | **Required** | Token confusion prevention |
+| CORS Origins | **Validated in production** | CSRF protection |
+| Rate Limiting | **Enabled** | DoS/abuse protection |
 
-## Breaking Changes
+## Configuration Requirements
 
-### CRITICAL: JWT Audience Validation Now Required
+### JWT Audience Validation (Required)
 
-**Impact**: If you're using OIDC authentication, you MUST configure the audience field.
+**When**: If you're using OIDC authentication.
 
 **Why**: This prevents token confusion attacks where tokens from one service can be used in another.
 
-**Before** (v2.0):
+**Configuration**:
 ```toml
 [auth]
 issuer = "https://tenant.auth0.com/"
-# audience was optional - NOT RECOMMENDED
-```
-
-**After** (v2.1):
-```toml
-[auth]
-issuer = "https://tenant.auth0.com/"
-audience = "https://api.example.com"  # NOW REQUIRED
+audience = "https://api.example.com"  # Required for OIDC
 ```
 
 **Migration Steps**:
@@ -47,28 +41,16 @@ OIDC audience is REQUIRED for security. Set 'audience' in auth config
 to your API identifier. This prevents token confusion attacks...
 ```
 
-### Admin Endpoints Now Opt-In
+### Admin Endpoints Configuration
 
-**Impact**: Admin endpoints (`/api/v1/admin/*`) are disabled by default.
+**Status**: Disabled by default. Enable only when needed.
 
-**What are admin endpoints?**
+**Available admin endpoints**:
 - `/api/v1/admin/reload-schema` - Reload GraphQL schema
 - `/api/v1/admin/cache/clear` - Clear caches
 - `/api/v1/admin/config` - View server configuration
 
-**Before** (v2.0):
-```
-Admin endpoints were always enabled and accessible.
-⚠️ SECURITY RISK: No authentication required
-```
-
-**After** (v2.1):
-```
-Admin endpoints are disabled by default.
-To enable: Set admin_api_enabled=true AND admin_token=<strong-token>
-```
-
-**Migration for v2.1**:
+**To enable admin endpoints**:
 
 If you need admin endpoints:
 ```toml
@@ -89,23 +71,16 @@ curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
      http://localhost:8000/api/v1/admin/config
 ```
 
-### Introspection Now Opt-In
+### Introspection Configuration
 
-**Impact**: GraphQL introspection endpoint (`/introspection`) is disabled by default.
+**Status**: Disabled by default. Enable based on environment needs.
 
-**Before** (v2.0):
-```
-Introspection was always enabled and public.
-⚠️ SECURITY RISK: Schema exposed to everyone
-```
+**Options:**
+- **Disabled** (default, recommended for production): Introspection endpoint not available
+- **Enabled without auth** (development): Schema available to all requests
+- **Enabled with auth** (production): Requires OIDC authentication
 
-**After** (v2.1):
-```
-Introspection is disabled by default.
-Optionally enable with optional authentication.
-```
-
-**For Development** (enable without auth):
+**For Development** (public schema):
 ```toml
 [server]
 introspection_enabled = true
@@ -127,22 +102,13 @@ FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
 
 **Note**: Schema export endpoints (`/api/v1/schema.graphql`, `/api/v1/schema.json`) follow the same configuration as introspection.
 
-### Playground Disabled by Default
+### GraphQL Playground Configuration
 
-**Impact**: GraphQL playground (`/playground`) is disabled by default.
+**Status**: Disabled by default. Development-only feature.
 
-**Before** (v2.0):
-```
-Playground was enabled by default.
-⚠️ SECURITY RISK: IDE exposing schema in production
-```
+**When to enable**: Local development environments only.
 
-**After** (v2.1):
-```
-Playground is disabled by default.
-```
-
-**To Enable** (development only):
+**To enable** (development only):
 ```toml
 [server]
 playground_enabled = true
@@ -155,87 +121,79 @@ FRAISEQL_PLAYGROUND_ENABLED=true
 
 **Migration**: If you're using playground, explicitly enable it in your dev configs.
 
-### CORS Validation in Production
+### CORS Configuration
 
-**Impact**: CORS origins are now validated in production mode.
-
-**New Behavior**:
-- **Development mode** (FRAISEQL_ENV=development): CORS origin validation relaxed
+**Behavior**:
+- **Development mode** (FRAISEQL_ENV=development): CORS validation relaxed
 - **Production mode** (default): CORS must be explicitly configured
 
-**Before** (v2.0):
-```
-cors_origins = []  # Allowed ALL origins (security risk!)
-```
-
-**After** (v2.1):
+**Configuration**:
 ```toml
 [server]
 cors_enabled = true
 cors_origins = ["https://app.example.com", "https://api.example.com"]
 ```
 
-**Error in production** if you try to use empty origins:
-```
-cors_enabled is true but cors_origins is empty in production mode.
-This allows requests from ANY origin, which is a security risk.
-Set your allowed domains explicitly.
-```
+**Important**: In production mode, you must explicitly set allowed origins. Empty origins would allow requests from ANY origin, which is a security risk.
 
-## Non-Breaking Changes
+## Optional Features
 
-### Design API Optional Authentication
+### Design API Authentication
 
-Design audit endpoints (`/api/v1/design/*`) now support optional authentication.
+**Status**: Public by default. Optional authentication available.
 
-**Default** (v2.1): Public (no auth required)
+Design audit endpoints (`/api/v1/design/*`) support optional authentication.
 
-**To require auth**:
+**Default**: Public (no auth required)
+
+**To require authentication**:
 ```toml
 [server]
-design_api_require_auth = true  # Requires OIDC auth
+design_api_require_auth = true  # Requires OIDC authentication
 ```
 
-This doesn't affect existing deployments - the endpoints remain public unless you explicitly enable auth.
+The endpoints remain public unless you explicitly enable authentication.
 
-## Migration Checklist
+## Configuration Steps
 
-### Phase 1: Pre-Migration (Before Upgrading to v2.1)
+### Step 1: Assess Your Needs
 
-- [ ] Review your current FraiseQL v2.0 configuration
-- [ ] Document which endpoints you use (admin, introspection, playground)
-- [ ] Identify your API identifier for the audience field
-- [ ] Test v2.1 in a staging environment
+- [ ] Do you need introspection for tooling? (Apollo Studio, etc.)
+- [ ] Do you need admin endpoints? (schema reloading, cache management)
+- [ ] Do you need playground? (development only)
+- [ ] What are your CORS origins? (production deployment targets)
 
-### Phase 2: Update Configuration
+### Step 2: Configure Security
 
-- [ ] Add `audience` field to your `[auth]` section (CRITICAL)
+- [ ] Add `audience` field to your `[auth]` section (required for OIDC)
 - [ ] If you use admin endpoints: add `admin_api_enabled` and `admin_token`
 - [ ] If you use introspection: add `introspection_enabled` and `introspection_require_auth`
-- [ ] If you use playground: add `playground_enabled = true`
-- [ ] Set explicit `cors_origins` if using CORS
+- [ ] If you use playground: add `playground_enabled = true` (dev only)
+- [ ] Set explicit `cors_origins` for your deployment environment
 
-### Phase 3: Update Deployment
+### Step 3: Deployment Setup
 
-- [ ] Set `FRAISEQL_ENV=production` (or don't set it - production is default)
-- [ ] For dev environments, optionally set `FRAISEQL_ENV=development`
-- [ ] Ensure strong tokens for `admin_token` (32+ characters)
-- [ ] Update any automation that accesses admin endpoints with new auth
+- [ ] Production: Set `FRAISEQL_ENV=production` or leave unset (default)
+- [ ] Development: Optionally set `FRAISEQL_ENV=development`
+- [ ] Use strong tokens for `admin_token` (32+ characters minimum)
+- [ ] Store sensitive tokens in environment variables, not config files
 
-### Phase 4: Verify
+### Step 4: Verify Configuration
 
-- [ ] Test GraphQL queries (no auth changes required)
-- [ ] Test authentication flow (audience validation now in place)
+- [ ] Test GraphQL queries to endpoint
+- [ ] Test authentication flow with audience validation
 - [ ] Verify admin endpoints return 404 if not enabled
 - [ ] Verify introspection returns 404 if not enabled
-- [ ] Check logs for security warnings
+- [ ] Check logs for security configuration warnings
 
 ## Configuration Examples
 
 ### Development Environment
 
+Best practices for local development:
+
 ```toml
-# .toml file or environment variables for local development
+# fraiseql.toml (or export as environment variables)
 [server]
 playground_enabled = true
 introspection_enabled = true
@@ -248,7 +206,7 @@ issuer = "https://your-tenant.auth0.com/"
 audience = "localhost"  # Use "localhost" for local dev
 ```
 
-Environment variables for dev:
+Or set environment variables:
 ```bash
 export FRAISEQL_ENV=development
 export FRAISEQL_PLAYGROUND_ENABLED=true
@@ -257,14 +215,16 @@ export FRAISEQL_INTROSPECTION_ENABLED=true
 
 ### Production Environment
 
+Secure defaults for production deployments:
+
 ```toml
 # production.toml
 [server]
 playground_enabled = false
-introspection_enabled = true          # Optional
-introspection_require_auth = true     # If enabled
-admin_api_enabled = true              # If you need it
-admin_token = "your-secure-32+-char-token"
+introspection_enabled = true          # Optional: set to false if not needed
+introspection_require_auth = true     # If introspection is enabled
+admin_api_enabled = true              # Only if needed for your operations
+admin_token = "your-secure-32+-char-token-minimum!!"
 cors_enabled = true
 cors_origins = ["https://app.example.com", "https://another-app.example.com"]
 
@@ -273,7 +233,7 @@ issuer = "https://your-tenant.auth0.com/"
 audience = "https://api.example.com"  # Your API identifier
 ```
 
-Environment variables for production:
+Or set environment variables:
 ```bash
 export FRAISEQL_ENV=production  # Or don't set (production is default)
 export FRAISEQL_ADMIN_TOKEN="your-secure-32+-char-token"
@@ -329,7 +289,7 @@ introspection_require_auth = false  # For dev; true for production
 
 ## Rate Limiting
 
-FraiseQL v2.1 includes built-in rate limiting to protect GraphQL endpoints from abuse and denial-of-service attacks.
+FraiseQL includes built-in rate limiting to protect GraphQL endpoints from abuse and denial-of-service attacks.
 
 ### Overview
 
@@ -442,37 +402,27 @@ enabled = false
 
 Note: FraiseQL also includes separate rate limiting for OAuth/OIDC auth flows to prevent brute-force attacks. This is independent of general rate limiting and has its own configuration under security settings.
 
-## Getting Help
+## Security Features Summary
 
-- Check the error messages - they now include actionable guidance
-- Review the [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) for security best practices
-- Consult the [Security Configuration](./ARCHITECTURE_PRINCIPLES.md#security-configuration-best-practices) section
+Built-in protection for common GraphQL security issues:
 
-## Security Improvements Summary
-
-| Issue | v2.0 | v2.1 | Fix |
-|-------|------|------|-----|
-| Schema exposure in production | ❌ | ✅ | Introspection/Playground disabled by default |
-| Admin operations unprotected | ❌ | ✅ | Bearer token required |
-| Token confusion attacks | ❌ | ✅ | Audience validation required |
-| CORS allows all origins | ❌ | ✅ | Explicit origin validation in production |
-| Design API public | ❌ | ✅ | Optional auth support |
-| DoS/abuse attacks on GraphQL | ❌ | ✅ | Rate limiting enabled by default |
-
-## Version Compatibility
-
-- **Upgrading FROM**: v2.0.x → v2.1.x
-- **Downgrading TO**: v2.1.x → v2.0.x requires removing configuration options (audience, admin_token, etc.)
+| Issue | Protection |
+|-------|-----------|
+| Schema exposure in production | ✅ Introspection/Playground disabled by default |
+| Admin operations unprotected | ✅ Bearer token required |
+| Token confusion attacks | ✅ Audience validation enforced |
+| CORS-based attacks | ✅ Explicit origin validation in production |
+| DoS/abuse attacks | ✅ Rate limiting enabled by default |
 
 ## Support & Questions
 
-If you encounter issues during migration:
-1. Check this guide's troubleshooting section
-2. Review error messages - they're now more descriptive
-3. Check the [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) documentation
-4. Report issues with detailed reproduction steps
+- Check the troubleshooting section in this guide
+- Review error messages - they include actionable guidance
+- Consult [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) for security best practices
+- Report issues with detailed reproduction steps
 
 ---
 
-**Last Updated**: 2026-02-03
-**Version**: v2.1.0
+**Last Updated**: 2026-02-05
+**Applies to**: v2.0.0-alpha.1
+**Type**: Configuration Guide (Current)
