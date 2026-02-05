@@ -13,12 +13,19 @@ Language-specific best practices and idioms for using FraiseQL with your preferr
 
 FraiseQL SDKs are available for **16 languages**. While the GraphQL API is universal, each language has idiomatic patterns and best practices. This guide covers the major languages; principles apply to others.
 
-**Quick links:**
+**Quick links to best practices:**
 - [Python](#python-best-practices)
 - [TypeScript/JavaScript](#typescriptjavascript-best-practices)
 - [Go](#go-best-practices)
 - [Java](#java-best-practices)
 - [Other Languages](#other-languages)
+
+**Comprehensive API References (All 16 Languages):**
+👉 **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 16 FraiseQL SDKs with installation, type systems, examples, and language-specific patterns for:
+- **Primary**: Python, TypeScript, Go, Java
+- **JVM**: Kotlin, Scala, Clojure, Groovy
+- **Native**: Rust, C#, Swift
+- **Dynamic**: PHP, Ruby, Dart, Elixir
 
 ---
 
@@ -450,45 +457,73 @@ void testGetUsers() throws Exception {
 
 ## Other Languages
 
-### Quick Reference for Additional Languages
+The following languages have complete SDK reference documentation available with the same level of detail as the major languages above. Click each language for comprehensive API documentation, examples, and best practices:
 
-**Kotlin** (JVM ecosystem)
+### JVM Ecosystem Languages
+
+**[Kotlin Reference](../integrations/sdk/kotlin-reference.md)** — Modern JVM with data classes, coroutines, and null safety
 - Use data classes for type safety
 - Leverage coroutines for async operations
 - Use sealed classes for error handling
 
-**Rust** (Compiled language)
-- Use `tokio` for async runtime
-- Leverage type system for exhaustive error handling
-- Use `serde` for JSON serialization
+**[Scala Reference](../integrations/sdk/scala-reference.md)** — Functional programming with case classes and type system
+- Functional composition patterns
+- Pattern matching and sealed traits
+- Advanced type inference
 
-**C#** (.NET ecosystem)
-- Use async/await consistently
-- Leverage nullable reference types (C# 8+)
-- Use LINQ for query manipulation
-- Implement IDisposable for resource cleanup
+**[Clojure Reference](../integrations/sdk/clojure-reference.md)** — Functional Lisp dialect with persistent data structures
+- Immutable data structures
+- REPL-driven development
+- Spec validation
 
-**Go** (See detailed section above)
+**[Groovy Reference](../integrations/sdk/groovy-reference.md)** — Dynamic JVM language with DSL capabilities
+- Closures for clean DSLs
+- Metaprogramming patterns
+- 100% Java interoperability
 
-**PHP** (Dynamic language)
-- Use type hints for function parameters
-- Leverage async libraries: ReactPHP, Amp
-- Handle JSON errors explicitly
+### Compiled Native Languages
 
-**Ruby** (Dynamic language)
-- Use Bundler for dependency management
-- Leverage Ruby idioms: duck typing, blocks
-- Use rspec for testing
+**[Rust Reference](../integrations/sdk/rust-reference.md)** — Memory-safe systems programming
+- Zero-cost abstractions
+- Type system for exhaustive error handling
+- Async/await with tokio
 
-**Swift** (Apple ecosystem)
-- Use async/await (Swift 5.5+)
-- Leverage Codable for JSON decoding
-- Use Result type for error handling
+**[C# Reference](../integrations/sdk/csharp-reference.md)** — .NET ecosystem with modern language features
+- Nullable reference types (C# 11+)
+- Records and pattern matching
+- LINQ for data transformation
+- Dependency injection patterns
 
-**Dart** (Flutter ecosystem)
-- Use async/await with Future
-- Leverage strong type system
-- Use build_runner for code generation
+**[Swift Reference](../integrations/sdk/swift-reference.md)** — Apple ecosystem with async/await
+- Async/await (Swift 5.9+)
+- Codable protocol for JSON handling
+- SwiftUI integration
+- Actors for thread safety
+
+### Dynamic/Interpreted Languages
+
+**[PHP Reference](../integrations/sdk/php-reference.md)** — Web-first language with PHP 8 attributes
+- PHP 8.2+ attributes (#[Type], #[Field])
+- Readonly classes and properties
+- Laravel/Symfony integration
+
+**[Ruby Reference](../integrations/sdk/ruby-reference.md)** — Expressive language with Rails integration
+- Bundler for dependency management
+- Ruby idioms: duck typing, blocks, mixins
+- Active Record pattern integration
+- RSpec for testing
+
+**[Dart Reference](../integrations/sdk/dart-reference.md)** — Flutter ecosystem with null safety
+- Null safety (required, ?, late)
+- Flutter widget integration
+- State management with Riverpod
+- JSON serialization with json_serializable
+
+**[Elixir Reference](../integrations/sdk/elixir-reference.md)** — Functional language for distributed systems
+- OTP patterns and supervisors
+- Pipe operator for composition
+- Phoenix web framework integration
+- ExUnit testing framework
 
 ---
 
@@ -544,10 +579,27 @@ async def get_data():
 
 ## See Also
 
+**SDK References:**
+- **[SDK Reference Documentation](../integrations/sdk/)** — Comprehensive API reference for all 16 languages
+  - [Python](../integrations/sdk/python-reference.md)
+  - [TypeScript](../integrations/sdk/typescript-reference.md)
+  - [Go](../integrations/sdk/go-reference.md)
+  - [Java](../integrations/sdk/java-reference.md)
+  - [Kotlin](../integrations/sdk/kotlin-reference.md)
+  - [Scala](../integrations/sdk/scala-reference.md)
+  - [Clojure](../integrations/sdk/clojure-reference.md)
+  - [Groovy](../integrations/sdk/groovy-reference.md)
+  - [Rust](../integrations/sdk/rust-reference.md)
+  - [C#](../integrations/sdk/csharp-reference.md)
+  - [Swift](../integrations/sdk/swift-reference.md)
+  - [PHP](../integrations/sdk/php-reference.md)
+  - [Ruby](../integrations/sdk/ruby-reference.md)
+  - [Dart](../integrations/sdk/dart-reference.md)
+  - [Elixir](../integrations/sdk/elixir-reference.md)
+
 **Related Guides:**
-- **[Common Gotchas](./common-gotchas.md)** — Language-agnostic pitfalls
-- **[Testing Strategy](./testing-strategy.md)** — Testing across languages
-- **[Production Deployment](./production-deployment.md)** — Deploying polyglot apps
+- **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 17 SDKs
+- **[Getting Started Guide](../GETTING_STARTED.md)** — Quick start guide for FraiseQL
 
 ---
 
