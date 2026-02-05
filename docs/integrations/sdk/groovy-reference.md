@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Groovy SDK Reference
 description: Complete API reference for the FraiseQL Groovy SDK. This guide covers the Groovy authoring interface for building type-safe GraphQL APIs with Groovy's dynamic f
@@ -18,7 +17,6 @@ Complete API reference for the FraiseQL Groovy SDK. This guide covers the Groovy
 ### Gradle (Recommended)
 
 ```gradle
-<!-- Code example in GRADLE -->
 plugins {
     id 'groovy'
     id 'java'
@@ -40,13 +38,11 @@ java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Maven
 
 ```xml
-<!-- Code example in XML -->
 <dependency>
     <groupId>com.FraiseQL</groupId>
     <artifactId>FraiseQL-SDK</artifactId>
@@ -58,8 +54,7 @@ java {
     <artifactId>groovy-eclipse-compiler</artifactId>
     <version>3.3.0-01</version>
 </plugin>
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Requirements
 
@@ -72,7 +67,6 @@ java {
 ### First Schema (60 seconds)
 
 ```groovy
-<!-- Code example in GROOVY -->
 import com.FraiseQL.*
 
 @GraphQLType
@@ -95,17 +89,14 @@ FraiseQL.with {
 }
 
 println '✓ Schema exported!'
-```text
-<!-- Code example in TEXT -->
+```
 
 Export and deploy:
 
 ```bash
-<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -133,7 +124,6 @@ FraiseQL-server --schema schema.compiled.json
 Marks a Groovy class as a GraphQL type. Classes can be plain Groovy classes, with computed properties, and dynamic fields.
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Simple type
 @GraphQLType
 class User {
@@ -168,8 +158,7 @@ class DynamicEntity {
 class EnhancedUser extends User {
     @GraphQLField LocalDateTime createdAt
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Attributes:**
 
@@ -188,7 +177,6 @@ class EnhancedUser extends User {
 Marks a field or getter as part of GraphQL type. Supports nullability, custom names, and descriptions.
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Simple field
 @GraphQLField int id
 
@@ -210,8 +198,7 @@ String username
 Closure getMetadata() {
     { -> ['created': createdAt, 'modified': updatedAt] }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Attributes:**
 
@@ -242,7 +229,6 @@ Closure getMetadata() {
 Groovy's metaprogramming allows runtime type enhancement:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Add properties dynamically at compile time
 @GraphQLType
 class Article {
@@ -276,8 +262,7 @@ class SmartEntity {
         }
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -288,7 +273,6 @@ class SmartEntity {
 Queries are read-only operations. Groovy's closure syntax makes builders fluent and expressive:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Simple query (closure-based DSL)
 FraiseQL.query('user') {
     returnType User
@@ -335,8 +319,7 @@ FraiseQL.query(queryName) {
         description "Query for $name"
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **QueryBuilder Closure Parameters:**
 
@@ -350,7 +333,6 @@ FraiseQL.query(queryName) {
 Mutations modify data using the same closure DSL:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Create mutation
 FraiseQL.mutation('createUser') {
     returnType User
@@ -389,15 +371,13 @@ if (environment == 'production') {
         description 'Admin only'
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Subscription Operations (Real-time)
 
 Subscriptions enable real-time event streaming via WebSocket:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Topic-based subscription
 FraiseQL.subscription('userCreated') {
     returnType User
@@ -421,8 +401,7 @@ FraiseQL.subscription('eventStream') {
     arg 'topic', 'String'
     arg 'filter', 'String'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -433,7 +412,6 @@ FraiseQL.subscription('eventStream') {
 Define analytical tables using closures for configuration:
 
 ```groovy
-<!-- Code example in GROOVY -->
 @FactTable(name = 'sales_fact', sqlSource = 'fact_sales')
 class SalesFact {
     @GraphQLField int dateKey
@@ -462,15 +440,13 @@ FraiseQL.query('salesByProduct') {
     arg 'dateRange', 'String'
     description 'Sales aggregation by product'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### RBAC & Security Annotations
 
 Define security with Groovy's expressive syntax:
 
 ```groovy
-<!-- Code example in GROOVY -->
 @Secured(roles = ['ADMIN'])
 @GraphQLType
 class AdminPanel {
@@ -507,15 +483,13 @@ FraiseQL.query('sensitiveData') {
         user.hasRole('ADMIN') || user.isOwner()
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Custom Directives
 
 Define schema directives using Groovy classes:
 
 ```groovy
-<!-- Code example in GROOVY -->
 @Directive(name = 'auth', description = 'Requires authentication')
 class AuthDirective {
     String roles
@@ -538,15 +512,13 @@ FraiseQL.directive('rateLimit') {
     arg 'requests', 'Int'
     arg 'window', 'Int'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field Observers & Event Webhooks
 
 Define webhook observers using Groovy classes:
 
 ```groovy
-<!-- Code example in GROOVY -->
 @Observer(
     name = 'onUserCreated',
     webhook = 'https://api.example.com/webhooks/user-created'
@@ -578,8 +550,7 @@ FraiseQL.observer('userDeleted') {
         webhook "https://api.example.com/webhooks/user-${action}"
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -588,7 +559,6 @@ FraiseQL.observer('userDeleted') {
 Groovy's dynamic typing combined with Java scalar support:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // String types
 @GraphQLField String name              // String!
 @GraphQLField String description       // String!
@@ -630,8 +600,7 @@ String getLabel() {
 // Groovy closures as first-class values
 @GraphQLField Closure<String> formatter // Function type
 @GraphQLField Map metadata             // JSON!
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -640,7 +609,6 @@ String getLabel() {
 ### Export Workflow
 
 ```groovy
-<!-- Code example in GROOVY -->
 import com.FraiseQL.*
 
 // 1. Define types
@@ -685,13 +653,11 @@ FraiseQL.with {
 }
 
 println '✓ Schema exported successfully'
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Schema Validation
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Validate schema after registration
 SchemaRegistry registry = SchemaRegistry.getInstance()
 SchemaValidator.ValidationResult result = SchemaValidator.validate(registry)
@@ -712,8 +678,7 @@ if (result.valid) {
         }
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -745,7 +710,6 @@ Complete Groovy ↔ GraphQL type mappings:
 ### CRUD with Closure DSL
 
 ```groovy
-<!-- Code example in GROOVY -->
 @GraphQLType
 class Article {
     @GraphQLField int id
@@ -793,13 +757,11 @@ FraiseQL.with {
         arg 'id', 'Int'
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination Pattern
 
 ```groovy
-<!-- Code example in GROOVY -->
 @GraphQLType
 class UserConnection {
     @GraphQLField List<User> edges
@@ -815,13 +777,11 @@ FraiseQL.query('users') {
     arg 'sort', 'String'        // Sort field
     description 'Paginated user list'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Filtering & Search with Groovy
 
 ```groovy
-<!-- Code example in GROOVY -->
 // Build search query dynamically
 def buildSearchQuery(String filter, List<String> fields) {
     def query = FraiseQL.query('search') {
@@ -847,13 +807,11 @@ FraiseQL.query('searchUsers') {
     arg 'filter', 'String'
     description "Search users by filter (supports: ${filters.join(', ')})"
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Spring Boot Integration
 
 ```groovy
-<!-- Code example in GROOVY -->
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Bean
 import org.springframework.boot.CommandLineRunner
@@ -897,8 +855,7 @@ class FraiseQLConfig {
         }
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -907,7 +864,6 @@ class FraiseQLConfig {
 ### Validation Error Handling
 
 ```groovy
-<!-- Code example in GROOVY -->
 import com.FraiseQL.error.*
 
 try {
@@ -932,13 +888,11 @@ try {
     System.err.println "File I/O error: ${e.message}"
     System.exit(1)
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Custom Exception Handling
 
 ```groovy
-<!-- Code example in GROOVY -->
 class FraiseQLException extends RuntimeException {
     FraiseQLException(String message) {
         super(message)
@@ -957,8 +911,7 @@ class SchemaValidationException extends FraiseQLException {
         this.validationErrors = errors
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -969,7 +922,6 @@ class SchemaValidationException extends FraiseQLException {
 Groovy's Spock framework provides BDD-style testing:
 
 ```groovy
-<!-- Code example in GROOVY -->
 import spock.lang.Specification
 
 class SchemaTest extends Specification {
@@ -1022,13 +974,11 @@ class SchemaTest extends Specification {
         SchemaRegistry.getInstance().getQuery('posts').isPresent()
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### JUnit 5 with Groovy
 
 ```groovy
-<!-- Code example in GROOVY -->
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import static org.junit.jupiter.api.Assertions.*
@@ -1058,8 +1008,7 @@ class SchemaJunitTest {
         assertEquals('test', user.dynamicField)
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1087,7 +1036,6 @@ class SchemaJunitTest {
 **Solution**:
 
 ```gradle
-<!-- Code example in GRADLE -->
 repositories {
     mavenCentral()
 }
@@ -1095,8 +1043,7 @@ repositories {
 dependencies {
     implementation 'com.FraiseQL:FraiseQL-groovy:2.0.0'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Groovy Compilation
 
@@ -1105,13 +1052,11 @@ dependencies {
 **Solution - Add Groovy dependency**:
 
 ```gradle
-<!-- Code example in GRADLE -->
 dependencies {
     implementation 'org.apache.groovy:groovy-all:4.0.0'
     implementation 'com.FraiseQL:FraiseQL-groovy:2.0.0'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Java Interop Issues
 
@@ -1120,7 +1065,6 @@ dependencies {
 **Solution - Set up classpath**:
 
 ```gradle
-<!-- Code example in GRADLE -->
 sourceSets {
     main {
         java {
@@ -1131,8 +1075,7 @@ sourceSets {
         }
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Dynamic Method Issues
 
@@ -1141,7 +1084,6 @@ sourceSets {
 **Solution - Define methods properly**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Correct
 class MyClass {
     def execute(String query) {
@@ -1153,8 +1095,7 @@ class MyClass {
 String execute(String query) {
     return FraiseQL.execute(query)
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1167,15 +1108,13 @@ String execute(String query) {
 **Solution - Proper closure scope**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Correct
 def process = { result ->
     println result
 }
 
 FraiseQL.execute(query).each(process)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Metaclass Issues
 
@@ -1184,15 +1123,13 @@ FraiseQL.execute(query).each(process)
 **Solution - Check metaclass**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Add method dynamically
 String.metaClass.queryify = { ->
     "query { $delegate { id } }"
 }
 
 def query = 'user'.queryify()
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Coercion Issues
 
@@ -1201,12 +1138,10 @@ def query = 'user'.queryify()
 **Solution - Explicit casting**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Explicit cast
 def id = (int) request.params.id
 def result = FraiseQL.execute(query, [id: id])
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1219,15 +1154,13 @@ def result = FraiseQL.execute(query, [id: id])
 **Solution - Define method first**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Define before using
 FraiseQL.metaClass.executeWithRetry = { String query ->
     FraiseQL.execute(query)
 }
 
 FraiseQL.executeWithRetry(query)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Closure Context Issues
 
@@ -1236,7 +1169,6 @@ FraiseQL.executeWithRetry(query)
 **Solution - Capture variables**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ❌ Wrong
 def users = []
 queries.each { q ->
@@ -1249,8 +1181,7 @@ def f = FraiseQL  // Capture reference
 queries.each { q ->
     users << f.execute(q)
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Thread Issues in Groovy
 
@@ -1259,14 +1190,12 @@ queries.each { q ->
 **Solution - Synchronize if needed**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 def results = Collections.synchronizedList([])
 
 queries.each { q ->
     results << FraiseQL.execute(q)
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1279,14 +1208,12 @@ queries.each { q ->
 **Parallel compilation**:
 
 ```gradle
-<!-- Code example in GRADLE -->
 tasks.withType(JavaCompile).all { task ->
     task.options.fork = true
     task.options.forkOptions.memoryInitialSize = '512m'
     task.options.forkOptions.memoryMaximumSize = '1g'
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Dynamic Dispatch Overhead
 
@@ -1295,14 +1222,12 @@ tasks.withType(JavaCompile).all { task ->
 **Use static type hints**:
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ❌ Slower - dynamic
 def result = FraiseQL.execute(query)
 
 // ✅ Faster - static
 FraiseQLResult result = FraiseQL.execute(query)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1311,35 +1236,29 @@ FraiseQLResult result = FraiseQL.execute(query)
 #### Groovy Console
 
 ```bash
-<!-- Code example in BASH -->
 groovysh
 
 groovy> import com.FraiseQL.*
 groovy> def server = Server.fromCompiled('schema.json')
 groovy> server.execute('{ user(id: 1) { id } }')
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Print Debugging
 
 ```groovy
-<!-- Code example in GROOVY -->
 def result = FraiseQL.execute(query)
 println "Result: ${result}"
 println "Result: ${result.dump()}"  // Detailed dump
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Property Access
 
 ```groovy
-<!-- Code example in GROOVY -->
 // ✅ Check properties
 def user = result.data.user
 println user?.id  // Safe navigation
 println user.properties  // All properties
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

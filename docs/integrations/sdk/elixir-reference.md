@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Elixir SDK Reference
 description: Complete API reference for the FraiseQL Elixir SDK. This guide covers the Elixir authoring interface for building type-safe GraphQL APIs with functional pattern
@@ -16,20 +15,17 @@ Complete API reference for the FraiseQL Elixir SDK. This guide covers the Elixir
 ## Quick Start
 
 ```bash
-<!-- Code example in BASH -->
 # mix.exs
 def deps do
   [{:FraiseQL, "~> 2.0"}]
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 **Requirements**: Elixir 1.14+, OTP 25+, optional: Ecto, Phoenix
 
 **First Schema**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.User do
   use FraiseQL.Schema
 
@@ -51,8 +47,7 @@ defmodule MyApp.Schema.Queries do
 end
 
 FraiseQL.export_schema("schema.json")
-```text
-<!-- Code example in TEXT -->
+```
 
 Deploy: `FraiseQL-cli compile schema.json` → `FraiseQL-server --schema schema.compiled.json`
 
@@ -81,7 +76,6 @@ Deploy: `FraiseQL-cli compile schema.json` → `FraiseQL-server --schema schema.
 Define GraphQL object types using Elixir modules:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.User do
   use FraiseQL.Schema
 
@@ -98,8 +92,7 @@ defmodule MyApp.Schema.User do
     email: String.t() | nil
   }
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 **Features**: Type annotations, nullability, nested types, lists, descriptions, defaults
 
@@ -112,7 +105,6 @@ end
 Define read-only operations that map to database views:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.Queries do
   use FraiseQL.Schema
 
@@ -139,15 +131,13 @@ def list_users(limit \\ 10) do
     {:error, reason} -> handle_error(reason)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. Mutation Operations
 
 Define write operations that call stored procedures or functions:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.Mutations do
   use FraiseQL.Schema
 
@@ -185,15 +175,13 @@ def migrate_user_data(old_id, new_name) do
     error -> error
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Subscriptions with OTP GenServer
 
 Real-time pub/sub using GenServer and supervisor patterns:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.Subscriptions do
   use FraiseQL.Schema
 
@@ -229,8 +217,7 @@ defmodule MyApp.Application do
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -241,7 +228,6 @@ end
 Define analytical tables with dimensions and measures:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema.Analytics do
   use FraiseQL.Schema
 
@@ -265,15 +251,13 @@ defmodule MyApp.Schema.AggregateQueries do
     order_by :amount, :desc
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. RBAC with Pattern Matching
 
 Authorization using Elixir guards and pattern matching:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Authorization do
   def can_access_user?(user_id, %{role: :admin}), do: true
   def can_access_user?(user_id, %{user_id: ^user_id}), do: true
@@ -293,15 +277,13 @@ defmodule MyApp.Schema.Security do
     deny :public
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Field Validation with Pipes
 
 Chain validators using pipes and pattern matching:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Validators do
   def validate_user_input(input) do
     input
@@ -328,8 +310,7 @@ defmodule MyApp.Validators do
   defp validate_username({:ok, _}), do: {:error, "Username too short"}
   defp validate_username(error), do: error
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -338,7 +319,6 @@ end
 ### Type Mappings with Serialization
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defschema Types do
   field :count, :integer                # GraphQL: Int
   field :price, :float                  # GraphQL: Float
@@ -371,8 +351,7 @@ end
 
 def deserialize(nil, _type), do: nil
 def deserialize(value, _type), do: value
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -383,7 +362,6 @@ def deserialize(value, _type), do: value
 Generate `schema.json` from Elixir module definitions:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.SchemaExporter do
   def export! do
     FraiseQL.export_schema(
@@ -408,13 +386,11 @@ defmodule Mix.Tasks.Fraiseql.Export do
     Mix.shell().info("✓ Schema exported")
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### FraiseQL.toml Configuration
 
 ```toml
-<!-- Code example in TOML -->
 [FraiseQL]
 version = "2.0.0"
 
@@ -425,8 +401,7 @@ url = "${DATABASE_URL}"
 [FraiseQL.security]
 rate_limiting = { enabled = true, max_requests = 100 }
 audit_logging = { enabled = true, log_level = "info" }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -449,7 +424,6 @@ audit_logging = { enabled = true, log_level = "info" }
 ### CRUD Operations
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.UserCRUD do
   def create_user(%{email: e, username: u} = attrs) when is_binary(e) and is_binary(u) do
     execute_mutation(:create_user, attrs)
@@ -474,13 +448,11 @@ defmodule MyApp.UserCRUD do
     |> execute_mutation(:update_user)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Pagination do
   def fetch_page(cursor \\ nil, limit \\ 20) do
     params = %{limit: limit + 1}
@@ -500,13 +472,11 @@ defmodule MyApp.Pagination do
   defp encode_cursor(%{id: id}), do: Base.encode64(Integer.to_string(id))
   defp decode_cursor(encoded), do: Base.decode64(encoded)
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Phoenix Integration
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # GraphQL Controller
 defmodule MyAppWeb.GraphQLController do
   use MyAppWeb, :controller
@@ -530,13 +500,11 @@ defmodule MyAppWeb.Router do
     post "/graphql", GraphQLController, :handle
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Ecto Integration
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.UserOps do
   import Ecto.Query
 
@@ -572,8 +540,7 @@ defmodule MyApp.Schema.Queries do
     MyApp.UserOps.fetch_users(limit, offset)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -582,7 +549,6 @@ end
 ### Pattern Matching Errors
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Errors do
   def handle_error({:error, reason}) do
     case reason do
@@ -603,13 +569,11 @@ defmodule MyApp.Errors do
     end
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Error Recovery with GenServer
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.UserWorker do
   use GenServer
   require Logger
@@ -630,8 +594,7 @@ defmodule MyApp.UserWorker do
     {:noreply, state}
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -640,7 +603,6 @@ end
 ### ExUnit Patterns
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.UserQueryTest do
   use ExUnit.Case
 
@@ -705,8 +667,7 @@ defmodule MyApp.TestHelpers do
     end)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -734,7 +695,6 @@ end
 **Solution**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # mix.exs
 def deps do
   [
@@ -742,15 +702,12 @@ def deps do
     {:httpoison, "~> 2.0"}
   ]
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 mix deps.get
 mix deps.update FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Erlang Version Issues
 
@@ -759,22 +716,18 @@ mix deps.update FraiseQL
 **Check version** (OTP 24+ required):
 
 ```bash
-<!-- Code example in BASH -->
 erl -version
 elixir --version
-```text
-<!-- Code example in TEXT -->
+```
 
 **Update**:
 
 ```bash
-<!-- Code example in BASH -->
 asdf install erlang 26.0
 asdf install elixir 1.15.0
 asdf local erlang 26.0
 asdf local elixir 1.15.0
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Macro Issues
 
@@ -783,7 +736,6 @@ asdf local elixir 1.15.0
 **Solution - Define module first**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule MyApp.Schema do
   use FraiseQL.Schema
 
@@ -792,8 +744,7 @@ defmodule MyApp.Schema do
     field :email, :string
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Supervision Tree Issues
 
@@ -802,7 +753,6 @@ end
 **Solution - Start properly**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # application.ex
 def start(_type, _args) do
   children = [
@@ -815,8 +765,7 @@ def start(_type, _args) do
   opts = [strategy: :one_for_one, name: MyApp.Supervisor]
   Supervisor.start_link(children, opts)
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -829,15 +778,13 @@ end
 **Solution - Handle all patterns**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # ❌ Incomplete
 def process({:ok, result}), do: result
 
 # ✅ Complete
 def process({:ok, result}), do: result
 def process({:error, reason}), do: {:error, reason}
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Spec Issues
 
@@ -846,14 +793,12 @@ def process({:error, reason}), do: {:error, reason}
 **Solution - Define proper specs**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # ✅ With spec
 @spec execute(String.t(), map()) :: {:ok, map()} | {:error, String.t()}
 def execute(query, variables) do
   # implementation
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Macro Expansion Issues
 
@@ -862,7 +807,6 @@ end
 **Solution - Use correct syntax**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # ✅ Inside schema block
 defmodule MyApp.Schema do
   use FraiseQL.Schema
@@ -871,8 +815,7 @@ defmodule MyApp.Schema do
     field :id, :integer
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -885,16 +828,13 @@ end
 **Debug with observer**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # In iex
 iex> :observer.start()
-```text
-<!-- Code example in TEXT -->
+```
 
 **Handle errors**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 defmodule FraiseQLSupervisor do
   def start_link(opts) do
     Supervisor.start_link([
@@ -902,8 +842,7 @@ defmodule FraiseQLSupervisor do
     ], strategy: :one_for_one)
   end
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Async/Concurrency Issues
 
@@ -912,13 +851,11 @@ end
 **Solution - Use flow control**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # Limit concurrency
 Task.async_stream(queries, fn q ->
   FraiseQL.execute(q)
 end, max_concurrency: 10)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Database Connection Issues
 
@@ -927,14 +864,12 @@ end, max_concurrency: 10)
 **Configure pool**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # config/config.exs
 config :FraiseQL,
   database_url: System.get_env("DATABASE_URL"),
   pool_size: 20,
   pool_overflow: 10
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -947,10 +882,8 @@ config :FraiseQL,
 **Use caching**:
 
 ```bash
-<!-- Code example in BASH -->
 MIX_ENV=prod mix compile.app
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Memory Usage
 
@@ -959,21 +892,17 @@ MIX_ENV=prod mix compile.app
 **Monitor with observer**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 iex> :observer.start()
-```text
-<!-- Code example in TEXT -->
+```
 
 **Clean up resources**:
 
 ```elixir
-<!-- Code example in ELIXIR -->
 def cleanup do
   # Close connections
   FraiseQL.close()
 end
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -982,7 +911,6 @@ end
 #### Logger Setup
 
 ```elixir
-<!-- Code example in ELIXIR -->
 # config/config.exs
 config :logger,
   level: :debug,
@@ -991,28 +919,23 @@ config :logger,
 # In code
 require Logger
 Logger.debug("Query: #{query}")
-```text
-<!-- Code example in TEXT -->
+```
 
 #### IEx Debugging
 
 ```bash
-<!-- Code example in BASH -->
 iex -S mix
 
 iex> require Logger
 iex> Logger.level(:debug)
 iex> result = FraiseQL.execute(query)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Profiler
 
 ```bash
-<!-- Code example in BASH -->
 mix profile.fprof
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

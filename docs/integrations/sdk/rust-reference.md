@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Rust SDK Reference
 description: Complete API reference for the FraiseQL Rust SDK. This guide covers the Rust authoring interface for building type-safe GraphQL APIs with compile-time guarantee
@@ -19,7 +18,6 @@ Complete API reference for the FraiseQL Rust SDK. This guide covers the Rust aut
 Add to your `Cargo.toml`:
 
 ```toml
-<!-- Code example in TOML -->
 [dependencies]
 FraiseQL = "2.0"
 tokio = { version = "1.35", features = ["full"] }
@@ -33,8 +31,7 @@ anyhow = "1.0"
 # Optional: For observability
 tracing = "0.1"
 tracing-subscriber = "0.3"
-```text
-<!-- Code example in TEXT -->
+```
 
 **Requirements**:
 
@@ -46,7 +43,6 @@ tracing-subscriber = "0.3"
 **Minimal First Schema** (30 seconds):
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::prelude::*;
 
 #[FraiseQL::type]
@@ -64,13 +60,11 @@ async fn users(limit: i32) -> Vec<User> {
 async fn main() {
     FraiseQL::export_schema("schema.json").expect("export failed");
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 Export and deploy:
 
 ```bash
-<!-- Code example in BASH -->
 # Compile schema to JSON
 cargo run --bin FraiseQL-export
 
@@ -79,8 +73,7 @@ FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Deploy to server
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -107,7 +100,6 @@ FraiseQL-server --schema schema.compiled.json
 Define GraphQL object types using Rust structs with derive macros and attributes.
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::prelude::*;
 
 #[FraiseQL::type]
@@ -117,8 +109,7 @@ struct User {
     email: String,
     is_active: bool,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Key Features**:
 
@@ -133,7 +124,6 @@ struct User {
 **Examples**:
 
 ```rust
-<!-- Code example in RUST -->
 // Simple type with all required fields
 #[FraiseQL::type]
 struct User {
@@ -189,15 +179,13 @@ struct Product {
     price: f64,
     in_stock: bool,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Modern Rust Type Patterns
 
 Leverage Rust's type system for zero-cost abstractions:
 
 ```rust
-<!-- Code example in RUST -->
 // Generic types with lifetime parameters
 #[FraiseQL::type]
 struct Container<T: FraiseQLType> {
@@ -235,8 +223,7 @@ struct PagedResult<T: FraiseQLType> {
     page: i32,
     page_size: i32,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Type Mapping: Rust ↔ GraphQL
 
@@ -261,7 +248,6 @@ Automatic conversion from Rust types to GraphQL:
 ### Scalar Types (60+)
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::scalars::*;
 
 #[FraiseQL::type]
@@ -296,15 +282,13 @@ struct Event {
     metadata: serde_json::Value,
     tags: Vec<String>,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 Full scalar types list: See [Scalar Types Reference](../../reference/scalars.md)
 
 ### Enum Types
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::enum_type]
 enum OrderStatus {
     Pending,
@@ -337,8 +321,7 @@ enum Priority {
     High = 3,
     Critical = 4,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -351,13 +334,11 @@ Queries are read-only operations that map to SQL SELECT or views.
 **Macro Signature**:
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::query(sql_source = "view_name", cache_ttl = 300)]
 async fn query_name(arg1: i32, arg2: String) -> Vec<ResultType> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Parameters**:
 
@@ -368,7 +349,6 @@ async fn query_name(arg1: i32, arg2: String) -> Vec<ResultType> {
 **Examples**:
 
 ```rust
-<!-- Code example in RUST -->
 // Simple list query
 #[FraiseQL::query(sql_source = "v_users")]
 async fn users(limit: i32) -> Vec<User> {
@@ -413,13 +393,11 @@ async fn paginated<T: FraiseQLType>(
 ) -> Vec<T> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Generated GraphQL**:
 
 ```graphql
-<!-- Code example in GraphQL -->
 type Query {
   users(limit: Int!): [User!]!
   user(id: Int!): User
@@ -433,8 +411,7 @@ type Query {
   trendingItems(limit: Int!): [Item!]!
   adminStats: JSON!
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Mutations: Write Operations
 
@@ -443,7 +420,6 @@ Mutations modify data (CREATE, UPDATE, DELETE) via SQL functions.
 **Macro Signature**:
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::mutation(
     sql_source = "function_name",
     operation = "CREATE",  // CREATE | UPDATE | DELETE | CUSTOM
@@ -452,8 +428,7 @@ Mutations modify data (CREATE, UPDATE, DELETE) via SQL functions.
 async fn mutation_name(arg: Type) -> ResultType {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Parameters**:
 
@@ -465,7 +440,6 @@ async fn mutation_name(arg: Type) -> ResultType {
 **Examples**:
 
 ```rust
-<!-- Code example in RUST -->
 // Create mutation
 #[FraiseQL::mutation(sql_source = "fn_create_user", operation = "CREATE")]
 async fn create_user(name: String, email: String) -> User {
@@ -528,13 +502,11 @@ async fn transfer_funds(
 async fn admin_delete_user(id: i32) -> bool {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Generated GraphQL**:
 
 ```graphql
-<!-- Code example in GraphQL -->
 type Mutation {
   createUser(name: String!, email: String!): User!
   updateUser(id: Int!, name: String, email: String): User!
@@ -546,15 +518,13 @@ type Mutation {
     amount: Float!
   ): Boolean!
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Subscriptions: Real-time Events
 
 Real-time subscriptions via WebSocket or Server-Sent Events.
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::type]
 struct UserCreatedEvent {
     user: User,
@@ -578,8 +548,7 @@ async fn on_user_updated(user_id: i32) -> User {
 async fn messages(room_id: Option<i32>) -> Message {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -590,7 +559,6 @@ async fn messages(room_id: Option<i32>) -> Message {
 Define analytics tables for OLAP queries with measures and dimensions.
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::fact_table(
     table_name = "tf_sales",
     measures = ["revenue", "quantity", "cost", "margin"],
@@ -625,13 +593,11 @@ async fn revenue_analysis(
 ) -> Vec<serde_json::Value> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **SQL Table Pattern**:
 
 ```sql
-<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
 
@@ -654,15 +620,13 @@ CREATE TABLE tf_sales (
 
 CREATE INDEX ON tf_sales(customer_id);
 CREATE INDEX ON tf_sales(created_at);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field-Level Security (RBAC)
 
 Control access to sensitive fields using role-based access control.
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::type]
 struct User {
     id: i32,
@@ -690,13 +654,11 @@ async fn user_profile(id: i32) -> Option<User> {
 async fn my_data(limit: i32) -> Vec<TenantData> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field Metadata and Deprecation
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::type]
 struct Product {
     id: i32,
@@ -708,15 +670,13 @@ struct Product {
     #[FraiseQL::field(description = "Complex pricing object")]
     pricing: PricingObject,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Observers and Webhooks
 
 Trigger async webhooks when mutations complete.
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::observer(
     on = "create_user",
     trigger = "success",  // success | failure | always
@@ -734,8 +694,7 @@ async fn notify_on_user_created(
 async fn log_user_update(event: serde_json::Value) -> Result<bool, String> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -744,7 +703,6 @@ async fn log_user_update(event: serde_json::Value) -> Result<bool, String> {
 FraiseQL supports 60+ scalar types. Common examples:
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::scalars::*;
 
 #[FraiseQL::type]
@@ -781,8 +739,7 @@ struct Contact {
     metadata: serde_json::Value,
     tags: Vec<String>,
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -791,7 +748,6 @@ struct Contact {
 ### Export to File
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::prelude::*;
 
 #[FraiseQL::type]
@@ -812,35 +768,29 @@ async fn main() -> anyhow::Result<()> {
     println!("Schema exported successfully");
     Ok(())
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Get Schema as Object
 
 ```rust
-<!-- Code example in RUST -->
 let schema = FraiseQL::get_schema()?;
 println!("Types: {:?}", schema.types);
 println!("Queries: {:?}", schema.queries);
 println!("Mutations: {:?}", schema.mutations);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Export to String
 
 ```rust
-<!-- Code example in RUST -->
 let json = FraiseQL::export_schema_to_string()?;
 println!("{}", json);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Configuration via TOML
 
 **FraiseQL.toml**:
 
 ```toml
-<!-- Code example in TOML -->
 # Security configuration
 [FraiseQL.security]
 requires_auth = true
@@ -880,13 +830,11 @@ default_ttl = 300
 [FraiseQL.observability]
 trace_sampling_rate = 0.1
 log_level = "info"
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Compilation Workflow
 
 ```bash
-<!-- Code example in BASH -->
 # 1. Build Rust project (generates schema)
 cargo build --release
 
@@ -898,8 +846,7 @@ FraiseQL-cli compile schema.json FraiseQL.toml
 
 # 4. Deploy compiled schema
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -941,7 +888,6 @@ FraiseQL-server --schema schema.compiled.json
 Complete create, read, update, delete pattern:
 
 ```rust
-<!-- Code example in RUST -->
 use FraiseQL::scalars::UUID;
 
 #[FraiseQL::type]
@@ -995,13 +941,11 @@ async fn update_todo(
 async fn delete_todo(id: UUID) -> bool {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination Pattern
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::type]
 struct PageInfo {
     has_next: bool,
@@ -1034,13 +978,11 @@ async fn users_keyset(
 ) -> UserConnection {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Search and Filtering
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::type]
 struct SearchResult {
     item: User,
@@ -1067,13 +1009,11 @@ async fn users_advanced(
 ) -> Vec<User> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Analytics Pattern
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::fact_table(
     table_name = "tf_metrics",
     measures = ["value", "count"],
@@ -1093,8 +1033,7 @@ async fn metrics_by_region(
 ) -> Vec<serde_json::Value> {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1105,7 +1044,6 @@ async fn metrics_by_region(
 FraiseQL uses typed errors via `thiserror`:
 
 ```rust
-<!-- Code example in RUST -->
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -1134,21 +1072,18 @@ fn validate_input(value: &str) -> Result<i32> {
         message: "Invalid integer".to_string(),
     })
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Error Handling in Mutations
 
 ```rust
-<!-- Code example in RUST -->
 #[FraiseQL::mutation(sql_source = "fn_create_user", operation = "CREATE")]
 async fn create_user(email: String, name: String) -> Result<User> {
     // SQL function validates email format
     // Returns error if email already exists
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Common Error Codes
 
@@ -1169,7 +1104,6 @@ async fn create_user(email: String, name: String) -> Result<User> {
 Test schema structure:
 
 ```rust
-<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1188,13 +1122,11 @@ mod tests {
         assert!(schema.contains("users"));
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Integration Test Pattern
 
 ```rust
-<!-- Code example in RUST -->
 #[cfg(test)]
 mod integration_tests {
     use super::*;
@@ -1214,13 +1146,11 @@ mod integration_tests {
             .expect("parse failed");
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Cargo Test Commands
 
 ```bash
-<!-- Code example in BASH -->
 # Run all tests
 cargo test
 
@@ -1235,8 +1165,7 @@ cargo bench
 
 # Check with strict linting
 cargo clippy --all-targets --all-features -- -D warnings
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1245,7 +1174,6 @@ cargo clippy --all-targets --all-features -- -D warnings
 ### Zero-Copy Data Structures
 
 ```rust
-<!-- Code example in RUST -->
 // String slices avoid allocation
 #[FraiseQL::query]
 async fn process_name(name: &str) -> String {
@@ -1264,13 +1192,11 @@ struct View<'a> {
 async fn small_data() -> [u8; 32] {
     [0u8; 32]
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Trait-Based Extensibility
 
 ```rust
-<!-- Code example in RUST -->
 // Define custom behavior via traits
 pub trait CustomSerializer: Sync + Send {
     fn serialize(&self, value: &serde_json::Value) -> Result<String>;
@@ -1292,13 +1218,11 @@ async fn data_with_custom_serializer<S: CustomSerializer>(
 ) -> String {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Compile-Time Guarantees
 
 ```rust
-<!-- Code example in RUST -->
 // Type safety enforced at compile time
 #[FraiseQL::type]
 struct User {
@@ -1315,13 +1239,11 @@ async fn safe_access(user: &User) {
     // Can't move user while borrowed
     // Compiler enforces lifetime safety
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Async/Await Patterns with Tokio
 
 ```rust
-<!-- Code example in RUST -->
 use tokio::task::JoinHandle;
 
 // Spawn concurrent tasks with zero overhead
@@ -1345,8 +1267,7 @@ async fn concurrent_queries() -> Vec<User> {
 async fn fetch_user(id: i32) -> User {
     unimplemented!()
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1418,19 +1339,15 @@ FraiseQL Rust SDK performance characteristics:
 **Solution**:
 
 ```toml
-<!-- Code example in TOML -->
 # Cargo.toml
 [dependencies]
 FraiseQL = "2.0"
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 cargo update
 cargo build
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Compilation Errors
 
@@ -1439,19 +1356,15 @@ cargo build
 **Verify dependency**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo tree | grep FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 **Check Cargo.toml**:
 
 ```toml
-<!-- Code example in TOML -->
 [dependencies]
 FraiseQL = { git = "https://github.com/FraiseQL/FraiseQL", branch = "main" }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Linking Errors
 
@@ -1460,24 +1373,20 @@ FraiseQL = { git = "https://github.com/FraiseQL/FraiseQL", branch = "main" }
 **Solution - Update compiler**:
 
 ```bash
-<!-- Code example in BASH -->
 rustup update
 rustup default stable
-```text
-<!-- Code example in TEXT -->
+```
 
 **Or specify version**:
 
 ```toml
-<!-- Code example in TOML -->
 [package]
 rust-version = "1.70"
 
 [[bin]]
 name = "my_app"
 path = "src/main.rs"
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Feature Flag Issues
 
@@ -1486,19 +1395,15 @@ path = "src/main.rs"
 **Enable features**:
 
 ```toml
-<!-- Code example in TOML -->
 [dependencies]
 FraiseQL = { version = "2.0", features = ["observers", "arrow-flight"] }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Build with features**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo build --features "observers,arrow-flight"
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1511,7 +1416,6 @@ cargo build --features "observers,arrow-flight"
 **Solution - Use references correctly**:
 
 ```rust
-<!-- Code example in RUST -->
 // ❌ Wrong - dangling reference
 let server = create_server();
 let result = server.execute(&query);  // server dropped here
@@ -1520,8 +1424,7 @@ let result = server.execute(&query);  // server dropped here
 let server = create_server();
 let result = server.execute(&query);
 drop(server);  // Explicit drop
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Inference Issues
 
@@ -1530,7 +1433,6 @@ drop(server);  // Explicit drop
 **Solution - Be explicit**:
 
 ```rust
-<!-- Code example in RUST -->
 // ❌ Compiler can't infer
 let result = server.execute(query);
 
@@ -1539,8 +1441,7 @@ let result: ExecuteResult = server.execute(&query);
 
 // Or use turbofish
 let result = server.execute::<ExecuteResult>(&query);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Trait Bound Issues
 
@@ -1551,7 +1452,6 @@ let result = server.execute::<ExecuteResult>(&query);
 **Solution**:
 
 ```rust
-<!-- Code example in RUST -->
 // ✅ Implement required traits
 #[derive(Clone, Debug)]
 struct MyContext {
@@ -1563,8 +1463,7 @@ fn execute_query<C: Send + Sync>(server: &Server, ctx: C) -> Result<()> {
     // C must be Send + Sync
     Ok(())
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Macro Expansion Issues
 
@@ -1573,7 +1472,6 @@ fn execute_query<C: Send + Sync>(server: &Server, ctx: C) -> Result<()> {
 **Solution - Enable macro support**:
 
 ```rust
-<!-- Code example in RUST -->
 #![allow(unused_macros)]
 
 use FraiseQL::*;
@@ -1584,8 +1482,7 @@ query! {
         user(id: $id) { id name }
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1598,7 +1495,6 @@ query! {
 **Solution - Use Result instead of unwrap**:
 
 ```rust
-<!-- Code example in RUST -->
 // ❌ Panics if error
 let result = server.execute(&query).unwrap();
 
@@ -1613,8 +1509,7 @@ fn run() -> Result<()> {
     let result = server.execute(&query)?;
     Ok(())
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Async/Await Issues
 
@@ -1623,7 +1518,6 @@ fn run() -> Result<()> {
 **Solution - Use proper async runtime**:
 
 ```rust
-<!-- Code example in RUST -->
 // ✅ With tokio
 #[tokio::main]
 async fn main() {
@@ -1636,13 +1530,11 @@ async fn main() {
 async fn test_query() {
     // test code
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Ensure Send + Sync**:
 
 ```rust
-<!-- Code example in RUST -->
 // Make sure your context implements Send + Sync
 #[derive(Clone)]
 struct Context {
@@ -1655,8 +1547,7 @@ fn test_context_is_send() {
     fn assert_send<T: Send>() {}
     assert_send::<Context>();
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Connection Pool Issues
 
@@ -1665,7 +1556,6 @@ fn test_context_is_send() {
 **Increase pool size**:
 
 ```rust
-<!-- Code example in RUST -->
 let server = Server::from_compiled_with_config(
     "schema.json",
     Config {
@@ -1674,8 +1564,7 @@ let server = Server::from_compiled_with_config(
         ..Default::default()
     },
 )?;
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Variable Type Mismatch
 
@@ -1684,7 +1573,6 @@ let server = Server::from_compiled_with_config(
 **Solution - Match types exactly**:
 
 ```rust
-<!-- Code example in RUST -->
 // ❌ Wrong types
 let variables: serde_json::Value = json!({ "id": "123" });
 server.execute(query, &variables)?;  // Should be i32, not string
@@ -1692,8 +1580,7 @@ server.execute(query, &variables)?;  // Should be i32, not string
 // ✅ Correct types
 let variables = json!({ "id": 123 });  // i32, not string
 server.execute(query, &variables)?;
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1706,32 +1593,26 @@ server.execute(query, &variables)?;
 **Enable incremental compilation**:
 
 ```toml
-<!-- Code example in TOML -->
 # .cargo/config.toml
 [build]
 incremental = true
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use mold linker**:
 
 ```bash
-<!-- Code example in BASH -->
 # Linux
 cargo install mold
 # Then configure in .cargo/config.toml
 [build]
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
-```text
-<!-- Code example in TEXT -->
+```
 
 **Parallel compilation**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo build -j 4  # Use 4 cores
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Bloat Size
 
@@ -1740,31 +1621,25 @@ cargo build -j 4  # Use 4 cores
 **Strip debug info**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo build --release
 strip target/release/myapp
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use cargo-strip**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo install cargo-strip
 cargo strip --release
-```text
-<!-- Code example in TEXT -->
+```
 
 **Or in Cargo.toml**:
 
 ```toml
-<!-- Code example in TOML -->
 [profile.release]
 strip = true
 lto = true
 codegen-units = 1
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Runtime Performance
 
@@ -1773,7 +1648,6 @@ codegen-units = 1
 **Enable caching**:
 
 ```rust
-<!-- Code example in RUST -->
 let server = Server::from_compiled_with_config(
     "schema.json",
     Config {
@@ -1781,18 +1655,15 @@ let server = Server::from_compiled_with_config(
         ..Default::default()
     },
 )?;
-```text
-<!-- Code example in TEXT -->
+```
 
 **Profile with perf**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo build --release
 perf record -g target/release/myapp
 perf report
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Memory Usage
 
@@ -1801,21 +1672,17 @@ perf report
 **Check for leaks**:
 
 ```bash
-<!-- Code example in BASH -->
 valgrind --leak-check=full ./target/release/myapp
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use proper cleanup**:
 
 ```rust
-<!-- Code example in RUST -->
 {
     let server = Server::from_compiled("schema.json")?;
     // Use server
 }  // server dropped here, cleanup happens
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1826,84 +1693,69 @@ valgrind --leak-check=full ./target/release/myapp
 **Setup env_logger**:
 
 ```toml
-<!-- Code example in TOML -->
 [dependencies]
 env_logger = "0.11"
 log = "0.4"
-```text
-<!-- Code example in TEXT -->
+```
 
 ```rust
-<!-- Code example in RUST -->
 fn main() {
     env_logger::init();
 
     log::debug!("Starting server");
     // rest of code
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Run with logging**:
 
 ```bash
-<!-- Code example in BASH -->
 RUST_LOG=FraiseQL=debug cargo run
 RUST_LOG=debug cargo test -- --nocapture
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Use Rust Debugger
 
 **GDB debugging**:
 
 ```bash
-<!-- Code example in BASH -->
 rust-gdb ./target/debug/myapp
 (gdb) break main
 (gdb) run
 (gdb) next
-```text
-<!-- Code example in TEXT -->
+```
 
 **LLDB debugging** (macOS):
 
 ```bash
-<!-- Code example in BASH -->
 lldb ./target/debug/myapp
 (lldb) breakpoint set --name main
 (lldb) run
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Print Debugging
 
 ```rust
-<!-- Code example in RUST -->
 // Use dbg! macro
 let result = dbg!(server.execute(&query))?;
 
 // Or custom logging
 eprintln!("Query: {}", query);
 eprintln!("Result: {:?}", result);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Inspect Generated Code
 
 **Check macro expansion**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo install cargo-expand
 cargo expand --lib FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Unit Tests
 
 ```rust
-<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1915,8 +1767,7 @@ mod tests {
         assert!(result.is_ok());
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1936,7 +1787,6 @@ Provide:
 **Issue template**:
 
 ```markdown
-<!-- Code example in MARKDOWN -->
 **Environment**:
 - Rust: 1.75.0
 - Cargo: 1.75.0
@@ -1950,17 +1800,14 @@ Provide:
 
 **Error**:
 [Full error output]
-```text
-<!-- Code example in TEXT -->
+```
 
 **Enable backtrace**:
 
 ```bash
-<!-- Code example in BASH -->
 RUST_BACKTRACE=1 cargo build
 RUST_BACKTRACE=full cargo test
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Community Channels
 
@@ -1974,23 +1821,19 @@ RUST_BACKTRACE=full cargo test
 **Use cargo-watch for development**:
 
 ```bash
-<!-- Code example in BASH -->
 cargo install cargo-watch
 cargo watch -x check -x test
-```text
-<!-- Code example in TEXT -->
+```
 
 **Benchmarking**:
 
 ```rust
-<!-- Code example in RUST -->
 #[bench]
 fn bench_execute(b: &mut Bencher) {
     let server = Server::from_compiled("schema.json").unwrap();
     b.iter(|| server.execute("{ user(id: 1) { id } }"))
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

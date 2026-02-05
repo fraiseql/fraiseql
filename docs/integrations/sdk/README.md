@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL SDK Reference Documentation
 description: Complete API reference documentation for all 16 FraiseQL language SDKs. Each SDK provides identical GraphQL authoring capabilities across different language par
@@ -138,7 +137,6 @@ Each document covers query execution against deployed servers:
 ### Python
 
 ```python
-<!-- Code example in Python -->
 import FraiseQL
 
 @FraiseQL.type
@@ -151,15 +149,13 @@ def users(limit: int = 10) -> list[User]:
     pass
 
 FraiseQL.export_schema("schema.json")
-```text
-<!-- Code example in TEXT -->
+```
 
 → [Full Python Reference](./python-reference.md)
 
 ### TypeScript
 
 ```typescript
-<!-- Code example in TypeScript -->
 import * as FraiseQL from 'FraiseQL';
 
 @FraiseQL.Type
@@ -174,15 +170,13 @@ function users(limit: number = 10): User[] {
 }
 
 FraiseQL.exportSchema('schema.json');
-```text
-<!-- Code example in TEXT -->
+```
 
 → [Full TypeScript Reference](./typescript-reference.md)
 
 ### Go
 
 ```go
-<!-- Code example in Go -->
 package main
 
 import "FraiseQL"
@@ -197,15 +191,13 @@ func Users(limit int) ([]User, error) {
 }
 
 FraiseQL.ExportSchema("schema.json")
-```text
-<!-- Code example in TEXT -->
+```
 
 → [Full Go Reference](./go-reference.md)
 
 ### Java
 
 ```java
-<!-- Code example in Java -->
 import com.FraiseQL.*;
 
 @GraphQLType
@@ -223,15 +215,13 @@ FraiseQL.query("users")
     .register();
 
 FraiseQL.exportSchema("schema.json");
-```text
-<!-- Code example in TEXT -->
+```
 
 → [Full Java Reference](./java-reference.md)
 
 ### Node.js (Runtime Client)
 
 ```javascript
-<!-- Code example in JAVASCRIPT -->
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 const client = new FraiseQLClient({
@@ -250,8 +240,7 @@ await client.connect();
 const result = await client.query('users', { limit: 10 });
 console.log(result.data);
 await client.disconnect();
-```text
-<!-- Code example in TEXT -->
+```
 
 → [Full Node.js Reference](./nodejs-reference.md)
 
@@ -283,7 +272,6 @@ Queries are read operations, mutations are write operations. Both are type-safe 
 Each authoring SDK exports schema to JSON format:
 
 ```bash
-<!-- Code example in BASH -->
 # Python
 python -m FraiseQL export schema.json
 
@@ -295,19 +283,16 @@ go run cmd/export/main.go schema.json
 
 # Java
 java -cp FraiseQL.jar com.FraiseQL.CLI export schema.json
-```text
-<!-- Code example in TEXT -->
+```
 
 **Step 4: Compile & Deploy**
 
 Compile the schema once:
 
 ```bash
-<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 # Outputs: schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 Deploy `schema.compiled.json` with your FraiseQL server.
 
@@ -318,30 +303,25 @@ Deploy `schema.compiled.json` with your FraiseQL server.
 Initialize client with pre-compiled schema:
 
 ```javascript
-<!-- Code example in JAVASCRIPT -->
 const client = new FraiseQLClient({
   schemaPath: './schema.compiled.json',
   database: { /* ... */ },
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 **Step 2: Execute Queries**
 
 Run queries, mutations, and subscriptions at runtime:
 
 ```javascript
-<!-- Code example in JAVASCRIPT -->
 const result = await client.query('users', { limit: 10 });
-```text
-<!-- Code example in TEXT -->
+```
 
 See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
 
 ## Schema Compilation Workflow
 
-```text
-<!-- Code example in TEXT -->
+```
 ┌─────────────────────┐
 │ Language SDK        │
 │ (Python/TS/Go/...)  │
@@ -370,8 +350,7 @@ See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
 │ FraiseQL-server                │
 │ (REST/GraphQL API)             │
 └────────────────────────────────┘
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Language-Specific Paradigms
 

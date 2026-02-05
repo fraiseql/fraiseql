@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Scala SDK Reference
 description: Complete API reference for the FraiseQL Scala SDK. This guide covers the complete Scala authoring interface for building type-safe GraphQL APIs with functional 
@@ -20,7 +19,6 @@ Complete API reference for the FraiseQL Scala SDK. This guide covers the complet
 Add FraiseQL to your `build.sbt`:
 
 ```scala
-<!-- Code example in SCALA -->
 val scala3Version = "3.3.1"
 
 ThisBuild / scalaVersion := scala3Version
@@ -44,8 +42,7 @@ scalacOptions ++= Seq(
   "-Wunused:imports",
   "-Xfatal-warnings",
 )
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Requirements
 
@@ -58,7 +55,6 @@ scalacOptions ++= Seq(
 ### First Schema (90 seconds)
 
 ```scala
-<!-- Code example in SCALA -->
 import com.FraiseQL.schema.*
 import com.FraiseQL.schema.dsl.*
 
@@ -91,18 +87,15 @@ object UserSchema:
 @main def generateSchema(): Unit =
   UserSchema.schema
   println("Schema exported to schema.json")
-```text
-<!-- Code example in TEXT -->
+```
 
 Export and deploy to FraiseQL server:
 
 ```bash
-<!-- Code example in BASH -->
 sbt run
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -130,7 +123,6 @@ FraiseQL-server --schema schema.compiled.json
 Scala case classes provide ideal foundations for GraphQL types—immutable, automatically generated equality, copy semantics, and pattern matching support.
 
 ```scala
-<!-- Code example in SCALA -->
 // Simple type with required fields
 @Type("user")
 case class User(
@@ -165,8 +157,7 @@ case class OrderItem(
   quantity: Int,
   unitPrice: BigDecimal,
 )
-```text
-<!-- Code example in TEXT -->
+```
 
 **Type Mapping Rules:**
 
@@ -187,7 +178,6 @@ case class OrderItem(
 Use sealed traits with case classes to model GraphQL union types and polymorphic queries.
 
 ```scala
-<!-- Code example in SCALA -->
 // Union type: SearchResult = User | Product | Article
 sealed trait SearchResult
 
@@ -208,15 +198,13 @@ def formatSearchResult(result: SearchResult): String =
     case User(id, name) => s"User: $name (#$id)"
     case Product(id, title, price) => s"Product: $title ($price)"
     case Article(id, title, author) => s"Article: $title by $author"
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Type Aliases and Opaque Types
 
 Use type aliases for domain-specific types and compile-time safety:
 
 ```scala
-<!-- Code example in SCALA -->
 object Types:
   type UserId = Int
   opaque type Email = String
@@ -231,8 +219,7 @@ case class User(
   email: Types.Email,
   slug: Types.Slug,
 )
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -243,7 +230,6 @@ case class User(
 Define read-only operations using functional composition:
 
 ```scala
-<!-- Code example in SCALA -->
 object UserQueries:
   // Simple single-result query
   val getUser = query("user")
@@ -267,15 +253,13 @@ object UserQueries:
     .returnType[List[User]]
     .arg("filter", UserFilter)
     .description("Users by filter criteria")
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Mutation Operations (Write)
 
 Define write operations with input types and error handling:
 
 ```scala
-<!-- Code example in SCALA -->
 @Input("createUserInput")
 case class CreateUserInput(
   name: String,
@@ -309,8 +293,7 @@ object UserMutations:
     .returnType[Boolean]
     .arg("id", GraphQLInt)
     .description("Delete user by ID")
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -321,7 +304,6 @@ object UserMutations:
 Compose security constraints using functional patterns:
 
 ```scala
-<!-- Code example in SCALA -->
 @Secured(roles = List("admin", "user_manager"))
 val adminUsers = query("adminUsers")
   .returnType[List[User]]
@@ -336,15 +318,13 @@ def requireRole(role: String)(ctx: SecurityContext): Boolean =
   ctx match
     case UserContext(_, roles) => roles.contains(role)
     case _ => false
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Fact Tables for Analytics
 
 Define analytics tables with measures and dimensions:
 
 ```scala
-<!-- Code example in SCALA -->
 @FactTable("sales_fact")
 case class SalesFact(
   // Dimensions (categorical attributes)
@@ -363,15 +343,13 @@ val salesByRegion = aggregateQuery("salesByRegion")
   .dimensions(List("regionId"))
   .measures(List("revenue", "quantity"))
   .description("Total sales revenue and quantity by region")
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field-Level Metadata
 
 Annotate fields with metadata for schema documentation:
 
 ```scala
-<!-- Code example in SCALA -->
 case class User(
   @Field(description = "User's primary key", required = true)
   id: Int,
@@ -385,8 +363,7 @@ case class User(
   @Field(example = "john_doe")
   username: String,
 )
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -395,7 +372,6 @@ case class User(
 FraiseQL automatically maps Scala scalar types to GraphQL scalars:
 
 ```scala
-<!-- Code example in SCALA -->
 object GraphQLScalars:
   // Numeric types
   Int → GraphQL Int
@@ -429,8 +405,7 @@ object GraphQLScalars:
 // Custom scalar example
 case class JSON(value: String)
 case class Decimal128(value: String) // MongoDB extended JSON
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -439,7 +414,6 @@ case class Decimal128(value: String) // MongoDB extended JSON
 ### Compilation Pipeline
 
 ```scala
-<!-- Code example in SCALA -->
 object SchemaBuilder:
   def exportSchema(): Unit =
     FraiseQL.schema
@@ -456,13 +430,11 @@ object SchemaBuilder:
   SchemaBuilder.exportSchema()
   println("✓ Schema exported to schema.json")
   println("✓ Run: FraiseQL-cli compile schema.json FraiseQL.toml")
-```text
-<!-- Code example in TEXT -->
+```
 
 ### SBT Tasks
 
 ```bash
-<!-- Code example in BASH -->
 # Generate schema.json
 sbt "runMain SchemaBuilder"
 
@@ -474,8 +446,7 @@ FraiseQL-cli validate schema.compiled.json
 
 # Serve with FraiseQL runtime
 FraiseQL-server --schema schema.compiled.json --bind 0.0.0.0:8080
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -486,7 +457,6 @@ FraiseQL-server --schema schema.compiled.json --bind 0.0.0.0:8080
 FraiseQL infers GraphQL types from Scala case class definitions:
 
 ```scala
-<!-- Code example in SCALA -->
 // Case class definition
 @Type("user")
 case class User(
@@ -507,8 +477,7 @@ type User {
   metadata: [String]!
 }
 */
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -519,7 +488,6 @@ type User {
 Use for-comprehensions for composable query chains:
 
 ```scala
-<!-- Code example in SCALA -->
 case class UserService(queries: UserQueries):
   // Functional composition using for-comprehension
   def fetchUserWithPosts(userId: Int): Option[(User, List[Post])] =
@@ -537,13 +505,11 @@ case class UserService(queries: UserQueries):
       _ <- validateName(input.name)
       user <- queries.createUser(input)
     yield user
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pattern Matching on Results
 
 ```scala
-<!-- Code example in SCALA -->
 def displayUser(result: Either[Error, User]): String =
   result match
     case Right(user) => s"✓ User: ${user.name}"
@@ -555,13 +521,11 @@ def processSearchResults(results: List[SearchResult]): Unit =
     case Product(id, title, _) => println(s"Product: $title")
     case Article(id, title, _) => println(s"Article: $title")
   }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Implicit Conversions and Typeclass Patterns
 
 ```scala
-<!-- Code example in SCALA -->
 // Typeclass for GraphQL serialization
 trait GraphQLSerializable[T]:
   def toGraphQL(): String
@@ -573,8 +537,7 @@ given GraphQLSerializable[User] with
 // Implicit extension methods
 extension [T: GraphQLSerializable]()
   def toGraphQL: String = summon[GraphQLSerializable[T]].toGraphQL(value)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -583,7 +546,6 @@ extension [T: GraphQLSerializable]()
 ### Option for Nullable Values
 
 ```scala
-<!-- Code example in SCALA -->
 def findUser(id: Int): Option[User] =
   // Returns Option, maps to nullable GraphQL type
   if id > 0 then Some(User(id, "John")) else None
@@ -591,13 +553,11 @@ def findUser(id: Int): Option[User] =
 // Use map/flatMap for functional chains
 val userEmail: Option[String] =
   findUser(1).map(_.email)
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Either for Result Types
 
 ```scala
-<!-- Code example in SCALA -->
 type Result[T] = Either[FraiseQLError, T]
 
 sealed trait FraiseQLError:
@@ -611,13 +571,11 @@ def createUser(input: CreateUserInput): Result[User] =
     _ <- validateInput(input)
     user <- saveUser(input)
   yield user
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Try for Exception Handling
 
 ```scala
-<!-- Code example in SCALA -->
 import scala.util.{Try, Success, Failure}
 
 def parseConfig(json: String): Try[Config] =
@@ -628,8 +586,7 @@ def loadSchema(path: String): Try[Schema] =
     content <- Try(scala.io.Source.fromFile(path).mkString)
     config <- parseConfig(content)
   yield config
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -638,7 +595,6 @@ def loadSchema(path: String): Try[Schema] =
 ### ScalaTest for Unit Tests
 
 ```scala
-<!-- Code example in SCALA -->
 class UserQueriesSpec extends AnyFlatSpec with Matchers:
   "UserQueries.getUser" should "return user by ID" in {
     val user = UserQueries.getUser(1)
@@ -658,13 +614,11 @@ class UserMutationsSpec extends AsyncFlatSpec with Matchers:
       result should matchPattern { case CreateUserSuccess(_) => }
     }
   }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Property-Based Testing with ScalaCheck
 
 ```scala
-<!-- Code example in SCALA -->
 import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
 
@@ -674,8 +628,7 @@ property("User ID should always be positive") = forAll {
     user.id > 0
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -699,7 +652,6 @@ property("User ID should always be positive") = forAll {
 **Solution**:
 
 ```scala
-<!-- Code example in SCALA -->
 // build.sbt
 libraryDependencies += "com.FraiseQL" %% "FraiseQL-scala" % "2.0.0"
 
@@ -708,14 +660,11 @@ libraryDependencies ++= Seq(
   "com.FraiseQL" %% "FraiseQL-scala" % "2.0.0",
   "org.scala-lang" % "scala-library" % scalaVersion.value
 )
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 sbt clean update
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Compilation Errors
 
@@ -726,7 +675,6 @@ sbt clean update
 **Solution**:
 
 ```scala
-<!-- Code example in SCALA -->
 // Import required implicits
 import com.FraiseQL._
 import com.FraiseQL.Implicits._
@@ -739,8 +687,7 @@ object MyApp {
     // Now implicits available
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Inference Issues
 
@@ -749,7 +696,6 @@ object MyApp {
 **Solution - Use correct types**:
 
 ```scala
-<!-- Code example in SCALA -->
 // ✅ Correct
 @FraiseQL.type
 case class User(
@@ -761,8 +707,7 @@ case class User(
 type Email = String
 @FraiseQL.type
 case class User(email: Email)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Scala Version Mismatch
 
@@ -771,19 +716,15 @@ case class User(email: Email)
 **Check version** (2.13+ required):
 
 ```bash
-<!-- Code example in BASH -->
 scala -version
-```text
-<!-- Code example in TEXT -->
+```
 
 **Set in build.sbt**:
 
 ```scala
-<!-- Code example in SCALA -->
 scalaVersion := "2.13.11"
 scalacOptions ++= Seq("-feature", "-deprecation")
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -796,7 +737,6 @@ scalacOptions ++= Seq("-feature", "-deprecation")
 **Solution - Complete patterns**:
 
 ```scala
-<!-- Code example in SCALA -->
 // ❌ Incomplete
 val user = getUserOption()
 val name = user match {
@@ -809,8 +749,7 @@ val name = user match {
   case Some(u) => u.name
   case None => "Unknown"
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Implicit Resolution
 
@@ -819,7 +758,6 @@ val name = user match {
 **Solution - Define implicits**:
 
 ```scala
-<!-- Code example in SCALA -->
 implicit val config: FraiseQLConfig = FraiseQLConfig.default
 
 // Or scope
@@ -830,8 +768,7 @@ object FraiseQL {
     // Use c
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Class Issues
 
@@ -840,7 +777,6 @@ object FraiseQL {
 **Solution - Implement typeclass**:
 
 ```scala
-<!-- Code example in SCALA -->
 import com.FraiseQL.Serializable
 
 implicit object MyTypeSerializable extends Serializable[MyType] {
@@ -849,8 +785,7 @@ implicit object MyTypeSerializable extends Serializable[MyType] {
     ""
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Higher-Kinded Type Errors
 
@@ -859,14 +794,12 @@ implicit object MyTypeSerializable extends Serializable[MyType] {
 **Solution - Use correct kind**:
 
 ```scala
-<!-- Code example in SCALA -->
 // ❌ Wrong - treating as type
 val result: FraiseQL[User] = query()
 
 // ✅ Correct - use concrete type
 val result: FraiseQL.Result[User] = query()
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -879,7 +812,6 @@ val result: FraiseQL.Result[User] = query()
 **Solution - Handle all cases**:
 
 ```scala
-<!-- Code example in SCALA -->
 val result = server.execute(query)
 
 result match {
@@ -887,8 +819,7 @@ result match {
   case e: ExecutionError => e.message
   case _ => "Unknown result"
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Null Pointer Exception
 
@@ -897,7 +828,6 @@ result match {
 **Solution - Use Option**:
 
 ```scala
-<!-- Code example in SCALA -->
 // ❌ Can NPE
 val user = getUser()
 println(user.name)  // NPE if null
@@ -911,8 +841,7 @@ user match {
   case Some(u) => println(u.name)
   case None => println("Not found")
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Future/Promise Issues
 
@@ -921,7 +850,6 @@ user match {
 **Solution - Handle Future correctly**:
 
 ```scala
-<!-- Code example in SCALA -->
 import scala.concurrent._
 import scala.util.{Success, Failure}
 
@@ -935,8 +863,7 @@ future.onComplete {
 // Or use map/flatMap
 future.map(result => process(result))
       .recover { case e => handleError(e) }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Actor Timeout
 
@@ -945,14 +872,12 @@ future.map(result => process(result))
 **Solution - Increase timeout**:
 
 ```scala
-<!-- Code example in SCALA -->
 import scala.concurrent.duration._
 
 implicit val timeout: Timeout = Timeout(30.seconds)
 
 val result = server.ask(ExecuteQuery(query))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -965,20 +890,16 @@ val result = server.ask(ExecuteQuery(query))
 **Enable incremental compilation**:
 
 ```scala
-<!-- Code example in SCALA -->
 // build.sbt
 incOptions := incOptions.value.withRecompileOnMacroDef(false)
-```text
-<!-- Code example in TEXT -->
+```
 
 **Parallel execution**:
 
 ```bash
-<!-- Code example in BASH -->
 sbt -J-Xmx2g -J-XX:+UseG1GC
 sbt parallelExecution in Test := true
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Memory Issues
 
@@ -987,18 +908,14 @@ sbt parallelExecution in Test := true
 **Increase heap**:
 
 ```bash
-<!-- Code example in BASH -->
 sbt -J-Xmx4g -J-Xms2g
-```text
-<!-- Code example in TEXT -->
+```
 
 **Or in build.sbt**:
 
 ```scala
-<!-- Code example in SCALA -->
 javaOptions ++= Seq("-Xmx4g", "-Xms2g")
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Lazy Evaluation Issues
 
@@ -1007,14 +924,12 @@ javaOptions ++= Seq("-Xmx4g", "-Xms2g")
 **Solution - Use streams carefully**:
 
 ```scala
-<!-- Code example in SCALA -->
 // ❌ Can overflow
 lazy val infinite: Stream[Int] = 1 #:: infinite.map(_ + 1)
 
 // ✅ Use Iterator or LazyList
 lazy val lazy_list = LazyList.from(1)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1025,7 +940,6 @@ lazy val lazy_list = LazyList.from(1)
 **Setup logging**:
 
 ```scala
-<!-- Code example in SCALA -->
 import org.slf4j.LoggerFactory
 
 val logger = LoggerFactory.getLogger(getClass)
@@ -1033,39 +947,31 @@ val logger = LoggerFactory.getLogger(getClass)
 logger.debug("Executing query: {}", query)
 val result = server.execute(query)
 logger.info("Result: {}", result)
-```text
-<!-- Code example in TEXT -->
+```
 
 **Set log level**:
 
 ```bash
-<!-- Code example in BASH -->
 RUST_LOG=FraiseQL=debug sbt run
-```text
-<!-- Code example in TEXT -->
+```
 
 #### REPL Debugging
 
 **Use Scala REPL**:
 
 ```bash
-<!-- Code example in BASH -->
 sbt console
-```text
-<!-- Code example in TEXT -->
+```
 
 ```scala
-<!-- Code example in SCALA -->
 scala> import com.FraiseQL._
 scala> val server = Server.fromCompiled("schema.json")
 scala> server.execute("{ user(id: 1) { id } }")
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Pattern Match Debugging
 
 ```scala
-<!-- Code example in SCALA -->
 val result = server.execute(query)
 
 result match {
@@ -1076,13 +982,11 @@ result match {
   case other =>
     println(s"Unexpected: $other")
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Property Testing
 
 ```scala
-<!-- Code example in SCALA -->
 import org.scalacheck.Properties
 
 object QueryProperties extends Properties("Query") {
@@ -1090,8 +994,7 @@ object QueryProperties extends Properties("Query") {
     server.execute(query).data.nonEmpty
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1110,7 +1013,6 @@ Provide:
 **Template**:
 
 ```markdown
-<!-- Code example in MARKDOWN -->
 **Environment**:
 - Scala: 2.13.11
 - Java: 11
@@ -1124,8 +1026,7 @@ Provide:
 
 **Error**:
 [Full stack trace]
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Community Channels
 

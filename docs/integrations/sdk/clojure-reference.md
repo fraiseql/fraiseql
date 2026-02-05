@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Clojure SDK Reference
 description: Complete API reference for the FraiseQL Clojure SDK. This guide covers the complete Clojure authoring interface for building type-safe GraphQL APIs with macros,
@@ -20,30 +19,25 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
 **Leiningen** (`project.clj`):
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (defproject my-FraiseQL-api "1.0.0"
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [FraiseQL/SDK "2.0.0"]
                  [org.clojure/spec.alpha "0.5.228"]])
-```text
-<!-- Code example in TEXT -->
+```
 
 **Deps.edn**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 {:deps {org.clojure/clojure {:mvn/version "1.11.1"}
         FraiseQL/SDK {:mvn/version "2.0.0"}
         org.clojure/spec.alpha {:mvn/version "0.5.228"}}}
-```text
-<!-- Code example in TEXT -->
+```
 
 **Requirements**: Clojure 1.11+, JDK 11+, Leiningen 2.9+ or Clojure CLI
 
 ### First Schema (30 seconds)
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (ns my-app.schema
   (:require [FraiseQL.core :as fql]))
 
@@ -58,17 +52,14 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
   :returns [User])
 
 (fql/export-schema! "schema.json")
-```text
-<!-- Code example in TEXT -->
+```
 
 Compile and deploy:
 
 ```bash
-<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -94,18 +85,15 @@ FraiseQL-server --schema schema.compiled.json
 Define GraphQL object types using persistent maps and keyword-keyed arguments:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defschema TypeName
   :field1 :int :field2 :string :field3 :boolean)
-```text
-<!-- Code example in TEXT -->
+```
 
 **Key Features**: Keywords for clarity, nullability via maps, nested types, lists, docstrings, immutable by default.
 
 **Examples**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Simple schema
 (fql/defschema User
   "A user account."
@@ -134,15 +122,13 @@ Define GraphQL object types using persistent maps and keyword-keyed arguments:
 (fql/defschema Product
   :id :int :name :string
   :price {:type :decimal :spec ::positive-int})
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Nested Schemas and Composition
 
 Leverage Clojure's data manipulation for composable schemas:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defschema Address
   :street :string :city :string :state :string)
 
@@ -158,8 +144,7 @@ Leverage Clojure's data manipulation for composable schemas:
 (fql/defschema AuditedProduct
   :id :int :name :string
   (with-audit {}))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -170,19 +155,16 @@ Leverage Clojure's data manipulation for composable schemas:
 Read-only operations using `defquery` macro for declarative, composable definitions:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defquery query-name
   "Documentation."
   :sql-source "view_name"
   :params {:arg1 :int}
   :returns [ResultType])
-```text
-<!-- Code example in TEXT -->
+```
 
 **Examples**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Simple list query
 (fql/defquery users
   "Get all users with pagination."
@@ -225,28 +207,24 @@ Read-only operations using `defquery` macro for declarative, composable definiti
 (fql/defquery products
   "Paginated product list."
   (paginated-query :products "v_products" [Product]))
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Mutations: Write Operations
 
 Write operations using `defmutation` macro for explicit operation typing:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defmutation mutation-name
   "Documentation."
   :sql-source "fn_name"
   :operation :create  ; :create | :update | :delete | :custom
   :params {:arg1 :string}
   :returns ResultType)
-```text
-<!-- Code example in TEXT -->
+```
 
 **Examples**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Create mutation
 (fql/defmutation create-user
   "Create a new user."
@@ -280,8 +258,7 @@ Write operations using `defmutation` macro for explicit operation typing:
   :transaction-isolation :serializable
   :params {:from-id :int :to-id :int :amount :decimal}
   :returns {:status :string :from-balance :decimal :to-balance :decimal})
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -292,7 +269,6 @@ Write operations using `defmutation` macro for explicit operation typing:
 OLAP-style analytics with dimensional aggregation:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/deffacttable sales-fact
   "Daily sales fact table."
   :measures {:total-revenue :decimal :item-count :int}
@@ -305,15 +281,13 @@ OLAP-style analytics with dimensional aggregation:
   :group-by [:product-key]
   :metrics {:total-revenue :sum}
   :returns [{:product-key :int :total-revenue :decimal}])
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Role-Based Access Control
 
 RBAC as persistent data structures:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defsecurity admin-access
   :required-roles [:admin]
   :field-mask {:*-all true})
@@ -340,15 +314,13 @@ RBAC as persistent data structures:
   :security (team-access 123)
   :params {:team-id :int}
   :returns [User])
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field Metadata and Directives
 
 Metadata is first-class in Clojure:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Using with-meta
 (fql/defschema Product
   :id :int
@@ -372,8 +344,7 @@ Metadata is first-class in Clojure:
 
 (fql/defschema AuditedUser
   :ssn (with-audit {:type :string}))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -382,14 +353,12 @@ Metadata is first-class in Clojure:
 Clojure embraces Lisp's symbol system for type representation:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (fql/defschema Event
   :id :int :timestamp :datetime :date :date
   :uuid :uuid :json :json :bytes :bytes
   :big-int :bigint :decimal :decimal :float :float
   :boolean :boolean :string :string)
-```text
-<!-- Code example in TEXT -->
+```
 
 | Clojure Keyword | GraphQL Type | Clojure Equivalent |
 |---|---|---|
@@ -411,7 +380,6 @@ Clojure embraces Lisp's symbol system for type representation:
 Export schemas to JSON for compilation:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (ns my-app.core
   (:require [FraiseQL.core :as fql]))
 
@@ -434,8 +402,7 @@ Export schemas to JSON for compilation:
 (defn export-with-validation [schema filename]
   (when (fql/validate-schema schema)
     (spit filename (fql/->json schema))))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -444,7 +411,6 @@ Export schemas to JSON for compilation:
 Clojure types map directly to GraphQL and SQL:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Clojure → GraphQL → SQL (PostgreSQL)
 :int           → Int!           → integer
 :string        → String!        → text
@@ -460,8 +426,7 @@ Clojure types map directly to GraphQL and SQL:
 ; Lists
 {:type :int :list true}        → [Int!]!
 {:type :string :list true}     → [String!]!
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -472,7 +437,6 @@ Clojure types map directly to GraphQL and SQL:
 Use higher-order functions for DRY CRUD:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (defn crud-base [entity-name]
   {:entity-name (keyword entity-name) :params-base {:id :int}})
 
@@ -486,15 +450,13 @@ Use higher-order functions for DRY CRUD:
 (let [user-crud (-> (crud-base :user)
                     (with-list-query User))]
   (fql/defquery list-users (:list-query user-crud)))
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination and Transducers
 
 Leverage Clojure's transducers for efficient pagination:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (defn paginate-params [page-size]
   {:limit {:type :int :default page-size}
    :offset {:type :int :default 0}})
@@ -504,15 +466,13 @@ Leverage Clojure's transducers for efficient pagination:
   :params {:query :string
            (paginate-params 50)}
   :returns [SearchResult])
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Spec Validation
 
 Use `clojure.spec.alpha` for declarative validation:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require '[clojure.spec.alpha :as s])
 
 (s/def ::positive-int (s/and int? pos?))
@@ -525,8 +485,7 @@ Use `clojure.spec.alpha` for declarative validation:
 
 (fql/defvalidator validate-user
   :spec (s/multi-spec ::user :type))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -535,7 +494,6 @@ Use `clojure.spec.alpha` for declarative validation:
 Functional error propagation with exception handling:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Try-catch with error context
 (try
   (fql/execute! :user-by-id {:id 123})
@@ -560,8 +518,7 @@ Functional error propagation with exception handling:
     (fql/execute! query-name args)
     (throw (ex-info "Invalid arguments"
                     {:type :validation-error}))))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -570,7 +527,6 @@ Functional error propagation with exception handling:
 Use `clojure.test` with immutable data structures:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (ns my-app.test.schema
   (:require [clojure.test :refer :all]
             [FraiseQL.core :as fql]))
@@ -604,8 +560,7 @@ Use `clojure.test` with immutable data structures:
     (let [test-db {:users [{:id 1 :name "Alice"}]}]
       (with-redefs [fql/database test-db]
         (test-fn)))))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -637,19 +592,15 @@ Use `clojure.test` with immutable data structures:
 **Solution**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; project.clj
 (defproject myapp "0.1.0"
   :dependencies [[org.clojure/clojure "1.11.0"]
                  [FraiseQL/FraiseQL-clojure "2.0.0"]])
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 lein deps
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Java Version Issues
 
@@ -658,20 +609,16 @@ lein deps
 **Check version** (11+ required):
 
 ```bash
-<!-- Code example in BASH -->
 java -version
-```text
-<!-- Code example in TEXT -->
+```
 
 **Set in project.clj**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 :java-source-paths ["src/java"]
 :source-paths ["src/clj"]
 :target-path "target/%s"
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Macro Compilation Issues
 
@@ -680,15 +627,13 @@ java -version
 **Solution - Require properly**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (ns myapp.schema
   (:require [FraiseQL.core :as fq]))
 
 (fq/deftype User
   {:id :int
    :email :string})
-```text
-<!-- Code example in TEXT -->
+```
 
 #### REPL Issues
 
@@ -697,10 +642,8 @@ java -version
 **Solution - Refresh in REPL**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require :reload 'FraiseQL.core)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -713,7 +656,6 @@ java -version
 **Solution - Proper schema**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; ✅ Correct
 (fq/deftype User
   {:id int?
@@ -725,8 +667,7 @@ java -version
   {:id int?
    :email string?
    :bio (nilable? string?)})
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Spec Validation Issues
 
@@ -735,13 +676,11 @@ java -version
 **Solution - Use s/explain**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require '[clojure.spec.alpha :as s])
 
 (s/explain ::user-spec user-data)
 (s/valid? ::user-spec user-data)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Transducer Issues
 
@@ -750,15 +689,13 @@ java -version
 **Solution - Use proper transducers**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; ✅ Correct
 (transduce
   (comp (map process-row)
         (filter valid?))
   conj
   results)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -771,14 +708,12 @@ java -version
 **Solution - Force realization carefully**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; ✅ With doall
 (doall (map FraiseQL/execute queries))
 
 ; ✅ Or use reduce
 (reduce FraiseQL/execute-accumulated [] queries)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Thread Pool Issues
 
@@ -787,7 +722,6 @@ java -version
 **Solution - Limit concurrency**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require '[clojure.core.async :as async])
 
 (let [chan (async/chan 10)]
@@ -796,8 +730,7 @@ java -version
     (when-let [query (async/<! chan)]
       (FraiseQL/execute query)
       (recur))))
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Map/Vector Issues
 
@@ -806,13 +739,11 @@ java -version
 **Solution - Require namespace**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (ns myapp.core
   (:require [FraiseQL.core :as fq]))
 
 (fq/execute query variables)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -825,11 +756,9 @@ java -version
 **Use AOT selectively**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; project.clj
 :aot [myapp.core]  ; Only what needed
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Lazy Sequence Memory Issues
 
@@ -838,13 +767,11 @@ java -version
 **Realize in chunks**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; ✅ Process in batches
 (->> (fq/query-stream query)
      (partition 100)
      (map process-batch))
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Database Pool Issues
 
@@ -853,7 +780,6 @@ java -version
 **Configure pool**:
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require '[hikari-cp.core :as hikari])
 
 (def datasource
@@ -861,8 +787,7 @@ java -version
     {:jdbc-url "postgresql://..."
      :maximum-pool-size 20
      :minimum-idle-size 5}))
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -871,45 +796,37 @@ java -version
 #### REPL Debugging
 
 ```clojure
-<!-- Code example in CLOJURE -->
 user> (require 'FraiseQL.core)
 user> (def server (FraiseQL.core/from-compiled "schema.json"))
 user> (FraiseQL.core/execute server "{ user(id: 1) { id } }")
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Tap Debugging
 
 ```clojure
-<!-- Code example in CLOJURE -->
 ; Modern Clojure (1.10.0+)
 (tap> result)  ; Send to tap
 
 ; In terminal
 (add-tap println)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Print Debugging
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (let [result (FraiseQL/execute query)]
   (prn "Result:" result)
   result)
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Spec Explain
 
 ```clojure
-<!-- Code example in CLOJURE -->
 (require '[clojure.spec.alpha :as s])
 
 (s/explain ::user-schema user-data)
 (clojure.spec.alpha/spec-explain ::user-schema user-data)
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -926,7 +843,6 @@ Provide:
 **Template**:
 
 ```markdown
-<!-- Code example in MARKDOWN -->
 **Environment**:
 - Clojure: 1.11.0
 - Java: 11
@@ -940,8 +856,7 @@ Provide:
 
 **Error**:
 [Full stack trace]
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

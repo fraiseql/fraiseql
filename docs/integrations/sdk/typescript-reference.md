@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL TypeScript SDK Reference
 description: Complete API reference for the FraiseQL TypeScript SDK. Provides decorators and utilities for defining GraphQL schemas that compile to optimized SQL. TypeScript
@@ -15,7 +14,6 @@ Complete API reference for the FraiseQL TypeScript SDK. Provides decorators and 
 ## Installation
 
 ```bash
-<!-- Code example in BASH -->
 # npm
 npm install FraiseQL
 
@@ -24,8 +22,7 @@ yarn add FraiseQL
 
 # pnpm
 pnpm add FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 **Requirements:**
 
@@ -34,7 +31,6 @@ pnpm add FraiseQL
 - Decorators enabled in `tsconfig.json`:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -44,8 +40,7 @@ pnpm add FraiseQL
     "moduleResolution": "node"
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Quick Reference Table
 
@@ -69,7 +64,6 @@ pnpm add FraiseQL
 ### Basic Type Definition
 
 ```typescript
-<!-- Code example in TypeScript -->
 import * as FraiseQL from 'FraiseQL';
 
 @FraiseQL.type()
@@ -87,13 +81,11 @@ FraiseQL.registerTypeFields('User', [
   { name: 'email', type: 'Email', nullable: false },
   { name: 'isActive', type: 'Boolean', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Nullable and Optional Types
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Nullable (can be null in GraphQL response)
 { name: 'middleName', type: 'String', nullable: true }  // Returns String | null
 
@@ -102,13 +94,11 @@ FraiseQL.registerTypeFields('User', [
 
 // Both nullable and optional
 { name: 'description', type: 'String', nullable: true }  // Can be null or omitted
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Generic Types and Arrays
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Array types
 { name: 'tags', type: 'String', nullable: false, isList: true }     // [String!]
 { name: 'scores', type: 'Float', nullable: true, isList: true }     // [Float]
@@ -124,13 +114,11 @@ FraiseQL.registerTypeFields('Post', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'author', type: 'User', nullable: false },  // References User type
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Enum Types
 
 ```typescript
-<!-- Code example in TypeScript -->
 const OrderStatus = FraiseQL.enum_('OrderStatus', {
   PENDING: 'pending',
   PROCESSING: 'processing',
@@ -146,13 +134,11 @@ FraiseQL.registerTypeFields('Order', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'status', type: 'OrderStatus', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Interface Types
 
 ```typescript
-<!-- Code example in TypeScript -->
 const Node = FraiseQL.interface_('Node', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'createdAt', type: 'DateTime', nullable: false },
@@ -166,13 +152,11 @@ FraiseQL.registerTypeFields('User', [
   { name: 'createdAt', type: 'DateTime', nullable: false },
   { name: 'name', type: 'String', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Union Types
 
 ```typescript
-<!-- Code example in TypeScript -->
 const SearchResult = FraiseQL.union('SearchResult',
   ['User', 'Post', 'Comment'],
   { description: 'Result of a search query' }
@@ -186,13 +170,11 @@ FraiseQL.registerQuery(
   [{ name: 'query', type: 'String', nullable: false }],
   'Search across content'
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Input Types
 
 ```typescript
-<!-- Code example in TypeScript -->
 const CreateUserInput = FraiseQL.input('CreateUserInput', [
   { name: 'email', type: 'Email', nullable: false },
   { name: 'name', type: 'String', nullable: false },
@@ -209,8 +191,7 @@ FraiseQL.registerMutation(
   [{ name: 'input', type: 'CreateUserInput', nullable: false }],
   'Create a new user'
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Operations
 
@@ -219,7 +200,6 @@ FraiseQL.registerMutation(
 Queries are read-only operations that map to SQL SELECT or views.
 
 ```typescript
-<!-- Code example in TypeScript -->
 @FraiseQL.query({ sqlSource: 'v_users' })
 function users(
   limit: number = 10,
@@ -243,15 +223,13 @@ FraiseQL.registerQuery(
   'Get paginated user list',
   { sql_source: 'v_users' }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Mutations
 
 Mutations are write operations that map to SQL functions.
 
 ```typescript
-<!-- Code example in TypeScript -->
 @FraiseQL.mutation({ sqlSource: 'fn_create_user', operation: 'CREATE' })
 function createUser(email: string, name: string): User {
   throw new Error('Not executed');
@@ -295,15 +273,13 @@ FraiseQL.registerMutation(
   'Delete a user by ID',
   { sql_source: 'fn_delete_user', operation: 'DELETE' }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Subscriptions
 
 Real-time subscriptions for database events (LISTEN/NOTIFY or CDC).
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerSubscription(
   'userCreated',
   'User',
@@ -337,15 +313,13 @@ FraiseQL.registerSubscription(
   'Subscribe to all user changes',
   { operations: ['CREATE', 'UPDATE', 'DELETE'] }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Advanced Features
 
 ### Fact Tables for Analytics
 
 ```typescript
-<!-- Code example in TypeScript -->
 @FraiseQL.FactTable({
   tableName: 'tf_sales',
   measures: ['revenue', 'quantity', 'cost'],
@@ -371,13 +345,11 @@ FraiseQL.registerTypeFields('Sale', [
   { name: 'cost', type: 'Decimal', nullable: false },
   { name: 'customerId', type: 'ID', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Aggregate Queries
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerQuery(
   'salesSummary',
   'Record<string, unknown>',
@@ -395,13 +367,11 @@ FraiseQL.registerQuery(
     autoAggregates: true
   }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field-Level Security
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'email', type: 'String', nullable: false },
@@ -420,13 +390,11 @@ FraiseQL.registerTypeFields('User', [
     description: 'Social security number'
   },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field Deprecation
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerTypeFields('Product', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'name', type: 'String', nullable: false },
@@ -439,13 +407,11 @@ FraiseQL.registerTypeFields('Product', [
   },
   { name: 'pricing', type: 'PricingObject', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Observers and Webhooks
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerObserver(
   'onOrderCreated',
   'Order',
@@ -457,8 +423,7 @@ FraiseQL.registerObserver(
   },
   'Notify external system when order created'
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Scalar Types Reference
 
@@ -493,39 +458,32 @@ See [Scalars Reference](../../reference/scalars.md) for the complete 60+ type li
 ### Export to File
 
 ```typescript
-<!-- Code example in TypeScript -->
 // At end of schema definition file
 if (require.main === module) {
   FraiseQL.exportSchema('schema.json', { pretty: true });
   console.log('Schema exported to schema.json');
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Get Schema as Object
 
 ```typescript
-<!-- Code example in TypeScript -->
 const schema = FraiseQL.getSchemaDict();
 console.log(schema.types);
 console.log(schema.queries);
 console.log(schema.mutations);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Export to String
 
 ```typescript
-<!-- Code example in TypeScript -->
 const json = FraiseQL.exportSchemaToString({ pretty: true });
 console.log(json);
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Schema.json Structure
 
 ```json
-<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -549,8 +507,7 @@ console.log(json);
   "mutations": [],
   "subscriptions": []
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Type Mapping
 
@@ -573,7 +530,6 @@ TypeScript to GraphQL type conversion:
 ### CRUD Operations
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Create
 FraiseQL.registerMutation('createUser', 'User', false, false,
   [{ name: 'email', type: 'Email', nullable: false }],
@@ -604,13 +560,11 @@ FraiseQL.registerMutation('deleteUser', 'Boolean', false, false,
   'Delete user',
   { sql_source: 'fn_delete_user', operation: 'DELETE' }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerQuery(
   'users',
   'User',
@@ -625,13 +579,11 @@ FraiseQL.registerQuery(
   'Get paginated users',
   { sql_source: 'v_users' }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Filtering
 
 ```typescript
-<!-- Code example in TypeScript -->
 FraiseQL.registerQuery(
   'usersByStatus',
   'User',
@@ -645,15 +597,13 @@ FraiseQL.registerQuery(
   'Get users filtered by status and date range',
   { sql_source: 'fn_users_by_status' }
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Error Handling
 
 FraiseQL uses typed errors:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Example error response
 {
   "errors": [
@@ -667,8 +617,7 @@ FraiseQL uses typed errors:
     }
   ]
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Common Error Codes
 
@@ -685,7 +634,6 @@ FraiseQL uses typed errors:
 ### Jest/Vitest Test Patterns
 
 ```typescript
-<!-- Code example in TypeScript -->
 import * as FraiseQL from 'FraiseQL';
 import { describe, it, expect } from 'vitest';
 
@@ -721,15 +669,13 @@ describe('Schema Definition', () => {
     expect(parsed.queries).toBeDefined();
   });
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Framework Integration
 
 ### NestJS
 
 ```typescript
-<!-- Code example in TypeScript -->
 import { Injectable } from '@nestjs/common';
 import * as FraiseQL from 'FraiseQL';
 
@@ -750,13 +696,11 @@ export class FraiseQLService {
     FraiseQL.exportSchema(path);
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Express
 
 ```typescript
-<!-- Code example in TypeScript -->
 import express from 'express';
 import * as FraiseQL from 'FraiseQL';
 
@@ -774,8 +718,7 @@ app.get('/schema.json', (req, res) => {
 });
 
 app.listen(3000);
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Troubleshooting
 
@@ -788,7 +731,6 @@ app.listen(3000);
 **Solutions**:
 
 ```bash
-<!-- Code example in BASH -->
 # Check npm version
 npm --version
 
@@ -801,18 +743,15 @@ npm install FraiseQL@2.0.0
 # Use yarn or pnpm instead
 yarn add FraiseQL
 pnpm add FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 **Private registry**:
 
 ```bash
-<!-- Code example in BASH -->
 # If using private npm registry
 npm config set registry https://your-registry.com
 npm install FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Module Resolution Issues
 
@@ -821,7 +760,6 @@ npm install FraiseQL
 **Solution - Check tsconfig.json**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "moduleResolution": "node",
@@ -832,23 +770,20 @@ npm install FraiseQL
     "emitDecoratorMetadata": true
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Issue**: `ESM vs CommonJS mismatch`
 
 **Solution**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "module": "commonjs",     // Not "esnext"
     "target": "ES2020"
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Decorator Configuration
 
@@ -857,15 +792,13 @@ npm install FraiseQL
 **Solution - Enable decorators**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Version Compatibility
 
@@ -874,24 +807,20 @@ npm install FraiseQL
 **Solution**:
 
 ```bash
-<!-- Code example in BASH -->
 # Check Node version (18+ required)
 node --version
 
 # Update Node
 nvm install 18.0.0
 nvm use 18.0.0
-```text
-<!-- Code example in TEXT -->
+```
 
 **Check TypeScript version** (5.0+ required):
 
 ```bash
-<!-- Code example in BASH -->
 npx tsc --version
 npm install -D typescript@5.0.0
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -906,7 +835,6 @@ npm install -D typescript@5.0.0
 **Solution**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // ❌ Wrong - inconsistent type registration
 @FraiseQL.type()
 class User {
@@ -924,8 +852,7 @@ class User {
 FraiseQL.registerTypeFields('User', [
   { name: 'email', type: 'Email', nullable: false }
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Nullability Problems
 
@@ -934,7 +861,6 @@ FraiseQL.registerTypeFields('User', [
 **Solution - Explicit null handling**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // ❌ Wrong - optional but should be explicit
 @FraiseQL.type()
 class User {
@@ -952,8 +878,7 @@ class User {
 FraiseQL.registerTypeFields('User', [
   { name: 'name', type: 'String', nullable: true }
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Generic Type Issues
 
@@ -964,7 +889,6 @@ FraiseQL.registerTypeFields('User', [
 **Solution - Use concrete types**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // ❌ Won't work - generics not supported
 class Paginated<T> {
   items: T[];
@@ -982,8 +906,7 @@ FraiseQL.registerTypeFields('UserPage', [
   { name: 'items', type: 'User', nullable: false, isList: true },
   { name: 'total', type: 'Int', nullable: false },
 ]);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Schema Validation Errors
 
@@ -994,7 +917,6 @@ FraiseQL.registerTypeFields('UserPage', [
 **Solution - Register all types**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Define type
 @FraiseQL.type()
 class User {
@@ -1011,8 +933,7 @@ FraiseQL.registerTypeFields('User', [
 function getUser(): User {
   return { id: 1 };
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1025,7 +946,6 @@ function getUser(): User {
 **Debug with logging**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Enable verbose logging
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   debug: true,
@@ -1038,8 +958,7 @@ try {
 } catch (error) {
   console.error('Execution error:', error);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Async/Await Issues
 
@@ -1048,7 +967,6 @@ try {
 **Solution - Always await**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // ❌ Wrong - not awaiting
 const result = server.execute(query);  // Returns Promise
 console.log(result);  // undefined!
@@ -1056,13 +974,11 @@ console.log(result);  // undefined!
 // ✅ Correct - await Promise
 const result = await server.execute(query);
 console.log(result);  // Actual result
-```text
-<!-- Code example in TEXT -->
+```
 
 **Using async handlers**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 app.post('/graphql', async (req, res, next) => {
   try {
     const result = await server.execute(req.body.query);
@@ -1071,8 +987,7 @@ app.post('/graphql', async (req, res, next) => {
     next(error);  // Pass to error middleware
   }
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Connection Issues
 
@@ -1081,27 +996,23 @@ app.post('/graphql', async (req, res, next) => {
 **Check environment**:
 
 ```bash
-<!-- Code example in BASH -->
 # Verify DATABASE_URL is set
 echo $DATABASE_URL
 
 # Test connectivity
 psql postgresql://user:pass@localhost/db -c "SELECT 1"
-```text
-<!-- Code example in TEXT -->
+```
 
 **Solution in code**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   databaseUrl: process.env.DATABASE_URL,
 }).catch((error) => {
   console.error('Failed to initialize server:', error);
   process.exit(1);
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Timeout Problems
 
@@ -1110,25 +1021,21 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 **Solution - Increase timeout**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   timeout: 60000,  // 60 seconds
   queryTimeout: 30000,  // Per-query timeout
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 **Or optimize queries**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // Add pagination to large datasets
 @FraiseQL.query('getUsersPaginated')
 function getUsersPaginated(limit: number = 20, offset: number = 0): User[] {
   return [];
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1141,20 +1048,17 @@ function getUsersPaginated(limit: number = 20, offset: number = 0): User[] {
 **Solution - Configure properly**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2020"
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 Or for ESM:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "module": "esnext",
@@ -1162,8 +1066,7 @@ Or for ESM:
   },
   "type": "module"
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Checking Performance
 
@@ -1172,28 +1075,24 @@ Or for ESM:
 **Solution - Skip library type checking**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use incremental compilation**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Build Size Issues
 
@@ -1202,20 +1101,16 @@ Or for ESM:
 **Solution - Tree-shake unused code**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 // In build config (webpack, esbuild, etc.)
 // Enable side-effect-free imports
 import { type } from 'FraiseQL';  // Only import what you need
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use esbuild for faster builds**:
 
 ```bash
-<!-- Code example in BASH -->
 esbuild src/index.ts --bundle --outfile=dist/bundle.js --minify
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Query Performance
 
@@ -1224,15 +1119,13 @@ esbuild src/index.ts --bundle --outfile=dist/bundle.js --minify
 **Enable caching**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   cache: {
     enabled: true,
     ttl: 300,  // 5 minutes
   },
 });
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1243,7 +1136,6 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 **Setup logging**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 import * as FraiseQL from 'FraiseQL';
 
 // Enable debug mode
@@ -1255,67 +1147,56 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 // Or via environment
 process.env.FRAISEQL_DEBUG = 'true';
 process.env.RUST_LOG = 'FraiseQL=debug';
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Use TypeScript Compiler Options
 
 **Enable source maps**:
 
 ```json
-<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "sourceMap": true,
     "inlineSources": true
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Then debug**:
 
 ```bash
-<!-- Code example in BASH -->
 node --inspect-brk dist/index.js
 # Opens Chrome DevTools at chrome://inspect
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Inspect Generated Types
 
 **Print generated types**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 const schema = await FraiseQL.loadCompiledSchema('schema.compiled.json');
 console.log(JSON.stringify(schema.types, null, 2));
-```text
-<!-- Code example in TEXT -->
+```
 
 **Validate schema**:
 
 ```typescript
-<!-- Code example in TypeScript -->
 const schema = await FraiseQL.validateSchema(schemaJson);
 if (!schema.valid) {
   console.error('Schema errors:', schema.errors);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Network Traffic Inspection
 
 **Using curl**:
 
 ```bash
-<!-- Code example in BASH -->
 curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ user(id: 1) { id } }"}' \
   -v
-```text
-<!-- Code example in TEXT -->
+```
 
 **Using browser DevTools**:
 
@@ -1341,7 +1222,6 @@ Provide when reporting issues:
 **Issue template**:
 
 ```markdown
-<!-- Code example in MARKDOWN -->
 **Environment**:
 - Node.js: v18.16.0
 - TypeScript: 5.0.4
@@ -1355,8 +1235,7 @@ Provide when reporting issues:
 
 **Error**:
 [Full error message and stack trace]
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Community Channels
 
@@ -1369,20 +1248,16 @@ Provide when reporting issues:
 **Profile with Node.js**:
 
 ```bash
-<!-- Code example in BASH -->
 node --prof dist/index.js
 node --prof-process isolate-*.log > profile.txt
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use clinic.js**:
 
 ```bash
-<!-- Code example in BASH -->
 npm install -g clinic
 clinic doctor -- node dist/index.js
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

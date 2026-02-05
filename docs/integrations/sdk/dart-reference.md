@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Dart SDK Reference
 description: Complete API reference for the FraiseQL Dart SDK. Build type-safe GraphQL APIs using Dart 3.0's sound null safety and Flutter integration. Full support for asyn
@@ -20,7 +19,6 @@ Complete API reference for the FraiseQL Dart SDK. Build type-safe GraphQL APIs u
 Add FraiseQL to your `pubspec.yaml`:
 
 ```yaml
-<!-- Code example in YAML -->
 # pubspec.yaml
 name: my_fraiseql_app
 description: A FraiseQL client application with Flutter.
@@ -41,18 +39,15 @@ dev_dependencies:
   build_runner: ^2.4.0
   json_serializable: ^6.7.0
   riverpod_generator: ^2.3.0  # Optional: State management
-```text
-<!-- Code example in TEXT -->
+```
 
 Then install dependencies:
 
 ```bash
-<!-- Code example in BASH -->
 flutter pub get
 # or
 dart pub get
-```text
-<!-- Code example in TEXT -->
+```
 
 **Requirements**:
 
@@ -91,7 +86,6 @@ dart pub get
 Dart 3.0+ enforces sound null safety at compile time. Every variable is non-nullable by default; use `?` for nullable types.
 
 ```dart
-<!-- Code example in DART -->
 import 'package:FraiseQL/FraiseQL.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -123,8 +117,7 @@ class User {
   // JSON serialization
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 **Null Safety Patterns**:
 
@@ -137,7 +130,6 @@ class User {
 ### 2. Complex Types with Nested Objects
 
 ```dart
-<!-- Code example in DART -->
 @Type()
 @JsonSerializable()
 class Address {
@@ -179,15 +171,13 @@ class Company {
       _$CompanyFromJson(json);
   Map<String, dynamic> toJson() => _$CompanyToJson(this);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Using Late Initialization
 
 For fields initialized after construction, use `late`:
 
 ```dart
-<!-- Code example in DART -->
 @Type()
 class UserCache {
   final int id;
@@ -205,15 +195,13 @@ class UserCache {
 
   String _computeHash(String input) => 'hash_$input';
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Operations: Queries, Mutations, Subscriptions
 
 ### 1. Query Definitions
 
 ```dart
-<!-- Code example in DART -->
 @Query()
 abstract class UserQueries {
   /// Get a single user by ID
@@ -255,13 +243,11 @@ class UserRepository {
     return await client.query.searchUsers(name);
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. Mutation Definitions
 
 ```dart
-<!-- Code example in DART -->
 @Mutation()
 abstract class UserMutations {
   /// Create a new user
@@ -321,13 +307,11 @@ class UserService {
     return await client.mutation.deleteUser(id);
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Subscription Definitions (Real-Time)
 
 ```dart
-<!-- Code example in DART -->
 @Subscription()
 abstract class UserSubscriptions {
   /// Listen for user updates in real-time
@@ -396,15 +380,13 @@ class _UserListPageState extends State<UserListPage> {
     );
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Advanced Features
 
 ### 1. Fact Tables for Analytics
 
 ```dart
-<!-- Code example in DART -->
 @FactTable(
   table: 'user_metrics_fact',
   timeGrain: 'day',
@@ -478,13 +460,11 @@ class CohortAnalysis {
       _$CohortAnalysisFromJson(json);
   Map<String, dynamic> toJson() => _$CohortAnalysisToJson(this);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. Role-Based Access Control (RBAC)
 
 ```dart
-<!-- Code example in DART -->
 @Type()
 @JsonSerializable()
 class SecureUser {
@@ -545,13 +525,11 @@ class AuthService {
     return await client.query.getCurrentUser();
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Field Metadata and Validation
 
 ```dart
-<!-- Code example in DART -->
 @Type()
 @JsonSerializable()
 class CreateUserRequest {
@@ -586,8 +564,7 @@ class CreateUserRequest {
       _$CreateUserRequestFromJson(json);
   Map<String, dynamic> toJson() => _$CreateUserRequestToJson(this);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Scalar Types
 
@@ -613,7 +590,6 @@ class CreateUserRequest {
 ### Custom Scalar Handling
 
 ```dart
-<!-- Code example in DART -->
 // Define custom scalars for domain-specific types:
 @Type()
 @JsonSerializable()
@@ -644,8 +620,7 @@ class GeoPoint {
       _$GeoPointFromJson(json);
   Map<String, dynamic> toJson() => _$GeoPointToJson(this);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Schema Export Workflow
 
@@ -654,31 +629,26 @@ class GeoPoint {
 FraiseQL provides code generation to extract schema from annotated Dart types:
 
 ```bash
-<!-- Code example in BASH -->
 # Run build_runner to generate serialization code and schema
 dart pub run build_runner build
 
 # This generates:
 # - lib/models/user.g.dart (json_serializable)
 # - schema.json (FraiseQL schema)
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. Compile Schema for Deployment
 
 ```bash
-<!-- Code example in BASH -->
 # Compile schema on the FraiseQL server
 FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Output: schema.compiled.json (ready for runtime)
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Integration with Package Structure
 
-```text
-<!-- Code example in TEXT -->
+```
 my_fraiseql_app/
 ├── lib/
 │   ├── models/
@@ -696,15 +666,13 @@ my_fraiseql_app/
 ├── pubspec.yaml
 ├── schema.json                 # Generated (git-ignored)
 └── build.yaml                  # build_runner config
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Common Patterns with Flutter Integration
 
 ### 1. CRUD Operations in Flutter
 
 ```dart
-<!-- Code example in DART -->
 class UserRepository {
   final FraiseQLClient client;
 
@@ -770,13 +738,11 @@ class UserListWidget extends ConsumerWidget {
     );
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 2. Pagination Pattern
 
 ```dart
-<!-- Code example in DART -->
 class PaginatedUserProvider {
   static final pageSize = 20;
 
@@ -838,13 +804,11 @@ class PaginatedUserList extends ConsumerWidget {
     );
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### 3. Search with Debounce
 
 ```dart
-<!-- Code example in DART -->
 class SearchProvider {
   static final searchQueryProvider =
       StateProvider<String>((ref) => '');
@@ -897,15 +861,13 @@ class SearchUserWidget extends ConsumerWidget {
     );
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Error Handling
 
 ### Exception Hierarchy and Patterns
 
 ```dart
-<!-- Code example in DART -->
 abstract class FraiseQLException implements Exception {
   final String message;
   FraiseQLException(this.message);
@@ -1007,15 +969,13 @@ class _UserFormState extends State<UserForm> {
     );
   }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## Testing Patterns
 
 ### Unit Testing Types and Models
 
 ```dart
-<!-- Code example in DART -->
 import 'package:test/test.dart';
 import 'package:my_fraiseql_app/models/user.dart';
 
@@ -1068,13 +1028,11 @@ void main() {
     });
   });
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Integration Testing with Mock Server
 
 ```dart
-<!-- Code example in DART -->
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 
@@ -1123,8 +1081,7 @@ void main() {
     });
   });
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ## See Also
 
@@ -1151,19 +1108,15 @@ void main() {
 **Solution**:
 
 ```yaml
-<!-- Code example in YAML -->
 # pubspec.yaml
 dependencies:
   FraiseQL: ^2.0.0
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 pub get
 pub upgrade
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Null Safety Issues
 
@@ -1172,17 +1125,14 @@ pub upgrade
 **Enable null safety**:
 
 ```yaml
-<!-- Code example in YAML -->
 # pubspec.yaml
 environment:
   SDK: '>=3.0.0 <4.0.0'
-```text
-<!-- Code example in TEXT -->
+```
 
 **Use correct nullability**:
 
 ```dart
-<!-- Code example in DART -->
 // ✅ Nullable
 User? user;
 String? middleName;
@@ -1190,8 +1140,7 @@ String? middleName;
 // ✅ Non-null
 User user;
 String email;
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Async/Await Issues
 
@@ -1200,14 +1149,12 @@ String email;
 **Solution - Use await**:
 
 ```dart
-<!-- Code example in DART -->
 // ❌ Wrong - not awaiting
 var result = server.execute(query);
 
 // ✅ Correct
 var result = await server.execute(query);
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Build Runner Issues
 
@@ -1216,11 +1163,9 @@ var result = await server.execute(query);
 **Solution**:
 
 ```bash
-<!-- Code example in BASH -->
 pub run build_runner build
 pub run build_runner watch
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1233,7 +1178,6 @@ pub run build_runner watch
 **Solution - Cast properly**:
 
 ```dart
-<!-- Code example in DART -->
 // ✅ Correct cast
 final variables = <String, Object>{
   'id': 123,
@@ -1244,8 +1188,7 @@ final result = await server.execute(
   query: query,
   variables: variables
 );
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Null Safety Issues
 
@@ -1254,7 +1197,6 @@ final result = await server.execute(
 **Solution - Check null before use**:
 
 ```dart
-<!-- Code example in DART -->
 // ✅ Check first
 if (user != null) {
   print(user.email);  // Safe
@@ -1262,8 +1204,7 @@ if (user != null) {
 
 // ✅ Or use optional chaining
 print(user?.email ?? 'Unknown');
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Generic Type Issues
 
@@ -1272,7 +1213,6 @@ print(user?.email ?? 'Unknown');
 **Solution - Use concrete types**:
 
 ```dart
-<!-- Code example in DART -->
 // ❌ Won't work
 class Box<T> {
   T value;
@@ -1282,8 +1222,7 @@ class Box<T> {
 class UserBox {
   User value;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1296,12 +1235,10 @@ class UserBox {
 **Check connectivity**:
 
 ```dart
-<!-- Code example in DART -->
 // Add connectivity_plus
 const http = 'http://localhost:8080/graphql';
 final result = await http.post(Uri.parse(http));
-```text
-<!-- Code example in TEXT -->
+```
 
 #### JSON Deserialization Issues
 
@@ -1310,7 +1247,6 @@ final result = await http.post(Uri.parse(http));
 **Solution - Handle null safely**:
 
 ```dart
-<!-- Code example in DART -->
 // ✅ Use generated json_serializable
 @JsonSerializable()
 class User {
@@ -1327,8 +1263,7 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) =>
       _$UserFromJson(json);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Future Issues
 
@@ -1337,7 +1272,6 @@ class User {
 **Solution - Always return Future**:
 
 ```dart
-<!-- Code example in DART -->
 // ❌ Wrong
 Future<User>? getUser() {
   return server.execute(query);  // Nullable Future
@@ -1347,8 +1281,7 @@ Future<User>? getUser() {
 Future<User> getUser() {
   return server.execute(query);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1361,12 +1294,10 @@ Future<User> getUser() {
 **Clean and rebuild**:
 
 ```bash
-<!-- Code example in BASH -->
 flutter clean
 flutter pub get
 flutter build
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Memory Usage
 
@@ -1375,10 +1306,8 @@ flutter build
 **Profile with DevTools**:
 
 ```bash
-<!-- Code example in BASH -->
 flutter run --profile
-```text
-<!-- Code example in TEXT -->
+```
 
 **Optimize**:
 
@@ -1393,14 +1322,12 @@ flutter run --profile
 **Increase timeout**:
 
 ```dart
-<!-- Code example in DART -->
 final client = http.Client();
 final response = await client.post(
   Uri.parse('http://localhost:8080/graphql'),
   body: queryJson,
 ).timeout(Duration(seconds: 60));
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1409,26 +1336,21 @@ final response = await client.post(
 #### Print Debugging
 
 ```dart
-<!-- Code example in DART -->
 debugPrint('Query: $query');
 debugPrint('Result: $result');
-```text
-<!-- Code example in TEXT -->
+```
 
 #### DevTools
 
 ```bash
-<!-- Code example in BASH -->
 flutter pub global activate devtools
 devtools
 # Opens browser at http://localhost:9100
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Logging
 
 ```dart
-<!-- Code example in DART -->
 import 'package:logger/logger.dart';
 
 final logger = Logger();
@@ -1436,8 +1358,7 @@ final logger = Logger();
 logger.d('Debug message');
 logger.i('Info message');
 logger.e('Error', error: exception);
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 

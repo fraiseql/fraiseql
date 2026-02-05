@@ -1,4 +1,3 @@
-<!-- Skip to main content -->
 ---
 title: FraiseQL Java SDK Reference
 description: Complete API reference for the FraiseQL Java SDK. This guide covers the complete Java authoring interface for building type-safe GraphQL APIs with Java annotati
@@ -18,7 +17,6 @@ Complete API reference for the FraiseQL Java SDK. This guide covers the complete
 ### Maven
 
 ```xml
-<!-- Code example in XML -->
 <dependency>
     <groupId>com.FraiseQL</groupId>
     <artifactId>FraiseQL-SDK</artifactId>
@@ -32,13 +30,11 @@ Complete API reference for the FraiseQL Java SDK. This guide covers the complete
     <version>2.0.0</version>
     <scope>provided</scope>
 </dependency>
-```text
-<!-- Code example in TEXT -->
+```
 
 Configure annotation processor in `pom.xml`:
 
 ```xml
-<!-- Code example in XML -->
 <build>
     <plugins>
         <plugin>
@@ -59,13 +55,11 @@ Configure annotation processor in `pom.xml`:
         </plugin>
     </plugins>
 </build>
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Gradle
 
 ```gradle
-<!-- Code example in GRADLE -->
 dependencies {
     implementation 'com.FraiseQL:FraiseQL-SDK:2.0.0'
     annotationProcessor 'com.FraiseQL:FraiseQL-processor:2.0.0'
@@ -75,8 +69,7 @@ tasks.withType(JavaCompile) {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Requirements
 
@@ -89,7 +82,6 @@ tasks.withType(JavaCompile) {
 ### First Schema (60 seconds)
 
 ```java
-<!-- Code example in Java -->
 import com.FraiseQL.*;
 
 @GraphQLType
@@ -117,17 +109,14 @@ public class Main {
         System.out.println("Schema exported!");
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 Export and deploy to your FraiseQL server:
 
 ```bash
-<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -154,7 +143,6 @@ FraiseQL-server --schema schema.compiled.json
 Marks a class as a GraphQL type definition. Classes can be POJOs, records, or regular classes.
 
 ```java
-<!-- Code example in Java -->
 // Standard POJO
 @GraphQLType
 public class User {
@@ -193,8 +181,7 @@ public class Order {
     @GraphQLField
     public String getStatus() { return status; }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Attributes
 
@@ -212,7 +199,6 @@ public class Order {
 Marks a field or getter as part of a GraphQL type. Supports nullability, custom names, and type overrides.
 
 ```java
-<!-- Code example in Java -->
 @GraphQLField
 public String name;
 
@@ -227,8 +213,7 @@ public String userId;
 
 @GraphQLField(name = "tags", type = "[String]!")
 public List<String> getTags() { return tags; }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Attributes
 
@@ -256,7 +241,6 @@ public List<String> getTags() { return tags; }
 ### 3. Generics and Complex Types
 
 ```java
-<!-- Code example in Java -->
 @GraphQLType
 public class Page<T> {
     @GraphQLField
@@ -290,8 +274,7 @@ public class Post {
     @GraphQLField(type = "[Comment]!")
     public List<Comment> comments;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -302,7 +285,6 @@ public class Post {
 Queries are read-only operations that fetch data. Use the fluent builder pattern:
 
 ```java
-<!-- Code example in Java -->
 // Simple query
 FraiseQL.query("user")
     .returnType(User.class)
@@ -339,8 +321,7 @@ FraiseQL.query("userCount")
     .returnType(String.class)  // Custom scalar return
     .description("Get total user count")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### QueryBuilder Methods
 
@@ -355,7 +336,6 @@ FraiseQL.query("userCount")
 Mutations are write operations that modify data (INSERT, UPDATE, DELETE).
 
 ```java
-<!-- Code example in Java -->
 // Create mutation
 FraiseQL.mutation("createUser")
     .returnType(User.class)
@@ -387,8 +367,7 @@ FraiseQL.mutation("bulkDeleteUsers")
     .arg("ids", "Int")  // Note: Repeated for array args
     .description("Delete multiple users")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### MutationBuilder Methods
 
@@ -399,7 +378,6 @@ Identical to QueryBuilder interface.
 Subscriptions enable real-time event streaming via WebSocket.
 
 ```java
-<!-- Code example in Java -->
 FraiseQL.subscription("userCreated")
     .returnType(User.class)
     .description("Subscribe to new user creation events")
@@ -418,8 +396,7 @@ FraiseQL.subscription("orderStatus")
     .arg("topic", "String")
     .description("Subscribe to order status changes")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -430,7 +407,6 @@ FraiseQL.subscription("orderStatus")
 Define analytical tables for OLAP queries with dimensions and measures.
 
 ```java
-<!-- Code example in Java -->
 @FactTable(name = "sales_fact", sqlSource = "fact_sales")
 public class SalesFact {
     @GraphQLField(name = "dateKey")
@@ -463,15 +439,13 @@ FraiseQL.query("salesByProduct")
     .arg("dateRange", "String")
     .description("Total sales by product")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### RBAC & Security Annotations
 
 Define role-based access control at query/mutation level.
 
 ```java
-<!-- Code example in Java -->
 @Secured(roles = {"ADMIN"})
 public class AdminPanel {
     @GraphQLField
@@ -509,15 +483,13 @@ public class Account {
     @GraphQLField
     public String accountSsn;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Custom Directives
 
 Define custom GraphQL directives for schema extensions.
 
 ```java
-<!-- Code example in Java -->
 @Directive(name = "auth", description = "Requires authentication")
 public class AuthDirective {
     public String roles;
@@ -534,15 +506,13 @@ FraiseQL.query("profile")
     .returnType(User.class)
     .description("Get user profile (requires authentication)")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Field Observers (Event Webhooks)
 
 Trigger external webhooks when fields change.
 
 ```java
-<!-- Code example in Java -->
 @Observer(name = "onUserCreated", webhook = "https://api.example.com/webhooks/user-created")
 public class UserCreatedObserver {
     public int userId;
@@ -560,8 +530,7 @@ public class OrderShippedObserver {
 // Register observer
 FraiseQL.registerObserver(UserCreatedObserver.class);
 FraiseQL.registerObserver(OrderShippedObserver.class);
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -570,7 +539,6 @@ FraiseQL.registerObserver(OrderShippedObserver.class);
 FraiseQL supports 60+ scalar types mapped from Java to GraphQL:
 
 ```java
-<!-- Code example in Java -->
 // String types
 @GraphQLField public String name;              // String!
 @GraphQLField public String description;       // String!
@@ -606,8 +574,7 @@ FraiseQL supports 60+ scalar types mapped from Java to GraphQL:
 // Optional (Nullable)
 @GraphQLField(nullable = true) public String optional;
 @GraphQLField public String required;          // Non-nullable
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -616,7 +583,6 @@ FraiseQL supports 60+ scalar types mapped from Java to GraphQL:
 ### Export Workflow
 
 ```java
-<!-- Code example in Java -->
 import com.FraiseQL.*;
 
 public class SchemaBuilder {
@@ -662,13 +628,11 @@ public class SchemaBuilder {
         System.out.println(SchemaValidator.getStatistics(registry));
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 Run export:
 
 ```bash
-<!-- Code example in BASH -->
 # Maven
 mvn clean compile exec:java -Dexec.mainClass="com.example.SchemaBuilder"
 
@@ -677,13 +641,11 @@ gradle run
 
 # Then compile schema
 FraiseQL-cli compile schema.json FraiseQL.toml
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Schema Validation
 
 ```java
-<!-- Code example in Java -->
 SchemaRegistry registry = SchemaRegistry.getInstance();
 SchemaValidator.ValidationResult result = SchemaValidator.validate(registry);
 
@@ -699,8 +661,7 @@ if (result.valid) {
         result.warnings.forEach(w -> System.out.println("  WARN: " + w));
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -734,7 +695,6 @@ Complete Java ↔ GraphQL type mappings:
 ### CRUD with Builder Pattern
 
 ```java
-<!-- Code example in Java -->
 @GraphQLType
 public class Article {
     @GraphQLField public int id;
@@ -784,13 +744,11 @@ public class ArticleSchema {
             .register();
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Pagination Pattern
 
 ```java
-<!-- Code example in Java -->
 @GraphQLType
 public class UserConnection {
     @GraphQLField public List<User> edges;
@@ -806,13 +764,11 @@ FraiseQL.query("users")
     .arg("sort", "String")        // Sort field
     .description("Paginated user list")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Filtering Pattern
 
 ```java
-<!-- Code example in Java -->
 FraiseQL.query("searchUsers")
     .returnType(User.class)
     .returnsArray(true)
@@ -821,13 +777,11 @@ FraiseQL.query("searchUsers")
     .arg("createdAfter", "String")
     .arg("limit", "Int")
     .register();
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Spring Boot Integration
 
 ```java
-<!-- Code example in Java -->
 @Configuration
 public class FraiseQLConfig {
 
@@ -860,8 +814,7 @@ public class GraphQLController {
         return ResponseEntity.ok("{}");
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -870,7 +823,6 @@ public class GraphQLController {
 ### Validation Error Handling
 
 ```java
-<!-- Code example in Java -->
 try {
     SchemaRegistry registry = SchemaRegistry.getInstance();
     SchemaValidator.ValidationResult result = SchemaValidator.validate(registry);
@@ -890,13 +842,11 @@ try {
     System.err.println("File I/O error: " + e.getMessage());
     System.exit(1);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Custom Exception Handling
 
 ```java
-<!-- Code example in Java -->
 public class FraiseQLException extends RuntimeException {
     public FraiseQLException(String message) {
         super(message);
@@ -912,8 +862,7 @@ public class SchemaValidationException extends FraiseQLException {
         super(message);
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -922,7 +871,6 @@ public class SchemaValidationException extends FraiseQLException {
 ### JUnit 5 Test Pattern
 
 ```java
-<!-- Code example in Java -->
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -983,13 +931,11 @@ public class SchemaTest {
         assertTrue(schemaJson.contains("User"));
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Mock Pattern for Testing
 
 ```java
-<!-- Code example in Java -->
 public class MockDatabaseAdapter implements DatabaseAdapter {
     private Map<String, Object> data = new HashMap<>();
 
@@ -1013,8 +959,7 @@ public void testWithMockAdapter() {
 
     // Execute test with mock
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1029,21 +974,17 @@ public void testWithMockAdapter() {
 **Solution - Check repository**:
 
 ```xml
-<!-- Code example in XML -->
 <repository>
   <id>central</id>
   <url>https://repo.maven.apache.org/maven2</url>
 </repository>
-```text
-<!-- Code example in TEXT -->
+```
 
 Or Maven Central directly:
 
 ```bash
-<!-- Code example in BASH -->
 mvn clean install -U  # Update snapshots
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Compilation Issues
 
@@ -1052,20 +993,16 @@ mvn clean install -U  # Update snapshots
 **Verify dependency**:
 
 ```xml
-<!-- Code example in XML -->
 <dependency>
   <groupId>com.FraiseQL</groupId>
   <artifactId>FraiseQL-java</artifactId>
   <version>2.0.0</version>
 </dependency>
-```text
-<!-- Code example in TEXT -->
+```
 
 ```bash
-<!-- Code example in BASH -->
 mvn dependency:tree | grep FraiseQL
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Classpath Issues
 
@@ -1074,7 +1011,6 @@ mvn dependency:tree | grep FraiseQL
 **Check classpath**:
 
 ```bash
-<!-- Code example in BASH -->
 # Maven - ensure correct target directory
 mvn clean compile
 
@@ -1083,8 +1019,7 @@ mvn clean compile
 
 # Java - add to classpath explicitly
 java -cp ".:lib/*" MyApp
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Java Version Mismatch
 
@@ -1093,21 +1028,17 @@ java -cp ".:lib/*" MyApp
 **Check Java version** (11+ required):
 
 ```bash
-<!-- Code example in BASH -->
 java -version
-```text
-<!-- Code example in TEXT -->
+```
 
 **Set in build**:
 
 ```xml
-<!-- Code example in XML -->
 <properties>
   <maven.compiler.source>11</maven.compiler.source>
   <maven.compiler.target>11</maven.compiler.target>
 </properties>
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1120,7 +1051,6 @@ java -version
 **Solution - Enable annotation processing**:
 
 ```xml
-<!-- Code example in XML -->
 <plugin>
   <groupId>org.apache.maven.plugins</groupId>
   <artifactId>maven-compiler-plugin</artifactId>
@@ -1130,8 +1060,7 @@ java -version
     </annotationProcessors>
   </configuration>
 </plugin>
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Type Mapping Errors
 
@@ -1140,7 +1069,6 @@ java -version
 **Solution - Use correct types**:
 
 ```java
-<!-- Code example in Java -->
 // ❌ Wrong - type mismatch
 @FraiseQLType
 public class User {
@@ -1153,8 +1081,7 @@ public class User {
     public int id;
     public String email;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Null Safety Issues
 
@@ -1163,7 +1090,6 @@ public class User {
 **Solution - Use Optional**:
 
 ```java
-<!-- Code example in Java -->
 // ❌ Can throw NPE
 @FraiseQLType
 public class User {
@@ -1179,8 +1105,7 @@ public class User {
     @NonNull
     public String email;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Generics Issues
 
@@ -1189,7 +1114,6 @@ public class User {
 **Solution - Use concrete types**:
 
 ```java
-<!-- Code example in Java -->
 // ❌ Won't work - generics erased at runtime
 @FraiseQLType
 public class Box<T> {
@@ -1201,8 +1125,7 @@ public class Box<T> {
 public class UserBox {
     public User value;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1215,7 +1138,6 @@ public class UserBox {
 **Solution - Use thread-safe patterns**:
 
 ```java
-<!-- Code example in Java -->
 // Ensure server instance is thread-safe
 private static final FraiseQLServer server = FraiseQLServer.fromCompiled(
     "schema.compiled.json"
@@ -1228,8 +1150,7 @@ public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
     QueryResult result = server.execute(request.getQuery());
     return ResponseEntity.ok(result);
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Connection Pool Exhaustion
 
@@ -1238,22 +1159,18 @@ public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
 **Check pool configuration**:
 
 ```java
-<!-- Code example in Java -->
 HikariConfig config = new HikariConfig();
 config.setMaximumPoolSize(20);
 config.setMinimumIdle(5);
 config.setConnectionTimeout(30000);
-```text
-<!-- Code example in TEXT -->
+```
 
 **Or via properties**:
 
 ```properties
-<!-- Code example in PROPERTIES -->
 spring.datasource.hikari.maximum-pool-size=20
 spring.datasource.hikari.minimum-idle=5
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Reflection Issues
 
@@ -1262,7 +1179,6 @@ spring.datasource.hikari.minimum-idle=5
 **Solution - Check field visibility and names**:
 
 ```java
-<!-- Code example in Java -->
 // Ensure fields are accessible
 @FraiseQLType
 public class User {
@@ -1276,8 +1192,7 @@ public class User {
     @JsonProperty("user_id")
     public int userId;
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Async/CompletableFuture Issues
 
@@ -1286,7 +1201,6 @@ public class User {
 **Solution - Properly handle async**:
 
 ```java
-<!-- Code example in Java -->
 // ❌ Wrong - not handling completion
 FraiseQLServer.fromCompiledAsync("schema.json").thenApply(server -> {
     // Doesn't wait for this
@@ -1306,8 +1220,7 @@ FraiseQLServer.fromCompiledAsync("schema.json")
         error.printStackTrace();
         return null;
     });
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1320,14 +1233,12 @@ FraiseQLServer.fromCompiledAsync("schema.json")
 **Pre-compile**:
 
 ```bash
-<!-- Code example in BASH -->
 # Use FraiseQL-cli to pre-compile
 FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Load pre-compiled schema (faster)
 FraiseQLServer server = FraiseQLServer.fromCompiled("schema.compiled.json");
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Large Heap Size
 
@@ -1336,17 +1247,14 @@ FraiseQLServer server = FraiseQLServer.fromCompiled("schema.compiled.json");
 **Profile with jmap**:
 
 ```bash
-<!-- Code example in BASH -->
 jmap -heap <pid>  # Check heap usage
 jmap -dump:live,format=b,file=heap.bin <pid>  # Dump heap
 jhat heap.bin  # Analyze dump
-```text
-<!-- Code example in TEXT -->
+```
 
 **Solutions**:
 
 ```java
-<!-- Code example in Java -->
 // Paginate large result sets
 @Query(sql_source = "v_users")
 public List<User> users(
@@ -1359,8 +1267,7 @@ public List<User> users(
 
 // Close resources explicitly
 server.close();  // Or use try-with-resources
-```text
-<!-- Code example in TEXT -->
+```
 
 #### GC Pressure
 
@@ -1369,10 +1276,8 @@ server.close();  // Or use try-with-resources
 **Enable GC logging**:
 
 ```bash
-<!-- Code example in BASH -->
 java -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:gc.log MyApp
-```text
-<!-- Code example in TEXT -->
+```
 
 **Optimize**:
 
@@ -1388,18 +1293,14 @@ java -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:gc.log MyApp
 **Parallel compilation**:
 
 ```bash
-<!-- Code example in BASH -->
 mvn clean compile -T 1C  # 1 thread per core
-```text
-<!-- Code example in TEXT -->
+```
 
 **Skip tests during development**:
 
 ```bash
-<!-- Code example in BASH -->
 mvn install -DskipTests
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1410,7 +1311,6 @@ mvn install -DskipTests
 **Setup SLF4J/Logback**:
 
 ```xml
-<!-- Code example in XML -->
 <dependency>
   <groupId>org.slf4j</groupId>
   <artifactId>slf4j-api</artifactId>
@@ -1421,13 +1321,11 @@ mvn install -DskipTests
   <artifactId>logback-classic</artifactId>
   <version>1.4.0</version>
 </dependency>
-```text
-<!-- Code example in TEXT -->
+```
 
 **In code**:
 
 ```java
-<!-- Code example in Java -->
 private static final Logger logger = LoggerFactory.getLogger(GraphQLController.class);
 
 @PostMapping("/graphql")
@@ -1441,8 +1339,7 @@ public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
         throw e;
     }
 }
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Use IDE Debugger
 
@@ -1458,10 +1355,8 @@ public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
 **Check bytecode**:
 
 ```bash
-<!-- Code example in BASH -->
 javap -c -private com.example.User
-```text
-<!-- Code example in TEXT -->
+```
 
 ### Or use javap UI in IDE
 
@@ -1470,22 +1365,18 @@ javap -c -private com.example.User
 **Monitor SQL traffic**:
 
 ```bash
-<!-- Code example in BASH -->
 # PostgreSQL slow query log
 ALTER SYSTEM SET log_min_duration_statement = 1000;  # Log slow queries >1s
-```text
-<!-- Code example in TEXT -->
+```
 
 **Monitor GraphQL traffic**:
 
 ```bash
-<!-- Code example in BASH -->
 curl -X POST http://localhost:8080/api/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ user(id: 1) { id } }"}' \
   -v
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
@@ -1505,7 +1396,6 @@ Provide:
 **Issue template**:
 
 ```markdown
-<!-- Code example in MARKDOWN -->
 **Environment**:
 - Java: 11.0.15
 - Maven: 3.8.1
@@ -1519,8 +1409,7 @@ Provide:
 
 **Error**:
 [Full stack trace]
-```text
-<!-- Code example in TEXT -->
+```
 
 #### Community Channels
 
@@ -1533,18 +1422,14 @@ Provide:
 **JProfiler**:
 
 ```bash
-<!-- Code example in BASH -->
 jprofiletask -config=config.xml MyApp
-```text
-<!-- Code example in TEXT -->
+```
 
 **YourKit**:
 
 ```bash
-<!-- Code example in BASH -->
 java -agentpath:/path/to/libyjpagent.so MyApp
-```text
-<!-- Code example in TEXT -->
+```
 
 ---
 
