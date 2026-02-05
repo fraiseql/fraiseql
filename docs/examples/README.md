@@ -73,7 +73,7 @@ ecommerce-project/
 ```text
 blog-monorepo/
 ├── java-schema/             # Maven project with FraiseQL annotations
-├── fraiseql-server/         # Rust FraiseQL server
+├── FraiseQL-server/         # Rust FraiseQL server
 ├── nextjs-frontend/         # Next.js 14 app with Server Components
 ├── sql/                     # PostgreSQL schema and seed data
 └── docker-compose.yml       # Complete stack orchestration
@@ -127,7 +127,7 @@ Your code      →    Smart compiler  →    Production   →    Your users
 
 1. **Define** your schema using your preferred language
 2. **Export** to `schema.json` (language-specific)
-3. **Compile** with `fraiseql-cli compile` (generates SQL templates, validates)
+3. **Compile** with `FraiseQL-cli compile` (generates SQL templates, validates)
 4. **Deploy** the compiled schema with FraiseQL server (pure Rust, no FFI)
 5. **Consume** via GraphQL from any client (Vue, Flutter, React, etc.)
 
@@ -147,8 +147,8 @@ Your code      →    Smart compiler  →    Production   →    Your users
 
 ```bash
 # 1. Clone the repository
-git clone <repo> my-fraiseql-app
-cd my-fraiseql-app
+git clone <repo> my-FraiseQL-app
+cd my-FraiseQL-app
 
 # 2. Follow the guide
 cat docs/examples/fullstack-typescript-vue.md
@@ -200,7 +200,7 @@ Each example includes detailed manual setup instructions if you prefer to run se
 
 ### Q: How do I add authentication?
 
-**A**: See the "Troubleshooting" section of each example. Authentication is configured in `fraiseql.toml` and flows from compile-time config to runtime enforcement.
+**A**: See the "Troubleshooting" section of each example. Authentication is configured in `FraiseQL.toml` and flows from compile-time config to runtime enforcement.
 
 ### Q: Can I use a different database?
 

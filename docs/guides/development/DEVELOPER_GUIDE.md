@@ -25,8 +25,8 @@ Welcome to the FraiseQL development guide! This document covers setup, developme
 
 ```bash
 # Clone the repository
-git clone https://github.com/fraiseql/fraiseql.git
-cd fraiseql
+git clone https://github.com/FraiseQL/FraiseQL.git
+cd FraiseQL
 
 # Install Rust (if needed)
 rustup update
@@ -47,7 +47,7 @@ For integration tests, you need PostgreSQL:
 ```bash
 # Start PostgreSQL (if using Docker)
 docker run -d \
-  --name postgres-fraiseql \
+  --name postgres-FraiseQL \
   -e POSTGRES_PASSWORD=password \
   -e POSTGRES_DB=fraiseql_test \
   -p 5432:5432 \
@@ -82,9 +82,9 @@ cargo clippy --all-targets --all-features
 ## Project Structure
 
 ```text
-fraiseql/
+FraiseQL/
 ├── crates/
-│   ├── fraiseql-core/          # Core execution engine
+│   ├── FraiseQL-core/          # Core execution engine
 │   │   ├── src/
 │   │   │   ├── compiler/       # Schema compilation pipeline
 │   │   │   ├── runtime/        # Query execution
@@ -93,7 +93,7 @@ fraiseql/
 │   │   │   └── schema/         # Schema definitions
 │   │   └── tests/              # Integration tests
 │   │
-│   ├── fraiseql-server/        # HTTP server
+│   ├── FraiseQL-server/        # HTTP server
 │   │   ├── src/
 │   │   │   ├── routes/         # HTTP endpoints
 │   │   │   ├── middleware/     # Request middleware
@@ -101,13 +101,13 @@ fraiseql/
 │   │   │   └── server.rs       # Server implementation
 │   │   └── benches/            # Performance benchmarks
 │   │
-│   ├── fraiseql-cli/           # CLI tool
+│   ├── FraiseQL-cli/           # CLI tool
 │   │   ├── src/
 │   │   │   ├── commands/       # CLI subcommands
 │   │   │   └── main.rs
 │   │   └── tests/
 │   │
-│   └── fraiseql-wire/          # Protocol layer
+│   └── FraiseQL-wire/          # Protocol layer
 │       └── src/                # PostgreSQL wire protocol
 │
 ├── docs/                        # Documentation
@@ -142,7 +142,7 @@ git status  # Should show "nothing to commit, working tree clean"
 
 ```bash
 # 1. Make changes
-vim crates/fraiseql-core/src/some_file.rs
+vim crates/FraiseQL-core/src/some_file.rs
 
 # 2. Format code
 cargo fmt
@@ -181,7 +181,7 @@ cargo watch -x build
 
 ```bash
 # Test specific module
-cargo test -p fraiseql-core cache::result::tests
+cargo test -p FraiseQL-core cache::result::tests
 
 # Run single test
 cargo test test_cache_hit -- --exact

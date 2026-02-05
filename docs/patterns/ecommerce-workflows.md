@@ -217,7 +217,7 @@ CREATE TABLE order_discounts (
 
 ```python
 # ecommerce_schema.py
-from fraiseql import types, authorize
+from FraiseQL import types, authorize
 from decimal import Decimal
 from datetime import datetime, date
 

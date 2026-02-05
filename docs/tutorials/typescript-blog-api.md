@@ -25,7 +25,7 @@ In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeS
 
 ```text
 TypeScript Schema        → schema.json        → schema.compiled.json → FraiseQL Server
-(@Type, @Query, @Mutation)  (decorators)      (fraiseql-cli)        (GraphQL API)
+(@Type, @Query, @Mutation)  (decorators)      (FraiseQL-cli)        (GraphQL API)
 ```text
 
 ---
@@ -206,7 +206,7 @@ Create a new TypeScript project:
 mkdir blog-api && cd blog-api
 npm init -y
 npm install --save-dev typescript ts-node @types/node
-npm install fraiseql
+npm install FraiseQL
 
 # Create src directory
 mkdir src
@@ -257,13 +257,13 @@ Create `package.json` scripts:
   "version": "1.0.0",
   "scripts": {
     "export": "ts-node src/schema.ts",
-    "compile": "fraiseql compile fraiseql.toml",
+    "compile": "FraiseQL compile FraiseQL.toml",
     "build": "npm run export && npm run compile",
-    "dev": "fraiseql serve schema.compiled.json --port 4000",
+    "dev": "FraiseQL serve schema.compiled.json --port 4000",
     "test": "ts-node src/tests.ts"
   },
   "dependencies": {
-    "fraiseql": "^2.0.0"
+    "FraiseQL": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -286,10 +286,10 @@ Create `src/schema.ts`:
  * Blog API Schema - TypeScript Authoring
  *
  * This file defines the GraphQL schema using FraiseQL decorators.
- * It generates schema.json which is then compiled by fraiseql-cli.
+ * It generates schema.json which is then compiled by FraiseQL-cli.
  */
 
-import * as fraiseql from "fraiseql";
+import * as FraiseQL from "FraiseQL";
 
 // ============================================================================
 // TYPES: Define the shape of data returned by queries
@@ -307,7 +307,7 @@ import * as fraiseql from "fraiseql";
  * - createdAt: Account creation timestamp
  * - updatedAt: Last update timestamp
  */
-@fraiseql.Type({
+@FraiseQL.Type({
   description: "A user account in the blog system"
 })
 class User {
@@ -333,7 +333,7 @@ class User {
  * - createdAt: Creation timestamp
  * - updatedAt: Last update timestamp
  */
-@fraiseql.Type({
+@FraiseQL.Type({
   description: "A blog post"
 })
 class Post {
@@ -359,7 +359,7 @@ class Post {
  * - authorName: Author's name (denormalized from User)
  * - createdAt: Creation timestamp
  */
-@fraiseql.Type({
+@FraiseQL.Type({
   description: "A comment on a blog post"
 })
 class Comment {
@@ -384,7 +384,7 @@ class Comment {
  * - nullable: true means field can be null (marked with ? in TypeScript)
  * - Database column: Maps to database field name
  */
-fraiseql.registerTypeFields("User", [
+FraiseQL.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false, description: "Primary key" },
   { name: "email", type: "String", nullable: false, description: "User email" },
   { name: "name", type: "String", nullable: false, description: "User name" },
@@ -399,7 +399,7 @@ fraiseql.registerTypeFields("User", [
  *
  * Note: publishedAt is nullable (representing draft posts)
  */
-fraiseql.registerTypeFields("Post", [
+FraiseQL.registerTypeFields("Post", [
   { name: "id", type: "ID", nullable: false, description: "Primary key" },
   { name: "title", type: "String", nullable: false, description: "Post title" },
   { name: "content", type: "String", nullable: false, description: "Post content" },
@@ -413,7 +413,7 @@ fraiseql.registerTypeFields("Post", [
 /**
  * Register Comment fields.
  */
-fraiseql.registerTypeFields("Comment", [
+FraiseQL.registerTypeFields("Comment", [
   { name: "id", type: "ID", nullable: false, description: "Primary key" },
   { name: "text", type: "String", nullable: false, description: "Comment text" },
   { name: "postId", type: "ID", nullable: false, description: "Post this comments on" },
@@ -437,7 +437,7 @@ fraiseql.registerTypeFields("Comment", [
  *
  * Returns: Array of User objects
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "users",           // Query name
   "User",            // Return type
   true,              // Returns list (array)
@@ -468,7 +468,7 @@ fraiseql.registerQuery(
  * Executes against v_user view with ID filter.
  * Returns: Single User object or null
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "userById",
   "User",
   false,             // Single result, not a list
@@ -491,7 +491,7 @@ fraiseql.registerQuery(
  * Executes against v_user view with email filter.
  * Returns: Single User object or null
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "userByEmail",
   "User",
   false,
@@ -516,7 +516,7 @@ fraiseql.registerQuery(
  *
  * Returns: Array of Post objects
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "posts",
   "Post",
   true,
@@ -546,7 +546,7 @@ fraiseql.registerQuery(
  *
  * Returns: Single Post object or null
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postById",
   "Post",
   false,
@@ -569,7 +569,7 @@ fraiseql.registerQuery(
  * Filters posts by author ID.
  * Returns: Array of Post objects from that author
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postsByAuthor",
   "Post",
   true,
@@ -598,7 +598,7 @@ fraiseql.registerQuery(
  *
  * Returns: Array of Comment objects for a specific post
  */
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postComments",
   "Comment",
   true,
@@ -625,7 +625,7 @@ fraiseql.registerQuery(
  * Calls fn_create_user stored procedure.
  * Returns: Newly created User object
  */
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "createUser",
   "User",
   false,             // Single result
@@ -660,7 +660,7 @@ fraiseql.registerMutation(
  * Calls fn_create_post stored procedure.
  * Returns: Newly created Post object
  */
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "createPost",
   "Post",
   false,
@@ -702,7 +702,7 @@ fraiseql.registerMutation(
  * Calls fn_create_comment stored procedure.
  * Returns: Newly created Comment object
  */
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "createComment",
   "Comment",
   false,
@@ -737,7 +737,7 @@ fraiseql.registerMutation(
  * Calls fn_update_user stored procedure.
  * Returns: Updated User object
  */
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "updateUser",
   "User",
   false,
@@ -779,14 +779,14 @@ fraiseql.registerMutation(
  */
 async function exportSchema() {
   try {
-    fraiseql.exportTypes("schema.json", { pretty: true });
+    FraiseQL.exportTypes("schema.json", { pretty: true });
     console.log("✅ Schema exported successfully!");
     console.log("   Output: schema.json");
     console.log("   Types: 3 (User, Post, Comment)");
     console.log("   Queries: 6");
     console.log("   Mutations: 4");
     console.log("\n📝 Next steps:");
-    console.log("   1. Create fraiseql.toml with database configuration");
+    console.log("   1. Create FraiseQL.toml with database configuration");
     console.log("   2. Run: npm run compile");
     console.log("   3. Run: npm run dev");
   } catch (error) {
@@ -805,12 +805,12 @@ export { User, Post, Comment };
 
 ### 3.2 Understanding the Decorators
 
-#### `@fraiseql.Type()`
+#### `@FraiseQL.Type()`
 
 Marks a class as a GraphQL type:
 
 ```typescript
-@fraiseql.Type({
+@FraiseQL.Type({
   description: "A user account"
 })
 class User {
@@ -830,7 +830,7 @@ class User {
 Maps TypeScript properties to GraphQL fields:
 
 ```typescript
-fraiseql.registerTypeFields("User", [
+FraiseQL.registerTypeFields("User", [
   {
     name: "id",
     type: "ID",           // GraphQL scalar type
@@ -867,7 +867,7 @@ fraiseql.registerTypeFields("User", [
 Defines a read operation:
 
 ```typescript
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "users",              // Query name in GraphQL
   "User",               // Return type (must be a registered @Type)
   true,                 // Returns list (array)
@@ -902,7 +902,7 @@ fraiseql.registerQuery(
 Defines a write operation:
 
 ```typescript
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "createUser",
   "User",
   false,                // Single result (not list)
@@ -940,7 +940,7 @@ In FraiseQL, relationships are typically denormalized into views:
 
 ```typescript
 // Instead of nested relationships...
-@fraiseql.Type()
+@FraiseQL.Type()
 class User {
   id: number;
   name: string;
@@ -948,7 +948,7 @@ class User {
 }
 
 // ...use fields from the view:
-@fraiseql.Type()
+@FraiseQL.Type()
 class User {
   id: number;
   name: string;
@@ -956,7 +956,7 @@ class User {
 }
 
 // Then provide separate queries:
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "userById",
   "User",
   false,
@@ -966,7 +966,7 @@ fraiseql.registerQuery(
   { sqlSource: "v_user" }
 );
 
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postsByAuthor",
   "Post",
   true,
@@ -1109,21 +1109,21 @@ npx tsc --noEmit
 
 ## Part 5: Creating the FraiseQL Configuration
 
-### 5.1 fraiseql.toml
+### 5.1 FraiseQL.toml
 
-Create `fraiseql.toml` at the project root:
+Create `FraiseQL.toml` at the project root:
 
 ```toml
 # Blog API Configuration
 
-[fraiseql]
+[FraiseQL]
 name = "blog-api"
 version = "1.0.0"
 database_target = "postgresql"
 description = "Blog API with users, posts, and comments"
 
 # Database connection (can be overridden by environment variables)
-[fraiseql.database]
+[FraiseQL.database]
 host = "localhost"
 port = 5432
 name = "blog_db"
@@ -1131,12 +1131,12 @@ username = "blog_user"
 password = "blog_password"
 
 # Security configuration (optional, for future auth/validation)
-[fraiseql.security]
+[FraiseQL.security]
 enable_introspection = true
 enable_mutations = true
 
 # Development server configuration
-[fraiseql.server]
+[FraiseQL.server]
 bind = "0.0.0.0"
 port = 4000
 cors_origins = ["*"]
@@ -1157,12 +1157,12 @@ export FRAISEQL_DB_PASSWORD=<secure-password>
 
 ## Part 6: Compiling the Schema
 
-### 6.1 Using fraiseql-cli
+### 6.1 Using FraiseQL-cli
 
-Once you have `schema.json` and `fraiseql.toml`, compile:
+Once you have `schema.json` and `FraiseQL.toml`, compile:
 
 ```bash
-fraiseql compile fraiseql.toml --types schema.json
+FraiseQL compile FraiseQL.toml --types schema.json
 ```text
 
 **What it does:**
@@ -1473,7 +1473,7 @@ if (require.main === module) {
 **Query Definition:**
 
 ```typescript
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "posts",
   "Post",
   true,
@@ -1505,7 +1505,7 @@ Create separate queries for common filters:
 
 ```typescript
 // Query: Posts by author
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postsByAuthor",
   "Post",
   true,
@@ -1519,7 +1519,7 @@ fraiseql.registerQuery(
 );
 
 // Query: Comments on a post
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   "postComments",
   "Comment",
   true,
@@ -1535,7 +1535,7 @@ fraiseql.registerQuery(
 Include sort parameter as enum:
 
 ```typescript
-// In fraiseql.toml config (future feature):
+// In FraiseQL.toml config (future feature):
 // [queries.posts]
 // sortBy = ["created_at", "title"]
 // sortOrder = ["ASC", "DESC"]
@@ -1546,7 +1546,7 @@ Include sort parameter as enum:
 Use `nullable: true` for optional parameters:
 
 ```typescript
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   "updateUser",
   "User",
   false,
@@ -1584,7 +1584,7 @@ GROUP BY u.id;
 Then register these fields:
 
 ```typescript
-fraiseql.registerTypeFields("User", [
+FraiseQL.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false },
   { name: "postCount", type: "Int", nullable: false },       // Computed in view
   { name: "commentCount", type: "Int", nullable: false }     // Computed in view
@@ -1606,18 +1606,18 @@ WORKDIR /app
 
 # Copy schema files
 COPY schema.compiled.json .
-COPY fraiseql.toml .
+COPY FraiseQL.toml .
 
 # Install FraiseQL server (pre-compiled binary)
 RUN apk add --no-cache curl && \
-    curl -fsSL https://releases.fraiseql.io/fraiseql-server-latest-linux-x64.tar.gz | \
+    curl -fsSL https://releases.FraiseQL.io/FraiseQL-server-latest-linux-x64.tar.gz | \
     tar -xz -C /usr/local/bin
 
 EXPOSE 4000
 
 # Start server
-CMD ["fraiseql-server", \
-     "--config", "fraiseql.toml", \
+CMD ["FraiseQL-server", \
+     "--config", "FraiseQL.toml", \
      "--schema", "schema.compiled.json", \
      "--port", "4000"]
 ```text
@@ -1640,7 +1640,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
 
-  fraiseql:
+  FraiseQL:
     build: .
     environment:
       FRAISEQL_DB_HOST: postgres
@@ -1663,7 +1663,7 @@ volumes:
 docker-compose up -d
 
 # Check logs
-docker-compose logs -f fraiseql
+docker-compose logs -f FraiseQL
 
 # Test
 curl http://localhost:4000/graphql -H "Content-Type: application/json" \
@@ -1707,12 +1707,12 @@ FRAISEQL_LOG_LEVEL=info
 
 ### Common Issues
 
-**Issue: "Cannot find module 'fraiseql'"**
+**Issue: "Cannot find module 'FraiseQL'"**
 
 Solution:
 
 ```bash
-npm install fraiseql --save
+npm install FraiseQL --save
 ```text
 
 **Issue: "Experimental decorators must be set to true"**
@@ -1750,7 +1750,7 @@ Check:
 Check:
 
 1. Server is running: `curl http://localhost:4000/health`
-2. `enable_introspection = true` in fraiseql.toml
+2. `enable_introspection = true` in FraiseQL.toml
 3. Browser console for CORS errors
 
 ### Debug Mode
@@ -1765,7 +1765,7 @@ export RUST_LOG=debug
 npm run dev
 
 # Check logs
-docker-compose logs -f fraiseql
+docker-compose logs -f FraiseQL
 ```text
 
 ---
@@ -1923,14 +1923,14 @@ $$ LANGUAGE SQL;
   "main": "dist/schema.js",
   "scripts": {
     "export": "ts-node src/schema.ts",
-    "compile": "fraiseql compile fraiseql.toml --types schema.json",
+    "compile": "FraiseQL compile FraiseQL.toml --types schema.json",
     "build": "npm run export && npm run compile",
-    "dev": "fraiseql serve schema.compiled.json --port 4000",
+    "dev": "FraiseQL serve schema.compiled.json --port 4000",
     "test": "ts-node src/tests.ts",
     "clean": "rm -f schema.json schema.compiled.json && rm -rf dist"
   },
   "dependencies": {
-    "fraiseql": "^2.0.0"
+    "FraiseQL": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -1941,28 +1941,28 @@ $$ LANGUAGE SQL;
 }
 ```text
 
-### fraiseql.toml
+### FraiseQL.toml
 
 ```toml
-[fraiseql]
+[FraiseQL]
 name = "blog-api"
 version = "1.0.0"
 database_target = "postgresql"
 description = "Blog API with users, posts, and comments"
 
-[fraiseql.database]
+[FraiseQL.database]
 host = "localhost"
 port = 5432
 name = "blog_db"
 username = "blog_user"
 password = "blog_password"
 
-[fraiseql.server]
+[FraiseQL.server]
 bind = "0.0.0.0"
 port = 4000
 cors_origins = ["*"]
 
-[fraiseql.security]
+[FraiseQL.security]
 enable_introspection = true
 enable_mutations = true
 ```text

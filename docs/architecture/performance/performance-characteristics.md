@@ -658,7 +658,7 @@ Real-time data (current user):   TTL = 30 seconds
 **2. Pre-warm cache on startup:**
 
 ```text
-fraiseql.cache.preload([
+FraiseQL.cache.preload([
     "GetPopularProducts",
     "GetTrendingPosts",
     "GetRecommendations"
@@ -670,7 +670,7 @@ Result: 95%+ hit rate from moment 1
 **3. Monitor cache efficiency:**
 
 ```text
-@fraiseql.metric(name="cache_efficiency")
+@FraiseQL.metric(name="cache_efficiency")
 def track_cache():
     hit_rate = cache_hits / (cache_hits + cache_misses)
     if hit_rate < 0.80:

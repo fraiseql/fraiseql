@@ -15,7 +15,7 @@ FraiseQL implements request rate limiting to prevent denial-of-service (DoS) att
 **Required Software:**
 
 - FraiseQL v2.0.0-alpha.1 or later
-- A text editor for `fraiseql.toml` configuration
+- A text editor for `FraiseQL.toml` configuration
 - curl or Postman (for testing rate limit headers)
 - Bash or similar shell for configuration management
 

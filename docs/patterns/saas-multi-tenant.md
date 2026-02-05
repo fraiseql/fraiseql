@@ -330,7 +330,7 @@ CREATE POLICY audit_logs_immutable ON audit_logs
 
 ```python
 # schema.py
-from fraiseql import types, authorize
+from FraiseQL import types, authorize
 from datetime import datetime
 
 @types.object
@@ -490,7 +490,7 @@ class Mutation:
 ### Setting Tenant Context in FraiseQL Server
 
 ```rust
-// fraiseql-server middleware (pseudo-code)
+// FraiseQL-server middleware (pseudo-code)
 async fn set_tenant_context(token: &Claims) -> Result<()> {
     // Set tenant and user context for RLS policies
     client.execute(

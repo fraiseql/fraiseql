@@ -21,13 +21,13 @@ let package = Package(
     .watchOS(.v6)
   ],
   dependencies: [
-    .package(url: "https://github.com/fraiseql/fraiseql-swift.git", from: "2.0.0")
+    .package(url: "https://github.com/FraiseQL/FraiseQL-swift.git", from: "2.0.0")
   ],
   targets: [
     .target(
       name: "MyApp",
       dependencies: [
-        .product(name: "FraiseQL", package: "fraiseql-swift")
+        .product(name: "FraiseQL", package: "FraiseQL-swift")
       ]
     )
   ]
@@ -647,7 +647,7 @@ struct SchemaExporter {
 }
 
 // Run from command line
-swift run fraiseql-schema-export
+swift run FraiseQL-schema-export
 ```
 
 ### Embed in SPM Target
@@ -1234,7 +1234,7 @@ struct AdaptiveUserListView: View {
 - [Apple Developer: Codable](https://developer.apple.com/documentation/foundation/codable)
 - [SwiftUI Documentation](https://developer.apple.com/xcode/swiftui/)
 - [Swift Package Manager](https://swift.org/package-manager/)
-- [FraiseQL Swift SDK on GitHub](https://github.com/fraiseql/fraiseql-swift)
+- [FraiseQL Swift SDK on GitHub](https://github.com/FraiseQL/FraiseQL-swift)
 
 ---
 
@@ -1250,7 +1250,7 @@ struct AdaptiveUserListView: View {
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/fraiseql/fraiseql-swift.git", .upToNextMajor(from: "2.0.0"))
+.package(url: "https://github.com/FraiseQL/FraiseQL-swift.git", .upToNextMajor(from: "2.0.0"))
 ```
 
 ```bash
@@ -1375,7 +1375,7 @@ struct UserBox {
 ```swift
 // ✅ Correct
 async func executeQuery(_ query: String) throws -> QueryResult {
-    let result = try await fraiseql.execute(query)
+    let result = try await FraiseQL.execute(query)
     return result
 }
 ```
@@ -1393,7 +1393,7 @@ async func executeQuery(_ query: String) throws -> QueryResult {
 ```swift
 // ✅ Handle errors
 do {
-    let result = try await fraiseql.execute(query)
+    let result = try await FraiseQL.execute(query)
     return result
 } catch let error as URLError {
     print("Network error: \(error.localizedDescription)")
@@ -1448,10 +1448,10 @@ nonisolated func backgroundTask() {
 ```swift
 // ✅ Auto-cleanup
 class MyService {
-    var fraiseql: FraiseQLServer?
+    var FraiseQL: FraiseQLServer?
 
     deinit {
-        fraiseql = nil  // Cleanup
+        FraiseQL = nil  // Cleanup
     }
 }
 
@@ -1612,7 +1612,7 @@ Provide:
 
 - **GitHub Discussions**: Q&A
 - **Swift Forum**: <https://forums.swift.org>
-- **Stack Overflow**: Tag with `swift` and `fraiseql`
+- **Stack Overflow**: Tag with `swift` and `FraiseQL`
 
 #### Profiling Tools
 
@@ -1626,7 +1626,7 @@ Provide:
 
 ## See Also
 
-- [FraiseQL Swift SDK on GitHub](https://github.com/fraiseql/fraiseql-swift)
+- [FraiseQL Swift SDK on GitHub](https://github.com/FraiseQL/FraiseQL-swift)
 
 ---
 

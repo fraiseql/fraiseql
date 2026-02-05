@@ -8,7 +8,7 @@ Enterprise-grade runtime security hardening including error sanitization, rate l
 
 ## 🔐 Runtime Security Features
 
-Configured via `fraiseql.toml` with environment variable overrides.
+Configured via `FraiseQL.toml` with environment variable overrides.
 
 ### Error Sanitization
 
@@ -22,7 +22,7 @@ Configured via `fraiseql.toml` with environment variable overrides.
 **Example:**
 
 ```toml
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 enabled = true
 level = "user"  # Only expose user-friendly messages to clients
 ```
@@ -48,7 +48,7 @@ level = "user"  # Only expose user-friendly messages to clients
 **Example:**
 
 ```toml
-[fraiseql.security.pkce]
+[FraiseQL.security.pkce]
 state_encryption_enabled = true
 encryption_algorithm = "aes-256-gcm"
 ```
@@ -65,7 +65,7 @@ encryption_algorithm = "aes-256-gcm"
 **Example:**
 
 ```toml
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
@@ -84,26 +84,26 @@ auth_verify_window_secs = 60
 
 ### Full Configuration Reference
 
-All runtime security features are configured in `fraiseql.toml` under `[fraiseql.security]`:
+All runtime security features are configured in `FraiseQL.toml` under `[FraiseQL.security]`:
 
 ```toml
-[fraiseql.security]
+[FraiseQL.security]
 # Error handling
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 enabled = true
 level = "user"  # internal|user|public
 
 # Token security
-[fraiseql.security.constant_time_comparison]
+[FraiseQL.security.constant_time_comparison]
 enabled = true
 
 # OAuth security
-[fraiseql.security.pkce]
+[FraiseQL.security.pkce]
 state_encryption_enabled = true
 encryption_algorithm = "aes-256-gcm"
 
 # Rate limiting
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
@@ -111,7 +111,7 @@ auth_verify_max_requests = 50
 auth_verify_window_secs = 60
 
 # Audit logging
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 enabled = true
 log_level = "info"
 secret_access_logging = true

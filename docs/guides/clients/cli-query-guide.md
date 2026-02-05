@@ -5,7 +5,7 @@
 **Reading Time:** 15-20 minutes
 **Last Updated:** 2026-02-05
 
-Complete guide for querying FraiseQL servers from the command line using the `fraiseql-query` CLI tool.
+Complete guide for querying FraiseQL servers from the command line using the `FraiseQL-query` CLI tool.
 
 ---
 
@@ -20,20 +20,20 @@ Complete guide for querying FraiseQL servers from the command line using the `fr
 
 ```bash
 # Using npm
-npm install -g @fraiseql/cli
+npm install -g @FraiseQL/cli
 
 # Using Homebrew (macOS/Linux)
-brew install fraiseql
+brew install FraiseQL
 
 # Or download binary directly
-# https://github.com/fraiseql/fraiseql-cli/releases
+# https://github.com/FraiseQL/FraiseQL-cli/releases
 ```text
 
 ### Verify Installation
 
 ```bash
-fraiseql-query --version
-# fraiseql-query 2.0.0
+FraiseQL-query --version
+# FraiseQL-query 2.0.0
 ```text
 
 ---
@@ -43,7 +43,7 @@ fraiseql-query --version
 ### Simple Query
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }"
 ```text
@@ -64,7 +64,7 @@ Output:
 ### Query with Variables
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "query GetUser(\$id: ID!) { user(id: \$id) { id name email } }" \
   --variables '{"id": "1"}'
@@ -73,7 +73,7 @@ fraiseql-query \
 ### Pretty-Print Output
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format pretty
@@ -100,7 +100,7 @@ query GetUsers {
 ### Execute from File
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
 ```text
@@ -131,7 +131,7 @@ cat > variables.json <<EOF
 EOF
 
 # Execute with variables
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_user_by_id.graphql \
   --variables-file variables.json
@@ -144,7 +144,7 @@ fraiseql-query \
 ### Execute Mutation
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "mutation CreatePost(\$title: String!, \$content: String!) {
     createPost(title: \$title, content: \$content) {
@@ -171,7 +171,7 @@ mutation CreatePost($title: String!, $content: String!) {
 ```text
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file mutations/create_post.graphql \
   --variables '{"title": "Test", "content": "Content"}'
@@ -184,7 +184,7 @@ fraiseql-query \
 ### JSON Output (Default)
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format json
@@ -193,7 +193,7 @@ fraiseql-query \
 ### CSV Output
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format csv
@@ -210,7 +210,7 @@ id,name,email
 ### Table Output
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format table
@@ -230,7 +230,7 @@ Output:
 ### YAML Output
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format yaml
@@ -254,7 +254,7 @@ if [ -z "$USER_ID" ]; then
   exit 1
 fi
 
-fraiseql-query \
+FraiseQL-query \
   --endpoint "$ENDPOINT" \
   --file queries/get_user.graphql \
   --variables "{\"id\": \"$USER_ID\"}" \
@@ -284,7 +284,7 @@ fi
 
 # Skip header, process each line
 tail -n +2 "$CSV_FILE" | while IFS=',' read -r title content; do
-  fraiseql-query \
+  FraiseQL-query \
     --endpoint "$ENDPOINT" \
     --file mutations/create_post.graphql \
     --variables "{\"title\": \"$title\", \"content\": \"$content\"}" \
@@ -302,7 +302,7 @@ ENDPOINT="http://localhost:5000/graphql"
 
 # Run queries in parallel
 for i in {1..100}; do
-  fraiseql-query \
+  FraiseQL-query \
     --endpoint "$ENDPOINT" \
     --query "query { user(id: \"$i\") { id name } }" \
     --format json > "user_$i.json" &
@@ -322,7 +322,7 @@ jq -s '.' user_*.json > all_users.json
 ### Bearer Token
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --auth "Bearer token_here"
@@ -331,7 +331,7 @@ fraiseql-query \
 ### Custom Headers
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --header "Authorization: Bearer token_here" \
@@ -343,7 +343,7 @@ fraiseql-query \
 ```bash
 export FRAISEQL_TOKEN="my_secret_token"
 
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --auth "Bearer $FRAISEQL_TOKEN"
@@ -356,7 +356,7 @@ fraiseql-query \
 ### Config File
 
 ```toml
-# ~/.fraiseql/config.toml
+# ~/.FraiseQL/config.toml
 [default]
 endpoint = "http://localhost:5000/graphql"
 format = "pretty"
@@ -374,7 +374,7 @@ auth = "Bearer ${FRAISEQL_STAGING_TOKEN}"
 ### Use Config Profile
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --config production \
   --file queries/get_users.graphql
 ```text
@@ -382,7 +382,7 @@ fraiseql-query \
 ### Override Config
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --config production \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
@@ -395,7 +395,7 @@ fraiseql-query \
 ### Show Query Execution Time
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --show-timing
@@ -418,7 +418,7 @@ Output:
 ### Enable Debug Output
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --debug
@@ -427,7 +427,7 @@ fraiseql-query \
 ### Verbose Logging
 
 ```bash
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --verbose
@@ -445,7 +445,7 @@ fraiseql-query \
 
 ENDPOINT="http://localhost:5000/graphql"
 
-result=$(fraiseql-query \
+result=$(FraiseQL-query \
   --endpoint "$ENDPOINT" \
   --query "{ users { id name } }" \
   --format json 2>&1)
@@ -478,7 +478,7 @@ MAX_RETRIES=3
 RETRY_DELAY=2
 
 for i in $(seq 1 $MAX_RETRIES); do
-  result=$(fraiseql-query \
+  result=$(FraiseQL-query \
     --endpoint "$ENDPOINT" \
     --query "{ users { id name } }" \
     --format json 2>&1)
@@ -513,7 +513,7 @@ ENDPOINT="http://localhost:5000/graphql"
 OUTPUT_DIR="/data/exports"
 DATE=$(date +%Y-%m-%d)
 
-fraiseql-query \
+FraiseQL-query \
   --endpoint "$ENDPOINT" \
   --file queries/export_users.graphql \
   --format csv > "$OUTPUT_DIR/users_$DATE.csv"
@@ -541,12 +541,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install fraiseql-query
-        run: npm install -g @fraiseql/cli
+      - name: Install FraiseQL-query
+        run: npm install -g @FraiseQL/cli
 
       - name: Export users
         run: |
-          fraiseql-query \
+          FraiseQL-query \
             --endpoint ${{ secrets.FRAISEQL_ENDPOINT }} \
             --file queries/export_users.graphql \
             --auth "Bearer ${{ secrets.FRAISEQL_TOKEN }}" \
@@ -568,7 +568,7 @@ jobs:
 
 ```bash
 # Stream results directly to file without loading in memory
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/all_users.graphql \
   --format csv \
@@ -579,7 +579,7 @@ fraiseql-query \
 
 ```bash
 # Get schema introspection
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --introspect > schema.json
 ```text
@@ -588,7 +588,7 @@ fraiseql-query \
 
 ```bash
 # Validate query syntax without executing
-fraiseql-query \
+FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --validate

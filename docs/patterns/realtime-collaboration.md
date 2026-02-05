@@ -134,7 +134,7 @@ CREATE TABLE comments (
 
 ```python
 # collaboration_schema.py
-from fraiseql import types
+from FraiseQL import types
 from datetime import datetime
 from typing import Optional
 

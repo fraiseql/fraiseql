@@ -1296,9 +1296,9 @@ Like queries and mutations, subscriptions are **compiled** at schema build time:
 
 ```python
 # Schema authoring time
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
-    where: WhereOrder = fraiseql.where(user_id=context.user_id)
+    where: WhereOrder = FraiseQL.where(user_id=context.user_id)
     id: ID
     amount: Decimal
     created_at: DateTime

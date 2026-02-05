@@ -48,7 +48,7 @@ use serde_json::json;
 #[tokio::main]
 async fn main() -> Result<()> {
     // 1. Setup database connection
-    let pool = create_postgres_pool("postgresql://localhost/fraiseql", 20).unwrap();
+    let pool = create_postgres_pool("postgresql://localhost/FraiseQL", 20).unwrap();
     let adapter = PostgresAdapter::new(pool);
 
     // 2. Parse GraphQL query into WHERE clause
@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
 ### PostgreSQL Adapter
 
 ```rust
-// crates/fraiseql-core/src/db/postgres/adapter.rs
+// crates/FraiseQL-core/src/db/postgres/adapter.rs
 
 use async_trait::async_trait;
 use deadpool_postgres::{Pool, PoolError};

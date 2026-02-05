@@ -18,7 +18,7 @@ Complete, hands-on tutorials for building real-world applications with FraiseQL.
 A comprehensive end-to-end guide building a complete full-stack blog application with:
 
 - **Python schema authoring** - FraiseQL decorators for types, queries, mutations
-- **Schema compilation** - From Python to optimized SQL with fraiseql-cli
+- **Schema compilation** - From Python to optimized SQL with FraiseQL-cli
 - **FraiseQL server deployment** - Rust-based GraphQL backend in Docker
 - **React frontend** - Apollo Client integration with full UI
 - **PostgreSQL database** - Complete schema with views and functions
@@ -185,7 +185,7 @@ Each tutorial follows this consistent format:
 6. **Query Builders** - Building GraphQL queries
 7. **Mutation Builders** - Building GraphQL mutations
 8. **Schema Export** - Generating schema.json
-9. **Compilation** - Using fraiseql-cli
+9. **Compilation** - Using FraiseQL-cli
 10. **Testing** - Unit and integration tests
 11. **Deployment** - Docker, Docker Compose, health checks
 12. **Common Patterns** - 7+ reusable patterns
@@ -206,7 +206,7 @@ Each tutorial follows this consistent format:
 - **Understand the complete architecture** → [Full-Stack Architecture Overview](fullstack-python-react.md#overview)
 - **Deploy to production** → [Full-Stack Production Deployment](fullstack-python-react.md#part-11-deployment-to-production)
 - **Learn TypeScript schema authoring** → [TypeScript: Build a Blog API](typescript-blog-api.md)
-- **Understand TypeScript decorators** → [TypeScript: Build a Blog API - Part 3](typescript-blog-api.md#part-3-fraiseql-schema-definition)
+- **Understand TypeScript decorators** → [TypeScript: Build a Blog API - Part 3](typescript-blog-api.md#part-3-FraiseQL-schema-definition)
 - **Learn @Type decorator** → [TypeScript: Build a Blog API - Understanding Decorators](typescript-blog-api.md#32-understanding-the-decorators)
 - **Learn Query registration** → [TypeScript: Build a Blog API - Queries](typescript-blog-api.md#queries-read-operations)
 - **Learn Mutation registration** → [TypeScript: Build a Blog API - Mutations](typescript-blog-api.md#mutations-write-operations)
@@ -215,7 +215,7 @@ Each tutorial follows this consistent format:
 - **Understand common patterns** → [TypeScript: Build a Blog API - Patterns](typescript-blog-api.md#part-9-common-patterns)
 - **Troubleshoot errors** → [TypeScript: Build a Blog API - Troubleshooting](typescript-blog-api.md#part-11-troubleshooting)
 - **Learn Go schema authoring** → [Go: Build a Blog API](go-blog-api.md)
-- **Understand struct tags** → [Go: Build a Blog API - Step 3](go-blog-api.md#step-3-fraiseql-schema-definition)
+- **Understand struct tags** → [Go: Build a Blog API - Step 3](go-blog-api.md#step-3-FraiseQL-schema-definition)
 - **Learn Go builder pattern** → [Go: Build a Blog API - Queries](go-blog-api.md#32-query-definitions) and [Mutations](go-blog-api.md#33-mutation-definitions)
 
 ### By Topic
@@ -262,8 +262,8 @@ Want to see everything work together end-to-end? Start here:
 2. Follow [Project Setup](fullstack-python-react.md#part-1-project-setup)
 3. Follow [Database Setup](fullstack-python-react.md#part-2-database-schema-postgresql)
 4. Create [Python Schema](fullstack-python-react.md#part-3-python-schema-definition)
-5. [Compile with FraiseQL CLI](fullstack-python-react.md#part-4-compile-with-fraiseql-cli)
-6. [Deploy with Docker Compose](fullstack-python-react.md#part-5-fraiseql-server-deployment)
+5. [Compile with FraiseQL CLI](fullstack-python-react.md#part-4-compile-with-FraiseQL-cli)
+6. [Deploy with Docker Compose](fullstack-python-react.md#part-5-FraiseQL-server-deployment)
 7. [Build React Frontend](fullstack-python-react.md#part-6-react-frontend-setup)
 8. [Launch Full Stack](fullstack-python-react.md#part-9-running-the-full-stack)
 
@@ -276,7 +276,7 @@ Want to see everything work together end-to-end? Start here:
 1. Read [Overview](typescript-blog-api.md#overview)
 2. Follow [Project Setup](typescript-blog-api.md#part-2-typescript-project-setup)
 3. Review [Database Schema](typescript-blog-api.md#part-1-database-schema)
-4. Complete [Type Definitions](typescript-blog-api.md#part-3-fraiseql-schema-definition)
+4. Complete [Type Definitions](typescript-blog-api.md#part-3-FraiseQL-schema-definition)
 5. Run [Export Tool](typescript-blog-api.md#part-4-exporting-the-schema)
 
 ### Intermediate (50 minutes) - TypeScript Recommended
@@ -328,7 +328,7 @@ Choose your language and start building:
 mkdir blog-api && cd blog-api
 npm init -y
 npm install --save-dev typescript ts-node @types/node
-npm install fraiseql
+npm install FraiseQL
 
 # Follow: docs/tutorials/typescript-blog-api.md
 # Then: npm run export && npm run compile && npm run dev
@@ -336,9 +336,9 @@ npm install fraiseql
 
 ```bash
 # Go - Complete blog API tutorial
-cd fraiseql-blog-api  # Create new directory
-go mod init fraiseql-blog-api
-go get github.com/fraiseql/fraiseql-go
+cd FraiseQL-blog-api  # Create new directory
+go mod init FraiseQL-blog-api
+go get github.com/FraiseQL/FraiseQL-go
 
 # Follow: docs/tutorials/go-blog-api.md
 ```
@@ -396,7 +396,7 @@ Have questions about these tutorials?
 
 - Check the [Troubleshooting section](go-blog-api.md#troubleshooting)
 - Review the [FAQ](../FAQ.md)
-- Open an issue on [GitHub](https://github.com/fraiseql/fraiseql)
+- Open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL)
 
 Want to contribute a tutorial?
 
@@ -415,8 +415,8 @@ Want to contribute a tutorial?
 - **[Frontend Integration Guide](../guides/frontend-integration.md)** - React, Apollo Client, and other frontends
 - **[Testing Strategy](../guides/testing-strategy.md)** - Comprehensive testing approaches
 - **[Deployment Guide](../deployment/)** - Production deployment strategies
-- **[CLI Reference](../reference/)** - fraiseql-cli command reference
-- **[TOML Configuration Reference](../TOML_REFERENCE.md)** - Complete fraiseql.toml options
+- **[CLI Reference](../reference/)** - FraiseQL-cli command reference
+- **[TOML Configuration Reference](../TOML_REFERENCE.md)** - Complete FraiseQL.toml options
 
 ---
 

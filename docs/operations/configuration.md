@@ -18,7 +18,7 @@ export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
 ```text
 
-Or in `fraiseql.toml`:
+Or in `FraiseQL.toml`:
 
 ```toml
 [observability]
@@ -37,7 +37,7 @@ That's it! The system will use conservative defaults.
 FraiseQL supports three configuration methods (in order of precedence):
 
 1. **Environment Variables** (highest priority)
-2. **Configuration File** (`fraiseql.toml`)
+2. **Configuration File** (`FraiseQL.toml`)
 3. **Default Values** (lowest priority)
 
 ### Environment Variables
@@ -59,7 +59,7 @@ export FRAISEQL_METRICS_BATCH_SIZE=100
 
 ### Configuration File
 
-Create `fraiseql.toml` in your project root:
+Create `FraiseQL.toml` in your project root:
 
 ```toml
 [observability]
@@ -322,7 +322,7 @@ timeout_secs = 30
 
 ## Analysis Configuration
 
-These settings control the `fraiseql-cli analyze` command behavior.
+These settings control the `FraiseQL-cli analyze` command behavior.
 
 ### `observability.analysis.min_frequency`
 
@@ -338,7 +338,7 @@ min_frequency = 1000
 ```text
 
 ```bash
-fraiseql-cli analyze --min-frequency 500  # Override default
+FraiseQL-cli analyze --min-frequency 500  # Override default
 ```text
 
 **Guidelines**:
@@ -365,7 +365,7 @@ min_speedup = 5.0
 ```text
 
 ```bash
-fraiseql-cli analyze --min-speedup 3.0  # Lower threshold
+FraiseQL-cli analyze --min-speedup 3.0  # Lower threshold
 ```text
 
 **Guidelines**:
@@ -425,7 +425,7 @@ window = "7d"  # Last 7 days
 ```text
 
 ```bash
-fraiseql-cli analyze --window 30d  # Last 30 days
+FraiseQL-cli analyze --window 30d  # Last 30 days
 ```text
 
 **Supported Formats**:
@@ -942,7 +942,7 @@ flush_interval_secs = 30  # Flush more frequently
 
 ```bash
 # Lower thresholds temporarily
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
     --min-frequency 10 \
     --min-speedup 2.0 \
     --window 1d

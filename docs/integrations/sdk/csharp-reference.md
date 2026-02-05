@@ -1178,13 +1178,13 @@ public class UserBox
 
 ```csharp
 // ❌ Don't use dynamic
-var result = (dynamic)fraiseql.Execute(query);
+var result = (dynamic)FraiseQL.Execute(query);
 
 // ✅ Use typed results
-var result = fraiseql.Execute<QueryResult>(query);
+var result = FraiseQL.Execute<QueryResult>(query);
 
 // Or cast after
-var result = fraiseql.Execute(query) as QueryResult;
+var result = FraiseQL.Execute(query) as QueryResult;
 ```
 
 #### Attributes Issues
@@ -1215,14 +1215,14 @@ public class User { }
 // ❌ Wrong - not async
 public QueryResult Execute(string query)
 {
-    var result = await fraiseql.ExecuteAsync(query);  // ERROR
+    var result = await FraiseQL.ExecuteAsync(query);  // ERROR
     return result;
 }
 
 // ✅ Correct
 public async Task<QueryResult> ExecuteAsync(string query)
 {
-    var result = await fraiseql.ExecuteAsync(query);
+    var result = await FraiseQL.ExecuteAsync(query);
     return result;
 }
 
@@ -1230,7 +1230,7 @@ public async Task<QueryResult> ExecuteAsync(string query)
 [HttpPost("/graphql")]
 public async Task<IActionResult> GraphQL([FromBody] GraphQLRequest request)
 {
-    var result = await fraiseql.ExecuteAsync(request.Query);
+    var result = await FraiseQL.ExecuteAsync(request.Query);
     return Ok(result);
 }
 ```
@@ -1306,7 +1306,7 @@ public class GraphQLController : ControllerBase
 CREATE VIEW v_users AS SELECT id, name, email FROM users;
 
 // Use in FraiseQL schema
-@fraiseql.query(sql_source = "v_users")
+@FraiseQL.query(sql_source = "v_users")
 public User[] GetUsers() { return new User[0]; }
 ```
 
@@ -1321,8 +1321,8 @@ public User[] GetUsers() { return new User[0]; }
 **Pre-compile schema**:
 
 ```bash
-# Use fraiseql-cli
-fraiseql-cli compile schema.json fraiseql.toml
+# Use FraiseQL-cli
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Load pre-compiled (faster)
 var server = FraiseQLServer.FromCompiled("schema.compiled.json");
@@ -1503,7 +1503,7 @@ Provide:
 #### Community Channels
 
 - **GitHub Discussions**: Q&A
-- **Stack Overflow**: Tag with `csharp`, `fraiseql`, `graphql`
+- **Stack Overflow**: Tag with `csharp`, `FraiseQL`, `graphql`
 - **Reddit**: r/dotnet
 
 ---

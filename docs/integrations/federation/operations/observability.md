@@ -37,7 +37,7 @@ The Federation Observability System is a comprehensive, production-ready impleme
 
 **Files**:
 
-- `crates/fraiseql-core/src/federation/tracing.rs` (150 lines)
+- `crates/FraiseQL-core/src/federation/tracing.rs` (150 lines)
 
 **Key Features**:
 
@@ -68,7 +68,7 @@ pub fn to_traceparent(&self) -> String
 
 **Files**:
 
-- `crates/fraiseql-core/src/federation/health.rs` (200+ lines)
+- `crates/FraiseQL-core/src/federation/health.rs` (200+ lines)
 
 **Key Metrics**:
 
@@ -132,7 +132,7 @@ metrics.record_cache_hit();
 
 **Files**:
 
-- `crates/fraiseql-core/src/federation/logging.rs` (306 lines)
+- `crates/FraiseQL-core/src/federation/logging.rs` (306 lines)
 
 **Log Context Fields**:
 
@@ -186,7 +186,7 @@ pub struct FederationLogContext {
 
 **Files**:
 
-- `crates/fraiseql-core/tests/federation_observability_perf.rs` (408 lines)
+- `crates/FraiseQL-core/tests/federation_observability_perf.rs` (408 lines)
 - `docs/PHASE_5_PERFORMANCE_ANALYSIS.md` (420 lines)
 
 **Test Scenarios & Results**:
@@ -293,7 +293,7 @@ pub struct FederationLogContext {
 
 **Files**:
 
-- `crates/fraiseql-core/tests/federation_observability_integration.rs` (650 lines)
+- `crates/FraiseQL-core/tests/federation_observability_integration.rs` (650 lines)
 - `docs/FEDERATION_OBSERVABILITY_RUNBOOKS.md` (1500+ lines)
 - `docs/PHASE_7_END_TO_END_INTEGRATION.md` (512 lines)
 
@@ -766,7 +766,7 @@ Execution Time: 80ms (total)
 
 **Diagnosis:**
 
-1. Check trace exporter enabled: `grep "jaeger" fraiseql.toml`
+1. Check trace exporter enabled: `grep "jaeger" FraiseQL.toml`
 2. Verify collector reachable: `curl http://jaeger-collector:14250/api/traces`
 3. Check OTEL_EXPORTER_OTLP_ENDPOINT: Should point to Jaeger collector
 
@@ -789,7 +789,7 @@ Execution Time: 80ms (total)
 
 **Solutions:**
 
-- Expose metrics endpoint in fraiseql.toml: `[metrics] enabled = true`
+- Expose metrics endpoint in FraiseQL.toml: `[metrics] enabled = true`
 - Verify Prometheus scrape_interval (default 15s)
 - Check scrape timeout vs query duration
 - For federation: Ensure all subgraph instances expose metrics
@@ -901,7 +901,7 @@ Execution Time: 80ms (total)
 
 ## Support & Contact
 
-**For Issues**: File GitHub issue in fraiseql/docs
+**For Issues**: File GitHub issue in FraiseQL/docs
 **For Questions**: Consult operational runbooks
 **For Escalation**: Contact on-call engineer via PagerDuty
 **For Training**: Share PHASE_7_END_TO_END_INTEGRATION.md with team

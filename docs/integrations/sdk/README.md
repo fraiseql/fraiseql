@@ -130,18 +130,18 @@ Each document covers query execution against deployed servers:
 ### Python
 
 ```python
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int
     name: str
 
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
     pass
 
-fraiseql.export_schema("schema.json")
+FraiseQL.export_schema("schema.json")
 ```text
 
 → [Full Python Reference](./python-reference.md)
@@ -149,20 +149,20 @@ fraiseql.export_schema("schema.json")
 ### TypeScript
 
 ```typescript
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 
-@fraiseql.Type
+@FraiseQL.Type
 class User {
   id: number;
   name: string;
 }
 
-@fraiseql.Query({ sqlSource: 'v_users' })
+@FraiseQL.Query({ sqlSource: 'v_users' })
 function users(limit: number = 10): User[] {
   // Auto-generated
 }
 
-fraiseql.exportSchema('schema.json');
+FraiseQL.exportSchema('schema.json');
 ```text
 
 → [Full TypeScript Reference](./typescript-reference.md)
@@ -172,18 +172,18 @@ fraiseql.exportSchema('schema.json');
 ```go
 package main
 
-import "fraiseql"
+import "FraiseQL"
 
 type User struct {
-    ID   int    `fraiseql:"id"`
-    Name string `fraiseql:"name"`
+    ID   int    `FraiseQL:"id"`
+    Name string `FraiseQL:"name"`
 }
 
 func Users(limit int) ([]User, error) {
-    return fraiseql.Query(...)
+    return FraiseQL.Query(...)
 }
 
-fraiseql.ExportSchema("schema.json")
+FraiseQL.ExportSchema("schema.json")
 ```text
 
 → [Full Go Reference](./go-reference.md)
@@ -191,7 +191,7 @@ fraiseql.ExportSchema("schema.json")
 ### Java
 
 ```java
-import com.fraiseql.*;
+import com.FraiseQL.*;
 
 @GraphQLType
 public class User {
@@ -215,7 +215,7 @@ FraiseQL.exportSchema("schema.json");
 ### Node.js (Runtime Client)
 
 ```javascript
-const { FraiseQLClient } = require('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 const client = new FraiseQLClient({
   schemaPath: './schema.compiled.json',
@@ -256,9 +256,9 @@ See your language reference for specific syntax.
 
 Queries are read operations, mutations are write operations. Both are type-safe and map to SQL views/functions:
 
-- **Queries**: `@fraiseql.query` → SELECT from view
-- **Mutations**: `@fraiseql.mutation` → CALL function
-- **Subscriptions**: `@fraiseql.subscription` → Topic-based events
+- **Queries**: `@FraiseQL.query` → SELECT from view
+- **Mutations**: `@FraiseQL.mutation` → CALL function
+- **Subscriptions**: `@FraiseQL.subscription` → Topic-based events
 
 **Step 3: Export Schema**
 
@@ -266,16 +266,16 @@ Each authoring SDK exports schema to JSON format:
 
 ```bash
 # Python
-python -m fraiseql export schema.json
+python -m FraiseQL export schema.json
 
 # TypeScript
-npx fraiseql export schema.json
+npx FraiseQL export schema.json
 
 # Go
 go run cmd/export/main.go schema.json
 
 # Java
-java -cp fraiseql.jar com.fraiseql.CLI export schema.json
+java -cp FraiseQL.jar com.FraiseQL.CLI export schema.json
 ```text
 
 **Step 4: Compile & Deploy**
@@ -283,7 +283,7 @@ java -cp fraiseql.jar com.fraiseql.CLI export schema.json
 Compile the schema once:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 # Outputs: schema.compiled.json
 ```text
 
@@ -340,7 +340,7 @@ See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
            │ deploy
            ↓
 ┌────────────────────────────────┐
-│ fraiseql-server                │
+│ FraiseQL-server                │
 │ (REST/GraphQL API)             │
 └────────────────────────────────┘
 ```text
@@ -350,9 +350,9 @@ See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
 ### Python 🐍
 
 **Paradigm**: Dynamic + Functional
-**Key Syntax**: Decorators (`@fraiseql.type`, `@fraiseql.query`)
+**Key Syntax**: Decorators (`@FraiseQL.type`, `@FraiseQL.query`)
 **Type Hints**: Optional but recommended (PEP 484)
-**Package**: `fraiseql` via PyPI
+**Package**: `FraiseQL` via PyPI
 
 Best for: Data pipelines, rapid prototyping, Django/FastAPI projects
 
@@ -361,7 +361,7 @@ Best for: Data pipelines, rapid prototyping, Django/FastAPI projects
 **Paradigm**: Static + Functional
 **Key Syntax**: Decorators (`@Type`, `@Query`)
 **Type Safety**: Full TypeScript type checking
-**Package**: `@fraiseql/sdk` via npm
+**Package**: `@FraiseQL/SDK` via npm
 
 Best for: React/Vue web apps, NestJS backends, type safety
 
@@ -370,7 +370,7 @@ Best for: React/Vue web apps, NestJS backends, type safety
 **Paradigm**: Systems Programming
 **Key Syntax**: Struct tags + builder pattern
 **Concurrency**: First-class goroutines
-**Package**: `github.com/fraiseql/sdk-go`
+**Package**: `github.com/FraiseQL/SDK-go`
 
 Best for: Cloud infrastructure, microservices, CLI tools
 
@@ -379,7 +379,7 @@ Best for: Cloud infrastructure, microservices, CLI tools
 **Paradigm**: Static + Object-Oriented
 **Key Syntax**: Annotations (`@GraphQLType`)
 **Ecosystem**: Maven/Gradle integration
-**Package**: `com.fraiseql:fraiseql-sdk`
+**Package**: `com.FraiseQL:FraiseQL-SDK`
 
 Best for: Enterprise apps, Spring Boot, Kafka integrations
 
@@ -388,7 +388,7 @@ Best for: Enterprise apps, Spring Boot, Kafka integrations
 **Paradigm**: Modern + Interoperable
 **Key Syntax**: Annotations + sealed classes
 **Null Safety**: Nullable types built-in
-**Package**: `com.fraiseql:fraiseql-kotlin-sdk`
+**Package**: `com.FraiseQL:FraiseQL-kotlin-SDK`
 
 Best for: Android apps, modern JVM services, coroutines
 
@@ -397,7 +397,7 @@ Best for: Android apps, modern JVM services, coroutines
 **Paradigm**: Functional + Static
 **Key Syntax**: Case classes + macros
 **Type System**: Advanced type inference
-**Package**: `com.fraiseql %% fraiseql-scala-sdk`
+**Package**: `com.FraiseQL %% FraiseQL-scala-SDK`
 
 Best for: Data processing pipelines, Spark jobs, type-safe FP
 
@@ -406,7 +406,7 @@ Best for: Data processing pipelines, Spark jobs, type-safe FP
 **Paradigm**: Functional + Dynamic
 **Key Syntax**: Keywords + maps
 **REPL-Driven**: Interactive development
-**Package**: `fraiseql/sdk-clojure`
+**Package**: `FraiseQL/SDK-clojure`
 
 Best for: Data transformation, domain modeling, REPL workflows
 
@@ -415,7 +415,7 @@ Best for: Data transformation, domain modeling, REPL workflows
 **Paradigm**: Dynamic + Scripting
 **Key Syntax**: Closures + builders
 **Compatibility**: 100% Java compatible
-**Package**: `com.fraiseql:fraiseql-groovy-sdk`
+**Package**: `com.FraiseQL:FraiseQL-groovy-SDK`
 
 Best for: Gradle plugins, test frameworks, DSL creation
 
@@ -424,7 +424,7 @@ Best for: Gradle plugins, test frameworks, DSL creation
 **Paradigm**: Memory-Safe Systems
 **Key Syntax**: Macros + traits
 **Performance**: Zero-cost abstractions
-**Package**: `fraiseql` on crates.io
+**Package**: `FraiseQL` on crates.io
 
 Best for: Systems programming, WebAssembly, embedded systems
 
@@ -451,7 +451,7 @@ Best for: iOS/macOS apps, Apple platform integration
 **Paradigm**: Dynamic + Web-first
 **Key Syntax**: PHP 8 attributes
 **Frameworks**: Laravel, Symfony compatible
-**Package**: `fraiseql/sdk` via Composer
+**Package**: `FraiseQL/SDK` via Composer
 
 Best for: Web services, Laravel/Symfony projects, PHP ecosystem
 
@@ -460,7 +460,7 @@ Best for: Web services, Laravel/Symfony projects, PHP ecosystem
 **Paradigm**: Dynamic + Expressive
 **Key Syntax**: Modules + constants
 **Metaprogramming**: Powerful DSL creation
-**Package**: `fraiseql` via RubyGems
+**Package**: `FraiseQL` via RubyGems
 
 Best for: Rails projects, web frameworks, rapid development
 
@@ -469,7 +469,7 @@ Best for: Rails projects, web frameworks, rapid development
 **Paradigm**: Static + Multi-platform
 **Key Syntax**: Annotations + builders
 **Flutter**: First-class support
-**Package**: `fraiseql` via pub.dev
+**Package**: `FraiseQL` via pub.dev
 
 Best for: Flutter mobile apps, web (WASM), Dart ecosystem
 
@@ -478,7 +478,7 @@ Best for: Flutter mobile apps, web (WASM), Dart ecosystem
 **Paradigm**: Functional + Distributed
 **Key Syntax**: Atoms + maps
 **OTP**: Built-in distributed computing
-**Package**: `:fraiseql` via Hex
+**Package**: `:FraiseQL` via Hex
 
 Best for: Real-time apps, distributed systems, Phoenix web apps
 
@@ -490,7 +490,7 @@ Best for: Real-time apps, distributed systems, Phoenix web apps
 **Paradigm**: Async Promise-based
 **Module Systems**: CommonJS + ESM (dual package)
 **Type Safety**: Optional TypeScript support
-**Package**: `fraiseql-nodejs` via npm
+**Package**: `FraiseQL-nodejs` via npm
 
 Best for: REST/GraphQL APIs, Express servers, microservices, real-time apps
 
@@ -509,9 +509,9 @@ Key capabilities:
 
 | Language | Syntax | Example |
 |----------|--------|---------|
-| **Python** | `@fraiseql.type class` | `@fraiseql.type class User: id: int` |
+| **Python** | `@FraiseQL.type class` | `@FraiseQL.type class User: id: int` |
 | **TypeScript** | `@Type class` | `@Type class User { id: number; }` |
-| **Go** | Struct tags | `type User struct { ID int \`fraiseql:"id"\` }` |
+| **Go** | Struct tags | `type User struct { ID int \`FraiseQL:"id"\` }` |
 | **Java** | `@GraphQLType` | `@GraphQLType public class User { ... }` |
 | **Kotlin** | Data class + `@Type` | `@Type data class User(val id: Int)` |
 | **Scala** | Case class + `@Type` | `@Type case class User(id: Int)` |
@@ -529,9 +529,9 @@ Key capabilities:
 
 | Language | Syntax | Example |
 |----------|--------|---------|
-| **Python** | `@fraiseql.query()` | `@fraiseql.query(sql_source="v_users")` |
+| **Python** | `@FraiseQL.query()` | `@FraiseQL.query(sql_source="v_users")` |
 | **TypeScript** | `@Query()` | `@Query({ sqlSource: 'v_users' })` |
-| **Go** | Builder pattern | `fraiseql.Query("users").From("v_users")` |
+| **Go** | Builder pattern | `FraiseQL.Query("users").From("v_users")` |
 | **Java** | Builder chain | `FraiseQL.query("users").returnType(User.class)` |
 | **Kotlin** | Extension function | `query("users").returns(User::class)` |
 | **Scala** | Object method | `Query("users").returns[User]` |
@@ -549,16 +549,16 @@ Key capabilities:
 
 ### Documentation
 
-- [Language SDK Best Practices](../../guides/language-sdk-best-practices.md) - Cross-language patterns and idioms
+- [Language SDK Best Practices](../../guides/language-SDK-best-practices.md) - Cross-language patterns and idioms
 - [FraiseQL Getting Started Guide](../../GETTING_STARTED.md) - Quick start for all languages
-- **GitHub Repository**: [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql) - Source code and examples
+- **GitHub Repository**: [FraiseQL/FraiseQL](https://github.com/FraiseQL/FraiseQL) - Source code and examples
 
 ### Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) - Report bugs or request features
-- **Discussions**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) - Ask questions and share ideas
-- **Stack Overflow**: Tag questions with `fraiseql`
-- **Community**: [Discord Server](https://discord.gg/fraiseql) - Join community discussions
+- **Issues**: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues) - Report bugs or request features
+- **Discussions**: [GitHub Discussions](https://github.com/FraiseQL/FraiseQL/discussions) - Ask questions and share ideas
+- **Stack Overflow**: Tag questions with `FraiseQL`
+- **Community**: [Discord Server](https://discord.gg/FraiseQL) - Join community discussions
 
 ## Contributing
 

@@ -11,15 +11,15 @@ Complete API reference for the FraiseQL Java SDK. This guide covers the complete
 
 ```xml
 <dependency>
-    <groupId>com.fraiseql</groupId>
-    <artifactId>fraiseql-sdk</artifactId>
+    <groupId>com.FraiseQL</groupId>
+    <artifactId>FraiseQL-SDK</artifactId>
     <version>2.0.0</version>
 </dependency>
 
 <!-- Annotation processor (required for schema compilation) -->
 <dependency>
-    <groupId>com.fraiseql</groupId>
-    <artifactId>fraiseql-processor</artifactId>
+    <groupId>com.FraiseQL</groupId>
+    <artifactId>FraiseQL-processor</artifactId>
     <version>2.0.0</version>
     <scope>provided</scope>
 </dependency>
@@ -39,8 +39,8 @@ Configure annotation processor in `pom.xml`:
                 <target>11</target>
                 <annotationProcessorPaths>
                     <path>
-                        <groupId>com.fraiseql</groupId>
-                        <artifactId>fraiseql-processor</artifactId>
+                        <groupId>com.FraiseQL</groupId>
+                        <artifactId>FraiseQL-processor</artifactId>
                         <version>2.0.0</version>
                     </path>
                 </annotationProcessorPaths>
@@ -54,8 +54,8 @@ Configure annotation processor in `pom.xml`:
 
 ```gradle
 dependencies {
-    implementation 'com.fraiseql:fraiseql-sdk:2.0.0'
-    annotationProcessor 'com.fraiseql:fraiseql-processor:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-SDK:2.0.0'
+    annotationProcessor 'com.FraiseQL:FraiseQL-processor:2.0.0'
 }
 
 tasks.withType(JavaCompile) {
@@ -75,7 +75,7 @@ tasks.withType(JavaCompile) {
 ### First Schema (60 seconds)
 
 ```java
-import com.fraiseql.*;
+import com.FraiseQL.*;
 
 @GraphQLType
 public class User {
@@ -107,8 +107,8 @@ public class Main {
 Export and deploy to your FraiseQL server:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -576,7 +576,7 @@ FraiseQL supports 60+ scalar types mapped from Java to GraphQL:
 ### Export Workflow
 
 ```java
-import com.fraiseql.*;
+import com.FraiseQL.*;
 
 public class SchemaBuilder {
     public static void main(String[] args) throws Exception {
@@ -633,7 +633,7 @@ mvn clean compile exec:java -Dexec.mainClass="com.example.SchemaBuilder"
 gradle run
 
 # Then compile schema
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 ```
 
 ### Schema Validation
@@ -962,7 +962,7 @@ public void testWithMockAdapter() {
 
 #### Dependency Resolution
 
-**Issue**: `Could not resolve dependency: fraiseql:fraiseql-java:2.0.0`
+**Issue**: `Could not resolve dependency: FraiseQL:FraiseQL-java:2.0.0`
 
 **Solution - Check repository**:
 
@@ -987,19 +987,19 @@ mvn clean install -U  # Update snapshots
 
 ```xml
 <dependency>
-  <groupId>com.fraiseql</groupId>
-  <artifactId>fraiseql-java</artifactId>
+  <groupId>com.FraiseQL</groupId>
+  <artifactId>FraiseQL-java</artifactId>
   <version>2.0.0</version>
 </dependency>
 ```
 
 ```bash
-mvn dependency:tree | grep fraiseql
+mvn dependency:tree | grep FraiseQL
 ```
 
 #### Classpath Issues
 
-**Issue**: `ClassNotFoundException: com.fraiseql.FraiseQLServer`
+**Issue**: `ClassNotFoundException: com.FraiseQL.FraiseQLServer`
 
 **Check classpath**:
 
@@ -1049,7 +1049,7 @@ java -version
   <artifactId>maven-compiler-plugin</artifactId>
   <configuration>
     <annotationProcessors>
-      <annotationProcessor>com.fraiseql.processor.FraiseQLProcessor</annotationProcessor>
+      <annotationProcessor>com.FraiseQL.processor.FraiseQLProcessor</annotationProcessor>
     </annotationProcessors>
   </configuration>
 </plugin>
@@ -1226,8 +1226,8 @@ FraiseQLServer.fromCompiledAsync("schema.json")
 **Pre-compile**:
 
 ```bash
-# Use fraiseql-cli to pre-compile
-fraiseql-cli compile schema.json fraiseql.toml
+# Use FraiseQL-cli to pre-compile
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Load pre-compiled schema (faster)
 FraiseQLServer server = FraiseQLServer.fromCompiled("schema.compiled.json");
@@ -1407,7 +1407,7 @@ Provide:
 #### Community Channels
 
 - **GitHub Discussions**: Q&A
-- **Stack Overflow**: Tag with `fraiseql` and `java`
+- **Stack Overflow**: Tag with `FraiseQL` and `java`
 - **Discord**: Real-time help
 
 #### Profiling Tools
@@ -1428,7 +1428,7 @@ java -agentpath:/path/to/libyjpagent.so MyApp
 
 ## See Also
 
-- [API Guide](../../../fraiseql-java/API_GUIDE.md) - Detailed API reference
+- [API Guide](../../../FraiseQL-java/API_GUIDE.md) - Detailed API reference
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation
 - [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns

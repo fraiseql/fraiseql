@@ -153,7 +153,7 @@ pub trait DatabaseStatistics: Send + Sync {
 
 ### 1.1 Query Execution Timing
 
-**File**: `crates/fraiseql-core/src/runtime/metrics.rs`
+**File**: `crates/FraiseQL-core/src/runtime/metrics.rs`
 
 **Purpose**: Track per-query performance metrics in production
 
@@ -226,7 +226,7 @@ impl MetricsCollector {
 **Integration Points**:
 
 ```rust
-// In crates/fraiseql-core/src/runtime/executor.rs
+// In crates/FraiseQL-core/src/runtime/executor.rs
 pub async fn execute_query(&self, query: &str, variables: Variables)
     -> Result<ExecutionResult> {
 
@@ -270,7 +270,7 @@ pub async fn execute_query(&self, query: &str, variables: Variables)
 
 ### 1.2 JSON Path Access Tracking
 
-**File**: `crates/fraiseql-core/src/runtime/json_tracker.rs`
+**File**: `crates/FraiseQL-core/src/runtime/json_tracker.rs`
 
 **Purpose**: Identify which JSON paths are frequently accessed in queries
 
@@ -418,7 +418,7 @@ fn infer_access_type(sql: &str, json_expr: &str) -> JsonAccessType {
 
 ### 1.3 Database Statistics Collection
 
-**File**: `crates/fraiseql-core/src/db/introspection/statistics.rs`
+**File**: `crates/FraiseQL-core/src/db/introspection/statistics.rs`
 
 **Purpose**: Gather real database statistics for accurate cost modeling
 
@@ -464,7 +464,7 @@ pub struct IndexStatistics {
 
 #### PostgreSQL Implementation
 
-**File**: `crates/fraiseql-core/src/db/introspection/postgres_statistics.rs`
+**File**: `crates/FraiseQL-core/src/db/introspection/postgres_statistics.rs`
 
 ```rust
 pub struct PostgresStatistics {
@@ -572,7 +572,7 @@ impl DatabaseStatistics for PostgresStatistics {
 
 #### SQL Server Implementation
 
-**File**: `crates/fraiseql-core/src/db/introspection/sqlserver_statistics.rs`
+**File**: `crates/FraiseQL-core/src/db/introspection/sqlserver_statistics.rs`
 
 **SQL Server System Views**:
 
@@ -707,7 +707,7 @@ impl DatabaseStatistics for SqlServerStatistics {
 
 ### 2.1 Denormalization Analyzer
 
-**File**: `crates/fraiseql-cli/src/schema/observability_optimizer.rs`
+**File**: `crates/FraiseQL-cli/src/schema/observability_optimizer.rs`
 
 **Purpose**: Analyze metrics and suggest schema optimizations
 
@@ -898,7 +898,7 @@ pub enum IndexType {
 
 ### 2.2 Cost Estimation Model
 
-**File**: `crates/fraiseql-cli/src/schema/cost_model.rs`
+**File**: `crates/FraiseQL-cli/src/schema/cost_model.rs`
 
 **Purpose**: Estimate performance impact of suggested changes
 
@@ -1047,7 +1047,7 @@ pub fn estimate_storage_overhead(
 
 ### 2.3 Migration Generator
 
-**File**: `crates/fraiseql-cli/src/schema/migration_generator.rs`
+**File**: `crates/FraiseQL-cli/src/schema/migration_generator.rs`
 
 **Purpose**: Generate database-specific SQL for applying suggestions
 
@@ -1251,7 +1251,7 @@ fn map_to_sqlserver_type(generic_type: &str) -> &str {
 
 ### 3.1 Analyze Command
 
-**File**: `crates/fraiseql-cli/src/commands/analyze.rs`
+**File**: `crates/FraiseQL-cli/src/commands/analyze.rs`
 
 ```rust
 pub async fn run(
@@ -1449,7 +1449,7 @@ cargo bench --bench query_execution -- --baseline on
 # Must explicitly enable
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 
-# Or in fraiseql.toml
+# Or in FraiseQL.toml
 [observability]
 enabled = true
 ```text

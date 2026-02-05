@@ -14,7 +14,7 @@
 **Status:** COMPLETE ✅
 **Length:** 470 lines (~3-4 pages)
 **Content:** Positioning document, comparisons, use cases
-**File:** `01-what-is-fraiseql.md`
+**File:** `01-what-is-FraiseQL.md`
 **Quality:** ⭐⭐⭐⭐⭐ Excellent (exceeds requirements)
 
 **Key Content:**

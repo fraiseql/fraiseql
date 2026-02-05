@@ -10,10 +10,10 @@ Choose your deployment environment:
 
 ```bash
 # 1. Compile schema
-fraiseql-cli compile schema.json -o schema.compiled.json
+FraiseQL-cli compile schema.json -o schema.compiled.json
 
 # 2. Start server
-fraiseql-server -c config.toml
+FraiseQL-server -c config.toml
 
 # Server at http://localhost:8080
 ```
@@ -22,13 +22,13 @@ fraiseql-server -c config.toml
 
 ```bash
 # 1. Build image
-docker build -t fraiseql-server:latest .
+docker build -t FraiseQL-server:latest .
 
 # 2. Run container
 docker run -p 8080:8080 \
-  -v $(pwd)/config.toml:/etc/fraiseql/config.toml \
+  -v $(pwd)/config.toml:/etc/FraiseQL/config.toml \
   -e DATABASE_URL=postgresql://... \
-  fraiseql-server:latest
+  FraiseQL-server:latest
 ```
 
 ### Kubernetes
@@ -75,7 +75,7 @@ Before deployment, configure:
 
 ```bash
 # Check configuration
-fraiseql-cli validate schema.json config.toml
+FraiseQL-cli validate schema.json config.toml
 
 # Health check endpoint
 curl http://localhost:8080/health

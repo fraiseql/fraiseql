@@ -146,11 +146,11 @@ Single node, simpler operations, full transaction support
 **Example Architecture:**
 
 ```yaml
-fraiseql-server:
-  database: postgresql://prod-db.internal:5432/fraiseql
+FraiseQL-server:
+  database: postgresql://prod-db.internal:5432/FraiseQL
   replicas:
-    - postgresql://replica1.internal:5432/fraiseql
-    - postgresql://replica2.internal:5432/fraiseql
+    - postgresql://replica1.internal:5432/FraiseQL
+    - postgresql://replica2.internal:5432/FraiseQL
   caching:
     redis: localhost:6379
 ```text

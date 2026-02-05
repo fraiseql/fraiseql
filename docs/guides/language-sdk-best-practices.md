@@ -22,7 +22,7 @@ FraiseQL SDKs are available for **16 languages**. While the GraphQL API is unive
 - [Other Languages](#other-languages)
 
 **Comprehensive API References (All 16 Languages):**
-👉 **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 16 FraiseQL SDKs with installation, type systems, examples, and language-specific patterns for:
+👉 **[SDK Reference Documentation](../integrations/SDK/)** — Complete API reference for all 16 FraiseQL SDKs with installation, type systems, examples, and language-specific patterns for:
 
 - **Primary**: Python, TypeScript, Go, Java
 - **JVM**: Kotlin, Scala, Clojure, Groovy
@@ -59,7 +59,7 @@ age: Optional[int] = None  # Older style
 
 ```python
 # ✅ Good: Async client with async context manager
-from fraiseql import AsyncClient
+from FraiseQL import AsyncClient
 
 async def main():
     async with AsyncClient(url="http://localhost:5000") as client:
@@ -96,7 +96,7 @@ async def fetch_user(id: str):
 **Best practice:** Handle FraiseQL errors explicitly
 
 ```python
-from fraiseql import AsyncClient, FraiseQLError
+from FraiseQL import AsyncClient, FraiseQLError
 
 async def safe_query():
     async with AsyncClient(url="http://localhost:5000") as client:
@@ -163,7 +163,7 @@ async def test_get_users(client):
 
 ```bash
 # Generate types from FraiseQL schema
-fraiseql-codegen generate --schema schema.json --output types.ts
+FraiseQL-codegen generate --schema schema.json --output types.ts
 ```
 
 **Usage:**
@@ -188,8 +188,8 @@ const result: User[] = await client.query(query);
 **Best practice:** Use hooks for queries
 
 ```typescript
-// React hook (using @fraiseql/react package)
-import { useQuery } from '@fraiseql/react';
+// React hook (using @FraiseQL/react package)
+import { useQuery } from '@FraiseQL/react';
 
 export function UserList() {
   const { data: users, loading, error } = useQuery(`
@@ -220,7 +220,7 @@ export function UserList() {
 **Best practice:** Specific error handling per use case
 
 ```typescript
-import { gql } from '@fraiseql/core';
+import { gql } from '@FraiseQL/core';
 
 async function loginUser(email: string, password: string) {
   try {
@@ -313,7 +313,7 @@ export function LiveOrderCount() {
 ```go
 package main
 
-import "github.com/fraiseql/fraiseql-go"
+import "github.com/FraiseQL/FraiseQL-go"
 
 type User struct {
     ID    string `graphql:"id"`
@@ -347,7 +347,7 @@ if err != nil {
 **Best practice:** Handle GraphQL errors and HTTP errors separately
 
 ```go
-import "github.com/fraiseql/fraiseql-go"
+import "github.com/FraiseQL/FraiseQL-go"
 
 result, err := client.Query(ctx, query)
 
@@ -370,7 +370,7 @@ if len(result.Errors) > 0 {
 
 ```go
 // Initialize once
-client := fraiseql.NewClient("http://localhost:5000")
+client := FraiseQL.NewClient("http://localhost:5000")
 
 // Reuse for multiple queries
 users, _ := client.Query(ctx, getUsersQuery)
@@ -443,11 +443,11 @@ user.subscribe(u -> log.info("User: {}", u.getName()));
 
 ```java
 @Container
-static FraiseQLContainer fraiseql = new FraiseQLContainer("fraiseql:v2.0.0");
+static FraiseQLContainer FraiseQL = new FraiseQLContainer("FraiseQL:v2.0.0");
 
 @BeforeEach
 void setUp() {
-    client = new FraiseQLClient(fraiseql.getGraphQLEndpoint());
+    client = new FraiseQLClient(FraiseQL.getGraphQLEndpoint());
 }
 
 @Test
@@ -465,25 +465,25 @@ The following languages have complete SDK reference documentation available with
 
 ### JVM Ecosystem Languages
 
-**[Kotlin Reference](../integrations/sdk/kotlin-reference.md)** — Modern JVM with data classes, coroutines, and null safety
+**[Kotlin Reference](../integrations/SDK/kotlin-reference.md)** — Modern JVM with data classes, coroutines, and null safety
 
 - Use data classes for type safety
 - Leverage coroutines for async operations
 - Use sealed classes for error handling
 
-**[Scala Reference](../integrations/sdk/scala-reference.md)** — Functional programming with case classes and type system
+**[Scala Reference](../integrations/SDK/scala-reference.md)** — Functional programming with case classes and type system
 
 - Functional composition patterns
 - Pattern matching and sealed traits
 - Advanced type inference
 
-**[Clojure Reference](../integrations/sdk/clojure-reference.md)** — Functional Lisp dialect with persistent data structures
+**[Clojure Reference](../integrations/SDK/clojure-reference.md)** — Functional Lisp dialect with persistent data structures
 
 - Immutable data structures
 - REPL-driven development
 - Spec validation
 
-**[Groovy Reference](../integrations/sdk/groovy-reference.md)** — Dynamic JVM language with DSL capabilities
+**[Groovy Reference](../integrations/SDK/groovy-reference.md)** — Dynamic JVM language with DSL capabilities
 
 - Closures for clean DSLs
 - Metaprogramming patterns
@@ -491,20 +491,20 @@ The following languages have complete SDK reference documentation available with
 
 ### Compiled Native Languages
 
-**[Rust Reference](../integrations/sdk/rust-reference.md)** — Memory-safe systems programming
+**[Rust Reference](../integrations/SDK/rust-reference.md)** — Memory-safe systems programming
 
 - Zero-cost abstractions
 - Type system for exhaustive error handling
 - Async/await with tokio
 
-**[C# Reference](../integrations/sdk/csharp-reference.md)** — .NET ecosystem with modern language features
+**[C# Reference](../integrations/SDK/csharp-reference.md)** — .NET ecosystem with modern language features
 
 - Nullable reference types (C# 11+)
 - Records and pattern matching
 - LINQ for data transformation
 - Dependency injection patterns
 
-**[Swift Reference](../integrations/sdk/swift-reference.md)** — Apple ecosystem with async/await
+**[Swift Reference](../integrations/SDK/swift-reference.md)** — Apple ecosystem with async/await
 
 - Async/await (Swift 5.9+)
 - Codable protocol for JSON handling
@@ -513,27 +513,27 @@ The following languages have complete SDK reference documentation available with
 
 ### Dynamic/Interpreted Languages
 
-**[PHP Reference](../integrations/sdk/php-reference.md)** — Web-first language with PHP 8 attributes
+**[PHP Reference](../integrations/SDK/php-reference.md)** — Web-first language with PHP 8 attributes
 
 - PHP 8.2+ attributes (#[Type], #[Field])
 - Readonly classes and properties
 - Laravel/Symfony integration
 
-**[Ruby Reference](../integrations/sdk/ruby-reference.md)** — Expressive language with Rails integration
+**[Ruby Reference](../integrations/SDK/ruby-reference.md)** — Expressive language with Rails integration
 
 - Bundler for dependency management
 - Ruby idioms: duck typing, blocks, mixins
 - Active Record pattern integration
 - RSpec for testing
 
-**[Dart Reference](../integrations/sdk/dart-reference.md)** — Flutter ecosystem with null safety
+**[Dart Reference](../integrations/SDK/dart-reference.md)** — Flutter ecosystem with null safety
 
 - Null safety (required, ?, late)
 - Flutter widget integration
 - State management with Riverpod
 - JSON serialization with json_serializable
 
-**[Elixir Reference](../integrations/sdk/elixir-reference.md)** — Functional language for distributed systems
+**[Elixir Reference](../integrations/SDK/elixir-reference.md)** — Functional language for distributed systems
 
 - OTP patterns and supervisors
 - Pipe operator for composition
@@ -596,26 +596,26 @@ async def get_data():
 
 **SDK References:**
 
-- **[SDK Reference Documentation](../integrations/sdk/)** — Comprehensive API reference for all 16 languages
-  - [Python](../integrations/sdk/python-reference.md)
-  - [TypeScript](../integrations/sdk/typescript-reference.md)
-  - [Go](../integrations/sdk/go-reference.md)
-  - [Java](../integrations/sdk/java-reference.md)
-  - [Kotlin](../integrations/sdk/kotlin-reference.md)
-  - [Scala](../integrations/sdk/scala-reference.md)
-  - [Clojure](../integrations/sdk/clojure-reference.md)
-  - [Groovy](../integrations/sdk/groovy-reference.md)
-  - [Rust](../integrations/sdk/rust-reference.md)
-  - [C#](../integrations/sdk/csharp-reference.md)
-  - [Swift](../integrations/sdk/swift-reference.md)
-  - [PHP](../integrations/sdk/php-reference.md)
-  - [Ruby](../integrations/sdk/ruby-reference.md)
-  - [Dart](../integrations/sdk/dart-reference.md)
-  - [Elixir](../integrations/sdk/elixir-reference.md)
+- **[SDK Reference Documentation](../integrations/SDK/)** — Comprehensive API reference for all 16 languages
+  - [Python](../integrations/SDK/python-reference.md)
+  - [TypeScript](../integrations/SDK/typescript-reference.md)
+  - [Go](../integrations/SDK/go-reference.md)
+  - [Java](../integrations/SDK/java-reference.md)
+  - [Kotlin](../integrations/SDK/kotlin-reference.md)
+  - [Scala](../integrations/SDK/scala-reference.md)
+  - [Clojure](../integrations/SDK/clojure-reference.md)
+  - [Groovy](../integrations/SDK/groovy-reference.md)
+  - [Rust](../integrations/SDK/rust-reference.md)
+  - [C#](../integrations/SDK/csharp-reference.md)
+  - [Swift](../integrations/SDK/swift-reference.md)
+  - [PHP](../integrations/SDK/php-reference.md)
+  - [Ruby](../integrations/SDK/ruby-reference.md)
+  - [Dart](../integrations/SDK/dart-reference.md)
+  - [Elixir](../integrations/SDK/elixir-reference.md)
 
 **Related Guides:**
 
-- **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 17 SDKs
+- **[SDK Reference Documentation](../integrations/SDK/)** — Complete API reference for all 17 SDKs
 - **[Getting Started Guide](../GETTING_STARTED.md)** — Quick start guide for FraiseQL
 
 ---

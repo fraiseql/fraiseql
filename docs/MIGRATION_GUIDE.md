@@ -8,7 +8,7 @@ This guide walks you through migrating from a monolithic `schema.json` to domain
 
 ```text
 schema.json (all types, queries, mutations in one file)
-fraiseql.toml
+FraiseQL.toml
 ```text
 
 **After**:
@@ -21,7 +21,7 @@ schema/
 │   └── types.json
 └── {domain3}/
     └── types.json
-fraiseql.toml (updated with domain discovery)
+FraiseQL.toml (updated with domain discovery)
 ```text
 
 ## Step-by-Step Migration
@@ -50,7 +50,7 @@ For each domain:
 2. Create `schema/{domain}/types.json`
 3. Validate JSON with `jq . schema/{domain}/types.json`
 
-### Step 4: Update fraiseql.toml
+### Step 4: Update FraiseQL.toml
 
 Replace includes with domain discovery:
 
@@ -63,8 +63,8 @@ root_dir = "schema"
 ### Step 5: Compile and Validate
 
 ```bash
-fraiseql compile fraiseql.toml
-fraiseql compile fraiseql.toml --check
+FraiseQL compile FraiseQL.toml
+FraiseQL compile FraiseQL.toml --check
 ```text
 
 ### Step 6: Compare Output
@@ -74,7 +74,7 @@ Verify type/query counts match original schema.
 ### Step 7: Commit
 
 ```bash
-git add schema/ fraiseql.toml
+git add schema/ FraiseQL.toml
 git commit -m "refactor: migrate to domain-based organization"
 ```text
 
@@ -94,8 +94,8 @@ comm -23 query_types.txt defined_types.txt  # Should be empty
 
 ```bash
 cp schema.json.bak schema.json
-cp fraiseql.toml.bak fraiseql.toml
-fraiseql compile fraiseql.toml
+cp FraiseQL.toml.bak FraiseQL.toml
+FraiseQL compile FraiseQL.toml
 ```text
 
 ## Estimated Time

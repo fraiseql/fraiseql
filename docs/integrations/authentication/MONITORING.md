@@ -319,8 +319,8 @@ curl http://localhost:8000/health/auth
 ```yaml
 version: '3.8'
 services:
-  fraiseql:
-    image: fraiseql/server:latest
+  FraiseQL:
+    image: FraiseQL/server:latest
     environment:
       RUST_LOG: info,fraiseql_server::auth=debug
     ports:

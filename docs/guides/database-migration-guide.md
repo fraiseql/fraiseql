@@ -158,7 +158,7 @@ Organizations (id, name)
 
 ```python
 # schema.py
-from fraiseql import type, key, field, where, context
+from FraiseQL import type, key, field, where, context
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -228,8 +228,8 @@ class Organization:
 ```python
 @type
 class Post:
-    where: Where = fraiseql.where(
-        fk_organization=fraiseql.context.org_id,  # Only user's org
+    where: Where = FraiseQL.where(
+        fk_organization=FraiseQL.context.org_id,  # Only user's org
     )
 
     id: str
@@ -240,11 +240,11 @@ class Post:
 
 @type
 class Comment:
-    where: Where = fraiseql.where(
+    where: Where = FraiseQL.where(
         # Nested RLS: posts -> comments
-        post_id__in=fraiseql.subquery(
+        post_id__in=FraiseQL.subquery(
             "SELECT id FROM posts WHERE fk_organization = ?",
-            [fraiseql.context.org_id]
+            [FraiseQL.context.org_id]
         )
     )
 
@@ -329,10 +329,10 @@ cp $PROD_DATABASE $STAGING_DATABASE
 
 ```bash
 # Install FraiseQL CLI
-cargo install fraiseql-cli
+cargo install FraiseQL-cli
 
 # Compile schema
-fraiseql compile schema.py --config fraiseql.toml
+FraiseQL compile schema.py --config FraiseQL.toml
 
 # Verify compilation
 ls -la schema.compiled.json
@@ -342,7 +342,7 @@ ls -la schema.compiled.json
 
 ```bash
 # Start with staging database
-FRAISEQL_DATABASE_URL=postgresql://staging_db fraiseql serve
+FRAISEQL_DATABASE_URL=postgresql://staging_db FraiseQL serve
 
 # Test GraphQL endpoint
 curl -X POST http://localhost:5000/graphql \
@@ -643,7 +643,7 @@ SELECT COUNT(*) FROM posts WHERE user_id IS NULL;
 ```python
 @type
 class Post:
-    where: Where = fraiseql.where(
+    where: Where = FraiseQL.where(
         # This might be too restrictive!
         is_public=True
     )
@@ -654,9 +654,9 @@ class Post:
 ```python
 @type
 class Post:
-    where: Where = fraiseql.where(
+    where: Where = FraiseQL.where(
         # OR condition: public OR owned by user
-        is_public=True or fk_user=fraiseql.context.user_id
+        is_public=True or fk_user=FraiseQL.context.user_id
     )
 ```text
 
@@ -695,7 +695,7 @@ class UserStats:
 ### Step 4: Enable Query Caching
 
 ```toml
-[fraiseql.caching]
+[FraiseQL.caching]
 enabled = true
 default_ttl_seconds = 300
 ```text

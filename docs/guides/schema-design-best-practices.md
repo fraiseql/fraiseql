@@ -42,7 +42,7 @@ FraiseQL schemas compile to optimized SQL at build time, enabling deterministic 
 #### Example:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserProfile:
     """Logical view - computed per query."""
     id: ID
@@ -77,7 +77,7 @@ class UserProfile:
 #### Example:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserStats:
     """Table-backed view - materialized and refreshed daily."""
     id: ID
@@ -132,7 +132,7 @@ GROUP BY u.id;
 #### Example:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class ProductAnalytics:
     """Arrow logical projection - columnar format."""
     product_id: ID
@@ -172,7 +172,7 @@ df = reader.read_pandas()  # Zero-copy to pandas!
 #### Example:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class SalesDataWarehouse:
     """Arrow table-backed materialization."""
     date: Date
@@ -204,7 +204,7 @@ class SalesDataWarehouse:
 #### Conventions:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     # IDs: Use full entity name or standard suffixes
     id: ID                          # Primary key
@@ -308,7 +308,7 @@ account_balance: Decimal = Decimal("99.99")
 ### Best practice:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Event:
     id: ID
     created_at: DateTime  # Always use DateTime (includes time)
@@ -325,13 +325,13 @@ class Event:
 **Pattern:** Foreign key + List type
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     posts: List[Post]  # One-to-many: User has many Posts
 
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID
     user_id: ID  # Foreign key
@@ -349,13 +349,13 @@ class Post:
 **Pattern:** Join table (use TV for performance)
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     groups: List[Group]  # Many-to-many via join table
 
-@fraiseql.type
+@FraiseQL.type
 class Group:
     id: ID
     name: str
@@ -394,7 +394,7 @@ GROUP BY u.id;
 **Pattern:** Foreign key to same table
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Category:
     id: ID
     name: str
@@ -406,7 +406,7 @@ class Category:
 **Query limitation:** Prevent infinite recursion
 
 ```toml
-[fraiseql.validation]
+[FraiseQL.validation]
 max_query_depth = 10  # Prevent Category -> Category -> Category...
 ```
 
@@ -471,7 +471,7 @@ CREATE INDEX idx_products_name_trgm ON products USING GIST(name gist_trgm_ops); 
 #### Pattern 1: Simple concatenation (use v_*)
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     first_name: str
     last_name: str
@@ -481,7 +481,7 @@ class User:
 ### Pattern 2: Complex aggregation (use tv_*)
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     post_count: int  # Materialized (updated hourly)
@@ -492,7 +492,7 @@ class User:
 #### Pattern 3: Conditional logic (use CASE)
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Order:
     id: ID
     status: OrderStatus
@@ -517,7 +517,7 @@ class Order:
 **Pattern:** Mark sensitive fields as authorized
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -531,11 +531,11 @@ class User:
 **Pattern:** Use WHERE clause for multi-tenancy
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Post:
-    where: Where = fraiseql.where(
-        fk_org=fraiseql.context.org_id,  # Only user's org
-        is_public=True or fk_user=fraiseql.context.user_id  # Public or own posts
+    where: Where = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id,  # Only user's org
+        is_public=True or fk_user=FraiseQL.context.user_id  # Public or own posts
     )
 
     id: ID
@@ -552,13 +552,13 @@ class Post:
 
 ```python
 # Old schema
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
 
 # New schema (clients still work!)
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -569,14 +569,14 @@ class User:
 
 ```python
 # Old schema
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     legacy_field: str
 
 # New schema (breaks clients expecting legacy_field!)
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -585,7 +585,7 @@ class User:
 ### Safe alternative: Deprecate first
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -600,7 +600,7 @@ class User:
 #### Workaround: Add alias
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -669,7 +669,7 @@ ORDER BY mean_time DESC;
 ### Document Each Type
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     """
     User account and profile information.
@@ -703,7 +703,7 @@ class User:
 ### Document View Materialization
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserStats:
     """
     User engagement statistics (materialized daily).

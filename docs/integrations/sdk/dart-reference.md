@@ -17,18 +17,18 @@ name: my_fraiseql_app
 description: A FraiseQL client application with Flutter.
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  SDK: '>=3.0.0 <4.0.0'
   flutter: '>=3.0.0'
 
 dependencies:
   flutter:
-    sdk: flutter
-  fraiseql: ^2.0.0
+    SDK: flutter
+  FraiseQL: ^2.0.0
   fraiseql_flutter: ^2.0.0  # Optional: Flutter widgets
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
+    SDK: flutter
   build_runner: ^2.4.0
   json_serializable: ^6.7.0
   riverpod_generator: ^2.3.0  # Optional: State management
@@ -79,7 +79,7 @@ dart pub get
 Dart 3.0+ enforces sound null safety at compile time. Every variable is non-nullable by default; use `?` for nullable types.
 
 ```dart
-import 'package:fraiseql/fraiseql.dart';
+import 'package:FraiseQL/FraiseQL.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'user.g.dart';  // Generated file for json_serializable
@@ -634,7 +634,7 @@ dart pub run build_runner build
 
 ```bash
 # Compile schema on the FraiseQL server
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Output: schema.compiled.json (ready for runtime)
 ```text
@@ -1078,8 +1078,8 @@ void main() {
 
 ## See Also
 
-- [FraiseQL Python SDK Reference](/docs/integrations/sdk/python-reference.md) - Schema authoring guide
-- [FraiseQL Swift SDK Reference](/docs/integrations/sdk/swift-reference.md) - iOS/macOS integration
+- [FraiseQL Python SDK Reference](/docs/integrations/SDK/python-reference.md) - Schema authoring guide
+- [FraiseQL Swift SDK Reference](/docs/integrations/SDK/swift-reference.md) - iOS/macOS integration
 - [Flutter State Management Guide](/docs/integrations/flutter/state-management.md) - Provider, Riverpod, GetX
 - [JSON Serialization Best Practices](/docs/integrations/json-serialization.md) - json_serializable patterns
 - [Null Safety in Dart](https://dart.dev/null-safety) - Official Dart null safety documentation
@@ -1096,14 +1096,14 @@ void main() {
 
 #### Pub Package Issues
 
-**Issue**: `Could not find package fraiseql`
+**Issue**: `Could not find package FraiseQL`
 
 **Solution**:
 
 ```yaml
 # pubspec.yaml
 dependencies:
-  fraiseql: ^2.0.0
+  FraiseQL: ^2.0.0
 ```text
 
 ```bash
@@ -1120,7 +1120,7 @@ pub upgrade
 ```yaml
 # pubspec.yaml
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  SDK: '>=3.0.0 <4.0.0'
 ```text
 
 **Use correct nullability**:
@@ -1359,7 +1359,7 @@ logger.e('Error', error: exception);
 
 Provide: 1. Dart version: `dart --version`
 2. Flutter version: `flutter --version`
-3. FraiseQL version: `pub list fraiseql`
+3. FraiseQL version: `pub list FraiseQL`
 4. Error message
 5. Minimal code example
 
@@ -1367,4 +1367,4 @@ Provide: 1. Dart version: `dart --version`
 
 **Last Updated**: 2026-02-05 | **Dart SDK Version**: 2.0.0+ | **Flutter**: 3.0+
 
-For issues, questions, or contributions, visit the [FraiseQL GitHub repository](https://github.com/fraiseql/fraiseql).
+For issues, questions, or contributions, visit the [FraiseQL GitHub repository](https://github.com/FraiseQL/FraiseQL).

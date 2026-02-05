@@ -68,7 +68,7 @@ FraiseQL v2 is a well-architected, compilation-oriented GraphQL execution engine
 
 ### Federation Decorators Implemented
 
-**Python** (`fraiseql-python/src/fraiseql/federation.py`):
+**Python** (`FraiseQL-python/src/FraiseQL/federation.py`):
 
 ```python
 @key("id")              # Entity key definition
@@ -78,7 +78,7 @@ FraiseQL v2 is a well-architected, compilation-oriented GraphQL execution engine
 @provides(*targets)    # Mark provided fields
 ```
 
-**TypeScript** (`fraiseql-typescript/src/federation.ts`):
+**TypeScript** (`FraiseQL-typescript/src/federation.ts`):
 
 ```typescript
 @Key("id")             # Federation key
@@ -93,7 +93,7 @@ FraiseQL v2 is a well-architected, compilation-oriented GraphQL execution engine
 **Python Federation Example** (`examples/federation/basic/users-service/schema.py`):
 
 ```python
-from fraiseql import type, key
+from FraiseQL import type, key
 
 @type
 @key("id")
@@ -129,9 +129,9 @@ class Query:
 
 ### CLI Implementation
 
-**Location**: `crates/fraiseql-cli/src/`
+**Location**: `crates/FraiseQL-cli/src/`
 
-**Command**: `fraiseql compile schema.json -o schema.compiled.json`
+**Command**: `FraiseQL compile schema.json -o schema.compiled.json`
 
 **Compilation Pipeline**:
 
@@ -185,7 +185,7 @@ class Query:
 
 ### Core Runtime Features
 
-**Location**: `crates/fraiseql-core/src/`
+**Location**: `crates/FraiseQL-core/src/`
 
 ✅ **Query Execution**:
 
@@ -262,7 +262,7 @@ class Query:
 
 ### Federation Module
 
-**Location**: `crates/fraiseql-core/src/federation/` (19 files)
+**Location**: `crates/FraiseQL-core/src/federation/` (19 files)
 
 **Core Components**:
 

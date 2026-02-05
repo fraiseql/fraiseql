@@ -392,7 +392,7 @@ let sql = generator.generate_projection_sql(&fields)?;
 
 Projection is integrated in the query executor:
 
-**File**: `crates/fraiseql-core/src/runtime/executor.rs`
+**File**: `crates/FraiseQL-core/src/runtime/executor.rs`
 
 ```rust
 // Automatically generates projection from requested fields

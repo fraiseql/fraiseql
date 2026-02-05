@@ -17,8 +17,8 @@ val scala3Version = "3.3.1"
 ThisBuild / scalaVersion := scala3Version
 
 libraryDependencies ++= Seq(
-  "com.fraiseql" %% "fraiseql-core" % "2.0.0",
-  "com.fraiseql" %% "fraiseql-schema" % "2.0.0",
+  "com.FraiseQL" %% "FraiseQL-core" % "2.0.0",
+  "com.FraiseQL" %% "FraiseQL-schema" % "2.0.0",
   // For functional effects (optional, but recommended)
   "org.typelevel" %% "cats-core" % "2.10.0",
   "org.typelevel" %% "cats-effect" % "3.5.0",
@@ -48,8 +48,8 @@ scalacOptions ++= Seq(
 ### First Schema (90 seconds)
 
 ```scala
-import com.fraiseql.schema.*
-import com.fraiseql.schema.dsl.*
+import com.FraiseQL.schema.*
+import com.FraiseQL.schema.dsl.*
 
 @Type("user")
 case class User(
@@ -86,8 +86,8 @@ Export and deploy to FraiseQL server:
 
 ```bash
 sbt run
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -422,7 +422,7 @@ object SchemaBuilder:
 @main def generateSchema(): Unit =
   SchemaBuilder.exportSchema()
   println("✓ Schema exported to schema.json")
-  println("✓ Run: fraiseql-cli compile schema.json fraiseql.toml")
+  println("✓ Run: FraiseQL-cli compile schema.json FraiseQL.toml")
 ```
 
 ### SBT Tasks
@@ -432,13 +432,13 @@ object SchemaBuilder:
 sbt "runMain SchemaBuilder"
 
 # Compile schema to schema.compiled.json
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Validate compiled schema
-fraiseql-cli validate schema.compiled.json
+FraiseQL-cli validate schema.compiled.json
 
 # Serve with FraiseQL runtime
-fraiseql-server --schema schema.compiled.json --bind 0.0.0.0:8080
+FraiseQL-server --schema schema.compiled.json --bind 0.0.0.0:8080
 ```
 
 ---
@@ -640,17 +640,17 @@ property("User ID should always be positive") = forAll {
 
 #### SBT Dependency Issues
 
-**Issue**: `not found: SbtModule: fraiseql`
+**Issue**: `not found: SbtModule: FraiseQL`
 
 **Solution**:
 
 ```scala
 // build.sbt
-libraryDependencies += "com.fraiseql" %% "fraiseql-scala" % "2.0.0"
+libraryDependencies += "com.FraiseQL" %% "FraiseQL-scala" % "2.0.0"
 
 // Or with additional options
 libraryDependencies ++= Seq(
-  "com.fraiseql" %% "fraiseql-scala" % "2.0.0",
+  "com.FraiseQL" %% "FraiseQL-scala" % "2.0.0",
   "org.scala-lang" % "scala-library" % scalaVersion.value
 )
 ```
@@ -669,12 +669,12 @@ sbt clean update
 
 ```scala
 // Import required implicits
-import com.fraiseql._
-import com.fraiseql.Implicits._
+import com.FraiseQL._
+import com.FraiseQL.Implicits._
 
 // Or in object
 object MyApp {
-  import com.fraiseql._
+  import com.FraiseQL._
 
   def main(args: Array[String]): Unit = {
     // Now implicits available
@@ -690,7 +690,7 @@ object MyApp {
 
 ```scala
 // ✅ Correct
-@fraiseql.type
+@FraiseQL.type
 case class User(
   id: Int,
   email: String
@@ -698,7 +698,7 @@ case class User(
 
 // Or use type aliases
 type Email = String
-@fraiseql.type
+@FraiseQL.type
 case class User(email: Email)
 ```
 
@@ -770,7 +770,7 @@ object FraiseQL {
 **Solution - Implement typeclass**:
 
 ```scala
-import com.fraiseql.Serializable
+import com.FraiseQL.Serializable
 
 implicit object MyTypeSerializable extends Serializable[MyType] {
   def toJson(value: MyType): String = {
@@ -945,7 +945,7 @@ logger.info("Result: {}", result)
 **Set log level**:
 
 ```bash
-RUST_LOG=fraiseql=debug sbt run
+RUST_LOG=FraiseQL=debug sbt run
 ```
 
 #### REPL Debugging
@@ -957,7 +957,7 @@ sbt console
 ```
 
 ```scala
-scala> import com.fraiseql._
+scala> import com.FraiseQL._
 scala> val server = Server.fromCompiled("schema.json")
 scala> server.execute("{ user(id: 1) { id } }")
 ```
@@ -1024,7 +1024,7 @@ Provide:
 #### Community Channels
 
 - **Scala Community**: <https://contributors.scala-lang.org/>
-- **Stack Overflow**: Tag with `scala` and `fraiseql`
+- **Stack Overflow**: Tag with `scala` and `FraiseQL`
 - **GitHub Discussions**: Q&A
 
 ---
@@ -1033,6 +1033,6 @@ Provide:
 
 - **[Fact Tables Guide](../../architecture/analytics/fact-dimension-pattern.md)** — Analytics dimension modeling
 - **[Schema Validation](../../guides/schema-validation.md)** — Compile-time schema validation
-- **[CLI Reference](../../reference/cli.md)** — `fraiseql-cli` commands and options
+- **[CLI Reference](../../reference/cli.md)** — `FraiseQL-cli` commands and options
 - **[Cats Library](https://typelevel.org/cats/)** — Functional effect composition patterns
 - **[Scala Documentation](https://docs.scala-lang.org/)** — Official Scala language reference

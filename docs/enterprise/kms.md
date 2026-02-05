@@ -26,7 +26,7 @@ FraiseQL's Key Management Service provides unified encryption/decryption across 
 ### Vault Setup (Recommended)
 
 ```python
-from fraiseql.security.kms import KeyManager, VaultKMSProvider, VaultConfig
+from FraiseQL.security.kms import KeyManager, VaultKMSProvider, VaultConfig
 
 # Configure Vault provider
 vault_config = VaultConfig(
@@ -50,7 +50,7 @@ await key_manager.initialize()
 ### AWS KMS Setup
 
 ```python
-from fraiseql.security.kms import KeyManager, AWSKMSProvider, AWSKMSConfig
+from FraiseQL.security.kms import KeyManager, AWSKMSProvider, AWSKMSConfig
 
 # Configure AWS KMS
 aws_config = AWSKMSConfig(
@@ -71,7 +71,7 @@ await key_manager.initialize()
 ### GCP Cloud KMS Setup
 
 ```python
-from fraiseql.security.kms import KeyManager, GCPKMSProvider, GCPKMSConfig
+from FraiseQL.security.kms import KeyManager, GCPKMSProvider, GCPKMSConfig
 
 # Configure GCP KMS
 gcp_config = GCPKMSConfig(
@@ -216,7 +216,7 @@ Encrypted data
 **Best for**: Self-hosted, multi-cloud, fine-grained access control
 
 ```python
-from fraiseql.security.kms import VaultConfig, VaultKMSProvider
+from FraiseQL.security.kms import VaultConfig, VaultKMSProvider
 
 config = VaultConfig(
     vault_addr="https://vault.example.com:8200",
@@ -268,7 +268,7 @@ vault write auth/approle/role/app policies="app"
 **Best for**: AWS-native deployments, AWS IAM integration
 
 ```python
-from fraiseql.security.kms import AWSKMSConfig, AWSKMSProvider
+from FraiseQL.security.kms import AWSKMSConfig, AWSKMSProvider
 
 config = AWSKMSConfig(
     region="us-east-1",
@@ -313,7 +313,7 @@ alias/my-encryption-key
 **Best for**: GCP-native deployments, multi-region
 
 ```python
-from fraiseql.security.kms import GCPKMSConfig, GCPKMSProvider
+from FraiseQL.security.kms import GCPKMSConfig, GCPKMSProvider
 
 config = GCPKMSConfig(
     project_id="my-project",
@@ -337,7 +337,7 @@ projects/my-project/locations/global/keyRings/my-keyring/cryptoKeys/my-key
 **Best for**: Development, testing (not production!)
 
 ```python
-from fraiseql.security.kms import LocalKMSConfig, LocalKMSProvider
+from FraiseQL.security.kms import LocalKMSConfig, LocalKMSProvider
 
 config = LocalKMSConfig(
     master_key=b"development-master-key-32-bytes!"  # 32-byte key
@@ -716,7 +716,7 @@ async def generate_api_key(
 FraiseQL KMS defines specific exceptions:
 
 ```python
-from fraiseql.security.kms import (
+from FraiseQL.security.kms import (
     KMSError,
     EncryptionError,
     DecryptionError,

@@ -42,7 +42,7 @@ This guide covers the **complete workflow** for safely applying observability-dr
 
 ```bash
 # Step 1: Analyze metrics
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://metrics-db:5432/metrics \
   --format sql > migrations/optimize-$(date +%Y%m%d).sql
 
@@ -150,13 +150,13 @@ Before applying to **any environment**:
 
   ```python
   # Before migration:
-  @fraiseql.fact_table(
+  @FraiseQL.fact_table(
       table_name='tf_sales',
       dimension_column='dimensions'
   )
 
   # After migration:
-  @fraiseql.fact_table(
+  @FraiseQL.fact_table(
       table_name='tf_sales',
       dimension_column='dimensions',
       denormalized_filters=['region_id']  # NEW
@@ -166,7 +166,7 @@ Before applying to **any environment**:
 - [ ] **Compile new schema**
 
   ```bash
-  fraiseql-cli compile schema.json --check
+  FraiseQL-cli compile schema.json --check
   ```text
 
 #### Team Communication
@@ -276,7 +276,7 @@ grep "Execution Time" benchmark-after.txt
 vim schema.json
 
 # 2. Recompile
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # 3. Deploy to staging
 git add schema.compiled.json
@@ -474,7 +474,7 @@ psql $PRODUCTION_DATABASE_URL -c "
 vim schema.json
 
 # 2. Recompile schema
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # 3. Create deployment commit
 git add schema.json schema.compiled.json
@@ -495,7 +495,7 @@ Migration applied: 2026-01-12 14:30 UTC
 git push origin main
 
 # 5. Restart application servers (if needed)
-kubectl rollout restart deployment/fraiseql-api
+kubectl rollout restart deployment/FraiseQL-api
 ```text
 
 ---
@@ -506,7 +506,7 @@ kubectl rollout restart deployment/fraiseql-api
 
 ```bash
 # 1. Check error logs
-kubectl logs -f deployment/fraiseql-api | grep -i error
+kubectl logs -f deployment/FraiseQL-api | grep -i error
 
 # 2. Monitor query latency
 curl http://localhost:9090/metrics | grep graphql_query_duration_seconds
@@ -635,11 +635,11 @@ GO
 git revert HEAD
 
 # 2. Recompile
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # 3. Redeploy
 git push origin main
-kubectl rollout restart deployment/fraiseql-api
+kubectl rollout restart deployment/FraiseQL-api
 ```text
 
 ### Full Database Restore (Last Resort)

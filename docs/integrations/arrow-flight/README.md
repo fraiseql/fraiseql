@@ -142,7 +142,7 @@ Analytics via Arrow/ClickHouse + Operational via JSON/Elasticsearch.
 analytics_df = pl.from_arrow(...)  # 1M+ rows in seconds
 
 # For debugging: use HTTP/JSON to Elasticsearch
-results = es.search(index="fraiseql-events-*", body={...})
+results = es.search(index="FraiseQL-events-*", body={...})
 ```text
 
 ### ✅ 100% Backwards Compatible
@@ -152,7 +152,7 @@ Existing HTTP/JSON clients continue to work unchanged. No breaking changes.
 ```bash
 # Both endpoints available simultaneously
 curl http://localhost:8080/graphql ...     # HTTP/JSON still works
-grpcurl localhost:50051 fraiseql.Flight ...  # Arrow Flight (new)
+grpcurl localhost:50051 FraiseQL.Flight ...  # Arrow Flight (new)
 ```text
 
 ## Performance Comparison
@@ -226,9 +226,9 @@ Minimal: 2-3 threads for gRPC server, no additional memory when not in use.
 
 ## Support & Community
 
-- **GitHub Issues**: [fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
-- **Discussions**: [fraiseql/fraiseql/discussions](https://github.com/fraiseql/fraiseql/discussions)
-- **Email**: <support@fraiseql.dev>
+- **GitHub Issues**: [FraiseQL/FraiseQL/issues](https://github.com/FraiseQL/FraiseQL/issues)
+- **Discussions**: [FraiseQL/FraiseQL/discussions](https://github.com/FraiseQL/FraiseQL/discussions)
+- **Email**: <support@FraiseQL.dev>
 
 ## Next Steps
 

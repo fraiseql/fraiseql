@@ -84,7 +84,7 @@ Choose the transport based on use case, not requirements.
 
 ```yaml
 services:
-  fraiseql:
+  FraiseQL:
     ports:
       - "8080:8080"   # Existing HTTP
       - "50051:50051" # NEW: Arrow Flight
@@ -95,7 +95,7 @@ services:
 ### Step 2: Deploy
 
 ```bash
-docker-compose up -d fraiseql
+docker-compose up -d FraiseQL
 
 # Verify both ports are listening
 netstat -tuln | grep -E '8080|50051'
@@ -318,14 +318,14 @@ cp -r ./migrations/clickhouse /var/lib/clickhouse/migrations
 docker-compose up clickhouse
 
 # Verify tables created
-docker exec fraiseql-clickhouse clickhouse-client \
+docker exec FraiseQL-clickhouse clickhouse-client \
   --query "SELECT name FROM system.tables WHERE database='default'"
 ```text
 
 ### Step 3: Configure Observer Events → ClickHouse
 
 ```yaml
-# fraiseql-config.toml
+# FraiseQL-config.toml
 [observers]
 clickhouse_enabled = true
 clickhouse_url = "http://localhost:8123"
@@ -338,10 +338,10 @@ clickhouse_batch_size = 10000
 
 ```bash
 # Restart FraiseQL to enable ClickHouse sink
-docker-compose restart fraiseql
+docker-compose restart FraiseQL
 
 # Verify events flowing
-docker exec fraiseql-clickhouse clickhouse-client \
+docker exec FraiseQL-clickhouse clickhouse-client \
   --query "SELECT COUNT(*) FROM fraiseql_events"
 ```text
 
@@ -401,12 +401,12 @@ services:
 
 ```bash
 # Apply index template
-curl -X PUT "localhost:9200/_index_template/fraiseql-events" \
+curl -X PUT "localhost:9200/_index_template/FraiseQL-events" \
   -H 'Content-Type: application/json' \
   -d @./migrations/elasticsearch/index_template.json
 
 # Apply ILM policy
-curl -X PUT "localhost:9200/_ilm/policy/fraiseql-events" \
+curl -X PUT "localhost:9200/_ilm/policy/FraiseQL-events" \
   -H 'Content-Type: application/json' \
   -d @./migrations/elasticsearch/ilm_policy.json
 ```text
@@ -414,11 +414,11 @@ curl -X PUT "localhost:9200/_ilm/policy/fraiseql-events" \
 ### Step 3: Configure Observer Events → Elasticsearch
 
 ```yaml
-# fraiseql-config.toml
+# FraiseQL-config.toml
 [observers]
 elasticsearch_enabled = true
 elasticsearch_url = "http://localhost:9200"
-elasticsearch_index_prefix = "fraiseql-events"
+elasticsearch_index_prefix = "FraiseQL-events"
 elasticsearch_bulk_size = 1000
 ```text
 
@@ -426,10 +426,10 @@ elasticsearch_bulk_size = 1000
 
 ```bash
 # Restart FraiseQL
-docker-compose restart fraiseql
+docker-compose restart FraiseQL
 
 # Verify indexing
-curl "localhost:9200/fraiseql-events-*/_count"
+curl "localhost:9200/FraiseQL-events-*/_count"
 # Returns: {"count": 12345}
 ```text
 
@@ -438,7 +438,7 @@ curl "localhost:9200/fraiseql-events-*/_count"
 **Example**: Find all failed orders in the last hour
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -461,7 +461,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search" \
 
 ```bash
 # "Find all events for customer-123"
-curl -X POST "localhost:9200/fraiseql-events-*/_search" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {"term": {"user_id": "customer-123"}},
@@ -500,7 +500,7 @@ Arrow Flight is purely **additive**:
 
 ```bash
 # If you need to rollback
-docker-compose down fraiseql-arrow-flight
+docker-compose down FraiseQL-arrow-flight
 
 # HTTP/JSON continues working
 curl http://localhost:8080/graphql ...
@@ -546,9 +546,9 @@ No data loss, no breaking changes.
 
 ## Support
 
-- **Slack**: #fraiseql-arrow-flight
-- **Docs**: <https://docs.fraiseql.com/arrow-flight>
-- **Issues**: <https://github.com/fraiseql/fraiseql/issues>
+- **Slack**: #FraiseQL-arrow-flight
+- **Docs**: <https://docs.FraiseQL.com/arrow-flight>
+- **Issues**: <https://github.com/FraiseQL/FraiseQL/issues>
 
 ---
 

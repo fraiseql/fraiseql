@@ -12,9 +12,9 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
 **Leiningen** (`project.clj`):
 
 ```clojure
-(defproject my-fraiseql-api "1.0.0"
+(defproject my-FraiseQL-api "1.0.0"
   :dependencies [[org.clojure/clojure "1.11.1"]
-                 [fraiseql/sdk "2.0.0"]
+                 [FraiseQL/SDK "2.0.0"]
                  [org.clojure/spec.alpha "0.5.228"]])
 ```
 
@@ -22,7 +22,7 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
 
 ```clojure
 {:deps {org.clojure/clojure {:mvn/version "1.11.1"}
-        fraiseql/sdk {:mvn/version "2.0.0"}
+        FraiseQL/SDK {:mvn/version "2.0.0"}
         org.clojure/spec.alpha {:mvn/version "0.5.228"}}}
 ```
 
@@ -32,7 +32,7 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
 
 ```clojure
 (ns my-app.schema
-  (:require [fraiseql.core :as fql]))
+  (:require [FraiseQL.core :as fql]))
 
 (fql/defschema User
   :id :int
@@ -50,8 +50,8 @@ Complete API reference for the FraiseQL Clojure SDK. This guide covers the compl
 Compile and deploy:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -374,7 +374,7 @@ Export schemas to JSON for compilation:
 
 ```clojure
 (ns my-app.core
-  (:require [fraiseql.core :as fql]))
+  (:require [FraiseQL.core :as fql]))
 
 ; Single-file export
 (fql/export-schema! "schema.json")
@@ -522,7 +522,7 @@ Use `clojure.test` with immutable data structures:
 ```clojure
 (ns my-app.test.schema
   (:require [clojure.test :refer :all]
-            [fraiseql.core :as fql]))
+            [FraiseQL.core :as fql]))
 
 ; Test schema definition
 (deftest test-user-schema
@@ -580,7 +580,7 @@ Use `clojure.test` with immutable data structures:
 
 #### Leiningen Dependency Issues
 
-**Issue**: `Could not find artifact fraiseql:fraiseql-clojure`
+**Issue**: `Could not find artifact FraiseQL:FraiseQL-clojure`
 
 **Solution**:
 
@@ -588,7 +588,7 @@ Use `clojure.test` with immutable data structures:
 ; project.clj
 (defproject myapp "0.1.0"
   :dependencies [[org.clojure/clojure "1.11.0"]
-                 [fraiseql/fraiseql-clojure "2.0.0"]])
+                 [FraiseQL/FraiseQL-clojure "2.0.0"]])
 ```
 
 ```bash
@@ -615,13 +615,13 @@ java -version
 
 #### Macro Compilation Issues
 
-**Issue**: `No such var: fraiseql/type`
+**Issue**: `No such var: FraiseQL/type`
 
 **Solution - Require properly**:
 
 ```clojure
 (ns myapp.schema
-  (:require [fraiseql.core :as fq]))
+  (:require [FraiseQL.core :as fq]))
 
 (fq/deftype User
   {:id :int
@@ -635,7 +635,7 @@ java -version
 **Solution - Refresh in REPL**:
 
 ```clojure
-(require :reload 'fraiseql.core)
+(require :reload 'FraiseQL.core)
 ```
 
 ---
@@ -702,10 +702,10 @@ java -version
 
 ```clojure
 ; ✅ With doall
-(doall (map fraiseql/execute queries))
+(doall (map FraiseQL/execute queries))
 
 ; ✅ Or use reduce
-(reduce fraiseql/execute-accumulated [] queries)
+(reduce FraiseQL/execute-accumulated [] queries)
 ```
 
 #### Thread Pool Issues
@@ -721,19 +721,19 @@ java -version
   ; Max 10 concurrent tasks
   (async/go-loop []
     (when-let [query (async/<! chan)]
-      (fraiseql/execute query)
+      (FraiseQL/execute query)
       (recur))))
 ```
 
 #### Map/Vector Issues
 
-**Issue**: `No such namespace: fraiseql`
+**Issue**: `No such namespace: FraiseQL`
 
 **Solution - Require namespace**:
 
 ```clojure
 (ns myapp.core
-  (:require [fraiseql.core :as fq]))
+  (:require [FraiseQL.core :as fq]))
 
 (fq/execute query variables)
 ```
@@ -789,9 +789,9 @@ java -version
 #### REPL Debugging
 
 ```clojure
-user> (require 'fraiseql.core)
-user> (def server (fraiseql.core/from-compiled "schema.json"))
-user> (fraiseql.core/execute server "{ user(id: 1) { id } }")
+user> (require 'FraiseQL.core)
+user> (def server (FraiseQL.core/from-compiled "schema.json"))
+user> (FraiseQL.core/execute server "{ user(id: 1) { id } }")
 ```
 
 #### Tap Debugging
@@ -807,7 +807,7 @@ user> (fraiseql.core/execute server "{ user(id: 1) { id } }")
 #### Print Debugging
 
 ```clojure
-(let [result (fraiseql/execute query)]
+(let [result (FraiseQL/execute query)]
   (prn "Result:" result)
   result)
 ```

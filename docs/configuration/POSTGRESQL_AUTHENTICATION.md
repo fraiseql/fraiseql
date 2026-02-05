@@ -65,7 +65,7 @@ SCRAM-SHA-256 is a salted challenge-response authentication mechanism defined in
 
 ```toml
 [database]
-url = "postgresql://username:password@localhost:5432/fraiseql"
+url = "postgresql://username:password@localhost:5432/FraiseQL"
 ```
 
 ### SCRAM-SHA-256-PLUS (Channel Binding)
@@ -90,7 +90,7 @@ SCRAM-SHA-256-PLUS adds channel binding to SCRAM-SHA-256, providing additional p
 
 ```toml
 [database]
-url = "postgresql://username:password@localhost:5432/fraiseql?sslmode=require"
+url = "postgresql://username:password@localhost:5432/FraiseQL?sslmode=require"
 ```
 
 ## PostgreSQL Version Requirements
@@ -157,10 +157,10 @@ Update your FraiseQL configuration:
 ```toml
 [database]
 # Old (MD5 - deprecated)
-# url = "postgresql://fraiseql_user:password@localhost:5432/fraiseql"
+# url = "postgresql://fraiseql_user:password@localhost:5432/FraiseQL"
 
 # New (SCRAM-SHA-256)
-url = "postgresql://fraiseql_user:secure_password@localhost:5432/fraiseql"
+url = "postgresql://fraiseql_user:secure_password@localhost:5432/FraiseQL"
 ```
 
 ## Verifying SCRAM Authentication
@@ -192,7 +192,7 @@ FROM pg_authid WHERE rolname = 'fraiseql_user';
 
 ```bash
 # Test the connection with verbose logging
-RUST_LOG=debug fraiseql-server start
+RUST_LOG=debug FraiseQL-server start
 
 # Look for successful SCRAM-SHA-256 authentication in logs
 # Should see: "Successfully authenticated using SCRAM-SHA-256"
@@ -261,7 +261,7 @@ ALTER SYSTEM SET password_encryption = 'scram-sha256';
 CREATE USER fraiseql_user WITH PASSWORD 'your_secure_password_here';
 
 -- Grant necessary permissions
-GRANT CONNECT ON DATABASE fraiseql TO fraiseql_user;
+GRANT CONNECT ON DATABASE FraiseQL TO fraiseql_user;
 GRANT USAGE ON SCHEMA public TO fraiseql_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO fraiseql_user;
 
@@ -279,7 +279,7 @@ sudo -u postgres psql -c "SHOW password_encryption;"
 # Should output: scram-sha256
 
 # 4. Test connection from FraiseQL
-psql -h localhost -U fraiseql_user -d fraiseql
+psql -h localhost -U fraiseql_user -d FraiseQL
 # Should successfully authenticate with SCRAM-SHA-256
 ```
 

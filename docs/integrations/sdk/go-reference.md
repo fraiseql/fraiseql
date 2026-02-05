@@ -9,17 +9,17 @@ Complete API reference for the FraiseQL Go SDK. This guide covers the Go authori
 
 ```bash
 # Installation
-go get github.com/fraiseql/fraiseql-go
+go get github.com/FraiseQL/FraiseQL-go
 
 # Or with Go workspaces
-go get -u github.com/fraiseql/fraiseql-go@latest
+go get -u github.com/FraiseQL/FraiseQL-go@latest
 ```
 
 **Requirements**:
 
 - Go 1.22 or later
 - Standard library (no external runtime dependencies)
-- Optional: `github.com/fraiseql/fraiseql-go/tools` for code generation
+- Optional: `github.com/FraiseQL/FraiseQL-go/tools` for code generation
 
 **First Schema** (30 seconds):
 
@@ -27,17 +27,17 @@ go get -u github.com/fraiseql/fraiseql-go@latest
 package main
 
 import (
- "github.com/fraiseql/fraiseql-go/fraiseql"
+ "github.com/FraiseQL/FraiseQL-go/FraiseQL"
 )
 
 type User struct {
- ID    int    `fraiseql:"id,type=Int"`
- Name  string `fraiseql:"name,type=String"`
- Email string `fraiseql:"email,type=String"`
+ ID    int    `FraiseQL:"id,type=Int"`
+ Name  string `FraiseQL:"name,type=String"`
+ Email string `FraiseQL:"email,type=String"`
 }
 
 func init() {
- fraiseql.NewQuery("users").
+ FraiseQL.NewQuery("users").
   ReturnType(User{}).
   ReturnsArray(true).
   Config(map[string]interface{}{
@@ -49,7 +49,7 @@ func init() {
 }
 
 func main() {
- if err := fraiseql.ExportSchema("schema.json"); err != nil {
+ if err := FraiseQL.ExportSchema("schema.json"); err != nil {
   panic(err)
  }
 }
@@ -59,8 +59,8 @@ Export and deploy:
 
 ```bash
 go run main.go                              # Generates schema.json
-fraiseql-cli compile schema.json
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -82,19 +82,19 @@ fraiseql-server --schema schema.compiled.json
 
 ### Struct Tags
 
-Define GraphQL fields using Go struct tags in the `fraiseql` namespace:
+Define GraphQL fields using Go struct tags in the `FraiseQL` namespace:
 
 ```go
 type Product struct {
- ID       int     `fraiseql:"id,type=Int"`
- Name     string  `fraiseql:"name,type=String"`
- Price    float64 `fraiseql:"price,type=Float"`
- InStock  bool    `fraiseql:"in_stock,type=Boolean"`
- IsActive *bool   `fraiseql:"is_active,type=Boolean,nullable=true"`
+ ID       int     `FraiseQL:"id,type=Int"`
+ Name     string  `FraiseQL:"name,type=String"`
+ Price    float64 `FraiseQL:"price,type=Float"`
+ InStock  bool    `FraiseQL:"in_stock,type=Boolean"`
+ IsActive *bool   `FraiseQL:"is_active,type=Boolean,nullable=true"`
 }
 ```
 
-**Tag Format**: `fraiseql:"<field_name>,type=<type>[,nullable=<true|false>]"`
+**Tag Format**: `FraiseQL:"<field_name>,type=<type>[,nullable=<true|false>]"`
 
 **Parameters**:
 
@@ -128,23 +128,23 @@ type Product struct {
 ```go
 // With nested types
 type Address struct {
- Street    string `fraiseql:"street,type=String"`
- City      string `fraiseql:"city,type=String"`
- State     string `fraiseql:"state,type=String"`
- PostalCode string `fraiseql:"postal_code,type=String"`
+ Street    string `FraiseQL:"street,type=String"`
+ City      string `FraiseQL:"city,type=String"`
+ State     string `FraiseQL:"state,type=String"`
+ PostalCode string `FraiseQL:"postal_code,type=String"`
 }
 
 type Company struct {
- ID          int       `fraiseql:"id,type=Int"`
- Name        string    `fraiseql:"name,type=String"`
- Address     Address   `fraiseql:"address,type=Address"`
- Employees   []User    `fraiseql:"employees,type=[User]"`
- Description *string   `fraiseql:"description,type=String,nullable=true"`
+ ID          int       `FraiseQL:"id,type=Int"`
+ Name        string    `FraiseQL:"name,type=String"`
+ Address     Address   `FraiseQL:"address,type=Address"`
+ Employees   []User    `FraiseQL:"employees,type=[User]"`
+ Description *string   `FraiseQL:"description,type=String,nullable=true"`
 }
 
 // Type registration
 func init() {
- fraiseql.RegisterTypes(User{}, Address{}, Company{})
+ FraiseQL.RegisterTypes(User{}, Address{}, Company{})
 }
 ```
 
@@ -157,7 +157,7 @@ func init() {
 Define read-only operations mapping to SQL views:
 
 ```go
-fraiseql.NewQuery("users").
+FraiseQL.NewQuery("users").
  ReturnType(User{}).
  ReturnsArray(true).
  Nullable(false).
@@ -189,7 +189,7 @@ fraiseql.NewQuery("users").
 
 ```go
 // Single result
-fraiseql.NewQuery("user").
+FraiseQL.NewQuery("user").
  ReturnType(User{}).
  Config(map[string]interface{}{"sql_source": "v_user_by_id"}).
  Arg("id", "Int", nil).
@@ -197,7 +197,7 @@ fraiseql.NewQuery("user").
  Register()
 
 // List with defaults
-fraiseql.NewQuery("users").
+FraiseQL.NewQuery("users").
  ReturnType(User{}).
  ReturnsArray(true).
  Config(map[string]interface{}{"sql_source": "v_users"}).
@@ -207,7 +207,7 @@ fraiseql.NewQuery("users").
  Register()
 
 // With filters
-fraiseql.NewQuery("searchUsers").
+FraiseQL.NewQuery("searchUsers").
  ReturnType(User{}).
  ReturnsArray(true).
  Config(map[string]interface{}{"sql_source": "v_search_users"}).
@@ -223,7 +223,7 @@ fraiseql.NewQuery("searchUsers").
 Define write operations mapping to SQL functions:
 
 ```go
-fraiseql.NewMutation("createUser").
+FraiseQL.NewMutation("createUser").
  ReturnType(User{}).
  Config(map[string]interface{}{
   "sql_source": "fn_create_user",
@@ -246,7 +246,7 @@ fraiseql.NewMutation("createUser").
 
 ```go
 // Create
-fraiseql.NewMutation("createUser").
+FraiseQL.NewMutation("createUser").
  ReturnType(User{}).
  Config(map[string]interface{}{
   "sql_source": "fn_create_user",
@@ -257,7 +257,7 @@ fraiseql.NewMutation("createUser").
  Register()
 
 // Update
-fraiseql.NewMutation("updateUser").
+FraiseQL.NewMutation("updateUser").
  ReturnType(User{}).
  Config(map[string]interface{}{
   "sql_source": "fn_update_user",
@@ -268,7 +268,7 @@ fraiseql.NewMutation("updateUser").
  Register()
 
 // Delete
-fraiseql.NewMutation("deleteUser").
+FraiseQL.NewMutation("deleteUser").
  ReturnType(BoolResult{}).
  Config(map[string]interface{}{
   "sql_source": "fn_delete_user",
@@ -287,7 +287,7 @@ fraiseql.NewMutation("deleteUser").
 Define OLAP tables with measures and dimensions:
 
 ```go
-fraiseql.NewFactTable("sales").
+FraiseQL.NewFactTable("sales").
  TableName("tf_sales").
  Measure("revenue", "sum", "avg", "max").
  Measure("quantity", "sum", "count", "avg").
@@ -313,7 +313,7 @@ fraiseql.NewFactTable("sales").
 ### Aggregate Query
 
 ```go
-fraiseql.NewAggregateQueryConfig("salesByCategory").
+FraiseQL.NewAggregateQueryConfig("salesByCategory").
  FactTableName("sales").
  AutoGroupBy(true).
  AutoAggregates(true).
@@ -335,10 +335,10 @@ Use struct tags for additional field configuration:
 
 ```go
 type SalesMetrics struct {
- ID        int64     `fraiseql:"id,type=Int"`
- Revenue   float64   `fraiseql:"revenue,type=Float,measure=sum;avg;max"`
- Quantity  int       `fraiseql:"quantity,type=Int,measure=sum;count"`
- CreatedAt time.Time `fraiseql:"created_at,type=String"`
+ ID        int64     `FraiseQL:"id,type=Int"`
+ Revenue   float64   `FraiseQL:"revenue,type=Float,measure=sum;avg;max"`
+ Quantity  int       `FraiseQL:"quantity,type=Int,measure=sum;count"`
+ CreatedAt time.Time `FraiseQL:"created_at,type=String"`
 }
 ```
 
@@ -370,23 +370,23 @@ package main
 
 import (
  "log"
- "github.com/fraiseql/fraiseql-go/fraiseql"
+ "github.com/FraiseQL/FraiseQL-go/FraiseQL"
 )
 
 func init() {
  // Define types and operations
- fraiseql.RegisterTypes(User{}, Post{})
+ FraiseQL.RegisterTypes(User{}, Post{})
  // ... queries and mutations ...
 }
 
 func main() {
  // Export to file
- if err := fraiseql.ExportSchema("schema.json"); err != nil {
+ if err := FraiseQL.ExportSchema("schema.json"); err != nil {
   log.Fatal(err)
  }
 
  // Or export to string
- schema, err := fraiseql.ExportSchemaString()
+ schema, err := FraiseQL.ExportSchemaString()
  if err != nil {
   log.Fatal(err)
  }
@@ -400,11 +400,11 @@ func main() {
 # 1. Run Go program to generate schema.json
 go run main.go
 
-# 2. Compile with fraiseql-cli
-fraiseql-cli compile schema.json
+# 2. Compile with FraiseQL-cli
+FraiseQL-cli compile schema.json
 
 # 3. Deploy compiled schema
-fraiseql-server --schema schema.compiled.json
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -426,18 +426,18 @@ fraiseql-server --schema schema.compiled.json
 ```go
 // List of ints
 type Result struct {
- IDs []int `fraiseql:"ids,type=[Int]"`
+ IDs []int `FraiseQL:"ids,type=[Int]"`
 }
 
 // Nullable list
 type Optional struct {
- Items *[]string `fraiseql:"items,type=[String],nullable=true"`
+ Items *[]string `FraiseQL:"items,type=[String],nullable=true"`
 }
 
 // Nested objects
 type Nested struct {
- User User   `fraiseql:"user,type=User"`
- Tags []string `fraiseql:"tags,type=[String]"`
+ User User   `FraiseQL:"user,type=User"`
+ Tags []string `FraiseQL:"tags,type=[String]"`
 }
 ```
 
@@ -449,28 +449,28 @@ type Nested struct {
 
 ```go
 type Todo struct {
- ID    int    `fraiseql:"id,type=Int"`
- Title string `fraiseql:"title,type=String"`
- Done  bool   `fraiseql:"done,type=Boolean"`
+ ID    int    `FraiseQL:"id,type=Int"`
+ Title string `FraiseQL:"title,type=String"`
+ Done  bool   `FraiseQL:"done,type=Boolean"`
 }
 
 func init() {
  // Create
- fraiseql.NewMutation("createTodo").
+ FraiseQL.NewMutation("createTodo").
   ReturnType(Todo{}).
   Config(map[string]interface{}{"sql_source": "fn_create_todo", "operation": "CREATE"}).
   Arg("title", "String", nil).
   Register()
 
  // Read
- fraiseql.NewQuery("todo").
+ FraiseQL.NewQuery("todo").
   ReturnType(Todo{}).
   Config(map[string]interface{}{"sql_source": "v_todo_by_id"}).
   Arg("id", "Int", nil).
   Register()
 
  // Update
- fraiseql.NewMutation("updateTodo").
+ FraiseQL.NewMutation("updateTodo").
   ReturnType(Todo{}).
   Config(map[string]interface{}{"sql_source": "fn_update_todo", "operation": "UPDATE"}).
   Arg("id", "Int", nil).
@@ -478,7 +478,7 @@ func init() {
   Register()
 
  // Delete
- fraiseql.NewMutation("deleteTodo").
+ FraiseQL.NewMutation("deleteTodo").
   ReturnType(BoolResult{}).
   Config(map[string]interface{}{"sql_source": "fn_delete_todo", "operation": "DELETE"}).
   Arg("id", "Int", nil).
@@ -490,19 +490,19 @@ func init() {
 
 ```go
 type PageInfo struct {
- HasNext     bool `fraiseql:"has_next,type=Boolean"`
- HasPrevious bool `fraiseql:"has_previous,type=Boolean"`
- TotalCount  int  `fraiseql:"total_count,type=Int"`
- PageSize    int  `fraiseql:"page_size,type=Int"`
+ HasNext     bool `FraiseQL:"has_next,type=Boolean"`
+ HasPrevious bool `FraiseQL:"has_previous,type=Boolean"`
+ TotalCount  int  `FraiseQL:"total_count,type=Int"`
+ PageSize    int  `FraiseQL:"page_size,type=Int"`
 }
 
 type UserConnection struct {
- Items    []User   `fraiseql:"items,type=[User]"`
- PageInfo PageInfo `fraiseql:"page_info,type=PageInfo"`
+ Items    []User   `FraiseQL:"items,type=[User]"`
+ PageInfo PageInfo `FraiseQL:"page_info,type=PageInfo"`
 }
 
 func init() {
- fraiseql.NewQuery("users").
+ FraiseQL.NewQuery("users").
   ReturnType(UserConnection{}).
   Config(map[string]interface{}{"sql_source": "v_users_paginated"}).
   Arg("limit", "Int", 20).
@@ -515,11 +515,11 @@ func init() {
 
 ```go
 func initSchema() error {
- if err := fraiseql.RegisterTypes(User{}, Post{}); err != nil {
+ if err := FraiseQL.RegisterTypes(User{}, Post{}); err != nil {
   return fmt.Errorf("failed to register types: %w", err)
  }
 
- if err := fraiseql.ExportSchema("schema.json"); err != nil {
+ if err := FraiseQL.ExportSchema("schema.json"); err != nil {
   return fmt.Errorf("failed to export schema: %w", err)
  }
 
@@ -552,7 +552,7 @@ func TestQueryRegistration(t *testing.T) {
 
  for _, tt := range tests {
   t.Run(tt.name, func(t *testing.T) {
-   schema, _ := fraiseql.ExportSchemaString()
+   schema, _ := FraiseQL.ExportSchemaString()
    if !contains(schema, tt.expects) {
     t.Errorf("expected %s in schema", tt.expects)
    }
@@ -565,7 +565,7 @@ func TestQueryRegistration(t *testing.T) {
 
 ```go
 func TestSchemaValidity(t *testing.T) {
- schema, err := fraiseql.ExportSchemaString()
+ schema, err := FraiseQL.ExportSchemaString()
  if err != nil {
   t.Fatalf("export failed: %v", err)
  }
@@ -591,22 +591,22 @@ func TestSchemaValidity(t *testing.T) {
 Common errors and recovery patterns:
 
 ```go
-import "github.com/fraiseql/fraiseql-go/fraiseql"
+import "github.com/FraiseQL/FraiseQL-go/FraiseQL"
 
 // Type registration errors
-if err := fraiseql.RegisterTypes(MyType{}); err != nil {
+if err := FraiseQL.RegisterTypes(MyType{}); err != nil {
  // Handle duplicate type, invalid struct, etc.
  log.Fatal("Type registration failed:", err)
 }
 
 // Export errors
-if err := fraiseql.ExportSchema("schema.json"); err != nil {
+if err := FraiseQL.ExportSchema("schema.json"); err != nil {
  // Handle file I/O, validation errors
  log.Fatal("Schema export failed:", err)
 }
 
 // Query builder errors (builder pattern validates at Register)
-fraiseql.NewQuery("users").
+FraiseQL.NewQuery("users").
  ReturnType(User{}). // Must be registered type
  Config(map[string]interface{}{"sql_source": "v_users"}).
  Register() // Panics if validation fails
@@ -626,9 +626,9 @@ fraiseql.NewQuery("users").
 ```go
 // User represents a system user account
 type User struct {
- ID    int    `fraiseql:"id,type=Int"`
- Name  string `fraiseql:"name,type=String"`
- Email string `fraiseql:"email,type=String"`
+ ID    int    `FraiseQL:"id,type=Int"`
+ Name  string `FraiseQL:"name,type=String"`
+ Email string `FraiseQL:"email,type=String"`
 }
 ```
 
@@ -641,7 +641,7 @@ type User struct {
 
 ```go
 func init() {
- fraiseql.NewQuery("users").
+ FraiseQL.NewQuery("users").
   ReturnType(User{}).
   ReturnsArray(true).
   Config(map[string]interface{}{"sql_source": "v_users"}).
@@ -658,7 +658,7 @@ Go SDK is thread-safe for schema export during `init()`:
 ```go
 // Safe to call from goroutines after init completes
 go func() {
- schema, _ := fraiseql.ExportSchemaString()
+ schema, _ := FraiseQL.ExportSchemaString()
  // Process schema
 }()
 ```
@@ -671,13 +671,13 @@ go func() {
 
 #### Module Import Problems
 
-**Issue**: `no required module provides package "github.com/fraiseql/fraiseql-go"`
+**Issue**: `no required module provides package "github.com/FraiseQL/FraiseQL-go"`
 
 **Solution**:
 
 ```bash
 # Add module to go.mod
-go get github.com/fraiseql/fraiseql-go
+go get github.com/FraiseQL/FraiseQL-go
 
 # Verify import
 go mod verify
@@ -688,7 +688,7 @@ go mod tidy
 
 #### Compilation Errors
 
-**Issue**: `undefined: fraiseql.Type`
+**Issue**: `undefined: FraiseQL.Type`
 
 **Cause**: Incorrect import or version mismatch
 
@@ -696,13 +696,13 @@ go mod tidy
 
 ```go
 // ✅ Correct import
-import "github.com/fraiseql/fraiseql-go"
+import "github.com/FraiseQL/FraiseQL-go"
 
 // ✅ Use proper package reference
 func init() {
-    fraiseql.Type("User", fraiseql.Fields{
-        "id":    fraiseql.Int,
-        "email": fraiseql.String,
+    FraiseQL.Type("User", FraiseQL.Fields{
+        "id":    FraiseQL.Int,
+        "email": FraiseQL.String,
     })
 }
 ```
@@ -714,13 +714,13 @@ func init() {
 **Check version**:
 
 ```bash
-go list -m github.com/fraiseql/fraiseql-go
+go list -m github.com/FraiseQL/FraiseQL-go
 ```
 
 **Update to latest**:
 
 ```bash
-go get -u github.com/fraiseql/fraiseql-go@latest
+go get -u github.com/FraiseQL/FraiseQL-go@latest
 go mod tidy
 ```
 
@@ -744,7 +744,7 @@ go build -tags=arrow_flight
 
 #### Type Mismatch Errors
 
-**Issue**: `cannot use "string" (string type) as "fraiseql.Email" type`
+**Issue**: `cannot use "string" (string type) as "FraiseQL.Email" type`
 
 **Cause**: Type assertion failure
 
@@ -756,7 +756,7 @@ user := User{Email: "test@example.com"}  // string, not Email
 
 // ✅ Correct - use conversion
 user := User{
-    Email: fraiseql.Email("test@example.com"),
+    Email: FraiseQL.Email("test@example.com"),
 }
 ```
 
@@ -773,24 +773,24 @@ func (e Email) Validate() error {
 
 #### Null Handling
 
-**Issue**: `cannot use nil as type fraiseql.String`
+**Issue**: `cannot use nil as type FraiseQL.String`
 
 **Solution - Use pointers for optional fields**:
 
 ```go
 // ❌ Wrong - can't be nil
 type User struct {
-    Email fraiseql.String
+    Email FraiseQL.String
 }
 
 // ✅ Correct - pointer allows nil
 type User struct {
-    Email *fraiseql.String
+    Email *FraiseQL.String
 }
 
 // Or use explicit option
 type User struct {
-    Email fraiseql.Option[fraiseql.String]
+    Email FraiseQL.Option[FraiseQL.String]
 }
 
 // Check if present
@@ -809,12 +809,12 @@ if user.Email.IsSome() {
 
 ```go
 type User struct {
-    ID    int    `fraiseql:"id,required"`
-    Email string `fraiseql:"email,type=Email"`
+    ID    int    `FraiseQL:"id,required"`
+    Email string `FraiseQL:"email,type=Email"`
 }
 
 // Schema compiler reads tags
-schema, _ := fraiseql.ExportSchema("path/to/schema.json")
+schema, _ := FraiseQL.ExportSchema("path/to/schema.json")
 ```
 
 ---
@@ -832,12 +832,12 @@ schema, _ := fraiseql.ExportSchema("path/to/schema.json")
 ```go
 var (
     serverOnce sync.Once
-    server *fraiseql.Server
+    server *FraiseQL.Server
 )
 
-func getServer() *fraiseql.Server {
+func getServer() *FraiseQL.Server {
     serverOnce.Do(func() {
-        server, _ = fraiseql.NewServer(fraiseql.Config{
+        server, _ = FraiseQL.NewServer(FraiseQL.Config{
             CompiledSchemaPath: "schema.compiled.json",
         })
     })
@@ -855,7 +855,7 @@ func getServer() *fraiseql.Server {
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
-result, err := server.Execute(ctx, fraiseql.ExecuteRequest{
+result, err := server.Execute(ctx, FraiseQL.ExecuteRequest{
     Query: query,
 })
 ```
@@ -874,7 +874,7 @@ fmt.Printf("Open: %d, MaxOpen: %d\n", stats.OpenConnections, stats.MaxOpenConnec
 **Increase pool size**:
 
 ```go
-server, _ := fraiseql.NewServer(fraiseql.Config{
+server, _ := FraiseQL.NewServer(FraiseQL.Config{
     PoolSize: 20,      // Max connections
     PoolMinSize: 5,    // Min idle
 })
@@ -893,7 +893,7 @@ variables := map[string]interface{}{
     "limit": 20,        // Must match Int type
 }
 
-result, _ := server.Execute(ctx, fraiseql.ExecuteRequest{
+result, _ := server.Execute(ctx, FraiseQL.ExecuteRequest{
     Query: query,
     Variables: variables,
 })
@@ -936,7 +936,7 @@ defer cancel()  // Cancels all in-flight operations
 **Enable query logging**:
 
 ```go
-server, _ := fraiseql.NewServer(fraiseql.Config{
+server, _ := FraiseQL.NewServer(FraiseQL.Config{
     Debug: true,
     LogLevel: "debug",
 })
@@ -999,13 +999,13 @@ go mod download  # Pre-fetch modules
 **Set debug mode**:
 
 ```go
-server, _ := fraiseql.NewServer(fraiseql.Config{
+server, _ := FraiseQL.NewServer(FraiseQL.Config{
     Debug: true,
 })
 
 // Or environment variable
 os.Setenv("FRAISEQL_DEBUG", "true")
-os.Setenv("RUST_LOG", "fraiseql=debug")
+os.Setenv("RUST_LOG", "FraiseQL=debug")
 ```
 
 #### Use fmt.Printf for Debugging
@@ -1052,14 +1052,14 @@ curl -X POST http://localhost:8080/graphql \
 **Print schema**:
 
 ```go
-schema, _ := fraiseql.ExportSchemaString()
+schema, _ := FraiseQL.ExportSchemaString()
 fmt.Println(schema)
 ```
 
 **Validate schema**:
 
 ```go
-valid, errors := fraiseql.ValidateSchema(schemaJSON)
+valid, errors := FraiseQL.ValidateSchema(schemaJSON)
 if !valid {
     for _, err := range errors {
         fmt.Println(err)
@@ -1076,7 +1076,7 @@ if !valid {
 Provide when reporting:
 
 1. Go version: `go version`
-2. fraiseql-go version: `go list -m github.com/fraiseql/fraiseql-go`
+2. FraiseQL-go version: `go list -m github.com/FraiseQL/FraiseQL-go`
 3. OS and architecture: `go env GOOS GOARCH`
 4. Minimal reproducible example
 5. Full error traceback
@@ -1087,7 +1087,7 @@ Provide when reporting:
 ```markdown
 **Environment**:
 - Go: go1.21
-- fraiseql-go: v2.0.0
+- FraiseQL-go: v2.0.0
 - OS: Linux amd64
 
 **Issue**:
@@ -1103,7 +1103,7 @@ Provide when reporting:
 #### Community Channels
 
 - **GitHub Discussions**: Ask questions about usage
-- **Stack Overflow**: Tag with `fraiseql` and `go`
+- **Stack Overflow**: Tag with `FraiseQL` and `go`
 - **Discord**: Real-time help from maintainers
 
 #### Performance Profiling
@@ -1148,7 +1148,7 @@ go tool pprof cpu.prof
 - **TypeScript SDK**: [TypeScript Reference](./typescript-reference.md)
 - **Database Patterns**: [SQL View & Function Patterns](../../guides/database-patterns.md)
 - **Analytics Guide**: [Fact Tables & OLAP](../../guides/analytics-olap.md)
-- **GitHub**: [fraiseql-go repository](https://github.com/fraiseql/fraiseql-go)
+- **GitHub**: [FraiseQL-go repository](https://github.com/FraiseQL/FraiseQL-go)
 
 ---
 

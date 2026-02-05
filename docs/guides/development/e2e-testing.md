@@ -163,11 +163,11 @@ ExportSchema("schema.json");
 
 ```go
 type User struct {
-    ID   int    `fraiseql:"id"`
-    Name string `fraiseql:"name"`
+    ID   int    `FraiseQL:"id"`
+    Name string `FraiseQL:"name"`
 }
 
-fraiseql.ExportSchema("schema.json")
+FraiseQL.ExportSchema("schema.json")
 ```text
 
 ### JSON Validation
@@ -182,7 +182,7 @@ Verify schema JSON structure:
 ### CLI Compilation
 
 ```bash
-fraiseql-cli compile schema.json -o schema.compiled.json
+FraiseQL-cli compile schema.json -o schema.compiled.json
 ```text
 
 Produces optimized execution plan with:
@@ -197,7 +197,7 @@ Produces optimized execution plan with:
 Start server with compiled schema:
 
 ```bash
-fraiseql-server --schema schema.compiled.json --port 4000
+FraiseQL-server --schema schema.compiled.json --port 4000
 ```text
 
 ## Test Structure
@@ -226,7 +226,7 @@ def test_python_e2e_basic_schema():
 
     # Step 4: Try CLI compilation
     result = subprocess.run(
-        ["fraiseql-cli", "compile", "schema.json"],
+        ["FraiseQL-cli", "compile", "schema.json"],
         capture_output=True
     )
     assert result.returncode == 0
@@ -235,7 +235,7 @@ def test_python_e2e_basic_schema():
 ### Running Directly
 
 ```bash
-cd fraiseql-python
+cd FraiseQL-python
 source .venv/bin/activate
 python tests/e2e/python_e2e_test.py
 ```text
@@ -266,7 +266,7 @@ This is a real-world integration test that:
 
 - Verifies FraiseQL implementation exists in VelocityBench
 - Tests blogging app schema structure (User, Post, Comment)
-- Validates schema compilation with fraiseql-cli
+- Validates schema compilation with FraiseQL-cli
 - Demonstrates FraiseQL working with a production-like application
 
 **Note:** This test verifies schema structure even if CLI compilation produces warnings.
@@ -372,13 +372,13 @@ CLI compilation is tested regardless of Docker availability.
 ### Python Environment Not Activated
 
 ```text
-Error: No module named 'fraiseql'
+Error: No module named 'FraiseQL'
 ```text
 
 Solution:
 
 ```bash
-cd fraiseql-python
+cd FraiseQL-python
 source .venv/bin/activate
 cd ..
 make e2e-python
@@ -393,7 +393,7 @@ Error: Cannot find module 'jest'
 Solution:
 
 ```bash
-cd fraiseql-typescript
+cd FraiseQL-typescript
 npm install
 cd ..
 make e2e-typescript
@@ -402,13 +402,13 @@ make e2e-typescript
 ### CLI Not Found
 
 ```text
-fraiseql-cli: command not found
+FraiseQL-cli: command not found
 ```text
 
 Solution:
 
 ```bash
-cargo build --release -p fraiseql-cli
+cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
 make e2e-all
 ```text
@@ -480,24 +480,24 @@ make e2e-python  # Already shows detailed output
 
 ```bash
 # Python
-cd fraiseql-python
+cd FraiseQL-python
 source .venv/bin/activate
 python tests/e2e/python_e2e_test.py
 
 # TypeScript
-cd fraiseql-typescript
+cd FraiseQL-typescript
 npm test
 
 # Go
-cd fraiseql-go
-go test ./fraiseql/... -v
+cd FraiseQL-go
+go test ./FraiseQL/... -v
 ```text
 
 ### Check Generated Schemas
 
 ```bash
 # Python generates to current directory
-python -c "from fraiseql import schema; schema.export_schema('/tmp/py_test.json')"
+python -c "from FraiseQL import schema; schema.export_schema('/tmp/py_test.json')"
 ls -la /tmp/py_test.json
 cat /tmp/py_test.json | python -m json.tool
 ```text
@@ -505,7 +505,7 @@ cat /tmp/py_test.json | python -m json.tool
 ### Inspect CLI Output
 
 ```bash
-fraiseql-cli compile /tmp/py_test.json --verbose
+FraiseQL-cli compile /tmp/py_test.json --verbose
 ```text
 
 ## Best Practices
@@ -538,9 +538,9 @@ make e2e-typescript  # If this fails, focus on TypeScript
 Before running full E2E tests:
 
 ```bash
-cargo build --release -p fraiseql-cli
+cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
-fraiseql-cli --version
+FraiseQL-cli --version
 ```text
 
 ### 5. Check Infrastructure Status

@@ -111,14 +111,14 @@ Access Keycloak at `http://localhost:8080`
 2. Click "Administration Console"
 3. Login with `admin` / `admin123`
 4. Hover over "Master" (top left) → Click "Create Realm"
-5. Enter realm name: `fraiseql`
+5. Enter realm name: `FraiseQL`
 6. Click "Create"
 
 ### Step 3: Create Client
 
-1. In the `fraiseql` realm, go to "Clients" (left sidebar)
+1. In the `FraiseQL` realm, go to "Clients" (left sidebar)
 2. Click "Create client"
-3. Client ID: `fraiseql-server`
+3. Client ID: `FraiseQL-server`
 4. Client Protocol: `openid-connect`
 5. Click "Next"
 6. Enable:
@@ -155,7 +155,7 @@ If using a hosted Keycloak service:
 
 1. Create realm in your managed Keycloak
 2. Create client with your production URLs
-3. Note the issuer URL: `https://your-keycloak.example.com/realms/fraiseql`
+3. Note the issuer URL: `https://your-keycloak.example.com/realms/FraiseQL`
 4. Follow client setup steps above
 
 ## Configure FraiseQL
@@ -165,17 +165,17 @@ Create `.env` file:
 ```bash
 # Keycloak Configuration
 KEYCLOAK_URL=http://localhost:8080
-KEYCLOAK_REALM=fraiseql
-KEYCLOAK_CLIENT_ID=fraiseql-server
+KEYCLOAK_REALM=FraiseQL
+KEYCLOAK_CLIENT_ID=FraiseQL-server
 KEYCLOAK_CLIENT_SECRET=<copy-from-credentials>
 OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
 
 # JWT Configuration
-JWT_ISSUER=http://localhost:8080/realms/fraiseql
+JWT_ISSUER=http://localhost:8080/realms/FraiseQL
 JWT_ALGORITHM=RS256
 
 # Database Configuration
-DATABASE_URL=postgres://user:password@localhost/fraiseql
+DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
 
 ## Configure FraiseQL Server
@@ -284,7 +284,7 @@ if user.has_role("api-admin") {
 
 - Verify realm name in Keycloak
 - Check `KEYCLOAK_REALM` environment variable
-- Try accessing `http://localhost:8080/realms/fraiseql/.well-known/openid-configuration`
+- Try accessing `http://localhost:8080/realms/FraiseQL/.well-known/openid-configuration`
 
 ### Error: "Invalid Client"
 
@@ -340,14 +340,14 @@ Example production environment:
 # .env.prod
 KEYCLOAK_URL=https://keycloak.example.com
 KEYCLOAK_REALM=production
-KEYCLOAK_CLIENT_ID=fraiseql-prod
+KEYCLOAK_CLIENT_ID=FraiseQL-prod
 KEYCLOAK_CLIENT_SECRET=<strong-secret>
 OAUTH_REDIRECT_URI=https://api.example.com/auth/callback
 
 JWT_ISSUER=https://keycloak.example.com/realms/production
 JWT_ALGORITHM=RS256
 
-DATABASE_URL=postgres://user:strong-pass@db.internal/fraiseql
+DATABASE_URL=postgres://user:strong-pass@db.internal/FraiseQL
 ```text
 
 ## Using with Docker Compose in Production
@@ -378,8 +378,8 @@ services:
       timeout: 10s
       retries: 3
 
-  fraiseql:
-    image: fraiseql/server:latest
+  FraiseQL:
+    image: FraiseQL/server:latest
     environment:
       KEYCLOAK_URL: http://keycloak:8080
       # ... other env vars

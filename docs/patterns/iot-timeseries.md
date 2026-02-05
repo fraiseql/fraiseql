@@ -200,7 +200,7 @@ CREATE TABLE device_alerts (
 
 ```python
 # iot_schema.py
-from fraiseql import types
+from FraiseQL import types
 from datetime import datetime
 from decimal import Decimal
 

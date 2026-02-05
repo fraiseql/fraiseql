@@ -53,29 +53,29 @@ Using OpenSSL:
 
 ```bash
 # Generate private key
-openssl genrsa -out /etc/fraiseql/key.pem 2048
+openssl genrsa -out /etc/FraiseQL/key.pem 2048
 
 # Generate self-signed certificate (or use your CA)
-openssl req -new -x509 -key /etc/fraiseql/key.pem -out /etc/fraiseql/cert.pem \
-  -subj "/CN=fraiseql.example.com/O=YourOrg/C=US"
+openssl req -new -x509 -key /etc/FraiseQL/key.pem -out /etc/FraiseQL/cert.pem \
+  -subj "/CN=FraiseQL.example.com/O=YourOrg/C=US"
 
 # Set proper permissions
-chmod 600 /etc/fraiseql/key.pem
-chmod 644 /etc/fraiseql/cert.pem
+chmod 600 /etc/FraiseQL/key.pem
+chmod 644 /etc/FraiseQL/cert.pem
 ```text
 
-### 2. Configure fraiseql.toml
+### 2. Configure FraiseQL.toml
 
 ```toml
 [server]
 bind_address = "0.0.0.0:8443"  # HTTPS port
-database_url = "postgresql://user:pass@db.example.com/fraiseql"
+database_url = "postgresql://user:pass@db.example.com/FraiseQL"
 
 # TLS for HTTP/gRPC endpoints
 [tls]
 enabled = true
-cert_path = "/etc/fraiseql/cert.pem"
-key_path = "/etc/fraiseql/key.pem"
+cert_path = "/etc/FraiseQL/cert.pem"
+key_path = "/etc/FraiseQL/key.pem"
 require_client_cert = false           # Set to true for mTLS
 min_version = "1.2"                   # "1.2" or "1.3" (recommend 1.3)
 
@@ -93,9 +93,9 @@ ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"  # Optional: CA bundle for verif
 
 ```bash
 FRAISEQL_TLS_ENABLED=true \
-  FRAISEQL_TLS_CERT_PATH=/etc/fraiseql/cert.pem \
-  FRAISEQL_TLS_KEY_PATH=/etc/fraiseql/key.pem \
-  fraiseql-server --config fraiseql.toml
+  FRAISEQL_TLS_CERT_PATH=/etc/FraiseQL/cert.pem \
+  FRAISEQL_TLS_KEY_PATH=/etc/FraiseQL/key.pem \
+  FraiseQL-server --config FraiseQL.toml
 ```text
 
 ## Configuration Options
@@ -145,8 +145,8 @@ verify_certificates = false
 # Staging: TLS required, standard validation
 [tls]
 enabled = true
-cert_path = "/etc/fraiseql/cert.pem"
-key_path = "/etc/fraiseql/key.pem"
+cert_path = "/etc/FraiseQL/cert.pem"
+key_path = "/etc/FraiseQL/key.pem"
 require_client_cert = false
 min_version = "1.2"
 
@@ -165,10 +165,10 @@ ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"
 # Production: TLS required with mTLS, strict validation
 [tls]
 enabled = true
-cert_path = "/etc/fraiseql/cert.pem"
-key_path = "/etc/fraiseql/key.pem"
+cert_path = "/etc/FraiseQL/cert.pem"
+key_path = "/etc/FraiseQL/key.pem"
 require_client_cert = true
-client_ca_path = "/etc/fraiseql/client-ca.pem"
+client_ca_path = "/etc/FraiseQL/client-ca.pem"
 min_version = "1.3"  # TLS 1.3 only
 
 [database_tls]
@@ -238,13 +238,13 @@ FraiseQL supports all PostgreSQL SSL modes:
 
 ```text
 # Without TLS
-postgresql://user:pass@localhost:5432/fraiseql
+postgresql://user:pass@localhost:5432/FraiseQL
 
 # With TLS (require mode)
-postgresql://user:pass@localhost:5432/fraiseql?sslmode=require
+postgresql://user:pass@localhost:5432/FraiseQL?sslmode=require
 
 # With TLS (verify-full mode)
-postgresql://user:pass@localhost:5432/fraiseql?sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca.pem
+postgresql://user:pass@localhost:5432/FraiseQL?sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca.pem
 ```text
 
 ### Redis
@@ -306,7 +306,7 @@ To enable encryption at rest with ILM policy:
 
 ```json
 {
-  "policy": "fraiseql-policy",
+  "policy": "FraiseQL-policy",
   "phases": {
     "hot": {
       "min_age": "0d",
@@ -347,7 +347,7 @@ openssl genrsa -out ca-key.pem 4096
 
 # CA certificate
 openssl req -new -x509 -days 3650 -key ca-key.pem -out ca-cert.pem \
-  -subj "/CN=fraiseql-ca/O=YourOrg/C=US"
+  -subj "/CN=FraiseQL-ca/O=YourOrg/C=US"
 ```text
 
 ### 2. Generate Client Certificate
@@ -366,15 +366,15 @@ openssl x509 -req -days 365 -in client.csr \
   -out client-cert.pem
 ```text
 
-### 3. Configure in fraiseql.toml
+### 3. Configure in FraiseQL.toml
 
 ```toml
 [tls]
 enabled = true
-cert_path = "/etc/fraiseql/server-cert.pem"
-key_path = "/etc/fraiseql/server-key.pem"
+cert_path = "/etc/FraiseQL/server-cert.pem"
+key_path = "/etc/FraiseQL/server-key.pem"
 require_client_cert = true
-client_ca_path = "/etc/fraiseql/ca-cert.pem"
+client_ca_path = "/etc/FraiseQL/ca-cert.pem"
 min_version = "1.3"
 ```text
 
@@ -384,24 +384,24 @@ min_version = "1.3"
 version: '3.8'
 
 services:
-  fraiseql:
+  FraiseQL:
     build: .
     ports:
       - "8443:8443"  # HTTPS
     environment:
-      DATABASE_URL: postgresql://user:pass@postgres:5432/fraiseql
+      DATABASE_URL: postgresql://user:pass@postgres:5432/FraiseQL
       FRAISEQL_TLS_ENABLED: "true"
-      FRAISEQL_TLS_CERT_PATH: /etc/fraiseql/cert.pem
-      FRAISEQL_TLS_KEY_PATH: /etc/fraiseql/key.pem
+      FRAISEQL_TLS_CERT_PATH: /etc/FraiseQL/cert.pem
+      FRAISEQL_TLS_KEY_PATH: /etc/FraiseQL/key.pem
     volumes:
-      - ./certs:/etc/fraiseql:ro
+      - ./certs:/etc/FraiseQL:ro
     depends_on:
       - postgres
 
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: fraiseql
+      POSTGRES_DB: FraiseQL
       POSTGRES_PASSWORD: password
     command: >
       -c ssl=on
@@ -425,7 +425,7 @@ services:
 
 ```bash
 # Create TLS secret
-kubectl create secret tls fraiseql-tls \
+kubectl create secret tls FraiseQL-tls \
   --cert=./certs/cert.pem \
   --key=./certs/key.pem
 ```text
@@ -436,28 +436,28 @@ kubectl create secret tls fraiseql-tls \
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-server
+  name: FraiseQL-server
 spec:
   template:
     spec:
       containers:
-      - name: fraiseql
-        image: fraiseql:latest
+      - name: FraiseQL
+        image: FraiseQL:latest
         env:
         - name: FRAISEQL_TLS_ENABLED
           value: "true"
         - name: FRAISEQL_TLS_CERT_PATH
-          value: /etc/fraiseql/tls/cert.pem
+          value: /etc/FraiseQL/tls/cert.pem
         - name: FRAISEQL_TLS_KEY_PATH
-          value: /etc/fraiseql/tls/key.pem
+          value: /etc/FraiseQL/tls/key.pem
         volumeMounts:
         - name: tls-certs
-          mountPath: /etc/fraiseql/tls
+          mountPath: /etc/FraiseQL/tls
           readOnly: true
       volumes:
       - name: tls-certs
         secret:
-          secretName: fraiseql-tls
+          secretName: FraiseQL-tls
 ```text
 
 ## Verification and Testing
@@ -474,8 +474,8 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:8443/health
 # With client certificate (mTLS)
 curl \
   --cacert /etc/ssl/certs/ca-cert.pem \
-  --cert /etc/fraiseql/client-cert.pem \
-  --key /etc/fraiseql/client-key.pem \
+  --cert /etc/FraiseQL/client-cert.pem \
+  --key /etc/FraiseQL/client-key.pem \
   https://localhost:8443/health
 ```text
 
@@ -493,7 +493,7 @@ openssl s_client -connect localhost:8443 -tls1_1 < /dev/null  # Should fail
 
 ```bash
 # PostgreSQL
-psql "postgresql://user@localhost/fraiseql?sslmode=require"
+psql "postgresql://user@localhost/FraiseQL?sslmode=require"
 
 # Redis
 redis-cli --tls --cacert /etc/ssl/certs/ca-cert.pem ping
@@ -519,7 +519,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 7. **Monitor certificate expiration**:
 
    ```bash
-   openssl x509 -enddate -noout -in /etc/fraiseql/cert.pem
+   openssl x509 -enddate -noout -in /etc/FraiseQL/cert.pem
    ```text
 
 8. **Use different keys per environment** (dev, staging, production)
@@ -531,7 +531,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 ### TLS Certificate Not Found
 
 ```text
-error: TLS enabled but certificate file not found: /etc/fraiseql/cert.pem
+error: TLS enabled but certificate file not found: /etc/FraiseQL/cert.pem
 ```text
 
 **Solution**: Verify certificate path exists and is readable by the FraiseQL process

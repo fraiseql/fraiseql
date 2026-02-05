@@ -271,7 +271,7 @@ let payload = serde_json::json!({
             "startTime": chrono::Utc::now().timestamp_millis(),
             "tags": [
                 {"key": "span.kind", "vStr": "internal"},
-                {"key": "component", "vStr": "fraiseql"}
+                {"key": "component", "vStr": "FraiseQL"}
             ]
         }
     ]
@@ -444,10 +444,10 @@ All tracing components are fully tested:
 
 ```bash
 # Run tracing tests
-cargo test -p fraiseql-server --lib tracing
+cargo test -p FraiseQL-server --lib tracing
 
 # Run all tests
-cargo test -p fraiseql-server --lib
+cargo test -p FraiseQL-server --lib
 ```text
 
 ## Future Enhancements

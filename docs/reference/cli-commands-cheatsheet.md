@@ -5,7 +5,7 @@
 **Reading Time:** 5-10 minutes
 **Last Updated:** 2026-02-05
 
-Quick reference for all `fraiseql` CLI commands and options.
+Quick reference for all `FraiseQL` CLI commands and options.
 
 ## Basic Commands
 
@@ -15,26 +15,26 @@ Compile schema to optimized execution plan.
 
 ```bash
 # Compile with defaults
-fraiseql compile
+FraiseQL compile
 
 # Compile specific schema file
-fraiseql compile --schema ./schema.json
+FraiseQL compile --schema ./schema.json
 
 # Compile to specific output file
-fraiseql compile --output ./dist/schema.compiled.json
+FraiseQL compile --output ./dist/schema.compiled.json
 
 # Compile with verbose output
-fraiseql compile --verbose
+FraiseQL compile --verbose
 
 # Compile with specific configuration
-fraiseql compile --config ./fraiseql.toml
+FraiseQL compile --config ./FraiseQL.toml
 ```
 
 **Flags:**
 
 - `--schema` - Schema file path (default: `schema.json`)
 - `--output` - Output path (default: `schema.compiled.json`)
-- `--config` - Configuration file path (default: `fraiseql.toml`)
+- `--config` - Configuration file path (default: `FraiseQL.toml`)
 - `--verbose` - Show detailed compilation output
 - `--check` - Only check, don't write output
 - `--target` - Target database (postgres, mysql, sqlite, sqlserver)
@@ -47,22 +47,22 @@ Start FraiseQL server.
 
 ```bash
 # Start with defaults
-fraiseql run
+FraiseQL run
 
 # Start on custom port
-fraiseql run --port 9000
+FraiseQL run --port 9000
 
 # Start with specific schema
-fraiseql run --schema ./schema.compiled.json
+FraiseQL run --schema ./schema.compiled.json
 
 # Start with environment file
-fraiseql run --env .env.production
+FraiseQL run --env .env.production
 
 # Start with federation gateway
-fraiseql run --federation
+FraiseQL run --federation
 
 # Start with federation and specific port
-fraiseql run --federation --port 4000
+FraiseQL run --federation --port 4000
 ```
 
 **Flags:**
@@ -83,13 +83,13 @@ Validate schema without compiling.
 
 ```bash
 # Validate schema
-fraiseql validate
+FraiseQL validate
 
 # Validate specific schema
-fraiseql validate --schema ./schema.json
+FraiseQL validate --schema ./schema.json
 
 # Validate and show issues
-fraiseql validate --verbose
+FraiseQL validate --verbose
 ```
 
 **Flags:**
@@ -106,13 +106,13 @@ Introspect database and generate schema.
 
 ```bash
 # Introspect database
-fraiseql introspect
+FraiseQL introspect
 
 # Introspect and save to file
-fraiseql introspect --output ./introspected_schema.json
+FraiseQL introspect --output ./introspected_schema.json
 
 # Introspect with verbose output
-fraiseql introspect --verbose
+FraiseQL introspect --verbose
 ```
 
 **Flags:**
@@ -131,19 +131,19 @@ Run database migrations.
 
 ```bash
 # Run all pending migrations
-fraiseql migrate
+FraiseQL migrate
 
 # Run migrations for specific target
-fraiseql migrate --target postgres
+FraiseQL migrate --target postgres
 
 # Show pending migrations (dry-run)
-fraiseql migrate --dry-run
+FraiseQL migrate --dry-run
 
 # Migrate to specific version
-fraiseql migrate --to 20240105_v2_0_1
+FraiseQL migrate --to 20240105_v2_0_1
 
 # Rollback last migration
-fraiseql migrate --rollback
+FraiseQL migrate --rollback
 ```
 
 **Flags:**
@@ -162,10 +162,10 @@ Create new migration file.
 
 ```bash
 # Create migration
-fraiseql create-migration --name add_users_table
+FraiseQL create-migration --name add_users_table
 
 # Create with specific type
-fraiseql create-migration --name add_column --type alter
+FraiseQL create-migration --name add_column --type alter
 ```
 
 **Flags:**
@@ -183,13 +183,13 @@ Compose subgraph schemas into federated schema.
 
 ```bash
 # Compose from config
-fraiseql federation-compose
+FraiseQL federation-compose
 
 # Compose with specific gateways
-fraiseql federation-compose --gateway apollo --output ./composed.graphql
+FraiseQL federation-compose --gateway apollo --output ./composed.graphql
 
 # Validate composition
-fraiseql federation-compose --validate
+FraiseQL federation-compose --validate
 ```
 
 **Flags:**
@@ -207,13 +207,13 @@ Publish subgraph to registry.
 
 ```bash
 # Publish subgraph
-fraiseql subgraph-publish
+FraiseQL subgraph-publish
 
 # Publish with authentication
-fraiseql subgraph-publish --token ABC123
+FraiseQL subgraph-publish --token ABC123
 
 # Publish to specific registry
-fraiseql subgraph-publish --registry apollo --token ABC123
+FraiseQL subgraph-publish --registry apollo --token ABC123
 ```
 
 **Flags:**
@@ -233,13 +233,13 @@ Start development server with hot reload.
 
 ```bash
 # Start dev server
-fraiseql dev
+FraiseQL dev
 
 # Dev server on custom port
-fraiseql dev --port 3000
+FraiseQL dev --port 3000
 
 # Dev server with watch
-fraiseql dev --watch ./src
+FraiseQL dev --watch ./src
 ```
 
 **Flags:**
@@ -256,19 +256,19 @@ Run tests.
 
 ```bash
 # Run all tests
-fraiseql test
+FraiseQL test
 
 # Run specific test file
-fraiseql test --file ./tests/queries.test.ts
+FraiseQL test --file ./tests/queries.test.ts
 
 # Run tests matching pattern
-fraiseql test --match "*user*"
+FraiseQL test --match "*user*"
 
 # Run with coverage
-fraiseql test --coverage
+FraiseQL test --coverage
 
 # Run with verbose output
-fraiseql test --verbose
+FraiseQL test --verbose
 ```
 
 **Flags:**
@@ -287,16 +287,16 @@ Run benchmarks.
 
 ```bash
 # Run benchmarks
-fraiseql bench
+FraiseQL bench
 
 # Run specific benchmark
-fraiseql bench --name query_performance
+FraiseQL bench --name query_performance
 
 # Save baseline
-fraiseql bench --save-baseline main
+FraiseQL bench --save-baseline main
 
 # Compare to baseline
-fraiseql bench --baseline main
+FraiseQL bench --baseline main
 ```
 
 **Flags:**
@@ -314,13 +314,13 @@ Check code quality.
 
 ```bash
 # Lint schema
-fraiseql lint
+FraiseQL lint
 
 # Lint with fix
-fraiseql lint --fix
+FraiseQL lint --fix
 
 # Lint specific rules
-fraiseql lint --only performance,security
+FraiseQL lint --only performance,security
 ```
 
 **Flags:**
@@ -339,13 +339,13 @@ Initialize new FraiseQL project.
 
 ```bash
 # Initialize in current directory
-fraiseql init
+FraiseQL init
 
 # Initialize with template
-fraiseql init --template starter
+FraiseQL init --template starter
 
 # Initialize with specific language
-fraiseql init --language python
+FraiseQL init --language python
 ```
 
 **Flags:**
@@ -362,13 +362,13 @@ Generate code from schema.
 
 ```bash
 # Generate code
-fraiseql generate
+FraiseQL generate
 
 # Generate for specific language
-fraiseql generate --language python
+FraiseQL generate --language python
 
 # Generate to specific output
-fraiseql generate --output ./generated
+FraiseQL generate --output ./generated
 ```
 
 **Flags:**
@@ -387,13 +387,13 @@ Format schema file.
 
 ```bash
 # Format schema
-fraiseql format
+FraiseQL format
 
 # Format in-place
-fraiseql format --write
+FraiseQL format --write
 
 # Check format without modifying
-fraiseql format --check
+FraiseQL format --check
 ```
 
 **Flags:**
@@ -411,21 +411,21 @@ Manage configuration.
 
 ```bash
 # Show current config
-fraiseql config show
+FraiseQL config show
 
 # Set value
-fraiseql config set database.host localhost
+FraiseQL config set database.host localhost
 
 # Get specific value
-fraiseql config get database.host
+FraiseQL config get database.host
 
 # Reset to defaults
-fraiseql config reset
+FraiseQL config reset
 ```
 
 **Flags:**
 
-- `--file` - Config file path (default: fraiseql.toml)
+- `--file` - Config file path (default: FraiseQL.toml)
 
 ---
 
@@ -435,16 +435,16 @@ Manage environment variables.
 
 ```bash
 # Show environment variables
-fraiseql env
+FraiseQL env
 
 # Set variable
-fraiseql env set DATABASE_URL "postgresql://..."
+FraiseQL env set DATABASE_URL "postgresql://..."
 
 # Get variable
-fraiseql env get DATABASE_URL
+FraiseQL env get DATABASE_URL
 
 # Load from file
-fraiseql env load .env.production
+FraiseQL env load .env.production
 ```
 
 ---
@@ -457,16 +457,16 @@ Deploy to production.
 
 ```bash
 # Deploy with defaults
-fraiseql deploy
+FraiseQL deploy
 
 # Deploy to specific environment
-fraiseql deploy --environment production
+FraiseQL deploy --environment production
 
 # Deploy specific service
-fraiseql deploy --service users-service
+FraiseQL deploy --service users-service
 
 # Dry-run deployment
-fraiseql deploy --dry-run
+FraiseQL deploy --dry-run
 ```
 
 **Flags:**
@@ -484,13 +484,13 @@ Check system health.
 
 ```bash
 # Check health
-fraiseql health
+FraiseQL health
 
 # Check specific component
-fraiseql health --service database
+FraiseQL health --service database
 
 # Show verbose status
-fraiseql health --verbose
+FraiseQL health --verbose
 ```
 
 **Flags:**
@@ -508,13 +508,13 @@ Diagnose issues.
 
 ```bash
 # Run diagnostics
-fraiseql diagnose
+FraiseQL diagnose
 
 # Save diagnostics report
-fraiseql diagnose --output diagnostics.json
+FraiseQL diagnose --output diagnostics.json
 
 # Diagnose specific component
-fraiseql diagnose --component database
+FraiseQL diagnose --component database
 ```
 
 **Flags:**
@@ -530,16 +530,16 @@ View logs.
 
 ```bash
 # Show recent logs
-fraiseql logs
+FraiseQL logs
 
 # Follow logs (tail)
-fraiseql logs --follow
+FraiseQL logs --follow
 
 # Filter by level
-fraiseql logs --level error
+FraiseQL logs --level error
 
 # Show last N lines
-fraiseql logs --tail 100
+FraiseQL logs --tail 100
 ```
 
 **Flags:**
@@ -559,10 +559,10 @@ Show version information.
 
 ```bash
 # Show version
-fraiseql version
+FraiseQL version
 
 # Show full version info
-fraiseql version --verbose
+FraiseQL version --verbose
 ```
 
 ---
@@ -573,13 +573,13 @@ Show help information.
 
 ```bash
 # General help
-fraiseql help
+FraiseQL help
 
 # Help for specific command
-fraiseql help compile
+FraiseQL help compile
 
 # List all commands
-fraiseql commands
+FraiseQL commands
 ```
 
 ---
@@ -588,18 +588,18 @@ fraiseql commands
 
 | Command | Purpose | Example |
 |---------|---------|---------|
-| `compile` | Build optimized schema | `fraiseql compile` |
-| `run` | Start server | `fraiseql run --port 8000` |
-| `validate` | Check schema | `fraiseql validate` |
-| `introspect` | Generate schema from DB | `fraiseql introspect` |
-| `migrate` | Run migrations | `fraiseql migrate` |
-| `federation-compose` | Compose subgraphs | `fraiseql federation-compose` |
-| `dev` | Development server | `fraiseql dev` |
-| `test` | Run tests | `fraiseql test --coverage` |
-| `bench` | Run benchmarks | `fraiseql bench` |
-| `lint` | Check code quality | `fraiseql lint --fix` |
-| `generate` | Generate code | `fraiseql generate --language python` |
-| `deploy` | Deploy to prod | `fraiseql deploy --environment production` |
+| `compile` | Build optimized schema | `FraiseQL compile` |
+| `run` | Start server | `FraiseQL run --port 8000` |
+| `validate` | Check schema | `FraiseQL validate` |
+| `introspect` | Generate schema from DB | `FraiseQL introspect` |
+| `migrate` | Run migrations | `FraiseQL migrate` |
+| `federation-compose` | Compose subgraphs | `FraiseQL federation-compose` |
+| `dev` | Development server | `FraiseQL dev` |
+| `test` | Run tests | `FraiseQL test --coverage` |
+| `bench` | Run benchmarks | `FraiseQL bench` |
+| `lint` | Check code quality | `FraiseQL lint --fix` |
+| `generate` | Generate code | `FraiseQL generate --language python` |
+| `deploy` | Deploy to prod | `FraiseQL deploy --environment production` |
 
 ---
 

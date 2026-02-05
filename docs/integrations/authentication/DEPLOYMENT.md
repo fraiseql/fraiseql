@@ -77,7 +77,7 @@ OAUTH_REDIRECT_URI=https://api.yourdomain.com/auth/callback
 # For Keycloak:
 # KEYCLOAK_URL=https://keycloak.yourdomain.com
 # KEYCLOAK_REALM=production
-# KEYCLOAK_CLIENT_ID=fraiseql-prod
+# KEYCLOAK_CLIENT_ID=FraiseQL-prod
 # KEYCLOAK_CLIENT_SECRET=<secret>
 
 # JWT Configuration
@@ -85,7 +85,7 @@ JWT_ISSUER=https://accounts.google.com
 JWT_ALGORITHM=RS256
 
 # Database
-DATABASE_URL=postgres://user:strong_password@prod-db.internal:5432/fraiseql
+DATABASE_URL=postgres://user:strong_password@prod-db.internal:5432/FraiseQL
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_LIFETIME=1800
 
@@ -98,15 +98,15 @@ PORT=8000
 SERVER_HOST=0.0.0.0
 
 # HTTPS (optional)
-TLS_CERT_PATH=/etc/fraiseql/certs/server.crt
-TLS_KEY_PATH=/etc/fraiseql/certs/server.key
+TLS_CERT_PATH=/etc/FraiseQL/certs/server.crt
+TLS_KEY_PATH=/etc/FraiseQL/certs/server.key
 ```text
 
 ### .env.prod File
 
 ```bash
 # Create in your deployment server
-source /etc/fraiseql/auth.env
+source /etc/FraiseQL/auth.env
 
 # Verify critical variables
 echo "OAuth Provider: $OAUTH_PROVIDER"
@@ -122,16 +122,16 @@ echo "JWT Issuer: $JWT_ISSUER"
 # On PostgreSQL server
 sudo -u postgres psql
 
-CREATE DATABASE fraiseql;
+CREATE DATABASE FraiseQL;
 CREATE USER fraiseql_app WITH PASSWORD 'strong_password_here';
 ALTER ROLE fraiseql_app SET client_encoding TO 'utf8';
 ALTER ROLE fraiseql_app SET default_transaction_isolation TO 'read committed';
 ALTER ROLE fraiseql_app SET default_transaction_deferrable TO on;
 ALTER ROLE fraiseql_app SET default_time_zone TO 'UTC';
 
-GRANT ALL PRIVILEGES ON DATABASE fraiseql TO fraiseql_app;
+GRANT ALL PRIVILEGES ON DATABASE FraiseQL TO fraiseql_app;
 
-\c fraiseql
+\c FraiseQL
 GRANT ALL PRIVILEGES ON SCHEMA public TO fraiseql_app;
 ```text
 
@@ -160,7 +160,7 @@ GRANT ALL PRIVILEGES ON SEQUENCE _system.sessions_id_seq TO fraiseql_app;
 ### 3. Verify Connection
 
 ```bash
-export DATABASE_URL="postgres://fraiseql_app:strong_password_here@prod-db.internal:5432/fraiseql"
+export DATABASE_URL="postgres://fraiseql_app:strong_password_here@prod-db.internal:5432/FraiseQL"
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM _system.sessions;"
 ```text
 
@@ -174,7 +174,7 @@ FROM rust:1.75 AS builder
 WORKDIR /build
 COPY . .
 
-RUN cargo build --release -p fraiseql-server
+RUN cargo build --release -p FraiseQL-server
 
 FROM debian:bookworm-slim
 
@@ -183,11 +183,11 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/fraiseql-server /usr/local/bin/
+COPY --from=builder /build/target/release/FraiseQL-server /usr/local/bin/
 
 EXPOSE 8000
 
-ENTRYPOINT ["fraiseql-server"]
+ENTRYPOINT ["FraiseQL-server"]
 ```text
 
 ### Docker Compose Production
@@ -196,9 +196,9 @@ ENTRYPOINT ["fraiseql-server"]
 version: '3.8'
 
 services:
-  fraiseql:
-    image: fraiseql/server:latest
-    container_name: fraiseql-auth
+  FraiseQL:
+    image: FraiseQL/server:latest
+    container_name: FraiseQL-auth
     restart: always
     environment:
       RUST_LOG: info
@@ -220,10 +220,10 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: fraiseql-db
+    container_name: FraiseQL-db
     restart: always
     environment:
-      POSTGRES_DB: fraiseql
+      POSTGRES_DB: FraiseQL
       POSTGRES_USER: fraiseql_app
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
@@ -245,7 +245,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - fraiseql
+      - FraiseQL
 
 volumes:
   postgres_data:
@@ -256,8 +256,8 @@ volumes:
 ### nginx.conf
 
 ```nginx
-upstream fraiseql {
-    server fraiseql:8000;
+upstream FraiseQL {
+    server FraiseQL:8000;
 }
 
 server {
@@ -287,7 +287,7 @@ server {
 
     location /auth/ {
         limit_req zone=auth_limit burst=5;
-        proxy_pass http://fraiseql;
+        proxy_pass http://FraiseQL;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -295,7 +295,7 @@ server {
 
     location /graphql {
         limit_req zone=api_limit burst=20;
-        proxy_pass http://fraiseql;
+        proxy_pass http://FraiseQL;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -303,7 +303,7 @@ server {
 
     location /health {
         access_log off;
-        proxy_pass http://fraiseql;
+        proxy_pass http://FraiseQL;
     }
 }
 ```text
@@ -329,45 +329,45 @@ sudo certbot renew --dry-run
 
 ## Kubernetes Deployment
 
-### fraiseql-deployment.yaml
+### FraiseQL-deployment.yaml
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql
+  name: FraiseQL
   labels:
-    app: fraiseql
+    app: FraiseQL
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   template:
     metadata:
       labels:
-        app: fraiseql
+        app: FraiseQL
     spec:
       containers:
-      - name: fraiseql
-        image: fraiseql/server:latest
+      - name: FraiseQL
+        image: FraiseQL/server:latest
         ports:
         - containerPort: 8000
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: fraiseql-secrets
+              name: FraiseQL-secrets
               key: database-url
         - name: GOOGLE_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: fraiseql-secrets
+              name: FraiseQL-secrets
               key: google-client-id
         - name: GOOGLE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: fraiseql-secrets
+              name: FraiseQL-secrets
               key: google-client-secret
         livenessProbe:
           httpGet:
@@ -392,10 +392,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fraiseql
+  name: FraiseQL
 spec:
   selector:
-    app: fraiseql
+    app: FraiseQL
   type: ClusterIP
   ports:
   - protocol: TCP
@@ -405,12 +405,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: fraiseql
+  name: FraiseQL
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: fraiseql
+    name: FraiseQL
   minReplicas: 3
   maxReplicas: 10
   metrics:
@@ -438,7 +438,7 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'fraiseql'
+  - job_name: 'FraiseQL'
     static_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
@@ -456,9 +456,9 @@ Import dashboard from `/docs/auth/grafana-dashboard.json`
 #!/bin/bash
 # backup.sh
 
-BACKUP_DIR="/backups/fraiseql"
+BACKUP_DIR="/backups/FraiseQL"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-DB_NAME="fraiseql"
+DB_NAME="FraiseQL"
 
 mkdir -p $BACKUP_DIR
 
@@ -471,7 +471,7 @@ find $BACKUP_DIR -name "fraiseql_*.sql.gz" -mtime +30 -delete
 
 # Upload to S3
 aws s3 cp $BACKUP_DIR/fraiseql_$TIMESTAMP.sql.gz \
-  s3://fraiseql-backups/
+  s3://FraiseQL-backups/
 ```text
 
 Schedule with cron:
@@ -485,7 +485,7 @@ Schedule with cron:
 
 ```bash
 gunzip -c fraiseql_20260121_020000.sql.gz | \
-  psql -h prod-db.internal -U fraiseql_app fraiseql
+  psql -h prod-db.internal -U fraiseql_app FraiseQL
 ```text
 
 ## Scaling
@@ -503,7 +503,7 @@ Adjust resource limits:
 
 ```bash
 # In Kubernetes
-kubectl set resources deployment fraiseql \
+kubectl set resources deployment FraiseQL \
   --limits=memory=1Gi,cpu=1000m \
   --requests=memory=512Mi,cpu=500m
 ```text
@@ -572,7 +572,7 @@ Key metrics to monitor:
 
 ```bash
 # Check logs
-docker logs fraiseql
+docker logs FraiseQL
 
 # Check database connection
 psql $DATABASE_URL -c "SELECT 1"

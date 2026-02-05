@@ -170,7 +170,7 @@ async def get_user_view(user_id):
     ↓      ↓      ↓      ↓        ↓
  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
  │FraiseQL│FraiseQL │FraiseQL│Apollo │
- │Postgres│SQL Srv  │MySQL   │Server │
+ │PostgreSQL│SQL Srv  │MySQL   │Server │
  │(Users) │(Orders) │(Prod)  │(Reviews)
  │─────── │─────── │─────── │────────
  │Rust RT │Rust RT │Rust RT │GraphQL
@@ -493,19 +493,19 @@ Federation adds three new phases to the FraiseQL compilation pipeline:
 Extract federation directives from schema:
 
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["id"])
-@fraiseql.key(fields=["email"])  # Multiple keys allowed
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])
+@FraiseQL.key(fields=["email"])  # Multiple keys allowed
 class User:
     id: ID
     email: str
     name: str
 
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID = fraiseql.external()
-    orders: list[Order] = fraiseql.requires(fields=["email"])
+    id: ID = FraiseQL.external()
+    orders: list[Order] = FraiseQL.requires(fields=["email"])
 ```text
 
 **Compiler extracts:**
@@ -533,8 +533,8 @@ Collect all types with `@key` directive:
 1. **Key fields must exist in type:**
 
    ```text
-   @fraiseql.type
-   @fraiseql.key(fields=["user_id"])  # ❌ ERROR: user_id not a field
+   @FraiseQL.type
+   @FraiseQL.key(fields=["user_id"])  # ❌ ERROR: user_id not a field
    class User:
        id: ID
    ```text
@@ -542,37 +542,37 @@ Collect all types with `@key` directive:
 2. **Key fields must be selectable:**
 
    ```text
-   @fraiseql.type
-   @fraiseql.key(fields=["id"])  # ✅ OK
+   @FraiseQL.type
+   @FraiseQL.key(fields=["id"])  # ✅ OK
    class User:
        id: ID
-       _internal: str = fraiseql.internal()  # ✅ OK, internal fields excluded
+       _internal: str = FraiseQL.internal()  # ✅ OK, internal fields excluded
    ```text
 
 3. **@external only on extended types:**
 
    ```text
-   @fraiseql.type(extend=True)
+   @FraiseQL.type(extend=True)
    class User:
-       id: ID = fraiseql.external()  # ✅ OK, extended type
+       id: ID = FraiseQL.external()  # ✅ OK, extended type
 
-   @fraiseql.type
+   @FraiseQL.type
    class User:
-       id: ID = fraiseql.external()  # ❌ ERROR: not extended
+       id: ID = FraiseQL.external()  # ❌ ERROR: not extended
    ```text
 
 4. **@requires must reference valid fields:**
 
    ```text
-   orders: list[Order] = fraiseql.requires(fields=["email"])  # ✅ OK, email exists
-   orders: list[Order] = fraiseql.requires(fields=["nonexistent"])  # ❌ ERROR
+   orders: list[Order] = FraiseQL.requires(fields=["email"])  # ✅ OK, email exists
+   orders: list[Order] = FraiseQL.requires(fields=["nonexistent"])  # ❌ ERROR
    ```text
 
 5. **No duplicate key definitions:**
 
    ```text
-   @fraiseql.key(fields=["id"])
-   @fraiseql.key(fields=["id"])  # ❌ ERROR: duplicate
+   @FraiseQL.key(fields=["id"])
+   @FraiseQL.key(fields=["id"])  # ❌ ERROR: duplicate
    class User: ...
    ```text
 
@@ -764,15 +764,15 @@ No database-specific SQL generation needed. Rust drivers handle connections tran
 
 ### Federation Decorators
 
-#### 5.1 @fraiseql.key()
+#### 5.1 @FraiseQL.key()
 
 Defines the primary key for federation entity resolution.
 
 **Syntax:**
 
 ```python
-@fraiseql.key(fields=["id"])
-@fraiseql.key(fields=["email"])  # Multiple keys allowed
+@FraiseQL.key(fields=["id"])
+@FraiseQL.key(fields=["email"])  # Multiple keys allowed
 class User:
     id: ID
     email: str
@@ -782,9 +782,9 @@ class User:
 **Multiple Keys Example:**
 
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["upc"])
-@fraiseql.key(fields=["sku"])
+@FraiseQL.type
+@FraiseQL.key(fields=["upc"])
+@FraiseQL.key(fields=["sku"])
 class Product:
     upc: String  # Unique Product Code
     sku: String  # Stock Keeping Unit
@@ -797,18 +797,18 @@ class Product:
 2. Adds `@key` directive to SDL
 3. Validates key fields exist in type
 
-#### 5.2 @fraiseql.external()
+#### 5.2 @FraiseQL.external()
 
 Marks field as external (defined in other subgraph).
 
 **Syntax:**
 
 ```python
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID = fraiseql.external()
-    email: str = fraiseql.external()
+    id: ID = FraiseQL.external()
+    email: str = FraiseQL.external()
     orders: list[Order]  # Local field
 ```text
 
@@ -818,14 +818,14 @@ class User:
 2. Excludes external fields from local resolution
 3. Enables field composition from source subgraph
 
-#### 5.3 @fraiseql.requires()
+#### 5.3 @FraiseQL.requires()
 
 Defines dependencies for federation field resolution.
 
 **Syntax:**
 
 ```python
-orders: list[Order] = fraiseql.requires(fields=["email"])
+orders: list[Order] = FraiseQL.requires(fields=["email"])
 ```text
 
 **Meaning:** "To resolve orders, I need the user's email field from the source subgraph."
@@ -839,26 +839,26 @@ orders: list[Order] = fraiseql.requires(fields=["email"])
 **Example - Email Lookup:**
 
 ```python
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID = fraiseql.external()
-    email: str = fraiseql.external()
-    orders: list[Order] = fraiseql.requires(fields=["email"])
+    id: ID = FraiseQL.external()
+    email: str = FraiseQL.external()
+    orders: list[Order] = FraiseQL.requires(fields=["email"])
     # Orders are joined by email in Orders subgraph
 ```text
 
-#### 5.4 @fraiseql.provides()
+#### 5.4 @FraiseQL.provides()
 
 Documents optimization provided to other subgraphs.
 
 **Syntax:**
 
 ```python
-@fraiseql.type(extend=True)
+@FraiseQL.type(extend=True)
 class Product:
-    upc: String = fraiseql.external()
-    vendor: Vendor = fraiseql.provides(fields=["vendor.id"])
+    upc: String = FraiseQL.external()
+    vendor: Vendor = FraiseQL.provides(fields=["vendor.id"])
     # We provide vendor.id without external query
 ```text
 
@@ -991,7 +991,7 @@ FROM orders_schema.tb_order;
 Rust runtime maintains single connection pool to PostgreSQL:
 
 ```toml
-# fraiseql.toml (Users subgraph)
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@pg.internal/shared_db"
@@ -1061,7 +1061,7 @@ FROM [dbo].[tb_order];
 Rust runtime maintains connection pool to SQL Server:
 
 ```toml
-# fraiseql.toml (Users subgraph)
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "sqlserver"
 url = "sqlserver://user:pass@mssql.internal/users_db"
@@ -1131,7 +1131,7 @@ FROM tb_order;
 **Runtime Configuration:**
 
 ```toml
-# fraiseql.toml (Users subgraph)
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "mysql"
 url = "mysql://user:pass@mysql.internal/users_db"
@@ -2010,7 +2010,7 @@ Response sent via HTTP to Router
 
 Each FraiseQL subgraph declares which databases it can access:
 
-**`fraiseql.toml` (subgraph configuration):**
+**`FraiseQL.toml` (subgraph configuration):**
 
 ```toml
 # Local database

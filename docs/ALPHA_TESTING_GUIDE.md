@@ -10,7 +10,7 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 
 1. **Schema Compilation**
    - [ ] Define schemas in Python, TypeScript, Go, or PHP
-   - [ ] Run `fraiseql-cli compile` on your schema
+   - [ ] Run `FraiseQL-cli compile` on your schema
    - [ ] Verify compiled schema matches your expectations
    - [ ] Test with edge cases (nullable fields, complex types, unions)
 
@@ -41,7 +41,7 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 
 2. **Streaming & Performance**
    - [ ] Test Arrow Flight data export (if using analytics)
-   - [ ] Stream large result sets with fraiseql-wire
+   - [ ] Stream large result sets with FraiseQL-wire
    - [ ] Monitor performance under load
    - [ ] Check memory usage patterns
 
@@ -104,17 +104,17 @@ FraiseQL v2 is a complete redesign and **not backwards compatible** with v1:
 #### Option A: From source
 
 ```bash
-git clone https://github.com/fraiseql/fraiseql.git
-cd fraiseql
+git clone https://github.com/FraiseQL/FraiseQL.git
+cd FraiseQL
 cargo build --release
-./target/release/fraiseql-cli --version
+./target/release/FraiseQL-cli --version
 ```text
 
 #### Option B: With Docker
 
 ```bash
-docker build -t fraiseql:alpha .
-docker run fraiseql:alpha fraiseql-cli --version
+docker build -t FraiseQL:alpha .
+docker run FraiseQL:alpha FraiseQL-cli --version
 ```text
 
 ### 2. Define a Test Schema
@@ -122,7 +122,7 @@ docker run fraiseql:alpha fraiseql-cli --version
 Create `schema.py`:
 
 ```python
-from fraiseql import type as fraiseql_type, query as fraiseql_query, schema
+from FraiseQL import type as fraiseql_type, query as fraiseql_query, schema
 
 @fraiseql_type
 class User:
@@ -142,7 +142,7 @@ Run: `python schema.py`
 ### 3. Compile Schema
 
 ```bash
-fraiseql-cli compile schema.json -o schema.compiled.json
+FraiseQL-cli compile schema.json -o schema.compiled.json
 ```text
 
 ### 4. Setup Database
@@ -165,14 +165,14 @@ Create `config.toml`:
 bind_addr = "0.0.0.0:8080"
 database_url = "postgresql://localhost/testdb"
 
-[fraiseql.security]
+[FraiseQL.security]
 rate_limiting.enabled = true
 ```text
 
 Start server:
 
 ```bash
-fraiseql-server -c config.toml --schema schema.compiled.json
+FraiseQL-server -c config.toml --schema schema.compiled.json
 ```text
 
 ### 6. Test Queries
@@ -189,7 +189,7 @@ curl -X POST http://localhost:8080/graphql \
 
 ### Using GitHub Issues
 
-1. Go to [FraiseQL Issues](https://github.com/fraiseql/fraiseql/issues)
+1. Go to [FraiseQL Issues](https://github.com/FraiseQL/FraiseQL/issues)
 2. Click **New Issue**
 3. Use the appropriate template:
    - **Bug Report** — For broken functionality
@@ -343,14 +343,14 @@ Use this checklist to guide your testing:
 
 For non-urgent feedback, ideas, and questions:
 
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
+- [GitHub Discussions](https://github.com/FraiseQL/FraiseQL/discussions)
 - Create new discussion with category (Feedback, Questions, Ideas)
 
 ### Direct Communication
 
 For confidential feedback or security issues:
 
-- Email: <team@fraiseql.dev>
+- Email: <team@FraiseQL.dev>
 - **For security issues**: Please don't open public issues. Email first.
 
 ### Community Discord
@@ -367,10 +367,10 @@ If you're interested in performance testing:
 
 ```bash
 # Arrow vs JSON serialization
-cargo bench -p fraiseql-arrow
+cargo bench -p FraiseQL-arrow
 
 # Query execution performance
-cargo bench -p fraiseql-core
+cargo bench -p FraiseQL-core
 ```text
 
 ### What to Measure

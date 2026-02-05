@@ -108,16 +108,16 @@ min_speedup = 10.0     # Only major wins
 #!/bin/bash
 # weekly-analysis.sh (runs every Monday 2 AM)
 
-REPORT_DIR="/var/reports/fraiseql/$(date +%Y-%m)"
+REPORT_DIR="/var/reports/FraiseQL/$(date +%Y-%m)"
 mkdir -p $REPORT_DIR
 
 # Run analysis
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://metrics-db:5432/metrics \
   --format json > $REPORT_DIR/analysis-$(date +%Y%m%d).json
 
 # Generate SQL migrations
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://metrics-db:5432/metrics \
   --format sql > $REPORT_DIR/migrations-$(date +%Y%m%d).sql
 
@@ -236,11 +236,11 @@ REVOKE ALL ON public.* FROM fraiseql_collector;
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: fraiseql-metrics-egress
+  name: FraiseQL-metrics-egress
 spec:
   podSelector:
     matchLabels:
-      app: fraiseql-api
+      app: FraiseQL-api
   policyTypes:
   - Egress
   egress:

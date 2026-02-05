@@ -193,7 +193,7 @@ Example Prometheus alerting rules for FraiseQL:
 ```yaml
 groups:
 
-- name: fraiseql
+- name: FraiseQL
   interval: 30s
   rules:
 
@@ -312,7 +312,7 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: fraiseql
+  - job_name: FraiseQL
     static_configs:
       - targets:
           - localhost:8000

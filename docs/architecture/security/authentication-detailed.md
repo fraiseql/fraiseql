@@ -166,7 +166,7 @@ User's Browser               FraiseQL App              OAuth2 Provider
 #### Implementation Details
 
 ```python
-from fraiseql.auth import OAuth2Provider, TokenRequest
+from FraiseQL.auth import OAuth2Provider, TokenRequest
 
 class OAuth2AuthorizationCodeFlow:
     """OAuth2 Authorization Code flow implementation"""
@@ -1194,7 +1194,7 @@ Register custom provider:
 
 ```python
 # In app initialization
-from fraiseql.auth import register_authentication_provider
+from FraiseQL.auth import register_authentication_provider
 
 ldap_provider = LDAPAuthenticationProvider(
     ldap_server="ldap://directory.example.com",
@@ -1204,8 +1204,8 @@ ldap_provider = LDAPAuthenticationProvider(
 register_authentication_provider("ldap", ldap_provider)
 
 # In schema
-@fraiseql.type
-@fraiseql.authenticate(provider="ldap")
+@FraiseQL.type
+@FraiseQL.authenticate(provider="ldap")
 class User:
     id: ID
     email: str
@@ -1496,8 +1496,8 @@ class TenantContext:
 ### 8.2 Tenant-Scoped Authorization
 
 ```python
-@fraiseql.type
-@fraiseql.authorize(rule="owned_by_tenant")
+@FraiseQL.type
+@FraiseQL.authorize(rule="owned_by_tenant")
 class Post:
     """Posts are scoped to owning tenant"""
     id: ID
@@ -1506,7 +1506,7 @@ class Post:
     tenant_id: ID
 
 # Authorization rule: User can only access posts from their tenant
-@fraiseql.authorization_rule(name="owned_by_tenant")
+@FraiseQL.authorization_rule(name="owned_by_tenant")
 def rule_owned_by_tenant(resource, user_context):
     return resource.tenant_id == user_context.tenant_id
 ```text
@@ -1566,7 +1566,7 @@ response.set_cookie(
 Protect against Cross-Site Request Forgery:
 
 ```python
-@fraiseql.hook(event="request.before_authorization")
+@FraiseQL.hook(event="request.before_authorization")
 async def validate_csrf(request):
     """Validate CSRF token for state-changing operations"""
 

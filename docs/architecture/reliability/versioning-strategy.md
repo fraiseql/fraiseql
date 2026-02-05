@@ -478,12 +478,12 @@ When a feature is deprecated, the changelog includes:
   - **Reason**: Regex performance overhead; most use cases better served by `contains`
   - **Migration**: Replace `{name: {regex: "/pattern/"}}` with `{name: {contains: "pattern"}}`
   - **Timeline**: Deprecated v2.1, removal in v3.0 (3-year window)
-  - **Help**: See migration guide: https://docs.fraiseql.io/migration/v2.1-regex-deprecation
+  - **Help**: See migration guide: https://docs.FraiseQL.io/migration/v2.1-regex-deprecation
 
 - **Field-level masking via `@mask` decorator**: Use row-level security via `@authorize` instead.
   - **Reason**: @authorize more expressive; @mask conflates field-level with row-level
   - **Timeline**: Deprecated v2.1, removal in v3.0
-  - **Help**: See migration guide: https://docs.fraiseql.io/migration/v2.1-mask-deprecation
+  - **Help**: See migration guide: https://docs.FraiseQL.io/migration/v2.1-mask-deprecation
 ```text
 
 ### 3.4 Deprecation Warning in Runtime
@@ -513,7 +513,7 @@ query GetPosts {
         "message": "Operator 'regex' is deprecated. Use 'contains' instead. Will be removed in v3.0.",
         "code": "W_DEPRECATED_OPERATOR_REGEX",
         "removal_version": "3.0.0",
-        "migration_url": "https://docs.fraiseql.io/migration/v2.1-regex-deprecation",
+        "migration_url": "https://docs.FraiseQL.io/migration/v2.1-regex-deprecation",
         "location": {
           "line": 2,
           "column": 45
@@ -555,8 +555,8 @@ Users write schemas in Python (or YAML/TypeScript). These schemas are **versione
 #### 4.1.1 User Schema Version Format
 
 ```python
-@fraiseql.version("1.0.0")
-@fraiseql.type
+@FraiseQL.version("1.0.0")
+@FraiseQL.type
 class User:
     """Version 1.0.0 of User type"""
     id: ID
@@ -590,14 +590,14 @@ FraiseQL enforces backward-compatible schema changes:
 
 ```python
 # v1.0.0
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     email: str | None = None
 
 # v1.1.0 (backward-compatible with 1.0.0)
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -612,14 +612,14 @@ Schema changes may require migration:
 
 ```python
 # Framework v2.x
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     email: str | None = None
 
 # Framework v3.0 (breaking changes)
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -745,7 +745,7 @@ FraiseQL validates all queries at **compile time**, not runtime:
 
 ```python
 # Compile-time: Query validation
-schema = fraiseql.compile(schema_definition)
+schema = FraiseQL.compile(schema_definition)
 
 # Invalid queries caught during compilation, not at runtime
 query = """
@@ -914,7 +914,7 @@ Before upgrading from v2.x to v3.0:
 ### v2.x → v3.0 Pre-Upgrade Checklist
 
 - [ ] Review v3.0 breaking changes guide
-  https://docs.fraiseql.io/migration/v3.0-breaking-changes
+  https://docs.FraiseQL.io/migration/v3.0-breaking-changes
 
 - [ ] Check which v2.x features are deprecated in v3.0
   [ ] No deprecated operators used
@@ -927,14 +927,14 @@ Before upgrading from v2.x to v3.0:
   [ ] Update error handling code
 
 - [ ] Run schema validation
-  $ fraiseql validate schema.py --target v3.0
+  $ FraiseQL validate schema.py --target v3.0
 
 - [ ] Test on staging environment
-  $ fraiseql compile schema.py --target v3.0
-  $ fraiseql test --schema compiled-schema-v3.json
+  $ FraiseQL compile schema.py --target v3.0
+  $ FraiseQL test --schema compiled-schema-v3.json
 
 - [ ] Review compiled schema changes
-  $ fraiseql diff compiled-schema-v2.json compiled-schema-v3.json
+  $ FraiseQL diff compiled-schema-v2.json compiled-schema-v3.json
 
 - [ ] Update client code
   [ ] Handle new error codes
@@ -996,7 +996,7 @@ Clients lock to a specific FraiseQL framework version:
 
 ```python
 # Client code targeting FraiseQL v2.x
-from fraiseql import Client
+from FraiseQL import Client
 
 client = Client(
     endpoint="https://api.example.com",
@@ -1084,13 +1084,13 @@ When users compile schemas, they specify target framework version:
 
 ```bash
 # Compile for specific framework version
-fraiseql compile schema.py --target 2.0.0
+FraiseQL compile schema.py --target 2.0.0
 
 # Compile for latest version
-fraiseql compile schema.py --target latest
+FraiseQL compile schema.py --target latest
 
 # Compile with version compatibility check
-fraiseql compile schema.py --target 2.0.0 --strict
+FraiseQL compile schema.py --target 2.0.0 --strict
 ```text
 
 ### 10.2 Compiled Schema Portability
@@ -1109,7 +1109,7 @@ Runtime v3.0.0: ❌ Incompatible (different format)
 
 ```bash
 # 1. Recompile schema with new framework version
-fraiseql compile schema.py --target 3.0.0
+FraiseQL compile schema.py --target 3.0.0
 
 # 2. Deploy compiled schema and runtime v3.0 together
 docker build -t my-api:v3 --build-arg SCHEMA=compiled-schema-v3.json .
@@ -1200,7 +1200,7 @@ Every release includes a detailed changelog:
 - `regex` operator: Use `contains` or `startsWith` instead
   - Deprecated in v2.1.0
   - Will be removed in v3.0.0 (3-year window)
-  - Migration guide: https://docs.fraiseql.io/migration/regex-deprecation
+  - Migration guide: https://docs.FraiseQL.io/migration/regex-deprecation
 
 ## 📊 Performance
 
@@ -1293,9 +1293,9 @@ query SearchPosts {
 
 ## Help
 
-- Migration guide: <https://docs.fraiseql.io/migration/regex-deprecation>
-- Support: <support@fraiseql.io>
-- Issues: <https://github.com/fraiseql/fraiseql/issues>
+- Migration guide: <https://docs.FraiseQL.io/migration/regex-deprecation>
+- Support: <support@FraiseQL.io>
+- Issues: <https://github.com/FraiseQL/FraiseQL/issues>
 
 ```text
 
@@ -1356,7 +1356,7 @@ Applications running v2.x will continue to function, but:
 To continue receiving support:
 
 1. Upgrade to v3.x or later
-2. Follow upgrade guide: https://docs.fraiseql.io/migration/v2-to-v3
+2. Follow upgrade guide: https://docs.FraiseQL.io/migration/v2-to-v3
 
 We recommend upgrading before December 31, 2026.
 ```text
@@ -1442,14 +1442,14 @@ Does the change modify user-facing behavior?
 
 ```python
 # v2.0.0
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
     email: str | None = None
 
 # v2.1.0 (add optional field)
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -1577,20 +1577,20 @@ Migration required during 3-year window (v2.1 to v3.0).
 ### 18.1 Programmatic Version Checks
 
 ```python
-import fraiseql
+import FraiseQL
 
 # Get framework version
-version = fraiseql.__version__
+version = FraiseQL.__version__
 # Returns: "2.1.0"
 
 # Check version compatibility
-if fraiseql.version_matches(">=2.0.0,<3.0.0"):
+if FraiseQL.version_matches(">=2.0.0,<3.0.0"):
     print("Running on v2.x")
 else:
     print("Running on different MAJOR version")
 
 # Get compiled schema version
-schema = fraiseql.compile(...)
+schema = FraiseQL.compile(...)
 print(schema.framework_version)
 # Returns: "2.1.0"
 

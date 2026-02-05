@@ -12,7 +12,7 @@ Think of it as "Clippy for GraphQL" - it enforces best practices specific to Fra
 
 ```bash
 # Analyze your schema
-fraiseql lint schema.json
+FraiseQL lint schema.json
 
 # Output:
 # {
@@ -28,13 +28,13 @@ fraiseql lint schema.json
 # }
 
 # Filter to specific categories
-fraiseql lint schema.json --federation --cost
+FraiseQL lint schema.json --federation --cost
 
 # CI/CD integration
-fraiseql lint schema.json --fail-on-critical --fail-on-warning
+FraiseQL lint schema.json --fail-on-critical --fail-on-warning
 
 # Get detailed analysis
-fraiseql lint schema.json --verbose --json | jq '.data'
+FraiseQL lint schema.json --verbose --json | jq '.data'
 ```
 
 ### API Usage
@@ -335,13 +335,13 @@ jobs:
 
       - name: Install FraiseQL
         run: |
-          curl -sSL https://install.fraiseql.dev | bash
+          curl -sSL https://install.FraiseQL.dev | bash
 
       - name: Check design quality
         run: |
           for schema in schema/*.json; do
             echo "Checking $schema..."
-            fraiseql lint "$schema" \
+            FraiseQL lint "$schema" \
               --fail-on-critical \
               --fail-on-warning \
               --json | jq '.data'
@@ -356,7 +356,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Design quality checks failed. Run `fraiseql lint schema.json --verbose` for details.'
+              body: 'Design quality checks failed. Run `FraiseQL lint schema.json --verbose` for details.'
             })
 ```
 
@@ -367,7 +367,7 @@ jobs:
 design_quality:
   stage: validate
   script:
-    - fraiseql lint schema.json --fail-on-critical
+    - FraiseQL lint schema.json --fail-on-critical
   artifacts:
     reports:
       dotenv: quality.env
@@ -478,7 +478,7 @@ See [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md) for details.
 **Update**: Ensure you're using FraiseQL v2.0.0-alpha.1 or later
 
 ```bash
-fraiseql --version
+FraiseQL --version
 ```
 
 ### Issue: API timeout
@@ -487,7 +487,7 @@ fraiseql --version
 **Solution**:
 
 - Split into smaller schemas
-- Check server logs: `RUST_LOG=debug fraiseql-server`
+- Check server logs: `RUST_LOG=debug FraiseQL-server`
 
 ## FAQ
 
@@ -506,6 +506,6 @@ A: Yes, save audit results and track trends.
 ## References
 
 - API Reference: See `/api/v1/design/*` endpoints
-- CLI Help: `fraiseql lint --help`
+- CLI Help: `FraiseQL lint --help`
 - Performance: [DESIGN_QUALITY_PERFORMANCE.md](./DESIGN_QUALITY_PERFORMANCE.md)
 - Security: [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md)

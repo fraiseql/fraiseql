@@ -51,13 +51,13 @@ Is performance issue...
 
 ```bash
 # Set environment variable
-export RUST_LOG=fraiseql=debug
+export RUST_LOG=FraiseQL=debug
 
 # Restart server
-systemctl restart fraiseql
+systemctl restart FraiseQL
 
 # Watch logs
-tail -f /var/log/fraiseql.log | grep "QUERY"
+tail -f /var/log/FraiseQL.log | grep "QUERY"
 ```text
 
 **Look for:**
@@ -227,7 +227,7 @@ SHOW VARIABLES LIKE 'max_connections';
 **Solution 1: Increase Pool Size**
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [database]
 pool_size = 50  # Was 10, increase to 50
 ```text
@@ -334,10 +334,10 @@ ANALYZE TABLE users;
 
 ```bash
 # Weekly index maintenance
-0 2 * * 0 fraiseql-maintenance reindex --tables all
+0 2 * * 0 FraiseQL-maintenance reindex --tables all
 
 # Monthly full optimization
-0 2 1 * * fraiseql-maintenance optimize --full
+0 2 1 * * FraiseQL-maintenance optimize --full
 ```text
 
 ### Prevention
@@ -451,7 +451,7 @@ CREATE INDEX idx_users_org_status ON users(organization_id, status);
 
 ```python
 # Before: Slow query in every request
-@fraiseql.query
+@FraiseQL.query
 def user_stats():
     # SELECT user_id, COUNT(*) as post_count FROM posts GROUP BY user_id
     # Takes 10+ seconds on 100M rows!
@@ -627,7 +627,7 @@ result = await db.query("""
 **Solution 3: Cache Frequently Accessed Data**
 
 ```toml
-[fraiseql.caching]
+[FraiseQL.caching]
 enabled = true
 ttl_seconds = 300  # Cache query results 5 minutes
 ```text
@@ -685,7 +685,7 @@ async with pool.acquire() as conn:
 **Solution 2: Set Resource Limits**
 
 ```toml
-[fraiseql.limits]
+[FraiseQL.limits]
 max_concurrent_queries = 1000
 max_subscription_connections = 5000
 max_result_size_bytes = 10485760  # 10MB
@@ -698,7 +698,7 @@ max_result_size_bytes = 10485760  # 10MB
 cargo profiling memory --duration 60s
 
 # Restart after 24 hours if needed
-systemctl restart fraiseql
+systemctl restart FraiseQL
 ```text
 
 ### Prevention
@@ -738,7 +738,7 @@ curl -X POST http://localhost:5000/graphql \
 **Solution 1: Enable Query Caching**
 
 ```toml
-[fraiseql.caching]
+[FraiseQL.caching]
 enabled = true
 default_ttl_seconds = 300  # Cache 5 minutes
 ```text
@@ -757,13 +757,13 @@ mutation {
 **Solution 3: Adjust TTL Based on Data Freshness**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     # Cache for 5 minutes (user data doesn't change often)
     id: ID
     name: str
 
-@fraiseql.type
+@FraiseQL.type
 class InventoryLevel:
     # Don't cache (inventory changes constantly)
     quantity: int = field(cache=False)

@@ -23,7 +23,7 @@ pip install pyarrow
 
 ```bash
 # Start server with Arrow Flight support
-fraiseql run --port 8000 --arrow-flight
+FraiseQL run --port 8000 --arrow-flight
 
 # Arrow Flight listens on port 50051 by default
 # Verify it's listening:
@@ -144,7 +144,7 @@ See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSO
 ### Common Issues
 
 **"Connection refused on port 50051"**
-→ Start server with `--arrow-flight` flag: `fraiseql run --arrow-flight`
+→ Start server with `--arrow-flight` flag: `FraiseQL run --arrow-flight`
 
 **"No module named 'pyarrow'"**
 → Install PyArrow: `pip install pyarrow`

@@ -18,7 +18,7 @@ This guide covers common issues with FraiseQL's observability system and their s
 **Symptoms**:
 
 - Metrics tables are empty
-- `fraiseql-cli analyze` returns "No data found"
+- `FraiseQL-cli analyze` returns "No data found"
 
 **Diagnosis**:
 
@@ -49,7 +49,7 @@ echo $FRAISEQL_OBSERVABILITY_ENABLED
 # Solution: Enable observability
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 
-# Or in fraiseql.toml:
+# Or in FraiseQL.toml:
 [observability]
 enabled = true
 ```text
@@ -166,7 +166,7 @@ export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 
 ```bash
 # Check application memory
-docker stats fraiseql-api
+docker stats FraiseQL-api
 # MEM USAGE: 4.2 GB / 4 GB (near limit!)
 ```text
 
@@ -210,7 +210,7 @@ ORDER BY minute DESC;
 
 **Symptoms**:
 
-- `fraiseql-cli analyze` returns 0 suggestions
+- `FraiseQL-cli analyze` returns 0 suggestions
 - "No optimization opportunities found"
 
 **Diagnosis**:
@@ -242,7 +242,7 @@ psql $METRICS_DATABASE_URL -c "
 
 ```bash
 # Try lowering thresholds
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-frequency 10 \      # Default: 1000
   --min-speedup 2.0 \       # Default: 5.0
@@ -279,7 +279,7 @@ AND column_name LIKE '%_id';
 
 **Symptoms**:
 
-- `fraiseql-cli analyze` runs for > 5 minutes
+- `FraiseQL-cli analyze` runs for > 5 minutes
 - High CPU usage during analysis
 
 **Diagnosis**:
@@ -330,7 +330,7 @@ UPDATE STATISTICS fraiseql_metrics.json_accesses WITH FULLSCAN;
 
 ```bash
 # Use shorter time window
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --window 1d  # Instead of 30d
 ```text
@@ -768,7 +768,7 @@ FROM tf_sales;
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=1.0  # 100% sampling
 
 # Wait 24 hours, then re-analyze
-fraiseql-cli analyze --database postgres://... --window 1d
+FraiseQL-cli analyze --database postgres://... --window 1d
 ```text
 
 ---
@@ -781,10 +781,10 @@ Enable verbose logging:
 
 ```bash
 # Enable debug logging
-export RUST_LOG=fraiseql=debug
+export RUST_LOG=FraiseQL=debug
 
 # Run analysis with debug output
-fraiseql-cli analyze --database postgres://... 2>&1 | tee debug.log
+FraiseQL-cli analyze --database postgres://... 2>&1 | tee debug.log
 ```text
 
 ### Health Check Script
@@ -838,10 +838,10 @@ echo -e "\n=== Health Check Complete ==="
 
 ## Support Resources
 
-- **GitHub Issues**: [github.com/fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
-- **Discord**: [discord.gg/fraiseql](https://discord.gg/fraiseql)
-- **Documentation**: [docs.fraiseql.com/observability](https://docs.fraiseql.com/observability)
-- **Email**: <support@fraiseql.com>
+- **GitHub Issues**: [github.com/FraiseQL/FraiseQL/issues](https://github.com/FraiseQL/FraiseQL/issues)
+- **Discord**: [discord.gg/FraiseQL](https://discord.gg/FraiseQL)
+- **Documentation**: [docs.FraiseQL.com/observability](https://docs.FraiseQL.com/observability)
+- **Email**: <support@FraiseQL.com>
 
 ---
 

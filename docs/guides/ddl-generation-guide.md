@@ -96,7 +96,7 @@ print("Generated tv_user_profile.sql")
 ### I'm using TypeScript
 
 ```typescript
-import { generateTvDdl, loadSchema } from "@fraiseql/tools/views";
+import { generateTvDdl, loadSchema } from "@FraiseQL/tools/views";
 import { writeFileSync } from "fs";
 
 // Load your schema
@@ -119,7 +119,7 @@ console.log("Generated tv_user_profile.sql");
 ### I'm using the CLI
 
 ```bash
-fraiseql generate-views \
+FraiseQL generate-views \
   --schema schema.json \
   --entity User \
   --view tv_user_profile \
@@ -324,7 +324,7 @@ CREATE FUNCTION tv_user_profile_row_count() AS ...
 **Installation:**
 
 ```bash
-pip install fraiseql-tools
+pip install FraiseQL-tools
 ```text
 
 **Basic Usage:**
@@ -379,7 +379,7 @@ See [`examples/ddl-generation/python-example.py`](../../examples/ddl-generation/
 **Installation:**
 
 ```bash
-npm install @fraiseql/tools
+npm install @FraiseQL/tools
 ```text
 
 **Basic Usage:**
@@ -390,7 +390,7 @@ import {
     generateTaDdl,
     loadSchema,
     validateGeneratedDdl
-} from "@fraiseql/tools/views";
+} from "@FraiseQL/tools/views";
 import { writeFileSync } from "fs";
 
 // Load schema
@@ -433,22 +433,22 @@ See the [DDL Generation Examples](../../examples/ddl-generation/) directory for 
 **Installation:**
 
 ```bash
-# Already included with fraiseql-cli
-cargo install fraiseql-cli
+# Already included with FraiseQL-cli
+cargo install FraiseQL-cli
 ```text
 
 **Basic Usage:**
 
 ```bash
 # Generate trigger-based tv_*
-fraiseql generate-views \
+FraiseQL generate-views \
   --schema schema.json \
   --entity User \
   --view tv_user_profile \
   --output tv_user_profile.sql
 
 # Generate scheduled ta_*
-fraiseql generate-views \
+FraiseQL generate-views \
   --schema schema.json \
   --entity Order \
   --view ta_orders \
@@ -462,12 +462,12 @@ cat tv_user_profile.sql ta_orders.sql > all_views.sql
 **All Options:**
 
 ```bash
-fraiseql generate-views --help
+FraiseQL generate-views --help
 ```text
 
 ```text
 USAGE:
-    fraiseql generate-views [OPTIONS] --schema <SCHEMA> --entity <ENTITY> --view <VIEW>
+    FraiseQL generate-views [OPTIONS] --schema <SCHEMA> --entity <ENTITY> --view <VIEW>
 
 OPTIONS:
     --schema <PATH>
@@ -670,7 +670,7 @@ ddl = generate_ta_ddl(
 
 - Validate before deploying: `validate_generated_ddl(ddl)`
 - Check schema.json for invalid characters
-- Report issue: [GitHub Issues](https://github.com/anthropics/fraiseql/issues)
+- Report issue: [GitHub Issues](https://github.com/anthropics/FraiseQL/issues)
 
 ---
 
@@ -748,7 +748,7 @@ For issues or questions:
 
 1. Check [troubleshooting section](#troubleshooting)
 2. Review [Phase 9.4 View Selection Guide](../architecture/database/view-selection-guide.md)
-3. Open an issue: [GitHub Issues](https://github.com/anthropics/fraiseql/issues)
+3. Open an issue: [GitHub Issues](https://github.com/anthropics/FraiseQL/issues)
 
 ---
 

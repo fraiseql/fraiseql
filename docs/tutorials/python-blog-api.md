@@ -28,7 +28,7 @@ A **Blog API** supporting:
 
 ### Key Concepts You'll Learn
 
-- FraiseQL's Python decorators (`@fraiseql.type`, `@fraiseql.query`, `@fraiseql.mutation`)
+- FraiseQL's Python decorators (`@FraiseQL.type`, `@FraiseQL.query`, `@FraiseQL.mutation`)
 - Python modern type hints (PEP 604: `X | None` instead of `Optional[X]`)
 - Mapping Python types to SQL sources (views and functions)
 - Query parameters and filtering
@@ -323,10 +323,10 @@ python3.10 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install FraiseQL Python SDK
-pip install fraiseql
+pip install FraiseQL
 
 # Verify installation
-python -c "import fraiseql; print(fraiseql.__version__)"
+python -c "import FraiseQL; print(FraiseQL.__version__)"
 ```text
 
 ### Step 1: Create `schema.py`
@@ -338,22 +338,22 @@ Create a file named `schema.py` in your project root:
 
 This module defines the GraphQL schema for a blog API using FraiseQL decorators.
 It demonstrates:
-- Type definitions with @fraiseql.type
-- Query definitions with @fraiseql.query
-- Mutation definitions with @fraiseql.mutation
+- Type definitions with @FraiseQL.type
+- Query definitions with @FraiseQL.query
+- Mutation definitions with @FraiseQL.mutation
 - Relationship mapping between types
 
 The schema is compiled to JSON for deployment.
 """
 
-import fraiseql
+import FraiseQL
 
 
 # ============================================================================
 # TYPE DEFINITIONS
 # ============================================================================
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A blog author or commenter.
 
@@ -374,7 +374,7 @@ class User:
     updated_at: str
 
 
-@fraiseql.type
+@FraiseQL.type
 class Post:
     """A blog post written by a user.
 
@@ -400,7 +400,7 @@ class Post:
     updated_at: str
 
 
-@fraiseql.type
+@FraiseQL.type
 class Comment:
     """A comment on a blog post.
 
@@ -425,7 +425,7 @@ class Comment:
 # QUERIES (Read Operations)
 # ============================================================================
 
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_users",
     auto_params={
         "limit": True,        # Auto-generate limit parameter
@@ -461,7 +461,7 @@ def users(
     pass
 
 
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def user(id: int) -> User | None:
     """Get a single user by ID.
 
@@ -484,7 +484,7 @@ def user(id: int) -> User | None:
     pass
 
 
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_posts",
     auto_params={
         "limit": True,
@@ -524,7 +524,7 @@ def posts(
     pass
 
 
-@fraiseql.query(sql_source="v_post_by_id")
+@FraiseQL.query(sql_source="v_post_by_id")
 def post(id: int) -> Post | None:
     """Get a single post by ID.
 
@@ -549,7 +549,7 @@ def post(id: int) -> Post | None:
     pass
 
 
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_user_posts",
     auto_params={
         "limit": True,
@@ -587,7 +587,7 @@ def user_posts(
     pass
 
 
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_comments",
     auto_params={
         "limit": True,
@@ -628,7 +628,7 @@ def post_comments(
 # MUTATIONS (Write Operations)
 # ============================================================================
 
-@fraiseql.mutation(sql_source="fn_create_user", operation="CREATE")
+@FraiseQL.mutation(sql_source="fn_create_user", operation="CREATE")
 def create_user(
     name: str,
     email: str,
@@ -657,7 +657,7 @@ def create_user(
     pass
 
 
-@fraiseql.mutation(sql_source="fn_update_user", operation="UPDATE")
+@FraiseQL.mutation(sql_source="fn_update_user", operation="UPDATE")
 def update_user(
     id: int,
     name: str | None = None,
@@ -688,7 +688,7 @@ def update_user(
     pass
 
 
-@fraiseql.mutation(sql_source="fn_create_post", operation="CREATE")
+@FraiseQL.mutation(sql_source="fn_create_post", operation="CREATE")
 def create_post(
     title: str,
     content: str,
@@ -724,7 +724,7 @@ def create_post(
     pass
 
 
-@fraiseql.mutation(sql_source="fn_update_post", operation="UPDATE")
+@FraiseQL.mutation(sql_source="fn_update_post", operation="UPDATE")
 def update_post(
     id: int,
     title: str | None = None,
@@ -758,7 +758,7 @@ def update_post(
     pass
 
 
-@fraiseql.mutation(sql_source="fn_delete_post", operation="DELETE")
+@FraiseQL.mutation(sql_source="fn_delete_post", operation="DELETE")
 def delete_post(id: int) -> bool:
     """Delete a blog post.
 
@@ -776,7 +776,7 @@ def delete_post(id: int) -> bool:
     pass
 
 
-@fraiseql.mutation(sql_source="fn_create_comment", operation="CREATE")
+@FraiseQL.mutation(sql_source="fn_create_comment", operation="CREATE")
 def create_comment(
     post_id: int,
     user_id: int,
@@ -816,25 +816,25 @@ def create_comment(
 
 if __name__ == "__main__":
     # Export the schema to JSON
-    # This generates schema.json which will be compiled with fraiseql-cli
-    fraiseql.export_schema("schema.json")
+    # This generates schema.json which will be compiled with FraiseQL-cli
+    FraiseQL.export_schema("schema.json")
 
     print("\n✅ Schema exported successfully!")
     print("   Generated: schema.json")
     print("\n   Next steps:")
     print("   1. Review schema.json for correctness")
-    print("   2. Compile: fraiseql-cli compile schema.json fraiseql.toml")
-    print("   3. Start server: fraiseql-server --schema schema.compiled.json")
+    print("   2. Compile: FraiseQL-cli compile schema.json FraiseQL.toml")
+    print("   3. Start server: FraiseQL-server --schema schema.compiled.json")
 ```text
 
 ### Understanding the Decorators
 
-#### `@fraiseql.type`
+#### `@FraiseQL.type`
 
 Defines a GraphQL type that maps to your database schema:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int              # GraphQL ID field (non-null by default)
     name: str            # GraphQL String field
@@ -848,12 +848,12 @@ class User:
 - Field names match your database columns
 - `None` union means the field is nullable
 
-#### `@fraiseql.query`
+#### `@FraiseQL.query`
 
 Defines a GraphQL query (read-only operation):
 
 ```python
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_posts",           # SQL view or table to query
     auto_params={
         "limit": True,              # Auto-generate limit/offset
@@ -875,12 +875,12 @@ def posts(limit: int = 10) -> list[Post]:
   - `"where": True` - Enable WHERE clause filtering
   - `"order_by": True` - Enable ORDER BY sorting
 
-#### `@fraiseql.mutation`
+#### `@FraiseQL.mutation`
 
 Defines a GraphQL mutation (write operation):
 
 ```python
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_create_user",    # SQL function to call
     operation="CREATE"              # Operation type (CREATE, UPDATE, DELETE)
 )
@@ -914,8 +914,8 @@ python schema.py
 
    Next steps:
    1. Review schema.json for correctness
-   2. Compile: fraiseql-cli compile schema.json fraiseql.toml
-   3. Start server: fraiseql-server --schema schema.compiled.json
+   2. Compile: FraiseQL-cli compile schema.json FraiseQL.toml
+   3. Start server: FraiseQL-server --schema schema.compiled.json
 ```text
 
 ### Examine `schema.json`
@@ -1122,27 +1122,27 @@ Types: 3, Queries: 6, Mutations: 5
 
 The FraiseQL CLI compiles your schema to an optimized binary format with embedded SQL.
 
-### Create `fraiseql.toml`
+### Create `FraiseQL.toml`
 
 Create a configuration file for compilation:
 
 ```toml
 # FraiseQL Configuration for Blog API
 
-[fraiseql]
+[FraiseQL]
 name = "blog-api"
 version = "1.0.0"
 description = "GraphQL Blog API built with FraiseQL"
 
 # Database configuration
-[fraiseql.database]
+[FraiseQL.database]
 adapter = "postgres"  # postgresql, mysql, sqlite, sqlserver
 pool_size = 10
 timeout_secs = 30
 max_retries = 3
 
 # Security configuration
-[fraiseql.security]
+[FraiseQL.security]
 # Rate limiting on mutations
 rate_limit_mutations = 100
 rate_limit_window_secs = 60
@@ -1157,7 +1157,7 @@ sanitize_errors = true  # Hide implementation details in errors
 ### Compile the Schema
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 ```text
 
 **Output:**
@@ -1464,7 +1464,7 @@ Once your schema is tested, you're ready to deploy.
 
 ```bash
 # Start FraiseQL server with compiled schema
-fraiseql-server \
+FraiseQL-server \
     --schema schema.compiled.json \
     --database-url postgresql://user:password@localhost/blog_db \
     --port 8000
@@ -1510,7 +1510,7 @@ This returns all available types in your schema.
 The `auto_params` feature makes pagination automatic:
 
 ```python
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_posts",
     auto_params={"limit": True, "offset": True}
 )
@@ -1535,7 +1535,7 @@ query {
 Use `auto_params={"where": True}` to enable filters:
 
 ```python
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_posts",
     auto_params={"where": True}
 )
@@ -1561,7 +1561,7 @@ query {
 Use `auto_params={"order_by": True}`:
 
 ```python
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_posts",
     auto_params={"order_by": True}
 )
@@ -1603,7 +1603,7 @@ JOIN users u ON p.author_id = u.id;
 Python schema:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class PostWithAuthor:
     id: int
     title: str
@@ -1612,7 +1612,7 @@ class PostWithAuthor:
     author_name: str
     author_email: str
 
-@fraiseql.query(sql_source="v_posts_with_author")
+@FraiseQL.query(sql_source="v_posts_with_author")
 def posts() -> list[PostWithAuthor]:
     """Posts with inline author info."""
     pass
@@ -1621,7 +1621,7 @@ def posts() -> list[PostWithAuthor]:
 ### Pattern 5: Filtering Comments by Post
 
 ```python
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_comments",
     auto_params={"where": True, "limit": True}
 )
@@ -1676,7 +1676,7 @@ def user(id: int) -> User | None:
 ❌ **Wrong:**
 
 ```python
-@fraiseql.query()
+@FraiseQL.query()
 def users() -> list[User]:
     pass
 ```text
@@ -1684,7 +1684,7 @@ def users() -> list[User]:
 ✅ **Correct:**
 
 ```python
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users() -> list[User]:
     pass
 ```text
@@ -1696,7 +1696,7 @@ If your database column is `created_at`, your Python field must also be `created
 ❌ **Wrong:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Post:
     createdAt: str  # Doesn't match database
 ```text
@@ -1704,7 +1704,7 @@ class Post:
 ✅ **Correct:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Post:
     created_at: str  # Matches database
 ```text
@@ -1716,7 +1716,7 @@ If a database field can be NULL, mark it as nullable:
 ❌ **Wrong:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     bio: str  # But bio can be NULL in database
 ```text
@@ -1724,7 +1724,7 @@ class User:
 ✅ **Correct:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     bio: str | None  # Nullable
 ```text
@@ -1751,7 +1751,7 @@ psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 
 ### Advanced Topics
 
-- **Aggregation Queries**: Use `@fraiseql.fact_table` for analytics workloads
+- **Aggregation Queries**: Use `@FraiseQL.fact_table` for analytics workloads
 - **Federation**: Split schema across multiple services
 - **Observers**: Add audit logging and monitoring
 - **Custom Resolvers**: Implement complex business logic
@@ -1762,12 +1762,12 @@ psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 
 ### Schema Export Errors
 
-#### Error: `ImportError: No module named 'fraiseql'`
+#### Error: `ImportError: No module named 'FraiseQL'`
 
 **Solution:**
 
 ```bash
-pip install fraiseql
+pip install FraiseQL
 ```text
 
 #### Error: `Module has no attribute 'type'`
@@ -1775,8 +1775,8 @@ pip install fraiseql
 **Solution:** Check that you're using the correct import:
 
 ```python
-import fraiseql
-# Then use @fraiseql.type, not @fraiseql_type
+import FraiseQL
+# Then use @FraiseQL.type, not @fraiseql_type
 ```text
 
 ### Compilation Errors
@@ -1795,7 +1795,7 @@ SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
 
 ```python
 # If database column is VARCHAR, use str in Python
-@fraiseql.type
+@FraiseQL.type
 class Post:
     title: str  # Correct
 ```text
@@ -1822,20 +1822,20 @@ See Part 2 above for the full schema file.
 
 See Part 1 above for the complete database setup.
 
-### Complete `fraiseql.toml`
+### Complete `FraiseQL.toml`
 
 ```toml
-[fraiseql]
+[FraiseQL]
 name = "blog-api"
 version = "1.0.0"
 description = "GraphQL Blog API"
 
-[fraiseql.database]
+[FraiseQL.database]
 adapter = "postgres"
 pool_size = 10
 timeout_secs = 30
 
-[fraiseql.security]
+[FraiseQL.security]
 rate_limit_mutations = 100
 rate_limit_window_secs = 60
 max_query_depth = 5
@@ -1849,9 +1849,9 @@ sanitize_errors = true
 You've learned how to:
 
 ✅ Design a relational database schema with SQL
-✅ Create Python type definitions with `@fraiseql.type`
-✅ Author GraphQL queries with `@fraiseql.query`
-✅ Author GraphQL mutations with `@fraiseql.mutation`
+✅ Create Python type definitions with `@FraiseQL.type`
+✅ Author GraphQL queries with `@FraiseQL.query`
+✅ Author GraphQL mutations with `@FraiseQL.mutation`
 ✅ Export schemas to JSON
 ✅ Compile with the FraiseQL CLI
 ✅ Test with GraphQL queries
@@ -1863,7 +1863,7 @@ This workflow puts **schema authoring** front and center—defining your data mo
 
 ## Additional Resources
 
-- [Python SDK Reference](../reference/python-sdk.md)
+- [Python SDK Reference](../reference/python-SDK.md)
 - [TOML Configuration Reference](../TOML_REFERENCE.md)
 - [GraphQL Schema Design Best Practices](../guides/schema-design-best-practices.md)
 - [Common Patterns](../guides/PATTERNS.md)
@@ -1871,4 +1871,4 @@ This workflow puts **schema authoring** front and center—defining your data mo
 
 ---
 
-**Questions?** See [FAQ](../FAQ.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [FAQ](../FAQ.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

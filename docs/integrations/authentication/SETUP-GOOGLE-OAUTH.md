@@ -89,7 +89,7 @@ JWT_ISSUER=https://accounts.google.com
 JWT_ALGORITHM=RS256
 
 # Session Configuration
-DATABASE_URL=postgres://user:password@localhost/fraiseql
+DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
 
 ## Step 5: Update Server Configuration

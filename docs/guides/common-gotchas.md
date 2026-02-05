@@ -96,7 +96,7 @@ query {
 **Solution 2: Use table-backed views (tv_*)**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserWithPosts:
     """Denormalized view with posts included."""
     id: ID
@@ -185,7 +185,7 @@ query {
 **Or limit maximum offset:**
 
 ```toml
-[fraiseql.pagination]
+[FraiseQL.pagination]
 max_offset = 5000  # Disallow offset > 5000
 ```text
 
@@ -292,14 +292,14 @@ mutation {
 **Solution 2: TTL-based invalidation**
 
 ```toml
-[fraiseql.caching]
+[FraiseQL.caching]
 ttl_seconds = 60  # All caches expire after 60 seconds
 ```text
 
 **Solution 3: Dependency-based invalidation**
 
 ```python
-@fraiseql.mutation
+@FraiseQL.mutation
 def update_user(id: str, name: str):
     # Mark all queries involving this user as invalid
     cache.invalidate(User, id=id)
@@ -325,7 +325,7 @@ query {
 **Solution 1: Disable caching for critical fields**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Inventory:
     id: ID
     quantity: int = field(cache=False)  # Never cache inventory
@@ -365,7 +365,7 @@ query {
 **Example:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -381,7 +381,7 @@ class User:
 **Add authorization to every sensitive field:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -393,11 +393,11 @@ class User:
 **Or use row-level security:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
-    where: Where = fraiseql.where(
-        fk_org=fraiseql.context.org_id,  # Only users in same org
-        is_sensitive_visible=fraiseql.context.role in [Roles.ADMIN, Roles.SELF]
+    where: Where = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id,  # Only users in same org
+        is_sensitive_visible=FraiseQL.context.role in [Roles.ADMIN, Roles.SELF]
     )
 ```text
 
@@ -435,7 +435,7 @@ CREATE TABLE products (
 **Ensure types match in schema:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
     id: int          # Use int, not str
     sku: str         # Use str for text IDs
@@ -482,14 +482,14 @@ query {
 
 ```python
 # users-service
-@fraiseql.type
+@FraiseQL.type
 @extends
 class Order:
     id: str = external()
     user: User  # Extends to User
 
 # orders-service
-@fraiseql.type
+@FraiseQL.type
 @extends
 class User:
     id: str = external()
@@ -505,14 +505,14 @@ class User:
 # Don't create bidirectional extends
 
 # users-service
-@fraiseql.type
+@FraiseQL.type
 @key("id")
 class User:
     id: str
     name: str
 
 # orders-service
-@fraiseql.type
+@FraiseQL.type
 @key("id")
 class Order:
     id: str
@@ -534,14 +534,14 @@ class Order:
 **Solution 1: Increase SAGA timeout**
 
 ```toml
-[fraiseql.federation.sagas]
+[FraiseQL.federation.sagas]
 timeout_seconds = 300  # 5 minutes instead of default 30 seconds
 ```text
 
 **Solution 2: Break into smaller steps**
 
 ```python
-@fraiseql.saga
+@FraiseQL.saga
 async def bulk_update_users(user_ids: List[str]):
     # Instead of updating 10,000 users in one step:
     # Break into batches of 100
@@ -557,7 +557,7 @@ async def bulk_update_users(user_ids: List[str]):
 For very long operations, use background tasks instead of SAGA:
 
 ```python
-@fraiseql.mutation
+@FraiseQL.mutation
 async def bulk_update_users(user_ids: List[str]):
     # Queue background job
     background_tasks.add_task(
@@ -583,14 +583,14 @@ async def bulk_update_users(user_ids: List[str]):
 
 ```python
 # Replace v_user_summary (logical view):
-@fraiseql.type
+@FraiseQL.type
 class UserSummary:  # Was v_user_summary
     id: ID
     name: str
     post_count: int
 
 # With tv_user_summary_materialized (table-backed):
-@fraiseql.type
+@FraiseQL.type
 class UserSummary:  # Now tv_user_summary_materialized
     id: ID
     name: str
@@ -643,7 +643,7 @@ query {
 **Solution 2: Use Date type for date-only fields**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Order:
     id: ID
     created_date: Date  # Use Date, not DateTime
@@ -672,7 +672,7 @@ WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
 **Solution 1: Set subscription timeout**
 
 ```toml
-[fraiseql.subscriptions]
+[FraiseQL.subscriptions]
 timeout_seconds = 3600  # Close connection after 1 hour
 idle_timeout_seconds = 300  # Close if idle for 5 minutes
 ```text
@@ -710,7 +710,7 @@ WHERE state = 'active' AND query LIKE '%subscription%'
 **Use strong consistency guarantees:**
 
 ```toml
-[fraiseql.federation]
+[FraiseQL.federation]
 consistency_level = "strong"  # Wait for all replicas
 ```text
 
@@ -719,7 +719,7 @@ consistency_level = "strong"  # Wait for all replicas
 ```python
 # Route writes to primary region
 # Route reads to local region (accept eventual consistency)
-@fraiseql.query
+@FraiseQL.query
 async def get_user(id: str, region: str = "primary"):
     db = db_connection(region)
     return await db.query("SELECT * FROM users WHERE id = ?", [id])
@@ -788,7 +788,7 @@ query {
 
 ```python
 # Add comment to schema
-@fraiseql.query
+@FraiseQL.query
 def users(status: str = None):
     """
     Returns list of users, optionally filtered by status.
@@ -825,14 +825,14 @@ query {
 **Check database support:**
 
 ```toml
-[fraiseql.validation]
+[FraiseQL.validation]
 array_operators_postgresql_only = true  # Warn if using array operators
 ```text
 
 **Or store arrays as JSON:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
     id: ID
     tags: JSON  # Store as JSON, works everywhere
@@ -853,14 +853,14 @@ class Product:
 **Solution 1: Set connection timeout**
 
 ```toml
-[fraiseql.database]
+[FraiseQL.database]
 connection_timeout_seconds = 10
 ```text
 
 **Solution 2: Implement query timeout**
 
 ```toml
-[fraiseql.database]
+[FraiseQL.database]
 query_timeout_seconds = 30
 ```text
 
@@ -905,7 +905,7 @@ query {
 **Implement depth limits:**
 
 ```toml
-[fraiseql.validation]
+[FraiseQL.validation]
 max_query_depth = 15  # Prevent deep nesting
 ```text
 

@@ -42,7 +42,7 @@ pub trait CacheBackend: Send + Sync { /* ... */ }
 
 ### Extension Point Registry
 
-**New module:** `crates/fraiseql-core/src/extensions/mod.rs`
+**New module:** `crates/FraiseQL-core/src/extensions/mod.rs`
 
 ```rust
 /// Registry for all extension points.
@@ -327,7 +327,7 @@ query {
 
 ### Federation Trait Extension
 
-**New module:** `crates/fraiseql-core/src/federation/mod.rs`
+**New module:** `crates/FraiseQL-core/src/federation/mod.rs`
 
 ```rust
 /// Federation entity resolver.
@@ -524,7 +524,7 @@ impl Executor {
 
 ### Hierarchical Role Resolution
 
-**New module:** `crates/fraiseql-core/src/security/rbac.rs`
+**New module:** `crates/FraiseQL-core/src/security/rbac.rs`
 
 ```rust
 /// RBAC permission resolver with caching.
@@ -669,7 +669,7 @@ impl AuthMask {
 
 ### Database Event Listener
 
-**New module:** `crates/fraiseql-core/src/subscriptions/mod.rs`
+**New module:** `crates/FraiseQL-core/src/subscriptions/mod.rs`
 
 ```rust
 /// Subscription event stream.
@@ -843,7 +843,7 @@ impl Executor {
 
 ### Metrics Integration
 
-**New module:** `crates/fraiseql-core/src/observability/metrics.rs`
+**New module:** `crates/FraiseQL-core/src/observability/metrics.rs`
 
 ```rust
 /// Metrics collector trait (pluggable backends).

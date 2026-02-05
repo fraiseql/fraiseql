@@ -160,7 +160,7 @@ Simple auth only?
 # 1. Create Google Cloud Project
 # 2. Enable Google+ API
 # 3. Create OAuth credentials
-# 4. Copy to fraiseql.toml
+# 4. Copy to FraiseQL.toml
 GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxxxx
 ```text
@@ -252,7 +252,7 @@ docker run -d \
 # 3. Configure FraiseQL
 KEYCLOAK_URL=http://keycloak:8080
 KEYCLOAK_REALM=production
-KEYCLOAK_CLIENT_ID=fraiseql
+KEYCLOAK_CLIENT_ID=FraiseQL
 ```text
 
 **Time to production:** 4-8 hours (includes setup)
@@ -288,7 +288,7 @@ KEYCLOAK_CLIENT_ID=fraiseql
 **Setup Example:**
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [auth]
 enabled = true
 scheme = "scram"
@@ -395,7 +395,7 @@ database_url = "postgresql://..."
 
 ```bash
 # 1. Create Auth0 account and application
-# 2. Update fraiseql.toml with Auth0 credentials
+# 2. Update FraiseQL.toml with Auth0 credentials
 # 3. Deploy update
 # 4. Test: Existing sessions from Google remain valid
 

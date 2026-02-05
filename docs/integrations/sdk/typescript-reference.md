@@ -8,13 +8,13 @@ Complete API reference for the FraiseQL TypeScript SDK. Provides decorators and 
 
 ```bash
 # npm
-npm install fraiseql
+npm install FraiseQL
 
 # yarn
-yarn add fraiseql
+yarn add FraiseQL
 
 # pnpm
-pnpm add fraiseql
+pnpm add FraiseQL
 ```
 
 **Requirements:**
@@ -39,27 +39,27 @@ pnpm add fraiseql
 
 | Feature | Method | Purpose |
 |---------|--------|---------|
-| **Types** | `@fraiseql.type()` | Define GraphQL type |
-| **Queries** | `@fraiseql.query()` | Read operations (SELECT) |
-| **Mutations** | `@fraiseql.mutation()` | Write operations (CREATE/UPDATE/DELETE) |
-| **Subscriptions** | `@fraiseql.Subscription()` | Real-time events |
-| **Fact Tables** | `@fraiseql.FactTable()` | Analytics tables with measures/dimensions |
-| **Aggregates** | `@fraiseql.AggregateQuery()` | GROUP BY aggregations |
-| **Enums** | `fraiseql.enum_()` | GraphQL enum type |
-| **Interfaces** | `fraiseql.interface_()` | Shared field contracts |
-| **Unions** | `fraiseql.union()` | Polymorphic return types |
-| **Input Types** | `fraiseql.input()` | Structured parameters |
+| **Types** | `@FraiseQL.type()` | Define GraphQL type |
+| **Queries** | `@FraiseQL.query()` | Read operations (SELECT) |
+| **Mutations** | `@FraiseQL.mutation()` | Write operations (CREATE/UPDATE/DELETE) |
+| **Subscriptions** | `@FraiseQL.Subscription()` | Real-time events |
+| **Fact Tables** | `@FraiseQL.FactTable()` | Analytics tables with measures/dimensions |
+| **Aggregates** | `@FraiseQL.AggregateQuery()` | GROUP BY aggregations |
+| **Enums** | `FraiseQL.enum_()` | GraphQL enum type |
+| **Interfaces** | `FraiseQL.interface_()` | Shared field contracts |
+| **Unions** | `FraiseQL.union()` | Polymorphic return types |
+| **Input Types** | `FraiseQL.input()` | Structured parameters |
 | **Field Metadata** | `requiresScope`, `deprecated` | Field-level features |
-| **Schema Export** | `fraiseql.exportSchema()` | Generate schema.json |
+| **Schema Export** | `FraiseQL.exportSchema()` | Generate schema.json |
 
 ## Type System
 
 ### Basic Type Definition
 
 ```typescript
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   id!: number;
   name!: string;
@@ -68,7 +68,7 @@ class User {
 }
 
 // Register field metadata (required—TypeScript doesn't preserve runtime type info)
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'name', type: 'String', nullable: false },
   { name: 'email', type: 'Email', nullable: false },
@@ -97,13 +97,13 @@ fraiseql.registerTypeFields('User', [
 { name: 'scores', type: 'Float', nullable: true, isList: true }     // [Float]
 
 // Nested types
-@fraiseql.type()
+@FraiseQL.type()
 class Post {
   id!: number;
   author!: User;
 }
 
-fraiseql.registerTypeFields('Post', [
+FraiseQL.registerTypeFields('Post', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'author', type: 'User', nullable: false },  // References User type
 ]);
@@ -112,7 +112,7 @@ fraiseql.registerTypeFields('Post', [
 ### Enum Types
 
 ```typescript
-const OrderStatus = fraiseql.enum_('OrderStatus', {
+const OrderStatus = FraiseQL.enum_('OrderStatus', {
   PENDING: 'pending',
   PROCESSING: 'processing',
   SHIPPED: 'shipped',
@@ -123,7 +123,7 @@ const OrderStatus = fraiseql.enum_('OrderStatus', {
 });
 
 // Use in type
-fraiseql.registerTypeFields('Order', [
+FraiseQL.registerTypeFields('Order', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'status', type: 'OrderStatus', nullable: false },
 ]);
@@ -132,7 +132,7 @@ fraiseql.registerTypeFields('Order', [
 ### Interface Types
 
 ```typescript
-const Node = fraiseql.interface_('Node', [
+const Node = FraiseQL.interface_('Node', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'createdAt', type: 'DateTime', nullable: false },
 ], {
@@ -140,7 +140,7 @@ const Node = fraiseql.interface_('Node', [
 });
 
 // Implement interface in types
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'createdAt', type: 'DateTime', nullable: false },
   { name: 'name', type: 'String', nullable: false },
@@ -150,12 +150,12 @@ fraiseql.registerTypeFields('User', [
 ### Union Types
 
 ```typescript
-const SearchResult = fraiseql.union('SearchResult',
+const SearchResult = FraiseQL.union('SearchResult',
   ['User', 'Post', 'Comment'],
   { description: 'Result of a search query' }
 );
 
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   'search',
   'SearchResult',      // Returns union
   true,                // Is list
@@ -168,7 +168,7 @@ fraiseql.registerQuery(
 ### Input Types
 
 ```typescript
-const CreateUserInput = fraiseql.input('CreateUserInput', [
+const CreateUserInput = FraiseQL.input('CreateUserInput', [
   { name: 'email', type: 'Email', nullable: false },
   { name: 'name', type: 'String', nullable: false },
   { name: 'role', type: 'String', nullable: false, default: 'user' },
@@ -176,7 +176,7 @@ const CreateUserInput = fraiseql.input('CreateUserInput', [
   description: 'Input for creating a new user'
 });
 
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   'createUser',
   'User',
   false,                                        // Single item
@@ -193,7 +193,7 @@ fraiseql.registerMutation(
 Queries are read-only operations that map to SQL SELECT or views.
 
 ```typescript
-@fraiseql.query({ sqlSource: 'v_users' })
+@FraiseQL.query({ sqlSource: 'v_users' })
 function users(
   limit: number = 10,
   offset: number = 0,
@@ -203,7 +203,7 @@ function users(
 }
 
 // Manual registration with full control
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   'users',
   'User',
   true,                // Returns list
@@ -223,12 +223,12 @@ fraiseql.registerQuery(
 Mutations are write operations that map to SQL functions.
 
 ```typescript
-@fraiseql.mutation({ sqlSource: 'fn_create_user', operation: 'CREATE' })
+@FraiseQL.mutation({ sqlSource: 'fn_create_user', operation: 'CREATE' })
 function createUser(email: string, name: string): User {
   throw new Error('Not executed');
 }
 
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   'createUser',
   'User',
   false,               // Single item
@@ -242,7 +242,7 @@ fraiseql.registerMutation(
 );
 
 // UPDATE operation
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   'updateUser',
   'User',
   false,
@@ -257,7 +257,7 @@ fraiseql.registerMutation(
 );
 
 // DELETE operation
-fraiseql.registerMutation(
+FraiseQL.registerMutation(
   'deleteUser',
   'Boolean',
   false,
@@ -273,7 +273,7 @@ fraiseql.registerMutation(
 Real-time subscriptions for database events (LISTEN/NOTIFY or CDC).
 
 ```typescript
-fraiseql.registerSubscription(
+FraiseQL.registerSubscription(
   'userCreated',
   'User',
   false,                    // Single item
@@ -284,7 +284,7 @@ fraiseql.registerSubscription(
 );
 
 // With filtering
-fraiseql.registerSubscription(
+FraiseQL.registerSubscription(
   'customerOrders',
   'Order',
   false,
@@ -297,7 +297,7 @@ fraiseql.registerSubscription(
 );
 
 // Change Data Capture (all changes)
-fraiseql.registerSubscription(
+FraiseQL.registerSubscription(
   'userChanges',
   'User',
   false,
@@ -313,7 +313,7 @@ fraiseql.registerSubscription(
 ### Fact Tables for Analytics
 
 ```typescript
-@fraiseql.FactTable({
+@FraiseQL.FactTable({
   tableName: 'tf_sales',
   measures: ['revenue', 'quantity', 'cost'],
   dimensionPaths: [
@@ -322,7 +322,7 @@ fraiseql.registerSubscription(
     { name: 'saleDate', json_path: "data->>'date'", data_type: 'date' },
   ],
 })
-@fraiseql.type()
+@FraiseQL.type()
 class Sale {
   id!: number;
   revenue!: number;
@@ -331,7 +331,7 @@ class Sale {
   customerId!: number;
 }
 
-fraiseql.registerTypeFields('Sale', [
+FraiseQL.registerTypeFields('Sale', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'revenue', type: 'Decimal', nullable: false },
   { name: 'quantity', type: 'Int', nullable: false },
@@ -343,7 +343,7 @@ fraiseql.registerTypeFields('Sale', [
 ### Aggregate Queries
 
 ```typescript
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   'salesSummary',
   'Record<string, unknown>',
   true,                    // Returns list (aggregation rows)
@@ -365,7 +365,7 @@ fraiseql.registerQuery(
 ### Field-Level Security
 
 ```typescript
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'email', type: 'String', nullable: false },
   {
@@ -388,7 +388,7 @@ fraiseql.registerTypeFields('User', [
 ### Field Deprecation
 
 ```typescript
-fraiseql.registerTypeFields('Product', [
+FraiseQL.registerTypeFields('Product', [
   { name: 'id', type: 'ID', nullable: false },
   { name: 'name', type: 'String', nullable: false },
   {
@@ -405,7 +405,7 @@ fraiseql.registerTypeFields('Product', [
 ### Observers and Webhooks
 
 ```typescript
-fraiseql.registerObserver(
+FraiseQL.registerObserver(
   'onOrderCreated',
   'Order',
   ['CREATE'],
@@ -453,7 +453,7 @@ See [Scalars Reference](../../reference/scalars.md) for the complete 60+ type li
 ```typescript
 // At end of schema definition file
 if (require.main === module) {
-  fraiseql.exportSchema('schema.json', { pretty: true });
+  FraiseQL.exportSchema('schema.json', { pretty: true });
   console.log('Schema exported to schema.json');
 }
 ```
@@ -461,7 +461,7 @@ if (require.main === module) {
 ### Get Schema as Object
 
 ```typescript
-const schema = fraiseql.getSchemaDict();
+const schema = FraiseQL.getSchemaDict();
 console.log(schema.types);
 console.log(schema.queries);
 console.log(schema.mutations);
@@ -470,7 +470,7 @@ console.log(schema.mutations);
 ### Export to String
 
 ```typescript
-const json = fraiseql.exportSchemaToString({ pretty: true });
+const json = FraiseQL.exportSchemaToString({ pretty: true });
 console.log(json);
 ```
 
@@ -524,21 +524,21 @@ TypeScript to GraphQL type conversion:
 
 ```typescript
 // Create
-fraiseql.registerMutation('createUser', 'User', false, false,
+FraiseQL.registerMutation('createUser', 'User', false, false,
   [{ name: 'email', type: 'Email', nullable: false }],
   'Create user',
   { sql_source: 'fn_create_user', operation: 'CREATE' }
 );
 
 // Read (single)
-fraiseql.registerQuery('user', 'User', false, true,
+FraiseQL.registerQuery('user', 'User', false, true,
   [{ name: 'id', type: 'ID', nullable: false }],
   'Get user by ID',
   { sql_source: 'fn_get_user' }
 );
 
 // Update
-fraiseql.registerMutation('updateUser', 'User', false, true,
+FraiseQL.registerMutation('updateUser', 'User', false, true,
   [
     { name: 'id', type: 'ID', nullable: false },
     { name: 'email', type: 'Email', nullable: true },
@@ -548,7 +548,7 @@ fraiseql.registerMutation('updateUser', 'User', false, true,
 );
 
 // Delete
-fraiseql.registerMutation('deleteUser', 'Boolean', false, false,
+FraiseQL.registerMutation('deleteUser', 'Boolean', false, false,
   [{ name: 'id', type: 'ID', nullable: false }],
   'Delete user',
   { sql_source: 'fn_delete_user', operation: 'DELETE' }
@@ -558,7 +558,7 @@ fraiseql.registerMutation('deleteUser', 'Boolean', false, false,
 ### Pagination
 
 ```typescript
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   'users',
   'User',
   true,          // List
@@ -577,7 +577,7 @@ fraiseql.registerQuery(
 ### Filtering
 
 ```typescript
-fraiseql.registerQuery(
+FraiseQL.registerQuery(
   'usersByStatus',
   'User',
   true,
@@ -627,36 +627,36 @@ FraiseQL uses typed errors:
 ### Jest/Vitest Test Patterns
 
 ```typescript
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 import { describe, it, expect } from 'vitest';
 
 describe('Schema Definition', () => {
   it('should register User type', () => {
-    fraiseql.registerTypeFields('User', [
+    FraiseQL.registerTypeFields('User', [
       { name: 'id', type: 'ID', nullable: false },
       { name: 'email', type: 'Email', nullable: false },
     ]);
 
-    const schema = fraiseql.getSchemaDict();
+    const schema = FraiseQL.getSchemaDict();
     expect(schema.types).toContainEqual(
       expect.objectContaining({ name: 'User' })
     );
   });
 
   it('should register users query', () => {
-    fraiseql.registerQuery(
+    FraiseQL.registerQuery(
       'users', 'User', true, false, [],
       'Get users'
     );
 
-    const schema = fraiseql.getSchemaDict();
+    const schema = FraiseQL.getSchemaDict();
     expect(schema.queries).toContainEqual(
       expect.objectContaining({ name: 'users', returnType: 'User' })
     );
   });
 
   it('should validate schema exports to JSON', () => {
-    const json = fraiseql.exportSchemaToString();
+    const json = FraiseQL.exportSchemaToString();
     const parsed = JSON.parse(json);
     expect(parsed.types).toBeDefined();
     expect(parsed.queries).toBeDefined();
@@ -670,23 +670,23 @@ describe('Schema Definition', () => {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 
 @Injectable()
 export class FraiseQLService {
   registerSchema() {
-    fraiseql.registerTypeFields('User', [
+    FraiseQL.registerTypeFields('User', [
       { name: 'id', type: 'ID', nullable: false },
     ]);
 
-    fraiseql.registerQuery(
+    FraiseQL.registerQuery(
       'users', 'User', true, false, [],
       'Get all users'
     );
   }
 
   exportSchema(path: string) {
-    fraiseql.exportSchema(path);
+    FraiseQL.exportSchema(path);
   }
 }
 ```
@@ -695,18 +695,18 @@ export class FraiseQLService {
 
 ```typescript
 import express from 'express';
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 
 const app = express();
 
 // Define schema
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
 ]);
 
 // Export endpoint
 app.get('/schema.json', (req, res) => {
-  const json = fraiseql.exportSchemaToString();
+  const json = FraiseQL.exportSchemaToString();
   res.json(JSON.parse(json));
 });
 
@@ -719,7 +719,7 @@ app.listen(3000);
 
 #### Installation Problems
 
-**Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/fraiseql`
+**Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/FraiseQL`
 
 **Solutions**:
 
@@ -731,11 +731,11 @@ npm --version
 npm cache clean --force
 
 # Try installing with specific version
-npm install fraiseql@2.0.0
+npm install FraiseQL@2.0.0
 
 # Use yarn or pnpm instead
-yarn add fraiseql
-pnpm add fraiseql
+yarn add FraiseQL
+pnpm add FraiseQL
 ```
 
 **Private registry**:
@@ -743,12 +743,12 @@ pnpm add fraiseql
 ```bash
 # If using private npm registry
 npm config set registry https://your-registry.com
-npm install fraiseql
+npm install FraiseQL
 ```
 
 #### Module Resolution Issues
 
-**Issue**: `Cannot find module 'fraiseql'`
+**Issue**: `Cannot find module 'FraiseQL'`
 
 **Solution - Check tsconfig.json**:
 
@@ -829,20 +829,20 @@ npm install -D typescript@5.0.0
 
 ```typescript
 // ❌ Wrong - inconsistent type registration
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   email!: string;
 }
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'email', type: 'Email', nullable: false }  // Mismatch!
 ]);
 
 // ✅ Correct - consistent types
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   email!: string;  // Store as string, but declare as Email type
 }
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'email', type: 'Email', nullable: false }
 ]);
 ```
@@ -855,20 +855,20 @@ fraiseql.registerTypeFields('User', [
 
 ```typescript
 // ❌ Wrong - optional but should be explicit
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   name!: string;
 }
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'name', type: 'String', nullable: true }  // Should be nullable!
 ]);
 
 // ✅ Correct
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   name?: string;  // Mark as optional in TypeScript
 }
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'name', type: 'String', nullable: true }
 ]);
 ```
@@ -889,13 +889,13 @@ class Paginated<T> {
 }
 
 // ✅ Use concrete types instead
-@fraiseql.type()
+@FraiseQL.type()
 class UserPage {
   items!: User[];
   total!: number;
 }
 
-fraiseql.registerTypeFields('UserPage', [
+FraiseQL.registerTypeFields('UserPage', [
   { name: 'items', type: 'User', nullable: false, isList: true },
   { name: 'total', type: 'Int', nullable: false },
 ]);
@@ -911,18 +911,18 @@ fraiseql.registerTypeFields('UserPage', [
 
 ```typescript
 // Define type
-@fraiseql.type()
+@FraiseQL.type()
 class User {
   id!: number;
 }
 
 // Register it (this is required in TypeScript!)
-fraiseql.registerTypeFields('User', [
+FraiseQL.registerTypeFields('User', [
   { name: 'id', type: 'ID', nullable: false },
 ]);
 
 // ✅ Now use it
-@fraiseql.query('getUser')
+@FraiseQL.query('getUser')
 function getUser(): User {
   return { id: 1 };
 }
@@ -1024,7 +1024,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 
 ```typescript
 // Add pagination to large datasets
-@fraiseql.query('getUsersPaginated')
+@FraiseQL.query('getUsersPaginated')
 function getUsersPaginated(limit: number = 20, offset: number = 0): User[] {
   return [];
 }
@@ -1096,7 +1096,7 @@ Or for ESM:
 ```typescript
 // In build config (webpack, esbuild, etc.)
 // Enable side-effect-free imports
-import { type } from 'fraiseql';  // Only import what you need
+import { type } from 'FraiseQL';  // Only import what you need
 ```
 
 **Use esbuild for faster builds**:
@@ -1129,7 +1129,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 **Setup logging**:
 
 ```typescript
-import * as fraiseql from 'fraiseql';
+import * as FraiseQL from 'FraiseQL';
 
 // Enable debug mode
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
@@ -1139,7 +1139,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 
 // Or via environment
 process.env.FRAISEQL_DEBUG = 'true';
-process.env.RUST_LOG = 'fraiseql=debug';
+process.env.RUST_LOG = 'FraiseQL=debug';
 ```
 
 #### Use TypeScript Compiler Options
@@ -1167,14 +1167,14 @@ node --inspect-brk dist/index.js
 **Print generated types**:
 
 ```typescript
-const schema = await fraiseql.loadCompiledSchema('schema.compiled.json');
+const schema = await FraiseQL.loadCompiledSchema('schema.compiled.json');
 console.log(JSON.stringify(schema.types, null, 2));
 ```
 
 **Validate schema**:
 
 ```typescript
-const schema = await fraiseql.validateSchema(schemaJson);
+const schema = await FraiseQL.validateSchema(schemaJson);
 if (!schema.valid) {
   console.error('Schema errors:', schema.errors);
 }
@@ -1207,7 +1207,7 @@ Provide when reporting issues:
 
 1. Node.js version: `node --version`
 2. TypeScript version: `npx tsc --version`
-3. FraiseQL version: `npm list fraiseql`
+3. FraiseQL version: `npm list FraiseQL`
 4. tsconfig.json settings
 5. Minimal reproducible example
 6. Full error traceback
@@ -1233,7 +1233,7 @@ Provide when reporting issues:
 #### Community Channels
 
 - **GitHub Discussions**: Ask questions
-- **Stack Overflow**: Tag with `fraiseql` and `typescript`
+- **Stack Overflow**: Tag with `FraiseQL` and `typescript`
 - **Discord**: Real-time chat with maintainers
 
 #### Performance Profiling
@@ -1261,7 +1261,7 @@ clinic doctor -- node dist/index.js
 - [Security & RBAC Guide](../../guides/security-and-rbac.md)
 - [Analytics & OLAP Guide](../../guides/analytics-olap.md)
 - [Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md)
-- [TypeScript SDK GitHub](https://github.com/fraiseql/fraiseql-typescript)
+- [TypeScript SDK GitHub](https://github.com/FraiseQL/FraiseQL-typescript)
 
 ---
 

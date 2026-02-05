@@ -249,7 +249,7 @@ filter {
 output {
   elasticsearch {
     hosts => ["localhost:9200"]
-    index => "fraiseql-%{+YYYY.MM.dd}"
+    index => "FraiseQL-%{+YYYY.MM.dd}"
   }
 }
 ```
@@ -270,7 +270,7 @@ Configure tracing to send structured logs:
 
 ```rust
 // Using datadog-statsd crate
-let statsd = statsd::Client::new("127.0.0.1:8125", "fraiseql")
+let statsd = statsd::Client::new("127.0.0.1:8125", "FraiseQL")
     .expect("Failed to create statsd client");
 
 // Logs are automatically picked up by DataDog agent
@@ -285,7 +285,7 @@ Send JSON logs to CloudWatch:
 let logs_client = CloudWatchLogsClient::new(Region::UsEast1);
 
 let put_log_events_request = PutLogEventsRequest {
-    log_group_name: "/aws/fraiseql/server".to_string(),
+    log_group_name: "/aws/FraiseQL/server".to_string(),
     log_stream_name: "main".to_string(),
     log_events: vec![
         InputLogEvent {
@@ -374,10 +374,10 @@ All logging components are fully tested:
 
 ```bash
 # Run logging tests
-cargo test -p fraiseql-server --lib logging
+cargo test -p FraiseQL-server --lib logging
 
 # Run middleware tests
-cargo test -p fraiseql-server --lib middleware::logging
+cargo test -p FraiseQL-server --lib middleware::logging
 ```
 
 ## Future Enhancements

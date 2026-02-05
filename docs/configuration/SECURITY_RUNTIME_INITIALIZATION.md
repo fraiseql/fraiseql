@@ -8,9 +8,9 @@ Security configuration flows through the system in three stages:
 
 ```text
 ┌──────────────────┐
-│ fraiseql.toml    │  Developer specifies configuration
+│ FraiseQL.toml    │  Developer specifies configuration
 └────────┬─────────┘
-         │ (fraiseql-cli compile)
+         │ (FraiseQL-cli compile)
          ↓
 ┌──────────────────────────┐
 │ schema.compiled.json     │  Config embedded in schema
@@ -39,9 +39,9 @@ When the FraiseQL server starts, it performs the following steps:
 
 ### Code Location
 
-- `crates/fraiseql-server/src/auth/security_init.rs` - Initialization functions
-- `crates/fraiseql-server/src/auth/security_config.rs` - Configuration parsing
-- `crates/fraiseql-server/src/main.rs` - Integration into server startup
+- `crates/FraiseQL-server/src/auth/security_init.rs` - Initialization functions
+- `crates/FraiseQL-server/src/auth/security_config.rs` - Configuration parsing
+- `crates/FraiseQL-server/src/main.rs` - Integration into server startup
 
 ### Example Flow in main.rs
 
@@ -89,7 +89,7 @@ STATE_ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # Override encryption key
 ```bash
 # Start server with custom rate limiting
 RATE_LIMIT_FAILED_LOGIN=1 RATE_LIMIT_AUTH_START=50 \
-  fraiseql-server --schema schema.compiled.json
+  FraiseQL-server --schema schema.compiled.json
 ```text
 
 ## Configuration Validation
@@ -205,7 +205,7 @@ let state_encryption = StateEncryption::new(&encryption_key)?;
 
 Comprehensive tests verify the security configuration flow:
 
-### Unit Tests (`crates/fraiseql-server/src/auth/security_init.rs`)
+### Unit Tests (`crates/FraiseQL-server/src/auth/security_init.rs`)
 
 - `test_init_default_security_config()` - Verify default values
 - `test_validate_security_config_success()` - Valid configuration passes
@@ -214,7 +214,7 @@ Comprehensive tests verify the security configuration flow:
 - `test_init_security_config_from_string()` - Parse from string
 - `test_init_security_config_missing_section()` - Missing security section handled
 
-### Integration Tests (`crates/fraiseql-server/tests/security_config_runtime_test.rs`)
+### Integration Tests (`crates/FraiseQL-server/tests/security_config_runtime_test.rs`)
 
 - `test_security_config_parsing_from_schema()` - Full schema parsing
 - `test_security_config_initialization_with_defaults()` - Custom + default values

@@ -62,8 +62,8 @@ Does your problem involve...
 
 **Application crashes during startup:**
 
-- Check schema compilation: `fraiseql compile schema.json`
-- Verify TOML syntax: `fraiseql validate config.toml`
+- Check schema compilation: `FraiseQL compile schema.json`
+- Verify TOML syntax: `FraiseQL validate config.toml`
 - Check environment variables: `env | grep FRAISEQL`
 - → **Full guide:** [Production Deployment](./production-deployment.md)
 
@@ -92,7 +92,7 @@ Is the error about...
 a) "Field X doesn't exist"?
    - Check schema is compiled: `schema.compiled.json` exists
    - Verify field name in schema definition
-   - Regenerate schema: `fraiseql compile`
+   - Regenerate schema: `FraiseQL compile`
    → [Troubleshooting Guide: Schema Errors](../TROUBLESHOOTING.md#schema-errors)
 
 b) "Unauthorized" or "Permission denied"?
@@ -222,7 +222,7 @@ e) Something else?
 
 **Row-level data hidden or unauthorized:**
 
-- Verify row-level security filter in schema: `where: Where... = fraiseql.where(...)`
+- Verify row-level security filter in schema: `where: Where... = FraiseQL.where(...)`
 - Check tenant/org filtering is working
 - Verify context values passed: `x-tenant-id` header set?
 - → [RBAC Guide](../enterprise/rbac.md)
@@ -318,7 +318,7 @@ e) Something else?
 
 **Configuration not taking effect:**
 
-- Check TOML syntax: `fraiseql validate config.toml`
+- Check TOML syntax: `FraiseQL validate config.toml`
 - Verify environment variables override: Variables take precedence
 - Check file permissions: Can FraiseQL read config file?
 - Restart server after config change
@@ -396,7 +396,7 @@ To find your error:
 **If you can't find your problem:**
 
 1. **Check if you have an error code:**
-   - Search: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
+   - Search: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
    - Refer to: [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 2. **Review comprehensive guides:**
@@ -405,7 +405,7 @@ To find your error:
    - **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Performance optimization
 
 3. **Get help:**
-   - **Open a GitHub Issue:** [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
+   - **Open a GitHub Issue:** [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
    - **Include:** Error code, steps to reproduce, environment details (database, language, OS)
    - **Tag:** `troubleshooting` label for visibility
 

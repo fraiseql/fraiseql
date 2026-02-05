@@ -342,7 +342,7 @@ authentication:
 
 ```typescript
 // WunderGraph: Compose multiple GraphQL APIs
-import { introspectAndCompose } from '@wundergraph/sdk';
+import { introspectAndCompose } from '@wundergraph/SDK';
 
 export default {
   apis: [

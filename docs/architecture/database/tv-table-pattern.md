@@ -361,14 +361,14 @@ In your authoring layer (Python/TypeScript), bind the `User` type to use `tv_use
 
 ```python
 # Before: Uses v_user (logical view)
-@fraiseql.type()
+@FraiseQL.type()
 class User:
     id: str
     name: str
     posts: list[Post]
 
 # After: Uses tv_user_profile (table-backed view)
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class User:
     id: str
     name: str
@@ -491,7 +491,7 @@ SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_use
 
 ## Examples
 
-See `/home/lionel/code/fraiseql/examples/sql/postgres/` for complete DDL examples:
+See `/home/lionel/code/FraiseQL/examples/sql/postgres/` for complete DDL examples:
 
 - `tv_user_profile.sql` - User profile with nested posts and comments
 - `tv_order_summary.sql` - Order with line items and customer details

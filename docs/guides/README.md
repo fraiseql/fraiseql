@@ -13,7 +13,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 
 **Before you start building:**
 
-- **[Choosing FraiseQL](choosing-fraiseql.md)** — Is FraiseQL right for your project? Use case analysis and decision matrix
+- **[Choosing FraiseQL](choosing-FraiseQL.md)** — Is FraiseQL right for your project? Use case analysis and decision matrix
 - **[Consistency Model](consistency-model.md)** — Understand FraiseQL's CAP theorem choice (CP: Consistency + Partition Tolerance)
 
 ## 🛠️ Development Guides
@@ -66,7 +66,7 @@ See [Integrations Guide](../integrations/) for:
 
 **I want to...**
 
-- **Evaluate if FraiseQL is right for me** → [Choosing FraiseQL](choosing-fraiseql.md)
+- **Evaluate if FraiseQL is right for me** → [Choosing FraiseQL](choosing-FraiseQL.md)
 - **Understand consistency guarantees** → [Consistency Model](consistency-model.md)
 - **Get started quickly** → [Language Generators](language-generators.md)
 - **Design a schema** → [Patterns](PATTERNS.md)

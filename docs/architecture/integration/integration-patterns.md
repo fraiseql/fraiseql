@@ -44,19 +44,19 @@ HTTP `_entities` calls for federation
 
 ```python
 # Users subgraph
-@fraiseql.type
-@fraiseql.key(fields=["id"])
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])
 class User:
     id: ID!
     name: str
     email: str
 
 # Orders subgraph (extended type)
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID! = fraiseql.external()
-    orders: [Order] = fraiseql.requires(fields=["id"])
+    id: ID! = FraiseQL.external()
+    orders: [Order] = FraiseQL.requires(fields=["id"])
 ```text
 
 **Latency characteristics:**
@@ -165,17 +165,17 @@ else:
 **Example:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
     id: ID!
     name: str
 
     # This comes from Orders subgraph (FraiseQL, same DB)
-    @fraiseql.requires(fields=["id"])
+    @FraiseQL.requires(fields=["id"])
     orders: [Order]  # Will use FDW (fast)
 
     # This comes from Inventory subgraph (Apollo Server)
-    @fraiseql.requires(fields=["id"])
+    @FraiseQL.requires(fields=["id"])
     inventory: Inventory  # Will use HTTP (standard)
 ```text
 
@@ -210,7 +210,7 @@ FraiseQL marks delivered
 Configure webhooks:
 
 ```python
-@fraiseql.webhook(
+@FraiseQL.webhook(
     name="order_created_webhook",
     url="https://external.com/webhooks/order_created",
     events=["order_created"],
@@ -221,7 +221,7 @@ def on_order_created(event):
     pass
 
 # Register webhook
-fraiseql.webhooks.register(
+FraiseQL.webhooks.register(
     event_type="order_created",
     webhook_url="https://external.com/webhooks/order_created",
     secret="webhook_secret_key_123"
@@ -343,8 +343,8 @@ recipient_side_dedup:
 Publish events to Kafka topics:
 
 ```python
-@fraiseql.kafka_publisher(
-    topic="fraiseql.events",
+@FraiseQL.kafka_publisher(
+    topic="FraiseQL.events",
     broker="kafka://broker1:9092,broker2:9092"
 )
 async def publish_to_kafka(event):
@@ -352,11 +352,11 @@ async def publish_to_kafka(event):
     pass
 
 # Configuration
-fraiseql.messaging.configure({
+FraiseQL.messaging.configure({
     "kafka": {
         "enabled": True,
         "brokers": ["kafka1:9092", "kafka2:9092"],
-        "topic": "fraiseql.events",
+        "topic": "FraiseQL.events",
         "compression": "snappy"
     }
 })
@@ -369,7 +369,7 @@ fraiseql.messaging.configure({
   "event_id": "evt-abc123",
   "event_type": "order_created",
   "timestamp": "2026-01-15T10:30:45Z",
-  "source": "fraiseql",
+  "source": "FraiseQL",
   "version": "2.0.0",
   "data": {
     "order_id": "order-789",
@@ -383,20 +383,20 @@ fraiseql.messaging.configure({
 Publish events to RabbitMQ exchanges:
 
 ```python
-@fraiseql.rabbitmq_publisher(
-    exchange="fraiseql.events",
-    routing_key="fraiseql.{event_type}"
+@FraiseQL.rabbitmq_publisher(
+    exchange="FraiseQL.events",
+    routing_key="FraiseQL.{event_type}"
 )
 async def publish_to_rabbitmq(event):
     """Publish FraiseQL events to RabbitMQ"""
     pass
 
 # Configuration
-fraiseql.messaging.configure({
+FraiseQL.messaging.configure({
     "rabbitmq": {
         "enabled": True,
         "url": "amqp://user:pass@localhost:5672/",
-        "exchange": "fraiseql.events",
+        "exchange": "FraiseQL.events",
         "exchange_type": "topic",
         "durable": True
     }
@@ -408,7 +408,7 @@ fraiseql.messaging.configure({
 Multiple consumers process events:
 
 ```text
-Kafka topic: fraiseql.events
+Kafka topic: FraiseQL.events
 ├─ Consumer Group 1 (notifications)
 │  ├─ Consumer 1A: Partition 0
 │  ├─ Consumer 1B: Partition 1
@@ -439,8 +439,8 @@ Option 1: Topic-level (global order)
   └─ Performance: Limited by single partition
 
 Option 2: Event-type topics (per-entity order)
-  ├─ fraiseql.events.orders
-  ├─ fraiseql.events.users
+  ├─ FraiseQL.events.orders
+  ├─ FraiseQL.events.users
   ├─ Each topic ordered within type
   ├─ Different types may interleave
   └─ Performance: Parallelized

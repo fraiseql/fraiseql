@@ -83,7 +83,7 @@ Database Change (INSERT/UPDATE/DELETE)
 ### Python
 
 ```python
-from fraiseql import ObserverBuilder, Webhook, SlackAction, EmailAction
+from FraiseQL import ObserverBuilder, Webhook, SlackAction, EmailAction
 
 # Observer 1: High-value orders → Webhook + Slack
 ObserverBuilder.create('onHighValueOrder')
@@ -121,7 +121,7 @@ ObserverBuilder.create('onPaymentFailure')
 ### TypeScript
 
 ```typescript
-import { ObserverBuilder, Webhook, SlackAction, EmailAction } from '@fraiseql/core';
+import { ObserverBuilder, Webhook, SlackAction, EmailAction } from '@FraiseQL/core';
 
 // Observer 1: High-value orders
 ObserverBuilder.create('onHighValueOrder')
@@ -149,7 +149,7 @@ ObserverBuilder.create('onOrderShipped')
 ### Go
 
 ```go
-import "github.com/fraiseql/fraiseql-go/observers"
+import "github.com/FraiseQL/FraiseQL-go/observers"
 
 // Observer 1: High-value orders
 observers.NewBuilder("onHighValueOrder").
@@ -177,7 +177,7 @@ observers.NewBuilder("onOrderShipped").
 ### Java
 
 ```java
-import com.fraiseql.observers.*;
+import com.FraiseQL.observers.*;
 
 // Observer 1: High-value orders
 ObserverBuilder.create("onHighValueOrder")
@@ -453,26 +453,26 @@ Observers are compiled into JSON schema:
 
 ```bash
 # Python
-pip install --upgrade fraiseql
+pip install --upgrade FraiseQL
 
 # TypeScript
-npm install @fraiseql/core@^2.0.0
+npm install @FraiseQL/core@^2.0.0
 
 # Go
-go get github.com/fraiseql/fraiseql-go@v2.0.0
+go get github.com/FraiseQL/FraiseQL-go@v2.0.0
 
 # Java
 # Update version in pom.xml or build.gradle
 
 # PHP
-composer require fraiseql/fraiseql:^2.0
+composer require FraiseQL/FraiseQL:^2.0
 ```text
 
 **Step 2**: Add observer definitions to your schema
 
 ```python
 # In your existing schema file (e.g., schema.py)
-from fraiseql import ObserverBuilder, Webhook
+from FraiseQL import ObserverBuilder, Webhook
 
 # Add after your type definitions
 ObserverBuilder.create('onOrderCreated')
@@ -485,14 +485,14 @@ ObserverBuilder.create('onOrderCreated')
 **Step 3**: Recompile schema
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 **Step 4**: Deploy updated schema
 
 ```bash
 # Development
-fraiseql-server --schema schema.compiled.json
+FraiseQL-server --schema schema.compiled.json
 
 # Production
 # Update deployed schema file and restart server
@@ -973,7 +973,7 @@ HAVING AVG(attempt_count) > 2;
 Webhook.create(..., body_template='{"id": "{{id}}"}')  # Not {{_json}}
 
 # 2. Limit batch size
-# In fraiseql-server config
+# In FraiseQL-server config
 observer_runtime:
   poll_interval_ms: 100
   batch_size: 10  # Default: 100
@@ -996,7 +996,7 @@ resources:
 Adjust based on latency requirements:
 
 ```toml
-# fraiseql-server config
+# FraiseQL-server config
 [observer_runtime]
 poll_interval_ms = 100  # Low latency (10 events/sec max per poll)
 poll_interval_ms = 1000  # Standard (default)
@@ -1122,4 +1122,4 @@ For more information on optimizing observer performance and security, see the Ar
 
 ---
 
-**Questions?** Open an issue on [GitHub](https://github.com/fraiseql/fraiseql/issues) or join our [Discord](https://discord.gg/fraiseql).
+**Questions?** Open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL/issues) or join our [Discord](https://discord.gg/FraiseQL).

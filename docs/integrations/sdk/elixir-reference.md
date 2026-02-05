@@ -10,7 +10,7 @@ Complete API reference for the FraiseQL Elixir SDK. This guide covers the Elixir
 ```bash
 # mix.exs
 def deps do
-  [{:fraiseql, "~> 2.0"}]
+  [{:FraiseQL, "~> 2.0"}]
 end
 ```
 
@@ -42,7 +42,7 @@ end
 FraiseQL.export_schema("schema.json")
 ```
 
-Deploy: `fraiseql-cli compile schema.json` → `fraiseql-server --schema schema.compiled.json`
+Deploy: `FraiseQL-cli compile schema.json` → `FraiseQL-server --schema schema.compiled.json`
 
 ---
 
@@ -368,30 +368,30 @@ defmodule MyApp.SchemaExporter do
   end
 end
 
-# Mix task: mix fraiseql.export
+# Mix task: mix FraiseQL.export
 defmodule Mix.Tasks.Fraiseql.Export do
   use Mix.Task
 
   @impl true
   def run(_args) do
-    Application.ensure_all_started(:fraiseql)
+    Application.ensure_all_started(:FraiseQL)
     MyApp.SchemaExporter.export!()
     Mix.shell().info("✓ Schema exported")
   end
 end
 ```
 
-### fraiseql.toml Configuration
+### FraiseQL.toml Configuration
 
 ```toml
-[fraiseql]
+[FraiseQL]
 version = "2.0.0"
 
-[fraiseql.database]
+[FraiseQL.database]
 primary = "postgres"
 url = "${DATABASE_URL}"
 
-[fraiseql.security]
+[FraiseQL.security]
 rate_limiting = { enabled = true, max_requests = 100 }
 audit_logging = { enabled = true, log_level = "info" }
 ```
@@ -683,7 +683,7 @@ end
 
 #### Mix Dependency Issues
 
-**Issue**: `could not find dependency fraiseql`
+**Issue**: `could not find dependency FraiseQL`
 
 **Solution**:
 
@@ -691,7 +691,7 @@ end
 # mix.exs
 def deps do
   [
-    {:fraiseql, "~> 2.0"},
+    {:FraiseQL, "~> 2.0"},
     {:httpoison, "~> 2.0"}
   ]
 end
@@ -699,7 +699,7 @@ end
 
 ```bash
 mix deps.get
-mix deps.update fraiseql
+mix deps.update FraiseQL
 ```
 
 #### Erlang Version Issues
@@ -858,7 +858,7 @@ end, max_concurrency: 10)
 
 ```elixir
 # config/config.exs
-config :fraiseql,
+config :FraiseQL,
   database_url: System.get_env("DATABASE_URL"),
   pool_size: 20,
   pool_overflow: 10

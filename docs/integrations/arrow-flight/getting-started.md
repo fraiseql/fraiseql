@@ -12,8 +12,8 @@ This tutorial gets you running Arrow Flight queries in **5 minutes**.
 
 ```bash
 # Clone the repository
-git clone https://github.com/fraiseql/fraiseql.git
-cd fraiseql
+git clone https://github.com/FraiseQL/FraiseQL.git
+cd FraiseQL
 
 # Start services: PostgreSQL, NATS, Redis, ClickHouse, Elasticsearch
 docker-compose up -d

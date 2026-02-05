@@ -304,10 +304,10 @@ Same database: User → FDW → same_db → User (5ms, 10x faster)
 **FraiseQL approach**: Explicit, mandatory authorization:
 
 ```python
-@fraiseql.type
-@fraiseql.authorize(rule="authenticated")  # Explicit required
+@FraiseQL.type
+@FraiseQL.authorize(rule="authenticated")  # Explicit required
 class Post:
-    @fraiseql.authorize(rule="published_or_author")  # Explicit per-field
+    @FraiseQL.authorize(rule="published_or_author")  # Explicit per-field
     content: str
 ```text
 
@@ -898,7 +898,7 @@ Compiled schema v2.0.0 matches runtime v2.0.0 ✓
 
 ```text
 User Schema (Python)
-    @fraiseql.type
+    @FraiseQL.type
     class User:
         id: ID
         posts: [Post]
@@ -979,13 +979,13 @@ Compiled Schema (executable)
 **FraiseQL approach**: Explicit in schema:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID
     title: str
 
     # Explicit: This field comes from Authors subgraph
-    @fraiseql.requires(fields=["author_id"])
+    @FraiseQL.requires(fields=["author_id"])
     author: Author  # External type
 
     # Explicit: This field is ours

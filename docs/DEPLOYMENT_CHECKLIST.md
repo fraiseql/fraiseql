@@ -35,8 +35,8 @@ Use this checklist for pre-deployment verification.
 ### 1. Image Preparation (2 hours before)
 
 - [ ] Build Docker image locally
-- [ ] Run security scan: `trivy image fraiseql:latest`
-- [ ] Generate SBOM: `./tools/generate-sbom.sh fraiseql:latest`
+- [ ] Run security scan: `trivy image FraiseQL:latest`
+- [ ] Generate SBOM: `./tools/generate-sbom.sh FraiseQL:latest`
 - [ ] Fix any HIGH/CRITICAL vulnerabilities
 - [ ] Push image to registry
 - [ ] Verify image pull from Kubernetes
@@ -58,7 +58,7 @@ Use this checklist for pre-deployment verification.
 pg_dump $DATABASE_URL > backup-$(date +%Y%m%d).sql
 
 # Run migrations
-fraiseql-cli migrate apply
+FraiseQL-cli migrate apply
 
 # Verify schema
 psql $DATABASE_URL -c "\d"
@@ -68,39 +68,39 @@ psql $DATABASE_URL -c "\d"
 
 ```bash
 # Apply hardened manifests
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 
 # Wait for rollout
-kubectl rollout status deployment/fraiseql --timeout=5m
+kubectl rollout status deployment/FraiseQL --timeout=5m
 
 # Verify pods running
-kubectl get pods -l app=fraiseql -o wide
+kubectl get pods -l app=FraiseQL -o wide
 ```
 
 #### Helm Deployment (Alternative)
 
 ```bash
 # Install/upgrade release
-helm upgrade --install fraiseql ./deploy/kubernetes/helm/fraiseql
+helm upgrade --install FraiseQL ./deploy/kubernetes/helm/FraiseQL
 
 # Check rollout
-helm status fraiseql
+helm status FraiseQL
 ```
 
 ### 4. Post-Deployment Verification (Immediately after)
 
-- [ ] Pods are running: `kubectl get pods -l app=fraiseql`
-- [ ] Service endpoints available: `kubectl get svc fraiseql`
-- [ ] Health check passing: `curl http://fraiseql/health`
+- [ ] Pods are running: `kubectl get pods -l app=FraiseQL`
+- [ ] Service endpoints available: `kubectl get svc FraiseQL`
+- [ ] Health check passing: `curl http://FraiseQL/health`
 - [ ] Metrics available: `curl http://prometheus:9090`
-- [ ] Logs clean: `kubectl logs -l app=fraiseql --tail=50`
+- [ ] Logs clean: `kubectl logs -l app=FraiseQL --tail=50`
 - [ ] Alert manager has no alerts
 
 ### 5. Smoke Tests (30 minutes after)
 
 ```bash
 # Test GraphQL endpoint
-curl -X POST http://fraiseql:8815/graphql \
+curl -X POST http://FraiseQL:8815/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ __schema { types { name } } }"}'
 
@@ -108,10 +108,10 @@ curl -X POST http://fraiseql:8815/graphql \
 # (make same query twice, verify cache hit)
 
 # Test rate limiting
-for i in {1..150}; do curl http://fraiseql:8815/health; done
+for i in {1..150}; do curl http://FraiseQL:8815/health; done
 
 # Verify audit logs
-kubectl logs deployment/fraiseql | grep -i "request"
+kubectl logs deployment/FraiseQL | grep -i "request"
 ```
 
 ## Rollback Procedure (If needed)
@@ -120,10 +120,10 @@ kubectl logs deployment/fraiseql | grep -i "request"
 
 ```bash
 # Using kubectl
-kubectl rollout undo deployment/fraiseql
+kubectl rollout undo deployment/FraiseQL
 
 # Using Helm
-helm rollback fraiseql 1
+helm rollback FraiseQL 1
 ```
 
 ### Database Rollback
@@ -163,13 +163,13 @@ psql $DATABASE_URL < backup-$(date +%Y%m%d).sql
 
 ```bash
 # Check logs
-kubectl logs deployment/fraiseql -c fraiseql
+kubectl logs deployment/FraiseQL -c FraiseQL
 
 # Check events
-kubectl describe deployment fraiseql
+kubectl describe deployment FraiseQL
 
 # Check resources
-kubectl top pods -l app=fraiseql
+kubectl top pods -l app=FraiseQL
 ```
 
 ### Database Connection Issues
@@ -177,17 +177,17 @@ kubectl top pods -l app=fraiseql
 ```bash
 # Verify connectivity
 kubectl run -it --rm debug --image=postgres --restart=Never -- \
-  psql -h postgres -U fraiseql -d fraiseql -c "SELECT 1"
+  psql -h postgres -U FraiseQL -d FraiseQL -c "SELECT 1"
 
 # Check connection pool
-curl http://fraiseql:8815/metrics | grep connections
+curl http://FraiseQL:8815/metrics | grep connections
 ```
 
 ### Slow Queries
 
 ```bash
 # Enable query logging
-kubectl set env deployment/fraiseql \
+kubectl set env deployment/FraiseQL \
   RUST_LOG=debug
 
 # Check Prometheus for slow queries

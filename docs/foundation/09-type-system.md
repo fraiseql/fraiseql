@@ -90,7 +90,7 @@ type User {
 **Python Schema (Optional - explicit definition):**
 
 ```python
-from fraiseql import schema
+from FraiseQL import schema
 from datetime import datetime
 from decimal import Decimal
 
@@ -414,7 +414,7 @@ type Order {
 **For complex types (in Python schema):**
 
 ```python
-from fraiseql import schema
+from FraiseQL import schema
 from typing import NewType
 from datetime import datetime
 

@@ -58,7 +58,7 @@ bash BENCHMARK_QUICK_START.sh setup
 bash BENCHMARK_QUICK_START.sh run-small
 
 # Profile code
-cargo flamegraph --bin fraiseql-server
+cargo flamegraph --bin FraiseQL-server
 ```
 
 ## Common Tasks

@@ -32,7 +32,7 @@ curl -X POST http://localhost:8080/api/v1/design/audit \
 Design audit endpoints support rate limiting (configure in deployment):
 
 ```toml
-# fraiseql-server.toml
+# FraiseQL-server.toml
 [security.rate_limiting]
 design_audit_requests_per_second = 100
 design_audit_burst_size = 10
@@ -166,13 +166,13 @@ design_audit_create_gates_required_role = "architect"
 
 ```bash
 # ✅ Good: Local schema analysis
-fraiseql lint ./schema.json
+FraiseQL lint ./schema.json
 
 # ✅ Good: Filtered analysis
-fraiseql lint ./schema.json --federation
+FraiseQL lint ./schema.json --federation
 
 # ❌ Avoid: Exposing internal schemas
-fraiseql lint /etc/fraiseql/internal-schema.json
+FraiseQL lint /etc/FraiseQL/internal-schema.json
 ```
 
 ### For CI/CD
@@ -189,7 +189,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Check design quality
         run: |
-          fraiseql lint schema.json \
+          FraiseQL lint schema.json \
             --fail-on-critical \
             --fail-on-warning
 ```
@@ -220,13 +220,13 @@ curl -X POST http://localhost:8080/api/v1/design/audit \
 ### For Deployment
 
 ```toml
-# fraiseql-server.toml - Secure configuration
+# FraiseQL-server.toml - Secure configuration
 
 [server]
 # Use TLS for all API traffic
 tls_enabled = true
-tls_cert_path = "/etc/fraiseql/cert.pem"
-tls_key_path = "/etc/fraiseql/key.pem"
+tls_cert_path = "/etc/FraiseQL/cert.pem"
+tls_key_path = "/etc/FraiseQL/key.pem"
 
 [security]
 # Enable authentication
@@ -280,7 +280,7 @@ cargo test --test api_design_security_tests
 If you discover a security vulnerability in FraiseQL's design quality features:
 
 1. **Do not** post it on public issue trackers
-2. Email security details to: <security@fraiseql.dev>
+2. Email security details to: <security@FraiseQL.dev>
 3. Include:
    - Description of vulnerability
    - Steps to reproduce
@@ -317,6 +317,6 @@ If you discover a security vulnerability in FraiseQL's design quality features:
 
 ## References
 
-- Benchmark tests: `crates/fraiseql-core/benches/design_analysis.rs`
-- Security tests: `crates/fraiseql-server/tests/api_design_security_tests.rs`
+- Benchmark tests: `crates/FraiseQL-core/benches/design_analysis.rs`
+- Security tests: `crates/FraiseQL-server/tests/api_design_security_tests.rs`
 - OWASP API Security: <https://owasp.org/www-project-api-security/>

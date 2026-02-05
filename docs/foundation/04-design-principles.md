@@ -96,7 +96,7 @@ FraiseQL has three distinct phases:
 ```text
 Authoring (Developer writes code)
     ↓
-Compilation (fraiseql-cli processes schema)
+Compilation (FraiseQL-cli processes schema)
     ↓
 Runtime (Server executes queries)
 ```text
@@ -106,7 +106,7 @@ Each phase should be optimized separately:
 **Authoring:** Easy and ergonomic (Python/TypeScript decorators)
 
 ```python
-from fraiseql import schema
+from FraiseQL import schema
 
 @schema.type(table="tb_users")
 class User:
@@ -118,7 +118,7 @@ class User:
 **Compilation:** Expensive but one-time (comprehensive validation and optimization)
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 # Validates relationships, optimizes joins, generates SQL templates
 # Takes seconds, but only runs once at build time
 ```text

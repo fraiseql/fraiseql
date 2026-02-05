@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `fraiseql-cli` command-line tool compiles FraiseQL schemas from JSON format into optimized SQL templates and execution plans. This document describes the schema format, compilation process, and usage patterns.
+The `FraiseQL-cli` command-line tool compiles FraiseQL schemas from JSON format into optimized SQL templates and execution plans. This document describes the schema format, compilation process, and usage patterns.
 
 ## Schema Format
 
@@ -85,17 +85,17 @@ All language generators produce compatible JSON schemas:
 ### Python
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int
     name: str
     email: str | None
 
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
     pass
 
-fraiseql.export_schema("schema.json")
+FraiseQL.export_schema("schema.json")
 ```text
 
 Output: Valid `schema.json` for CLI compilation
@@ -122,13 +122,13 @@ Output: Valid `schema.json` for CLI compilation
 
 ```go
 type User struct {
-    ID    int    `fraiseql:"id"`
-    Name  string `fraiseql:"name"`
-    Email *string `fraiseql:"email"`
+    ID    int    `FraiseQL:"id"`
+    Name  string `FraiseQL:"name"`
+    Email *string `FraiseQL:"email"`
 }
 
 type UserQuery struct {
-    Users []User `fraiseql:"query,sql_source=v_users"`
+    Users []User `FraiseQL:"query,sql_source=v_users"`
 }
 
 ExportSchema("schema.json")
@@ -148,7 +148,7 @@ The CLI validates:
 - SQL sources are valid identifiers
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 Output includes validation warnings and suggestions:
@@ -197,24 +197,24 @@ The compiler provides optimization hints:
 
 ```bash
 # Compile schema from Python generator
-cd fraiseql-python
-python -c "from fraiseql import export_schema; export_schema('schema.json')"
+cd FraiseQL-python
+python -c "from FraiseQL import export_schema; export_schema('schema.json')"
 cd ..
 
 # Compile with CLI
-fraiseql-cli compile fraiseql-python/schema.json -o schema.compiled.json
+FraiseQL-cli compile FraiseQL-python/schema.json -o schema.compiled.json
 ```text
 
 ### With Custom Output Path
 
 ```bash
-fraiseql-cli compile schema.json --output compiled.json
+FraiseQL-cli compile schema.json --output compiled.json
 ```text
 
 ### Validate Only (no output)
 
 ```bash
-fraiseql-cli validate schema.json
+FraiseQL-cli validate schema.json
 ```text
 
 ## Schema Format Compatibility
@@ -238,7 +238,7 @@ All 5 language generators produce compatible schemas:
 **Solution**:
 
 ```bash
-cargo build --release -p fraiseql-cli
+cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
 ```text
 
@@ -259,7 +259,7 @@ export PATH="$(pwd)/target/release:$PATH"
 The compiled schema is consumed by the FraiseQL runtime server:
 
 ```bash
-fraiseql-server --schema schema.compiled.json --port 4000
+FraiseQL-server --schema schema.compiled.json --port 4000
 ```text
 
 The server then:

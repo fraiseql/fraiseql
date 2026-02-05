@@ -257,7 +257,7 @@ pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>>
 
 ### Configuration
 
-**`fraiseql.toml` (subgraph declares accessible databases):**
+**`FraiseQL.toml` (subgraph declares accessible databases):**
 
 ```toml
 [database]

@@ -61,20 +61,20 @@ Runtime executes CompiledSchema
 ### 1.2 Input Format: Python
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A user in the system"""
     id: ID
     name: str
     email: str | None = None
 
-    @fraiseql.field
+    @FraiseQL.field
     def profile(self) -> 'UserProfile':
         """User's extended profile"""
         pass
 
-@fraiseql.type
-@fraiseql.key(fields=["id"])  # Federation key
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])  # Federation key
 class Post:
     """A blog post"""
     id: ID
@@ -84,12 +84,12 @@ class Post:
     author: User  # Relationship
     created_at: datetime
 
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     def delete(self) -> bool:
         """Delete this post (owner only)"""
         pass
 
-@fraiseql.enum
+@FraiseQL.enum
 class Role:
     """User roles"""
     ADMIN = "admin"
@@ -173,11 +173,11 @@ enum Role {
 
 **Type definitions:**
 
-- Extract all `@fraiseql.type` decorated classes
-- Extract all `@fraiseql.enum` enums
-- Extract all `@fraiseql.interface` interfaces
-- Extract all `@fraiseql.scalar` custom scalars
-- Extract all `@fraiseql.union` union types
+- Extract all `@FraiseQL.type` decorated classes
+- Extract all `@FraiseQL.enum` enums
+- Extract all `@FraiseQL.interface` interfaces
+- Extract all `@FraiseQL.scalar` custom scalars
+- Extract all `@FraiseQL.union` union types
 
 **Field extraction:**
 
@@ -194,7 +194,7 @@ enum Role {
 
 **Decorator extraction:**
 
-- Extract all decorators: `@fraiseql.type`, `@fraiseql.key`, `@fraiseql.authorize`, `@fraiseql.cache`, `@fraiseql.requires`, etc.
+- Extract all decorators: `@FraiseQL.type`, `@FraiseQL.key`, `@FraiseQL.authorize`, `@FraiseQL.cache`, `@FraiseQL.requires`, etc.
 - Preserve decorator arguments for later phases
 
 ### 1.6 Validation Rules
@@ -215,10 +215,10 @@ enum Role {
 
 **Decorator usage:**
 
-- ✅ `@fraiseql.key(fields=[...])` only on types marked for federation
-- ✅ `@fraiseql.external()` only on `@fraiseql.type(extend=True)` types
-- ✅ `@fraiseql.authorize(rule=...)` on queries, mutations, subscriptions, or individual fields
-- ❌ Multiple `@fraiseql.type` decorators on same class
+- ✅ `@FraiseQL.key(fields=[...])` only on types marked for federation
+- ✅ `@FraiseQL.external()` only on `@FraiseQL.type(extend=True)` types
+- ✅ `@FraiseQL.authorize(rule=...)` on queries, mutations, subscriptions, or individual fields
+- ❌ Multiple `@FraiseQL.type` decorators on same class
 
 ### 1.7 SchemaAST Structure
 
@@ -356,7 +356,7 @@ Post.author: User   # Many-to-one
 
 # Circular but problem (infinite nesting):
 User.best_friend: User!  # Can be nested infinitely
-# Solution: Mark with depth limit @fraiseql.depth(max=2)
+# Solution: Mark with depth limit @FraiseQL.depth(max=2)
 
 # Circular but allowed if nullable:
 User.profile: UserProfile
@@ -443,14 +443,14 @@ User.profile → v_user_profile (via join or subquery)
 # If column not found:
 raise CompilationError(
     f"Field 'email' has no database mapping. "
-    f"Define mapping: @fraiseql.column('user_email')",
+    f"Define mapping: @FraiseQL.column('user_email')",
     code="E_BINDING_NO_COLUMN_201"
 )
 
 # If explicit mapping exists:
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.column("email_address")  # Maps to column 'email_address'
+    @FraiseQL.column("email_address")  # Maps to column 'email_address'
     email: str
 ```text
 
@@ -472,9 +472,9 @@ Post.author: User   # Relationship (object)
 
 ```python
 # Field with authorization:
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.authorize(rule="owner_or_admin")
+    @FraiseQL.authorize(rule="owner_or_admin")
     ssn: str
 
 # Authorization binding:
@@ -488,32 +488,32 @@ class User:
 
 ```python
 # 1. Public (no rule, accessible to everyone)
-@fraiseql.type
+@FraiseQL.type
 class Post:
     title: str  # No @authorize, public
 
 # 2. Owner-only
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     email: str
 
 # 3. Role-based
-@fraiseql.type
+@FraiseQL.type
 class AdminPanel:
-    @fraiseql.authorize(rule="role:admin")
+    @FraiseQL.authorize(rule="role:admin")
     api_keys: [str]
 
 # 4. Custom rule
-@fraiseql.type
+@FraiseQL.type
 class Post:
-    @fraiseql.authorize(rule="is_published_or_author")
+    @FraiseQL.authorize(rule="is_published_or_author")
     content: str
 
 # 5. Field-level masking
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["owner", "admin"],
         hide_from=["public"],
         masked_value=None
@@ -611,9 +611,9 @@ class MaskingRule:
 **Step 1: Extract federation decorators**
 
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["id"])  # Primary key
-@fraiseql.key(fields=["email"])  # Alternative key
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])  # Primary key
+@FraiseQL.key(fields=["email"])  # Alternative key
 class User:
     id: ID
     email: str
@@ -637,10 +637,10 @@ class User:
 **Step 3: Validate extended types**
 
 ```python
-@fraiseql.type(extend=True)  # This type extends another subgraph's type
-@fraiseql.key(fields=["id"])  # Must have same key as original
+@FraiseQL.type(extend=True)  # This type extends another subgraph's type
+@FraiseQL.key(fields=["id"])  # Must have same key as original
 class Post:
-    id: ID = fraiseql.external()  # Mark external field
+    id: ID = FraiseQL.external()  # Mark external field
 
     # New field owned by this subgraph:
     comments: [Comment]
@@ -707,11 +707,11 @@ federation_metadata = {
 
 ```python
 # FraiseQL schema references external types:
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class Product:  # Extended from Products subgraph
-    id: ID = fraiseql.external()
-    vendor: Vendor = fraiseql.requires(fields=["id"])  # Requires external field
+    id: ID = FraiseQL.external()
+    vendor: Vendor = FraiseQL.requires(fields=["id"])  # Requires external field
 ```text
 
 **Step 2: Generate foreign table definitions**
@@ -1389,7 +1389,7 @@ E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
       "field": "author"
     },
     "suggestions": [
-      "Define type User: @fraiseql.type class User: ...",
+      "Define type User: @FraiseQL.type class User: ...",
       "Import User from another module",
       "Check spelling: Did you mean 'UserProfile'?"
     ]
@@ -1417,7 +1417,7 @@ E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
 **Input:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -1493,19 +1493,19 @@ BoundSchema {
 **Input schema:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID
     title: str
 
-    @fraiseql.authorize(rule="published_or_author")
+    @FraiseQL.authorize(rule="published_or_author")
     content: str
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
 
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     email: str
 ```text
 

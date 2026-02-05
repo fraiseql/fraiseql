@@ -9,18 +9,18 @@ Operational procedures for common scenarios.
 Increase replicas:
 
 ```bash
-kubectl scale deployment fraiseql --replicas=5
+kubectl scale deployment FraiseQL --replicas=5
 
 # Or edit deployment
-kubectl edit deployment fraiseql
+kubectl edit deployment FraiseQL
 # Set replicas: 5
 ```text
 
 Verify:
 
 ```bash
-kubectl get deployment fraiseql
-kubectl get pods -l app=fraiseql
+kubectl get deployment FraiseQL
+kubectl get pods -l app=FraiseQL
 ```text
 
 ### Scale Down
@@ -29,11 +29,11 @@ Decrease replicas gracefully:
 
 ```bash
 # Set graceful termination
-kubectl patch deployment fraiseql -p \
+kubectl patch deployment FraiseQL -p \
   '{"spec":{"template":{"spec":{"terminationGracePeriodSeconds":60}}}}'
 
 # Scale down
-kubectl scale deployment fraiseql --replicas=2
+kubectl scale deployment FraiseQL --replicas=2
 ```text
 
 ## Updates & Upgrades
@@ -42,26 +42,26 @@ kubectl scale deployment fraiseql --replicas=2
 
 ```bash
 # Update image
-kubectl set image deployment/fraiseql \
-  fraiseql=fraiseql:v2.0.0-alpha.1
+kubectl set image deployment/FraiseQL \
+  FraiseQL=FraiseQL:v2.0.0-alpha.1
 
 # Monitor rollout
-kubectl rollout status deployment/fraiseql
+kubectl rollout status deployment/FraiseQL
 
 # Verify
-kubectl get pods -l app=fraiseql -o wide
+kubectl get pods -l app=FraiseQL -o wide
 ```text
 
 ### Using Helm
 
 ```bash
 # Update values
-helm upgrade fraiseql ./deploy/kubernetes/helm/fraiseql \
+helm upgrade FraiseQL ./deploy/kubernetes/helm/FraiseQL \
   --values prod-values.yaml
 
 # Check status
-helm status fraiseql
-kubectl rollout status deployment/fraiseql
+helm status FraiseQL
+kubectl rollout status deployment/FraiseQL
 ```text
 
 ## Maintenance Operations
@@ -71,7 +71,7 @@ kubectl rollout status deployment/fraiseql
 ```bash
 # Create backup pod
 kubectl run backup --image=postgres --restart=Never -- \
-  pg_dump -h postgres -U fraiseql fraiseql \
+  pg_dump -h postgres -U FraiseQL FraiseQL \
   > backup-$(date +%Y%m%d).sql
 
 # Verify backup
@@ -86,14 +86,14 @@ gzip backup-*.sql
 # ... (see above)
 
 # Scale down app
-kubectl scale deployment fraiseql --replicas=0
+kubectl scale deployment FraiseQL --replicas=0
 
 # Upgrade PostgreSQL image
 kubectl set image pod/postgres-0 \
   postgres=postgres:16
 
 # Scale up app
-kubectl scale deployment fraiseql --replicas=3
+kubectl scale deployment FraiseQL --replicas=3
 
 # Verify
 kubectl get pods
@@ -111,7 +111,7 @@ redis-cli
 # Clear cache
 FLUSHDB
 # or specific keys
-DEL fraiseql:*
+DEL FraiseQL:*
 ```text
 
 ## Troubleshooting Runbooks
@@ -121,7 +121,7 @@ DEL fraiseql:*
 1. Check metrics:
 
    ```bash
-   kubectl top pods -l app=fraiseql
+   kubectl top pods -l app=FraiseQL
    ```text
 
 2. Identify heavy queries:
@@ -134,7 +134,7 @@ DEL fraiseql:*
 3. Scale horizontally:
 
    ```bash
-   kubectl scale deployment fraiseql --replicas=10
+   kubectl scale deployment FraiseQL --replicas=10
    ```text
 
 4. Optimize hot queries:
@@ -146,20 +146,20 @@ DEL fraiseql:*
 1. Check current usage:
 
    ```bash
-   kubectl top pods -l app=fraiseql
+   kubectl top pods -l app=FraiseQL
    ```text
 
 2. Reduce cache TTL:
 
    ```bash
-   kubectl set env deployment/fraiseql \
+   kubectl set env deployment/FraiseQL \
      CACHE_TTL_SECS=300  # 5 minutes instead of 10
    ```text
 
 3. Reduce connection pool:
 
    ```bash
-   kubectl set env deployment/fraiseql \
+   kubectl set env deployment/FraiseQL \
      DB_POOL_MAX=10  # from 20
    ```text
 
@@ -172,13 +172,13 @@ DEL fraiseql:*
 1. Check active connections:
 
    ```bash
-   kubectl logs deployment/fraiseql | grep "connections"
+   kubectl logs deployment/FraiseQL | grep "connections"
    ```text
 
 2. Increase pool size:
 
    ```bash
-   kubectl set env deployment/fraiseql \
+   kubectl set env deployment/FraiseQL \
      DB_POOL_MAX=30  # from 20
    ```text
 
@@ -198,19 +198,19 @@ DEL fraiseql:*
 
    ```bash
    kubectl run -it --rm debug --image=postgres --restart=Never -- \
-     psql -h postgres -U fraiseql -d fraiseql -c "SELECT 1"
+     psql -h postgres -U FraiseQL -d FraiseQL -c "SELECT 1"
    ```text
 
 3. Check environment variables:
 
    ```bash
-   kubectl get pod <fraiseql-pod> -o yaml | grep DATABASE_URL
+   kubectl get pod <FraiseQL-pod> -o yaml | grep DATABASE_URL
    ```text
 
 4. Restart pod if needed:
 
    ```bash
-   kubectl delete pod <fraiseql-pod>
+   kubectl delete pod <FraiseQL-pod>
    ```text
 
 ## Disaster Recovery
@@ -247,10 +247,10 @@ kubectl get pods -o wide
    # Create new cluster
    # Restore database
    gunzip backup-latest.sql.gz
-   psql -h newhost -U fraiseql fraiseql < backup-latest.sql
+   psql -h newhost -U FraiseQL FraiseQL < backup-latest.sql
    
    # Deploy FraiseQL
-   kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+   kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
    ```text
 
 ## Performance Tuning
@@ -259,11 +259,11 @@ kubectl get pods -o wide
 
 ```bash
 # Enable query logging
-kubectl set env deployment/fraiseql \
+kubectl set env deployment/FraiseQL \
   RUST_LOG=debug
 
 # Analyze slow queries
-kubectl logs deployment/fraiseql | grep "duration" | sort -r | head -20
+kubectl logs deployment/FraiseQL | grep "duration" | sort -r | head -20
 
 # Add indexes to PostgreSQL
 psql $DATABASE_URL -c "CREATE INDEX idx_user_email ON users(email);"

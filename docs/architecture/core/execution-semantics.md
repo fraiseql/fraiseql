@@ -579,17 +579,17 @@ if input.content.len() > 100_000 {
 **Custom validators:**
 
 ```python
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_post(input: CreatePostInput) -> Post:
     """Create a new post"""
 
-    @fraiseql.validate
+    @FraiseQL.validate
     def validate_title(title: str) -> None:
         # Custom validation logic
         if "spam" in title.lower():
             raise ValidationError("Title contains spam keywords")
 
-    @fraiseql.transform
+    @FraiseQL.transform
     def normalize_title(title: str) -> str:
         # Transform input (e.g., strip whitespace, normalize unicode)
         return title.strip().casefold()

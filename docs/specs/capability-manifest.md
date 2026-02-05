@@ -642,7 +642,7 @@ The manifest supports version-specific operator availability:
 **Compilation Target:**
 
 ```yaml
-# fraiseql.yaml
+# FraiseQL.yaml
 database:
   type: postgresql
   version: "14.5"  # ← Selects postgresql_14 manifest entry

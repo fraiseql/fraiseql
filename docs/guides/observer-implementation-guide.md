@@ -26,7 +26,7 @@ FraiseQL Observers react to database changes (mutations, CDC events) and trigger
 ### Step 1: Define Observer
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class UserCreatedNotification:
     """Trigger when new user created."""
     trigger = Event.CREATE
@@ -46,8 +46,8 @@ class UserCreatedNotification:
 ### Step 2: Configure Webhook Provider
 
 ```toml
-# fraiseql.toml
-[fraiseql.webhooks.discord]
+# FraiseQL.toml
+[FraiseQL.webhooks.discord]
 enabled = true
 timeout_seconds = 30
 retry_max_attempts = 3
@@ -58,10 +58,10 @@ retry_backoff_ms = 1000
 
 ```bash
 # Compile
-fraiseql compile schema.py
+FraiseQL compile schema.py
 
 # Start server
-fraiseql serve
+FraiseQL serve
 
 # Create user and watch Discord notification appear
 curl -X POST http://localhost:5000/graphql \
@@ -83,7 +83,7 @@ curl -X POST http://localhost:5000/graphql \
 **FraiseQL Configuration:**
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class OrderNotification:
     trigger = Event.CREATE
     entity = "Order"
@@ -121,7 +121,7 @@ class OrderNotification:
 **FraiseQL Configuration:**
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class AlertHighValue Order:
     trigger = Event.CREATE
     entity = "Order"
@@ -161,7 +161,7 @@ class AlertHighValue Order:
 **FraiseQL Observer (Bidirectional):**
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class SyncIssueToDatabase:
     """When GitHub issue created, store in database."""
     trigger = Event.GITHUB_ISSUE_OPENED
@@ -191,7 +191,7 @@ class SyncIssueToDatabase:
 **Setup SMTP:**
 
 ```toml
-[fraiseql.email]
+[FraiseQL.email]
 provider = "smtp"
 smtp_host = "smtp.gmail.com"
 smtp_port = 587
@@ -204,7 +204,7 @@ from_name = "FraiseQL App"
 **FraiseQL Observer:**
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class SendWelcomeEmail:
     trigger = Event.CREATE
     entity = "User"
@@ -233,7 +233,7 @@ docker run -d -p 9200:9200 -e "xpack.security.enabled=false" docker.elastic.co/e
 **FraiseQL Observer:**
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class IndexProductInSearch:
     trigger = Event.CREATE | Event.UPDATE
     entity = "Product"
@@ -260,7 +260,7 @@ class IndexProductInSearch:
 ### Pattern 1: Conditional Actions
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class ConditionalNotification:
     trigger = Event.UPDATE
     entity = "Order"
@@ -286,7 +286,7 @@ class ConditionalNotification:
 ### Pattern 2: Chained Actions
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class OrderWorkflow:
     trigger = Event.CREATE
     entity = "Order"
@@ -309,7 +309,7 @@ class OrderWorkflow:
 ### Pattern 3: Rate-Limited Actions
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class RateLimitedAlert:
     trigger = Event.CREATE
     entity = "ErrorLog"
@@ -330,7 +330,7 @@ class RateLimitedAlert:
 ### Automatic Retries
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class ResilientWebhook:
     trigger = Event.CREATE
     entity = "Notification"
@@ -351,7 +351,7 @@ class ResilientWebhook:
 ### Error Callbacks
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class HandleWebhookFailure:
     trigger = Event.CREATE
     entity = "Order"
@@ -381,7 +381,7 @@ from unittest.mock import patch
 
 @pytest.fixture
 def mock_webhook():
-    with patch('fraiseql.webhooks.send') as mock:
+    with patch('FraiseQL.webhooks.send') as mock:
         yield mock
 
 def test_user_created_notification(mock_webhook):
@@ -427,7 +427,7 @@ async def test_observer_end_to_end():
 
 ```bash
 # Check observer logs
-tail -f /var/log/fraiseql-observers.log | grep "OBSERVER"
+tail -f /var/log/FraiseQL-observers.log | grep "OBSERVER"
 
 # Expected output:
 # [OBSERVER] OrderNotification triggered for Order#123
@@ -438,7 +438,7 @@ tail -f /var/log/fraiseql-observers.log | grep "OBSERVER"
 ### Alert on Observer Failures
 
 ```toml
-[fraiseql.monitoring]
+[FraiseQL.monitoring]
 observer_failure_alert = true
 observer_failure_threshold = 5  # Alert if 5+ failures in 5 minutes
 ```

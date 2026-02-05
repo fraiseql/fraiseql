@@ -314,7 +314,7 @@ Most queries use the **primary key** as the single keyset column:
 
 ```python
 # Implicit keyset ordering
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID  # ← Keyset column (primary key)
     name: str
@@ -343,7 +343,7 @@ LIMIT 100
 For deterministic, stable ordering, use **composite keysets**:
 
 ```python
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
   name="user_analytics",
   keyset=["created_at", "id"]  # ← Composite keyset
 )
@@ -373,7 +373,7 @@ LIMIT 100
 Advanced use cases can define **custom keyset expressions**:
 
 ```python
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
   name="high_value_orders",
   keyset={
     "expression": "LEAST(total_amount, 1000) DESC, id",
@@ -440,7 +440,7 @@ if compute_hmac(cursor_data, secret) != cursor.hmac:
 For sensitive queries, cursors can **expire**:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class SensitiveData:
     ... cursor_ttl = 300  # Seconds
 

@@ -209,7 +209,7 @@ The endpoints remain public unless you explicitly enable authentication.
 Best practices for local development:
 
 ```toml
-# fraiseql.toml (or export as environment variables)
+# FraiseQL.toml (or export as environment variables)
 [server]
 playground_enabled = true
 introspection_enabled = true
@@ -327,7 +327,7 @@ Rate limiting is **enabled by default** with sensible per-IP and per-user limits
 
 ### Configuration
 
-**In TOML file** (`fraiseql.toml`):
+**In TOML file** (`FraiseQL.toml`):
 
 ```toml
 [rate_limiting]

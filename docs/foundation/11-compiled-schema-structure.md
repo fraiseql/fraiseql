@@ -15,9 +15,9 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 ```text
 ┌─────────────────────┐
 │ Python/TypeScript   │
-│ @fraiseql.type      │  ← Schema definitions
-│ @fraiseql.query     │
-│ @fraiseql.mutation  │
+│ @FraiseQL.type      │  ← Schema definitions
+│ @FraiseQL.query     │
+│ @FraiseQL.mutation  │
 └──────────┬──────────┘
            │
            ↓ (generates)
@@ -26,7 +26,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 │ (input to compiler) │
 └──────────┬──────────┘
            │
-           ↓ (fraiseql-cli compile)
+           ↓ (FraiseQL-cli compile)
 ┌─────────────────────┐
 │ schema.compiled.json │  ← Rust loads this
 │ (optimized for      │
@@ -35,7 +35,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
            │
            ↓ (loaded by)
 ┌─────────────────────┐
-│ fraiseql-server     │
+│ FraiseQL-server     │
 │ Execute queries     │
 └─────────────────────┘
 ```text

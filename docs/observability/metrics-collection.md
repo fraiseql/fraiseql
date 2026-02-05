@@ -969,7 +969,7 @@ curl http://localhost:8080/metrics/export > metrics.json
 
 ```bash
 # Export from database
-fraiseql-cli export-metrics \
+FraiseQL-cli export-metrics \
   --database postgres://... \
   --output metrics.json \
   --window 7d

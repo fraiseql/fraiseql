@@ -1087,10 +1087,10 @@ Subscription filters:
 **Example:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
-    where: WhereOrder = fraiseql.where(
-        user_id=fraiseql.context.user_id  # Only current user's orders
+    where: WhereOrder = FraiseQL.where(
+        user_id=FraiseQL.context.user_id  # Only current user's orders
     )
 ```text
 
@@ -1118,11 +1118,11 @@ Subscription variables:
 **Example:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
-    where: WhereOrder = fraiseql.where(user_id=context.user_id)
+    where: WhereOrder = FraiseQL.where(user_id=context.user_id)
 
-    @fraiseql.variable(name="since_date")
+    @FraiseQL.variable(name="since_date")
     class Filter:
         created_at: DateTimeRange  # Runtime variable
 ```text

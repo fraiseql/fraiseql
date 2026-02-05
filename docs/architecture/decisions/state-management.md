@@ -117,7 +117,7 @@ Mutation: UpdatePost (post_id=789)
 Pre-populate cache on startup:
 
 ```python
-@fraiseql.on_startup
+@FraiseQL.on_startup
 async def warm_cache():
     """Pre-populate cache with frequently accessed data"""
     await cache.preload([
@@ -244,7 +244,7 @@ Delivery 3: Retry (network error on first attempt)
 
 Client must handle idempotency:
 ```python
-@fraiseql.on_event("post_created")
+@FraiseQL.on_event("post_created")
 async def handle_post_created(event):
     # Check if already processed
     if await db.query("SELECT id FROM tb_posts WHERE id = $1", event.entity_id):
@@ -375,7 +375,7 @@ User sees their own writes immediately:
 cache_key = f"GetUserPosts:{user_id}"
 
 # Mutation by User A
-@fraiseql.mutation
+@FraiseQL.mutation
 async def createPost(input):
     # Write to database
     post = await db.insert(...)
@@ -520,7 +520,7 @@ async def update_user_profile(user_id, data):
 Events drive cache updates:
 
 ```python
-@fraiseql.on_event("post_updated")
+@FraiseQL.on_event("post_updated")
 async def on_post_updated(event):
     """When post is updated, invalidate related caches"""
 
@@ -534,7 +534,7 @@ async def on_post_updated(event):
     cache.invalidate("trending_posts")
     cache.invalidate(f"user_feed:{user_id}")
 
-@fraiseql.on_event("post_deleted")
+@FraiseQL.on_event("post_deleted")
 async def on_post_deleted(event):
     # Similar invalidation
     ...
@@ -608,7 +608,7 @@ CDC health:
 ### 8.1 Caching Configuration
 
 ```python
-fraiseql.state.configure({
+FraiseQL.state.configure({
     "cache": {
         "l1": {
             "backend": "memory",
@@ -635,7 +635,7 @@ fraiseql.state.configure({
 ### 8.2 CDC Configuration
 
 ```python
-fraiseql.state.configure({
+FraiseQL.state.configure({
     "cdc": {
         "enabled": True,
         "database": "postgresql",
@@ -646,8 +646,8 @@ fraiseql.state.configure({
 
     "replication": {
         "replicas": [
-            "postgresql://replica1:5432/fraiseql",
-            "postgresql://replica2:5432/fraiseql"
+            "postgresql://replica1:5432/FraiseQL",
+            "postgresql://replica2:5432/FraiseQL"
         ],
         "lag_threshold_ms": 1000
     }

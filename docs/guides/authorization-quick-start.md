@@ -17,7 +17,7 @@ Get field-level and operation-level authorization working in 5 minutes.
 
 ```python
 # users_service/schema.py
-from fraiseql import type, field, authorize
+from FraiseQL import type, field, authorize
 
 @type
 class User:
@@ -40,7 +40,7 @@ class Order:
 
 ```python
 # users_service/schema.py (continued)
-from fraiseql import query, authorize
+from FraiseQL import query, authorize
 
 @query
 @authorize(roles=["admin", "user"])
@@ -66,19 +66,19 @@ def my_orders(limit: int = 50) -> list[Order]:
 ## Step 3: Configure Authorization Provider (1 minute)
 
 ```toml
-# fraiseql.toml
-[fraiseql.authentication]
+# FraiseQL.toml
+[FraiseQL.authentication]
 provider = "oauth2"
 discovery_url = "https://auth.example.com/.well-known/openid-configuration"
 
-[fraiseql.authorization]
+[FraiseQL.authorization]
 strategy = "jwt-claims"
 roles_claim = "roles"
 user_id_claim = "sub"
 cache_ttl_seconds = 300
 
 # Field-level enforcement
-[fraiseql.authorization.enforcement]
+[FraiseQL.authorization.enforcement]
 level = "field"          # "operation" (queries only) or "field" (queries + fields)
 fail_closed = true       # Deny if no explicit permission
 audit_log = true         # Log all authorization decisions
@@ -90,10 +90,10 @@ audit_log = true         # Log all authorization decisions
 
 ```bash
 # Compile schema with authorization
-fraiseql compile --config ./fraiseql.toml
+FraiseQL compile --config ./FraiseQL.toml
 
 # Start server
-fraiseql run --port 8000
+FraiseQL run --port 8000
 
 # Test: Query as admin (should see all fields)
 curl -X POST http://localhost:8000/graphql \
@@ -170,7 +170,7 @@ You now have role-based field-level authorization! 🔐
 → With `fail_closed = true`, fields are silently filtered. Set `fail_closed = false` in tests to see blocking errors.
 
 **"Same token works in dev, fails in production"**
-→ Check `discovery_url` in `fraiseql.toml` is accessible in production, and CORS headers are configured correctly.
+→ Check `discovery_url` in `FraiseQL.toml` is accessible in production, and CORS headers are configured correctly.
 
 **"Authorization too slow"**
 → Increase `cache_ttl_seconds` from 300 to 3600. Or use JWT claims directly instead of external provider calls.

@@ -93,7 +93,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 1. Click "Applications" → "APIs" (left sidebar)
 2. Click "Create API"
 3. Enter name: "FraiseQL API"
-4. Identifier: `https://api.fraiseql.example.com`
+4. Identifier: `https://api.FraiseQL.example.com`
 5. Signing algorithm: **RS256** (default)
 6. Click "Create"
 
@@ -113,7 +113,7 @@ JWT_ISSUER=https://your-domain.auth0.com/
 JWT_ALGORITHM=RS256
 
 # Database Configuration
-DATABASE_URL=postgres://user:password@localhost/fraiseql
+DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
 
 ## Step 5: Configure FraiseQL Server
@@ -211,7 +211,7 @@ Auth0 Rules (legacy) or Actions allow custom logic:
 
    ```javascript
    exports.onExecutePostLogin = async (event, api) => {
-     const namespace = 'https://fraiseql.example.com';
+     const namespace = 'https://FraiseQL.example.com';
      if (event.authorization) {
        api.idToken.setCustomClaim(`${namespace}/roles`, event.user.roles);
        api.accessToken.setCustomClaim(`${namespace}/org_id`, event.user.org_id);
@@ -225,8 +225,8 @@ Then access in FraiseQL:
 
 ```rust
 let user = auth::AuthenticatedUser { /* ... */ };
-let roles = user.get_custom_claim("https://fraiseql.example.com/roles");
-let org_id = user.get_custom_claim("https://fraiseql.example.com/org_id");
+let roles = user.get_custom_claim("https://FraiseQL.example.com/roles");
+let org_id = user.get_custom_claim("https://FraiseQL.example.com/org_id");
 ```text
 
 ## Advanced: Social Login
@@ -337,7 +337,7 @@ OAUTH_REDIRECT_URI=https://api.example.com/auth/callback
 JWT_ISSUER=https://your-domain.auth0.com/
 JWT_ALGORITHM=RS256
 
-DATABASE_URL=postgres://user:pass@prod-db/fraiseql
+DATABASE_URL=postgres://user:pass@prod-db/FraiseQL
 ```text
 
 ### Auth0 Tenant Configuration

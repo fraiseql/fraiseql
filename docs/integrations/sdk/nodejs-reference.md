@@ -1,6 +1,6 @@
 # FraiseQL Node.js SDK Reference
 
-**Status**: Production-Ready | **Version**: 2.0.0 | **Node.js**: 18+ | **Module**: `fraiseql-nodejs`
+**Status**: Production-Ready | **Version**: 2.0.0 | **Node.js**: 18+ | **Module**: `FraiseQL-nodejs`
 
 Complete API reference for the FraiseQL Node.js Runtime SDK. Provides Promise-based async client for executing pre-compiled GraphQL queries against FraiseQL servers. Runtime execution only—no schema authoring (use TypeScript SDK for that).
 
@@ -8,19 +8,19 @@ Complete API reference for the FraiseQL Node.js Runtime SDK. Provides Promise-ba
 
 ```bash
 # npm
-npm install fraiseql-nodejs
+npm install FraiseQL-nodejs
 
 # yarn
-yarn add fraiseql-nodejs
+yarn add FraiseQL-nodejs
 
 # pnpm
-pnpm add fraiseql-nodejs
+pnpm add FraiseQL-nodejs
 ```
 
 **Requirements:**
 
 - Node.js 18 or higher
-- `fraiseql-nodejs` (npm package)
+- `FraiseQL-nodejs` (npm package)
 - Optional: TypeScript 5.0+ for type safety
 - Optional: `@types/node` for Node.js types
 
@@ -49,7 +49,7 @@ pnpm add fraiseql-nodejs
 ### CommonJS Example
 
 ```javascript
-const { FraiseQLClient } = require('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 const client = new FraiseQLClient({
   schemaPath: './schema.compiled.json',
@@ -81,7 +81,7 @@ main().catch(console.error);
 ### ESM Example
 
 ```javascript
-import { FraiseQLClient } from 'fraiseql-nodejs';
+import { FraiseQLClient } from 'FraiseQL-nodejs';
 
 const client = new FraiseQLClient({
   schemaPath: './schema.compiled.json',
@@ -113,7 +113,7 @@ main().catch(console.error);
 ### TypeScript Example
 
 ```typescript
-import { FraiseQLClient, QueryResult, FraiseQLError } from 'fraiseql-nodejs';
+import { FraiseQLClient, QueryResult, FraiseQLError } from 'FraiseQL-nodejs';
 
 interface User {
   id: string;
@@ -417,7 +417,7 @@ See [Scalars Reference](../../reference/scalars.md) for complete 60+ type list.
 
 ```javascript
 const express = require('express');
-const { FraiseQLClient } = require('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 const app = express();
 const client = new FraiseQLClient({
@@ -427,7 +427,7 @@ const client = new FraiseQLClient({
 
 // Middleware: attach client to request
 app.use(async (req, res, next) => {
-  req.fraiseql = client;
+  req.FraiseQL = client;
   next();
 });
 
@@ -444,7 +444,7 @@ app.listen(3000, async () => {
 app.post('/graphql', express.json(), async (req, res) => {
   try {
     const { query, variables } = req.body;
-    const result = await req.fraiseql.query(query, variables, {
+    const result = await req.FraiseQL.query(query, variables, {
       authToken: req.headers.authorization,
       userId: req.user?.id,
       scopes: req.user?.scopes,
@@ -461,7 +461,7 @@ app.post('/graphql', express.json(), async (req, res) => {
 ```javascript
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const result = await req.fraiseql.query('userById', {
+    const result = await req.FraiseQL.query('userById', {
       id: req.params.id,
     });
     if (!result.data) return res.status(404).json({ error: 'Not found' });
@@ -473,7 +473,7 @@ app.get('/api/users/:id', async (req, res) => {
 
 app.post('/api/users', express.json(), async (req, res) => {
   try {
-    const result = await req.fraiseql.mutate('createUser', req.body);
+    const result = await req.FraiseQL.mutate('createUser', req.body);
     res.status(201).json(result.data);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -530,8 +530,8 @@ try {
 ### Jest Testing with Mocks
 
 ```javascript
-const { FraiseQLClient } = require('fraiseql-nodejs');
-jest.mock('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
+jest.mock('FraiseQL-nodejs');
 
 describe('User API', () => {
   let client;
@@ -554,7 +554,7 @@ describe('User API', () => {
 ### Integration Testing
 
 ```javascript
-const { FraiseQLClient } = require('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 describe('Database Integration', () => {
   let client;
@@ -589,7 +589,7 @@ describe('Database Integration', () => {
 ### Mocha Testing
 
 ```javascript
-const { FraiseQLClient } = require('fraiseql-nodejs');
+const { FraiseQLClient } = require('FraiseQL-nodejs');
 const { expect } = require('chai');
 
 describe('FraiseQL Client', () => {
@@ -673,7 +673,7 @@ const result = await client.query('tenantUsers', {
 - [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns
 - [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables and aggregations
 - [Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
-- [Node.js SDK GitHub](https://github.com/fraiseql/fraiseql-nodejs)
+- [Node.js SDK GitHub](https://github.com/FraiseQL/FraiseQL-nodejs)
 
 ---
 
@@ -683,25 +683,25 @@ const result = await client.query('tenantUsers', {
 
 #### npm Registry Issues
 
-**Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/fraiseql-nodejs`
+**Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/FraiseQL-nodejs`
 
 **Solution**:
 
 ```bash
-npm install @fraiseql/nodejs@latest
+npm install @FraiseQL/nodejs@latest
 npm cache clean --force
 npm install
 ```
 
 #### Module Not Found
 
-**Issue**: `Cannot find module '@fraiseql/nodejs'`
+**Issue**: `Cannot find module '@FraiseQL/nodejs'`
 
 **Solution**:
 
 ```bash
-npm install @fraiseql/nodejs
-node -e "console.log(require('@fraiseql/nodejs'))"
+npm install @FraiseQL/nodejs
+node -e "console.log(require('@FraiseQL/nodejs'))"
 ```
 
 #### Node Version Issues
@@ -737,7 +737,7 @@ Or for CommonJS:
 
 ```javascript
 // ✅ CommonJS
-const { Server } = require('@fraiseql/nodejs');
+const { Server } = require('@FraiseQL/nodejs');
 
 const server = Server.fromCompiled('schema.compiled.json');
 ```
@@ -859,7 +859,7 @@ const server = Server.fromCompiled('schema.compiled.json', {
 
 ```bash
 # Tree-shake
-import { Server } from '@fraiseql/nodejs';  // Only what needed
+import { Server } from '@FraiseQL/nodejs';  // Only what needed
 
 # Check bundle
 npm ls
@@ -879,7 +879,7 @@ const server = Server.fromCompiled('schema.compiled.json', {
 
 // Or use env
 process.env.FRAISEQL_DEBUG = 'true';
-process.env.RUST_LOG = 'fraiseql=debug';
+process.env.RUST_LOG = 'FraiseQL=debug';
 ```
 
 #### Inspect Results
@@ -908,7 +908,7 @@ Provide:
 
 1. Node.js version: `node -v`
 2. npm version: `npm -v`
-3. FraiseQL version: `npm list @fraiseql/nodejs`
+3. FraiseQL version: `npm list @FraiseQL/nodejs`
 4. Minimal code example
 5. Full error trace
 
@@ -920,7 +920,7 @@ Provide:
 - [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns
 - [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables and aggregations
 - [Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
-- [Node.js SDK GitHub](https://github.com/fraiseql/fraiseql-nodejs)
+- [Node.js SDK GitHub](https://github.com/FraiseQL/FraiseQL-nodejs)
 
 ---
 

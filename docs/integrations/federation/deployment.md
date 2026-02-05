@@ -74,7 +74,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 ```bash
 # 1. Create RDS instance
 aws rds create-db-instance \
-  --db-instance-identifier fraiseql-users \
+  --db-instance-identifier FraiseQL-users \
   --db-instance-class db.t3.micro \
   --engine postgres \
   --master-username postgres \
@@ -82,23 +82,23 @@ aws rds create-db-instance \
 
 # 2. Get endpoint
 aws rds describe-db-instances \
-  --db-instance-identifier fraiseql-users \
+  --db-instance-identifier FraiseQL-users \
   --query 'DBInstances[0].Endpoint.Address'
 
 # 3. Create ECR repository
-aws ecr create-repository --repository-name fraiseql-users
+aws ecr create-repository --repository-name FraiseQL-users
 
 # 4. Build and push Docker image
-docker build -t fraiseql-users:latest users-service/
+docker build -t FraiseQL-users:latest users-service/
 aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.us-east-1.amazonaws.com
-docker tag fraiseql-users:latest <account>.dkr.ecr.us-east-1.amazonaws.com/fraiseql-users:latest
-docker push <account>.dkr.ecr.us-east-1.amazonaws.com/fraiseql-users:latest
+docker tag FraiseQL-users:latest <account>.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-users:latest
+docker push <account>.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-users:latest
 
 # 5. Deploy to ECS
 aws ecs create-service \
-  --cluster fraiseql \
-  --service-name fraiseql-users \
-  --task-definition fraiseql-users:1 \
+  --cluster FraiseQL \
+  --service-name FraiseQL-users \
+  --task-definition FraiseQL-users:1 \
   --desired-count 2 \
   --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:...
 ```text
@@ -117,21 +117,21 @@ aws ecs create-service \
 
 ```bash
 # 1. Create Cloud SQL instance
-gcloud sql instances create fraiseql-users \
+gcloud sql instances create FraiseQL-users \
   --database-version=POSTGRES_16 \
   --tier=db-f1-micro \
   --region=us-central1
 
 # 2. Get connection string
-gcloud sql instances describe fraiseql-users \
+gcloud sql instances describe FraiseQL-users \
   --format='value(connectionName)'
 
 # 3. Build and push image
-gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT/fraiseql/users-service
+gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT/FraiseQL/users-service
 
 # 4. Deploy to Cloud Run
-gcloud run deploy fraiseql-users \
-  --image us-central1-docker.pkg.dev/PROJECT/fraiseql/users-service \
+gcloud run deploy FraiseQL-users \
+  --image us-central1-docker.pkg.dev/PROJECT/FraiseQL/users-service \
   --platform managed \
   --region us-central1 \
   --set-env-vars DATABASE_URL=postgresql://...
@@ -152,33 +152,33 @@ gcloud run deploy fraiseql-users \
 ```bash
 # 1. Create PostgreSQL server
 az postgres server create \
-  --resource-group fraiseql \
-  --name fraiseql-users \
+  --resource-group FraiseQL \
+  --name FraiseQL-users \
   --location eastus \
-  --admin-user fraiseql \
+  --admin-user FraiseQL \
   --admin-password <password> \
   --sku-name B_Gen5_1
 
 # 2. Get connection string
 az postgres server show \
-  --resource-group fraiseql \
-  --name fraiseql-users \
+  --resource-group FraiseQL \
+  --name FraiseQL-users \
   --query 'fullyQualifiedDomainName'
 
 # 3. Create container registry
-az acr create --resource-group fraiseql --name fraiseql
+az acr create --resource-group FraiseQL --name FraiseQL
 
 # 4. Build and push
 az acr build \
-  --registry fraiseql \
-  --image fraiseql-users:latest \
+  --registry FraiseQL \
+  --image FraiseQL-users:latest \
   users-service/
 
 # 5. Deploy container
 az container create \
-  --resource-group fraiseql \
-  --name fraiseql-users \
-  --image fraiseql.azurecr.io/fraiseql-users:latest \
+  --resource-group FraiseQL \
+  --name FraiseQL-users \
+  --image FraiseQL.azurecr.io/FraiseQL-users:latest \
   --environment-variables DATABASE_URL=postgresql://...
 ```text
 
@@ -212,15 +212,15 @@ az container create \
 ```bash
 # AWS: Users Service
 aws rds create-db-instance --db-instance-identifier users --region us-east-1
-aws ecr create-repository --repository-name fraiseql-users
+aws ecr create-repository --repository-name FraiseQL-users
 
 # GCP: Orders Service
 gcloud sql instances create orders --region europe-west1
-gcloud container registries create --location=eu gcr.io/PROJECT/fraiseql-orders
+gcloud container registries create --location=eu gcr.io/PROJECT/FraiseQL-orders
 
 # Azure: Products Service
 az postgres server create --resource-group prod --name products --location westeurope
-az acr create --resource-group prod --name fraiseql
+az acr create --resource-group prod --name FraiseQL
 ```text
 
 #### 2. Configure Federation

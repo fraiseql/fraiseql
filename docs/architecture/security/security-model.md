@@ -103,22 +103,22 @@ request.user_context = authenticate(&token)?;
 Authorize access to entire type:
 
 ```python
-@fraiseql.type
-@fraiseql.authorize(rule="authenticated")  # Only logged-in users
+@FraiseQL.type
+@FraiseQL.authorize(rule="authenticated")  # Only logged-in users
 class Post:
     id: ID
     title: str
     content: str
 
-@fraiseql.type
-@fraiseql.authorize(rule="admin_only")  # Only admins
+@FraiseQL.type
+@FraiseQL.authorize(rule="admin_only")  # Only admins
 class AdminPanel:
     id: ID
     system_logs: [str]
     user_list: [User]
 
-@fraiseql.type
-@fraiseql.authorize(rule="public")  # Anyone (default)
+@FraiseQL.type
+@FraiseQL.authorize(rule="public")  # Anyone (default)
 class Product:
     id: ID
     name: str
@@ -161,26 +161,26 @@ query {
 Authorize access to individual fields:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID                          # Public
     username: str                   # Public
 
-    @fraiseql.authorize(rule="owner_or_admin")
+    @FraiseQL.authorize(rule="owner_or_admin")
     email: str                      # Only owner or admin can read
 
-    @fraiseql.authorize(rule="admin_only")
+    @FraiseQL.authorize(rule="admin_only")
     ssn: str                        # Only admin can read
 
-    @fraiseql.authorize(rule="own_profile")
+    @FraiseQL.authorize(rule="own_profile")
     encrypted_password_hash: str    # Only owner can read
 
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID                          # Public
     title: str                      # Public
 
-    @fraiseql.authorize(rule="published_or_author")
+    @FraiseQL.authorize(rule="published_or_author")
     content: str                    # Published posts or author
 ```text
 
@@ -238,20 +238,20 @@ query GetUser($id: ID!) {
 Authorize mutations (write operations):
 
 ```python
-@fraiseql.mutation
-@fraiseql.authorize(rule="authenticated")  # Anyone authenticated can create
+@FraiseQL.mutation
+@FraiseQL.authorize(rule="authenticated")  # Anyone authenticated can create
 def create_post(input: CreatePostInput) -> Post:
     """Create a new post"""
     pass
 
-@fraiseql.mutation
-@fraiseql.authorize(rule="own_post")  # Can only update own posts
+@FraiseQL.mutation
+@FraiseQL.authorize(rule="own_post")  # Can only update own posts
 def update_post(id: ID!, input: UpdatePostInput) -> Post:
     """Update a post"""
     pass
 
-@fraiseql.mutation
-@fraiseql.authorize(rule="admin_only")  # Only admin can delete
+@FraiseQL.mutation
+@FraiseQL.authorize(rule="admin_only")  # Only admin can delete
 def delete_post(id: ID!) -> Boolean:
     """Delete a post"""
     pass
@@ -283,8 +283,8 @@ def delete_post(id: ID!) -> Boolean:
 Row-level security filters database results based on user context:
 
 ```python
-@fraiseql.type
-@fraiseql.rls(
+@FraiseQL.type
+@FraiseQL.rls(
     rule="same_organization"
     # Only return posts from user's organization
 )
@@ -293,8 +293,8 @@ class Post:
     title: str
     organization_id: str  # Part of RLS rule
 
-@fraiseql.type
-@fraiseql.rls(
+@FraiseQL.type
+@FraiseQL.rls(
     rule="owner_or_admin"
     # Return own records or if user is admin
 )
@@ -303,8 +303,8 @@ class User:
     username: str
     email: str
 
-@fraiseql.type
-@fraiseql.rls(
+@FraiseQL.type
+@FraiseQL.rls(
     rule="none"  # No RLS, return all records (if authorized)
 )
 class PublicProduct:
@@ -428,25 +428,25 @@ WHERE
 Field masking hides sensitive data from unauthorized users:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     username: str
 
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["owner", "admin"],           # Roles that see real value
         hide_from=["public", "guest"],        # Roles that see masked value
         masked_value=None                     # What to show if masked
     )
     email: str
 
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["owner"],                    # Only owner sees SSN
         masked_value="***-**-****"            # Show masked format
     )
     ssn: str
 
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["admin"],                    # Only admin sees password
         masked_value="[REDACTED]"             # Show redacted marker
     )
@@ -535,26 +535,26 @@ query GetUser($id: ID!) {
 Different masking strategies for different field types:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Customer:
     # Strategy 1: Return null (most common)
-    @fraiseql.mask(show_to=["admin"], masked_value=None)
+    @FraiseQL.mask(show_to=["admin"], masked_value=None)
     credit_card: str
 
     # Strategy 2: Return placeholder
-    @fraiseql.mask(show_to=["owner"], masked_value="**** **** **** 1234")
+    @FraiseQL.mask(show_to=["owner"], masked_value="**** **** **** 1234")
     full_credit_card: str
 
     # Strategy 3: Return empty list
-    @fraiseql.mask(show_to=["admin"], masked_value=[])
+    @FraiseQL.mask(show_to=["admin"], masked_value=[])
     transaction_history: [Transaction]
 
     # Strategy 4: Return default value
-    @fraiseql.mask(show_to=["owner"], masked_value=0)
+    @FraiseQL.mask(show_to=["owner"], masked_value=0)
     balance: float
 
     # Strategy 5: Return random value
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["admin"],
         masked_value_generator=lambda: random.random() * 100
     )
@@ -570,20 +570,20 @@ class Customer:
 Control who can execute specific queries:
 
 ```python
-@fraiseql.query
-@fraiseql.authorize(rule="authenticated")
+@FraiseQL.query
+@FraiseQL.authorize(rule="authenticated")
 def get_user(id: ID!) -> User:
     """Any authenticated user can read users"""
     pass
 
-@fraiseql.query
-@fraiseql.authorize(rule="admin_only")
+@FraiseQL.query
+@FraiseQL.authorize(rule="admin_only")
 def get_all_users() -> [User!]!:
     """Only admins can list all users"""
     pass
 
-@fraiseql.query
-@fraiseql.authorize(rule="organization_member")
+@FraiseQL.query
+@FraiseQL.authorize(rule="organization_member")
 def get_organization_users(org_id: ID!) -> [User!]!:
     """Members of organization can list users in organization"""
     pass
@@ -643,7 +643,7 @@ FraiseQL includes built-in authorization rules:
 Define custom authorization rules:
 
 ```python
-@fraiseql.authorization_rule(name="published_or_author")
+@FraiseQL.authorization_rule(name="published_or_author")
 def rule_published_or_author(
     resource: Any,
     user_context: UserContext
@@ -654,7 +654,7 @@ def rule_published_or_author(
         or resource.author_id == user_context.user_id
     )
 
-@fraiseql.authorization_rule(name="my_department")
+@FraiseQL.authorization_rule(name="my_department")
 def rule_my_department(
     resource: Any,
     user_context: UserContext
@@ -663,14 +663,14 @@ def rule_my_department(
     return resource.department == user_context.metadata["department"]
 
 # Use in schema:
-@fraiseql.type
+@FraiseQL.type
 class Post:
-    @fraiseql.authorize(rule="published_or_author")
+    @FraiseQL.authorize(rule="published_or_author")
     content: str
 
-@fraiseql.type
+@FraiseQL.type
 class Project:
-    @fraiseql.authorize(rule="my_department")
+    @FraiseQL.authorize(rule="my_department")
     budget: float
 ```text
 
@@ -827,8 +827,8 @@ FraiseQL supports GDPR requirements:
 ```python
 # Right to be forgotten
 # User can request data deletion
-@fraiseql.mutation
-@fraiseql.authorize(rule="owner_only")
+@FraiseQL.mutation
+@FraiseQL.authorize(rule="owner_only")
 def request_data_deletion(user_id: ID!) -> Boolean:
     """Request personal data deletion"""
     # Marks user record for deletion
@@ -841,8 +841,8 @@ def request_data_deletion(user_id: ID!) -> Boolean:
 
 # Data portability
 # Export user data in machine-readable format
-@fraiseql.query
-@fraiseql.authorize(rule="owner_only")
+@FraiseQL.query
+@FraiseQL.authorize(rule="owner_only")
 def export_user_data(user_id: ID!) -> JSON:
     """Export all user data"""
     pass
@@ -854,13 +854,13 @@ FraiseQL supports HIPAA requirements:
 
 ```python
 # Access controls
-@fraiseql.authorize(rule="healthcare_provider")
+@FraiseQL.authorize(rule="healthcare_provider")
 class PatientRecord:
     """Only healthcare providers can access"""
     id: ID
     patient_id: ID
 
-    @fraiseql.mask(show_to=["treating_provider"])
+    @FraiseQL.mask(show_to=["treating_provider"])
     medical_history: str
 
 # Encryption
@@ -872,7 +872,7 @@ class PatientRecord:
 # Audit logs retained for 6+ years
 
 # De-identification
-@fraiseql.query
+@FraiseQL.query
 def get_anonymized_statistics() -> Statistics:
     """Return de-identified statistics"""
     pass
@@ -887,18 +887,18 @@ FraiseQL supports PCI-DSS requirements:
 # Cardholder data never appears in logs
 
 # Field masking for cardholder data
-@fraiseql.type
+@FraiseQL.type
 class Payment:
     id: ID
 
-    @fraiseql.mask(show_to=["admin"], masked_value="**** **** **** 4111")
+    @FraiseQL.mask(show_to=["admin"], masked_value="**** **** **** 4111")
     card_number: str
 
 # Restrict access to cardholder data
-@fraiseql.type
+@FraiseQL.type
 class PaymentMethod:
-    @fraiseql.authorize(rule="pci_authorized")
-    @fraiseql.mask(show_to=["owner", "pci_analyst"])
+    @FraiseQL.authorize(rule="pci_authorized")
+    @FraiseQL.mask(show_to=["owner", "pci_analyst"])
     card_token: str
 
 # Tokenization
@@ -971,7 +971,7 @@ class PaymentMethod:
 ### 10.1 Configuration Options
 
 ```python
-fraiseql.security.configure({
+FraiseQL.security.configure({
     # Authentication
     "authentication": {
         "enabled": True,
@@ -1020,7 +1020,7 @@ FRAISEQL_SECURITY_ENABLED=true
 # Authentication
 FRAISEQL_AUTH_PROVIDER=oauth2
 FRAISEQL_AUTH_ISSUER=https://auth.example.com
-FRAISEQL_AUTH_AUDIENCE=fraiseql-api
+FRAISEQL_AUTH_AUDIENCE=FraiseQL-api
 
 # Audit logging
 FRAISEQL_AUDIT_ENABLED=true

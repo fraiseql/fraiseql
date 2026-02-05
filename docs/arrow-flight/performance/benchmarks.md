@@ -56,7 +56,7 @@ Events flowing from NATS → Arrow → ClickHouse/Elasticsearch:
 
 | Metric | Value | Notes |
 |---|---|---|
-| **Ingestion Throughput** | 1M+ events/sec | Per fraiseql-arrow instance |
+| **Ingestion Throughput** | 1M+ events/sec | Per FraiseQL-arrow instance |
 | **Arrow Conversion** | <10ms | EntityEvent → RecordBatch |
 | **Batch Latency** | <50ms | Batch of 10k events to ClickHouse |
 | **Elasticsearch Indexing** | 100k+ docs/sec | Via bulk API |

@@ -18,7 +18,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 **Choose your path:**
 
-1. [New to FraiseQL? Start Here](#new-to-fraiseql-start-here)
+1. [New to FraiseQL? Start Here](#new-to-FraiseQL-start-here)
 2. [For Architects](#for-architects)
 3. [For Compiler Developers](#for-compiler-developers)
 4. [For Runtime Developers](#for-runtime-developers)

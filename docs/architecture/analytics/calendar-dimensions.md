@@ -504,7 +504,7 @@ Calendar columns add **minimal write overhead**:
 
 1. Name must end with `_info` (e.g., `date_info`, `custom_info`)
 2. Type must be JSONB (PostgreSQL) or JSON (MySQL/SQLite/SQL Server)
-3. Recompile schema: `fraiseql-cli compile schema.json`
+3. Recompile schema: `FraiseQL-cli compile schema.json`
 
 **Verify detection**:
 
@@ -628,7 +628,7 @@ CREATE INDEX idx_sales_date_info ON tf_sales USING GIN (date_info);
 **Step 5: Recompile Schema**
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 **Step 6: Verify Performance**
@@ -671,7 +671,7 @@ Calendar dimensions are detected during **schema compilation**, not at query run
 └─────────────────────────────┘
             ↓
 ┌─────────────────────────────┐
-│ fraiseql-cli compile        │
+│ FraiseQL-cli compile        │
 │                             │
 │ Introspect table:           │
 │  1. Find *_info columns     │

@@ -102,7 +102,7 @@ Detailed technical specifications for implementers.
 
 Practical how-to guides for operators, developers, and DevOps teams.
 
-- **Evaluation**: ⭐ **[Choosing FraiseQL](guides/choosing-fraiseql.md)** — Should you use FraiseQL? Use case analysis and decision matrix
+- **Evaluation**: ⭐ **[Choosing FraiseQL](guides/choosing-FraiseQL.md)** — Should you use FraiseQL? Use case analysis and decision matrix
 - **Architecture**: ⭐ **[Consistency Model](guides/consistency-model.md)** — Understanding FraiseQL's CAP theorem choice (Consistency + Partition Tolerance)
 - **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/PATTERNS.md)
 - **Deployment**: [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
@@ -170,7 +170,7 @@ Historical record of architectural decisions and rationale.
 
 Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for curated paths:
 
-- 🆕 **[New to FraiseQL](reading-order.md#new-to-fraiseql-start-here)** (45 min)
+- 🆕 **[New to FraiseQL](reading-order.md#new-to-FraiseQL-start-here)** (45 min)
 - 🏗️ **[For Architects](reading-order.md#for-architects)** (3.5 hours)
 - ⚙️ **[For Compiler Developers](reading-order.md#for-compiler-developers)** (4 hours)
 - 🦀 **[For Runtime Developers](reading-order.md#for-runtime-developers)** (3 hours)
@@ -201,7 +201,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 
 **I want to...**
 
-- **Understand FraiseQL** → [Reading Order: New to FraiseQL](reading-order.md#new-to-fraiseql-start-here)
+- **Understand FraiseQL** → [Reading Order: New to FraiseQL](reading-order.md#new-to-FraiseQL-start-here)
 - **Evaluate for adoption** → [PRD](prd/PRD.md) + [Architecture Guide](architecture/)
 - **Write schemas** → [Specs: Authoring Contract](specs/authoring-contract.md) + [Schema Conventions](specs/schema-conventions.md)
 - **Build a compiler** → [Reading Order: Compiler Developers](reading-order.md#for-compiler-developers)

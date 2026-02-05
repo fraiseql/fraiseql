@@ -44,7 +44,7 @@ Your schema definitions in Python or TypeScript:
 
 ```python
 # schema.py
-from fraiseql import schema
+from FraiseQL import schema
 from datetime import datetime
 
 @schema.type(table="tb_users")
@@ -708,17 +708,17 @@ Result: Zero surprises in production
 
 ```bash
 # Watch for changes and recompile
-fraiseql-cli watch schema.py --output schema.compiled.json
+FraiseQL-cli watch schema.py --output schema.compiled.json
 
 # Or one-time compilation
-fraiseql-cli compile schema.py --output schema.compiled.json
+FraiseQL-cli compile schema.py --output schema.compiled.json
 ```text
 
 ### CI/CD Pipeline
 
 ```bash
 # Automated compilation in build step
-fraiseql-cli compile schema.py \
+FraiseQL-cli compile schema.py \
   --database-url $DATABASE_URL \
   --output schema.compiled.json \
   --strict  # Fail on any warning
@@ -728,15 +728,15 @@ fraiseql-cli compile schema.py \
 
 ```bash
 # 1. Compile schema (all validations run)
-fraiseql-cli compile schema.py --database-url prod_db
+FraiseQL-cli compile schema.py --database-url prod_db
 
 # 2. Run tests with compiled schema
-fraiseql-server --schema schema.compiled.json &
+FraiseQL-server --schema schema.compiled.json &
 pytest tests/
 
 # 3. Deploy if tests pass
 docker build .
-docker push registry/fraiseql-server:latest
+docker push registry/FraiseQL-server:latest
 ```text
 
 ---

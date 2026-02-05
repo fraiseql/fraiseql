@@ -300,7 +300,7 @@ JWT_ISSUER=https://provider.com
 JWT_ALGORITHM=RS256
 
 # Database
-DATABASE_URL=postgres://user:pass@localhost/fraiseql
+DATABASE_URL=postgres://user:pass@localhost/FraiseQL
 ```text
 
 ### Configuration File
@@ -315,7 +315,7 @@ client_secret_env = "GOOGLE_CLIENT_SECRET"
 redirect_uri = "http://localhost:8000/auth/callback"
 
 [auth.keycloak]
-issuer = "http://localhost:8080/realms/fraiseql"
+issuer = "http://localhost:8080/realms/FraiseQL"
 client_id_env = "KEYCLOAK_CLIENT_ID"
 client_secret_env = "KEYCLOAK_CLIENT_SECRET"
 redirect_uri = "http://localhost:8000/auth/callback"

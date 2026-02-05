@@ -26,7 +26,7 @@ FraiseQL's Enterprise Audit Logging system provides:
 ### Basic Setup
 
 ```python
-from fraiseql.enterprise.audit import AuditEventLogger
+from FraiseQL.enterprise.audit import AuditEventLogger
 
 # Initialize at application startup
 audit_logger = AuditEventLogger(
@@ -62,7 +62,7 @@ event_id = await audit_logger.log_event(
 ### Querying Audit Events
 
 ```python
-from fraiseql.enterprise.audit import AuditEventFilter
+from FraiseQL.enterprise.audit import AuditEventFilter
 
 # Get recent events
 events, total = await audit_logger.get_events(
@@ -175,7 +175,7 @@ class DebeziumEvent:
   "source": {
     "table": "users",
     "schema": "public",
-    "database": "fraiseql",
+    "database": "FraiseQL",
     "ts_ms": 1705000000000
   },
   "op": "u",
@@ -296,7 +296,7 @@ event_id = await audit_logger.log_event(
     source={
         "table": "posts",
         "schema": "public",
-        "database": "fraiseql"
+        "database": "FraiseQL"
     },
     extra_metadata={"tags": ["blog", "featured"]},
     ip_address="203.0.113.1",
@@ -436,7 +436,7 @@ class SecurityViolationEventData:
 ### Automatic Event Logging Middleware
 
 ```python
-from fraiseql.enterprise.audit.middleware import create_audit_middleware
+from FraiseQL.enterprise.audit.middleware import create_audit_middleware
 
 # Add audit logging middleware
 schema = strawberry.Schema(
@@ -575,7 +575,7 @@ event_id = await audit_logger.log_event(
 
 ```python
 # Get slow queries
-from fraiseql.enterprise.audit import AuditEventFilter
+from FraiseQL.enterprise.audit import AuditEventFilter
 
 slow_queries = await audit_logger.get_events(
     tenant_id="tenant-123",

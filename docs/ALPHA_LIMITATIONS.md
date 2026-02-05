@@ -23,7 +23,7 @@ These features are **fully implemented and tested**:
 - ✅ Webhooks and event system (11 provider signatures)
 - ✅ Query result caching with invalidation
 - ✅ Apache Arrow Flight columnar export
-- ✅ fraiseql-wire streaming (PostgreSQL)
+- ✅ FraiseQL-wire streaming (PostgreSQL)
 - ✅ 2,400+ tests with 100% pass rate
 
 ---
@@ -216,7 +216,7 @@ Expected performance characteristics:
 If you encounter an issue not listed here:
 
 1. Check [ALPHA_TESTING_GUIDE.md](ALPHA_TESTING_GUIDE.md) for known workarounds
-2. Open a [GitHub Issue](https://github.com/fraiseql/fraiseql/issues) with:
+2. Open a [GitHub Issue](https://github.com/FraiseQL/FraiseQL/issues) with:
    - Description of the limitation
    - Environment (database, language, OS)
    - Steps to reproduce
@@ -230,7 +230,7 @@ If you encounter an issue not listed here:
 - **[FAQ](FAQ.md)** — General questions
 - **[TROUBLESHOOTING](../TROUBLESHOOTING.md)** — Common problems
 - **[Release Notes](../ALPHA_RELEASE_NOTES.md)** — What's included in alpha
-- **[GitHub Issues](https://github.com/fraiseql/fraiseql/issues)** — Report problems
+- **[GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)** — Report problems
 
 ---
 

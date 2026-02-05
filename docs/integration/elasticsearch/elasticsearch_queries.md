@@ -9,7 +9,7 @@ This document shows practical examples of querying FraiseQL events in Elasticsea
 Find all "created" events:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -26,7 +26,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Find all events affecting "Order" entities:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -44,7 +44,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Find all events triggered by a specific user:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -63,7 +63,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Find events with specific text in any field:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -85,7 +85,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Find events in the last 24 hours:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -105,7 +105,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Find order creation events from the last 7 days:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -128,7 +128,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Count events by type (last 7 days):
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "size": 0,
@@ -155,7 +155,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Count events by entity type:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "size": 0,
@@ -175,7 +175,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Events per hour over the last 48 hours:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "size": 0,
@@ -204,7 +204,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Get all events related to a specific entity:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -225,7 +225,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Search for events containing payment errors:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -256,8 +256,8 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 1. Open Kibana: `http://localhost:5601`
 2. Go to **Stack Management** → **Data Views**
 3. Click **Create data view**
-4. Name: `fraiseql-events`
-5. Index pattern: `fraiseql-events-*`
+4. Name: `FraiseQL-events`
+5. Index pattern: `FraiseQL-events-*`
 6. Timestamp field: `timestamp`
 7. Click **Save data view**
 
@@ -268,7 +268,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 1. Go to **Visualize**
 2. Click **Create visualization**
 3. Select **Line chart**
-4. Data source: `fraiseql-events`
+4. Data source: `FraiseQL-events`
 5. Metrics: Count
 6. Bucket aggregations: Date histogram on `timestamp` (1 hour interval)
 7. Click **Save**
@@ -278,7 +278,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 1. Go to **Visualize**
 2. Click **Create visualization**
 3. Select **Bar vertical**
-4. Data source: `fraiseql-events`
+4. Data source: `FraiseQL-events`
 5. Metrics: Count
 6. Bucket aggregations: Terms on `event_type`
 7. Click **Save**
@@ -288,7 +288,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 1. Go to **Visualize**
 2. Click **Create visualization**
 3. Select **Table**
-4. Data source: `fraiseql-events`
+4. Data source: `FraiseQL-events`
 5. Metrics: Count
 6. Bucket aggregations: Terms on `user_id`
 7. Sort by count descending
@@ -301,7 +301,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Filters are cached and faster than queries:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {
@@ -323,7 +323,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
 Only retrieve needed fields for faster response:
 
 ```bash
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {...},
@@ -338,7 +338,7 @@ More efficient than from/size for large result sets:
 
 ```bash
 # Get first page
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {...},
@@ -347,7 +347,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
   }'
 
 # Get next page (use last sort values from previous response)
-curl -X POST "localhost:9200/fraiseql-events-*/_search?pretty" \
+curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
     "query": {...},
@@ -369,11 +369,11 @@ curl "localhost:9200/_cluster/health?pretty"
 
 ```bash
 # Slow log for queries > 500ms
-curl "localhost:9200/_cat/indices/fraiseql-*?v&sort=store.size:desc"
+curl "localhost:9200/_cat/indices/FraiseQL-*?v&sort=store.size:desc"
 ```
 
 ### Check Index Statistics
 
 ```bash
-curl "localhost:9200/fraiseql-events-*/_stats?pretty"
+curl "localhost:9200/FraiseQL-events-*/_stats?pretty"
 ```

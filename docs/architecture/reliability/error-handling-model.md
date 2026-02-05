@@ -64,7 +64,7 @@ Error: Schema compilation failed
   Code: E_SCHEMA_TYPE_NOT_DEFINED_001
   Query 'users' returns 'list[User]'
   Type 'User' is not defined
-  Suggestion: Add @fraiseql.type class User or check spelling
+  Suggestion: Add @FraiseQL.type class User or check spelling
   File: schema.py, line 42
 ```text
 
@@ -481,7 +481,7 @@ Structure: Same as others
       "timestamp": "2026-01-11T15:35:00Z",
       "trace_id": "req_550e8400",
       "stack_trace": "Available only in debug mode",
-      "support_link": "https://github.com/fraiseql/fraiseql/issues"
+      "support_link": "https://github.com/FraiseQL/FraiseQL/issues"
     }
   }]
 }
@@ -866,8 +866,8 @@ Response with debug mode:
     "extensions": {
       "code": "E_DB_POSTGRES_QUERY_TIMEOUT_302",
       "stack_trace": [
-        "fraiseql::runtime::execute_query (src/runtime.rs:312)",
-        "fraiseql::db::execute (src/db.rs:45)",
+        "FraiseQL::runtime::execute_query (src/runtime.rs:312)",
+        "FraiseQL::db::execute (src/db.rs:45)",
         "postgres::client::query (src/db/postgres.rs:128)"
       ],
       "query": "SELECT ... FROM users WHERE id = $1",

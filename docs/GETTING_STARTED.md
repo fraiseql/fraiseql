@@ -19,7 +19,7 @@ cd my-graphql-api
 
 ```toml
 [dependencies]
-fraiseql = "2.0"
+FraiseQL = "2.0"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
 ```text
@@ -106,7 +106,7 @@ Save this as `schema.json` in your project root:
 Replace `src/main.rs` with:
 
 ```rust
-use fraiseql::schema::CompiledSchema;
+use FraiseQL::schema::CompiledSchema;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -236,4 +236,4 @@ A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](opera
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

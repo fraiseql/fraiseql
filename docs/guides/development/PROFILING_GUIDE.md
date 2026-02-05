@@ -79,7 +79,7 @@ cargo bench -- --baseline main
 ```bash
 # Build release and profile
 cargo build --release
-time ./target/release/fraiseql-cli compile schema.json
+time ./target/release/FraiseQL-cli compile schema.json
 ```
 
 ## Profiling Tools
@@ -118,7 +118,7 @@ Low-level CPU profiling:
 sudo apt-get install linux-tools
 
 # Profile binary
-perf record -g ./target/release/fraiseql-server
+perf record -g ./target/release/FraiseQL-server
 
 # Generate report
 perf report
@@ -160,10 +160,10 @@ High-level statistics:
 
 ```bash
 # Count CPU cycles, cache misses, etc.
-perf stat ./target/release/fraiseql-server --run-test-query
+perf stat ./target/release/FraiseQL-server --run-test-query
 
 # Output:
-# Performance counter stats for './target/release/fraiseql-server':
+# Performance counter stats for './target/release/FraiseQL-server':
 #      123,456,789 cycles
 #       10,234,567 instructions
 #          123,456 L1-dcache-misses
@@ -308,11 +308,11 @@ cargo flamegraph -- --test serialize_large_response
 
 ```bash
 # Check memory usage
-/usr/bin/time -v ./target/release/fraiseql-server
+/usr/bin/time -v ./target/release/FraiseQL-server
 
 # Profile allocations
 cargo install valgrind
-valgrind --leak-check=full ./target/release/fraiseql-server
+valgrind --leak-check=full ./target/release/FraiseQL-server
 ```
 
 **Solutions**:

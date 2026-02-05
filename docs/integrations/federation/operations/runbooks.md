@@ -41,7 +41,7 @@ This document provides step-by-step operational procedures for diagnosing and re
 
 # In Jaeger UI:
 # 1. Go to Search tab
-# 2. Service: "fraiseql-core"
+# 2. Service: "FraiseQL-core"
 # 3. Operation: "federation.query.execute"
 # 4. Min Duration: "100ms" (adjust based on alert)
 # 5. Sort by Duration, newest first
@@ -111,7 +111,7 @@ curl -s https://subgraph-users.internal/metrics | grep http_requests_total
 TRACE_ID="4bf92f3577b34da6a3ce929d0e0e4736"
 
 # Search logs
-kubectl logs -l app=fraiseql --all-containers --tail=1000 | \
+kubectl logs -l app=FraiseQL --all-containers --tail=1000 | \
   grep $TRACE_ID | jq '.context.typename, .context.entity_count'
 
 # Expected output:
@@ -178,7 +178,7 @@ prometheus_query='rate(federation_errors_total[5m])'
 
 ```bash
 # Get error distribution by type
-kubectl logs -l app=fraiseql --tail=1000 | \
+kubectl logs -l app=FraiseQL --tail=1000 | \
   jq 'select(.error_message != null) | {
     error_type: .context.operation_type,
     error_message,
@@ -199,15 +199,15 @@ kubectl logs -l app=fraiseql --tail=1000 | \
 
 ```bash
 # Option A: Temporarily disable problematic subgraph
-kubectl set env deployment/fraiseql \
+kubectl set env deployment/FraiseQL \
   FEDERATION_DISABLED_SUBGRAPHS=users_subgraph
 
 # Option B: Reduce mutation rate
-kubectl set env deployment/fraiseql \
+kubectl set env deployment/FraiseQL \
   MUTATION_RATE_LIMIT_PER_SEC=10
 
 # Option C: Drain and restart federation pods
-kubectl rollout restart deployment/fraiseql
+kubectl rollout restart deployment/FraiseQL
 ```text
 
 ### Step 4: Root Cause Analysis
@@ -292,7 +292,7 @@ Pattern?          Bug?
 
 ```bash
 # Analyze recent queries
-kubectl logs -l app=fraiseql --since=2h | \
+kubectl logs -l app=FraiseQL --since=2h | \
   jq 'select(.context.operation_type == "entity_resolution") |
       {typename: .context.typename, entity_count: .context.entity_count}' | \
   sort | uniq -c | sort -rn
@@ -480,7 +480,7 @@ curl -s http://prometheus:9090/api/v1/query?query=federation_entity_resolutions_
 # Should return a number > 0
 
 # Are logs being written?
-tail -100 /var/log/fraiseql/app.log | jq '.trace_id' | head -5
+tail -100 /var/log/FraiseQL/app.log | jq '.trace_id' | head -5
 # Should show trace IDs
 
 # Step 3: Identify failed component
@@ -495,20 +495,20 @@ tail -100 /var/log/fraiseql/app.log | jq '.trace_id' | head -5
 
 ```bash
 # Check Jaeger connectivity
-curl -s http://jaeger:14268/api/traces?service=fraiseql-core | jq '.traceID' | head -3
+curl -s http://jaeger:14268/api/traces?service=FraiseQL-core | jq '.traceID' | head -3
 
 # Restart Jaeger agent
 docker restart jaeger-agent
 
 # Verify traces flow
-kubectl logs -l app=fraiseql --tail=50 | grep -i "trace"
+kubectl logs -l app=FraiseQL --tail=50 | grep -i "trace"
 ```text
 
 **If Metrics Missing**:
 
 ```bash
 # Check Prometheus targets
-curl -s http://prometheus:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="fraiseql")'
+curl -s http://prometheus:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="FraiseQL")'
 
 # Ensure federation metrics endpoint is responding
 curl -s http://localhost:9000/metrics | grep federation_ | head -5
@@ -521,16 +521,16 @@ curl -X POST http://prometheus:9090/-/reload
 
 ```bash
 # Check log file permissions
-ls -la /var/log/fraiseql/
+ls -la /var/log/FraiseQL/
 
 # Verify logging is initialized
-kubectl logs -l app=fraiseql | grep -i "logging.*init\|tracing.*init" | tail -3
+kubectl logs -l app=FraiseQL | grep -i "logging.*init\|tracing.*init" | tail -3
 
 # Check disk space (logs might be failing due to full disk)
 df -h /var/log/
 
 # Restart logging
-pkill -f "fraiseql" && docker-compose up -d fraiseql
+pkill -f "FraiseQL" && docker-compose up -d FraiseQL
 ```text
 
 ### Validation After Recovery
@@ -552,7 +552,7 @@ curl -s "http://prometheus:9090/api/v1/query?query=federation_entity_resolutions
 # Should be higher than before
 
 # Verify logs contain trace_id
-kubectl logs -l app=fraiseql --tail=50 | jq "select(.trace_id == \"$TRACE_ID\")" | jq '.message'
+kubectl logs -l app=FraiseQL --tail=50 | jq "select(.trace_id == \"$TRACE_ID\")" | jq '.message'
 # Should return log messages with matching trace_id
 ```text
 
@@ -838,7 +838,7 @@ error_message - Human-readable error description
 curl -s http://jaeger:16686/api/services | jq .
 
 # Test Prometheus
-curl -s "http://prometheus:9090/api/v1/query?query=up{job=\"fraiseql\"}" | jq .
+curl -s "http://prometheus:9090/api/v1/query?query=up{job=\"FraiseQL\"}" | jq .
 
 # Test federation health
 curl -s http://localhost:8000/health | jq .
@@ -851,9 +851,9 @@ curl -s http://localhost:9000/metrics | grep federation_ | head -10
 
 ## Support & Escalation
 
-**Observability Team**: @fraiseql-observability on Slack
+**Observability Team**: @FraiseQL-observability on Slack
 **On-Call Engineer**: See PagerDuty schedule
-**Runbook Issues**: File issue in fraiseql/docs
+**Runbook Issues**: File issue in FraiseQL/docs
 
 Last Updated: 2026-01-28
 Version: 1.0

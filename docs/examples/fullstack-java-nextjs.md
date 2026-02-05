@@ -13,7 +13,7 @@
 2. [Part 1: Java Schema Authoring](#part-1-java-schema-authoring)
 3. [Part 2: Database Schema & Setup](#part-2-database-schema--setup)
 4. [Part 3: Export & Compilation](#part-3-export--compilation)
-5. [Part 4: FraiseQL Server Deployment](#part-4-fraiseql-server-deployment)
+5. [Part 4: FraiseQL Server Deployment](#part-4-FraiseQL-server-deployment)
 6. [Part 5: Next.js Frontend](#part-5-nextjs-frontend)
 7. [Part 6: Project Structure](#part-6-project-structure)
 8. [Part 7: Running the Full Stack](#part-7-running-the-full-stack)
@@ -63,7 +63,7 @@
 │     Java Maven Project (Developer Authoring)                      │
 │  • @GraphQLType annotations on domain models                      │
 │  • @GraphQLQuery, @GraphQLMutation decorators                     │
-│  • Export: fraiseql-maven-plugin → schema.json                    │
+│  • Export: FraiseQL-maven-plugin → schema.json                    │
 │  • NO runtime dependency on FraiseQL (compile-time only)          │
 └──────────────────────────────────────────────────────────────────┘
 ```text
@@ -86,7 +86,7 @@ Create a Maven project with the FraiseQL schema authoring plugin:
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.fraiseql</groupId>
+    <groupId>dev.FraiseQL</groupId>
     <artifactId>blog-schema</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -98,15 +98,15 @@ Create a Maven project with the FraiseQL schema authoring plugin:
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <fraiseql.version>2.0.0</fraiseql.version>
+        <FraiseQL.version>2.0.0</FraiseQL.version>
     </properties>
 
     <dependencies>
         <!-- FraiseQL Schema Annotations (compile-only) -->
         <dependency>
-            <groupId>dev.fraiseql</groupId>
-            <artifactId>fraiseql-annotations</artifactId>
-            <version>${fraiseql.version}</version>
+            <groupId>dev.FraiseQL</groupId>
+            <artifactId>FraiseQL-annotations</artifactId>
+            <version>${FraiseQL.version}</version>
             <scope>compile</scope>
         </dependency>
 
@@ -123,9 +123,9 @@ Create a Maven project with the FraiseQL schema authoring plugin:
         <plugins>
             <!-- FraiseQL Maven Plugin: Export schema to JSON -->
             <plugin>
-                <groupId>dev.fraiseql</groupId>
-                <artifactId>fraiseql-maven-plugin</artifactId>
-                <version>${fraiseql.version}</version>
+                <groupId>dev.FraiseQL</groupId>
+                <artifactId>FraiseQL-maven-plugin</artifactId>
+                <version>${FraiseQL.version}</version>
                 <executions>
                     <execution>
                         <phase>generate-resources</phase>
@@ -133,12 +133,12 @@ Create a Maven project with the FraiseQL schema authoring plugin:
                             <goal>export-schema</goal>
                         </goals>
                         <configuration>
-                            <packageName>dev.fraiseql.blog</packageName>
+                            <packageName>dev.FraiseQL.blog</packageName>
                             <outputFile>
                                 ${project.build.directory}/schema.json
                             </outputFile>
                             <scanPackages>
-                                <scanPackage>dev.fraiseql.blog</scanPackage>
+                                <scanPackage>dev.FraiseQL.blog</scanPackage>
                             </scanPackages>
                         </configuration>
                     </execution>
@@ -165,10 +165,10 @@ Create a Maven project with the FraiseQL schema authoring plugin:
 Create Java classes with FraiseQL annotations to define your GraphQL schema:
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/User.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/User.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 import java.time.OffsetDateTime;
 
 @GraphQLType(description = "A registered user/author")
@@ -214,10 +214,10 @@ public class User {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/UserRole.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/UserRole.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 
 @GraphQLEnum
 public enum UserRole {
@@ -246,10 +246,10 @@ public enum UserRole {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/Category.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/Category.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 
 @GraphQLType(description = "Article category/topic")
 public class Category {
@@ -280,10 +280,10 @@ public class Category {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/Tag.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/Tag.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 
 @GraphQLType(description = "Article tag/label")
 public class Tag {
@@ -312,10 +312,10 @@ public class Tag {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/Article.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/Article.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 import java.time.OffsetDateTime;
 
 @GraphQLType(description = "Blog article/post")
@@ -388,10 +388,10 @@ public class Article {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/ArticleStatus.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/ArticleStatus.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 
 @GraphQLEnum
 public enum ArticleStatus {
@@ -417,10 +417,10 @@ public enum ArticleStatus {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/Comment.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/Comment.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 import java.time.OffsetDateTime;
 
 @GraphQLType(description = "Article comment")
@@ -463,10 +463,10 @@ public class Comment {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/types/CommentStatus.java
-package dev.fraiseql.blog.types;
+// src/main/java/dev/FraiseQL/blog/types/CommentStatus.java
+package dev.FraiseQL.blog.types;
 
-import dev.fraiseql.annotations.*;
+import dev.FraiseQL.annotations.*;
 
 @GraphQLEnum
 public enum CommentStatus {
@@ -494,11 +494,11 @@ public enum CommentStatus {
 ### 1.3 Query Definitions
 
 ```java
-// src/main/java/dev/fraiseql/blog/queries/ArticleQueries.java
-package dev.fraiseql.blog.queries;
+// src/main/java/dev/FraiseQL/blog/queries/ArticleQueries.java
+package dev.FraiseQL.blog.queries;
 
-import dev.fraiseql.annotations.*;
-import dev.fraiseql.blog.types.*;
+import dev.FraiseQL.annotations.*;
+import dev.FraiseQL.blog.types.*;
 import java.util.List;
 
 @GraphQLQueryRoot
@@ -572,11 +572,11 @@ enum SortDirection {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/queries/CommentQueries.java
-package dev.fraiseql.blog.queries;
+// src/main/java/dev/FraiseQL/blog/queries/CommentQueries.java
+package dev.FraiseQL.blog.queries;
 
-import dev.fraiseql.annotations.*;
-import dev.fraiseql.blog.types.*;
+import dev.FraiseQL.annotations.*;
+import dev.FraiseQL.blog.types.*;
 import java.util.List;
 
 @GraphQLQueryRoot
@@ -611,11 +611,11 @@ public class CommentQueries {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/queries/CategoryQueries.java
-package dev.fraiseql.blog.queries;
+// src/main/java/dev/FraiseQL/blog/queries/CategoryQueries.java
+package dev.FraiseQL.blog.queries;
 
-import dev.fraiseql.annotations.*;
-import dev.fraiseql.blog.types.*;
+import dev.FraiseQL.annotations.*;
+import dev.FraiseQL.blog.types.*;
 import java.util.List;
 
 @GraphQLQueryRoot
@@ -648,11 +648,11 @@ public class CategoryQueries {
 ### 1.4 Mutation Definitions
 
 ```java
-// src/main/java/dev/fraiseql/blog/mutations/ArticleMutations.java
-package dev.fraiseql.blog.mutations;
+// src/main/java/dev/FraiseQL/blog/mutations/ArticleMutations.java
+package dev.FraiseQL.blog.mutations;
 
-import dev.fraiseql.annotations.*;
-import dev.fraiseql.blog.types.*;
+import dev.FraiseQL.annotations.*;
+import dev.FraiseQL.blog.types.*;
 
 @GraphQLMutationRoot
 public class ArticleMutations {
@@ -718,11 +718,11 @@ public class ArticleMutations {
 ```text
 
 ```java
-// src/main/java/dev/fraiseql/blog/mutations/CommentMutations.java
-package dev.fraiseql.blog.mutations;
+// src/main/java/dev/FraiseQL/blog/mutations/CommentMutations.java
+package dev.FraiseQL.blog.mutations;
 
-import dev.fraiseql.annotations.*;
-import dev.fraiseql.blog.types.*;
+import dev.FraiseQL.annotations.*;
+import dev.FraiseQL.blog.types.*;
 
 @GraphQLMutationRoot
 public class CommentMutations {
@@ -1051,7 +1051,7 @@ fi
 
 echo "✓ schema.json generated successfully"
 
-# Copy to fraiseql compiler directory
+# Copy to FraiseQL compiler directory
 cp target/schema.json ../schema.json
 
 echo "✓ Schema exported to ../schema.json"
@@ -1068,13 +1068,13 @@ set -e
 echo "Compiling schema with FraiseQL..."
 
 # Install FraiseQL CLI if needed
-if ! command -v fraiseql &> /dev/null; then
-    echo "Installing fraiseql-cli..."
-    cargo install fraiseql-cli
+if ! command -v FraiseQL &> /dev/null; then
+    echo "Installing FraiseQL-cli..."
+    cargo install FraiseQL-cli
 fi
 
-# Create fraiseql.toml configuration
-cat > fraiseql.toml << 'EOF'
+# Create FraiseQL.toml configuration
+cat > FraiseQL.toml << 'EOF'
 [database]
 url = "postgresql://blog_user:blog_password@localhost:5432/blog_db"
 pool_size = 10
@@ -1117,8 +1117,8 @@ max_query_complexity = 1000
 EOF
 
 # Compile schema
-fraiseql compile schema.json \
-    --config fraiseql.toml \
+FraiseQL compile schema.json \
+    --config FraiseQL.toml \
     --output schema.compiled.json \
     --format json \
     --target postgres
@@ -1132,7 +1132,7 @@ if [ ! -f schema.compiled.json ]; then
 fi
 
 echo "✓ Compilation successful"
-fraiseql validate schema.compiled.json
+FraiseQL validate schema.compiled.json
 ```text
 
 ### 3.3 Compiled Schema Structure
@@ -1204,11 +1204,11 @@ FROM rust:latest as builder
 
 WORKDIR /app
 
-# Copy fraiseql source
+# Copy FraiseQL source
 COPY . .
 
 # Build FraiseQL server (release mode)
-RUN cargo build --release --package fraiseql-server
+RUN cargo build --release --package FraiseQL-server
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -1221,7 +1221,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy compiled server from builder
-COPY --from=builder /app/target/release/fraiseql-server /app/
+COPY --from=builder /app/target/release/FraiseQL-server /app/
 
 # Copy compiled schema
 COPY schema.compiled.json /app/
@@ -1235,7 +1235,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 
 # Run server
 ENV RUST_LOG=info
-CMD ["/app/fraiseql-server", "--schema", "/app/schema.compiled.json"]
+CMD ["/app/FraiseQL-server", "--schema", "/app/schema.compiled.json"]
 ```text
 
 ### 4.2 Docker Compose Setup
@@ -1263,7 +1263,7 @@ services:
       timeout: 5s
       retries: 5
 
-  fraiseql:
+  FraiseQL:
     build:
       context: .
       dockerfile: Dockerfile
@@ -1296,7 +1296,7 @@ volumes:
 set -e
 
 REGISTRY="docker.example.com"
-IMAGE="fraiseql-blog"
+IMAGE="FraiseQL-blog"
 VERSION=$(git describe --tags --always)
 
 echo "Building Docker image..."
@@ -1308,8 +1308,8 @@ docker push "$REGISTRY/$IMAGE:$VERSION"
 docker push "$REGISTRY/$IMAGE:latest"
 
 echo "Deploying to Kubernetes..."
-kubectl set image deployment/fraiseql-blog \
-    fraiseql="$REGISTRY/$IMAGE:$VERSION" \
+kubectl set image deployment/FraiseQL-blog \
+    FraiseQL="$REGISTRY/$IMAGE:$VERSION" \
     --namespace production
 
 echo "✓ Deployment complete: $VERSION"
@@ -2163,7 +2163,7 @@ export default function SearchArticles() {
 blog-monorepo/
 ├── java-schema/                    # Java authoring layer
 │   ├── pom.xml
-│   ├── src/main/java/dev/fraiseql/blog/
+│   ├── src/main/java/dev/FraiseQL/blog/
 │   │   ├── types/
 │   │   │   ├── User.java
 │   │   │   ├── Article.java
@@ -2181,12 +2181,12 @@ blog-monorepo/
 │   └── target/
 │       └── schema.json
 │
-├── fraiseql-server/                # FraiseQL backend
+├── FraiseQL-server/                # FraiseQL backend
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   ├── schema.json                 # Exported from Java
-│   ├── schema.compiled.json        # Compiled by fraiseql-cli
-│   ├── fraiseql.toml               # Configuration
+│   ├── schema.compiled.json        # Compiled by FraiseQL-cli
+│   ├── FraiseQL.toml               # Configuration
 │   ├── sql/
 │   │   ├── schema.sql
 │   │   └── seed.sql
@@ -2247,7 +2247,7 @@ blog-monorepo/
 java -version          # Java 17+
 mvn -version           # Maven 3.9+
 node --version         # Node 18+
-cargo --version        # Rust (for fraiseql-cli)
+cargo --version        # Rust (for FraiseQL-cli)
 docker --version       # Docker & Docker Compose
 ```text
 
@@ -2280,7 +2280,7 @@ bash scripts/compile-schema.sh
 
 # 5. Start FraiseQL server
 echo "5️⃣  Starting FraiseQL server..."
-docker-compose up -d fraiseql
+docker-compose up -d FraiseQL
 sleep 5
 
 # 6. Start Next.js frontend
@@ -2470,24 +2470,24 @@ vercel env add NEXT_PUBLIC_GRAPHQL_URL https://api.example.com/graphql
 ### 9.2 Deploy to Kubernetes (Backend)
 
 ```yaml
-# k8s/fraiseql-deployment.yaml
+# k8s/FraiseQL-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-blog
+  name: FraiseQL-blog
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql-blog
+      app: FraiseQL-blog
   template:
     metadata:
       labels:
-        app: fraiseql-blog
+        app: FraiseQL-blog
     spec:
       containers:
-      - name: fraiseql
-        image: docker.example.com/fraiseql-blog:latest
+      - name: FraiseQL
+        image: docker.example.com/FraiseQL-blog:latest
         ports:
         - containerPort: 5000
         env:
@@ -2515,14 +2515,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fraiseql-blog-service
+  name: FraiseQL-blog-service
 spec:
   type: LoadBalancer
   ports:
   - port: 80
     targetPort: 5000
   selector:
-    app: fraiseql-blog
+    app: FraiseQL-blog
 ```text
 
 ### 9.3 Database Migration Strategy
@@ -2557,7 +2557,7 @@ echo "✓ Migrations complete"
 
 ```bash
 # Solution: Check database connection pool
-# In fraiseql.toml:
+# In FraiseQL.toml:
 [database]
 pool_size = 20  # Increase from default 10
 connection_timeout_secs = 60
@@ -2569,10 +2569,10 @@ connection_timeout_secs = 60
 # Solution: Ensure Maven plugin scanned all packages
 # In pom.xml:
 <scanPackages>
-  <scanPackage>dev.fraiseql.blog</scanPackage>
-  <scanPackage>dev.fraiseql.blog.types</scanPackage>
-  <scanPackage>dev.fraiseql.blog.queries</scanPackage>
-  <scanPackage>dev.fraiseql.blog.mutations</scanPackage>
+  <scanPackage>dev.FraiseQL.blog</scanPackage>
+  <scanPackage>dev.FraiseQL.blog.types</scanPackage>
+  <scanPackage>dev.FraiseQL.blog.queries</scanPackage>
+  <scanPackage>dev.FraiseQL.blog.mutations</scanPackage>
 </scanPackages>
 ```text
 
@@ -2590,7 +2590,7 @@ UPDATE comments SET status = 'approved' WHERE status = 'pending';
 **Enable Query Caching**
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [cache]
 enabled = true
 default_ttl_seconds = 300
@@ -2619,7 +2619,7 @@ import { createPersistedQueryLink } from "@apollo/client/link/persisted-queries"
 ### 10.3 Security Best Practices
 
 ```toml
-# fraiseql.toml - Security Configuration
+# FraiseQL.toml - Security Configuration
 
 [security.authorization]
 enabled = true
@@ -2640,7 +2640,7 @@ log_mutations = true
 
 ```bash
 # Monitor FraiseQL server
-docker logs -f fraiseql
+docker logs -f FraiseQL
 
 # Monitor database
 psql -c "SELECT datname, usename, count(*) FROM pg_stat_activity GROUP BY datname, usename;"
@@ -2663,7 +2663,7 @@ cd nextjs-frontend && npm test
 npm run generate:types
 
 # Check schema validity
-fraiseql validate schema.compiled.json
+FraiseQL validate schema.compiled.json
 
 # Export database schema
 pg_dump --schema-only blog_db > schema-backup.sql
@@ -2693,6 +2693,6 @@ This full-stack example demonstrates FraiseQL's complete architecture:
 For more information, see:
 
 - [FraiseQL Architecture](../ARCHITECTURE_PRINCIPLES.md)
-- [Java SDK Documentation](../guides/java-sdk.md)
+- [Java SDK Documentation](../guides/java-SDK.md)
 - [Next.js Integration Guide](../guides/nextjs-integration.md)
 - [GraphQL API Reference](../api/graphql-reference.md)

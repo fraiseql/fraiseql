@@ -34,7 +34,7 @@ Protected against:
 Scan image:
 
 ```bash
-trivy image fraiseql:latest --severity HIGH,CRITICAL
+trivy image FraiseQL:latest --severity HIGH,CRITICAL
 ```text
 
 ### Runtime Security
@@ -59,7 +59,7 @@ securityContext:
 Enforce:
 
 ```bash
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 ```text
 
 Requirements:
@@ -85,7 +85,7 @@ Allow only:
 Apply:
 
 ```bash
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 ```text
 
 ## Secrets Management
@@ -102,7 +102,7 @@ export AUTH_TOKEN="secret..."
 
 ```bash
 # Create secret
-kubectl create secret generic fraiseql-db \
+kubectl create secret generic FraiseQL-db \
   --from-literal=url="postgresql://..."
 
 # Reference in deployment
@@ -110,7 +110,7 @@ env:
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
-      name: fraiseql-db
+      name: FraiseQL-db
       key: url
 ```text
 

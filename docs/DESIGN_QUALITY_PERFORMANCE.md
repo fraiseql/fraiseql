@@ -34,17 +34,17 @@ FraiseQL's design quality analysis is optimized for fast feedback during develop
 
 ```bash
 # Fastest: Single category audit
-fraiseql lint schema.json --federation  # <50ms
+FraiseQL lint schema.json --federation  # <50ms
 
 # Typical: Multiple categories
-fraiseql lint schema.json --federation --cost  # <80ms
+FraiseQL lint schema.json --federation --cost  # <80ms
 
 # Complete: All categories
-fraiseql lint schema.json  # <100ms for typical schema
+FraiseQL lint schema.json  # <100ms for typical schema
 
 # Batch processing: JSON output for scripts
 for schema in schemas/*.json; do
-  fraiseql lint "$schema" --json | jq '.data.overall_score'
+  FraiseQL lint "$schema" --json | jq '.data.overall_score'
 done
 ```text
 
@@ -72,12 +72,12 @@ Example:
 
 ```bash
 # Instead of complete audit
-# fraiseql lint huge-schema.json  # Might take 150-200ms
+# FraiseQL lint huge-schema.json  # Might take 150-200ms
 
 # Process by category
-fraiseql lint huge-schema.json --federation --json | jq '.data'
-fraiseql lint huge-schema.json --cost --json | jq '.data'
-fraiseql lint huge-schema.json --cache --json | jq '.data'
+FraiseQL lint huge-schema.json --federation --json | jq '.data'
+FraiseQL lint huge-schema.json --cost --json | jq '.data'
+FraiseQL lint huge-schema.json --cache --json | jq '.data'
 ```text
 
 ## Benchmarking & Profiling
@@ -86,7 +86,7 @@ fraiseql lint huge-schema.json --cache --json | jq '.data'
 
 ```bash
 # Run Criterion benchmarks
-cargo bench -p fraiseql-core --bench design_analysis
+cargo bench -p FraiseQL-core --bench design_analysis
 
 # Output: Detailed latency distributions for each schema size
 ```text
@@ -95,18 +95,18 @@ cargo bench -p fraiseql-core --bench design_analysis
 
 ```bash
 # Using valgrind (Linux)
-valgrind --tool=massif fraiseql lint schema.json
+valgrind --tool=massif FraiseQL lint schema.json
 ms_print massif.out.<pid>  # View results
 
 # Using Instruments (macOS)
-time fraiseql lint schema.json  # Shows memory usage
+time FraiseQL lint schema.json  # Shows memory usage
 ```text
 
 ### Monitor Performance
 
 ```bash
 # CLI performance monitoring
-time fraiseql lint schema.json --verbose
+time FraiseQL lint schema.json --verbose
 
 # API endpoint monitoring
 curl -w "@format.txt" -o /dev/null -s \
@@ -127,10 +127,10 @@ Run regression tests:
 
 ```bash
 # Baseline measurements
-cargo bench -p fraiseql-core --bench design_analysis -- --save-baseline phase4
+cargo bench -p FraiseQL-core --bench design_analysis -- --save-baseline phase4
 
 # Later: Compare against baseline
-cargo bench -p fraiseql-core --bench design_analysis -- --baseline phase4
+cargo bench -p FraiseQL-core --bench design_analysis -- --baseline phase4
 ```text
 
 ## Scalability
@@ -160,7 +160,7 @@ Subgraph Depth | Federation Audit | Complexity
 
 ### Development
 
-- Run `fraiseql lint` locally for instant feedback
+- Run `FraiseQL lint` locally for instant feedback
 - Target: <100ms per audit for developer experience
 
 ### CI/CD
@@ -207,10 +207,10 @@ For future optimization:
 
 ```bash
 # Move schema to memory
-fraiseql lint /tmp/schema.json  # Faster than network drive
+FraiseQL lint /tmp/schema.json  # Faster than network drive
 
 # Use filtered audit
-fraiseql lint schema.json --federation  # Faster than complete
+FraiseQL lint schema.json --federation  # Faster than complete
 ```text
 
 ### Issue: API audit endpoints timing out
@@ -223,7 +223,7 @@ fraiseql lint schema.json --federation  # Faster than complete
 curl --max-time 5 http://localhost:8080/api/v1/design/audit
 
 # Use rate limiting
-# Configure in fraiseql-server config
+# Configure in FraiseQL-server config
 ```text
 
 ### Issue: Memory usage exceeds 100MB
@@ -235,12 +235,12 @@ curl --max-time 5 http://localhost:8080/api/v1/design/audit
 # Process in batches
 split -l 100 schema.json schema_part_
 for part in schema_part_*; do
-  fraiseql lint "$part" --json | jq '.data.overall_score'
+  FraiseQL lint "$part" --json | jq '.data.overall_score'
 done
 ```text
 
 ## References
 
-- Benchmark code: `crates/fraiseql-core/benches/design_analysis.rs`
+- Benchmark code: `crates/FraiseQL-core/benches/design_analysis.rs`
 - Performance tests: `tools/performance_test.sh`
-- Security tests: `crates/fraiseql-server/tests/api_design_security_tests.rs`
+- Security tests: `crates/FraiseQL-server/tests/api_design_security_tests.rs`

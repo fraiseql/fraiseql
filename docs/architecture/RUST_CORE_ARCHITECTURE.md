@@ -83,7 +83,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
 ### Proposed Directory Layout
 
 ```text
-crates/fraiseql-core/src/
+crates/FraiseQL-core/src/
 ├── lib.rs
 ├── error.rs                ✅ Complete
 ├── config/                 ✅ Complete

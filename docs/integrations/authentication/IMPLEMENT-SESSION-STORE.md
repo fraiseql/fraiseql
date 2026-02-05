@@ -18,7 +18,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 
 - Rust 1.75+ with full toolchain
 - Cargo (included with Rust)
-- Your backend SDK (redis-rs, aws-sdk-dynamodb, mongodb Rust driver, etc.)
+- Your backend SDK (redis-rs, aws-SDK-dynamodb, mongodb Rust driver, etc.)
 - A text editor or IDE with Rust support
 - Git for version control
 

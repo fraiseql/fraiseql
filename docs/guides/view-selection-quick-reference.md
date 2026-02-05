@@ -363,13 +363,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 ```python
 # Use logical view (default, fast enough)
-@fraiseql.type()
+@FraiseQL.type()
 class User:
     id: str
     name: str
 
 # Use table-backed view (complex nesting)
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class UserProfile:
     id: str
     name: str

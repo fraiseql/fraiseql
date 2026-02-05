@@ -60,7 +60,7 @@ FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL co
 ### 1. Define a Federated Entity (Python)
 
 ```python
-from fraiseql import type, key
+from FraiseQL import type, key
 
 @type
 @key("id")
@@ -73,7 +73,7 @@ class User:
 ### 2. Extend the Entity in Another Subgraph
 
 ```python
-from fraiseql import type, key, extends, external
+from FraiseQL import type, key, extends, external
 
 @type
 @extends
@@ -88,10 +88,10 @@ class User:
 
 ```bash
 # Subgraph 1: Users service
-fraiseql deploy users-service --port 4001 --federation
+FraiseQL deploy users-service --port 4001 --federation
 
 # Subgraph 2: Orders service
-fraiseql deploy orders-service --port 4002 --federation
+FraiseQL deploy orders-service --port 4002 --federation
 ```
 
 ### 4. Query Through Federation Gateway
@@ -516,19 +516,19 @@ class Product:
 
 ```bash
 # AWS us-east-1: Users
-fraiseql deploy users-subgraph \
+FraiseQL deploy users-subgraph \
   --cloud aws \
   --region us-east-1 \
   --database postgresql://aws-db:5432/users
 
 # GCP europe-west1: Orders
-fraiseql deploy orders-subgraph \
+FraiseQL deploy orders-subgraph \
   --cloud gcp \
   --region europe-west1 \
   --database postgresql://gcp-db:5432/orders
 
 # Azure southeast-asia: Products
-fraiseql deploy products-subgraph \
+FraiseQL deploy products-subgraph \
   --cloud azure \
   --region southeast-asia \
   --database postgresql://azure-db:5432/products
@@ -700,7 +700,7 @@ Add logging to track resolution:
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('fraiseql.federation')
+logger = logging.getLogger('FraiseQL.federation')
 
 # Shows resolution strategy per query
 # Example: Resolved 100 users via local (5ms)
@@ -727,7 +727,7 @@ timeout_seconds = 5     # Default: 5
 ### Python Decorators
 
 ```python
-from fraiseql import type, key, extends, external, shareable
+from FraiseQL import type, key, extends, external, shareable
 
 # Define federated entity
 @type
@@ -751,7 +751,7 @@ class User:
 ### TypeScript Decorators
 
 ```typescript
-import { Key, Type, Extends, External, Shareable } from 'fraiseql';
+import { Key, Type, Extends, External, Shareable } from 'FraiseQL';
 
 @Type()
 @Key("id")

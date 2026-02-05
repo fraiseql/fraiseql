@@ -16,7 +16,7 @@ This topic explains:
 ```text
 Authoring Layer          Compilation Layer        Runtime Layer
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Python/TypeScript│    │ fraiseql-cli     │    │ fraiseql-server  │
+│ Python/TypeScript│    │ FraiseQL-cli     │    │ FraiseQL-server  │
 │ schema.py        │    │ compile          │    │ GraphQL API      │
 │                  │    │                  │    │                  │
 │ VALIDATION PHASE │    │ VALIDATION PHASE │    │ VALIDATION PHASE │
@@ -114,7 +114,7 @@ Errors caught while writing Python/TypeScript schema definitions:
 
 ```python
 # ✅ VALID: Proper type annotation
-from fraiseql import type, field
+from FraiseQL import type, field
 
 @type
 class User:
@@ -132,7 +132,7 @@ class User:
 
 ### Layer 2: Compilation-Time Validation
 
-Errors caught by `fraiseql-cli compile schema.json`:
+Errors caught by `FraiseQL-cli compile schema.json`:
 
 **Schema Reference Validation:**
 
@@ -556,7 +556,7 @@ async function getAnalytics() {
 Validate all user input before executing SQL:
 
 ```python
-from fraiseql import type, field
+from FraiseQL import type, field
 from typing import Annotated
 
 # Define input type with validation rules
@@ -681,7 +681,7 @@ Use enums to restrict input to valid values:
 
 ```python
 from enum import Enum
-from fraiseql import type, field
+from FraiseQL import type, field
 
 class UserRole(str, Enum):
     ADMIN = "admin"
@@ -714,7 +714,7 @@ mutation {
 Control access based on user role:
 
 ```python
-from fraiseql import type, field, permission
+from FraiseQL import type, field, permission
 
 @type
 class Post:
@@ -1288,7 +1288,7 @@ Database error (transient, should retry):
 FraiseQL's error handling strategy is **multi-layered**:
 
 1. **Authoring time**: Python/TypeScript type checking prevents syntax errors
-2. **Compilation time**: `fraiseql-cli` validates schema structure and relationships
+2. **Compilation time**: `FraiseQL-cli` validates schema structure and relationships
 3. **Request time**: Parameter types, ranges, and authorization checked before SQL
 4. **Execution time**: Database constraints, timeouts, and post-fetch rules applied
 

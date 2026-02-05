@@ -30,7 +30,7 @@ In FraiseQL, a schema is authored once (in Python or TypeScript) and defines:
 
 ```python
 # Schema definition (Python)
-@fraiseql.type
+@FraiseQL.type
 class User:
     """User in the system"""
     user_id: int              # Field: unique identifier
@@ -54,13 +54,13 @@ FraiseQL has several type categories:
 **1. Object Types** - Represent entities in your domain
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
     email: str
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
     order_id: int
     total: Decimal
@@ -84,7 +84,7 @@ JSON      → arbitrary data (metadata, config)
 **3. Enum Types** - Limited set of named values
 
 ```python
-@fraiseql.enum
+@FraiseQL.enum
 class OrderStatus:
     PENDING = "pending"
     PROCESSING = "processing"
@@ -106,7 +106,7 @@ class OrderStatus:
 **Definition:** A named value within a type, with a specific data type and optional validation rules.
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
     product_id: int          # Field name: product_id, type: Int
     name: str                # Field name: name, type: String
@@ -205,7 +205,7 @@ In FraiseQL, resolvers are *automatically generated* at compile time:
 
 ```python
 # FraiseQL - Resolver compiled, not written
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
@@ -224,13 +224,13 @@ class User:
 **One-to-Many** (User has many Orders):
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
     orders: List[Order]  # One user → many orders
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
     order_id: int
     total: Decimal
@@ -240,7 +240,7 @@ class Order:
 **Many-to-One** (Order belongs to User):
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Order:
     order_id: int
     total: Decimal
@@ -250,13 +250,13 @@ class Order:
 **Many-to-Many** (Students enroll in Courses):
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Student:
     student_id: int
     name: str
     courses: List[Course]  # Many students → many courses
 
-@fraiseql.type
+@FraiseQL.type
 class Course:
     course_id: int
     name: str
@@ -266,7 +266,7 @@ class Course:
 **Self-Relationships** (Employee has manager):
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Employee:
     employee_id: int
     name: str
@@ -315,7 +315,7 @@ In FraiseQL, types directly correspond to database tables:
 
 ```python
 # GraphQL Type
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
@@ -568,22 +568,22 @@ FraiseQL supports multiple databases:
 
 ```python
 # PostgreSQL (primary, most features)
-@fraiseql.database("postgresql")
+@FraiseQL.database("postgresql")
 class User:
     user_id: int
 
 # MySQL (secondary)
-@fraiseql.database("mysql")
+@FraiseQL.database("mysql")
 class User:
     user_id: int
 
 # SQLite (local dev)
-@fraiseql.database("sqlite")
+@FraiseQL.database("sqlite")
 class User:
     user_id: int
 
 # SQL Server (enterprise)
-@fraiseql.database("sqlserver")
+@FraiseQL.database("sqlserver")
 class User:
     user_id: int
 ```text
@@ -633,7 +633,7 @@ schema.compiled.json (output artifact)
 
 ```python
 # Error: Column type mismatch
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: str  # ❌ ERROR: database has INT, schema has str
 
@@ -717,7 +717,7 @@ query GetUser {
                  │
 ┌────────────────▼────────────────────────────────────┐
 │ FraiseQL Schema (Python/TypeScript)                 │
-│ @fraiseql.type                                      │
+│ @FraiseQL.type                                      │
 │ - Types mirror database tables                      │
 │ - Fields map to columns                             │
 │ - Relationships map to foreign keys                 │
@@ -810,7 +810,7 @@ Now that you understand the terminology and mental models:
 
 | Term | Means | Example |
 |------|-------|---------|
-| **Schema** | Full API specification | `@fraiseql.type class User:` |
+| **Schema** | Full API specification | `@FraiseQL.type class User:` |
 | **Type** | Data object definition | `class User:` |
 | **Field** | Value in a type | `username: str` |
 | **Query** | Read operation | `query GetUser { ... }` |

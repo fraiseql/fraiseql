@@ -28,8 +28,8 @@ FraiseQL provides three introspection policies to balance developer experience w
 **Configuration**:
 
 ```python
-from fraiseql import FraiseQLConfig
-from fraiseql.security.profiles.definitions import IntrospectionPolicy
+from FraiseQL import FraiseQLConfig
+from FraiseQL.security.profiles.definitions import IntrospectionPolicy
 
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
@@ -279,7 +279,7 @@ FraiseQL automatically sets introspection policy based on deployment environment
 **Automatic Policy Selection**:
 
 ```python
-from fraiseql import FraiseQLConfig
+from FraiseQL import FraiseQLConfig
 
 # Development environment
 config = FraiseQLConfig(
@@ -351,7 +351,7 @@ FraiseQL's pre-configured security profiles automatically set appropriate intros
 **Usage**:
 
 ```python
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 # STANDARD: AUTHENTICATED introspection
 profile = get_profile("standard")
@@ -525,7 +525,7 @@ Beyond security policies, FraiseQL provides tools to reflect on and export schem
 FraiseQL can automatically discover GraphQL types from PostgreSQL database schema:
 
 ```python
-from fraiseql.introspection.postgres_introspector import PostgresIntrospector
+from FraiseQL.introspection.postgres_introspector import PostgresIntrospector
 
 introspector = PostgresIntrospector(
     database_url="postgresql://localhost/fraiseql_db"
@@ -586,7 +586,7 @@ for col in view.columns:
 **Automatic Type Creation**:
 
 ```python
-from fraiseql.introspection.type_generator import TypeGenerator
+from FraiseQL.introspection.type_generator import TypeGenerator
 
 generator = TypeGenerator(
     database_url="postgresql://localhost/fraiseql_db"
@@ -599,8 +599,8 @@ User = generator.generate_type_from_view(
     type_comment="User information from database"
 )
 
-# Generated type is ready to use with @fraiseql decorators
-@fraiseql.query
+# Generated type is ready to use with @FraiseQL decorators
+@FraiseQL.query
 async def get_user(id: ID) -> User | None:
     # ... resolver implementation ...
 ```text
@@ -610,9 +610,9 @@ async def get_user(id: ID) -> User | None:
 **Runtime Type Inspection**:
 
 ```python
-from fraiseql.utils.introspection import describe_type
+from FraiseQL.utils.introspection import describe_type
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -669,7 +669,7 @@ When introspection is disabled, clients need alternative ways to discover the sc
 
 ```bash
 # Export schema at build time
-fraiseql schema export --format graphql --output schema.graphql
+FraiseQL schema export --format graphql --output schema.graphql
 ```text
 
 **3. API Documentation Site**
@@ -692,10 +692,10 @@ graphql-codegen --config codegen.yml
 Enable security logging to track introspection attempts:
 
 ```python
-from fraiseql.audit.security_logger import SecurityLogger
+from FraiseQL.audit.security_logger import SecurityLogger
 
 logger = SecurityLogger(
-    log_file="/var/log/fraiseql-security.log",
+    log_file="/var/log/FraiseQL-security.log",
     log_stdout=True,
 )
 ```text
@@ -722,7 +722,7 @@ logger = SecurityLogger(
 ```yaml
 # Deploy WAF rule to block introspection attempts
 type: trigger
-name: fraiseql/graphql-introspection
+name: FraiseQL/graphql-introspection
 description: "Detect GraphQL introspection queries"
 filter: |
   evt.Meta.log_type == 'nginx' &&
@@ -762,8 +762,8 @@ rate_limit_config = RateLimitConfig(
 
 ```python
 import pytest
-from fraiseql import FraiseQLConfig
-from fraiseql.security.profiles.definitions import IntrospectionPolicy
+from FraiseQL import FraiseQLConfig
+from FraiseQL.security.profiles.definitions import IntrospectionPolicy
 
 @pytest.mark.asyncio
 async def test_introspection_disabled_blocks_schema_query():
@@ -856,8 +856,8 @@ async def test_introspection_mixed_query_rejected():
 
 ```python
 # config/development.py
-from fraiseql import FraiseQLConfig
-from fraiseql.security.profiles.definitions import IntrospectionPolicy
+from FraiseQL import FraiseQLConfig
+from FraiseQL.security.profiles.definitions import IntrospectionPolicy
 
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_dev",
@@ -899,7 +899,7 @@ FRAISEQL_INTROSPECTION_POLICY=authenticated
 
 ```python
 # config/production.py
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 # Maximum security profile
 profile = get_profile("restricted")  # Auto: DISABLED introspection
@@ -930,7 +930,7 @@ When introspection is disabled, provide schema documentation through these alter
 
 ```bash
 # Export schema at build time
-fraiseql schema export \
+FraiseQL schema export \
   --format graphql \
   --output ./schema.graphql
 
@@ -952,7 +952,7 @@ graphql-to-openapi \
 Apollo Server integration provides a Sandbox editor with SDL (Schema Definition Language):
 
 ```python
-from fraiseql.fastapi import create_fraiseql_app
+from FraiseQL.fastapi import create_fraiseql_app
 
 app = create_fraiseql_app(
     schema,

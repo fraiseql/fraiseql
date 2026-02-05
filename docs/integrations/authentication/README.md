@@ -136,7 +136,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
 JWT_ISSUER=https://accounts.google.com
-DATABASE_URL=postgres://user:pass@localhost/fraiseql
+DATABASE_URL=postgres://user:pass@localhost/FraiseQL
 ```text
 
 ### Step 3: Register Endpoints
@@ -313,10 +313,10 @@ curl -X POST http://localhost:8000/graphql \
 
 ```bash
 # Run all auth tests
-cargo test -p fraiseql-server auth:: --lib
+cargo test -p FraiseQL-server auth:: --lib
 
 # Run with logging
-RUST_LOG=debug cargo test -p fraiseql-server auth:: --lib -- --nocapture
+RUST_LOG=debug cargo test -p FraiseQL-server auth:: --lib -- --nocapture
 ```text
 
 ---
@@ -395,7 +395,7 @@ See [Deployment Guide](./DEPLOYMENT.md#kubernetes-deployment) for manifests
 1. **Check the docs** - Most questions covered in documentation
 2. **Check troubleshooting** - [Troubleshooting Guide](./TROUBLESHOOTING.md)
 3. **Enable debug logging** - `RUST_LOG=debug`
-4. **Create GitHub issue** - <https://github.com/fraiseql/fraiseql/issues>
+4. **Create GitHub issue** - <https://github.com/FraiseQL/FraiseQL/issues>
    - Include error message (no secrets)
    - Steps to reproduce
    - Environment details

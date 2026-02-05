@@ -9,10 +9,10 @@ Complete API reference for the FraiseQL Python SDK. This guide covers the comple
 
 ```bash
 # Installation
-pip install fraiseql
+pip install FraiseQL
 
 # Or with uv (recommended)
-uv add fraiseql
+uv add FraiseQL
 ```
 
 **Requirements**:
@@ -24,26 +24,26 @@ uv add fraiseql
 **First Schema** (30 seconds):
 
 ```python
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int
     name: str
 
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
     """Get all users."""
     pass
 
-fraiseql.export_schema("schema.json")
+FraiseQL.export_schema("schema.json")
 ```
 
 Export and deploy to your FraiseQL server:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -52,28 +52,28 @@ fraiseql-server --schema schema.compiled.json
 
 | Feature | Decorator | Purpose | Returns |
 |---------|-----------|---------|---------|
-| **Types** | `@fraiseql.type` | GraphQL object types | JSON schema |
-| **Queries** | `@fraiseql.query()` | Read operations (SELECT) | Single or list |
-| **Mutations** | `@fraiseql.mutation()` | Write operations (INSERT/UPDATE/DELETE) | Type result |
-| **Fact Tables** | `@fraiseql.fact_table()` | Analytics tables (OLAP) | Aggregation schema |
-| **Aggregate Queries** | `@fraiseql.aggregate_query()` | Analytics queries | Aggregated results |
-| **Observers** | `@fraiseql.observer()` | Event webhooks (async) | Event response |
-| **Security** | `@fraiseql.security()` | RBAC and access control | Auth metadata |
-| **Subscriptions** | `@fraiseql.subscription()` | Real-time pub/sub | Event stream |
-| **Validators** | `@fraiseql.validator()` | Field validation | Validation result |
+| **Types** | `@FraiseQL.type` | GraphQL object types | JSON schema |
+| **Queries** | `@FraiseQL.query()` | Read operations (SELECT) | Single or list |
+| **Mutations** | `@FraiseQL.mutation()` | Write operations (INSERT/UPDATE/DELETE) | Type result |
+| **Fact Tables** | `@FraiseQL.fact_table()` | Analytics tables (OLAP) | Aggregation schema |
+| **Aggregate Queries** | `@FraiseQL.aggregate_query()` | Analytics queries | Aggregated results |
+| **Observers** | `@FraiseQL.observer()` | Event webhooks (async) | Event response |
+| **Security** | `@FraiseQL.security()` | RBAC and access control | Auth metadata |
+| **Subscriptions** | `@FraiseQL.subscription()` | Real-time pub/sub | Event stream |
+| **Validators** | `@FraiseQL.validator()` | Field validation | Validation result |
 
 ---
 
 ## Type System
 
-### 1. The `@fraiseql.type` Decorator
+### 1. The `@FraiseQL.type` Decorator
 
 Define GraphQL object types using Python classes with type annotations.
 
 **Signature:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class MyType:
     field1: int
     field2: str
@@ -84,7 +84,7 @@ class MyType:
 
 - **Type Annotations Required**: All fields must have Python type hints
 - **Nullability**: Use `T | None` to indicate optional fields (Python 3.10+)
-- **Nested Types**: Reference other `@fraiseql.type` classes
+- **Nested Types**: Reference other `@FraiseQL.type` classes
 - **Lists**: Use `list[T]` for array types
 - **Docstrings**: Become GraphQL type descriptions
 - **No Inheritance**: Each type is independent (flat schema)
@@ -93,7 +93,7 @@ class MyType:
 
 ```python
 # ✅ Simple type
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A user account."""
     id: int
@@ -101,7 +101,7 @@ class User:
     email: str
 
 # ✅ With nullable fields
-@fraiseql.type
+@FraiseQL.type
 class Post:
     """A blog post."""
     id: int
@@ -110,7 +110,7 @@ class Post:
     published_at: str | None  # Optional field
 
 # ✅ With lists
-@fraiseql.type
+@FraiseQL.type
 class Blog:
     """A blog with multiple posts."""
     id: int
@@ -119,7 +119,7 @@ class Blog:
     tags: list[str]
 
 # ✅ Nested types
-@fraiseql.type
+@FraiseQL.type
 class Address:
     """A physical address."""
     street: str
@@ -127,7 +127,7 @@ class Address:
     state: str
     postal_code: str
 
-@fraiseql.type
+@FraiseQL.type
 class Company:
     """A company with address."""
     id: int
@@ -136,7 +136,7 @@ class Company:
     employees: list[User]
 
 # ✅ With docstrings for GraphQL descriptions
-@fraiseql.type
+@FraiseQL.type
 class Product:
     """A product in the catalog.
 
@@ -156,13 +156,13 @@ class Product:
 
 ```python
 # Nullable list elements
-@fraiseql.type
+@FraiseQL.type
 class UserSearchResult:
     """Results with potential nulls."""
     matches: list[User | None]  # List can contain nulls
 
 # Complex nested structure
-@fraiseql.type
+@FraiseQL.type
 class Department:
     """Represents a department."""
     id: int
@@ -173,7 +173,7 @@ class Department:
     created_at: str
 
 # Multiple levels of nesting
-@fraiseql.type
+@FraiseQL.type
 class Organization:
     """An organization with multiple departments."""
     id: int
@@ -194,7 +194,7 @@ FraiseQL automatically maps Python types to GraphQL types:
 | `list[int]` | `[Int!]!` | Non-empty list of non-null ints |
 | `list[int \| None]` | `[Int]!` | Non-empty list of nullable ints |
 | `int \| None` | `Int` | Nullable int |
-| `@fraiseql.type class User` | `User!` | Custom object type (non-null) |
+| `@FraiseQL.type class User` | `User!` | Custom object type (non-null) |
 | `User \| None` | `User` | Nullable custom type |
 | `list[User]` | `[User!]!` | Non-empty list of users |
 | `list[User \| None]` | `[User]!` | List with nullable users |
@@ -202,7 +202,7 @@ FraiseQL automatically maps Python types to GraphQL types:
 **Scalar Type Extensions** (60+ available):
 
 ```python
-from fraiseql.scalars import (
+from FraiseQL.scalars import (
     DateTime,  # ISO 8601 datetime
     Date,      # ISO 8601 date
     Time,      # ISO 8601 time
@@ -212,7 +212,7 @@ from fraiseql.scalars import (
     Decimal,   # Arbitrary precision
 )
 
-@fraiseql.type
+@FraiseQL.type
 class Event:
     id: UUID
     occurred_at: DateTime
@@ -251,7 +251,7 @@ Queries are read-only operations that fetch data from views.
 **Signature:**
 
 ```python
-@fraiseql.query(sql_source="view_name")
+@FraiseQL.query(sql_source="view_name")
 def query_name(arg1: int, arg2: str = "default") -> ResultType:
     """Query description."""
     pass
@@ -267,19 +267,19 @@ def query_name(arg1: int, arg2: str = "default") -> ResultType:
 
 ```python
 # Simple list query
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
     """Get all users with pagination."""
     pass
 
 # Single result query
-@fraiseql.query(sql_source="v_user_by_id")
+@FraiseQL.query(sql_source="v_user_by_id")
 def user(id: int) -> User | None:
     """Get a user by ID, returns null if not found."""
     pass
 
 # Query with multiple parameters
-@fraiseql.query(sql_source="v_search_users")
+@FraiseQL.query(sql_source="v_search_users")
 def search_users(
     name: str,
     email: str | None = None,
@@ -291,7 +291,7 @@ def search_users(
     pass
 
 # Query with explicit parameter configuration
-@fraiseql.query(
+@FraiseQL.query(
     sql_source="v_analytics",
     auto_params={
         "start_date": {"type": "Date", "required": True},
@@ -308,13 +308,13 @@ def analytics(
     pass
 
 # Query without SQL source (for computed fields)
-@fraiseql.query
+@FraiseQL.query
 def server_time() -> str:
     """Get current server time."""
     pass
 
 # Cached query (results cached for 300 seconds)
-@fraiseql.query(sql_source="v_trending", cache_ttl=300)
+@FraiseQL.query(sql_source="v_trending", cache_ttl=300)
 def trending_items(limit: int = 10) -> list[Item]:
     """Get trending items (cached for 5 minutes)."""
     pass
@@ -342,7 +342,7 @@ type Query {
 Arguments follow Python function signature conventions:
 
 ```python
-@fraiseql.query(sql_source="v_data")
+@FraiseQL.query(sql_source="v_data")
 def get_data(
     required_arg: int,           # Required (no default)
     optional_arg: str = "default",  # Optional (has default)
@@ -371,7 +371,7 @@ Mutations are write operations that modify data (CREATE, UPDATE, DELETE).
 **Signature:**
 
 ```python
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="function_name",
     operation="CREATE"  # CREATE | UPDATE | DELETE | CUSTOM
 )
@@ -394,7 +394,7 @@ def mutation_name(arg1: str, arg2: int) -> ResultType:
 
 ```python
 # Create mutation
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_create_user",
     operation="CREATE"
 )
@@ -403,7 +403,7 @@ def create_user(name: str, email: str) -> User:
     pass
 
 # Update mutation
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_update_user",
     operation="UPDATE"
 )
@@ -416,7 +416,7 @@ def update_user(
     pass
 
 # Delete mutation
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_delete_user",
     operation="DELETE"
 )
@@ -425,7 +425,7 @@ def delete_user(id: int) -> bool:
     pass
 
 # Batch operation
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_bulk_update_users",
     operation="UPDATE"
 )
@@ -434,7 +434,7 @@ def bulk_update_users(ids: list[int], status: str) -> list[User]:
     pass
 
 # Complex mutation with nested result
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_create_post_with_tags",
     operation="CREATE"
 )
@@ -448,7 +448,7 @@ def create_post(
     pass
 
 # Mutation with transaction isolation
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_transfer_funds",
     operation="CUSTOM",
     transaction_isolation="SERIALIZABLE"
@@ -484,7 +484,7 @@ Subscriptions provide real-time data via WebSocket or Server-Sent Events.
 **Signature:**
 
 ```python
-@fraiseql.subscription(
+@FraiseQL.subscription(
     topic="channel_name",
     message_type=MessageType
 )
@@ -496,13 +496,13 @@ def subscription_name(filter_arg: str | None = None) -> MessageType:
 **Examples**:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserCreatedEvent:
     """Fired when a new user is created."""
     user: User
     created_at: str
 
-@fraiseql.subscription(
+@FraiseQL.subscription(
     topic="users.created",
     message_type=UserCreatedEvent
 )
@@ -510,7 +510,7 @@ def on_user_created() -> UserCreatedEvent:
     """Subscribe to new user creation events."""
     pass
 
-@fraiseql.subscription(
+@FraiseQL.subscription(
     topic="users.updated",
     message_type=User
 )
@@ -518,7 +518,7 @@ def on_user_updated(user_id: int) -> User:
     """Subscribe to updates for a specific user."""
     pass
 
-@fraiseql.subscription(
+@FraiseQL.subscription(
     topic="messages",
     message_type=Message
 )
@@ -538,7 +538,7 @@ Define analytics tables for OLAP queries.
 **Signature:**
 
 ```python
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name="tf_sales",
     measures=["revenue", "quantity"],
     dimension_paths=[
@@ -549,7 +549,7 @@ Define analytics tables for OLAP queries.
         }
     ]
 )
-@fraiseql.type
+@FraiseQL.type
 class Sale:
     id: int
     revenue: float
@@ -568,7 +568,7 @@ class Sale:
 
 ```python
 # Multi-dimensional fact table
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name="tf_sales",
     measures=["revenue", "quantity", "cost", "margin"],
     dimension_column="attributes",
@@ -596,7 +596,7 @@ class Sale:
     ],
     denormalized_columns=["customer_id", "created_at"]
 )
-@fraiseql.type
+@FraiseQL.type
 class Sale:
     """A sales fact record."""
     id: int
@@ -608,7 +608,7 @@ class Sale:
     created_at: str       # Denormalized for time filtering
 
 # Real-time events fact table
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name="tf_events",
     measures=["count", "duration"],
     dimension_paths=[
@@ -624,7 +624,7 @@ class Sale:
         }
     ]
 )
-@fraiseql.type
+@FraiseQL.type
 class Event:
     """An analytics event."""
     id: int
@@ -672,12 +672,12 @@ Define flexible analytics queries on fact tables.
 **Signature:**
 
 ```python
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table="tf_sales",
     auto_group_by=True,
     auto_aggregates=True
 )
-@fraiseql.query
+@FraiseQL.query
 def analytics_query() -> list[dict]:
     """Analytics query description."""
     pass
@@ -685,7 +685,7 @@ def analytics_query() -> list[dict]:
 
 **Parameters**:
 
-- `fact_table` (required): Fact table name (from `@fraiseql.fact_table`)
+- `fact_table` (required): Fact table name (from `@FraiseQL.fact_table`)
 - `auto_group_by` (optional): Auto-generate GROUP BY fields (default: True)
 - `auto_aggregates` (optional): Auto-generate aggregates (default: True)
 - `allow_empty_group_by` (optional): Allow queries without grouping (default: False)
@@ -694,12 +694,12 @@ def analytics_query() -> list[dict]:
 
 ```python
 # Sales by category
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table="tf_sales",
     auto_group_by=True,
     auto_aggregates=True
 )
-@fraiseql.query
+@FraiseQL.query
 def sales_by_category(
     start_date: str | None = None,
     end_date: str | None = None,
@@ -709,21 +709,21 @@ def sales_by_category(
     pass
 
 # Custom aggregation (manual configuration)
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table="tf_sales",
     auto_group_by=False,
     auto_aggregates=False
 )
-@fraiseql.query
+@FraiseQL.query
 def custom_sales_analysis() -> list[dict]:
     """Fully custom sales aggregation."""
     pass
 
 # Revenue analysis with filtering
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table="tf_sales"
 )
-@fraiseql.query
+@FraiseQL.query
 def revenue_analysis(
     min_revenue: float = 0,
     region: str | None = None
@@ -780,7 +780,7 @@ Observers trigger async webhooks when events occur.
 **Signature:**
 
 ```python
-@fraiseql.observer(
+@FraiseQL.observer(
     on="mutation_name",
     trigger="success"  # success | failure | always
 )
@@ -792,14 +792,14 @@ def observer_name(event: ObserverEvent) -> bool:
 **Examples**:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class UserCreatedEvent:
     """Event fired when a user is created."""
     user: User
     timestamp: str
 
 # Send webhook after user creation
-@fraiseql.observer(
+@FraiseQL.observer(
     on="create_user",
     trigger="success"
 )
@@ -809,7 +809,7 @@ def notify_on_user_created(event: UserCreatedEvent) -> bool:
     pass
 
 # Log all user updates
-@fraiseql.observer(
+@FraiseQL.observer(
     on="update_user",
     trigger="always"
 )
@@ -825,7 +825,7 @@ Control access using role-based access control.
 **Signature:**
 
 ```python
-@fraiseql.security(
+@FraiseQL.security(
     requires_auth=True,
     roles=["admin", "user"],
     field_level={"sensitive_field": ["admin"]}
@@ -838,29 +838,29 @@ def operation_name() -> ResultType:
 
 ```python
 # Public query (no auth required)
-@fraiseql.query(sql_source="v_public_data")
-@fraiseql.security(requires_auth=False)
+@FraiseQL.query(sql_source="v_public_data")
+@FraiseQL.security(requires_auth=False)
 def public_data(limit: int = 10) -> list[PublicData]:
     """Publicly accessible data."""
     pass
 
 # Admin-only query
-@fraiseql.query(sql_source="v_admin_stats")
-@fraiseql.security(requires_auth=True, roles=["admin"])
+@FraiseQL.query(sql_source="v_admin_stats")
+@FraiseQL.security(requires_auth=True, roles=["admin"])
 def admin_stats() -> dict:
     """Administrative statistics (admin only)."""
     pass
 
 # User query with field-level security
-@fraiseql.type
+@FraiseQL.type
 class UserProfile:
     id: int
     name: str
     email: str
     ssn: str  # Sensitive field
 
-@fraiseql.query(sql_source="v_user_profile")
-@fraiseql.security(
+@FraiseQL.query(sql_source="v_user_profile")
+@FraiseQL.security(
     requires_auth=True,
     field_level={
         "ssn": ["admin"],  # Only admins see SSN
@@ -872,8 +872,8 @@ def user_profile(id: int) -> UserProfile | None:
     pass
 
 # Multi-tenant query
-@fraiseql.query(sql_source="v_tenant_data")
-@fraiseql.security(requires_auth=True, multi_tenant=True)
+@FraiseQL.query(sql_source="v_tenant_data")
+@FraiseQL.security(requires_auth=True, multi_tenant=True)
 def my_data(limit: int = 10) -> list[TenantData]:
     """Get only current tenant's data."""
     pass
@@ -886,7 +886,7 @@ def my_data(limit: int = 10) -> list[TenantData]:
 FraiseQL supports 60+ scalar types. Common examples:
 
 ```python
-from fraiseql.scalars import (
+from FraiseQL.scalars import (
     # Standard types
     Int,           # 32-bit signed integer
     Float,         # IEEE 754 floating point
@@ -924,7 +924,7 @@ from fraiseql.scalars import (
     LanguageCode,  # ISO 639-1 language code
 )
 
-@fraiseql.type
+@FraiseQL.type
 class Contact:
     id: UUID
     name: str
@@ -949,29 +949,29 @@ FraiseQL converts Python decorators to GraphQL schema JSON.
 
 ```python
 # In your main file or setup.py
-import fraiseql
+import FraiseQL
 
 # Define your types, queries, mutations...
 
 # Export schema
 if __name__ == "__main__":
-    fraiseql.export_schema("schema.json")
+    FraiseQL.export_schema("schema.json")
 ```
 
 **Command-line Export**:
 
 ```bash
 # Python module
-python -m fraiseql export schema.json
+python -m FraiseQL export schema.json
 
 # Or with specific module
-python -m fraiseql export --module myproject.schema schema.json
+python -m FraiseQL export --module myproject.schema schema.json
 ```
 
 **Programmatic Export**:
 
 ```python
-from fraiseql import Exporter
+from FraiseQL import Exporter
 
 exporter = Exporter()
 schema_json = exporter.export_to_string()
@@ -985,16 +985,16 @@ exporter.export_to_file("schema.json")
 
 Configuration flows from TOML through the compiler to the runtime.
 
-**fraiseql.toml**:
+**FraiseQL.toml**:
 
 ```toml
 # Security configuration
-[fraiseql.security]
+[FraiseQL.security]
 requires_auth = true
 default_role = "user"
 
 # Rate limiting
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
@@ -1002,29 +1002,29 @@ authenticated_max_requests = 1000
 authenticated_window_secs = 60
 
 # Audit logging
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 enabled = true
 log_level = "info"
 
 # CORS
-[fraiseql.security.cors]
+[FraiseQL.security.cors]
 allowed_origins = ["https://example.com"]
 allowed_methods = ["GET", "POST"]
 allowed_headers = ["Content-Type", "Authorization"]
 
 # Database
-[fraiseql.database]
+[FraiseQL.database]
 pool_size = 10
 connection_timeout = 30
 statement_cache_size = 100
 
 # Caching
-[fraiseql.cache]
+[FraiseQL.cache]
 enabled = true
 default_ttl = 300
 
 # Observability
-[fraiseql.observability]
+[FraiseQL.observability]
 trace_sampling_rate = 0.1
 log_level = "info"
 ```
@@ -1036,10 +1036,10 @@ log_level = "info"
 python schema.py  # Generates schema.json
 
 # 2. Compile with configuration
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # 3. Deploy compiled schema
-fraiseql-server --schema schema.compiled.json --config fraiseql.toml
+FraiseQL-server --schema schema.compiled.json --config FraiseQL.toml
 ```
 
 **Output**: `schema.compiled.json` (types + queries + SQL + configuration)
@@ -1090,10 +1090,10 @@ fraiseql-server --schema schema.compiled.json --config fraiseql.toml
 Complete create, read, update, delete pattern:
 
 ```python
-import fraiseql
-from fraiseql.scalars import UUID, DateTime
+import FraiseQL
+from FraiseQL.scalars import UUID, DateTime
 
-@fraiseql.type
+@FraiseQL.type
 class Todo:
     """A todo item."""
     id: UUID
@@ -1104,19 +1104,19 @@ class Todo:
     updated_at: DateTime
 
 # CREATE - Insert new
-@fraiseql.mutation(sql_source="fn_create_todo", operation="CREATE")
+@FraiseQL.mutation(sql_source="fn_create_todo", operation="CREATE")
 def create_todo(title: str, description: str | None = None) -> Todo:
     """Create a new todo item."""
     pass
 
 # READ - Get by ID
-@fraiseql.query(sql_source="v_todo_by_id")
+@FraiseQL.query(sql_source="v_todo_by_id")
 def todo(id: UUID) -> Todo | None:
     """Get a todo by ID."""
     pass
 
 # READ - List all
-@fraiseql.query(sql_source="v_todos")
+@FraiseQL.query(sql_source="v_todos")
 def todos(
     limit: int = 50,
     offset: int = 0,
@@ -1126,7 +1126,7 @@ def todos(
     pass
 
 # UPDATE - Modify existing
-@fraiseql.mutation(sql_source="fn_update_todo", operation="UPDATE")
+@FraiseQL.mutation(sql_source="fn_update_todo", operation="UPDATE")
 def update_todo(
     id: UUID,
     title: str | None = None,
@@ -1137,7 +1137,7 @@ def update_todo(
     pass
 
 # DELETE - Remove
-@fraiseql.mutation(sql_source="fn_delete_todo", operation="DELETE")
+@FraiseQL.mutation(sql_source="fn_delete_todo", operation="DELETE")
 def delete_todo(id: UUID) -> bool:
     """Delete a todo item."""
     pass
@@ -1148,7 +1148,7 @@ def delete_todo(id: UUID) -> bool:
 Implement cursor-based and offset-based pagination:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class PageInfo:
     """Pagination metadata."""
     has_next: bool
@@ -1157,14 +1157,14 @@ class PageInfo:
     page: int
     page_size: int
 
-@fraiseql.type
+@FraiseQL.type
 class UserConnection:
     """Connection result with pagination."""
     items: list[User]
     page_info: PageInfo
 
 # Offset-based pagination
-@fraiseql.query(sql_source="v_users_paginated")
+@FraiseQL.query(sql_source="v_users_paginated")
 def users_paginated(
     limit: int = 20,
     offset: int = 0
@@ -1173,7 +1173,7 @@ def users_paginated(
     pass
 
 # For cursor-based, use keyset pagination
-@fraiseql.query(sql_source="v_users_keyset")
+@FraiseQL.query(sql_source="v_users_keyset")
 def users_keyset(
     first: int = 20,
     after: str | None = None
@@ -1187,13 +1187,13 @@ def users_keyset(
 Implement flexible search and filtering:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class SearchResult:
     """Search result with relevance."""
     item: User
     score: float
 
-@fraiseql.query(sql_source="fn_search_users")
+@FraiseQL.query(sql_source="fn_search_users")
 def search_users(
     query: str,
     filters: str | None = None,  # JSON filters
@@ -1202,7 +1202,7 @@ def search_users(
     """Full-text search users."""
     pass
 
-@fraiseql.query(sql_source="v_users_advanced")
+@FraiseQL.query(sql_source="v_users_advanced")
 def users_advanced(
     name: str | None = None,
     email: str | None = None,
@@ -1219,24 +1219,24 @@ def users_advanced(
 Isolate data by tenant:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class TenantData:
     """Tenant-scoped data."""
     id: int
     tenant_id: UUID
     content: str
 
-@fraiseql.query(sql_source="v_tenant_data")
-@fraiseql.security(requires_auth=True, multi_tenant=True)
+@FraiseQL.query(sql_source="v_tenant_data")
+@FraiseQL.security(requires_auth=True, multi_tenant=True)
 def my_data(limit: int = 50) -> list[TenantData]:
     """Get current tenant's data only (auto-filtered)."""
     pass
 
-@fraiseql.mutation(
+@FraiseQL.mutation(
     sql_source="fn_create_tenant_data",
     operation="CREATE"
 )
-@fraiseql.security(requires_auth=True, multi_tenant=True)
+@FraiseQL.security(requires_auth=True, multi_tenant=True)
 def create_data(content: str) -> TenantData:
     """Create data in current tenant (tenant_id auto-injected)."""
     pass
@@ -1247,9 +1247,9 @@ def create_data(content: str) -> TenantData:
 Define dimension and measure structures:
 
 ```python
-from fraiseql.scalars import DateTime, Decimal
+from FraiseQL.scalars import DateTime, Decimal
 
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name="tf_metrics",
     measures=["value", "count"],
     dimension_paths=[
@@ -1257,19 +1257,19 @@ from fraiseql.scalars import DateTime, Decimal
         {"name": "service", "json_path": "loc->>'service'", "data_type": "text"},
     ]
 )
-@fraiseql.type
+@FraiseQL.type
 class Metric:
     id: int
     value: Decimal
     count: int
     recorded_at: DateTime
 
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table="tf_metrics",
     auto_group_by=True,
     auto_aggregates=True
 )
-@fraiseql.query
+@FraiseQL.query
 def metrics_by_region(
     start_date: str | None = None,
     end_date: str | None = None
@@ -1287,7 +1287,7 @@ def metrics_by_region(
 FraiseQL raises specific exceptions:
 
 ```python
-from fraiseql import (
+from FraiseQL import (
     FraiseQLError,           # Base exception
     ValidationError,         # Schema validation failed
     CompilationError,        # Schema compilation failed
@@ -1297,7 +1297,7 @@ from fraiseql import (
 )
 
 try:
-    fraiseql.export_schema("schema.json")
+    FraiseQL.export_schema("schema.json")
 except ValidationError as e:
     print(f"Validation failed: {e.message}")
 except CompilationError as e:
@@ -1312,21 +1312,21 @@ Common type annotation issues:
 
 ```python
 # ❌ Missing type annotation
-@fraiseql.type
+@FraiseQL.type
 class BadType:
     id  # ERROR: Missing type annotation
 
 # ❌ Invalid type reference
-@fraiseql.query(sql_source="v_data")
+@FraiseQL.query(sql_source="v_data")
 def query1() -> UndefinedType:  # ERROR: Type not decorated
     pass
 
 # ✅ Correct
-@fraiseql.type
+@FraiseQL.type
 class GoodType:
     id: int
 
-@fraiseql.query(sql_source="v_data")
+@FraiseQL.query(sql_source="v_data")
 def query1() -> GoodType:
     pass
 ```
@@ -1352,7 +1352,7 @@ Test schema structure:
 ```python
 # tests/test_schema.py
 import pytest
-import fraiseql
+import FraiseQL
 from myapp.schema import User, Post, create_user
 
 def test_user_type_defined():
@@ -1365,7 +1365,7 @@ def test_create_user_mutation_exists():
 
 def test_schema_exports():
     """Schema should export without errors."""
-    schema_json = fraiseql.export_to_string()
+    schema_json = FraiseQL.export_to_string()
     assert "User" in schema_json
     assert "createUser" in schema_json
 ```
@@ -1375,18 +1375,18 @@ def test_schema_exports():
 ```python
 # tests/test_schema_validation.py
 import json
-import fraiseql
+import FraiseQL
 
 def test_schema_valid_json():
     """Exported schema should be valid JSON."""
-    schema_str = fraiseql.export_to_string()
+    schema_str = FraiseQL.export_to_string()
     schema = json.loads(schema_str)
     assert "types" in schema
     assert "queries" in schema
 
 def test_type_mapping():
     """Types should map correctly to GraphQL."""
-    schema_str = fraiseql.export_to_string()
+    schema_str = FraiseQL.export_to_string()
     schema = json.loads(schema_str)
 
     user_type = next(t for t in schema["types"] if t["name"] == "User")
@@ -1404,11 +1404,11 @@ import json
 def test_schema_compiles():
     """Schema should compile successfully."""
     # Export
-    fraiseql.export_schema("test_schema.json")
+    FraiseQL.export_schema("test_schema.json")
 
     # Compile
     result = subprocess.run(
-        ["fraiseql-cli", "compile", "test_schema.json"],
+        ["FraiseQL-cli", "compile", "test_schema.json"],
         capture_output=True
     )
 
@@ -1433,7 +1433,7 @@ def test_schema_compiles():
 4. **Be explicit**: `User | None` not implicit nullability
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A user account in the system.
 
@@ -1450,10 +1450,10 @@ class User:
 1. **Name queries for their action**: `get_user` not `user_info`
 2. **Provide defaults**: Makes GraphQL arguments optional
 3. **Limit result sets**: Always provide pagination
-4. **Map to SQL views**: Use `@fraiseql.query` with `sql_source`
+4. **Map to SQL views**: Use `@FraiseQL.query` with `sql_source`
 
 ```python
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 20, offset: int = 0) -> list[User]:
     """Get paginated list of users."""
     pass
@@ -1467,7 +1467,7 @@ def users(limit: int = 20, offset: int = 0) -> list[User]:
 4. **Handle optionals**: Use `T | None` for optional updates
 
 ```python
-@fraiseql.mutation(sql_source="fn_update_user", operation="UPDATE")
+@FraiseQL.mutation(sql_source="fn_update_user", operation="UPDATE")
 def update_user(
     id: int,
     email: str | None = None
@@ -1484,7 +1484,7 @@ def update_user(
 4. **Batch mutations**: Use `list[T]` for bulk operations
 
 ```python
-@fraiseql.query(sql_source="v_trending", cache_ttl=300)
+@FraiseQL.query(sql_source="v_trending", cache_ttl=300)
 def trending(limit: int = 10) -> list[Item]:
     """Trending items cached for 5 minutes."""
     pass
@@ -1492,14 +1492,14 @@ def trending(limit: int = 10) -> list[Item]:
 
 ### Security
 
-1. **Require auth for sensitive operations**: Use `@fraiseql.security`
+1. **Require auth for sensitive operations**: Use `@FraiseQL.security`
 2. **Field-level access**: Hide sensitive fields from non-admin
 3. **Validate at database**: SQL functions should enforce rules
 4. **Log access**: Use audit logging decorators
 
 ```python
-@fraiseql.query(sql_source="v_user")
-@fraiseql.security(
+@FraiseQL.query(sql_source="v_user")
+@FraiseQL.security(
     requires_auth=True,
     field_level={"ssn": ["admin"]}
 )
@@ -1516,7 +1516,7 @@ def user(id: int) -> User | None:
 
 - ❌ **No custom resolvers**: All operations must map to SQL
 - ❌ **No directives**: GraphQL directives not supported
-- ❌ **No union types**: Only concrete `@fraiseql.type` classes
+- ❌ **No union types**: Only concrete `@FraiseQL.type` classes
 - ❌ **No interfaces**: Types are independent
 - ❌ **No input types**: Use scalars for arguments
 - ❌ **No circular references**: A → B → A not allowed
@@ -1527,26 +1527,26 @@ def user(id: int) -> User | None:
 
 ```python
 # Union types - Use discriminator field
-@fraiseql.type
+@FraiseQL.type
 class Result:
     status: str  # "user" | "error"
     user: User | None
     error_message: str | None
 
 # Interfaces - Use composition
-@fraiseql.type
+@FraiseQL.type
 class TimestampedData:
     created_at: str
     updated_at: str
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int
     created_at: str  # Redundant, but necessary without interfaces
     updated_at: str
 
 # Input validation - Use SQL functions
-@fraiseql.mutation(sql_source="fn_create_validated_user", operation="CREATE")
+@FraiseQL.mutation(sql_source="fn_create_validated_user", operation="CREATE")
 def create_user(name: str) -> User:
     """SQL function validates name length."""
     pass
@@ -1567,10 +1567,10 @@ def create_user(name: str) -> User:
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- **Stack Overflow**: Tag with `fraiseql`
-- **Community**: [Discord](https://discord.gg/fraiseql)
+- **Issues**: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/FraiseQL/FraiseQL/discussions)
+- **Stack Overflow**: Tag with `FraiseQL`
+- **Community**: [Discord](https://discord.gg/FraiseQL)
 
 ---
 
@@ -1580,20 +1580,20 @@ def create_user(name: str) -> User:
 
 #### Installation Problems
 
-**Issue**: `ModuleNotFoundError: No module named 'fraiseql'`
+**Issue**: `ModuleNotFoundError: No module named 'FraiseQL'`
 
 **Solutions**:
 
 ```bash
 # Verify installation
-python -m pip show fraiseql
+python -m pip show FraiseQL
 
 # Reinstall with upgrade
-python -m pip install --upgrade fraiseql
+python -m pip install --upgrade FraiseQL
 
 # Use uv (recommended)
 uv sync
-uv add fraiseql
+uv add FraiseQL
 
 # Check Python version (3.10+ required)
 python --version
@@ -1607,23 +1607,23 @@ python --version
 
 #### Import/Module Resolution Issues
 
-**Issue**: `ImportError: cannot import name 'type' from 'fraiseql'`
+**Issue**: `ImportError: cannot import name 'type' from 'FraiseQL'`
 
 **Solutions**:
 
 ```python
 # ✅ Correct import style
-from fraiseql import type, query, mutation
+from FraiseQL import type, query, mutation
 
 # ❌ Incorrect
-from fraiseql.decorators import type  # This won't work
+from FraiseQL.decorators import type  # This won't work
 ```
 
 **Check version**:
 
 ```python
-import fraiseql
-print(fraiseql.__version__)  # Should be 2.0.0+
+import FraiseQL
+print(FraiseQL.__version__)  # Should be 2.0.0+
 ```
 
 #### Version Compatibility
@@ -1633,13 +1633,13 @@ print(fraiseql.__version__)  # Should be 2.0.0+
 **Check installed version**:
 
 ```bash
-pip show fraiseql | grep Version
+pip show FraiseQL | grep Version
 ```
 
 **Upgrade to latest**:
 
 ```bash
-pip install fraiseql>=2.0.0
+pip install FraiseQL>=2.0.0
 ```
 
 #### Dependency Conflicts
@@ -1650,7 +1650,7 @@ pip install fraiseql>=2.0.0
 
 ```bash
 pip install pipdeptree
-pipdeptree -p fraiseql
+pipdeptree -p FraiseQL
 
 # Check for conflicting versions
 pip check
@@ -1660,7 +1660,7 @@ pip check
 
 ```bash
 # Pin specific versions
-pip install fraiseql==2.0.0 pydantic>=2.0
+pip install FraiseQL==2.0.0 pydantic>=2.0
 ```
 
 ---
@@ -1677,14 +1677,14 @@ pip install fraiseql==2.0.0 pydantic>=2.0
 
 ```python
 # ❌ Wrong - type annotation conflicts with decorator
-@fraiseql.type
+@FraiseQL.type
 class User:
     email: UUID  # But treating as string elsewhere
 
 # ✅ Correct
-from fraiseql.scalars import Email
+from FraiseQL.scalars import Email
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     email: Email  # Matches all usages
 ```
@@ -1692,8 +1692,8 @@ class User:
 **Validate types before export**:
 
 ```python
-import fraiseql
-fraiseql.validate_schema()  # Raises ValidationError if issues found
+import FraiseQL
+FraiseQL.validate_schema()  # Raises ValidationError if issues found
 ```
 
 #### Nullability Problems
@@ -1706,12 +1706,12 @@ fraiseql.validate_schema()  # Raises ValidationError if issues found
 
 ```python
 # ❌ Wrong - implies non-null, but can return None
-@fraiseql.type
+@FraiseQL.type
 class User:
     email: str  # Non-null in GraphQL
 
 # ✅ Correct - explicitly optional
-@fraiseql.type
+@FraiseQL.type
 class User:
     email: str | None  # Nullable in GraphQL
 ```
@@ -1719,7 +1719,7 @@ class User:
 **Runtime null check**:
 
 ```python
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def user(id: int) -> User | None:  # Explicitly nullable
     """User may not be found."""
     pass
@@ -1764,17 +1764,17 @@ assert sys.version_info >= (3, 10), "FraiseQL requires Python 3.10+"
 
 ```python
 # ❌ Wrong - UserType doesn't exist
-@fraiseql.query(sql_source="v_users")
-def users() -> UserType:  # Not decorated with @fraiseql.type
+@FraiseQL.query(sql_source="v_users")
+def users() -> UserType:  # Not decorated with @FraiseQL.type
     pass
 
 # ✅ Correct - Define the type first
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: int
     name: str
 
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users() -> list[User]:
     pass
 ```
@@ -1842,7 +1842,7 @@ db_url = os.getenv("DATABASE_URL")
 assert db_url, "DATABASE_URL not set"
 
 # Test connection at startup
-from fraiseql import FraiseQLServer
+from FraiseQL import FraiseQLServer
 try:
     server = FraiseQLServer.from_compiled("schema.compiled.json")
 except Exception as e:
@@ -1878,7 +1878,7 @@ fraiseql_config = {
 # Optimize the SQL view/function
 # Add indexes on filter columns
 # Limit result set with pagination
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 20, offset: int = 0) -> list[User]:
     """Paginate results to improve performance."""
     pass
@@ -1892,8 +1892,8 @@ def users(limit: int = 20, offset: int = 0) -> list[User]:
 
 ```python
 # Check if context has required auth info
-@fraiseql.query(sql_source="v_users")
-@fraiseql.security(requires_auth=True)
+@FraiseQL.query(sql_source="v_users")
+@FraiseQL.security(requires_auth=True)
 def my_users(context: dict) -> list[User]:
     """Verify context contains user info."""
     print(f"User ID: {context.get('user_id')}")
@@ -1933,13 +1933,13 @@ EXPLAIN ANALYZE SELECT * FROM v_users LIMIT 10;
 
 ```python
 # Add query result caching
-@fraiseql.query(sql_source="v_users", cache_ttl=300)
+@FraiseQL.query(sql_source="v_users", cache_ttl=300)
 def users(limit: int = 10) -> list[User]:
     """Results cached for 5 minutes."""
     pass
 
 # Pagination reduces memory/processing
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 20, offset: int = 0) -> list[User]:
     """Limit results to reduce load."""
     pass
@@ -1973,7 +1973,7 @@ print(f"Current: {current / 1024 / 1024}MB; Peak: {peak / 1024 / 1024}MB")
 
 ```python
 # Always paginate
-@fraiseql.query(sql_source="v_data")
+@FraiseQL.query(sql_source="v_data")
 def large_dataset(limit: int = 100) -> list[Data]:
     """Default limit prevents memory explosion."""
     pass
@@ -2015,7 +2015,7 @@ server = FraiseQLServer.from_compiled(
 ```python
 # Enable debug logging to see cache hits/misses
 import logging
-logging.getLogger('fraiseql').setLevel(logging.DEBUG)
+logging.getLogger('FraiseQL').setLevel(logging.DEBUG)
 
 # Check cache statistics
 stats = server.cache_stats()
@@ -2050,16 +2050,16 @@ logging.basicConfig(
 )
 
 # Only FraiseQL logs
-logging.getLogger('fraiseql').setLevel(logging.DEBUG)
+logging.getLogger('FraiseQL').setLevel(logging.DEBUG)
 
 # SQL query logging
-logging.getLogger('fraiseql.sql').setLevel(logging.DEBUG)
+logging.getLogger('FraiseQL.sql').setLevel(logging.DEBUG)
 ```
 
 **Environment variable**:
 
 ```bash
-RUST_LOG=fraiseql=debug python app.py
+RUST_LOG=FraiseQL=debug python app.py
 ```
 
 #### Use Language Debugger
@@ -2067,7 +2067,7 @@ RUST_LOG=fraiseql=debug python app.py
 **PDB (Python Debugger)**:
 
 ```python
-@fraiseql.query(sql_source="v_users")
+@FraiseQL.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
     breakpoint()  # Pauses here
     pass
@@ -2133,7 +2133,7 @@ curl -X POST http://localhost:8000/graphql \
 When reporting issues, provide:
 
 1. Python version: `python --version`
-2. FraiseQL version: `pip show fraiseql`
+2. FraiseQL version: `pip show FraiseQL`
 3. Minimal reproducible example
 4. Error traceback
 5. Relevant logs
@@ -2159,7 +2159,7 @@ When reporting issues, provide:
 #### Community Channels
 
 - **GitHub Discussions**: Ask questions and get help from community
-- **Stack Overflow**: Tag with `fraiseql` and `python`
+- **Stack Overflow**: Tag with `FraiseQL` and `python`
 - **Discord**: Real-time chat with maintainers and community
 
 #### Performance Profiling

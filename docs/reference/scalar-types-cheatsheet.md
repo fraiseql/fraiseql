@@ -137,7 +137,7 @@ Decimal      → NUMERIC
 ### User Table
 
 ```python
-from fraiseql import type, field
+from FraiseQL import type, field
 
 @type
 class User:

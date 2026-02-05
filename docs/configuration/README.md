@@ -38,7 +38,7 @@ FRAISEQL_DATABASE_POOL_TIMEOUT=30
 ## Configuration Priority
 
 1. **Compiled schema** (`schema.compiled.json` security section) — Default values
-2. **Config file** (`fraiseql.toml`) — Override defaults
+2. **Config file** (`FraiseQL.toml`) — Override defaults
 3. **Environment variables** — Override config file (for production secrets)
 
 ## Common Scenarios

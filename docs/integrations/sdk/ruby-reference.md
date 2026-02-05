@@ -14,12 +14,12 @@ Complete API reference for the FraiseQL Ruby SDK. This guide covers the complete
 source 'https://rubygems.org'
 
 gem 'rails', '~> 7.1'  # Rails 7.1+
-gem 'fraiseql', '~> 2.0'
-gem 'fraiseql-rails', '~> 2.0'  # Rails integration helpers
+gem 'FraiseQL', '~> 2.0'
+gem 'FraiseQL-rails', '~> 2.0'  # Rails integration helpers
 
 # Development/Schema authoring
 group :development do
-  gem 'fraiseql-cli', '~> 2.0'
+  gem 'FraiseQL-cli', '~> 2.0'
 end
 ```
 
@@ -27,7 +27,7 @@ Install dependencies:
 
 ```bash
 bundle install
-fraiseql-cli --version
+FraiseQL-cli --version
 ```
 
 ### Requirements
@@ -42,7 +42,7 @@ fraiseql-cli --version
 Create `app/graphql/schema.rb`:
 
 ```ruby
-require 'fraiseql'
+require 'FraiseQL'
 
 module AppSchema
   extend Fraiseql::DSL
@@ -70,8 +70,8 @@ end
 Build and deploy:
 
 ```bash
-cd app/graphql && fraiseql-cli compile schema.json ../../fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+cd app/graphql && FraiseQL-cli compile schema.json ../../FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -441,7 +441,7 @@ end
 
 ```bash
 # Generate schema scaffold
-rails generate fraiseql:schema users --model User
+rails generate FraiseQL:schema users --model User
 
 # Generated app/graphql/types/user_type.rb
 type :User, model: User do
@@ -575,7 +575,7 @@ end
 
 ```ruby
 # app/graphql/schema.rb
-require 'fraiseql'
+require 'FraiseQL'
 
 module AppSchema
   extend Fraiseql::DSL
@@ -602,16 +602,16 @@ ruby app/graphql/schema.rb
 
 ```bash
 # 1. Compile schema with configuration
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # 2. Verify compilation
-fraiseql-cli verify schema.compiled.json
+FraiseQL-cli verify schema.compiled.json
 
 # 3. Deploy to server
-fraiseql-server --schema schema.compiled.json
+FraiseQL-server --schema schema.compiled.json
 
 # 4. Or in Rails
-bundle exec rails fraiseql:deploy
+bundle exec rails FraiseQL:deploy
 ```
 
 ---
@@ -736,7 +736,7 @@ end
 
 #### Gem Installation Problems
 
-**Issue**: `Could not find gem 'fraiseql' in any of the gem sources`
+**Issue**: `Could not find gem 'FraiseQL' in any of the gem sources`
 
 **Solution**:
 
@@ -744,36 +744,36 @@ end
 # Update gem source
 gem sources -a https://rubygems.org
 
-# Install fraiseql
-gem install fraiseql
+# Install FraiseQL
+gem install FraiseQL
 
 # Or in Gemfile
-gem 'fraiseql', '~> 2.0.0'
+gem 'FraiseQL', '~> 2.0.0'
 bundle install
 ```
 
 #### Require/Load Issues
 
-**Issue**: `cannot load such file -- fraiseql`
+**Issue**: `cannot load such file -- FraiseQL`
 
 **Solution - Check load path**:
 
 ```ruby
 # Add to Gemfile
-gem 'fraiseql'
+gem 'FraiseQL'
 
 # Then run
 bundle install
 
 # Verify installation
-ruby -e "require 'fraiseql'; puts FraiseQL::VERSION"
+ruby -e "require 'FraiseQL'; puts FraiseQL::VERSION"
 ```
 
 **Manual load**:
 
 ```ruby
-$LOAD_PATH.unshift('/path/to/fraiseql/lib')
-require 'fraiseql'
+$LOAD_PATH.unshift('/path/to/FraiseQL/lib')
+require 'FraiseQL'
 ```
 
 #### Version Compatibility
@@ -789,20 +789,20 @@ ruby --version
 **Check installed gem**:
 
 ```bash
-gem list fraiseql
-gem uninstall fraiseql -v <old_version>
-gem install fraiseql -v 2.0.0
+gem list FraiseQL
+gem uninstall FraiseQL -v <old_version>
+gem install FraiseQL -v 2.0.0
 ```
 
 #### Bundler Issues
 
-**Issue**: `bundle exec` fails with fraiseql
+**Issue**: `bundle exec` fails with FraiseQL
 
 **Solution**:
 
 ```bash
 # Update Gemfile
-bundle update fraiseql
+bundle update FraiseQL
 
 # Clear bundle cache
 bundle clean --force
@@ -819,13 +819,13 @@ bundle install
 
 **Issue**: `NameError: undefined method 'type' for FraiseQL`
 
-**Cause**: Not requiring fraiseql correctly
+**Cause**: Not requiring FraiseQL correctly
 
 **Solution**:
 
 ```ruby
 # ✅ Correct
-require 'fraiseql'
+require 'FraiseQL'
 
 class User
   include FraiseQL::Type
@@ -894,7 +894,7 @@ end
 
 ```ruby
 # ✅ Define in initializer
-# config/initializers/fraiseql.rb
+# config/initializers/FraiseQL.rb
 FraiseQL.reset!  # Clear if redefining
 
 class User
@@ -986,7 +986,7 @@ Encoding.default_internal = Encoding::UTF_8
 
 # Or in schema file
 # -*- encoding: utf-8 -*-
-require 'fraiseql'
+require 'FraiseQL'
 ```
 
 #### Timeout Issues
@@ -1124,7 +1124,7 @@ bundle outdated
 **Setup logging**:
 
 ```ruby
-# config/initializers/fraiseql.rb
+# config/initializers/FraiseQL.rb
 FraiseQL.logger = Logger.new($stdout)
 FraiseQL.logger.level = Logger::DEBUG
 
@@ -1135,7 +1135,7 @@ Rails.logger.level = :debug
 **Environment variable**:
 
 ```bash
-FRAISEQL_DEBUG=true RUST_LOG=fraiseql=debug rails s
+FRAISEQL_DEBUG=true RUST_LOG=FraiseQL=debug rails s
 ```
 
 #### Use Ruby Debugger
@@ -1169,7 +1169,7 @@ puts JSON.pretty_generate(JSON.parse(schema))
 **Validate**:
 
 ```ruby
-require 'fraiseql'
+require 'FraiseQL'
 FraiseQL.validate_schema('schema.compiled.json')
 ```
 
@@ -1203,7 +1203,7 @@ curl -X POST http://localhost:3000/graphql \
 Provide:
 
 1. Ruby version: `ruby --version`
-2. FraiseQL version: `gem list fraiseql`
+2. FraiseQL version: `gem list FraiseQL`
 3. Rails version (if applicable)
 4. Minimal reproducible example
 5. Full stack trace
@@ -1230,7 +1230,7 @@ Provide:
 #### Community Channels
 
 - **GitHub Discussions**: Ask questions
-- **Stack Overflow**: Tag with `fraiseql` and `ruby`
+- **Stack Overflow**: Tag with `FraiseQL` and `ruby`
 - **Discord**: Real-time help
 - **Ruby Forum**: Ruby community discussions
 
@@ -1279,4 +1279,4 @@ StackProf.results('tmp/stackprof.dump').print_text
 
 ---
 
-**Questions?** See [FAQ](../../faq.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql).
+**Questions?** See [FAQ](../../faq.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).

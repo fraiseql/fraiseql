@@ -99,7 +99,7 @@ FRAISEQL_ENVIRONMENT=production
 FRAISEQL_DEBUG=false
 
 # Database
-FRAISEQL_DATABASE_URL=postgresql://user:pass@db.example.com:5432/fraiseql
+FRAISEQL_DATABASE_URL=postgresql://user:pass@db.example.com:5432/FraiseQL
 FRAISEQL_DATABASE_POOL_SIZE=20
 FRAISEQL_DATABASE_POOL_TIMEOUT=30
 FRAISEQL_DATABASE_POOL_RECYCLE=3600
@@ -135,7 +135,7 @@ FRAISEQL_SLOW_QUERY_THRESHOLD_MS=100
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fraiseql-config
+  name: FraiseQL-config
   namespace: default
 data:
   FRAISEQL_ENVIRONMENT: "production"
@@ -154,11 +154,11 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: fraiseql-secrets
+  name: FraiseQL-secrets
   namespace: default
 type: Opaque
 stringData:
-  DATABASE_URL: "postgresql://user:pass@db:5432/fraiseql"
+  DATABASE_URL: "postgresql://user:pass@db:5432/FraiseQL"
   AUTH0_DOMAIN: "your-tenant.auth0.com"
   AUTH0_API_IDENTIFIER: "https://api.example.com"
 ```text
@@ -198,15 +198,15 @@ CMD ["gunicorn", "app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-
 
 ```bash
 # Build
-docker build -t myregistry/fraiseql:1.0.0 .
-docker build -t myregistry/fraiseql:latest .
+docker build -t myregistry/FraiseQL:1.0.0 .
+docker build -t myregistry/FraiseQL:latest .
 
 # Push
-docker push myregistry/fraiseql:1.0.0
-docker push myregistry/fraiseql:latest
+docker push myregistry/FraiseQL:1.0.0
+docker push myregistry/FraiseQL:latest
 
 # Scan for vulnerabilities
-trivy image myregistry/fraiseql:1.0.0
+trivy image myregistry/FraiseQL:1.0.0
 ```text
 
 #### Hardened Image (Government-Grade)
@@ -220,7 +220,7 @@ FraiseQL provides a hardened Dockerfile with:
 - No shell access
 
 ```bash
-docker build -f Dockerfile.hardened -t myregistry/fraiseql:hardened .
+docker build -f Dockerfile.hardened -t myregistry/FraiseQL:hardened .
 ```text
 
 ---
@@ -233,10 +233,10 @@ docker build -f Dockerfile.hardened -t myregistry/fraiseql:hardened .
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
   labels:
-    app: fraiseql
+    app: FraiseQL
     version: "1.0"
 spec:
   replicas: 3
@@ -247,14 +247,14 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   template:
     metadata:
       labels:
-        app: fraiseql
+        app: FraiseQL
         version: "1.0"
     spec:
-      serviceAccountName: fraiseql
+      serviceAccountName: FraiseQL
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -263,8 +263,8 @@ spec:
           type: RuntimeDefault
 
       containers:
-      - name: fraiseql
-        image: myregistry/fraiseql:1.0.0
+      - name: FraiseQL
+        image: myregistry/FraiseQL:1.0.0
         imagePullPolicy: IfNotPresent
 
         ports:
@@ -275,9 +275,9 @@ spec:
         # Environment from ConfigMap and Secret
         envFrom:
         - configMapRef:
-            name: fraiseql-config
+            name: FraiseQL-config
         - secretRef:
-            name: fraiseql-secrets
+            name: FraiseQL-secrets
 
         # Resource constraints
         resources:
@@ -348,7 +348,7 @@ spec:
                 matchExpressions:
                 - key: app
                   operator: In
-                  values: [fraiseql]
+                  values: [FraiseQL]
               topologyKey: kubernetes.io/hostname
 
       terminationGracePeriodSeconds: 30
@@ -360,14 +360,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
   labels:
-    app: fraiseql
+    app: FraiseQL
 spec:
   type: ClusterIP
   selector:
-    app: fraiseql
+    app: FraiseQL
   ports:
   - name: http
     port: 8000
@@ -382,13 +382,13 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: fraiseql
+    name: FraiseQL
   minReplicas: 3
   maxReplicas: 20
   metrics:
@@ -439,13 +439,13 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
 spec:
   minAvailable: 2
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
 ```text
 
 ### Network Policies (Zero Trust)
@@ -454,12 +454,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
 spec:
   podSelector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   policyTypes:
   - Ingress
   - Egress
@@ -509,7 +509,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: fraiseql
+  name: FraiseQL
   namespace: default
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -526,7 +526,7 @@ spec:
   tls:
   - hosts:
     - api.example.com
-    secretName: fraiseql-tls
+    secretName: FraiseQL-tls
   rules:
   - host: api.example.com
     http:
@@ -535,7 +535,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: fraiseql
+            name: FraiseQL
             port:
               number: 8000
 ```text
@@ -548,7 +548,7 @@ spec:
 
 ```sql
 -- Create database
-CREATE DATABASE fraiseql
+CREATE DATABASE FraiseQL
   WITH ENCODING 'UTF8'
        LC_COLLATE 'en_US.UTF-8'
        LC_CTYPE 'en_US.UTF-8'
@@ -558,7 +558,7 @@ CREATE DATABASE fraiseql
 CREATE USER fraiseql_app WITH PASSWORD 'secure_password';
 
 -- Grant permissions
-GRANT CONNECT ON DATABASE fraiseql TO fraiseql_app;
+GRANT CONNECT ON DATABASE FraiseQL TO fraiseql_app;
 GRANT USAGE ON SCHEMA public TO fraiseql_app;
 GRANT CREATE ON SCHEMA public TO fraiseql_app;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO fraiseql_app;
@@ -576,7 +576,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fraiseql_app
 pool_config = {
     "host": "db.example.com",
     "port": 5432,
-    "database": "fraiseql",
+    "database": "FraiseQL",
     "user": "fraiseql_app",
     "password": os.getenv("DB_PASSWORD"),
     "min_size": 20,          # Maintain minimum connections
@@ -667,12 +667,12 @@ config = FraiseQLConfig(
 
 ```python
 # Connection string with TLS
-DATABASE_URL = "postgresql://user:pass@db.example.com:5432/fraiseql?sslmode=require"
+DATABASE_URL = "postgresql://user:pass@db.example.com:5432/FraiseQL?sslmode=require"
 
 # Kubernetes pod with client certificates
 containers:
 
-- name: fraiseql
+- name: FraiseQL
   env:
   - name: SSL_CERT_FILE
     value: /etc/ssl/certs/ca-bundle.crt
@@ -691,10 +691,10 @@ volumes:
 
 - name: tls-certs
   secret:
-    secretName: fraiseql-tls-certs
+    secretName: FraiseQL-tls-certs
 - name: tls-keys
   secret:
-    secretName: fraiseql-tls-keys
+    secretName: FraiseQL-tls-keys
 ```text
 
 ### Security Headers
@@ -797,7 +797,7 @@ pool = DatabasePool(
 ### Prometheus Metrics
 
 ```python
-from fraiseql.monitoring import setup_metrics, MetricsConfig
+from FraiseQL.monitoring import setup_metrics, MetricsConfig
 
 setup_metrics(app, MetricsConfig(
     enabled=True,
@@ -809,11 +809,11 @@ setup_metrics(app, MetricsConfig(
 ### OpenTelemetry Tracing
 
 ```python
-from fraiseql.tracing import setup_tracing, TracingConfig
+from FraiseQL.tracing import setup_tracing, TracingConfig
 
 setup_tracing(app, TracingConfig(
     enabled=True,
-    service_name="fraiseql-api",
+    service_name="FraiseQL-api",
     export_format="otlp",
     export_endpoint="jaeger:4317",
     sample_rate=0.1  # 10% sampling in production
@@ -823,7 +823,7 @@ setup_tracing(app, TracingConfig(
 ### Health Checks
 
 ```python
-from fraiseql.health import setup_health_endpoints
+from FraiseQL.health import setup_health_endpoints
 
 setup_health_endpoints(app)
 ```text
@@ -867,17 +867,17 @@ gh pr create
 
 ```bash
 # Install
-helm install fraiseql ./helm-chart \
+helm install FraiseQL ./helm-chart \
   --namespace default \
   --values values-prod.yaml
 
 # Upgrade
-helm upgrade fraiseql ./helm-chart \
+helm upgrade FraiseQL ./helm-chart \
   --namespace default \
   --values values-prod.yaml
 
 # Rollback
-helm rollback fraiseql 1
+helm rollback FraiseQL 1
 ```text
 
 ---
@@ -888,23 +888,23 @@ helm rollback fraiseql 1
 
 ```sql
 -- Daily backup
-pg_dump fraiseql > /backups/fraiseql_$(date +%Y%m%d).sql
+pg_dump FraiseQL > /backups/fraiseql_$(date +%Y%m%d).sql
 
 -- With compression
-pg_dump -Fc fraiseql > /backups/fraiseql_$(date +%Y%m%d).dump
+pg_dump -Fc FraiseQL > /backups/fraiseql_$(date +%Y%m%d).dump
 
 -- With parallel jobs
-pg_dump -Fd -j 4 fraiseql > /backups/fraiseql_$(date +%Y%m%d)_parallel/
+pg_dump -Fd -j 4 FraiseQL > /backups/fraiseql_$(date +%Y%m%d)_parallel/
 ```text
 
 ### Restore Procedure
 
 ```sql
 -- From SQL dump
-psql fraiseql < /backups/fraiseql_20250111.sql
+psql FraiseQL < /backups/fraiseql_20250111.sql
 
 -- From custom format dump
-pg_restore -d fraiseql /backups/fraiseql_20250111.dump
+pg_restore -d FraiseQL /backups/fraiseql_20250111.dump
 
 -- Verify
 SELECT COUNT(*) FROM users;
@@ -916,10 +916,10 @@ SELECT MAX(created_at) FROM audit_events;
 ```sql
 -- Primary-Replica setup
 -- On primary:
-CREATE PUBLICATION fraiseql FOR ALL TABLES;
+CREATE PUBLICATION FraiseQL FOR ALL TABLES;
 
 -- On replica:
-CREATE SUBSCRIPTION fraiseql CONNECTION 'postgresql://primary:5432/fraiseql' PUBLICATION fraiseql;
+CREATE SUBSCRIPTION FraiseQL CONNECTION 'postgresql://primary:5432/FraiseQL' PUBLICATION FraiseQL;
 
 -- Monitor replication lag
 SELECT now() - pg_last_wal_receive_lsn()::text::pg_lsn / 1000000 AS replication_lag_seconds;

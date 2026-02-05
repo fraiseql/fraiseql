@@ -40,7 +40,7 @@ DATABASE WRITES
               │                           │
     ┌─────────▼────────────────┬────────▼──────────┐
     │  ClickHouse              │ Elasticsearch     │
-    │  fraiseql_events table   │ fraiseql-events-* │
+    │  fraiseql_events table   │ FraiseQL-events-* │
     │  (columnar, 90d TTL)     │ (JSONB, 90d ILM)  │
     └──────────────────────────┴───────────────────┘
               │                           │
@@ -77,7 +77,7 @@ Same GraphQL query, different transports:
     └───┬────────────┘      │ Handler       │    │ Handler       │
         │                   │               │    │               │
     ┌───▼────────────────────────────────────────────────────┐
-    │         fraiseql-core                                 │
+    │         FraiseQL-core                                 │
     │  1. Parse GraphQL                                     │
     │  2. Validate (permissions, schema)                   │
     │  3. Execute SQL                                       │
@@ -135,27 +135,27 @@ NATS JetStream (durable, at-least-once semantics)
     │
     └──► Elasticsearch Sink
          ├─ Bulk index API (efficient)
-         ├─ Index: fraiseql-events-YYYY.MM
+         ├─ Index: FraiseQL-events-YYYY.MM
          ├─ Document: JSONB serialized
          └─ ILM policy: hot → warm → delete (90d)
 ```text
 
 ## Component Responsibilities
 
-### fraiseql-arrow
+### FraiseQL-arrow
 
 - **Flight Server**: gRPC server implementing Apache Arrow Flight protocol
 - **Schema Registry**: Generates Arrow schemas from GraphQL types
 - **RecordBatch Streaming**: Converts SQL rows to Arrow columnar format
 - **Ticket Encoding**: Encodes/decodes Flight ticket protocol
 
-### fraiseql-core
+### FraiseQL-core
 
 - **Query Execution** (unchanged): Parse GraphQL, execute SQL
 - **Row → Arrow Converter** (NEW): Converts database rows to Arrow RecordBatch
 - **Row → JSON Converter** (unchanged): Existing HTTP/JSON path
 
-### fraiseql-observers
+### FraiseQL-observers
 
 - **NATS Integration** (unchanged): Event sourcing infrastructure
 - **Arrow Bridge** (NEW): Converts EntityEvent → RecordBatch
@@ -223,7 +223,7 @@ Characteristics:
 ### Topology 1: HTTP-Only (Simple)
 
 ```text
-fraiseql-server (HTTP:8080)
+FraiseQL-server (HTTP:8080)
     ↓
 PostgreSQL
 ```text
@@ -236,7 +236,7 @@ PostgreSQL
 ### Topology 2: Dual Transport + Analytics (Recommended for Production)
 
 ```text
-fraiseql-server (HTTP:8080 + Arrow:50051)
+FraiseQL-server (HTTP:8080 + Arrow:50051)
     ↓
 PostgreSQL
     ↓
@@ -254,7 +254,7 @@ NATS JetStream
 ### Topology 3: Arrow-Only (Future)
 
 ```text
-fraiseql-server (Arrow:50051)
+FraiseQL-server (Arrow:50051)
     ↓
 PostgreSQL
 ```text
@@ -358,14 +358,14 @@ PostgreSQL
 
 **Diagnosis:**
 
-1. Check if process is running: `ps aux | grep fraiseql`
+1. Check if process is running: `ps aux | grep FraiseQL`
 2. Verify port: `netstat -tuln | grep 50051`
-3. Check logs: `docker logs fraiseql | grep "Arrow Flight"`
+3. Check logs: `docker logs FraiseQL | grep "Arrow Flight"`
 
 **Solutions:**
 
-- Start FraiseQL with Arrow Flight enabled: `fraiseql --enable-arrow-flight`
-- Check fraiseql.toml for port configuration: `[arrow_flight] bind_port = 50051`
+- Start FraiseQL with Arrow Flight enabled: `FraiseQL --enable-arrow-flight`
+- Check FraiseQL.toml for port configuration: `[arrow_flight] bind_port = 50051`
 - Verify firewall allows port 50051
 - Try different port if 50051 in use: `[arrow_flight] bind_port = 50052`
 
@@ -375,7 +375,7 @@ PostgreSQL
 
 **Diagnosis:**
 
-1. Check server bind address: `grep bind_address /path/to/fraiseql.toml`
+1. Check server bind address: `grep bind_address /path/to/FraiseQL.toml`
 2. Verify server is accessible: `telnet localhost 50051`
 3. Check if client using correct host/port: `nc -zv host.com 50051`
 
@@ -444,7 +444,7 @@ PostgreSQL
 
 **Diagnosis:**
 
-1. Check Observer configuration: `grep "ClickHouse" fraiseql.toml`
+1. Check Observer configuration: `grep "ClickHouse" FraiseQL.toml`
 2. Verify ClickHouse is running: `curl http://localhost:8123/ping`
 3. Check if mutations are triggering observers: `SELECT COUNT(*) FROM system.events WHERE event = 'InsertedRows';`
 
@@ -463,12 +463,12 @@ PostgreSQL
 
 1. Check Elasticsearch running: `curl http://localhost:9200/_cluster/health`
 2. Verify debug index exists: `curl http://localhost:9200/_cat/indices | grep debug`
-3. Check logging level in fraiseql.toml: `[logging] level = "debug"`
+3. Check logging level in FraiseQL.toml: `[logging] level = "debug"`
 
 **Solutions:**
 
-- Enable debug logging: Set `level = "debug"` in fraiseql.toml
-- Ensure Elasticsearch configured in fraiseql.toml
+- Enable debug logging: Set `level = "debug"` in FraiseQL.toml
+- Ensure Elasticsearch configured in FraiseQL.toml
 - Create debug index if missing: `curl -X PUT http://localhost:9200/debug-logs`
 - Verify network allows queries from FraiseQL to Elasticsearch port 9200
 
@@ -479,7 +479,7 @@ PostgreSQL
 **Diagnosis:**
 
 1. Confirm from Known Limitations section above
-2. Check FraiseQL version: `fraiseql --version` (should indicate phase)
+2. Check FraiseQL version: `FraiseQL --version` (should indicate phase)
 
 **Current Workaround:**
 

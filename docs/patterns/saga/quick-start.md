@@ -210,7 +210,7 @@ In `Cargo.toml`:
 
 ```toml
 [dependencies]
-fraiseql-core = { version = "2.0", features = ["saga-postgres"] }
+FraiseQL-core = { version = "2.0", features = ["saga-postgres"] }
 ```text
 
 In your application setup:
@@ -219,7 +219,7 @@ In your application setup:
 // Configure PostgreSQL saga store
 let saga_store = PostgresSagaStore::new(
     PostgresSagaStoreConfig {
-        connection_string: "postgres://user:pass@localhost/fraiseql",
+        connection_string: "postgres://user:pass@localhost/FraiseQL",
         max_pool_size: 10,
         migration_path: "migrations/",
     }

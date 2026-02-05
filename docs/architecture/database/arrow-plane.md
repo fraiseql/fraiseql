@@ -112,7 +112,7 @@ Arrow projections follow **semantic versioning** for their schemas:
 
 ```yaml
 # Projection declaration
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
   name="orders_analytics",
   version="2.3.1",              # MAJOR.MINOR.PATCH
   stability="stable"            # stable, beta, deprecated
@@ -160,7 +160,7 @@ When a projection becomes obsolete:
 1. **Announce** (version N): Mark as `stability="deprecated"` with replacement guidance
 
    ```python
-   @fraiseql.arrow_projection(
+   @FraiseQL.arrow_projection(
      name="orders_v1",
      stability="deprecated",
      replacement="orders_analytics_v2",
@@ -187,7 +187,7 @@ When a projection becomes obsolete:
 
 ```python
 # v1.0: orders + order_items (2 batches)
-@fraiseql.arrow_projection(name="order_analytics", version="1.0")
+@FraiseQL.arrow_projection(name="order_analytics", version="1.0")
 class OrderAnalytics:
     orders: Arrow.Batch([...])         # 4 columns: id, amount, created_at, status
     order_items: Arrow.Batch([...])    # 5 columns: id, order_id, product_id, qty, price
@@ -400,21 +400,21 @@ query {
 # ✅ GOOD: 3 separate projections for different analytical needs
 
 # Projection 1: User engagement (shallow)
-@fraiseql.arrow_projection(name="user_engagement")
+@FraiseQL.arrow_projection(name="user_engagement")
 class UserEngagement:
     users: Arrow.Batch([...])
     posts: Arrow.Batch([...])
     # 1 hop: User → Posts
 
 # Projection 2: Post engagement (isolated)
-@fraiseql.arrow_projection(name="post_engagement")
+@FraiseQL.arrow_projection(name="post_engagement")
 class PostEngagement:
     posts: Arrow.Batch([...])
     comments: Arrow.Batch([...])
     # 1 hop: Post → Comments
 
 # Projection 3: Comment threads (isolated)
-@fraiseql.arrow_projection(name="comment_threads")
+@FraiseQL.arrow_projection(name="comment_threads")
 class CommentThreads:
     comments: Arrow.Batch([...])
     authors: Arrow.Batch([...])  # Author profile info
@@ -543,26 +543,26 @@ Accept: application/json                  → JSON (fallback)
 Arrow projections are declared in schema authoring:
 
 ```python
-import fraiseql
-from fraiseql import Arrow, ArrowField
+import FraiseQL
+from FraiseQL import Arrow, ArrowField
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
-    id: fraiseql.ID
-    customer_id: fraiseql.ID
-    total: fraiseql.Decimal
-    created_at: fraiseql.DateTime
+    id: FraiseQL.ID
+    customer_id: FraiseQL.ID
+    total: FraiseQL.Decimal
+    created_at: FraiseQL.DateTime
     items: list['OrderItem']
 
-@fraiseql.type
+@FraiseQL.type
 class OrderItem:
-    id: fraiseql.ID
-    product_id: fraiseql.ID
-    quantity: fraiseql.Int
-    unit_price: fraiseql.Decimal
+    id: FraiseQL.ID
+    product_id: FraiseQL.ID
+    quantity: FraiseQL.Int
+    unit_price: FraiseQL.Decimal
 
 # Define Arrow projection: single flat view of order with items
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
     name="order_with_items",
     description="Orders with line items for analytics"
 )
@@ -592,9 +592,9 @@ class OrderWithItemsArrow:
 ### 3.2 TypeScript Authoring
 
 ```typescript
-import { Arrow, ArrowField, ArrowBatch } from '@fraiseql/core';
+import { Arrow, ArrowField, ArrowBatch } from '@FraiseQL/core';
 
-@fraiseql.arrowProjection({
+@FraiseQL.arrowProjection({
   name: 'order_with_items',
   description: 'Orders with line items for analytics'
 })
@@ -1160,7 +1160,7 @@ Arrow projections inherit FraiseQL's **compile-time authorization rules**. Row-l
 **Example: User-scoped Orders**
 
 ```python
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
   name="user_orders_analytics",
   security_context={
     "requires_auth": True,
@@ -1206,7 +1206,7 @@ query {
 Sensitive columns can be **masked** at projection time:
 
 ```python
-@fraiseql.arrow_projection(name="customer_analytics")
+@FraiseQL.arrow_projection(name="customer_analytics")
 class CustomerAnalytics:
     customers: Arrow.Batch(fields=[
         ArrowField("id", "String"),
@@ -1272,7 +1272,7 @@ Arrow projection access is **fully auditable** for compliance (SOC 2, HIPAA, GDP
 When Arrow projections are exported to external systems (data lakes, Parquet files, cloud warehouses), governance policies apply:
 
 ```python
-@fraiseql.arrow_projection(
+@FraiseQL.arrow_projection(
   name="analytics_export",
   export_policy={
     "allowed_destinations": ["s3://company-data-lake", "bigquery://company"],
@@ -1484,14 +1484,14 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 **Schema Definition:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
-    id: fraiseql.ID
+    id: FraiseQL.ID
     name: str
-    price: fraiseql.Decimal
+    price: FraiseQL.Decimal
     category: str
 
-@fraiseql.arrow_projection(name="products_analytics")
+@FraiseQL.arrow_projection(name="products_analytics")
 class ProductsAnalytics:
     products: Arrow.Batch(fields=[
         ArrowField("id", "String", nullable=False),
@@ -1529,20 +1529,20 @@ products_batch:
 **Schema Definition:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Customer:
-    id: fraiseql.ID
+    id: FraiseQL.ID
     name: str
     email: str
     orders: list['Order']
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
-    id: fraiseql.ID
-    customer_id: fraiseql.ID
-    total: fraiseql.Decimal
+    id: FraiseQL.ID
+    customer_id: FraiseQL.ID
+    total: FraiseQL.Decimal
 
-@fraiseql.arrow_projection(name="customers_with_orders")
+@FraiseQL.arrow_projection(name="customers_with_orders")
 class CustomersWithOrders:
     customers: Arrow.Batch(fields=[
         ArrowField("id", "String", nullable=False),
@@ -1577,7 +1577,7 @@ result = pd.merge(customers, orders,
 **Schema Definition:**
 
 ```python
-@fraiseql.arrow_projection(name="daily_sales_metrics")
+@FraiseQL.arrow_projection(name="daily_sales_metrics")
 class DailySalesMetrics:
     metrics: Arrow.Batch(fields=[
         ArrowField("date", "Date32", nullable=False),
@@ -2025,4 +2025,4 @@ duckdb.execute(f"""
 
 **Specification Status: Complete** — Arrow plane architecture fully defined and validated through implementation.
 
-**Implementation Status: ✅ Complete** — Fully implemented in v2.0.0-alpha.1 (`fraiseql-arrow` crate). Feature-gated via Cargo. Supports gRPC/Arrow Flight protocol with schema translation, streaming batches, and analytics queries.
+**Implementation Status: ✅ Complete** — Fully implemented in v2.0.0-alpha.1 (`FraiseQL-arrow` crate). Feature-gated via Cargo. Supports gRPC/Arrow Flight protocol with schema translation, streaming batches, and analytics queries.

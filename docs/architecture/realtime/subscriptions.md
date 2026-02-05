@@ -191,7 +191,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 - Maintains checkpoint for recovery (no duplicate processing)
 - Fetches entries in batches (default: 100 events)
 - Parses Debezium envelope format (before/after/op)
-- Location: `crates/fraiseql-observers/src/listener/change_log.rs`
+- Location: `crates/FraiseQL-observers/src/listener/change_log.rs`
 - **Key insight:** 100ms polling IS real-time for UI updates
 
 **ObserverRuntime** ✅ *Fully implemented*
@@ -202,7 +202,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 - Routes events to registered consumers:
   - ObserverExecutor (actions like webhooks, email)
   - SubscriptionManager (transports like WebSocket, Kafka) ← **To be added**
-- Location: `crates/fraiseql-server/src/observers/runtime.rs`
+- Location: `crates/FraiseQL-server/src/observers/runtime.rs`
 
 **SubscriptionManager** ✅ *Fully implemented*
 
@@ -211,7 +211,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 - Projects data to subscription's field selection
 - Broadcasts via `tokio::sync::broadcast` channels
 - Delivers to transport adapters (WebSocket, Kafka, Webhooks)
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs`
+- Location: `crates/FraiseQL-core/src/runtime/subscription.rs`
 
 **Transport Adapters** ✅ *All fully implemented*
 
@@ -405,7 +405,7 @@ ObserverRuntime (in-process routing)
 **Default (Composition):**
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [observer_runtime]
 transport = "in_process"  # Direct routing, no NATS required
 
@@ -418,7 +418,7 @@ transport = "in_process"  # Direct routing, no NATS required
 [observer_runtime]
 transport = "nats"
 nats_url = "nats://localhost:4222"
-stream_name = "fraiseql.events"
+stream_name = "FraiseQL.events"
 
 # All events published to NATS once
 # ObserverExecutor and SubscriptionManager both consume from NATS
@@ -437,12 +437,12 @@ Subscriptions are declared using the same schema authoring languages as types an
 **Python Example:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     """Events for new orders created by the authenticated user."""
 
     # Compile-time filter: Only current user's orders
-    where: WhereOrder = fraiseql.where(user_id=fraiseql.context.user_id)
+    where: WhereOrder = FraiseQL.where(user_id=FraiseQL.context.user_id)
 
     # Fields to project from the Order entity
     id: ID
@@ -450,19 +450,19 @@ class OrderCreated:
     created_at: DateTime
     amount: Decimal
 
-    @fraiseql.variable(name="since_date")
+    @FraiseQL.variable(name="since_date")
     class Filter:
         """Optional runtime filter for timestamp range."""
         created_at: DateTimeRange
 
 
-@fraiseql.subscription
+@FraiseQL.subscription
 class UserDeleted:
     """Events for users deleted (admin only)."""
 
     # Authorization: Admin context required
-    where: WhereUser = fraiseql.where(
-        fraiseql.context.role.contains("admin")
+    where: WhereUser = FraiseQL.where(
+        FraiseQL.context.role.contains("admin")
     )
 
     # Soft delete: Only fire if deleted_at is set
@@ -471,13 +471,13 @@ class UserDeleted:
     deleted_at: DateTime
 
 
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderStatusChanged:
     """Events for status changes on organization's orders."""
 
     # Multi-tenant filtering
-    where: WhereOrder = fraiseql.where(
-        fk_org=fraiseql.context.org_id
+    where: WhereOrder = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id
     )
 
     # Nested projection (Order → OrderStatus entity)
@@ -492,7 +492,7 @@ class OrderStatusChanged:
 When the schema is compiled, the compiler:
 
 1. **Identifies all subscription types**
-   - Validates `@fraiseql.subscription` decorators
+   - Validates `@FraiseQL.subscription` decorators
    - Ensures each subscription is based on a valid entity type
 
 2. **Validates WHERE filters**
@@ -527,14 +527,14 @@ When the schema is compiled, the compiler:
 Subscriptions can filter on multiple fields:
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderUpdated:
     """Subscription for specific order updates."""
 
     # Both compile-time constraints
-    where: WhereOrder = fraiseql.where(
-        fk_org=fraiseql.context.org_id,
-        status=fraiseql.context.allowed_statuses  # Must be in auth context
+    where: WhereOrder = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id,
+        status=FraiseQL.context.allowed_statuses  # Must be in auth context
     )
 
     id: ID
@@ -673,7 +673,7 @@ For push-based delivery to external systems.
 #### Webhook Event
 
 ```json
-POST https://external-service.example.com/webhooks/fraiseql
+POST https://external-service.example.com/webhooks/FraiseQL
 
 {
   "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
@@ -721,13 +721,13 @@ For high-throughput consumption by backend systems.
 
 #### Kafka Topic
 
-Topic name: `fraiseql.{entity_type}.{operation}`
+Topic name: `FraiseQL.{entity_type}.{operation}`
 
 Examples:
 
-- `fraiseql.order.created`
-- `fraiseql.user.updated`
-- `fraiseql.order.deleted`
+- `FraiseQL.order.created`
+- `FraiseQL.user.updated`
+- `FraiseQL.order.deleted`
 
 #### Kafka Message
 
@@ -756,7 +756,7 @@ config = FraiseQLConfig(
         "bootstrap_servers": ["kafka:9092"],
         "subscriptions": {
             "OrderCreated": {
-                "topic": "fraiseql.order.created",
+                "topic": "FraiseQL.order.created",
                 "partition_by": "entity_id"  # Orders with same ID → same partition
             }
         }
@@ -805,11 +805,11 @@ message Event {
 Subscriptions filter events using WHERE clauses evaluated at compile time and rendered as SQL predicates.
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     # Filter: Only orders for authenticated user
-    where: WhereOrder = fraiseql.where(
-        user_id=fraiseql.context.user_id
+    where: WhereOrder = FraiseQL.where(
+        user_id=FraiseQL.context.user_id
     )
 
 # Compiled to:
@@ -819,22 +819,22 @@ class OrderCreated:
 **Available context variables:**
 
 ```python
-fraiseql.context.user_id         # Authenticated user ID
-fraiseql.context.org_id          # Organization/tenant ID
-fraiseql.context.role            # User role (string or list)
-fraiseql.context.permissions     # User permissions
-fraiseql.context.custom_claim    # Custom auth claim
+FraiseQL.context.user_id         # Authenticated user ID
+FraiseQL.context.org_id          # Organization/tenant ID
+FraiseQL.context.role            # User role (string or list)
+FraiseQL.context.permissions     # User permissions
+FraiseQL.context.custom_claim    # Custom auth claim
 ```text
 
 **Example: Multi-tenant filtering**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderUpdated:
-    where: WhereOrder = fraiseql.where(
-        fk_org=fraiseql.context.org_id,
+    where: WhereOrder = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id,
         # Only notify on changes to orders in allowed statuses
-        status=fraiseql.context.allowed_statuses
+        status=FraiseQL.context.allowed_statuses
     )
 
     id: ID
@@ -847,14 +847,14 @@ class OrderUpdated:
 Subscriptions accept typed runtime variables for additional filtering.
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
-    where: WhereOrder = fraiseql.where(
-        user_id=fraiseql.context.user_id
+    where: WhereOrder = FraiseQL.where(
+        user_id=FraiseQL.context.user_id
     )
 
-    @fraiseql.variable(name="since_date", type=DateTime)
-    @fraiseql.variable(name="min_amount", type=Decimal)
+    @FraiseQL.variable(name="since_date", type=DateTime)
+    @FraiseQL.variable(name="min_amount", type=Decimal)
     class Filter:
         """Optional runtime filtering on timestamp and amount."""
         created_at: DateTimeRange
@@ -897,11 +897,11 @@ Subscriptions enforce authorization rules at compile time with runtime-safe para
 **Example:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class SensitiveDataAccessed:
     # Only admins receive this subscription
-    where: WhereAuditLog = fraiseql.where(
-        fraiseql.context.role == "admin"
+    where: WhereAuditLog = FraiseQL.where(
+        FraiseQL.context.role == "admin"
     )
 
     # If context.role != "admin", subscription unavailable
@@ -911,11 +911,11 @@ class SensitiveDataAccessed:
 **Row-level authorization example:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class UserProfileUpdated:
     # User only sees updates to their own profile
-    where: WhereUser = fraiseql.where(
-        id=fraiseql.context.user_id
+    where: WhereUser = FraiseQL.where(
+        id=FraiseQL.context.user_id
     )
 
     id: ID
@@ -990,7 +990,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
 Subscription selection sets determine which fields are included in the event.
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class UserUpdated:
     # All user fields available for projection
     id: ID
@@ -1026,7 +1026,7 @@ subscription UserUpdated {
 Subscriptions can project nested entities.
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     id: ID
     amount: Decimal
@@ -1507,10 +1507,10 @@ Subscriptions require authentication same as mutations:
 
 ```python
 # Only authenticated users can subscribe
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
-    where: WhereOrder = fraiseql.where(
-        user_id=fraiseql.context.user_id
+    where: WhereOrder = FraiseQL.where(
+        user_id=FraiseQL.context.user_id
     )
     # Fails if context.user_id is None (unauthenticated)
 ```text
@@ -1529,13 +1529,13 @@ WHERE clauses enforce row-level access control through compile-time rule definit
 
 ```python
 # User only sees their own orders
-where: WhereOrder = fraiseql.where(user_id=fraiseql.context.user_id)
+where: WhereOrder = FraiseQL.where(user_id=FraiseQL.context.user_id)
 
 # Org admin sees org's orders
-where: WhereOrder = fraiseql.where(fk_org=fraiseql.context.org_id)
+where: WhereOrder = FraiseQL.where(fk_org=FraiseQL.context.org_id)
 
 # Admin sees everything (no WHERE filter)
-where: WhereOrder = fraiseql.where()  # No filter = all rows
+where: WhereOrder = FraiseQL.where()  # No filter = all rows
 ```text
 
 ### 11.3 Field-Level Authorization
@@ -1543,13 +1543,13 @@ where: WhereOrder = fraiseql.where()  # No filter = all rows
 Projected fields can have authorization rules:
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     id: ID  # Always visible
     amount: Decimal  # Always visible
 
     # sensitive_notes only visible to admin
-    sensitive_notes: Optional[str] = fraiseql.field(
+    sensitive_notes: Optional[str] = FraiseQL.field(
         auth_required=["admin"]
     )
 
@@ -1562,7 +1562,7 @@ Webhooks include HMAC-SHA256 signature for verification:
 
 ```javascript
 // Webhook handler
-const signature = req.headers['x-fraiseql-signature'];
+const signature = req.headers['x-FraiseQL-signature'];
 const payload = req.rawBody;
 
 const expected = crypto
@@ -1584,12 +1584,12 @@ if (signature !== expected) {
 **Schema definition:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     """Stream new orders for the organization."""
 
-    where: WhereOrder = fraiseql.where(
-        fk_org=fraiseql.context.org_id
+    where: WhereOrder = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id
     )
 
     id: ID
@@ -1599,12 +1599,12 @@ class OrderCreated:
     user: User  # Nested projection
 
 
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderStatusChanged:
     """Stream status updates for organization's orders."""
 
-    where: WhereOrder = fraiseql.where(
-        fk_org=fraiseql.context.org_id
+    where: WhereOrder = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id
     )
 
     id: ID
@@ -1656,11 +1656,11 @@ export function OrderDashboard() {
 **Schema definition:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class UserRegistered:
     """Stream new user registrations (no filter, analytics event)."""
 
-    where: WhereUser = fraiseql.where()  # All users
+    where: WhereUser = FraiseQL.where()  # All users
 
     id: ID
     email: Email
@@ -1668,11 +1668,11 @@ class UserRegistered:
     source: str  # How they registered
 
 
-@fraiseql.subscription
+@FraiseQL.subscription
 class PurchaseMade:
     """Stream purchases for analytics and revenue tracking."""
 
-    where: WhereOrder = fraiseql.where(
+    where: WhereOrder = FraiseQL.where(
         status="completed"  # Only completed orders
     )
 
@@ -1732,15 +1732,15 @@ for message in consumer:
 **Schema definition:**
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class ActivityInOrganization:
     """Stream activity (creates, updates, deletes) in organization."""
 
-    where: WhereAuditLog = fraiseql.where(
-        fk_org=fraiseql.context.org_id
+    where: WhereAuditLog = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id
     )
 
-    @fraiseql.variable(name="min_severity")
+    @FraiseQL.variable(name="min_severity")
     class Filter:
         """Optional severity filter."""
         severity: AuditSeverity
@@ -1829,11 +1829,11 @@ if config.debug {
 **Key metrics to track:**
 
 ```text
-fraiseql.subscription.connections     # Current active connections
-fraiseql.subscription.events_emitted   # Events matching filters
-fraiseql.subscription.events_delivered # Events sent to clients
-fraiseql.subscription.lag_seconds      # Delay from database to client
-fraiseql.subscription.error_count      # Delivery failures
+FraiseQL.subscription.connections     # Current active connections
+FraiseQL.subscription.events_emitted   # Events matching filters
+FraiseQL.subscription.events_delivered # Events sent to clients
+FraiseQL.subscription.lag_seconds      # Delay from database to client
+FraiseQL.subscription.error_count      # Delivery failures
 ```text
 
 ### C. Connection Pool Sizing

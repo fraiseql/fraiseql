@@ -251,7 +251,7 @@ SELECT COUNT(*) as tb_order_count FROM tb_order WHERE deleted_at IS NULL;
 
 ### Step 3: Register Arrow Schema
 
-In `fraiseql-arrow/src/metadata.rs`, the schema is automatically registered via `register_ta_tables()` method in `register_defaults()`.
+In `FraiseQL-arrow/src/metadata.rs`, the schema is automatically registered via `register_ta_tables()` method in `register_defaults()`.
 
 ```rust
 // Schema is now available for Arrow Flight queries
@@ -396,7 +396,7 @@ SELECT blocknum, blkcount FROM pgstattuple_approx('ta_orders_created_at_brin');
 
 ## Examples
 
-See `/home/lionel/code/fraiseql/examples/sql/postgres/` for complete DDL examples:
+See `/home/lionel/code/FraiseQL/examples/sql/postgres/` for complete DDL examples:
 
 - `ta_orders.sql` - Orders table-backed Arrow view
 - `ta_users.sql` - Users table-backed Arrow view

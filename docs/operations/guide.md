@@ -226,13 +226,13 @@ livenessProbe:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql
+  name: FraiseQL
 spec:
   template:
     spec:
       containers:
-      - name: fraiseql
-        image: fraiseql:2.0.0
+      - name: FraiseQL
+        image: FraiseQL:2.0.0
         ports:
         - containerPort: 8000
 
@@ -300,7 +300,7 @@ STOPSIGNAL SIGTERM
 
 ```bash
 # Terminal 1: Start server
-cargo run -p fraiseql-server
+cargo run -p FraiseQL-server
 
 # Terminal 2: Send SIGTERM
 kill -TERM <pid>
@@ -340,15 +340,15 @@ health_check {
 **Nginx**:
 
 ```nginx
-upstream fraiseql {
-  server fraiseql-1:8000;
-  server fraiseql-2:8000;
+upstream FraiseQL {
+  server FraiseQL-1:8000;
+  server FraiseQL-2:8000;
   keepalive 32;
 }
 
 server {
   location / {
-    proxy_pass http://fraiseql;
+    proxy_pass http://FraiseQL;
     proxy_http_version 1.1;
     proxy_connect_timeout 5s;
     proxy_read_timeout 30s;
@@ -361,11 +361,11 @@ server {
 **HAProxy**:
 
 ```text
-backend fraiseql
+backend FraiseQL
   option httpchk GET /ready HTTP/1.1
   default-server inter 30s fall 3 rise 2
-  server fraiseql-1 localhost:8000 check
-  server fraiseql-2 localhost:8001 check
+  server FraiseQL-1 localhost:8000 check
+  server FraiseQL-2 localhost:8001 check
 ```text
 
 ---
@@ -405,7 +405,7 @@ fraiseql_uptime_seconds                     # Process uptime
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'fraiseql'
+  - job_name: 'FraiseQL'
     static_configs:
       - targets: ['localhost:9090']
     scrape_interval: 30s
@@ -420,11 +420,11 @@ scrape_configs:
 
 ```yaml
 groups:
-  - name: fraiseql.rules
+  - name: FraiseQL.rules
     rules:
       # Service down
       - alert: ServiceDown
-        expr: up{job="fraiseql"} == 0
+        expr: up{job="FraiseQL"} == 0
         for: 1m
         labels:
           severity: critical
@@ -503,7 +503,7 @@ groups:
 **Example Grafana Variables**:
 
 ```text
-$job = fraiseql (data source: Prometheus)
+$job = FraiseQL (data source: Prometheus)
 $environment = production
 $cluster = us-east-1
 ```text
@@ -539,11 +539,11 @@ filebeat.inputs:
   - type: log
     enabled: true
     paths:
-      - /var/log/fraiseql/*.log
+      - /var/log/FraiseQL/*.log
 
 output.elasticsearch:
   hosts: ["elasticsearch.example.com:9200"]
-  index: "fraiseql-%{+yyyy.MM.dd}"
+  index: "FraiseQL-%{+yyyy.MM.dd}"
 
 setup.dashboards.enabled: true
 setup.kibana.host: "kibana.example.com:5601"
@@ -765,7 +765,7 @@ We've issued a [X]% service credit to your account.
 APOLOGY:
 We sincerely apologize for the disruption.
 
-Contact: support@fraiseql.com
+Contact: support@FraiseQL.com
 ```text
 
 ---
@@ -781,35 +781,35 @@ Contact: support@fraiseql.com
 1. Verify service is down:
 
    ```bash
-   curl https://your-fraiseql-api.com/health
+   curl https://your-FraiseQL-api.com/health
    # Expected: Connection refused or timeout
    ```text
 
 2. Check logs for recent errors:
 
    ```bash
-   kubectl logs -f deployment/fraiseql-api
+   kubectl logs -f deployment/FraiseQL-api
    # Look for: panic, segfault, out of memory
    ```text
 
 3. Restart service:
 
    ```bash
-   kubectl rollout restart deployment/fraiseql-api
-   # Or: systemctl restart fraiseql
+   kubectl rollout restart deployment/FraiseQL-api
+   # Or: systemctl restart FraiseQL
    ```text
 
 4. Verify restart:
 
    ```bash
-   kubectl get deployment fraiseql-api
+   kubectl get deployment FraiseQL-api
    # Expected: Ready 1/1, Restarts: 1
    ```text
 
 5. Health check:
 
    ```bash
-   curl https://your-fraiseql-api.com/health
+   curl https://your-FraiseQL-api.com/health
    # Expected: 200 OK, status: healthy
    ```text
 
@@ -849,7 +849,7 @@ Contact: support@fraiseql.com
 2. Stop application (prevent further writes):
 
    ```bash
-   kubectl scale deployment fraiseql-api --replicas=0
+   kubectl scale deployment FraiseQL-api --replicas=0
    ```text
 
 3. Find latest backup:
@@ -865,7 +865,7 @@ Contact: support@fraiseql.com
    aws s3 cp s3://your-backup-bucket/2026-03-15-12-00.sql.gz .
    gunzip 2026-03-15-12-00.sql.gz
 
-   psql -h your-database.rds.amazonaws.com -U fraiseql -d fraiseql \
+   psql -h your-database.rds.amazonaws.com -U FraiseQL -d FraiseQL \
      < 2026-03-15-12-00.sql
    ```text
 
@@ -879,13 +879,13 @@ Contact: support@fraiseql.com
 6. Restart application:
 
    ```bash
-   kubectl scale deployment fraiseql-api --replicas=3
+   kubectl scale deployment FraiseQL-api --replicas=3
    ```text
 
 7. Health check:
 
    ```bash
-   curl https://your-fraiseql-api.com/health
+   curl https://your-FraiseQL-api.com/health
    # Expected: 200 OK
    ```text
 
@@ -940,14 +940,14 @@ Contact: support@fraiseql.com
 
    ```bash
    curl -H "Authorization: Bearer fraiseql_us_east_1_xxxxx" \
-     https://your-fraiseql-api.com/graphql
+     https://your-FraiseQL-api.com/graphql
    # Expected: 401 Unauthorized
    ```text
 
 5. Generate replacement key:
 
    ```bash
-   fraiseql-cli key generate \
+   FraiseQL-cli key generate \
      --name "replacement-key" \
      --tier premium \
      --permissions "read,write"
@@ -994,10 +994,10 @@ Contact: support@fraiseql.com
 
    ```bash
    # Check metrics
-   curl https://your-fraiseql-api.com/metrics | grep rate_limit
+   curl https://your-FraiseQL-api.com/metrics | grep rate_limit
 
    # Check logs
-   grep "429\|rate.limit" /var/log/fraiseql/access.log
+   grep "429\|rate.limit" /var/log/FraiseQL/access.log
    ```text
 
 2. Verify it's legitimate traffic:
@@ -1027,7 +1027,7 @@ Contact: support@fraiseql.com
 
    ```bash
    # Watch for 5 minutes:
-   watch -n 1 'curl -s https://your-fraiseql-api.com/metrics | grep rate_limit'
+   watch -n 1 'curl -s https://your-FraiseQL-api.com/metrics | grep rate_limit'
 
    # Check error rate didn't increase
    ```text
@@ -1040,7 +1040,7 @@ Contact: support@fraiseql.com
    git push origin main
 
    # Deploy
-   kubectl rollout restart deployment/fraiseql-api
+   kubectl rollout restart deployment/FraiseQL-api
    ```text
 
 6. Document decision:
@@ -1318,7 +1318,7 @@ If you have questions about this guide or customizing it for your environment:
 
 - **GitHub Issues**: [Link to FraiseQL GitHub]
 - **Community Forum**: [Link to community forum]
-- **Email**: <hello@fraiseql.com>
+- **Email**: <hello@FraiseQL.com>
 
 ---
 

@@ -68,15 +68,15 @@ Test IR generation from authoring languages:
 ```python
 # tests/unit/compiler/test_schema_parsing.py
 import pytest
-from fraiseql.compiler.parser import parse_schema
-from fraiseql.compiler.ir import SchemaIR, TypeDef, QueryDef
+from FraiseQL.compiler.parser import parse_schema
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, QueryDef
 
 def test_parse_simple_type():
-    """Test parsing a simple @fraiseql.type decorated class."""
+    """Test parsing a simple @FraiseQL.type decorated class."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A user account."""
     id: str
@@ -95,11 +95,11 @@ class User:
 
 
 def test_parse_query_with_arguments():
-    """Test parsing @fraiseql.query with arguments."""
+    """Test parsing @FraiseQL.query with arguments."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     """Get user by ID."""
     pass
@@ -116,17 +116,17 @@ def user(id: str) -> User:
 
 
 def test_parse_mutation_with_input():
-    """Test parsing @fraiseql.mutation with input type."""
+    """Test parsing @FraiseQL.mutation with input type."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass
@@ -144,17 +144,17 @@ def create_user(input: CreateUserInput) -> User:
 @pytest.mark.parametrize("invalid_source,expected_error", [
     (
         # Missing return type
-        "@fraiseql.query\ndef users():\n    pass",
+        "@FraiseQL.query\ndef users():\n    pass",
         "E_SCHEMA_QUERY_NO_RETURN_TYPE_001"
     ),
     (
         # Invalid type hint
-        "@fraiseql.type\nclass User:\n    id: NotAType",
+        "@FraiseQL.type\nclass User:\n    id: NotAType",
         "E_SCHEMA_TYPE_UNDEFINED_002"
     ),
     (
         # Duplicate type name
-        "@fraiseql.type\nclass User:\n    pass\n@fraiseql.type\nclass User:\n    pass",
+        "@FraiseQL.type\nclass User:\n    pass\n@FraiseQL.type\nclass User:\n    pass",
         "E_SCHEMA_DUPLICATE_TYPE_003"
     ),
 ])
@@ -173,8 +173,8 @@ Test introspection against mock database metadata:
 ```python
 # tests/unit/compiler/test_introspection.py
 import pytest
-from fraiseql.compiler.introspection import DatabaseIntrospector
-from fraiseql.compiler.capabilities import CapabilityManifest
+from FraiseQL.compiler.introspection import DatabaseIntrospector
+from FraiseQL.compiler.capabilities import CapabilityManifest
 
 @pytest.fixture
 def mock_db_metadata():
@@ -263,8 +263,8 @@ Test GraphQL type → database view binding:
 ```python
 # tests/unit/compiler/test_type_binding.py
 import pytest
-from fraiseql.compiler.binder import TypeBinder
-from fraiseql.compiler.ir import SchemaIR, TypeDef, FieldDef, BindingDef
+from FraiseQL.compiler.binder import TypeBinder
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, FieldDef, BindingDef
 
 def test_bind_type_to_view():
     """Test binding a GraphQL type to a database view."""
@@ -400,8 +400,8 @@ Test auto-generation of WHERE input types from database capabilities:
 ```python
 # tests/unit/compiler/test_where_generation.py
 import pytest
-from fraiseql.compiler.where_gen import WhereTypeGenerator
-from fraiseql.compiler.capabilities import CapabilityManifest, ColumnType, Operator
+from FraiseQL.compiler.where_gen import WhereTypeGenerator
+from FraiseQL.compiler.capabilities import CapabilityManifest, ColumnType, Operator
 
 def test_generate_where_type_for_string_column():
     """Test WHERE type generation for string columns."""
@@ -499,8 +499,8 @@ Test schema validation rules:
 ```python
 # tests/unit/compiler/test_validation.py
 import pytest
-from fraiseql.compiler.validator import SchemaValidator
-from fraiseql.compiler.ir import SchemaIR, TypeDef, QueryDef, BindingDef
+from FraiseQL.compiler.validator import SchemaValidator
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, QueryDef, BindingDef
 
 def test_validate_type_closure():
     """Test type closure validation (all referenced types are defined)."""
@@ -583,32 +583,32 @@ Test full compilation pipeline:
 ```python
 # tests/unit/compiler/test_compilation.py
 import pytest
-from fraiseql.compiler import compile_schema
-from fraiseql.compiler.ir import CompiledSchema
+from FraiseQL.compiler import compile_schema
+from FraiseQL.compiler.ir import CompiledSchema
 
 def test_compile_simple_schema(db_connection):
     """Test compiling a simple schema end-to-end."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: str
     username: str
     email: str
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     """Get user by ID."""
     pass
 
-@fraiseql.query
+@FraiseQL.query
 def users(where: UserWhereInput | None = None) -> list[User]:
     """List users with optional filtering."""
     pass
 
-@fraiseql.binding("user", view="v_user", where_column="id")
-@fraiseql.binding("users", view="v_user")
+@FraiseQL.binding("user", view="v_user", where_column="id")
+@FraiseQL.binding("users", view="v_user")
 class UserBindings:
     pass
     '''
@@ -639,20 +639,20 @@ class UserBindings:
 def test_compile_schema_with_mutations(db_connection):
     """Test compiling schema with mutations."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass
 
-@fraiseql.binding("create_user", procedure="fn_create_user")
+@FraiseQL.binding("create_user", procedure="fn_create_user")
 class Bindings:
     pass
     '''
@@ -1046,8 +1046,8 @@ fn test_project_with_field_masking() {
 ```python
 # tests/integration/compiler/test_compilation_e2e.py
 import pytest
-from fraiseql.compiler import compile_schema
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.compiler import compile_schema
+from FraiseQL.testing import DatabaseFixture
 
 @pytest.fixture
 def test_db():
@@ -1098,9 +1098,9 @@ def test_db():
 def test_compile_schema_against_real_database(test_db):
     """Test compiling schema against real PostgreSQL database."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: str
     username: str
@@ -1108,27 +1108,27 @@ class User:
     created_at: str
     updated_at: str
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     pass
 
-@fraiseql.query
+@FraiseQL.query
 def users() -> list[User]:
     pass
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     pass
 
-@fraiseql.binding("user", view="v_user", where_column="id")
-@fraiseql.binding("users", view="v_user")
-@fraiseql.binding("create_user", procedure="fn_create_user",
+@FraiseQL.binding("user", view="v_user", where_column="id")
+@FraiseQL.binding("users", view="v_user")
+@FraiseQL.binding("create_user", procedure="fn_create_user",
                   input_mapping={"password": "password_hash"})
 class Bindings:
     pass
@@ -1172,18 +1172,18 @@ class Bindings:
 def test_compile_schema_with_missing_view(test_db):
     """Test compilation fails gracefully when view doesn't exist."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class Product:
     id: str
     name: str
 
-@fraiseql.query
+@FraiseQL.query
 def products() -> list[Product]:
     pass
 
-@fraiseql.binding("products", view="v_product_missing")
+@FraiseQL.binding("products", view="v_product_missing")
 class Bindings:
     pass
     '''
@@ -1462,7 +1462,7 @@ async fn test_mutation_rollback_on_error() {
 ```python
 # tests/integration/database/test_views.py
 import pytest
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.testing import DatabaseFixture
 
 @pytest.fixture
 def db():
@@ -1562,7 +1562,7 @@ def test_v_posts_by_user_aggregation(db):
 ```python
 # tests/integration/database/test_procedures.py
 import pytest
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.testing import DatabaseFixture
 
 def test_fn_create_user_procedure(db):
     """Test stored procedure returns correct JSONB structure."""
@@ -1671,7 +1671,7 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
 
 ```typescript
 // tests/e2e/test_user_workflows.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 describe('User Workflows', () => {
@@ -1880,7 +1880,7 @@ describe('Authorization Workflows', () => {
 
 ```typescript
 // tests/e2e/performance/test_latency.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 describe('Query Latency', () => {
   it('should complete simple query in <50ms (p50)', async () => {
@@ -1948,7 +1948,7 @@ describe('Query Latency', () => {
 
 ```typescript
 // tests/e2e/performance/test_throughput.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 describe('Query Throughput', () => {
   it('should handle 10,000+ queries/second', async () => {
@@ -2125,7 +2125,7 @@ jobs:
 
       - name: Run compiler unit tests
         run: |
-          pytest tests/unit/compiler/ -v --cov=fraiseql.compiler --cov-report=xml
+          pytest tests/unit/compiler/ -v --cov=FraiseQL.compiler --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
@@ -2210,7 +2210,7 @@ jobs:
 
       - name: Start FraiseQL server
         run: |
-          ./target/release/fraiseql-server \
+          ./target/release/FraiseQL-server \
             --schema tests/fixtures/e2e_schema.json \
             --database postgresql://postgres:postgres@localhost:5432/postgres &
           sleep 5
@@ -2229,7 +2229,7 @@ jobs:
       - name: Run performance benchmarks
         run: |
           cargo build --release
-          ./target/release/fraiseql-bench
+          ./target/release/FraiseQL-bench
 
       - name: Upload benchmark results
         uses: benchmark-action/github-action-benchmark@v1
@@ -2253,7 +2253,7 @@ fail_under = 95  # Fail if coverage < 95%
 
 [tool.coverage.run]
 branch = true
-source = ["fraiseql"]
+source = ["FraiseQL"]
 
 [tool.coverage.report]
 precision = 2
@@ -2322,7 +2322,7 @@ tests/
 ```python
 # Good test names (describe what, when, and expected)
 def test_parse_simple_type():
-    """Test parsing a simple @fraiseql.type decorated class."""
+    """Test parsing a simple @FraiseQL.type decorated class."""
 
 def test_bind_type_missing_view():
     """Test binding fails when view doesn't exist."""
@@ -2582,7 +2582,7 @@ All testing strategies documented and ready for implementation.
 **Diagnosis:**
 
 1. Check test count: `cargo test --lib -- --list | wc -l`
-2. Profile compilation: `cargo build -p fraiseql-core --release --timings`
+2. Profile compilation: `cargo build -p FraiseQL-core --release --timings`
 3. Look for slow dependencies in output
 
 **Solutions:**

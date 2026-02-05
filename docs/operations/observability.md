@@ -21,7 +21,7 @@ FraiseQL v2 provides a comprehensive, production-ready observability stack that 
 
 ```bash
 # 1. Start FraiseQL Server
-RUST_LOG=info cargo run -p fraiseql-server
+RUST_LOG=info cargo run -p FraiseQL-server
 
 # 2. Access metrics endpoint
 curl http://localhost:8000/metrics
@@ -448,7 +448,7 @@ Set up Prometheus alerting:
 ```yaml
 # prometheus/alerts.yml
 groups:
-  - name: fraiseql
+  - name: FraiseQL
     rules:
       # High error rate
       - alert: HighErrorRate
@@ -478,8 +478,8 @@ groups:
 ```yaml
 version: '3.8'
 services:
-  fraiseql:
-    image: fraiseql-server:latest
+  FraiseQL:
+    image: FraiseQL-server:latest
     ports:
       - "8000:8000"
     environment:
@@ -521,7 +521,7 @@ volumes:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fraiseql-config
+  name: FraiseQL-config
 data:
   config.toml: |
     bind_addr = "0.0.0.0:8000"
@@ -533,20 +533,20 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-server
+  name: FraiseQL-server
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   template:
     metadata:
       labels:
-        app: fraiseql
+        app: FraiseQL
     spec:
       containers:
-      - name: fraiseql
-        image: fraiseql-server:latest
+      - name: FraiseQL
+        image: FraiseQL-server:latest
         ports:
         - containerPort: 8000
         env:
@@ -673,7 +673,7 @@ Service Level Objectives for FraiseQL v2:
 **Solutions**:
 
 1. Check Prometheus configuration: `curl http://prometheus:9090/-/healthy`
-2. Verify target is reachable: `telnet fraiseql 8000`
+2. Verify target is reachable: `telnet FraiseQL 8000`
 3. Check scrape interval: Default is 15 seconds
 4. Look for errors in Prometheus logs
 

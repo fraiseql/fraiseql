@@ -69,7 +69,7 @@ FraiseQL provides three pre-configured security profiles that bundle together re
 **Configuration**:
 
 ```python
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 profile = get_profile("standard")
 config = FraiseQLConfig(
@@ -110,7 +110,7 @@ config = FraiseQLConfig(
 **Configuration**:
 
 ```python
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 profile = get_profile("regulated")
 config = FraiseQLConfig(
@@ -166,7 +166,7 @@ export FRAISEQL_AUDIT_FIELD_ACCESS=true
 **Configuration**:
 
 ```python
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 profile = get_profile("restricted")
 config = FraiseQLConfig(
@@ -321,9 +321,9 @@ FraiseQL generates SBOMs in **CycloneDX 1.5** format (OWASP standard):
       "version": "1.8.3"
     }],
     "component": {
-      "bom-ref": "pkg:python/fraiseql@1.8.3",
+      "bom-ref": "pkg:python/FraiseQL@1.8.3",
       "type": "application",
-      "name": "fraiseql",
+      "name": "FraiseQL",
       "version": "1.8.3"
     }
   },
@@ -372,7 +372,7 @@ FraiseQL automatically generates and cryptographically signs SBOMs with each rel
 
 ```bash
 # Generate SBOM for current environment
-fraiseql sbom generate \
+FraiseQL sbom generate \
   --format cyclonedx \      # "cyclonedx" or "spdx"
   --output sbom.json        # Output file
   --include-dev             # Include dev dependencies
@@ -388,7 +388,7 @@ cosign verify-blob \
 **Programmatic Generation**:
 
 ```python
-from fraiseql.sbom.sbom_generator import SBOMGenerator
+from FraiseQL.sbom.sbom_generator import SBOMGenerator
 
 generator = SBOMGenerator()
 
@@ -520,7 +520,7 @@ Each component includes SPDX license identifier(s):
 FraiseQL automatically warns about copyleft licenses:
 
 ```bash
-fraiseql sbom generate --copyleft-check
+FraiseQL sbom generate --copyleft-check
 
 # Output:
 # ⚠️  WARNING: Copyleft licenses detected:
@@ -722,7 +722,7 @@ Cross-Origin-Resource-Policy: same-site
 FraiseQL automatically injects security headers based on security profile:
 
 ```python
-from fraiseql.security.profiles.definitions import get_profile
+from FraiseQL.security.profiles.definitions import get_profile
 
 # STANDARD profile
 config = FraiseQLConfig(security_profile=get_profile("standard"))
@@ -752,7 +752,7 @@ config = FraiseQLConfig(security_profile=get_profile("restricted"))
 **Custom Configuration**:
 
 ```python
-from fraiseql.security.security_headers import SecurityHeadersConfig
+from FraiseQL.security.security_headers import SecurityHeadersConfig
 
 headers_config = SecurityHeadersConfig(
     csp_directives={
@@ -958,7 +958,7 @@ FraiseQL provides immediate token revocation capabilities for logout, session ma
 **Single Token Revocation** (logout):
 
 ```python
-from fraiseql.auth.token_revocation import TokenRevocationService
+from FraiseQL.auth.token_revocation import TokenRevocationService
 
 service = TokenRevocationService(
     store="postgresql",  # or "memory" for development
@@ -1209,10 +1209,10 @@ FraiseQL supports fine-grained per-field authorization using decorators.
 ### Field Authorization Decorator
 
 ```python
-from fraiseql import fraiseql, field_type
-from fraiseql.security.field_auth import authorize_field
+from FraiseQL import FraiseQL, field_type
+from FraiseQL.security.field_auth import authorize_field
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -1255,7 +1255,7 @@ def sensitive_data(self) -> str:
 **Combined Permissions**:
 
 ```python
-from fraiseql.security.field_auth import combine_permissions, any_permission
+from FraiseQL.security.field_auth import combine_permissions, any_permission
 
 def is_owner(info) -> bool:
     return info.context.get("user_id") == self.id
@@ -1463,7 +1463,7 @@ config = FraiseQLConfig(
 **Encrypting Sensitive Data**:
 
 ```python
-from fraiseql.security.kms import KeyManager
+from FraiseQL.security.kms import KeyManager
 
 key_manager = KeyManager(config=config)
 
@@ -1566,7 +1566,7 @@ FraiseQL provides comprehensive security event logging for audit trails, complia
 ### Security Event Structure
 
 ```python
-from fraiseql.audit.security_logger import SecurityEvent
+from FraiseQL.audit.security_logger import SecurityEvent
 
 event = SecurityEvent(
     event_type="AUTH_FAILURE",
@@ -1592,17 +1592,17 @@ event = SecurityEvent(
 ### Logging Configuration
 
 ```python
-from fraiseql.audit.security_logger import SecurityLogger
+from FraiseQL.audit.security_logger import SecurityLogger
 
 logger = SecurityLogger(
-    log_file="/var/log/fraiseql-security.log",
+    log_file="/var/log/FraiseQL-security.log",
     log_stdout=True,
     severity_threshold="WARNING",  # Only log WARNING and above
 )
 
 # Enable global security logging
-import fraiseql.audit.security_logger
-fraiseql.audit.security_logger.set_global_logger(logger)
+import FraiseQL.audit.security_logger
+FraiseQL.audit.security_logger.set_global_logger(logger)
 ```text
 
 ### Log Output

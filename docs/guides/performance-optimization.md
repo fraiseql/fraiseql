@@ -173,7 +173,7 @@ ORDER BY u.email;
 ### 1. Connection Pooling
 
 ```rust
-// fraiseql configuration
+// FraiseQL configuration
 const POOL_SIZE: u32 = 10;  // Connections per server instance
 const QUEUE_TIMEOUT: Duration = Duration::from_secs(5);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(900);
@@ -356,8 +356,8 @@ async def create_order(user_id: str, ...):
 ### Configuration
 
 ```toml
-# fraiseql.toml
-[fraiseql.database]
+# FraiseQL.toml
+[FraiseQL.database]
 pool_size = 20              # Connections
 connection_timeout = 10000  # ms
 idle_timeout = 900000       # ms (15 min)
@@ -435,7 +435,7 @@ metrics_api.submit_metrics(
     body=MetricsPayload(
         series=[
             Series(
-                metric="fraiseql.query.duration",
+                metric="FraiseQL.query.duration",
                 points=[[int(time.time()), query_duration_ms]],
                 tags=["query:getPosts", "endpoint:graphql"]
             )

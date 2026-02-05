@@ -24,7 +24,7 @@ Complete guide for querying FraiseQL servers from Flutter mobile applications.
 # pubspec.yaml
 dependencies:
   flutter:
-    sdk: flutter
+    SDK: flutter
   graphql: ^5.0.0
   graphql_flutter: ^6.0.0
   hive: ^2.2.0
@@ -35,7 +35,7 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
+    SDK: flutter
   build_runner: ^2.4.0
 ```
 

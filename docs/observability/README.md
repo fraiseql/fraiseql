@@ -43,7 +43,7 @@ Add to your environment or config:
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
 
-# Or in fraiseql.toml
+# Or in FraiseQL.toml
 [observability]
 enabled = true
 sample_rate = 0.1  # 10% sampling
@@ -64,11 +64,11 @@ Let it collect metrics for **24-48 hours** with normal traffic. The system will:
 
 ```bash
 # Analyze directly from metrics database
-fraiseql-cli analyze --database postgres://...
+FraiseQL-cli analyze --database postgres://...
 
 # Or export and analyze offline
 curl http://localhost:8080/metrics/export > metrics.json
-fraiseql-cli analyze --metrics metrics.json
+FraiseQL-cli analyze --metrics metrics.json
 ```text
 
 ### 4. Review Suggestions
@@ -109,7 +109,7 @@ Example output:
 
 ```bash
 # Generate SQL
-fraiseql-cli analyze --database postgres://... --format sql > optimize.sql
+FraiseQL-cli analyze --database postgres://... --format sql > optimize.sql
 
 # Review
 less optimize.sql
@@ -121,7 +121,7 @@ psql staging < optimize.sql
 psql production < optimize.sql
 
 # Update schema and recompile
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 ---
@@ -184,7 +184,7 @@ Before using observability:
 **Before**:
 
 ```python
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name='tf_sales',
     dimension_column='dimensions'  # JSONB
 )
@@ -211,7 +211,7 @@ CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
 **After**:
 
 ```python
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name='tf_sales',
     dimension_column='dimensions',
     denormalized_filters=['region_id']  # NEW
@@ -325,10 +325,10 @@ Multi-stage process:
 
 ## Getting Help
 
-- **GitHub Issues**: [github.com/fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
-- **Discord**: [discord.gg/fraiseql](https://discord.gg/fraiseql)
-- **Docs**: [docs.fraiseql.com](https://docs.fraiseql.com)
-- **Email**: <support@fraiseql.com>
+- **GitHub Issues**: [github.com/FraiseQL/FraiseQL/issues](https://github.com/FraiseQL/FraiseQL/issues)
+- **Discord**: [discord.gg/FraiseQL](https://discord.gg/FraiseQL)
+- **Docs**: [docs.FraiseQL.com](https://docs.FraiseQL.com)
+- **Email**: <support@FraiseQL.com>
 
 ---
 

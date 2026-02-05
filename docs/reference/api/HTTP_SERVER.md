@@ -423,16 +423,16 @@ Monitor key metrics to identify performance issues:
 FROM rust:latest as builder
 WORKDIR /app
 COPY . .
-RUN cargo build --release -p fraiseql-server
+RUN cargo build --release -p FraiseQL-server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates
-COPY --from=builder /app/target/release/fraiseql-server /usr/local/bin/
+COPY --from=builder /app/target/release/FraiseQL-server /usr/local/bin/
 COPY schema.compiled.json /app/schema.json
 WORKDIR /app
 ENV FRAISEQL_SCHEMA_PATH=/app/schema.json
 EXPOSE 8000
-CMD ["fraiseql-server"]
+CMD ["FraiseQL-server"]
 ```text
 
 ### Environment Setup
@@ -456,20 +456,20 @@ FRAISEQL_MAX_QUERY_COMPLEXITY=100
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-server
+  name: FraiseQL-server
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql-server
+      app: FraiseQL-server
   template:
     metadata:
       labels:
-        app: fraiseql-server
+        app: FraiseQL-server
     spec:
       containers:
-      - name: fraiseql-server
-        image: myregistry/fraiseql-server:v2.0
+      - name: FraiseQL-server
+        image: myregistry/FraiseQL-server:v2.0
         ports:
         - containerPort: 8000
         env:

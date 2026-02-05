@@ -163,7 +163,7 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: fraiseql
+      POSTGRES_DB: FraiseQL
       POSTGRES_PASSWORD: secure_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -273,7 +273,7 @@ mysqldump --all-databases > backup.sql
 psql -U postgres < backup.sql
 
 # 4. Test thoroughly
-fraiseql test
+FraiseQL test
 
 # 5. Cutover
 # Route connections to PostgreSQL
@@ -288,7 +288,7 @@ fraiseql test
 
 ```bash
 # 1. Create PostgreSQL database
-createdb fraiseql
+createdb FraiseQL
 
 # 2. Export from SQLite
 sqlite3 local.db ".dump" > dump.sql
@@ -297,10 +297,10 @@ sqlite3 local.db ".dump" > dump.sql
 # Use tool like pgloader or manual edits
 
 # 4. Import to PostgreSQL
-psql fraiseql < dump.sql
+psql FraiseQL < dump.sql
 
 # 5. Test
-fraiseql test
+FraiseQL test
 
 # 6. Cutover
 # Update DATABASE_URL environment variable

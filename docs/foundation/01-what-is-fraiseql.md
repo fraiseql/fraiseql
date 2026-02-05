@@ -97,7 +97,7 @@ All type checking, validation, and authorization rules are verified at compile t
 
 ```python
 # Phase 1: Schema Authoring (Python)
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int  # Maps to pk_user
     name: str
@@ -155,7 +155,7 @@ FraiseQL handles this at compile time:
 
 ```python
 # FraiseQL: All built-in
-@fraiseql.query
+@FraiseQL.query
 def get_user(user_id: int) -> User:
     """Automatically:
     - Compiled to optimal SQL
@@ -213,7 +213,7 @@ def get_user(user_id: int) -> User:
 
 ```python
 # FraiseQL Schema
-@fraiseql.type
+@FraiseQL.type
 class Product:
     product_id: int
     name: str
@@ -221,7 +221,7 @@ class Product:
     in_stock: bool  # Synced from tb_inventory
     reviews: List[Review]  # One-to-many
 
-@fraiseql.query
+@FraiseQL.query
 def search_products(query: str, category: str) -> List[Product]:
     """Returns matching products with stock status and reviews"""
     pass
@@ -240,7 +240,7 @@ def search_products(query: str, category: str) -> List[Product]:
 
 ```python
 # FraiseQL handles tenant isolation
-@fraiseql.type
+@FraiseQL.type
 class Invoice:
     invoice_id: int
     customer_id: int
@@ -419,7 +419,7 @@ FraiseQL's architecture separates concerns:
 
 ```python
 # Your Python or TypeScript code
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     name: str
@@ -429,14 +429,14 @@ class User:
 ### Layer 2: Compilation
 
 ```bash
-$ fraiseql-cli compile schema.py
+$ FraiseQL-cli compile schema.py
 # Generates: schema.compiled.json + SQL templates
 ```
 
 ### Layer 3: Runtime
 
 ```bash
-$ fraiseql-server --schema schema.compiled.json
+$ FraiseQL-server --schema schema.compiled.json
 # Executes GraphQL queries using pre-compiled SQL
 ```
 

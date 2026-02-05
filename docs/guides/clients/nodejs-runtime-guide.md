@@ -20,17 +20,17 @@ Complete guide for querying FraiseQL servers from Node.js backend services using
 ### Install Package
 
 ```bash
-npm install @fraiseql/client
+npm install @FraiseQL/client
 
 # or
-yarn add @fraiseql/client
-pnpm add @fraiseql/client
+yarn add @FraiseQL/client
+pnpm add @FraiseQL/client
 ```
 
 ### Create Client Instance
 
 ```typescript
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 const client = new FraiseQLClient({
   url: 'http://localhost:5000/graphql',
@@ -48,7 +48,7 @@ export default client;
 ### With Authentication
 
 ```typescript
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 const client = new FraiseQLClient({
   url: 'http://localhost:5000/graphql',
@@ -70,7 +70,7 @@ export default client;
 
 ```typescript
 import client from './client';
-import { gql } from '@fraiseql/client';
+import { gql } from '@FraiseQL/client';
 
 const GET_USERS = gql`
   query GetUsers {
@@ -287,7 +287,7 @@ async function subscribeToPostsLongPoll() {
 ### WebSocket Subscriptions
 
 ```typescript
-import { FraiseQLWSClient } from '@fraiseql/client/ws';
+import { FraiseQLWSClient } from '@FraiseQL/client/ws';
 
 const wsClient = new FraiseQLWSClient({
   url: 'ws://localhost:5000/graphql',
@@ -366,7 +366,7 @@ async function fetchDashboardBatched() {
 ### Connection Pool
 
 ```typescript
-import { FraiseQLClient, ConnectionPool } from '@fraiseql/client';
+import { FraiseQLClient, ConnectionPool } from '@FraiseQL/client';
 
 const pool = new ConnectionPool({
   url: 'http://localhost:5000/graphql',
@@ -415,7 +415,7 @@ import {
   ValidationError,
   TimeoutError,
   FraiseQLError,
-} from '@fraiseql/client';
+} from '@FraiseQL/client';
 
 async function resilientQuery() {
   try {
@@ -566,7 +566,7 @@ fastify.listen({ port: 3000 });
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 import { GET_USERS, GET_USER_BY_ID } from './queries';
 
 @Injectable()
@@ -623,7 +623,7 @@ export class UsersController {
 
 ```typescript
 import { jest } from '@jest/globals';
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 describe('UserService', () => {
   let service: UsersService;

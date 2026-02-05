@@ -37,8 +37,8 @@ Results merged and returned as single GraphQL response
 ### FraiseQL TOML
 
 ```toml
-# fraiseql.toml
-[[fraiseql.databases]]
+# FraiseQL.toml
+[[FraiseQL.databases]]
 name = "postgres_primary"
 engine = "postgresql"
 host = "${DB_POSTGRES_HOST}"
@@ -49,7 +49,7 @@ password = "${DB_POSTGRES_PASSWORD}"
 pool_size = 10
 timeout_secs = 30
 
-[[fraiseql.databases]]
+[[FraiseQL.databases]]
 name = "mysql_historical"
 engine = "mysql"
 host = "${DB_MYSQL_HOST}"
@@ -61,10 +61,10 @@ pool_size = 5
 timeout_secs = 30
 read_only = true  # Historical data, no writes
 
-[[fraiseql.databases]]
+[[FraiseQL.databases]]
 name = "sqlite_cache"
 engine = "sqlite"
-path = "/var/cache/fraiseql.db"
+path = "/var/cache/FraiseQL.db"
 pool_size = 1
 read_write = false  # Read-only cache
 ```text
@@ -77,7 +77,7 @@ read_write = false  # Read-only cache
 
 ```python
 # federation_schema.py
-from fraiseql import types, database
+from FraiseQL import types, database
 
 @types.object
 class Customer:

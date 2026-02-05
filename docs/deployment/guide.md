@@ -29,7 +29,7 @@ export FRAISEQL_POOL_MIN=5
 export FRAISEQL_POOL_MAX=10
 
 # Run server
-cargo run -p fraiseql-server
+cargo run -p FraiseQL-server
 
 # Server starts at http://localhost:8000
 ```text
@@ -66,7 +66,7 @@ Load environment:
 
 ```bash
 source .env.dev
-cargo run -p fraiseql-server
+cargo run -p FraiseQL-server
 ```text
 
 ### Local Database Setup
@@ -74,7 +74,7 @@ cargo run -p fraiseql-server
 PostgreSQL (with Docker):
 
 ```bash
-docker run --name fraiseql-dev \
+docker run --name FraiseQL-dev \
   -e POSTGRES_DB=fraiseql_dev \
   -e POSTGRES_USER=devuser \
   -e POSTGRES_PASSWORD=devpass \
@@ -92,7 +92,7 @@ SQLite (simplest for testing):
 
 ```bash
 # Create in-memory database for testing
-DATABASE_URL=sqlite::memory: cargo run -p fraiseql-server
+DATABASE_URL=sqlite::memory: cargo run -p FraiseQL-server
 ```text
 
 ## Docker Deployment
@@ -109,7 +109,7 @@ WORKDIR /app
 COPY . .
 
 # Build release binary
-RUN cargo build --release -p fraiseql-server
+RUN cargo build --release -p FraiseQL-server
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -121,7 +121,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/fraiseql-server /usr/local/bin/
+COPY --from=builder /app/target/release/FraiseQL-server /usr/local/bin/
 
 # Create app directory
 WORKDIR /app
@@ -140,25 +140,25 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
 
 # Run server
-CMD ["fraiseql-server"]
+CMD ["FraiseQL-server"]
 ```text
 
 Build image:
 
 ```bash
-docker build -t fraiseql-server:v2.0 .
+docker build -t FraiseQL-server:v2.0 .
 ```text
 
 ### Run Docker Container
 
 ```bash
 docker run -d \
-  --name fraiseql \
+  --name FraiseQL \
   -p 8000:8000 \
-  -e DATABASE_URL=postgresql://user:pass@db:5432/fraiseql \
+  -e DATABASE_URL=postgresql://user:pass@db:5432/FraiseQL \
   -e FRAISEQL_POOL_MIN=10 \
   -e FRAISEQL_POOL_MAX=50 \
-  fraiseql-server:v2.0
+  FraiseQL-server:v2.0
 ```text
 
 ### Docker Compose (Development)
@@ -171,7 +171,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: fraiseql-db
+    container_name: FraiseQL-db
     environment:
       POSTGRES_DB: fraiseql_dev
       POSTGRES_USER: devuser
@@ -186,9 +186,9 @@ services:
       timeout: 5s
       retries: 5
 
-  fraiseql:
+  FraiseQL:
     build: .
-    container_name: fraiseql-server
+    container_name: FraiseQL-server
     depends_on:
       postgres:
         condition: service_healthy
@@ -217,7 +217,7 @@ Start services:
 docker-compose up -d
 
 # View logs
-docker-compose logs -f fraiseql
+docker-compose logs -f FraiseQL
 
 # Stop services
 docker-compose down
@@ -240,7 +240,7 @@ Create `k8s/configmap.yaml`:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fraiseql-config
+  name: FraiseQL-config
   namespace: default
 data:
   FRAISEQL_HOST: "0.0.0.0"
@@ -261,7 +261,7 @@ Create `k8s/secret.yaml`:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: fraiseql-db-secret
+  name: FraiseQL-db-secret
   namespace: default
 type: Opaque
 stringData:
@@ -276,7 +276,7 @@ Create `k8s/deployment.yaml`:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-server
+  name: FraiseQL-server
   namespace: default
 spec:
   replicas: 3
@@ -287,11 +287,11 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: fraiseql-server
+      app: FraiseQL-server
   template:
     metadata:
       labels:
-        app: fraiseql-server
+        app: FraiseQL-server
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
@@ -306,12 +306,12 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - fraiseql-server
+                  - FraiseQL-server
               topologyKey: kubernetes.io/hostname
 
       containers:
-      - name: fraiseql-server
-        image: myregistry/fraiseql-server:v2.0
+      - name: FraiseQL-server
+        image: myregistry/FraiseQL-server:v2.0
         imagePullPolicy: Always
 
         ports:
@@ -323,12 +323,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: fraiseql-db-secret
+              name: FraiseQL-db-secret
               key: DATABASE_URL
 
         envFrom:
         - configMapRef:
-            name: fraiseql-config
+            name: FraiseQL-config
 
         resources:
           requests:
@@ -370,12 +370,12 @@ Create `k8s/service.yaml`:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fraiseql-server
+  name: FraiseQL-server
   namespace: default
 spec:
   type: LoadBalancer
   selector:
-    app: fraiseql-server
+    app: FraiseQL-server
   ports:
   - name: http
     port: 80
@@ -387,7 +387,7 @@ spec:
 
 ```bash
 # Create namespace
-kubectl create namespace fraiseql
+kubectl create namespace FraiseQL
 
 # Apply configuration
 kubectl apply -f k8s/configmap.yaml
@@ -396,14 +396,14 @@ kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 
 # Verify deployment
-kubectl get deployment fraiseql-server
-kubectl get pods -l app=fraiseql-server
+kubectl get deployment FraiseQL-server
+kubectl get pods -l app=FraiseQL-server
 
 # View logs
-kubectl logs -f deployment/fraiseql-server
+kubectl logs -f deployment/FraiseQL-server
 
 # Port forward for testing
-kubectl port-forward service/fraiseql-server 8000:80
+kubectl port-forward service/FraiseQL-server 8000:80
 
 # Test
 curl http://localhost:8000/health
@@ -416,22 +416,22 @@ curl http://localhost:8000/health
 1. **Create ECR Repository**:
 
 ```bash
-aws ecr create-repository --repository-name fraiseql-server
+aws ecr create-repository --repository-name FraiseQL-server
 ```text
 
 1. **Push Image**:
 
 ```bash
-docker tag fraiseql-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
+docker tag FraiseQL-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-server:v2.0
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
-docker push {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
+docker push {account}.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-server:v2.0
 ```text
 
 1. **Create RDS Database**:
 
 ```bash
 aws rds create-db-instance \
-  --db-instance-identifier fraiseql-prod \
+  --db-instance-identifier FraiseQL-prod \
   --db-instance-class db.t3.micro \
   --engine postgres \
   --master-username admin \
@@ -450,9 +450,9 @@ aws rds create-db-instance \
 
 ```bash
 aws ecs create-service \
-  --cluster fraiseql-prod \
-  --service-name fraiseql-server \
-  --task-definition fraiseql-server:1 \
+  --cluster FraiseQL-prod \
+  --service-name FraiseQL-server \
+  --task-definition FraiseQL-server:1 \
   --desired-count 3
 ```text
 
@@ -467,18 +467,18 @@ Not recommended for FraiseQL due to connection pooling and persistent connection
 1. **Build and Push**:
 
 ```bash
-gcloud builds submit --tag gcr.io/PROJECT_ID/fraiseql-server
+gcloud builds submit --tag gcr.io/PROJECT_ID/FraiseQL-server
 
 # Or manually
-docker tag fraiseql-server:v2.0 gcr.io/PROJECT_ID/fraiseql-server:v2.0
-docker push gcr.io/PROJECT_ID/fraiseql-server:v2.0
+docker tag FraiseQL-server:v2.0 gcr.io/PROJECT_ID/FraiseQL-server:v2.0
+docker push gcr.io/PROJECT_ID/FraiseQL-server:v2.0
 ```text
 
 1. **Deploy**:
 
 ```bash
-gcloud run deploy fraiseql-server \
-  --image gcr.io/PROJECT_ID/fraiseql-server:v2.0 \
+gcloud run deploy FraiseQL-server \
+  --image gcr.io/PROJECT_ID/FraiseQL-server:v2.0 \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
@@ -492,7 +492,7 @@ gcloud run deploy fraiseql-server \
 Follow Kubernetes section above, then:
 
 ```bash
-gcloud container clusters create fraiseql-cluster \
+gcloud container clusters create FraiseQL-cluster \
   --num-nodes 3 \
   --machine-type n1-standard-2
 
@@ -505,9 +505,9 @@ kubectl apply -f k8s/
 
 ```bash
 az container create \
-  --resource-group fraiseql-rg \
-  --name fraiseql-server \
-  --image myregistry.azurecr.io/fraiseql-server:v2.0 \
+  --resource-group FraiseQL-rg \
+  --name FraiseQL-server \
+  --image myregistry.azurecr.io/FraiseQL-server:v2.0 \
   --cpu 1 \
   --memory 1 \
   --environment-variables \
@@ -519,15 +519,15 @@ az container create \
 
 ```bash
 az appservice plan create \
-  --name fraiseql-plan \
-  --resource-group fraiseql-rg \
+  --name FraiseQL-plan \
+  --resource-group FraiseQL-rg \
   --sku B2 --is-linux
 
 az webapp create \
-  --resource-group fraiseql-rg \
-  --plan fraiseql-plan \
-  --name fraiseql-server \
-  --deployment-container-image-name myregistry/fraiseql-server:v2.0
+  --resource-group FraiseQL-rg \
+  --plan FraiseQL-plan \
+  --name FraiseQL-server \
+  --deployment-container-image-name myregistry/FraiseQL-server:v2.0
 ```text
 
 ## Production Checklist
@@ -579,13 +579,13 @@ Check logs:
 
 ```bash
 # Docker
-docker logs fraiseql
+docker logs FraiseQL
 
 # Kubernetes
-kubectl logs deployment/fraiseql-server
+kubectl logs deployment/FraiseQL-server
 
 # Local
-RUST_LOG=debug cargo run -p fraiseql-server
+RUST_LOG=debug cargo run -p FraiseQL-server
 ```text
 
 Common issues:
@@ -618,7 +618,7 @@ curl http://localhost:8000/health | jq .database.connection_pool
 
 1. Check connection pool isn't unbounded
 2. Verify schema doesn't have circular references
-3. Monitor with: `docker stats fraiseql`
+3. Monitor with: `docker stats FraiseQL`
 
 ## Scaling
 
@@ -631,7 +631,7 @@ Add more replicas:
 replicas: 5
 
 # Docker Swarm
-docker service scale fraiseql=5
+docker service scale FraiseQL=5
 ```text
 
 Connection pool scales across instances (no coordination needed).
@@ -654,14 +654,14 @@ Typically not needed for GraphQL execution.
 ### Kubernetes
 
 ```bash
-kubectl rollout history deployment/fraiseql-server
-kubectl rollout undo deployment/fraiseql-server --to-revision=2
+kubectl rollout history deployment/FraiseQL-server
+kubectl rollout undo deployment/FraiseQL-server --to-revision=2
 ```text
 
 ### Docker Swarm
 
 ```bash
-docker service rollback fraiseql-server
+docker service rollback FraiseQL-server
 ```text
 
 ### Manual
@@ -669,7 +669,7 @@ docker service rollback fraiseql-server
 Keep previous v2 image tags:
 
 ```bash
-docker run -p 8000:8000 fraiseql-server:v2.0.0-alpha.0  # Previous v2 version
+docker run -p 8000:8000 FraiseQL-server:v2.0.0-alpha.0  # Previous v2 version
 # Note: v1 versions are NOT compatible with v2 schemas
 ```text
 

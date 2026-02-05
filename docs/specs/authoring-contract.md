@@ -25,7 +25,7 @@ The **authoring contract** defines how schema authors declare GraphQL types, que
 ### 2.1 Python (Recommended for v1)
 
 ```python
-from fraiseql import Schema, Type, Query, Field, Mutation, ID, String
+from FraiseQL import Schema, Type, Query, Field, Mutation, ID, String
 
 schema = Schema(
     name="blog-api",
@@ -252,7 +252,7 @@ class CreateUserInput:
 Built-in scalars:
 
 ```python
-from fraiseql import ID, String, Int, Float, Boolean, DateTime, Date, JSON
+from FraiseQL import ID, String, Int, Float, Boolean, DateTime, Date, JSON
 
 id: ID              # UUID
 email: str          # String
@@ -608,7 +608,7 @@ Compilation produces:
 3. **validation-report.txt** — Warnings and information
 
 ```bash
-$ fraiseql compile schema.py
+$ FraiseQL compile schema.py
 ✓ Compiled successfully
 ├── CompiledSchema.json (15 KB)
 ├── schema.graphql (8 KB)
@@ -702,7 +702,7 @@ Each scalar type is validated at:
 ## 11. Example: Complete Schema (Python)
 
 ```python
-from fraiseql import (
+from FraiseQL import (
     Schema, Type, Query, Mutation, Field,
     ID, String, Int, DateTime, List,
     auth

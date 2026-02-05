@@ -31,7 +31,7 @@ FraiseQL provides 56 domain-specific custom scalar types beyond GraphQL's built-
 All scalars are imported from the main FraiseQL package and available for use in type definitions:
 
 ```python
-from fraiseql.types import Date, DateTime, UUID, Money, Vector, IpAddressString
+from FraiseQL.types import Date, DateTime, UUID, Money, Vector, IpAddressString
 ```
 
 ---
@@ -1382,11 +1382,11 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
 
 ## Using Scalars in Type Definitions
 
-Scalars are used in `@fraiseql.type` decorators:
+Scalars are used in `@FraiseQL.type` decorators:
 
 ```python
-from fraiseql import type, field
-from fraiseql.types import (
+from FraiseQL import type, field
+from FraiseQL.types import (
     Date, DateTime, UUID, Money, CurrencyCode,
     EmailAddress, PhoneNumber, Vector, LTreePath
 )
@@ -1498,7 +1498,7 @@ class BlogPost:
 All scalars are available from:
 
 ```python
-from fraiseql.types import (
+from FraiseQL.types import (
     # Temporal
     Date, DateTime, Time, Duration, DateRange, Timezone,
 

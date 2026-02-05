@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `fraiseql-cli analyze` command analyzes runtime metrics and generates schema optimization suggestions. This guide covers:
+The `FraiseQL-cli analyze` command analyzes runtime metrics and generates schema optimization suggestions. This guide covers:
 
 - Running analysis with different data sources
 - Interpreting results
@@ -18,7 +18,7 @@ Before running analysis, ensure:
 
 1. ✅ Observability enabled for 24-48 hours minimum
 2. ✅ Metrics database accessible (or exported JSON file)
-3. ✅ FraiseQL CLI installed (`cargo install fraiseql-cli`)
+3. ✅ FraiseQL CLI installed (`cargo install FraiseQL-cli`)
 
 ---
 
@@ -27,13 +27,13 @@ Before running analysis, ensure:
 ### Basic Analysis (PostgreSQL)
 
 ```bash
-fraiseql-cli analyze --database postgres://user:pass@localhost:5432/mydb
+FraiseQL-cli analyze --database postgres://user:pass@localhost:5432/mydb
 ```text
 
 ### Basic Analysis (SQL Server)
 
 ```bash
-fraiseql-cli analyze --database sqlserver://user:pass@localhost:1433/mydb
+FraiseQL-cli analyze --database sqlserver://user:pass@localhost:1433/mydb
 ```text
 
 **Output**:
@@ -66,7 +66,7 @@ Analyzed: 8,500,000 query executions
 ## Command Syntax
 
 ```bash
-fraiseql-cli analyze [OPTIONS]
+FraiseQL-cli analyze [OPTIONS]
 ```text
 
 ### Required Options (Pick One)
@@ -90,13 +90,13 @@ Analyze metrics from the last N days/hours.
 
 ```bash
 # Last 24 hours
-fraiseql-cli analyze --database postgres://... --window 1d
+FraiseQL-cli analyze --database postgres://... --window 1d
 
 # Last 30 days
-fraiseql-cli analyze --database postgres://... --window 30d
+FraiseQL-cli analyze --database postgres://... --window 30d
 
 # Last 7 days (default)
-fraiseql-cli analyze --database postgres://...
+FraiseQL-cli analyze --database postgres://...
 ```text
 
 **Supported formats**:
@@ -123,12 +123,12 @@ Minimum queries per day to suggest optimization.
 
 ```bash
 # Lower threshold for low-traffic apps
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-frequency 100
 
 # Higher threshold for high-traffic apps
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-frequency 5000
 ```text
@@ -163,12 +163,12 @@ Minimum estimated speedup factor (e.g., 5.0 = 5x faster).
 
 ```bash
 # Lower threshold (more suggestions)
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-speedup 2.0
 
 # Higher threshold (only huge wins)
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-speedup 10.0
 ```text
@@ -191,7 +191,7 @@ Minimum filter selectivity (fraction of rows filtered).
 
 ```bash
 # Very selective filters only
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-selectivity 0.01  # 1% of rows
 ```text
@@ -228,7 +228,7 @@ WHERE JSON_VALUE(metadata, '$.active') = 'true'
 Human-readable output for terminal viewing.
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format text
+FraiseQL-cli analyze --database postgres://... --format text
 ```text
 
 **Output**:
@@ -284,7 +284,7 @@ Query patterns: 250 unique queries
 ---
 
 💡 Next Steps:
-   1. Generate migration SQL: fraiseql-cli analyze --format sql > optimize.sql
+   1. Generate migration SQL: FraiseQL-cli analyze --format sql > optimize.sql
    2. Review changes: less optimize.sql
    3. Test in staging: psql staging < optimize.sql
    4. Apply to production: psql production < optimize.sql
@@ -299,7 +299,7 @@ Query patterns: 250 unique queries
 Machine-readable output for CI/CD integration.
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format json > report.json
+FraiseQL-cli analyze --database postgres://... --format json > report.json
 ```text
 
 **Output**:
@@ -359,11 +359,11 @@ fraiseql-cli analyze --database postgres://... --format json > report.json
 
 ```bash
 # Run analysis and parse results
-SUGGESTIONS=$(fraiseql-cli analyze --database postgres://... --format json | jq '.suggestions | length')
+SUGGESTIONS=$(FraiseQL-cli analyze --database postgres://... --format json | jq '.suggestions | length')
 
 if [ $SUGGESTIONS -gt 0 ]; then
   echo "⚠️  Found $SUGGESTIONS optimization opportunities"
-  echo "Run 'fraiseql-cli analyze --format text' for details"
+  echo "Run 'FraiseQL-cli analyze --format text' for details"
 fi
 ```text
 
@@ -376,7 +376,7 @@ fi
 Ready-to-execute migration SQL.
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format sql > optimize.sql
+FraiseQL-cli analyze --database postgres://... --format sql > optimize.sql
 ```text
 
 **PostgreSQL Output**:
@@ -438,7 +438,7 @@ ANALYZE users;
 -- Post-Migration Steps
 -- ============================================================
 -- 1. Update application schema.json to use new columns
--- 2. Recompile: fraiseql-cli compile schema.json
+-- 2. Recompile: FraiseQL-cli compile schema.json
 -- 3. Monitor query performance
 -- ============================================================
 ```text
@@ -500,7 +500,7 @@ curl http://localhost:8080/metrics/export > metrics.json
 **Via CLI** (if server not running):
 
 ```bash
-fraiseql-cli export-metrics \
+FraiseQL-cli export-metrics \
   --database postgres://... \
   --output metrics.json \
   --window 7d
@@ -509,7 +509,7 @@ fraiseql-cli export-metrics \
 ### Step 2: Analyze Offline
 
 ```bash
-fraiseql-cli analyze --metrics metrics.json
+FraiseQL-cli analyze --metrics metrics.json
 ```text
 
 **Why export?**
@@ -536,7 +536,7 @@ Only analyze specific table(s).
 
 ```bash
 # Analyze only tf_sales table
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --table tf_sales
 ```text
@@ -549,7 +549,7 @@ Filter by suggestion type: `denormalize`, `add_index`, `drop_index`.
 
 ```bash
 # Only denormalization suggestions
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --type denormalize
 ```text
@@ -562,7 +562,7 @@ Filter by impact score (frequency × speedup).
 
 ```bash
 # Only suggestions with impact > 10,000
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-impact 10000
 ```text
@@ -585,16 +585,16 @@ Example:
 
 ```bash
 # Week 1: Before optimization
-fraiseql-cli analyze --database postgres://... --format json > week1.json
+FraiseQL-cli analyze --database postgres://... --format json > week1.json
 
 # Apply migrations
 psql production < optimize.sql
 
 # Week 2: After optimization
-fraiseql-cli analyze --database postgres://... --format json > week2.json
+FraiseQL-cli analyze --database postgres://... --format json > week2.json
 
 # Compare
-fraiseql-cli diff-analysis week1.json week2.json
+FraiseQL-cli diff-analysis week1.json week2.json
 ```text
 
 **Output**:
@@ -629,7 +629,7 @@ Week 2 (2026-01-12):
 Low-traffic apps may need relaxed thresholds:
 
 ```bash
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-frequency 10 \       # Just 10 queries/day
   --min-speedup 2.0 \        # 2x speedup
@@ -642,7 +642,7 @@ fraiseql-cli analyze \
 High-traffic apps need stricter thresholds:
 
 ```bash
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://... \
   --min-frequency 10000 \    # 10K queries/day
   --min-speedup 10.0 \       # 10x speedup minimum
@@ -661,17 +661,17 @@ Run analysis weekly and alert on new suggestions:
 **Cron job** (every Monday at 2 AM):
 
 ```bash
-# /etc/cron.d/fraiseql-analysis
-0 2 * * 1 fraiseql fraiseql-cli analyze \
+# /etc/cron.d/FraiseQL-analysis
+0 2 * * 1 FraiseQL FraiseQL-cli analyze \
   --database postgres://metrics:pass@metrics-db:5432/metrics \
-  --format json > /var/log/fraiseql/analysis-$(date +\%Y\%m\%d).json
+  --format json > /var/log/FraiseQL/analysis-$(date +\%Y\%m\%d).json
 ```text
 
 **Alerting script**:
 
 ```bash
 #!/bin/bash
-SUGGESTIONS=$(fraiseql-cli analyze --database postgres://... --format json | \
+SUGGESTIONS=$(FraiseQL-cli analyze --database postgres://... --format json | \
   jq '.suggestions | length')
 
 if [ $SUGGESTIONS -gt 0 ]; then
@@ -706,7 +706,7 @@ fi
 
    ```bash
    # Try lower thresholds
-   fraiseql-cli analyze \
+   FraiseQL-cli analyze \
      --database postgres://... \
      --min-frequency 10 \
      --min-speedup 2.0
@@ -755,14 +755,14 @@ fi
 2. **Use shorter time window**:
 
    ```bash
-   fraiseql-cli analyze --database postgres://... --window 1d
+   FraiseQL-cli analyze --database postgres://... --window 1d
    ```text
 
 3. **Export and analyze offline**:
 
    ```bash
-   fraiseql-cli export-metrics --database postgres://... --output metrics.json
-   fraiseql-cli analyze --metrics metrics.json
+   FraiseQL-cli export-metrics --database postgres://... --output metrics.json
+   FraiseQL-cli analyze --metrics metrics.json
    ```text
 
 ---
@@ -783,13 +783,13 @@ Always apply migrations to staging environment before production:
 
 ```bash
 # Generate SQL
-fraiseql-cli analyze --database postgres://prod --format sql > optimize.sql
+FraiseQL-cli analyze --database postgres://prod --format sql > optimize.sql
 
 # Test in staging
 psql staging < optimize.sql
 
 # Benchmark queries
-fraiseql-cli benchmark --database postgres://staging
+FraiseQL-cli benchmark --database postgres://staging
 
 # If successful, apply to production
 psql production < optimize.sql
@@ -801,9 +801,9 @@ Track query performance for 24-48 hours after applying migrations:
 
 ```bash
 # Compare before/after
-fraiseql-cli analyze --database postgres://... --window 7d > before.txt
+FraiseQL-cli analyze --database postgres://... --window 7d > before.txt
 # (apply migrations)
-fraiseql-cli analyze --database postgres://... --window 7d > after.txt
+FraiseQL-cli analyze --database postgres://... --window 7d > after.txt
 diff before.txt after.txt
 ```text
 
@@ -812,7 +812,7 @@ diff before.txt after.txt
 Archive analysis reports for trend analysis:
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format json > \
+FraiseQL-cli analyze --database postgres://... --format json > \
   reports/analysis-$(date +%Y-%m-%d).json
 ```text
 
@@ -827,7 +827,7 @@ fraiseql-cli analyze --database postgres://... --format json > \
 # weekly-analysis.sh
 
 # 1. Analyze production metrics
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://prod-metrics:5432/metrics \
   --format json > /tmp/analysis.json
 
@@ -836,7 +836,7 @@ HIGH_PRIORITY=$(jq '.suggestions | map(select(.priority == "high")) | length' /t
 
 if [ $HIGH_PRIORITY -gt 0 ]; then
   # 3. Generate migration SQL
-  fraiseql-cli analyze \
+  FraiseQL-cli analyze \
     --database postgres://prod-metrics:5432/metrics \
     --format sql > migrations/optimize-$(date +%Y%m%d).sql
 
@@ -850,20 +850,20 @@ fi
 
 ```bash
 # 1. Start with low thresholds
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://localhost:5432/dev \
   --min-frequency 10 \
   --window 1d
 
 # 2. Apply suggestions
-fraiseql-cli analyze --database postgres://localhost:5432/dev \
+FraiseQL-cli analyze --database postgres://localhost:5432/dev \
   --format sql | psql dev
 
 # 3. Update schema
 vim schema.json  # Add denormalized columns
 
 # 4. Recompile
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # 5. Test queries
 npm test

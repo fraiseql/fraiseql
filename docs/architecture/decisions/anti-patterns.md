@@ -88,7 +88,7 @@ query GetPostComments($postId: ID!) {
 **Implementation**: Set max query depth at compile time
 
 ```python
-@fraiseql.schema_rule(max_query_depth=3)
+@FraiseQL.schema_rule(max_query_depth=3)
 class MySchema:
     pass
 ```text
@@ -148,7 +148,7 @@ query GetUsers($first: Int!, $after: String) {
 
 ```python
 # ❌ WRONG: Mutation waits for external service
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_order(input: OrderInput) -> Order:
     # Create order
     order = db.insert("orders", input)
@@ -179,7 +179,7 @@ def create_order(input: OrderInput) -> Order:
 
 ```python
 # ✅ CORRECT: Async side effects
-@fraiseql.mutation
+@FraiseQL.mutation
 async def create_order(input: OrderInput) -> Order:
     # Create order (synchronous, fast)
     order = await db.insert("orders", input)
@@ -208,7 +208,7 @@ async def create_order(input: OrderInput) -> Order:
 
 ```python
 # ❌ WRONG: Authorization scattered in code
-@fraiseql.query
+@FraiseQL.query
 def get_user(id: ID) -> User:
     user = db.query_one("SELECT * FROM tb_user WHERE id = $1", [id])
 
@@ -219,7 +219,7 @@ def get_user(id: ID) -> User:
 
     return user
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def delete_user(id: ID) -> bool:
     # Different check in different place
     user = db.query_one("SELECT * FROM tb_user WHERE id = $1", [id])
@@ -247,22 +247,22 @@ def delete_user(id: ID) -> bool:
 
 ```python
 # ✅ CORRECT: Authorization in schema (compile-time checked)
-@fraiseql.type
-@fraiseql.authorize(rule="owner_or_admin")
+@FraiseQL.type
+@FraiseQL.authorize(rule="owner_or_admin")
 class User:
     id: ID
     email: str
     created_by_user_id: str
 
-@fraiseql.query
-@fraiseql.authorize(rule="owner_or_admin")
+@FraiseQL.query
+@FraiseQL.authorize(rule="owner_or_admin")
 def get_user(id: ID) -> User:
     # Authorization already checked (compile-time)
     # Code is clean, authorization is auditable
     return db.query_one(..., [id])
 
-@fraiseql.mutation
-@fraiseql.authorize(rule="owner_or_admin")
+@FraiseQL.mutation
+@FraiseQL.authorize(rule="owner_or_admin")
 def delete_user(id: ID) -> bool:
     # Same rule everywhere (consistent)
     db.delete("tb_user", id)
@@ -277,7 +277,7 @@ def delete_user(id: ID) -> bool:
 
 ```python
 # ❌ WRONG: Client provides their role (can be forged)
-@fraiseql.query
+@FraiseQL.query
 def get_admin_panel() -> AdminPanel:
     # Check role from GraphQL input (client can lie!)
     if input.user_role == "admin":
@@ -302,8 +302,8 @@ def get_admin_panel() -> AdminPanel:
 
 ```python
 # ✅ CORRECT: Server derives role from verified token
-@fraiseql.query
-@fraiseql.authorize(rule="admin_only")
+@FraiseQL.query
+@FraiseQL.authorize(rule="admin_only")
 def get_admin_panel() -> AdminPanel:
     # Authorization derived from verified JWT
     # Client cannot forge role
@@ -320,7 +320,7 @@ def get_admin_panel() -> AdminPanel:
 
 ```python
 # ❌ WRONG: Cache set to 1 hour, never invalidated
-fraiseql.cache.set(
+FraiseQL.cache.set(
     f"product:{product_id}",
     product_data,
     ttl=3600  # 1 hour
@@ -353,7 +353,7 @@ mutation UpdateProduct {
 
 ```python
 # ✅ CORRECT: Invalidate on mutation
-@fraiseql.mutation
+@FraiseQL.mutation
 async def update_product(id: ID, input: UpdateInput) -> Product:
     # Update database
     product = await db.update("products", id, input)
@@ -417,7 +417,7 @@ cache.set(f"user:{user_id}", {
 
 ```python
 # ❌ WRONG: Complex optimization before profiling
-@fraiseql.query
+@FraiseQL.query
 def get_users():
     # Manual batch loading (complex)
     batch_size = 1000

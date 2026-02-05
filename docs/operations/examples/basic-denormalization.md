@@ -78,9 +78,9 @@ CREATE NONCLUSTERED INDEX idx_tf_sales_recorded_at
 
 ```python
 # schema.py
-import fraiseql
+import FraiseQL
 
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name='tf_sales',
     measures=['revenue', 'quantity'],
     dimension_column='dimensions'  # JSONB column
@@ -92,7 +92,7 @@ class SalesMetrics:
     dimensions: dict  # {region: str, category: str, date: str}
     recorded_at: datetime
 
-@fraiseql.aggregate_query(fact_table='tf_sales')
+@FraiseQL.aggregate_query(fact_table='tf_sales')
 def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
@@ -171,7 +171,7 @@ export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1  # 10% sampling
 export FRAISEQL_METRICS_DATABASE_URL=postgres://metrics:pass@localhost:5432/metrics
 ```text
 
-**Or in `fraiseql.toml`**:
+**Or in `FraiseQL.toml`**:
 
 ```toml
 [observability]
@@ -186,10 +186,10 @@ url = "postgres://metrics:pass@localhost:5432/metrics"
 
 ```bash
 # Restart to load new config
-kubectl rollout restart deployment/fraiseql-api
+kubectl rollout restart deployment/FraiseQL-api
 
 # Verify observability is active
-kubectl logs -f deployment/fraiseql-api | grep observability
+kubectl logs -f deployment/FraiseQL-api | grep observability
 # Output: INFO observability enabled, sample_rate=0.1
 ```text
 
@@ -233,7 +233,7 @@ ORDER BY accesses DESC;
 ### Analyze Metrics
 
 ```bash
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format text
 ```text
@@ -275,7 +275,7 @@ JSON accesses: 8,500 (dimensions->>'region')
 ---
 
 💡 Next Steps:
-   1. Generate SQL: fraiseql-cli analyze --format sql > optimize.sql
+   1. Generate SQL: FraiseQL-cli analyze --format sql > optimize.sql
    2. Review: less optimize.sql
    3. Test in staging
    4. Apply to production
@@ -286,7 +286,7 @@ JSON accesses: 8,500 (dimensions->>'region')
 ## Step 6: Generate Migration SQL
 
 ```bash
-fraiseql-cli analyze \
+FraiseQL-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format sql > migrations/denormalize-region-20260112.sql
 ```text
@@ -480,9 +480,9 @@ cat benchmark-after.txt
 
 ```python
 # schema.py (UPDATED)
-import fraiseql
+import FraiseQL
 
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name='tf_sales',
     measures=['revenue', 'quantity'],
     dimension_column='dimensions',
@@ -496,7 +496,7 @@ class SalesMetrics:
     dimensions: dict
     recorded_at: datetime
 
-@fraiseql.aggregate_query(fact_table='tf_sales')
+@FraiseQL.aggregate_query(fact_table='tf_sales')
 def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
@@ -505,7 +505,7 @@ def sales_by_region(region: str = None):
 ### Recompile Schema
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # Output:
 # ✓ Schema compiled successfully
@@ -550,14 +550,14 @@ Migration: denormalize-region-20260112.sql
 git push origin staging
 
 # Deploy to staging
-kubectl rollout restart deployment/fraiseql-api --namespace=staging
+kubectl rollout restart deployment/FraiseQL-api --namespace=staging
 ```text
 
 ### Monitor Staging
 
 ```bash
 # Monitor query latency
-kubectl logs -f deployment/fraiseql-api --namespace=staging | grep salesByRegion
+kubectl logs -f deployment/FraiseQL-api --namespace=staging | grep salesByRegion
 
 # Output:
 # INFO query=salesByRegion duration=102ms  ← Fast!
@@ -602,7 +602,7 @@ git merge staging
 git push origin main
 
 # Deploy to production
-kubectl rollout restart deployment/fraiseql-api --namespace=production
+kubectl rollout restart deployment/FraiseQL-api --namespace=production
 ```text
 
 ---
@@ -709,7 +709,7 @@ ROI: Massive positive impact for minimal cost
 Based on continuing analysis:
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format text
+FraiseQL-cli analyze --database postgres://... --format text
 
 # Output:
 # 🚀 Additional Optimizations (2):

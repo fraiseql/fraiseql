@@ -13,10 +13,10 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.fraiseql:fraiseql-kotlin:2.0.0")
+    implementation("com.FraiseQL:FraiseQL-kotlin:2.0.0")
 
     // Optional: For annotation processing
-    kapt("com.fraiseql:fraiseql-processor:2.0.0")
+    kapt("com.FraiseQL:FraiseQL-processor:2.0.0")
 }
 
 repositories {
@@ -44,7 +44,7 @@ kotlin {
 ### First Schema (60 seconds)
 
 ```kotlin
-import com.fraiseql.*
+import com.FraiseQL.*
 
 @Type
 data class User(
@@ -70,8 +70,8 @@ fun main() {
 Export and deploy to your FraiseQL server:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -542,7 +542,7 @@ FraiseQL supports 60+ scalar types mapped from Kotlin to GraphQL:
 ### Export Workflow
 
 ```kotlin
-import com.fraiseql.*
+import com.FraiseQL.*
 
 object SchemaBuilder {
     @JvmStatic
@@ -606,7 +606,7 @@ Run export:
 ./gradlew run
 
 # Then compile schema
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 ```
 
 ---
@@ -917,7 +917,7 @@ class SchemaValidationTest {
 
 #### Gradle Dependency Resolution
 
-**Issue**: `Could not find com.fraiseql:fraiseql-kotlin:2.0.0`
+**Issue**: `Could not find com.FraiseQL:FraiseQL-kotlin:2.0.0`
 
 **Solution**:
 
@@ -927,7 +927,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.fraiseql:fraiseql-kotlin:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-kotlin:2.0.0'
 }
 ```
 
@@ -937,7 +937,7 @@ dependencies {
 
 #### Kotlin Compiler Issues
 
-**Issue**: `Unresolved reference: fraiseql`
+**Issue**: `Unresolved reference: FraiseQL`
 
 **Check Kotlin version** (1.8+ required):
 
@@ -1067,17 +1067,17 @@ data class Result(
 
 ```kotlin
 // ❌ Wrong - no scope
-val result = fraiseql.execute(query)
+val result = FraiseQL.execute(query)
 
 // ✅ With scope
 runBlocking {
-    val result = fraiseql.executeAsync(query)
+    val result = FraiseQL.executeAsync(query)
 }
 
 // Or in controller
 @PostMapping("/graphql")
 suspend fun graphql(@RequestBody request: GraphQLRequest): QueryResult {
-    return fraiseql.executeAsync(request.query)
+    return FraiseQL.executeAsync(request.query)
 }
 ```
 
@@ -1259,7 +1259,7 @@ Provide:
 
 - **GitHub Discussions**: Q&A
 - **Kotlin Slack**: Kotlin community
-- **Stack Overflow**: Tag with `kotlin` and `fraiseql`
+- **Stack Overflow**: Tag with `kotlin` and `FraiseQL`
 
 ---
 

@@ -71,8 +71,8 @@ FraiseQL provides comprehensive monitoring and observability features for produc
 
 ```python
 from fastapi import FastAPI
-from fraiseql.monitoring import setup_metrics, MetricsConfig
-from fraiseql.health import setup_health_endpoints
+from FraiseQL.monitoring import setup_metrics, MetricsConfig
+from FraiseQL.health import setup_health_endpoints
 
 app = FastAPI()
 
@@ -94,10 +94,10 @@ setup_health_endpoints(app)
 
 ```python
 from fastapi import FastAPI
-from fraiseql.monitoring import setup_metrics, MetricsConfig
-from fraiseql.tracing import setup_tracing, TracingConfig
-from fraiseql.health import setup_health_endpoints
-from fraiseql.monitoring import init_error_tracker
+from FraiseQL.monitoring import setup_metrics, MetricsConfig
+from FraiseQL.tracing import setup_tracing, TracingConfig
+from FraiseQL.health import setup_health_endpoints
+from FraiseQL.monitoring import init_error_tracker
 
 app = FastAPI()
 
@@ -241,11 +241,11 @@ Buckets correspond to:
 ### Configuration
 
 ```python
-from fraiseql.monitoring import MetricsConfig, setup_metrics
+from FraiseQL.monitoring import MetricsConfig, setup_metrics
 
 config = MetricsConfig(
     enabled=True,                    # Enable/disable metrics
-    namespace="fraiseql",            # Metric prefix
+    namespace="FraiseQL",            # Metric prefix
     metrics_path="/metrics",         # Prometheus endpoint
     buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
     exclude_paths={                  # Don't measure these paths
@@ -286,7 +286,7 @@ Add to `prometheus.yml`:
 
 ```yaml
 scrape_configs:
-  - job_name: 'fraiseql'
+  - job_name: 'FraiseQL'
     static_configs:
       - targets: ['localhost:8000']  # Your FraiseQL server
     metrics_path: '/metrics'
@@ -300,7 +300,7 @@ Example Prometheus alerting rules:
 
 ```yaml
 groups:
-  - name: fraiseql
+  - name: FraiseQL
     interval: 30s
     rules:
       # High error rate
@@ -351,11 +351,11 @@ FraiseQL integrates with OpenTelemetry for distributed tracing across microservi
 #### OTLP (Recommended)
 
 ```python
-from fraiseql.tracing import setup_tracing, TracingConfig
+from FraiseQL.tracing import setup_tracing, TracingConfig
 
 config = TracingConfig(
     enabled=True,
-    service_name="fraiseql-api",
+    service_name="FraiseQL-api",
     service_version="1.0.0",
     deployment_environment="production",
     export_format="otlp",
@@ -375,7 +375,7 @@ setup_tracing(app, config)
 ```python
 config = TracingConfig(
     enabled=True,
-    service_name="fraiseql-api",
+    service_name="FraiseQL-api",
     export_format="jaeger",
     export_endpoint="localhost:6831",  # Jaeger agent
     sample_rate=0.1                    # 10% sampling
@@ -389,7 +389,7 @@ setup_tracing(app, config)
 ```python
 config = TracingConfig(
     enabled=True,
-    service_name="fraiseql-api",
+    service_name="FraiseQL-api",
     export_format="zipkin",
     export_endpoint="http://zipkin:9411/api/v2/spans",
     sample_rate=0.5                    # 50% sampling
@@ -404,7 +404,7 @@ setup_tracing(app, config)
 @dataclass
 class TracingConfig:
     enabled: bool = True
-    service_name: str = "fraiseql"
+    service_name: str = "FraiseQL"
     service_version: str = "unknown"
     deployment_environment: str = "development"
     sample_rate: float = 1.0              # 0.0-1.0
@@ -566,7 +566,7 @@ GET /health/tracing
 ### Configuration
 
 ```python
-from fraiseql.health import setup_health_endpoints, HealthConfig
+from FraiseQL.health import setup_health_endpoints, HealthConfig
 
 config = HealthConfig(
     pool_utilization_warning=0.8,     # 80%
@@ -716,7 +716,7 @@ GET /admin/apq/health
 Analyze GraphQL query complexity before execution.
 
 ```python
-from fraiseql.analysis.query_complexity import analyze_query_complexity
+from FraiseQL.analysis.query_complexity import analyze_query_complexity
 
 query = """
 {
@@ -759,7 +759,7 @@ class ComplexityScore:
 ### Decision Making
 
 ```python
-from fraiseql.analysis.query_complexity import should_cache_query
+from FraiseQL.analysis.query_complexity import should_cache_query
 
 if should_cache_query(query, threshold=200):
     # Cache this query result
@@ -778,7 +778,7 @@ else:
 Track individual database queries.
 
 ```python
-from fraiseql.monitoring import DatabaseMonitor
+from FraiseQL.monitoring import DatabaseMonitor
 
 monitor = DatabaseMonitor(
     max_recent_queries=1000,
@@ -850,7 +850,7 @@ print(f"Utilization: {pool_stats.utilization * 100:.1f}%")
 ### Setup
 
 ```python
-from fraiseql.monitoring import init_error_tracker
+from FraiseQL.monitoring import init_error_tracker
 
 tracker = init_error_tracker(
     db_pool=db_pool,
@@ -997,7 +997,7 @@ SYSTEM_INTRUSION_ATTEMPT
 ### Accessing Audit Logs
 
 ```python
-from fraiseql.audit import get_security_logger
+from FraiseQL.audit import get_security_logger
 
 logger = get_security_logger()
 events = await logger.get_events(

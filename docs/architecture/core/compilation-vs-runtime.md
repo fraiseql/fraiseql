@@ -126,7 +126,7 @@ Understanding this boundary is critical because:
 
 ```python
 # Compile-time: Define schema
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -171,7 +171,7 @@ query {
 
 ```python
 # Compile-time: Declare rule
-@fraiseql.query
+@FraiseQL.query
 @requires_role("admin")  # Rule declared
 def users():
     pass
@@ -312,11 +312,11 @@ def resolve_user_email(user, context):
 **Correct:** Declare field-level auth at compile time:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
-    email: str = fraiseql.field(requires_role="admin")  # ✅ Compile-time
+    email: str = FraiseQL.field(requires_role="admin")  # ✅ Compile-time
 ```text
 
 ---

@@ -177,21 +177,21 @@ Complete Kubernetes deployment with all three probes:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql-api
+  name: FraiseQL-api
   namespace: default
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   template:
     metadata:
       labels:
-        app: fraiseql
+        app: FraiseQL
     spec:
       containers:
-      - name: fraiseql
-        image: fraiseql:2.0.0
+      - name: FraiseQL
+        image: FraiseQL:2.0.0
         imagePullPolicy: IfNotPresent
 
         ports:
@@ -205,12 +205,12 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: fraiseql-secrets
+              name: FraiseQL-secrets
               key: database-url
         - name: CACHE_URL
           valueFrom:
             configMapKeyRef:
-              name: fraiseql-config
+              name: FraiseQL-config
               key: cache-url
 
         # Startup Probe (wait for app to start)
@@ -276,8 +276,8 @@ spec:
 version: '3.8'
 
 services:
-  fraiseql:
-    image: fraiseql:2.0.0
+  FraiseQL:
+    image: FraiseQL:2.0.0
     environment:
       DATABASE_URL: postgres://user:pass@postgres:5432/db
       RUST_LOG: info
@@ -300,7 +300,7 @@ services:
     image: postgres:15
     environment:
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: fraiseql
+      POSTGRES_DB: FraiseQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -311,8 +311,8 @@ services:
 ### Pattern 3: AWS Application Load Balancer
 
 ```hcl
-resource "aws_lb_target_group" "fraiseql" {
-  name        = "fraiseql-tg"
+resource "aws_lb_target_group" "FraiseQL" {
+  name        = "FraiseQL-tg"
   port        = 8000
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
@@ -365,9 +365,9 @@ backend fraiseql_be
   option httpchk GET /ready HTTP/1.1
 
   # Server configuration
-  server fraiseql-1 fraiseql-1:8000 check inter 10s fall 3 rise 2
-  server fraiseql-2 fraiseql-2:8000 check inter 10s fall 3 rise 2
-  server fraiseql-3 fraiseql-3:8000 check inter 10s fall 3 rise 2
+  server FraiseQL-1 FraiseQL-1:8000 check inter 10s fall 3 rise 2
+  server FraiseQL-2 FraiseQL-2:8000 check inter 10s fall 3 rise 2
+  server FraiseQL-3 FraiseQL-3:8000 check inter 10s fall 3 rise 2
 
   # Load balancing algorithm
   balance roundrobin
@@ -420,14 +420,14 @@ backend fraiseql_be
 
 ```bash
 # Check logs for error message
-kubectl logs deployment/fraiseql -f
+kubectl logs deployment/FraiseQL -f
 
 # Manually test readiness endpoint
-kubectl exec -it pod/fraiseql-xxx -- \
+kubectl exec -it pod/FraiseQL-xxx -- \
   curl -v http://localhost:8000/ready
 
 # Check database connectivity
-kubectl exec -it pod/fraiseql-xxx -- \
+kubectl exec -it pod/FraiseQL-xxx -- \
   sh -c 'psql $DATABASE_URL -c "SELECT 1"'
 ```text
 
@@ -452,13 +452,13 @@ kubectl exec -it pod/fraiseql-xxx -- \
 
 ```bash
 # Check pod restart count
-kubectl describe pod/fraiseql-xxx
+kubectl describe pod/FraiseQL-xxx
 
 # Check recent logs before crash
-kubectl logs pod/fraiseql-xxx --previous
+kubectl logs pod/FraiseQL-xxx --previous
 
 # Check events
-kubectl describe pod/fraiseql-xxx
+kubectl describe pod/FraiseQL-xxx
 ```text
 
 **Solutions**:

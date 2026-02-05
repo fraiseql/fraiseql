@@ -199,7 +199,7 @@ CREATE TABLE agg_cohorts (
 
 ```python
 # analytics_schema.py
-from fraiseql import types
+from FraiseQL import types
 from decimal import Decimal
 from datetime import datetime, date
 

@@ -67,7 +67,7 @@ All databases can be used together in federation. See [multi-database consistenc
 A: **Yes**. FraiseQL works with existing schema by mapping GraphQL types to database tables via the `@key` directive.
 
 ```python
-from fraiseql.federation import federated_type, key
+from FraiseQL.federation import federated_type, key
 
 @federated_type
 @key(fields="id")
@@ -372,7 +372,7 @@ kubectl get pods  # Verify running
 
 1. Build binary: `cargo build --release`
 2. Set environment variables
-3. Run: `./target/release/fraiseql-server`
+3. Run: `./target/release/FraiseQL-server`
 
 ---
 
@@ -407,13 +407,13 @@ A: Backup these databases:
 
 ```bash
 # PostgreSQL (saga state)
-pg_dump -U fraiseql fraiseql > saga_backup.sql
+pg_dump -U FraiseQL FraiseQL > saga_backup.sql
 
 # MySQL (orders/inventory)
-mysqldump -u root -p fraiseql > orders_backup.sql
+mysqldump -u root -p FraiseQL > orders_backup.sql
 
 # All application data
-docker-compose exec postgres pg_dump -U fraiseql fraiseql > backup.sql
+docker-compose exec postgres pg_dump -U FraiseQL FraiseQL > backup.sql
 ```text
 
 See [deployment guide](deployment/guide.md) for production-deployment steps.
@@ -427,11 +427,11 @@ A: Scale horizontally:
 1. **Add more instances** (load balancer needed):
 
 ```yaml
-fraiseql-server-1:
-  image: fraiseql:latest
+FraiseQL-server-1:
+  image: FraiseQL:latest
 
-fraiseql-server-2:
-  image: fraiseql:latest
+FraiseQL-server-2:
+  image: FraiseQL:latest
 
 load-balancer:
   image: nginx:latest
@@ -514,8 +514,8 @@ See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-super
 A: Set log level:
 
 ```bash
-export RUST_LOG=fraiseql=debug,tracing=trace
-RUST_LOG=debug cargo run --bin fraiseql-server
+export RUST_LOG=FraiseQL=debug,tracing=trace
+RUST_LOG=debug cargo run --bin FraiseQL-server
 ```text
 
 Watch for logs like:
@@ -535,7 +535,7 @@ A: Check these resources in order:
 2. **[Federation Guide](integrations/federation/guide.md)** - Saga basics
 3. **[Federation Sagas](integrations/federation/sagas.md)** - Federation patterns
 4. **[Examples](../examples/federation/)** - Working code
-5. **[GitHub Issues](https://github.com/anthropics/fraiseql/issues)** - Bug reports
+5. **[GitHub Issues](https://github.com/anthropics/FraiseQL/issues)** - Bug reports
 
 ---
 

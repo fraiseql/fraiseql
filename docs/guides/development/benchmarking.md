@@ -56,7 +56,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 ### 1. One-Command Setup
 
 ```bash
-cd /home/lionel/code/fraiseql
+cd /home/lionel/code/FraiseQL
 bash BENCHMARK_QUICK_START.sh setup
 ```
 
@@ -82,7 +82,7 @@ bash BENCHMARK_QUICK_START.sh run-large
 # Run all benchmarks (full suite, ~15-30 minutes)
 bash BENCHMARK_QUICK_START.sh run-all
 
-# Run fraiseql-wire micro benchmarks only
+# Run FraiseQL-wire micro benchmarks only
 bash BENCHMARK_QUICK_START.sh wire-micro
 ```
 
@@ -106,9 +106,9 @@ Stops Docker containers and cleans up benchmark environment.
 
 ### Total Benchmarks: 11 files
 
-#### fraiseql-core Benchmarks (5 benchmarks)
+#### FraiseQL-core Benchmarks (5 benchmarks)
 
-Located: `crates/fraiseql-core/benches/`
+Located: `crates/FraiseQL-core/benches/`
 
 | File | Purpose | Status |
 |------|---------|--------|
@@ -118,9 +118,9 @@ Located: `crates/fraiseql-core/benches/`
 | `saga_performance_bench.rs` | Distributed transaction performance | ✅ Ready |
 | `sql_projection_benchmark.rs` | Field projection efficiency | ✅ Ready |
 
-#### fraiseql-wire Benchmarks (4 benchmarks)
+#### FraiseQL-wire Benchmarks (4 benchmarks)
 
-Located: `crates/fraiseql-wire/benches/`
+Located: `crates/FraiseQL-wire/benches/`
 
 | File | Purpose | Status |
 |------|---------|--------|
@@ -129,9 +129,9 @@ Located: `crates/fraiseql-wire/benches/`
 | `comparison_benchmarks.rs` | Wire protocol comparisons | ✅ Ready |
 | `phase6_validation.rs` | Phase 6 validation benchmarks | ✅ Ready |
 
-#### fraiseql-server Benchmarks (1 benchmark)
+#### FraiseQL-server Benchmarks (1 benchmark)
 
-Located: `crates/fraiseql-server/benches/`
+Located: `crates/FraiseQL-server/benches/`
 
 | File | Purpose | Status |
 |------|---------|--------|
@@ -225,7 +225,7 @@ Measures:
 Low-level protocol performance:
 
 ```bash
-cargo bench --bench micro_benchmarks -p fraiseql-wire
+cargo bench --bench micro_benchmarks -p FraiseQL-wire
 ```
 
 Measures microsecond-scale operations:

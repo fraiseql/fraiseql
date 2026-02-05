@@ -26,7 +26,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 
 ### 1. Federation Core Tests (1,462 tests)
 
-**Location**: `crates/fraiseql-core/tests/federation_*.rs`
+**Location**: `crates/FraiseQL-core/tests/federation_*.rs`
 
 **Coverage**:
 
@@ -64,7 +64,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 
 ### 2. Saga System Tests (483 tests)
 
-**Location**: `crates/fraiseql-core/tests/federation_saga_*.rs`
+**Location**: `crates/FraiseQL-core/tests/federation_saga_*.rs`
 
 **Coverage**:
 
@@ -105,7 +105,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 
 ### 3. CLI Tests (40+ tests)
 
-**Location**: `crates/fraiseql-cli/tests/`
+**Location**: `crates/FraiseQL-cli/tests/`
 
 **Coverage**:
 
@@ -127,7 +127,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 
 ### 4. Server Tests (306+ tests)
 
-**Location**: `crates/fraiseql-server/tests/` and `src/`
+**Location**: `crates/FraiseQL-server/tests/` and `src/`
 
 **Coverage**:
 
@@ -170,7 +170,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 
 ### 6. Database Adapter Tests
 
-**Location**: `crates/fraiseql-core/tests/db_*.rs`
+**Location**: `crates/FraiseQL-core/tests/db_*.rs`
 
 **Coverage**:
 
@@ -247,9 +247,9 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 cargo test --all-features
 
 # Specific packages
-cargo test -p fraiseql-core
-cargo test -p fraiseql-server
-cargo test -p fraiseql-cli
+cargo test -p FraiseQL-core
+cargo test -p FraiseQL-server
+cargo test -p FraiseQL-cli
 
 # Specific test file
 cargo test --test federation_saga_coordinator
@@ -404,21 +404,21 @@ All PRs must pass:
 
 **Authoring Layer SDKs** (schema definition):
 
-- [x] Python (`fraiseql-python/tests/`)
-- [x] TypeScript/Node.js (`fraiseql-typescript/tests/`, `fraiseql-nodejs/tests/`)
-- [x] Go (`fraiseql-go/tests/`)
-- [x] PHP (`fraiseql-php/tests/`)
-- [x] Java (`fraiseql-java/tests/`)
-- [x] Kotlin (`fraiseql-kotlin/tests/`)
-- [x] Ruby (`fraiseql-ruby/tests/`)
-- [x] Scala (`fraiseql-scala/tests/`)
-- [x] Rust (`fraiseql-rust/tests/`)
-- [x] C# (`fraiseql-csharp/tests/`)
-- [x] Clojure (`fraiseql-clojure/tests/`)
-- [x] Elixir (`fraiseql-elixir/tests/`)
-- [x] Swift (`fraiseql-swift/tests/`)
-- [x] Dart (`fraiseql-dart/tests/`)
-- [x] Groovy (`fraiseql-groovy/tests/`)
+- [x] Python (`FraiseQL-python/tests/`)
+- [x] TypeScript/Node.js (`FraiseQL-typescript/tests/`, `FraiseQL-nodejs/tests/`)
+- [x] Go (`FraiseQL-go/tests/`)
+- [x] PHP (`FraiseQL-php/tests/`)
+- [x] Java (`FraiseQL-java/tests/`)
+- [x] Kotlin (`FraiseQL-kotlin/tests/`)
+- [x] Ruby (`FraiseQL-ruby/tests/`)
+- [x] Scala (`FraiseQL-scala/tests/`)
+- [x] Rust (`FraiseQL-rust/tests/`)
+- [x] C# (`FraiseQL-csharp/tests/`)
+- [x] Clojure (`FraiseQL-clojure/tests/`)
+- [x] Elixir (`FraiseQL-elixir/tests/`)
+- [x] Swift (`FraiseQL-swift/tests/`)
+- [x] Dart (`FraiseQL-dart/tests/`)
+- [x] Groovy (`FraiseQL-groovy/tests/`)
 
 ### Post-GA Future Coverage (v2.1+)
 

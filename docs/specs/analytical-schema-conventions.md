@@ -294,7 +294,7 @@ CREATE INDEX idx_sales_daily_dimensions_gin ON tf_sales_daily USING GIN(dimensio
 ### Fact Table Binding
 
 ```python
-from fraiseql import schema, type, query, ID
+from FraiseQL import schema, type, query, ID
 
 @schema.type
 class Sales:

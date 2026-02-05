@@ -157,7 +157,7 @@ CREATE TABLE tb_orders (
 **FraiseQL Type Level:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int              # ← pk_user
     username: str             # ← username
@@ -168,7 +168,7 @@ class User:
     deleted_at: datetime | None # ← deleted_at (soft delete)
     orders: List[Order]       # ← foreign key relationship
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
     order_id: int             # ← pk_order
     user_id: int              # ← fk_user
@@ -227,7 +227,7 @@ FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
 **Becomes in FraiseQL:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Order:
     user_id: int
     user: User  # Automatically available because of FK
@@ -297,7 +297,7 @@ WHERE deleted_at IS NULL;  -- Only active users
 **FraiseQL Integration:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
@@ -380,7 +380,7 @@ $$ LANGUAGE plpgsql;
 **FraiseQL Integration:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class OrderWithUser:
     order_id: int
     total: Decimal
@@ -428,10 +428,10 @@ WHERE deleted_at IS NULL;
 **FraiseQL Integration:**
 
 ```python
-@fraiseql.aggregate_query(
+@FraiseQL.aggregate_query(
     fact_table=None,  # Uses va_user_stats logical view
 )
-@fraiseql.query
+@FraiseQL.query
 def user_stats_by_year() -> list[dict]:
     """Returns user count by signup year via Arrow Flight."""
 ```text
@@ -735,8 +735,8 @@ ORDER BY calendar_info->>'month';
 FraiseQL introspects columns ending with `_info` containing `{date, week, month, quarter, year}` and automatically generates optimal SQL:
 
 ```python
-@fraiseql.fact_table(table_name="ta_sales")
-@fraiseql.type
+@FraiseQL.fact_table(table_name="ta_sales")
+@FraiseQL.type
 class Sale:
     measure_revenue: float
     dimension_data: dict  # {category, product_name, region}
@@ -754,7 +754,7 @@ FraiseQL supports multiple database backends with **one schema definition**:
 
 ```python
 # One schema definition...
-@fraiseql.type
+@FraiseQL.type
 class User:
     user_id: int
     username: str
@@ -786,7 +786,7 @@ class User:
 **Same FraiseQL schema:**
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class Product:
     product_id: int
     name: str
@@ -856,7 +856,7 @@ CREATE TABLE tb_events (
 );
 
 -- FraiseQL can leverage these
-@fraiseql.type
+@FraiseQL.type
 class Event:
     event_id: int
     data: JSON  # Maps to JSONB
@@ -924,7 +924,7 @@ This structure enables:
 FraiseQL provides decorators for analytics:
 
 ```python
-from fraiseql import fact_table, aggregate_query, type as fraiseql_type
+from FraiseQL import fact_table, aggregate_query, type as fraiseql_type
 
 # Define fact table
 @fact_table(
@@ -1068,9 +1068,9 @@ FraiseQL's database-centric design manifests in four layers:
 ```text
 ┌─────────────────────────────────────────────┐
 │ Layer 1: AUTHORING (Your Code)              │
-│ Python/TypeScript + @fraiseql decorators    │
+│ Python/TypeScript + @FraiseQL decorators    │
 │                                             │
-│ @fraiseql.type                              │
+│ @FraiseQL.type                              │
 │ class User:                                 │
 │   user_id: int                              │
 │   username: str                             │
@@ -1079,7 +1079,7 @@ FraiseQL's database-centric design manifests in four layers:
 │ Output: schema.json                         │
 └─────────────────────────────────────────────┘
            │
-           │ (fraiseql-cli compile)
+           │ (FraiseQL-cli compile)
            │
 ┌─────────────────────────────────────────────┐
 │ Layer 2: COMPILATION (Build Time)           │

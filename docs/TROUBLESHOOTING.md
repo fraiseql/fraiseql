@@ -120,7 +120,7 @@ Reduce connection pool: `export DATABASE_POOL_SIZE=10`
 
 **Solution**:
 
-1. Check health: `docker-compose exec postgres pg_isready -U fraiseql`
+1. Check health: `docker-compose exec postgres pg_isready -U FraiseQL`
 2. Restart: `docker-compose restart postgres`
 
 ---
@@ -144,14 +144,14 @@ Enable recovery: `export FRAISEQL_SAGA_RECOVERY_ENABLED=true`
 ### Enable Debug Logs
 
 ```bash
-export RUST_LOG=fraiseql=debug
+export RUST_LOG=FraiseQL=debug
 RUST_LOG=debug cargo run
 ```
 
 ### Query Saga State
 
 ```bash
-docker-compose exec postgres psql -U fraiseql -d fraiseql
+docker-compose exec postgres psql -U FraiseQL -d FraiseQL
 SELECT * FROM sagas WHERE id = 'YOUR_SAGA_ID';
 SELECT * FROM saga_steps WHERE saga_id = 'YOUR_SAGA_ID';
 ```

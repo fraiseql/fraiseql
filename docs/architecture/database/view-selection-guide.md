@@ -210,7 +210,7 @@ CREATE TABLE tv_user_profile AS SELECT * FROM v_user_full_composed;
 CREATE TRIGGER trg_refresh_tv_user_profile ON tb_user ...
 
 -- Step 4: Update GraphQL binding
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class User: ...
 
 -- Step 5: Verify performance
@@ -294,7 +294,7 @@ const query = gql`
 `;
 
 // FraiseQL schema binding (server-side)
-@fraiseql.type(view="tv_user_profile")  // Uses tv_* for performance
+@FraiseQL.type(view="tv_user_profile")  // Uses tv_* for performance
 class User:
     id: str
     name: str
@@ -303,8 +303,8 @@ class User:
 
 **When to use which**:
 
-- Simple queries: `@fraiseql.type(view="v_user")` (no view specified)
-- Complex queries: `@fraiseql.type(view="tv_user_profile")` (explicit view)
+- Simple queries: `@FraiseQL.type(view="v_user")` (no view specified)
+- Complex queries: `@FraiseQL.type(view="tv_user_profile")` (explicit view)
 
 ### Arrow Flight (Analytics Plane)
 

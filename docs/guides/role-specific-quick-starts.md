@@ -16,24 +16,24 @@ Tailored quick-start guides for different roles and experience levels. Select yo
 
 ```bash
 # Install FraiseQL
-cargo install fraiseql-cli
+cargo install FraiseQL-cli
 
 # Install SDK for your language
 # Python:
-pip install fraiseql
+pip install FraiseQL
 
 # TypeScript:
-npm install @fraiseql/client
+npm install @FraiseQL/client
 
 # Go:
-go get github.com/fraiseql/fraiseql-go/v2
+go get github.com/FraiseQL/FraiseQL-go/v2
 ```text
 
 ### Create Your First Schema
 
 ```python
 # schema.py
-from fraiseql import type, field
+from FraiseQL import type, field
 
 @type
 class User:
@@ -54,7 +54,7 @@ class Post:
 ### Configure Database
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [database]
 url = "postgresql://localhost/myapp"
 pool_size = 10
@@ -64,10 +64,10 @@ pool_size = 10
 
 ```bash
 # Compile schema
-fraiseql compile schema.py --config fraiseql.toml
+FraiseQL compile schema.py --config FraiseQL.toml
 
 # Start server
-fraiseql serve
+FraiseQL serve
 
 # Test GraphQL endpoint
 curl -X POST http://localhost:5000/graphql \
@@ -86,7 +86,7 @@ curl -X POST http://localhost:5000/graphql \
 ### Query from Your App
 
 ```python
-from fraiseql import AsyncClient
+from FraiseQL import AsyncClient
 import asyncio
 
 async def main():
@@ -178,8 +178,8 @@ class Order:
 @extends
 @key("id")
 class User:
-    where: Where = fraiseql.where(
-        fk_org=fraiseql.context.org_id  # Multi-tenancy
+    where: Where = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id  # Multi-tenancy
     )
 
     id: str = field(external())
@@ -206,17 +206,17 @@ class UserStats:
 ### Step 5: Configure Deployment
 
 ```toml
-# fraiseql.toml
-[fraiseql.federation]
+# FraiseQL.toml
+[FraiseQL.federation]
 enabled = true
 strategy = "direct-database"  # Direct DB is fast
 
-[[fraiseql.subgraphs]]
+[[FraiseQL.subgraphs]]
 name = "Orders"
 strategy = "direct-database"
 database_url = "${ORDERS_DATABASE_URL}"
 
-[[fraiseql.subgraphs]]
+[[FraiseQL.subgraphs]]
 name = "Users"
 strategy = "http"
 url = "http://users-service:5000/graphql"
@@ -252,16 +252,16 @@ COPY . .
 RUN cargo build --release
 
 FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/fraiseql /usr/local/bin/
-COPY fraiseql.toml /etc/fraiseql/
+COPY --from=builder /app/target/release/FraiseQL /usr/local/bin/
+COPY FraiseQL.toml /etc/FraiseQL/
 EXPOSE 5000
-ENTRYPOINT ["fraiseql", "serve"]
+ENTRYPOINT ["FraiseQL", "serve"]
 ```text
 
 ### Step 2: Configuration Management
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [server]
 port = 5000
 tls_enabled = true
@@ -285,31 +285,31 @@ tracing_enabled = true
 ### Step 3: Kubernetes Deployment
 
 ```yaml
-# k8s/fraiseql-deployment.yaml
+# k8s/FraiseQL-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql
+  name: FraiseQL
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: fraiseql
+      app: FraiseQL
   template:
     metadata:
       labels:
-        app: fraiseql
+        app: FraiseQL
     spec:
       containers:
-      - name: fraiseql
-        image: my-registry/fraiseql:v2.0.0
+      - name: FraiseQL
+        image: my-registry/FraiseQL:v2.0.0
         ports:
         - containerPort: 5000
         env:
         - name: FRAISEQL_DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: fraiseql-secrets
+              name: FraiseQL-secrets
               key: database-url
         resources:
           requests:
@@ -340,16 +340,16 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-- job_name: 'fraiseql'
+- job_name: 'FraiseQL'
   static_configs:
   - targets: ['localhost:9090']
 
 # Alert rules
 groups:
-- name: fraiseql
+- name: FraiseQL
   rules:
   - alert: HighErrorRate
-    expr: fraiseql_errors_total{job="fraiseql"} > 100
+    expr: fraiseql_errors_total{job="FraiseQL"} > 100
     for: 5m
   - alert: SlowQueries
     expr: fraiseql_query_latency_p95 > 1000  # ms
@@ -360,8 +360,8 @@ groups:
 
 ```bash
 # Create secrets
-kubectl create secret generic fraiseql-secrets \
-  --from-literal=database-url="postgresql://user:pass@db:5432/fraiseql" \
+kubectl create secret generic FraiseQL-secrets \
+  --from-literal=database-url="postgresql://user:pass@db:5432/FraiseQL" \
   --from-literal=jwt-secret="your-jwt-secret-here"
 
 # Verify
@@ -417,7 +417,7 @@ class CustomerSegmentation:
 ### Step 2: Enable Arrow Flight
 
 ```toml
-# fraiseql.toml
+# FraiseQL.toml
 [arrow_flight]
 enabled = true
 port = 30000
@@ -482,7 +482,7 @@ import pandas as pd
 import pyarrow.flight as flight
 from sqlalchemy import create_engine
 
-client = flight.connect("grpc://fraiseql-server:30000")
+client = flight.connect("grpc://FraiseQL-server:30000")
 reader = client.do_get(flight.Ticket(b"SalesAnalytics"))
 df = reader.read_pandas()
 
@@ -521,8 +521,8 @@ class Organization:
 @type
 class User:
     """User within organization (multi-tenant)."""
-    where: Where = fraiseql.where(
-        fk_org=fraiseql.context.org_id  # Automatic tenant isolation
+    where: Where = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id  # Automatic tenant isolation
     )
 
     id: str
@@ -535,8 +535,8 @@ class User:
 @type
 class Project:
     """User's project within organization."""
-    where: Where = fraiseql.where(
-        fk_org=fraiseql.context.org_id
+    where: Where = FraiseQL.where(
+        fk_org=FraiseQL.context.org_id
     )
 
     id: str
@@ -584,8 +584,8 @@ window_seconds = 60  # 100 requests/minute per user
 ```bash
 # On your server:
 # 1. Clone repo
-git clone https://github.com/yourcompany/fraiseql-backend
-cd fraiseql-backend
+git clone https://github.com/yourcompany/FraiseQL-backend
+cd FraiseQL-backend
 
 # 2. Configure environment
 export FRAISEQL_DATABASE_URL="postgresql://..."
@@ -608,7 +608,7 @@ curl https://api.example.com/health
 ### Step 5: Set Up Webhooks
 
 ```python
-@fraiseql.observer
+@FraiseQL.observer
 class SendWelcomeEmail:
     trigger = Event.CREATE
     entity = "User"

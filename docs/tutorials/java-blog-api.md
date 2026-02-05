@@ -14,7 +14,7 @@ In this tutorial, you'll build a complete GraphQL Blog API by authoring a schema
 - Use `@GraphQLType` and `@GraphQLField` annotations to define types
 - Use the builder pattern with `FraiseQL.query()` and `FraiseQL.mutation()` to define operations
 - Export your schema to JSON using FraiseQL Java library
-- Compile the schema with `fraiseql-cli`
+- Compile the schema with `FraiseQL-cli`
 - Write integration tests to verify your schema
 - Deploy to production with Spring Boot
 
@@ -129,7 +129,7 @@ Replace your `pom.xml` with:
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <fraiseql.version>2.0.0</fraiseql.version>
+        <FraiseQL.version>2.0.0</FraiseQL.version>
         <jackson.version>2.16.1</jackson.version>
         <junit.version>5.10.1</junit.version>
         <spring.boot.version>3.2.0</spring.boot.version>
@@ -150,9 +150,9 @@ Replace your `pom.xml` with:
     <dependencies>
         <!-- FraiseQL Java Authoring -->
         <dependency>
-            <groupId>com.fraiseql</groupId>
-            <artifactId>fraiseql-java</artifactId>
-            <version>${fraiseql.version}</version>
+            <groupId>com.FraiseQL</groupId>
+            <artifactId>FraiseQL-java</artifactId>
+            <version>${FraiseQL.version}</version>
         </dependency>
 
         <!-- JSON Processing -->
@@ -238,7 +238,7 @@ repositories {
 
 dependencies {
     // FraiseQL Java Authoring
-    implementation 'com.fraiseql:fraiseql-java:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-java:2.0.0'
 
     // JSON Processing
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
@@ -283,8 +283,8 @@ Create `src/main/java/com/example/schema/types/User.java`:
 ```java
 package com.example.schema.types;
 
-import com.fraiseql.core.GraphQLField;
-import com.fraiseql.core.GraphQLType;
+import com.FraiseQL.core.GraphQLField;
+import com.FraiseQL.core.GraphQLType;
 import java.time.LocalDateTime;
 
 /**
@@ -318,8 +318,8 @@ Create `src/main/java/com/example/schema/types/Post.java`:
 ```java
 package com.example.schema.types;
 
-import com.fraiseql.core.GraphQLField;
-import com.fraiseql.core.GraphQLType;
+import com.FraiseQL.core.GraphQLField;
+import com.FraiseQL.core.GraphQLType;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -369,8 +369,8 @@ Create `src/main/java/com/example/schema/types/Comment.java`:
 ```java
 package com.example.schema.types;
 
-import com.fraiseql.core.GraphQLField;
-import com.fraiseql.core.GraphQLType;
+import com.FraiseQL.core.GraphQLField;
+import com.FraiseQL.core.GraphQLType;
 import java.time.LocalDateTime;
 
 /**
@@ -404,8 +404,8 @@ Create `src/main/java/com/example/schema/types/Tag.java`:
 ```java
 package com.example.schema.types;
 
-import com.fraiseql.core.GraphQLField;
-import com.fraiseql.core.GraphQLType;
+import com.FraiseQL.core.GraphQLField;
+import com.FraiseQL.core.GraphQLType;
 
 /**
  * Represents a tag for categorizing posts.
@@ -431,7 +431,7 @@ Create `src/main/java/com/example/schema/SchemaBuilder.java`:
 ```java
 package com.example.schema;
 
-import com.fraiseql.core.FraiseQL;
+import com.FraiseQL.core.FraiseQL;
 import com.example.schema.types.*;
 
 /**
@@ -751,11 +751,11 @@ public class SchemaExporter {
         String outputPath = args.length > 0 ? args[0] : "schema.json";
         System.out.println("Exporting schema to: " + outputPath);
 
-        com.fraiseql.core.FraiseQL.exportSchema(outputPath);
+        com.FraiseQL.core.FraiseQL.exportSchema(outputPath);
 
         System.out.println("✅ Schema exported successfully!");
         System.out.println("\nNext steps:");
-        System.out.println("1. fraiseql-cli compile schema.json");
+        System.out.println("1. FraiseQL-cli compile schema.json");
         System.out.println("2. Deploy schema.compiled.json to your server");
     }
 }
@@ -838,15 +838,15 @@ The `schema.json` file is now ready to be compiled by FraiseQL CLI into an optim
 
 ```bash
 # Using Rust/Cargo
-cargo install fraiseql-cli
+cargo install FraiseQL-cli
 
-# Or download binary from: https://github.com/fraiseql/fraiseql/releases
+# Or download binary from: https://github.com/FraiseQL/FraiseQL/releases
 ```text
 
 ### Compile Schema
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 This generates `schema.compiled.json` containing:
@@ -878,7 +878,7 @@ Add to `pom.xml` to automatically compile during build:
                     <argument>-c</argument>
                     <argument>
                         mvn exec:java -Dexec.mainClass="com.example.schema.SchemaExporter" &&
-                        fraiseql-cli compile schema.json
+                        FraiseQL-cli compile schema.json
                     </argument>
                 </arguments>
             </configuration>
@@ -900,7 +900,7 @@ package com.example.schema;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fraiseql.core.FraiseQL;
+import com.FraiseQL.core.FraiseQL;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -1164,7 +1164,7 @@ public class BlogApiApplication {
         @PostMapping
         public Object query(@RequestBody String query) {
             // Load compiled schema and execute query
-            // Implementation depends on fraiseql-server integration
+            // Implementation depends on FraiseQL-server integration
             return new Object();
         }
     }
@@ -1254,12 +1254,12 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 
 **Error**: "Cannot resolve symbol @GraphQLField"
 
-**Solution**: Ensure `fraiseql-java` dependency is in `pom.xml`:
+**Solution**: Ensure `FraiseQL-java` dependency is in `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>com.fraiseql</groupId>
-    <artifactId>fraiseql-java</artifactId>
+    <groupId>com.FraiseQL</groupId>
+    <artifactId>FraiseQL-java</artifactId>
     <version>2.0.0</version>
 </dependency>
 ```text
@@ -1278,12 +1278,12 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 
 ### Maven Build Issues
 
-**Error**: "fraiseql-cli not found during build"
+**Error**: "FraiseQL-cli not found during build"
 
-**Solution**: Install fraiseql-cli separately:
+**Solution**: Install FraiseQL-cli separately:
 
 ```bash
-cargo install fraiseql-cli
+cargo install FraiseQL-cli
 ```text
 
 Or ensure it's in your system PATH.
@@ -1333,7 +1333,7 @@ blog-api/
 mvn exec:java -Dexec.mainClass="com.example.schema.SchemaExporter"
 
 # Compile schema
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 
 # Run tests
 mvn test
@@ -1351,7 +1351,7 @@ docker run -p 8080:8080 blog-api:1.0
 1. **Annotations define types**: `@GraphQLType` and `@GraphQLField` metadata
 2. **Builder pattern defines operations**: `FraiseQL.query()`, `FraiseQL.mutation()`
 3. **Export generates JSON**: `FraiseQL.exportSchema()` creates `schema.json`
-4. **CLI compiles optimizations**: `fraiseql-cli compile` produces `schema.compiled.json`
+4. **CLI compiles optimizations**: `FraiseQL-cli compile` produces `schema.compiled.json`
 5. **Type-safe deployment**: Compiled schema provides runtime safety with zero validation overhead
 
 ---
@@ -1363,4 +1363,4 @@ docker run -p 8080:8080 blog-api:1.0
 - [GraphQL Specification](https://spec.graphql.org/)
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 
-**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql).
+**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).

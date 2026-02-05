@@ -8,18 +8,18 @@
 
 FraiseQL v2.0.0-alpha.1 uses a **single-source-of-truth TOML configuration file** for all security settings. All configuration is **declarative, language-agnostic, and compiled into the schema**.
 
-Security configuration is specified in `fraiseql.toml` at the project root:
+Security configuration is specified in `FraiseQL.toml` at the project root:
 
 ```toml
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 enabled = true
 log_level = "info"
 
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 enabled = true
 generic_messages = true
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 
@@ -36,15 +36,15 @@ This configuration is then:
 ## Architecture
 
 ```text
-fraiseql.toml (source of truth)
+FraiseQL.toml (source of truth)
      ↓
-fraiseql-cli compile (reads TOML, validates, generates JSON)
+FraiseQL-cli compile (reads TOML, validates, generates JSON)
      ↓
 schema.json (intermediate)
      ↓
 schema.compiled.json (optimized, security baked in)
      ↓
-fraiseql-server (reads compiled schema)
+FraiseQL-server (reads compiled schema)
      ↓
 Environment variables (optional overrides)
      ↓
@@ -55,15 +55,15 @@ Runtime security policies enforced
 
 ### Basic Template
 
-Create `fraiseql.toml` in your project root:
+Create `FraiseQL.toml` in your project root:
 
 ```toml
 [project]
-name = "my-fraiseql-app"
+name = "my-FraiseQL-app"
 version = "1.0.0"
 description = "My secure GraphQL API"
 
-[fraiseql]
+[FraiseQL]
 schema_file = "schema.json"
 output_file = "schema.compiled.json"
 
@@ -71,7 +71,7 @@ output_file = "schema.compiled.json"
 # SECURITY CONFIGURATION
 # =============================================================================
 
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 enabled = true
 log_level = "info"                    # "debug", "info", "warn"
 include_sensitive_data = false        # SECURITY: never true in production
@@ -79,14 +79,14 @@ async_logging = true
 buffer_size = 1000
 flush_interval_secs = 5
 
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 enabled = true
 generic_messages = true               # SECURITY: always true in production
 internal_logging = true
 leak_sensitive_details = false        # SECURITY: never true in production
 user_facing_format = "generic"        # "generic", "simple", "detailed"
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 
 # Per-IP limits (public endpoints)
@@ -105,7 +105,7 @@ auth_logout_window_secs = 60
 failed_login_max_requests = 5         # Failed attempts before lockout
 failed_login_window_secs = 3600       # 1 hour window
 
-[fraiseql.security.state_encryption]
+[FraiseQL.security.state_encryption]
 enabled = true
 algorithm = "chacha20-poly1305"
 key_rotation_enabled = false
@@ -114,7 +114,7 @@ key_size = 32                         # bytes: 256-bit (immutable)
 # Key source: TOML cannot store sensitive keys
 # Must be provided via environment variable: STATE_ENCRYPTION_KEY
 
-[fraiseql.security.constant_time]
+[FraiseQL.security.constant_time]
 enabled = true
 apply_to_jwt = true                   # JWT signature verification
 apply_to_session_tokens = true        # Session token comparison
@@ -263,16 +263,16 @@ export STATE_ENCRYPTION_KEY=$(openssl rand -base64 32)
 name = "my-app-dev"
 version = "0.1.0"
 
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 log_level = "debug"                 # Verbose logging during development
 include_sensitive_data = true       # OK for development only
 async_logging = false               # Immediate output
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 auth_start_max_requests = 1000      # Relaxed limits for testing
 failed_login_max_requests = 1000
 
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 user_facing_format = "detailed"     # Show errors for debugging
 ```text
 
@@ -283,15 +283,15 @@ user_facing_format = "detailed"     # Show errors for debugging
 name = "my-app-prod"
 version = "1.0.0"
 
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 log_level = "info"                  # Standard logging
 include_sensitive_data = false      # Never include PII
 
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 generic_messages = true             # Always generic for users
 leak_sensitive_details = false      # Never leak details
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100       # Strict limits
 auth_callback_max_requests = 50
@@ -299,28 +299,28 @@ auth_refresh_max_requests = 10
 auth_logout_max_requests = 20
 failed_login_max_requests = 5       # 5 attempts = 1 hour lockout
 
-[fraiseql.security.state_encryption]
+[FraiseQL.security.state_encryption]
 enabled = true                      # Always enabled
 
-[fraiseql.security.constant_time]
+[FraiseQL.security.constant_time]
 enabled = true                      # Always enabled
 ```text
 
 ### High-Security Configuration (Enterprise)
 
 ```toml
-[fraiseql.security.audit_logging]
+[FraiseQL.security.audit_logging]
 enabled = true
 log_level = "debug"                 # Verbose for compliance
 async_logging = true
 buffer_size = 5000                  # Larger buffer
 flush_interval_secs = 1             # Frequent flushes
 
-[fraiseql.security.error_sanitization]
+[FraiseQL.security.error_sanitization]
 generic_messages = true
 internal_logging = true             # Log everything internally
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 # Aggressive rate limits
 auth_start_max_requests = 50
@@ -328,31 +328,31 @@ auth_start_window_secs = 60
 failed_login_max_requests = 3       # 3 attempts = lockout
 failed_login_window_secs = 3600
 
-[fraiseql.security.state_encryption]
+[FraiseQL.security.state_encryption]
 enabled = true
 key_rotation_enabled = false        # Future: enable for key rotation
 
-[fraiseql.security.constant_time]
+[FraiseQL.security.constant_time]
 enabled = true                      # All tokens protected
 ```text
 
 ## Deployment
 
-### 1. Create `fraiseql.toml`
+### 1. Create `FraiseQL.toml`
 
 ```bash
 # Copy template
-cp fraiseql.toml.example fraiseql.toml
+cp FraiseQL.toml.example FraiseQL.toml
 
 # Edit for your environment
-nano fraiseql.toml
+nano FraiseQL.toml
 ```text
 
 ### 2. Validate Configuration
 
 ```bash
 # The CLI will validate during compilation
-fraiseql compile schema.json --check
+FraiseQL compile schema.json --check
 ```text
 
 ### 3. Generate Encryption Key
@@ -367,7 +367,7 @@ echo "STATE_ENCRYPTION_KEY=$KEY" > .env.production
 
 ```bash
 # Compiles TOML → schema.json → schema.compiled.json
-fraiseql compile schema.json
+FraiseQL compile schema.json
 ```text
 
 ### 5. Start Server with Env Vars
@@ -377,7 +377,7 @@ fraiseql compile schema.json
 source .env.production
 
 # Start server
-./fraiseql-server \
+./FraiseQL-server \
   --schema schema.compiled.json \
   --listen 0.0.0.0:8080 \
   --db postgresql://user:pass@localhost/db
@@ -398,7 +398,7 @@ The TOML configuration is validated at **compile time**:
 
 ❌ **Compilation Fails If**:
 
-- `fraiseql.toml` cannot be parsed
+- `FraiseQL.toml` cannot be parsed
 - `leak_sensitive_details = true`
 - Any rate limit window is 0 or negative
 - Key size is invalid
@@ -438,7 +438,7 @@ Failed to compile schema
 
 ## Best Practices
 
-1. **Version Control**: Check `fraiseql.toml` into git (except secrets)
+1. **Version Control**: Check `FraiseQL.toml` into git (except secrets)
 2. **Encryption Keys**: Never commit to git, use environment variables
 3. **Production**: Always set `generic_messages = true` and `leak_sensitive_details = false`
 4. **Rate Limiting**: Adjust based on your user base and attack patterns
@@ -449,13 +449,13 @@ Failed to compile schema
 
 If upgrading from v2.0:
 
-- Create `fraiseql.toml` with security section
+- Create `FraiseQL.toml` with security section
 - Copy your authorization/federation configuration
-- Run `fraiseql compile` to generate new schema
+- Run `FraiseQL compile` to generate new schema
 
 ## References
 
-- **Rust Security Config**: `/crates/fraiseql-cli/src/config/`
+- **Rust Security Config**: `/crates/FraiseQL-cli/src/config/`
 - **Specification**: `/tmp/authoring_security_features_prompt_v2.md`
 - **Examples**: See examples above
 

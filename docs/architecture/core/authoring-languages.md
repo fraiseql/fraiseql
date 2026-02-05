@@ -106,12 +106,12 @@ This is the **semantic bridge** between any authoring language and the compiler.
 
 ### Language 1: Python (Priority 1)
 
-**File:** `fraiseql.py` (SDK)
+**File:** `FraiseQL.py` (SDK)
 
 **Approach:** Decorators + type hints
 
 ```python
-from fraiseql import schema, type, query, mutation, ID, String, auth
+from FraiseQL import schema, type, query, mutation, ID, String, auth
 
 @schema.configure(
     name="blog-api",
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
 ### Language 2: TypeScript (Priority 1)
 
-**File:** `fraiseql.ts` (SDK)
+**File:** `FraiseQL.ts` (SDK)
 
 **Approach:** Interfaces + decorators (via decorators proposal)
 
@@ -184,7 +184,7 @@ import {
   String,
   auth,
   Database
-} from "fraiseql";
+} from "FraiseQL";
 
 @schema.configure({
   name: "blog-api",
@@ -405,22 +405,22 @@ extend type Mutation {
 
 ```bash
 # Initialize schema
-fraiseql init --name blog-api --database postgresql
+FraiseQL init --name blog-api --database postgresql
 
 # Add type
-fraiseql add:type User \
+FraiseQL add:type User \
   --field id:ID \
   --field email:String \
   --field name:String
 
 # Add query
-fraiseql add:query users \
+FraiseQL add:query users \
   --returns User \
   --list \
   --binding view:v_user
 
 # Add mutation
-fraiseql add:mutation createUser \
+FraiseQL add:mutation createUser \
   --argument email:String \
   --argument name:String \
   --returns User \
@@ -428,7 +428,7 @@ fraiseql add:mutation createUser \
   --auth admin
 
 # Compile
-fraiseql compile
+FraiseQL compile
 ```text
 
 **Parser:** CLI arguments → structured data → AuthoringIR
@@ -484,7 +484,7 @@ Compilation Pipeline (Phases 1-6)
 ### Python Version
 
 ```python
-from fraiseql import schema, type, query, ID, String
+from FraiseQL import schema, type, query, ID, String
 
 @schema.configure(name="shop", database_target="postgresql")
 class ShopSchema:
@@ -506,7 +506,7 @@ schema.bind("products", "view", "v_product")
 ### TypeScript Version
 
 ```typescript
-import { schema, type, query, ID, String } from "fraiseql";
+import { schema, type, query, ID, String } from "FraiseQL";
 
 @schema.configure({ name: "shop", database_target: "postgresql" })
 export class ShopSchema {}
@@ -568,10 +568,10 @@ type Query {
 ### CLI Version
 
 ```bash
-fraiseql init --name shop --database postgresql
-fraiseql add:type Product --field id:ID --field name:String --field price:Float
-fraiseql add:query products --returns Product --list --binding view:v_product
-fraiseql compile
+FraiseQL init --name shop --database postgresql
+FraiseQL add:type Product --field id:ID --field name:String --field price:Float
+FraiseQL add:query products --returns Product --list --binding view:v_product
+FraiseQL compile
 ```text
 
 **Result:** All five approaches produce **identical CompiledSchema.json**
@@ -769,8 +769,8 @@ type User @cache(ttl: 3600) @auth(requires_role: "admin") {
 #### CLI: Interactive Learning
 
 ```bash
-fraiseql add:type --help
-fraiseql add:mutation --interactive
+FraiseQL add:type --help
+FraiseQL add:mutation --interactive
 ```text
 
 All translate to the same AuthoringIR semantics.
@@ -801,10 +801,10 @@ All translate to the same AuthoringIR semantics.
 # ci/compile.yml
 jobs:
   compile:
-    - If using Python: pip install fraiseql && fraiseql compile schema.py
-    - If using TypeScript: npm install && fraiseql compile schema.ts
-    - If using YAML: fraiseql compile schema.yaml
-    - If using GraphQL: fraiseql compile schema.graphql
+    - If using Python: pip install FraiseQL && FraiseQL compile schema.py
+    - If using TypeScript: npm install && FraiseQL compile schema.ts
+    - If using YAML: FraiseQL compile schema.yaml
+    - If using GraphQL: FraiseQL compile schema.graphql
 
     # All produce identical CompiledSchema.json
     - git diff build/CompiledSchema.json

@@ -87,7 +87,7 @@ echo "Client Secret length: ${#GOOGLE_CLIENT_SECRET}"
 # Don't copy-paste manually - download from provider
 
 # Check logs for errors
-docker logs fraiseql | grep -i "exchange"
+docker logs FraiseQL | grep -i "exchange"
 RUST_LOG=debug cargo run
 
 # If network issue, check:
@@ -200,7 +200,7 @@ echo "JWT_ISSUER: $JWT_ISSUER"
 # - Fetch new keys from provider
 
 # Restart to clear caches:
-docker restart fraiseql
+docker restart FraiseQL
 ```
 
 ### Can't Refresh Token
@@ -221,14 +221,14 @@ docker restart fraiseql
 # Should start with base64 characters
 
 # Check session exists in database
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT COUNT(*) FROM _system.sessions;"
 
 # Verify database connection
 echo $DATABASE_URL
 
 # Check if token was revoked
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT revoked_at FROM _system.sessions LIMIT 1;"
 
 # If revoked, need to log in again
@@ -280,8 +280,8 @@ RUST_LOG=debug cargo run
 
 ```bash
 # Create database if missing
-docker exec fraiseql-db psql -U postgres -c \
-  "CREATE DATABASE fraiseql;"
+docker exec FraiseQL-db psql -U postgres -c \
+  "CREATE DATABASE FraiseQL;"
 
 # Verify table exists
 psql $DATABASE_URL -c "\dt _system.sessions;"
@@ -338,7 +338,7 @@ psql $DATABASE_URL -c "\d _system.sessions;"
 time curl -I https://accounts.google.com/
 
 # Check database query time
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT query, calls, total_time/calls as avg_time \
    FROM pg_stat_statements \
    ORDER BY avg_time DESC LIMIT 10;"
@@ -369,11 +369,11 @@ RUST_LOG=debug
 
 ```bash
 # Check active connections
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT count(*) FROM pg_stat_activity;"
 
 # Check for brute force attempts
-docker logs fraiseql | grep "failed\|error" | tail -20
+docker logs FraiseQL | grep "failed\|error" | tail -20
 
 # Enable rate limiting to prevent abuse:
 # Nginx rate limit:
@@ -400,20 +400,20 @@ limit_req_zone $binary_remote_addr zone=auth:10m rate=1r/s;
 
 ```bash
 # Check session count
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT COUNT(*) FROM _system.sessions \
    WHERE revoked_at IS NULL;"
 
 # Clean old sessions
-docker exec fraiseql-db psql -U fraiseql_app -d fraiseql -c \
+docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "DELETE FROM _system.sessions \
    WHERE expires_at < $(date +%s) - 604800;"
 
 # Restart to clear any temporary caches
-docker restart fraiseql
+docker restart FraiseQL
 
 # Set memory limits
-docker update --memory 512m fraiseql
+docker update --memory 512m FraiseQL
 ```
 
 ## OAuth Provider Issues
@@ -462,7 +462,7 @@ curl https://accounts.google.com/.well-known/openid-configuration
 curl https://www.googleapis.com/oauth2/v1/certs
 
 # If both respond, clear local cache and restart:
-docker restart fraiseql
+docker restart FraiseQL
 
 # Check for certificate issues
 curl -v https://accounts.google.com/ 2>&1 | grep "certificate"
@@ -484,13 +484,13 @@ RUST_LOG=fraiseql_server::auth::handlers=debug
 
 ```bash
 # View real-time logs
-docker logs -f fraiseql
+docker logs -f FraiseQL
 
 # Save logs to file
-docker logs fraiseql > logs.txt 2>&1
+docker logs FraiseQL > logs.txt 2>&1
 
 # Search logs
-docker logs fraiseql | grep "error\|warn"
+docker logs FraiseQL | grep "error\|warn"
 
 # Get metrics
 curl http://localhost:8000/metrics/auth | json_pp
@@ -514,9 +514,9 @@ curl http://localhost:8000/health/auth | jq .
 
 ## Getting Help
 
-1. **Check logs first**: `docker logs fraiseql`
+1. **Check logs first**: `docker logs FraiseQL`
 2. **Enable debug logging**: `RUST_LOG=debug`
-3. **Check GitHub issues**: <https://github.com/fraiseql/fraiseql/issues>
+3. **Check GitHub issues**: <https://github.com/FraiseQL/FraiseQL/issues>
 4. **Create issue with**:
    - Error message (no secrets!)
    - Steps to reproduce

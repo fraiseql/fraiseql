@@ -26,8 +26,8 @@ FraiseQL's Enterprise Role-Based Access Control (RBAC) system provides:
 ### Basic Setup
 
 ```python
-from fraiseql.enterprise.rbac import setup_rbac_cache
-from fraiseql.enterprise.rbac import PermissionResolver
+from FraiseQL.enterprise.rbac import setup_rbac_cache
+from FraiseQL.enterprise.rbac import PermissionResolver
 
 # At application startup
 async def app_startup(db_pool):
@@ -41,7 +41,7 @@ async def app_startup(db_pool):
 ### Using in GraphQL
 
 ```python
-from fraiseql.enterprise.rbac.middleware import create_rbac_middleware
+from FraiseQL.enterprise.rbac.middleware import create_rbac_middleware
 
 # Add RBAC middleware to GraphQL schema
 schema = strawberry.Schema(
@@ -55,7 +55,7 @@ schema = strawberry.Schema(
 
 ```python
 import strawberry
-from fraiseql.enterprise.rbac.directives import requires_permission, requires_role
+from FraiseQL.enterprise.rbac.directives import requires_permission, requires_role
 
 @strawberry.type
 class User:
@@ -506,7 +506,7 @@ Row-level security automatically filters query results based on user permissions
 
 ```python
 # Install Rust row constraint resolver
-from fraiseql.enterprise.rbac.rust_row_constraints import RustRowConstraintResolver
+from FraiseQL.enterprise.rbac.rust_row_constraints import RustRowConstraintResolver
 
 row_resolver = RustRowConstraintResolver(
     db_pool=db_pool,

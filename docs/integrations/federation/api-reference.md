@@ -16,12 +16,12 @@ Complete API reference for Python, TypeScript, and Rust federation support.
 
 ### Decorators
 
-#### @fraiseql.type
+#### @FraiseQL.type
 
 Marks a class as a GraphQL type.
 
 ```python
-from fraiseql import type
+from FraiseQL import type
 
 @type
 class User:
@@ -35,12 +35,12 @@ class User:
 
 ---
 
-#### @fraiseql.key
+#### @FraiseQL.key
 
 Declares the primary key field(s) for federation.
 
 ```python
-from fraiseql import type, key
+from FraiseQL import type, key
 
 @type
 @key(fields=["id"])
@@ -78,12 +78,12 @@ class User:
 
 ---
 
-#### @fraiseql.extends
+#### @FraiseQL.extends
 
 Marks that this service extends an entity from another service.
 
 ```python
-from fraiseql import type, extends, external, key
+from FraiseQL import type, extends, external, key
 
 @type
 @extends
@@ -103,12 +103,12 @@ class User:
 
 ---
 
-#### @fraiseql.external
+#### @FraiseQL.external
 
 Marks a field as external (owned by another subgraph).
 
 ```python
-from fraiseql import type, extends, external
+from FraiseQL import type, extends, external
 
 @type
 @extends
@@ -128,12 +128,12 @@ class User:
 
 ---
 
-#### @fraiseql.requires
+#### @FraiseQL.requires
 
 Specifies fields needed from the authoritative subgraph to resolve this field.
 
 ```python
-from fraiseql import type, extends, external, requires
+from FraiseQL import type, extends, external, requires
 
 @type
 @extends
@@ -159,12 +159,12 @@ class Product:
 
 ---
 
-#### @fraiseql.provides
+#### @FraiseQL.provides
 
 Specifies fields that this subgraph can provide to resolver.
 
 ```python
-from fraiseql import type, provides
+from FraiseQL import type, provides
 
 @type
 class Order:
@@ -179,12 +179,12 @@ class Order:
 
 ---
 
-#### @fraiseql.shareable
+#### @FraiseQL.shareable
 
 Marks that multiple subgraphs can provide this field.
 
 ```python
-from fraiseql import type, shareable
+from FraiseQL import type, shareable
 
 @type
 class Product:
@@ -208,7 +208,7 @@ class Product:
 #### Basic Types
 
 ```python
-from fraiseql import type
+from FraiseQL import type
 
 @type
 class User:
@@ -223,7 +223,7 @@ class User:
 #### Optional Fields
 
 ```python
-from fraiseql import type
+from FraiseQL import type
 from typing import Optional
 
 @type
@@ -236,7 +236,7 @@ class User:
 #### ID Type
 
 ```python
-from fraiseql import type, ID
+from FraiseQL import type, ID
 
 @type
 @key(fields=["id"])
@@ -248,7 +248,7 @@ class User:
 #### Custom Scalars
 
 ```python
-from fraiseql import type, scalar
+from FraiseQL import type, scalar
 
 DateTime = scalar("DateTime", description="ISO 8601 datetime")
 
@@ -263,7 +263,7 @@ class User:
 ### Query Definition
 
 ```python
-from fraiseql import type
+from FraiseQL import type
 from typing import Optional
 
 @type
@@ -302,7 +302,7 @@ class Query:
 ### Mutation Definition
 
 ```python
-from fraiseql import type
+from FraiseQL import type
 from typing import Optional
 
 @type
@@ -328,7 +328,7 @@ class Mutation:
 
 ```python
 """Users Service with Federation"""
-from fraiseql import type, key, extends, external, requires, ID
+from FraiseQL import type, key, extends, external, requires, ID
 from typing import Optional
 
 @type
@@ -379,7 +379,7 @@ class Mutation:
 Marks a class as a GraphQL type.
 
 ```typescript
-import { Type, Key } from '@fraiseql/typescript';
+import { Type, Key } from '@FraiseQL/typescript';
 
 @Type()
 class User {
@@ -395,7 +395,7 @@ class User {
 Declares federation key field(s).
 
 ```typescript
-import { Type, Key } from '@fraiseql/typescript';
+import { Type, Key } from '@FraiseQL/typescript';
 
 @Type()
 @Key({ fields: ['id'] })
@@ -418,7 +418,7 @@ class User {
 Marks that this service extends an entity.
 
 ```typescript
-import { Type, Extends, Key, External } from '@fraiseql/typescript';
+import { Type, Extends, Key, External } from '@FraiseQL/typescript';
 
 @Type()
 @Extends()
@@ -456,7 +456,7 @@ class User {
 Specifies fields needed to resolve this field.
 
 ```typescript
-import { Requires } from '@fraiseql/typescript';
+import { Requires } from '@FraiseQL/typescript';
 
 @Type()
 @Extends()
@@ -476,7 +476,7 @@ class User {
 Marks that multiple services provide this field.
 
 ```typescript
-import { Shareable } from '@fraiseql/typescript';
+import { Shareable } from '@FraiseQL/typescript';
 
 @Type()
 class Product {
@@ -510,7 +510,7 @@ class User {
 ### Query Definition
 
 ```typescript
-import { Type } from '@fraiseql/typescript';
+import { Type } from '@FraiseQL/typescript';
 
 @Type()
 class Query {
@@ -531,7 +531,7 @@ class Query {
 ### Mutation Definition
 
 ```typescript
-import { Type } from '@fraiseql/typescript';
+import { Type } from '@FraiseQL/typescript';
 
 @Type()
 class Mutation {
@@ -568,7 +568,7 @@ import {
   External,
   Requires,
   Shareable,
-} from '@fraiseql/typescript';
+} from '@FraiseQL/typescript';
 
 @Type()
 @Key({ fields: ['id'] })
@@ -841,7 +841,7 @@ pub struct HttpClientConfig {
 ### Python
 
 ```python
-from fraiseql import FraiseQLError
+from FraiseQL import FraiseQLError
 
 try:
     user = resolver.resolve_entity("User", representation)

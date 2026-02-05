@@ -483,7 +483,7 @@ recovery_enabled = true
 recovery_poll_interval_seconds = 60
 
 [saga.store.postgres]
-connection_string = "postgres://user:pass@db:5432/fraiseql"
+connection_string = "postgres://user:pass@db:5432/FraiseQL"
 max_pool_size = 20
 migration_path = "migrations/"
 ```text

@@ -30,17 +30,17 @@ Services will be available at:
 
 ```bash
 # Add FraiseQL Helm repository
-helm repo add fraiseql https://charts.fraiseql.io
+helm repo add FraiseQL https://charts.FraiseQL.io
 helm repo update
 
 # Install release
-helm install fraiseql fraiseql/fraiseql \
+helm install FraiseQL FraiseQL/FraiseQL \
   --namespace default \
   --values custom-values.yaml
 
 # Verify deployment
 kubectl get deployments
-kubectl get pods -l app=fraiseql
+kubectl get pods -l app=FraiseQL
 ```
 
 #### Using Static Manifests
@@ -52,10 +52,10 @@ kubectl apply -f deploy/kubernetes/service.yaml
 kubectl apply -f deploy/kubernetes/configmap.yaml
 
 # Deploy with hardened security
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 
 # Verify deployment
-kubectl get all -l app=fraiseql
+kubectl get all -l app=FraiseQL
 ```
 
 ## Architecture
@@ -107,7 +107,7 @@ RATE_LIMIT_ENABLED=true
 AUDIT_LOG_ENABLED=true
 ```
 
-### Configuration File (fraiseql.toml)
+### Configuration File (FraiseQL.toml)
 
 ```toml
 [server]
@@ -165,10 +165,10 @@ View logs:
 
 ```bash
 # Docker Compose
-docker-compose logs -f fraiseql
+docker-compose logs -f FraiseQL
 
 # Kubernetes
-kubectl logs -f deployment/fraiseql
+kubectl logs -f deployment/FraiseQL
 ```
 
 ## Scaling
@@ -178,7 +178,7 @@ kubectl logs -f deployment/fraiseql
 Kubernetes automatically scales based on CPU/memory:
 
 ```bash
-kubectl autoscale deployment fraiseql --min=3 --max=10
+kubectl autoscale deployment FraiseQL --min=3 --max=10
 ```
 
 ### Performance Tuning
@@ -193,10 +193,10 @@ kubectl autoscale deployment fraiseql --min=3 --max=10
 
 ```bash
 # PostgreSQL backup
-pg_dump -h localhost -U fraiseql fraiseql > backup.sql
+pg_dump -h localhost -U FraiseQL FraiseQL > backup.sql
 
 # Restore
-psql -h localhost -U fraiseql fraiseql < backup.sql
+psql -h localhost -U FraiseQL FraiseQL < backup.sql
 ```
 
 ### Disaster Recovery
@@ -209,7 +209,7 @@ See DEPLOYMENT_RUNBOOKS.md for recovery procedures.
 
 ```bash
 # Check PostgreSQL connectivity
-psql -h localhost -U fraiseql -d fraiseql -c "SELECT 1"
+psql -h localhost -U FraiseQL -d FraiseQL -c "SELECT 1"
 
 # Check Redis connectivity
 redis-cli -h localhost ping

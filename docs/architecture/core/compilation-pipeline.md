@@ -236,7 +236,7 @@ For each GraphQL type, bind to a database view:
 
 ```python
 # GraphQL
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     email: str
@@ -277,12 +277,12 @@ for each field in GraphQL type:
 The compiler infers foreign key relationships from type references:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     posts: list[Post]  # Inferred FK: User → Post
 
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID
     author: User       # Inferred FK: Post → User
@@ -554,10 +554,10 @@ Subscriptions compile through the same pipeline as queries and mutations, with i
 
 ### 6.1 Subscription Parsing
 
-Parse `@fraiseql.subscription` declarations from all authoring languages:
+Parse `@FraiseQL.subscription` declarations from all authoring languages:
 
 ```python
-@fraiseql.subscription
+@FraiseQL.subscription
 class OrderCreated:
     """Event fired when order is created."""
     id: ID
@@ -607,8 +607,8 @@ Row-level authorization rules applied at event capture:
 
 ```python
 # If schema defines:
-@fraiseql.subscription
-@fraiseql.auth(requires_role="user")
+@FraiseQL.subscription
+@FraiseQL.auth(requires_role="user")
 class OrderCreated:
     ...
 
@@ -674,8 +674,8 @@ The compiler enforces these invariants:
 Every referenced type must be defined:
 
 ```python
-@fraiseql.query
-def users() -> list[User]:  # User must be @fraiseql.type
+@FraiseQL.query
+def users() -> list[User]:  # User must be @FraiseQL.type
     pass
 ```text
 
@@ -685,7 +685,7 @@ def users() -> list[User]:  # User must be @fraiseql.type
 Error: Type closure violation
   Query 'users' returns 'list[User]'
   Type 'User' not defined
-  → Define @fraiseql.type class User
+  → Define @FraiseQL.type class User
 ```text
 
 #### 7.1.2 Binding Existence
@@ -693,7 +693,7 @@ Error: Type closure violation
 Every type returned by queries/mutations must have a binding:
 
 ```python
-@fraiseql.query
+@FraiseQL.query
 def users() -> list[User]:
     pass
 
@@ -731,7 +731,7 @@ Error: View not found
 All GraphQL fields must map to discoverable columns:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     undefined_field: str  # ❌ Not in v_user
@@ -751,7 +751,7 @@ Error: Column not found
 Mutation input must match procedure parameters:
 
 ```python
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(email: str, name: str) -> User:
     pass
 
@@ -797,7 +797,7 @@ Error: Operator not supported
 Auth rules must reference valid auth context fields:
 
 ```python
-@fraiseql.query
+@FraiseQL.query
 @auth.requires_claim("invalid_field")  # ❌ Not in AuthContext
 def secure_query() -> User:
     pass
@@ -809,7 +809,7 @@ def secure_query() -> User:
 Error: Auth context mismatch
   Rule requires claim 'invalidField'
   → Field not in AuthContext
-  → Add field to @fraiseql.auth_context
+  → Add field to @FraiseQL.auth_context
 ```text
 
 ### 7.2 Validation Output
@@ -930,27 +930,27 @@ my-api/
 
 ```bash
 # Compile schema
-fraiseql compile schema.py \
+FraiseQL compile schema.py \
   --database-url postgresql://... \
   --output build/
 
 # Or with environment variable
 export DATABASE_URL=postgresql://...
-fraiseql compile schema.py
+FraiseQL compile schema.py
 ```text
 
 ### 8.2 Validation-Only Mode
 
 ```bash
 # Validate without database connection (use cached schema)
-fraiseql compile schema.py --validate-only
+FraiseQL compile schema.py --validate-only
 ```text
 
 ### 8.3 Dry-Run Mode
 
 ```bash
 # Show what would be compiled, no changes
-fraiseql compile schema.py --dry-run
+FraiseQL compile schema.py --dry-run
 ```text
 
 ---
@@ -1009,10 +1009,10 @@ For fast iteration, cache database introspection:
 
 ```bash
 # First compile: full introspection
-fraiseql compile schema.py --database-url postgresql://...
+FraiseQL compile schema.py --database-url postgresql://...
 
 # Subsequent compiles: use cache
-fraiseql compile schema.py  # Skips DB queries if schema unchanged
+FraiseQL compile schema.py  # Skips DB queries if schema unchanged
 ```text
 
 ---
@@ -1023,7 +1023,7 @@ fraiseql compile schema.py  # Skips DB queries if schema unchanged
 
 ```bash
 # Compile for multiple targets
-fraiseql compile schema.py \
+FraiseQL compile schema.py \
   --targets postgresql,sqlite,mysql
 ```text
 
@@ -1037,7 +1037,7 @@ Each target produces:
 
 ```bash
 # Generate migration metadata
-fraiseql compile schema.py --version 2.1.0 --prev-version 2.0.0
+FraiseQL compile schema.py --version 2.1.0 --prev-version 2.0.0
 ```text
 
 Produces schema diff for documentation and client versioning.

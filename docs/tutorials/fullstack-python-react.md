@@ -23,9 +23,9 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 │   Developer Workstation │
 ├─────────────────────────┤
 │ 1. Write Python Schema  │
-│    @fraiseql.type       │
-│    @fraiseql.query      │
-│    @fraiseql.mutation   │
+│    @FraiseQL.type       │
+│    @FraiseQL.query      │
+│    @FraiseQL.mutation   │
 └────────┬────────────────┘
          │ python schema.py export
          ↓
@@ -33,7 +33,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 │   schema.json            │
 │ (types + queries + muts) │
 └────────┬─────────────────┘
-         │ fraiseql-cli compile
+         │ FraiseQL-cli compile
          ↓
 ┌──────────────────────────────────┐
 │ schema.compiled.json             │
@@ -94,7 +94,7 @@ Create the following project structure:
 fullstack-blog/
 ├── backend/
 │   ├── schema.py                      # Python schema definition
-│   ├── fraiseql.toml                  # FraiseQL configuration
+│   ├── FraiseQL.toml                  # FraiseQL configuration
 │   ├── schema.json                    # Exported schema (generated)
 │   ├── schema.compiled.json           # Compiled schema (generated)
 │   ├── Dockerfile                     # FraiseQL server container
@@ -505,7 +505,7 @@ docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-
 Create `backend/requirements.txt`:
 
 ```text
-fraiseql==2.0.0a1
+FraiseQL==2.0.0a1
 pydantic==2.5.0
 ```text
 
@@ -522,7 +522,7 @@ with FraiseQL decorators. The schema is compiled to optimized SQL at build time.
 """
 
 from typing import Optional
-from fraiseql import schema
+from FraiseQL import schema
 from datetime import datetime
 
 # Initialize the FraiseQL schema
@@ -1014,15 +1014,15 @@ This generates `schema.json` containing all types, queries, and mutations.
 
 ### 4.1 FraiseQL Configuration
 
-Create `backend/fraiseql.toml`:
+Create `backend/FraiseQL.toml`:
 
 ```toml
-[fraiseql]
+[FraiseQL]
 name = "blog-api"
 version = "1.0.0"
 description = "Full-stack blog API with FraiseQL"
 
-[fraiseql.database]
+[FraiseQL.database]
 adapter = "postgresql"
 host = "localhost"
 port = 5432
@@ -1030,19 +1030,19 @@ name = "blog_db"
 user = "blog_user"
 password = "blog_password"
 
-[fraiseql.security]
+[FraiseQL.security]
 # Error handling
 error_sanitization = true
 log_errors = true
 
 # Rate limiting
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 1000
 auth_start_window_secs = 60
 
 # CORS configuration
-[fraiseql.server]
+[FraiseQL.server]
 port = 8000
 host = "0.0.0.0"
 cors_origins = ["http://localhost:5173", "http://localhost:3000"]
@@ -1054,7 +1054,7 @@ health_path = "/health"
 
 ```bash
 # From backend directory
-fraiseql-cli compile schema.json fraiseql.toml
+FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Output:
 # ✓ Compilation successful
@@ -1091,10 +1091,10 @@ WORKDIR /app
 
 # Copy schema
 COPY schema.compiled.json .
-COPY fraiseql.toml .
+COPY FraiseQL.toml .
 
 # Build FraiseQL server (pre-installed in the environment)
-RUN fraiseql-server --version
+RUN FraiseQL-server --version
 
 FROM debian:bookworm-slim
 
@@ -1106,11 +1106,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy FraiseQL server binary (pre-built)
-COPY --from=builder /usr/local/bin/fraiseql-server /usr/local/bin/
+COPY --from=builder /usr/local/bin/FraiseQL-server /usr/local/bin/
 
 # Copy schema and config
 COPY schema.compiled.json .
-COPY fraiseql.toml .
+COPY FraiseQL.toml .
 
 # Health check
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
@@ -1120,7 +1120,7 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Start FraiseQL server
-CMD ["fraiseql-server", "--schema", "schema.compiled.json", "--config", "fraiseql.toml"]
+CMD ["FraiseQL-server", "--schema", "schema.compiled.json", "--config", "FraiseQL.toml"]
 ```text
 
 ### 5.2 Docker Compose Orchestration
@@ -1149,11 +1149,11 @@ services:
       timeout: 5s
       retries: 5
 
-  fraiseql-server:
+  FraiseQL-server:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: blog-fraiseql
+    container_name: blog-FraiseQL
     environment:
       DATABASE_URL: postgres://blog_user:blog_password@postgres:5432/blog_db
       RUST_LOG: info
@@ -1169,7 +1169,7 @@ services:
       retries: 3
     volumes:
       - ./backend/schema.compiled.json:/app/schema.compiled.json
-      - ./backend/fraiseql.toml:/app/fraiseql.toml
+      - ./backend/FraiseQL.toml:/app/FraiseQL.toml
 
 volumes:
   postgres_data:
@@ -1185,7 +1185,7 @@ docker-compose up -d
 docker-compose ps
 
 # View logs
-docker-compose logs -f fraiseql-server
+docker-compose logs -f FraiseQL-server
 
 # Test the GraphQL API
 curl http://localhost:8000/health
@@ -1861,8 +1861,8 @@ CommentSection component maps over comments
 docker-compose build
 
 # Push to registry (optional)
-docker tag blog-fraiseql-server myregistry/blog-fraiseql:v1.0
-docker push myregistry/blog-fraiseql:v1.0
+docker tag blog-FraiseQL-server myregistry/blog-FraiseQL:v1.0
+docker push myregistry/blog-FraiseQL:v1.0
 ```text
 
 ### 11.2 Kubernetes Deployment
@@ -1873,20 +1873,20 @@ Create `k8s/deployment.yaml`:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: blog-fraiseql-server
+  name: blog-FraiseQL-server
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: blog-fraiseql-server
+      app: blog-FraiseQL-server
   template:
     metadata:
       labels:
-        app: blog-fraiseql-server
+        app: blog-FraiseQL-server
     spec:
       containers:
-      - name: fraiseql-server
-        image: myregistry/blog-fraiseql:v1.0
+      - name: FraiseQL-server
+        image: myregistry/blog-FraiseQL:v1.0
         ports:
         - containerPort: 8000
         env:
@@ -1905,10 +1905,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: blog-fraiseql-service
+  name: blog-FraiseQL-service
 spec:
   selector:
-    app: blog-fraiseql-server
+    app: blog-FraiseQL-server
   ports:
   - protocol: TCP
     port: 80
@@ -1955,7 +1955,7 @@ curl http://localhost:8000/graphql \
 
 ```bash
 # View FraiseQL server logs
-docker-compose logs -f fraiseql-server
+docker-compose logs -f FraiseQL-server
 
 # View PostgreSQL logs
 docker-compose logs -f postgres
@@ -1986,7 +1986,7 @@ time curl http://localhost:8000/graphql \
 **Solution:**
 
 ```bash
-docker-compose ps  # Check if fraiseql-server is running
+docker-compose ps  # Check if FraiseQL-server is running
 curl http://localhost:8000/health  # Test connectivity
 ```text
 
@@ -1997,7 +1997,7 @@ curl http://localhost:8000/health  # Test connectivity
 **Solution:**
 
 ```bash
-# Check CORS settings in fraiseql.toml
+# Check CORS settings in FraiseQL.toml
 # Ensure React app URL is in cors_origins
 curl -H "Origin: http://localhost:5173" http://localhost:8000/health
 ```text
@@ -2079,7 +2079,7 @@ fullstack-blog/
 │   ├── schema.py                    # Python schema (authoring)
 │   ├── schema.json                  # Exported schema
 │   ├── schema.compiled.json         # Compiled schema (generated)
-│   ├── fraiseql.toml                # Server config
+│   ├── FraiseQL.toml                # Server config
 │   ├── Dockerfile                   # Server container
 │   ├── requirements.txt             # Python deps
 │   └── venv/                        # Python virtual env
@@ -2129,7 +2129,7 @@ The key insight: **FraiseQL is the compiled GraphQL backend**. You write Python,
 ```bash
 # Backend
 cd backend && python schema.py export              # Export schema
-fraiseql-cli compile schema.json fraiseql.toml     # Compile
+FraiseQL-cli compile schema.json FraiseQL.toml     # Compile
 docker build -t blog-server .                      # Build container
 
 # Frontend

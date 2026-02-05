@@ -99,7 +99,7 @@ curl -X POST http://localhost:8000/graphql \
 docker compose -f docker/docker-compose.demo.yml logs -f
 
 # Specific service
-docker compose -f docker/docker-compose.demo.yml logs -f fraiseql-server
+docker compose -f docker/docker-compose.demo.yml logs -f FraiseQL-server
 docker compose -f docker/docker-compose.demo.yml logs -f postgres-blog
 ```
 
@@ -125,7 +125,7 @@ docker compose -f docker/docker-compose.demo.yml ps
 
 ```bash
 docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
-  psql -U fraiseql -d blog_fraiseql
+  psql -U FraiseQL -d blog_fraiseql
 ```
 
 ## Troubleshooting
@@ -156,7 +156,7 @@ curl http://localhost:8000/health
 **View server logs:**
 
 ```bash
-docker compose -f docker/docker-compose.demo.yml logs fraiseql-server
+docker compose -f docker/docker-compose.demo.yml logs FraiseQL-server
 ```
 
 ### Database Connection Failed
@@ -171,7 +171,7 @@ docker compose -f docker/docker-compose.demo.yml logs postgres-blog
 
 ```bash
 docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
-  pg_isready -U fraiseql -d blog_fraiseql
+  pg_isready -U FraiseQL -d blog_fraiseql
 ```
 
 ## Next Steps
@@ -206,21 +206,21 @@ FraiseQL is a **compiled GraphQL execution engine** that:
 4. **Works with existing databases**: PostgreSQL, MySQL, SQLite, SQL Server
 5. **Enterprise-ready**: Security, observability, federation built-in
 
-Learn more: <https://github.com/anthropics/fraiseql>
+Learn more: <https://github.com/anthropics/FraiseQL>
 
 ## Getting Help
 
 - **Documentation**: `/docs/`
 - **Examples**: `/examples/`
-- **Issues**: <https://github.com/anthropics/fraiseql/issues>
+- **Issues**: <https://github.com/anthropics/FraiseQL/issues>
 - **Community**: Discord/GitHub Discussions
 
 ## Docker Image Details
 
 The demo uses the official FraiseQL Docker image built from the latest source. It includes:
 
-- **fraiseql-server**: GraphQL execution engine
-- **fraiseql-cli**: Schema compilation tool
+- **FraiseQL-server**: GraphQL execution engine
+- **FraiseQL-cli**: Schema compilation tool
 - Pre-compiled schemas for examples
 
 For production deployments, see `/docs/deployment/guide.md`.

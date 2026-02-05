@@ -258,34 +258,34 @@ fraiseql_errors_total
 Applications can define custom business metrics:
 
 ```python
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     email: str
 
-    @fraiseql.metric(name="user_created", type="counter")
+    @FraiseQL.metric(name="user_created", type="counter")
     def track_creation(self):
         """Track when users are created"""
         # Automatically incremented on mutation
 
-@fraiseql.type
+@FraiseQL.type
 class Order:
     id: ID
     total: float
 
-    @fraiseql.metric(name="order_revenue", type="gauge", value_field="total")
+    @FraiseQL.metric(name="order_revenue", type="gauge", value_field="total")
     def track_revenue(self):
         """Track total order revenue"""
         # Value automatically updated
 
-@fraiseql.resolver
+@FraiseQL.resolver
 def custom_metric_handler():
     """Define custom metrics for business logic"""
-    fraiseql.metrics.gauge(
+    FraiseQL.metrics.gauge(
         name="active_users",
         value=count_active_users()
     )
-    fraiseql.metrics.gauge(
+    FraiseQL.metrics.gauge(
         name="pending_orders",
         value=count_pending_orders()
     )
@@ -404,7 +404,7 @@ All logs are structured JSON with consistent schema:
 {
   "timestamp": "2026-01-15T10:30:45.123Z",
   "level": "info",
-  "logger": "fraiseql.query",
+  "logger": "FraiseQL.query",
   "message": "Query executed successfully",
   "context": {
     "request_id": "req-abc123",
@@ -625,8 +625,8 @@ All logs are structured JSON with consistent schema:
     "retryable": true,
     "remediable": false,
     "trace": [
-      "fraiseql.runtime.execute_query:123",
-      "fraiseql.db.query:456",
+      "FraiseQL.runtime.execute_query:123",
+      "FraiseQL.db.query:456",
       "tokio.timeout:789"
     ]
   }
@@ -639,7 +639,7 @@ All logs are structured JSON with consistent schema:
 
 ```python
 # By default, DEBUG logs are sampled (1 in 100)
-fraiseql.logging.configure({
+FraiseQL.logging.configure({
     "debug_sampling": {
         "enabled": True,
         "rate": 0.01,  # 1% of debug logs
@@ -654,11 +654,11 @@ fraiseql.logging.configure({
 # Change log level without restart
 curl -X POST http://localhost:8000/admin/logging \
   -d '{
-    "logger": "fraiseql.query",
+    "logger": "FraiseQL.query",
     "level": "debug"
   }'
 
-# Result: fraiseql.query logs now at DEBUG level
+# Result: FraiseQL.query logs now at DEBUG level
 # Reverts after 1 hour or on restart
 ```text
 
@@ -861,7 +861,7 @@ else:
     {
       "resource": {
         "attributes": [
-          {"key": "service.name", "value": {"stringValue": "fraiseql"}},
+          {"key": "service.name", "value": {"stringValue": "FraiseQL"}},
           {"key": "service.version", "value": {"stringValue": "2.0.0"}}
         ]
       },
@@ -893,7 +893,7 @@ FraiseQL includes pre-built Prometheus alert rules:
 
 ```yaml
 groups:
-  - name: fraiseql.alerts
+  - name: FraiseQL.alerts
     interval: 30s
     rules:
       - alert: QueryLatencyHigh
@@ -955,7 +955,7 @@ groups:
 Applications can define custom alerts:
 
 ```python
-@fraiseql.alert
+@FraiseQL.alert
 def high_order_value(context):
     """Alert if single order exceeds threshold"""
     return {
@@ -964,7 +964,7 @@ def high_order_value(context):
         "message": f"High-value order: ${context.order.total}"
     }
 
-@fraiseql.alert
+@FraiseQL.alert
 def slow_query_detection(context):
     """Alert on slow queries"""
     return {
@@ -1050,12 +1050,12 @@ GET /health
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fraiseql
+  name: FraiseQL
 spec:
   template:
     spec:
       containers:
-      - name: fraiseql
+      - name: FraiseQL
         livenessProbe:
           httpGet:
             path: /health/live
@@ -1149,7 +1149,7 @@ Response:
 ### 7.1 Configuration Options
 
 ```python
-fraiseql.observability.configure({
+FraiseQL.observability.configure({
     # Metrics
     "metrics": {
         "enabled": True,

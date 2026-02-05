@@ -11,10 +11,10 @@ Complete API reference for the FraiseQL PHP SDK. This guide covers the complete 
 
 ```bash
 # Add to existing project
-composer require fraiseql/sdk "^2.0"
+composer require FraiseQL/SDK "^2.0"
 
 # Or create new project
-composer create-project fraiseql/php-starter my-api
+composer create-project FraiseQL/php-starter my-api
 ```
 
 **Requirements**:
@@ -34,7 +34,7 @@ Create `composer.json` with PSR-4 autoloading:
   "description": "GraphQL API with FraiseQL",
   "require": {
     "php": "^8.2",
-    "fraiseql/sdk": "^2.0"
+    "FraiseQL/SDK": "^2.0"
   },
   "autoload": {
     "psr-4": {
@@ -76,9 +76,9 @@ readonly class User
 Export and compile:
 
 ```bash
-vendor/bin/fraiseql export src/GraphQL schema.json
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+vendor/bin/FraiseQL export src/GraphQL schema.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -540,15 +540,15 @@ The `#[Type]`, `#[Query]`, `#[Mutation]` attributes are automatically discovered
 
 ```bash
 # Export schema from all PSR-4 namespaces
-vendor/bin/fraiseql export src/GraphQL schema.json
+vendor/bin/FraiseQL export src/GraphQL schema.json
 
 # Or specific directory
-vendor/bin/fraiseql export src/GraphQL/Types schema.json
+vendor/bin/FraiseQL export src/GraphQL/Types schema.json
 ```
 
 ### Integration with Laravel
 
-Configure in `config/fraiseql.php`:
+Configure in `config/FraiseQL.php`:
 
 ```php
 return [
@@ -557,8 +557,8 @@ return [
         'queries' => 'App\\GraphQL\\Queries',
         'mutations' => 'App\\GraphQL\\Mutations',
     ],
-    'schema_path' => 'database/fraiseql/schema.json',
-    'compiled_path' => 'database/fraiseql/schema.compiled.json',
+    'schema_path' => 'database/FraiseQL/schema.json',
+    'compiled_path' => 'database/FraiseQL/schema.compiled.json',
 ];
 ```
 
@@ -572,15 +572,15 @@ Route::post('/graphql', FraiseqlController::class);
 
 ### Integration with Symfony
 
-Configure in `config/packages/fraiseql.yaml`:
+Configure in `config/packages/FraiseQL.yaml`:
 
 ```yaml
-fraiseql:
+FraiseQL:
   namespaces:
     types: 'App\GraphQL\Types'
     queries: 'App\GraphQL\Queries'
     mutations: 'App\GraphQL\Mutations'
-  schema_path: '%kernel.project_dir%/var/fraiseql/schema.json'
+  schema_path: '%kernel.project_dir%/var/FraiseQL/schema.json'
 ```
 
 Use in controller:
@@ -595,12 +595,12 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 class GraphQLController extends AbstractController
 {
     public function __construct(
-        private FraiseqlService $fraiseql,
+        private FraiseqlService $FraiseQL,
     ) {}
 
     public function query(): Response
     {
-        return $this->fraiseql->handle($request);
+        return $this->FraiseQL->handle($request);
     }
 }
 ```
@@ -762,7 +762,7 @@ class UserQueriesTest extends SchemaTestCase
 - [Laravel Integration](./laravel-integration.md)
 - [Symfony Integration](./symfony-integration.md)
 - [Testing Guide](../../../docs/TESTING_GUIDE.md)
-- [API Reference](https://github.com/fraiseql/fraiseql/tree/dev/docs/api)
+- [API Reference](https://github.com/FraiseQL/FraiseQL/tree/dev/docs/api)
 
 ---
 
@@ -772,12 +772,12 @@ class UserQueriesTest extends SchemaTestCase
 
 #### Composer Issues
 
-**Issue**: `Could not find package fraiseql/fraiseql`
+**Issue**: `Could not find package FraiseQL/FraiseQL`
 
 **Solution**:
 
 ```bash
-composer require fraiseql/fraiseql "^2.0"
+composer require FraiseQL/FraiseQL "^2.0"
 composer update
 composer dump-autoload
 ```
@@ -822,8 +822,8 @@ phpenv global 8.2
 **Solution - Rebuild extensions**:
 
 ```bash
-pecl install fraiseql
-php -m | grep fraiseql
+pecl install FraiseQL
+php -m | grep FraiseQL
 ```
 
 ---
@@ -1030,7 +1030,7 @@ var_dump($coverage);
 
 Provide: 1. PHP version: `php -v`
 2. Composer version: `composer --version`
-3. FraiseQL version: `composer show fraiseql/fraiseql`
+3. FraiseQL version: `composer show FraiseQL/FraiseQL`
 4. Error message
 5. Minimal code example
 

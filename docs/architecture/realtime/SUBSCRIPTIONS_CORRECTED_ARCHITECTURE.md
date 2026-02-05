@@ -103,7 +103,7 @@
 - Maintains checkpoint for recovery (no duplicate processing)
 - Fetches entries in batches (default: 100 events)
 - Parses Debezium envelope format (before/after/op)
-- Location: `crates/fraiseql-observers/src/listener/change_log.rs`
+- Location: `crates/FraiseQL-observers/src/listener/change_log.rs`
 - **Key insight:** 100ms polling IS real-time for UI updates
 
 **ObserverRuntime** ✅ *Fully implemented*
@@ -114,7 +114,7 @@
 - Routes events to registered consumers:
   - ObserverExecutor (actions like webhooks, email)
   - SubscriptionManager (transports like WebSocket, Kafka) ← **To be added**
-- Location: `crates/fraiseql-server/src/observers/runtime.rs`
+- Location: `crates/FraiseQL-server/src/observers/runtime.rs`
 
 **SubscriptionManager** ✅ *Fully implemented*
 
@@ -123,7 +123,7 @@
 - Projects data to subscription's field selection
 - Broadcasts via `tokio::sync::broadcast` channels
 - Delivers to transport adapters (WebSocket, Kafka, Webhooks)
-- Location: `crates/fraiseql-core/src/runtime/subscription.rs`
+- Location: `crates/FraiseQL-core/src/runtime/subscription.rs`
 
 **Transport Adapters** ✅ *All fully implemented*
 

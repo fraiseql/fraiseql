@@ -117,7 +117,7 @@ root_dir = "schema"
 Then compile:
 
 ```bash
-fraiseql compile fraiseql.toml
+FraiseQL compile FraiseQL.toml
 ```text
 
 The compiler will:
@@ -309,7 +309,7 @@ None - core domain
 Always validate after adding/removing domains:
 
 ```bash
-fraiseql compile fraiseql.toml --check
+FraiseQL compile FraiseQL.toml --check
 ```text
 
 This validates:
@@ -330,7 +330,7 @@ schema/
 └── orders/
 ```text
 
-Use: `fraiseql compile fraiseql.toml`
+Use: `FraiseQL compile FraiseQL.toml`
 
 ### Pattern 2: Medium (5-15 Domains)
 
@@ -416,8 +416,8 @@ root_dir = "schema"
 **Step 4**: Compile and verify
 
 ```bash
-fraiseql compile fraiseql.toml
-fraiseql compile fraiseql.toml --check
+FraiseQL compile FraiseQL.toml
+FraiseQL compile FraiseQL.toml --check
 ```text
 
 ## Examples
@@ -443,7 +443,7 @@ Build any example:
 
 ```bash
 cd examples/ecommerce
-fraiseql compile fraiseql.toml
+FraiseQL compile FraiseQL.toml
 ```text
 
 ## Troubleshooting
@@ -472,13 +472,13 @@ To enforce domain best practices, add validation:
 
 ```bash
 # Check for duplicate types (future feature)
-fraiseql validate domains
+FraiseQL validate domains
 
 # Check for circular dependencies
-fraiseql lint domains --detect-cycles
+FraiseQL lint domains --detect-cycles
 
 # Generate domain dependency graph
-fraiseql docs domains --graph
+FraiseQL docs domains --graph
 ```text
 
 These are potential future enhancements to FraiseQL.

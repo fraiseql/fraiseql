@@ -29,7 +29,7 @@
 - Schema migration tool (Flyway, Liquibase, or custom scripts)
 - Git for version control
 - Performance profiling tool (pg_stat_statements, EXPLAIN)
-- DDL generation tool (fraiseql-cli or SDK)
+- DDL generation tool (FraiseQL-cli or SDK)
 
 ### Required Infrastructure:
 
@@ -390,12 +390,12 @@ SELECT
 
 ```python
 # Before
-@fraiseql.type()
+@FraiseQL.type()
 class User:
     pass
 
 # After
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class UserProfile:
     pass
 ```
@@ -559,7 +559,7 @@ WHERE tablename = 'tv_user_profile';
 
 ```python
 # Revert to old view
-@fraiseql.type()  # Back to v_user_profile
+@FraiseQL.type()  # Back to v_user_profile
 class UserProfile:
     pass
 ```
@@ -841,7 +841,7 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 - Verify CDC is configured to send to ClickHouse
 - Check network connectivity to ClickHouse
 - Ensure ClickHouse table schema matches
-- Force query to ClickHouse: Check fraiseql.toml routing config
+- Force query to ClickHouse: Check FraiseQL.toml routing config
 - Monitor ClickHouse logs for insert errors
 
 ---

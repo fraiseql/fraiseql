@@ -30,7 +30,7 @@
 
 **Required Infrastructure:**
 
-- FraiseQL CLI tooling (fraiseql compile command)
+- FraiseQL CLI tooling (FraiseQL compile command)
 - PostgreSQL 14+ database (for compilation validation)
 - File system with write permissions for schema.json output
 - Network connectivity for downloading language SDKs
@@ -66,7 +66,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
                       └─────┬──────┘
                             │
                       ┌─────▼──────────────┐
-                      │ fraiseql-cli       │
+                      │ FraiseQL-cli       │
                       │ (compilation)      │
                       └─────┬──────────────┘
                             │
@@ -91,7 +91,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
 ### Installation
 
 ```bash
-cd fraiseql-python
+cd FraiseQL-python
 pip install -e .
 # or with uv:
 uv sync
@@ -100,7 +100,7 @@ uv sync
 ### Basic Usage
 
 ```python
-from fraiseql import (
+from FraiseQL import (
     type as fraiseql_type,
     query as fraiseql_query,
     mutation as fraiseql_mutation,
@@ -153,7 +153,7 @@ fraiseql_schema.export_schema("schema.json")
 ### Analytics Support
 
 ```python
-from fraiseql import fact_table, aggregate_query
+from FraiseQL import fact_table, aggregate_query
 
 @fact_table(
     table_name="tf_sales",
@@ -189,7 +189,7 @@ def salesByCategory(category: str) -> dict:
 ### Testing
 
 ```bash
-cd fraiseql-python
+cd FraiseQL-python
 python -m pytest tests/ -v
 
 # E2E test
@@ -201,7 +201,7 @@ python -m pytest tests/e2e/python_e2e_test.py -v
 ### Installation
 
 ```bash
-cd fraiseql-typescript
+cd FraiseQL-typescript
 npm install
 # or
 npm ci
@@ -304,7 +304,7 @@ Enable experimental decorators in `tsconfig.json`:
 ### Testing
 
 ```bash
-cd fraiseql-typescript
+cd FraiseQL-typescript
 npm test
 
 # E2E test
@@ -317,7 +317,7 @@ npm run example:analytics
 ### Installation
 
 ```bash
-cd fraiseql-go
+cd FraiseQL-go
 go mod download
 ```text
 
@@ -326,34 +326,34 @@ go mod download
 ```go
 package main
 
-import "github.com/fraiseql/fraiseql-go/fraiseql"
+import "github.com/FraiseQL/FraiseQL-go/FraiseQL"
 
 // Define types
 type User struct {
-    ID        int     `fraiseql:"id"`
-    Name      string  `fraiseql:"name"`
-    Email     *string `fraiseql:"email"`
-    CreatedAt string  `fraiseql:"createdAt"`
-    IsActive  bool    `fraiseql:"isActive"`
+    ID        int     `FraiseQL:"id"`
+    Name      string  `FraiseQL:"name"`
+    Email     *string `FraiseQL:"email"`
+    CreatedAt string  `FraiseQL:"createdAt"`
+    IsActive  bool    `FraiseQL:"isActive"`
 }
 
 type Post struct {
-    ID        int    `fraiseql:"id"`
-    Title     string `fraiseql:"title"`
-    Content   string `fraiseql:"content"`
-    AuthorID  int    `fraiseql:"authorId"`
-    Published bool   `fraiseql:"published"`
+    ID        int    `FraiseQL:"id"`
+    Title     string `FraiseQL:"title"`
+    Content   string `FraiseQL:"content"`
+    AuthorID  int    `FraiseQL:"authorId"`
+    Published bool   `FraiseQL:"published"`
 }
 
 // Define schema
 type Schema struct {
-    Users []User `fraiseql:"query,sql_source=v_users"`
-    Posts []Post `fraiseql:"query,sql_source=v_posts"`
+    Users []User `FraiseQL:"query,sql_source=v_users"`
+    Posts []Post `FraiseQL:"query,sql_source=v_posts"`
 }
 
 // Export schema
 func main() {
-    fraiseql.ExportSchema("schema.json")
+    FraiseQL.ExportSchema("schema.json")
 }
 ```text
 
@@ -369,8 +369,8 @@ func main() {
 ### Testing
 
 ```bash
-cd fraiseql-go
-go test ./fraiseql/... -v
+cd FraiseQL-go
+go test ./FraiseQL/... -v
 
 # Run example
 go run examples/basic_schema.go
@@ -381,16 +381,16 @@ go run examples/basic_schema.go
 ### Installation
 
 ```bash
-cd fraiseql-java
+cd FraiseQL-java
 mvn clean install
 ```text
 
 ### Basic Usage
 
 ```java
-package com.fraiseql.example;
+package com.FraiseQL.example;
 
-import com.fraiseql.annotations.*;
+import com.FraiseQL.annotations.*;
 import java.util.List;
 
 @FraiseQLType
@@ -443,7 +443,7 @@ public class Schema {
 ### Testing
 
 ```bash
-cd fraiseql-java
+cd FraiseQL-java
 mvn test
 ```text
 
@@ -452,7 +452,7 @@ mvn test
 ### Installation
 
 ```bash
-cd fraiseql-php
+cd FraiseQL-php
 composer install
 ```text
 
@@ -516,7 +516,7 @@ class Schema {
 ### Testing
 
 ```bash
-cd fraiseql-php
+cd FraiseQL-php
 vendor/bin/phpunit tests/
 ```text
 
@@ -537,7 +537,7 @@ fraiseql_schema.export_schema("schema.json")
 ### Step 3: Compile with CLI
 
 ```bash
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 This produces `schema.compiled.json` with:
@@ -551,7 +551,7 @@ This produces `schema.compiled.json` with:
 Use compiled schema with runtime:
 
 ```bash
-fraiseql-server --schema schema.compiled.json
+FraiseQL-server --schema schema.compiled.json
 ```text
 
 ## Feature Comparison
@@ -608,9 +608,9 @@ users(limit: any, offset: any): any[] {
 // Good: Document purpose and constraints
 type SalesAnalytics struct {
     // Revenue in cents for precision
-    Revenue int `fraiseql:"revenue,description=Revenue in cents"`
+    Revenue int `FraiseQL:"revenue,description=Revenue in cents"`
     // Aggregated by date
-    Date string `fraiseql:"date,description=Date in YYYY-MM-DD format"`
+    Date string `FraiseQL:"date,description=Date in YYYY-MM-DD format"`
 }
 
 // Avoid: Undocumented fields
@@ -624,11 +624,11 @@ type SalesData struct {
 
 ```bash
 # Run language-specific tests first
-go test ./fraiseql/...
-npm test --prefix fraiseql-typescript
+go test ./FraiseQL/...
+npm test --prefix FraiseQL-typescript
 
 # Then compile
-fraiseql-cli compile schema.json
+FraiseQL-cli compile schema.json
 ```text
 
 ## Performance Considerations

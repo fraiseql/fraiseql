@@ -17,7 +17,7 @@ Get a basic federation running in 5 minutes.
 
 ```python
 # users_service/schema.py
-from fraiseql import type, key
+from FraiseQL import type, key
 
 @type
 @key("id")
@@ -29,10 +29,10 @@ class User:
 
 ```bash
 # Generate schema
-fraiseql generate --language python
+FraiseQL generate --language python
 
 # Deploy
-fraiseql run --port 8001
+FraiseQL run --port 8001
 ```
 
 ---
@@ -41,7 +41,7 @@ fraiseql run --port 8001
 
 ```python
 # orders_service/schema.py
-from fraiseql import type, key, extends, external
+from FraiseQL import type, key, extends, external
 
 @type
 @extends
@@ -59,7 +59,7 @@ class Order:
 ```
 
 ```bash
-fraiseql run --port 8002
+FraiseQL run --port 8002
 ```
 
 ---

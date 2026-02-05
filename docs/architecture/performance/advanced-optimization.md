@@ -313,7 +313,7 @@ class IndexDesignGuide:
 
 
 # Example: Comprehensive index strategy for users table
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     email: str

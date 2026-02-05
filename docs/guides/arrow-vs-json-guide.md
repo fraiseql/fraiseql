@@ -349,7 +349,7 @@ query {
 ```python
 import pyarrow.flight as flight
 
-client = flight.connect(("fraiseql.internal", 50051))
+client = flight.connect(("FraiseQL.internal", 50051))
 
 query = """
   SELECT

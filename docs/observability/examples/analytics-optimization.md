@@ -17,7 +17,7 @@ This example demonstrates optimizing a **complex analytics dashboard** with mult
 ### Schema
 
 ```python
-@fraiseql.fact_table(
+@FraiseQL.fact_table(
     table_name='tf_sales',
     measures=['revenue', 'cost', 'profit', 'quantity'],
     dimension_column='dimensions'
@@ -45,7 +45,7 @@ Dashboard has 5 main views, all slow:
 ## Analysis Results
 
 ```bash
-fraiseql-cli analyze --database postgres://... --format text
+FraiseQL-cli analyze --database postgres://... --format text
 ```text
 
 **Output**:

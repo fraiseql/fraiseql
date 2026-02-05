@@ -591,7 +591,7 @@ All logs should be structured JSON for easy parsing:
   "timestamp": "2026-01-11T15:00:00.123456Z",
   "level": "INFO",
   "message": "User created successfully",
-  "service": "fraiseql",
+  "service": "FraiseQL",
   "component": "mutation",
   "request_id": "req_550e8400-e29b-41d4-a716-446655440000",
   "user_id": "user_550e8400-e29b-41d4-a716-446655440001",
@@ -1031,9 +1031,9 @@ HAVING COUNT(*) > (
 
 #### Solutions:
 
-- Run migrations: `fraiseql migrate --target latest`
+- Run migrations: `FraiseQL migrate --target latest`
 - Verify table was created by migration: Check database logs
-- Enable CDC in fraiseql.toml: `[cdc] enabled = true`
+- Enable CDC in FraiseQL.toml: `[cdc] enabled = true`
 - Check application logs for migration errors
 
 ### "Change log has data but CDC consumers aren't receiving events"
@@ -1060,13 +1060,13 @@ HAVING COUNT(*) > (
 
 #### Diagnosis:
 
-1. Check logging level: `grep RUST_LOG fraiseql.toml`
+1. Check logging level: `grep RUST_LOG FraiseQL.toml`
 2. Check query log table size: `SELECT pg_size_pretty(pg_total_relation_size('tb_query_log'));`
 3. Verify queries are actually running: `SELECT COUNT(*) FROM tb_query_log WHERE created_at > NOW() - INTERVAL '1 hour';`
 
 #### Solutions:
 
-- Enable query logging: `RUST_LOG=info,fraiseql::query_log=debug`
+- Enable query logging: `RUST_LOG=info,FraiseQL::query_log=debug`
 - Implement log rotation: Clean up old logs older than 30 days
 - Increase retention window: `VACUUM ANALYZE tb_query_log;`
 - Stream logs to external system (Splunk, DataDog) instead of storing in database

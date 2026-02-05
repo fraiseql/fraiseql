@@ -6,7 +6,7 @@ This guide demonstrates a complete end-to-end integration of a Go GraphQL schema
 
 ```text
 Go Schema Definition        FraiseQL Compiler        FraiseQL Server          Flutter Mobile App
-(movies.go)         →      (fraiseql-cli)    →    (schema.compiled.json)  →   (Flutter client)
+(movies.go)         →      (FraiseQL-cli)    →    (schema.compiled.json)  →   (Flutter client)
                                                         + Rust runtime
                                                         + PostgreSQL
 ```text
@@ -37,61 +37,61 @@ import (
 )
 
 // Movie represents a film in the catalog
-// @fraiseql.type(table="movies", cache_ttl=3600)
+// @FraiseQL.type(table="movies", cache_ttl=3600)
 type Movie struct {
- ID          int       `fraiseql:"id,primary_key" json:"id"`
- Title       string    `fraiseql:"title,indexed" json:"title"`
- Description string    `fraiseql:"description" json:"description"`
- ReleaseDate time.Time `fraiseql:"release_date,indexed" json:"releaseDate"`
- Genre       string    `fraiseql:"genre,indexed" json:"genre"`
- Director    string    `fraiseql:"director" json:"director"`
- Duration    int       `fraiseql:"duration" json:"duration"` // in minutes
- PosterURL   string    `fraiseql:"poster_url" json:"posterUrl"`
- Rating      float64   `fraiseql:"rating" json:"rating"`
- ReviewCount int       `fraiseql:"review_count" json:"reviewCount"`
- CreatedAt   time.Time `fraiseql:"created_at,auto" json:"createdAt"`
- UpdatedAt   time.Time `fraiseql:"updated_at,auto" json:"updatedAt"`
+ ID          int       `FraiseQL:"id,primary_key" json:"id"`
+ Title       string    `FraiseQL:"title,indexed" json:"title"`
+ Description string    `FraiseQL:"description" json:"description"`
+ ReleaseDate time.Time `FraiseQL:"release_date,indexed" json:"releaseDate"`
+ Genre       string    `FraiseQL:"genre,indexed" json:"genre"`
+ Director    string    `FraiseQL:"director" json:"director"`
+ Duration    int       `FraiseQL:"duration" json:"duration"` // in minutes
+ PosterURL   string    `FraiseQL:"poster_url" json:"posterUrl"`
+ Rating      float64   `FraiseQL:"rating" json:"rating"`
+ ReviewCount int       `FraiseQL:"review_count" json:"reviewCount"`
+ CreatedAt   time.Time `FraiseQL:"created_at,auto" json:"createdAt"`
+ UpdatedAt   time.Time `FraiseQL:"updated_at,auto" json:"updatedAt"`
 
  // Relations
- Reviews   []Review   `fraiseql:"reviews,foreign_key=movie_id" json:"reviews"`
- Ratings   []Rating   `fraiseql:"ratings,foreign_key=movie_id" json:"ratings"`
- Watchlist []Watchlist `fraiseql:"watchlist,foreign_key=movie_id" json:"watchlist"`
+ Reviews   []Review   `FraiseQL:"reviews,foreign_key=movie_id" json:"reviews"`
+ Ratings   []Rating   `FraiseQL:"ratings,foreign_key=movie_id" json:"ratings"`
+ Watchlist []Watchlist `FraiseQL:"watchlist,foreign_key=movie_id" json:"watchlist"`
 }
 
 // Review represents a user review of a movie
-// @fraiseql.type(table="reviews", cache_ttl=600)
+// @FraiseQL.type(table="reviews", cache_ttl=600)
 type Review struct {
- ID        int       `fraiseql:"id,primary_key" json:"id"`
- MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
- UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
- Username  string    `fraiseql:"username" json:"username"`
- Content   string    `fraiseql:"content" json:"content"`
- Rating    int       `fraiseql:"rating" json:"rating"` // 1-10
- Helpful   int       `fraiseql:"helpful_count" json:"helpfulCount"`
- CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
+ ID        int       `FraiseQL:"id,primary_key" json:"id"`
+ MovieID   int       `FraiseQL:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `FraiseQL:"user_id,indexed,foreign_key" json:"userId"`
+ Username  string    `FraiseQL:"username" json:"username"`
+ Content   string    `FraiseQL:"content" json:"content"`
+ Rating    int       `FraiseQL:"rating" json:"rating"` // 1-10
+ Helpful   int       `FraiseQL:"helpful_count" json:"helpfulCount"`
+ CreatedAt time.Time `FraiseQL:"created_at,auto" json:"createdAt"`
 
  // Relations
- Movie *Movie `fraiseql:"movie,foreign_key=movie_id" json:"movie"`
+ Movie *Movie `FraiseQL:"movie,foreign_key=movie_id" json:"movie"`
 }
 
 // Rating represents a numerical rating given by a user
-// @fraiseql.type(table="ratings")
+// @FraiseQL.type(table="ratings")
 type Rating struct {
- ID        int       `fraiseql:"id,primary_key" json:"id"`
- MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
- UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
- Score     int       `fraiseql:"score" json:"score"` // 1-10
- CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
+ ID        int       `FraiseQL:"id,primary_key" json:"id"`
+ MovieID   int       `FraiseQL:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `FraiseQL:"user_id,indexed,foreign_key" json:"userId"`
+ Score     int       `FraiseQL:"score" json:"score"` // 1-10
+ CreatedAt time.Time `FraiseQL:"created_at,auto" json:"createdAt"`
 }
 
 // Watchlist represents a user's watchlist entry
-// @fraiseql.type(table="watchlists")
+// @FraiseQL.type(table="watchlists")
 type Watchlist struct {
- ID        int       `fraiseql:"id,primary_key" json:"id"`
- MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
- UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
- Status    string    `fraiseql:"status" json:"status"` // "want_to_watch", "watching", "watched"
- AddedAt   time.Time `fraiseql:"added_at,auto" json:"addedAt"`
+ ID        int       `FraiseQL:"id,primary_key" json:"id"`
+ MovieID   int       `FraiseQL:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `FraiseQL:"user_id,indexed,foreign_key" json:"userId"`
+ Status    string    `FraiseQL:"status" json:"status"` // "want_to_watch", "watching", "watched"
+ AddedAt   time.Time `FraiseQL:"added_at,auto" json:"addedAt"`
 }
 
 // Query represents the root query type
@@ -113,42 +113,42 @@ import (
 )
 
 // GetMovies retrieves all movies with pagination
-// @fraiseql.query(name="getMovies", timeout_ms=5000)
+// @FraiseQL.query(name="getMovies", timeout_ms=5000)
 func (q *Query) GetMovies(ctx context.Context, limit int, offset int) ([]Movie, error) {
  // This is a schema definition only - actual implementation in FraiseQL
  return nil, nil
 }
 
 // SearchMovies searches movies by title or genre
-// @fraiseql.query(name="searchMovies", timeout_ms=5000)
+// @FraiseQL.query(name="searchMovies", timeout_ms=5000)
 func (q *Query) SearchMovies(ctx context.Context, query string, genre string, limit int) ([]Movie, error) {
  // Schema only
  return nil, nil
 }
 
 // GetMovieDetails retrieves a single movie with all related data
-// @fraiseql.query(name="getMovieDetails", timeout_ms=5000, cache_ttl=3600)
+// @FraiseQL.query(name="getMovieDetails", timeout_ms=5000, cache_ttl=3600)
 func (q *Query) GetMovieDetails(ctx context.Context, movieID int) (*Movie, error) {
  // Schema only
  return nil, nil
 }
 
 // GetMovieReviews retrieves reviews for a specific movie
-// @fraiseql.query(name="getMovieReviews", timeout_ms=5000)
+// @FraiseQL.query(name="getMovieReviews", timeout_ms=5000)
 func (q *Query) GetMovieReviews(ctx context.Context, movieID int, limit int, offset int) ([]Review, error) {
  // Schema only
  return nil, nil
 }
 
 // GetUserWatchlist retrieves a user's watchlist
-// @fraiseql.query(name="getUserWatchlist", timeout_ms=5000)
+// @FraiseQL.query(name="getUserWatchlist", timeout_ms=5000)
 func (q *Query) GetUserWatchlist(ctx context.Context, userID int, status string) ([]Movie, error) {
  // Schema only - status can be filtered
  return nil, nil
 }
 
 // GetTopRatedMovies retrieves highest rated movies
-// @fraiseql.query(name="getTopRatedMovies", timeout_ms=5000)
+// @FraiseQL.query(name="getTopRatedMovies", timeout_ms=5000)
 func (q *Query) GetTopRatedMovies(ctx context.Context, limit int) ([]Movie, error) {
  // Schema only
  return nil, nil
@@ -163,7 +163,7 @@ Create `mutations.go`:
 package main
 
 // AddReview adds a new review to a movie
-// @fraiseql.mutation(name="addReview", timeout_ms=3000)
+// @FraiseQL.mutation(name="addReview", timeout_ms=3000)
 type AddReviewInput struct {
  MovieID  int    `json:"movieId" validate:"required,gt=0"`
  UserID   int    `json:"userId" validate:"required,gt=0"`
@@ -182,7 +182,7 @@ type AddReviewOutput struct {
 }
 
 // RateMovie rates a movie
-// @fraiseql.mutation(name="rateMovie", timeout_ms=3000)
+// @FraiseQL.mutation(name="rateMovie", timeout_ms=3000)
 type RateMovieInput struct {
  MovieID int `json:"movieId" validate:"required,gt=0"`
  UserID  int `json:"userId" validate:"required,gt=0"`
@@ -197,7 +197,7 @@ type RateMovieOutput struct {
 }
 
 // AddToWatchlist adds a movie to user's watchlist
-// @fraiseql.mutation(name="addToWatchlist", timeout_ms=3000)
+// @FraiseQL.mutation(name="addToWatchlist", timeout_ms=3000)
 type AddToWatchlistInput struct {
  MovieID int    `json:"movieId" validate:"required,gt=0"`
  UserID  int    `json:"userId" validate:"required,gt=0"`
@@ -213,7 +213,7 @@ type AddToWatchlistOutput struct {
 }
 
 // UpdateWatchlistStatus updates status of a watchlist entry
-// @fraiseql.mutation(name="updateWatchlistStatus", timeout_ms=3000)
+// @FraiseQL.mutation(name="updateWatchlistStatus", timeout_ms=3000)
 type UpdateWatchlistStatusInput struct {
  WatchlistID int    `json:"watchlistId" validate:"required,gt=0"`
  Status      string `json:"status" validate:"required,oneof=want_to_watch watching watched"`
@@ -225,7 +225,7 @@ type UpdateWatchlistStatusOutput struct {
 }
 
 // RemoveFromWatchlist removes a movie from watchlist
-// @fraiseql.mutation(name="removeFromWatchlist", timeout_ms=3000)
+// @FraiseQL.mutation(name="removeFromWatchlist", timeout_ms=3000)
 type RemoveFromWatchlistInput struct {
  WatchlistID int `json:"watchlistId" validate:"required,gt=0"`
  UserID      int `json:"userId" validate:"required,gt=0"`
@@ -247,7 +247,7 @@ module github.com/example/movie-schema
 go 1.21
 
 require (
- github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
+ github.com/FraiseQL/FraiseQL-go v2.0.0-alpha.1
 )
 ```text
 
@@ -522,7 +522,7 @@ func parseType(name string, v interface{}, table string, cacheTTL int) TypeDefin
 
  for i := 0; i < t.NumField(); i++ {
   field := t.Field(i)
-  tag := field.Tag.Get("fraiseql")
+  tag := field.Tag.Get("FraiseQL")
   if tag == "" {
    continue
   }
@@ -576,10 +576,10 @@ Export and compile the schema:
 # From movie-schema directory
 go run cmd/export/main.go -o schema.json
 
-# Compile with fraiseql-cli
-fraiseql-cli compile \
+# Compile with FraiseQL-cli
+FraiseQL-cli compile \
   --schema schema.json \
-  --config fraiseql.toml \
+  --config FraiseQL.toml \
   --output schema.compiled.json
 ```text
 
@@ -589,61 +589,61 @@ fraiseql-cli compile \
 
 ### 4.1 FraiseQL Configuration
 
-Create `fraiseql.toml`:
+Create `FraiseQL.toml`:
 
 ```toml
-[fraiseql]
+[FraiseQL]
 name = "movie-api"
 version = "1.0.0"
 description = "Movie discovery GraphQL API"
 
-[fraiseql.server]
+[FraiseQL.server]
 host = "0.0.0.0"
 port = 8000
 workers = 4
 request_timeout_ms = 30000
 
-[fraiseql.database]
+[FraiseQL.database]
 adapter = "postgresql"
 connection_string = "postgres://user:password@localhost:5432/movies"
 pool_size = 20
 connection_timeout_ms = 5000
 query_timeout_ms = 30000
 
-[fraiseql.database.postgresql]
+[FraiseQL.database.postgresql]
 ssl_mode = "prefer"
-application_name = "fraiseql-movies"
+application_name = "FraiseQL-movies"
 
-[fraiseql.security]
+[FraiseQL.security]
 enable_introspection = true
 enable_playground = true
 rate_limit_enabled = true
 
-[fraiseql.security.rate_limiting]
+[FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
 authenticated_max_requests = 1000
 authenticated_window_secs = 60
 
-[fraiseql.security.cors]
+[FraiseQL.security.cors]
 allowed_origins = ["http://localhost:3000", "http://localhost:8081"]
 allowed_methods = ["GET", "POST", "OPTIONS"]
 allowed_headers = ["Content-Type", "Authorization"]
 max_age_secs = 3600
 
-[fraiseql.caching]
+[FraiseQL.caching]
 enabled = true
 ttl_default = 300
 ttl_max = 3600
 
-[fraiseql.observability]
+[FraiseQL.observability]
 log_level = "info"
 log_format = "json"
 enable_request_logging = true
 enable_query_logging = true
 
-[fraiseql.observability.metrics]
+[FraiseQL.observability.metrics]
 enabled = true
 export_interval_secs = 30
 prometheus_enabled = true
@@ -675,15 +675,15 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/fraiseql-server ./
+COPY --from=builder /app/target/release/FraiseQL-server ./
 COPY schema.compiled.json ./
-COPY fraiseql.toml ./
+COPY FraiseQL.toml ./
 
 EXPOSE 8000 9090
 
 ENV RUST_LOG=info
 
-CMD ["./fraiseql-server", "--config", "fraiseql.toml"]
+CMD ["./FraiseQL-server", "--config", "FraiseQL.toml"]
 ```text
 
 Create `docker-compose.yml`:
@@ -695,7 +695,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: fraiseql
+      POSTGRES_USER: FraiseQL
       POSTGRES_PASSWORD: password
       POSTGRES_DB: movies
     ports:
@@ -704,15 +704,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      test: ["CMD-SHELL", "pg_isready -U FraiseQL"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  fraiseql:
+  FraiseQL:
     build: .
     environment:
-      DATABASE_URL: postgres://fraiseql:password@postgres:5432/movies
+      DATABASE_URL: postgres://FraiseQL:password@postgres:5432/movies
       RUST_LOG: info
     ports:
       - "8000:8000"
@@ -722,7 +722,7 @@ services:
         condition: service_healthy
     volumes:
       - ./schema.compiled.json:/app/schema.compiled.json:ro
-      - ./fraiseql.toml:/app/fraiseql.toml:ro
+      - ./FraiseQL.toml:/app/FraiseQL.toml:ro
 
 volumes:
   postgres_data:
@@ -735,7 +735,7 @@ Deployment:
 docker-compose up --build
 
 # Seed sample data
-docker-compose exec postgres psql -U fraiseql -d movies -f /docker-entrypoint-initdb.d/seed.sql
+docker-compose exec postgres psql -U FraiseQL -d movies -f /docker-entrypoint-initdb.d/seed.sql
 
 # Check server health
 curl http://localhost:8000/health
@@ -1984,12 +1984,12 @@ publish_to: none
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  SDK: '>=3.0.0 <4.0.0'
   flutter: '>=3.10.0'
 
 dependencies:
   flutter:
-    sdk: flutter
+    SDK: flutter
   graphql: ^5.1.0
   provider: ^6.0.0
   http: ^1.1.0
@@ -1998,7 +1998,7 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
+    SDK: flutter
   flutter_lints: ^2.0.0
 
 flutter:
@@ -2039,14 +2039,14 @@ sudo pacman -S docker docker-compose  # Arch
 ### 7.2 Start FraiseQL Backend
 
 ```bash
-# From fraiseql project directory
+# From FraiseQL project directory
 docker-compose up --build
 
 # Verify server is running
 curl http://localhost:8000/health
 
 # In another terminal, seed sample data
-docker-compose exec postgres psql -U fraiseql -d movies << 'EOF'
+docker-compose exec postgres psql -U FraiseQL -d movies << 'EOF'
 INSERT INTO movies (title, description, release_date, genre, director, duration, poster_url, rating) VALUES
 ('The Matrix', 'A computer hacker learns about the true nature of reality...', '1999-03-31', 'Sci-Fi', 'The Wachowskis', 136, 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1mHWGEDCEvEDgJ2.jpg', 8.7),
 ('Inception', 'A skilled thief who steals corporate secrets through dream-sharing technology...', '2010-07-16', 'Sci-Fi', 'Christopher Nolan', 148, 'https://image.tmdb.org/t/p/w500/9gk7adHYeDMNNGceKc06f1DjQcO.jpg', 8.8),
@@ -2373,7 +2373,7 @@ flutter build appbundle --release
 
 - **Solution**:
   - Verify image URLs are accessible
-  - Check CORS configuration in `fraiseql.toml`
+  - Check CORS configuration in `FraiseQL.toml`
   - Enable network image caching in Flutter: `ImageCache`
   - Use alternative image service if needed
 

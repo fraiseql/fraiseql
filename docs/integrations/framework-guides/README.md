@@ -13,7 +13,7 @@ FraiseQL compiles GraphQL schemas to optimized SQL at build time. This guide sho
 **Integration Pattern**:
 
 1. **Define schema** in Python/TypeScript (authoring only)
-2. **Compile schema** with `fraiseql-cli compile`
+2. **Compile schema** with `FraiseQL-cli compile`
 3. **Load compiled schema** in your framework
 4. **Execute GraphQL** queries via the FraiseQL runtime
 5. **Handle results** with framework-specific patterns
@@ -60,7 +60,7 @@ FraiseQL compiles GraphQL schemas to optimized SQL at build time. This guide sho
 
 ```python
 from fastapi import FastAPI, Depends, HTTPException
-from fraiseql import FraiseQLServer
+from FraiseQL import FraiseQLServer
 import asyncio
 
 app = FastAPI()
@@ -160,17 +160,17 @@ urlpatterns = [
 
 # views.py
 from django.views import View
-from fraiseql import FraiseQLServer
+from FraiseQL import FraiseQLServer
 from fraiseql_django.auth import get_user_context
 
 class GraphQLView(View):
     def post(self, request):
-        fraiseql = FraiseQLServer.from_compiled(
+        FraiseQL = FraiseQLServer.from_compiled(
             settings.FRAISEQL['SCHEMA']
         )
         context = get_user_context(request)
 
-        result = fraiseql.execute(
+        result = FraiseQL.execute(
             query=request.json['query'],
             variables=request.json.get('variables'),
             context=context
@@ -213,7 +213,7 @@ class GraphQLView(View):
 
 ```python
 from flask import Flask, request, jsonify
-from fraiseql import FraiseQLServer
+from FraiseQL import FraiseQLServer
 
 app = Flask(__name__)
 
@@ -271,7 +271,7 @@ def graphql_ws():
 
 ```typescript
 import { Module, Controller, Post, Body } from '@nestjs/common';
-import { FraiseQLServer } from 'fraiseql';
+import { FraiseQLServer } from 'FraiseQL';
 
 @Module({
   providers: [
@@ -292,7 +292,7 @@ export class FraiseQLModule {}
 @Controller('api')
 export class GraphQLController {
   constructor(
-    @Inject('FRAISEQL_SERVER') private fraiseql: FraiseQLServer,
+    @Inject('FRAISEQL_SERVER') private FraiseQL: FraiseQLServer,
   ) {}
 
   @Post('graphql')
@@ -301,7 +301,7 @@ export class GraphQLController {
     @Request() req: any,
   ) {
     const context = { userId: req.user?.id };
-    return this.fraiseql.execute(query, variables, context);
+    return this.FraiseQL.execute(query, variables, context);
   }
 }
 ```text
@@ -334,15 +334,15 @@ export class GraphQLController {
 
 ```typescript
 import express from 'express';
-import { FraiseQLServer } from 'fraiseql';
+import { FraiseQLServer } from 'FraiseQL';
 
 const app = express();
 app.use(express.json());
 
-let fraiseql: FraiseQLServer;
+let FraiseQL: FraiseQLServer;
 
 app.listen(3000, async () => {
-  fraiseql = await FraiseQLServer.fromCompiled('schema.compiled.json', {
+  FraiseQL = await FraiseQLServer.fromCompiled('schema.compiled.json', {
     databaseUrl: process.env.DATABASE_URL,
   });
 });
@@ -350,7 +350,7 @@ app.listen(3000, async () => {
 app.post('/graphql', async (req, res, next) => {
   try {
     const context = { userId: req.user?.id };
-    const result = await fraiseql.execute(
+    const result = await FraiseQL.execute(
       req.body.query,
       req.body.variables,
       context,
@@ -400,21 +400,21 @@ app.use(
 
 ```typescript
 import Fastify from 'fastify';
-import { FraiseQLServer } from 'fraiseql';
+import { FraiseQLServer } from 'FraiseQL';
 
 const fastify = Fastify({ logger: true });
 
-let fraiseql: FraiseQLServer;
+let FraiseQL: FraiseQLServer;
 
 fastify.register(async (fastify) => {
-  fraiseql = await FraiseQLServer.fromCompiled('schema.compiled.json', {
+  FraiseQL = await FraiseQLServer.fromCompiled('schema.compiled.json', {
     databaseUrl: process.env.DATABASE_URL,
     cacheTtl: 300,
   });
 
   fastify.post('/graphql', async (request, reply) => {
     const context = { userId: request.user?.id };
-    const result = await fraiseql.execute(
+    const result = await FraiseQL.execute(
       request.body.query,
       request.body.variables,
       context,
@@ -466,15 +466,15 @@ package main
 import (
  "fmt"
  "github.com/gin-gonic/gin"
- "fraiseql-go"
+ "FraiseQL-go"
 )
 
 func main() {
  router := gin.Default()
 
  // Initialize FraiseQL server at startup
- fraiseqlServer, err := fraiseql.NewServer(
-  fraiseql.Config{
+ fraiseqlServer, err := FraiseQL.NewServer(
+  FraiseQL.Config{
    CompiledSchemaPath: "schema.compiled.json",
    DatabaseURL:       os.Getenv("DATABASE_URL"),
    CacheTTL:          300,
@@ -497,7 +497,7 @@ func main() {
   }
 
   ctx := c.Request.Context()
-  result, err := fraiseqlServer.Execute(ctx, fraiseql.ExecuteRequest{
+  result, err := fraiseqlServer.Execute(ctx, FraiseQL.ExecuteRequest{
    Query:     query.Query,
    Variables: query.Variables,
    Context: map[string]interface{}{
@@ -549,14 +549,14 @@ package main
 import (
  "github.com/labstack/echo/v4"
  "github.com/labstack/echo/v4/middleware"
- "fraiseql-go"
+ "FraiseQL-go"
 )
 
 func main() {
  e := echo.New()
 
  // Initialize FraiseQL
- fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
+ fraiseqlServer := FraiseQL.MustNewServer(FraiseQL.Config{
   CompiledSchemaPath: "schema.compiled.json",
   DatabaseURL:       os.Getenv("DATABASE_URL"),
  })
@@ -568,7 +568,7 @@ func main() {
  api := e.Group("/api")
  {
   api.POST("/graphql", func(c echo.Context) error {
-   var req fraiseql.GraphQLRequest
+   var req FraiseQL.GraphQLRequest
    if err := c.Bind(&req); err != nil {
     return c.JSON(400, map[string]interface{}{
      "error": err.Error(),
@@ -624,11 +624,11 @@ package main
 import (
  "net/http"
  "github.com/go-chi/chi/v5"
- "fraiseql-go"
+ "FraiseQL-go"
 )
 
 func main() {
- fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
+ fraiseqlServer := FraiseQL.MustNewServer(FraiseQL.Config{
   CompiledSchemaPath: "schema.compiled.json",
   DatabaseURL:       os.Getenv("DATABASE_URL"),
  })
@@ -641,9 +641,9 @@ func main() {
  http.ListenAndServe(":8080", r)
 }
 
-func handleGraphQL(server *fraiseql.Server) http.HandlerFunc {
+func handleGraphQL(server *FraiseQL.Server) http.HandlerFunc {
  return func(w http.ResponseWriter, r *http.Request) {
-  var req fraiseql.GraphQLRequest
+  var req FraiseQL.GraphQLRequest
   json.NewDecoder(r.Body).Decode(&req)
 
   result, _ := server.Execute(r.Context(), req)
@@ -779,7 +779,7 @@ public class FraiseQLProducer {
         return FraiseQLServer.fromCompiled(
             "schema.compiled.json",
             new FraiseQLConfig.Builder()
-                .databaseUrl(config.getValue("fraiseql.database.url", String.class))
+                .databaseUrl(config.getValue("FraiseQL.database.url", String.class))
                 .cacheTtl(300)
                 .build()
         );
@@ -902,7 +902,7 @@ config.middleware.use Rack::CORSMiddleware
 
 ```ruby
 require 'sinatra'
-require 'fraiseql'
+require 'FraiseQL'
 require 'json'
 
 fraiseql_server = FraiseQL::Server.from_compiled(
@@ -996,7 +996,7 @@ Response:
 class RestAdapter:
     def get_user(self, user_id):
         query = f'query {{ user(id: {user_id}) {{ id name email }} }}'
-        result = self.fraiseql.execute(query)
+        result = self.FraiseQL.execute(query)
         return result['data']['user']
 ```text
 
@@ -1108,7 +1108,7 @@ async def graphql(query, variables):
 
 ```typescript
 async executeQuery(query: string): Promise<Result> {
-  const result = await fraiseql.execute(query);
+  const result = await FraiseQL.execute(query);
   return result;
 }
 ```text
@@ -1138,7 +1138,7 @@ def test_query(fraiseql_server):
 ```typescript
 describe('GraphQL', () => {
   it('should execute query', async () => {
-    const result = await fraiseql.execute('query { user(id: 1) { id } }');
+    const result = await FraiseQL.execute('query { user(id: 1) { id } }');
     expect(result.data).toBeDefined();
   });
 });
@@ -1177,7 +1177,7 @@ describe('GraphQL', () => {
 2. **Compile Schema**
 
    ```bash
-   fraiseql-cli compile schema.json fraiseql.toml
+   FraiseQL-cli compile schema.json FraiseQL.toml
    ```text
 
 3. **Setup Framework**
@@ -1205,7 +1205,7 @@ describe('GraphQL', () => {
 watchmedo shell-command \
   --patterns="*.py" \
   --recursive \
-  --command='python schema.py && fraiseql-cli compile schema.json' \
+  --command='python schema.py && FraiseQL-cli compile schema.json' \
   .
 
 # Start server in another terminal
@@ -1217,7 +1217,7 @@ python main.py
 ```dockerfile
 FROM python:3.12
 COPY schema.compiled.json /app/
-COPY fraiseql.toml /app/
+COPY FraiseQL.toml /app/
 COPY app.py /app/
 CMD ["python", "/app/app.py"]
 ```text
@@ -1235,7 +1235,7 @@ CMD ["python", "/app/app.py"]
 
 ## See Also
 
-- **SDK References**: [Python](../sdk/python-reference.md) | [TypeScript](../sdk/typescript-reference.md) | [Go](../sdk/go-reference.md) | [Java](../sdk/java-reference.md) | [Ruby](../sdk/ruby-reference.md)
+- **SDK References**: [Python](../SDK/python-reference.md) | [TypeScript](../SDK/typescript-reference.md) | [Go](../SDK/go-reference.md) | [Java](../SDK/java-reference.md) | [Ruby](../SDK/ruby-reference.md)
 - **Architecture**: [FraiseQL Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md)
 - **Authentication**: [Auth Integration Guide](../authentication/README.md)
 - **Deployment**: [Deployment Guide](../../guides/deployment.md)
@@ -1246,10 +1246,10 @@ CMD ["python", "/app/app.py"]
 
 ## Community Resources
 
-- **Issues**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- **Stack Overflow**: Tag questions with `fraiseql`
-- **Community Chat**: [Discord](https://discord.gg/fraiseql)
+- **Issues**: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/FraiseQL/FraiseQL/discussions)
+- **Stack Overflow**: Tag questions with `FraiseQL`
+- **Community Chat**: [Discord](https://discord.gg/FraiseQL)
 
 ---
 

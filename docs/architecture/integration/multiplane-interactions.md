@@ -444,9 +444,9 @@ All planes evaluate same authorization rules:
 
 ```text
 Schema:
-  @fraiseql.type
+  @FraiseQL.type
   class Post:
-    @fraiseql.authorize(rule="published_or_author")
+    @FraiseQL.authorize(rule="published_or_author")
     content: str
 
 User A (author of Post #123):

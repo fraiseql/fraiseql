@@ -31,7 +31,7 @@ All GraphQL queries now automatically project only requested fields at the datab
 
 ```toml
 [dependencies]
-fraiseql-core = "2.0.0-a1"  # From any previous version
+FraiseQL-core = "2.0.0-a1"  # From any previous version
 ```text
 
 ### 2. Deploy
@@ -111,7 +111,7 @@ FRAISEQL_DISABLE_PROJECTION=true cargo run
 ```bash
 # Downgrade to previous v2 version (if needed)
 # Note: v1.x is NOT compatible with v2 schemas
-fraiseql-core = "2.0.0-alpha.0"  # or earlier v2 version
+FraiseQL-core = "2.0.0-alpha.0"  # or earlier v2 version
 
 cargo build --release
 # Re-deploy to previous v2 version
@@ -154,7 +154,7 @@ cargo build --release
 
 ## Migration Checklist
 
-- [ ] Update `fraiseql-core` to v2.0.0-alpha.1
+- [ ] Update `FraiseQL-core` to v2.0.0-alpha.1
 - [ ] Run full test suite (`cargo test`)
 - [ ] Deploy to staging environment
 - [ ] Verify logs show projection SQL (`RUST_LOG=debug`)

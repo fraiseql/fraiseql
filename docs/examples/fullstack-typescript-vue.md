@@ -16,7 +16,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 2. [Part 1: TypeScript Schema Authoring](#part-1-typescript-schema-authoring)
 3. [Part 2: Database Schema](#part-2-database-schema)
 4. [Part 3: Export and Compilation](#part-3-export-and-compilation)
-5. [Part 4: FraiseQL Server Deployment](#part-4-fraiseql-server-deployment)
+5. [Part 4: FraiseQL Server Deployment](#part-4-FraiseQL-server-deployment)
 6. [Part 5: Vue 3 Frontend](#part-5-vue-3-frontend)
 7. [Part 6: Project Structure](#part-6-project-structure)
 8. [Part 7: Running the Complete Stack](#part-7-running-the-complete-stack)
@@ -49,18 +49,18 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 │  Compilation Layer   │         │      Build Time                      │
 │                      │         │  (CI/CD pipeline or local build)     │
 │  • schema.json       │         │                                      │
-│  • fraiseql.toml     │         │  • Validate schema structure         │
+│  • FraiseQL.toml     │         │  • Validate schema structure         │
 │  • SQL generation    │         │  • Generate optimized SQL templates  │
 │  • Type checking     │         │  • Create compiled schema            │
 └──────────────────────┘         └──────────────────────────────────────┘
          │
-         │ fraiseql-cli compile
+         │ FraiseQL-cli compile
          │ (generates schema.compiled.json)
          ↓
 ┌──────────────────────┐         ┌──────────────────────────────────────┐
 │   Runtime Layer      │         │      Production                      │
 │                      │         │  (Rust server in Docker/Cloud)       │
-│  • fraiseql-server   │         │                                      │
+│  • FraiseQL-server   │         │                                      │
 │  • PostgreSQL        │         │  • Load compiled schema              │
 │  • GraphQL Endpoint  │         │  • Execute queries                   │
 │  • HTTP API :8080    │         │  • Return JSON results               │
@@ -1144,28 +1144,28 @@ Output: `/schema.json`
 
 ### Step 2: Create FraiseQL Configuration
 
-Create `fraiseql.toml`:
+Create `FraiseQL.toml`:
 
 ```toml
-# fraiseql.toml
-[fraiseql]
+# FraiseQL.toml
+[FraiseQL]
 name = "ecommerce-api"
 version = "1.0.0"
 description = "E-commerce GraphQL API"
 
-[fraiseql.database]
+[FraiseQL.database]
 driver = "postgresql"
 connection_string = "${DATABASE_URL:postgresql://localhost/ecommerce}"
 pool_size = 20
 pool_timeout_secs = 30
 
-[fraiseql.server]
+[FraiseQL.server]
 host = "0.0.0.0"
 port = 8080
 graphql_path = "/graphql"
 introspection_enabled = true
 
-[fraiseql.security]
+[FraiseQL.security]
 # Authentication
 auth_enabled = true
 auth_jwt_secret = "${JWT_SECRET:dev-secret-key}"
@@ -1180,11 +1180,11 @@ rate_limit_window_secs = 60
 error_sanitization_enabled = true
 error_include_stack_trace = false
 
-[fraiseql.logging]
+[FraiseQL.logging]
 level = "info"
 format = "json"
 
-[fraiseql.performance]
+[FraiseQL.performance]
 # Connection pooling
 enable_connection_pooling = true
 # Query caching
@@ -1198,11 +1198,11 @@ apq_cache_ttl_secs = 86400
 ### Step 3: Compile with FraiseQL CLI
 
 ```bash
-# Install fraiseql-cli (or use cargo)
-cargo install fraiseql-cli
+# Install FraiseQL-cli (or use cargo)
+cargo install FraiseQL-cli
 
 # Compile schema
-fraiseql-cli compile schema.json fraiseql.toml --output schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml --output schema.compiled.json
 
 # Verify compilation
 cat schema.compiled.json | head -50
@@ -1236,7 +1236,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 # Build release
-RUN cargo build --release --bin fraiseql-server
+RUN cargo build --release --bin FraiseQL-server
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
@@ -1249,19 +1249,19 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/fraiseql-server .
+COPY --from=builder /app/target/release/FraiseQL-server .
 
 # Copy schema and config
 COPY schema.compiled.json .
-COPY fraiseql.toml .
+COPY FraiseQL.toml .
 
 # Health check
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
-  CMD /app/fraiseql-server health || exit 1
+  CMD /app/FraiseQL-server health || exit 1
 
 EXPOSE 8080
 
-CMD ["./fraiseql-server", "--config", "fraiseql.toml", "--schema", "schema.compiled.json"]
+CMD ["./FraiseQL-server", "--config", "FraiseQL.toml", "--schema", "schema.compiled.json"]
 ```text
 
 ### File: `docker-compose.yml`
@@ -1275,7 +1275,7 @@ services:
     container_name: ecommerce-db
     environment:
       POSTGRES_DB: ecommerce
-      POSTGRES_USER: fraiseql
+      POSTGRES_USER: FraiseQL
       POSTGRES_PASSWORD: dev-password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -1284,7 +1284,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      test: ["CMD-SHELL", "pg_isready -U FraiseQL"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1295,7 +1295,7 @@ services:
       dockerfile: Dockerfile
     container_name: ecommerce-api
     environment:
-      DATABASE_URL: postgresql://fraiseql:dev-password@postgres:5432/ecommerce
+      DATABASE_URL: postgresql://FraiseQL:dev-password@postgres:5432/ecommerce
       JWT_SECRET: dev-secret-key
       RUST_LOG: info
       RUST_BACKTRACE: 1
@@ -1334,7 +1334,7 @@ networks:
 
 ```bash
 # Database
-DATABASE_URL=postgresql://fraiseql:dev-password@localhost:5432/ecommerce
+DATABASE_URL=postgresql://FraiseQL:dev-password@localhost:5432/ecommerce
 
 # Authentication
 JWT_SECRET=your-secret-key-change-in-production
@@ -2284,7 +2284,7 @@ ecommerce-project/
 ├── backend/                          # Rust FraiseQL server
 │   ├── schema.json                   # Exported schema
 │   ├── schema.compiled.json          # Compiled schema (generated)
-│   ├── fraiseql.toml                 # Configuration
+│   ├── FraiseQL.toml                 # Configuration
 │   ├── Dockerfile
 │   └── src/
 │       └── main.rs
@@ -2356,10 +2356,10 @@ cat schema.json
 cd ../backend
 
 # Install FraiseQL CLI
-cargo install fraiseql-cli
+cargo install FraiseQL-cli
 
 # Compile schema
-fraiseql-cli compile ../schema-authoring/schema.json fraiseql.toml
+FraiseQL-cli compile ../schema-authoring/schema.json FraiseQL.toml
 
 # Verify schema.compiled.json created
 ls -lh schema.compiled.json
@@ -2470,7 +2470,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
 **SQL execution** (FraiseQL):
 
 1. Receives `createOrder` mutation
-2. Calls Postgres function `create_order_from_cart`
+2. Calls PostgreSQL function `create_order_from_cart`
 3. Function creates order, adds items, calculates total
 4. Returns new order ID
 5. Frontend updates cart state
@@ -2692,10 +2692,10 @@ const addItem = async (productId: string, quantity: number = 1) => {
 
 ```bash
 # Run schema migration manually
-docker exec ecommerce-db psql -U fraiseql -d ecommerce -f /docker-entrypoint-initdb.d/01-schema.sql
+docker exec ecommerce-db psql -U FraiseQL -d ecommerce -f /docker-entrypoint-initdb.d/01-schema.sql
 
 # Verify tables
-docker exec ecommerce-db psql -U fraiseql -d ecommerce -c "\dt"
+docker exec ecommerce-db psql -U FraiseQL -d ecommerce -c "\dt"
 
 # Check logs
 docker-compose logs postgres
@@ -2717,8 +2717,8 @@ LIMIT 20;
 -- Add missing indexes
 CREATE INDEX idx_products_name_trgm ON products USING gin(name gin_trgm_ops);
 
--- Check cache settings in fraiseql.toml
-[fraiseql.performance]
+-- Check cache settings in FraiseQL.toml
+[FraiseQL.performance]
 enable_query_cache = true
 query_cache_ttl_secs = 3600
 enable_apq = true  # Automatic Persisted Queries
@@ -2732,7 +2732,7 @@ enable_apq = true  # Automatic Persisted Queries
 2. **FraiseQL generates optimized SQL** - No n+1 queries, no runtime parsing, pre-compiled templates
 3. **Layered independence** - Backend and frontend are completely decoupled, communicate via standard GraphQL
 4. **Type safety end-to-end** - TypeScript types → GraphQL schema → Vue components (via Apollo)
-5. **Configuration management** - Security settings flow from `fraiseql.toml` through compilation to runtime
+5. **Configuration management** - Security settings flow from `FraiseQL.toml` through compilation to runtime
 
 This architecture demonstrates FraiseQL's core strength: **authoring simplicity** meets **compiled efficiency** with **frontend flexibility**.
 

@@ -13,24 +13,24 @@ FraiseQL allows developers to explicitly control which view backs each GraphQL t
 In the authoring layer (Python/TypeScript), bind types to specific views using the `view` parameter:
 
 ```python
-import fraiseql
+import FraiseQL
 
 # Default: Uses v_user (logical view)
-@fraiseql.type()
+@FraiseQL.type()
 class User:
     id: str
     name: str
     email: str
 
 # Explicit: Uses v_user (same as default, for clarity)
-@fraiseql.type(view="v_user")
+@FraiseQL.type(view="v_user")
 class User:
     id: str
     name: str
     email: str
 
 # Table-backed: Uses tv_user_profile (pre-computed JSONB)
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class UserProfile:
     id: str
     name: str
@@ -46,10 +46,10 @@ When you compile the schema, FraiseQL reads the `view` parameter and validates i
 
 ```bash
 # Authoring phase (generates schema.json)
-python -m fraiseql generate-schema
+python -m FraiseQL generate-schema
 
 # Compilation phase (validates views and generates executors)
-fraiseql-cli compile schema.json --validate
+FraiseQL-cli compile schema.json --validate
 
 # The compiler checks:
 # 1. View exists in database
@@ -123,7 +123,7 @@ query {
 ### Python Example
 
 ```python
-from fraiseql import type, schema
+from FraiseQL import type, schema
 
 # Define both simple and complex types
 @type()
@@ -176,7 +176,7 @@ schema_file = schema.compile(
 ### TypeScript Example
 
 ```typescript
-import { type, schema } from "@fraiseql/typescript";
+import { type, schema } from "@FraiseQL/typescript";
 
 // Define both simple and complex types
 @type()
@@ -387,7 +387,7 @@ else:
 The compiler validates that all views exist and have correct schemas:
 
 ```bash
-fraiseql-cli compile schema.json --validate
+FraiseQL-cli compile schema.json --validate
 
 # Checks:
 # ✅ v_user exists in database
@@ -417,7 +417,7 @@ client.do_get(flight.Ticket(json.dumps({
 
 ### GraphQL Type Binding
 
-**Function**: `@fraiseql.type(view: str = None)`
+**Function**: `@FraiseQL.type(view: str = None)`
 
 **Parameters**:
 
@@ -427,11 +427,11 @@ client.do_get(flight.Ticket(json.dumps({
 **Usage**:
 
 ```python
-@fraiseql.type()                    # Uses v_user by default
+@FraiseQL.type()                    # Uses v_user by default
 class User:
     pass
 
-@fraiseql.type(view="tv_user")      # Explicit view
+@FraiseQL.type(view="tv_user")      # Explicit view
 class User:
     pass
 ```
@@ -489,7 +489,7 @@ except flight.FlightError as e:
 
 ```python
 # Error case: type doesn't match view
-@fraiseql.type(view="ta_orders")  # ta_* is Arrow-only!
+@FraiseQL.type(view="ta_orders")  # ta_* is Arrow-only!
 class Order:
     id: str
 
@@ -503,13 +503,13 @@ class Order:
 
 ```python
 # ✅ Good: Clear intent
-@fraiseql.type(view="tv_user_profile")
+@FraiseQL.type(view="tv_user_profile")
 class UserWithPosts:
     """User profile with nested posts and comments"""
     pass
 
 # ❌ Bad: Ambiguous
-@fraiseql.type()
+@FraiseQL.type()
 class User:
     """User"""
     pass
@@ -518,7 +518,7 @@ class User:
 ### 2. Document Why You're Using a Specific View
 
 ```python
-@fraiseql.type(view="tv_order_summary")
+@FraiseQL.type(view="tv_order_summary")
 class OrderSummary:
     """Order with line items and customer details.
 
@@ -565,12 +565,12 @@ else:
 
 ```python
 # ✅ Good: Start simple
-@fraiseql.type()
+@FraiseQL.type()
 class Order:
     pass
 
 # Later, if performance requires:
-@fraiseql.type(view="tv_order_with_items")
+@FraiseQL.type(view="tv_order_with_items")
 class OrderWithItems:
     pass
 ```

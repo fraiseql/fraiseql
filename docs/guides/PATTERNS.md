@@ -818,7 +818,7 @@ For multi-server deployments, use Redis Pub/Sub:
 ```rust
 let publisher = RedisPublisher::new(
     redis_client,
-    "fraiseql:events"
+    "FraiseQL:events"
 ).await?;
 ```text
 
@@ -1233,7 +1233,7 @@ With L1+L2 cache (80% hit rate):
 **Solutions:**
 
 - Use correct Content-Type: `multipart/form-data`
-- Check max file size setting in fraiseql.toml
+- Check max file size setting in FraiseQL.toml
 - Ensure file field name matches GraphQL input type
 - For large files: Implement chunked upload
 
@@ -1341,4 +1341,4 @@ You now know how to implement:
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/fraiseql/fraiseql-v2).
+**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

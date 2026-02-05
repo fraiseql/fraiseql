@@ -225,7 +225,7 @@ mod sqlite {
 ### Input Schema (Same for All)
 
 ```python
-from fraiseql import schema, type, query, ID, String
+from FraiseQL import schema, type, query, ID, String
 
 @schema.type
 class User:
@@ -246,7 +246,7 @@ schema.bind("users", "view", "v_user")
 ### Compilation: PostgreSQL Target
 
 ```bash
-fraiseql compile schema.py --database postgresql
+FraiseQL compile schema.py --database postgresql
 ```text
 
 Generated GraphQL schema includes:
@@ -281,7 +281,7 @@ input StringFilter {
 ### Compilation: MySQL Target
 
 ```bash
-fraiseql compile schema.py --database mysql
+FraiseQL compile schema.py --database mysql
 ```text
 
 Generated GraphQL schema includes:
@@ -314,7 +314,7 @@ input StringFilter {
 ### Compilation: SQLite Target
 
 ```bash
-fraiseql compile schema.py --database sqlite
+FraiseQL compile schema.py --database sqlite
 ```text
 
 Generated GraphQL schema includes:
@@ -592,7 +592,7 @@ impl DbAdapter for SqliteAdapter {
 
 ```bash
 # PostgreSQL with all features
-fraiseql compile schema.py --database postgresql
+FraiseQL compile schema.py --database postgresql
 # → Gets 60+ WHERE operators, JSONB, vectors, LTree, etc.
 ```text
 
@@ -600,7 +600,7 @@ fraiseql compile schema.py --database postgresql
 
 ```bash
 # Deploy with PostgreSQL schema
-fraiseql compile schema.py --database postgresql
+FraiseQL compile schema.py --database postgresql
 # Clients see full operator set
 ```text
 
@@ -608,7 +608,7 @@ fraiseql compile schema.py --database postgresql
 
 ```bash
 # Deploy with MySQL schema
-fraiseql compile schema.py --database mysql
+FraiseQL compile schema.py --database mysql
 # Clients see only MySQL-compatible operators
 # Same schema.py file, different compiled output
 ```text
@@ -617,7 +617,7 @@ fraiseql compile schema.py --database mysql
 
 ```bash
 # Deploy with SQLite schema
-fraiseql compile schema.py --database sqlite
+FraiseQL compile schema.py --database sqlite
 # Clients see only basic operators
 # Same schema.py file, different compiled output
 ```text

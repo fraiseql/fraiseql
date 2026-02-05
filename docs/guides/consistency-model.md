@@ -36,7 +36,7 @@
 
 **Optional but Recommended:**
 
-- Database replication tools (Postgres replication, MySQL binlog)
+- Database replication tools (PostgreSQL replication, MySQL binlog)
 - Network failure simulation tools (chaos engineering)
 - Distributed transaction coordinator (if needed)
 - Consistency verification tools
@@ -570,7 +570,7 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 1. Check SAGA logs for "compensation triggered"
 2. Verify all subgraphs are responding: `curl http://subgraph:8000/health`
 3. Check network connectivity: `ping subgraph-service`
-4. Review query timeout settings in fraiseql.toml
+4. Review query timeout settings in FraiseQL.toml
 
 **Solutions:**
 

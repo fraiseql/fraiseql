@@ -17,8 +17,8 @@ plugins {
 
 dependencies {
     implementation 'org.apache.groovy:groovy:4.0.+'
-    implementation 'com.fraiseql:fraiseql-sdk:2.0.0'
-    annotationProcessor 'com.fraiseql:fraiseql-processor:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-SDK:2.0.0'
+    annotationProcessor 'com.FraiseQL:FraiseQL-processor:2.0.0'
 
     // Optional: Spring Boot integration
     implementation 'org.springframework.boot:spring-boot-starter:3.0.+'
@@ -37,8 +37,8 @@ java {
 
 ```xml
 <dependency>
-    <groupId>com.fraiseql</groupId>
-    <artifactId>fraiseql-sdk</artifactId>
+    <groupId>com.FraiseQL</groupId>
+    <artifactId>FraiseQL-SDK</artifactId>
     <version>2.0.0</version>
 </dependency>
 
@@ -60,7 +60,7 @@ java {
 ### First Schema (60 seconds)
 
 ```groovy
-import com.fraiseql.*
+import com.FraiseQL.*
 
 @GraphQLType
 class User {
@@ -87,8 +87,8 @@ println '✓ Schema exported!'
 Export and deploy:
 
 ```bash
-fraiseql-cli compile schema.json fraiseql.toml
-fraiseql-server --schema schema.compiled.json
+FraiseQL-cli compile schema.json FraiseQL.toml
+FraiseQL-server --schema schema.compiled.json
 ```
 
 ---
@@ -602,7 +602,7 @@ String getLabel() {
 ### Export Workflow
 
 ```groovy
-import com.fraiseql.*
+import com.FraiseQL.*
 
 // 1. Define types
 @GraphQLType
@@ -857,7 +857,7 @@ class FraiseQLConfig {
 ### Validation Error Handling
 
 ```groovy
-import com.fraiseql.error.*
+import com.FraiseQL.error.*
 
 try {
     SchemaRegistry registry = SchemaRegistry.getInstance()
@@ -1007,7 +1007,7 @@ class SchemaJunitTest {
 
 ## See Also
 
-- [API Guide](../../../fraiseql-groovy/API_GUIDE.md) - Detailed API reference
+- [API Guide](../../../FraiseQL-groovy/API_GUIDE.md) - Detailed API reference
 - [Java SDK Reference](./java-reference.md) - Java SDK documentation
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation
@@ -1024,7 +1024,7 @@ class SchemaJunitTest {
 
 #### Gradle Issues
 
-**Issue**: `Could not find com.fraiseql:fraiseql-groovy:2.0.0`
+**Issue**: `Could not find com.FraiseQL:FraiseQL-groovy:2.0.0`
 
 **Solution**:
 
@@ -1034,7 +1034,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.fraiseql:fraiseql-groovy:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-groovy:2.0.0'
 }
 ```
 
@@ -1047,7 +1047,7 @@ dependencies {
 ```gradle
 dependencies {
     implementation 'org.apache.groovy:groovy-all:4.0.0'
-    implementation 'com.fraiseql:fraiseql-groovy:2.0.0'
+    implementation 'com.FraiseQL:FraiseQL-groovy:2.0.0'
 }
 ```
 
@@ -1080,13 +1080,13 @@ sourceSets {
 // ✅ Correct
 class MyClass {
     def execute(String query) {
-        return fraiseql.execute(query)
+        return FraiseQL.execute(query)
     }
 }
 
 // ✅ Or with type
 String execute(String query) {
-    return fraiseql.execute(query)
+    return FraiseQL.execute(query)
 }
 ```
 
@@ -1106,7 +1106,7 @@ def process = { result ->
     println result
 }
 
-fraiseql.execute(query).each(process)
+FraiseQL.execute(query).each(process)
 ```
 
 #### Metaclass Issues
@@ -1133,7 +1133,7 @@ def query = 'user'.queryify()
 ```groovy
 // ✅ Explicit cast
 def id = (int) request.params.id
-def result = fraiseql.execute(query, [id: id])
+def result = FraiseQL.execute(query, [id: id])
 ```
 
 ---
@@ -1148,11 +1148,11 @@ def result = fraiseql.execute(query, [id: id])
 
 ```groovy
 // ✅ Define before using
-fraiseql.metaClass.executeWithRetry = { String query ->
-    fraiseql.execute(query)
+FraiseQL.metaClass.executeWithRetry = { String query ->
+    FraiseQL.execute(query)
 }
 
-fraiseql.executeWithRetry(query)
+FraiseQL.executeWithRetry(query)
 ```
 
 #### Closure Context Issues
@@ -1165,12 +1165,12 @@ fraiseql.executeWithRetry(query)
 // ❌ Wrong
 def users = []
 queries.each { q ->
-    users << fraiseql.execute(q)  // Context lost
+    users << FraiseQL.execute(q)  // Context lost
 }
 
 // ✅ Correct
 def users = []
-def f = fraiseql  // Capture reference
+def f = FraiseQL  // Capture reference
 queries.each { q ->
     users << f.execute(q)
 }
@@ -1186,7 +1186,7 @@ queries.each { q ->
 def results = Collections.synchronizedList([])
 
 queries.each { q ->
-    results << fraiseql.execute(q)
+    results << FraiseQL.execute(q)
 }
 ```
 
@@ -1216,10 +1216,10 @@ tasks.withType(JavaCompile).all { task ->
 
 ```groovy
 // ❌ Slower - dynamic
-def result = fraiseql.execute(query)
+def result = FraiseQL.execute(query)
 
 // ✅ Faster - static
-FraiseQLResult result = fraiseql.execute(query)
+FraiseQLResult result = FraiseQL.execute(query)
 ```
 
 ---
@@ -1231,7 +1231,7 @@ FraiseQLResult result = fraiseql.execute(query)
 ```bash
 groovysh
 
-groovy> import com.fraiseql.*
+groovy> import com.FraiseQL.*
 groovy> def server = Server.fromCompiled('schema.json')
 groovy> server.execute('{ user(id: 1) { id } }')
 ```
@@ -1239,7 +1239,7 @@ groovy> server.execute('{ user(id: 1) { id } }')
 #### Print Debugging
 
 ```groovy
-def result = fraiseql.execute(query)
+def result = FraiseQL.execute(query)
 println "Result: ${result}"
 println "Result: ${result.dump()}"  // Detailed dump
 ```

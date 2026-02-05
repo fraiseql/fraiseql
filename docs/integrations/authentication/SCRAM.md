@@ -192,7 +192,7 @@ FraiseQL uses the `zeroize` crate to:
 psql postgresql://fraiseql_user:password@localhost:5432/fraiseql_db
 
 # If successful, FraiseQL should also connect
-fraiseql-server start
+FraiseQL-server start
 ```
 
 ### Test with FraiseQL
@@ -216,7 +216,7 @@ async fn main() {
 
 ```bash
 # View the authentication message from server
-RUST_LOG=fraiseql_wire::auth=debug fraiseql-server start
+RUST_LOG=fraiseql_wire::auth=debug FraiseQL-server start
 
 # Should show:
 # [DEBUG] AuthenticationSASL with mechanisms: ["SCRAM-SHA-256"]
@@ -318,7 +318,7 @@ min_idle = 10
 export DATABASE_URL="postgresql://fraiseql_user:password@localhost:5432/fraiseql_db"
 
 # Or use a secrets manager
-export DATABASE_PASSWORD=$(vault kv get -field=password secret/fraiseql/db)
+export DATABASE_PASSWORD=$(vault kv get -field=password secret/FraiseQL/db)
 ```
 
 ## References

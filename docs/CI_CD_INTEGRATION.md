@@ -37,11 +37,11 @@ npm install
 npm run build
 ```text
 
-### 2. Start fraiseql-server
+### 2. Start FraiseQL-server
 
 ```bash
-cargo build --release -p fraiseql-server
-./target/release/fraiseql-server
+cargo build --release -p FraiseQL-server
+./target/release/FraiseQL-server
 ```text
 
 Server runs on `http://localhost:8080` by default.
@@ -84,8 +84,8 @@ jobs:
   design-quality:
     runs-on: ubuntu-latest
     services:
-      fraiseql-server:
-        image: fraiseql/fraiseql-server:latest
+      FraiseQL-server:
+        image: FraiseQL/FraiseQL-server:latest
         ports:
           - 8080:8080
         env:
@@ -176,8 +176,8 @@ design-quality:
   stage: test
   image: python:3.11
   services:
-    - name: fraiseql/fraiseql-server:latest
-      alias: fraiseql-server
+    - name: FraiseQL/FraiseQL-server:latest
+      alias: FraiseQL-server
       variables:
         DATABASE_URL: sqlite::memory:
         FRAISEQL_SCHEMA_PATH: schema.compiled.json
@@ -185,7 +185,7 @@ design-quality:
     - pip install -r examples/agents/python/requirements.txt
     - |
       for i in {1..30}; do
-        if python -c "import requests; requests.get('http://fraiseql-server:8080/health')" 2>/dev/null; then
+        if python -c "import requests; requests.get('http://FraiseQL-server:8080/health')" 2>/dev/null; then
           echo "Server ready"
           break
         fi
@@ -196,12 +196,12 @@ design-quality:
     - |
       python examples/agents/python/schema_auditor.py \
         schema.compiled.json \
-        --api-endpoint http://fraiseql-server:8080 \
+        --api-endpoint http://FraiseQL-server:8080 \
         --output design-audit-report.html
     - |
       python examples/agents/python/schema_auditor.py \
         schema.compiled.json \
-        --api-endpoint http://fraiseql-server:8080 \
+        --api-endpoint http://FraiseQL-server:8080 \
         --fail-if-below 70
   artifacts:
     paths:
@@ -239,7 +239,7 @@ jobs:
   design-quality:
     docker:
       - image: cimg/python:3.11
-      - image: fraiseql/fraiseql-server:latest
+      - image: FraiseQL/FraiseQL-server:latest
         environment:
           DATABASE_URL: sqlite::memory:
           FRAISEQL_SCHEMA_PATH: schema.compiled.json
@@ -251,7 +251,7 @@ jobs:
           command: pip install -r examples/agents/python/requirements.txt
 
       - run:
-          name: Wait for fraiseql-server
+          name: Wait for FraiseQL-server
           command: |
             for i in {1..30}; do
               if curl -f http://localhost:8080/health; then
@@ -330,8 +330,8 @@ echo "Running design quality check..."
 
 # Check if server is running
 if ! curl -f "$API_ENDPOINT/health" > /dev/null 2>&1; then
-  echo "Error: fraiseql-server not running at $API_ENDPOINT"
-  echo "Start server with: fraiseql-server"
+  echo "Error: FraiseQL-server not running at $API_ENDPOINT"
+  echo "Start server with: FraiseQL-server"
   exit 1
 fi
 
@@ -626,17 +626,17 @@ echo "Score: $PREV_SCORE → $CURR_SCORE"
 curl http://localhost:8080/health
 
 # Start server
-cargo run -p fraiseql-server
+cargo run -p FraiseQL-server
 
 # Or use Docker
-docker run -p 8080:8080 fraiseql/fraiseql-server
+docker run -p 8080:8080 FraiseQL/FraiseQL-server
 ```text
 
 ### Schema Compilation Failure
 
 ```bash
 # Compile schema first
-fraiseql-cli compile schema.json -o schema.compiled.json
+FraiseQL-cli compile schema.json -o schema.compiled.json
 
 # Then run audit
 python schema_auditor.py schema.compiled.json
@@ -649,7 +649,7 @@ python schema_auditor.py schema.compiled.json
 curl http://api.example.com/api/v1/design/audit
 
 # Enable verbose logging
-RUST_LOG=debug fraiseql-server
+RUST_LOG=debug FraiseQL-server
 ```text
 
 ---

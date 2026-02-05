@@ -49,7 +49,7 @@ Query Result Caching stores the complete result of GraphQL queries in a cache, e
 
 **Components:**
 
-- `prefix` — Default: "fraiseql", configurable per deployment
+- `prefix` — Default: "FraiseQL", configurable per deployment
 - `tenant_id` — Required UUID of the organization/tenant
 - `operation_hash` — SHA-256 hash of the normalized GraphQL query
 - `variables_hash` — SHA-256 hash of sorted variables (prevents same query with different variables from hitting same cache entry)
@@ -58,7 +58,7 @@ Query Result Caching stores the complete result of GraphQL queries in a cache, e
 #### Example
 
 ```text
-fraiseql:org_550e8400-e29b-41d4:a7f3e9d2c1b:4f6a8e9d:low
+FraiseQL:org_550e8400-e29b-41d4:a7f3e9d2c1b:4f6a8e9d:low
 ```text
 
 **Tenant Isolation Guarantee:**
@@ -90,7 +90,7 @@ class CacheConfig:
     error_ttl: int = 60         # TTL for error responses (60 seconds)
 
     # Key configuration
-    key_prefix: str = "fraiseql"
+    key_prefix: str = "FraiseQL"
     include_complexity: bool = True  # Include complexity in cache key
 
     # Tenant isolation
@@ -100,7 +100,7 @@ class CacheConfig:
 #### Usage
 
 ```python
-from fraiseql import create_fraiseql_app, CacheConfig
+from FraiseQL import create_fraiseql_app, CacheConfig
 
 cache_config = CacheConfig(
     enabled=True,
@@ -120,7 +120,7 @@ app = create_fraiseql_app(
 
 #### 2.4.1 Memory Backend (Default)
 
-**Location:** `fraiseql.storage.backends.memory.MemoryCacheBackend`
+**Location:** `FraiseQL.storage.backends.memory.MemoryCacheBackend`
 
 **Characteristics:**
 
@@ -134,7 +134,7 @@ app = create_fraiseql_app(
 **Configuration:**
 
 ```python
-from fraiseql.storage.backends import MemoryCacheBackend
+from FraiseQL.storage.backends import MemoryCacheBackend
 
 backend = MemoryCacheBackend(
     max_size_bytes=1_000_000_000,  # 1 GB
@@ -151,7 +151,7 @@ backend = MemoryCacheBackend(
 
 #### 2.4.2 PostgreSQL Backend (Production)
 
-**Location:** `fraiseql.caching.postgres_cache.PostgreSQLCacheBackend`
+**Location:** `FraiseQL.caching.postgres_cache.PostgreSQLCacheBackend`
 
 **Characteristics:**
 
@@ -176,17 +176,17 @@ CREATE UNLOGGED TABLE fraiseql_cache (
 
 CREATE INDEX idx_cache_expires_at ON fraiseql_cache(expires_at);
 CREATE INDEX idx_cache_tenant ON fraiseql_cache(
-    (cache_key LIKE 'fraiseql:%')  -- Tenant extraction for cleanup
+    (cache_key LIKE 'FraiseQL:%')  -- Tenant extraction for cleanup
 );
 ```text
 
 **Configuration:**
 
 ```python
-from fraiseql.caching.postgres_cache import PostgreSQLCacheBackend
+from FraiseQL.caching.postgres_cache import PostgreSQLCacheBackend
 
 backend = PostgreSQLCacheBackend(
-    connection_string="postgresql://user:pass@db/fraiseql",
+    connection_string="postgresql://user:pass@db/FraiseQL",
     table_name="fraiseql_cache",
     auto_initialize=True,           # Create tables if missing
     cleanup_interval=300,           # Cleanup every 5 minutes
@@ -211,12 +211,12 @@ LIMIT 1000;  -- Batch cleanup to avoid long locks
 
 #### 2.4.3 Custom Backend
 
-**Location:** Extend `fraiseql.storage.backends.base.BaseCacheBackend`
+**Location:** Extend `FraiseQL.storage.backends.base.BaseCacheBackend`
 
 **Implement:**
 
 ```python
-from fraiseql.storage.backends.base import BaseCacheBackend
+from FraiseQL.storage.backends.base import BaseCacheBackend
 
 class RedisCacheBackend(BaseCacheBackend):
     """Example: Redis cache backend."""
@@ -304,16 +304,16 @@ Cache-Control: max-age=30   # Complex query, cached 30 seconds
 **Direct Cache Invalidation:**
 
 ```python
-from fraiseql.caching import cache_manager
+from FraiseQL.caching import cache_manager
 
 # Invalidate specific query
 await cache_manager.invalidate_key(
-    cache_key="fraiseql:org_123:a7f3e9d2c1b:4f6a8e9d:low"
+    cache_key="FraiseQL:org_123:a7f3e9d2c1b:4f6a8e9d:low"
 )
 
 # Pattern-based invalidation (all queries for a tenant)
 await cache_manager.invalidate_pattern(
-    pattern="fraiseql:org_123:*"
+    pattern="FraiseQL:org_123:*"
 )
 
 # Clear entire cache
@@ -373,7 +373,7 @@ mutation UpdateUser($id: ID!, $name: String!) {
 
 ```python
 # In your mutation resolver
-@fraiseql.mutation
+@FraiseQL.mutation
 async def update_user(info, id: UUID, name: str):
     # Update the user in database
     updated = await db.update_user(id, name=name)
@@ -416,8 +416,8 @@ Cache keys **always include tenant_id** as the highest-level discriminator:
 
 ```python
 # Even if you know cache structure, you cannot access other tenant data
-org_a_key = "fraiseql:org_a:query_hash:vars_hash:complexity"
-org_b_key = "fraiseql:org_b:query_hash:vars_hash:complexity"
+org_a_key = "FraiseQL:org_a:query_hash:vars_hash:complexity"
+org_b_key = "FraiseQL:org_b:query_hash:vars_hash:complexity"
 
 # Different cache entries - completely isolated
 assert await cache.get(org_a_key) != await cache.get(org_b_key)
@@ -429,13 +429,13 @@ assert await cache.get(org_a_key) != await cache.get(org_b_key)
 #### Multi-Tenant Deployment Pattern
 
 ```python
-@fraiseql.query
+@FraiseQL.query
 async def get_user(info, id: UUID) -> User:
     """Retrieve user - automatically tenant-scoped."""
     tenant_id = info.context["tenant_id"]  # From auth token
 
     # Query is automatically cached with tenant_id prefix
-    # Cache key: fraiseql:{tenant_id}:get_user_hash:...
+    # Cache key: FraiseQL:{tenant_id}:get_user_hash:...
     user = await db.find_one(
         "users",
         {"id": id, "tenant_id": tenant_id}
@@ -683,7 +683,7 @@ def matches_invalidation(
 ### 4.3 Example: User Update Cascade
 
 ```python
-@fraiseql.mutation
+@FraiseQL.mutation
 async def update_user(info, user_id: UUID, data: dict):
     """Update user and invalidate all related caches."""
 
@@ -936,7 +936,7 @@ complex_query_ttl = 60       # 1 minute (expensive, aggressive invalidation)
 ⚠️ **Verify:** Always pass tenant_id from authenticated context
 
 ```python
-@fraiseql.query
+@FraiseQL.query
 async def get_user(info, id: UUID) -> User:
     # CORRECT: tenant_id from auth context
     tenant_id = info.context["tenant_id"]  # ✅
@@ -963,13 +963,13 @@ cache_errors=os.getenv("ENVIRONMENT") == "development"
 
 ```python
 # ❌ DON'T cache this
-@fraiseql.query
+@FraiseQL.query
 async def get_user(info, id: UUID) -> User:
     """Returns user with sensitive fields."""
     return await db.find_one("users", {"id": id})
 
 # ✅ DO this: Cache only public fields
-@fraiseql.query
+@FraiseQL.query
 async def get_user_profile(info, id: UUID) -> UserProfile:
     """Returns only public profile."""
     return await db.find_one("user_profiles", {"id": id})
