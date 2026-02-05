@@ -11,6 +11,40 @@ use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServic
 use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use tonic::transport::Server;
 
+/// Create a session token for authenticated testing
+fn create_test_session_token() -> String {
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct SessionTokenClaims {
+        sub: String,
+        exp: i64,
+        iat: i64,
+        scopes: Vec<String>,
+        session_type: String,
+    }
+
+    let now = chrono::Utc::now();
+    let exp = now + chrono::Duration::minutes(5);
+
+    let claims = SessionTokenClaims {
+        sub: "test-user".to_string(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: vec!["user".to_string()],
+        session_type: "flight".to_string(),
+    };
+
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+
+    let key = EncodingKey::from_secret(secret.as_bytes());
+    let header = Header::new(Algorithm::HS256);
+
+    encode(&header, &claims, &key).expect("Failed to encode token")
+}
+
 /// Start a test Flight server on a random available port.
 ///
 /// Returns the server address (e.g., "http://127.0.0.1:12345").
@@ -123,6 +157,9 @@ async fn test_do_get_ta_orders_returns_data() {
         .await
         .expect("Failed to connect to Flight server");
 
+    // Phase 2.2b: Create session token for authentication
+    let session_token = create_test_session_token();
+
     // Create ticket for ta_orders with limit
     let ticket = FlightTicket::OptimizedView {
         view:     "ta_orders".to_string(),
@@ -137,8 +174,16 @@ async fn test_do_get_ta_orders_returns_data() {
         ticket: ticket_bytes.into(),
     };
 
+    let mut request = tonic::Request::new(ticket_request);
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", session_token)
+            .parse()
+            .expect("Failed to insert auth header"),
+    );
+
     let response = client
-        .do_get(tonic::Request::new(ticket_request))
+        .do_get(request)
         .await
         .expect("DoGet failed for ta_orders");
 
@@ -175,6 +220,9 @@ async fn test_do_get_ta_users_returns_data() {
         .await
         .expect("Failed to connect to Flight server");
 
+    // Phase 2.2b: Create session token for authentication
+    let session_token = create_test_session_token();
+
     // Create ticket for ta_users with limit
     let ticket = FlightTicket::OptimizedView {
         view:     "ta_users".to_string(),
@@ -189,8 +237,16 @@ async fn test_do_get_ta_users_returns_data() {
         ticket: ticket_bytes.into(),
     };
 
+    let mut request = tonic::Request::new(ticket_request);
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", session_token)
+            .parse()
+            .expect("Failed to insert auth header"),
+    );
+
     let response = client
-        .do_get(tonic::Request::new(ticket_request))
+        .do_get(request)
         .await
         .expect("DoGet failed for ta_users");
 

@@ -17,12 +17,16 @@
 
 #[cfg(feature = "arrow")]
 pub mod database_adapter;
+#[cfg(feature = "arrow")]
+pub mod executor_wrapper;
 
 #[cfg(feature = "arrow")]
 use std::sync::Arc;
 
 #[cfg(feature = "arrow")]
 pub use database_adapter::FlightDatabaseAdapter;
+#[cfg(feature = "arrow")]
+pub use executor_wrapper::ExecutorQueryAdapter;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 #[cfg(feature = "arrow")]

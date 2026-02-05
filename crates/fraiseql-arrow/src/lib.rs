@@ -65,6 +65,6 @@ pub use cache::QueryCache;
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
-pub use flight_server::FraiseQLFlightService;
+pub use flight_server::{FraiseQLFlightService, QueryExecutor};
 pub use metadata::SchemaRegistry;
 pub use ticket::FlightTicket;

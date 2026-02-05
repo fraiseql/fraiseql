@@ -119,6 +119,38 @@ async fn test_do_get_returns_empty_stream() {
         .await
         .expect("Failed to connect to Flight server");
 
+    // Phase 2.2b: Create a session token for authentication
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct SessionTokenClaims {
+        sub: String,
+        exp: i64,
+        iat: i64,
+        scopes: Vec<String>,
+        session_type: String,
+    }
+
+    let now = chrono::Utc::now();
+    let exp = now + chrono::Duration::minutes(5);
+
+    let claims = SessionTokenClaims {
+        sub: "test-user".to_string(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: vec!["user".to_string()],
+        session_type: "flight".to_string(),
+    };
+
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+
+    let key = EncodingKey::from_secret(secret.as_bytes());
+    let header = Header::new(Algorithm::HS256);
+
+    let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
+
     // Create ticket for GraphQL query
     let ticket = FlightTicket::GraphQLQuery {
         query:     "{ users { id } }".to_string(),
@@ -127,18 +159,27 @@ async fn test_do_get_returns_empty_stream() {
 
     let ticket_bytes = ticket.encode().unwrap();
 
-    // Request data
-    let request = tonic::Request::new(Ticket {
+    // Request data with authentication
+    let mut request = tonic::Request::new(Ticket {
         ticket: ticket_bytes.into(),
     });
+
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", session_token)
+            .parse()
+            .expect("Failed to insert auth header"),
+    );
 
     let response = client.do_get(request).await.expect("DoGet failed");
     let mut stream = response.into_inner();
 
-    // stream should be empty (no data implementation yet)
-    // this will return actual RecordBatches
+    // Should return at least the schema message
     let first_item = stream.message().await.expect("Stream error");
-    assert!(first_item.is_none(), "Stream should be empty ");
+    assert!(
+        first_item.is_some(),
+        "Stream should return schema and data messages"
+    );
 }
 
 #[tokio::test]
@@ -149,10 +190,49 @@ async fn test_invalid_ticket_returns_error() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Send invalid ticket bytes
-    let request = tonic::Request::new(Ticket {
+    // Phase 2.2b: Create a session token for authentication
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct SessionTokenClaims {
+        sub: String,
+        exp: i64,
+        iat: i64,
+        scopes: Vec<String>,
+        session_type: String,
+    }
+
+    let now = chrono::Utc::now();
+    let exp = now + chrono::Duration::minutes(5);
+
+    let claims = SessionTokenClaims {
+        sub: "test-user".to_string(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: vec!["user".to_string()],
+        session_type: "flight".to_string(),
+    };
+
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+
+    let key = EncodingKey::from_secret(secret.as_bytes());
+    let header = Header::new(Algorithm::HS256);
+
+    let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
+
+    // Send invalid ticket bytes (but with valid auth header)
+    let mut request = tonic::Request::new(Ticket {
         ticket: b"invalid json".to_vec().into(),
     });
+
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", session_token)
+            .parse()
+            .expect("Failed to insert auth header"),
+    );
 
     let response = client.do_get(request).await;
     assert!(response.is_err(), "Invalid ticket should return error");
