@@ -1,10 +1,10 @@
 # FraiseQL v2
 
-**Version:** 2.0.0-beta.1
-**Status:** Beta release available
+**Version:** 2.0.0-alpha.1
+**Status:** Alpha release available
 **Date:** February 2026
 
-> 🎯 **BETA RELEASE**: Core features are production-ready. API is stable, but minor changes may occur before v2.0.0 GA (April 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's coming next. Feedback welcome! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
+> 🎯 **ALPHA RELEASE**: Core features are production-ready for testing. API is stable, but changes may occur before v2.0.0 GA (Q2 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's coming next. Feedback welcome! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
 
 FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
@@ -31,21 +31,56 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Authorization rules are metadata, not code
 
 **What's included in v2.0.0-alpha.1:**
+
+**Core GraphQL Engine:**
 - Core GraphQL execution (queries, mutations, types, interfaces, unions)
 - Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - Automatic WHERE type generation from GraphQL scalar types
 - Apollo Federation v2 with SAGA transaction support across services
-- Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
-- Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
-- Backup and disaster recovery (point-in-time restore, failover support)
-- Multi-tenant isolation with per-tenant data scoping
-- Change Data Capture (CDC) at the database layer with full entity context
-- Enterprise security (rate limiting, audit logging, constant-time token comparison, field-level authorization, encryption)
-- Event system with webhook dispatch (extensible provider architecture), NATS JetStream messaging, and action routing
 - Automatic Persisted Queries (APQ) with query allowlisting
+
+**Data & Integration:**
+- Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
+- Change Data Capture (CDC) at the database layer with full entity context
+- Event system with webhook dispatch, NATS JetStream messaging, and action routing
+- Multi-tenant isolation with per-tenant data scoping
+- Backup and disaster recovery (point-in-time restore, failover support)
+
+**Performance & Streaming:**
+- Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
 - Query result caching with automatic invalidation
 - Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
-- 2,400+ tests, all passing
+
+**Enterprise Security Suite:**
+- Rate limiting on authentication endpoints (brute-force protection)
+- Audit logging for all mutations and admin operations (multiple backends: file, PostgreSQL, Syslog)
+- Constant-time token comparison (timing attack prevention)
+- Field-level authorization via GraphQL directives
+- Field-level encryption-at-rest for sensitive database columns
+- Credential rotation automation with refresh triggers and monitoring dashboard
+- Error sanitization (implementation details hidden from clients)
+- OAuth state encryption (PKCE protection against state inspection)
+
+**Secrets Management:**
+- HashiCorp Vault integration (dynamic secrets, transit encryption, lease management)
+- Environment variables backend with validation
+- File-based secrets backend for local development
+- Secret caching with automatic refresh
+- Database schema for secrets and key management
+
+**External Authentication:**
+- OAuth2/OIDC support with 7+ providers:
+  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
+- JWT token handling with rotation support
+- OIDC provider integration
+- Session management with database backend
+- PKCE flow support for secure token exchange
+
+**Quality & Testing:**
+- 2,400+ tests, all passing (unit, integration, E2E, chaos engineering)
+- Zero unsafe code (forbidden at compile time)
+- Strict type system (all critical Clippy warnings as errors)
+- Comprehensive test coverage across all components
 
 ---
 
@@ -145,7 +180,7 @@ See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) f
 
 ## Getting Started
 
-> **Upgrading from v1?** FraiseQL v2 is a complete architectural redesign and is not backwards compatible with v1. A migration guide is coming in beta (March 2026). For now, treat v2 as a fresh start. See [Alpha Limitations](docs/ALPHA_LIMITATIONS.md#breaking-changes-from-v1) for details.
+> **Upgrading from v1?** FraiseQL v2 is a complete architectural redesign and is not backwards compatible with v1. A migration guide is in progress. For now, treat v2 as a fresh start. See [Alpha Limitations](docs/ALPHA_LIMITATIONS.md#breaking-changes-from-v1) for details.
 
 ### 1. Define Schema
 
@@ -203,7 +238,7 @@ That's the basic flow. For more examples and language-specific guides, see the d
 
 FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
-**Ready for Alpha (v2.0.0-alpha.1):**
+**Supported (v2.0.0-alpha.1):**
 - Python ✅
 - TypeScript ✅
 - Go ✅
@@ -225,7 +260,7 @@ FraiseQL v2 supports 16+ programming languages for schema authoring. All produce
 - YAML (configuration-driven schemas)
 - GraphQL SDL (standard schema syntax)
 
-Pick any language for your alpha testing. Full feature parity across all languages is complete.
+All 16+ languages have full feature parity with identical compilation and execution behavior.
 
 See `docs/guides/language-generators.md` for examples in each supported language.
 
@@ -321,31 +356,52 @@ FraiseQL provides two specialized ways to stream large result sets:
 
 ## Project Status
 
-Current release: **v2.0.0-alpha.1** (all planned features complete)
+Current release: **v2.0.0-alpha.1**
 
-**Complete:**
+**Core Features (Complete):**
 - ✅ Core GraphQL engine (schema parsing, type validation, query execution, mutation support)
 - ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server with database-specific optimizations)
-- ✅ Schema authoring in 15+ languages with compile-time verification
+- ✅ Schema authoring in 16+ languages with compile-time verification
 - ✅ Automatic WHERE type generation from scalar types (150+ operators for PostgreSQL)
 - ✅ Compilation pipeline (6-phase build process with full validation)
-- ✅ Enterprise security (OAuth2/OIDC, field-level auth, audit logging, rate limiting, KMS integration)
 - ✅ Apollo Federation v2 with SAGA transactions across services
-- ✅ CDC (Change Data Capture) with database-agnostic event format
 - ✅ Streaming query results via fraiseql-wire
 - ✅ Apache Arrow Flight columnar data plane
 - ✅ Query result caching with automatic invalidation
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
-- ✅ Event system with webhooks (extensible provider architecture), NATS JetStream messaging, and job dispatch
-- ✅ Multi-tenant isolation with per-tenant data scoping
-- ✅ Comprehensive test suite (2,400+ tests across all components)
-- ✅ Production deployment guides and monitoring setup
 
-**Next steps:**
+**Enterprise Features (Complete):**
+- ✅ OAuth2/OIDC with 7+ providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible)
+- ✅ Field-level authorization via GraphQL directives
+- ✅ Field-level encryption-at-rest for database columns
+- ✅ Audit logging for mutations and admin operations
+- ✅ Rate limiting on authentication endpoints
+- ✅ Constant-time token comparison (timing attack prevention)
+- ✅ Error sanitization (implementation details hidden)
+- ✅ Secrets management (HashiCorp Vault, environment, file backends)
+- ✅ Credential rotation automation with dashboard
+- ✅ Multi-tenant isolation with per-tenant data scoping
+- ✅ RBAC database schema and permission system
+
+**Data & Integration (Complete):**
+- ✅ CDC (Change Data Capture) with database-agnostic event format
+- ✅ Event system with webhooks (extensible provider architecture: Discord, Slack, GitHub, Stripe)
+- ✅ NATS JetStream messaging integration
+- ✅ Multi-tenant data scoping
+- ✅ Backup and disaster recovery support
+
+**Quality (Complete):**
+- ✅ Comprehensive test suite (2,400+ tests: unit, integration, E2E, chaos engineering)
+- ✅ Zero unsafe code (forbidden at compile time)
+- ✅ Strict type system (all critical Clippy warnings as errors)
+- ✅ Production deployment guides and monitoring setup
+- ✅ Performance benchmarks (Arrow vs JSON serialization)
+
+**Next Steps:**
 - Community testing and deployment feedback
 - Real-world production validation
 - Performance optimization based on usage patterns
-- Path to v2.0.0 GA
+- Path to v2.0.0 GA (v2.1 planning includes Phases 13-15: Config wiring, Observability, Finalization)
 
 ---
 
