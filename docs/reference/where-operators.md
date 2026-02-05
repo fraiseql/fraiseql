@@ -20,6 +20,64 @@ All operators are type-aware and only work with compatible column types. Invalid
 
 ---
 
+## Database Support Matrix
+
+**Quick Reference**: Operators supported per database
+
+| Operator Category | PostgreSQL | MySQL | SQLite | SQL Server | Notes |
+|---|:---:|:---:|:---:|:---:|---|
+| **Basic Comparison** (eq, neq, gt, gte, lt, lte) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal, always available |
+| **String Operators** (contains, startswith, icontains) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All databases support LIKE/ILIKE equivalents |
+| **Array Operators** (@>, @<, ? ANY, IN) | ✅ Full | ⚠️ Limited | ❌ None | ⚠️ Workaround | PostgreSQL native arrays optimal; MySQL needs workaround |
+| **JSON/JSONB Operators** (->>, @>, @?) | ✅ Full | ⚠️ Limited | ⚠️ Limited | ⚠️ Limited | PostgreSQL JSONB best; others use JSON operators |
+| **Full-Text Search** (fts, plainto_tsquery) | ✅ Full | ✅ Full | ⚠️ Limited | ⚠️ Limited | PostgreSQL FTS most complete; MySQL/SQL Server partial |
+| **Geometric** (ST_Distance, <@) | ✅ Full | ⚠️ Limited | ❌ None | ⚠️ Limited | Requires PostGIS or equivalent; PostgreSQL best support |
+| **Range Operators** (contained_by, overlaps) | ✅ Full | ❌ None | ❌ None | ❌ None | PostgreSQL range types only |
+| **UUID Operations** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All support UUID as string/binary |
+| **Date/Time Operators** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All support standard date/time functions |
+| **Case-Insensitive** (ilike, icontains) | ✅ Native | ✅ Native | ✅ Full | ✅ Full | All support case-insensitive comparisons |
+| **NULL Handling** (is_null, is_not_null) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal |
+| **Bitwise** (& bitwise AND, \| bitwise OR) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal for numeric types |
+
+**Legend**:
+- ✅ **Full** = Fully supported, optimal performance
+- ⚠️ **Limited** = Supported with workarounds or reduced functionality
+- ❌ **None** = Not supported; no direct equivalent
+
+---
+
+### Database-Specific Notes
+
+**PostgreSQL (Recommended for operators)**
+- ✅ All operators fully supported
+- ✅ JSONB operators optimized with GIN indexes
+- ✅ Full-text search with tsvector
+- ✅ PostGIS for geometric queries
+- ✅ Range types with native operators
+
+**MySQL**
+- ✅ Standard SQL operators all work
+- ⚠️ JSON operators available but slower than PostgreSQL
+- ⚠️ Full-text search available (MATCH AGAINST) but less powerful than PostgreSQL
+- ⚠️ No array types; use JSON workaround
+- ⚠️ No range types; use comparison operators
+
+**SQLite**
+- ✅ Standard SQL operators work
+- ⚠️ Minimal JSON support (JSON1 extension required)
+- ⚠️ Limited full-text search (FTS5 extension needed)
+- ❌ No array, range, or geometric types
+- ⚠️ Case-insensitive searches with `COLLATE NOCASE`
+
+**SQL Server**
+- ✅ Standard SQL operators work
+- ⚠️ JSON operators available (JSON_VALUE, JSON_QUERY)
+- ⚠️ Full-text search available but different syntax
+- ❌ No array or range types
+- ✅ Case-insensitive by default (collation)
+
+---
+
 ## Operator Categories
 
 ### 1. Basic Comparison Operators

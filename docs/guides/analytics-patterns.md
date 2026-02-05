@@ -789,13 +789,34 @@ query {
 
 ---
 
-## Related Documentation
+## See Also
 
-- **Aggregation Model** (`../architecture/analytics/aggregation-model.md`) - Compilation and execution
-- **Fact-Dimension Pattern** (`../architecture/analytics/fact-dimension-pattern.md`) - Table structure
-- **Analytical Schema Conventions** (`../specs/analytical-schema-conventions.md`) - Naming patterns
-- **Aggregation Operators** (`../specs/aggregation-operators.md`) - Available functions
-- **Arrow Plane Architecture** (`../architecture/database/arrow-plane.md`) - Columnar data plane
+**Architecture & Design:**
+- **[Aggregation Model](../architecture/analytics/aggregation-model.md)** — Compilation and execution of aggregations
+- **[Fact-Dimension Pattern](../architecture/analytics/fact-dimension-pattern.md)** — Table structure and relationships
+- **[Arrow Plane Architecture](../architecture/database/arrow-plane.md)** — Columnar data plane for analytics
+
+**Schema & Specifications:**
+- **[Analytical Schema Conventions](../specs/analytical-schema-conventions.md)** — Naming patterns for analytics tables
+- **[Aggregation Operators](../specs/aggregation-operators.md)** — Available aggregate functions
+- **[Scalar Types Reference](../reference/scalars.md)** — Data types for analytical fields
+
+**Related Guides:**
+- **[Common Patterns](./PATTERNS.md)** — Real-world patterns including analytics
+- **[Arrow Flight Quick Start](./arrow-flight-quick-start.md)** — Exporting analytics results
+- **[Arrow vs JSON Guide](./arrow-vs-json-guide.md)** — Choosing optimal data format for analytics
+- **[Database Selection Guide](./database-selection-guide.md)** — Choosing database for analytics workloads
+- **[View Selection Guide](./view-selection-performance-testing.md)** — Optimizing view types for performance
+
+**Operations & Optimization:**
+- **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing slow queries
+- **[Observability Architecture](../operations/observability-architecture.md)** — Monitoring analytics performance
+- **[Monitoring Guide](./monitoring.md)** — Observing analytics in production
+
+**Troubleshooting:**
+- **[Common Gotchas](./common-gotchas.md)** — Analytics pitfalls and solutions
+- **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide
+- **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and solutions
 
 ---
 
