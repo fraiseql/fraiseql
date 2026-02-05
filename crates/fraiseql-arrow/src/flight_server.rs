@@ -17,10 +17,9 @@ use arrow_flight::{
 #[allow(unused_imports)]
 use futures::{Stream, StreamExt}; // StreamExt required for .next() on Pin<Box<dyn Stream>>
 use tonic::{Request, Response, Status, Streaming};
-use tonic::metadata::MetadataMap;
 use tracing::{info, warn};
 use fraiseql_core::security::OidcValidator;
-use jsonwebtoken::{encode, Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
 
@@ -747,50 +746,6 @@ fn create_session_token(user: &fraiseql_core::security::auth_middleware::Authent
 
     encode(&header, &claims, &key).map_err(|e| {
         Status::internal(format!("Failed to create session token: {e}"))
-    })
-}
-
-/// Validate session token from gRPC metadata.
-fn validate_session_token(metadata: &MetadataMap) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
-    // Extract authorization header from metadata
-    let auth_header = metadata
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| Status::unauthenticated("Missing authorization metadata"))?;
-
-    // Extract token from "Bearer <token>" format
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| Status::unauthenticated("Invalid authorization format"))?;
-
-    // Decode and validate session token (HMAC-based, no JWKS needed)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
-
-    let key = DecodingKey::from_secret(secret.as_bytes());
-    let validation = Validation::new(Algorithm::HS256);
-
-    let token_data = decode::<SessionTokenClaims>(token, &key, &validation)
-        .map_err(|e| {
-            warn!(error = %e, "Session token validation failed");
-            match e.kind() {
-                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                    Status::unauthenticated("Session token expired")
-                }
-                _ => Status::unauthenticated("Invalid session token"),
-            }
-        })?;
-
-    let claims = token_data.claims;
-
-    // Reconstruct AuthenticatedUser from claims
-    let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp(claims.exp, 0)
-        .ok_or_else(|| Status::internal("Invalid token expiration time"))?;
-
-    Ok(fraiseql_core::security::auth_middleware::AuthenticatedUser {
-        user_id: claims.sub,
-        scopes: claims.scopes,
-        expires_at,
     })
 }
 

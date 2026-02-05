@@ -162,7 +162,7 @@ fn test_multiple_subgraphs() {
 
 #[test]
 fn test_subgraph_with_multiple_entities() {
-    use fraiseql_server::routes::api::federation::{SubgraphInfo, SubgraphsResponse};
+    use fraiseql_server::routes::api::federation::SubgraphInfo;
 
     let subgraph = SubgraphInfo {
         name:     "users".to_string(),
