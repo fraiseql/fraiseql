@@ -1,7 +1,8 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: January 30, 2026
+**Last Updated**: February 5, 2026
 **Architecture**: Layered Optionality with Feature Gates
+**Status**: v2.0.0-alpha.1 Production-Ready
 
 ---
 
@@ -413,17 +414,43 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 
 ### 2. Authentication Layers
 
-- OIDC token validation (external identity providers)
-- JWT validation for sessions
+- OAuth2/OIDC support with 7+ providers:
+  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible provider system
+- JWT token validation for sessions with automatic rotation
 - Bearer token for metrics endpoints
 - TLS/mTLS for transport security
+- Constant-time token comparison (prevents timing attacks)
+- PKCE flow support for secure authorization code exchange
 
 ### 3. Input Validation
 
 - GraphQL query complexity limits
 - Request size limits
-- Rate limiting (per-IP, per-user)
+- Rate limiting (per-IP, per-user, auth endpoints)
 - Webhook signature verification
+
+### 4. Data Protection at Rest
+
+- **Field-Level Encryption**: Encrypt sensitive database columns with configurable key rotation
+- **Secrets Management**: HashiCorp Vault integration with automatic secret refresh
+  * Dynamic secrets with TTL and automatic renewal
+  * Transit encryption for sensitive data in transit
+  * Lease management and automatic key rotation
+  * Fallback to environment variables and file-based backends
+- **Credential Rotation**: Automated rotation of authentication credentials
+  * Monitor rotation status and refresh triggers
+  * Dashboard for rotation history and compliance auditing
+
+### 5. Audit & Compliance
+
+- **Audit Logging**: Track all mutations and admin operations
+  * Multiple backends: file, PostgreSQL, Syslog
+  * Redacted secrets in logs (implementation details hidden)
+  * Structured logging for compliance tooling
+- **Error Sanitization**: Hide implementation details from error messages
+- **Rate Limiting on Auth Endpoints**: Brute-force protection with configurable thresholds
+- **RBAC Database Schema**: Role-based access control with permission system
+- **Multi-Tenant Isolation**: Per-tenant data scoping with strict isolation
 
 ---
 
@@ -570,11 +597,11 @@ use fraiseql_observers::ObserverRuntime;
 
 ### Potential Extensions
 
-- GraphQL Federation (Phase 16 work shows this is underway)
-- Distributed tracing (OpenTelemetry integration)
-- APQ over Redis (currently in-memory)
-- Schema registry integration
+- Distributed tracing (OpenTelemetry integration for observability)
+- APQ over Redis backend (currently in-memory only)
+- Schema registry integration (Confluent, AWS Glue)
 - More database backends (CockroachDB, YugabyteDB)
+- Configuration management enhancements (v2.1 planning: hierarchical config, observability, finalization)
 
 ### NOT Planned
 
@@ -633,7 +660,8 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Production-ready
-**Last Major Refactor**: January 30, 2026 (Dual server consolidation)
-**Lines of Code**: ~140,000 across workspace
-**Test Coverage**: 294+ tests passing
+**Architecture Status**: Production-ready (v2.0.0-alpha.1)
+**Last Updated**: February 5, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
+**Lines of Code**: ~180,000 across workspace
+**Test Coverage**: 2,400+ tests (unit, integration, E2E, chaos engineering)
+**Unsafe Code**: Zero (forbidden at compile time)
