@@ -279,30 +279,24 @@ See `docs/guides/language-generators.md` for examples in each supported language
 
 ## Documentation
 
-The project includes comprehensive documentation:
+📖 **[Complete Documentation](https://fraiseql.readthedocs.io)** — Visit ReadTheDocs for comprehensive, searchable documentation.
 
-**Architecture & Design:**
+The project includes **251 markdown files with 70,000+ lines** of documentation:
+
+**Quick Links:**
+
+- 🚀 [Getting Started](https://fraiseql.readthedocs.io/getting-started/) — 5-minute quick start
+- 📚 [SDK References](https://fraiseql.readthedocs.io/integrations/sdk/) — 16 language SDKs
+- 🏗️ [Architecture Guides](https://fraiseql.readthedocs.io/architecture/) — System design and patterns
+- 🎯 [Examples](https://fraiseql.readthedocs.io/examples/) — 4 full-stack applications
+- 🔒 [Security Guide](https://fraiseql.readthedocs.io/guides/production-security-checklist/) — Production hardening
+- 🚨 [Troubleshooting](https://fraiseql.readthedocs.io/troubleshooting/) — Common issues and fixes
+
+**Local Documentation:**
 
 - `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
 - `docs/prd/PRD.md` — Product requirements and vision
-- `docs/architecture/` — Compilation pipeline, execution model, database targeting
-
-**Specifications:**
-
-- `docs/specs/` — Schema conventions, compiled schema format, CDC format
-- `docs/reference/` — Scalar types, WHERE operators, complete API reference
-
-**Operations:**
-
-- `docs/guides/production-deployment.md` — Kubernetes setup and hardening
-- `docs/guides/monitoring.md` — Prometheus metrics, OpenTelemetry tracing
-- `docs/enterprise/` — RBAC, audit logging, key management
-
-**Getting started:**
-
-- `docs/guides/language-generators.md` — Examples for each supported language
-- `docs/guides/development/e2e-testing.md` — Testing setup and CI/CD integration
-- `docs/ALPHA_TESTING_GUIDE.md` — Essential guide for alpha testers
+- `docs/alpha-testing-guide.md` — Alpha testing guide
 
 ---
 
