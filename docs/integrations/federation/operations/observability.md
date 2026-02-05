@@ -741,6 +741,131 @@ Execution Time: 80ms (total)
 
 ---
 
+## Troubleshooting Federation Observability
+
+### "Jaeger traces not appearing or very delayed"
+
+**Cause:** Trace exporter not configured or collector unreachable.
+
+**Diagnosis:**
+1. Check trace exporter enabled: `grep "jaeger" fraiseql.toml`
+2. Verify collector reachable: `curl http://jaeger-collector:14250/api/traces`
+3. Check OTEL_EXPORTER_OTLP_ENDPOINT: Should point to Jaeger collector
+
+**Solutions:**
+- Verify Jaeger collector URL in configuration
+- Check network connectivity from FraiseQL to Jaeger
+- Verify Jaeger is running: `docker ps | grep jaeger`
+- Enable trace sampling if overhead is concern: `otel_sampler_ratio = 0.1`
+
+### "Prometheus metrics missing despite configuration"
+
+**Cause:** Metrics endpoint not exposed or scrape config incorrect.
+
+**Diagnosis:**
+1. Check metrics endpoint: `curl http://localhost:9090/metrics`
+2. Verify Prometheus scrape config: Look for FraiseQL job
+3. Check target health in Prometheus UI: http://localhost:9090/targets
+
+**Solutions:**
+- Expose metrics endpoint in fraiseql.toml: `[metrics] enabled = true`
+- Verify Prometheus scrape_interval (default 15s)
+- Check scrape timeout vs query duration
+- For federation: Ensure all subgraph instances expose metrics
+
+### "Grafana dashboards empty or showing 'No data'"
+
+**Cause:** Data not being scraped or metric queries wrong.
+
+**Diagnosis:**
+1. Check Prometheus datasource in Grafana: http://localhost:3000/datasources
+2. Test query: `rate(fraiseql_queries_total[1m])` in Prometheus UI
+3. Check metric labels: May be named differently
+
+**Solutions:**
+- Verify Prometheus datasource URL is correct
+- Check if metrics are being collected: Query in Prometheus UI first
+- Adjust time range: Last hour may not have data yet
+- Regenerate dashboard from templates
+
+### "Alert notifications not firing despite threshold exceeded"
+
+**Cause:** Alert rule misconfigured or notification channel not setup.
+
+**Diagnosis:**
+1. Check alert rule in Prometheus: Should show "Firing" in Alerts
+2. Verify notification channel configured: Email, Slack, PagerDuty
+3. Check alert expression: `prometheus_sd_scrape_failed_count > 5`
+
+**Solutions:**
+- Verify alert condition is correct: Threshold might be too high
+- Test notification channel: Send test message manually
+- Check alert_for duration: Rule fires after N minutes of threshold
+- Review AlertManager logs for routing issues
+
+### "Trace sampling too aggressive - missing important traces"
+
+**Cause:** Sampling ratio too low.
+
+**Diagnosis:**
+1. Check sampling config: `otel_sampler_ratio = ?`
+2. Look at Jaeger UI: Very few traces appearing?
+3. For federation: May need higher sampling for cross-service calls
+
+**Solutions:**
+- For development: `otel_sampler_ratio = 1.0` (100% sampling)
+- For production: `otel_sampler_ratio = 0.1-0.5` (10-50% sampling)
+- Use AdaptiveSampler: Increase sampling for slow traces
+- Monitor: Trade-off between coverage and overhead
+
+### "Observability overhead too high (queries slower)"
+
+**Cause:** Trace generation or metrics collection overhead.
+
+**Diagnosis:**
+1. Compare latency before/after enabling observability
+2. Check trace exporter latency: May be synchronous
+3. Check metric cardinality: Too many label combinations?
+
+**Solutions:**
+- Use async trace export: Buffer traces and flush batches
+- Reduce sampling ratio: Lower observability overhead
+- Reduce metric cardinality: Remove unnecessary labels
+- Move tracing collector closer: Reduce network latency
+
+### "Different team members seeing inconsistent logs in federation"
+
+**Cause:** Correlation ID not propagated between subgraphs.
+
+**Diagnosis:**
+1. Query transaction logs: Look for X-Correlation-ID header
+2. Check subgraph logs: Do they have same correlation ID?
+3. Verify header is passed to federation calls
+
+**Solutions:**
+- Ensure X-Correlation-ID header sent in every request
+- Middleware must propagate to downstream calls
+- Add correlation ID to all subgraph requests
+- Log correlation ID in every message
+
+### "Can't find root cause of federation request latency"
+
+**Cause:** Observability not capturing all relevant metrics.
+
+**Diagnosis:**
+1. Check trace flame graph: Which step is slowest?
+2. Review SAGA logs: How long did compensation take?
+3. Monitor database metrics: Slow query?
+
+**Solutions:**
+- Enable detailed tracing on slow steps
+- Add database query logging: `enable_query_log = true`
+- Monitor each subgraph separately: Identify bottleneck
+- Check network latency: May be infrastructure issue
+- Review SAGA step durations in observability backend
+
+---
+
 ## Support & Contact
 
 **For Issues**: File GitHub issue in fraiseql/docs

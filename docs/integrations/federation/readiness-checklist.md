@@ -623,6 +623,50 @@ mutation {
 
 ---
 
+## Troubleshooting Readiness Assessment
+
+### "Our use case isn't covered by readiness checklist"
+
+**Solution:**
+1. Review sections 1-11 to find closest match
+2. If not covered, reach out to FraiseQL team
+3. Document your requirements for future releases
+
+### "We need @requires/@provides but checklist says 'Not Yet'"
+
+**Options:**
+1. **Workaround**: Implement validation at application layer
+2. **Wait**: Phase 2 (8-12 weeks) will add this
+3. **Contribute**: Help implement the feature
+
+### "Our deployment is more complex than any pattern here"
+
+**Recommendations:**
+1. Break into simpler subgraphs if possible
+2. Document custom patterns for knowledge base
+3. Plan for phased rollout (start with subset)
+
+### "Readiness assessment conflicts with our timeline"
+
+**Discussion:**
+- Checklist gives honest assessment of what's production-ready
+- If limitations aren't acceptable: Recommend waiting for Phase 2
+- For experimental use: Limited GA acceptable with caveats
+- For customer-facing: Recommend waiting for full GA
+
+### "We failed some readiness criteria - can we proceed?"
+
+**Assessment:**
+| Criteria | Consequence | Recommendation |
+|----------|-----------|-----------------|
+| @requires/@provides not enforced | Risk of incorrect composition | Implement app-layer validation |
+| No distributed transactions | Data consistency at subgraph level | Document for team |
+| Federation subscriptions missing | Real-time not available | Use polling or CDC instead |
+| Apollo Router untested | May have edge cases | Test thoroughly in staging |
+| Limited error handling | May need debugging | Plan monitoring carefully |
+
+---
+
 ## 13. Conclusions
 
 FraiseQL v2 demonstrates a **solid foundation for federation** with well-architected components and strong observability. The authoring and compilation layers are production-ready, and the core runtime is capable.
