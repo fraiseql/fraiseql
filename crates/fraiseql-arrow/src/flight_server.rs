@@ -17,7 +17,12 @@ use arrow_flight::{
 #[allow(unused_imports)]
 use futures::{Stream, StreamExt}; // StreamExt required for .next() on Pin<Box<dyn Stream>>
 use tonic::{Request, Response, Status, Streaming};
+use tonic::metadata::MetadataMap;
 use tracing::{info, warn};
+use fraiseql_core::security::OidcValidator;
+use jsonwebtoken::{encode, Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
+use serde::{Deserialize, Serialize};
+use chrono::Utc;
 
 use crate::{
     cache::QueryCache,
@@ -76,6 +81,8 @@ pub struct FraiseQLFlightService {
     /// Phase 2: Optional security context for authenticated requests
     /// Stores session information from successful handshake
     security_context: Option<SecurityContext>,
+    /// OIDC validator for JWT authentication during handshake
+    oidc_validator: Option<Arc<OidcValidator>>,
 }
 
 /// Phase 2: Security context for authenticated Flight requests
@@ -103,6 +110,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             security_context: None,
+            oidc_validator: None,
         }
     }
 
@@ -140,6 +148,7 @@ impl FraiseQLFlightService {
             executor: None,
             cache: None,
             security_context: None,
+            oidc_validator: None,
         }
     }
 
@@ -175,6 +184,51 @@ impl FraiseQLFlightService {
             executor: None,
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
             security_context: None,
+            oidc_validator: None,
+        }
+    }
+
+    /// Create a new Flight service with OIDC authentication.
+    ///
+    /// # Arguments
+    ///
+    /// * `db_adapter` - Database adapter for executing real queries
+    /// * `cache_ttl_secs` - Query result cache TTL in seconds (optional)
+    /// * `oidc_validator` - OIDC validator for JWT authentication
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
+    /// use fraiseql_core::security::OidcValidator;
+    /// use std::sync::Arc;
+    ///
+    /// let db_adapter = todo!("Create adapter");
+    /// let validator = todo!("Create OidcValidator");
+    /// let service = FraiseQLFlightService::new_with_auth(
+    ///     Arc::new(db_adapter),
+    ///     Some(60),
+    ///     Arc::new(validator)
+    /// );
+    /// ```
+    #[must_use]
+    pub fn new_with_auth(
+        db_adapter: Arc<dyn DatabaseAdapter>,
+        cache_ttl_secs: Option<u64>,
+        oidc_validator: Arc<OidcValidator>,
+    ) -> Self {
+        let schema_registry = SchemaRegistry::new();
+        schema_registry.register_defaults();
+
+        let cache = cache_ttl_secs.map(|ttl| Arc::new(QueryCache::new(ttl)));
+
+        Self {
+            schema_registry,
+            db_adapter: Some(db_adapter),
+            executor: None,
+            cache,
+            security_context: None,
+            oidc_validator: Some(oidc_validator),
         }
     }
 
@@ -244,6 +298,13 @@ impl FraiseQLFlightService {
     /// In production, this would be called after JWT validation succeeds.
     pub fn set_security_context(&mut self, context: SecurityContext) {
         self.security_context = Some(context);
+    }
+
+    /// Set OIDC validator for JWT authentication.
+    ///
+    /// Enables JWT validation during the Flight handshake.
+    pub fn set_oidc_validator(&mut self, validator: Arc<OidcValidator>) {
+        self.oidc_validator = Some(validator);
     }
 
     /// Convert this service into a gRPC server.
@@ -626,6 +687,113 @@ impl Default for FraiseQLFlightService {
     }
 }
 
+/// Session token claims for JWT validation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SessionTokenClaims {
+    /// Subject (user ID)
+    sub: String,
+    /// Expiration time (Unix timestamp)
+    exp: i64,
+    /// Issued at (Unix timestamp)
+    iat: i64,
+    /// Scopes from original token
+    scopes: Vec<String>,
+    /// Session type marker
+    session_type: String,
+}
+
+/// Map security error to gRPC status.
+fn map_security_error_to_status(error: fraiseql_core::security::SecurityError) -> Status {
+    use fraiseql_core::security::SecurityError;
+
+    match error {
+        SecurityError::TokenExpired { expired_at } => {
+            Status::unauthenticated(format!("Token expired at {expired_at}"))
+        }
+        SecurityError::InvalidToken => Status::unauthenticated("Invalid token"),
+        SecurityError::TokenMissingClaim { claim } => {
+            Status::unauthenticated(format!("Token missing claim: {claim}"))
+        }
+        SecurityError::InvalidTokenAlgorithm { algorithm } => {
+            Status::unauthenticated(format!("Invalid token algorithm: {algorithm}"))
+        }
+        SecurityError::AuthRequired => Status::unauthenticated("Authentication required"),
+        _ => Status::unauthenticated(format!("Authentication failed: {error}")),
+    }
+}
+
+/// Create a short-lived session token (5 minutes).
+fn create_session_token(user: &fraiseql_core::security::auth_middleware::AuthenticatedUser) -> std::result::Result<String, Status> {
+    let now = Utc::now();
+    let exp = now + chrono::Duration::minutes(5);
+
+    let claims = SessionTokenClaims {
+        sub: user.user_id.clone(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: user.scopes.clone(),
+        session_type: "flight".to_string(),
+    };
+
+    // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .unwrap_or_else(|_| {
+            warn!("FLIGHT_SESSION_SECRET not set, using default (insecure for production)");
+            "flight-session-default-secret".to_string()
+        });
+
+    let key = EncodingKey::from_secret(secret.as_bytes());
+    let header = Header::new(Algorithm::HS256);
+
+    encode(&header, &claims, &key).map_err(|e| {
+        Status::internal(format!("Failed to create session token: {e}"))
+    })
+}
+
+/// Validate session token from gRPC metadata.
+fn validate_session_token(metadata: &MetadataMap) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
+    // Extract authorization header from metadata
+    let auth_header = metadata
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| Status::unauthenticated("Missing authorization metadata"))?;
+
+    // Extract token from "Bearer <token>" format
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| Status::unauthenticated("Invalid authorization format"))?;
+
+    // Decode and validate session token (HMAC-based, no JWKS needed)
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+
+    let key = DecodingKey::from_secret(secret.as_bytes());
+    let validation = Validation::new(Algorithm::HS256);
+
+    let token_data = decode::<SessionTokenClaims>(token, &key, &validation)
+        .map_err(|e| {
+            warn!(error = %e, "Session token validation failed");
+            match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                    Status::unauthenticated("Session token expired")
+                }
+                _ => Status::unauthenticated("Invalid session token"),
+            }
+        })?;
+
+    let claims = token_data.claims;
+
+    // Reconstruct AuthenticatedUser from claims
+    let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp(claims.exp, 0)
+        .ok_or_else(|| Status::internal("Invalid token expiration time"))?;
+
+    Ok(fraiseql_core::security::auth_middleware::AuthenticatedUser {
+        user_id: claims.sub,
+        scopes: claims.scopes,
+        expires_at,
+    })
+}
+
 #[tonic::async_trait]
 impl FlightService for FraiseQLFlightService {
     type DoActionStream = ActionResultStream;
@@ -690,31 +858,49 @@ impl FlightService for FraiseQLFlightService {
             }
         };
 
-        // Phase 2.1b (GREEN): In full implementation, validate JWT here using JwtValidator
-        // For now, accept any JWT format and generate session token
-        // TODO: Validate _token using JwtValidator from fraiseql-server
-        // SECURITY WARNING: This accepts ANY JWT format without validation. This is a placeholder
-        // for development/testing only and MUST NOT be deployed to production without proper JWT validation.
-        #[allow(unused_variables)]
-        let _token_validation_skipped = &_token; // Mark intentional for security review
+        // Validate JWT if OIDC validator is configured
+        if let Some(ref validator) = self.oidc_validator {
+            let authenticated_user = match validator.validate_token(&_token).await {
+                Ok(user) => {
+                    info!(user_id = %user.user_id, "JWT validation successful");
+                    user
+                }
+                Err(e) => {
+                    warn!(error = %e, "JWT validation failed");
+                    return Err(map_security_error_to_status(e));
+                }
+            };
 
-        // Generate session token (in Phase 2.2, this would include JWT claims)
-        let session_token = format!("session-{}", uuid::Uuid::new_v4());
+            // Create session token
+            let session_token = create_session_token(&authenticated_user)?;
+            info!(user_id = %authenticated_user.user_id, "Handshake complete");
 
-        warn!("Handshake: JWT validation is DISABLED. Not suitable for production use.");
-        info!("Handshake: JWT authentication succeeded, session: {}", session_token);
+            // Create response with session token
+            let response = HandshakeResponse {
+                protocol_version: 0,
+                payload: session_token.as_bytes().to_vec().into(),
+            };
 
-        // Create response with session token
-        let response = HandshakeResponse {
-            protocol_version: 0,
-            payload: session_token.as_bytes().to_vec().into(),
-        };
+            // Build stream response
+            let stream = futures::stream::once(async move { Ok(response) });
+            let boxed_stream: Self::HandshakeStream = Box::pin(stream);
 
-        // Build stream response
-        let stream = futures::stream::once(async move { Ok(response) });
-        let boxed_stream: Self::HandshakeStream = Box::pin(stream);
+            Ok(Response::new(boxed_stream))
+        } else {
+            // No validator configured - dev/test mode
+            warn!("OIDC validator not configured - allowing unauthenticated access");
+            let session_token = format!("dev-session-{}", uuid::Uuid::new_v4());
 
-        Ok(Response::new(boxed_stream))
+            let response = HandshakeResponse {
+                protocol_version: 0,
+                payload: session_token.as_bytes().to_vec().into(),
+            };
+
+            let stream = futures::stream::once(async move { Ok(response) });
+            let boxed_stream: Self::HandshakeStream = Box::pin(stream);
+
+            Ok(Response::new(boxed_stream))
+        }
     }
 
     /// List available datasets/queries.

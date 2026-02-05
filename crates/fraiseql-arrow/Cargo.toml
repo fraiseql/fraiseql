@@ -43,6 +43,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # UUID generation (used in handshake for session tokens)
 uuid = { version = "1", features = ["v4"] }
 
+# JWT handling (for session token creation and validation)
+jsonwebtoken = "9"
+
 # FraiseQL core (for Executor and query execution)
 fraiseql-core = { path = "../fraiseql-core" }
 

@@ -130,9 +130,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
 
-        // Initialize Flight service (with placeholder data by default)
+        // Initialize Flight service with OIDC authentication if configured
         #[cfg(feature = "arrow")]
-        let flight_service = Some(FraiseQLFlightService::new());
+        let flight_service = {
+            let mut service = FraiseQLFlightService::new();
+            if let Some(ref validator) = oidc_validator {
+                info!("Enabling OIDC authentication for Arrow Flight");
+                service.set_oidc_validator(validator.clone());
+            } else {
+                info!("Arrow Flight initialized without authentication (dev mode)");
+            }
+            Some(service)
+        };
 
         Ok(Self {
             config,
