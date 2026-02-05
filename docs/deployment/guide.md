@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Deployment & Operations Guide - From Development to Production
+description: This guide covers deploying the FraiseQL GraphQL server to various environments including local development, Docker, Kubernetes, and cloud platforms. See [opera
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Deployment & Operations Guide - From Development to Production
 
 **Duration**: 2-4 hours
@@ -22,6 +30,7 @@ This guide covers deploying the FraiseQL GraphQL server to various environments 
 ### Quick Start
 
 ```bash
+<!-- Code example in BASH -->
 # Set environment variables
 export FRAISEQL_SCHEMA_PATH=schema.compiled.json
 export DATABASE_URL=postgresql://localhost/fraiseql_dev
@@ -33,12 +42,14 @@ cargo run -p FraiseQL-server
 
 # Server starts at http://localhost:8000
 ```text
+<!-- Code example in TEXT -->
 
 ### Development Environment Setup
 
 Create `.env.dev`:
 
 ```bash
+<!-- Code example in BASH -->
 # Server Configuration
 FRAISEQL_HOST=127.0.0.1
 FRAISEQL_PORT=8000
@@ -61,19 +72,23 @@ FRAISEQL_MAX_QUERY_COMPLEXITY=500
 # Logging
 RUST_LOG=debug
 ```text
+<!-- Code example in TEXT -->
 
 Load environment:
 
 ```bash
+<!-- Code example in BASH -->
 source .env.dev
 cargo run -p FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 ### Local Database Setup
 
 PostgreSQL (with Docker):
 
 ```bash
+<!-- Code example in BASH -->
 docker run --name FraiseQL-dev \
   -e POSTGRES_DB=fraiseql_dev \
   -e POSTGRES_USER=devuser \
@@ -87,13 +102,16 @@ sleep 5
 # Connect and verify
 psql -h localhost -U devuser -d fraiseql_dev -c "SELECT 1"
 ```text
+<!-- Code example in TEXT -->
 
 SQLite (simplest for testing):
 
 ```bash
+<!-- Code example in BASH -->
 # Create in-memory database for testing
 DATABASE_URL=sqlite::memory: cargo run -p FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 ## Docker Deployment
 
@@ -102,6 +120,7 @@ DATABASE_URL=sqlite::memory: cargo run -p FraiseQL-server
 Create `Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Builder stage
 FROM rust:1.75 as builder
 
@@ -142,16 +161,20 @@ ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
 # Run server
 CMD ["FraiseQL-server"]
 ```text
+<!-- Code example in TEXT -->
 
 Build image:
 
 ```bash
+<!-- Code example in BASH -->
 docker build -t FraiseQL-server:v2.0 .
 ```text
+<!-- Code example in TEXT -->
 
 ### Run Docker Container
 
 ```bash
+<!-- Code example in BASH -->
 docker run -d \
   --name FraiseQL \
   -p 8000:8000 \
@@ -160,12 +183,14 @@ docker run -d \
   -e FRAISEQL_POOL_MAX=50 \
   FraiseQL-server:v2.0
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Compose (Development)
 
 Create `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -210,10 +235,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 Start services:
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose up -d
 
 # View logs
@@ -222,6 +249,7 @@ docker-compose logs -f FraiseQL
 # Stop services
 docker-compose down
 ```text
+<!-- Code example in TEXT -->
 
 ## Kubernetes Deployment
 
@@ -237,6 +265,7 @@ docker-compose down
 Create `k8s/configmap.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -252,12 +281,14 @@ data:
   FRAISEQL_MAX_QUERY_DEPTH: "10"
   FRAISEQL_MAX_QUERY_COMPLEXITY: "100"
 ```text
+<!-- Code example in TEXT -->
 
 ### Secret (Database Credentials)
 
 Create `k8s/secret.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: Secret
 metadata:
@@ -267,12 +298,14 @@ type: Opaque
 stringData:
   DATABASE_URL: postgresql://user:password@db.prod.internal:5432/fraiseql_prod
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment
 
 Create `k8s/deployment.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -361,12 +394,14 @@ spec:
             exec:
               command: ["/bin/sh", "-c", "sleep 15"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Service
 
 Create `k8s/service.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: Service
 metadata:
@@ -382,10 +417,12 @@ spec:
     targetPort: 8000
     protocol: TCP
 ```text
+<!-- Code example in TEXT -->
 
 ### Deploy to Kubernetes
 
 ```bash
+<!-- Code example in BASH -->
 # Create namespace
 kubectl create namespace FraiseQL
 
@@ -408,6 +445,7 @@ kubectl port-forward service/FraiseQL-server 8000:80
 # Test
 curl http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 ## AWS Deployment
 
@@ -416,20 +454,25 @@ curl http://localhost:8000/health
 1. **Create ECR Repository**:
 
 ```bash
+<!-- Code example in BASH -->
 aws ecr create-repository --repository-name FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 1. **Push Image**:
 
 ```bash
+<!-- Code example in BASH -->
 docker tag FraiseQL-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-server:v2.0
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
 docker push {account}.dkr.ecr.us-east-1.amazonaws.com/FraiseQL-server:v2.0
 ```text
+<!-- Code example in TEXT -->
 
 1. **Create RDS Database**:
 
 ```bash
+<!-- Code example in BASH -->
 aws rds create-db-instance \
   --db-instance-identifier FraiseQL-prod \
   --db-instance-class db.t3.micro \
@@ -437,6 +480,7 @@ aws rds create-db-instance \
   --master-username admin \
   --allocated-storage 20
 ```text
+<!-- Code example in TEXT -->
 
 1. **Create ECS Task Definition** (in AWS Console):
 
@@ -449,12 +493,14 @@ aws rds create-db-instance \
 1. **Create ECS Service**:
 
 ```bash
+<!-- Code example in BASH -->
 aws ecs create-service \
   --cluster FraiseQL-prod \
   --service-name FraiseQL-server \
   --task-definition FraiseQL-server:1 \
   --desired-count 3
 ```text
+<!-- Code example in TEXT -->
 
 ### Lambda + API Gateway (Serverless)
 
@@ -467,16 +513,19 @@ Not recommended for FraiseQL due to connection pooling and persistent connection
 1. **Build and Push**:
 
 ```bash
+<!-- Code example in BASH -->
 gcloud builds submit --tag gcr.io/PROJECT_ID/FraiseQL-server
 
 # Or manually
 docker tag FraiseQL-server:v2.0 gcr.io/PROJECT_ID/FraiseQL-server:v2.0
 docker push gcr.io/PROJECT_ID/FraiseQL-server:v2.0
 ```text
+<!-- Code example in TEXT -->
 
 1. **Deploy**:
 
 ```bash
+<!-- Code example in BASH -->
 gcloud run deploy FraiseQL-server \
   --image gcr.io/PROJECT_ID/FraiseQL-server:v2.0 \
   --platform managed \
@@ -486,24 +535,28 @@ gcloud run deploy FraiseQL-server \
   --memory 512Mi \
   --cpu 1
 ```text
+<!-- Code example in TEXT -->
 
 ### GKE (Google Kubernetes Engine)
 
 Follow Kubernetes section above, then:
 
 ```bash
+<!-- Code example in BASH -->
 gcloud container clusters create FraiseQL-cluster \
   --num-nodes 3 \
   --machine-type n1-standard-2
 
 kubectl apply -f k8s/
 ```text
+<!-- Code example in TEXT -->
 
 ## Azure Deployment
 
 ### Container Instances
 
 ```bash
+<!-- Code example in BASH -->
 az container create \
   --resource-group FraiseQL-rg \
   --name FraiseQL-server \
@@ -514,10 +567,12 @@ az container create \
     DATABASE_URL=postgresql://... \
   --ports 8000
 ```text
+<!-- Code example in TEXT -->
 
 ### App Service
 
 ```bash
+<!-- Code example in BASH -->
 az appservice plan create \
   --name FraiseQL-plan \
   --resource-group FraiseQL-rg \
@@ -529,6 +584,7 @@ az webapp create \
   --name FraiseQL-server \
   --deployment-container-image-name myregistry/FraiseQL-server:v2.0
 ```text
+<!-- Code example in TEXT -->
 
 ## Production Checklist
 
@@ -552,6 +608,7 @@ az webapp create \
 ### Key Metrics
 
 ```bash
+<!-- Code example in BASH -->
 # Check health endpoint
 curl http://localhost:8000/health
 
@@ -561,15 +618,18 @@ curl http://localhost:8000/health
 # Database connection status
 SELECT count(*) FROM pg_stat_activity WHERE datname = 'fraiseql_prod';
 ```text
+<!-- Code example in TEXT -->
 
 ### Prometheus Metrics (Future)
 
 ```text
+<!-- Code example in TEXT -->
 fraiseql_query_duration_seconds
 fraiseql_query_errors_total
 fraiseql_connection_pool_active
 fraiseql_connection_pool_idle
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -578,6 +638,7 @@ fraiseql_connection_pool_idle
 Check logs:
 
 ```bash
+<!-- Code example in BASH -->
 # Docker
 docker logs FraiseQL
 
@@ -587,6 +648,7 @@ kubectl logs deployment/FraiseQL-server
 # Local
 RUST_LOG=debug cargo run -p FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 Common issues:
 
@@ -599,14 +661,18 @@ Common issues:
 1. Check database performance:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;
 ```text
+<!-- Code example in TEXT -->
 
 1. Monitor connection pool:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/health | jq .database.connection_pool
 ```text
+<!-- Code example in TEXT -->
 
 1. Check query complexity:
 
@@ -627,12 +693,14 @@ curl http://localhost:8000/health | jq .database.connection_pool
 Add more replicas:
 
 ```yaml
+<!-- Code example in YAML -->
 # Kubernetes
 replicas: 5
 
 # Docker Swarm
 docker service scale FraiseQL=5
 ```text
+<!-- Code example in TEXT -->
 
 Connection pool scales across instances (no coordination needed).
 
@@ -641,11 +709,13 @@ Connection pool scales across instances (no coordination needed).
 Increase resources:
 
 ```yaml
+<!-- Code example in YAML -->
 resources:
   limits:
     memory: 1Gi
     cpu: 1000m
 ```text
+<!-- Code example in TEXT -->
 
 Typically not needed for GraphQL execution.
 
@@ -654,24 +724,30 @@ Typically not needed for GraphQL execution.
 ### Kubernetes
 
 ```bash
+<!-- Code example in BASH -->
 kubectl rollout history deployment/FraiseQL-server
 kubectl rollout undo deployment/FraiseQL-server --to-revision=2
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Swarm
 
 ```bash
+<!-- Code example in BASH -->
 docker service rollback FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 ### Manual
 
 Keep previous v2 image tags:
 
 ```bash
+<!-- Code example in BASH -->
 docker run -p 8000:8000 FraiseQL-server:v2.0.0-alpha.0  # Previous v2 version
 # Note: v1 versions are NOT compatible with v2 schemas
 ```text
+<!-- Code example in TEXT -->
 
 ## Next Steps
 

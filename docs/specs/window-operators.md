@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Window Operators Specification
+description: This specification defines window function operators available in FraiseQL, organized by database target and function category.
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Window Operators Specification
 
 **Version:** 1.0
@@ -22,6 +30,7 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
 ### PostgreSQL Window Functions
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "window_functions": {
@@ -53,11 +62,13 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL Window Functions (8.0+)
 
 ```json
+<!-- Code example in JSON -->
 {
   "mysql": {
     "window_functions": {
@@ -90,11 +101,13 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite Window Functions (3.25+)
 
 ```json
+<!-- Code example in JSON -->
 {
   "sqlite": {
     "window_functions": {
@@ -127,11 +140,13 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server Window Functions
 
 ```json
+<!-- Code example in JSON -->
 {
   "sqlserver": {
     "window_functions": {
@@ -162,7 +177,8 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -171,6 +187,7 @@ For detailed architecture and use cases, see `../architecture/analytics/window-f
 ### Window Function Input
 
 ```graphql
+<!-- Code example in GraphQL -->
 input WindowFunctionInput {
   function: WindowFunction!
   field: String              # Required for value/aggregate functions
@@ -239,11 +256,13 @@ enum WindowFrameExclusion {
   EXCLUDE_TIES
   EXCLUDE_NO_OTHERS
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Type
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Query {
   sales_window(
     select: [String!]!
@@ -254,7 +273,8 @@ type Query {
     offset: Int
   ): [JSON!]!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -263,6 +283,7 @@ type Query {
 ### PostgreSQL
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     occurred_at,
@@ -281,11 +302,13 @@ SELECT
         ORDER BY occurred_at
     ) AS prev_day_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
     occurred_at,
@@ -295,11 +318,13 @@ SELECT
         ORDER BY revenue DESC
     ) AS rank_by_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     json_extract(data, '$.category') AS category,
     occurred_at,
@@ -310,11 +335,13 @@ SELECT
         ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
     ) AS moving_avg_7d
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_VALUE(data, '$.category') AS category,
     occurred_at,
@@ -324,7 +351,8 @@ SELECT
         ORDER BY occurred_at
     ) AS prev_day_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

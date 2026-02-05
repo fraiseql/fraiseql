@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Full-Stack Examples
+description: Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow from schema authoring through deployment and frontend integration.
+keywords: ["code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Full-Stack Examples
 
 Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow from schema authoring through deployment and frontend integration.
@@ -30,6 +38,7 @@ Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow
 **Project Structure**:
 
 ```text
+<!-- Code example in TEXT -->
 ecommerce-project/
 ├── schema-authoring/    # TypeScript schema definition
 ├── backend/             # Rust FraiseQL server
@@ -37,6 +46,7 @@ ecommerce-project/
 ├── frontend/            # Vue 3 application
 └── docker-compose.yml   # Complete stack orchestration
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 2-3 hours to understand and implement
 
@@ -71,6 +81,7 @@ ecommerce-project/
 **Project Structure**:
 
 ```text
+<!-- Code example in TEXT -->
 blog-monorepo/
 ├── java-schema/             # Maven project with FraiseQL annotations
 ├── FraiseQL-server/         # Rust FraiseQL server
@@ -78,6 +89,7 @@ blog-monorepo/
 ├── sql/                     # PostgreSQL schema and seed data
 └── docker-compose.yml       # Complete stack orchestration
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 2-3 hours to understand and implement
 
@@ -114,12 +126,14 @@ blog-monorepo/
 Each example follows FraiseQL's core principle: **Separation of Concerns**
 
 ```text
+<!-- Code example in TEXT -->
 Authoring       →    Compilation    →    Runtime      →    Frontend
 (TypeScript)   →    (Rust/CLI)      →    (Rust Srv)   →    (Vue/Flutter)
 
 Your code      →    Smart compiler  →    Production   →    Your users
                                          GraphQL API
 ```text
+<!-- Code example in TEXT -->
 
 **Key Point**: The authoring language (TypeScript, Go, Python) is **independent** from the runtime. You use what you're comfortable with for schema definition, then FraiseQL handles the efficient compilation and execution.
 
@@ -146,6 +160,7 @@ Your code      →    Smart compiler  →    Production   →    Your users
 ### Quick Start (TypeScript + Vue Example)
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Clone the repository
 git clone <repo> my-FraiseQL-app
 cd my-FraiseQL-app
@@ -159,6 +174,7 @@ docker-compose up
 # 4. Open browser
 open http://localhost:5173
 ```text
+<!-- Code example in TEXT -->
 
 ### Without Docker
 

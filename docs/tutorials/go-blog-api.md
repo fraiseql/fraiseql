@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Build a Blog API with FraiseQL - Go Schema Authoring Tutorial
+description: In this hands-on tutorial, you'll build a complete Blog API GraphQL schema using **Go struct tags and the builder pattern**. By the end, you'll understand:
+keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # Build a Blog API with FraiseQL - Go Schema Authoring Tutorial
 
 **Status:** ✅ Production Ready
@@ -33,6 +41,7 @@ In this hands-on tutorial, you'll build a complete Blog API GraphQL schema using
 FraiseQL's authoring workflow in Go:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────┐
 │ 1. Go Schema Definition                             │
 │    - Struct tags with FraiseQL metadata             │
@@ -64,6 +73,7 @@ FraiseQL's authoring workflow in Go:
 │    - Pure Rust execution                            │
 └─────────────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Key Point:** Go is used for **authoring only**. The runtime is pure Rust with zero language bindings.
 
@@ -74,16 +84,19 @@ FraiseQL's authoring workflow in Go:
 ### Create a new Go project
 
 ```bash
+<!-- Code example in BASH -->
 mkdir FraiseQL-blog-api && cd FraiseQL-blog-api
 go mod init FraiseQL-blog-api
 go get github.com/FraiseQL/FraiseQL-go
 ```text
+<!-- Code example in TEXT -->
 
 ### Directory structure
 
 Create the following structure:
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-blog-api/
 ├── go.mod
 ├── go.sum
@@ -100,16 +113,19 @@ FraiseQL-blog-api/
 ├── schema.compiled.json         # Generated (compiled by FraiseQL-cli)
 └── Makefile                     # Build automation
 ```text
+<!-- Code example in TEXT -->
 
 ### go.mod file
 
 ```go
+<!-- Code example in Go -->
 module FraiseQL-blog-api
 
 go 1.22
 
 require github.com/FraiseQL/FraiseQL-go v2.0.0-alpha.1
 ```text
+<!-- Code example in TEXT -->
 
 Run `go mod tidy` to download dependencies.
 
@@ -122,6 +138,7 @@ Our blog API requires PostgreSQL tables and views. Create these before compiling
 ### PostgreSQL DDL
 
 ```sql
+<!-- Code example in SQL -->
 -- Create tables
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -229,6 +246,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 Run this SQL against your PostgreSQL database to create the schema.
 
@@ -241,6 +259,7 @@ Run this SQL against your PostgreSQL database to create the schema.
 Create `schema/types.go`:
 
 ```go
+<!-- Code example in Go -->
 package schema
 
 // User represents a user in the system
@@ -272,14 +291,17 @@ type Comment struct {
  CreatedAt string `FraiseQL:"createdAt,type=String"`
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Understanding Struct Tags
 
 The `FraiseQL` tag format is:
 
 ```go
+<!-- Code example in Go -->
 `FraiseQL:"<graphql_field_name>,type=<graphql_type>[,nullable=<true|false>]"`
 ```text
+<!-- Code example in TEXT -->
 
 - **graphql_field_name**: Name in the GraphQL schema (usually camelCase, unlike Go's PascalCase)
 - **type**: GraphQL type (Int, String, Boolean, Float, etc.)
@@ -307,6 +329,7 @@ In our example:
 Create `queries/queries.go`:
 
 ```go
+<!-- Code example in Go -->
 package queries
 
 import (
@@ -404,12 +427,14 @@ func InitQueries() {
   Register()
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Understanding the Query Builder
 
 The builder pattern used here follows this structure:
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewQuery("operationName").
     ReturnType(TypeStruct{}).           // Required: type returned
     ReturnsArray(bool).                 // Optional: single or array
@@ -421,6 +446,7 @@ FraiseQL.NewQuery("operationName").
     Description("Human-readable description").
     Register()
 ```text
+<!-- Code example in TEXT -->
 
 **Key methods:**
 
@@ -442,6 +468,7 @@ FraiseQL.NewQuery("operationName").
 Create `mutations/mutations.go`:
 
 ```go
+<!-- Code example in Go -->
 package mutations
 
 import (
@@ -502,6 +529,7 @@ func InitMutations() {
   Register()
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Understanding Mutations
 
@@ -521,6 +549,7 @@ Mutations follow the same builder pattern as queries. The key differences:
 Create `cmd/export/main.go`:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -556,16 +585,20 @@ func main() {
  log.Println("Run: FraiseQL-cli compile schema.json -o schema.compiled.json")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Generate the schema
 
 ```bash
+<!-- Code example in BASH -->
 go run cmd/export/main.go
 ```text
+<!-- Code example in TEXT -->
 
 This produces `schema.json` containing:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -648,6 +681,7 @@ This produces `schema.json` containing:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Handling
 
@@ -667,8 +701,10 @@ If schema export fails, check:
 The CLI validates your schema and generates an optimized compiled version:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json -o schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 This produces `schema.compiled.json` containing:
 
@@ -680,12 +716,15 @@ This produces `schema.compiled.json` containing:
 ### Validate before compiling
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli validate schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Troubleshoot compilation errors
 
 ```bash
+<!-- Code example in BASH -->
 # Verbose compilation for detailed error messages
 FraiseQL-cli compile schema.json -o schema.compiled.json --verbose
 
@@ -695,6 +734,7 @@ FraiseQL-cli describe schema.json --query users
 # Validate SQL sources
 FraiseQL-cli validate schema.json --check-sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -705,6 +745,7 @@ FraiseQL-cli validate schema.json --check-sql
 Create `schema/types_test.go`:
 
 ```go
+<!-- Code example in Go -->
 package schema
 
 import (
@@ -764,12 +805,14 @@ func TestCommentType(t *testing.T) {
  }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Integration Tests for Schema Export
 
 Create `cmd/export/main_test.go`:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -849,12 +892,15 @@ func TestSchemaExport(t *testing.T) {
  }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Run tests
 
 ```bash
+<!-- Code example in BASH -->
 go test ./...
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -863,18 +909,21 @@ go test ./...
 ### Build the Rust Runtime
 
 ```bash
+<!-- Code example in BASH -->
 # Compile the schema
 FraiseQL-cli compile schema.json -o schema.compiled.json
 
 # Start FraiseQL server
 FraiseQL-server --schema schema.compiled.json --port 8000
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Deployment
 
 Create `Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Build stage
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
@@ -893,12 +942,14 @@ COPY --from=compiler /app/schema.compiled.json /etc/FraiseQL/schema.compiled.jso
 EXPOSE 8000
 CMD ["FraiseQL-server", "--schema", "/etc/FraiseQL/schema.compiled.json", "--port", "8000"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Compose
 
 Create `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -925,16 +976,20 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 Deploy:
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose up -d
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # GraphQL introspection query
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -952,6 +1007,7 @@ curl -X POST http://localhost:8000/graphql \
     "query": "mutation { createUser(name: \"Bob\", email: \"bob@example.com\") { id name email } }"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -960,6 +1016,7 @@ curl -X POST http://localhost:8000/graphql \
 ### Pattern 1: Pagination
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewQuery("users").
     ReturnType(User{}).
     ReturnsArray(true).
@@ -973,10 +1030,12 @@ FraiseQL.NewQuery("users").
 
 // Usage: query { users(limit: 10, offset: 20) { id name } }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Filtering
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewQuery("posts").
     ReturnType(Post{}).
     ReturnsArray(true).
@@ -994,10 +1053,12 @@ FraiseQL.NewQuery("posts").
 
 // Usage: query { posts(authorId: 1, published: true, limit: 10) { id title } }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Sorting
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewQuery("posts").
     ReturnType(Post{}).
     ReturnsArray(true).
@@ -1013,10 +1074,12 @@ FraiseQL.NewQuery("posts").
 
 // Usage: query { posts(orderBy: "createdAt DESC", limit: 10) { id title createdAt } }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 4: Relationships (Foreign Keys)
 
 ```go
+<!-- Code example in Go -->
 // User type has AuthorID field
 type Post struct {
     ID        int    `FraiseQL:"id,type=Int"`
@@ -1034,10 +1097,12 @@ FraiseQL.NewQuery("posts").
     }).
     Register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 5: Nullable Fields
 
 ```go
+<!-- Code example in Go -->
 type User struct {
     ID        int     `FraiseQL:"id,type=Int"`
     Name      string  `FraiseQL:"name,type=String"`
@@ -1051,10 +1116,12 @@ type Post struct {
     UpdatedAt string `FraiseQL:"updatedAt,type=String"`
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 6: Optional Mutation Arguments
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewMutation("updateUser").
     ReturnType(User{}).
     Config(map[string]interface{}{
@@ -1068,10 +1135,12 @@ FraiseQL.NewMutation("updateUser").
 
 // Usage: mutation { updateUser(id: 1, name: "Alice Updated") { id name bio } }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 7: Analytics with Aggregates
 
 ```go
+<!-- Code example in Go -->
 // Fact table for sales analytics
 FraiseQL.NewFactTable("sales").
     TableName("tf_sales").
@@ -1090,6 +1159,7 @@ FraiseQL.NewAggregateQueryConfig("salesByRegion").
     Description("Sales aggregated by region").
     Register()
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1100,6 +1170,7 @@ FraiseQL.NewAggregateQueryConfig("salesByRegion").
 To serve the GraphQL API with middleware (auth, logging, etc):
 
 ```go
+<!-- Code example in Go -->
 // server/server.go
 package server
 
@@ -1119,20 +1190,24 @@ func New() *gin.Engine {
  return router
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Client Implementation
 
 Generate a GraphQL client for type-safe queries:
 
 ```bash
+<!-- Code example in BASH -->
 # Using Gqlgen
 go run github.com/99designs/gqlgen init
 go run github.com/99designs/gqlgen generate
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Tuning
 
 ```bash
+<!-- Code example in BASH -->
 # Enable query caching for frequent operations
 FraiseQL-cli compile schema.json \
   --cache-strategy persistent \
@@ -1143,6 +1218,7 @@ FraiseQL-server --schema schema.compiled.json \
   --enable-metrics \
   --metrics-port 9090
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1153,13 +1229,16 @@ FraiseQL-server --schema schema.compiled.json \
 **Problem:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: invalid FraiseQL tag format: "idtype=Int"
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:**
 Struct tags must have exact format: `FraiseQL:"fieldName,type=GraphQLType"`
 
 ```go
+<!-- Code example in Go -->
 // Wrong
 type User struct {
     ID int `FraiseQL:"idtype=Int"`
@@ -1170,19 +1249,23 @@ type User struct {
     ID int `FraiseQL:"id,type=Int"`
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: "Type not registered"
 
 **Problem:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: type User used in query but not registered
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:**
 All types must be registered in `RegisterTypes()`:
 
 ```go
+<!-- Code example in Go -->
 // Register BEFORE exporting
 if err := FraiseQL.RegisterTypes(User{}, Post{}, Comment{}); err != nil {
     log.Fatal(err)
@@ -1192,19 +1275,23 @@ if err := FraiseQL.ExportSchema("schema.json"); err != nil {
     log.Fatal(err)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: "Query builder not registered"
 
 **Problem:**
 
 ```text
+<!-- Code example in TEXT -->
 schema.json is empty or missing queries
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:**
 Ensure `init()` functions are called:
 
 ```go
+<!-- Code example in Go -->
 // queries/queries.go
 func InitQueries() {  // Must be called explicitly
     FraiseQL.NewQuery("users").
@@ -1219,38 +1306,46 @@ func main() {
     // ...
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: "Type mismatch in mutation"
 
 **Problem:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: argument 'id' type Int does not match parameter type String
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:**
 GraphQL types must match database parameter types:
 
 ```go
+<!-- Code example in Go -->
 // fn_create_post(p_author_id INT, p_title VARCHAR)
 FraiseQL.NewMutation("createPost").
     Arg("authorId", "Int", nil).      // Matches INT
     Arg("title", "String", nil).      // Matches VARCHAR
     Register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: "Compilation fails with SQL source error"
 
 **Problem:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: SQL source 'v_user' not found in database
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:**
 Ensure PostgreSQL views/functions exist:
 
 ```bash
+<!-- Code example in BASH -->
 # Verify in PostgreSQL
 psql -U postgres -d blog_api -c "\dv v_user"
 psql -U postgres -d blog_api -c "\df fn_create_user"
@@ -1258,6 +1353,7 @@ psql -U postgres -d blog_api -c "\df fn_create_user"
 # If missing, run DDL setup script
 psql -U postgres -d blog_api -f schema.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1266,6 +1362,7 @@ psql -U postgres -d blog_api -f schema.sql
 ### Full Directory Structure
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-blog-api/
 ├── cmd/
 │   └── export/
@@ -1286,10 +1383,12 @@ FraiseQL-blog-api/
 ├── docker-compose.yml
 └── README.md
 ```text
+<!-- Code example in TEXT -->
 
 ### Makefile
 
 ```makefile
+<!-- Code example in MAKEFILE -->
 .PHONY: help test build export compile run clean docker-up docker-down
 
 help:
@@ -1328,16 +1427,19 @@ clean:
  rm -f export schema.json schema.compiled.json
  go clean -testcache
 ```text
+<!-- Code example in TEXT -->
 
 ### go.mod
 
 ```go
+<!-- Code example in Go -->
 module FraiseQL-blog-api
 
 go 1.22
 
 require github.com/FraiseQL/FraiseQL-go v2.0.0-alpha.1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

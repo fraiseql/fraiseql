@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2: Rust Core Architecture Design
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2: Rust Core Architecture Design
 
 **Version:** 1.0
@@ -39,6 +47,7 @@
 **Example Flow:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Compile-time: Create view
 CREATE VIEW v_user AS
 SELECT id, jsonb_build_object(
@@ -68,6 +77,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
   // password_hash removed (field-level auth)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **This fundamentally simplifies the architecture:**
 
@@ -83,6 +93,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
 ### Proposed Directory Layout
 
 ```text
+<!-- Code example in TEXT -->
 crates/FraiseQL-core/src/
 ├── lib.rs
 ├── error.rs                ✅ Complete
@@ -144,10 +155,12 @@ crates/FraiseQL-core/src/
     ├── operators.rs
     └── vector.rs
 ```text
+<!-- Code example in TEXT -->
 
 ### Module Dependencies
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────┐
 │ runtime/    │ ← High-level execution
 └──────┬──────┘
@@ -172,6 +185,7 @@ crates/FraiseQL-core/src/
 │ error       │ ← Error types
 └─────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Design Principle:** Dependencies flow downward only. No circular dependencies.
 
@@ -184,6 +198,7 @@ crates/FraiseQL-core/src/
 **Purpose:** Abstract over different database backends (PostgreSQL, MySQL, SQLite, SQL Server).
 
 ```rust
+<!-- Code example in RUST -->
 /// Database adapter for executing WHERE queries against views.
 #[async_trait::async_trait]
 pub trait DatabaseAdapter: Send + Sync {
@@ -245,6 +260,7 @@ pub struct PoolMetrics {
     pub waiting_requests: u32,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -260,6 +276,7 @@ pub struct PoolMetrics {
 **Purpose:** Generate database-specific WHERE clause SQL from AST.
 
 ```rust
+<!-- Code example in RUST -->
 /// Generate WHERE clause SQL for a specific database.
 pub trait WhereClauseGenerator {
     /// Generate WHERE clause SQL and parameter bindings.
@@ -297,6 +314,7 @@ pub enum QueryParameter {
     Json(serde_json::Value),
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -311,6 +329,7 @@ pub enum QueryParameter {
 **Purpose:** Project JSONB response to requested GraphQL fields with auth masking.
 
 ```rust
+<!-- Code example in RUST -->
 /// Project JSONB to GraphQL response with field selection + authorization.
 pub trait JsonbProjector {
     /// Project JSONB value to GraphQL response.
@@ -349,6 +368,7 @@ pub trait JsonbProjector {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -363,6 +383,7 @@ pub trait JsonbProjector {
 **Purpose:** Abstract over cache implementations (in-memory, Redis, etc.).
 
 ```rust
+<!-- Code example in RUST -->
 /// Cache backend for query results.
 #[async_trait::async_trait]
 pub trait CacheBackend: Send + Sync {
@@ -402,6 +423,7 @@ pub struct CacheStats {
     pub memory_bytes: u64,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -419,6 +441,7 @@ pub struct CacheStats {
 **Purpose:** Type-safe representation of WHERE conditions.
 
 ```rust
+<!-- Code example in RUST -->
 /// WHERE clause abstract syntax tree.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WhereClause {
@@ -536,6 +559,7 @@ impl WhereOperator {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -547,6 +571,7 @@ impl WhereOperator {
 **Example Usage:**
 
 ```rust
+<!-- Code example in RUST -->
 // GraphQL: { email: { icontains: "example.com" } }
 let where_clause = WhereClause::Field {
     path: vec!["email".to_string()],
@@ -568,6 +593,7 @@ let where_clause = WhereClause::And(vec![
     },
 ]);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -576,6 +602,7 @@ let where_clause = WhereClause::And(vec![
 **Purpose:** Represent requested GraphQL fields.
 
 ```rust
+<!-- Code example in RUST -->
 /// Selection set - which fields are requested in GraphQL query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SelectionSet {
@@ -629,6 +656,7 @@ impl SelectionSet {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -640,6 +668,7 @@ impl SelectionSet {
 **Example Usage:**
 
 ```rust
+<!-- Code example in RUST -->
 // GraphQL: { id, email, posts { title } }
 let selection = SelectionSet {
     fields: vec![
@@ -667,6 +696,7 @@ let selection = SelectionSet {
     ],
 };
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -675,6 +705,7 @@ let selection = SelectionSet {
 **Purpose:** Represent field-level authorization rules.
 
 ```rust
+<!-- Code example in RUST -->
 /// Field-level authorization mask.
 #[derive(Debug, Clone)]
 pub struct AuthMask {
@@ -757,6 +788,7 @@ impl UserContext {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -776,6 +808,7 @@ impl UserContext {
 **Example:**
 
 ```rust
+<!-- Code example in RUST -->
 // Input AST:
 WhereClause::And(vec![
     WhereClause::Field {
@@ -799,10 +832,12 @@ WhereClause::And(vec![
     ]
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### PostgreSQL WHERE Generator
 
 ```rust
+<!-- Code example in RUST -->
 pub struct PostgresWhereGenerator;
 
 impl WhereClauseGenerator for PostgresWhereGenerator {
@@ -995,6 +1030,7 @@ impl QueryParameter {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -1014,6 +1050,7 @@ impl QueryParameter {
 **Example:**
 
 ```rust
+<!-- Code example in RUST -->
 // Input JSONB (from database):
 {
   "id": "user-123",
@@ -1047,10 +1084,12 @@ roles = ["viewer"]
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### DefaultJsonbProjector Implementation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct DefaultJsonbProjector {
     type_name: String,  // For auth lookups
 }
@@ -1129,6 +1168,7 @@ impl JsonbProjector for DefaultJsonbProjector {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -1140,6 +1180,7 @@ impl JsonbProjector for DefaultJsonbProjector {
 **Performance Optimization (Future):**
 
 ```rust
+<!-- Code example in RUST -->
 // Zero-copy projection using serde_json's Value borrowing
 // Requires careful lifetime management
 pub fn project_borrowed<'a>(
@@ -1152,6 +1193,7 @@ pub fn project_borrowed<'a>(
     todo!("Implement zero-copy projection")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1174,6 +1216,7 @@ pub fn project_borrowed<'a>(
 ### Field-Level Auth Rules (from CompiledSchema)
 
 ```json
+<!-- Code example in JSON -->
 // In CompiledSchema JSON:
 {
   "authorization": {
@@ -1191,10 +1234,12 @@ pub fn project_borrowed<'a>(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### AuthMask Generation
 
 ```rust
+<!-- Code example in RUST -->
 impl AuthMask {
     pub fn from_schema(schema: &CompiledSchema, user: &UserContext) -> Self {
         let mut rules = HashMap::new();
@@ -1240,6 +1285,7 @@ impl AuthMask {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -1257,6 +1303,7 @@ impl AuthMask {
 **Choice:** Use `deadpool` (battle-tested, good ergonomics).
 
 ```rust
+<!-- Code example in RUST -->
 use deadpool::managed::{Manager, Pool, PoolError};
 use tokio_postgres::{Client, Config, NoTls};
 
@@ -1301,6 +1348,7 @@ pub fn create_postgres_pool(database_url: &str, max_size: usize) -> Result<Postg
         .map_err(|e| FraiseQLError::database(format!("Failed to create pool: {e}")))
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -1316,6 +1364,7 @@ pub fn create_postgres_pool(database_url: &str, max_size: usize) -> Result<Postg
 ### In-Memory Cache (Default)
 
 ```rust
+<!-- Code example in RUST -->
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use lru::LruCache;
@@ -1383,6 +1432,7 @@ impl CacheBackend for MemoryCache {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Design Decisions:**
 
@@ -1394,6 +1444,7 @@ impl CacheBackend for MemoryCache {
 ### Cache Key Generation
 
 ```rust
+<!-- Code example in RUST -->
 pub fn generate_cache_key(
     query: &str,
     variables: &serde_json::Value,
@@ -1412,6 +1463,7 @@ pub fn generate_cache_key(
     CacheKey(format!("query:{:x}", hash))
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1422,6 +1474,7 @@ pub fn generate_cache_key(
 **Additional database error conversions:**
 
 ```rust
+<!-- Code example in RUST -->
 impl From<tokio_postgres::Error> for FraiseQLError {
     fn from(e: tokio_postgres::Error) -> Self {
         let sql_state = e.code().map(|c| c.code().to_string());
@@ -1440,6 +1493,7 @@ impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for FraiseQLError
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1450,6 +1504,7 @@ impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for FraiseQLError
 **1. WHERE Clause Generation Tests:**
 
 ```rust
+<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1485,10 +1540,12 @@ mod tests {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **2. JSONB Projection Tests:**
 
 ```rust
+<!-- Code example in RUST -->
 #[test]
 fn test_simple_projection() {
     let jsonb = json!({
@@ -1522,10 +1579,12 @@ fn test_simple_projection() {
     assert!(result.get("password_hash").is_none()); // Not requested
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Integration Tests
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_end_to_end_query() {
     // Setup test database
@@ -1553,6 +1612,7 @@ async fn test_end_to_end_query() {
     assert_eq!(results.len(), 3);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

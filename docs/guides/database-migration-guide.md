@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Database Schema Migration Guide
+description: Step-by-step guide for migrating existing database schemas to FraiseQL v2.0.0-alpha.1.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "schema", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Database Schema Migration Guide
 
 **Status:** ✅ Production Ready
@@ -40,6 +48,7 @@ This guide covers migrating from:
 **Template:**
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 ## Migration Plan: [Project Name]
 
 ### Timeline
@@ -61,12 +70,14 @@ This guide covers migrating from:
 - QA Lead: [Name]
 - Database Admin: [Name]
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Audit Current Schema
 
 **Generate schema export:**
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL
 pg_dump --schema-only $DATABASE_URL > schema.sql
 
@@ -79,6 +90,7 @@ sqlite3 $DATABASE ".schema" > schema.sql
 # SQL Server
 sqlcmd -S $SERVER -d $DATABASE -i "schema.sql" -x
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -89,6 +101,7 @@ sqlcmd -S $SERVER -d $DATABASE -i "schema.sql" -x
 **Create inventory:**
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL: List all tables
 SELECT tablename FROM pg_tables WHERE schemaname='public';
 
@@ -101,20 +114,24 @@ SHOW TABLES;
 # SQL Server: List all tables
 SELECT name FROM sys.tables;
 ```text
+<!-- Code example in TEXT -->
 
 **Output format:**
 
 ```text
+<!-- Code example in TEXT -->
 TABLE_NAME | COLUMNS | ROWS | SIZE | INDEXES | PK | NOTES
 users      | 12      | 2M   | 500MB | 3      | id | Active users table
 posts      | 8       | 10M  | 2GB   | 4      | id | Need tv_* materialization
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 1.2: Identify Access Patterns
 
 **Analyze queries:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Find most frequent queries
 SELECT query, calls FROM pg_stat_statements
 ORDER BY calls DESC LIMIT 20;
@@ -124,6 +141,7 @@ SELECT query, mean_time FROM pg_stat_statements
 WHERE mean_time > 100
 ORDER BY mean_time DESC LIMIT 20;
 ```text
+<!-- Code example in TEXT -->
 
 **Use this to decide:**
 
@@ -136,6 +154,7 @@ ORDER BY mean_time DESC LIMIT 20;
 **Create relationship diagram:**
 
 ```text
+<!-- Code example in TEXT -->
 Users (id, name, email)
   ├─ 1:M → Posts (id, user_id, content)
   │          ├─ 1:M → Comments (id, post_id, text)
@@ -147,6 +166,7 @@ Organizations (id, name)
   ├─ 1:M → Users
   └─ 1:M → Teams
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -157,6 +177,7 @@ Organizations (id, name)
 **Create minimal schema for all tables:**
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 from FraiseQL import type, key, field, where, context
 from typing import Optional, List
@@ -185,12 +206,14 @@ class Organization:
     name: str
     created_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2.2: Add Relationships
 
 **Add 1:M and M:M relationships:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class User:
     id: str
@@ -220,12 +243,14 @@ class Organization:
     # NEW: Relationships
     users: List[User]  # 1:M reverse
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2.3: Add Row-Level Security
 
 **Add multi-tenancy filtering:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     where: Where = FraiseQL.where(
@@ -252,12 +277,14 @@ class Comment:
     post_id: str
     content: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2.4: Add Authorization
 
 **Add field-level access control:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class User:
     id: str
@@ -272,12 +299,14 @@ class User:
         authorize=set()  # Never readable
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2.5: Optimize with Views
 
 **Add materialized views (tv_*) for performance:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class UserStats:
     """Materialized daily - fast lookups for aggregations."""
@@ -305,6 +334,7 @@ LEFT JOIN (
 ) l ON p.id = l.post_id
 GROUP BY u.id;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -315,6 +345,7 @@ GROUP BY u.id;
 **Clone production database:**
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL
 pg_dump $PROD_DATABASE | psql $STAGING_DATABASE
 
@@ -324,10 +355,12 @@ mysqldump $PROD_DATABASE | mysql $STAGING_DATABASE
 # SQLite
 cp $PROD_DATABASE $STAGING_DATABASE
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3.2: Compile FraiseQL Schema
 
 ```bash
+<!-- Code example in BASH -->
 # Install FraiseQL CLI
 cargo install FraiseQL-cli
 
@@ -337,10 +370,12 @@ FraiseQL compile schema.py --config FraiseQL.toml
 # Verify compilation
 ls -la schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3.3: Start FraiseQL Server
 
 ```bash
+<!-- Code example in BASH -->
 # Start with staging database
 FRAISEQL_DATABASE_URL=postgresql://staging_db FraiseQL serve
 
@@ -349,12 +384,14 @@ curl -X POST http://localhost:5000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users { id name } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3.4: Query Compatibility Testing
 
 **Validate old queries work in FraiseQL:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Old query (from current server)
 query {
   users {
@@ -372,10 +409,12 @@ query {
 # Should return same data in FraiseQL
 # Verify: Response structure, field names, values, types
 ```text
+<!-- Code example in TEXT -->
 
 **Test harness:**
 
 ```python
+<!-- Code example in Python -->
 # test_migration.py
 import requests
 import json
@@ -397,12 +436,14 @@ for query in queries:
 
 print("✅ All queries compatible!")
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3.5: Performance Baseline
 
 **Measure query performance before cutover:**
 
 ```bash
+<!-- Code example in BASH -->
 # Run load test on old server
 wrk -t4 -c100 -d60s \
   -s load_test.lua \
@@ -417,6 +458,7 @@ wrk -t4 -c100 -d60s \
 
 # Compare: Should be similar or faster
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -427,6 +469,7 @@ wrk -t4 -c100 -d60s \
 **Route 10% of traffic to FraiseQL:**
 
 ```nginx
+<!-- Code example in NGINX -->
 # nginx configuration
 upstream old_server {
     server old-server:3000;
@@ -448,6 +491,7 @@ server {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Monitor:**
 
@@ -459,12 +503,14 @@ server {
 ### Step 4.2: Increase Traffic (Week 2)
 
 ```nginx
+<!-- Code example in NGINX -->
 # 50% to each server
 if ($random < 0.5) {
     proxy_pass http://new_server;
 }
 proxy_pass http://old_server;
 ```text
+<!-- Code example in TEXT -->
 
 **Monitor:**
 
@@ -475,9 +521,11 @@ proxy_pass http://old_server;
 ### Step 4.3: Full Cutover (Week 3)
 
 ```nginx
+<!-- Code example in NGINX -->
 # 100% to FraiseQL
 proxy_pass http://new_server;
 ```text
+<!-- Code example in TEXT -->
 
 **Post-cutover monitoring:**
 
@@ -493,6 +541,7 @@ proxy_pass http://new_server;
 ### Step 5.1: Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Check server health
 curl http://localhost:5000/health
 
@@ -506,12 +555,14 @@ for i in {1..1000}; do
 done
 wait
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5.2: Monitoring Setup
 
 **Set up observability:**
 
 ```yaml
+<!-- Code example in YAML -->
 # Prometheus metrics
 fraiseql_queries_total{method="query", status="success"}
 fraiseql_query_duration_seconds{method="query", quantile="0.95"}
@@ -523,6 +574,7 @@ error_rate > 1%
 response_latency_p95 > 500ms
 db_connection_exhaustion > 80%
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5.3: Rollback Plan
 
@@ -535,10 +587,12 @@ db_connection_exhaustion > 80%
 5. **Retry:** Staged cutover again
 
 ```bash
+<!-- Code example in BASH -->
 # Emergency rollback (1 minute RTO)
 nginx -s reload  # Change configuration
 # Verify: Traffic going to old server
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -602,6 +656,7 @@ nginx -s reload  # Change configuration
 **Solution:**
 
 ```python
+<!-- Code example in Python -->
 # Wrong
 @type
 class Product:
@@ -612,6 +667,7 @@ class Product:
 class Product:
     price: Decimal  # ✅ Always use Decimal for money
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Relationship Not Loading
 
@@ -622,6 +678,7 @@ class Product:
 **Solution:**
 
 ```python
+<!-- Code example in Python -->
 # Make sure foreign key exists
 @type
 class Post:
@@ -631,6 +688,7 @@ class Post:
 # Verify in database
 SELECT COUNT(*) FROM posts WHERE user_id IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Authorization Denying All Queries
 
@@ -641,6 +699,7 @@ SELECT COUNT(*) FROM posts WHERE user_id IS NULL;
 **Solution:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     where: Where = FraiseQL.where(
@@ -648,10 +707,12 @@ class Post:
         is_public=True
     )
 ```text
+<!-- Code example in TEXT -->
 
 **Fix:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     where: Where = FraiseQL.where(
@@ -659,6 +720,7 @@ class Post:
         is_public=True or fk_user=FraiseQL.context.user_id
     )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -667,23 +729,28 @@ class Post:
 ### Step 1: Identify Slow Queries
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 SELECT query, calls, mean_time FROM pg_stat_statements
 WHERE mean_time > 100
 ORDER BY mean_time DESC LIMIT 20;
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Add Indexes
 
 ```sql
+<!-- Code example in SQL -->
 -- From slow queries, identify columns in WHERE clauses
 CREATE INDEX idx_posts_user_id ON posts(user_id);
 CREATE INDEX idx_posts_created_at ON posts(created_at);
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Materialize Expensive Views
 
 ```python
+<!-- Code example in Python -->
 @type
 class UserStats:
     """Changed from v_user_stats (logical) to tv_user_stats (materialized)."""
@@ -691,14 +758,17 @@ class UserStats:
     post_count: int
     total_engagement: int
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Enable Query Caching
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.caching]
 enabled = true
 default_ttl_seconds = 300
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

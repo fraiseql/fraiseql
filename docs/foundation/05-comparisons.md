@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 1.5: FraiseQL Compared to Other Approaches
+description: FraiseQL is one of several approaches to building GraphQL APIs. This topic compares FraiseQL with popular alternatives to help you understand where each approac
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 1.5: FraiseQL Compared to Other Approaches
 
 **Audience:** Technical decision-makers, architects evaluating GraphQL solutions
@@ -49,6 +57,7 @@ The answer depends on:
 #### Flexibility
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Query {
   user(id: Int!): User
   trendingUsers: [User!]!
@@ -56,6 +65,7 @@ type Query {
   recommendations(userId: Int!): [Recommendation!]!
 }
 ```text
+<!-- Code example in TEXT -->
 
 Each field can resolve from different sources:
 
@@ -68,6 +78,7 @@ Each field can resolve from different sources:
 ### Multi-Source Integration
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Apollo: Combine data from multiple sources
 const resolvers = {
   Query: {
@@ -80,6 +91,7 @@ const resolvers = {
   }
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Ecosystem & Plugins
 
@@ -93,6 +105,7 @@ const resolvers = {
 #### Resolver Complexity
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Apollo: Every field needs a resolver
 const resolvers = {
   Query: {
@@ -110,10 +123,12 @@ const resolvers = {
   }
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Manual Optimization
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Apollo: You must implement optimization patterns
 const dataLoaders = {
   userLoader: new DataLoader(async (userIds) => {
@@ -121,6 +136,7 @@ const dataLoaders = {
   }),
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Unpredictability
 
@@ -132,12 +148,14 @@ const dataLoaders = {
 ### Synchronizing Schemas
 
 ```text
+<!-- Code example in TEXT -->
 TypeScript type definitions
        ↔️ (must match)
 GraphQL schema
        ↔️ (must match)
 Database schema
 ```text
+<!-- Code example in TEXT -->
 
 If you change the database, you must update two more places.
 
@@ -164,16 +182,19 @@ If you change the database, you must update two more places.
 #### Fast Time to API
 
 ```bash
+<!-- Code example in BASH -->
 # Hasura: Point at database, get GraphQL API instantly
 docker run hasura/graphql-engine:latest \
   --database-url postgresql://user:pass@db:5432/mydb
 ```text
+<!-- Code example in TEXT -->
 
 Result: Complete GraphQL API with CRUD operations, relationships, and filtering—without writing a line of code.
 
 ### Database-First Approach
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -186,10 +207,12 @@ CREATE TABLE orders (
   total DECIMAL(10, 2)
 );
 ```text
+<!-- Code example in TEXT -->
 
 Hasura immediately exposes:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: Int!
   email: String!
@@ -203,10 +226,12 @@ type Order {
   total: Float!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Permission Rules
 
 ```yaml
+<!-- Code example in YAML -->
 # Hasura: Row-level security via rules
 Users:
   select:
@@ -216,10 +241,12 @@ Users:
     filter:
       id: { _eq: X-Hasura-User-Id }
 ```text
+<!-- Code example in TEXT -->
 
 ### Simplicity for Standard CRUD
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -232,12 +259,14 @@ query {
 }
 # Hasura handles the SQL automatically
 ```text
+<!-- Code example in TEXT -->
 
 #### Where Hasura Struggles
 
 #### Fixed Query Patterns
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Hasura: No custom computed fields without Actions
 query {
   user(id: 1) {
@@ -254,10 +283,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Action-Based Extensions
 
 ```yaml
+<!-- Code example in YAML -->
 # Hasura: Must implement custom logic via Actions
 actions:
   - name: searchUsers
@@ -268,6 +299,7 @@ actions:
       output_type: SearchResult
       handler: https://api.example.com/search
 ```text
+<!-- Code example in TEXT -->
 
 This converts back to the multi-source problem (like Apollo).
 
@@ -281,8 +313,10 @@ This converts back to the multi-source problem (like Apollo).
 ### Schema Coupling
 
 ```text
+<!-- Code example in TEXT -->
 PostgreSQL schema ←→ GraphQL schema (1:1 mapping)
 ```text
+<!-- Code example in TEXT -->
 
 Change the database table name, and the GraphQL API changes. This can break clients.
 
@@ -310,6 +344,7 @@ Change the database table name, and the GraphQL API changes. This can break clie
 #### Configuration-First Development
 
 ```yaml
+<!-- Code example in YAML -->
 # WunderGraph: Configure data sources and relationships
 dataSources:
   - name: database
@@ -319,6 +354,7 @@ dataSources:
     kind: graphql
     url: https://api.example.com/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### Flexible Data Source Support
 
@@ -330,6 +366,7 @@ dataSources:
 ### Built-in Authentication
 
 ```yaml
+<!-- Code example in YAML -->
 # WunderGraph: Auth integrated
 authentication:
   providers:
@@ -337,10 +374,12 @@ authentication:
     - auth0
     - custom_webhook
 ```text
+<!-- Code example in TEXT -->
 
 ### Federation Support
 
 ```typescript
+<!-- Code example in TypeScript -->
 // WunderGraph: Compose multiple GraphQL APIs
 import { introspectAndCompose } from '@wundergraph/SDK';
 
@@ -357,12 +396,14 @@ export default {
   ],
 };
 ```text
+<!-- Code example in TEXT -->
 
 #### Where WunderGraph Struggles
 
 #### Still Manual for Complex Queries
 
 ```typescript
+<!-- Code example in TypeScript -->
 // WunderGraph: You write resolvers for complex operations
 export default async function GetUserRecommendations(
   ctx: Context,
@@ -374,6 +415,7 @@ export default async function GetUserRecommendations(
   return recommendations;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Middle-Ground Positioning
 
@@ -385,6 +427,7 @@ export default async function GetUserRecommendations(
 ### Performance Still Variable
 
 ```typescript
+<!-- Code example in TypeScript -->
 // WunderGraph: You're still responsible for optimization
 // No compile-time guarantees about query efficiency
 export default async function GetUserWithOrders(
@@ -398,6 +441,7 @@ export default async function GetUserWithOrders(
   return { user, orders };
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### FraiseQL vs. WunderGraph: Decision
 
@@ -421,11 +465,13 @@ Before GraphQL was popular, teams built custom REST APIs. This is still the base
 #### Simplicity for Simple Services
 
 ```python
+<!-- Code example in Python -->
 # REST: Simple to understand
 @app.get("/users/{user_id}")
 def get_user(user_id: int):
     return db.query("SELECT * FROM users WHERE id = ?", [user_id])
 ```text
+<!-- Code example in TEXT -->
 
 ### Familiarity
 
@@ -436,6 +482,7 @@ def get_user(user_id: int):
 ### Fine-Grained Control
 
 ```python
+<!-- Code example in Python -->
 # REST: You control exactly what goes into each endpoint
 @app.get("/users/{user_id}/recommendations")
 def get_recommendations(user_id: int, limit: int = 10):
@@ -445,22 +492,26 @@ def get_recommendations(user_id: int, limit: int = 10):
         [user_id, limit]
     )
 ```text
+<!-- Code example in TEXT -->
 
 #### Where Custom REST Struggles
 
 #### Versioning Chaos
 
 ```text
+<!-- Code example in TEXT -->
 /api/v1/users/{id}
 /api/v2/users/{id}
 /api/v3/users/{id}
 ```text
+<!-- Code example in TEXT -->
 
 Each API version requires separate endpoints and testing.
 
 ### Over-fetching & Under-fetching
 
 ```text
+<!-- Code example in TEXT -->
 REST API returns:
 GET /api/users/1
 {
@@ -473,17 +524,21 @@ GET /api/users/1
 
 Returned 500 bytes, needed 200 bytes
 ```text
+<!-- Code example in TEXT -->
 
 Or:
 
 ```text
+<!-- Code example in TEXT -->
 You need user + orders + order items
 3 separate requests: GET /users/1, GET /users/1/orders, GET /orders/123/items
 ```text
+<!-- Code example in TEXT -->
 
 ### No Standard Query Language
 
 ```text
+<!-- Code example in TEXT -->
 Custom filtering:
 GET /api/users?filter=email:contains:@example.com&sort=-created_at&limit=10
 
@@ -492,10 +547,12 @@ GET /api/products?q=coffee&sort=price&page=1&per_page=20
 
 Inconsistent APIs everywhere
 ```text
+<!-- Code example in TEXT -->
 
 ### Documentation Burden
 
 ```text
+<!-- Code example in TEXT -->
 Each endpoint needs separate documentation:
 
 - GET /users/{id}
@@ -508,6 +565,7 @@ Each endpoint needs separate documentation:
 
 And that's just for users. Multiply by 20 resources = 100s of endpoints
 ```text
+<!-- Code example in TEXT -->
 
 #### FraiseQL vs. REST: Decision
 
@@ -529,61 +587,77 @@ And that's just for users. Multiply by 20 resources = 100s of endpoints
 #### 1. Compile-Time Guarantees
 
 ```text
+<!-- Code example in TEXT -->
 Query performance, authorization, and schema correctness all verified at build time,
 not discovered in production.
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Database Expertise as API Design
 
 ```text
+<!-- Code example in TEXT -->
 Your database team's work (indexes, views, optimization) directly
 improves API performance. No resolver code to optimize.
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Deterministic Behavior
 
 ```text
+<!-- Code example in TEXT -->
 Every query's performance is predictable and reproducible.
 No "sometimes slow" queries. No hidden N+1 problems.
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Minimal Code
 
 ```text
+<!-- Code example in TEXT -->
 No custom resolvers. No data loaders. No optimization patterns.
 Just schema definitions and SQL automatically generated.
 ```text
+<!-- Code example in TEXT -->
 
 ### What FraiseQL Trades Off
 
 #### Single Data Source
 
 ```text
+<!-- Code example in TEXT -->
 Cannot easily aggregate data from multiple external APIs.
 Best for monolithic database-centric services.
 ```text
+<!-- Code example in TEXT -->
 
 ### No Custom Resolver Logic
 
 ```text
+<!-- Code example in TEXT -->
 Complex business logic must happen in the database (functions/views)
 or in separate services.
 Cannot add computed fields easily without database changes.
 ```text
+<!-- Code example in TEXT -->
 
 ### Build-Time Schema
 
 ```text
+<!-- Code example in TEXT -->
 All queries must be known at compile time.
 Dynamic queries require recompilation.
 ```text
+<!-- Code example in TEXT -->
 
 ### PostgreSQL-First
 
 ```text
+<!-- Code example in TEXT -->
 Primary focus on PostgreSQL. MySQL/SQLite/SQL Server support,
 but PostgreSQL gets features first.
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -648,6 +722,7 @@ Why:
 ### API would include:
 
 ```python
+<!-- Code example in Python -->
 @schema.type(table="v_products")
 class Product:
     id: int
@@ -663,6 +738,7 @@ def product_search(query: str, limit: int = 10) -> List[Product]:
 def user_recommendations(user_id: int) -> List[Product]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: Multi-Tenant SaaS Dashboard
 

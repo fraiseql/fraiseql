@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 1.1: What is FraiseQL?
+description: FraiseQL is a **compiled GraphQL execution engine** that transforms schema definitions into optimized SQL at build time, eliminating runtime overhead and enabli
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 1.1: What is FraiseQL?
 
 **Audience:** Developers, architects, technical decision-makers
@@ -51,6 +59,7 @@ FraiseQL shifts work from runtime to build time:
 #### Traditional GraphQL Problem
 
 ```python
+<!-- Code example in Python -->
 # Apollo Server - Query interpreted at runtime
 query GetUserOrders {
   user(id: 1) {
@@ -66,11 +75,13 @@ query GetUserOrders {
 }
 # Runtime: Parse, validate schema, resolve relationships, execute N queries
 # Speed depends on resolver implementation and caching
-```
+```text
+<!-- Code example in TEXT -->
 
 #### FraiseQL Solution
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL - Query compiled to optimized SQL
 query GetUserOrders {
   user(id: 1) {
@@ -87,7 +98,8 @@ query GetUserOrders {
 # Compile time: Generated optimal SQL (single JOIN or intentional batching)
 # Runtime: Execute pre-compiled template
 # Speed: Predictable, database-native performance
-```
+```text
+<!-- Code example in TEXT -->
 
 **Benefit:** Queries execute at database speed, not application speed.
 
@@ -96,6 +108,7 @@ query GetUserOrders {
 All type checking, validation, and authorization rules are verified at compile time:
 
 ```python
+<!-- Code example in Python -->
 # Phase 1: Schema Authoring (Python)
 @FraiseQL.type
 class User:
@@ -112,7 +125,8 @@ class User:
 # Phase 3: Runtime
 # - Execute type-safe queries
 # - Zero runtime type coercion errors
-```
+```text
+<!-- Code example in TEXT -->
 
 **Benefit:** Catch schema errors before production.
 
@@ -121,6 +135,7 @@ class User:
 FraiseQL treats the database as the primary source of truth, not an afterthought:
 
 ```sql
+<!-- Code example in SQL -->
 -- Your database schema defines your API
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY,
@@ -137,7 +152,8 @@ CREATE TABLE tb_orders (
 
 -- FraiseQL automatically derives GraphQL API from this schema
 # { user { username orders { total } } }  ← Automatically available
-```
+```text
+<!-- Code example in TEXT -->
 
 **Benefit:** Schema is source of truth; no impedance mismatch.
 
@@ -154,6 +170,7 @@ Traditional GraphQL requires:
 FraiseQL handles this at compile time:
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL: All built-in
 @FraiseQL.query
 def get_user(user_id: int) -> User:
@@ -165,7 +182,8 @@ def get_user(user_id: int) -> User:
     - Error handling defined
     """
     return db.query(User).filter(user_id=user_id).first()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Benefit:** Less code, fewer moving parts, easier debugging.
 
@@ -212,6 +230,7 @@ def get_user(user_id: int) -> User:
 **Challenge:** Managing complex product catalog with fast searches
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL Schema
 @FraiseQL.type
 class Product:
@@ -225,7 +244,8 @@ class Product:
 def search_products(query: str, category: str) -> List[Product]:
     """Returns matching products with stock status and reviews"""
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Result
 
@@ -239,6 +259,7 @@ def search_products(query: str, category: str) -> List[Product]:
 **Challenge:** Isolating data between tenants, enforcing permissions
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL handles tenant isolation
 @FraiseQL.type
 class Invoice:
@@ -251,7 +272,8 @@ class Invoice:
 # - Tenant isolation in every query (WHERE tenant_id = ?)
 # - Authorization checks (can user see this tenant's data?)
 # - Audit logging rules
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Result
 
@@ -264,6 +286,7 @@ class Invoice:
 **Challenge:** Moving 1GB datasets efficiently
 
 ```graphql
+<!-- Code example in GraphQL -->
 # FraiseQL: Arrow Flight data plane for columnar output
 query GetUserAnalytics {
   users(limit: 1000000) {
@@ -275,7 +298,8 @@ query GetUserAnalytics {
 }
 # Arrow Flight: 100+ MB/s columnar streaming
 # vs JSON plane: 10-20 MB/s row-by-row
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Result
 
@@ -418,27 +442,33 @@ FraiseQL's architecture separates concerns:
 ### Layer 1: Authoring
 
 ```python
+<!-- Code example in Python -->
 # Your Python or TypeScript code
 @FraiseQL.type
 class User:
     user_id: int
     name: str
     emails: List[Email]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Layer 2: Compilation
 
 ```bash
+<!-- Code example in BASH -->
 $ FraiseQL-cli compile schema.py
 # Generates: schema.compiled.json + SQL templates
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Layer 3: Runtime
 
 ```bash
+<!-- Code example in BASH -->
 $ FraiseQL-server --schema schema.compiled.json
 # Executes GraphQL queries using pre-compiled SQL
-```
+```text
+<!-- Code example in TEXT -->
 
 **Benefit:** Clear separation of concerns, easy to reason about.
 

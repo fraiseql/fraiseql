@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Database Federation: Multi-Database Queries
+description: Complete guide to federating queries across multiple databases (PostgreSQL, MySQL, SQLite) as a unified GraphQL API.
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # Database Federation: Multi-Database Queries
 
 **Status:** ✅ Production Ready
@@ -12,7 +20,10 @@ Complete guide to federating queries across multiple databases (PostgreSQL, MySQ
 
 ## Architecture Overview
 
+**Diagram: Federation** - Multi-database query coordination
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 GraphQL: "FraiseQL Server\n(Single GraphQL endpoint)" {
@@ -50,7 +61,8 @@ GraphQL -> SQLite
 Postgres -> Details
 MySQL -> Details
 SQLite -> Details
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -59,6 +71,7 @@ SQLite -> Details
 ### FraiseQL TOML
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [[FraiseQL.databases]]
 name = "postgres_primary"
@@ -90,6 +103,7 @@ path = "/var/cache/FraiseQL.db"
 pool_size = 1
 read_write = false  # Read-only cache
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -98,6 +112,7 @@ read_write = false  # Read-only cache
 ### Federated Schema
 
 ```python
+<!-- Code example in Python -->
 # federation_schema.py
 from FraiseQL import types, database
 
@@ -162,6 +177,7 @@ class Query:
         """Query primary, fallback to cache"""
         pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -170,6 +186,7 @@ class Query:
 ### Pattern 1: Fetch-Then-Join (Application Layer)
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Join data from multiple databases at application level
 const GET_CUSTOMER_WITH_HISTORY = gql`
   query GetCustomerWithHistory($customerId: ID!) {
@@ -204,10 +221,12 @@ export async function getCustomerWithHistory(customerId: string) {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Virtual Foreign Keys
 
 ```python
+<!-- Code example in Python -->
 # Define relationship across databases
 @types.object
 class Customer:
@@ -236,6 +255,7 @@ query = """
   }
 """
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -244,6 +264,7 @@ query = """
 ### Pattern 1: Read-Through Cache
 
 ```python
+<!-- Code example in Python -->
 @database('postgres_primary', fallback='sqlite_cache')
 def get_customer(self, id: str) -> Customer:
     """
@@ -253,10 +274,12 @@ def get_customer(self, id: str) -> Customer:
     """
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Write-Through Cache
 
 ```sql
+<!-- Code example in SQL -->
 -- When writing to primary, also write to cache
 CREATE OR REPLACE FUNCTION sync_to_cache() RETURNS TRIGGER AS $$
 BEGIN
@@ -277,10 +300,12 @@ AFTER INSERT OR UPDATE ON customers
 FOR EACH ROW
 EXECUTE FUNCTION sync_to_cache();
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Background Sync
 
 ```python
+<!-- Code example in Python -->
 # Periodic sync from PostgreSQL to MySQL
 async def sync_orders_to_historical():
     """Run daily to move completed orders to historical database"""
@@ -310,6 +335,7 @@ scheduler.add_job(
     minute=0
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -318,6 +344,7 @@ scheduler.add_job(
 ### Two-Phase Commit Pattern
 
 ```python
+<!-- Code example in Python -->
 async def transfer_customer_data(customer_id: str):
     """Transfer customer from PostgreSQL to MySQL"""
 
@@ -357,6 +384,7 @@ async def transfer_customer_data(customer_id: str):
         await pg_pool.release(pg_tx)
         await mysql_pool.release(mysql_tx)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -365,6 +393,7 @@ async def transfer_customer_data(customer_id: str):
 ### Eventual Consistency
 
 ```python
+<!-- Code example in Python -->
 # Mark data with source and timestamp
 @types.object
 class Customer:
@@ -374,10 +403,12 @@ class Customer:
     last_sync: datetime
     is_stale: bool  # True if > 1 hour since sync
 ```text
+<!-- Code example in TEXT -->
 
 ### Reconciliation Queries
 
 ```sql
+<!-- Code example in SQL -->
 -- Find customers in PostgreSQL but not in MySQL
 SELECT p.id
 FROM postgres_primary.customers p
@@ -393,6 +424,7 @@ FROM postgres_primary.customers p
 JOIN mysql_historical.customers m ON p.id = m.id
 WHERE p.email != m.email;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -401,6 +433,7 @@ WHERE p.email != m.email;
 ### Database Routing Hints
 
 ```python
+<!-- Code example in Python -->
 @database('postgres_primary', affinity='read_primary')
 def get_current_user(self, id: str) -> User:
     """Always hit primary for current data"""
@@ -416,10 +449,12 @@ def search_products(self, term: str) -> list[Product]:
     """Precomputed cache, fastest"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Optimization
 
 ```python
+<!-- Code example in Python -->
 # Avoid N+1 queries across databases
 @database.batch
 def get_customers_with_orders(self, customer_ids: list[str]):
@@ -435,12 +470,14 @@ def get_customers_with_orders(self, customer_ids: list[str]):
     """
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Testing Federation
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('Database Federation', () => {
   it('should query across databases', async () => {
     // Create customer in PostgreSQL
@@ -489,6 +526,7 @@ describe('Database Federation', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -503,6 +541,7 @@ describe('Database Federation', () => {
 ### Implementation
 
 ```python
+<!-- Code example in Python -->
 # 1. Define federation
 config = {
     'postgres_new': {
@@ -554,6 +593,7 @@ SELECT
   END as status
 FROM mysql_legacy.orders;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -562,6 +602,7 @@ FROM mysql_legacy.orders;
 ### Health Check
 
 ```graphql
+<!-- Code example in GraphQL -->
 query FederationHealth {
   databaseStatus {
     name
@@ -571,10 +612,12 @@ query FederationHealth {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Tracing
 
 ```python
+<!-- Code example in Python -->
 # Enable query tracing to see which database each query goes to
 result = await client.query(
     query,
@@ -590,6 +633,7 @@ print(result.meta.trace)
 #   ]
 # }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

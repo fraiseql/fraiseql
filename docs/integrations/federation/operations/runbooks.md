@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Federation Observability Operational Runbooks
+description: This document provides step-by-step operational procedures for diagnosing and resolving federation observability issues. All runbooks follow the principle: **Wh
+keywords: ["framework", "sdk", "deployment", "scaling", "monitoring", "performance", "troubleshooting", "database"]
+tags: ["documentation", "reference"]
+---
+
 # Federation Observability Operational Runbooks
 
 **Last Updated**: 2026-01-28
@@ -33,6 +41,7 @@ This document provides step-by-step operational procedures for diagnosing and re
 ### Step 1: Collect Initial Data
 
 ```bash
+<!-- Code example in BASH -->
 # Find the affected query in Jaeger
 # Search by:
 # - Duration: > 100ms (entity resolution) or > 500ms (subgraph)
@@ -46,10 +55,12 @@ This document provides step-by-step operational procedures for diagnosing and re
 # 4. Min Duration: "100ms" (adjust based on alert)
 # 5. Sort by Duration, newest first
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Examine Span Breakdown
 
 ```text
+<!-- Code example in TEXT -->
 Root Span: federation.query.execute (125ms total)
   ├─ Parse & Validate (2ms)
   ├─ federation.entity_resolution (78ms) ← Bottleneck
@@ -60,12 +71,14 @@ Root Span: federation.query.execute (125ms total)
   │  └─ HTTP roundtrip (28ms)
   └─ Result Assembly (13ms)
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Identify Bottleneck Category
 
 **If entity_resolution > 50ms:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Check database query performance
 SELECT query, avg(duration_ms), max(duration_ms), count(*)
 FROM slow_queries
@@ -74,6 +87,7 @@ GROUP BY query
 ORDER BY avg(duration_ms) DESC
 LIMIT 5;
 ```text
+<!-- Code example in TEXT -->
 
 **Action Items**:
 
@@ -85,6 +99,7 @@ LIMIT 5;
 **If subgraph_request > 500ms:**
 
 ```bash
+<!-- Code example in BASH -->
 # Check subgraph health
 curl -s https://subgraph-users.internal/health | jq .
 curl -s https://subgraph-posts.internal/health | jq .
@@ -96,6 +111,7 @@ ping subgraph-posts.internal
 # Check if subgraph is under load
 curl -s https://subgraph-users.internal/metrics | grep http_requests_total
 ```text
+<!-- Code example in TEXT -->
 
 **Action Items**:
 
@@ -107,6 +123,7 @@ curl -s https://subgraph-users.internal/metrics | grep http_requests_total
 ### Step 4: Check for Pattern
 
 ```bash
+<!-- Code example in BASH -->
 # From logs, correlate with query type
 TRACE_ID="4bf92f3577b34da6a3ce929d0e0e4736"
 
@@ -124,10 +141,12 @@ kubectl logs -l app=FraiseQL --all-containers --tail=1000 | \
 # Pattern: Specific typename slow → specific table issue
 # Pattern: All queries slow → system-wide issue (load, GC)
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Document Finding
 
 ```json
+<!-- Code example in JSON -->
 {
   "incident_id": "INC-2026-01-28-001",
   "date": "2026-01-28T14:32:00Z",
@@ -143,6 +162,7 @@ kubectl logs -l app=FraiseQL --all-containers --tail=1000 | \
   "prevention": "Add index monitoring to CI/CD checks"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 6: Preventive Measures
 
@@ -167,16 +187,19 @@ kubectl logs -l app=FraiseQL --all-containers --tail=1000 | \
 ### Step 1: IMMEDIATE - Assess Severity
 
 ```bash
+<!-- Code example in BASH -->
 # Check current error rate in real-time
 prometheus_query='rate(federation_errors_total[5m])'
 
 # If errors/sec < 1: Proceed to Step 2 (investigation)
 # If errors/sec > 10: Proceed to Step 3 (mitigation)
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Identify Error Source
 
 ```bash
+<!-- Code example in BASH -->
 # Get error distribution by type
 kubectl logs -l app=FraiseQL --tail=1000 | \
   jq 'select(.error_message != null) | {
@@ -185,6 +208,7 @@ kubectl logs -l app=FraiseQL --tail=1000 | \
     count: 1
   }' | sort | uniq -c | sort -rn
 ```text
+<!-- Code example in TEXT -->
 
 **Common errors**:
 
@@ -198,6 +222,7 @@ kubectl logs -l app=FraiseQL --tail=1000 | \
 ### Step 3: Mitigation (If >10 errors/sec)
 
 ```bash
+<!-- Code example in BASH -->
 # Option A: Temporarily disable problematic subgraph
 kubectl set env deployment/FraiseQL \
   FEDERATION_DISABLED_SUBGRAPHS=users_subgraph
@@ -209,12 +234,14 @@ kubectl set env deployment/FraiseQL \
 # Option C: Drain and restart federation pods
 kubectl rollout restart deployment/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Root Cause Analysis
 
 **For Database Errors**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if connection pool is exhausted
 SELECT count(*) as active_connections FROM pg_stat_activity;
 
@@ -227,10 +254,12 @@ WHERE state != 'idle'
 -- Check for locks
 SELECT * FROM pg_locks WHERE NOT granted;
 ```text
+<!-- Code example in TEXT -->
 
 **For Subgraph Errors**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check subgraph logs
 kubectl logs -l app=users-subgraph --tail=100 | grep -i error
 
@@ -238,12 +267,14 @@ kubectl logs -l app=users-subgraph --tail=100 | grep -i error
 curl -s https://subgraph-users.internal/metrics | \
   grep 'federation_entity_resolutions_errors'
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Resolution
 
 Once root cause identified:
 
 ```bash
+<!-- Code example in BASH -->
 # Fix the issue (specific to cause)
 # For database: ANALYZE table, add index, increase connections
 # For subgraph: Redeploy, increase replicas, clear cache
@@ -253,6 +284,7 @@ watch -n 5 'curl -s http://prometheus:9090/api/v1/query?query=rate(federation_er
 
 # Expect error rate to drop within 2 minutes of fix
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 6: Post-Incident Review
 
@@ -274,6 +306,7 @@ watch -n 5 'curl -s http://prometheus:9090/api/v1/query?query=rate(federation_er
 ### Diagnosis Workflow
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────┐
 │ Cache Hit Rate Drops    │
 │ (e.g., 85% → 55%)       │
@@ -287,10 +320,12 @@ Pattern?          Bug?
     │                 │
     ├─→ A             ├─→ B
 ```text
+<!-- Code example in TEXT -->
 
 ### Path A: Query Pattern Changed
 
 ```bash
+<!-- Code example in BASH -->
 # Analyze recent queries
 kubectl logs -l app=FraiseQL --since=2h | \
   jq 'select(.context.operation_type == "entity_resolution") |
@@ -302,10 +337,12 @@ kubectl logs -l app=FraiseQL --since=2h | \
 #   Conclusion: More cache misses are expected
 #   Action: Update baseline in alert thresholds
 ```text
+<!-- Code example in TEXT -->
 
 ### Path B: Cache Invalidation Bug
 
 ```bash
+<!-- Code example in BASH -->
 # Check cache metrics directly
 prometheus_query='federation_entity_cache_misses / (federation_entity_cache_hits + federation_entity_cache_misses)'
 
@@ -320,6 +357,7 @@ grep -r "cache.*invalidate\|cache.*clear" src/federation/ | \
 # Verify cache timeout settings
 grep -r "CACHE.*TTL\|CACHE.*TIMEOUT" src/
 ```text
+<!-- Code example in TEXT -->
 
 ### Resolution
 
@@ -332,6 +370,7 @@ grep -r "CACHE.*TTL\|CACHE.*TIMEOUT" src/
 **For Invalidation Bug**:
 
 ```bash
+<!-- Code example in BASH -->
 # If too-aggressive invalidation detected:
 # 1. Revert recent cache-related changes
 git log --oneline src/federation/ | grep -i cache | head -3
@@ -341,6 +380,7 @@ git revert COMMIT_HASH
 # Change from: invalidate on ANY write
 # To: invalidate on SPECIFIC field updates
 ```text
+<!-- Code example in TEXT -->
 
 ### Prevention
 
@@ -361,6 +401,7 @@ git revert COMMIT_HASH
 ### Quick Triage
 
 ```bash
+<!-- Code example in BASH -->
 # Step 1: Identify which subgraph is slow
 prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_duration_us{subgraph="users"}[5m])) / 1000'
 # Result: 750ms (users subgraph slow)
@@ -379,10 +420,12 @@ curl -X POST https://subgraph-users.internal/graphql \
 # If direct call is fast but federated call is slow:
 #   Issue: Network/routing or large response payload
 ```text
+<!-- Code example in TEXT -->
 
 ### Network Diagnosis
 
 ```bash
+<!-- Code example in BASH -->
 # Check network latency
 ping subgraph-users.internal
 traceroute subgraph-users.internal
@@ -395,10 +438,12 @@ curl -I -H "Authorization: Bearer $TOKEN" \
   https://subgraph-users.internal/health
 # Check for 429 (Too Many Requests) or X-RateLimit headers
 ```text
+<!-- Code example in TEXT -->
 
 ### Subgraph-Side Investigation
 
 ```bash
+<!-- Code example in BASH -->
 # SSH into subgraph and check:
 
 # 1. Database connectivity
@@ -416,6 +461,7 @@ redis-cli INFO stats | grep keyspace_hits
 # 5. Replication lag (if replicated)
 SELECT EXTRACT(EPOCH FROM (NOW() - pg_last_xact_replay_timestamp())) as replication_lag_seconds;
 ```text
+<!-- Code example in TEXT -->
 
 ### Resolution Steps
 
@@ -437,6 +483,7 @@ SELECT EXTRACT(EPOCH FROM (NOW() - pg_last_xact_replay_timestamp())) as replicat
 ### Escalation
 
 ```bash
+<!-- Code example in BASH -->
 # If latency remains high after basic checks:
 # 1. Contact subgraph team with:
 #    - Slow query IDs (trace_id)
@@ -450,6 +497,7 @@ prometheus_query='federation_subgraph_request_duration_us{subgraph="users"}'
 # 3. Request subgraph SLO review
 # Ensure both teams agree on latency target
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -462,6 +510,7 @@ prometheus_query='federation_subgraph_request_duration_us{subgraph="users"}'
 ### Diagnosis
 
 ```bash
+<!-- Code example in BASH -->
 # Step 1: Verify federation is working
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -488,12 +537,14 @@ tail -100 /var/log/FraiseQL/app.log | jq '.trace_id' | head -5
 # Metrics data: Check Step 2 #2
 # Log data: Check Step 2 #3
 ```text
+<!-- Code example in TEXT -->
 
 ### Recover Each Component
 
 **If Traces Missing**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check Jaeger connectivity
 curl -s http://jaeger:14268/api/traces?service=FraiseQL-core | jq '.traceID' | head -3
 
@@ -503,10 +554,12 @@ docker restart jaeger-agent
 # Verify traces flow
 kubectl logs -l app=FraiseQL --tail=50 | grep -i "trace"
 ```text
+<!-- Code example in TEXT -->
 
 **If Metrics Missing**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check Prometheus targets
 curl -s http://prometheus:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="FraiseQL")'
 
@@ -516,10 +569,12 @@ curl -s http://localhost:9000/metrics | grep federation_ | head -5
 # Force Prometheus scrape
 curl -X POST http://prometheus:9090/-/reload
 ```text
+<!-- Code example in TEXT -->
 
 **If Logs Missing**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check log file permissions
 ls -la /var/log/FraiseQL/
 
@@ -532,10 +587,12 @@ df -h /var/log/
 # Restart logging
 pkill -f "FraiseQL" && docker-compose up -d FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Validation After Recovery
 
 ```bash
+<!-- Code example in BASH -->
 # Execute test query
 TRACE_ID=$(uuidgen)
 curl -X POST http://localhost:8000/graphql \
@@ -555,6 +612,7 @@ curl -s "http://prometheus:9090/api/v1/query?query=federation_entity_resolutions
 kubectl logs -l app=FraiseQL --tail=50 | jq "select(.trace_id == \"$TRACE_ID\")" | jq '.message'
 # Should return log messages with matching trace_id
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -565,6 +623,7 @@ kubectl logs -l app=FraiseQL --tail=50 | jq "select(.trace_id == \"$TRACE_ID\")"
 ### Collect Baseline Data
 
 ```bash
+<!-- Code example in BASH -->
 # Run for 24 hours of normal traffic and collect:
 
 # 1. Latency percentiles
@@ -583,10 +642,12 @@ prometheus_query='federation_entity_cache_hits / (federation_entity_cache_hits +
 prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_duration_us{subgraph="users"}[1h]))'
 # Record for each subgraph
 ```text
+<!-- Code example in TEXT -->
 
 ### Create Baseline Profile
 
 ```json
+<!-- Code example in JSON -->
 {
   "baseline_profile": {
     "entity_resolution": {
@@ -622,10 +683,12 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
   "traffic_volume": "2.3M queries/day"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Configure Alerts Based on Baselines
 
 ```yaml
+<!-- Code example in YAML -->
 # prometheus-rules.yml
 
 - alert: EntityResolutionLatencySLOBreach
@@ -640,6 +703,7 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
   expr: (federation_entity_cache_hits / (federation_entity_cache_hits + federation_entity_cache_misses)) < 0.82 * 0.85  # 15% below baseline
   for: 10m
 ```text
+<!-- Code example in TEXT -->
 
 ### Quarterly Baseline Review
 
@@ -659,6 +723,7 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
 ### Tuning Process
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Establish baseline (see above)
 2. Set initial threshold at baseline + 50%
@@ -667,12 +732,14 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
 5. Document threshold rationale
 6. Review quarterly
 ```text
+<!-- Code example in TEXT -->
 
 ### Examples
 
 **EntityResolutionLatencySLOBreach**:
 
 ```yaml
+<!-- Code example in YAML -->
 # Initial SLO: 100ms p99
 # Baseline p99: 52ms
 # Initial alert threshold: 52ms * 1.5 = 78ms
@@ -685,10 +752,12 @@ prometheus_query='histogram_quantile(0.99, rate(federation_subgraph_request_dura
 # Adjustment: Lower to 75ms (closer to SLO)
 expr: histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000 > 75
 ```text
+<!-- Code example in TEXT -->
 
 **EntityCacheHitRateLow**:
 
 ```yaml
+<!-- Code example in YAML -->
 # Baseline hit rate: 82%
 # SLO: 70%
 # Initial alert: < 70% for 10m (too strict, too many alerts)
@@ -701,10 +770,12 @@ expr: histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000 
 expr: (federation_entity_cache_hits / (...)) < 0.60
 for: 15m  # Also increased duration for stability
 ```text
+<!-- Code example in TEXT -->
 
 ### False Positive Analysis
 
 ```bash
+<!-- Code example in BASH -->
 # When an alert fires, analyze:
 
 # 1. Was it a real issue?
@@ -720,10 +791,12 @@ for: 15m  # Also increased duration for stability
 # E.g., Cache hits drop during deployments (expected)
 # E.g., Latency increases during batching (acceptable)
 ```text
+<!-- Code example in TEXT -->
 
 ### Documentation Template
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 ## Alert: EntityResolutionLatencySLOBreach
 
 **Purpose**: Catch degraded entity resolution performance
@@ -751,12 +824,14 @@ for: 15m  # Also increased duration for stability
 **Last Reviewed**: 2026-01-28
 **Next Review**: 2026-04-28 (quarterly)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Escalation Flowchart
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────┐
 │ Observability Alert     │
 │ Triggered               │
@@ -792,6 +867,7 @@ for: 15m  # Also increased duration for stability
     │      │      │for deep dive  │
     └──────┘      └───────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -800,6 +876,7 @@ for: 15m  # Also increased duration for stability
 ### Key Prometheus Queries
 
 ```text
+<!-- Code example in TEXT -->
 # Entity Resolution
 Rate: rate(federation_entity_resolutions_total[5m])
 Latency p99: histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000
@@ -818,10 +895,12 @@ Misses/sec: rate(federation_entity_cache_misses[1m])
 Error rate: rate(federation_mutations_errors[5m]) / rate(federation_mutations_total[5m])
 Latency p99: histogram_quantile(0.99, federation_mutation_duration_us) / 1000
 ```text
+<!-- Code example in TEXT -->
 
 ### Key Log Fields for Filtering
 
 ```text
+<!-- Code example in TEXT -->
 query_id      - Unique query identifier (follow single request)
 trace_id      - Distributed trace ID (correlate with Jaeger)
 typename      - GraphQL type being resolved
@@ -830,10 +909,12 @@ duration_ms   - Operation duration
 status        - "started", "success", "error", "timeout"
 error_message - Human-readable error description
 ```text
+<!-- Code example in TEXT -->
 
 ### Common Curl Commands
 
 ```bash
+<!-- Code example in BASH -->
 # Test Jaeger
 curl -s http://jaeger:16686/api/services | jq .
 
@@ -846,6 +927,7 @@ curl -s http://localhost:8000/health | jq .
 # Test observability endpoint
 curl -s http://localhost:9000/metrics | grep federation_ | head -10
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

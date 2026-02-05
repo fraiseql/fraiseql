@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Authorization & RBAC Quick Start (5 Minutes)
+description: Get field-level and operation-level authorization working in 5 minutes.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Authorization & RBAC Quick Start (5 Minutes)
 
 **Status:** ✅ Production Ready
@@ -16,6 +24,7 @@ Get field-level and operation-level authorization working in 5 minutes.
 ## Step 1: Define Authorization Rules (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # users_service/schema.py
 from FraiseQL import type, field, authorize
 
@@ -32,13 +41,15 @@ class Order:
     id: str
     user_id: str
     total: float = field(authorize={"read": ["admin", "owner"]})  # Admin or order owner
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 2: Add Authorization to Queries (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # users_service/schema.py (continued)
 from FraiseQL import query, authorize
 
@@ -59,13 +70,15 @@ def all_users(limit: int = 100) -> list[User]:
 def my_orders(limit: int = 50) -> list[Order]:
     """List current user's orders"""
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 3: Configure Authorization Provider (1 minute)
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [FraiseQL.authentication]
 provider = "oauth2"
@@ -82,13 +95,15 @@ cache_ttl_seconds = 300
 level = "field"          # "operation" (queries only) or "field" (queries + fields)
 fail_closed = true       # Deny if no explicit permission
 audit_log = true         # Log all authorization decisions
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 4: Deploy and Test (2 minutes)
 
 ```bash
+<!-- Code example in BASH -->
 # Compile schema with authorization
 FraiseQL compile --config ./FraiseQL.toml
 
@@ -146,7 +161,8 @@ curl -X POST http://localhost:8000/graphql \
 #     ]
 #   }
 # }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

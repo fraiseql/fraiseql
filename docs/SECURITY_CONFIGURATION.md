@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Security Configuration Guide
+description: This guide covers security features and configuration options available in FraiseQL v2.0.0-alpha.1.
+keywords: ["security"]
+tags: ["documentation", "reference"]
+---
+
 # Security Configuration Guide
 
 This guide covers security features and configuration options available in FraiseQL v2.0.0-alpha.1.
@@ -26,10 +34,12 @@ FraiseQL adopts a **fail-secure** approach to security configuration, prioritizi
 **Configuration**:
 
 ```toml
+<!-- Code example in TOML -->
 [auth]
 issuer = "https://tenant.auth0.com/"
 audience = "https://api.example.com"  # Required for OIDC
 ```text
+<!-- Code example in TEXT -->
 
 **Migration Steps**:
 
@@ -40,9 +50,11 @@ audience = "https://api.example.com"  # Required for OIDC
 **Error you might see**:
 
 ```text
+<!-- Code example in TEXT -->
 OIDC audience is REQUIRED for security. Set 'audience' in auth config
 to your API identifier. This prevents token confusion attacks...
 ```text
+<!-- Code example in TEXT -->
 
 ### Admin Endpoints Configuration
 
@@ -59,24 +71,30 @@ to your API identifier. This prevents token confusion attacks...
 If you need admin endpoints:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 admin_api_enabled = true
 admin_token = "your-secure-token-32-characters-minimum!!"
 ```text
+<!-- Code example in TEXT -->
 
 Or via environment variables:
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_ADMIN_API_ENABLED=true
 FRAISEQL_ADMIN_TOKEN="your-secure-token-32-characters-minimum!!"
 ```text
+<!-- Code example in TEXT -->
 
 Then authenticate requests:
 
 ```bash
+<!-- Code example in BASH -->
 curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
      http://localhost:8000/api/v1/admin/config
 ```text
+<!-- Code example in TEXT -->
 
 ### Introspection Configuration
 
@@ -91,25 +109,31 @@ curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
 **For Development** (public schema):
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 introspection_enabled = true
 introspection_require_auth = false  # Schema public (dev only!)
 ```text
+<!-- Code example in TEXT -->
 
 **For Production** (enable with auth):
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 introspection_enabled = true
 introspection_require_auth = true   # Requires OIDC auth
 ```text
+<!-- Code example in TEXT -->
 
 Environment variables:
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_INTROSPECTION_ENABLED=true
 FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Schema export endpoints (`/api/v1/schema.graphql`, `/api/v1/schema.json`) follow the same configuration as introspection.
 
@@ -122,15 +146,19 @@ FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
 **To enable** (development only):
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 playground_enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 Or environment variable:
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_PLAYGROUND_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 **Migration**: If you're using playground, explicitly enable it in your dev configs.
 
@@ -144,10 +172,12 @@ FRAISEQL_PLAYGROUND_ENABLED=true
 **Configuration**:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 cors_enabled = true
 cors_origins = ["https://app.example.com", "https://api.example.com"]
 ```text
+<!-- Code example in TEXT -->
 
 **Important**: In production mode, you must explicitly set allowed origins. Empty origins would allow requests from ANY origin, which is a security risk.
 
@@ -164,9 +194,11 @@ Design audit endpoints (`/api/v1/design/*`) support optional authentication.
 **To require authentication**:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 design_api_require_auth = true  # Requires OIDC authentication
 ```text
+<!-- Code example in TEXT -->
 
 The endpoints remain public unless you explicitly enable authentication.
 
@@ -209,6 +241,7 @@ The endpoints remain public unless you explicitly enable authentication.
 Best practices for local development:
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml (or export as environment variables)
 [server]
 playground_enabled = true
@@ -221,20 +254,24 @@ cors_origins = ["http://localhost:3000", "http://localhost:5173"]
 issuer = "https://your-tenant.auth0.com/"
 audience = "localhost"  # Use "localhost" for local dev
 ```text
+<!-- Code example in TEXT -->
 
 Or set environment variables:
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_ENV=development
 export FRAISEQL_PLAYGROUND_ENABLED=true
 export FRAISEQL_INTROSPECTION_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 ### Production Environment
 
 Secure defaults for production deployments:
 
 ```toml
+<!-- Code example in TOML -->
 # production.toml
 [server]
 playground_enabled = false
@@ -249,14 +286,17 @@ cors_origins = ["https://app.example.com", "https://another-app.example.com"]
 issuer = "https://your-tenant.auth0.com/"
 audience = "https://api.example.com"  # Your API identifier
 ```text
+<!-- Code example in TEXT -->
 
 Or set environment variables:
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_ENV=production  # Or don't set (production is default)
 export FRAISEQL_ADMIN_TOKEN="your-secure-32+-char-token"
 export FRAISEQL_ADMIN_API_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -265,50 +305,60 @@ export FRAISEQL_ADMIN_API_ENABLED=true
 **Solution**: Add the `audience` field to your `[auth]` section:
 
 ```toml
+<!-- Code example in TOML -->
 [auth]
 audience = "your-api-identifier"
 ```text
+<!-- Code example in TEXT -->
 
 ### "playground_enabled is true in production mode"
 
 **Solution**: Either disable playground or set `FRAISEQL_ENV=development`:
 
 ```bash
+<!-- Code example in BASH -->
 # Option 1: Disable
 playground_enabled = false
 
 # Option 2: Development mode
 export FRAISEQL_ENV=development
 ```text
+<!-- Code example in TEXT -->
 
 ### "cors_origins is empty in production mode"
 
 **Solution**: Explicitly configure CORS origins:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 cors_origins = ["https://app.example.com"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Admin endpoints return 404
 
 **Solution**: Enable admin API:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 admin_api_enabled = true
 admin_token = "your-secure-token-32-char-minimum!!"
 ```text
+<!-- Code example in TEXT -->
 
 ### Introspection endpoint returns 404
 
 **Solution**: Enable introspection:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 introspection_enabled = true
 introspection_require_auth = false  # For dev; true for production
 ```text
+<!-- Code example in TEXT -->
 
 ## Rate Limiting
 
@@ -330,6 +380,7 @@ Rate limiting is **enabled by default** with sensible per-IP and per-user limits
 **In TOML file** (`FraiseQL.toml`):
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = true
 rps_per_ip = 100         # Adjust per your traffic patterns
@@ -337,10 +388,12 @@ rps_per_user = 1000      # Higher limit for authenticated users
 burst_size = 500         # Allow temporary traffic spikes
 cleanup_interval_secs = 300  # Cleanup stale entries every 5 minutes
 ```text
+<!-- Code example in TEXT -->
 
 **Via environment variables**:
 
 ```bash
+<!-- Code example in BASH -->
 # Enable/disable rate limiting
 export FRAISEQL_RATE_LIMITING_ENABLED=true
 
@@ -349,22 +402,26 @@ export FRAISEQL_RATE_LIMIT_RPS_PER_IP=100
 export FRAISEQL_RATE_LIMIT_RPS_PER_USER=1000
 export FRAISEQL_RATE_LIMIT_BURST_SIZE=500
 ```text
+<!-- Code example in TEXT -->
 
 ### Response Headers
 
 When rate limiting is active, responses include:
 
 ```text
+<!-- Code example in TEXT -->
 X-RateLimit-Limit: 100        # Max requests allowed per second
 X-RateLimit-Remaining: 42     # Requests remaining in current window
 Retry-After: 60               # Seconds to wait before retrying (on 429)
 ```text
+<!-- Code example in TEXT -->
 
 ### 429 Too Many Requests Response
 
 When rate limit is exceeded, the server responds with HTTP 429:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -373,6 +430,7 @@ When rate limit is exceeded, the server responds with HTTP 429:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Best Practices
 
@@ -387,45 +445,55 @@ When rate limit is exceeded, the server responds with HTTP 429:
 **Development**:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = false  # Or set very high limits
 rps_per_ip = 10000
 rps_per_user = 50000
 ```text
+<!-- Code example in TEXT -->
 
 **Production (Standard)**:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = true
 rps_per_ip = 100     # Reasonable limit for public endpoints
 rps_per_user = 1000  # Higher for authenticated users
 ```text
+<!-- Code example in TEXT -->
 
 **Production (High Traffic)**:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = true
 rps_per_ip = 500     # Increase for high-traffic services
 rps_per_user = 5000
 burst_size = 2000
 ```text
+<!-- Code example in TEXT -->
 
 ### Disabling Rate Limiting
 
 To disable (only recommended for internal/trusted environments):
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_RATE_LIMITING_ENABLED=false
 ```text
+<!-- Code example in TEXT -->
 
 Or in config:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = false
 ```text
+<!-- Code example in TEXT -->
 
 ### Separate from Auth Rate Limiting
 

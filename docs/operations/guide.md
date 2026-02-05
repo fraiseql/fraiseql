@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Production Operations Guide
+description: This guide provides production operations best practices for deploying and maintaining FraiseQL v2 in enterprise environments. It includes:
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Production Operations Guide
 
 **Version**: 1.0
@@ -51,6 +59,7 @@ This guide is based on production-tested procedures used by the FraiseQL team. Y
 Based on the FraiseQL team's experience:
 
 ```yaml
+<!-- Code example in YAML -->
 SLO (Internal Target):
   availability: 99.9%        # ~8.7 hours downtime/year
   latency_p95: <100ms        # 95% of queries faster than this
@@ -62,29 +71,36 @@ SLA (Customer Commitment):
   error_rate: <0.2%          # 2x buffer from SLO
   credits: 10% for 99-99.5%, 25% for 98-99%, 50% for <98%
 ```text
+<!-- Code example in TEXT -->
 
 ### How to Calculate SLO Compliance
 
 **Monthly Availability**:
 
 ```text
+<!-- Code example in TEXT -->
 Uptime % = (Uptime Minutes / Total Minutes in Month) × 100
 Target: 99.9% = 43.2 minutes downtime allowed per month
 ```text
+<!-- Code example in TEXT -->
 
 **Latency SLI** (Service Level Indicator):
 
 ```text
+<!-- Code example in TEXT -->
 Latency SLI = (Queries with P95 < 100ms / Total Queries) × 100
 Target: 99.9% of queries meet latency target
 ```text
+<!-- Code example in TEXT -->
 
 **Error Rate SLI**:
 
 ```text
+<!-- Code example in TEXT -->
 Error Rate SLI = (Successful Queries / Total Queries) × 100
 Target: 99.9% success rate (0.1% error rate)
 ```text
+<!-- Code example in TEXT -->
 
 ### Customization Checklist
 
@@ -107,18 +123,22 @@ FraiseQL provides three health check endpoints following Kubernetes probe semant
 Returns overall system health including uptime:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 **Response** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "healthy",
   "timestamp": 1706794800,
   "uptime_seconds": 3600
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Use Case**: General health monitoring, dashboards, observability
 
@@ -129,12 +149,15 @@ curl http://localhost:8000/health
 Checks if the server is ready to accept requests (database connectivity, cache available):
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/ready
 ```text
+<!-- Code example in TEXT -->
 
 **Response - Ready** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "ready": true,
   "database_connected": true,
@@ -142,10 +165,12 @@ curl http://localhost:8000/ready
   "reason": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response - Not Ready** (HTTP 503):
 
 ```json
+<!-- Code example in JSON -->
 {
   "ready": false,
   "database_connected": false,
@@ -153,10 +178,12 @@ curl http://localhost:8000/ready
   "reason": "Database unavailable"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Kubernetes Configuration** (recommended):
 
 ```yaml
+<!-- Code example in YAML -->
 readinessProbe:
   httpGet:
     path: /ready
@@ -167,6 +194,7 @@ readinessProbe:
   successThreshold: 1
   failureThreshold: 3
 ```text
+<!-- Code example in TEXT -->
 
 **What It Checks**:
 
@@ -183,22 +211,27 @@ readinessProbe:
 Checks if the process is still running (lightweight, no dependency checks):
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/live
 ```text
+<!-- Code example in TEXT -->
 
 **Response** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "alive": true,
   "pid": 42157,
   "response_time_ms": 1
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Kubernetes Configuration** (recommended):
 
 ```yaml
+<!-- Code example in YAML -->
 livenessProbe:
   httpGet:
     path: /live
@@ -209,6 +242,7 @@ livenessProbe:
   successThreshold: 1
   failureThreshold: 3
 ```text
+<!-- Code example in TEXT -->
 
 **What It Checks**:
 
@@ -223,6 +257,7 @@ livenessProbe:
 ### Complete Kubernetes Probe Configuration
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -271,6 +306,7 @@ spec:
         # Termination Grace Period - Allow graceful shutdown
         terminationGracePeriodSeconds: 30
 ```text
+<!-- Code example in TEXT -->
 
 ### Graceful Shutdown
 
@@ -287,18 +323,23 @@ FraiseQL handles graceful shutdown with signal handling:
 **Kubernetes Configuration**:
 
 ```yaml
+<!-- Code example in YAML -->
 terminationGracePeriodSeconds: 30  # Allow 30s for graceful shutdown
 ```text
+<!-- Code example in TEXT -->
 
 **Docker Configuration**:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 STOPSIGNAL SIGTERM
 ```text
+<!-- Code example in TEXT -->
 
 **Manual Testing**:
 
 ```bash
+<!-- Code example in BASH -->
 # Terminal 1: Start server
 cargo run -p FraiseQL-server
 
@@ -310,6 +351,7 @@ kill -TERM <pid>
 # - "Draining in-flight requests..."
 # - "Clean shutdown complete"
 ```text
+<!-- Code example in TEXT -->
 
 **Load Balancer Configuration**:
 
@@ -324,6 +366,7 @@ Configure your load balancer to use the health endpoints:
 **AWS ALB**:
 
 ```hcl
+<!-- Code example in HCL -->
 health_check {
   enabled = true
   healthy_threshold = 2
@@ -336,10 +379,12 @@ health_check {
   matcher = "200"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Nginx**:
 
 ```nginx
+<!-- Code example in NGINX -->
 upstream FraiseQL {
   server FraiseQL-1:8000;
   server FraiseQL-2:8000;
@@ -357,16 +402,19 @@ server {
 
 # Health check (external configuration)
 ```text
+<!-- Code example in TEXT -->
 
 **HAProxy**:
 
 ```text
+<!-- Code example in TEXT -->
 backend FraiseQL
   option httpchk GET /ready HTTP/1.1
   default-server inter 30s fall 3 rise 2
   server FraiseQL-1 localhost:8000 check
   server FraiseQL-2 localhost:8001 check
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -377,6 +425,7 @@ FraiseQL exposes Prometheus metrics at `/metrics`:
 **Key Metrics to Monitor**:
 
 ```text
+<!-- Code example in TEXT -->
 # Query execution
 fraiseql_queries_total{status="success"}    # Total queries
 fraiseql_query_duration_seconds             # Query latency
@@ -399,10 +448,12 @@ fraiseql_http_request_duration_seconds      # HTTP latency
 # System
 fraiseql_uptime_seconds                     # Process uptime
 ```text
+<!-- Code example in TEXT -->
 
 **Prometheus Configuration**:
 
 ```yaml
+<!-- Code example in YAML -->
 # prometheus.yml
 scrape_configs:
   - job_name: 'FraiseQL'
@@ -411,6 +462,7 @@ scrape_configs:
     scrape_interval: 30s
     scrape_timeout: 5s
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -419,6 +471,7 @@ scrape_configs:
 **Recommended Alert Rules** (using Prometheus/AlertManager):
 
 ```yaml
+<!-- Code example in YAML -->
 groups:
   - name: FraiseQL.rules
     rules:
@@ -467,6 +520,7 @@ groups:
         annotations:
           summary: "Disk less than 10% available"
 ```text
+<!-- Code example in TEXT -->
 
 **Customize Alert Thresholds**:
 
@@ -503,10 +557,12 @@ groups:
 **Example Grafana Variables**:
 
 ```text
+<!-- Code example in TEXT -->
 $job = FraiseQL (data source: Prometheus)
 $environment = production
 $cluster = us-east-1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -517,6 +573,7 @@ $cluster = us-east-1
 FraiseQL logs in JSON format for easy parsing:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-03-15T10:30:15.234Z",
   "level": "INFO",
@@ -530,10 +587,12 @@ FraiseQL logs in JSON format for easy parsing:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Log Aggregation Setup** (e.g., Elasticsearch):
 
 ```yaml
+<!-- Code example in YAML -->
 # Filebeat configuration
 filebeat.inputs:
   - type: log
@@ -548,6 +607,7 @@ output.elasticsearch:
 setup.dashboards.enabled: true
 setup.kibana.host: "kibana.example.com:5601"
 ```text
+<!-- Code example in TEXT -->
 
 **Log Retention**:
 
@@ -564,6 +624,7 @@ setup.kibana.host: "kibana.example.com:5601"
 **CRITICAL** (Immediate Response Required)
 
 ```text
+<!-- Code example in TEXT -->
 Impact: Complete service outage or data loss
 Examples:
   - Service completely unresponsive (0% success rate)
@@ -574,10 +635,12 @@ Response Target: <2 minutes to acknowledge
 Escalation: Page all on-call staff immediately
 Communication: Status page update + customer notification within 15 min
 ```text
+<!-- Code example in TEXT -->
 
 **HIGH** (Urgent Response Required)
 
 ```text
+<!-- Code example in TEXT -->
 Impact: Significant degradation, customer impact
 Examples:
   - 25-99% of traffic failing
@@ -589,10 +652,12 @@ Response Target: <15 minutes
 Escalation: Page if not acknowledged within 15 min
 Communication: Customer notification if >30 min impact
 ```text
+<!-- Code example in TEXT -->
 
 **MEDIUM** (Standard Response)
 
 ```text
+<!-- Code example in TEXT -->
 Impact: Minor issues, customer may notice
 Examples:
   - <25% of traffic affected
@@ -604,10 +669,12 @@ Response Target: <1 hour
 Escalation: Ticket queue with daily check-in
 Communication: Slack notification only
 ```text
+<!-- Code example in TEXT -->
 
 **LOW** (Routine Response)
 
 ```text
+<!-- Code example in TEXT -->
 Impact: No immediate customer impact
 Examples:
   - Warning-level alerts
@@ -618,6 +685,7 @@ Response Target: <24 hours
 Escalation: Ticket system
 Communication: Weekly summary
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -669,6 +737,7 @@ Based on root cause, implement fix:
 #### Template 1: Incident Declaration (Slack)
 
 ```text
+<!-- Code example in TEXT -->
 :warning: **INCIDENT DECLARED: [SERVICE]**
 
 **Severity**: [CRITICAL / HIGH / MEDIUM]
@@ -685,10 +754,12 @@ Based on root cause, implement fix:
 
 **Assigned To**: @on-call-engineer
 ```text
+<!-- Code example in TEXT -->
 
 #### Template 2: Status Update
 
 ```text
+<!-- Code example in TEXT -->
 :clock1: **INCIDENT UPDATE** - [TIME] UTC
 
 **Status**: [Investigating / Identified / Mitigating / Monitoring]
@@ -709,10 +780,12 @@ Based on root cause, implement fix:
 
 **ETA**: [Estimated time to resolution]
 ```text
+<!-- Code example in TEXT -->
 
 #### Template 3: Resolution (Slack)
 
 ```text
+<!-- Code example in TEXT -->
 :white_check_mark: **INCIDENT RESOLVED** - [TIME] UTC
 
 **Duration**: [HH:MM] (from [start] to [end] UTC)
@@ -731,10 +804,12 @@ Based on root cause, implement fix:
 **RCA Meeting**: [DATE] [TIME] UTC
 Questions? Ping @incident-commander
 ```text
+<!-- Code example in TEXT -->
 
 #### Template 4: Customer Notification (Email)
 
 ```text
+<!-- Code example in TEXT -->
 Subject: [RESOLVED] Service Disruption - [DATE]
 
 Dear Valued Customer,
@@ -767,6 +842,7 @@ We sincerely apologize for the disruption.
 
 Contact: support@FraiseQL.com
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -781,37 +857,47 @@ Contact: support@FraiseQL.com
 1. Verify service is down:
 
    ```bash
+<!-- Code example in BASH -->
    curl https://your-FraiseQL-api.com/health
    # Expected: Connection refused or timeout
    ```text
+<!-- Code example in TEXT -->
 
 2. Check logs for recent errors:
 
    ```bash
+<!-- Code example in BASH -->
    kubectl logs -f deployment/FraiseQL-api
    # Look for: panic, segfault, out of memory
    ```text
+<!-- Code example in TEXT -->
 
 3. Restart service:
 
    ```bash
+<!-- Code example in BASH -->
    kubectl rollout restart deployment/FraiseQL-api
    # Or: systemctl restart FraiseQL
    ```text
+<!-- Code example in TEXT -->
 
 4. Verify restart:
 
    ```bash
+<!-- Code example in BASH -->
    kubectl get deployment FraiseQL-api
    # Expected: Ready 1/1, Restarts: 1
    ```text
+<!-- Code example in TEXT -->
 
 5. Health check:
 
    ```bash
+<!-- Code example in BASH -->
    curl https://your-FraiseQL-api.com/health
    # Expected: 200 OK, status: healthy
    ```text
+<!-- Code example in TEXT -->
 
 6. Monitor metrics for 5 minutes:
    - Error rate returns to baseline
@@ -842,52 +928,66 @@ Contact: support@FraiseQL.com
 1. Assess damage:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT COUNT(*) FROM users;
    -- Is this number correct?
    ```text
+<!-- Code example in TEXT -->
 
 2. Stop application (prevent further writes):
 
    ```bash
+<!-- Code example in BASH -->
    kubectl scale deployment FraiseQL-api --replicas=0
    ```text
+<!-- Code example in TEXT -->
 
 3. Find latest backup:
 
    ```bash
+<!-- Code example in BASH -->
    aws s3 ls s3://your-backup-bucket/ | sort
    # Find most recent backup before incident
    ```text
+<!-- Code example in TEXT -->
 
 4. Download and restore:
 
    ```bash
+<!-- Code example in BASH -->
    aws s3 cp s3://your-backup-bucket/2026-03-15-12-00.sql.gz .
    gunzip 2026-03-15-12-00.sql.gz
 
    psql -h your-database.rds.amazonaws.com -U FraiseQL -d FraiseQL \
      < 2026-03-15-12-00.sql
    ```text
+<!-- Code example in TEXT -->
 
 5. Verify restoration:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT COUNT(*) FROM users;
    -- Should match expected count from before incident
    ```text
+<!-- Code example in TEXT -->
 
 6. Restart application:
 
    ```bash
+<!-- Code example in BASH -->
    kubectl scale deployment FraiseQL-api --replicas=3
    ```text
+<!-- Code example in TEXT -->
 
 7. Health check:
 
    ```bash
+<!-- Code example in BASH -->
    curl https://your-FraiseQL-api.com/health
    # Expected: 200 OK
    ```text
+<!-- Code example in TEXT -->
 
 8. Monitor metrics:
    - Error rate normal
@@ -913,45 +1013,55 @@ Contact: support@FraiseQL.com
 1. Identify compromised key:
 
    ```text
+<!-- Code example in TEXT -->
    From anomaly alert:
    - Key: fraiseql_us_east_1_xxxxx
    - Activity: Rate spike + new field access (PII)
    ```text
+<!-- Code example in TEXT -->
 
 2. Verify compromise:
 
    ```bash
+<!-- Code example in BASH -->
    # Check audit logs for suspicious queries
    curl -H "Authorization: Bearer $ES_TOKEN" \
      "elasticsearch.example.com/_search" \
      -d '{"query": {"term": {"api_key": "key_xyz"}}}'
    ```text
+<!-- Code example in TEXT -->
 
 3. Revoke key immediately:
 
    ```sql
+<!-- Code example in SQL -->
    UPDATE api_keys
    SET revoked_at = NOW(),
        revoke_reason = 'Security incident - suspected compromise'
    WHERE api_key_id = 'key_xyz';
    ```text
+<!-- Code example in TEXT -->
 
 4. Verify revocation:
 
    ```bash
+<!-- Code example in BASH -->
    curl -H "Authorization: Bearer fraiseql_us_east_1_xxxxx" \
      https://your-FraiseQL-api.com/graphql
    # Expected: 401 Unauthorized
    ```text
+<!-- Code example in TEXT -->
 
 5. Generate replacement key:
 
    ```bash
+<!-- Code example in BASH -->
    FraiseQL-cli key generate \
      --name "replacement-key" \
      --tier premium \
      --permissions "read,write"
    ```text
+<!-- Code example in TEXT -->
 
 6. Notify customer (use template 4):
    - Explain what happened
@@ -962,10 +1072,12 @@ Contact: support@FraiseQL.com
 7. Investigate impact:
 
    ```bash
+<!-- Code example in BASH -->
    # What data did they access?
    # Which tables/fields?
    # How many queries?
    ```text
+<!-- Code example in TEXT -->
 
 8. Document incident:
    - Time revoked: [TIME]
@@ -993,26 +1105,31 @@ Contact: support@FraiseQL.com
 1. Identify which limit is triggered:
 
    ```bash
+<!-- Code example in BASH -->
    # Check metrics
    curl https://your-FraiseQL-api.com/metrics | grep rate_limit
 
    # Check logs
    grep "429\|rate.limit" /var/log/FraiseQL/access.log
    ```text
+<!-- Code example in TEXT -->
 
 2. Verify it's legitimate traffic:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT api_key, COUNT(*) as requests, source_ip
    FROM audit_logs
    WHERE timestamp > now() - interval '5 minutes'
    GROUP BY api_key, source_ip
    ORDER BY requests DESC;
    ```text
+<!-- Code example in TEXT -->
 
 3. Increase limit temporarily (if legitimate):
 
    ```bash
+<!-- Code example in BASH -->
    # Option 1: Redis (temporary, until service restart)
    redis-cli SET rate_limit:tier:premium:rps 2000
    redis-cli EXPIRE rate_limit:tier:premium:rps 3600
@@ -1022,19 +1139,23 @@ Contact: support@FraiseQL.com
    # [rate_limits]
    # tier.premium.rps = 2000
    ```text
+<!-- Code example in TEXT -->
 
 4. Monitor impact:
 
    ```bash
+<!-- Code example in BASH -->
    # Watch for 5 minutes:
    watch -n 1 'curl -s https://your-FraiseQL-api.com/metrics | grep rate_limit'
 
    # Check error rate didn't increase
    ```text
+<!-- Code example in TEXT -->
 
 5. Permanent fix (if pattern repeats):
 
    ```bash
+<!-- Code example in BASH -->
    # Deploy configuration update
    git commit -m "chore: increase rate limit for tier.premium to 2000 rps"
    git push origin main
@@ -1042,6 +1163,7 @@ Contact: support@FraiseQL.com
    # Deploy
    kubectl rollout restart deployment/FraiseQL-api
    ```text
+<!-- Code example in TEXT -->
 
 6. Document decision:
    - Why increased? [REASON]
@@ -1186,12 +1308,14 @@ Contact: support@FraiseQL.com
 **Schedule**:
 
 ```text
+<!-- Code example in TEXT -->
 Every 6 hours:
   00:00 UTC - Full backup
   06:00 UTC - Full backup
   12:00 UTC - Full backup
   18:00 UTC - Full backup
 ```text
+<!-- Code example in TEXT -->
 
 **Process**:
 

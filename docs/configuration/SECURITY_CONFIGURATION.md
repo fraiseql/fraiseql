@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2.0.0-alpha.1 - Security Configuration via TOML
+description: FraiseQL v2.0.0-alpha.1 uses a **single-source-of-truth TOML configuration file** for all security settings. All configuration is **declarative, language-agnost
+keywords: ["security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2.0.0-alpha.1 - Security Configuration via TOML
 
 **Status**: ✅ Production Ready
@@ -11,6 +19,7 @@ FraiseQL v2.0.0-alpha.1 uses a **single-source-of-truth TOML configuration file*
 Security configuration is specified in `FraiseQL.toml` at the project root:
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security.audit_logging]
 enabled = true
 log_level = "info"
@@ -25,6 +34,7 @@ auth_start_max_requests = 100
 
 # ... and so on
 ```text
+<!-- Code example in TEXT -->
 
 This configuration is then:
 
@@ -36,6 +46,7 @@ This configuration is then:
 ## Architecture
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL.toml (source of truth)
      ↓
 FraiseQL-cli compile (reads TOML, validates, generates JSON)
@@ -50,6 +61,7 @@ Environment variables (optional overrides)
      ↓
 Runtime security policies enforced
 ```text
+<!-- Code example in TEXT -->
 
 ## Configuration File Structure
 
@@ -58,6 +70,7 @@ Runtime security policies enforced
 Create `FraiseQL.toml` in your project root:
 
 ```toml
+<!-- Code example in TOML -->
 [project]
 name = "my-FraiseQL-app"
 version = "1.0.0"
@@ -121,6 +134,7 @@ apply_to_session_tokens = true        # Session token comparison
 apply_to_csrf_tokens = true           # CSRF token validation
 apply_to_refresh_tokens = true        # Refresh token comparison
 ```text
+<!-- Code example in TEXT -->
 
 ## Configuration Sections
 
@@ -228,13 +242,16 @@ At runtime, environment variables **override** TOML settings. This allows deploy
 ### Audit Logging
 
 ```bash
+<!-- Code example in BASH -->
 # Override log level
 export AUDIT_LOG_LEVEL=debug    # "debug", "info", "warn"
 ```text
+<!-- Code example in TEXT -->
 
 ### Rate Limiting
 
 ```bash
+<!-- Code example in BASH -->
 # Override per-IP limits
 export RATE_LIMIT_AUTH_START=200
 export RATE_LIMIT_AUTH_CALLBACK=100
@@ -246,19 +263,23 @@ export RATE_LIMIT_AUTH_LOGOUT=40
 # Override failed login limit
 export RATE_LIMIT_FAILED_LOGIN=3        # 3 failed attempts before lockout
 ```text
+<!-- Code example in TEXT -->
 
 ### State Encryption
 
 ```bash
+<!-- Code example in BASH -->
 # REQUIRED: Encryption key (base64-encoded 32-byte key)
 export STATE_ENCRYPTION_KEY=$(openssl rand -base64 32)
 ```text
+<!-- Code example in TEXT -->
 
 ## Examples
 
 ### Development Configuration
 
 ```toml
+<!-- Code example in TOML -->
 [project]
 name = "my-app-dev"
 version = "0.1.0"
@@ -275,10 +296,12 @@ failed_login_max_requests = 1000
 [FraiseQL.security.error_sanitization]
 user_facing_format = "detailed"     # Show errors for debugging
 ```text
+<!-- Code example in TEXT -->
 
 ### Production Configuration
 
 ```toml
+<!-- Code example in TOML -->
 [project]
 name = "my-app-prod"
 version = "1.0.0"
@@ -305,10 +328,12 @@ enabled = true                      # Always enabled
 [FraiseQL.security.constant_time]
 enabled = true                      # Always enabled
 ```text
+<!-- Code example in TEXT -->
 
 ### High-Security Configuration (Enterprise)
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security.audit_logging]
 enabled = true
 log_level = "debug"                 # Verbose for compliance
@@ -335,44 +360,54 @@ key_rotation_enabled = false        # Future: enable for key rotation
 [FraiseQL.security.constant_time]
 enabled = true                      # All tokens protected
 ```text
+<!-- Code example in TEXT -->
 
 ## Deployment
 
 ### 1. Create `FraiseQL.toml`
 
 ```bash
+<!-- Code example in BASH -->
 # Copy template
 cp FraiseQL.toml.example FraiseQL.toml
 
 # Edit for your environment
 nano FraiseQL.toml
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Validate Configuration
 
 ```bash
+<!-- Code example in BASH -->
 # The CLI will validate during compilation
 FraiseQL compile schema.json --check
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Generate Encryption Key
 
 ```bash
+<!-- Code example in BASH -->
 # For STATE_ENCRYPTION_KEY
 KEY=$(openssl rand -base64 32)
 echo "STATE_ENCRYPTION_KEY=$KEY" > .env.production
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Compile Schema
 
 ```bash
+<!-- Code example in BASH -->
 # Compiles TOML → schema.json → schema.compiled.json
 FraiseQL compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Start Server with Env Vars
 
 ```bash
+<!-- Code example in BASH -->
 # Load environment variables
 source .env.production
 
@@ -382,6 +417,7 @@ source .env.production
   --listen 0.0.0.0:8080 \
   --db postgresql://user:pass@localhost/db
 ```text
+<!-- Code example in TEXT -->
 
 ## Validation & Error Handling
 
@@ -407,12 +443,14 @@ The TOML configuration is validated at **compile time**:
 ### Example Error Output
 
 ```text
+<!-- Code example in TEXT -->
 error: Configuration validation failed
   ├─ leak_sensitive_details=true is a security risk! Never enable in production.
   └─ auth_start_window_secs must be positive
 
 Failed to compile schema
 ```text
+<!-- Code example in TEXT -->
 
 ## Security Guarantees
 

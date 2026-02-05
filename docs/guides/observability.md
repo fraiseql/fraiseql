@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Observability Guide for FraiseQL
+description: - Observability fundamentals (logs, metrics, traces - the three pillars)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Observability Guide for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -80,6 +88,7 @@ The **`tb_entity_change_log` table** (see **docs/specs/schema-conventions.md sec
 - **Status taxonomy** for machine-readable outcome tracking (see schema-conventions.md section 6.3)
 
 ```sql
+<!-- Code example in SQL -->
 -- Query recent mutations for a user
 SELECT
     created_at,
@@ -93,7 +102,8 @@ FROM core.tb_entity_change_log
 WHERE fk_customer_org = $tenant_id
   AND created_at > NOW() - INTERVAL '1 hour'
 ORDER BY created_at DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### What's recorded
 
@@ -110,6 +120,7 @@ ORDER BY created_at DESC;
 #### Success/Failure Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutation success rate by entity type (last 24 hours)
 SELECT
     object_type,
@@ -124,11 +135,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY object_type, is_success
 ORDER BY object_type;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Status Distribution
 
 ```sql
+<!-- Code example in SQL -->
 -- Distribution of mutation outcomes (last 24 hours)
 SELECT
     object_type,
@@ -139,7 +152,8 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY object_type, change_status
 ORDER BY object_type, count DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Common statuses
 
@@ -152,6 +166,7 @@ ORDER BY object_type, count DESC;
 ### Mutation Latency
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutations taking longer than 1 second (slow mutation detection)
 SELECT
     created_at,
@@ -164,11 +179,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '1 hour'
   AND CAST(extra_metadata->>'duration_ms' AS INTEGER) > 1000
 ORDER BY created_at DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cascade Operation Counts
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutations that triggered cascade operations
 SELECT
     object_type,
@@ -180,13 +197,15 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
   AND extra_metadata->>'cascade_count' IS NOT NULL
 GROUP BY object_type, change_status;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Mutation Tracing
 
 #### Correlation IDs Link Requests
 
 ```sql
+<!-- Code example in SQL -->
 -- All mutations from a single API request
 SELECT
     created_at,
@@ -197,11 +216,13 @@ SELECT
 FROM core.tb_entity_change_log
 WHERE extra_metadata->>'request_id' = $request_id
 ORDER BY created_at ASC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Trace Cascade Operations
 
 ```sql
+<!-- Code example in SQL -->
 -- Follow cascade chain from parent deletion
 WITH RECURSIVE cascade_chain AS (
     -- Base: find the original mutation
@@ -235,7 +256,8 @@ WITH RECURSIVE cascade_chain AS (
     WHERE cc.depth < 5  -- Prevent infinite loops
 )
 SELECT * FROM cascade_chain ORDER BY created_at, depth;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -246,6 +268,7 @@ SELECT * FROM cascade_chain ORDER BY created_at, depth;
 #### Slow Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Log slow queries in your application
 -- INSERT INTO monitoring.slow_query_log
 -- (request_id, query_name, execution_time_ms, where_complexity, row_count)
@@ -263,11 +286,13 @@ WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 HAVING AVG(execution_time_ms) > 50  -- Threshold
 ORDER BY avg_ms DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Execution Plans (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Analyze query performance with EXPLAIN
 -- EXPLAIN (ANALYZE, BUFFERS)
 -- SELECT * FROM v_user WHERE email = $email;
@@ -277,11 +302,13 @@ ORDER BY avg_ms DESC;
 -- - Sequential scans (should be index scans)
 -- - High costs (optimization opportunity)
 -- - Buffer hits (cache effectiveness)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### N+1 Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Count queries by type/entity (in application logs)
 -- If you see many separate queries for same entity type,
 -- likely N+1 pattern. Solution: use view composition
@@ -295,13 +322,15 @@ FROM monitoring.query_log
 WHERE request_id = $request_id
 GROUP BY query_type
 ORDER BY execution_count DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Query Metrics
 
 #### Query Execution Counts
 
 ```sql
+<!-- Code example in SQL -->
 -- Top queries by frequency (last 24 hours)
 SELECT
     query_name,
@@ -315,11 +344,13 @@ WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY executions DESC
 LIMIT 20;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cache Hit/Miss Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Track cache effectiveness
 SELECT
     query_name,
@@ -333,11 +364,13 @@ FROM monitoring.query_cache_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY hit_rate_pct ASC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### WHERE Clause Complexity
 
 ```sql
+<!-- Code example in SQL -->
 -- Track filter complexity
 SELECT
     query_name,
@@ -348,13 +381,15 @@ FROM monitoring.query_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY avg_conditions DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Query Tracing
 
 #### Execution Phase Timing
 
 ```sql
+<!-- Code example in SQL -->
 -- Track time spent in each execution phase
 SELECT
     query_name,
@@ -367,11 +402,13 @@ FROM monitoring.query_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY execution_ms DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Authorization Decision Logging
 
 ```sql
+<!-- Code example in SQL -->
 -- Track authorization checks
 SELECT
     rule_name,
@@ -385,7 +422,8 @@ FROM monitoring.auth_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY rule_name
 ORDER BY denial_rate_pct DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -401,6 +439,7 @@ Every request should have a **request ID** that traces through:
 4. Mutation logging
 
 ```json
+<!-- Code example in JSON -->
 // GraphQL request
 {
   "request_id": "req_550e8400-e29b-41d4-a716-446655440000",
@@ -423,11 +462,13 @@ Every request should have a **request ID** that traces through:
     "organization": "uuid"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Propagate correlation IDs
 
 ```sql
+<!-- Code example in SQL -->
 -- Stored procedure receives correlation ID
 CREATE OR REPLACE FUNCTION fn_create_user(
     input_request_id UUID,
@@ -447,7 +488,8 @@ BEGIN
     );
 END;
 $$;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Trace Context
 
@@ -469,6 +511,7 @@ Store in every log entry:
 ### 5.1 Database Metrics (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Connection pool utilization
 SELECT
     state,
@@ -497,13 +540,15 @@ SELECT
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Runtime Metrics
 
 #### Request Throughput
 
 ```sql
+<!-- Code example in SQL -->
 -- Requests per second over time
 SELECT
     DATE_TRUNC('minute', created_at) AS minute,
@@ -513,11 +558,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY minute
 ORDER BY minute DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Response Time Distribution
 
 ```sql
+<!-- Code example in SQL -->
 -- Percentiles of response latency
 SELECT
     PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_ms) AS p50_ms,
@@ -526,11 +573,13 @@ SELECT
     PERCENTILE_CONT(0.999) WITHIN GROUP (ORDER BY duration_ms) AS p999_ms
 FROM monitoring.mutation_log
 WHERE logged_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Error Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutation failure rate
 SELECT
     ROUND(
@@ -540,13 +589,15 @@ SELECT
     ) AS error_rate_pct
 FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Business Metrics
 
 #### Entity Creation Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- New entities per day
 SELECT
     DATE(created_at) AS date,
@@ -556,11 +607,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '30 days'
 GROUP BY DATE(created_at), object_type
 ORDER BY date DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Entity Update Frequency
 
 ```sql
+<!-- Code example in SQL -->
 -- How often entities are updated
 SELECT
     object_type,
@@ -576,7 +629,8 @@ FROM (
     GROUP BY object_type, object_id
 ) stats
 GROUP BY object_type;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -587,6 +641,7 @@ GROUP BY object_type;
 All logs should be structured JSON for easy parsing:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-11T15:00:00.123456Z",
   "level": "INFO",
@@ -603,7 +658,8 @@ All logs should be structured JSON for easy parsing:
   "query_count": 2,
   "cascade_count": 0
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Log Levels
 
@@ -619,13 +675,15 @@ All logs should be structured JSON for easy parsing:
 Use `tb_entity_change_log` as source of truth:
 
 ```sql
+<!-- Code example in SQL -->
 -- Query logs by various filters
 WHERE fk_customer_org = $tenant_id              -- Single tenant
   AND created_at > NOW() - INTERVAL '1 hour'   -- Time range
   AND change_status LIKE 'failed:%'             -- Filter by status
   AND object_type = 'User'                      -- Filter by entity type
   AND extra_metadata->>'request_id' = $req_id   -- Correlate requests
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -646,6 +704,7 @@ WHERE fk_customer_org = $tenant_id              -- Single tenant
 #### Spike in Failed Mutations
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if error rate increases suddenly
 WITH rates AS (
     SELECT
@@ -664,28 +723,33 @@ WITH rates AS (
 SELECT * FROM rates
 WHERE error_rate > 10.0  -- Alert if > 10%
   AND error_rate > (SELECT error_rate FROM rates OFFSET 1 LIMIT 1) * 1.5;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Slow Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert on slow queries
 SELECT *
 FROM monitoring.query_log
 WHERE execution_time_ms > 1000  -- > 1 second
   AND logged_at > NOW() - INTERVAL '5 minutes';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cascade Operation Anomaly
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if cascade counts spike
 SELECT object_type
 FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '1 hour'
 GROUP BY object_type
 HAVING AVG(CAST(extra_metadata->>'cascade_count' AS INTEGER)) > 10;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -701,6 +765,7 @@ HAVING AVG(CAST(extra_metadata->>'cascade_count' AS INTEGER)) > 10;
 4. Check `extra_metadata` for context
 
 ```sql
+<!-- Code example in SQL -->
 -- Find failed mutation
 SELECT
     *,
@@ -717,7 +782,8 @@ LIMIT 1;
 -- - validation:* → Invalid data
 -- - failed:* → Operation error
 -- - Check extra_metadata for details
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Debugging Slow Queries
 
@@ -729,6 +795,7 @@ LIMIT 1;
 4. Check for N+1 patterns
 
 ```sql
+<!-- Code example in SQL -->
 -- EXPLAIN ANALYZE shows:
 
 -- - Sequential scans → Need index
@@ -737,7 +804,8 @@ LIMIT 1;
 
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user WHERE email = $email;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Debugging Authorization Failures
 
@@ -748,6 +816,7 @@ SELECT * FROM v_user WHERE email = $email;
 3. Check field-level auth for partial results
 
 ```sql
+<!-- Code example in SQL -->
 -- Verify auth context was passed
 SELECT
     extra_metadata->>'user_id' AS user_id,
@@ -759,7 +828,8 @@ WHERE pk_entity_change_log = $log_id;
 WHERE change_status LIKE 'blocked:%'
   OR change_status = 'forbidden'
   OR change_status = 'unauthorized';
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -776,6 +846,7 @@ The `tb_entity_change_log` is the source for CDC events (see **docs/specs/cdc-fo
 - **docs/architecture/core/execution-model.md section 9** — Mutation execution pipeline and cache invalidation
 
 ```json
+<!-- Code example in JSON -->
 // tb_entity_change_log row becomes CDC event
 {
   "version": "1.0",
@@ -794,11 +865,13 @@ The `tb_entity_change_log` is the source for CDC events (see **docs/specs/cdc-fo
   "cascade": { ... },    // Cascade information
   "metadata": { ... }    // From extra_metadata
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Stream mutations to monitoring
 
 ```sql
+<!-- Code example in SQL -->
 -- Consume change log and emit CDC events
 -- Typically via PostgreSQL LISTEN/NOTIFY or trigger:
 
@@ -823,13 +896,15 @@ CREATE TRIGGER cdc_trigger
 AFTER INSERT ON core.tb_entity_change_log
 FOR EACH ROW
 EXECUTE FUNCTION emit_cdc_event();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Real-Time Observability
 
 #### Stream mutations to dashboards
 
 ```python
+<!-- Code example in Python -->
 # Python example: consume CDC events
 import psycopg
 import json
@@ -851,7 +926,8 @@ with conn.cursor() as cur:
 
         # Trigger anomaly detection
         check_anomalies(event)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -860,6 +936,7 @@ with conn.cursor() as cur:
 ### 10.1 PostgreSQL
 
 ```sql
+<!-- Code example in SQL -->
 -- pg_stat_statements: Most expensive queries
 SELECT
     calls,
@@ -884,11 +961,13 @@ SELECT
     idx_tup_fetch
 FROM pg_stat_user_tables
 ORDER BY seq_scan DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.2 SQLite
 
 ```sql
+<!-- Code example in SQL -->
 -- SQLite query analysis
 EXPLAIN QUERY PLAN
 SELECT * FROM v_user WHERE email = $email;
@@ -901,7 +980,8 @@ SELECT COUNT(*), query, total_time_us
 FROM sqlite_stat_execution
 GROUP BY query
 ORDER BY total_time_us DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.3 MySQL / SQL Server
 
@@ -917,6 +997,7 @@ ORDER BY total_time_us DESC;
 ### 11.1 Change Log Archival
 
 ```sql
+<!-- Code example in SQL -->
 -- Archive old logs (older than 90 days)
 CREATE TABLE core.tb_entity_change_log_archive
     (LIKE core.tb_entity_change_log);
@@ -932,47 +1013,55 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 -- Partition by created_at for faster queries
 CREATE TABLE core.tb_entity_change_log_2026_01 PARTITION OF core.tb_entity_change_log
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Performance Considerations
 
 #### Async Logging
 
 ```sql
+<!-- Code example in SQL -->
 -- Use PERFORM (fire and forget) for logging
 PERFORM log_mutation_event(...)  -- Non-blocking
 
 -- vs
 
 INSERT INTO audit_log ...         -- Blocking, slower
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Batch CDC Emission
 
 ```sql
+<!-- Code example in SQL -->
 -- Emit CDC events in batches (PostgreSQL)
 -- Instead of one trigger per row, batch events:
 
 INSERT INTO cdc_queue (event_payload)
 SELECT json_agg(...) FROM change_log WHERE NOT emitted
 GROUP BY created_at::DATE;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.3 Multi-Tenant Observability
 
 #### Per-Tenant Dashboards
 
 ```sql
+<!-- Code example in SQL -->
 -- Dashboard filtered by tenant
 SELECT ...
 FROM core.tb_entity_change_log
 WHERE fk_customer_org = $tenant_id  -- Always filter by tenant
   AND created_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cross-Tenant Anomaly Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if one tenant has unusual activity
 SELECT
     fk_customer_org,
@@ -990,7 +1079,8 @@ HAVING COUNT(*) > (
         GROUP BY fk_customer_org
     ) stats
 ) * 2;  -- Alert if 2x average
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

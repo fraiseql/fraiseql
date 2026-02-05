@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Design Quality Security Guide
+description: FraiseQL's design quality audit APIs are designed with security as a first-class concern. This guide covers security features, best practices, and threat mitiga
+keywords: ["security"]
+tags: ["documentation", "reference"]
+---
+
 # Design Quality Security Guide
 
 ## Overview
@@ -16,6 +24,7 @@ All design audit endpoints validate input:
 - ✅ Sanitization of special characters
 
 ```bash
+<!-- Code example in BASH -->
 # Well-formed request
 curl -X POST http://localhost:8080/api/v1/design/audit \
   -H "Content-Type: application/json" \
@@ -25,24 +34,28 @@ curl -X POST http://localhost:8080/api/v1/design/audit \
 curl -X POST http://localhost:8080/api/v1/design/audit \
   -H "Content-Type: application/json" \
   -d 'invalid json'  # 400 Bad Request
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Rate Limiting
 
 Design audit endpoints support rate limiting (configure in deployment):
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL-server.toml
 [security.rate_limiting]
 design_audit_requests_per_second = 100
 design_audit_burst_size = 10
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Messages
 
 Error messages are sanitized to prevent information disclosure:
 
 ```json
+<!-- Code example in JSON -->
 // ✅ Safe error response
 {
   "status": "error",
@@ -53,7 +66,8 @@ Error messages are sanitized to prevent information disclosure:
 {
   "error": "/home/user/schemas/private.json not found"
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Threat Model
 
@@ -127,6 +141,7 @@ Error messages are sanitized to prevent information disclosure:
 Design audit respects field-level authorization directives:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [{
     "name": "User",
@@ -137,16 +152,19 @@ Design audit respects field-level authorization directives:
     }]
   }]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Authorization audit verifies these are enforced:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8080/api/v1/design/auth-audit \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer token" \
   -d '{"schema": {...}}'
-```
+```text
+<!-- Code example in TEXT -->
 
 **Note**: Authorization headers are optional for design audit. Schema analysis is read-only and doesn't modify state.
 
@@ -155,16 +173,19 @@ curl -X POST http://localhost:8080/api/v1/design/auth-audit \
 For production deployments, configure RBAC:
 
 ```toml
+<!-- Code example in TOML -->
 [security.authorization]
 design_audit_required_role = "developer"
 design_audit_create_gates_required_role = "architect"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
 ### For Development
 
 ```bash
+<!-- Code example in BASH -->
 # ✅ Good: Local schema analysis
 FraiseQL lint ./schema.json
 
@@ -173,11 +194,13 @@ FraiseQL lint ./schema.json --federation
 
 # ❌ Avoid: Exposing internal schemas
 FraiseQL lint /etc/FraiseQL/internal-schema.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ### For CI/CD
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/design-quality.yml
 name: Design Quality Gate
 on: [pull_request]
@@ -192,11 +215,13 @@ jobs:
           FraiseQL lint schema.json \
             --fail-on-critical \
             --fail-on-warning
-```
+```text
+<!-- Code example in TEXT -->
 
 ### For API Usage
 
 ```bash
+<!-- Code example in BASH -->
 # ✅ Good: Use authenticated endpoint
 curl -X POST http://localhost:8080/api/v1/design/audit \
   -H "Authorization: Bearer $TOKEN" \
@@ -215,11 +240,13 @@ fi
 # ❌ Avoid: Using untrusted schema sources
 curl -X POST http://localhost:8080/api/v1/design/audit \
   -d @"$(curl -s http://untrusted-server/schema.json)"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### For Deployment
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL-server.toml - Secure configuration
 
 [server]
@@ -247,13 +274,15 @@ analysis_timeout_seconds = 5
 # Log all API access
 log_api_requests = true
 log_errors = true
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Security Testing
 
 ### Run Security Tests
 
 ```bash
+<!-- Code example in BASH -->
 # Test security features
 cargo test --test api_design_security_tests
 
@@ -262,7 +291,8 @@ cargo test --test api_design_security_tests
 # - Resource protection: 4 tests
 # - Information security: 3 tests
 # - Authorization: 6 tests
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Security Audit Checklist
 

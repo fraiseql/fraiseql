@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Arrow Flight Architecture
+description: FraiseQL's Arrow Flight integration provides a **dual-dataplane architecture** optimized for different access patterns:
+keywords: ["framework", "design", "sdk", "scalability", "performance", "monitoring", "patterns", "database"]
+tags: ["documentation", "reference"]
+---
+
 # Arrow Flight Architecture
 
 **Status:** ✅ Production Ready
@@ -17,6 +25,7 @@ Both dataplanes consume the same source data (NATS JetStream) and serve differen
 ## Complete Data Flow
 
 ```text
+<!-- Code example in TEXT -->
 DATABASE WRITES
     ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -56,12 +65,14 @@ DATABASE WRITES
     │  ML feature eng      │   │  Real-time agg    │
     └──────────────────────┘   └───────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## GraphQL Queries (Dual Transport)
 
 Same GraphQL query, different transports:
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────────────────────┐
 │  Client Request: "{ users { id name email } }"       │
 └──────────────────────────────────────────────────────┘
@@ -98,12 +109,14 @@ Same GraphQL query, different transports:
     (Web clients)           └───────────────────┘
                             (Analytics clients)
 ```text
+<!-- Code example in TEXT -->
 
 ## Observer Events (Dual Sink)
 
 Events flow through NATS to both dataplanes:
 
 ```text
+<!-- Code example in TEXT -->
 DATABASE MUTATION
     ↓
 PostgreSQL NOTIFY (trigger-based)
@@ -139,6 +152,7 @@ NATS JetStream (durable, at-least-once semantics)
          ├─ Document: JSONB serialized
          └─ ILM policy: hot → warm → delete (90d)
 ```text
+<!-- Code example in TEXT -->
 
 ## Component Responsibilities
 
@@ -170,6 +184,7 @@ NATS JetStream (durable, at-least-once semantics)
 **Optimized for**: Aggregations, time-series, ML pipelines
 
 ```text
+<!-- Code example in TEXT -->
 Use Cases:
 
 - "How many orders per hour?" → Materialized views
@@ -185,12 +200,14 @@ Characteristics:
 - Retention: 90 days (TTL in ClickHouse)
 - Clients: Python, R, Java (via Arrow libraries)
 ```text
+<!-- Code example in TEXT -->
 
 ### Operational Dataplane (HTTP/JSON + Elasticsearch)
 
 **Optimized for**: Full-text search, flexible filtering
 
 ```text
+<!-- Code example in TEXT -->
 Use Cases:
 
 - "Find all failed orders with error_code PAYMENT_DECLINED"
@@ -206,6 +223,7 @@ Characteristics:
 - Retention: 90 days (ILM policy)
 - Clients: Kibana, web dashboards, support tools
 ```text
+<!-- Code example in TEXT -->
 
 ## Example: Choose the Right Dataplane
 
@@ -223,10 +241,12 @@ Characteristics:
 ### Topology 1: HTTP-Only (Simple)
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-server (HTTP:8080)
     ↓
 PostgreSQL
 ```text
+<!-- Code example in TEXT -->
 
 - **Best for**: Simple web applications
 - **Trade-offs**: No Arrow Flight, no analytics benefits
@@ -236,6 +256,7 @@ PostgreSQL
 ### Topology 2: Dual Transport + Analytics (Recommended for Production)
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-server (HTTP:8080 + Arrow:50051)
     ↓
 PostgreSQL
@@ -244,6 +265,7 @@ NATS JetStream
     ├─→ ClickHouse (analytics)
     └─→ Elasticsearch (operational)
 ```text
+<!-- Code example in TEXT -->
 
 - **Best for**: Production applications with analytics needs
 - **Trade-offs**: More infrastructure (but purpose-built)
@@ -254,10 +276,12 @@ NATS JetStream
 ### Topology 3: Arrow-Only (Future)
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-server (Arrow:50051)
     ↓
 PostgreSQL
 ```text
+<!-- Code example in TEXT -->
 
 - **Best for**: Pure analytics workloads
 - **Trade-offs**: No web client support

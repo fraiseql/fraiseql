@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Deployment Security Guide
+description: This guide covers the security architecture and hardening options for FraiseQL deployments.
+keywords: ["security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Deployment Security Guide
 
 This guide covers the security architecture and hardening options for FraiseQL deployments.
@@ -34,14 +42,17 @@ Protected against:
 Scan image:
 
 ```bash
+<!-- Code example in BASH -->
 trivy image FraiseQL:latest --severity HIGH,CRITICAL
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime Security
 
 Enable in Kubernetes:
 
 ```yaml
+<!-- Code example in YAML -->
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
@@ -51,6 +62,7 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 65532
 ```text
+<!-- Code example in TEXT -->
 
 ## Kubernetes Security
 
@@ -59,8 +71,10 @@ securityContext:
 Enforce:
 
 ```bash
+<!-- Code example in BASH -->
 kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 ```text
+<!-- Code example in TEXT -->
 
 Requirements:
 
@@ -76,31 +90,38 @@ Default: Deny all traffic
 Allow only:
 
 ```text
+<!-- Code example in TEXT -->
 - Ingress from nginx-ingress on port 8815
 - Egress to DNS (port 53)
 - Egress to PostgreSQL (port 5432)
 - Egress to Redis (port 6379)
 ```text
+<!-- Code example in TEXT -->
 
 Apply:
 
 ```bash
+<!-- Code example in BASH -->
 kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 ```text
+<!-- Code example in TEXT -->
 
 ## Secrets Management
 
 ### Environment-based Secrets
 
 ```bash
+<!-- Code example in BASH -->
 # Set sensitive env vars (don't commit to Git)
 export DATABASE_URL="postgresql://user:$PASSWORD@host/db"
 export AUTH_TOKEN="secret..."
 ```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes Secrets
 
 ```bash
+<!-- Code example in BASH -->
 # Create secret
 kubectl create secret generic FraiseQL-db \
   --from-literal=url="postgresql://..."
@@ -113,27 +134,34 @@ env:
       name: FraiseQL-db
       key: url
 ```text
+<!-- Code example in TEXT -->
 
 ### External Secret Management (Recommended)
 
 1. **HashiCorp Vault**
 
    ```bash
+<!-- Code example in BASH -->
    # Install Vault Agent
    helm install vault hashicorp/vault --namespace vault
    ```text
+<!-- Code example in TEXT -->
 
 2. **AWS Secrets Manager**
 
    ```bash
+<!-- Code example in BASH -->
    # Use IAM roles for pod authentication
    ```text
+<!-- Code example in TEXT -->
 
 3. **Azure Key Vault**
 
    ```bash
+<!-- Code example in BASH -->
    # Use managed identities
    ```text
+<!-- Code example in TEXT -->
 
 ## Data Security
 
@@ -154,6 +182,7 @@ env:
 **Field-Level RBAC**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 @auth(
   requires: ["admin"],
   fieldAccess: ["sensitive_data"]
@@ -164,6 +193,7 @@ type User {
   sensitive_data: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Audit & Compliance
 
@@ -172,6 +202,7 @@ type User {
 All operations logged:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-02-04T15:30:00Z",
   "user": "admin",
@@ -181,14 +212,17 @@ All operations logged:
   "duration_ms": 45
 }
 ```text
+<!-- Code example in TEXT -->
 
 Enable in configuration:
 
 ```toml
+<!-- Code example in TOML -->
 [security.audit_logging]
 enabled = true
 log_level = "info"
 ```text
+<!-- Code example in TEXT -->
 
 ### Compliance
 

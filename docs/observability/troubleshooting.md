@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Troubleshooting Guide
+description: This guide covers common issues with FraiseQL's observability system and their solutions, organized by:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Troubleshooting Guide
 
 ## Overview
@@ -23,6 +31,7 @@ This guide covers common issues with FraiseQL's observability system and their s
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check if metrics tables exist
 psql $METRICS_DATABASE_URL -c "
   SELECT table_name
@@ -35,12 +44,14 @@ psql $METRICS_DATABASE_URL -c "
   SELECT COUNT(*) FROM fraiseql_metrics.query_executions
 "
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Observability Not Enabled
 
 ```bash
+<!-- Code example in BASH -->
 # Check environment variable
 echo $FRAISEQL_OBSERVABILITY_ENABLED
 # Expected: true
@@ -53,10 +64,12 @@ export FRAISEQL_OBSERVABILITY_ENABLED=true
 [observability]
 enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Database Connection Failed
 
 ```bash
+<!-- Code example in BASH -->
 # Test connection
 psql $FRAISEQL_METRICS_DATABASE_URL -c "SELECT 1"
 # Error: connection refused
@@ -64,10 +77,12 @@ psql $FRAISEQL_METRICS_DATABASE_URL -c "SELECT 1"
 # Solution: Check connection string
 export FRAISEQL_METRICS_DATABASE_URL=postgres://user:pass@correct-host:5432/db
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 3: Sample Rate Too Low
 
 ```bash
+<!-- Code example in BASH -->
 # Check sample rate
 echo $FRAISEQL_OBSERVABILITY_SAMPLE_RATE
 # Output: 0.001 (0.1% - very low!)
@@ -75,10 +90,12 @@ echo $FRAISEQL_OBSERVABILITY_SAMPLE_RATE
 # Solution: Increase sample rate
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1  # 10%
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 4: Schema Not Created
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Create metrics schema
 CREATE SCHEMA IF NOT EXISTS fraiseql_metrics;
 
@@ -99,6 +116,7 @@ CREATE INDEX idx_query_executions_name_time
 
 -- (repeat for other tables - see configuration.md)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -112,17 +130,20 @@ CREATE INDEX idx_query_executions_name_time
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check last metric timestamp
 SELECT MAX(executed_at) FROM fraiseql_metrics.query_executions;
 -- Expected: < 1 minute ago
 -- Actual: 10 minutes ago
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Database Write Timeout
 
 ```bash
+<!-- Code example in BASH -->
 # Check application logs
 grep "metrics write timeout" app.log
 # Output: ERROR: metrics write timed out after 30s
@@ -130,10 +151,12 @@ grep "metrics write timeout" app.log
 # Solution: Increase timeout
 export FRAISEQL_METRICS_DB_TIMEOUT_SECS=60
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Database Connection Pool Exhausted
 
 ```bash
+<!-- Code example in BASH -->
 # Check pool size
 echo $FRAISEQL_METRICS_DB_POOL_SIZE
 # Output: 5 (too small for high traffic)
@@ -141,10 +164,12 @@ echo $FRAISEQL_METRICS_DB_POOL_SIZE
 # Solution: Increase pool size
 export FRAISEQL_METRICS_DB_POOL_SIZE=20
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 3: Flush Interval Too Long
 
 ```bash
+<!-- Code example in BASH -->
 # Check flush interval
 echo $FRAISEQL_METRICS_FLUSH_INTERVAL_SECS
 # Output: 300 (5 minutes)
@@ -152,6 +177,7 @@ echo $FRAISEQL_METRICS_FLUSH_INTERVAL_SECS
 # Solution: Flush more frequently
 export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -165,16 +191,19 @@ export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check application memory
 docker stats FraiseQL-api
 # MEM USAGE: 4.2 GB / 4 GB (near limit!)
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Metrics Buffer Too Large
 
 ```bash
+<!-- Code example in BASH -->
 # Check buffer size
 echo $FRAISEQL_METRICS_BUFFER_SIZE
 # Output: 10000 (very large!)
@@ -182,12 +211,14 @@ echo $FRAISEQL_METRICS_BUFFER_SIZE
 # Solution: Reduce buffer size
 export FRAISEQL_METRICS_BUFFER_SIZE=100
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Not Flushing to Database
 
 Check if metrics are being written:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check write rate
 SELECT
     DATE_TRUNC('minute', executed_at) AS minute,
@@ -199,6 +230,7 @@ ORDER BY minute DESC;
 
 -- If all rows have same minute → metrics being batched but not flushed
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Force flush or restart application.
 
@@ -216,6 +248,7 @@ ORDER BY minute DESC;
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check metrics data exists
 psql $METRICS_DATABASE_URL -c "
   SELECT COUNT(*) FROM fraiseql_metrics.query_executions
@@ -223,12 +256,14 @@ psql $METRICS_DATABASE_URL -c "
 "
 # Output: 0 (no data!)
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Insufficient Data Collection Time
 
 ```bash
+<!-- Code example in BASH -->
 # Check oldest metric
 psql $METRICS_DATABASE_URL -c "
   SELECT MIN(executed_at) FROM fraiseql_metrics.query_executions
@@ -237,10 +272,12 @@ psql $METRICS_DATABASE_URL -c "
 
 # Solution: Wait for 24-48 hours of data collection
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Thresholds Too High
 
 ```bash
+<!-- Code example in BASH -->
 # Try lowering thresholds
 FraiseQL-cli analyze \
   --database postgres://... \
@@ -248,20 +285,24 @@ FraiseQL-cli analyze \
   --min-speedup 2.0 \       # Default: 5.0
   --format text
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 3: No JSON Usage Detected
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if any JSON paths were tracked
 SELECT COUNT(*) FROM fraiseql_metrics.jsonb_accesses;
 -- Output: 0 (no JSON usage)
 ```text
+<!-- Code example in TEXT -->
 
 **Explanation**: Observability focuses on JSON/JSONB optimization. If your schema doesn't use JSON columns, suggestions will be limited to index recommendations.
 
 #### Cause 4: All Paths Already Optimized
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if suggested columns already exist
 SELECT column_name
 FROM information_schema.columns
@@ -270,6 +311,7 @@ AND column_name LIKE '%_id';
 
 -- Output: region_id, category_id (already denormalized!)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: This is good! Re-run analysis after schema changes or new traffic patterns emerge.
 
@@ -285,18 +327,21 @@ AND column_name LIKE '%_id';
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check metrics table size
 SELECT
     pg_size_pretty(pg_total_relation_size('fraiseql_metrics.query_executions'))
     AS size;
 -- Output: 45 GB (very large!)
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Missing Indexes on Metrics Tables
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Add missing indexes
 CREATE INDEX IF NOT EXISTS idx_query_executions_query_name
     ON fraiseql_metrics.query_executions (query_name);
@@ -310,8 +355,10 @@ CREATE INDEX IF NOT EXISTS idx_jsonb_accesses_table_path
 ANALYZE fraiseql_metrics.query_executions;
 ANALYZE fraiseql_metrics.jsonb_accesses;
 ```text
+<!-- Code example in TEXT -->
 
 ```sql
+<!-- Code example in SQL -->
 -- SQL Server: Add missing indexes
 CREATE NONCLUSTERED INDEX idx_query_executions_query_name
     ON fraiseql_metrics.query_executions (query_name);
@@ -325,19 +372,23 @@ CREATE NONCLUSTERED INDEX idx_json_accesses_table_path
 UPDATE STATISTICS fraiseql_metrics.query_executions WITH FULLSCAN;
 UPDATE STATISTICS fraiseql_metrics.json_accesses WITH FULLSCAN;
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Analyzing Too Much Data
 
 ```bash
+<!-- Code example in BASH -->
 # Use shorter time window
 FraiseQL-cli analyze \
   --database postgres://... \
   --window 1d  # Instead of 30d
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 3: Large Aggregations
 
 ```sql
+<!-- Code example in SQL -->
 -- Check query execution plan
 EXPLAIN ANALYZE
 SELECT
@@ -350,6 +401,7 @@ GROUP BY query_name;
 
 -- Look for "Seq Scan" (bad) instead of "Index Scan" (good)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Add indexes (see Cause 1).
 
@@ -393,15 +445,18 @@ Speedup estimates are **theoretical** based on:
 **Symptoms**:
 
 ```text
+<!-- Code example in TEXT -->
 ERROR: canceling statement due to lock timeout
 CONTEXT: while adding column to table "tf_sales"
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Long-Running Queries
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Find blocking queries
 SELECT
     pid,
@@ -412,23 +467,28 @@ FROM pg_stat_activity
 WHERE state != 'idle'
 ORDER BY duration DESC;
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Wait for queries to complete or terminate them:
 
 ```sql
+<!-- Code example in SQL -->
 -- Terminate blocking query
 SELECT pg_terminate_backend(12345);  -- Replace with actual PID
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Not Using CONCURRENTLY
 
 ```sql
+<!-- Code example in SQL -->
 -- ❌ Bad: Blocks writes
 CREATE INDEX idx_name ON table (column);
 
 -- ✅ Good: Non-blocking
 CREATE INDEX CONCURRENTLY idx_name ON table (column);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -437,15 +497,18 @@ CREATE INDEX CONCURRENTLY idx_name ON table (column);
 **Error**:
 
 ```text
+<!-- Code example in TEXT -->
 ERROR: could not create unique index "idx_name"
 DETAIL: Key (region_id)=(NULL) is duplicated.
 ```text
+<!-- Code example in TEXT -->
 
 **Cause**: NULL values or duplicates in column
 
 **Solution**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check for NULLs
 SELECT COUNT(*) FROM tf_sales WHERE region_id IS NULL;
 -- Output: 15,000 (NULLs exist!)
@@ -458,6 +521,7 @@ CREATE INDEX idx_tf_sales_region
     ON tf_sales (region_id)
     WHERE region_id IS NOT NULL;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -471,6 +535,7 @@ CREATE INDEX idx_tf_sales_region
 **Solution**: Batch the update
 
 ```sql
+<!-- Code example in SQL -->
 -- ❌ Bad: Single large UPDATE (locks table)
 UPDATE tf_sales SET region_id = dimensions->>'region';
 
@@ -500,6 +565,7 @@ BEGIN
     END LOOP;
 END $$;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -515,6 +581,7 @@ END $$;
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Check query performance
 SELECT
     query,
@@ -526,12 +593,14 @@ WHERE query LIKE '%tf_sales%'
 ORDER BY mean_exec_time DESC
 LIMIT 10;
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Index Not Being Used
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if index is being used
 EXPLAIN ANALYZE
 SELECT * FROM tf_sales WHERE region_id = 'US';
@@ -541,25 +610,30 @@ SELECT * FROM tf_sales WHERE region_id = 'US';
 -- ✅ "Index Scan using idx_tf_sales_region" (good)
 -- ❌ "Seq Scan on tf_sales" (bad - index not used)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 1: Update statistics**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 ANALYZE tf_sales;
 
 -- SQL Server
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Force index usage** (temporary debugging)
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 SET enable_seqscan = off;
 EXPLAIN ANALYZE SELECT * FROM tf_sales WHERE region_id = 'US';
 SET enable_seqscan = on;
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Wrong Index Type
 
@@ -568,12 +642,14 @@ SET enable_seqscan = on;
 **Solution**: Use appropriate index type
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Use GIN index for JSONB
 CREATE INDEX idx_dimensions_gin ON tf_sales USING GIN (dimensions);
 
 -- PostgreSQL: Use GiST index for full-text search
 CREATE INDEX idx_name_gist ON users USING GiST (name gist_trgm_ops);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -587,18 +663,21 @@ CREATE INDEX idx_name_gist ON users USING GiST (name gist_trgm_ops);
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Count indexes on table
 SELECT COUNT(*)
 FROM pg_indexes
 WHERE tablename = 'tf_sales';
 -- Output: 15 indexes (too many!)
 ```text
+<!-- Code example in TEXT -->
 
 **Explanation**: Every index must be updated on write operations.
 
 **Solution**: Remove unused indexes
 
 ```sql
+<!-- Code example in SQL -->
 -- Find unused indexes
 SELECT
     schemaname,
@@ -613,6 +692,7 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 -- Drop unused indexes
 DROP INDEX IF EXISTS idx_unused;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -626,6 +706,7 @@ DROP INDEX IF EXISTS idx_unused;
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check replication lag
 SELECT
     client_addr,
@@ -637,6 +718,7 @@ SELECT
 FROM pg_stat_replication;
 -- Output: lag_seconds = 45 (too high!)
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
@@ -647,6 +729,7 @@ FROM pg_stat_replication;
 **Solution**: Backfill in smaller batches with pauses
 
 ```sql
+<!-- Code example in SQL -->
 DO $$
 DECLARE
     batch_size INT := 1000;  -- Smaller batches
@@ -667,12 +750,14 @@ BEGIN
     END LOOP;
 END $$;
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Index Creation Generating WAL
 
 **Solution**: Create index on replica separately (after primary)
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create index on primary
 psql primary -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 
@@ -680,6 +765,7 @@ psql primary -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 # 3. Manually create index on replica (optional optimization)
 psql replica -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -690,22 +776,27 @@ psql replica -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 **Symptoms**:
 
 ```text
+<!-- Code example in TEXT -->
 Error: connection refused
 ```text
+<!-- Code example in TEXT -->
 
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Test connection
 psql $DATABASE_URL -c "SELECT 1"
 # Error: could not connect to server
 ```text
+<!-- Code example in TEXT -->
 
 **Common Causes & Solutions**:
 
 #### Cause 1: Wrong Host/Port
 
 ```bash
+<!-- Code example in BASH -->
 # Check connection string
 echo $DATABASE_URL
 # postgres://user:pass@localhost:5432/db
@@ -714,10 +805,12 @@ echo $DATABASE_URL
 nslookup db-host.example.com
 telnet db-host.example.com 5432
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 2: Firewall Blocking Connection
 
 ```bash
+<!-- Code example in BASH -->
 # Test connectivity
 nc -zv db-host.example.com 5432
 # Connection refused (firewall blocking)
@@ -725,10 +818,12 @@ nc -zv db-host.example.com 5432
 # Solution: Open firewall port
 # (depends on your infrastructure)
 ```text
+<!-- Code example in TEXT -->
 
 #### Cause 3: Database Not Running
 
 ```bash
+<!-- Code example in BASH -->
 # Check if PostgreSQL is running
 sudo systemctl status postgresql
 # Status: inactive (dead)
@@ -736,6 +831,7 @@ sudo systemctl status postgresql
 # Solution: Start database
 sudo systemctl start postgresql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -751,6 +847,7 @@ sudo systemctl start postgresql
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Manually check selectivity
 SELECT
     COUNT(CASE WHEN dimensions->>'region' = 'US' THEN 1 END)::FLOAT /
@@ -758,18 +855,21 @@ SELECT
 FROM tf_sales;
 -- Output: 0.92 (92% selectivity - very low!)
 ```text
+<!-- Code example in TEXT -->
 
 **Cause**: Metrics estimated selectivity incorrectly.
 
 **Solution**: Re-analyze with longer time window or more samples
 
 ```bash
+<!-- Code example in BASH -->
 # Increase sample rate temporarily
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=1.0  # 100% sampling
 
 # Wait 24 hours, then re-analyze
 FraiseQL-cli analyze --database postgres://... --window 1d
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -780,16 +880,19 @@ FraiseQL-cli analyze --database postgres://... --window 1d
 Enable verbose logging:
 
 ```bash
+<!-- Code example in BASH -->
 # Enable debug logging
 export RUST_LOG=FraiseQL=debug
 
 # Run analysis with debug output
 FraiseQL-cli analyze --database postgres://... 2>&1 | tee debug.log
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Check Script
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # health-check.sh
 
@@ -833,6 +936,7 @@ fi
 
 echo -e "\n=== Health Check Complete ==="
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

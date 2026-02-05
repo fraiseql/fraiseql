@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Auth0 OAuth 2.0 / OIDC Setup Guide
+description: This guide walks you through setting up Auth0 authentication with FraiseQL.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Auth0 OAuth 2.0 / OIDC Setup Guide
 
 This guide walks you through setting up Auth0 authentication with FraiseQL.
@@ -67,24 +75,30 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 3. Scroll down to "Allowed Callback URLs" and add:
 
    ```text
+<!-- Code example in TEXT -->
    http://localhost:8000/auth/callback
    https://yourdomain.com/auth/callback
    ```text
+<!-- Code example in TEXT -->
 
 4. Scroll to "Allowed Logout URLs" and add:
 
    ```text
+<!-- Code example in TEXT -->
    http://localhost:3000
    https://yourdomain.com
    ```text
+<!-- Code example in TEXT -->
 
 5. Scroll to "Allowed Web Origins" and add:
 
    ```text
+<!-- Code example in TEXT -->
    http://localhost:3000
    http://localhost:8000
    https://yourdomain.com
    ```text
+<!-- Code example in TEXT -->
 
 6. Click "Save Changes"
 
@@ -102,6 +116,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 Create `.env` file:
 
 ```bash
+<!-- Code example in BASH -->
 # Auth0 Configuration
 AUTH0_DOMAIN=your-domain.auth0.com
 AUTH0_CLIENT_ID=YOUR_CLIENT_ID
@@ -115,10 +130,12 @@ JWT_ALGORITHM=RS256
 # Database Configuration
 DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 5: Configure FraiseQL Server
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::OidcProvider;
 use std::sync::Arc;
 
@@ -142,10 +159,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 6: Register Auth Endpoints
 
 ```rust
+<!-- Code example in RUST -->
 use axum::Router;
 use fraiseql_server::auth::{
     auth_start, auth_callback, auth_refresh, auth_logout, AuthState
@@ -162,16 +181,19 @@ let app = Router::new()
     .merge(auth_routes)
     // ... other routes
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing
 
 ### 1. Start Login Flow
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "auth0"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Complete Authentication
 
@@ -180,17 +202,20 @@ Visit the returned authorization URL and log in with your Auth0 account.
 ### 3. Use Tokens
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ## Advanced: User Management
 
 Auth0 provides user management APIs. Access them via:
 
 ```rust
+<!-- Code example in RUST -->
 // Get user profile from Auth0 user info endpoint
 // This is automatically done by OidcProvider::user_info()
 
@@ -198,6 +223,7 @@ let user_info = oauth_provider.user_info(&access_token).await?;
 println!("User ID: {}", user_info.id);
 println!("Email: {}", user_info.email);
 ```text
+<!-- Code example in TEXT -->
 
 ## Advanced: Rules and Actions
 
@@ -210,6 +236,7 @@ Auth0 Rules (legacy) or Actions allow custom logic:
 5. Add code:
 
    ```javascript
+<!-- Code example in JAVASCRIPT -->
    exports.onExecutePostLogin = async (event, api) => {
      const namespace = 'https://FraiseQL.example.com';
      if (event.authorization) {
@@ -218,16 +245,19 @@ Auth0 Rules (legacy) or Actions allow custom logic:
      }
    };
    ```text
+<!-- Code example in TEXT -->
 
 6. Click "Save" → "Deploy"
 
 Then access in FraiseQL:
 
 ```rust
+<!-- Code example in RUST -->
 let user = auth::AuthenticatedUser { /* ... */ };
 let roles = user.get_custom_claim("https://FraiseQL.example.com/roles");
 let org_id = user.get_custom_claim("https://FraiseQL.example.com/org_id");
 ```text
+<!-- Code example in TEXT -->
 
 ## Advanced: Social Login
 
@@ -270,11 +300,13 @@ Set up role-based access control:
 In FraiseQL, check roles:
 
 ```rust
+<!-- Code example in RUST -->
 let user = auth::AuthenticatedUser { /* ... */ };
 if user.has_role("admin") {
     // Admin logic
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -316,18 +348,21 @@ if user.has_role("admin") {
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Test Auth0 connectivity
 curl https://your-domain.auth0.com/.well-known/openid-configuration
 
 # Check FraiseQL logs for errors
 # Verify DATABASE_URL is correct
 ```text
+<!-- Code example in TEXT -->
 
 ## Production Deployment
 
 ### Environment Configuration
 
 ```bash
+<!-- Code example in BASH -->
 # .env.prod
 AUTH0_DOMAIN=your-domain.auth0.com
 AUTH0_CLIENT_ID=<prod-client-id>
@@ -339,6 +374,7 @@ JWT_ALGORITHM=RS256
 
 DATABASE_URL=postgres://user:pass@prod-db/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Auth0 Tenant Configuration
 

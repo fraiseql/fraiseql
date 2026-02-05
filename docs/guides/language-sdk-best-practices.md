@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Language SDK Best Practices
+description: Language-specific best practices and idioms for using FraiseQL with your preferred programming language. Select your language below.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Language SDK Best Practices
 
 **Status:** ✅ Production Ready
@@ -38,6 +46,7 @@ FraiseQL SDKs are available for **16 languages**. While the GraphQL API is unive
 **Best practice:** Use Python 3.10+ union syntax and Pydantic for validation
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good: Modern type hints
 from typing import Optional
 from pydantic import BaseModel, EmailStr
@@ -51,13 +60,15 @@ class User(BaseModel):
 # ❌ Avoid: Old Optional syntax
 from typing import Optional
 age: Optional[int] = None  # Older style
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Async/Await Patterns
 
 **Best practice:** Use `asyncio` consistently throughout the application
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good: Async client with async context manager
 from FraiseQL import AsyncClient
 
@@ -74,11 +85,13 @@ async def main():
             print(user["name"])
 
 asyncio.run(main())
-```
+```text
+<!-- Code example in TEXT -->
 
 **Avoid blocking calls in async code:**
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad: Blocking I/O in async function
 async def fetch_user(id: str):
     response = requests.get(...)  # BLOCKS!
@@ -89,13 +102,15 @@ async def fetch_user(id: str):
     async with aiohttp.ClientSession() as session:
         async with session.get(...) as response:
             return await response.json()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Error Handling
 
 **Best practice:** Handle FraiseQL errors explicitly
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import AsyncClient, FraiseQLError
 
 async def safe_query():
@@ -109,13 +124,15 @@ async def safe_query():
                 print(f"Validation error: {e.message}")
             else:
                 raise  # Re-raise unknown errors
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Connection Pooling
 
 **Best practice:** Reuse single client instance
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good: Singleton client
 client = AsyncClient(url="http://localhost:5000")
 
@@ -132,13 +149,15 @@ async def query_users():
 async def query_posts():
     async with AsyncClient(...) as client:  # New connection!
         return await client.query(...)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5. Testing
 
 **Best practice:** Use pytest with fixtures
 
 ```python
+<!-- Code example in Python -->
 # conftest.py
 @pytest.fixture
 async def client():
@@ -151,7 +170,8 @@ async def test_get_users(client):
     result = await client.query("{ users { id name } }")
     assert len(result["users"]) > 0
     assert "id" in result["users"][0]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -162,13 +182,16 @@ async def test_get_users(client):
 **Best practice:** Generate types from schema
 
 ```bash
+<!-- Code example in BASH -->
 # Generate types from FraiseQL schema
 FraiseQL-codegen generate --schema schema.json --output types.ts
-```
+```text
+<!-- Code example in TEXT -->
 
 **Usage:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Query, User } from './generated/types';
 
 const query: Query = {
@@ -181,13 +204,15 @@ const query: Query = {
 
 const result: User[] = await client.query(query);
 // result has full type safety!
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. React/Vue Integration
 
 **Best practice:** Use hooks for queries
 
 ```typescript
+<!-- Code example in TypeScript -->
 // React hook (using @FraiseQL/react package)
 import { useQuery } from '@FraiseQL/react';
 
@@ -213,13 +238,15 @@ export function UserList() {
     </ul>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Error Handling
 
 **Best practice:** Specific error handling per use case
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { gql } from '@FraiseQL/core';
 
 async function loginUser(email: string, password: string) {
@@ -243,13 +270,15 @@ async function loginUser(email: string, password: string) {
     throw error;  // Unknown error
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Caching Strategies
 
 **Best practice:** Use Apollo Client or similar
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { ApolloClient, InMemoryCache } from '@apollo/client';
 
 const client = new ApolloClient({
@@ -263,13 +292,15 @@ const result1 = await client.query(GET_USERS_QUERY);
 
 // Query 2: Same query, returned from cache (no server call)
 const result2 = await client.query(GET_USERS_QUERY);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5. Subscription Handling
 
 **Best practice:** Cleanup subscriptions properly
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useEffect, useState } from 'react';
 
 export function LiveOrderCount() {
@@ -300,7 +331,8 @@ export function LiveOrderCount() {
 
   return <div>Orders created: {count}</div>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -311,6 +343,7 @@ export function LiveOrderCount() {
 **Best practice:** Use struct tags for GraphQL field mapping
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import "github.com/FraiseQL/FraiseQL-go"
@@ -324,13 +357,15 @@ type User struct {
 type QueryResult struct {
     Users []User `graphql:"users"`
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Context Management
 
 **Best practice:** Always use context for cancellation
 
 ```go
+<!-- Code example in Go -->
 ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 defer cancel()
 
@@ -340,13 +375,15 @@ if err != nil {
         log.Fatal("Query timeout")
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Error Handling
 
 **Best practice:** Handle GraphQL errors and HTTP errors separately
 
 ```go
+<!-- Code example in Go -->
 import "github.com/FraiseQL/FraiseQL-go"
 
 result, err := client.Query(ctx, query)
@@ -362,20 +399,23 @@ if len(result.Errors) > 0 {
         log.Printf("GraphQL error: %s (code: %s)", e.Message, e.Extensions.Code)
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Batching & Connection Pooling
 
 **Best practice:** Reuse single client
 
 ```go
+<!-- Code example in Go -->
 // Initialize once
 client := FraiseQL.NewClient("http://localhost:5000")
 
 // Reuse for multiple queries
 users, _ := client.Query(ctx, getUsersQuery)
 posts, _ := client.Query(ctx, getPostsQuery)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -386,6 +426,7 @@ posts, _ := client.Query(ctx, getPostsQuery)
 **Best practice:** Use custom annotations for cleaner code
 
 ```java
+<!-- Code example in Java -->
 @FraiseQLType
 public class User {
     @Key
@@ -397,13 +438,15 @@ public class User {
     @Cache(ttlSeconds = 300)
     private String name;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Optional & Nullability
 
 **Best practice:** Use Optional for nullable fields
 
 ```java
+<!-- Code example in Java -->
 import java.util.Optional;
 
 public class User {
@@ -416,13 +459,15 @@ public class User {
         return middleName.orElse(null);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Async/Reactive Programming
 
 **Best practice:** Use CompletableFuture or Project Reactor
 
 ```java
+<!-- Code example in Java -->
 // CompletableFuture (standard Java)
 CompletableFuture<User> user = client.queryAsync(queryString);
 user.thenApply(u -> u.getName())
@@ -435,13 +480,15 @@ user.thenApply(u -> u.getName())
 // Project Reactor (if using Spring)
 Mono<User> user = client.queryMono(queryString);
 user.subscribe(u -> log.info("User: {}", u.getName()));
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Testing with JUnit 5
 
 **Best practice:** Use TestContainers for integration tests
 
 ```java
+<!-- Code example in Java -->
 @Container
 static FraiseQLContainer FraiseQL = new FraiseQLContainer("FraiseQL:v2.0.0");
 
@@ -455,7 +502,8 @@ void testGetUsers() throws Exception {
     List<User> users = client.query(GET_USERS_QUERY, User.class);
     assertTrue(users.size() > 0);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -547,6 +595,7 @@ The following languages have complete SDK reference documentation available with
 ### Anti-Pattern 1: Ignoring Errors
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad
 result = await client.query(query)
 users = result["users"]  # What if query failed?
@@ -558,11 +607,13 @@ try:
 except Exception as e:
     log.error(f"Query failed: {e}")
     users = []
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Anti-Pattern 2: Creating New Client Per Request
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad: Creates new connection
 async def endpoint(request):
     client = AsyncClient(url="...")  # New client!
@@ -573,11 +624,13 @@ client = AsyncClient(url="...")
 
 async def endpoint(request):
     return await client.query(query)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Anti-Pattern 3: Blocking in Async Context
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad: Blocking call in async function
 async def get_data():
     data = requests.get("...")  # BLOCKS!
@@ -588,7 +641,8 @@ async def get_data():
     async with aiohttp.ClientSession() as session:
         async with session.get("...") as resp:
             return await resp.json()
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

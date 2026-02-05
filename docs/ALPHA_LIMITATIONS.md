@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2.0.0-alpha.1 - Known Limitations
+description: This document outlines what's **not** included in the alpha release and when it's expected.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2.0.0-alpha.1 - Known Limitations
 
 **Version**: 2.0.0-alpha.1

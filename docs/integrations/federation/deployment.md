@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Federation Deployment Guide
+description: Production-ready deployment of FraiseQL federation across multiple clouds.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Federation Deployment Guide
 
 Production-ready deployment of FraiseQL federation across multiple clouds.
@@ -72,6 +80,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 **Setup with AWS RDS PostgreSQL and ECS:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create RDS instance
 aws rds create-db-instance \
   --db-instance-identifier FraiseQL-users \
@@ -102,6 +111,7 @@ aws ecs create-service \
   --desired-count 2 \
   --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:...
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Performance:**
 
@@ -116,6 +126,7 @@ aws ecs create-service \
 **Setup with Cloud SQL PostgreSQL and Cloud Run:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create Cloud SQL instance
 gcloud sql instances create FraiseQL-users \
   --database-version=POSTGRES_16 \
@@ -136,6 +147,7 @@ gcloud run deploy FraiseQL-users \
   --region us-central1 \
   --set-env-vars DATABASE_URL=postgresql://...
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Performance:**
 
@@ -150,6 +162,7 @@ gcloud run deploy FraiseQL-users \
 **Setup with Azure Database for PostgreSQL and Container Instances:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create PostgreSQL server
 az postgres server create \
   --resource-group FraiseQL \
@@ -181,6 +194,7 @@ az container create \
   --image FraiseQL.azurecr.io/FraiseQL-users:latest \
   --environment-variables DATABASE_URL=postgresql://...
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Performance:**
 
@@ -195,6 +209,7 @@ az container create \
 ### Architecture
 
 ```text
+<!-- Code example in TEXT -->
      Federation Gateway (Apollo Router / Kong)
             |
     +-------+-------+-------+
@@ -204,12 +219,14 @@ az container create \
  Users   Orders  Products Inventory
   DB      DB      DB      DB
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment Steps
 
 #### 1. Prepare Infrastructure
 
 ```bash
+<!-- Code example in BASH -->
 # AWS: Users Service
 aws rds create-db-instance --db-instance-identifier users --region us-east-1
 aws ecr create-repository --repository-name FraiseQL-users
@@ -222,12 +239,14 @@ gcloud container registries create --location=eu gcr.io/PROJECT/FraiseQL-orders
 az postgres server create --resource-group prod --name products --location westeurope
 az acr create --resource-group prod --name FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 #### 2. Configure Federation
 
 **federation.toml (shared across all subgraphs):**
 
 ```toml
+<!-- Code example in TOML -->
 [federation]
 enabled = true
 version = "v2"
@@ -254,10 +273,12 @@ timeout_ms = 5000
 max_retries = 3
 retry_delay_ms = 100
 ```text
+<!-- Code example in TEXT -->
 
 #### 3. Deploy Services
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy Users (AWS)
 ./deploy.sh aws us-east-1 users-service
 
@@ -270,10 +291,12 @@ retry_delay_ms = 100
 # Deploy Gateway (Optional - use Apollo Router)
 ./deploy-gateway.sh
 ```text
+<!-- Code example in TEXT -->
 
 #### 4. Verify Federation
 
 ```bash
+<!-- Code example in BASH -->
 # Check Users service is reachable
 curl https://users.example.com/graphql -d '{"query": "{users{id}}"}'
 
@@ -287,6 +310,7 @@ curl https://products.example.com/graphql -d '{"query": "{products{id}}"}'
 curl https://gateway.example.com/graphql \
   -d '{"query": "{user(id:\"1\"){id orders{id products{id}}}}"}'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -309,6 +333,7 @@ curl https://gateway.example.com/graphql \
 **Critical indexes:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Key field indexes
 CREATE INDEX idx_id ON users(id);
 CREATE INDEX idx_org_id_user_id ON users(organization_id, id);
@@ -320,6 +345,7 @@ CREATE INDEX idx_product_id ON orders(product_id);
 -- Query optimization
 CREATE INDEX idx_status ON orders(status) WHERE status != 'completed';
 ```text
+<!-- Code example in TEXT -->
 
 **Impact:** 10-50x query speedup for federation
 
@@ -330,11 +356,13 @@ CREATE INDEX idx_status ON orders(status) WHERE status != 'completed';
 **FraiseQL configuration:**
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 pool_size = 20           # Connections per pool
 max_idle_time = 300      # Seconds
 connection_timeout = 5   # Seconds
 ```text
+<!-- Code example in TEXT -->
 
 **Impact:** 20-30% reduction in query latency
 
@@ -343,6 +371,7 @@ connection_timeout = 5   # Seconds
 ### 3. Query Caching
 
 ```toml
+<!-- Code example in TOML -->
 [cache]
 enabled = true
 ttl_seconds = 300        # 5-minute cache
@@ -353,6 +382,7 @@ max_size_mb = 256        # Cache size limit
 query = "_entities"
 ttl_seconds = 60         # Shorter TTL for entities
 ```text
+<!-- Code example in TEXT -->
 
 **Impact:** 50-90% reduction for repeated queries
 
@@ -363,6 +393,7 @@ ttl_seconds = 60         # Shorter TTL for entities
 Always query only needed fields:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Inefficient: Queries all fields
 query {
   user(id: "123") {
@@ -384,6 +415,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Impact:** 20-40% reduction in payload and latency
 
@@ -394,6 +426,7 @@ query {
 ### 1. Prometheus Metrics
 
 ```yaml
+<!-- Code example in YAML -->
 # Add to FraiseQL config
 [observability]
 prometheus_enabled = true
@@ -405,6 +438,7 @@ prometheus_port = 9090
 # - fraiseql_federation_cache_hits: Cache hit rate
 # - fraiseql_database_queries_total: Total queries
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -413,6 +447,7 @@ prometheus_port = 9090
 Key metrics to monitor:
 
 ```text
+<!-- Code example in TEXT -->
 
 - Federation Latency (P50, P95, P99)
 - Entity Resolution Success Rate
@@ -421,6 +456,7 @@ Key metrics to monitor:
 - HTTP Federation Error Rate
 - Cross-Cloud Latency
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -429,6 +465,7 @@ Key metrics to monitor:
 **Structured logging for debugging:**
 
 ```bash
+<!-- Code example in BASH -->
 # Enable debug logging
 export RUST_LOG=fraiseql_core::federation=debug
 
@@ -439,6 +476,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 # - Cache hits/misses
 # - Latency breakdown
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -447,6 +485,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 **Critical alerts:**
 
 ```yaml
+<!-- Code example in YAML -->
 - name: FederationHighLatency
   condition: p99_latency > 500ms
   action: page_on_call
@@ -463,6 +502,7 @@ export RUST_LOG=fraiseql_core::federation=debug
   condition: idle_connections == 0
   action: scale_up
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -480,10 +520,12 @@ export RUST_LOG=fraiseql_core::federation=debug
 4. Check network latency between clouds
 
 ```bash
+<!-- Code example in BASH -->
 # Test network latency
 ping orders-service.example.com
 traceroute orders-service.example.com
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -496,21 +538,27 @@ traceroute orders-service.example.com
 1. Increase timeout in config:
 
    ```toml
+<!-- Code example in TOML -->
    [federation.http]
    timeout_ms = 10000  # Increase from 5000
    ```text
+<!-- Code example in TEXT -->
 
 2. Check remote service health:
 
    ```bash
+<!-- Code example in BASH -->
    curl -v https://orders.example.com/health
    ```text
+<!-- Code example in TEXT -->
 
 3. Check network connectivity:
 
    ```bash
+<!-- Code example in BASH -->
    curl -w "@curl-format.txt" -o /dev/null -s https://orders.example.com/graphql
    ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -523,22 +571,28 @@ traceroute orders-service.example.com
 1. Check subgraph availability
 
    ```bash
+<!-- Code example in BASH -->
    curl https://orders.example.com/_service
    ```text
+<!-- Code example in TEXT -->
 
 2. Review logs for specific errors
 
    ```bash
+<!-- Code example in BASH -->
    kubectl logs -l app=orders-service --tail=100
    ```text
+<!-- Code example in TEXT -->
 
 3. Enable retry logic (automatic in FraiseQL):
 
    ```toml
+<!-- Code example in TOML -->
    [federation.http]
    max_retries = 5
    retry_delay_ms = 100
    ```text
+<!-- Code example in TEXT -->
 
 ---
 

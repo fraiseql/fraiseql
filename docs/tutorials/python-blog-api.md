@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Building a Blog API with FraiseQL: Schema Authoring in Python
+description: In this tutorial, you'll build a complete Blog API by:
+keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # Building a Blog API with FraiseQL: Schema Authoring in Python
 
 **Duration**: 30 minutes
@@ -44,6 +52,7 @@ FraiseQL compiles GraphQL to SQL at build time. First, create the underlying dat
 ### Creating the PostgreSQL Database
 
 ```sql
+<!-- Code example in SQL -->
 -- Create users table
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -81,12 +90,14 @@ CREATE INDEX idx_posts_published ON posts(published);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_user_id ON comments(user_id);
 ```text
+<!-- Code example in TEXT -->
 
 ### Creating SQL Views for Queries
 
 FraiseQL queries often read from **views** rather than raw tables. This provides a clean separation between your schema and implementation details.
 
 ```sql
+<!-- Code example in SQL -->
 -- View: All posts with author information
 CREATE VIEW v_posts AS
 SELECT
@@ -158,12 +169,14 @@ SELECT
     updated_at
 FROM users;
 ```text
+<!-- Code example in TEXT -->
 
 ### Creating SQL Functions for Mutations
 
 Mutations (CREATE, UPDATE, DELETE) are typically implemented as PostgreSQL **functions**. This keeps business logic in the database.
 
 ```sql
+<!-- Code example in SQL -->
 -- Function: Create a new user
 CREATE FUNCTION fn_create_user(
     p_name VARCHAR,
@@ -304,6 +317,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -314,6 +328,7 @@ Now you'll translate the database schema into FraiseQL type definitions and oper
 ### Project Setup
 
 ```bash
+<!-- Code example in BASH -->
 # Create a new directory for your project
 mkdir blog-api
 cd blog-api
@@ -328,12 +343,14 @@ pip install FraiseQL
 # Verify installation
 python -c "import FraiseQL; print(FraiseQL.__version__)"
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 1: Create `schema.py`
 
 Create a file named `schema.py` in your project root:
 
 ```python
+<!-- Code example in Python -->
 """FraiseQL Blog API Schema Definition.
 
 This module defines the GraphQL schema for a blog API using FraiseQL decorators.
@@ -826,6 +843,7 @@ if __name__ == "__main__":
     print("   2. Compile: FraiseQL-cli compile schema.json FraiseQL.toml")
     print("   3. Start server: FraiseQL-server --schema schema.compiled.json")
 ```text
+<!-- Code example in TEXT -->
 
 ### Understanding the Decorators
 
@@ -834,12 +852,14 @@ if __name__ == "__main__":
 Defines a GraphQL type that maps to your database schema:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: int              # GraphQL ID field (non-null by default)
     name: str            # GraphQL String field
     email: str | None    # GraphQL String field that can be null
 ```text
+<!-- Code example in TEXT -->
 
 **Key points:**
 
@@ -853,6 +873,7 @@ class User:
 Defines a GraphQL query (read-only operation):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(
     sql_source="v_posts",           # SQL view or table to query
     auto_params={
@@ -865,6 +886,7 @@ Defines a GraphQL query (read-only operation):
 def posts(limit: int = 10) -> list[Post]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -880,6 +902,7 @@ def posts(limit: int = 10) -> list[Post]:
 Defines a GraphQL mutation (write operation):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.mutation(
     sql_source="fn_create_user",    # SQL function to call
     operation="CREATE"              # Operation type (CREATE, UPDATE, DELETE)
@@ -887,6 +910,7 @@ Defines a GraphQL mutation (write operation):
 def create_user(name: str, email: str) -> User:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Operation types:**
 
@@ -903,12 +927,15 @@ The Python schema is a blueprint. FraiseQL converts it to JSON for compilation.
 ### Export the Schema
 
 ```bash
+<!-- Code example in BASH -->
 python schema.py
 ```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```text
+<!-- Code example in TEXT -->
 ✅ Schema exported successfully!
    Generated: schema.json
 
@@ -917,12 +944,14 @@ python schema.py
    2. Compile: FraiseQL-cli compile schema.json FraiseQL.toml
    3. Start server: FraiseQL-server --schema schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Examine `schema.json`
 
 The exported file should look like:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -1096,25 +1125,30 @@ The exported file should look like:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Validate the Schema
 
 Check for common issues:
 
 ```bash
+<!-- Code example in BASH -->
 # Verify JSON is valid
 python -m json.tool schema.json > /dev/null && echo "✅ schema.json is valid JSON"
 
 # Count definitions
 python -c "import json; s = json.load(open('schema.json')); print(f'Types: {len(s.get(\"types\", []))}, Queries: {len(s.get(\"queries\", []))}, Mutations: {len(s.get(\"mutations\", []))}')"
 ```text
+<!-- Code example in TEXT -->
 
 **Expected output:**
 
 ```text
+<!-- Code example in TEXT -->
 ✅ schema.json is valid JSON
 Types: 3, Queries: 6, Mutations: 5
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1127,6 +1161,7 @@ The FraiseQL CLI compiles your schema to an optimized binary format with embedde
 Create a configuration file for compilation:
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL Configuration for Blog API
 
 [FraiseQL]
@@ -1153,16 +1188,20 @@ max_query_depth = 5
 # Error handling
 sanitize_errors = true  # Hide implementation details in errors
 ```text
+<!-- Code example in TEXT -->
 
 ### Compile the Schema
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 ```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```text
+<!-- Code example in TEXT -->
 ✅ Compilation successful!
    Generated: schema.compiled.json
 
@@ -1175,12 +1214,14 @@ FraiseQL-cli compile schema.json FraiseQL.toml
 
    File size: 45 KB
 ```text
+<!-- Code example in TEXT -->
 
 ### Examine the Compiled Schema
 
 The compiled schema includes optimized SQL templates:
 
 ```bash
+<!-- Code example in BASH -->
 # View a snippet of the compiled schema
 python -c "
 import json
@@ -1191,6 +1232,7 @@ with open('schema.compiled.json') as f:
         print(json.dumps(query, indent=2))
 "
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1201,6 +1243,7 @@ with open('schema.compiled.json') as f:
 First, populate your database with test data:
 
 ```sql
+<!-- Code example in SQL -->
 -- Insert test users
 INSERT INTO users (name, email, bio) VALUES
 ('Alice Smith', 'alice@example.com', 'Full-stack developer'),
@@ -1221,6 +1264,7 @@ INSERT INTO comments (post_id, user_id, content) VALUES
 (2, 3, 'Performance tips are really useful.'),
 (3, 1, 'Thanks for the Python advice.');
 ```text
+<!-- Code example in TEXT -->
 
 ### Testing Queries
 
@@ -1229,6 +1273,7 @@ Use GraphQL clients like `graphql-cli` or write test scripts. Here are common Gr
 #### Query: Get All Users
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     users(limit: 10) {
         id
@@ -1239,10 +1284,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expected response:**
 
 ```json
+<!-- Code example in JSON -->
 {
     "data": {
         "users": [
@@ -1264,10 +1311,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Query: Get a Single Post by ID
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     post(id: 1) {
         id
@@ -1279,10 +1328,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expected response:**
 
 ```json
+<!-- Code example in JSON -->
 {
     "data": {
         "post": {
@@ -1296,10 +1347,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Query: Get User's Posts with Filtering
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     user_posts(user_id: 1, limit: 20, offset: 0) {
         id
@@ -1309,10 +1362,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Query: Get Comments on a Post
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     post_comments(post_id: 1, limit: 50) {
         id
@@ -1322,12 +1377,14 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Testing Mutations
 
 #### Mutation: Create a New User
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     create_user(
         name: "David Lee"
@@ -1341,10 +1398,12 @@ mutation {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expected response:**
 
 ```json
+<!-- Code example in JSON -->
 {
     "data": {
         "create_user": {
@@ -1356,10 +1415,12 @@ mutation {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Mutation: Create a New Post
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     create_post(
         title: "Advanced GraphQL Patterns"
@@ -1374,10 +1435,12 @@ mutation {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Mutation: Update a Post
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     update_post(
         id: 4
@@ -1390,18 +1453,22 @@ mutation {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Mutation: Delete a Post
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     delete_post(id: 4)
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Mutation: Create a Comment
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     create_comment(
         post_id: 1
@@ -1416,12 +1483,14 @@ mutation {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Testing Error Cases
 
 #### Missing Required Field
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
     create_user(name: "Eve", email: "eve@example.com") {
         id
@@ -1430,10 +1499,12 @@ mutation {
 }
 # This will fail: bio is optional but field may not exist
 ```text
+<!-- Code example in TEXT -->
 
 #### Invalid Type
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     post(id: "not-a-number") {
         id
@@ -1441,10 +1512,12 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expected error:**
 
 ```json
+<!-- Code example in JSON -->
 {
     "errors": [
         {
@@ -1453,6 +1526,7 @@ query {
     ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1463,6 +1537,7 @@ Once your schema is tested, you're ready to deploy.
 ### Starting the Server
 
 ```bash
+<!-- Code example in BASH -->
 # Start FraiseQL server with compiled schema
 FraiseQL-server \
     --schema schema.compiled.json \
@@ -1472,32 +1547,39 @@ FraiseQL-server \
 # Server starts on http://localhost:8000
 # GraphQL endpoint: http://localhost:8000/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Check
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 **Response:**
 
 ```json
+<!-- Code example in JSON -->
 {
     "status": "ok",
     "version": "2.0.0",
     "uptime_secs": 42
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### GraphQL Introspection
 
 The server exposes GraphQL introspection by default:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql \
     -H "Content-Type: application/json" \
     -d '{"query": "{__schema { types { name } }}"}'
 ```text
+<!-- Code example in TEXT -->
 
 This returns all available types in your schema.
 
@@ -1510,6 +1592,7 @@ This returns all available types in your schema.
 The `auto_params` feature makes pagination automatic:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(
     sql_source="v_posts",
     auto_params={"limit": True, "offset": True}
@@ -1518,10 +1601,12 @@ def posts(limit: int = 10, offset: int = 0) -> list[Post]:
     """Paginated posts query."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 GraphQL usage:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     posts(limit: 20, offset: 40) {  # Fetch 20 posts, skip first 40
         id
@@ -1529,12 +1614,14 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Adding Filtering
 
 Use `auto_params={"where": True}` to enable filters:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(
     sql_source="v_posts",
     auto_params={"where": True}
@@ -1543,10 +1630,12 @@ def posts(published: bool | None = None) -> list[Post]:
     """Filtered posts query."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 GraphQL usage:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     posts(where: {published: {_eq: true}, author_id: {_eq: 1}}) {
         id
@@ -1555,12 +1644,14 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Adding Sorting
 
 Use `auto_params={"order_by": True}`:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(
     sql_source="v_posts",
     auto_params={"order_by": True}
@@ -1569,10 +1660,12 @@ def posts() -> list[Post]:
     """Sortable posts query."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 GraphQL usage:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     posts(order_by: {field: "created_at", direction: DESC}) {
         id
@@ -1581,12 +1674,14 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 4: Author Relationships
 
 Include related data by joining in your SQL view:
 
 ```sql
+<!-- Code example in SQL -->
 -- View includes author info
 CREATE VIEW v_posts_with_author AS
 SELECT
@@ -1599,10 +1694,12 @@ SELECT
 FROM posts p
 JOIN users u ON p.author_id = u.id;
 ```text
+<!-- Code example in TEXT -->
 
 Python schema:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class PostWithAuthor:
     id: int
@@ -1617,10 +1714,12 @@ def posts() -> list[PostWithAuthor]:
     """Posts with inline author info."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 5: Filtering Comments by Post
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(
     sql_source="v_comments",
     auto_params={"where": True, "limit": True}
@@ -1632,10 +1731,12 @@ def post_comments(
     """Get comments filtered by post."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 GraphQL usage:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
     post_comments(
         post_id: 1
@@ -1649,6 +1750,7 @@ query {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1659,35 +1761,43 @@ query {
 ❌ **Wrong:**
 
 ```python
+<!-- Code example in Python -->
 from typing import Optional
 def user(id: int) -> Optional[User]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Correct:**
 
 ```python
+<!-- Code example in Python -->
 def user(id: int) -> User | None:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Mistake 2: Forgetting `sql_source`
 
 ❌ **Wrong:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query()
 def users() -> list[User]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Correct:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query(sql_source="v_users")
 def users() -> list[User]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Mistake 3: Inconsistent Field Names
 
@@ -1696,18 +1806,22 @@ If your database column is `created_at`, your Python field must also be `created
 ❌ **Wrong:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Post:
     createdAt: str  # Doesn't match database
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Correct:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Post:
     created_at: str  # Matches database
 ```text
+<!-- Code example in TEXT -->
 
 ### Mistake 4: Missing Null Annotations
 
@@ -1716,27 +1830,33 @@ If a database field can be NULL, mark it as nullable:
 ❌ **Wrong:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     bio: str  # But bio can be NULL in database
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Correct:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     bio: str | None  # Nullable
 ```text
+<!-- Code example in TEXT -->
 
 ### Mistake 5: Using Non-Existent SQL Functions
 
 Ensure all `sql_source` values exist in your database:
 
 ```bash
+<!-- Code example in BASH -->
 # Check if function exists
 psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1767,17 +1887,21 @@ psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 pip install FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 #### Error: `Module has no attribute 'type'`
 
 **Solution:** Check that you're using the correct import:
 
 ```python
+<!-- Code example in Python -->
 import FraiseQL
 # Then use @FraiseQL.type, not @fraiseql_type
 ```text
+<!-- Code example in TEXT -->
 
 ### Compilation Errors
 
@@ -1786,19 +1910,23 @@ import FraiseQL
 **Solution:** Verify the view exists in your database:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
 ```text
+<!-- Code example in TEXT -->
 
 #### Error: `Type mismatch: expected String, got Integer`
 
 **Solution:** Check field types match between Python and database:
 
 ```python
+<!-- Code example in Python -->
 # If database column is VARCHAR, use str in Python
 @FraiseQL.type
 class Post:
     title: str  # Correct
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment Errors
 
@@ -1807,8 +1935,10 @@ class Post:
 **Solution:** Verify database is running:
 
 ```bash
+<!-- Code example in BASH -->
 psql postgresql://user:password@localhost/blog_db -c "SELECT 1"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1825,6 +1955,7 @@ See Part 1 above for the complete database setup.
 ### Complete `FraiseQL.toml`
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL]
 name = "blog-api"
 version = "1.0.0"
@@ -1841,6 +1972,7 @@ rate_limit_window_secs = 60
 max_query_depth = 5
 sanitize_errors = true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

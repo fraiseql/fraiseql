@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Google OAuth 2.0 Setup Guide
+description: This guide walks you through setting up Google OAuth authentication with FraiseQL.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Google OAuth 2.0 Setup Guide
 
 This guide walks you through setting up Google OAuth authentication with FraiseQL.
@@ -79,6 +87,7 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 Create a `.env` file in your FraiseQL server directory:
 
 ```bash
+<!-- Code example in BASH -->
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
@@ -91,12 +100,14 @@ JWT_ALGORITHM=RS256
 # Session Configuration
 DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 5: Update Server Configuration
 
 In your Rust code, configure the OIDC provider:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::OidcProvider;
 use std::sync::Arc;
 
@@ -119,12 +130,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 6: Register Auth Endpoints
 
 Add these routes to your Axum application:
 
 ```rust
+<!-- Code example in RUST -->
 use axum::{
     routing::{get, post},
     Router,
@@ -151,24 +164,29 @@ let app = Router::new()
     .merge(auth_routes)
     // ... other routes
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 7: Test the Flow
 
 ### 1. Start Login Flow
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "google"}'
 ```text
+<!-- Code example in TEXT -->
 
 Response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Visit the Authorization URL
 
@@ -179,8 +197,10 @@ Open the URL in a browser. You'll see Google's login page.
 After authentication, Google will redirect to:
 
 ```text
+<!-- Code example in TEXT -->
 http://localhost:8000/auth/callback?code=...&state=...
 ```text
+<!-- Code example in TEXT -->
 
 This endpoint will:
 
@@ -193,6 +213,7 @@ This endpoint will:
 Response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "access_token": "access_token_...",
   "refresh_token": "refresh_token_...",
@@ -200,37 +221,45 @@ Response:
   "expires_in": 3600
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Use the Access Token
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer access_token_..." \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id name } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Refresh Token
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "refresh_token_..."}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 6. Logout
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/logout \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "refresh_token_..."}'
 ```text
+<!-- Code example in TEXT -->
 
 ## Frontend Integration
 
 ### JavaScript/TypeScript
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Start login flow
 const response = await fetch('http://localhost:8000/auth/start', {
   method: 'POST',
@@ -259,6 +288,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
   body: JSON.stringify({ query: '{ user { id } }' })
 });
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -324,10 +354,12 @@ For production:
 2. Set environment variables in your deployment:
 
    ```bash
+<!-- Code example in BASH -->
    GOOGLE_CLIENT_ID=prod.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=<secret>
    OAUTH_REDIRECT_URI=https://yourdomain.com/auth/callback
    ```text
+<!-- Code example in TEXT -->
 
 3. Ensure database is backed up
 4. Enable HTTPS with valid certificate
@@ -339,11 +371,13 @@ For production:
 Google allows multiple accounts in development:
 
 ```bash
+<!-- Code example in BASH -->
 # Test with different Google accounts by:
 # 1. Using incognito mode for each account
 # 2. Or explicitly signing out before each test
 # 3. Or using multiple browsers
 ```text
+<!-- Code example in TEXT -->
 
 ## Rate Limiting
 

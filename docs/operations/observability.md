@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Observability & Monitoring Guide
+description: FraiseQL v2 provides a comprehensive, production-ready observability stack that enables real-time monitoring, performance analysis, debugging, and operational e
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Observability & Monitoring Guide
 
 ## Overview
@@ -20,6 +28,7 @@ FraiseQL v2 provides a comprehensive, production-ready observability stack that 
 ### Minimal Setup
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Start FraiseQL Server
 RUST_LOG=info cargo run -p FraiseQL-server
 
@@ -32,10 +41,12 @@ curl http://localhost:8000/health
 # 4. View introspection schema
 curl http://localhost:8000/introspection
 ```text
+<!-- Code example in TEXT -->
 
 ### With Prometheus + Grafana
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Start Docker services
 docker-compose -f docker-compose.yml up -d
 
@@ -49,10 +60,12 @@ open http://localhost:3000
 # 4. Import dashboard
 # - URL: file://monitoring/grafana-dashboard.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Accessing Metrics
 
 ```bash
+<!-- Code example in BASH -->
 # Prometheus text format (scrape by Prometheus)
 curl http://localhost:8000/metrics
 
@@ -68,6 +81,7 @@ curl http://localhost:8000/metrics/json
 #   "cache_hit_ratio": 0.65
 # }
 ```text
+<!-- Code example in TEXT -->
 
 ## OpenTelemetry Integration
 
@@ -76,6 +90,7 @@ curl http://localhost:8000/metrics/json
 FraiseQL v2 provides full **OpenTelemetry** integration for distributed tracing and observability:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::observability;
 
 // Initialize OpenTelemetry at startup
@@ -88,16 +103,19 @@ async fn main() -> Result<()> {
     start_server().await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### W3C Trace Context Format
 
 FraiseQL uses the **W3C Trace Context** standard for cross-service tracing:
 
 ```text
+<!-- Code example in TEXT -->
 traceparent: 00-{trace-id}-{span-id}-{trace-flags}
             └──────────┬──────────┘
             Example: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 ```text
+<!-- Code example in TEXT -->
 
 **Components**:
 
@@ -113,6 +131,7 @@ traceparent: 00-{trace-id}-{span-id}-{trace-flags}
 Automatic trace context propagation across service boundaries:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::observability::context::{TraceContext, get_context, set_context};
 
 // In request handler
@@ -137,12 +156,14 @@ client.call(service, request)
 // Clear context after request
 clear_context();
 ```text
+<!-- Code example in TEXT -->
 
 ### Span Creation and Management
 
 Use the **SpanBuilder** pattern for creating instrumentation:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::observability::tracing::{SpanBuilder, SpanStatus};
 
 // Create a span with attributes
@@ -159,12 +180,14 @@ if query_succeeded {
     span.set_status(SpanStatus::Error);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Structured Logging with Trace Correlation
 
 All logs automatically include trace context:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::observability::logging::{LogEntry, LogLevel};
 
 let entry = LogEntry::new(LogLevel::Info, "Query executed")
@@ -181,10 +204,12 @@ let entry = LogEntry::new(LogLevel::Info, "Query executed")
 // - all custom fields
 // Output: JSON to stdout
 ```text
+<!-- Code example in TEXT -->
 
 **Example JSON Output**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-31T12:34:56.789Z",
   "level": "INFO",
@@ -196,12 +221,14 @@ let entry = LogEntry::new(LogLevel::Info, "Query executed")
   "rows": 142
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Metrics Collection
 
 Metrics automatically tracked for:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::observability::metrics::MetricsCollector;
 
 let collector = MetricsCollector::new();
@@ -219,6 +246,7 @@ let summary = collector.summary();
 // - graphql_errors_total {count}
 // - graphql_duration_ms {average}
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -227,6 +255,7 @@ let summary = collector.summary();
 ### Three-Layer Observability Stack
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │                    Visualization Layer                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
@@ -269,6 +298,7 @@ let summary = collector.summary();
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## Monitoring Stack Components
 
@@ -302,6 +332,7 @@ let summary = collector.summary();
 **Log Entry Structure**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2024-01-16T15:30:45.123Z",
   "level": "INFO",
@@ -320,6 +351,7 @@ let summary = collector.summary();
   "error": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 **See Also**: [Structured Logging Guide](./structured-logging.md)
 
@@ -330,8 +362,10 @@ let summary = collector.summary();
 **W3C Trace Context Header Format**:
 
 ```text
+<!-- Code example in TEXT -->
 traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 ```text
+<!-- Code example in TEXT -->
 
 **Key Features**:
 
@@ -363,6 +397,7 @@ traceparent: 00-{32-hex-trace-id}-{16-hex-span-id}-{trace-flags}
 Track a single request through the entire execution pipeline:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{
     TraceContext, RequestContext, PerformanceMonitor,
     StructuredLogEntry, LogLevel, LogMetrics
@@ -393,12 +428,14 @@ let entry = StructuredLogEntry::new(
 
 tracing::info!("{}", entry.to_json_string());
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Service-to-Service Tracing
 
 Propagate trace context across service boundaries:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Upstream service receives request with trace
@@ -418,12 +455,14 @@ downstream_service.call(
     headers.insert("traceparent", child_trace.to_w3c_traceparent())
 )?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Performance Analysis Dashboard
 
 Real-time monitoring with Grafana:
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Configure Grafana datasource
 curl -X POST http://localhost:3000/api/datasources \
   -H "Content-Type: application/json" \
@@ -440,12 +479,14 @@ curl -X POST http://localhost:3000/api/dashboards/db \
   -H "Content-Type: application/json" \
   -d @monitoring/grafana-dashboard.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 4: Alerting Rules
 
 Set up Prometheus alerting:
 
 ```yaml
+<!-- Code example in YAML -->
 # prometheus/alerts.yml
 groups:
   - name: FraiseQL
@@ -470,12 +511,14 @@ groups:
         annotations:
           summary: "Cache hit rate below 50%"
 ```text
+<!-- Code example in TEXT -->
 
 ## Deployment Configuration
 
 ### Docker Compose (Development)
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 services:
   FraiseQL:
@@ -514,10 +557,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes (Production)
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -565,6 +610,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
 ```text
+<!-- Code example in TEXT -->
 
 ## Alerting and SLOs
 
@@ -583,6 +629,7 @@ spec:
 ### Sample SLOs
 
 ```text
+<!-- Code example in TEXT -->
 Service Level Objectives for FraiseQL v2:
 
 1. Availability SLO: 99.95% (4 hours/month downtime)
@@ -597,6 +644,7 @@ Service Level Objectives for FraiseQL v2:
 4. Query Success: > 99.9%
    - Alert if: success_rate < 99% for 5 minutes
 ```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Arrow vs JSON Data Plane: Decision Guide
+description: Use JSON (HTTP/GraphQL) for:
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Arrow vs JSON Data Plane: Decision Guide
 
 **Status:** ✅ Production Ready
@@ -8,6 +16,7 @@
 ## Quick Answer
 
 ```text
+<!-- Code example in TEXT -->
 Use JSON (HTTP/GraphQL) for:
 ├─ Web applications (browser, mobile)
 ├─ Individual user requests
@@ -23,6 +32,7 @@ Use Arrow (gRPC/Flight) for:
 ├─ Large batch operations
 └─ Direct data science access (Python, R)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -81,6 +91,7 @@ Use Arrow (gRPC/Flight) for:
 ### Question 1: Client Type?
 
 ```text
+<!-- Code example in TEXT -->
 Browser or mobile app?
 ├─ YES → JSON ✅
 │        (Only standard HTTP, no gRPC)
@@ -92,10 +103,12 @@ Browser or mobile app?
    └─ NO: Backend service?
       └─ Depends on next question
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 2: Data Volume?
 
 ```text
+<!-- Code example in TEXT -->
 Result size typically...
 
 < 10K rows?
@@ -111,10 +124,12 @@ Result size typically...
 └─ YES → Arrow ✅
          (JSON too slow)
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 3: Update Frequency?
 
 ```text
+<!-- Code example in TEXT -->
 Need real-time updates?
 ├─ YES → JSON (WebSocket) ✅
 │        (Arrow not for real-time)
@@ -125,10 +140,12 @@ Need real-time updates?
    ├─ >10 seconds → Arrow preferred ✅
    └─ Hours/days → Arrow ✅
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 4: Access Pattern?
 
 ```text
+<!-- Code example in TEXT -->
 How will data be accessed?
 
 Direct GraphQL queries?
@@ -143,6 +160,7 @@ BI dashboard (Tableau, Superset)?
 API from web app?
 └─ YES → JSON ✅
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -162,6 +180,7 @@ API from web app?
 **Performance Profile:**
 
 ```text
+<!-- Code example in TEXT -->
 Result Size  │ Latency    │ Throughput
 ─────────────┼────────────┼───────────
 100 rows     │ 5-20ms     │ 1000+ req/s
@@ -170,10 +189,12 @@ Result Size  │ Latency    │ Throughput
 100K rows    │ 1000-5000ms│ 1-10 req/s
 1M rows      │ >10s       │ <1 req/s
 ```text
+<!-- Code example in TEXT -->
 
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(limit: 1000) {
     id
@@ -186,10 +207,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": [
@@ -205,6 +228,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -244,6 +268,7 @@ query {
 **Performance Profile:**
 
 ```text
+<!-- Code example in TEXT -->
 Result Size  │ Latency     │ Throughput
 ─────────────┼─────────────┼─────────────
 100 rows     │ 5-20ms      │ 10000+ req/s
@@ -253,10 +278,12 @@ Result Size  │ Latency     │ Throughput
 1M rows      │ 200-1000ms  │ 1-10 req/s
 10M rows     │ 1-5s        │ 0.1-1 req/s
 ```text
+<!-- Code example in TEXT -->
 
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 from pyarrow import csv
 
@@ -275,6 +302,7 @@ print(f"Retrieved {len(table)} rows")
 # Save to Parquet
 csv.write_csv(table, "orders.parquet")
 ```text
+<!-- Code example in TEXT -->
 
 **Response:** Binary Apache Arrow format (50-90% smaller than JSON)
 
@@ -319,6 +347,7 @@ csv.write_csv(table, "orders.parquet")
 **Choice:** JSON (HTTP) ✅
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users_by_country_aggregate {
     country
@@ -326,6 +355,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why JSON:**
 
@@ -347,6 +377,7 @@ query {
 **Choice:** Arrow (gRPC) ✅
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 
 client = flight.connect(("FraiseQL.internal", 50051))
@@ -369,6 +400,7 @@ table = client.do_get(
 # Export to Tableau
 table.to_pandas().to_csv("sales_trends.csv")
 ```text
+<!-- Code example in TEXT -->
 
 **Why Arrow:**
 
@@ -391,6 +423,7 @@ table.to_pandas().to_csv("sales_trends.csv")
 **Choice:** JSON (HTTP) ✅
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   my_orders(limit: 50) {
     id
@@ -404,6 +437,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why JSON:**
 
@@ -419,6 +453,7 @@ query {
 ### Pattern: Start JSON, Add Arrow
 
 ```text
+<!-- Code example in TEXT -->
 Phase 1: JSON Only (MVP)
   ├─ Web app: JSON ✅
   └─ Reports: Slow JSON ⚠️
@@ -430,12 +465,14 @@ Phase 2: Add Arrow (Analytics)
 
 Result: Best of both worlds
 ```text
+<!-- Code example in TEXT -->
 
 **Timeline:** 2-3 weeks to add Arrow support
 
 ### Pattern: Cached JSON, Arrow for Exports
 
 ```text
+<!-- Code example in TEXT -->
 Real-time data: JSON (with caching)
   ├─ Frequent queries → Redis cache → Fast
   ├─ Infrequent queries → Database → Slower
@@ -444,6 +481,7 @@ Export/ETL: Arrow
   ├─ Large bulk exports → Arrow Flight → Fast
   └─ Data warehouse load → Direct Arrow → Efficient
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -452,6 +490,7 @@ Export/ETL: Arrow
 ### JSON Optimization
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Too complex
 query {
   users {
@@ -485,6 +524,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Optimization strategies:**
 
@@ -496,6 +536,7 @@ query {
 ### Arrow Optimization
 
 ```python
+<!-- Code example in Python -->
 # ❌ Full table
 query = "SELECT * FROM large_table"
 
@@ -510,6 +551,7 @@ query = """
   GROUP BY user_id
 """
 ```text
+<!-- Code example in TEXT -->
 
 **Optimization strategies:**
 
@@ -529,11 +571,13 @@ query = """
 **Solution:** Migrate large-result queries to Arrow
 
 ```bash
+<!-- Code example in BASH -->
 # Measure: Time the slow query
 time curl -X POST http://api/graphql -d '{ query }'
 
 # If >2 seconds for >10K rows: Use Arrow instead
 ```text
+<!-- Code example in TEXT -->
 
 ### "Arrow queries failing - schema mismatch"
 

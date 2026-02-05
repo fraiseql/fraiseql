@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Design Decisions: Architecture Decision Records (ADRs)
+description: This document records the fundamental architectural decisions behind FraiseQL, including the rationale, alternatives considered, and trade-offs made. Each decis
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Design Decisions: Architecture Decision Records (ADRs)
 
 **Date:** January 2026
@@ -32,12 +40,14 @@ This document records the fundamental architectural decisions behind FraiseQL, i
 **FraiseQL approach**: Compile everything ahead of time:
 
 ```text
+<!-- Code example in TEXT -->
 Schema (Python)
     ↓ Compile
 CompiledSchema (optimized IR)
     ↓ Runtime
 Execute deterministically
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -96,6 +106,7 @@ Execute deterministically
 **FraiseQL approach**: All joins happen in database:
 
 ```text
+<!-- Code example in TEXT -->
 Query: user.posts.comments.author
 ↓
 Compiled to single SQL query with JOINs
@@ -104,6 +115,7 @@ Database executes optimally
 ↓
 Single round-trip
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -165,17 +177,19 @@ All three are **first-class**, compiled from same schema, not afterthoughts.
 **Problem**: Single-mode APIs force wrong tool for job:
 
 - GraphQL for analytics is inefficient (wrong data format)
-- REST for events doesn't exist (polling hack)
+- REST for events doesn't exist (polling creative solution)
 - Message queues for real-time don't have schema
 
 **FraiseQL approach**: One schema, three optimal interfaces:
 
 ```text
+<!-- Code example in TEXT -->
 Schema
 ├─ JSON Plane (GraphQL): Interactive queries (OLTP)
 ├─ Arrow Plane (columnar): Analytics (OLAP)
 └─ Delta Plane (streams): Events (CDC)
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -238,9 +252,11 @@ Schema
 **FraiseQL approach**: Optimize federation for same-database cases:
 
 ```text
+<!-- Code example in TEXT -->
 Different database: User → HTTP → remote_db → User (50ms)
 Same database: User → FDW → same_db → User (5ms, 10x faster)
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -304,12 +320,14 @@ Same database: User → FDW → same_db → User (5ms, 10x faster)
 **FraiseQL approach**: Explicit, mandatory authorization:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 @FraiseQL.authorize(rule="authenticated")  # Explicit required
 class Post:
     @FraiseQL.authorize(rule="published_or_author")  # Explicit per-field
     content: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -365,6 +383,7 @@ class Post:
 **FraiseQL approach**: Technical immutability:
 
 ```sql
+<!-- Code example in SQL -->
 -- Cannot UPDATE or DELETE audit logs
 CREATE TABLE tb_audit_log (
     id BIGSERIAL PRIMARY KEY,
@@ -379,6 +398,7 @@ CREATE TABLE tb_audit_log (
 -- Even database role can't DELETE
 REVOKE DELETE ON tb_audit_log FROM audit_role;
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -439,6 +459,7 @@ REVOKE DELETE ON tb_audit_log FROM audit_role;
 **FraiseQL approach**: Database as event source:
 
 ```text
+<!-- Code example in TEXT -->
 User mutation committed
     ↓
 Trigger fires in database
@@ -449,6 +470,7 @@ Runtime receives guaranteed event
     ↓
 Send to subscribers
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -510,11 +532,13 @@ Send to subscribers
 **FraiseQL approach**: Generate per-database schema:
 
 ```text
+<!-- Code example in TEXT -->
 User schema (generic)
     ├─ Compile for PostgreSQL 15 → PostgreSQL-optimized schema
     ├─ Compile for MySQL 8 → MySQL-optimized schema
     └─ Compile for SQL Server 2022 → SQL Server-optimized schema
 ```text
+<!-- Code example in TEXT -->
 
 Each uses database-specific features (JSONB, partitioning, etc.)
 
@@ -573,6 +597,7 @@ Each uses database-specific features (JSONB, partitioning, etc.)
 **FraiseQL approach**: Query-level cache:
 
 ```text
+<!-- Code example in TEXT -->
 Query: GetUserPosts
     ├─ Cache key: {operation_name, variables, user_id}
     ├─ Cached result: {id, title, author, comments}
@@ -581,6 +606,7 @@ Query: GetUserPosts
 When data changes:
     └─ Invalidate entire "GetUserPosts" (all variants)
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -637,6 +663,7 @@ When data changes:
 **FraiseQL approach**: Server derives authorization:
 
 ```text
+<!-- Code example in TEXT -->
 Client: "I'm user-456 (don't trust)"
     ↓
 Server verifies JWT/token signature
@@ -648,6 +675,7 @@ Server queries: SELECT roles FROM tb_user WHERE id = 'user-456'
 Server evaluates authorization rules
     ✓ Result: User can read this field
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -704,11 +732,13 @@ Server evaluates authorization rules
 **FraiseQL approach**: Lock error codes within version:
 
 ```text
+<!-- Code example in TEXT -->
 v2.0.0: E_DB_QUERY_TIMEOUT_302 = "Query timeout"
 v2.1.0: Same (cannot change)
 v2.5.0: Same (still cannot change)
 v3.0.0: Can change (new major version)
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -763,6 +793,7 @@ v3.0.0: Can change (new major version)
 **FraiseQL approach**: Safe by default:
 
 ```text
+<!-- Code example in TEXT -->
 Default: SERIALIZABLE (safest)
     ├─ No dirty reads
     ├─ No non-repeatable reads
@@ -774,6 +805,7 @@ Optional: READ_COMMITTED (faster, weaker)
     ├─ Possible phantom reads
     └─ Use only if you understand risks
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -829,19 +861,23 @@ Optional: READ_COMMITTED (faster, weaker)
 **FraiseQL approach**: Version in compiled schema only:
 
 ```text
+<!-- Code example in TEXT -->
 CompiledSchema {
     framework_version: "2.0.0",
     compiled_schema_version: 1,
     types: { User, Post, ... }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Runtime checks version at startup:
 
 ```text
+<!-- Code example in TEXT -->
 Compiled schema v2.0.0 matches runtime v2.0.0 ✓
 → Load schema
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -897,6 +933,7 @@ Compiled schema v2.0.0 matches runtime v2.0.0 ✓
 **FraiseQL approach**: Two schemas:
 
 ```text
+<!-- Code example in TEXT -->
 User Schema (Python)
     @FraiseQL.type
     class User:
@@ -922,6 +959,7 @@ Compiled Schema (executable)
         "sql_plans": {...}
     }
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -979,6 +1017,7 @@ Compiled Schema (executable)
 **FraiseQL approach**: Explicit in schema:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Post:
     id: ID
@@ -991,6 +1030,7 @@ class Post:
     # Explicit: This field is ours
     comments: [Comment]
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs
 
@@ -1034,6 +1074,7 @@ class Post:
 FraiseQL's architectural decisions stem from these core principles:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Predictability: Same inputs, same outputs (determinism)
 2. Security: Deny by default, explicit allow
@@ -1044,6 +1085,7 @@ FraiseQL's architectural decisions stem from these core principles:
 7. Consistency: Strong consistency by default
 8. Compatibility: Follows standards (Apollo Federation v2, W3C Trace, etc.)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

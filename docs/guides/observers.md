@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Observer System
+description: - Event-driven architecture concepts
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Observer System
 
 **Status:** ✅ Production Ready
@@ -63,6 +71,7 @@ The FraiseQL Observer System enables event-driven architectures by triggering ac
 ### Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Database Change (INSERT/UPDATE/DELETE)
          ↓
    Change Log Table (tb_entity_change_log)
@@ -75,6 +84,7 @@ Database Change (INSERT/UPDATE/DELETE)
          ↓
    Retry on Failure (configurable backoff)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -83,6 +93,7 @@ Database Change (INSERT/UPDATE/DELETE)
 ### Python
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import ObserverBuilder, Webhook, SlackAction, EmailAction
 
 # Observer 1: High-value orders → Webhook + Slack
@@ -117,10 +128,12 @@ ObserverBuilder.create('onPaymentFailure')
     .retry(max_attempts=5, backoff_strategy='exponential')
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ### TypeScript
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { ObserverBuilder, Webhook, SlackAction, EmailAction } from '@FraiseQL/core';
 
 // Observer 1: High-value orders
@@ -145,10 +158,12 @@ ObserverBuilder.create('onOrderShipped')
     }))
     .register();
 ```text
+<!-- Code example in TEXT -->
 
 ### Go
 
 ```go
+<!-- Code example in Go -->
 import "github.com/FraiseQL/FraiseQL-go/observers"
 
 // Observer 1: High-value orders
@@ -173,10 +188,12 @@ observers.NewBuilder("onOrderShipped").
     )).
     Register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Java
 
 ```java
+<!-- Code example in Java -->
 import com.FraiseQL.observers.*;
 
 // Observer 1: High-value orders
@@ -201,10 +218,12 @@ ObserverBuilder.create("onOrderShipped")
     ))
     .register();
 ```text
+<!-- Code example in TEXT -->
 
 ### PHP
 
 ```php
+<!-- Code example in PHP -->
 use FraiseQL\{ObserverBuilder, Webhook, SlackAction, EmailAction};
 
 // Observer 1: High-value orders
@@ -229,6 +248,7 @@ ObserverBuilder::create('onOrderShipped')
     ))
     ->register();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -249,6 +269,7 @@ Observers trigger on three database event types:
 Use FraiseQL DSL to filter events:
 
 ```python
+<!-- Code example in Python -->
 # Simple comparison
 .condition('total > 1000')
 
@@ -261,6 +282,7 @@ Use FraiseQL DSL to filter events:
 # Multiple fields
 .condition("total > 1000 and customer_tier == 'premium'")
 ```text
+<!-- Code example in TEXT -->
 
 **Available Functions**:
 
@@ -275,6 +297,7 @@ Use FraiseQL DSL to filter events:
 Send HTTP POST request with event data:
 
 ```python
+<!-- Code example in Python -->
 # Static URL
 Webhook.create('https://api.example.com/webhook')
 
@@ -296,10 +319,12 @@ Webhook.create('https://api.example.com/webhook', body_template='''
 }
 ''')
 ```text
+<!-- Code example in TEXT -->
 
 **Payload Format**:
 
 ```json
+<!-- Code example in JSON -->
 {
     "event": "INSERT",
     "entity": "Order",
@@ -313,12 +338,14 @@ Webhook.create('https://api.example.com/webhook', body_template='''
     "timestamp": "2026-01-23T10:30:00Z"
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2. Slack Action
 
 Send message to Slack channel:
 
 ```python
+<!-- Code example in Python -->
 # Basic message
 SlackAction.create('#sales', 'New order {id} by {customer_email}')
 
@@ -328,6 +355,7 @@ SlackAction.create('#sales', '🎉 High-value order {id}: ${total}')
 # URL from environment
 SlackAction.with_env('SLACK_WEBHOOK_URL', '#alerts', 'Payment failed: {id}')
 ```text
+<!-- Code example in TEXT -->
 
 **Template Variables**:
 
@@ -340,6 +368,7 @@ SlackAction.with_env('SLACK_WEBHOOK_URL', '#alerts', 'Payment failed: {id}')
 Send email notifications:
 
 ```python
+<!-- Code example in Python -->
 # Simple email
 EmailAction.create(
     to='admin@example.com',
@@ -363,12 +392,14 @@ EmailAction.create(
     content_type='text/html'
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Retry Configuration
 
 Automatic retry with backoff strategies:
 
 ```python
+<!-- Code example in Python -->
 # Exponential backoff (default)
 .retry(
     max_attempts=3,
@@ -393,6 +424,7 @@ Automatic retry with backoff strategies:
     max_delay_ms=5000
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Backoff Formulas**:
 
@@ -407,6 +439,7 @@ Automatic retry with backoff strategies:
 Observers are compiled into JSON schema:
 
 ```json
+<!-- Code example in JSON -->
 {
     "version": "1.0",
     "types": [
@@ -442,6 +475,7 @@ Observers are compiled into JSON schema:
     ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -452,6 +486,7 @@ Observers are compiled into JSON schema:
 **Step 1**: Update your SDK to version 2.0+
 
 ```bash
+<!-- Code example in BASH -->
 # Python
 pip install --upgrade FraiseQL
 
@@ -467,10 +502,12 @@ go get github.com/FraiseQL/FraiseQL-go@v2.0.0
 # PHP
 composer require FraiseQL/FraiseQL:^2.0
 ```text
+<!-- Code example in TEXT -->
 
 **Step 2**: Add observer definitions to your schema
 
 ```python
+<!-- Code example in Python -->
 # In your existing schema file (e.g., schema.py)
 from FraiseQL import ObserverBuilder, Webhook
 
@@ -481,22 +518,27 @@ ObserverBuilder.create('onOrderCreated')
     .add_action(Webhook.create('https://api.example.com/orders'))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 **Step 3**: Recompile schema
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 **Step 4**: Deploy updated schema
 
 ```bash
+<!-- Code example in BASH -->
 # Development
 FraiseQL-server --schema schema.compiled.json
 
 # Production
 # Update deployed schema file and restart server
 ```text
+<!-- Code example in TEXT -->
 
 ### Backward Compatibility
 
@@ -514,6 +556,7 @@ FraiseQL-server --schema schema.compiled.json
 Use descriptive, action-oriented names:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good
 'onHighValueOrder'
 'onOrderShipped'
@@ -525,12 +568,14 @@ Use descriptive, action-oriented names:
 'order_webhook'
 'check_status'
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Condition Design
 
 Keep conditions simple and readable:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good - Clear intent
 .condition('total > 1000')
 .condition("status.changed() and status == 'shipped'")
@@ -538,10 +583,12 @@ Keep conditions simple and readable:
 # ❌ Bad - Too complex, hard to debug
 .condition('(total > 1000 and tier == "premium") or (total > 5000 and tier == "standard") and status != "cancelled"')
 ```text
+<!-- Code example in TEXT -->
 
 For complex logic, use multiple observers:
 
 ```python
+<!-- Code example in Python -->
 # Observer 1: Premium high-value orders
 ObserverBuilder.create('onPremiumHighValueOrder')
     .entity('Order')
@@ -558,12 +605,14 @@ ObserverBuilder.create('onStandardVeryHighValueOrder')
     .add_action(...)
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Action Design
 
 **Group related actions**:
 
 ```python
+<!-- Code example in Python -->
 ObserverBuilder.create('onOrderShipped')
     .entity('Order')
     .event('UPDATE')
@@ -573,10 +622,12 @@ ObserverBuilder.create('onOrderShipped')
     .add_action(SlackAction.create('#ops', 'Order shipped: {id}'))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 **Separate unrelated actions**:
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad - Mixing concerns
 ObserverBuilder.create('onOrderEvent')
     .entity('Order')
@@ -594,12 +645,14 @@ ObserverBuilder.create('onOrderCancelled')
     .condition("status == 'cancelled'")
     ...
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Retry Configuration
 
 **Choose appropriate backoff**:
 
 ```python
+<!-- Code example in Python -->
 # External APIs - Exponential backoff (avoid overwhelming)
 .retry(max_attempts=5, backoff_strategy='exponential')
 
@@ -609,10 +662,12 @@ ObserverBuilder.create('onOrderCancelled')
 # Non-critical notifications - Fixed delay (simple)
 .retry(max_attempts=3, backoff_strategy='fixed')
 ```text
+<!-- Code example in TEXT -->
 
 **Set reasonable limits**:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good - Balanced
 .retry(max_attempts=3, initial_delay_ms=1000, max_delay_ms=60000)
 
@@ -622,28 +677,33 @@ ObserverBuilder.create('onOrderCancelled')
 # ⚠️ Risky - Too passive (events may be lost)
 .retry(max_attempts=1, initial_delay_ms=10000, max_delay_ms=10000)
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Security
 
 **Use environment variables for sensitive URLs**:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good
 Webhook.with_env('WEBHOOK_URL')
 
 # ❌ Bad - Hardcoded secrets
 Webhook.create('https://api.example.com/webhook?token=secret123')
 ```text
+<!-- Code example in TEXT -->
 
 **Validate webhook endpoints**:
 
 ```python
+<!-- Code example in Python -->
 # Add authentication headers
 Webhook.create('https://api.example.com/webhook', headers={
     'Authorization': 'Bearer {WEBHOOK_TOKEN}',
     'X-FraiseQL-Signature': '{signature}'
 })
 ```text
+<!-- Code example in TEXT -->
 
 ### 6. Performance
 
@@ -656,22 +716,26 @@ Webhook.create('https://api.example.com/webhook', headers={
 **Use specific conditions**:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good - Specific, fewer executions
 .condition('status == "shipped"')
 
 # ❌ Bad - Broad, many executions
 .condition('status != null')
 ```text
+<!-- Code example in TEXT -->
 
 **Optimize webhook payloads**:
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good - Only necessary fields
 Webhook.create(..., body_template='{"id": "{{id}}", "status": "{{status}}"}')
 
 # ❌ Bad - Full payload for large entities
 Webhook.create(..., body_template='{{_json}}')  # May be 100KB+
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -682,6 +746,7 @@ Webhook.create(..., body_template='{{_json}}')  # May be 100KB+
 All observer executions are logged in `tb_observer_log`:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     observer_name,
     entity_type,
@@ -696,12 +761,14 @@ WHERE observer_name = 'onHighValueOrder'
 ORDER BY created_at DESC
 LIMIT 100;
 ```text
+<!-- Code example in TEXT -->
 
 ### Dead Letter Queue (DLQ)
 
 Failed events after max retries go to DLQ:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     observer_name,
     entity_id,
@@ -713,10 +780,12 @@ FROM core.tb_observer_dlq
 WHERE observer_name = 'onPaymentFailure'
 ORDER BY last_attempted_at DESC;
 ```text
+<!-- Code example in TEXT -->
 
 **Reprocess DLQ entries**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Mark for retry (picked up by runtime)
 UPDATE core.tb_observer_dlq
 SET retry_count = 0,
@@ -724,12 +793,14 @@ SET retry_count = 0,
 WHERE observer_name = 'onPaymentFailure'
   AND entity_id = 'payment-123';
 ```text
+<!-- Code example in TEXT -->
 
 ### Metrics
 
 Monitor observer health:
 
 ```sql
+<!-- Code example in SQL -->
 -- Success rate by observer
 SELECT
     observer_name,
@@ -750,12 +821,14 @@ FROM core.tb_observer_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY observer_name;
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime Health
 
 Check observer runtime status:
 
 ```bash
+<!-- Code example in BASH -->
 # HTTP health endpoint
 curl http://localhost:8080/health/observers
 
@@ -769,6 +842,7 @@ curl http://localhost:8080/health/observers
     "uptime_seconds": 86400
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -779,6 +853,7 @@ curl http://localhost:8080/health/observers
 Trigger multiple observers for a single event:
 
 ```python
+<!-- Code example in Python -->
 # Observer 1: Analytics
 ObserverBuilder.create('analyticsOrderCreated')
     .entity('Order')
@@ -800,12 +875,14 @@ ObserverBuilder.create('notifyOrderCreated')
     .add_action(EmailAction.create(...))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Conditional Routing
 
 Route events to different endpoints based on data:
 
 ```python
+<!-- Code example in Python -->
 # Route 1: Domestic orders
 ObserverBuilder.create('onDomesticOrder')
     .entity('Order')
@@ -822,12 +899,14 @@ ObserverBuilder.create('onInternationalOrder')
     .add_action(Webhook.create('https://international.shipping.com'))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Cascading Events
 
 Chain observers across entities:
 
 ```python
+<!-- Code example in Python -->
 # Step 1: Order created → Generate invoice
 ObserverBuilder.create('onOrderCreated')
     .entity('Order')
@@ -846,12 +925,14 @@ ObserverBuilder.create('onInvoiceCreated')
     ))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ### Circuit Breaker Pattern
 
 Automatically disable observers after repeated failures:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create monitoring view
 CREATE VIEW v_observer_health AS
 SELECT
@@ -866,6 +947,7 @@ HAVING COUNT(*) FILTER (WHERE status = 'failed') > 50;
 -- Alert when threshold exceeded
 -- (Integrate with monitoring system)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -876,13 +958,16 @@ HAVING COUNT(*) FILTER (WHERE status = 'failed') > 50;
 **Check 1**: Verify observer is loaded
 
 ```bash
+<!-- Code example in BASH -->
 # Check compiled schema
 jq '.observers[] | select(.name == "onHighValueOrder")' schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 **Check 2**: Verify condition evaluation
 
 ```sql
+<!-- Code example in SQL -->
 -- Test condition with sample data
 SELECT
     id,
@@ -891,10 +976,12 @@ SELECT
 FROM v_order
 WHERE id = 'order-123';
 ```text
+<!-- Code example in TEXT -->
 
 **Check 3**: Check change log
 
 ```sql
+<!-- Code example in SQL -->
 -- Verify event was logged
 SELECT * FROM core.tb_entity_change_log
 WHERE object_type = 'Order'
@@ -902,20 +989,24 @@ WHERE object_type = 'Order'
 ORDER BY created_at DESC
 LIMIT 10;
 ```text
+<!-- Code example in TEXT -->
 
 ### Webhook Failures
 
 **Check 1**: Verify endpoint is reachable
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST https://api.example.com/webhook \
   -H "Content-Type: application/json" \
   -d '{"test": true}'
 ```text
+<!-- Code example in TEXT -->
 
 **Check 2**: Check observer logs
 
 ```sql
+<!-- Code example in SQL -->
 SELECT error_message, attempt_count
 FROM core.tb_observer_log
 WHERE observer_name = 'onHighValueOrder'
@@ -923,14 +1014,17 @@ WHERE observer_name = 'onHighValueOrder'
 ORDER BY created_at DESC
 LIMIT 10;
 ```text
+<!-- Code example in TEXT -->
 
 **Check 3**: Review DLQ
 
 ```sql
+<!-- Code example in SQL -->
 SELECT entity_id, error_message, event_data
 FROM core.tb_observer_dlq
 WHERE observer_name = 'onHighValueOrder';
 ```text
+<!-- Code example in TEXT -->
 
 ### High Retry Counts
 
@@ -939,6 +1033,7 @@ WHERE observer_name = 'onHighValueOrder';
 **Diagnosis**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     observer_name,
     AVG(attempt_count) as avg_attempts,
@@ -948,6 +1043,7 @@ WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY observer_name
 HAVING AVG(attempt_count) > 2;
 ```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -969,6 +1065,7 @@ HAVING AVG(attempt_count) > 2;
 **Solutions**:
 
 ```python
+<!-- Code example in Python -->
 # 1. Reduce payload size
 Webhook.create(..., body_template='{"id": "{{id}}"}')  # Not {{_json}}
 
@@ -986,6 +1083,7 @@ resources:
   requests:
     memory: 256Mi
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -996,12 +1094,14 @@ resources:
 Adjust based on latency requirements:
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL-server config
 [observer_runtime]
 poll_interval_ms = 100  # Low latency (10 events/sec max per poll)
 poll_interval_ms = 1000  # Standard (default)
 poll_interval_ms = 5000  # Batch processing
 ```text
+<!-- Code example in TEXT -->
 
 **Trade-offs**:
 
@@ -1013,11 +1113,13 @@ poll_interval_ms = 5000  # Batch processing
 Process multiple events per poll:
 
 ```toml
+<!-- Code example in TOML -->
 [observer_runtime]
 batch_size = 10   # Low volume
 batch_size = 100  # Standard (default)
 batch_size = 1000 # High volume
 ```text
+<!-- Code example in TEXT -->
 
 **Recommendations**:
 
@@ -1030,11 +1132,13 @@ batch_size = 1000 # High volume
 Balance durability vs performance:
 
 ```toml
+<!-- Code example in TOML -->
 [observer_runtime]
 checkpoint_interval_ms = 1000   # Every second (safest)
 checkpoint_interval_ms = 5000   # Every 5 seconds (default)
 checkpoint_interval_ms = 10000  # Every 10 seconds (fastest)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1051,11 +1155,13 @@ The Observer API is available in all supported languages: Python, TypeScript, Go
 Yes! Observers work with any table that has the FraiseQL change log trigger installed. For existing tables:
 
 ```sql
+<!-- Code example in SQL -->
 -- Add change log trigger to existing table
 CREATE TRIGGER tr_order_change_log
 AFTER INSERT OR UPDATE OR DELETE ON public.t_order
 FOR EACH ROW EXECUTE FUNCTION core.fn_log_entity_change('Order');
 ```text
+<!-- Code example in TEXT -->
 
 ### Do observers slow down INSERT/UPDATE/DELETE?
 
@@ -1070,18 +1176,21 @@ Minimal impact:
 Yes:
 
 ```bash
+<!-- Code example in BASH -->
 # Stop observer runtime
 curl -X POST http://localhost:8080/admin/observers/stop
 
 # Restart observer runtime
 curl -X POST http://localhost:8080/admin/observers/start
 ```text
+<!-- Code example in TEXT -->
 
 ### How do I test observers in development?
 
 Use mock webhook servers:
 
 ```bash
+<!-- Code example in BASH -->
 # Start mock server
 docker run -p 8080:8080 mockserver/mockserver
 
@@ -1091,12 +1200,14 @@ Webhook.create('http://localhost:8080/webhook')
 # Verify requests
 curl http://localhost:8080/mockserver/expectation
 ```text
+<!-- Code example in TEXT -->
 
 ### Can observers call other FraiseQL mutations?
 
 Yes, via webhooks:
 
 ```python
+<!-- Code example in Python -->
 ObserverBuilder.create('onOrderCreated')
     .entity('Order')
     .event('INSERT')
@@ -1110,6 +1221,7 @@ ObserverBuilder.create('onOrderCreated')
     ))
     .register()
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

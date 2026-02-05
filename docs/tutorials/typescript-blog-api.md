@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Building a Blog API with FraiseQL: TypeScript Schema Authoring Tutorial
+description: In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeScript schema authoring layer. You'll learn:
+keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # Building a Blog API with FraiseQL: TypeScript Schema Authoring Tutorial
 
 **Audience:** TypeScript developers, schema designers, API builders
@@ -24,9 +32,11 @@ In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeS
 **Architecture:**
 
 ```text
+<!-- Code example in TEXT -->
 TypeScript Schema        → schema.json        → schema.compiled.json → FraiseQL Server
 (@Type, @Query, @Mutation)  (decorators)      (FraiseQL-cli)        (GraphQL API)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -39,6 +49,7 @@ Before writing GraphQL types, we need the underlying database schema. FraiseQL c
 Create the following tables in PostgreSQL:
 
 ```sql
+<!-- Code example in SQL -->
 -- Users table: Core user accounts
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
@@ -76,12 +87,14 @@ CREATE INDEX idx_posts_published ON posts(published_at DESC);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_author_id ON comments(author_id);
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Database Views (for GraphQL Queries)
 
 FraiseQL queries typically execute against views, which provide data access boundaries and can include business logic:
 
 ```sql
+<!-- Code example in SQL -->
 -- View: Get all users with post count
 CREATE VIEW v_user AS
 SELECT
@@ -128,12 +141,14 @@ SELECT
 FROM comments c
 JOIN users u ON c.author_id = u.id;
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Database Procedures (for Mutations)
 
 FraiseQL mutations execute stored procedures that handle CREATE, UPDATE, DELETE operations:
 
 ```sql
+<!-- Code example in SQL -->
 -- Function: Create a new user
 CREATE OR REPLACE FUNCTION fn_create_user(
     p_email VARCHAR,
@@ -193,6 +208,7 @@ WHERE id = p_id
 RETURNING *;
 $$ LANGUAGE SQL;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -203,6 +219,7 @@ $$ LANGUAGE SQL;
 Create a new TypeScript project:
 
 ```bash
+<!-- Code example in BASH -->
 mkdir blog-api && cd blog-api
 npm init -y
 npm install --save-dev typescript ts-node @types/node
@@ -211,12 +228,14 @@ npm install FraiseQL
 # Create src directory
 mkdir src
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 TypeScript Configuration
 
 Create `tsconfig.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -239,6 +258,7 @@ Create `tsconfig.json`:
   "exclude": ["node_modules", "dist"]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Key settings:**
 
@@ -252,6 +272,7 @@ Create `tsconfig.json`:
 Create `package.json` scripts:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "blog-api",
   "version": "1.0.0",
@@ -272,6 +293,7 @@ Create `package.json` scripts:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -282,6 +304,7 @@ Create `package.json` scripts:
 Create `src/schema.ts`:
 
 ```typescript
+<!-- Code example in TypeScript -->
 /**
  * Blog API Schema - TypeScript Authoring
  *
@@ -802,6 +825,7 @@ if (require.main === module) {
 
 export { User, Post, Comment };
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Understanding the Decorators
 
@@ -810,6 +834,7 @@ export { User, Post, Comment };
 Marks a class as a GraphQL type:
 
 ```typescript
+<!-- Code example in TypeScript -->
 @FraiseQL.Type({
   description: "A user account"
 })
@@ -818,6 +843,7 @@ class User {
   name: string;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **What it does:**
 
@@ -830,6 +856,7 @@ class User {
 Maps TypeScript properties to GraphQL fields:
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerTypeFields("User", [
   {
     name: "id",
@@ -844,6 +871,7 @@ FraiseQL.registerTypeFields("User", [
   }
 ]);
 ```text
+<!-- Code example in TEXT -->
 
 **Scalar types:**
 
@@ -867,6 +895,7 @@ FraiseQL.registerTypeFields("User", [
 Defines a read operation:
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerQuery(
   "users",              // Query name in GraphQL
   "User",               // Return type (must be a registered @Type)
@@ -884,6 +913,7 @@ FraiseQL.registerQuery(
   { sqlSource: "v_user" }  // View or table name
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -902,6 +932,7 @@ FraiseQL.registerQuery(
 Defines a write operation:
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerMutation(
   "createUser",
   "User",
@@ -918,12 +949,14 @@ FraiseQL.registerMutation(
   }
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 TypeScript Type System
 
 **Nullable vs Non-Nullable:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 // TypeScript          → GraphQL
 name: string          // String!      (required)
 name?: string         // String       (optional)
@@ -933,12 +966,14 @@ name: string | null   // String       (optional)
 posts: Post[]         // [Post!]!     (non-null array of non-null items)
 posts?: Post[]        // [Post!]      (non-null array, but field optional)
 ```text
+<!-- Code example in TEXT -->
 
 **Relationships:**
 
 In FraiseQL, relationships are typically denormalized into views:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Instead of nested relationships...
 @FraiseQL.Type()
 class User {
@@ -976,6 +1011,7 @@ FraiseQL.registerQuery(
   { sqlSource: "v_post" }
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -984,22 +1020,27 @@ FraiseQL.registerQuery(
 ### 4.1 Running the Export
 
 ```bash
+<!-- Code example in BASH -->
 npm run export
 ```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```text
+<!-- Code example in TEXT -->
 ✅ Schema exported successfully!
    Output: schema.json
    Types: 3 (User, Post, Comment)
    Queries: 6
    Mutations: 4
 ```text
+<!-- Code example in TEXT -->
 
 This generates `schema.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "types": [
@@ -1060,6 +1101,7 @@ This generates `schema.json`:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Understanding the Generated JSON
 
@@ -1102,8 +1144,10 @@ This generates `schema.json`:
 **Solution: Check for TypeScript errors**
 
 ```bash
+<!-- Code example in BASH -->
 npx tsc --noEmit
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1114,6 +1158,7 @@ npx tsc --noEmit
 Create `FraiseQL.toml` at the project root:
 
 ```toml
+<!-- Code example in TOML -->
 # Blog API Configuration
 
 [FraiseQL]
@@ -1141,17 +1186,20 @@ bind = "0.0.0.0"
 port = 4000
 cors_origins = ["*"]
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Environment Variable Overrides
 
 For production, override sensitive values:
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_DB_HOST=prod-db.example.com
 export FRAISEQL_DB_NAME=blog_prod
 export FRAISEQL_DB_USERNAME=blog_prod_user
 export FRAISEQL_DB_PASSWORD=<secure-password>
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1162,8 +1210,10 @@ export FRAISEQL_DB_PASSWORD=<secure-password>
 Once you have `schema.json` and `FraiseQL.toml`, compile:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL compile FraiseQL.toml --types schema.json
 ```text
+<!-- Code example in TEXT -->
 
 **What it does:**
 
@@ -1176,6 +1226,7 @@ FraiseQL compile FraiseQL.toml --types schema.json
 **Output:**
 
 ```text
+<!-- Code example in TEXT -->
 Compiling Blog API v1.0.0...
 ✅ Database connection successful
 ✅ Validated 3 types (User, Post, Comment)
@@ -1184,12 +1235,14 @@ Compiling Blog API v1.0.0...
 ✅ Generated SQL templates
 ✅ Compiled schema saved: schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Understanding schema.compiled.json
 
 The compiled schema includes:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "name": "blog-api",
@@ -1208,6 +1261,7 @@ The compiled schema includes:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Troubleshooting Compilation Errors
 
@@ -1230,6 +1284,7 @@ The compiled schema includes:
 **Solution: Debug with psql**
 
 ```bash
+<!-- Code example in BASH -->
 # Connect to database
 psql -h localhost -U blog_user -d blog_db
 
@@ -1242,6 +1297,7 @@ SELECT * FROM v_user LIMIT 1;
 # Check function signature
 \df fn_create_user;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1250,17 +1306,21 @@ SELECT * FROM v_user LIMIT 1;
 ### 7.1 Starting the Server
 
 ```bash
+<!-- Code example in BASH -->
 npm run dev
 ```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```text
+<!-- Code example in TEXT -->
 Starting FraiseQL server...
 ✅ Loaded schema.compiled.json
 ✅ Connected to PostgreSQL (localhost:5432)
 ✅ Server running at http://localhost:4000/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Testing with GraphQL IDE
 
@@ -1269,6 +1329,7 @@ Visit <http://localhost:4000/graphql> in your browser to open the GraphQL IDE (A
 **Example Query:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetAllUsers {
   users(limit: 10) {
     id
@@ -1279,10 +1340,12 @@ query GetAllUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Response:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": [
@@ -1304,12 +1367,14 @@ query GetAllUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Example Mutations
 
 **Create User:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createUser(
     email: "charlie@example.com"
@@ -1322,10 +1387,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Create Post:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createPost(
     title: "My First Post"
@@ -1339,10 +1406,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Create Comment:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createComment(
     text: "Great post!"
@@ -1355,6 +1424,7 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1363,6 +1433,7 @@ mutation {
 ### 8.1 Using curl
 
 ```bash
+<!-- Code example in BASH -->
 # Query all users
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
@@ -1377,6 +1448,7 @@ curl -X POST http://localhost:4000/graphql \
     "query": "mutation { createUser(email: \"test@example.com\" name: \"Test\") { id } }"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Using Postman
 
@@ -1385,16 +1457,19 @@ curl -X POST http://localhost:4000/graphql \
 3. Body (raw):
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "{ users(limit: 10) { id email name } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 TypeScript Integration Tests
 
 Create `src/tests.ts`:
 
 ```typescript
+<!-- Code example in TypeScript -->
 /**
  * Integration tests for Blog API
  */
@@ -1463,6 +1538,7 @@ if (require.main === module) {
   runTests().catch(console.error);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1473,6 +1549,7 @@ if (require.main === module) {
 **Query Definition:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerQuery(
   "posts",
   "Post",
@@ -1486,10 +1563,12 @@ FraiseQL.registerQuery(
   { sqlSource: "v_post" }
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Usage:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   posts(limit: 20, offset: 0) {
     id
@@ -1498,12 +1577,14 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Filtering
 
 Create separate queries for common filters:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Query: Posts by author
 FraiseQL.registerQuery(
   "postsByAuthor",
@@ -1529,23 +1610,27 @@ FraiseQL.registerQuery(
   { sqlSource: "v_comment" }
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Sorting
 
 Include sort parameter as enum:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // In FraiseQL.toml config (future feature):
 // [queries.posts]
 // sortBy = ["created_at", "title"]
 // sortOrder = ["ASC", "DESC"]
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.4 Optional Fields
 
 Use `nullable: true` for optional parameters:
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerMutation(
   "updateUser",
   "User",
@@ -1560,12 +1645,14 @@ FraiseQL.registerMutation(
   { sqlSource: "fn_update_user" }
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.5 Computed Fields
 
 Add fields that are computed in the view:
 
 ```sql
+<!-- Code example in SQL -->
 -- v_user includes computed fields
 CREATE VIEW v_user AS
 SELECT
@@ -1580,16 +1667,19 @@ LEFT JOIN posts p ON u.id = p.author_id
 LEFT JOIN comments c ON u.id = c.author_id
 GROUP BY u.id;
 ```text
+<!-- Code example in TEXT -->
 
 Then register these fields:
 
 ```typescript
+<!-- Code example in TypeScript -->
 FraiseQL.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false },
   { name: "postCount", type: "Int", nullable: false },       // Computed in view
   { name: "commentCount", type: "Int", nullable: false }     // Computed in view
 ]);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1600,6 +1690,7 @@ FraiseQL.registerTypeFields("User", [
 Create `Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 FROM node:18-alpine
 
 WORKDIR /app
@@ -1621,10 +1712,12 @@ CMD ["FraiseQL-server", \
      "--schema", "schema.compiled.json", \
      "--port", "4000"]
 ```text
+<!-- Code example in TEXT -->
 
 Create `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -1655,10 +1748,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 **Deploy:**
 
 ```bash
+<!-- Code example in BASH -->
 # Build and start
 docker-compose up -d
 
@@ -1669,12 +1764,14 @@ docker-compose logs -f FraiseQL
 curl http://localhost:4000/graphql -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 1) { id } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Health Checks
 
 FraiseQL provides health check endpoints:
 
 ```bash
+<!-- Code example in BASH -->
 # Health check
 curl http://localhost:4000/health
 
@@ -1686,12 +1783,14 @@ curl http://localhost:4000/health
   "uptime_seconds": 125
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.3 Environment Configuration
 
 **Production setup:**
 
 ```bash
+<!-- Code example in BASH -->
 # .env.production
 FRAISEQL_DB_HOST=prod-db.internal
 FRAISEQL_DB_NAME=blog_prod
@@ -1700,6 +1799,7 @@ FRAISEQL_DB_PASSWORD=<from-vault>
 FRAISEQL_ENABLE_INTROSPECTION=false
 FRAISEQL_LOG_LEVEL=info
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1712,14 +1812,17 @@ FRAISEQL_LOG_LEVEL=info
 Solution:
 
 ```bash
+<!-- Code example in BASH -->
 npm install FraiseQL --save
 ```text
+<!-- Code example in TEXT -->
 
 **Issue: "Experimental decorators must be set to true"**
 
 Solution: Verify `tsconfig.json` has:
 
 ```json
+<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -1727,6 +1830,7 @@ Solution: Verify `tsconfig.json` has:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Issue: "Query executes but returns empty results"**
 
@@ -1758,6 +1862,7 @@ Check:
 Enable verbose logging:
 
 ```bash
+<!-- Code example in BASH -->
 # Set environment variable
 export RUST_LOG=debug
 
@@ -1767,6 +1872,7 @@ npm run dev
 # Check logs
 docker-compose logs -f FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1775,6 +1881,7 @@ docker-compose logs -f FraiseQL
 ### schema.sql (All DDL)
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL schema for blog API
 
 CREATE TABLE users (
@@ -1912,10 +2019,12 @@ WHERE id = p_id
 RETURNING *;
 $$ LANGUAGE SQL;
 ```text
+<!-- Code example in TEXT -->
 
 ### package.json
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "blog-api",
   "version": "1.0.0",
@@ -1940,10 +2049,12 @@ $$ LANGUAGE SQL;
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### FraiseQL.toml
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL]
 name = "blog-api"
 version = "1.0.0"
@@ -1966,6 +2077,7 @@ cors_origins = ["*"]
 enable_introspection = true
 enable_mutations = true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1981,6 +2093,7 @@ enable_mutations = true
 ### Building the React Client
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Example: React hook to fetch posts
 import { useQuery, gql } from "@apollo/client";
 
@@ -2017,6 +2130,7 @@ export function PostList() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Multi-Tenant SaaS with Row-Level Security
+description: Complete guide to building a production-grade multi-tenant SaaS application using FraiseQL with row-level security (RLS).
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Multi-Tenant SaaS with Row-Level Security
 
 **Status:** ✅ Production Ready
@@ -12,7 +20,10 @@ Complete guide to building a production-grade multi-tenant SaaS application usin
 
 ## Architecture Overview
 
+**Diagram: Security Architecture** - Multi-layer security pipeline from request to response
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Clients: "Web/Mobile Clients" {
@@ -53,7 +64,8 @@ Clients -> Server: "GraphQL queries + JWT"
 Server -> Database: "SQL queries (with RLS)"
 Database -> Server: "Row-filtered results"
 Server -> Clients: "JSON response"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -62,6 +74,7 @@ Server -> Clients: "JSON response"
 ### Core Tables
 
 ```sql
+<!-- Code example in SQL -->
 -- Tenants (the SaaS customers)
 CREATE TABLE tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -189,6 +202,7 @@ CREATE TABLE usage_metrics (
   INDEX idx_period (period_start, period_end)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -197,6 +211,7 @@ CREATE TABLE usage_metrics (
 ### Enable RLS
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
@@ -204,10 +219,12 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_metrics ENABLE ROW LEVEL SECURITY;
 ```text
+<!-- Code example in TEXT -->
 
 ### Tenant Context Function
 
 ```sql
+<!-- Code example in SQL -->
 -- Get current tenant from JWT claims
 CREATE OR REPLACE FUNCTION current_tenant_id() RETURNS UUID AS $$
   SELECT (current_setting('app.tenant_id', true))::UUID;
@@ -223,10 +240,12 @@ CREATE OR REPLACE FUNCTION current_user_role() RETURNS TEXT AS $$
   SELECT (current_setting('app.user_role', true))::TEXT;
 $$ LANGUAGE SQL STABLE;
 ```text
+<!-- Code example in TEXT -->
 
 ### RLS Policies - Users Table
 
 ```sql
+<!-- Code example in SQL -->
 -- Users can only see users in their tenant
 CREATE POLICY users_tenant_isolation ON users
   FOR SELECT
@@ -250,10 +269,12 @@ CREATE POLICY users_insert ON users
   FOR INSERT
   WITH CHECK (true); -- Allow insertion, FraiseQL handles tenant assignment
 ```text
+<!-- Code example in TEXT -->
 
 ### RLS Policies - Projects Table
 
 ```sql
+<!-- Code example in SQL -->
 -- Users can only see projects in their tenant
 -- AND either they're the owner or a project member
 CREATE POLICY projects_visibility ON projects
@@ -287,10 +308,12 @@ CREATE POLICY projects_insert ON projects
   FOR INSERT
   WITH CHECK (tenant_id = current_tenant_id());
 ```text
+<!-- Code example in TEXT -->
 
 ### RLS Policies - Tasks Table
 
 ```sql
+<!-- Code example in SQL -->
 -- Users can only see tasks in projects they have access to
 CREATE POLICY tasks_visibility ON tasks
   FOR SELECT
@@ -325,10 +348,12 @@ CREATE POLICY tasks_delete ON tasks
     current_user_role() IN ('owner', 'admin')
   );
 ```text
+<!-- Code example in TEXT -->
 
 ### RLS Policies - Audit Logs
 
 ```sql
+<!-- Code example in SQL -->
 -- Users can only see audit logs for their tenant
 CREATE POLICY audit_logs_visibility ON audit_logs
   FOR SELECT
@@ -342,12 +367,14 @@ CREATE POLICY audit_logs_immutable ON audit_logs
   FOR UPDATE, DELETE
   USING (false);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## FraiseQL Schema Definition (Python)
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 from FraiseQL import types, authorize
 from datetime import datetime
@@ -487,6 +514,7 @@ class Mutation:
         """Upgrade subscription plan"""
         pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -495,6 +523,7 @@ class Mutation:
 ### Token Payload
 
 ```json
+<!-- Code example in JSON -->
 {
   "sub": "user_123",
   "email": "alice@company.com",
@@ -505,10 +534,12 @@ class Mutation:
   "exp": 1640086400
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Setting Tenant Context in FraiseQL Server
 
 ```rust
+<!-- Code example in RUST -->
 // FraiseQL-server middleware (pseudo-code)
 async fn set_tenant_context(token: &Claims) -> Result<()> {
     // Set tenant and user context for RLS policies
@@ -530,6 +561,7 @@ async fn set_tenant_context(token: &Claims) -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -538,6 +570,7 @@ async fn set_tenant_context(token: &Claims) -> Result<()> {
 ### React Hook for Current Tenant
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useQuery, gql } from '@apollo/client';
 
 const ME_QUERY = gql`
@@ -567,10 +600,12 @@ export function useCurrentUser() {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### List Projects Query
 
 ```typescript
+<!-- Code example in TypeScript -->
 const LIST_PROJECTS = gql`
   query ListProjects {
     projects {
@@ -605,10 +640,12 @@ export function ProjectList() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Create Project Mutation
 
 ```typescript
+<!-- Code example in TypeScript -->
 const CREATE_PROJECT = gql`
   mutation CreateProject($name: String!, $description: String!) {
     createProject(name: $name, description: $description) {
@@ -648,6 +685,7 @@ export function CreateProjectForm() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -656,6 +694,7 @@ export function CreateProjectForm() {
 ### Track Usage
 
 ```sql
+<!-- Code example in SQL -->
 -- Function to increment usage
 CREATE OR REPLACE FUNCTION increment_usage(
   p_tenant_id UUID,
@@ -676,10 +715,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 ### Check Usage Limits
 
 ```sql
+<!-- Code example in SQL -->
 -- Example: Check if tenant has exceeded API call limit
 CREATE OR REPLACE FUNCTION check_api_limit(p_tenant_id UUID) RETURNS BOOLEAN AS $$
 DECLARE
@@ -708,6 +749,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -716,6 +758,7 @@ $$ LANGUAGE plpgsql;
 ### 1. Token Validation
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Verify JWT before setting context
 function validateToken(token: string): Claims | null {
   try {
@@ -726,10 +769,12 @@ function validateToken(token: string): Claims | null {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Prevent Tenant ID Forgery
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Never trust tenant_id from client - get it from token
 const getTenantIdFromToken = (token: Claims): string => {
   if (!token.tenant_id) {
@@ -738,10 +783,12 @@ const getTenantIdFromToken = (token: Claims): string => {
   return token.tenant_id;
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Audit All Changes
 
 ```sql
+<!-- Code example in SQL -->
 -- Trigger to auto-log changes
 CREATE OR REPLACE FUNCTION audit_trigger() RETURNS TRIGGER AS $$
 BEGIN
@@ -776,6 +823,7 @@ FOR EACH ROW EXECUTE FUNCTION audit_trigger();
 CREATE TRIGGER tasks_audit AFTER INSERT OR UPDATE OR DELETE ON tasks
 FOR EACH ROW EXECUTE FUNCTION audit_trigger();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -802,6 +850,7 @@ FOR EACH ROW EXECUTE FUNCTION audit_trigger();
 ### Multi-Region Deployment
 
 ```text
+<!-- Code example in TEXT -->
 Region 1 (US-East)           Region 2 (EU)
     ↓                             ↓
 FraiseQL Server ----------- Replication -------- FraiseQL Server
@@ -809,12 +858,14 @@ FraiseQL Server ----------- Replication -------- FraiseQL Server
 PostgreSQL Primary ---------- Streaming -------- PostgreSQL Replica
 (tenant_a, tenant_b)         (standby)         (for reads)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Testing Multi-Tenant Isolation
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('Multi-Tenant Isolation', () => {
   it('tenant_a cannot see tenant_b data', async () => {
     // Login as user from tenant_a
@@ -840,6 +891,7 @@ describe('Multi-Tenant Isolation', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

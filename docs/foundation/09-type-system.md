@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.4: Type System
+description: FraiseQL's type system is the bridge between your database schema and your GraphQL API. Every column in your database maps to a type in your schema, which maps 
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.4: Type System
 
 **Audience:** Schema designers, backend developers, API architects
@@ -17,6 +25,7 @@ FraiseQL's type system is the bridge between your database schema and your Graph
 ## Type System Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Database Schema
 (PostgreSQL, MySQL, SQLite, SQL Server)
          ↓
@@ -32,6 +41,7 @@ GraphQL Scalar Types
 API Contracts
 (sent to client)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -60,6 +70,7 @@ API Contracts
 **PostgreSQL:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_users (
   pk_user_id SERIAL PRIMARY KEY,              -- ← Int (non-nullable)
   email VARCHAR(255) NOT NULL,                 -- ← String (non-nullable)
@@ -71,10 +82,12 @@ CREATE TABLE tb_users (
   avatar_data BYTEA                            -- ← Bytes (nullable)
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Generated GraphQL Type:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   userId: Int!              # Non-nullable (PRIMARY KEY)
   email: String!            # Non-nullable (NOT NULL)
@@ -86,10 +99,12 @@ type User {
   avatarData: Bytes         # Nullable
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Python Schema (Optional - explicit definition):**
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema
 from datetime import datetime
 from decimal import Decimal
@@ -105,6 +120,7 @@ class User:
     metadata: dict | None     # Optional
     avatar_data: bytes | None # Optional
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -115,6 +131,7 @@ class User:
 **Rule 1: NOT NULL → Non-Nullable in GraphQL**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,           -- NOT NULL by default (primary key)
   fk_user_id INT NOT NULL,               -- NOT NULL constraint
@@ -122,10 +139,12 @@ CREATE TABLE tb_orders (
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Result in GraphQL:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order {
   orderId: Int!              # Non-nullable (PRIMARY KEY)
   userId: Int!               # Non-nullable (NOT NULL)
@@ -133,30 +152,36 @@ type Order {
   status: String!            # Non-nullable (NOT NULL + DEFAULT)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Rule 2: DEFAULT → Non-Nullable (if NO NULL allowed)**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_products (
   pk_product_id INT PRIMARY KEY,
   price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,  -- Has default, NOT NULL
   discount NUMERIC(10, 2) DEFAULT 0.00         -- Has default, but NULL allowed
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Result in GraphQL:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Product {
   productId: Int!     # Non-nullable (PRIMARY KEY)
   price: Decimal!     # Non-nullable (DEFAULT + NOT NULL)
   discount: Decimal   # Nullable (can be NULL even with default)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### When Types Are Nullable
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Nullable types (optional fields, user can omit in GraphQL query)
 type User {
   email: String!      # Must always be present in response
@@ -172,6 +197,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -182,6 +208,7 @@ query {
 An object type is a composite type with multiple fields:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order {
   orderId: Int!
   userId: Int!
@@ -190,10 +217,12 @@ type Order {
   status: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Database Table:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,
   fk_user_id INT NOT NULL,
@@ -202,12 +231,14 @@ CREATE TABLE tb_orders (
   status VARCHAR(20) NOT NULL
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Relationships: One-to-Many
 
 **Database Schema:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_users (
   pk_user_id INT PRIMARY KEY,
   email VARCHAR(255) NOT NULL
@@ -219,10 +250,12 @@ CREATE TABLE tb_orders (
   total NUMERIC(10, 2) NOT NULL
 );
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL Types with Relationship:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   userId: Int!
   email: String!
@@ -235,10 +268,12 @@ type Order {
   user: User!            # Many-to-one: Order belongs to User
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Query Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUserWithOrders($userId: Int!) {
   user(userId: $userId) {
     userId
@@ -250,12 +285,14 @@ query GetUserWithOrders($userId: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Relationships: Many-to-Many
 
 **Database Schema (Junction Table):**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_students (
   pk_student_id INT PRIMARY KEY,
   name VARCHAR(255) NOT NULL
@@ -272,10 +309,12 @@ CREATE TABLE tj_student_courses (
   PRIMARY KEY (fk_student_id, fk_course_id)
 );
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL Types with Many-to-Many:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Student {
   studentId: Int!
   name: String!
@@ -288,10 +327,12 @@ type Course {
   students: [Student!]!  # Many-to-many relationship
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Query Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetStudentCourses($studentId: Int!) {
   student(studentId: $studentId) {
     name
@@ -301,6 +342,7 @@ query GetStudentCourses($studentId: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -311,6 +353,7 @@ query GetStudentCourses($studentId: Int!) {
 **Non-Empty List:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   tags: [String!]!       # List of non-null strings, list itself is non-null
 }
@@ -322,10 +365,12 @@ type User {
 { tags: null }           # ❌ List is non-null
 { tags: ["vip", null] }  # ❌ Items must be non-null
 ```text
+<!-- Code example in TEXT -->
 
 **Nullable List:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   tags: [String!]        # List can be null, but items must be non-null
 }
@@ -337,10 +382,12 @@ type User {
 # Invalid:
 { tags: ["vip", null] }  # ❌ Items can't be null
 ```text
+<!-- Code example in TEXT -->
 
 **List of Nullable Items:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   notes: [String]!       # Non-null list, but items can be null
 }
@@ -352,26 +399,31 @@ type User {
 # Invalid:
 { notes: null }          # ❌ List is non-null
 ```text
+<!-- Code example in TEXT -->
 
 ### Database to List Mapping
 
 **One-to-Many as List:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,
   fk_user_id INT NOT NULL,
   ...
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Maps to GraphQL List:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   orders: [Order!]!      # Automatically inferred from foreign key relationship
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -384,6 +436,7 @@ While FraiseQL automatically infers types from your database, you can define cus
 **PostgreSQL with Custom Types:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Create an enum type
 CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'shipped', 'delivered');
 
@@ -392,10 +445,12 @@ CREATE TABLE tb_orders (
   status order_status NOT NULL DEFAULT 'pending'
 );
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL Inference:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 enum OrderStatus {
   PENDING
   CONFIRMED
@@ -408,12 +463,14 @@ type Order {
   status: OrderStatus!   # Automatically inferred enum type
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Custom Scalar Definitions
 
 **For complex types (in Python schema):**
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema
 from typing import NewType
 from datetime import datetime
@@ -430,10 +487,12 @@ class User:
     created_at: datetime
     available_dates: DateRange  # Custom scalar: complex type
 ```text
+<!-- Code example in TEXT -->
 
 **Validation:**
 
 ```python
+<!-- Code example in Python -->
 @schema.scalar("PhoneNumber")
 def serialize_phone(value: str) -> str:
     # Ensure phone format
@@ -447,6 +506,7 @@ def serialize_date_range(value: dict) -> dict:
         "end": value["end"]
     }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -457,6 +517,7 @@ def serialize_date_range(value: dict) -> dict:
 **Required Field (Non-Null):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   email: String!    # Must always have a value
 }
@@ -468,10 +529,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Optional Field (Nullable):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   phone: String     # Can be null
 }
@@ -483,15 +546,18 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### List Modifiers
 
 ```graphql
+<!-- Code example in GraphQL -->
 [String]        # List can be null, items can be null
 [String!]       # List can be null, items non-null
 [String]!       # List non-null, items can be null
 [String!]!      # List non-null, items non-null
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -502,27 +568,32 @@ query {
 **Schema Definition:**
 
 ```python
+<!-- Code example in Python -->
 @schema.type(table="tb_users")
 class User:
     user_id: int
     email: str
 ```text
+<!-- Code example in TEXT -->
 
 **Compile-Time Checks:**
 
 ```text
+<!-- Code example in TEXT -->
 ✅ user_id: column pk_user_id is INT → type int ✓
 ✅ email: column email is VARCHAR → type str ✓
 ✅ PRIMARY KEY constraint → non-null ✓
 ✅ NOT NULL constraint on email → non-null ✓
 ✅ All types match database schema ✓
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime Type Validation
 
 **Query Execution:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($userId: Int!) {
   user(userId: $userId) {
     userId
@@ -532,13 +603,16 @@ query GetUser($userId: Int!) {
 
 Variables: { "userId": "not-a-number" }
 ```text
+<!-- Code example in TEXT -->
 
 **Runtime Check:**
 
 ```text
+<!-- Code example in TEXT -->
 ❌ Variable $userId: expected Int, got String
 Error: "Variable $userId of type Int! was not provided a valid Int value"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -549,6 +623,7 @@ Error: "Variable $userId of type Int! was not provided a valid Int value"
 **Database:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_products (
   pk_product_id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -560,10 +635,12 @@ CREATE TABLE tb_products (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Inferred GraphQL Type:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Product {
   productId: Int!              # SERIAL primary key
   name: String!                # VARCHAR NOT NULL
@@ -575,10 +652,12 @@ type Product {
   updatedAt: DateTime!         # TIMESTAMP NOT NULL DEFAULT
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Optional Python Schema (explicit):**
 
 ```python
+<!-- Code example in Python -->
 @schema.type(table="tb_products")
 class Product:
     product_id: int
@@ -590,12 +669,14 @@ class Product:
     created_at: datetime
     updated_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: Complex User Type with Relationships
 
 **Database:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_users (
   pk_user_id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -611,10 +692,12 @@ CREATE TABLE tb_orders (
   created_at TIMESTAMP NOT NULL
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Inferred GraphQL Types:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   userId: Int!
   email: String!
@@ -632,6 +715,7 @@ type Order {
   user: User!                    # Many-to-one relationship
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -640,6 +724,7 @@ type Order {
 ### 1. Automatic Consistency
 
 ```text
+<!-- Code example in TEXT -->
 Database Schema (source of truth)
          ↓
 Compile-time Inference
@@ -648,10 +733,12 @@ GraphQL Schema (always in sync)
          ↓
 No manual type synchronization needed
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Safety Guarantees
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order {
   total: Decimal!    # Guaranteed non-null
                      # Database enforces NOT NULL
@@ -659,10 +746,12 @@ type Order {
                      # Application can rely on it
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Self-Documenting API
 
 ```graphql
+<!-- Code example in GraphQL -->
 # From this type definition alone, you know:
 type Order {
   orderId: Int!        # Always present, always an integer
@@ -672,6 +761,7 @@ type Order {
   user: User!          # Always present, always a User object
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -680,6 +770,7 @@ type Order {
 ### 1. Use Explicit Nullability
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Avoid ambiguity
 type User {
   email: String       # Is this null when user has no email?
@@ -691,10 +782,12 @@ type User {
   phone: String       # Can be null (user didn't provide)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Use Relationships Over Foreign Keys
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Expose raw foreign key
 type Order {
   orderId: Int!
@@ -707,10 +800,12 @@ type Order {
   user: User!         # Automatic relationship resolution
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Name Fields Clearly
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Unclear
 type User {
   a: String!
@@ -723,10 +818,12 @@ type User {
   age: Int!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Use Enums for Constrained Values
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ Free-form string
 type Order {
   status: String!     # Could be anything
@@ -744,6 +841,7 @@ type Order {
   status: OrderStatus!  # Limited to defined values
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

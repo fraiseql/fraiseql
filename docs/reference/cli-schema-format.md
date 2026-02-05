@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL CLI Schema Format Guide
+description: The `FraiseQL-cli` command-line tool compiles FraiseQL schemas from JSON format into optimized SQL templates and execution plans. This document describes the sc
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL CLI Schema Format Guide
 
 ## Overview
@@ -9,6 +17,7 @@ The `FraiseQL-cli` command-line tool compiles FraiseQL schemas from JSON format 
 ### Basic Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -35,6 +44,7 @@ The `FraiseQL-cli` command-line tool compiles FraiseQL schemas from JSON format 
   "fact_tables": []
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Type Definition
 
@@ -85,6 +95,7 @@ All language generators produce compatible JSON schemas:
 ### Python
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: int
@@ -97,12 +108,14 @@ def users(limit: int = 10) -> list[User]:
 
 FraiseQL.export_schema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 Output: Valid `schema.json` for CLI compilation
 
 ### TypeScript
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 class User {
   id!: number;
@@ -115,12 +128,14 @@ users(limit?: number): User[] { /* ... */ }
 
 ExportSchema("schema.json");
 ```text
+<!-- Code example in TEXT -->
 
 Output: Valid `schema.json` for CLI compilation
 
 ### Go
 
 ```go
+<!-- Code example in Go -->
 type User struct {
     ID    int    `FraiseQL:"id"`
     Name  string `FraiseQL:"name"`
@@ -133,6 +148,7 @@ type UserQuery struct {
 
 ExportSchema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 Output: Valid `schema.json` for CLI compilation
 
@@ -148,22 +164,27 @@ The CLI validates:
 - SQL sources are valid identifiers
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 Output includes validation warnings and suggestions:
 
 ```text
+<!-- Code example in TEXT -->
 ⚠️  Warnings (2):
    Query 'posts' returns a list but has no sql_source
    Query 'users' returns a list but has no sql_source
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Generate Compiled Schema
 
 The compiler produces `schema.compiled.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "2.0.0",
   "types": [...],
@@ -178,24 +199,28 @@ The compiler produces `schema.compiled.json`:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Optimization Suggestions
 
 The compiler provides optimization hints:
 
 ```text
+<!-- Code example in TEXT -->
 📊 Optimization Suggestions:
 
   Indexes:
   • Query 'posts': List query with arguments benefits from index
     Columns: authorId, published, limit, offset
 ```text
+<!-- Code example in TEXT -->
 
 ## Usage Examples
 
 ### Basic Schema Compilation
 
 ```bash
+<!-- Code example in BASH -->
 # Compile schema from Python generator
 cd FraiseQL-python
 python -c "from FraiseQL import export_schema; export_schema('schema.json')"
@@ -204,18 +229,23 @@ cd ..
 # Compile with CLI
 FraiseQL-cli compile FraiseQL-python/schema.json -o schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### With Custom Output Path
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json --output compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Validate Only (no output)
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli validate schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ## Schema Format Compatibility
 
@@ -238,9 +268,11 @@ All 5 language generators produce compatible schemas:
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: SQL source not recognized
 
@@ -259,8 +291,10 @@ export PATH="$(pwd)/target/release:$PATH"
 The compiled schema is consumed by the FraiseQL runtime server:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-server --schema schema.compiled.json --port 4000
 ```text
+<!-- Code example in TEXT -->
 
 The server then:
 
@@ -283,6 +317,7 @@ The server then:
 ### Analytics (Fact Tables)
 
 ```json
+<!-- Code example in JSON -->
 {
   "fact_tables": [
     {
@@ -294,10 +329,12 @@ The server then:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Type Extensions
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -308,10 +345,12 @@ The server then:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Subscriptions
 
 ```json
+<!-- Code example in JSON -->
 {
   "subscriptions": [
     {
@@ -322,6 +361,7 @@ The server then:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

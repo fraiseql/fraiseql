@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL E2E Testing Guide
+description: - End-to-end testing concepts and best practices
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL E2E Testing Guide
 
 ## Prerequisites
@@ -47,6 +55,7 @@ End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schem
 ## Architecture
 
 ```text
+<!-- Code example in TEXT -->
 ┌────────────────────────────────────────────────────┐
 │             E2E Test Orchestrator                   │
 │                  (Makefile)                         │
@@ -67,34 +76,42 @@ End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schem
         │  (test)        │
         └────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## Quick Start
 
 ### Run All E2E Tests
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-all
 ```text
+<!-- Code example in TEXT -->
 
 This runs sequential tests for Python, TypeScript, and Go.
 
 ### Run Specific Language Test
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-python     # Python tests
 make e2e-typescript # TypeScript tests
 make e2e-go        # Go tests
 ```text
+<!-- Code example in TEXT -->
 
 ### Check Infrastructure Status
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-status
 ```text
+<!-- Code example in TEXT -->
 
 Output shows which languages are available:
 
 ```text
+<!-- Code example in TEXT -->
 Languages ready:
   ✅ Python
   ✅ TypeScript/Node
@@ -102,12 +119,15 @@ Languages ready:
   ❌ Java
   ❌ PHP
 ```text
+<!-- Code example in TEXT -->
 
 ### Setup E2E Infrastructure
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-setup
 ```text
+<!-- Code example in TEXT -->
 
 This starts Docker containers for:
 
@@ -118,8 +138,10 @@ This starts Docker containers for:
 ### Clean Up
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-clean
 ```text
+<!-- Code example in TEXT -->
 
 Stops containers and removes temporary files.
 
@@ -132,6 +154,7 @@ Each language generator creates a schema:
 **Python**:
 
 ```python
+<!-- Code example in Python -->
 @fraiseql_type
 class User:
     id: int
@@ -143,10 +166,12 @@ def users() -> list[User]:
 
 fraiseql_schema.export_schema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 **TypeScript**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 class User {
   id!: number;
@@ -158,10 +183,12 @@ users(): User[] { return []; }
 
 ExportSchema("schema.json");
 ```text
+<!-- Code example in TEXT -->
 
 **Go**:
 
 ```go
+<!-- Code example in Go -->
 type User struct {
     ID   int    `FraiseQL:"id"`
     Name string `FraiseQL:"name"`
@@ -169,6 +196,7 @@ type User struct {
 
 FraiseQL.ExportSchema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 ### JSON Validation
 
@@ -182,8 +210,10 @@ Verify schema JSON structure:
 ### CLI Compilation
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json -o schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 Produces optimized execution plan with:
 
@@ -197,8 +227,10 @@ Produces optimized execution plan with:
 Start server with compiled schema:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-server --schema schema.compiled.json --port 4000
 ```text
+<!-- Code example in TEXT -->
 
 ## Test Structure
 
@@ -207,6 +239,7 @@ FraiseQL-server --schema schema.compiled.json --port 4000
 Location: `tests/e2e/python_e2e_test.py`
 
 ```python
+<!-- Code example in Python -->
 def test_python_e2e_basic_schema():
     """Test basic schema authoring and export."""
     # Step 1: Define schema
@@ -231,14 +264,17 @@ def test_python_e2e_basic_schema():
     )
     assert result.returncode == 0
 ```text
+<!-- Code example in TEXT -->
 
 ### Running Directly
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-python
 source .venv/bin/activate
 python tests/e2e/python_e2e_test.py
 ```text
+<!-- Code example in TEXT -->
 
 ## Makefile Targets
 
@@ -251,16 +287,20 @@ Starts Docker test databases:
 - SQLite
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-setup
 ```text
+<!-- Code example in TEXT -->
 
 ### e2e-velocitybench
 
 Runs E2E test against the VelocityBench blogging application:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-velocitybench
 ```text
+<!-- Code example in TEXT -->
 
 This is a real-world integration test that:
 
@@ -276,8 +316,10 @@ This is a real-world integration test that:
 Runs sequential tests for all languages plus VelocityBench integration:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-all
 ```text
+<!-- Code example in TEXT -->
 
 Equivalent to: `e2e-python → e2e-typescript → e2e-go → e2e-velocitybench`
 
@@ -288,12 +330,15 @@ Each test must pass before the next starts.
 Runs E2E test for specific language:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-python
 ```text
+<!-- Code example in TEXT -->
 
 Output:
 
 ```text
+<!-- Code example in TEXT -->
 ========== PYTHON E2E TEST ==========
 ✅ Python environment ready
 
@@ -303,22 +348,27 @@ Running E2E tests...
 
 ✅ Python E2E tests passed
 ```text
+<!-- Code example in TEXT -->
 
 ### e2e-clean
 
 Stops Docker containers and removes temp files:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-clean
 ```text
+<!-- Code example in TEXT -->
 
 ### e2e-status
 
 Checks infrastructure readiness:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-status
 ```text
+<!-- Code example in TEXT -->
 
 Output shows available languages and Docker status.
 
@@ -329,6 +379,7 @@ Output shows available languages and Docker status.
 The project includes automated E2E testing in `.github/workflows/e2e-tests.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 name: E2E Tests
 
 on: [push, pull_request]
@@ -345,6 +396,7 @@ jobs:
       - name: Cleanup
         run: make e2e-clean
 ```text
+<!-- Code example in TEXT -->
 
 ## Test Coverage
 
@@ -363,62 +415,78 @@ jobs:
 If Docker isn't installed:
 
 ```bash
+<!-- Code example in BASH -->
 # Tests still run, but without database
 make e2e-python
 ```text
+<!-- Code example in TEXT -->
 
 CLI compilation is tested regardless of Docker availability.
 
 ### Python Environment Not Activated
 
 ```text
+<!-- Code example in TEXT -->
 Error: No module named 'FraiseQL'
 ```text
+<!-- Code example in TEXT -->
 
 Solution:
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-python
 source .venv/bin/activate
 cd ..
 make e2e-python
 ```text
+<!-- Code example in TEXT -->
 
 ### TypeScript Tests Failing
 
 ```text
+<!-- Code example in TEXT -->
 Error: Cannot find module 'jest'
 ```text
+<!-- Code example in TEXT -->
 
 Solution:
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-typescript
 npm install
 cd ..
 make e2e-typescript
 ```text
+<!-- Code example in TEXT -->
 
 ### CLI Not Found
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL-cli: command not found
 ```text
+<!-- Code example in TEXT -->
 
 Solution:
 
 ```bash
+<!-- Code example in BASH -->
 cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
 make e2e-all
 ```text
+<!-- Code example in TEXT -->
 
 ### Schema Compilation Warnings
 
 ```text
+<!-- Code example in TEXT -->
 ⚠️  Warnings (2):
    Query 'posts' returns a list but has no sql_source
 ```text
+<!-- Code example in TEXT -->
 
 This is expected during development. Warnings don't block compilation. Use `sql_source` for production queries.
 
@@ -473,12 +541,15 @@ All tests run sequentially, so total time is the sum of individual times.
 ### Verbose Output
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-python  # Already shows detailed output
 ```text
+<!-- Code example in TEXT -->
 
 ### Step-by-Step Execution
 
 ```bash
+<!-- Code example in BASH -->
 # Python
 cd FraiseQL-python
 source .venv/bin/activate
@@ -492,75 +563,92 @@ npm test
 cd FraiseQL-go
 go test ./FraiseQL/... -v
 ```text
+<!-- Code example in TEXT -->
 
 ### Check Generated Schemas
 
 ```bash
+<!-- Code example in BASH -->
 # Python generates to current directory
 python -c "from FraiseQL import schema; schema.export_schema('/tmp/py_test.json')"
 ls -la /tmp/py_test.json
 cat /tmp/py_test.json | python -m json.tool
 ```text
+<!-- Code example in TEXT -->
 
 ### Inspect CLI Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile /tmp/py_test.json --verbose
 ```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
 ### 1. Run Tests Before Committing
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-all && git commit
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Isolate Test Output
 
 Tests create temporary files in `/tmp/`. Clean up after:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-clean
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Test in Isolation
 
 Run individual language tests to isolate issues:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-python  # If this fails, focus on Python
 make e2e-typescript  # If this fails, focus on TypeScript
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Verify CLI First
 
 Before running full E2E tests:
 
 ```bash
+<!-- Code example in BASH -->
 cargo build --release -p FraiseQL-cli
 export PATH="$(pwd)/target/release:$PATH"
 FraiseQL-cli --version
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Check Infrastructure Status
 
 Before running tests:
 
 ```bash
+<!-- Code example in BASH -->
 make e2e-status
 ```text
+<!-- Code example in TEXT -->
 
 ## Integration with CI/CD
 
 ### Local Development
 
 ```bash
+<!-- Code example in BASH -->
 # Before committing
 make e2e-all
 git add .
 git commit -m "feat: Add new feature"
 ```text
+<!-- Code example in TEXT -->
 
 ### GitHub Actions
 

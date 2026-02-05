@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication API Reference
+description: Complete API documentation for FraiseQL's OAuth 2.0 / OIDC authentication system.
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication API Reference
 
 Complete API documentation for FraiseQL's OAuth 2.0 / OIDC authentication system.
@@ -5,9 +13,11 @@ Complete API documentation for FraiseQL's OAuth 2.0 / OIDC authentication system
 ## Base URL
 
 ```text
+<!-- Code example in TEXT -->
 Development: http://localhost:8000
 Production: https://api.yourdomain.com
 ```text
+<!-- Code example in TEXT -->
 
 ## Endpoints
 
@@ -18,12 +28,14 @@ Initiate the OAuth authentication flow.
 **Request**
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "google"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 **Request Body**
 
@@ -34,10 +46,12 @@ curl -X POST http://localhost:8000/auth/start \
 **Response (200 OK)**
 
 ```json
+<!-- Code example in JSON -->
 {
   "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response Fields**
 
@@ -75,12 +89,15 @@ OAuth provider redirects here after user authentication.
 **Example Request**
 
 ```text
+<!-- Code example in TEXT -->
 GET http://localhost:8000/auth/callback?code=4/0A...&state=xyz123
 ```text
+<!-- Code example in TEXT -->
 
 **Response (200 OK)**
 
 ```json
+<!-- Code example in JSON -->
 {
   "access_token": "access_token_user123_3600_uuid",
   "refresh_token": "base64_encoded_refresh_token",
@@ -88,6 +105,7 @@ GET http://localhost:8000/auth/callback?code=4/0A...&state=xyz123
   "expires_in": 3600
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response Fields**
 
@@ -121,12 +139,14 @@ Refresh an expired access token using a refresh token.
 **Request**
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "base64_encoded_refresh_token"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 **Request Body**
 
@@ -137,12 +157,14 @@ curl -X POST http://localhost:8000/auth/refresh \
 **Response (200 OK)**
 
 ```json
+<!-- Code example in JSON -->
 {
   "access_token": "new_access_token_...",
   "token_type": "Bearer",
   "expires_in": 3600
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response Fields**
 
@@ -162,6 +184,7 @@ curl -X POST http://localhost:8000/auth/refresh \
 **Example Usage (JavaScript)**
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const response = await fetch('/auth/refresh', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -175,6 +198,7 @@ localStorage.setItem('accessToken', access_token);
 // Schedule refresh before expiry
 setTimeout(() => refreshToken(), expires_in * 1000 - 300000);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -185,12 +209,14 @@ Logout and revoke the session.
 **Request**
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/logout \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "base64_encoded_refresh_token"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 **Request Body**
 
@@ -217,11 +243,13 @@ No response body.
 Include the access token in the `Authorization` header:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer access_token_..." \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### Optional Authentication
 
@@ -232,6 +260,7 @@ Some endpoints support optional authentication. Missing auth returns results for
 Access tokens are JWT tokens containing:
 
 ```json
+<!-- Code example in JSON -->
 {
   "sub": "user123",              // User ID from provider
   "iat": 1234567890,             // Issued at timestamp
@@ -242,6 +271,7 @@ Access tokens are JWT tokens containing:
   "name": "User Name"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -250,6 +280,7 @@ Access tokens are JWT tokens containing:
 All errors follow a consistent format:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -261,6 +292,7 @@ All errors follow a consistent format:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Codes
 
@@ -282,6 +314,7 @@ All errors follow a consistent format:
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # OAuth Provider
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
@@ -302,12 +335,14 @@ JWT_ALGORITHM=RS256
 # Database
 DATABASE_URL=postgres://user:pass@localhost/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Configuration File
 
 Optionally, use a configuration file:
 
 ```toml
+<!-- Code example in TOML -->
 [auth.google]
 issuer = "https://accounts.google.com"
 client_id_env = "GOOGLE_CLIENT_ID"
@@ -320,6 +355,7 @@ client_id_env = "KEYCLOAK_CLIENT_ID"
 client_secret_env = "KEYCLOAK_CLIENT_SECRET"
 redirect_uri = "http://localhost:8000/auth/callback"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -328,6 +364,7 @@ redirect_uri = "http://localhost:8000/auth/callback"
 ### Complete Login Flow (JavaScript)
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // 1. Start login
 const startResponse = await fetch('/auth/start', {
   method: 'POST',
@@ -360,10 +397,12 @@ const graphqlResponse = await fetch('/graphql', {
 
 const data = await graphqlResponse.json();
 ```text
+<!-- Code example in TEXT -->
 
 ### Token Refresh (JavaScript)
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 async function refreshAccessToken() {
   const refreshToken = localStorage.getItem('refreshToken');
 
@@ -385,10 +424,12 @@ async function refreshAccessToken() {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Logout (JavaScript)
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 async function logout() {
   const refreshToken = localStorage.getItem('refreshToken');
 
@@ -403,10 +444,12 @@ async function logout() {
   window.location.href = '/';
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### With Axios
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import axios from 'axios';
 
 const api = axios.create({
@@ -444,6 +487,7 @@ const user = await api.post('/graphql', {
   query: '{ user { id } }'
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -452,6 +496,7 @@ const user = await api.post('/graphql', {
 Currently no built-in rate limiting. For production, add rate limiting middleware:
 
 ```rust
+<!-- Code example in RUST -->
 // Example with tower rate limiter
 use tower_governor::governor::RateLimiter;
 
@@ -463,6 +508,7 @@ let layer = GovernorLayer {
 
 app = app.layer(layer);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

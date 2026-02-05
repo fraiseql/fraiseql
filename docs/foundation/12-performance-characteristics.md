@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.7: Performance Characteristics
+description: FraiseQL's performance characteristics are determined by its **compiled-first architecture**. Unlike runtime GraphQL servers that interpret queries on every req
+keywords: ["query-execution", "data-planes", "graphql", "performance", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.7: Performance Characteristics
 
 ## Overview
@@ -9,6 +17,7 @@ This section explains FraiseQL's performance model, typical latency/throughput m
 ### Performance Philosophy
 
 ```text
+<!-- Code example in TEXT -->
 Traditional GraphQL Server:
 Query → Parse → Validate → Resolve → Execute SQL → Format → Response
 ↑       ↑        ↑         ↑        ↑            ↑        ↑
@@ -22,6 +31,7 @@ Schema → Validate →      Pre-compiled → Execute SQL → Format → Respons
 
 Result: 30-50% faster queries, 2-5x more throughput
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -32,6 +42,7 @@ Result: 30-50% faster queries, 2-5x more throughput
 For a typical FraiseQL query, latency is distributed across these phases:
 
 ```text
+<!-- Code example in TEXT -->
 Total Latency: 27ms (example simple query)
 └─ Network (round-trip): 2ms
 └─ Server overhead: 3ms
@@ -46,6 +57,7 @@ Total Latency: 27ms (example simple query)
    └─ Network to client: 2ms
 └─ Client-side parsing: 2ms
 ```text
+<!-- Code example in TEXT -->
 
 ### Latency Tiers
 
@@ -61,6 +73,7 @@ Total Latency: 27ms (example simple query)
 Measured on 4-core 8GB server with PostgreSQL on same machine:
 
 ```text
+<!-- Code example in TEXT -->
 Single Row Fetch (user by ID):
 
 - Latency: 3-4ms
@@ -89,6 +102,7 @@ Analytical (1K rows with aggregation):
 - Database time: 480-750ms
 - Server overhead: 20-100ms
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -110,6 +124,7 @@ On a single server (4-core, 8GB RAM, dedicated PostgreSQL):
 FraiseQL scales **linearly with servers up to database I/O saturation**:
 
 ```text
+<!-- Code example in TEXT -->
 Throughput vs Instance Count (PostgreSQL on dedicated machine)
 ─────────────────────────────────────────────────────────────
 
@@ -119,6 +134,7 @@ Throughput vs Instance Count (PostgreSQL on dedicated machine)
 8 servers: 900 req/sec   ✅ Still scales
 16 servers: 1000 req/sec ⚠️ Database at 95% CPU (saturation point)
 ```text
+<!-- Code example in TEXT -->
 
 **Key insight**: Your throughput is limited by database, not by FraiseQL servers.
 
@@ -131,6 +147,7 @@ Throughput vs Instance Count (PostgreSQL on dedicated machine)
 FraiseQL computes **query complexity** at compile time and validates at runtime:
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": {
     "name": "posts",
@@ -142,10 +159,12 @@ FraiseQL computes **query complexity** at compile time and validates at runtime:
   "estimated_time_ms": 25
 }
 ```text
+<!-- Code example in TEXT -->
 
 Complexity is calculated as:
 
 ```text
+<!-- Code example in TEXT -->
 Complexity = base_cost + (field_count × field_cost) + (nesting_level × depth_cost)
 
 Example:
@@ -156,12 +175,14 @@ Example:
 - Total complexity: 9
 - Estimated time: 9 × 5ms = 45ms (rough estimate)
 ```text
+<!-- Code example in TEXT -->
 
 ### Common Query Patterns and Performance
 
 **Pattern 1: Simple Single-Row Query**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: 1) {
     id
@@ -170,6 +191,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 - Complexity: 2
 - Execution plan: Single indexed SELECT
@@ -179,6 +201,7 @@ query {
 **Pattern 2: List with Pagination**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(limit: 50, offset: 0) {
     id
@@ -188,6 +211,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 - Complexity: 4
 - Execution plan: SELECT with LIMIT/OFFSET
@@ -197,6 +221,7 @@ query {
 **Pattern 3: One-to-Many Relationship**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: 1) {
     id
@@ -209,6 +234,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 - Complexity: 6
 - Execution plan: 2 SQL queries (user + posts)
@@ -218,6 +244,7 @@ query {
 **Pattern 4: Deeply Nested (Anti-pattern)**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: 1) {
     posts {
@@ -232,6 +259,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 - Complexity: 18
 - Execution plan: 5 SQL queries
@@ -247,6 +275,7 @@ query {
 FraiseQL implements **automatic query result caching** with smart invalidation:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct CacheEntry {
     key: String,               // Hash of query + parameters
     result: serde_json::Value, // Cached response
@@ -255,12 +284,14 @@ pub struct CacheEntry {
     depends_on: Vec<String>,   // Which tables it reads from
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Cache Coherency
 
 When data is modified, dependent queries are automatically invalidated:
 
 ```text
+<!-- Code example in TEXT -->
 Query cache key: hash(query + params)
 Example: hash("select * from posts where author_id = 1")
 
@@ -268,6 +299,7 @@ When mutation runs: INSERT INTO posts (author_id=1, ...)
 → Invalidates all cache entries depending on 'posts' table
 → Future queries with author_id=1 recompute
 ```text
+<!-- Code example in TEXT -->
 
 ### Cache Hit Rates
 
@@ -283,6 +315,7 @@ Typical deployment cache statistics:
 ### Enabling Cache
 
 ```rust
+<!-- Code example in RUST -->
 // Cache configuration
 pub struct CacheConfig {
     pub enabled: bool,
@@ -302,6 +335,7 @@ let config = CacheConfig {
 let schema = CompiledSchema::from_json(&json)?
     .with_cache_config(config);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -312,6 +346,7 @@ let schema = CompiledSchema::from_json(&json)?
 Proper indexes are **critical** for FraiseQL performance:
 
 ```sql
+<!-- Code example in SQL -->
 -- Primary key (always)
 CREATE TABLE tb_post (
     pk_post_id BIGSERIAL PRIMARY KEY,
@@ -331,6 +366,7 @@ CREATE INDEX idx_post_created ON tb_post(created_at DESC);
 CREATE INDEX idx_post_author_status ON tb_post(fk_user_id, status);
 CREATE INDEX idx_post_user_date ON tb_post(fk_user_id, created_at DESC);
 ```text
+<!-- Code example in TEXT -->
 
 **Performance impact:**
 
@@ -343,12 +379,14 @@ CREATE INDEX idx_post_user_date ON tb_post(fk_user_id, created_at DESC);
 Always analyze PostgreSQL query plans:
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN ANALYZE
 SELECT * FROM tb_post
 WHERE fk_user_id = 1 AND status = 'PUBLISHED'
 ORDER BY created_at DESC
 LIMIT 50;
 ```text
+<!-- Code example in TEXT -->
 
 Good plans have:
 
@@ -362,6 +400,7 @@ Good plans have:
 Optimal pool configuration:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 # Minimum connections to keep warm
 pool_min = 10
@@ -375,6 +414,7 @@ acquire_timeout_ms = 5000
 # Timeout for idle connections
 idle_timeout_ms = 300000  # 5 minutes
 ```text
+<!-- Code example in TEXT -->
 
 **Guidelines:**
 
@@ -385,6 +425,7 @@ idle_timeout_ms = 300000  # 5 minutes
 Monitor pool usage:
 
 ```bash
+<!-- Code example in BASH -->
 # Check current pool stats
 curl http://localhost:8080/metrics | grep database_pool
 
@@ -392,6 +433,7 @@ curl http://localhost:8080/metrics | grep database_pool
 # fraiseql_database_pool_connections_available 42
 # fraiseql_database_pool_connections_in_use 8
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -400,6 +442,7 @@ curl http://localhost:8080/metrics | grep database_pool
 ### Key Metrics to Track
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Latency Percentiles
    - P50 (median): 20ms is good
@@ -421,12 +464,14 @@ curl http://localhost:8080/metrics | grep database_pool
    - GC time
    - Thread pool status
 ```text
+<!-- Code example in TEXT -->
 
 ### Prometheus Metrics
 
 FraiseQL exports Prometheus-compatible metrics:
 
 ```text
+<!-- Code example in TEXT -->
 # Query latency histogram (seconds)
 fraiseql_query_duration_seconds_bucket{le="0.01"} 250
 fraiseql_query_duration_seconds_bucket{le="0.05"} 280
@@ -442,12 +487,14 @@ fraiseql_cache_hits_total / fraiseql_cache_attempts_total
 fraiseql_database_pool_connections_available
 fraiseql_database_pool_connections_in_use
 ```text
+<!-- Code example in TEXT -->
 
 ### Load Testing
 
 Use `wrk` or Apache Bench for load testing:
 
 ```bash
+<!-- Code example in BASH -->
 # Test with 10 concurrent connections for 30 seconds
 wrk -t 4 -c 10 -d 30s \
   -s post_query.lua \
@@ -461,6 +508,7 @@ wrk -t 4 -c 10 -d 30s \
 #   Req/Sec    123.2     35.4     250      72.19%
 # 14856 requests in 30.09s, 123.5MB read
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -471,10 +519,12 @@ wrk -t 4 -c 10 -d 30s \
 Add more CPU/RAM to single server:
 
 ```text
+<!-- Code example in TEXT -->
 2-core → 4-core:    +50-70% throughput
 4-core → 8-core:    +30-50% throughput (diminishing returns)
 8GB RAM → 16GB RAM: +20-30% (cache hit rate increase)
 ```text
+<!-- Code example in TEXT -->
 
 **When to use**: Up to ~1000 req/sec
 
@@ -483,11 +533,13 @@ Add more CPU/RAM to single server:
 Add more FraiseQL server instances:
 
 ```text
+<!-- Code example in TEXT -->
 1 server:   200 req/sec
 2 servers:  350 req/sec (75% of linear)
 4 servers:  600 req/sec (75% of linear)
 8 servers:  900 req/sec (70% of linear)
 ```text
+<!-- Code example in TEXT -->
 
 Scaling efficiency drops when database becomes bottleneck (usually around 8 servers).
 
@@ -496,10 +548,12 @@ Scaling efficiency drops when database becomes bottleneck (usually around 8 serv
 Use database read replicas for read-heavy workloads:
 
 ```text
+<!-- Code example in TEXT -->
 Primary DB (writes):    200 req/sec
 + 2 Read Replicas:      400 req/sec
 + 4 Read Replicas:      800 req/sec
 ```text
+<!-- Code example in TEXT -->
 
 **Gotcha:** Replicas have replication lag (typically 10-100ms), so recent writes may not be visible.
 
@@ -508,11 +562,13 @@ Primary DB (writes):    200 req/sec
 Add Redis for result caching:
 
 ```text
+<!-- Code example in TEXT -->
 Without cache:  200 req/sec
 + Redis cache:  500+ req/sec (hit-dependent)
 
 With 70% hit rate: (200 × 0.3) + (5000 × 0.7) = 3560 req/sec
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Cache coherency becomes challenging at scale.
 
@@ -523,6 +579,7 @@ With 70% hit rate: (200 × 0.3) + (5000 × 0.7) = 3560 req/sec
 ### Anti-Pattern 1: N+1 Queries
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BAD: Executes 1 + N queries
 query {
   users {           # Query 1: Get all users
@@ -534,16 +591,19 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fix**: Use query batching or joins
 
 ```sql
+<!-- Code example in SQL -->
 -- Instead of N queries, use JOIN
 SELECT users.id, users.name, posts.id, posts.title
 FROM tb_user
 LEFT JOIN tb_post ON tb_post.fk_user_id = tb_user.pk_user_id
 ORDER BY users.id, posts.id;
 ```text
+<!-- Code example in TEXT -->
 
 Performance impact:
 
@@ -553,6 +613,7 @@ Performance impact:
 ### Anti-Pattern 2: Excessive Field Projection
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BAD: Fetches all JSONB fields from database
 query {
   users {
@@ -563,10 +624,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fix**: Request only needed fields
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ GOOD: Requests only 2 fields
 query {
   users {
@@ -576,6 +639,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Performance impact:
 
@@ -585,6 +649,7 @@ Performance impact:
 ### Anti-Pattern 3: Unbounded Lists
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BAD: No limit on result set
 query {
   posts {  # Could return 1 million rows!
@@ -593,10 +658,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fix**: Enforce pagination limits
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ GOOD: Maximum 100 items
 query {
   posts(limit: 50, offset: 0) {
@@ -605,6 +672,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Performance impact:
 
@@ -614,6 +682,7 @@ Performance impact:
 ### Anti-Pattern 4: Missing Indexes
 
 ```sql
+<!-- Code example in SQL -->
 # ❌ BAD: Frequently filtered field has no index
 SELECT * FROM tb_post WHERE status = 'PUBLISHED';
 -- Sequential scan: 500-5000ms
@@ -622,6 +691,7 @@ SELECT * FROM tb_post WHERE status = 'PUBLISHED';
 CREATE INDEX idx_post_status ON tb_post(status);
 -- Index scan: 5-50ms
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -632,6 +702,7 @@ CREATE INDEX idx_post_status ON tb_post(status);
 **Workload**: 100 concurrent users, each doing 1 read query/sec
 
 ```text
+<!-- Code example in TEXT -->
 Single server baseline:
 
 - Throughput: 200 req/sec
@@ -648,12 +719,14 @@ Cache hit rate: 70% (most users viewing same posts)
 - Actually needed: 1000 req/sec
 - ✅ Single server sufficient with cache!
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: SaaS Analytics Dashboard
 
 **Workload**: 50 concurrent users, each doing 5 analytical queries/sec
 
 ```text
+<!-- Code example in TEXT -->
 Analytical query baseline: 100 req/sec (complex queries)
 
 Scaling to 250 concurrent queries:
@@ -668,12 +741,14 @@ Cache strategy:
 - Actually needed: 250 req/sec
 - ✅ Two servers sufficient with cache and read replicas
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 3: High-Traffic API
 
 **Workload**: 10,000 req/sec of simple queries
 
 ```text
+<!-- Code example in TEXT -->
 Simple query baseline: 200 req/sec per server
 
 Scaling to 10,000 req/sec:
@@ -697,6 +772,7 @@ Optimization opportunities:
    - Reduces DB servers: 1 instead of 10
    - Reduces cost: Additional savings
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

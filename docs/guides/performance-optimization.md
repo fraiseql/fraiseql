@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Performance & Optimization Guide
+description: Comprehensive guide to optimizing FraiseQL performance for production systems.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "performance", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Performance & Optimization Guide
 
 **Status:** ✅ Production Ready
@@ -28,6 +36,7 @@ Comprehensive guide to optimizing FraiseQL performance for production systems.
 ❌ **Bad: N+1 queries**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUsers {
   users {
     id
@@ -40,12 +49,14 @@ query GetUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Result: 101 queries (1 for users + 100 for individual user's posts)
 
 ✅ **Good: Single nested query**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUsers {
   users {
     id
@@ -57,6 +68,7 @@ query GetUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Result: 1-2 queries total
 
@@ -65,6 +77,7 @@ Result: 1-2 queries total
 ❌ **Bad: Fetch all records**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query AllPosts {
   posts {  # Returns 1,000,000 records!
     id
@@ -73,10 +86,12 @@ query AllPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Good: Paginate with limit/offset or cursor**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query PostsPaginated($first: Int!, $after: String) {
   posts(first: $first, after: $after) {
     edges {
@@ -90,12 +105,14 @@ query PostsPaginated($first: Int!, $after: String) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Request Only Needed Fields
 
 ❌ **Bad: Over-fetching**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser {
   user(id: "123") {
     id
@@ -109,10 +126,12 @@ query GetUser {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Good: Specific fields**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser {
   user(id: "123") {
     id
@@ -125,10 +144,12 @@ query GetUser {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Use Database Indexes
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ Good: Indexes on common filters
 CREATE INDEX idx_user_email ON users(email);
 CREATE INDEX idx_order_date ON orders(created_at);
@@ -140,6 +161,7 @@ CREATE INDEX idx_orders_user_date ON orders(user_id, created_at);
 -- For full-text search:
 CREATE INDEX idx_content_search ON documents USING GIN(to_tsvector('english', content));
 ```text
+<!-- Code example in TEXT -->
 
 **Index Selection:**
 
@@ -151,6 +173,7 @@ CREATE INDEX idx_content_search ON documents USING GIN(to_tsvector('english', co
 ### 5. Explain Query Plans
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN ANALYZE
 SELECT u.id, u.email, COUNT(o.id)
 FROM users u
@@ -165,6 +188,7 @@ ORDER BY u.email;
 -- - Actual runtime
 -- - Inefficiencies (full table scans, etc.)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -173,6 +197,7 @@ ORDER BY u.email;
 ### 1. Connection Pooling
 
 ```rust
+<!-- Code example in RUST -->
 // FraiseQL configuration
 const POOL_SIZE: u32 = 10;  // Connections per server instance
 const QUEUE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -182,10 +207,12 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(900);
 // Pool size = 10-20 (not 100!)
 // Each connection can handle multiple queries sequentially
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Query Result Caching
 
 ```python
+<!-- Code example in Python -->
 # Cache SELECT query results
 @types.query
 def get_users(self, limit: int = 50) -> list[User]:
@@ -202,10 +229,12 @@ def create_user(self, email: str) -> User:
     """
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Materialized Views for Aggregations
 
 ```sql
+<!-- Code example in SQL -->
 -- Pre-compute expensive aggregations
 CREATE MATERIALIZED VIEW user_stats AS
 SELECT
@@ -224,10 +253,12 @@ SELECT cron.schedule('refresh_user_stats', '0 * * * *',
 -- Query materialized view (fast)
 SELECT * FROM user_stats WHERE user_id = $1;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Partitioning Large Tables
 
 ```sql
+<!-- Code example in SQL -->
 -- Time-based partitioning for time-series data
 CREATE TABLE events (
   event_date DATE NOT NULL,
@@ -249,10 +280,12 @@ SELECT * FROM events
 WHERE event_date BETWEEN '2024-01-15' AND '2024-01-20';
 -- Only queries events_2024_01 partition
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Denormalization When Needed
 
 ```sql
+<!-- Code example in SQL -->
 -- Denormalized user_stats table avoids expensive joins
 CREATE TABLE user_stats (
   user_id UUID PRIMARY KEY,
@@ -270,6 +303,7 @@ AFTER INSERT OR UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_user_stats(NEW.user_id);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -278,6 +312,7 @@ EXECUTE FUNCTION update_user_stats(NEW.user_id);
 ### 1. Cache Layers
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────┐
 │   Client Cache  │  (Browser local storage, Redux)
 └────────┬────────┘
@@ -294,10 +329,12 @@ EXECUTE FUNCTION update_user_stats(NEW.user_id);
 │   Database      │  (Slowest)
 └─────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Cache-First vs Cache-And-Network
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Cache-first: Good for static data
 const { data } = useQuery(GET_CATEGORIES, {
   fetchPolicy: 'cache-first'  // 200ms response
@@ -313,10 +350,12 @@ const { data } = useQuery(GET_STOCK_PRICE, {
   fetchPolicy: 'network-only'  // Always fresh
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Redis for Shared Cache
 
 ```python
+<!-- Code example in Python -->
 # Cache expensive query in Redis
 import redis
 
@@ -348,6 +387,7 @@ async def create_order(user_id: str, ...):
     await db.execute('INSERT INTO orders ...')
     cache.delete(f'user_stats:{user_id}')  # Invalidate
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -356,6 +396,7 @@ async def create_order(user_id: str, ...):
 ### Configuration
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [FraiseQL.database]
 pool_size = 20              # Connections
@@ -364,10 +405,12 @@ idle_timeout = 900000       # ms (15 min)
 max_lifetime = 1800000      # ms (30 min)
 test_on_checkout = true     # Verify connection health
 ```text
+<!-- Code example in TEXT -->
 
 ### Tuning
 
 ```text
+<!-- Code example in TEXT -->
 Pool Size Formula:
   = ((core_count × 2) + effective_spindle_count)
   = ((8 cores × 2) + 1) = 17 connections
@@ -375,10 +418,12 @@ Pool Size Formula:
 Concurrency = Pool Size × Average Query Time
   = 20 connections × 50ms = 1000 concurrent requests
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitoring
 
 ```sql
+<!-- Code example in SQL -->
 -- Check pool usage
 SELECT count(*) FROM pg_stat_activity;
 -- Should be <= pool_size (20)
@@ -389,6 +434,7 @@ FROM pg_stat_activity
 WHERE state = 'idle'
   AND query_start < NOW() - INTERVAL '15 minutes';
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -397,6 +443,7 @@ WHERE state = 'idle'
 ### Query Performance Metrics
 
 ```python
+<!-- Code example in Python -->
 # Instrument queries with timing
 @types.query
 def get_posts(self, limit: int = 50) -> list[Post]:
@@ -410,10 +457,12 @@ def get_posts(self, limit: int = 50) -> list[Post]:
 
     return results
 ```text
+<!-- Code example in TEXT -->
 
 ### Slow Query Log
 
 ```sql
+<!-- Code example in SQL -->
 -- Enable slow query logging
 ALTER SYSTEM SET log_min_duration_statement = 100;  -- Log queries > 100ms
 SELECT pg_reload_conf();
@@ -423,10 +472,12 @@ SELECT * FROM pg_stat_statements
 ORDER BY mean_exec_time DESC
 LIMIT 20;
 ```text
+<!-- Code example in TEXT -->
 
 ### APM Integration (DataDog/New Relic)
 
 ```python
+<!-- Code example in Python -->
 from datadog import api
 from datadog_api_client.v1.api.metrics_api import MetricsApi
 
@@ -443,6 +494,7 @@ metrics_api.submit_metrics(
     )
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -459,6 +511,7 @@ metrics_api.submit_metrics(
 ### Horizontal Scaling (Multiple Servers)
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────┐
 │        Load Balancer (nginx)         │
 └──────────────┬───────────────────────┘
@@ -477,10 +530,12 @@ metrics_api.submit_metrics(
         │ (Shared DB)  │
         └──────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### Read Replicas
 
 ```sql
+<!-- Code example in SQL -->
 -- Primary for writes
 PRIMARY (writes)
   ↓ (replication)
@@ -488,8 +543,10 @@ REPLICA 1 (reads)
 REPLICA 2 (reads)
 REPLICA 3 (reads)
 ```text
+<!-- Code example in TEXT -->
 
 ```python
+<!-- Code example in Python -->
 # Route queries to replica
 @database(
     write='postgres_primary',
@@ -499,10 +556,12 @@ def get_users(self) -> list[User]:
     """Queries use replica, mutations use primary"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Citus for Sharding
 
 ```sql
+<!-- Code example in SQL -->
 -- Distribute table across nodes
 SELECT create_distributed_table('orders', 'user_id');
 
@@ -510,6 +569,7 @@ SELECT create_distributed_table('orders', 'user_id');
 SELECT * FROM orders WHERE user_id = $1;  -- Single shard
 SELECT * FROM orders;  -- All shards (parallel)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -532,6 +592,7 @@ SELECT * FROM orders;  -- All shards (parallel)
 ### Benchmark Suite
 
 ```typescript
+<!-- Code example in TypeScript -->
 import Benchmark from 'benchmark';
 
 const suite = new Benchmark.Suite;
@@ -551,10 +612,12 @@ suite
   })
   .run({ async: true });
 ```text
+<!-- Code example in TEXT -->
 
 ### Load Testing
 
 ```bash
+<!-- Code example in BASH -->
 # Using Apache Bench
 ab -n 10000 -c 100 http://localhost:5000/graphql
 
@@ -563,6 +626,7 @@ ab -n 10000 -c 100 http://localhost:5000/graphql
 # 95th percentile latency: 200ms
 # Max latency: 1000ms
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

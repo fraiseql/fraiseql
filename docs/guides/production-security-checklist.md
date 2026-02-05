@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2.0.0-alpha.1 Production Security Checklist
+description: Complete pre-production security checklist for deploying FraiseQL to production.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2.0.0-alpha.1 Production Security Checklist
 
 **Status:** ✅ Production Ready

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Node.js SDK Reference
+description: Complete API reference for the FraiseQL Node.js Runtime SDK. Provides Promise-based async client for executing pre-compiled GraphQL queries against FraiseQL ser
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Node.js SDK Reference
 
 **Status**: Production-Ready | **Version**: 2.0.0 | **Node.js**: 18+ | **Module**: `FraiseQL-nodejs`
@@ -7,6 +15,7 @@ Complete API reference for the FraiseQL Node.js Runtime SDK. Provides Promise-ba
 ## Installation
 
 ```bash
+<!-- Code example in BASH -->
 # npm
 npm install FraiseQL-nodejs
 
@@ -15,7 +24,8 @@ yarn add FraiseQL-nodejs
 
 # pnpm
 pnpm add FraiseQL-nodejs
-```
+```text
+<!-- Code example in TEXT -->
 
 **Requirements:**
 
@@ -49,6 +59,7 @@ pnpm add FraiseQL-nodejs
 ### CommonJS Example
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 const client = new FraiseQLClient({
@@ -76,11 +87,13 @@ async function main() {
 }
 
 main().catch(console.error);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### ESM Example
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { FraiseQLClient } from 'FraiseQL-nodejs';
 
 const client = new FraiseQLClient({
@@ -108,11 +121,13 @@ async function main() {
 }
 
 main().catch(console.error);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### TypeScript Example
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FraiseQLClient, QueryResult, FraiseQLError } from 'FraiseQL-nodejs';
 
 interface User {
@@ -150,7 +165,8 @@ async function main(): Promise<void> {
 }
 
 main();
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Type System and Runtime Validation
 
@@ -159,17 +175,20 @@ main();
 FraiseQL performs runtime type validation at execution boundaries:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Type checking happens automatically
 const result = await client.query('users', {
   limit: 10,              // ✅ Valid: number
   offset: 'invalid',      // ❌ Error: expected number
   status: 'active',       // ✅ Valid: string
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Input Validation
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Validate input before query
 const validation = client.validateInput('createUser', {
   email: 'user@example.com',
@@ -187,11 +206,13 @@ if (!validation.valid) {
     role: 'admin',
   });
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### JSDoc Type Hints
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 /**
  * Get paginated user list
  * @param {number} limit - Items per page (default: 10)
@@ -202,42 +223,50 @@ if (!validation.valid) {
 async function getUsers(limit = 10, offset = 0, status) {
   return client.query('users', { limit, offset, status });
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Query Operations
 
 ### Simple Query
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.query('users', { limit: 10 });
 console.log(result.data);      // Array of results
 console.log(result.execution); // { duration: 45, cached: false }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.query('userById', {
   id: 'user-123',
   includeDetails: true,
 });
 
 console.log(result.data);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Authorization
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.query('sensitiveData', {}, {
   authToken: 'Bearer eyJhbGc...',
   userId: 'user-123',
   scopes: ['read:admin', 'read:financial'],
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Batch Queries
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const results = await client.batch([
   { operation: 'query', name: 'users', args: { limit: 5 } },
   { operation: 'query', name: 'products', args: { limit: 5 } },
@@ -245,13 +274,15 @@ const results = await client.batch([
 ]);
 
 // results: [{ data: [...] }, { data: [...] }, { data: [...] }]
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Mutation Operations
 
 ### CREATE Mutation
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.mutate('createUser', {
   email: 'new@example.com',
   name: 'Alice Smith',
@@ -260,31 +291,37 @@ const result = await client.mutate('createUser', {
 
 console.log(result.data);      // { id: 'user-456', email: '...', ... }
 console.log(result.id);        // 'user-456'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### UPDATE Mutation
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.mutate('updateUser', {
   id: 'user-123',
   email: 'updated@example.com',
   name: 'Bob Updated',
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### DELETE Mutation
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.mutate('deleteUser', {
   id: 'user-123',
 });
 
 console.log(result.data);      // true (success)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Transactional Mutations
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const transaction = await client.transaction([
   { operation: 'mutate', name: 'createUser', args: { email: '1@example.com', name: 'User 1' } },
   { operation: 'mutate', name: 'createUser', args: { email: '2@example.com', name: 'User 2' } },
@@ -293,13 +330,15 @@ const transaction = await client.transaction([
 
 console.log(transaction.results);  // All succeeded or rolled back
 console.log(transaction.success);  // true/false
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Subscriptions
 
 ### WebSocket Subscription
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const subscription = await client.subscribe('userCreated', {}, {
   onMessage: (data) => {
     console.log('New user:', data);
@@ -314,11 +353,13 @@ const subscription = await client.subscribe('userCreated', {}, {
 
 // Later: unsubscribe
 await subscription.unsubscribe();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Filtered Subscription
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const subscription = await client.subscribe('customerOrders', {
   customerId: 'customer-123',
 }, {
@@ -326,13 +367,15 @@ const subscription = await client.subscribe('customerOrders', {
     console.log('Order received:', order);
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Advanced Features
 
 ### Fact Tables and Analytics
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Execute aggregation on fact table
 const summary = await client.query('salesSummary', {
   groupBy: ['region', 'category'],
@@ -345,11 +388,13 @@ console.log(summary.data);
 //   { region: 'North', category: 'Electronics', revenue: 50000, quantity: 120 },
 //   { region: 'South', category: 'Clothing', revenue: 30000, quantity: 200 },
 // ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field-Level Metadata Access
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Check available fields on a type
 const userFields = client.getTypeMetadata('User');
 console.log(userFields);
@@ -361,11 +406,13 @@ console.log(userFields);
 
 // Check required scopes for a field
 const emailScopes = userFields.email.requiresScope;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### RBAC Authorization
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await client.query('users', { limit: 10 }, {
   authToken: 'Bearer token...',
   userId: 'user-123',
@@ -374,18 +421,21 @@ const result = await client.query('users', { limit: 10 }, {
 
 // Fields requiring 'read:user' are accessible
 // Fields requiring 'read:admin' are filtered out if scope missing
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Observers and Webhooks
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Client receives webhook notifications when they fire
 const subscription = await client.subscribe('orderCreatedWebhook', {}, {
   onMessage: (event) => {
     console.log('Webhook fired:', event.type, event.data);
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Scalar Types
 
@@ -416,6 +466,7 @@ See [Scalars Reference](../../reference/scalars.md) for complete 60+ type list.
 ### Middleware Setup
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const express = require('express');
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 
@@ -436,11 +487,13 @@ app.listen(3000, async () => {
   await client.connect();
   console.log('Server running');
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GraphQL Endpoint
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 app.post('/graphql', express.json(), async (req, res) => {
   try {
     const { query, variables } = req.body;
@@ -454,11 +507,13 @@ app.post('/graphql', express.json(), async (req, res) => {
     res.status(400).json({ errors: [{ message: error.message }] });
   }
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### REST API Endpoints
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 app.get('/api/users/:id', async (req, res) => {
   try {
     const result = await req.FraiseQL.query('userById', {
@@ -479,13 +534,15 @@ app.post('/api/users', express.json(), async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Error Handling
 
 ### Try-Catch Pattern
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 try {
   const result = await client.query('users', { limit: 10 });
   console.log(result.data);
@@ -501,11 +558,13 @@ try {
     console.error('Unknown error:', error);
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Types
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // VALIDATION_ERROR
 { code: 'VALIDATION_ERROR', fields: { email: 'Invalid format' } }
 
@@ -523,13 +582,15 @@ try {
 
 // DATABASE_ERROR
 { code: 'DATABASE_ERROR', dbCode: 'CONSTRAINT_VIOLATION' }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Testing Patterns
 
 ### Jest Testing with Mocks
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 jest.mock('FraiseQL-nodejs');
 
@@ -549,11 +610,13 @@ describe('User API', () => {
     expect(client.query).toHaveBeenCalledWith('users', { limit: 10 });
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration Testing
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 
 describe('Database Integration', () => {
@@ -584,11 +647,13 @@ describe('Database Integration', () => {
     expect(retrieved.data.email).toBe('test@example.com');
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mocha Testing
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const { FraiseQLClient } = require('FraiseQL-nodejs');
 const { expect } = require('chai');
 
@@ -613,13 +678,15 @@ describe('FraiseQL Client', () => {
     await client.disconnect();
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Common Patterns
 
 ### CRUD Operations
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Create
 const user = await client.mutate('createUser', {
   email: 'user@example.com',
@@ -637,11 +704,13 @@ await client.mutate('updateUser', {
 
 // Delete
 await client.mutate('deleteUser', { id: user.data.id });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 async function getPagedUsers(pageNumber, pageSize = 20) {
   const offset = (pageNumber - 1) * pageSize;
   return client.query('users', {
@@ -651,11 +720,13 @@ async function getPagedUsers(pageNumber, pageSize = 20) {
     order: 'DESC',
   });
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Multi-Tenancy
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Include tenant ID in every query
 const result = await client.query('tenantUsers', {
   tenantId: 'tenant-123',
@@ -664,7 +735,8 @@ const result = await client.query('tenantUsers', {
   userId: 'user-456',
   tenantId: 'tenant-123',
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## See Also
 
@@ -688,10 +760,12 @@ const result = await client.query('tenantUsers', {
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 npm install @FraiseQL/nodejs@latest
 npm cache clean --force
 npm install
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Module Not Found
 
@@ -700,9 +774,11 @@ npm install
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 npm install @FraiseQL/nodejs
 node -e "console.log(require('@FraiseQL/nodejs'))"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Node Version Issues
 
@@ -711,15 +787,19 @@ node -e "console.log(require('@FraiseQL/nodejs'))"
 **Check Node.js version** (14+ required):
 
 ```bash
+<!-- Code example in BASH -->
 node --version
-```
+```text
+<!-- Code example in TEXT -->
 
 **Update Node.js**:
 
 ```bash
+<!-- Code example in BASH -->
 nvm install 18
 nvm use 18
-```
+```text
+<!-- Code example in TEXT -->
 
 #### ESM/CommonJS Issues
 
@@ -728,19 +808,23 @@ nvm use 18
 **Solution - Use correct module system**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "module"
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Or for CommonJS:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // ✅ CommonJS
 const { Server } = require('@FraiseQL/nodejs');
 
 const server = Server.fromCompiled('schema.compiled.json');
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -753,6 +837,7 @@ const server = Server.fromCompiled('schema.compiled.json');
 **Solution - Handle promises**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // ❌ Wrong - unhandled rejection
 server.execute(query);
 
@@ -766,7 +851,8 @@ try {
 } catch (error) {
   console.error('Error:', error);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Type Errors at Runtime
 
@@ -775,12 +861,14 @@ try {
 **Solution - Check types**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // ❌ Risky
 const userId = result.data.user.id;
 
 // ✅ Safe
 const userId = result?.data?.user?.id || null;
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Connection Issues
 
@@ -789,16 +877,20 @@ const userId = result?.data?.user?.id || null;
 **Check environment**:
 
 ```bash
+<!-- Code example in BASH -->
 echo $DATABASE_URL
 psql $DATABASE_URL -c "SELECT 1"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Set URL**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 process.env.DATABASE_URL = 'postgresql://...';
 const server = Server.fromCompiled('schema.compiled.json');
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Timeout Issues
 
@@ -807,13 +899,15 @@ const server = Server.fromCompiled('schema.compiled.json');
 **Solution - Increase timeout**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const server = Server.fromCompiled('schema.compiled.json', {
   timeout: 60000,  // 60 seconds
 });
 
 // Per-query
 await server.execute(query, { timeout: 30000 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -826,9 +920,11 @@ await server.execute(query, { timeout: 30000 });
 **Debug with clinic.js**:
 
 ```bash
+<!-- Code example in BASH -->
 npm install -g clinic
 clinic doctor -- node app.js
-```
+```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -843,13 +939,15 @@ clinic doctor -- node app.js
 **Enable caching**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const server = Server.fromCompiled('schema.compiled.json', {
   cache: {
     enabled: true,
     ttl: 300  // 5 minutes
   }
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Build Size
 
@@ -858,12 +956,14 @@ const server = Server.fromCompiled('schema.compiled.json', {
 **Optimize**:
 
 ```bash
+<!-- Code example in BASH -->
 # Tree-shake
 import { Server } from '@FraiseQL/nodejs';  // Only what needed
 
 # Check bundle
 npm ls
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -872,6 +972,7 @@ npm ls
 #### Logging
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const server = Server.fromCompiled('schema.compiled.json', {
   debug: true,
   logLevel: 'debug'
@@ -880,23 +981,28 @@ const server = Server.fromCompiled('schema.compiled.json', {
 // Or use env
 process.env.FRAISEQL_DEBUG = 'true';
 process.env.RUST_LOG = 'FraiseQL=debug';
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Inspect Results
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const result = await server.execute(query);
 console.log(JSON.stringify(result, null, 2));
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Network Debugging
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ user(id: 1) { id } }"}' \
   -v
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

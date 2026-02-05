@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: WHERE Operators Cheat Sheet
+description: Quick reference for all filtering operators in FraiseQL GraphQL queries.
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # WHERE Operators Cheat Sheet
 
 **Status:** ✅ Production Ready
@@ -14,6 +22,7 @@ Quick reference for all filtering operators in FraiseQL GraphQL queries.
 Filter for exact match.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { status: { equals: "active" } }) {
     id name
@@ -21,13 +30,15 @@ query {
 }
 
 # SQL: WHERE status = 'active'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### not
 
 Filter for not equal.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { status: { not: "deleted" } }) {
     id name
@@ -35,13 +46,15 @@ query {
 }
 
 # SQL: WHERE status != 'deleted'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### in
 
 Filter for any in list.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { role: { in: ["admin", "moderator", "user"] } }) {
     id name
@@ -49,13 +62,15 @@ query {
 }
 
 # SQL: WHERE role IN ('admin', 'moderator', 'user')
-```
+```text
+<!-- Code example in TEXT -->
 
 ### notIn
 
 Filter for not in list.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { status: { notIn: ["banned", "deleted"] } }) {
     id name
@@ -63,7 +78,8 @@ query {
 }
 
 # SQL: WHERE status NOT IN ('banned', 'deleted')
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -74,6 +90,7 @@ query {
 Case-insensitive substring match.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { email: { contains: "@gmail.com" } }) {
     id name
@@ -81,13 +98,15 @@ query {
 }
 
 # SQL: WHERE email ILIKE '%@gmail.com%'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### startsWith
 
 String starts with.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { name: { startsWith: "John" } }) {
     id name
@@ -95,13 +114,15 @@ query {
 }
 
 # SQL: WHERE name LIKE 'John%'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### endsWith
 
 String ends with.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { email: { endsWith: "@example.com" } }) {
     id name
@@ -109,13 +130,15 @@ query {
 }
 
 # SQL: WHERE email LIKE '%@example.com'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### regex
 
 Regular expression match.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { phone: { regex: "^\\+1-\\d{3}-\\d{3}-\\d{4}$" } }) {
     id name
@@ -123,7 +146,8 @@ query {
 }
 
 # SQL: WHERE phone ~ '^\+1-\d{3}-\d{3}-\d{4}$'
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -132,6 +156,7 @@ query {
 ### greaterThan
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { price: { greaterThan: 100 } }) {
     id name price
@@ -139,11 +164,13 @@ query {
 }
 
 # SQL: WHERE price > 100
-```
+```text
+<!-- Code example in TEXT -->
 
 ### greaterThanOrEqual
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { price: { greaterThanOrEqual: 100 } }) {
     id name price
@@ -151,11 +178,13 @@ query {
 }
 
 # SQL: WHERE price >= 100
-```
+```text
+<!-- Code example in TEXT -->
 
 ### lessThan
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { price: { lessThan: 50 } }) {
     id name price
@@ -163,11 +192,13 @@ query {
 }
 
 # SQL: WHERE price < 50
-```
+```text
+<!-- Code example in TEXT -->
 
 ### lessThanOrEqual
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { price: { lessThanOrEqual: 50 } }) {
     id name price
@@ -175,11 +206,13 @@ query {
 }
 
 # SQL: WHERE price <= 50
-```
+```text
+<!-- Code example in TEXT -->
 
 ### between
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { price: { between: 50, 200 } }) {
     id name price
@@ -187,7 +220,8 @@ query {
 }
 
 # SQL: WHERE price BETWEEN 50 AND 200
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -198,6 +232,7 @@ query {
 For dates after specified date.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { created_at: { after: "2024-01-01" } }) {
     id created_at
@@ -205,13 +240,15 @@ query {
 }
 
 # SQL: WHERE created_at > '2024-01-01'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### before
 
 For dates before specified date.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { created_at: { before: "2024-12-31" } }) {
     id created_at
@@ -219,13 +256,15 @@ query {
 }
 
 # SQL: WHERE created_at < '2024-12-31'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### betweenDates
 
 Between two dates.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { created_at: { betweenDates: "2024-01-01", "2024-12-31" } }) {
     id created_at
@@ -233,13 +272,15 @@ query {
 }
 
 # SQL: WHERE created_at >= '2024-01-01' AND created_at <= '2024-12-31'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### dayOfWeek
 
 Filter by day of week (1=Monday, 7=Sunday).
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   events(where: { date: { dayOfWeek: 5 } }) {
     id date
@@ -247,13 +288,15 @@ query {
 }
 
 # SQL: WHERE EXTRACT(DOW FROM date) = 5 (Friday)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### dayOfMonth
 
 Filter by day of month (1-31).
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   birthdays(where: { date: { dayOfMonth: 25 } }) {
     id date
@@ -261,13 +304,15 @@ query {
 }
 
 # SQL: WHERE EXTRACT(DAY FROM date) = 25
-```
+```text
+<!-- Code example in TEXT -->
 
 ### month
 
 Filter by month (1-12).
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   birthdays(where: { date: { month: 12 } }) {
     id date
@@ -275,13 +320,15 @@ query {
 }
 
 # SQL: WHERE EXTRACT(MONTH FROM date) = 12
-```
+```text
+<!-- Code example in TEXT -->
 
 ### year
 
 Filter by year.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { created_at: { year: 2024 } }) {
     id created_at
@@ -289,7 +336,8 @@ query {
 }
 
 # SQL: WHERE EXTRACT(YEAR FROM created_at) = 2024
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -300,6 +348,7 @@ query {
 All conditions must be true.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     AND: [
@@ -312,13 +361,15 @@ query {
 }
 
 # SQL: WHERE age > 18 AND status = 'active'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### OR
 
 Any condition can be true.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     OR: [
@@ -331,13 +382,15 @@ query {
 }
 
 # SQL: WHERE role = 'admin' OR role = 'moderator'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### NOT
 
 Condition is false.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     NOT: { status: { equals: "deleted" } }
@@ -347,7 +400,8 @@ query {
 }
 
 # SQL: WHERE NOT (status = 'deleted')
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -358,6 +412,7 @@ query {
 Check if value is NULL.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { deleted_at: { isNull: true } }) {
     id name
@@ -365,13 +420,15 @@ query {
 }
 
 # SQL: WHERE deleted_at IS NULL
-```
+```text
+<!-- Code example in TEXT -->
 
 ### isNotNull
 
 Check if value is NOT NULL.
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { deleted_at: { isNotNull: true } }) {
     id name
@@ -379,7 +436,8 @@ query {
 }
 
 # SQL: WHERE deleted_at IS NOT NULL
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -388,6 +446,7 @@ query {
 ### Multiple Conditions (AND)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: {
     AND: [
@@ -403,11 +462,13 @@ query {
 # SQL: WHERE (status IN ('pending', 'processing'))
 #      AND (total > 100)
 #      AND (created_at > '2024-01-01')
-```
+```text
+<!-- Code example in TEXT -->
 
 ### OR Conditions
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     OR: [
@@ -423,11 +484,13 @@ query {
 # SQL: WHERE (email LIKE '%@gmail.com%')
 #      OR (email LIKE '%@yahoo.com%')
 #      OR (phone LIKE '+1%')
-```
+```text
+<!-- Code example in TEXT -->
 
 ### NOT with Complex Condition
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: {
     NOT: {
@@ -442,11 +505,13 @@ query {
 }
 
 # SQL: WHERE NOT (status = 'discontinued' OR stock = 0)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Nested AND/OR
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: {
     AND: [
@@ -467,7 +532,8 @@ query {
 # SQL: WHERE user_id = '123'
 #      AND (status = 'completed' OR status = 'refunded')
 #      AND created_at > '2024-01-01'
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -476,6 +542,7 @@ query {
 ### ✅ Good Practices
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Index frequently filtered columns
 users(where: { email: { equals: "user@example.com" } })
 
@@ -484,11 +551,13 @@ products(where: { category: { in: ["A", "B"] } })
 
 # Combine with pagination
 users(where: { status: { equals: "active" } }, limit: 100)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### ❌ Bad Practices
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Avoid LIKE on unindexed columns
 users(where: { name: { contains: "%" } })
 
@@ -497,7 +566,8 @@ articles(where: { content: { regex: "complex.*pattern" } })
 
 # Avoid very long IN lists (>1000 items)
 users(where: { id: { in: ["id1", "id2", ... "id10000"] } })
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

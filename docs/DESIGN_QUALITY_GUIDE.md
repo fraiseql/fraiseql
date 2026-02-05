@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Design Quality Guide
+description: FraiseQL Design Quality is an automated linting and auditing system for GraphQL schema architecture. It helps teams design schemas that work optimally with Frai
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Design Quality Guide
 
 ## Introduction
@@ -11,6 +19,7 @@ Think of it as "Clippy for GraphQL" - it enforces best practices specific to Fra
 ### CLI Usage
 
 ```bash
+<!-- Code example in BASH -->
 # Analyze your schema
 FraiseQL lint schema.json
 
@@ -35,11 +44,13 @@ FraiseQL lint schema.json --fail-on-critical --fail-on-warning
 
 # Get detailed analysis
 FraiseQL lint schema.json --verbose --json | jq '.data'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### API Usage
 
 ```bash
+<!-- Code example in BASH -->
 # POST design audit request
 curl -X POST http://localhost:8080/api/v1/design/audit \
   -H "Content-Type: application/json" \
@@ -65,7 +76,8 @@ curl -X POST http://localhost:8080/api/v1/design/audit \
     "compilation": {"score": 90, "issues": [...]}
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Understanding Design Scores
 
@@ -121,6 +133,7 @@ Each category is scored separately:
 **Problem**: Can't batch efficiently with JSONB views across multiple subgraphs
 
 ```json
+<!-- Code example in JSON -->
 // ❌ Anti-pattern: User in 3 subgraphs
 {
   "subgraphs": [
@@ -140,7 +153,8 @@ Each category is scored separately:
      "references": [{"type": "User", "via": "users"}]}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Rule: Circular Dependency Detection
 
@@ -149,6 +163,7 @@ Each category is scored separately:
 **Problem**: Nested JSONB becomes inefficient, hard to compile
 
 ```json
+<!-- Code example in JSON -->
 // ❌ Anti-pattern: Circular reference
 // users-service: User references Post
 // posts-service: Post references User
@@ -162,7 +177,8 @@ Each category is scored separately:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cost Rules
 
@@ -173,6 +189,7 @@ Each category is scored separately:
 **Problem**: Unexpected production issues under load
 
 ```json
+<!-- Code example in JSON -->
 // ❌ Anti-pattern: O(n²) query pattern
 {
   "types": [
@@ -193,7 +210,8 @@ Each category is scored separately:
     ]}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cache Rules
 
@@ -204,6 +222,7 @@ Each category is scored separately:
 **Problem**: Stale data in some subgraphs, fresh in others
 
 ```json
+<!-- Code example in JSON -->
 // ❌ Anti-pattern: Inconsistent TTL
 {
   "subgraphs": [
@@ -221,7 +240,8 @@ Each category is scored separately:
      "references": [{"type": "User", "cache_ttl_seconds": 300}]}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Authorization Rules
 
@@ -232,6 +252,7 @@ Each category is scored separately:
 **Problem**: Security violation, data exposure
 
 ```json
+<!-- Code example in JSON -->
 // ❌ Anti-pattern: Protected field exposed
 {
   "types": [{
@@ -258,7 +279,8 @@ Each category is scored separately:
      ]}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Real-World Examples
 
@@ -267,6 +289,7 @@ Each category is scored separately:
 **Initial Design**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "subgraphs": [
     {"name": "users", "entities": ["User"]},
@@ -274,7 +297,8 @@ Each category is scored separately:
     {"name": "comments", "entities": ["User", "Comment"]}  // ⚠️ User duplicate
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Issues Found**:
 
@@ -287,6 +311,7 @@ Each category is scored separately:
 **Improved Design**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "subgraphs": [
     {"name": "users", "entities": ["User"], "cache_ttl_seconds": 300},
@@ -309,7 +334,8 @@ Each category is scored separately:
     ]}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Result: Score 92** (Excellent)
 
@@ -318,6 +344,7 @@ Each category is scored separately:
 ### GitHub Actions
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/design-quality.yml
 name: Design Quality Gate
 
@@ -358,11 +385,13 @@ jobs:
               repo: context.repo.repo,
               body: 'Design quality checks failed. Run `FraiseQL lint schema.json --verbose` for details.'
             })
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GitLab CI
 
 ```yaml
+<!-- Code example in YAML -->
 # .gitlab-ci.yml
 design_quality:
   stage: validate
@@ -374,13 +403,15 @@ design_quality:
   only:
     - merge_requests
     - main
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Agents & Automation
 
 ### Python Auditor Agent
 
 ```python
+<!-- Code example in Python -->
 import requests
 import json
 
@@ -414,11 +445,13 @@ def audit_schema(schema_path):
             for issue in issues:
                 print(f"  • {issue['severity']}: {issue['message']}")
                 print(f"    → {issue['suggestion']}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### TypeScript Analyzer
 
 ```typescript
+<!-- Code example in TypeScript -->
 import axios from 'axios';
 
 async function analyzeSchema(schemaPath: string) {
@@ -441,7 +474,8 @@ async function analyzeSchema(schemaPath: string) {
 
   console.log(`✅ Design quality score: ${audit.overall_score}`);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Performance
 
@@ -478,8 +512,10 @@ See [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md) for details.
 **Update**: Ensure you're using FraiseQL v2.0.0-alpha.1 or later
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL --version
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Issue: API timeout
 

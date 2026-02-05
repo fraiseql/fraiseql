@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Database Selection Guide
+description: PostgreSQL    → Default choice, recommended for most use cases
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Database Selection Guide
 
 **Status:** ✅ Production Ready
@@ -8,6 +16,7 @@
 ## Quick Decision
 
 ```text
+<!-- Code example in TEXT -->
 PostgreSQL    → Default choice, recommended for most use cases
 ├─ Why: Best feature support, mature, JSONB, full-text search
 │
@@ -20,6 +29,7 @@ SQLite        → Local development & testing only
 SQL Server    → Enterprise deployments with license
 └─ Why: Enterprise support, compatibility with existing infrastructure
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -68,16 +78,19 @@ SQL Server    → Enterprise deployments with license
 ### Question 1: Environment?
 
 ```text
+<!-- Code example in TEXT -->
 Local Development?
 ├─ YES → SQLite ✅
 │        (Zero setup, perfect for prototyping)
 │
 └─ NO → Production? (Next question)
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 2: Team Expertise?
 
 ```text
+<!-- Code example in TEXT -->
 Team knows PostgreSQL?
 ├─ YES → PostgreSQL ✅
 │        (Best overall choice)
@@ -95,10 +108,12 @@ Team knows PostgreSQL?
    │
    └─ NO → PostgreSQL or MySQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 3: Specific Needs?
 
 ```text
+<!-- Code example in TEXT -->
 Full-text search critical?
 ├─ YES → PostgreSQL ✅
 │        (tsvector built-in)
@@ -127,6 +142,7 @@ Existing database?
 └─ YES → Use that one ✅
          (Don't change unnecessarily)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -157,6 +173,7 @@ Existing database?
 **Example:**
 
 ```bash
+<!-- Code example in BASH -->
 # Docker Compose
 version: '3.8'
 services:
@@ -170,6 +187,7 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -224,12 +242,14 @@ volumes:
 **Example:**
 
 ```bash
+<!-- Code example in BASH -->
 # Create test database (SQLite file)
 sqlite3 test.db ".schema"
 
 # Or use in-memory SQLite
 export DATABASE_URL="sqlite:///:memory:"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -263,6 +283,7 @@ export DATABASE_URL="sqlite:///:memory:"
 **Downtime:** 10-30 minutes
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Dump MySQL
 mysqldump --all-databases > backup.sql
 
@@ -278,6 +299,7 @@ FraiseQL test
 # 5. Cutover
 # Route connections to PostgreSQL
 ```text
+<!-- Code example in TEXT -->
 
 **Risk:** Low if you test thoroughly
 
@@ -287,6 +309,7 @@ FraiseQL test
 **Downtime:** Seconds
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create PostgreSQL database
 createdb FraiseQL
 
@@ -306,6 +329,7 @@ FraiseQL test
 # Update DATABASE_URL environment variable
 # Restart application
 ```text
+<!-- Code example in TEXT -->
 
 **Risk:** Very low for dev→prod migration
 
@@ -326,6 +350,7 @@ PostgreSQL maintains consistency across:
 ### PostgreSQL Optimization
 
 ```sql
+<!-- Code example in SQL -->
 -- Add indexes for compiled queries
 CREATE INDEX idx_query_col ON table(column);
 
@@ -338,10 +363,12 @@ SET max_parallel_workers_per_gather = 4;
 -- Connection pooling
 -- Use PgBouncer for connection management
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL 8.0+ Optimization
 
 ```sql
+<!-- Code example in SQL -->
 -- Similar indexing
 CREATE INDEX idx_query_col ON table(column);
 
@@ -354,6 +381,7 @@ EXPLAIN SELECT ...
 -- Increase buffer pool for workload
 SET GLOBAL innodb_buffer_pool_size = 4GB;
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Expectations
 
@@ -392,12 +420,14 @@ SET GLOBAL innodb_buffer_pool_size = 4GB;
 **This is expected.** Plan for migration:
 
 ```bash
+<!-- Code example in BASH -->
 # Timeline
 Week 1: Set up PostgreSQL/MySQL
 Week 2: Create schema, test
 Week 3: Mirror data, validate
 Week 4: Cutover and monitor
 ```text
+<!-- Code example in TEXT -->
 
 ### "We're uncertain between PostgreSQL and MySQL"
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Aggregation Model
+description: FraiseQL v2 supports **database-native aggregations** through compile-time schema analysis and runtime SQL generation. All aggregations execute server-side in t
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Aggregation Model
 
 **Version:** 1.0
@@ -32,6 +40,7 @@ FraiseQL v2 supports **database-native aggregations** through compile-time schem
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS total_count,
     COUNT(DISTINCT customer_id) AS unique_customers,
@@ -40,7 +49,8 @@ SELECT
     MIN(revenue) AS min_revenue,
     MAX(revenue) AS max_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Database-Specific Extensions
 
@@ -106,6 +116,7 @@ When the compiler encounters a fact table (marked with `fact_table=True` in sche
 GraphQL:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { category: true, region: true }
@@ -116,11 +127,13 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Generated SQL (PostgreSQL):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     data->>'region' AS region,
@@ -128,7 +141,8 @@ SELECT
     COUNT(*) AS count
 FROM tf_sales
 GROUP BY data->>'category', data->>'region';
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -147,6 +161,7 @@ The HAVING clause filters aggregated results after GROUP BY.
 GraphQL:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { category: true },
@@ -156,11 +171,13 @@ query {
     revenue_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Generated SQL (PostgreSQL):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     SUM(revenue) AS revenue_sum
@@ -168,7 +185,8 @@ FROM tf_sales
 GROUP BY data->>'category'
 HAVING SUM(revenue) >= $1;
 -- Parameters: [10000]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -181,38 +199,46 @@ Temporal bucketing groups timestamps into intervals (day, week, month, etc.).
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 DATE_TRUNC('day', occurred_at)    -- Day bucket
 DATE_TRUNC('week', occurred_at)   -- Week bucket
 DATE_TRUNC('month', occurred_at)  -- Month bucket
 DATE_TRUNC('quarter', occurred_at) -- Quarter bucket
 DATE_TRUNC('year', occurred_at)   -- Year bucket
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL**:
 
 ```sql
+<!-- Code example in SQL -->
 DATE_FORMAT(occurred_at, '%Y-%m-%d')      -- Day bucket
 DATE_FORMAT(occurred_at, '%Y-%m')         -- Month bucket
 DATE_FORMAT(occurred_at, '%Y')            -- Year bucket
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQLite**:
 
 ```sql
+<!-- Code example in SQL -->
 strftime('%Y-%m-%d', occurred_at)  -- Day bucket
 strftime('%Y-%m', occurred_at)     -- Month bucket
 strftime('%Y', occurred_at)        -- Year bucket
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 DATEPART(day, occurred_at)     -- Day component
 DATEPART(week, occurred_at)    -- Week component
 DATEPART(month, occurred_at)   -- Month component
 DATEPART(quarter, occurred_at) -- Quarter component
 DATEPART(year, occurred_at)    -- Year component
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Supported Buckets
 
@@ -230,6 +256,7 @@ DATEPART(year, occurred_at)    -- Year component
 GraphQL:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { occurred_at_day: true }
@@ -238,18 +265,21 @@ query {
     revenue_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Generated SQL (PostgreSQL):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     DATE_TRUNC('day', occurred_at) AS occurred_at_day,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 GROUP BY DATE_TRUNC('day', occurred_at)
 ORDER BY occurred_at_day;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -262,28 +292,33 @@ Conditional aggregates apply filters to individual aggregate functions.
 PostgreSQL supports the native `FILTER (WHERE ...)` syntax:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS total_orders,
     SUM(revenue) FILTER (WHERE data->>'status' = 'completed') AS completed_revenue,
     SUM(revenue) FILTER (WHERE data->>'status' = 'cancelled') AS cancelled_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL/SQLite/SQL Server (CASE WHEN Emulation)
 
 Other databases emulate with CASE WHEN:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS total_orders,
     SUM(CASE WHEN data->>'status' = 'completed' THEN revenue ELSE 0 END) AS completed_revenue,
     SUM(CASE WHEN data->>'status' = 'cancelled' THEN revenue ELSE 0 END) AS cancelled_revenue
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GraphQL API
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate {
     count
@@ -296,7 +331,8 @@ query {
     )
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -313,6 +349,7 @@ query {
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ FAST: SQL column aggregation
 SELECT SUM(revenue) FROM tf_sales;
 -- Execution time: 0.2ms (1M rows)
@@ -321,16 +358,19 @@ SELECT SUM(revenue) FROM tf_sales;
 SELECT SUM((data->>'revenue')::numeric) FROM tf_sales;
 -- Execution time: 45ms (1M rows)
 -- 225x slower!
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Indexed Measures
 
 For common aggregation queries, create indexes on measure columns:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_sales_revenue ON tf_sales(revenue);
 CREATE INDEX idx_sales_quantity ON tf_sales(quantity);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Result**: Near-instantaneous aggregations for queries with selective filters.
 
@@ -339,19 +379,23 @@ CREATE INDEX idx_sales_quantity ON tf_sales(quantity);
 JSONB extraction for GROUP BY is slower than SQL columns, but provides flexibility:
 
 ```sql
+<!-- Code example in SQL -->
 -- Moderate speed: JSONB extraction for grouping
 SELECT
     data->>'category' AS category,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 GROUP BY data->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 **Optimization**: Use GIN index on `data` column (PostgreSQL):
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -362,6 +406,7 @@ CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- ❌ NOT SUPPORTED: Joining dimension tables
 SELECT
     s.revenue,
@@ -375,7 +420,8 @@ SELECT
     data->>'product_category' AS category
 FROM tf_sales;
 -- Category was denormalized at ETL time by DBA/data team
-```
+```text
+<!-- Code example in TEXT -->
 
 **ETL Responsibility**:
 

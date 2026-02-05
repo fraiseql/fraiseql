@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: React Native with Apollo Client for FraiseQL
+description: Complete guide for querying FraiseQL servers from React Native mobile applications.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # React Native with Apollo Client for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -22,22 +30,27 @@ Complete guide for querying FraiseQL servers from React Native mobile applicatio
 ### Add Dependencies
 
 ```bash
+<!-- Code example in BASH -->
 npm install @apollo/client graphql subscriptions-transport-ws
 # or
 yarn add @apollo/client graphql subscriptions-transport-ws
-```
+```text
+<!-- Code example in TEXT -->
 
 For async storage:
 
 ```bash
+<!-- Code example in BASH -->
 npm install @react-native-async-storage/async-storage
 # Link pod (iOS)
 npx pod-install ios
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Configure Apollo Client
 
 ```typescript
+<!-- Code example in TypeScript -->
 // apolloClient.ts
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
@@ -126,11 +139,13 @@ export const apolloClient = new ApolloClient({
     },
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Setup in App
 
 ```typescript
+<!-- Code example in TypeScript -->
 // App.tsx
 import React from 'react';
 import { ApolloProvider } from '@apollo/client';
@@ -144,7 +159,8 @@ export default function App() {
     </ApolloProvider>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -153,6 +169,7 @@ export default function App() {
 ### Basic Query Hook
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useQuery, gql } from '@apollo/client';
 import { View, Text, ActivityIndicator, FlatList } from 'react-native';
 
@@ -204,11 +221,13 @@ export function UserListScreen() {
     />
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```typescript
+<!-- Code example in TypeScript -->
 const GET_USER_BY_ID = gql`
   query GetUserById($id: ID!) {
     user(id: $id) {
@@ -254,11 +273,13 @@ export function UserDetailScreen({ route }: UserDetailScreenProps) {
     </ScrollView>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination for Mobile
 
 ```typescript
+<!-- Code example in TypeScript -->
 export function PostListScreen() {
   const pageSize = 20;
   const [page, setPage] = useState(0);
@@ -310,7 +331,8 @@ export function PostListScreen() {
     />
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -319,6 +341,7 @@ export function PostListScreen() {
 ### Basic Mutation
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useMutation, gql } from '@apollo/client';
 import { View, TextInput, TouchableOpacity, Text } from 'react-native';
 import { useState } from 'react';
@@ -393,11 +416,13 @@ export function CreatePostScreen() {
     </View>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Optimistic Updates
 
 ```typescript
+<!-- Code example in TypeScript -->
 const DELETE_POST = gql`
   mutation DeletePost($id: ID!) {
     deletePost(id: $id) {
@@ -428,7 +453,8 @@ export function PostCard({ post, onDelete }: any) {
     </View>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -437,6 +463,7 @@ export function PostCard({ post, onDelete }: any) {
 ### Real-Time Updates
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useSubscription, gql } from '@apollo/client';
 
 const ON_POST_CREATED = gql`
@@ -487,7 +514,8 @@ export function PostFeedScreen() {
     />
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -496,6 +524,7 @@ export function PostFeedScreen() {
 ### Network Error Recovery
 
 ```typescript
+<!-- Code example in TypeScript -->
 export function useNetworkAwareQuery<T>(document: any, options?: any) {
   const { data, loading, error, refetch } = useQuery<T>(document, {
     ...options,
@@ -542,7 +571,8 @@ export function ResilientUserList() {
 
   // ... render list
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -551,6 +581,7 @@ export function ResilientUserList() {
 ### Persist Cache to AsyncStorage
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { persistCache } from 'apollo3-cache-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -567,11 +598,13 @@ async function createClient() {
     link: httpLink,
   });
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Queue Mutations While Offline
 
 ```typescript
+<!-- Code example in TypeScript -->
 export function useOfflineAwareMutation(document: any) {
   const [isOffline, setIsOffline] = useState(false);
   const [queuedMutations, setQueuedMutations] = useState<any[]>([]);
@@ -606,7 +639,8 @@ export function useOfflineAwareMutation(document: any) {
 
   return [offlineAwareMutate, result, queuedMutations] as const;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -615,6 +649,7 @@ export function useOfflineAwareMutation(document: any) {
 ### Mock Apollo Client for Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { MockedProvider } from '@apollo/client/testing';
 import { render } from '@testing-library/react-native';
 
@@ -645,7 +680,8 @@ describe('UserListScreen', () => {
     expect(alice).toBeTruthy();
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -654,6 +690,7 @@ describe('UserListScreen', () => {
 ### iOS Specific
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Platform } from 'react-native';
 
 // Use NSURLSession for iOS (better for mobile networks)
@@ -662,11 +699,13 @@ const httpLink = new HttpLink({
   credentials: 'include',
   // iOS automatically handles network requests efficiently
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Android Specific
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Handle network changes on Android
 import { Platform } from 'react-native';
 
@@ -678,7 +717,8 @@ const wsLink = new WebSocketLink({
     inactivityTimeout: Platform.OS === 'android' ? 45000 : 30000,
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -687,17 +727,20 @@ const wsLink = new WebSocketLink({
 ### iOS App Store
 
 ```bash
+<!-- Code example in BASH -->
 # Build for App Store
 eas build --platform ios --auto-submit
 
 # Or use Xcode
 open ios/YourApp.xcworkspace
 # Archive and Upload using Xcode's organizer
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Android Play Store
 
 ```bash
+<!-- Code example in BASH -->
 
 # Build for Play Store
 eas build --platform android --auto-submit
@@ -705,7 +748,8 @@ eas build --platform android --auto-submit
 # Or build locally
 cd android && ./gradlew bundleRelease
 # Upload to Play Console
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

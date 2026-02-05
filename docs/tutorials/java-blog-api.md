@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Building a Blog API with FraiseQL: Java Schema Authoring Tutorial
+description: In this tutorial, you'll build a complete GraphQL Blog API by authoring a schema in Java. You'll learn how to:
+keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # Building a Blog API with FraiseQL: Java Schema Authoring Tutorial
 
 **Duration**: 30 minutes
@@ -29,6 +37,7 @@ First, let's set up the PostgreSQL database that our Blog API will query.
 Create a file `schema.sql`:
 
 ```sql
+<!-- Code example in SQL -->
 -- Users table
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
@@ -83,12 +92,15 @@ CREATE INDEX idx_posts_status ON posts(status);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_author_id ON comments(author_id);
 ```text
+<!-- Code example in TEXT -->
 
 To apply this schema:
 
 ```bash
+<!-- Code example in BASH -->
 psql -U postgres -d blog_db -f schema.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -99,6 +111,7 @@ psql -U postgres -d blog_db -f schema.sql
 Create a new Maven project:
 
 ```bash
+<!-- Code example in BASH -->
 mvn archetype:generate \
     -DgroupId=com.example \
     -DartifactId=blog-api \
@@ -106,10 +119,12 @@ mvn archetype:generate \
     -DinteractiveMode=false
 cd blog-api
 ```text
+<!-- Code example in TEXT -->
 
 Replace your `pom.xml` with:
 
 ```xml
+<!-- Code example in XML -->
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -216,12 +231,14 @@ Replace your `pom.xml` with:
     </build>
 </project>
 ```text
+<!-- Code example in TEXT -->
 
 ### Gradle Configuration
 
 If you prefer Gradle, create a `build.gradle`:
 
 ```gradle
+<!-- Code example in GRADLE -->
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' apply false
@@ -253,6 +270,7 @@ tasks.register('exportSchema', JavaExec) {
     mainClass = 'com.example.schema.SchemaExporter'
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### IDE Setup
 
@@ -281,6 +299,7 @@ Now let's define our Blog API schema using Java annotations and the builder patt
 Create `src/main/java/com/example/schema/types/User.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema.types;
 
 import com.FraiseQL.core.GraphQLField;
@@ -312,10 +331,12 @@ public class User {
     public LocalDateTime updatedAt;
 }
 ```text
+<!-- Code example in TEXT -->
 
 Create `src/main/java/com/example/schema/types/Post.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema.types;
 
 import com.FraiseQL.core.GraphQLField;
@@ -363,10 +384,12 @@ public class Post {
     public LocalDateTime updatedAt;
 }
 ```text
+<!-- Code example in TEXT -->
 
 Create `src/main/java/com/example/schema/types/Comment.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema.types;
 
 import com.FraiseQL.core.GraphQLField;
@@ -398,10 +421,12 @@ public class Comment {
     public LocalDateTime updatedAt;
 }
 ```text
+<!-- Code example in TEXT -->
 
 Create `src/main/java/com/example/schema/types/Tag.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema.types;
 
 import com.FraiseQL.core.GraphQLField;
@@ -423,12 +448,14 @@ public class Tag {
     public String slug;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Define GraphQL Queries
 
 Create `src/main/java/com/example/schema/SchemaBuilder.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema;
 
 import com.FraiseQL.core.FraiseQL;
@@ -617,12 +644,14 @@ public class SchemaBuilder {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Understanding the Builder Pattern
 
 The FraiseQL builder pattern provides a fluent, readable API:
 
 ```java
+<!-- Code example in Java -->
 // Example: Building a query
 FraiseQL.query("posts")           // Create query named "posts"
     .description("Get posts")     // Add description
@@ -635,6 +664,7 @@ FraiseQL.query("posts")           // Create query named "posts"
 // This is equivalent to GraphQL:
 // posts(limit: Int = 20, offset: Int = 0): [Post!]!
 ```text
+<!-- Code example in TEXT -->
 
 **Key patterns:**
 
@@ -649,6 +679,7 @@ FraiseQL.query("posts")           // Create query named "posts"
 Annotations provide metadata at the field level:
 
 ```java
+<!-- Code example in Java -->
 @GraphQLType(description = "A blog post")
 public class Post {
 
@@ -668,6 +699,7 @@ public class Post {
     public String oldEmail;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Important patterns:**
 
@@ -681,6 +713,7 @@ public class Post {
 In Java 17+, you can use records for immutable types:
 
 ```java
+<!-- Code example in Java -->
 // Using records (more concise)
 @GraphQLType
 public record User(
@@ -699,6 +732,7 @@ public class User {
     @GraphQLField(nullable = true) public String bio;
 }
 ```text
+<!-- Code example in TEXT -->
 
 Records are recommended for immutability and less boilerplate.
 
@@ -707,6 +741,7 @@ Records are recommended for immutability and less boilerplate.
 FraiseQL respects Java's null handling:
 
 ```java
+<!-- Code example in Java -->
 // Non-nullable field (default)
 @GraphQLField
 public String title;  // GraphQL: title: String!
@@ -720,6 +755,7 @@ public Optional<String> bio() {
     return Optional.ofNullable(this.bio);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -730,6 +766,7 @@ Now we'll export the Java schema to `schema.json` that FraiseQL CLI can compile.
 Create `src/main/java/com/example/schema/SchemaExporter.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema;
 
 import java.io.IOException;
@@ -760,24 +797,30 @@ public class SchemaExporter {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Run Schema Export
 
 **With Maven:**
 
 ```bash
+<!-- Code example in BASH -->
 mvn exec:java -Dexec.mainClass="com.example.schema.SchemaExporter"
 ```text
+<!-- Code example in TEXT -->
 
 **With Gradle:**
 
 ```bash
+<!-- Code example in BASH -->
 gradle exportSchema
 ```text
+<!-- Code example in TEXT -->
 
 This generates `schema.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": {
     "User": {
@@ -827,6 +870,7 @@ This generates `schema.json`:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -837,17 +881,21 @@ The `schema.json` file is now ready to be compiled by FraiseQL CLI into an optim
 ### Install FraiseQL CLI
 
 ```bash
+<!-- Code example in BASH -->
 # Using Rust/Cargo
 cargo install FraiseQL-cli
 
 # Or download binary from: https://github.com/FraiseQL/FraiseQL/releases
 ```text
+<!-- Code example in TEXT -->
 
 ### Compile Schema
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 This generates `schema.compiled.json` containing:
 
@@ -861,6 +909,7 @@ This generates `schema.compiled.json` containing:
 Add to `pom.xml` to automatically compile during build:
 
 ```xml
+<!-- Code example in XML -->
 <plugin>
     <groupId>org.codehaus.mojo</groupId>
     <artifactId>exec-maven-plugin</artifactId>
@@ -886,6 +935,7 @@ Add to `pom.xml` to automatically compile during build:
     </executions>
 </plugin>
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -896,6 +946,7 @@ Add to `pom.xml` to automatically compile during build:
 Create `src/test/java/com/example/schema/SchemaExportTest.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example.schema;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -1044,16 +1095,19 @@ public class SchemaExportTest {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Run tests:
 
 ```bash
+<!-- Code example in BASH -->
 # Maven
 mvn test
 
 # Gradle
 gradle test
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1062,6 +1116,7 @@ gradle test
 ### Pagination
 
 ```java
+<!-- Code example in Java -->
 FraiseQL.query("posts")
     .returnType(Post.class)
     .returnsArray(true)
@@ -1069,10 +1124,12 @@ FraiseQL.query("posts")
     .arg("offset", "Int", 0)      // Default offset
     .register();
 ```text
+<!-- Code example in TEXT -->
 
 In GraphQL queries:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   posts(limit: 10, offset: 20) {
     id
@@ -1080,10 +1137,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Filtering
 
 ```java
+<!-- Code example in Java -->
 FraiseQL.query("posts")
     .returnType(Post.class)
     .returnsArray(true)
@@ -1092,10 +1151,12 @@ FraiseQL.query("posts")
     .arg("authorId", "ID", null)            // Filter by author
     .register();
 ```text
+<!-- Code example in TEXT -->
 
 ### Sorting
 
 ```java
+<!-- Code example in Java -->
 FraiseQL.query("posts")
     .returnType(Post.class)
     .returnsArray(true)
@@ -1103,12 +1164,14 @@ FraiseQL.query("posts")
     .arg("sortOrder", "String", "DESC")     // ASC or DESC
     .register();
 ```text
+<!-- Code example in TEXT -->
 
 ### Relationships
 
 Use Java types directly to establish relationships:
 
 ```java
+<!-- Code example in Java -->
 @GraphQLType
 public class Post {
     @GraphQLField
@@ -1121,18 +1184,21 @@ public class Post {
     public List<Tag> tags;           // Many-to-many
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Java Stream API Integration
 
 For filtering collections in resolvers:
 
 ```java
+<!-- Code example in Java -->
 List<Post> publishedPosts = posts.stream()
     .filter(p -> "PUBLISHED".equals(p.status))
     .sorted((a, b) -> b.createdAt.compareTo(a.createdAt))
     .limit(20)
     .collect(Collectors.toList());
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1143,6 +1209,7 @@ List<Post> publishedPosts = posts.stream()
 Create `src/main/java/com/example/BlogApiApplication.java`:
 
 ```java
+<!-- Code example in Java -->
 package com.example;
 
 import org.springframework.boot.SpringApplication;
@@ -1170,12 +1237,14 @@ public class BlogApiApplication {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Deployment
 
 Create `Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 FROM maven:3.8.1-openjdk-17 as builder
 WORKDIR /app
 COPY . .
@@ -1188,27 +1257,34 @@ COPY schema.compiled.json schema.compiled.json
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
 ```text
+<!-- Code example in TEXT -->
 
 Build and run:
 
 ```bash
+<!-- Code example in BASH -->
 docker build -t blog-api:1.0 .
 docker run -p 8080:8080 blog-api:1.0
 ```text
+<!-- Code example in TEXT -->
 
 ### JAR Deployment
 
 Build:
 
 ```bash
+<!-- Code example in BASH -->
 mvn clean package
 ```text
+<!-- Code example in TEXT -->
 
 Run:
 
 ```bash
+<!-- Code example in BASH -->
 java -jar target/blog-api-1.0.0.jar
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1219,6 +1295,7 @@ java -jar target/blog-api-1.0.0.jar
 Learn how to integrate FraiseQL compiled schema with Spring Boot resolvers:
 
 ```java
+<!-- Code example in Java -->
 @Component
 public class PostResolver {
     @Autowired
@@ -1233,6 +1310,7 @@ public class PostResolver {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Building REST Endpoints
 
@@ -1257,12 +1335,14 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 **Solution**: Ensure `FraiseQL-java` dependency is in `pom.xml`:
 
 ```xml
+<!-- Code example in XML -->
 <dependency>
     <groupId>com.FraiseQL</groupId>
     <artifactId>FraiseQL-java</artifactId>
     <version>2.0.0</version>
 </dependency>
 ```text
+<!-- Code example in TEXT -->
 
 ### Type Mismatch Issues
 
@@ -1283,8 +1363,10 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 **Solution**: Install FraiseQL-cli separately:
 
 ```bash
+<!-- Code example in BASH -->
 cargo install FraiseQL-cli
 ```text
+<!-- Code example in TEXT -->
 
 Or ensure it's in your system PATH.
 
@@ -1295,8 +1377,10 @@ Or ensure it's in your system PATH.
 **Solution**: Ensure write permissions in output directory:
 
 ```bash
+<!-- Code example in BASH -->
 chmod 755 /path/to/schema/output
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1305,6 +1389,7 @@ chmod 755 /path/to/schema/output
 ### Project Structure
 
 ```text
+<!-- Code example in TEXT -->
 blog-api/
 ├── pom.xml
 ├── src/
@@ -1325,10 +1410,12 @@ blog-api/
 ├── schema.compiled.json (generated)
 └── Dockerfile
 ```text
+<!-- Code example in TEXT -->
 
 ### Key Commands
 
 ```bash
+<!-- Code example in BASH -->
 # Generate schema
 mvn exec:java -Dexec.mainClass="com.example.schema.SchemaExporter"
 
@@ -1345,6 +1432,7 @@ mvn clean package
 docker build -t blog-api:1.0 .
 docker run -p 8080:8080 blog-api:1.0
 ```text
+<!-- Code example in TEXT -->
 
 ### Key Takeaways
 

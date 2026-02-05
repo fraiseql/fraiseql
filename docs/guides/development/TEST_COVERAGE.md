@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Test Coverage Report
+description: FraiseQL has comprehensive test coverage across all major components with **2,400+ tests** and **100% pass rate**.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Test Coverage Report
 
 **Last Updated**: February 5, 2026
@@ -243,6 +251,7 @@ FraiseQL has comprehensive test coverage across all major components with **2,40
 ### Running All Tests
 
 ```bash
+<!-- Code example in BASH -->
 # Full test suite
 cargo test --all-features
 
@@ -256,11 +265,13 @@ cargo test --test federation_saga_coordinator
 
 # Single test
 cargo test test_saga_forward_execution -- --nocapture
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Running Tests by Category
 
 ```bash
+<!-- Code example in BASH -->
 # Federation tests only
 cargo test federation --lib
 
@@ -275,7 +286,8 @@ cargo test --test million_row_test
 
 # Benchmarks
 cargo bench --bench saga_performance_bench
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test Performance
 
@@ -442,6 +454,7 @@ All PRs must pass:
 ### Test File Organization
 
 ```rust
+<!-- Code example in RUST -->
 //! Test file header with Phase/Cycle context
 //! Tests focus on specific feature
 
@@ -463,7 +476,8 @@ mod tests {
     #[should_panic]
     fn test_invariant() { ... }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -472,16 +486,19 @@ mod tests {
 ### Prerequisites
 
 ```bash
+<!-- Code example in BASH -->
 # Install dependencies
 cargo build
 
 # Install test database (Docker)
 docker-compose -f tests/docker-compose.yml up -d postgres mysql sqlite
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Execute Tests
 
 ```bash
+<!-- Code example in BASH -->
 # Run all tests
 cargo test --all-features
 
@@ -493,7 +510,8 @@ RUST_BACKTRACE=1 cargo test test_name -- --nocapture
 
 # Run with coverage (requires tarpaulin)
 cargo tarpaulin --all-features --workspace
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

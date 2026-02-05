@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Saga Patterns and Best Practices
+description: 1. [Saga Patterns](#saga-patterns)
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # Saga Patterns and Best Practices
 
 **Audience:** Backend developers designing distributed transaction flows
@@ -32,7 +40,10 @@ Execute steps one after another. Each step depends on the previous one's success
 
 #### Example: Order Processing
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Validate: "Step 1: Validate order\n✓" {
@@ -58,11 +69,15 @@ Ship: "Step 4: Ship items\n✓" {
 Validate -> Charge
 Charge -> Reserve
 Reserve -> Ship
-```
+```text
+<!-- Code example in TEXT -->
 
 **If Step 3 fails:**
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: up
 
 UndoReserve: "Compensation: Undo reservation\n✓" {
@@ -88,11 +103,13 @@ Error: "❌ Step 3 Failed\n(insufficient inventory)" {
 Error -> UndoReserve
 UndoReserve -> UndoCharge
 UndoCharge -> ValidatePasses
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Code Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
     let steps = vec![
         validate_order_step(&order),
@@ -104,6 +121,7 @@ async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
     coordinator.execute(steps).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Parallel Saga
 
@@ -117,7 +135,10 @@ Execute independent steps concurrently.
 
 #### Example: Customer Onboarding
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: right
 
 Start: "Customer\nOnboarding\nSaga" {
@@ -160,11 +181,13 @@ Email -> Complete
 Newsletter -> Complete
 
 note: "(All 4 run simultaneously - independent steps)"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Code Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
     let steps = vec![
         create_account_step(&user),
@@ -183,6 +206,7 @@ async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
     ).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Branching Saga
 
@@ -197,6 +221,7 @@ Execute different paths based on conditions.
 #### Example: Payment Processing
 
 ```text
+<!-- Code example in TEXT -->
 If amount < $100:
   └── Use payment service A (fast)
 Else if amount < $1000:
@@ -204,10 +229,12 @@ Else if amount < $1000:
 Else:
   └── Use payment service C (manual approval)
 ```text
+<!-- Code example in TEXT -->
 
 #### Code Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn conditional_payment_saga(
     order: Order,
     payment_info: PaymentInfo,
@@ -238,6 +265,7 @@ async fn conditional_payment_saga(
     coordinator.execute(steps).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 4: Nested Saga
 
@@ -252,6 +280,7 @@ A saga that calls other sagas (composition).
 #### Example: Enterprise Order Processing
 
 ```text
+<!-- Code example in TEXT -->
 Main Saga: Process Order
 ├── Sub-Saga: Process Payment
 │   ├── Check fraud detection
@@ -266,10 +295,12 @@ Main Saga: Process Order
     ├── Update customer stats
     └── Trigger recommendations
 ```text
+<!-- Code example in TEXT -->
 
 #### Code Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn process_order_saga(order: Order) -> Result<SagaResult> {
     let coordinator = SagaCoordinator::new(metadata, store);
 
@@ -292,6 +323,7 @@ async fn process_order_saga(order: Order) -> Result<SagaResult> {
     Ok(SagaResult::success())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -315,6 +347,7 @@ The coordinator automatically runs compensation for failed steps.
 #### Example
 
 ```rust
+<!-- Code example in RUST -->
 SagaStep {
     forward: Mutation {
         operation: "chargeCard",
@@ -326,6 +359,7 @@ SagaStep {
     },
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Strategy 2: Manual Compensation
 
@@ -346,6 +380,7 @@ Application explicitly triggers compensation based on business logic.
 #### Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn process_with_manual_compensation(order: Order) -> Result<()> {
     match coordinator.execute(steps).await {
         Ok(result) => {
@@ -369,6 +404,7 @@ async fn process_with_manual_compensation(order: Order) -> Result<()> {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Strategy 3: Saga Compensator Service
 
@@ -388,6 +424,7 @@ A dedicated service handles all compensations.
 #### Example
 
 ```rust
+<!-- Code example in RUST -->
 // Dedicated compensator service
 pub struct SagaCompensator {
     payment_service: PaymentClient,
@@ -415,6 +452,7 @@ impl SagaCompensator {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -427,6 +465,7 @@ The system automatically retries failed sagas.
 #### Configuration
 
 ```rust
+<!-- Code example in RUST -->
 let recovery_manager = RecoveryManager::new(config)
     .with_max_retries(3)
     .with_retry_delay(Duration::from_secs(5))
@@ -434,6 +473,7 @@ let recovery_manager = RecoveryManager::new(config)
 
 recovery_manager.start_recovery_loop().await?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Behavior
 
@@ -455,6 +495,7 @@ Operators manually trigger recovery for specific sagas.
 #### Example
 
 ```rust
+<!-- Code example in RUST -->
 // Get failed saga
 let saga = store.get_saga("saga-123").await?;
 
@@ -465,6 +506,7 @@ recovery_manager.recover_saga(&saga).await?;
 let updated_saga = store.get_saga("saga-123").await?;
 println!("Status: {:?}", updated_saga.status);
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Crash Recovery
 
@@ -487,12 +529,14 @@ Recovery after system restart.
 ### Configuration
 
 ```rust
+<!-- Code example in RUST -->
 // Automatic crash recovery on startup
 let recovery = RecoveryManager::new(store)
     .with_crash_recovery()
     .start()
     .await?;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -505,6 +549,7 @@ let recovery = RecoveryManager::new(store)
 Every saga step gets a unique request ID. If the same request ID runs again, it returns the cached result.
 
 ```rust
+<!-- Code example in RUST -->
 let step = SagaStep {
     forward: Mutation {
         request_id: "charge-order-123",  // Unique per request
@@ -514,12 +559,14 @@ let step = SagaStep {
     ...
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementing Idempotency
 
 #### In Payment Service
 
 ```rust
+<!-- Code example in RUST -->
 async fn charge_card(
     request_id: String,
     amount: Decimal,
@@ -538,12 +585,14 @@ async fn charge_card(
     Ok(result)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Avoiding Idempotency Issues
 
 #### Bad
 
 ```rust
+<!-- Code example in RUST -->
 // Not idempotent - running twice doubles the charge
 async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
     let current_balance = db.get_balance(user_id).await?;
@@ -551,10 +600,12 @@ async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Good
 
 ```rust
+<!-- Code example in RUST -->
 // Idempotent - running twice has same effect
 async fn set_credit(
     user_id: &str,
@@ -572,6 +623,7 @@ async fn set_credit(
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -582,6 +634,7 @@ Sagas progress through well-defined states.
 ### Saga States
 
 ```text
+<!-- Code example in TEXT -->
 Start
   ↓
 Executing (→ Forward Step 1, Step 2, ...)
@@ -600,10 +653,12 @@ Step States:
 ├─ Retrying (being retried)
 └─ Compensating (being undone)
 ```text
+<!-- Code example in TEXT -->
 
 ### Querying State
 
 ```rust
+<!-- Code example in RUST -->
 let saga = store.get_saga(saga_id).await?;
 
 match saga.status {
@@ -621,6 +676,7 @@ match saga.status {
     },
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -643,6 +699,7 @@ match saga.status {
 ### Retry Strategy
 
 ```rust
+<!-- Code example in RUST -->
 pub struct RetryPolicy {
     pub max_retries: u32,
     pub base_delay: Duration,
@@ -657,10 +714,12 @@ impl RetryPolicy {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Recovery
 
 ```rust
+<!-- Code example in RUST -->
 async fn execute_with_error_recovery(
     step: SagaStep,
 ) -> Result<StepResult> {
@@ -681,6 +740,7 @@ async fn execute_with_error_recovery(
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -691,6 +751,7 @@ async fn execute_with_error_recovery(
 Avoid re-executing completed sagas.
 
 ```rust
+<!-- Code example in RUST -->
 let cache = SagaResultCache::new(Duration::from_secs(3600));
 
 async fn execute_with_cache(
@@ -708,22 +769,26 @@ async fn execute_with_cache(
     Ok(result)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Optimization 2: Timeout Configuration
 
 Prevent sagas from hanging.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_step_timeout(Duration::from_secs(30))
     .with_saga_timeout(Duration::from_secs(300));
 ```text
+<!-- Code example in TEXT -->
 
 ### Optimization 3: Connection Pooling
 
 Reuse database connections.
 
 ```rust
+<!-- Code example in RUST -->
 let pool = PgPoolOptions::new()
     .max_connections(20)
     .acquire_timeout(Duration::from_secs(5))
@@ -732,16 +797,19 @@ let pool = PgPoolOptions::new()
 
 let store = PostgresSagaStore::with_pool(pool);
 ```text
+<!-- Code example in TEXT -->
 
 ### Optimization 4: Batch Operations
 
 Process multiple sagas together.
 
 ```rust
+<!-- Code example in RUST -->
 // Instead of: coordinator.execute(saga1), coordinator.execute(saga2), ...
 // Use:
 let results = coordinator.execute_batch(vec![saga1, saga2, saga3]).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

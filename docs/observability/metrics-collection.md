@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Metrics Collection Guide
+description: This document explains **what data** FraiseQL's observability system collects, **how** it's collected, and **why** each metric matters for schema optimization.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Metrics Collection Guide
 
 ## Overview
@@ -34,6 +42,7 @@ Track per-query performance to identify:
 ### Data Collected
 
 ```rust
+<!-- Code example in RUST -->
 pub struct QueryMetrics {
     pub query_name: String,           // e.g., "users", "salesByRegion"
     pub execution_time_ms: f64,       // Total end-to-end time
@@ -45,12 +54,14 @@ pub struct QueryMetrics {
     pub timestamp: SystemTime,        // When query executed
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Example
 
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { region: "US" }) {
     id
@@ -59,10 +70,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Collected Metrics**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "query_name": "users",
   "execution_time_ms": 1250.5,
@@ -74,6 +87,7 @@ query {
   "timestamp": "2026-01-12T14:32:15Z"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Breakdown**:
 
@@ -85,6 +99,7 @@ query {
 ### Storage (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.query_executions (
     id BIGSERIAL PRIMARY KEY,
     query_name TEXT NOT NULL,
@@ -100,10 +115,12 @@ CREATE TABLE fraiseql_metrics.query_executions (
 CREATE INDEX idx_query_executions_name_time
     ON fraiseql_metrics.query_executions (query_name, executed_at DESC);
 ```text
+<!-- Code example in TEXT -->
 
 ### Storage (SQL Server)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.query_executions (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     query_name NVARCHAR(256) NOT NULL,
@@ -119,6 +136,7 @@ CREATE TABLE fraiseql_metrics.query_executions (
 CREATE NONCLUSTERED INDEX idx_query_executions_name_time
     ON fraiseql_metrics.query_executions (query_name, executed_at DESC);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -135,6 +153,7 @@ Identify which JSON/JSONB paths are frequently accessed, enabling:
 ### Data Collected
 
 ```rust
+<!-- Code example in RUST -->
 pub struct JsonAccessPattern {
     pub table_name: String,      // "tf_sales", "users"
     pub json_column: String,      // "dimensions", "metadata"
@@ -152,12 +171,14 @@ pub enum JsonAccessType {
     Aggregate,  // GROUP BY or aggregate function
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Example: PostgreSQL JSONB
 
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales(
     where: { dimensions: { region: "US" } }
@@ -169,10 +190,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     SUM(revenue) AS revenue,
     SUM(quantity) AS quantity,
@@ -182,10 +205,12 @@ WHERE dimensions->>'region' = 'US'
 ORDER BY (dimensions->>'date')::date DESC
 GROUP BY dimensions->>'category'
 ```text
+<!-- Code example in TEXT -->
 
 **Collected Patterns**:
 
 ```json
+<!-- Code example in JSON -->
 [
   {
     "table_name": "tf_sales",
@@ -216,12 +241,14 @@ GROUP BY dimensions->>'category'
   }
 ]
 ```text
+<!-- Code example in TEXT -->
 
 ### Example: SQL Server JSON
 
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { metadata: { country: "USA" } }) {
     id
@@ -229,18 +256,22 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, name
 FROM users
 WHERE JSON_VALUE(metadata, '$.country') = 'USA'
 ```text
+<!-- Code example in TEXT -->
 
 **Collected Pattern**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "table_name": "users",
   "json_column": "metadata",
@@ -251,6 +282,7 @@ WHERE JSON_VALUE(metadata, '$.country') = 'USA'
   "timestamp": "2026-01-12T14:35:20Z"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### How Selectivity is Calculated
 
@@ -274,6 +306,7 @@ WHERE JSON_VALUE(metadata, '$.country') = 'USA'
 #### PostgreSQL JSONB Operators
 
 ```rust
+<!-- Code example in RUST -->
 impl JsonPathParser for PostgresJsonPathParser {
     fn extract_paths(&self, sql: &str) -> Vec<JsonAccessPattern> {
         // Detect: dimensions->>'region'
@@ -292,10 +325,12 @@ impl JsonPathParser for PostgresJsonPathParser {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### SQL Server JSON Functions
 
 ```rust
+<!-- Code example in RUST -->
 impl JsonPathParser for SqlServerJsonPathParser {
     fn extract_paths(&self, sql: &str) -> Vec<JsonAccessPattern> {
         // Detect: JSON_VALUE(dimensions, '$.region')
@@ -313,10 +348,12 @@ impl JsonPathParser for SqlServerJsonPathParser {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Storage (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.jsonb_accesses (
     id BIGSERIAL PRIMARY KEY,
     table_name TEXT NOT NULL,
@@ -331,10 +368,12 @@ CREATE TABLE fraiseql_metrics.jsonb_accesses (
 CREATE INDEX idx_jsonb_accesses_lookup
     ON fraiseql_metrics.jsonb_accesses (table_name, jsonb_column, path);
 ```text
+<!-- Code example in TEXT -->
 
 ### Storage (SQL Server)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.json_accesses (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     table_name NVARCHAR(128) NOT NULL,
@@ -349,6 +388,7 @@ CREATE TABLE fraiseql_metrics.json_accesses (
 CREATE NONCLUSTERED INDEX idx_json_accesses_lookup
     ON fraiseql_metrics.json_accesses (table_name, json_column, path);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -372,6 +412,7 @@ Gather **real database statistics** for accurate cost modeling:
 **Query**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     schemaname,
     relname AS table_name,
@@ -385,10 +426,12 @@ SELECT
 FROM pg_stat_user_tables
 WHERE relname = $1;
 ```text
+<!-- Code example in TEXT -->
 
 **Data Collected**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct TableStatistics {
     pub table_name: String,
     pub row_count: u64,               // Live rows
@@ -398,10 +441,12 @@ pub struct TableStatistics {
     pub size_bytes: u64,              // Total table + TOAST + indexes
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "table_name": "tf_sales",
   "row_count": 1500000,
@@ -411,12 +456,14 @@ pub struct TableStatistics {
   "size_bytes": 524288000
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Column Statistics
 
 **Query**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     attname AS column_name,
     n_distinct,          -- Cardinality estimate
@@ -426,10 +473,12 @@ SELECT
 FROM pg_stats
 WHERE tablename = $1 AND attname = $2;
 ```text
+<!-- Code example in TEXT -->
 
 **Data Collected**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct ColumnStatistics {
     pub column_name: String,
     pub distinct_values: i64,         // -1 = unique, >0 = estimate, 0 = unknown
@@ -438,10 +487,12 @@ pub struct ColumnStatistics {
     pub most_common_values: Vec<String>,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "column_name": "region_id",
   "distinct_values": 52,
@@ -450,12 +501,14 @@ pub struct ColumnStatistics {
   "most_common_values": ["US", "EU", "APAC"]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Index Statistics
 
 **Query**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     i.indexrelname AS index_name,
     array_agg(a.attname ORDER BY a.attnum) AS columns,
@@ -471,10 +524,12 @@ WHERE i.relname = $1
 GROUP BY i.indexrelname, i.idx_scan, i.idx_tup_read,
          i.idx_tup_fetch, i.indexrelid, ix.indisunique;
 ```text
+<!-- Code example in TEXT -->
 
 **Data Collected**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct IndexStatistics {
     pub index_name: String,
     pub columns: Vec<String>,
@@ -485,10 +540,12 @@ pub struct IndexStatistics {
     pub is_unique: bool,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "index_name": "idx_tf_sales_region",
   "columns": ["region_id"],
@@ -499,6 +556,7 @@ pub struct IndexStatistics {
   "is_unique": false
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -509,6 +567,7 @@ pub struct IndexStatistics {
 **Query**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     t.name AS table_name,
     SUM(p.rows) AS row_count,
@@ -521,10 +580,12 @@ LEFT JOIN sys.stats s ON t.object_id = s.object_id
 WHERE t.name = @P1 AND p.index_id IN (0, 1)
 GROUP BY t.name;
 ```text
+<!-- Code example in TEXT -->
 
 **Data Collected**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct TableStatistics {
     pub table_name: String,
     pub row_count: u64,
@@ -534,14 +595,17 @@ pub struct TableStatistics {
     pub size_bytes: u64,
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Column Statistics
 
 **Query** (uses DBCC):
 
 ```sql
+<!-- Code example in SQL -->
 DBCC SHOW_STATISTICS('table_name', 'stat_name') WITH STAT_HEADER;
 ```text
+<!-- Code example in TEXT -->
 
 **Data Collected**: Similar structure to PostgreSQL, but obtained through different queries.
 
@@ -550,6 +614,7 @@ DBCC SHOW_STATISTICS('table_name', 'stat_name') WITH STAT_HEADER;
 **Query**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     i.name AS index_name,
     STRING_AGG(c.name, ',') AS columns,
@@ -572,6 +637,7 @@ WHERE t.name = @P1
 GROUP BY i.name, s.user_seeks, s.user_scans, s.user_lookups,
          s.user_seeks, s.user_lookups, i.is_unique;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -590,6 +656,7 @@ Track query result caching effectiveness:
 ### Data Collected
 
 ```rust
+<!-- Code example in RUST -->
 pub struct CacheMetrics {
     pub hits: u64,
     pub misses: u64,
@@ -608,10 +675,12 @@ impl CacheMetrics {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "hits": 45000,
   "misses": 5000,
@@ -621,6 +690,7 @@ impl CacheMetrics {
   "hit_rate": 0.9
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -633,6 +703,7 @@ To avoid analyzing millions of raw metrics, FraiseQL periodically aggregates sta
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.query_stats (
     query_name TEXT PRIMARY KEY,
     total_executions BIGINT NOT NULL,
@@ -644,10 +715,12 @@ CREATE TABLE fraiseql_metrics.query_stats (
     last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_metrics.query_stats (
     query_name NVARCHAR(256) PRIMARY KEY,
     total_executions BIGINT NOT NULL,
@@ -659,10 +732,12 @@ CREATE TABLE fraiseql_metrics.query_stats (
     last_updated DATETIME2 NOT NULL DEFAULT GETDATE()
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Aggregation Query** (runs hourly):
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 INSERT INTO fraiseql_metrics.query_stats
     (query_name, total_executions, total_time_ms, p50_ms, p95_ms, p99_ms, avg_rows, last_updated)
@@ -687,6 +762,7 @@ ON CONFLICT (query_name) DO UPDATE SET
     avg_rows = EXCLUDED.avg_rows,
     last_updated = EXCLUDED.last_updated;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -699,22 +775,26 @@ FraiseQL **never logs**:
 ❌ **Query Arguments/Variables**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123e4567-e89b-12d3-a456-426614174000") {  # ❌ NOT logged
     name
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ❌ **Actual Data Values**
 
 ```sql
+<!-- Code example in SQL -->
 -- Query result:
 
 -- id    | name          | email
 -- ------|---------------|------------------
 -- 1001  | Alice Johnson | alice@example.com  # ❌ NOT logged
 ```text
+<!-- Code example in TEXT -->
 
 ❌ **Personally Identifiable Information**
 
@@ -735,31 +815,37 @@ query {
 ✅ **Query Structure**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: $userId) {  # ✅ Structure logged, $userId value NOT logged
     name
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Performance Metrics**
 
 ```json
+<!-- Code example in JSON -->
 {
   "query_name": "user",
   "execution_time_ms": 45.2,
   "rows_returned": 1
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **JSON Path Patterns**
 
 ```json
+<!-- Code example in JSON -->
 {
   "path": "metadata.country",  # ✅ Path logged, NOT values
   "access_type": "Filter"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -799,6 +885,7 @@ Computed **hourly** from raw metrics:
 **Cleanup Query** (runs daily at 2 AM):
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 DELETE FROM fraiseql_metrics.query_executions
 WHERE executed_at < NOW() - INTERVAL '30 days';
@@ -806,8 +893,10 @@ WHERE executed_at < NOW() - INTERVAL '30 days';
 DELETE FROM fraiseql_metrics.jsonb_accesses
 WHERE recorded_at < NOW() - INTERVAL '30 days';
 ```text
+<!-- Code example in TEXT -->
 
 ```sql
+<!-- Code example in SQL -->
 -- SQL Server
 DELETE FROM fraiseql_metrics.query_executions
 WHERE executed_at < DATEADD(day, -30, GETDATE());
@@ -815,6 +904,7 @@ WHERE executed_at < DATEADD(day, -30, GETDATE());
 DELETE FROM fraiseql_metrics.json_accesses
 WHERE recorded_at < DATEADD(day, -30, GETDATE());
 ```text
+<!-- Code example in TEXT -->
 
 **Aggregated stats**: Indefinite (small footprint)
 
@@ -837,6 +927,7 @@ WHERE recorded_at < DATEADD(day, -30, GETDATE());
 ### How Sampling Works
 
 ```rust
+<!-- Code example in RUST -->
 pub struct MetricsCollector {
     sample_rate: f64,  // 0.0-1.0
     rng: SmallRng,
@@ -853,6 +944,7 @@ if self.metrics.should_sample() {
     self.metrics.record(query_metrics).await;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Sample Rate Guidelines
 
@@ -891,16 +983,20 @@ This is **statistically significant** for detecting:
 **Baseline** (observability OFF):
 
 ```text
+<!-- Code example in TEXT -->
 Query execution: 45.2ms
 Throughput: 1000 qps
 ```text
+<!-- Code example in TEXT -->
 
 **With Observability** (10% sampling):
 
 ```text
+<!-- Code example in TEXT -->
 Query execution: 47.1ms  (+1.9ms, 4.2% increase)
 Throughput: 980 qps  (2% decrease)
 ```text
+<!-- Code example in TEXT -->
 
 ### Overhead Breakdown
 
@@ -923,12 +1019,15 @@ Throughput: 980 qps  (2% decrease)
 Export metrics as JSON for offline analysis:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8080/metrics/export > metrics.json
 ```text
+<!-- Code example in TEXT -->
 
 **Response Format**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "exported_at": "2026-01-12T16:30:00Z",
@@ -964,16 +1063,19 @@ curl http://localhost:8080/metrics/export > metrics.json
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### CLI Export
 
 ```bash
+<!-- Code example in BASH -->
 # Export from database
 FraiseQL-cli export-metrics \
   --database postgres://... \
   --output metrics.json \
   --window 7d
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -984,6 +1086,7 @@ FraiseQL-cli export-metrics \
 **Check if metrics are being collected**:
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 SELECT
     COUNT(*) AS metrics_today,
@@ -992,8 +1095,10 @@ SELECT
 FROM fraiseql_metrics.query_executions
 WHERE executed_at > NOW() - INTERVAL '1 day';
 ```text
+<!-- Code example in TEXT -->
 
 ```sql
+<!-- Code example in SQL -->
 -- SQL Server
 SELECT
     COUNT(*) AS metrics_today,
@@ -1002,14 +1107,17 @@ SELECT
 FROM fraiseql_metrics.query_executions
 WHERE executed_at > DATEADD(day, -1, GETDATE());
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Result** (10% sampling, 1000 qps):
 
 ```text
+<!-- Code example in TEXT -->
 metrics_today: ~8,640,000
 first_metric:  2026-01-12 00:00:00
 last_metric:   2026-01-12 23:59:58
 ```text
+<!-- Code example in TEXT -->
 
 ### Alert Thresholds
 
@@ -1018,24 +1126,30 @@ Set up alerts for:
 1. **No metrics collected** (1 hour):
 
    ```sql
+<!-- Code example in SQL -->
    SELECT MAX(executed_at) < NOW() - INTERVAL '1 hour'
    FROM fraiseql_metrics.query_executions;
    ```text
+<!-- Code example in TEXT -->
 
 2. **Metrics lag** (> 5 minutes behind):
 
    ```sql
+<!-- Code example in SQL -->
    SELECT MAX(executed_at) < NOW() - INTERVAL '5 minutes'
    FROM fraiseql_metrics.query_executions;
    ```text
+<!-- Code example in TEXT -->
 
 3. **Low sample rate** (< expected):
 
    ```sql
+<!-- Code example in SQL -->
    SELECT COUNT(*) < 7200000  -- Expected: 8.6M per day at 10% sampling
    FROM fraiseql_metrics.query_executions
    WHERE executed_at > NOW() - INTERVAL '1 day';
    ```text
+<!-- Code example in TEXT -->
 
 ---
 

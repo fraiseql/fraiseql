@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Anti-Patterns: What NOT to Do
+description: This document catalogs anti-patterns—designs that seem reasonable but lead to problems in practice. Learning what NOT to do is as important as learning what TO 
+keywords: ["workflow", "design", "scalability", "saas", "performance", "realtime", "patterns", "ecommerce"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Anti-Patterns: What NOT to Do
 
 **Date:** January 2026
@@ -26,6 +34,7 @@ Each anti-pattern includes:
 **Anti-pattern**: Design without considering query depth
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ WRONG: Dangerous nesting depth
 query GetUserWithEverything {
   user(id: "user-1") {
@@ -44,6 +53,7 @@ query GetUserWithEverything {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -60,6 +70,7 @@ query GetUserWithEverything {
 **Solution**: Limit query depth
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ CORRECT: Controlled nesting (2-3 levels max)
 query GetUserWithPosts {
   user(id: "user-1") {
@@ -84,14 +95,17 @@ query GetPostComments($postId: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation**: Set max query depth at compile time
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.schema_rule(max_query_depth=3)
 class MySchema:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -100,6 +114,7 @@ class MySchema:
 **Anti-pattern**: Queries without LIMIT
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ WRONG: No limit, returns all rows
 query GetAllUsers {
   users {
@@ -109,6 +124,7 @@ query GetAllUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -125,6 +141,7 @@ query GetAllUsers {
 **Solution**: Always use pagination
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ CORRECT: Paginated with cursor
 query GetUsers($first: Int!, $after: String) {
   users(first: $first, after: $after) {
@@ -139,6 +156,7 @@ query GetUsers($first: Int!, $after: String) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -147,6 +165,7 @@ query GetUsers($first: Int!, $after: String) {
 **Anti-pattern**: Block mutation completion on side effects
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Mutation waits for external service
 @FraiseQL.mutation
 def create_order(input: OrderInput) -> Order:
@@ -162,6 +181,7 @@ def create_order(input: OrderInput) -> Order:
     # Total: 3 seconds (should be 50ms)
     return order
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -178,6 +198,7 @@ def create_order(input: OrderInput) -> Order:
 **Solution**: Make side effects async
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Async side effects
 @FraiseQL.mutation
 async def create_order(input: OrderInput) -> Order:
@@ -197,6 +218,7 @@ async def create_order(input: OrderInput) -> Order:
 
 # Mutation latency: 50ms (as it should be)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -207,6 +229,7 @@ async def create_order(input: OrderInput) -> Order:
 **Anti-pattern**: Put authorization logic in business logic
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Authorization scattered in code
 @FraiseQL.query
 def get_user(id: ID) -> User:
@@ -229,6 +252,7 @@ def delete_user(id: ID) -> bool:
     db.delete("tb_user", id)
     return True
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -246,6 +270,7 @@ def delete_user(id: ID) -> bool:
 **Solution**: Declare authorization in schema
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Authorization in schema (compile-time checked)
 @FraiseQL.type
 @FraiseQL.authorize(rule="owner_or_admin")
@@ -268,6 +293,7 @@ def delete_user(id: ID) -> bool:
     db.delete("tb_user", id)
     return True
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -276,6 +302,7 @@ def delete_user(id: ID) -> bool:
 **Anti-pattern**: Trust user role from GraphQL input
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Client provides their role (can be forged)
 @FraiseQL.query
 def get_admin_panel() -> AdminPanel:
@@ -285,6 +312,7 @@ def get_admin_panel() -> AdminPanel:
 
     raise PermissionError()
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -301,6 +329,7 @@ def get_admin_panel() -> AdminPanel:
 **Solution**: Derive authorization from verified token
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Server derives role from verified token
 @FraiseQL.query
 @FraiseQL.authorize(rule="admin_only")
@@ -309,6 +338,7 @@ def get_admin_panel() -> AdminPanel:
     # Client cannot forge role
     return admin_panel_data
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -319,6 +349,7 @@ def get_admin_panel() -> AdminPanel:
 **Anti-pattern**: Cache but never invalidate
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Cache set to 1 hour, never invalidated
 FraiseQL.cache.set(
     f"product:{product_id}",
@@ -336,6 +367,7 @@ mutation UpdateProduct {
 # Cache not invalidated!
 # Next query still sees old price (for up to 1 hour)
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -352,6 +384,7 @@ mutation UpdateProduct {
 **Solution**: Invalidate on write
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Invalidate on mutation
 @FraiseQL.mutation
 async def update_product(id: ID, input: UpdateInput) -> Product:
@@ -365,6 +398,7 @@ async def update_product(id: ID, input: UpdateInput) -> Product:
 
     return product
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -373,12 +407,14 @@ async def update_product(id: ID, input: UpdateInput) -> Product:
 **Anti-pattern**: Cache PII without safeguards
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Cache user email (PII)
 cache.set(f"user:{user_id}", user_data)  # Contains email!
 
 # In multi-tenant system, another tenant might hit same cache
 # if they guess the key (or keys are leaked in logs)
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -395,6 +431,7 @@ cache.set(f"user:{user_id}", user_data)  # Contains email!
 **Solution**: Don't cache PII (or cache carefully)
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Cache public data only
 cache.set(f"user:{user_id}", {
     "id": user_id,
@@ -406,6 +443,7 @@ cache.set(f"user:{user_id}", {
 # Sensitive data fetched separately (not cached)
 # Or cached with very short TTL (30 seconds)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -416,6 +454,7 @@ cache.set(f"user:{user_id}", {
 **Anti-pattern**: Optimize before measuring
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Complex optimization before profiling
 @FraiseQL.query
 def get_users():
@@ -432,6 +471,7 @@ def get_users():
 # Because: Offset pagination is O(n), not O(1)
 # Real fix: Use keyset pagination (1 query, not n queries)
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -448,6 +488,7 @@ def get_users():
 **Solution**: Profile first, optimize based on data
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Profile, identify bottleneck, optimize
 # Profile shows: Database query taking 95% of time
 # Root cause: Missing index on filter column
@@ -457,6 +498,7 @@ CREATE INDEX idx_users_status ON tb_user(status);
 
 # Speedup: 500ms → 50ms (10x faster, 1 line of SQL)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -465,6 +507,7 @@ CREATE INDEX idx_users_status ON tb_user(status);
 **Anti-pattern**: Replicate data everywhere
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Replicate same data to 10 read replicas
 Configuration:
   ├─ Primary database (writes)
@@ -481,6 +524,7 @@ Configuration:
 
 # Problem: Replication lag, storage bloat, complexity
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -498,6 +542,7 @@ Configuration:
 **Solution**: Right-size replica count
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Minimal replicas for needs
 Configuration:
   ├─ Primary database (writes): Handles mutations
@@ -509,6 +554,7 @@ Configuration:
 # Storage: Manageable
 # Complexity: Operationally reasonable
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -519,6 +565,7 @@ Configuration:
 **Anti-pattern**: Calculate once, store forever
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Calculate user score, store, never update
 user = {
     "id": "user-1",
@@ -532,6 +579,7 @@ user = {
 
 # Query assumes score is current (it's not!)
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -548,6 +596,7 @@ user = {
 **Solution**: Use database view or trigger
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Calculate on-demand (view) or auto-update (trigger)
 
 # Option 1: View (calculate on read)
@@ -570,6 +619,7 @@ BEGIN
     WHERE id = NEW.user_id;
 END;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -580,6 +630,7 @@ END;
 **Anti-pattern**: Update without checking version
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Race condition possible
 # Thread 1: Read user (version: 1)
 user = db.query_one("SELECT * FROM tb_user WHERE id = $1", [user_id])
@@ -592,6 +643,7 @@ db.update("tb_user", user_id, {"email": "alice@example.com", "version": 1})
 
 # Result: Race condition, version conflict
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -608,6 +660,7 @@ db.update("tb_user", user_id, {"email": "alice@example.com", "version": 1})
 **Solution**: Check version before update
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Optimistic locking with version check
 user = db.query_one(
     "SELECT id, name, email, version FROM tb_user WHERE id = $1",
@@ -624,6 +677,7 @@ result = db.execute(
 if result.rowcount == 0:
     raise ConflictError("Version mismatch, refresh and retry")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -634,6 +688,7 @@ if result.rowcount == 0:
 **Anti-pattern**: Get all events, filter on client
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ WRONG: Subscribe to ALL events, filter on client
 subscription OnAllEvents {
   events {
@@ -648,6 +703,7 @@ if (event.type === "order_created") {
   handleOrderCreated(event);
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -664,6 +720,7 @@ if (event.type === "order_created") {
 **Solution**: Filter on server
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ CORRECT: Subscribe to specific events (filtered on server)
 subscription OnOrderCreated {
   orderCreated {
@@ -677,6 +734,7 @@ subscription OnOrderCreated {
 # No buffer overflow
 # Network efficient
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -685,12 +743,14 @@ subscription OnOrderCreated {
 **Anti-pattern**: Assume subscription always connected
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: No heartbeat, connection silently dies
 subscription = await client.subscribe(query)
 
 async for event in subscription:
     process_event(event)  # Dies silently if disconnected
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -707,6 +767,7 @@ async for event in subscription:
 **Solution**: Implement heartbeat/ping
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Heartbeat keeps connection alive
 subscription = await client.subscribe(query)
 
@@ -721,6 +782,7 @@ async for event in subscription:
     subscription.last_message = time.time()
     process_event(event)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -731,6 +793,7 @@ async for event in subscription:
 **Anti-pattern**: Test queries/mutations but skip authorization
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Test query without checking authorization
 def test_get_user():
     result = query(GetUserQuery, variables={"id": "user-1"})
@@ -742,6 +805,7 @@ def test_delete_user():
     assert result.success == True
     # Missing: Test that non-owner cannot delete!
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -758,6 +822,7 @@ def test_delete_user():
 **Solution**: Test authorization explicitly
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Test with and without authorization
 def test_get_user_authorized():
     # User can access their own user
@@ -779,6 +844,7 @@ def test_delete_user_non_owner():
     result = mutation(DeleteUserMutation, user_id="user-1", variables={"id": "user-2"})
     assert result.errors[0].code == "E_AUTH_PERMISSION_401"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -789,6 +855,7 @@ def test_delete_user_non_owner():
 **Anti-pattern**: Different instances using different schema versions
 
 ```text
+<!-- Code example in TEXT -->
 Production deployment:
 ├─ Instance 1: CompiledSchema v2.0.0
 ├─ Instance 2: CompiledSchema v2.0.0
@@ -797,6 +864,7 @@ Production deployment:
 
 Problem: Instance 3 has different behavior
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:**
 
@@ -813,6 +881,7 @@ Problem: Instance 3 has different behavior
 **Solution**: Atomic deployments
 
 ```text
+<!-- Code example in TEXT -->
 Correct deployment:
 
 1. Deploy new code version
@@ -823,6 +892,7 @@ Correct deployment:
 All instances have identical schema
 All instances behave identically
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

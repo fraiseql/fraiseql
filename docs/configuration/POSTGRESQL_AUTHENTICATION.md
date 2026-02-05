@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: PostgreSQL Authentication Guide
+description: FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechanisms. This guide covers supported authentication methods and version requirement
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # PostgreSQL Authentication Guide
 
 FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechanisms. This guide covers supported authentication methods and version requirements.
@@ -64,9 +72,11 @@ SCRAM-SHA-256 is a salted challenge-response authentication mechanism defined in
 **Configuration**:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 url = "postgresql://username:password@localhost:5432/FraiseQL"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SCRAM-SHA-256-PLUS (Channel Binding)
 
@@ -89,9 +99,11 @@ SCRAM-SHA-256-PLUS adds channel binding to SCRAM-SHA-256, providing additional p
 **Configuration**:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 url = "postgresql://username:password@localhost:5432/FraiseQL?sslmode=require"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## PostgreSQL Version Requirements
 
@@ -116,6 +128,7 @@ If you're currently using older PostgreSQL versions with MD5 authentication, fol
 Upgrade to PostgreSQL 10 or later:
 
 ```bash
+<!-- Code example in BASH -->
 # Check current version
 psql --version
 
@@ -125,7 +138,8 @@ sudo apt-get install postgresql-11  # or newer version
 
 # For macOS with Homebrew
 brew upgrade postgresql
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure SCRAM Authentication
 
@@ -134,51 +148,60 @@ Update PostgreSQL configuration to enforce SCRAM:
 **PostgreSQL Server Configuration** (`postgresql.conf`):
 
 ```ini
+<!-- Code example in INI -->
 # Enforce SCRAM for all new connections
 password_encryption = 'scram-sha256'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Reset User Passwords
 
 PostgreSQL stores password hashes. To update existing users to SCRAM:
 
 ```sql
+<!-- Code example in SQL -->
 -- Reset password for FraiseQL user (this will create SCRAM-SHA-256 hash)
 ALTER USER fraiseql_user WITH PASSWORD 'new_secure_password';
 
 -- For new users, this is automatic with password_encryption = 'scram-sha256'
 CREATE USER fraiseql_user WITH PASSWORD 'secure_password';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Update Connection String
 
 Update your FraiseQL configuration:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 # Old (MD5 - deprecated)
 # url = "postgresql://fraiseql_user:password@localhost:5432/FraiseQL"
 
 # New (SCRAM-SHA-256)
 url = "postgresql://fraiseql_user:secure_password@localhost:5432/FraiseQL"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Verifying SCRAM Authentication
 
 ### Check PostgreSQL Server Configuration
 
 ```sql
+<!-- Code example in SQL -->
 -- Check password encryption method
 SHOW password_encryption;
 -- Should output: scram-sha256
 
 -- Check authentication method in pg_hba.conf
 SELECT * FROM pg_hba_file_rules WHERE auth_method LIKE 'scram%';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Check User Authentication Method
 
 ```sql
+<!-- Code example in SQL -->
 -- Check a specific user's password hash (only visible to superusers)
 SELECT usename, usesuper FROM pg_user WHERE usename = 'fraiseql_user';
 
@@ -186,17 +209,20 @@ SELECT usename, usesuper FROM pg_user WHERE usename = 'fraiseql_user';
 SELECT substring(rolpassword, 1, 10) as hash_prefix
 FROM pg_authid WHERE rolname = 'fraiseql_user';
 -- Should start with "SCRAM-SHA-256" not "md5"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test Connection from FraiseQL
 
 ```bash
+<!-- Code example in BASH -->
 # Test the connection with verbose logging
 RUST_LOG=debug FraiseQL-server start
 
 # Look for successful SCRAM-SHA-256 authentication in logs
 # Should see: "Successfully authenticated using SCRAM-SHA-256"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -246,6 +272,7 @@ RUST_LOG=debug FraiseQL-server start
 ## Example: Complete Setup
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # Complete PostgreSQL SCRAM setup for FraiseQL
 
@@ -281,7 +308,8 @@ sudo -u postgres psql -c "SHOW password_encryption;"
 # 4. Test connection from FraiseQL
 psql -h localhost -U fraiseql_user -d FraiseQL
 # Should successfully authenticate with SCRAM-SHA-256
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Security Implications
 

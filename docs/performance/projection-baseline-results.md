@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: SQL Projection Optimization - Baseline Results
+description: SQL projection optimization delivers **42-55% latency reduction** across all data sizes, exceeding the 20-30% target by 2.1x.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # SQL Projection Optimization - Baseline Results
 
 **Date**: 2026-01-31
@@ -90,6 +98,7 @@ With SQL projection (`jsonb_build_object`):
 Direct comparison showing improvement curve:
 
 ```text
+<!-- Code example in TEXT -->
 100 rows:     161 µs → 93 µs    (42% improvement)
 1K rows:    1.65 ms → 958 µs    (42% improvement)
 10K rows:   26.1 ms → 10.8 ms   (55% improvement)
@@ -97,6 +106,7 @@ Direct comparison showing improvement curve:
 Pattern: Improvement increases with data size
 Reason: Network payload reduction has greater impact with more rows
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Adapter Comparison Benchmark
 
@@ -126,6 +136,7 @@ Reason: Network payload reduction has greater impact with more rows
 Measurement variance (20 samples):
 
 ```text
+<!-- Code example in TEXT -->
 Strategy 01 (Full Rust):                ±0.8%
 Strategy 02 (SQL + Rust):               ±2.4%
 Strategy 03 (SQL Projection):           ±2.9%
@@ -134,6 +145,7 @@ Strategy 05 (SQL Projection Only):      ±1.6%
 
 Overall: Excellent consistency (all <3%)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. End-to-End Pipeline Benchmark
 
@@ -161,6 +173,7 @@ Overall: Excellent consistency (all <3%)
 #### B. Component Breakdown (1M rows, 100K sample)
 
 ```text
+<!-- Code example in TEXT -->
 Parse (GraphQL):      ~5ms    (1.3%)
 Plan (Execution):     ~10ms   (2.7%)
 Bind (Parameters):    ~15ms   (4.0%)
@@ -169,6 +182,7 @@ Project (Fields):     ~46ms   (12%)
 ───────────────────────────────
 Total:                ~376ms
 ```text
+<!-- Code example in TEXT -->
 
 **Key insight**: Database execution is bottleneck (80%). Projection optimization directly addresses this.
 
@@ -181,6 +195,7 @@ Total:                ~376ms
 #### Latency Scaling
 
 ```text
+<!-- Code example in TEXT -->
 Single Row:      927 ns (5 fields)
 100 Rows:       93.5 µs (42% of unoptimized)
 1K Rows:        958 µs (42% of unoptimized)
@@ -189,10 +204,12 @@ Single Row:      927 ns (5 fields)
 Formula (for projected queries):
 Latency = 200ns + (130ns × num_fields) + (1.08µs × num_rows)
 ```text
+<!-- Code example in TEXT -->
 
 #### Throughput Scaling
 
 ```text
+<!-- Code example in TEXT -->
 Full Rust (unoptimized):  240 Kelem/s
 SQL Projection:           270 Kelem/s
 Improvement:              1.12x (throughput)
@@ -202,12 +219,14 @@ At 240 Kelem/s:  0.24M elements
 At 270 Kelem/s:  0.27M elements
 Difference:      30,000 more elements/sec with projection
 ```text
+<!-- Code example in TEXT -->
 
 ### Memory Characteristics
 
 **Network Payload Reduction**:
 
 ```text
+<!-- Code example in TEXT -->
 Full JSONB (50 fields):        ~2KB per object
 Projected (5 fields):          ~200 bytes per object
 Reduction:                     90% (2KB → 200B)
@@ -218,12 +237,14 @@ Projected:    20 MB
 Network:      180 MB saved
 Time saved:   ~200ms (at 900 Mbps network)
 ```text
+<!-- Code example in TEXT -->
 
 ### Consistency
 
 **Variance Analysis** (100 samples):
 
 ```text
+<!-- Code example in TEXT -->
 Single operations:    ±1ns (exceptional)
 Array operations:     ±2-4% (normal)
 End-to-end:          ±3-5% (network effects)
@@ -235,6 +256,7 @@ Outliers:
 
 Assessment: Normal variance, outliers within expected range
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -245,6 +267,7 @@ Assessment: Normal variance, outliers within expected range
 Set at Phase 3 planning:
 
 ```text
+<!-- Code example in TEXT -->
 Query Execution Targets:
 
 - Simple queries: <5ms           → Measured: 927ns ✅
@@ -257,6 +280,7 @@ Subscription Targets:
 - Event delivery: <100ms p95     → Tested in Phase 5
 - Throughput: >1K events/sec     → Tested in Phase 5
 ```text
+<!-- Code example in TEXT -->
 
 ### Measured Results vs Targets
 
@@ -332,11 +356,13 @@ Subscription Targets:
 **Criterion.rs Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 Criterion::default()
     .sample_size(100)                    // 100 iterations
     .measurement_time(Duration::from_secs(10))
     .warm_up_time(Duration::from_secs(5))
 ```text
+<!-- Code example in TEXT -->
 
 **Outlier Detection**:
 
@@ -370,6 +396,7 @@ Criterion::default()
 Elevated outliers at higher row counts explained by:
 
 ```text
+<!-- Code example in TEXT -->
 < 100 rows:    2-8% outliers
   Cause: CPU scheduling, L3 cache effects
 
@@ -379,6 +406,7 @@ Elevated outliers at higher row counts explained by:
 1K+ rows:      10-14% outliers
   Cause: OS scheduler, thermal throttling, GC pauses
 ```text
+<!-- Code example in TEXT -->
 
 **Interpretation**: Normal behavior for system benchmarking
 
@@ -387,12 +415,14 @@ Elevated outliers at higher row counts explained by:
 **Observation**: Improvement increases with data size
 
 ```text
+<!-- Code example in TEXT -->
 100 rows:   42% improvement   (network not saturated)
 1K rows:    42% improvement   (still not saturated)
 10K rows:   55% improvement   (network fully utilized)
 
 Pattern: More benefit when network is the bottleneck
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -417,6 +447,7 @@ Pattern: More benefit when network is the bottleneck
 **Monthly statistics** (100K requests/day):
 
 ```text
+<!-- Code example in TEXT -->
 Before:  100K requests × 161.82µs = 16.2 seconds total
 After:   100K requests × 93.45µs  = 9.3 seconds total
 
@@ -427,6 +458,7 @@ At 100 requests/second:
 Before: 10 database servers
 After:  6 database servers (40% reduction!)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -435,6 +467,7 @@ After:  6 database servers (40% reduction!)
 ### Latency Distribution (1000 rows)
 
 ```text
+<!-- Code example in TEXT -->
 Min:      955 µs
 P25:      957 µs
 P50:      958 µs
@@ -447,6 +480,7 @@ Median latency:  958 µs
 95th percentile: 968 µs
 99th percentile: 1.02 ms
 ```text
+<!-- Code example in TEXT -->
 
 ### Full Results Table
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Migration Guide: SQL Projection Optimization (v2.0.0-alpha.1)
+description: FraiseQL v2.0.0-alpha.1 introduces automatic SQL projection optimization that reduces query latency by 42-55%. This is a **fully backward-compatible change** wi
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Migration Guide: SQL Projection Optimization (v2.0.0-alpha.1)
 
 **Version**: 2.0.0-a1
@@ -30,30 +38,36 @@ All GraphQL queries now automatically project only requested fields at the datab
 ### 1. Update Dependency
 
 ```toml
+<!-- Code example in TOML -->
 [dependencies]
 FraiseQL-core = "2.0.0-a1"  # From any previous version
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Deploy
 
 Simply deploy the new version. No code changes needed.
 
 ```bash
+<!-- Code example in BASH -->
 cargo build --release
 docker build .
 docker push myregistry/myapp
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Monitor
 
 Queries automatically get 42-55% faster. Monitor these metrics:
 
 ```bash
+<!-- Code example in BASH -->
 # Latency should drop significantly
 p50_latency_ms: 42 → 25 (60% improvement)
 p95_latency_ms: 50 → 28 (44% improvement)
 p99_latency_ms: 75 → 35 (53% improvement)
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing & Validation
 
@@ -62,20 +76,25 @@ p99_latency_ms: 75 → 35 (53% improvement)
 Check logs for projection SQL:
 
 ```bash
+<!-- Code example in BASH -->
 RUST_LOG=fraiseql_core::runtime=debug cargo run
 ```text
+<!-- Code example in TEXT -->
 
 Look for messages like:
 
 ```text
+<!-- Code example in TEXT -->
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Regression Test
 
 Compare query performance before/after:
 
 ```bash
+<!-- Code example in BASH -->
 # Before upgrade
 wrk -t4 -c100 -d30s -s test.lua http://old-server/graphql
 
@@ -84,17 +103,20 @@ wrk -t4 -c100 -d30s -s test.lua http://new-server/graphql
 
 # Results should show ~40-55% improvement
 ```text
+<!-- Code example in TEXT -->
 
 ### Functional Testing
 
 Your existing test suite continues to work without changes:
 
 ```bash
+<!-- Code example in BASH -->
 cargo test
 
 # All tests should pass with identical behavior
 # Just faster execution time
 ```text
+<!-- Code example in TEXT -->
 
 ## Rollback
 
@@ -103,12 +125,15 @@ If you need to rollback projection (for debugging):
 ### Option 1: Environment Variable
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_DISABLE_PROJECTION=true cargo run
 ```text
+<!-- Code example in TEXT -->
 
 ### Option 2: Downgrade to Earlier v2 Version
 
 ```bash
+<!-- Code example in BASH -->
 # Downgrade to previous v2 version (if needed)
 # Note: v1.x is NOT compatible with v2 schemas
 FraiseQL-core = "2.0.0-alpha.0"  # or earlier v2 version
@@ -116,6 +141,7 @@ FraiseQL-core = "2.0.0-alpha.0"  # or earlier v2 version
 cargo build --release
 # Re-deploy to previous v2 version
 ```text
+<!-- Code example in TEXT -->
 
 ## Database-Specific Considerations
 
@@ -171,6 +197,7 @@ cargo build --release
 After upgrade, you should see:
 
 ```text
+<!-- Code example in TEXT -->
 Query Latency (50th percentile):    40-55% reduction
 Query Latency (95th percentile):    40-55% reduction
 Query Latency (99th percentile):    40-55% reduction
@@ -178,26 +205,31 @@ Database Load:                      Proportional reduction
 Network Bandwidth:                  40-55% reduction
 Memory Usage:                       Slight reduction
 ```text
+<!-- Code example in TEXT -->
 
 ### Measurement Example
 
 **Before upgrade** (typical 10K row query):
 
 ```text
+<!-- Code example in TEXT -->
 p50: 26ms
 p95: 30ms
 p99: 35ms
 Throughput: 230 Kelem/s
 ```text
+<!-- Code example in TEXT -->
 
 **After upgrade** (same query):
 
 ```text
+<!-- Code example in TEXT -->
 p50: 12ms  (54% improvement ⚡)
 p95: 14ms  (53% improvement ⚡)
 p99: 16ms  (54% improvement ⚡)
 Throughput: 274 Kelem/s (19% improvement ⚡)
 ```text
+<!-- Code example in TEXT -->
 
 ## Known Issues & Limitations
 
@@ -234,11 +266,13 @@ Throughput: 274 Kelem/s (19% improvement ⚡)
 Different query types benefit differently:
 
 ```text
+<!-- Code example in TEXT -->
 SELECT a, b, c FROM large_table          → 42% improvement
 SELECT a, b FROM large_table             → 35% improvement
 SELECT * FROM small_table                → 5% improvement
 SELECT a, b, c WHERE ... JOIN ... GROUP  → 20% improvement
 ```text
+<!-- Code example in TEXT -->
 
 **Key insight**: Improvement scales with % of unused fields
 
@@ -254,6 +288,7 @@ SELECT a, b, c WHERE ... JOIN ... GROUP  → 20% improvement
 ### Key Metrics to Monitor
 
 ```promql
+<!-- Code example in PROMQL -->
 # Query latency - expect to drop
 histogram_quantile(0.95, rate(graphql_query_duration_seconds[5m]))
 
@@ -263,17 +298,20 @@ rate(postgres_queries_total[5m])
 # Network throughput - expect to drop
 rate(network_bytes_out_total[5m])
 ```text
+<!-- Code example in TEXT -->
 
 ### Alert Thresholds
 
 Set alerts if:
 
 ```yaml
+<!-- Code example in YAML -->
 - name: Projection Performance Regression
   condition: |
     (p95_latency_after - p95_latency_before) / p95_latency_before > 0.05
   action: Investigate / Rollback
 ```text
+<!-- Code example in TEXT -->
 
 ## FAQ
 

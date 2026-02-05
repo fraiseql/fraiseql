@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL State Management: Caching, Change Data Capture, and State Model
+description: FraiseQL state management spans three concerns:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL State Management: Caching, Change Data Capture, and State Model
 
 **Date:** January 2026
@@ -23,6 +31,7 @@ FraiseQL state management spans three concerns:
 ### 1.1 Cache Layers
 
 ```text
+<!-- Code example in TEXT -->
                 Application
                     ↓
     ┌───────────────────────────────┐
@@ -43,12 +52,14 @@ FraiseQL state management spans three concerns:
     │ • Materialized views          │ • Slowest
     └───────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Cache Key Generation
 
 Cache keys combine operation + context:
 
 ```python
+<!-- Code example in Python -->
 # Query: GetUserPosts(userId: "user-456", limit: 20)
 cache_key = {
     "operation": "GetUserPosts",
@@ -64,12 +75,14 @@ cache_key_string = hash(cache_key)
 # Search in L1/L2 cache
 cached_result = cache.get(cache_key_string)
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Cache TTL (Time To Live)
 
 Different TTL per operation type:
 
 ```text
+<!-- Code example in TEXT -->
 Static data (Product catalog):
   ├─ TTL: 1 hour
   ├─ Reason: Changes infrequently
@@ -90,12 +103,14 @@ Personalized (User feed):
   ├─ Reason: User + algorithm dependent
   └─ Miss cost: <500ms
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.4 Cache Invalidation
 
 Invalidation cascade on mutation:
 
 ```text
+<!-- Code example in TEXT -->
 Mutation: UpdatePost (post_id=789)
     ↓
 1. Query database (write completes)
@@ -111,12 +126,14 @@ Mutation: UpdatePost (post_id=789)
     ├─ GetPostsByAuthor(author_id=456) → Cache miss → Query DB
     └─ Both re-cached for TTL period
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.5 Cache Warming
 
 Pre-populate cache on startup:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.on_startup
 async def warm_cache():
     """Pre-populate cache with frequently accessed data"""
@@ -133,6 +150,7 @@ Result:
   ├─ Smoother user experience (no initial delays)
   └─ Reduced database load at launch
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -141,6 +159,7 @@ Result:
 ### 2.1 CDC Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Database (PostgreSQL)
     ├─ Trigger on INSERT/UPDATE/DELETE
     ├─ Publishes to LISTEN channel (pg_notify)
@@ -159,12 +178,14 @@ Subscribers & Caches
     ├─ Message queues (Kafka)
     ├─ Cache invalidation
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 CDC Events
 
 All changes generate events:
 
 ```python
+<!-- Code example in Python -->
 # Mutation: CreatePost
 mutation CreatePost($title: String!) {
   createPost(input: { title: $title }) {
@@ -200,12 +221,14 @@ Event {
 4. Event stream (Kafka, etc.)
    ├─ Published to post_created topic
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.3 CDC Event Ordering
 
 **Per-entity ordering guarantee:**
 
 ```text
+<!-- Code example in TEXT -->
 Post #123 events (guaranteed ordered):
     1. post_created (T0)
     2. post_updated (T0 + 1s)
@@ -230,12 +253,14 @@ Different entity events (may reorder):
     ├─ User #456 updated
     ├─ Post #123 updated (still ordered per entity)
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.4 CDC Event Deduplication
 
 Events may be delivered multiple times (at-least-once):
 
 ```text
+<!-- Code example in TEXT -->
 Event: post_created (id: post-789)
 
 Delivery 1: Client A receives
@@ -244,6 +269,7 @@ Delivery 3: Retry (network error on first attempt)
 
 Client must handle idempotency:
 ```python
+<!-- Code example in Python -->
 @FraiseQL.on_event("post_created")
 async def handle_post_created(event):
     # Check if already processed
@@ -253,6 +279,7 @@ async def handle_post_created(event):
     # Process event
     await process_event(event)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -263,6 +290,7 @@ async def handle_post_created(event):
 FraiseQL chooses **consistency and partition tolerance** (CP):
 
 ```text
+<!-- Code example in TEXT -->
 CAP: Choose 2 of 3
 ├─ Consistency (all nodes same data)
 ├─ Availability (always respond)
@@ -278,12 +306,14 @@ In practice:
   ├─ With replicas: Eventually consistent across replicas
   ├─ Causal consistency for federation
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Consistency Guarantees
 
 **Single database (SERIALIZABLE isolation):**
 
 ```text
+<!-- Code example in TEXT -->
 Query 1: SELECT * FROM users
   ├─ Sees: User A, User B, User C
   └─ Time: T0
@@ -298,10 +328,12 @@ Query 2: SELECT * FROM users
 
 Guarantee: Every query sees consistent, up-to-date state
 ```text
+<!-- Code example in TEXT -->
 
 **With read replicas (eventual consistency):**
 
 ```text
+<!-- Code example in TEXT -->
 Primary database: Write all mutations
 Read replicas (3 copies): Read-only
 
@@ -319,12 +351,14 @@ Query from replica 3 at T0 + 15ms:
 
 Result: Eventual consistency (typically <1 second)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Cache + Live Data Consistency
 
 Challenge: Cache can be stale
 
 ```text
+<!-- Code example in TEXT -->
 Timeline:
 T0:     GetPost(id=789) → Cache miss → Query DB
         ├─ Result: { title: "Original" }
@@ -340,10 +374,12 @@ T0+2s:  GetPost(id=789) → Cache miss → Query DB
 
 Result: Cache always consistent (invalidated on write)
 ```text
+<!-- Code example in TEXT -->
 
 **Edge case: Network partition**
 
 ```text
+<!-- Code example in TEXT -->
 Normal:
   Mutation → Update database → Invalidate cache
   Next query: Sees new data
@@ -361,6 +397,7 @@ Recovery:
   ├─ Or: Wait for TTL expiration (5 minutes)
   ├─ Next query sees fresh data
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -371,6 +408,7 @@ Recovery:
 User sees their own writes immediately:
 
 ```python
+<!-- Code example in Python -->
 # Cache key includes user_id
 cache_key = f"GetUserPosts:{user_id}"
 
@@ -390,12 +428,14 @@ async def createPost(input):
 # Query database (sees their new post)
 # ✓ User A sees their own writes
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Causal Consistency (for federation)
 
 Events propagate in order:
 
 ```text
+<!-- Code example in TEXT -->
 User A: Create Post #1 (T0)
     ├─ Primary database: Post created
     ├─ Event published: post_created
@@ -412,12 +452,14 @@ User C (on different subgraph): Query posts
     ├─ Re-queries at T0 + 25ms
     ├─ Sees Post #1 ✓
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Eventual Consistency (multi-database)
 
 Different databases eventually consistent:
 
 ```text
+<!-- Code example in TEXT -->
 Database A (Primary for users): User created
 Database B (Replica): Gets replicated
 Database C (Replica): Gets replicated
@@ -433,6 +475,7 @@ Queries during replication:
 
 Consistency model: Eventual (typically <1s)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -443,6 +486,7 @@ Consistency model: Eventual (typically <1s)
 Check cache first, update on miss:
 
 ```python
+<!-- Code example in Python -->
 async def get_user_posts(user_id):
     # Check L1 cache
     key = f"posts:{user_id}"
@@ -465,12 +509,14 @@ async def get_user_posts(user_id):
 
     return result
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Write-Through Caching
 
 Update cache on write:
 
 ```python
+<!-- Code example in Python -->
 async def create_post(input):
     # Write to database
     post = await db.insert("tb_post", input)
@@ -490,12 +536,14 @@ async def create_post(input):
 
     return post
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Write-Behind Caching
 
 Update cache, then database (async):
 
 ```python
+<!-- Code example in Python -->
 async def update_user_profile(user_id, data):
     # Update cache immediately
     cache.set(f"user:{user_id}", data)
@@ -510,6 +558,7 @@ async def update_user_profile(user_id, data):
 # Client sees update immediately (from cache)
 # Database eventually consistent (async write)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -520,6 +569,7 @@ async def update_user_profile(user_id, data):
 Events drive cache updates:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.on_event("post_updated")
 async def on_post_updated(event):
     """When post is updated, invalidate related caches"""
@@ -539,12 +589,14 @@ async def on_post_deleted(event):
     # Similar invalidation
     ...
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Event Sourcing
 
 Use events as primary store (optional):
 
 ```python
+<!-- Code example in Python -->
 # Traditional: Store state
 POST v_post: { id, title, content, updated_at }
 
@@ -557,6 +609,7 @@ tb_post_events: [
 
 Current state = Apply events from T0 to Tn
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -565,6 +618,7 @@ Current state = Apply events from T0 to Tn
 ### 7.1 Metrics
 
 ```text
+<!-- Code example in TEXT -->
 Cache metrics:
   ├─ Hit rate: Target >80%
   ├─ Invalidation rate: Monitor trends
@@ -581,10 +635,12 @@ CDC metrics:
   ├─ Event ordering: Verify per-entity
   ├─ Delivery reliability: Target 99.99%
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Health Checks
 
 ```text
+<!-- Code example in TEXT -->
 Cache health:
   ├─ Redis connectivity: UP/DOWN
   ├─ Memcached connectivity: UP/DOWN
@@ -600,6 +656,7 @@ CDC health:
   ├─ Event backlog: <100?
   └─ Trigger functions: Enabled?
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -608,6 +665,7 @@ CDC health:
 ### 8.1 Caching Configuration
 
 ```python
+<!-- Code example in Python -->
 FraiseQL.state.configure({
     "cache": {
         "l1": {
@@ -631,10 +689,12 @@ FraiseQL.state.configure({
     }
 })
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 CDC Configuration
 
 ```python
+<!-- Code example in Python -->
 FraiseQL.state.configure({
     "cdc": {
         "enabled": True,
@@ -653,6 +713,7 @@ FraiseQL.state.configure({
     }
 })
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

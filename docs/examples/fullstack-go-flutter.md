@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Full-Stack Example: Go Schema → FraiseQL Backend → Flutter Mobile App
+description: This guide demonstrates a complete end-to-end integration of a Go GraphQL schema definition with FraiseQL's compiled backend and a Flutter mobile application. W
+keywords: ["schema", "code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Full-Stack Example: Go Schema → FraiseQL Backend → Flutter Mobile App
 
 This guide demonstrates a complete end-to-end integration of a Go GraphQL schema definition with FraiseQL's compiled backend and a Flutter mobile application. We'll build a movie discovery app with searching, detailed views, reviews, and watchlist management.
@@ -5,11 +13,13 @@ This guide demonstrates a complete end-to-end integration of a Go GraphQL schema
 **Architecture Overview:**
 
 ```text
+<!-- Code example in TEXT -->
 Go Schema Definition        FraiseQL Compiler        FraiseQL Server          Flutter Mobile App
 (movies.go)         →      (FraiseQL-cli)    →    (schema.compiled.json)  →   (Flutter client)
                                                         + Rust runtime
                                                         + PostgreSQL
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -20,16 +30,19 @@ Go Schema Definition        FraiseQL Compiler        FraiseQL Server          Fl
 Create a new Go module:
 
 ```bash
+<!-- Code example in BASH -->
 mkdir movie-schema
 cd movie-schema
 go mod init github.com/example/movie-schema
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Go Schema Definitions
 
 Create `models.go` with FraiseQL tags:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -100,12 +113,14 @@ type Query struct{}
 // Mutation represents the root mutation type
 type Mutation struct{}
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Query Definitions
 
 Create `queries.go`:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -154,12 +169,14 @@ func (q *Query) GetTopRatedMovies(ctx context.Context, limit int) ([]Movie, erro
  return nil, nil
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.4 Mutation Definitions
 
 Create `mutations.go`:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 // AddReview adds a new review to a movie
@@ -236,12 +253,14 @@ type RemoveFromWatchlistOutput struct {
  Message string `json:"message"`
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.5 Go Module File
 
 Create `go.mod`:
 
 ```go
+<!-- Code example in Go -->
 module github.com/example/movie-schema
 
 go 1.21
@@ -250,6 +269,7 @@ require (
  github.com/FraiseQL/FraiseQL-go v2.0.0-alpha.1
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -258,6 +278,7 @@ require (
 Create `database/schema.sql`:
 
 ```sql
+<!-- Code example in SQL -->
 -- Movies table
 CREATE TABLE movies (
     id SERIAL PRIMARY KEY,
@@ -360,6 +381,7 @@ AFTER INSERT ON ratings
 FOR EACH ROW
 EXECUTE FUNCTION update_movie_stats();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -370,6 +392,7 @@ EXECUTE FUNCTION update_movie_stats();
 Create `cmd/export/main.go`:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -567,12 +590,14 @@ func getSQLType(t reflect.Type) string {
  }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Compilation Command
 
 Export and compile the schema:
 
 ```bash
+<!-- Code example in BASH -->
 # From movie-schema directory
 go run cmd/export/main.go -o schema.json
 
@@ -582,6 +607,7 @@ FraiseQL-cli compile \
   --config FraiseQL.toml \
   --output schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -592,6 +618,7 @@ FraiseQL-cli compile \
 Create `FraiseQL.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL]
 name = "movie-api"
 version = "1.0.0"
@@ -649,12 +676,14 @@ export_interval_secs = 30
 prometheus_enabled = true
 prometheus_port = 9090
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Docker Deployment
 
 Create `Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Build stage
 FROM rust:1.75 as builder
 
@@ -685,10 +714,12 @@ ENV RUST_LOG=info
 
 CMD ["./FraiseQL-server", "--config", "FraiseQL.toml"]
 ```text
+<!-- Code example in TEXT -->
 
 Create `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -727,10 +758,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 Deployment:
 
 ```bash
+<!-- Code example in BASH -->
 # Build and start services
 docker-compose up --build
 
@@ -740,6 +773,7 @@ docker-compose exec postgres psql -U FraiseQL -d movies -f /docker-entrypoint-in
 # Check server health
 curl http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -748,6 +782,7 @@ curl http://localhost:8000/health
 ### 5.1 Flutter Project Setup
 
 ```bash
+<!-- Code example in BASH -->
 # Create Flutter project
 flutter create movie_app
 cd movie_app
@@ -760,12 +795,14 @@ flutter pub add http
 # Install dependencies
 flutter pub get
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 GraphQL Client Configuration
 
 Create `lib/services/graphql_client.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:graphql/client.dart';
 import 'package:http/http.dart' as http;
 
@@ -816,12 +853,14 @@ class GraphQLClientService {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 GraphQL Queries
 
 Create `lib/services/movie_queries.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:graphql/client.dart';
 
 class MovieQueries {
@@ -969,12 +1008,14 @@ class MovieMutations {
   ''';
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.4 Models
 
 Create `lib/models/movie.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:equatable/equatable.dart';
 
 class Movie extends Equatable {
@@ -1096,12 +1137,14 @@ class WatchlistItem extends Equatable {
   List<Object?> get props => [id, movieId, userId, status, addedAt];
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.5 Provider State Management
 
 Create `lib/providers/movie_provider.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter/material.dart';
 import 'package:graphql/client.dart';
 import '../models/movie.dart';
@@ -1321,12 +1364,14 @@ class MovieProvider extends ChangeNotifier {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.6 UI Screens
 
 Create `lib/screens/movie_list_screen.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/movie.dart';
@@ -1512,10 +1557,12 @@ class MovieCard extends StatelessWidget {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Create `lib/screens/movie_detail_screen.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/movie_provider.dart';
@@ -1752,10 +1799,12 @@ class ReviewTile extends StatelessWidget {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Create `lib/screens/review_form_screen.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/movie_provider.dart';
@@ -1911,12 +1960,14 @@ class _ReviewFormScreenState extends State<ReviewFormScreen> {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.7 Main App
 
 Create `lib/main.dart`:
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/movie_provider.dart';
@@ -1947,12 +1998,14 @@ class MovieApp extends StatelessWidget {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Part 6: Flutter Project Structure
 
 ```text
+<!-- Code example in TEXT -->
 movie_app/
 ├── android/                      # Android native code
 ├── ios/                          # iOS native code
@@ -1973,10 +2026,12 @@ movie_app/
 ├── pubspec.yaml                 # Dependencies
 └── README.md
 ```text
+<!-- Code example in TEXT -->
 
 Create `pubspec.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 name: movie_app
 description: Movie discovery Flutter app powered by FraiseQL
 publish_to: none
@@ -2014,6 +2069,7 @@ flutter:
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2022,6 +2078,7 @@ flutter:
 ### 7.1 Prerequisites
 
 ```bash
+<!-- Code example in BASH -->
 # Install required tools
 # Rust/Cargo (for FraiseQL)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -2035,10 +2092,12 @@ flutter doctor
 sudo pacman -S docker docker-compose  # Arch
 # or brew install docker docker-compose  # macOS
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Start FraiseQL Backend
 
 ```bash
+<!-- Code example in BASH -->
 # From FraiseQL project directory
 docker-compose up --build
 
@@ -2053,12 +2112,14 @@ INSERT INTO movies (title, description, release_date, genre, director, duration,
 ('Interstellar', 'A team of explorers travel through a wormhole in space...', '2014-11-07', 'Sci-Fi', 'Christopher Nolan', 169, 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', 8.6);
 EOF
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Configure Flutter App
 
 Update `lib/services/graphql_client.dart` API endpoint:
 
 ```dart
+<!-- Code example in DART -->
 // For development (Android Emulator)
 final httpLink = HttpLink(
   'http://10.0.2.2:8000/graphql',  // Android emulator localhost
@@ -2077,10 +2138,12 @@ final httpLink = HttpLink(
   defaultHeaders: {'Content-Type': 'application/json'},
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.4 Run Flutter App
 
 ```bash
+<!-- Code example in BASH -->
 # From movie_app directory
 flutter pub get
 
@@ -2094,6 +2157,7 @@ flutter run -d sim
 # Run on physical device
 flutter run -d <device_id>
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2109,6 +2173,7 @@ flutter run -d <device_id>
 GraphQL Query:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query SearchMovies($query: String!, $genre: String, $limit: Int!) {
   searchMovies(query: $query, genre: $genre, limit: $limit) {
     id
@@ -2120,6 +2185,7 @@ query SearchMovies($query: String!, $genre: String, $limit: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 View Movie Details with Reviews
 
@@ -2131,6 +2197,7 @@ query SearchMovies($query: String!, $genre: String, $limit: Int!) {
 GraphQL Query:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetMovieDetails($movieId: Int!) {
   getMovieDetails(movieId: $movieId) {
     id
@@ -2152,6 +2219,7 @@ query GetMovieDetails($movieId: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Submit a Review
 
@@ -2165,6 +2233,7 @@ query GetMovieDetails($movieId: Int!) {
 GraphQL Mutation:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation AddReview(
   $movieId: Int!
   $userId: Int!
@@ -2190,12 +2259,14 @@ mutation AddReview(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.4 Manage Watchlist
 
 **Add to Watchlist:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation AddToWatchlist(
   $movieId: Int!
   $userId: Int!
@@ -2216,10 +2287,12 @@ mutation AddToWatchlist(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Get Watchlist:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUserWatchlist($userId: Int!, $status: String) {
   getUserWatchlist(userId: $userId, status: $status) {
     id
@@ -2230,6 +2303,7 @@ query GetUserWatchlist($userId: Int!, $status: String) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2238,6 +2312,7 @@ query GetUserWatchlist($userId: Int!, $status: String) {
 ### 9.1 iOS Deployment
 
 ```bash
+<!-- Code example in BASH -->
 cd ios
 
 # Update bundle identifier in Xcode
@@ -2259,10 +2334,12 @@ open ios/Runner.xcworkspace
 # Product → Scheme → Edit Scheme → Run → Release
 # Product → Archive
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Android Deployment
 
 ```bash
+<!-- Code example in BASH -->
 cd android
 
 # Create keystore
@@ -2292,6 +2369,7 @@ flutter build appbundle --release
 # Upload to Google Play Console
 # Using internal testing, closed testing, or production
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 App Store Release Checklist
 
@@ -2333,6 +2411,7 @@ flutter build appbundle --release
 - **Solution**:
 
   ```bash
+<!-- Code example in BASH -->
   # Verify PostgreSQL is running
   docker-compose ps
 
@@ -2343,6 +2422,7 @@ flutter build appbundle --release
   docker-compose down -v
   docker-compose up
   ```text
+<!-- Code example in TEXT -->
 
 ### Flutter Build Issues
 
@@ -2351,11 +2431,13 @@ flutter build appbundle --release
 - **Solution**:
 
   ```bash
+<!-- Code example in BASH -->
   flutter clean
   flutter pub get
   flutter analyze
   flutter test
   ```text
+<!-- Code example in TEXT -->
 
 ### Performance Issues
 

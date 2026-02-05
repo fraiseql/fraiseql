@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Implementing a Custom SessionStore
+description: FraiseQL's authentication system is designed to be extensible. This guide shows how to implement a custom `SessionStore` for your preferred storage backend.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Implementing a Custom SessionStore
 
 FraiseQL's authentication system is designed to be extensible. This guide shows how to implement a custom `SessionStore` for your preferred storage backend.
@@ -48,6 +56,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 The `SessionStore` trait defines four core methods:
 
 ```rust
+<!-- Code example in RUST -->
 #[async_trait]
 pub trait SessionStore: Send + Sync {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair>;
@@ -55,7 +64,8 @@ pub trait SessionStore: Send + Sync {
     async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()>;
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Reference Implementations
 
@@ -69,6 +79,7 @@ FraiseQL includes two reference implementations:
 Here's how to implement a Redis-backed session store:
 
 ```rust
+<!-- Code example in RUST -->
 use async_trait::async_trait;
 use fraiseql_server::auth::{SessionStore, SessionData, TokenPair, Result, AuthError};
 use fraiseql_server::auth::session::{generate_refresh_token, hash_token};
@@ -215,11 +226,13 @@ impl SessionStore for RedisSessionStore {
         Ok(())
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Using Redis Session Store
 
 ```rust
+<!-- Code example in RUST -->
 use redis::Client;
 use fraiseql_server::auth::AuthState;
 
@@ -231,13 +244,15 @@ let auth_state = AuthState {
     session_store,
     state_store: Arc::new(dashmap::DashMap::new()),
 };
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Example 2: DynamoDB Session Store
 
 For AWS DynamoDB:
 
 ```rust
+<!-- Code example in RUST -->
 use async_trait::async_trait;
 use fraiseql_server::auth::{SessionStore, SessionData, TokenPair, Result, AuthError};
 use fraiseql_server::auth::session::{generate_refresh_token, hash_token};
@@ -371,13 +386,15 @@ impl SessionStore for DynamoDbSessionStore {
         Ok(())
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Example 3: MongoDB Session Store
 
 For MongoDB:
 
 ```rust
+<!-- Code example in RUST -->
 use async_trait::async_trait;
 use fraiseql_server::auth::{SessionStore, SessionData, TokenPair, Result, AuthError};
 use fraiseql_server::auth::session::{generate_refresh_token, hash_token};
@@ -493,7 +510,8 @@ impl SessionStore for MongoDbSessionStore {
         Ok(())
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
@@ -511,6 +529,7 @@ impl SessionStore for MongoDbSessionStore {
 ## Testing Your Implementation
 
 ```rust
+<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -568,7 +587,8 @@ mod tests {
         assert!(store.get_session(&hash2).await.is_err());
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

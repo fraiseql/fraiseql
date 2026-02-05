@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Calendar Dimensions for High-Performance Analytics
+description: Calendar dimensions provide **10-20x performance improvements** for time-based aggregations by using pre-computed temporal fields stored in JSONB columns instea
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Calendar Dimensions for High-Performance Analytics
 
 **Version:** 1.0
@@ -26,12 +34,15 @@ Calendar dimensions provide **10-20x performance improvements** for time-based a
 **Simplest approach** - single `date_info` column:
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE tf_sales ADD COLUMN date_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 **Advanced approach** - multiple granularity columns:
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE tf_sales
   ADD COLUMN date_info JSONB,
   ADD COLUMN week_info JSONB,
@@ -39,12 +50,14 @@ ALTER TABLE tf_sales
   ADD COLUMN quarter_info JSONB,
   ADD COLUMN year_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Populate Calendar Fields
 
 Create a trigger or ETL function to populate calendar fields on insert/update:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION populate_calendar_fields()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -73,6 +86,7 @@ CREATE TRIGGER trg_calendar_fields
   FOR EACH ROW
   EXECUTE FUNCTION populate_calendar_fields();
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. FraiseQL Auto-Detection
 
@@ -85,6 +99,7 @@ CREATE TRIGGER trg_calendar_fields
 **Example query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { occurred_at_month: true }
@@ -95,10 +110,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL** (automatic optimization):
 
 ```sql
+<!-- Code example in SQL -->
 -- WITH calendar dimensions (30ms):
 SELECT
   date_info->>'month' AS occurred_at_month,
@@ -115,6 +132,7 @@ SELECT
 FROM tf_sales
 GROUP BY DATE_TRUNC('month', occurred_at);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -125,6 +143,7 @@ GROUP BY DATE_TRUNC('month', occurred_at);
 A single `date_info` column can serve all temporal queries:
 
 ```json
+<!-- Code example in JSON -->
 {
   "date": "2024-03-15",
   "week": 11,
@@ -133,6 +152,7 @@ A single `date_info` column can serve all temporal queries:
   "year": 2024
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Supports these queries**:
 
@@ -161,12 +181,14 @@ For maximum flexibility and organization, use 7 separate columns:
 **Example `month_info`**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "month": 3,
   "quarter": 1,
   "year": 2024
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages**:
 
@@ -185,9 +207,11 @@ FraiseQL adapts to **any combination** of calendar columns:
 ### ✅ Single Column
 
 ```sql
+<!-- Code example in SQL -->
 -- Only date_info
 ALTER TABLE tf_sales ADD COLUMN date_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 - Detects: 1 granularity with 5 buckets (day, week, month, quarter, year)
 - All temporal queries use this column
@@ -195,11 +219,13 @@ ALTER TABLE tf_sales ADD COLUMN date_info JSONB;
 ### ✅ Selective Columns
 
 ```sql
+<!-- Code example in SQL -->
 -- Only the columns you need
 ALTER TABLE tf_sales
   ADD COLUMN date_info JSONB,
   ADD COLUMN month_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 - Detects: 2 granularities
 - Day/week queries use `date_info`
@@ -208,6 +234,7 @@ ALTER TABLE tf_sales
 ### ✅ Full Multi-Column Structure
 
 ```sql
+<!-- Code example in SQL -->
 -- All 7 columns
 ALTER TABLE tf_sales
   ADD COLUMN date_info JSONB,
@@ -218,6 +245,7 @@ ALTER TABLE tf_sales
   ADD COLUMN year_info JSONB,
   ADD COLUMN decade_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 - Detects: 7 granularities
 - Maximum flexibility and organization
@@ -225,9 +253,11 @@ ALTER TABLE tf_sales
 ### ✅ Custom Columns
 
 ```sql
+<!-- Code example in SQL -->
 -- Any *_info JSONB column is detected
 ALTER TABLE tf_sales ADD COLUMN my_custom_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 - Must follow naming pattern: `*_info`
 - Must be JSONB (PostgreSQL) or JSON (MySQL/SQLite/SQL Server)
@@ -241,30 +271,38 @@ Calendar dimensions work across all 4 supported databases:
 ### PostgreSQL (JSONB)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT date_info->>'month' AS month
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL (JSON)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT JSON_UNQUOTE(JSON_EXTRACT(date_info, '$.month')) AS month
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### SQLite (JSON)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT json_extract(date_info, '$.month') AS month
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### SQL Server (JSON as NVARCHAR)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT JSON_VALUE(date_info, '$.month') AS month
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL automatically generates the correct SQL for your database.**
 
@@ -277,34 +315,41 @@ Calendar dimensions are **100% backward compatible**:
 ### Without Calendar Columns
 
 ```sql
+<!-- Code example in SQL -->
 -- Traditional table (no calendar columns)
 CREATE TABLE tf_sales (
     revenue DECIMAL(10,2),
     occurred_at TIMESTAMPTZ
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Query behavior**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(groupBy: { occurred_at_month: true }) {
     occurred_at_month
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL** (automatic fallback):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT DATE_TRUNC('month', occurred_at) AS occurred_at_month
 FROM tf_sales
 GROUP BY DATE_TRUNC('month', occurred_at);
 ```text
+<!-- Code example in TEXT -->
 
 ### With Calendar Columns
 
 ```sql
+<!-- Code example in SQL -->
 -- Enhanced table (with calendar optimization)
 CREATE TABLE tf_sales (
     revenue DECIMAL(10,2),
@@ -312,14 +357,17 @@ CREATE TABLE tf_sales (
     date_info JSONB  -- Added
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Same query**, but **16x faster SQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT date_info->>'month' AS occurred_at_month
 FROM tf_sales
 GROUP BY date_info->>'month';
 ```text
+<!-- Code example in TEXT -->
 
 **No code changes required** - FraiseQL automatically uses the faster path when available.
 
@@ -351,26 +399,31 @@ GROUP BY date_info->>'month';
 **✅ Good - Populate on INSERT/UPDATE**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TRIGGER trg_calendar_fields
   BEFORE INSERT OR UPDATE ON tf_sales
   FOR EACH ROW
   EXECUTE FUNCTION populate_calendar_fields();
 ```text
+<!-- Code example in TEXT -->
 
 **❌ Bad - Compute on SELECT**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Don't do this - defeats the purpose!
 SELECT
   jsonb_build_object('month', EXTRACT(MONTH FROM occurred_at)) AS date_info
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Backfill Existing Data
 
 After adding calendar columns, backfill historical data:
 
 ```sql
+<!-- Code example in SQL -->
 -- Backfill date_info for existing rows
 UPDATE tf_sales
 SET date_info = jsonb_build_object(
@@ -382,10 +435,12 @@ SET date_info = jsonb_build_object(
 )
 WHERE date_info IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 **For large tables**, use batching:
 
 ```sql
+<!-- Code example in SQL -->
 -- Batch update in chunks
 DO $$
 DECLARE
@@ -416,12 +471,14 @@ BEGIN
     END LOOP;
 END $$;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Index Calendar Columns
 
 For optimal performance, add indexes on frequently queried temporal buckets:
 
 ```sql
+<!-- Code example in SQL -->
 -- GIN index for flexible JSONB queries
 CREATE INDEX idx_sales_date_info ON tf_sales USING GIN (date_info);
 
@@ -433,18 +490,21 @@ ON tf_sales ((date_info->>'month'));
 CREATE INDEX idx_sales_year_month
 ON tf_sales ((date_info->>'year'), (date_info->>'month'));
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Monitor Storage Impact
 
 Calendar dimensions add minimal storage overhead:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check table size before/after
 SELECT
     pg_size_pretty(pg_total_relation_size('tf_sales')) AS total_size,
     pg_size_pretty(pg_relation_size('tf_sales')) AS table_size,
     pg_size_pretty(pg_indexes_size('tf_sales')) AS indexes_size;
 ```text
+<!-- Code example in TEXT -->
 
 **Typical impact**:
 
@@ -485,10 +545,12 @@ SELECT
 Calendar columns add **minimal write overhead**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Typical write performance
 -- Without calendar: 5000 inserts/sec
 -- With calendar: 4800 inserts/sec (4% slower)
 ```text
+<!-- Code example in TEXT -->
 
 **JSONB field population is very efficient** - much cheaper than runtime DATE_TRUNC on reads.
 
@@ -509,11 +571,13 @@ Calendar columns add **minimal write overhead**:
 **Verify detection**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if column exists
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_name = 'tf_sales' AND column_name LIKE '%_info';
 ```text
+<!-- Code example in TEXT -->
 
 ### Incorrect Temporal Results
 
@@ -522,6 +586,7 @@ WHERE table_name = 'tf_sales' AND column_name LIKE '%_info';
 **Solution**: Ensure calendar fields are correctly populated:
 
 ```sql
+<!-- Code example in SQL -->
 -- Verify date_info contents
 SELECT
     occurred_at,
@@ -531,14 +596,17 @@ SELECT
 FROM tf_sales
 LIMIT 10;
 ```text
+<!-- Code example in TEXT -->
 
 **Check for nulls**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT COUNT(*)
 FROM tf_sales
 WHERE date_info IS NULL AND occurred_at IS NOT NULL;
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Not Improving
 
@@ -549,23 +617,29 @@ WHERE date_info IS NULL AND occurred_at IS NOT NULL;
 1. **Missing indexes**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Add GIN index
 CREATE INDEX idx_sales_date_info ON tf_sales USING GIN (date_info);
 ```text
+<!-- Code example in TEXT -->
 
 1. **Large result sets** (calendar optimization helps GROUP BY, not large result sets):
 
 ```sql
+<!-- Code example in SQL -->
 -- If returning millions of rows, limit the results
 SELECT ... FROM tf_sales ... LIMIT 1000;
 ```text
+<!-- Code example in TEXT -->
 
 1. **Complex WHERE clauses** (calendar only optimizes GROUP BY):
 
 ```sql
+<!-- Code example in SQL -->
 -- Ensure denormalized filter columns are indexed
 CREATE INDEX idx_sales_occurred_at ON tf_sales (occurred_at);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -576,12 +650,15 @@ CREATE INDEX idx_sales_occurred_at ON tf_sales (occurred_at);
 **Step 1: Add Calendar Column**
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE tf_sales ADD COLUMN date_info JSONB;
 ```text
+<!-- Code example in TEXT -->
 
 **Step 2: Create Trigger**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION populate_calendar_fields()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -601,10 +678,12 @@ CREATE TRIGGER trg_calendar_fields
   FOR EACH ROW
   EXECUTE FUNCTION populate_calendar_fields();
 ```text
+<!-- Code example in TEXT -->
 
 **Step 3: Backfill (use batching for large tables)**
 
 ```sql
+<!-- Code example in SQL -->
 -- Small tables (<1M rows)
 UPDATE tf_sales
 SET date_info = jsonb_build_object(
@@ -618,22 +697,28 @@ WHERE date_info IS NULL;
 
 -- Large tables (use batching script from Best Practices section)
 ```text
+<!-- Code example in TEXT -->
 
 **Step 4: Add Index**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_sales_date_info ON tf_sales USING GIN (date_info);
 ```text
+<!-- Code example in TEXT -->
 
 **Step 5: Recompile Schema**
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 **Step 6: Verify Performance**
 
 ```sql
+<!-- Code example in SQL -->
 -- Before: ~500ms for 1M rows
 EXPLAIN ANALYZE
 SELECT
@@ -650,6 +735,7 @@ SELECT
 FROM tf_sales
 GROUP BY date_info->>'month';
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -660,6 +746,7 @@ GROUP BY date_info->>'month';
 Calendar dimensions are detected during **schema compilation**, not at query runtime:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────┐
 │ PostgreSQL Database         │
 │                             │
@@ -702,6 +789,7 @@ Calendar dimensions are detected during **schema compilation**, not at query run
 │   → Use DATE_TRUNC(...)     │
 └─────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### DB-First Design
 
@@ -721,6 +809,7 @@ Calendar dimensions are detected during **schema compilation**, not at query run
 You can add custom temporal buckets beyond the standard ones:
 
 ```sql
+<!-- Code example in SQL -->
 -- Add fiscal year (starts April 1)
 NEW.date_info = date_info || jsonb_build_object(
     'fiscal_year',
@@ -730,6 +819,7 @@ NEW.date_info = date_info || jsonb_build_object(
     END
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: FraiseQL's parser currently only detects standard buckets (day, week, month, quarter, year). Custom buckets can be queried via JSONB path extraction but won't have temporal bucketing shortcuts.
 
@@ -738,6 +828,7 @@ NEW.date_info = date_info || jsonb_build_object(
 Calendar dimensions work with **sparse data**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Some rows have calendar data, others don't
 SELECT
     COALESCE(date_info->>'month', DATE_TRUNC('month', occurred_at)::text) AS month,
@@ -745,6 +836,7 @@ SELECT
 FROM tf_sales
 GROUP BY month;
 ```text
+<!-- Code example in TEXT -->
 
 **Recommendation**: Keep calendar fields consistent. Either populate all rows or none.
 
@@ -753,6 +845,7 @@ GROUP BY month;
 Calendar dimensions optimize GROUP BY. For window functions, use the `occurred_at` column:
 
 ```sql
+<!-- Code example in SQL -->
 -- Window functions use timestamp
 SELECT
     date_info->>'month' AS month,
@@ -763,6 +856,7 @@ SELECT
     ) AS cumulative_revenue
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

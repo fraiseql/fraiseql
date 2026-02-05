@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Federation Platform - Project Readiness Assessment
+description: - FraiseQL federation architecture concepts
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Federation Platform - Project Readiness Assessment
 
 **Status:** ✅ Production Ready
@@ -71,28 +79,33 @@ FraiseQL v2 is a well-architected, compilation-oriented GraphQL execution engine
 **Python** (`FraiseQL-python/src/FraiseQL/federation.py`):
 
 ```python
+<!-- Code example in Python -->
 @key("id")              # Entity key definition
 @extends               # Extend types from other subgraphs
 @external()            # Mark fields as owned elsewhere
 @requires(field)       # Declare field dependencies
 @provides(*targets)    # Mark provided fields
-```
+```text
+<!-- Code example in TEXT -->
 
 **TypeScript** (`FraiseQL-typescript/src/federation.ts`):
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Key("id")             # Federation key
 @Extends()             # Extended type marker
 @External()            # External field marker
 @Requires(fieldName)   # Field dependency
 @Provides(...targets)  # Provided fields
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Working Examples
 
 **Python Federation Example** (`examples/federation/basic/users-service/schema.py`):
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, key
 
 @type
@@ -108,7 +121,8 @@ class Query:
         pass
     def users(self) -> list[User]:
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Assessment
 
@@ -400,11 +414,13 @@ class Query:
 **Example**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # User extended in products-service requires user.name from users-service
 extend User @requires(fields: "name") {
   inventory_count: Int  # depends on name for some reason
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 The `@requires` dependency would not be enforced.
 
@@ -418,6 +434,7 @@ The `@requires` dependency would not be enforced.
 **Example**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createOrder(userId: "123", productId: "456") {
     id  # Order created in orders-service
@@ -425,7 +442,8 @@ mutation {
         # Inconsistent state across subgraphs
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Remediation**: 4-6 weeks (saga pattern with CDC)
 **Mitigation**: Document as eventual consistency, implement compensating transactions

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Linting & Code Quality Guide
+description: - Rust language syntax and idioms
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Linting & Code Quality Guide
 
 ## Prerequisites
@@ -47,9 +55,11 @@ FraiseQL maintains strict code quality standards through Clippy linting, formatt
 FraiseQL enables the following Clippy lint groups:
 
 ```rust
+<!-- Code example in RUST -->
 #![warn(clippy::all)]       // All clippy lints
 #![warn(clippy::pedantic)]  // Pedantic lints for code quality
 ```text
+<!-- Code example in TEXT -->
 
 ### Core Rules
 
@@ -82,6 +92,7 @@ These pedantic lints are allowed with explicit justification:
 Before committing, run:
 
 ```bash
+<!-- Code example in BASH -->
 # Check formatting
 cargo fmt --check
 
@@ -94,6 +105,7 @@ cargo test --lib
 # Optional: Run benchmark for performance regression
 cargo bench --no-run
 ```text
+<!-- Code example in TEXT -->
 
 ### CI/CD Pipeline
 
@@ -111,6 +123,7 @@ All checks must pass before PR merge.
 #### Missing Documentation
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Missing docs
 pub fn execute_query(query: &str) -> Result<String> { }
 
@@ -127,20 +140,24 @@ pub fn execute_query(query: &str) -> Result<String> { }
 /// Returns error if query is invalid or execution fails
 pub fn execute_query(query: &str) -> Result<String> { }
 ```text
+<!-- Code example in TEXT -->
 
 #### Unnecessary Box/Arc
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Clippy warns
 let x = Box::new(value);
 
 // ✅ Let compiler infer when possible
 let x = value;
 ```text
+<!-- Code example in TEXT -->
 
 #### Pedantic Improvements
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Redundant else
 if condition {
     return Ok(());
@@ -154,6 +171,7 @@ if condition {
 }
 return Err(err);
 ```text
+<!-- Code example in TEXT -->
 
 ## Allowed Exceptions
 
@@ -166,26 +184,31 @@ Exceptions to strict linting are rare. If an exception is needed:
 Example:
 
 ```rust
+<!-- Code example in RUST -->
 #![allow(clippy::too_many_arguments)]
 // QueryExecutor needs many args for type information, database connection, etc.
 // Consider refactoring into a builder if logic becomes too complex.
 ```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
 ### 1. Use Explicit Types When Unclear
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Type not obvious
 let results = query.execute().collect();
 
 // ✅ Explicit
 let results: Vec<Row> = query.execute().collect();
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Document Complex Logic
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ No explanation
 if x.len() > 1024 && y.is_some() {
     process(z);
@@ -197,20 +220,24 @@ if x.len() > 1024 && y.is_some() {
     process(z);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Use Builder Pattern for Complex Types
 
 ```rust
+<!-- Code example in RUST -->
 // ✅ Readable API
 let config = ServerConfig::builder()
     .bind_addr("127.0.0.1:8000".parse()?)
     .metrics_enabled(true)
     .build()?;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Prefer Iterator Adapters
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Explicit loop
 let mut results = Vec::new();
 for item in items {
@@ -226,6 +253,7 @@ let results: Vec<_> = items
     .map(|item| item.transform())
     .collect();
 ```text
+<!-- Code example in TEXT -->
 
 ## Formatting Standards
 
@@ -234,18 +262,22 @@ let results: Vec<_> = items
 Use `rustfmt` with project defaults:
 
 ```bash
+<!-- Code example in BASH -->
 cargo fmt
 ```text
+<!-- Code example in TEXT -->
 
 ### Commit Message Format
 
 ```text
+<!-- Code example in TEXT -->
 <type>(<scope>): <description>
 
 <body>
 
 <footer>
 ```text
+<!-- Code example in TEXT -->
 
 **Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
@@ -265,6 +297,7 @@ Watch for these performance-related lints:
 All public items require documentation:
 
 ```rust
+<!-- Code example in RUST -->
 /// Brief one-line summary.
 ///
 /// Longer description explaining the purpose, behavior, and any important notes.
@@ -282,9 +315,11 @@ All public items require documentation:
 ///
 /// # Example
 /// ```text
+<!-- Code example in TEXT -->
 /// let result = function(arg1, arg2)?;
 /// assert_eq!(result, expected);
 /// ```text
+<!-- Code example in TEXT -->
 ///
 /// # Performance
 /// O(n log n) complexity due to sorting
@@ -295,6 +330,7 @@ pub fn function(param1: Type1, param2: Type2) -> Result<Type3> {
     // ...
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing & Linting Integration
 
@@ -308,6 +344,7 @@ Clippy warnings often indicate design issues. Before ignoring:
 Example:
 
 ```rust
+<!-- Code example in RUST -->
 #[test]
 fn test_excessive_bools_intentional() {
     // The ServerConfig struct uses many bools for feature flags.
@@ -321,6 +358,7 @@ fn test_excessive_bools_intentional() {
     assert!(config.cors_enabled);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Continuous Improvement
 

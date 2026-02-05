@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Authoring Contract Specification
+description: The **authoring contract** defines how schema authors declare GraphQL types, queries, mutations, and bindings. The contract is language-agnostic (Python, TypeSc
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Authoring Contract Specification
 
 **Version:** 1.0
@@ -25,6 +33,7 @@ The **authoring contract** defines how schema authors declare GraphQL types, que
 ### 2.1 Python (Recommended for v1)
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import Schema, Type, Query, Field, Mutation, ID, String
 
 schema = Schema(
@@ -67,10 +76,12 @@ def create_user(email: str, name: str) -> User:
 # Export CompiledSchema
 compiled = schema.compile()
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 YAML (Human-friendly)
 
 ```yaml
+<!-- Code example in YAML -->
 name: blog-api
 database_target: postgresql
 description: Simple blog API
@@ -136,10 +147,12 @@ mutations:
     binding:
       procedure: fn_create_user
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.3 GraphQL SDL (Text-based)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   email: String!
@@ -171,6 +184,7 @@ input UserWhereInput {
   _not: UserWhereInput
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -181,6 +195,7 @@ input UserWhereInput {
 **Python:**
 
 ```python
+<!-- Code example in Python -->
 @schema.type(description="A user account")
 class User:
     id: ID
@@ -195,10 +210,12 @@ class User:
         # ❌ This will fail at compile time
         pass
 ```text
+<!-- Code example in TEXT -->
 
 **YAML:**
 
 ```yaml
+<!-- Code example in YAML -->
 types:
   User:
     description: A user account
@@ -215,6 +232,7 @@ types:
       createdAt:
         type: DateTime!
 ```text
+<!-- Code example in TEXT -->
 
 **Rules:**
 
@@ -229,6 +247,7 @@ types:
 Input types are generated automatically from available columns:
 
 ```python
+<!-- Code example in Python -->
 # NOT declared by author
 # Automatically generated:
 # - UserWhereInput (from v_user columns + JSONB paths)
@@ -236,22 +255,26 @@ Input types are generated automatically from available columns:
 # - CreateUserInput (from fn_create_user parameters)
 # - UpdateUserInput (from fn_update_user parameters)
 ```text
+<!-- Code example in TEXT -->
 
 **Manual input declaration (rare):**
 
 ```python
+<!-- Code example in Python -->
 @schema.input
 class CreateUserInput:
     email: str
     name: str
     password: str  # hashed server-side
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Scalar Types
 
 Built-in scalars:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import ID, String, Int, Float, Boolean, DateTime, Date, JSON
 
 id: ID              # UUID
@@ -263,10 +286,12 @@ created: datetime   # DateTime
 birth_date: date    # Date
 metadata: dict      # JSON
 ```text
+<!-- Code example in TEXT -->
 
 Custom scalars:
 
 ```python
+<!-- Code example in Python -->
 @schema.scalar(
     name="Email",
     coerce_input="email_validation",
@@ -276,10 +301,12 @@ class Email:
     """Valid email address."""
     pattern = "^[^@]+@[^@]+\\.[^@]+$"
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Enums
 
 ```python
+<!-- Code example in Python -->
 @schema.enum
 class UserRole:
     """User role enumeration."""
@@ -287,6 +314,7 @@ class UserRole:
     USER = "user"
     GUEST = "guest"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -297,6 +325,7 @@ class UserRole:
 **Python:**
 
 ```python
+<!-- Code example in Python -->
 @schema.query(description="Get all users")
 def users(
     where: "UserWhereInput" = None,
@@ -307,6 +336,7 @@ def users(
     """Query implementation (ignored at compile time)."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Rules:**
 
@@ -322,6 +352,7 @@ def users(
 Each query must bind to a database view:
 
 ```python
+<!-- Code example in Python -->
 @schema.query
 def users(where: "UserWhereInput" = None) -> list[User]:
     pass
@@ -334,18 +365,22 @@ schema.bind(
     data_column="data"
 )
 ```text
+<!-- Code example in TEXT -->
 
 Or inline (if language supports):
 
 ```python
+<!-- Code example in Python -->
 @schema.query(binding={"view": "v_user", "data_column": "data"})
 def users() -> list[User]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Single-Entity Queries
 
 ```python
+<!-- Code example in Python -->
 @schema.query
 def user_by_id(id: ID) -> User:
     pass
@@ -354,13 +389,16 @@ def user_by_id(id: ID) -> User:
 def user_by_email(email: str) -> User:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Binding:**
 
 ```python
+<!-- Code example in Python -->
 schema.bind("user_by_id", "view", "v_user", where_column="id")
 schema.bind("user_by_email", "view", "v_user", where_column="email")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -371,6 +409,7 @@ schema.bind("user_by_email", "view", "v_user", where_column="email")
 **Python:**
 
 ```python
+<!-- Code example in Python -->
 @schema.mutation
 def create_user(email: str, name: str) -> User:
     """Create a new user."""
@@ -386,6 +425,7 @@ def delete_user(id: ID) -> DeleteUserResult:
     """Delete a user (soft delete)."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Rules:**
 
@@ -397,6 +437,7 @@ def delete_user(id: ID) -> DeleteUserResult:
 ### 5.2 Mutation Bindings
 
 ```python
+<!-- Code example in Python -->
 schema.bind(
     mutation="create_user",
     type="procedure",
@@ -411,6 +452,7 @@ schema.bind(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Input mapping:** GraphQL arg → function parameter
 **Output mapping:** function output → GraphQL field
@@ -420,6 +462,7 @@ schema.bind(
 For mutations that don't return the entity:
 
 ```python
+<!-- Code example in Python -->
 @schema.type
 class DeleteUserResult:
     success: bool
@@ -430,6 +473,7 @@ class DeleteUserResult:
 def delete_user(id: ID) -> DeleteUserResult:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -438,6 +482,7 @@ def delete_user(id: ID) -> DeleteUserResult:
 ### 6.1 Auth Context Type
 
 ```python
+<!-- Code example in Python -->
 @schema.auth_context
 class AuthContext:
     """Authentication context provided at runtime."""
@@ -446,10 +491,12 @@ class AuthContext:
     tenant_id: str        # Multi-tenant isolation
     email: str            # Email address
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Auth Rules
 
 ```python
+<!-- Code example in Python -->
 # Require authentication
 @schema.query
 @auth.requires_auth()
@@ -484,6 +531,7 @@ class User:
     @auth.requires_role("admin")
     password_hash: str
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -492,6 +540,7 @@ class User:
 The compiler must introspect the target database:
 
 ```python
+<!-- Code example in Python -->
 # Pseudo-code: compiler discovers schema
 schema.compile(
     database_url="postgresql://...",
@@ -508,6 +557,7 @@ schema.compile(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Compiler checks:**
 
@@ -527,6 +577,7 @@ The compiler must validate:
 ### 8.1 Type Closure
 
 ```text
+<!-- Code example in TEXT -->
 All referenced types must be defined.
 
 ❌ INVALID:
@@ -534,10 +585,12 @@ All referenced types must be defined.
 def user() -> UndefinedType:  # Error: UndefinedType not defined
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Binding Existence
 
 ```text
+<!-- Code example in TEXT -->
 All types with queries/mutations must have bindings.
 
 ❌ INVALID:
@@ -549,10 +602,12 @@ def users() -> list[User]:
 ✓ VALID:
 schema.bind("users", "view", "v_user")
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 View Column Validation
 
 ```text
+<!-- Code example in TEXT -->
 All fields must exist as columns or JSONB paths.
 
 ❌ INVALID:
@@ -569,10 +624,12 @@ class User:
     email: str
     # Must exist as: tb_user.email or v_user.data->>'email'
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.4 Operator Support
 
 ```text
+<!-- Code example in TEXT -->
 Used filters must be in capability manifest.
 
 ❌ INVALID (on SQLite):
@@ -584,10 +641,12 @@ where: {
 where: {
     email: { _like: "test%" }   # OK: all DBs support LIKE
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.5 Authorization Validity
 
 ```text
+<!-- Code example in TEXT -->
 Auth rules must reference valid auth context fields.
 
 ❌ INVALID:
@@ -596,6 +655,7 @@ Auth rules must reference valid auth context fields.
 ✓ VALID:
 @auth.requires_claim("tenant_id")      # OK: in AuthContext
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -608,6 +668,7 @@ Compilation produces:
 3. **validation-report.txt** — Warnings and information
 
 ```bash
+<!-- Code example in BASH -->
 $ FraiseQL compile schema.py
 ✓ Compiled successfully
 ├── CompiledSchema.json (15 KB)
@@ -616,6 +677,7 @@ $ FraiseQL compile schema.py
     ℹ Column 'v_user.email' not indexed
     ⚠ View 'v_user_stats' is materialized, may be stale
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -668,6 +730,7 @@ See [`docs/reference/scalars.md`](../reference/scalars.md) for detailed document
 **Quick Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: UUID!
   email: EmailAddress!
@@ -678,6 +741,7 @@ type User {
   signature: Signature
 }
 ```text
+<!-- Code example in TEXT -->
 
 Each scalar type is validated at:
 
@@ -702,6 +766,7 @@ Each scalar type is validated at:
 ## 11. Example: Complete Schema (Python)
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import (
     Schema, Type, Query, Mutation, Field,
     ID, String, Int, DateTime, List,
@@ -796,6 +861,7 @@ if __name__ == "__main__":
     compiled = schema.compile()
     print("Schema compiled successfully!")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -804,6 +870,7 @@ if __name__ == "__main__":
 **Compilation errors should be clear:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: Type closure violation
   Query 'users' returns 'list[User]'
   Type 'User' not defined
@@ -828,6 +895,7 @@ Error: Auth context mismatch
   → Field not in AuthContext
   → Add field to @schema.auth_context
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

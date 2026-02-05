@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Development Guide
+description: Tools and guides for FraiseQL development and testing.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Development Guide
 
 Tools and guides for FraiseQL development and testing.
@@ -44,6 +52,7 @@ Tools and guides for FraiseQL development and testing.
 ## Quick Commands
 
 ```bash
+<!-- Code example in BASH -->
 # Lint code
 cargo clippy --all-targets --all-features
 
@@ -59,7 +68,8 @@ bash BENCHMARK_QUICK_START.sh run-small
 
 # Profile code
 cargo flamegraph --bin FraiseQL-server
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Common Tasks
 

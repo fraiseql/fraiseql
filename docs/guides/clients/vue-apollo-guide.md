@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Vue 3 with Apollo Client for FraiseQL
+description: Complete guide for querying FraiseQL servers from Vue 3 applications using Apollo Client.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Vue 3 with Apollo Client for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -20,12 +28,15 @@ Complete guide for querying FraiseQL servers from Vue 3 applications using Apoll
 ### Install Dependencies
 
 ```bash
+<!-- Code example in BASH -->
 npm install @vue/apollo-composable @apollo/client graphql subscriptions-transport-ws
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Create Apollo Client
 
 ```typescript
+<!-- Code example in TypeScript -->
 // apollo.config.ts
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
@@ -80,11 +91,13 @@ export const apolloClient = new ApolloClient({
     },
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Register with Vue App
 
 ```typescript
+<!-- Code example in TypeScript -->
 // main.ts
 import { createApp } from 'vue';
 import { DefaultApolloClient } from '@vue/apollo-composable';
@@ -94,7 +107,8 @@ import App from './App.vue';
 const app = createApp(App);
 app.provide(DefaultApolloClient, apolloClient);
 app.mount('#app');
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -103,6 +117,7 @@ app.mount('#app');
 ### Basic Query with useQuery
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div v-if="loading" class="loading">Loading users...</div>
   <div v-else-if="error" class="error">{{ error.message }}</div>
@@ -129,11 +144,13 @@ const GET_USERS = gql`
 
 const { result, loading, error } = useQuery(GET_USERS);
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <div v-if="loading">Loading user...</div>
@@ -187,11 +204,13 @@ const { result, loading, error } = useQuery(
 
 const user = computed(() => result.value?.user);
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Reactive Query Variables
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <input v-model="searchTerm" placeholder="Search users..." />
@@ -229,11 +248,13 @@ const { result, loading } = useQuery(
 
 const users = computed(() => result.value?.searchUsers || []);
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination with fetchMore
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <div class="posts">
@@ -294,7 +315,8 @@ const loadMore = async () => {
   });
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -303,6 +325,7 @@ const loadMore = async () => {
 ### Basic Mutation with useMutation
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <form @submit.prevent="createPost">
     <input
@@ -357,11 +380,13 @@ const createPost = async () => {
   }
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Update Cache After Mutation
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <button @click="updateName" :disabled="loading">
     Update Name
@@ -416,7 +441,8 @@ const updateName = async () => {
   });
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -425,6 +451,7 @@ const updateName = async () => {
 ### Subscribe to Real-Time Events
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div class="feed">
     <div v-if="connecting" class="status">Connecting...</div>
@@ -459,11 +486,13 @@ const { result, loading: connecting, error } = useSubscription(ON_POST_CREATED);
 
 const latestPost = computed(() => result.value?.postCreated);
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Manage Multiple Subscriptions
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <h2>Messages ({{ messages.length }})</h2>
@@ -522,7 +551,8 @@ const watchUsers = () => {
   }
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -531,6 +561,7 @@ const watchUsers = () => {
 ### Global Error Handling
 
 ```typescript
+<!-- Code example in TypeScript -->
 // apollo.config.ts
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
@@ -556,11 +587,13 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
     }
   }
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Component-Level Error Handling
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <div v-if="error" class="error-container">
@@ -592,7 +625,8 @@ const errorMessage = computed(() => {
 
 const retry = () => refetch();
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -601,6 +635,7 @@ const retry = () => refetch();
 ### Cache Management
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <button @click="clearCache">Clear Cache</button>
@@ -624,11 +659,13 @@ const refetchQuery = () => {
   refetch();
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Fetch Policies
 
 ```vue
+<!-- Code example in VUE -->
 <script setup lang="ts">
 import { useQuery, gql } from '@vue/apollo-composable';
 
@@ -648,7 +685,8 @@ useQuery(GET_DATA, null, {
 // Activity feed - cache + refresh
 useQuery(GET_DATA, null, { fetchPolicy: 'cache-and-network' });
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -657,6 +695,7 @@ useQuery(GET_DATA, null, { fetchPolicy: 'cache-and-network' });
 ### Lazy Query Loading
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <input
     v-model="searchTerm"
@@ -690,11 +729,13 @@ const performSearch = async () => {
   }
 };
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Conditional Query Loading
 
 ```vue
+<!-- Code example in VUE -->
 <script setup lang="ts">
 import { useQuery, gql } from '@vue/apollo-composable';
 import { ref, computed } from 'vue';
@@ -714,7 +755,8 @@ const { result: settingsResult } = useQuery(
   { skip: computed(() => !showSettings.value) }
 );
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -723,6 +765,7 @@ const { result: settingsResult } = useQuery(
 ### Test Query Component
 
 ```typescript
+<!-- Code example in TypeScript -->
 // UserList.spec.ts
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
@@ -744,11 +787,13 @@ describe('UserList', () => {
     expect(wrapper.find('.users').exists()).toBe(true);
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test Mutation
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { describe, it, expect, vi } from 'vitest';
 import { useMutation, gql } from '@vue/apollo-composable';
 
@@ -770,7 +815,8 @@ describe('Mutation', () => {
     expect(result?.data?.updateUser?.name).toBe('Updated Name');
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -779,6 +825,7 @@ describe('Mutation', () => {
 ### Setup with Nuxt 3
 
 ```typescript
+<!-- Code example in TypeScript -->
 // nuxt.config.ts
 export default defineNuxtConfig({
   modules: ['@nuxtjs/apollo'],
@@ -791,11 +838,13 @@ export default defineNuxtConfig({
     },
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Use Queries in Nuxt
 
 ```vue
+<!-- Code example in VUE -->
 <template>
   <div>
     <h1>{{ user?.name }}</h1>
@@ -819,7 +868,8 @@ const { result } = useQuery(
 
 const user = computed(() => result.value?.user);
 </script>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

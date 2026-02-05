@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Benchmarking Guide
+description: This guide covers setting up and running FraiseQL's comprehensive performance benchmarking infrastructure.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Benchmarking Guide
 
 This guide covers setting up and running FraiseQL's comprehensive performance benchmarking infrastructure.
@@ -56,9 +64,11 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 ### 1. One-Command Setup
 
 ```bash
+<!-- Code example in BASH -->
 cd /home/lionel/code/FraiseQL
 bash BENCHMARK_QUICK_START.sh setup
-```
+```text
+<!-- Code example in TEXT -->
 
 This will:
 
@@ -70,6 +80,7 @@ This will:
 ### 2. Run Benchmarks
 
 ```bash
+<!-- Code example in BASH -->
 # Run small dataset (10K rows, ~2 minutes)
 bash BENCHMARK_QUICK_START.sh run-small
 
@@ -84,21 +95,26 @@ bash BENCHMARK_QUICK_START.sh run-all
 
 # Run FraiseQL-wire micro benchmarks only
 bash BENCHMARK_QUICK_START.sh wire-micro
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. View Results
 
 ```bash
+<!-- Code example in BASH -->
 bash BENCHMARK_QUICK_START.sh report
-```
+```text
+<!-- Code example in TEXT -->
 
 Opens HTML report with statistical analysis, charts, and regression detection.
 
 ### 4. Clean Up
 
 ```bash
+<!-- Code example in BASH -->
 bash BENCHMARK_QUICK_START.sh clean
-```
+```text
+<!-- Code example in TEXT -->
 
 Stops Docker containers and cleans up benchmark environment.
 
@@ -152,10 +168,12 @@ Located: `benches/`
 Status: ✅ Configured in all crates
 
 ```toml
+<!-- Code example in TOML -->
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
 tokio-test = "0.4"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Features Enabled:**
 
@@ -185,8 +203,10 @@ tokio-test = "0.4"
 Measures complete GraphQL execution from parse to result projection:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench full_pipeline_comparison --features "postgres,wire-backend"
-```
+```text
+<!-- Code example in TEXT -->
 
 Metrics:
 
@@ -201,8 +221,10 @@ Metrics:
 PostgreSQL adapter vs FraiseWire adapter head-to-head:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench adapter_comparison --features "postgres,wire-backend"
-```
+```text
+<!-- Code example in TEXT -->
 
 Datasets: 10K rows, 100K rows, 1M rows
 
@@ -211,8 +233,10 @@ Datasets: 10K rows, 100K rows, 1M rows
 Multi-schema query composition performance:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench federation_bench
-```
+```text
+<!-- Code example in TEXT -->
 
 Measures:
 
@@ -225,8 +249,10 @@ Measures:
 Low-level protocol performance:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench micro_benchmarks -p FraiseQL-wire
-```
+```text
+<!-- Code example in TEXT -->
 
 Measures microsecond-scale operations:
 
@@ -239,8 +265,10 @@ Measures microsecond-scale operations:
 Distributed transaction coordinator performance:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench saga_performance_bench
-```
+```text
+<!-- Code example in TEXT -->
 
 Measures:
 
@@ -255,8 +283,10 @@ Measures:
 After running benchmarks, view detailed analysis:
 
 ```bash
+<!-- Code example in BASH -->
 open target/criterion/report/index.html
-```
+```text
+<!-- Code example in TEXT -->
 
 Reports include:
 
@@ -276,8 +306,10 @@ Criterion automatically detects performance regressions:
 Compare against baseline by running same benchmark twice:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench adapter_comparison -- --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance Baselines
 
@@ -301,6 +333,7 @@ Expected baseline performance (PostgreSQL adapter, 10K rows):
 Benchmarks run on each PR:
 
 ```yaml
+<!-- Code example in YAML -->
 - name: Run Benchmarks
   run: |
     cargo bench --features "postgres,wire-backend" -- --verbose
@@ -310,13 +343,15 @@ Benchmarks run on each PR:
   with:
     name: benchmark-results
     path: target/criterion/
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Local Baseline Comparison
 
 To compare against a baseline branch:
 
 ```bash
+<!-- Code example in BASH -->
 # Save current baseline
 git stash
 git checkout main
@@ -326,7 +361,8 @@ cargo bench --bench adapter_comparison -- --save-baseline main
 git checkout -
 git stash pop
 cargo bench --bench adapter_comparison -- --baseline main
-```
+```text
+<!-- Code example in TEXT -->
 
 Criterion will show comparison with percentage differences.
 
@@ -335,17 +371,20 @@ Criterion will show comparison with percentage differences.
 ### Docker Services Won't Start
 
 ```bash
+<!-- Code example in BASH -->
 # Clean up any hanging containers
 docker-compose down --volumes
 docker system prune -f
 
 # Try setup again
 bash BENCHMARK_QUICK_START.sh setup
-```
+```text
+<!-- Code example in TEXT -->
 
 ### PostgreSQL Connection Timeout
 
 ```bash
+<!-- Code example in BASH -->
 # Check if service is healthy
 docker-compose ps
 
@@ -354,7 +393,8 @@ docker-compose logs postgres
 
 # Verify connection manually
 psql postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql -c "SELECT 1;"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Benchmark Results Too Noisy
 
@@ -371,14 +411,17 @@ Solutions:
 - Increase sample size (Criterion default: 100)
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench --bench adapter_comparison -- --sample-size 200
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Out of Memory During Large Benchmarks
 
 1M row benchmarks require ~2-4 GB RAM:
 
 ```bash
+<!-- Code example in BASH -->
 # Run smaller dataset instead
 bash BENCHMARK_QUICK_START.sh run-medium
 
@@ -387,7 +430,8 @@ fallocate -l 4G /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Performance Optimization Tips
 
@@ -400,30 +444,36 @@ Criterion automatically warms up benchmarks (3s by default). Ensure background t
 Use `perf` or Flamegraph to identify bottlenecks:
 
 ```bash
+<!-- Code example in BASH -->
 cargo install flamegraph
 cargo flamegraph --bench adapter_comparison -- --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Cache Benchmark Data
 
 Benchmarks load data once per run. To isolate specific operations:
 
 ```bash
+<!-- Code example in BASH -->
 // In benchmark code
 let schema = setup_once();  // Call outside loop
 group.bench_function("operation", |b| {
     b.iter(|| schema.execute_query(...))
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Compare Against Previous Runs
 
 Criterion stores baseline data in `target/criterion/`. Compare automatically:
 
 ```bash
+<!-- Code example in BASH -->
 cargo bench -- --verbose
 # Compare against target/criterion/*/base/raw.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Further Reading
 

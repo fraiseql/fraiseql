@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Scalar Types Cheat Sheet
+description: Quick reference for all FraiseQL scalar types, mappings, and examples.
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # Scalar Types Cheat Sheet
 
 **Status:** ✅ Production Ready
@@ -64,6 +72,7 @@ Quick reference for all FraiseQL scalar types, mappings, and examples.
 ### PostgreSQL
 
 ```text
+<!-- Code example in TEXT -->
 String       → VARCHAR
 Int          → INTEGER
 Float        → DOUBLE PRECISION
@@ -74,10 +83,12 @@ JSON         → JSONB
 Binary       → BYTEA
 Decimal      → NUMERIC
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL
 
 ```text
+<!-- Code example in TEXT -->
 String       → VARCHAR(255)
 Int          → INT
 Float        → DOUBLE
@@ -88,10 +99,12 @@ JSON         → JSON
 Binary       → BLOB
 Decimal      → DECIMAL
 ```text
+<!-- Code example in TEXT -->
 
 ### SQLite
 
 ```text
+<!-- Code example in TEXT -->
 String       → TEXT
 Int          → INTEGER
 Float        → REAL
@@ -102,10 +115,12 @@ JSON         → TEXT
 Binary       → BLOB
 Decimal      → REAL
 ```text
+<!-- Code example in TEXT -->
 
 ### SQL Server
 
 ```text
+<!-- Code example in TEXT -->
 String       → NVARCHAR(MAX)
 Int          → INT
 Float        → FLOAT
@@ -116,6 +131,7 @@ JSON         → NVARCHAR(MAX)
 Binary       → VARBINARY(MAX)
 Decimal      → NUMERIC
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -137,6 +153,7 @@ Decimal      → NUMERIC
 ### User Table
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, field
 
 @type
@@ -149,10 +166,12 @@ class User:
     is_active: Boolean  # Account status
     preferences: JSON   # User settings
 ```text
+<!-- Code example in TEXT -->
 
 ### Product Table
 
 ```python
+<!-- Code example in Python -->
 @type
 class Product:
     id: ID
@@ -164,10 +183,12 @@ class Product:
     is_available: Boolean
     metadata: JSON      # Flexible data
 ```text
+<!-- Code example in TEXT -->
 
 ### Event Table
 
 ```python
+<!-- Code example in Python -->
 @type
 class Event:
     id: ID
@@ -177,6 +198,7 @@ class Event:
     data: JSONB          # Event details
     created_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -185,6 +207,7 @@ class Event:
 ### Filtering
 
 ```graphql
+<!-- Code example in GraphQL -->
 # String
 { users(where: { name: { equals: "John" } }) }
 { users(where: { email: { contains: "@example.com" } }) }
@@ -199,10 +222,12 @@ class Event:
 # Boolean
 { users(where: { is_active: { equals: true } }) }
 ```text
+<!-- Code example in TEXT -->
 
 ### Sorting
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Numbers
 { products(order_by: { price: DESC }) }
 
@@ -212,10 +237,12 @@ class Event:
 # Strings
 { users(order_by: { name: ASC }) }
 ```text
+<!-- Code example in TEXT -->
 
 ### Aggregation
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Count
 { users_aggregate { count } }
 
@@ -228,6 +255,7 @@ class Event:
 # Min/Max
 { orders_aggregate { min_price: price_min, max_price: price_max } }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -236,56 +264,68 @@ class Event:
 ### ❌ Using Float for Money
 
 ```python
+<!-- Code example in Python -->
 # WRONG
 @type
 class Order:
     total: Float  # Rounding errors!
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Using Decimal for Money
 
 ```python
+<!-- Code example in Python -->
 # RIGHT
 @type
 class Order:
     total: Decimal  # Exact precision
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### ❌ Using String for Boolean
 
 ```python
+<!-- Code example in Python -->
 # WRONG
 @type
 class User:
     is_active: String  # "true" or "false"?
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Using Boolean
 
 ```python
+<!-- Code example in Python -->
 # RIGHT
 @type
 class User:
     is_active: Boolean  # true or false, unambiguous
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### ❌ DateTime Without Time Zone
 
 ```python
+<!-- Code example in Python -->
 # WRONG (ambiguous)
 created_at: DateTime  # Which timezone?
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ DateTime With Time Zone
 
 ```python
+<!-- Code example in Python -->
 # RIGHT (unambiguous)
 created_at: DateTime  # Always UTC, explicit
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

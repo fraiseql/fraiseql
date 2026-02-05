@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: GraphQL API Specification
+description: This document specifies the GraphQL API provided by the FraiseQL HTTP server. The API follows the official GraphQL specification with additional validation and 
+keywords: ["directives", "types", "scalars", "schema", "graphql", "api"]
+tags: ["documentation", "reference"]
+---
+
 # GraphQL API Specification
 
 ## Overview
@@ -11,14 +19,17 @@ This document specifies the GraphQL API provided by the FraiseQL HTTP server. Th
 All GraphQL operations use **POST** to `/graphql` endpoint.
 
 ```text
+<!-- Code example in TEXT -->
 POST /graphql HTTP/1.1
 Host: api.example.com
 Content-Type: application/json
 ```text
+<!-- Code example in TEXT -->
 
 ### Request Body
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
   "variables": {
@@ -27,6 +38,7 @@ Content-Type: application/json
   "operationName": "GetUser"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields:**
 
@@ -50,6 +62,7 @@ Validation errors return HTTP 400 with error details.
 ### Success Response
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -60,6 +73,7 @@ Validation errors return HTTP 400 with error details.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields:**
 
@@ -69,6 +83,7 @@ Validation errors return HTTP 400 with error details.
 ### Error Response
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -90,10 +105,12 @@ Validation errors return HTTP 400 with error details.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Partial Success Response
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -111,6 +128,7 @@ Validation errors return HTTP 400 with error details.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: When errors occur for nullable fields, `data` is still returned with null for error fields.
 
@@ -119,6 +137,7 @@ Validation errors return HTTP 400 with error details.
 ### Basic Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -127,10 +146,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query with Arguments
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     id
@@ -139,10 +160,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($userId: ID!) {
   user(id: $userId) {
     id
@@ -151,18 +174,22 @@ query GetUser($userId: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Variables**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "userId": "123"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query with Aliases
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   currentUser: user(id: "123") {
     id
@@ -174,10 +201,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query with Fragments
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     ...userFields
@@ -194,10 +223,12 @@ fragment userFields on User {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Nested Queries
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     id
@@ -214,6 +245,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Data Types
 
@@ -238,6 +270,7 @@ query {
 ### Examples
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Nullable string (can be null or string)
 name: String
 
@@ -250,6 +283,7 @@ tags: [String]
 # Required list of required strings
 tags: [String!]!
 ```text
+<!-- Code example in TEXT -->
 
 ## Mutations
 
@@ -258,6 +292,7 @@ Mutations modify data on the server. They follow the same syntax as queries but 
 ### Simple Mutation
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createUser(input: {name: "Jane", email: "jane@example.com"}) {
     id
@@ -266,10 +301,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Mutation with Input Variables
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreateUser($input: CreateUserInput!) {
   createUser(input: $input) {
     id
@@ -278,10 +315,12 @@ mutation CreateUser($input: CreateUserInput!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Variables**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "input": {
     "name": "Jane",
@@ -289,10 +328,12 @@ mutation CreateUser($input: CreateUserInput!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Multiple Mutations
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   user1: createUser(input: {name: "User1"}) {
     id
@@ -302,6 +343,7 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Error Handling
 
@@ -310,6 +352,7 @@ mutation {
 Occur before execution (query syntax, depth, complexity, variables).
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -319,6 +362,7 @@ Occur before execution (query syntax, depth, complexity, variables).
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 HTTP Status: **400 Bad Request**
 
@@ -327,6 +371,7 @@ HTTP Status: **400 Bad Request**
 Occur when query syntax is invalid.
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -336,6 +381,7 @@ Occur when query syntax is invalid.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 HTTP Status: **400 Bad Request**
 
@@ -344,6 +390,7 @@ HTTP Status: **400 Bad Request**
 Occur during query execution (field resolution, database errors).
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": null
@@ -357,12 +404,14 @@ Occur during query execution (field resolution, database errors).
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 HTTP Status: **200 OK** (even with errors in data)
 
 ### Database Errors
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -372,6 +421,7 @@ HTTP Status: **200 OK** (even with errors in data)
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 HTTP Status: **500 Internal Server Error**
 
@@ -382,6 +432,7 @@ Query the schema to discover available types and fields.
 ### Full Schema Introspection
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   __schema {
     types {
@@ -398,10 +449,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Specific Type Introspection
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   __type(name: "User") {
     name
@@ -420,6 +473,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Available Fields
 
@@ -449,22 +503,26 @@ query {
 ❌ **Bad** (string interpolation):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     name
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Good** (variables):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($id: ID!) {
   user(id: $id) {
     name
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why**: Security (prevents injection), reusability, caching.
 
@@ -473,6 +531,7 @@ query GetUser($id: ID!) {
 ❌ **Bad** (overfetch):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     id
@@ -485,10 +544,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Good** (exact fields):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     id
@@ -497,6 +558,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why**: Reduces bandwidth, faster execution, security.
 
@@ -505,6 +567,7 @@ query {
 ❌ **Bad** (repetition):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user1: user(id: "1") {
     id
@@ -518,10 +581,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Good** (fragments):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user1: user(id: "1") {
     ...userFields
@@ -537,10 +602,12 @@ fragment userFields on User {
   email
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Handle Nullable Fields
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123") {
     id
@@ -550,10 +617,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Always check for null in client code:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const user = data.user;
 if (user.email) {
   // Use email
@@ -561,6 +630,7 @@ if (user.email) {
   // Handle missing email
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Understand Rate Limits
 
@@ -579,6 +649,7 @@ Optimize complex queries by:
 ### 6. Use Meaningful Operation Names
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ Good
 query GetUserProfile($id: ID!) {
   user(id: $id) {
@@ -593,6 +664,7 @@ query($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why**: Better logging, easier debugging, improved monitoring.
 
@@ -603,24 +675,29 @@ query($id: ID!) {
 ❌ **Inefficient** (3 requests):
 
 ```text
+<!-- Code example in TEXT -->
 POST /graphql { query: GetUser($id: "1") ... }
 POST /graphql { query: GetUser($id: "2") ... }
 POST /graphql { query: GetUser($id: "3") ... }
 ```text
+<!-- Code example in TEXT -->
 
 ✅ **Efficient** (1 request):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user1: user(id: "1") { ... }
   user2: user(id: "2") { ... }
   user3: user(id: "3") { ... }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Use Pagination
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(first: 10, after: "cursor-123") {
     edges {
@@ -637,12 +714,14 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Cache Queries
 
 Store frequently used queries in client:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const GET_USER_PROFILE = `
   query GetUserProfile($id: ID!) {
     user(id: $id) {
@@ -656,6 +735,7 @@ const GET_USER_PROFILE = `
 // Reuse across requests
 execute({ query: GET_USER_PROFILE, variables: { id } });
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Monitor Query Complexity
 

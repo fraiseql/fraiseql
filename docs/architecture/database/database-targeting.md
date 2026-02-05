@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Database Targeting & Multi-Database Support
+description: FraiseQL achieves **true multi-database support** through a single, unified mechanism:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Database Targeting & Multi-Database Support
 
 **Version:** 1.0
@@ -22,6 +30,7 @@ This is not a runtime abstraction layer. This is **compile-time schema specializ
 ### Single Source of Truth: Database Target
 
 ```python
+<!-- Code example in Python -->
 # Compiler configuration
 config = CompilerConfig(
     database_target="postgresql",  # This choice drives everything
@@ -31,6 +40,7 @@ config = CompilerConfig(
 
 compiled = compiler.compile(config)
 ```text
+<!-- Code example in TEXT -->
 
 This single configuration choice determines:
 
@@ -51,6 +61,7 @@ This single configuration choice determines:
 The **capability manifest** declares what each database can do:
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "string": [
@@ -119,6 +130,7 @@ The **capability manifest** declares what each database can do:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **This manifest is:**
 
@@ -132,6 +144,7 @@ The **capability manifest** declares what each database can do:
 When the compiler runs, it applies the capability manifest to generate database-specific WHERE types:
 
 ```python
+<!-- Code example in Python -->
 # Compilation Pipeline Phase 4: WHERE Type Generation
 
 def generate_where_type(
@@ -158,6 +171,7 @@ def generate_where_type(
 
     return InputType(name=f"{type_name}WhereInput", fields=where_fields)
 ```text
+<!-- Code example in TEXT -->
 
 **Result:** The generated GraphQL schema is different for each database target.
 
@@ -166,6 +180,7 @@ def generate_where_type(
 The Rust runtime lowers SDL predicates to backend-specific SQL:
 
 ```rust
+<!-- Code example in RUST -->
 // Each database has a lowering module
 
 mod postgresql {
@@ -217,6 +232,7 @@ mod sqlite {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -225,6 +241,7 @@ mod sqlite {
 ### Input Schema (Same for All)
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema, type, query, ID, String
 
 @schema.type
@@ -242,16 +259,20 @@ def users(where: "UserWhereInput" = None):
 
 schema.bind("users", "view", "v_user")
 ```text
+<!-- Code example in TEXT -->
 
 ### Compilation: PostgreSQL Target
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL compile schema.py --database postgresql
 ```text
+<!-- Code example in TEXT -->
 
 Generated GraphQL schema includes:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   email: EmailStringFilter
   bio: StringFilter
@@ -277,16 +298,20 @@ input StringFilter {
   _starts_with: String
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Compilation: MySQL Target
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL compile schema.py --database mysql
 ```text
+<!-- Code example in TEXT -->
 
 Generated GraphQL schema includes:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   email: EmailStringFilter
   bio: StringFilter
@@ -310,16 +335,20 @@ input StringFilter {
   # ❌ No _regex
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Compilation: SQLite Target
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL compile schema.py --database sqlite
 ```text
+<!-- Code example in TEXT -->
 
 Generated GraphQL schema includes:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   email: EmailStringFilter
   bio: StringFilter
@@ -340,6 +369,7 @@ input StringFilter {
   _like: String
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -350,6 +380,7 @@ When a client queries with an available operator, the Rust backend lowers it to 
 ### PostgreSQL (Regex Available)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     email: { _regex: "^admin@" }
@@ -358,14 +389,17 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Lowering → SQL:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, email FROM v_user
 WHERE email ~ $1
 PARAMETERS: ["^admin@"]
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL (Regex NOT Available)
 
@@ -374,6 +408,7 @@ The same query **cannot be issued** because `_regex` doesn't exist in the GraphQ
 **Compile error if you try to reuse the PostgreSQL schema with MySQL:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: Field '_regex' is not available in MySQL-targeted schema.
 The following operators are available for String fields:
   - _eq
@@ -384,6 +419,7 @@ Consider:
   - Using _like instead: WHERE email LIKE ?
   - Recompiling schema for MySQL to update available operators
 ```text
+<!-- Code example in TEXT -->
 
 This error happens **at compile time**, not at runtime.
 
@@ -394,6 +430,7 @@ This error happens **at compile time**, not at runtime.
 PostgreSQL gets the full power of its operators. The capability manifest captures all of them:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   # ... basic operators ...
 
@@ -440,6 +477,7 @@ input LTreeFilter {
   _matches: String
 }
 ```text
+<!-- Code example in TEXT -->
 
 All 60+ PostgreSQL operators are available because they're all in the capability manifest.
 
@@ -452,6 +490,7 @@ To support a new database (e.g., DuckDB), you implement:
 ### Step 1: Add Capability Manifest Entry
 
 ```json
+<!-- Code example in JSON -->
 {
   "duckdb": {
     "string": [
@@ -464,10 +503,12 @@ To support a new database (e.g., DuckDB), you implement:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Add Backend Lowering Module
 
 ```rust
+<!-- Code example in RUST -->
 // src/runtime/backends/duckdb.rs
 
 pub fn lower_filter(filter: &Filter, args: &mut Vec<Value>) -> String {
@@ -478,6 +519,7 @@ pub fn lower_filter(filter: &Filter, args: &mut Vec<Value>) -> String {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: No Changes to Schema
 
@@ -495,6 +537,7 @@ Your schema authoring, compiler phases 1-3, or GraphQL type system changes. Only
 ### ❌ Bad: Runtime Adapter (What NOT to do)
 
 ```rust
+<!-- Code example in RUST -->
 // Anti-pattern: Trying to unify at runtime
 
 trait DbAdapter {
@@ -515,6 +558,7 @@ impl DbAdapter for SqliteAdapter {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Problems:**
 
@@ -526,6 +570,7 @@ impl DbAdapter for SqliteAdapter {
 ### ✅ Good: Compile-Time Specialization (What YOU do)
 
 ```python
+<!-- Code example in Python -->
 # Capability manifest declares reality
 
 {
@@ -544,6 +589,7 @@ impl DbAdapter for SqliteAdapter {
 # No runtime surprises
 # No fake abstractions
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -557,6 +603,7 @@ impl DbAdapter for SqliteAdapter {
 ## 8. Database-Target-Driven Compilation Flow
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────┐
 │ Compiler Configuration          │
 │ database_target = "postgresql"  │ ← Single decision point
@@ -583,6 +630,7 @@ impl DbAdapter for SqliteAdapter {
         │ (database-specific!)   │
         └───────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -591,36 +639,44 @@ impl DbAdapter for SqliteAdapter {
 ### Development
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL with all features
 FraiseQL compile schema.py --database postgresql
 # → Gets 60+ WHERE operators, JSONB, vectors, LTree, etc.
 ```text
+<!-- Code example in TEXT -->
 
 ### Production (Customer A: PostgreSQL)
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy with PostgreSQL schema
 FraiseQL compile schema.py --database postgresql
 # Clients see full operator set
 ```text
+<!-- Code example in TEXT -->
 
 ### Production (Customer B: MySQL)
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy with MySQL schema
 FraiseQL compile schema.py --database mysql
 # Clients see only MySQL-compatible operators
 # Same schema.py file, different compiled output
 ```text
+<!-- Code example in TEXT -->
 
 ### Production (Customer C: SQLite)
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy with SQLite schema
 FraiseQL compile schema.py --database sqlite
 # Clients see only basic operators
 # Same schema.py file, different compiled output
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

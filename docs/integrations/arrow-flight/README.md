@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Apache Arrow Flight Integration
+description: Arrow Flight is purpose-built for high-throughput data transport. Choose based on your use case:
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Apache Arrow Flight Integration
 
 **Apache Arrow Flight** is a high-performance data transport layer for FraiseQL, enabling **50x faster analytics queries** and **zero-copy integration** with Python, R, and other data science tools.
@@ -20,13 +28,16 @@ Arrow Flight is purpose-built for high-throughput data transport. Choose based o
 ### 1. Start FraiseQL with Arrow Flight
 
 ```bash
+<!-- Code example in BASH -->
 # Arrow Flight runs alongside HTTP on port 50051
 docker-compose up -d
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Execute a GraphQL Query via Arrow Flight (Python)
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import polars as pl
 
@@ -46,12 +57,14 @@ df = pl.from_arrow(reader.read_all())
 print(f"Fetched {len(df)} users")
 print(df.head())
 ```text
+<!-- Code example in TEXT -->
 
 **Performance**: 100,000 rows in **2 seconds** vs 30 seconds with HTTP/JSON
 
 ### 3. Stream Observer Events (Real-time Analytics)
 
 ```python
+<!-- Code example in Python -->
 # Stream all Order creation events from the last 7 days
 ticket = flight.Ticket(b'''{
     "type": "ObserverEvents",
@@ -67,12 +80,14 @@ for batch in reader:
     # Process batch: aggregations, ML features, etc.
     print(f"Processing batch of {len(df)} events")
 ```text
+<!-- Code example in TEXT -->
 
 ## Architecture Overview
 
 FraiseQL now provides **two complementary dataplanes** for different workloads:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │     Analytics Dataplane (Arrow Flight + ClickHouse)         │
 │  • High-throughput analytics (1M+ events/sec)               │
@@ -92,6 +107,7 @@ FraiseQL now provides **two complementary dataplanes** for different workloads:
 Key Principle: Both run in parallel, no redundant storage.
 Choose transport based on your use case.
 ```text
+<!-- Code example in TEXT -->
 
 ## Real-World Performance (100,000 row query)
 
@@ -114,6 +130,7 @@ Choose transport based on your use case.
 Arrow data flows directly from FraiseQL into Python/R/Java without serialization overhead.
 
 ```python
+<!-- Code example in Python -->
 # Direct Arrow → Polars (no parsing)
 df = pl.from_arrow(client.do_get(ticket).read_all())
 
@@ -121,39 +138,46 @@ df = pl.from_arrow(client.do_get(ticket).read_all())
 response = requests.post(...)  # Network + JSON parsing + conversion
 df = pd.DataFrame(response.json())
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Streaming Architecture
 
 Process unlimited data with constant memory usage (batches of 10k rows).
 
 ```python
+<!-- Code example in Python -->
 # Memory never grows regardless of dataset size
 for batch in client.do_get(ticket):
     process(batch)  # Process batch, discard, repeat
     # Memory: constant (one batch)
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Dual Dataplane
 
 Analytics via Arrow/ClickHouse + Operational via JSON/Elasticsearch.
 
 ```python
+<!-- Code example in Python -->
 # For analytics: use Arrow Flight
 analytics_df = pl.from_arrow(...)  # 1M+ rows in seconds
 
 # For debugging: use HTTP/JSON to Elasticsearch
 results = es.search(index="FraiseQL-events-*", body={...})
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ 100% Backwards Compatible
 
 Existing HTTP/JSON clients continue to work unchanged. No breaking changes.
 
 ```bash
+<!-- Code example in BASH -->
 # Both endpoints available simultaneously
 curl http://localhost:8080/graphql ...     # HTTP/JSON still works
 grpcurl localhost:50051 FraiseQL.Flight ...  # Arrow Flight (new)
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Comparison
 
@@ -172,8 +196,10 @@ grpcurl localhost:50051 FraiseQL.Flight ...  # Arrow Flight (new)
 ### Development (5 minutes)
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose up -d  # Arrow Flight on port 50051
 ```text
+<!-- Code example in TEXT -->
 
 ### Production Deployment
 

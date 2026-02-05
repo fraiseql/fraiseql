@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: React with Apollo Client for FraiseQL
+description: Complete guide for querying FraiseQL servers from React applications using Apollo Client.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # React with Apollo Client for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -20,18 +28,23 @@ Complete guide for querying FraiseQL servers from React applications using Apoll
 ### Install Dependencies
 
 ```bash
+<!-- Code example in BASH -->
 npm install @apollo/client graphql subscriptions-transport-ws
-```
+```text
+<!-- Code example in TEXT -->
 
 Or with Yarn:
 
 ```bash
+<!-- Code example in BASH -->
 yarn add @apollo/client graphql subscriptions-transport-ws
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Initialize Apollo Client
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 import { WebSocketLink } from '@apollo/client/link/ws';
@@ -92,11 +105,13 @@ const client = new ApolloClient({
 });
 
 export default client;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Wrap App with ApolloProvider
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { ApolloProvider } from '@apollo/client';
 import client from './apolloClient';
 import App from './App';
@@ -110,7 +125,8 @@ function Root() {
 }
 
 export default Root;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -119,6 +135,7 @@ export default Root;
 ### Basic Query Hook
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useQuery, gql } from '@apollo/client';
 
 const GET_USERS = gql`
@@ -145,11 +162,13 @@ export function UserList() {
     </ul>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useQuery, gql } from '@apollo/client';
 
 const GET_USER_BY_ID = gql`
@@ -191,11 +210,13 @@ export function UserDetail({ userId }: UserDetailProps) {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination Pattern
 
 ```typescript
+<!-- Code example in TypeScript -->
 const GET_POSTS_PAGINATED = gql`
   query GetPostsPaginated($limit: Int!, $offset: Int!) {
     posts(limit: $limit, offset: $offset) {
@@ -248,11 +269,13 @@ export function PostList() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Fetch Policies
 
 ```typescript
+<!-- Code example in TypeScript -->
 // cache-first: Return from cache if available (default for most queries)
 useQuery(GET_USERS, { fetchPolicy: 'cache-first' });
 
@@ -267,7 +290,8 @@ useQuery(GET_USERS, { fetchPolicy: 'network-only' });
 
 // no-cache: Don't use cache at all
 useQuery(GET_USERS, { fetchPolicy: 'no-cache' });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -276,6 +300,7 @@ useQuery(GET_USERS, { fetchPolicy: 'no-cache' });
 ### Basic Mutation Hook
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useMutation, gql } from '@apollo/client';
 
 const CREATE_POST = gql`
@@ -328,11 +353,13 @@ export function CreatePostForm() {
     </form>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Update Cache After Mutation
 
 ```typescript
+<!-- Code example in TypeScript -->
 const UPDATE_USER = gql`
   mutation UpdateUser($id: ID!, $name: String!) {
     updateUser(id: $id, name: $name) {
@@ -377,11 +404,13 @@ export function EditUserName({ userId, currentName }: any) {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Optimistic Response
 
 ```typescript
+<!-- Code example in TypeScript -->
 const DELETE_POST = gql`
   mutation DeletePost($id: ID!) {
     deletePost(id: $id) {
@@ -410,7 +439,8 @@ export function PostActions({ post }: any) {
     </button>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -421,6 +451,7 @@ export function PostActions({ post }: any) {
 ### Subscribe to Events
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useSubscription, gql } from '@apollo/client';
 
 const ON_POST_CREATED = gql`
@@ -453,11 +484,13 @@ export function PostFeed() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Handle Subscription Lifecycle
 
 ```typescript
+<!-- Code example in TypeScript -->
 const ON_MESSAGE = gql`
   subscription OnMessage {
     messageReceived {
@@ -490,7 +523,8 @@ export function ChatRoom() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -499,6 +533,7 @@ export function ChatRoom() {
 ### Global Error Handler
 
 ```typescript
+<!-- Code example in TypeScript -->
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
     for (const err of graphQLErrors) {
@@ -529,11 +564,13 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
     }
   }
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Component-Level Error Handling
 
 ```typescript
+<!-- Code example in TypeScript -->
 export function SafeUserList() {
   const { data, loading, error, refetch } = useQuery(GET_USERS);
 
@@ -556,7 +593,8 @@ export function SafeUserList() {
     </ul>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -565,6 +603,7 @@ export function SafeUserList() {
 ### Cache Management
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useApolloClient } from '@apollo/client';
 
 export function CacheManager() {
@@ -591,11 +630,13 @@ export function CacheManager() {
 
   return { clearCache, getCache, updateCache };
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Custom Cache Policy per Component
 
 ```typescript
+<!-- Code example in TypeScript -->
 export function UserDashboard() {
   // Static user profile - use cache
   const { data: profile } = useQuery(GET_PROFILE, {
@@ -621,7 +662,8 @@ export function UserDashboard() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -630,6 +672,7 @@ export function UserDashboard() {
 ### Query Splitting
 
 ```typescript
+<!-- Code example in TypeScript -->
 // ❌ Bad: Fetch everything at once
 const DASHBOARD = gql`
   query Dashboard {
@@ -660,11 +703,13 @@ export function Dashboard() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Request Batching
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { BatchHttpLink } from '@apollo/client/link/batch-http';
 
 const batchLink = new BatchHttpLink({
@@ -672,11 +717,13 @@ const batchLink = new BatchHttpLink({
   batchInterval: 10, // Batch queries sent within 10ms
   batchMax: 5, // Maximum 5 queries per batch
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Lazy Queries
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useLazyQuery } from '@apollo/client';
 
 export function SearchUsers() {
@@ -704,7 +751,8 @@ export function SearchUsers() {
     </div>
   );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -713,6 +761,7 @@ export function SearchUsers() {
 ### Mock FraiseQL Responses
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { MockedProvider } from '@apollo/client/testing';
 import { render, screen } from '@testing-library/react';
 
@@ -744,11 +793,13 @@ describe('UserList', () => {
     expect(screen.getByText('Bob (bob@example.com)')).toBeInTheDocument();
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test Error Handling
 
 ```typescript
+<!-- Code example in TypeScript -->
 const errorMocks = [
   {
     request: { query: GET_USERS },
@@ -767,7 +818,8 @@ describe('UserList Error Handling', () => {
     await screen.findByText(/Error: Failed to fetch users/);
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

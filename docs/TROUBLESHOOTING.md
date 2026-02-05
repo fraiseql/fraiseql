@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Troubleshooting Guide
+description: 1. [Installation & Setup](#installation--setup)
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Troubleshooting Guide
 
 **Last Updated**: 2026-01-29
@@ -21,10 +29,12 @@
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Install build tools
 sudo apt-get install build-essential
 cargo clean && cargo build --release
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -36,8 +46,10 @@ cargo clean && cargo build --release
 Ensure schema includes federation import:
 
 ```graphql
+<!-- Code example in GraphQL -->
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -54,10 +66,12 @@ Verify @requires fields are included in entity representation and database queri
 Check that @key directives match across services:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Both must match
 type User @key(fields: "id") { id: ID! }
 extend type User @key(fields: "id") { id: ID! }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -79,11 +93,13 @@ extend type User @key(fields: "id") { id: ID! }
 Verify compensation mutations exist in schema:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Mutation {
   cancelOrder(orderId: ID!): Order!
   refundCharge(chargeId: String!): Charge!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -102,8 +118,10 @@ Increase timeout: `export FRAISEQL_SAGA_TIMEOUT_SECONDS=600`
 Add database indexes:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_users_id ON users(id);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -144,25 +162,31 @@ Enable recovery: `export FRAISEQL_SAGA_RECOVERY_ENABLED=true`
 ### Enable Debug Logs
 
 ```bash
+<!-- Code example in BASH -->
 export RUST_LOG=FraiseQL=debug
 RUST_LOG=debug cargo run
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Saga State
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose exec postgres psql -U FraiseQL -d FraiseQL
 SELECT * FROM sagas WHERE id = 'YOUR_SAGA_ID';
 SELECT * FROM saga_steps WHERE saga_id = 'YOUR_SAGA_ID';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test GraphQL
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "query { users { id } }"}'
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

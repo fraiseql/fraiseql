@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Arrow Flight Quick Start (5 Minutes)
+description: Get your first Arrow Flight analytics query working in 5 minutes.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Arrow Flight Quick Start (5 Minutes)
 
 **Status:** ✅ Production Ready
@@ -15,13 +23,16 @@ Get your first Arrow Flight analytics query working in 5 minutes.
 - Data volume >10K rows (Arrow shines with larger datasets)
 
 ```bash
+<!-- Code example in BASH -->
 # Install PyArrow
 pip install pyarrow
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 1: Enable Arrow Flight on Server (1 minute)
 
 ```bash
+<!-- Code example in BASH -->
 # Start server with Arrow Flight support
 FraiseQL run --port 8000 --arrow-flight
 
@@ -29,12 +40,14 @@ FraiseQL run --port 8000 --arrow-flight
 # Verify it's listening:
 curl http://localhost:50051  # Should fail gracefully (gRPC, not HTTP)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 2: Connect from Python (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # analytics.py
 import pyarrow.flight as flight
 
@@ -47,12 +60,14 @@ info = client.get_flight_info(
 )
 print(f"Connected to {info.descriptor.command}")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 3: Execute Your First Query (2 minutes)
 
 ```python
+<!-- Code example in Python -->
 # analytics.py (continued)
 import pyarrow.flight as flight
 import pyarrow.compute as pc
@@ -89,12 +104,14 @@ print(table.to_pandas().head())
 # 1 2024-01-30    clothes           156   8920.00
 # 2 2024-01-29       food           198  10234.75
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 4: Export and Analyze (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # analytics.py (continued)
 
 # Convert to Pandas for analysis
@@ -116,6 +133,7 @@ for batch in reader:
     print(f"Processing {len(df_chunk)} rows...")
     # Process each chunk
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -126,10 +144,12 @@ You're now querying FraiseQL with Arrow Flight! 🎯
 ### Performance Comparison
 
 ```text
+<!-- Code example in TEXT -->
 JSON Query (1M rows):   ~5000ms, 500MB transfer
 Arrow Query (1M rows):  ~500ms, 50MB transfer
 Speedup: 10x faster + 90% smaller
 ```text
+<!-- Code example in TEXT -->
 
 See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSON.
 
@@ -159,10 +179,12 @@ See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSO
 → Stream results instead of loading all:
 
 ```python
+<!-- Code example in Python -->
 reader = client.do_get(descriptor)
 for batch in reader:
     process_chunk(batch.to_pandas())
 ```text
+<!-- Code example in TEXT -->
 
 **"Arrow schema doesn't match my data"**
 → Regenerate schema: Delete `.arrow.cache` and restart server

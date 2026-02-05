@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Authentication Monitoring and Observability
+description: This guide covers monitoring, logging, and observability for FraiseQL's authentication system.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Authentication Monitoring and Observability
 
 This guide covers monitoring, logging, and observability for FraiseQL's authentication system.
@@ -18,6 +26,7 @@ All authentication events are logged with structured data for easy analysis.
 ### Enabling Structured Logging
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::AuthEvent;
 use tracing_subscriber;
 
@@ -31,10 +40,12 @@ fn main() {
     // Now all auth events are automatically logged
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Log Format (JSON)
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-21T10:30:45Z",
   "level": "INFO",
@@ -46,10 +57,12 @@ fn main() {
   "request_id": "req-abc123"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Logging Auth Events
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::AuthEvent;
 
 let event = AuthEvent::new("login")
@@ -60,12 +73,14 @@ let event = AuthEvent::new("login")
 
 event.log();
 ```text
+<!-- Code example in TEXT -->
 
 ## Metrics Collection
 
 Track authentication metrics for monitoring and alerting:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::AuthMetrics;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -87,10 +102,12 @@ let metrics = Arc::new(Mutex::new(AuthMetrics::new()));
     println!("Total attempts: {}", m.total_auth_attempts);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Available Metrics
 
 ```rust
+<!-- Code example in RUST -->
 pub struct AuthMetrics {
     pub total_auth_attempts: u64,           // Total login attempts
     pub successful_authentications: u64,    // Successful logins
@@ -100,12 +117,14 @@ pub struct AuthMetrics {
     pub sessions_revoked: u64,              // Sessions revoked
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Accessing Metrics via HTTP
 
 Create a metrics endpoint:
 
 ```rust
+<!-- Code example in RUST -->
 use axum::response::Json;
 
 async fn metrics_handler(
@@ -117,10 +136,12 @@ async fn metrics_handler(
 
 app.route("/metrics/auth", get(metrics_handler))
 ```text
+<!-- Code example in TEXT -->
 
 Response:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/metrics/auth
 
 {
@@ -132,6 +153,7 @@ curl http://localhost:8000/metrics/auth
   "sessions_revoked": 38
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Monitoring
 
@@ -140,6 +162,7 @@ curl http://localhost:8000/metrics/auth
 Measure operation duration:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::OperationTimer;
 
 async fn auth_callback() -> Result<impl IntoResponse> {
@@ -152,6 +175,7 @@ async fn auth_callback() -> Result<impl IntoResponse> {
     Ok(response)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Expected Performance
 
@@ -169,6 +193,7 @@ async fn auth_callback() -> Result<impl IntoResponse> {
 Create `alerts.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 groups:
   - name: fraiseql_auth
     interval: 30s
@@ -199,6 +224,7 @@ groups:
           summary: "Many sessions being revoked"
           description: "More than 100 sessions revoked in 5 minutes"
 ```text
+<!-- Code example in TEXT -->
 
 ## Grafana Dashboard
 
@@ -207,6 +233,7 @@ Import the dashboard configuration:
 ### Dashboard JSON
 
 ```json
+<!-- Code example in JSON -->
 {
   "dashboard": {
     "title": "FraiseQL Authentication",
@@ -247,6 +274,7 @@ Import the dashboard configuration:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Log Analysis
 
@@ -255,28 +283,35 @@ Import the dashboard configuration:
 **Failed authentication attempts:**
 
 ```bash
+<!-- Code example in BASH -->
 # In ELK, Datadog, or similar
 status: "error" AND event: "token_validation"
 ```text
+<!-- Code example in TEXT -->
 
 **Slow OAuth exchanges:**
 
 ```bash
+<!-- Code example in BASH -->
 event: "oauth_exchange" AND duration_ms: > 500
 ```text
+<!-- Code example in TEXT -->
 
 **User lockout detection:**
 
 ```bash
+<!-- Code example in BASH -->
 user_id: "user123" AND status: "error" AND event: "login"
 | stats count by user_id
 ```text
+<!-- Code example in TEXT -->
 
 ## Health Checks
 
 Create a health check endpoint:
 
 ```rust
+<!-- Code example in RUST -->
 use axum::response::Json;
 
 #[derive(Serialize)]
@@ -301,10 +336,12 @@ async fn health_check(
 
 app.route("/health/auth", get(health_check))
 ```text
+<!-- Code example in TEXT -->
 
 Health check response:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/health/auth
 
 {
@@ -313,10 +350,12 @@ curl http://localhost:8000/health/auth
   "db": "ok"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Docker Compose with Monitoring
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 services:
   FraiseQL:
@@ -351,6 +390,7 @@ services:
       - /var/log:/var/log
     command: -config.file=/etc/promtail/config.yml
 ```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
@@ -372,34 +412,41 @@ services:
 Check logs for:
 
 ```text
+<!-- Code example in TEXT -->
 error: "invalid_state"  # State validation failed
 error: "oauth_error"    # Provider error
 error: "token_expired"  # Token already expired
 ```text
+<!-- Code example in TEXT -->
 
 ### Slow Authentication
 
 Check performance logs:
 
 ```text
+<!-- Code example in TEXT -->
 duration_ms: > 500  # Identify slow operations
 event: "oauth_exchange"  # Likely provider latency
 ```text
+<!-- Code example in TEXT -->
 
 ### Session Issues
 
 Check session logs:
 
 ```text
+<!-- Code example in TEXT -->
 event: "session_revoked"  # Track revocations
 event: "session_created"  # Track creation rate
 ```text
+<!-- Code example in TEXT -->
 
 ## Metrics Integration
 
 ### Prometheus Integration
 
 ```rust
+<!-- Code example in RUST -->
 use prometheus::{Counter, Histogram, Registry};
 
 pub struct AuthPrometheus {
@@ -433,6 +480,7 @@ impl AuthPrometheus {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

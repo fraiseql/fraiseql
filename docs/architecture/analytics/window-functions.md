@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Window Functions Architecture
+description: Window functions (analytical functions) perform calculations across rows related to the current row, using an OVER clause to define the window. Unlike aggregate
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Window Functions Architecture
 
 **Version:** 1.0
@@ -31,6 +39,7 @@ Assign ranks to rows within partitions.
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     revenue,
@@ -39,6 +48,7 @@ SELECT
     DENSE_RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC) AS dense_rank
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Value Functions
 
@@ -53,6 +63,7 @@ Access values from other rows in the window.
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     occurred_at,
@@ -61,6 +72,7 @@ SELECT
     LEAD(revenue, 1) OVER (PARTITION BY data->>'category' ORDER BY occurred_at) AS next_day_revenue
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Aggregate Functions as Windows
 
@@ -75,6 +87,7 @@ Apply aggregate functions with window semantics (running totals, moving averages
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     occurred_at,
@@ -86,6 +99,7 @@ SELECT
     ) AS running_total
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -98,18 +112,22 @@ Divides rows into partitions (groups). Window function applies separately to eac
 **Syntax**:
 
 ```sql
+<!-- Code example in SQL -->
 OVER (PARTITION BY column1, column2, ...)
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Row number within each category
 ROW_NUMBER() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
 
 -- No partition = single global window
 ROW_NUMBER() OVER (ORDER BY revenue DESC)
 ```text
+<!-- Code example in TEXT -->
 
 ### ORDER BY
 
@@ -118,18 +136,22 @@ Defines row ordering within each partition. Required for ranking functions and f
 **Syntax**:
 
 ```sql
+<!-- Code example in SQL -->
 OVER (PARTITION BY ... ORDER BY column1 [ASC|DESC], column2 [ASC|DESC], ...)
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Rank by revenue descending within category
 RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
 
 -- Running total ordered by date
 SUM(revenue) OVER (PARTITION BY data->>'category' ORDER BY occurred_at ASC)
 ```text
+<!-- Code example in TEXT -->
 
 ### Frame Clauses
 
@@ -157,6 +179,7 @@ Define which rows are included in the window frame relative to current row. Used
 **Examples**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Cumulative sum (all rows up to current)
 SUM(revenue) OVER (
     PARTITION BY data->>'category'
@@ -184,6 +207,7 @@ SUM(revenue) OVER (
     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -213,8 +237,10 @@ SUM(revenue) OVER (
 **Execution Order**:
 
 ```text
+<!-- Code example in TEXT -->
 WHERE → GROUP BY → HAVING → Window Functions → ORDER BY → LIMIT
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -234,6 +260,7 @@ WHERE → GROUP BY → HAVING → Window Functions → ORDER BY → LIMIT
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     revenue,
@@ -245,6 +272,7 @@ SELECT
     ) AS cumulative_revenue_excluding_current
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL (8.0+)
 
@@ -261,12 +289,14 @@ FROM tf_sales;
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
     revenue,
     ROW_NUMBER() OVER (PARTITION BY JSON_EXTRACT(data, '$.category') ORDER BY revenue DESC) AS rank
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### SQLite (3.25+)
 
@@ -283,6 +313,7 @@ FROM tf_sales;
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     json_extract(data, '$.category') AS category,
     revenue,
@@ -293,6 +324,7 @@ SELECT
     ) AS moving_avg_7d
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ### SQL Server
 
@@ -309,6 +341,7 @@ FROM tf_sales;
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_VALUE(data, '$.category') AS category,
     revenue,
@@ -318,6 +351,7 @@ SELECT
     ) AS prev_day_revenue
 FROM tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -328,6 +362,7 @@ FROM tf_sales;
 Calculate cumulative sum up to current row.
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     occurred_at,
@@ -340,12 +375,14 @@ SELECT
 FROM tf_sales
 ORDER BY data->>'category', occurred_at;
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Moving Averages
 
 Calculate average over sliding window (e.g., 7-day moving average).
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     occurred_at::DATE AS day,
@@ -359,12 +396,14 @@ FROM tf_sales
 GROUP BY data->>'category', occurred_at::DATE
 ORDER BY data->>'category', occurred_at::DATE;
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Year-Over-Year Comparison
 
 Compare current period to same period last year using LAG.
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     DATE_TRUNC('month', occurred_at) AS month,
     SUM(revenue) AS monthly_revenue,
@@ -374,12 +413,14 @@ FROM tf_sales
 GROUP BY DATE_TRUNC('month', occurred_at)
 ORDER BY month;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Top-N Per Category
 
 Rank items within each category and filter to top N.
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM (
     SELECT
         data->>'category' AS category,
@@ -395,12 +436,14 @@ SELECT * FROM (
 WHERE rank <= 10
 ORDER BY category, rank;
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Percentile Ranking
 
 Assign percentile ranks to rows.
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'product_name' AS product,
     SUM(revenue) AS total_revenue,
@@ -410,12 +453,14 @@ FROM tf_sales
 GROUP BY data->>'product_name'
 ORDER BY total_revenue DESC;
 ```text
+<!-- Code example in TEXT -->
 
 ### 6. Trend Analysis
 
 Compare to previous period to identify trends.
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     occurred_at::DATE AS day,
     SUM(revenue) AS daily_revenue,
@@ -430,6 +475,7 @@ FROM tf_sales
 GROUP BY occurred_at::DATE
 ORDER BY occurred_at::DATE;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -440,24 +486,30 @@ ORDER BY occurred_at::DATE;
 **PARTITION BY Columns**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Index columns used in PARTITION BY
 CREATE INDEX idx_sales_category ON tf_sales ((dimensions->>'category'));
 ```text
+<!-- Code example in TEXT -->
 
 **ORDER BY Columns**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Index columns used in ORDER BY within window
 CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 ```text
+<!-- Code example in TEXT -->
 
 **Composite Indexes**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Composite index for common window pattern
 CREATE INDEX idx_sales_category_occurred
     ON tf_sales ((dimensions->>'category'), occurred_at);
 ```text
+<!-- Code example in TEXT -->
 
 ### Window Function Evaluation
 
@@ -481,6 +533,7 @@ CREATE INDEX idx_sales_category_occurred
 1. **Use Specific Frame Clauses**:
 
    ```sql
+<!-- Code example in SQL -->
    -- ❌ SLOW: Large frame
    SUM(revenue) OVER (
        ORDER BY occurred_at
@@ -493,6 +546,7 @@ CREATE INDEX idx_sales_category_occurred
        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
    )
    ```text
+<!-- Code example in TEXT -->
 
 2. **Partition Data Appropriately**:
    - Balance partition size (not too large, not too many)
@@ -501,6 +555,7 @@ CREATE INDEX idx_sales_category_occurred
 3. **Consider Materialized Views**:
 
    ```sql
+<!-- Code example in SQL -->
    -- For frequently-used window calculations
    CREATE MATERIALIZED VIEW mv_sales_running_totals AS
    SELECT
@@ -517,6 +572,7 @@ CREATE INDEX idx_sales_category_occurred
    CREATE INDEX idx_mv_category_occurred
        ON mv_sales_running_totals(category, occurred_at);
    ```text
+<!-- Code example in TEXT -->
 
 4. **Limit Window Size**:
    - Prefer `ROWS BETWEEN 6 PRECEDING` over `UNBOUNDED PRECEDING` when possible
@@ -531,6 +587,7 @@ CREATE INDEX idx_sales_category_occurred
 ### Query Structure
 
 ```graphql
+<!-- Code example in GraphQL -->
 input WindowFunctionInput {
   function: WindowFunction!
   field: String
@@ -591,10 +648,12 @@ enum BoundaryType {
   UNBOUNDED_FOLLOWING
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Example Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_window(
     select: ["category", "occurred_at", "revenue"]
@@ -651,6 +710,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

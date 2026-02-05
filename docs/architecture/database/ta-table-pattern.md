@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: ta_* Table Pattern: Table-Backed Arrow Views
+description: - Physical storage on disk (materialized data)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # ta_* Table Pattern: Table-Backed Arrow Views
 
 ## Overview
@@ -46,6 +54,7 @@
 ### Basic Structure
 
 ```sql
+<!-- Code example in SQL -->
 -- 1. Create physical table with extracted columns
 CREATE TABLE ta_orders (
     id                  TEXT NOT NULL PRIMARY KEY,
@@ -65,7 +74,8 @@ CREATE TRIGGER trg_refresh_ta_orders
     AFTER INSERT OR UPDATE OR DELETE ON tb_order
     FOR EACH ROW
     EXECUTE FUNCTION refresh_ta_orders_trigger();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Arrow Type Mapping
 
@@ -97,6 +107,7 @@ Choose based on your latency and overhead requirements:
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION refresh_ta_orders_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -123,7 +134,8 @@ CREATE TRIGGER trg_refresh_ta_orders
     AFTER INSERT OR UPDATE OR DELETE ON tb_order
     FOR EACH ROW
     EXECUTE FUNCTION refresh_ta_orders_trigger();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Option 2: Scheduled Batch (Low Overhead)
 
@@ -139,6 +151,7 @@ CREATE TRIGGER trg_refresh_ta_orders
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Enable pg_cron extension
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
@@ -148,7 +161,8 @@ SELECT cron.schedule(
     '*/5 * * * *',  -- Every 5 minutes
     'SELECT refresh_ta_orders();'
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Option 3: Command-Based Explicit Refresh
 
@@ -164,6 +178,7 @@ SELECT cron.schedule(
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION refresh_ta_orders()
 RETURNS TABLE(rows_inserted BIGINT, rows_updated BIGINT, rows_deleted BIGINT) AS $$
 DECLARE
@@ -199,7 +214,8 @@ BEGIN
     RETURN QUERY SELECT v_inserted, v_updated, v_deleted;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Use cases for command-based refresh**:
 
@@ -211,13 +227,15 @@ $$ LANGUAGE plpgsql;
 **CLI/API calls**:
 
 ```bash
+<!-- Code example in BASH -->
 # Refresh via psql
 psql -c "SELECT * FROM refresh_ta_orders();"
 
 # Or programmatically
 SELECT rows_inserted, rows_updated, rows_deleted
 FROM refresh_ta_orders();
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Refresh Strategy Decision Matrix
 
@@ -235,33 +253,40 @@ FROM refresh_ta_orders();
 ### Step 1: Create ta_* Table
 
 ```bash
+<!-- Code example in BASH -->
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/ta_orders.sql
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/ta_users.sql
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Verify Data Population
 
 ```sql
+<!-- Code example in SQL -->
 -- Check row counts match
 SELECT COUNT(*) as ta_orders_count FROM ta_orders;
 SELECT COUNT(*) as tb_order_count FROM tb_order WHERE deleted_at IS NULL;
 
 -- They should be equal
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Register Arrow Schema
 
 In `FraiseQL-arrow/src/metadata.rs`, the schema is automatically registered via `register_ta_tables()` method in `register_defaults()`.
 
 ```rust
+<!-- Code example in RUST -->
 // Schema is now available for Arrow Flight queries
 registry.get("ta_orders")  // Returns registered Arrow schema
 registry.get("ta_users")   // Returns registered Arrow schema
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Query via Arrow Flight
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 
 # Connect to Arrow Flight server
@@ -280,11 +305,13 @@ table = stream.read_all()
 df = table.to_pandas()
 
 print(f"Fetched {len(df)} rows in {stream.time_ms}ms")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Monitor Performance
 
 ```sql
+<!-- Code example in SQL -->
 -- Check refresh latency
 SELECT MAX(source_updated_at) - NOW() as staleness
 FROM ta_orders;
@@ -298,7 +325,8 @@ WHERE created_at >= NOW() - INTERVAL '7 days';
 SELECT schemaname, tablename, idx_scan, idx_tup_read
 FROM pg_stat_user_indexes
 WHERE tablename = 'ta_orders';
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Limitations and Considerations
 
@@ -353,8 +381,10 @@ WHERE tablename = 'ta_orders';
 **Solution**: Run initial population:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT refresh_ta_orders();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Issue: High CPU from trigger overhead
 
@@ -363,11 +393,13 @@ SELECT refresh_ta_orders();
 **Solution**: Switch to batched refresh:
 
 ```sql
+<!-- Code example in SQL -->
 DROP TRIGGER trg_refresh_ta_orders ON tb_order;
 
 -- Schedule batch refresh instead
 SELECT cron.schedule('refresh-ta-orders', '*/5 * * * *', 'SELECT refresh_ta_orders();');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Issue: Arrow Flight queries slow despite ta_* table
 
@@ -376,12 +408,14 @@ SELECT cron.schedule('refresh-ta-orders', '*/5 * * * *', 'SELECT refresh_ta_orde
 **Solution**: Verify index usage:
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN (ANALYZE) SELECT COUNT(*) FROM ta_orders
 WHERE created_at >= NOW() - INTERVAL '7 days';
 
 -- Check BRIN page ranges
 SELECT blocknum, blkcount FROM pgstattuple_approx('ta_orders_created_at_brin');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Issue: Schema mismatch between Arrow and PostgreSQL
 

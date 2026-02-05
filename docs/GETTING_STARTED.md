@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Getting Started with FraiseQL v2
+description: cargo new my-graphql-api
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Getting Started with FraiseQL v2
 
 **Duration**: ~15 minutes
@@ -11,24 +19,30 @@
 ### Add to your project
 
 ```bash
+<!-- Code example in BASH -->
 cargo new my-graphql-api
 cd my-graphql-api
 ```text
+<!-- Code example in TEXT -->
 
 ### Add FraiseQL to `Cargo.toml`
 
 ```toml
+<!-- Code example in TOML -->
 [dependencies]
 FraiseQL = "2.0"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
 ```text
+<!-- Code example in TEXT -->
 
 ### Verify installation
 
 ```bash
+<!-- Code example in BASH -->
 cargo check
 ```text
+<!-- Code example in TEXT -->
 
 Expected output: `Finished 'dev' profile`
 
@@ -43,6 +57,7 @@ Expected output: `Finished 'dev' profile`
 Save this as `schema.json` in your project root:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -88,6 +103,7 @@ Save this as `schema.json` in your project root:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### What this means
 
@@ -106,6 +122,7 @@ Save this as `schema.json` in your project root:
 Replace `src/main.rs` with:
 
 ```rust
+<!-- Code example in RUST -->
 use FraiseQL::schema::CompiledSchema;
 
 #[tokio::main]
@@ -134,16 +151,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Run it
 
 ```bash
+<!-- Code example in BASH -->
 cargo run
 ```text
+<!-- Code example in TEXT -->
 
 Expected output:
 
 ```text
+<!-- Code example in TEXT -->
 Query result:
 {
   "data": {
@@ -162,6 +183,7 @@ Query result:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **If you get an error:**
 

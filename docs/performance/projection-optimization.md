@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: SQL Projection Optimization Guide
+description: FraiseQL automatically optimizes GraphQL queries by projecting only requested fields at the database level using SQL `jsonb_build_object()`. This reduces networ
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # SQL Projection Optimization Guide
 
 **Version**: 2.0.0-a1
@@ -13,9 +21,11 @@ FraiseQL automatically optimizes GraphQL queries by projecting only requested fi
 Traditional GraphQL servers fetch full objects from the database, then filter fields on the server. FraiseQL projects fields at the database level:
 
 ```text
+<!-- Code example in TEXT -->
 Traditional:     Database → Full JSON → Network → GraphQL Filtering
 FraiseQL:        Database → Projected JSON → Network (smaller!)
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Impact
 
@@ -34,6 +44,7 @@ Real-world measurements on PostgreSQL with 1M rows:
 When you request specific fields in a GraphQL query:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(limit: 100) {
     id
@@ -42,10 +53,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL generates optimized SQL:
 
 ```sql
+<!-- Code example in SQL -->
 -- Before (full JSONB)
 SELECT data FROM v_user LIMIT 100
 
@@ -56,6 +69,7 @@ SELECT jsonb_build_object(
   'email', data->>'email'
 ) FROM v_user LIMIT 100
 ```text
+<!-- Code example in TEXT -->
 
 The database returns only the fields you need. Unused fields (like `metadata`, `created_at`, etc.) never leave the database.
 
@@ -81,9 +95,11 @@ Projection **does not apply** to:
 Projection is **enabled by default**. No configuration needed.
 
 ```rust
+<!-- Code example in RUST -->
 // Projection automatically applied
 let results = executor.execute(query, variables).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Disable (For Debugging)
 
@@ -92,15 +108,19 @@ To disable projection and test with full JSONB:
 **Environment variable**:
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_DISABLE_PROJECTION=true cargo run
 ```text
+<!-- Code example in TEXT -->
 
 **In code**:
 
 ```rust
+<!-- Code example in RUST -->
 // Note: execute_where_query() bypasses projection
 // Use execute_with_projection(view, None, clause, limit) to disable
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Characteristics
 
@@ -122,8 +142,10 @@ Field projection overhead is minimal and consistent:
 Projection scales linearly with data size:
 
 ```text
+<!-- Code example in TEXT -->
 Latency = 130ns × num_fields + 200ns base overhead
 ```text
+<!-- Code example in TEXT -->
 
 No exponential degradation even with complex queries.
 
@@ -142,8 +164,10 @@ Projection **reduces memory usage** by filtering unused fields:
 Full optimization using `jsonb_build_object()`:
 
 ```text
+<!-- Code example in TEXT -->
 Improvement: 42-55% latency reduction
 ```text
+<!-- Code example in TEXT -->
 
 ### MySQL, SQLite, SQL Server ⏳ (Fallback)
 
@@ -166,21 +190,27 @@ Check these in order:
 1. **Database Support**: PostgreSQL is fully optimized. MySQL, SQLite, SQL Server fall back to server-side filtering.
 
    ```bash
+<!-- Code example in BASH -->
    # Check which database you're using
    echo $DATABASE_URL
    ```text
+<!-- Code example in TEXT -->
 
 2. **Enable Logging**: See what SQL is generated
 
    ```bash
+<!-- Code example in BASH -->
    RUST_LOG=fraiseql_core=debug cargo run
    ```text
+<!-- Code example in TEXT -->
 
 3. **Disable Temporarily**
 
    ```bash
+<!-- Code example in BASH -->
    FRAISEQL_DISABLE_PROJECTION=true cargo run
    ```text
+<!-- Code example in TEXT -->
 
 ### Performance Not Improving?
 
@@ -205,6 +235,7 @@ Check these in order:
 ✅ **Good** - Request only what you need:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -213,10 +244,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ❌ **Bad** - Force full object fetch:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     ...AllUserFields
@@ -227,12 +260,14 @@ fragment AllUserFields on User {
   # All 50+ fields
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Use Nested Queries When Needed
 
 ✅ **Good** - Separate queries for different use cases:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # For list view (minimal fields)
 query UserList {
   users { id, name }
@@ -243,30 +278,37 @@ query UserDetail($id: ID!) {
   user(id: $id) { ...AllUserFields }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Monitor Query Performance
 
 Use the logging output to verify projection is working:
 
 ```bash
+<!-- Code example in BASH -->
 RUST_LOG=fraiseql_core::runtime=debug cargo run
 ```text
+<!-- Code example in TEXT -->
 
 Look for in logs:
 
 ```text
+<!-- Code example in TEXT -->
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Profile Your Queries
 
 For production deployments:
 
 ```bash
+<!-- Code example in BASH -->
 # Capture query metrics
 curl -H "X-Debug: true" http://localhost:3000/graphql \
   -d '{"query": "..."}'
 ```text
+<!-- Code example in TEXT -->
 
 Results show projection impact in response headers.
 
@@ -277,6 +319,7 @@ Results show projection impact in response headers.
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(limit: 10) {
     id
@@ -284,15 +327,18 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL** (automatic):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT jsonb_build_object(
   'id', data->>'id',
   'email', data->>'email'
 ) AS data FROM v_user LIMIT 10
 ```text
+<!-- Code example in TEXT -->
 
 **Result**: 42% latency reduction automatically
 
@@ -301,6 +347,7 @@ SELECT jsonb_build_object(
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   posts(limit: 100) {
     id
@@ -316,10 +363,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL** (automatic):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT jsonb_build_object(
   'id', data->>'id',
   'title', data->>'title',
@@ -337,6 +386,7 @@ SELECT jsonb_build_object(
   )
 ) AS data FROM v_post LIMIT 100
 ```text
+<!-- Code example in TEXT -->
 
 **Result**: 54% latency reduction on 100-row results
 
@@ -345,6 +395,7 @@ SELECT jsonb_build_object(
 If you need full JSONB for debugging:
 
 ```bash
+<!-- Code example in BASH -->
 # Via environment
 FRAISEQL_DISABLE_PROJECTION=true cargo run
 
@@ -352,6 +403,7 @@ FRAISEQL_DISABLE_PROJECTION=true cargo run
 // The adapter will use execute_where_query() internally
 // which skips projection optimization
 ```text
+<!-- Code example in TEXT -->
 
 ## Migration Guide
 
@@ -367,6 +419,7 @@ If migrating from another GraphQL server:
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 # Before: Record baseline performance
 wrk -t4 -c100 -d30s http://localhost:3000/graphql \
   -s load.lua
@@ -374,6 +427,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql \
 # After: Compare results (should be 40-55% faster)
 # No query changes needed!
 ```text
+<!-- Code example in TEXT -->
 
 ## Technical Details
 
@@ -382,11 +436,13 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql \
 Projection uses `PostgresProjectionGenerator`:
 
 ```rust
+<!-- Code example in RUST -->
 let generator = PostgresProjectionGenerator::new();
 let fields = vec!["id".to_string(), "email".to_string()];
 let sql = generator.generate_projection_sql(&fields)?;
 // Returns: jsonb_build_object('id', data->>'id', 'email', data->>'email')
 ```text
+<!-- Code example in TEXT -->
 
 ### Integration Point
 
@@ -395,6 +451,7 @@ Projection is integrated in the query executor:
 **File**: `crates/FraiseQL-core/src/runtime/executor.rs`
 
 ```rust
+<!-- Code example in RUST -->
 // Automatically generates projection from requested fields
 let projection_hint = if !plan.projection_fields.is_empty() {
     let generator = PostgresProjectionGenerator::new();
@@ -416,6 +473,7 @@ let results = self.adapter.execute_with_projection(
     None,
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ## FAQ
 

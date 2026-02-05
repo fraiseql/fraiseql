@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Choosing FraiseQL: Is It Right for Your Project?
+description: FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a specific set of problems. This guide helps you decide if it's a good fit.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Choosing FraiseQL: Is It Right for Your Project?
 
 **Status:** ✅ Production Ready
@@ -49,7 +57,10 @@ Answer these questions honestly:
 - [ ] Do you have **relational data** (not primarily document-oriented)?
 - [ ] Do you need **ACID compliance** or regulated industry support?
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Count: "Count your YES answers" {
@@ -90,7 +101,8 @@ Count -> Zero
 Four -> FourResult
 Two -> TwoResult
 Zero -> ZeroResult
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -152,6 +164,7 @@ Zero -> ZeroResult
 **Example**: "Transfer $1000 from account A to account B across services"
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation Transfer($fromId: ID!, $toId: ID!, $amount: Money!) {
   transferMoney(fromId: $fromId, toId: $toId, amount: $amount) {
     fromBalance
@@ -160,6 +173,7 @@ mutation Transfer($fromId: ID!, $toId: ID!, $amount: Money!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL guarantees: Either both accounts updated, or neither. No partial transfers.
 
@@ -177,6 +191,7 @@ FraiseQL guarantees: Either both accounts updated, or neither. No partial transf
 **Example**: "Update patient medication with cross-service lab result verification"
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation PrescribeMedication($patientId: ID!, $medication: String!) {
   prescribeMedication(patientId: $patientId, medication: $medication) {
     patient { id, allergies }
@@ -184,6 +199,7 @@ mutation PrescribeMedication($patientId: ID!, $medication: String!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL guarantees: Prescription never issued if allergy check fails.
 
@@ -201,6 +217,7 @@ FraiseQL guarantees: Prescription never issued if allergy check fails.
 **Example**: "Move inventory between warehouses"
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation MoveInventory(
   $sku: String!
   $from: ID!
@@ -213,6 +230,7 @@ mutation MoveInventory(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL guarantees: Inventory either moves completely or not at all.
 
@@ -230,6 +248,7 @@ FraiseQL guarantees: Inventory either moves completely or not at all.
 **Example**: "Multi-tenant user management with role hierarchy"
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetTenantUsers($tenantId: ID!) {
   users(tenantId: $tenantId) {
     id, email, role
@@ -242,6 +261,7 @@ mutation AddUser($tenantId: ID!, $email: String!, $role: String!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL guarantees: No cross-tenant data leaks, mutations atomic per tenant.
 
@@ -308,12 +328,14 @@ FraiseQL guarantees: No cross-tenant data leaks, mutations atomic per tenant.
 **Example anti-pattern**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query RealTimeMetrics {
   metrics(last: 10000) {
     timestamp, value
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL would be slow. Use Cassandra instead.
 
@@ -333,12 +355,14 @@ FraiseQL would be slow. Use Cassandra instead.
 **Example anti-pattern**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation LikePost($postId: ID!) {
   likePost(postId: $postId) {
     likes  # Doesn't need exact count
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 DynamoDB's eventual consistency is perfect here.
 
@@ -358,12 +382,14 @@ DynamoDB's eventual consistency is perfect here.
 **Example anti-pattern**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation LogSensorReading($sensorId: ID!, $value: Float!) {
   logReading(sensorId: $sensorId, value: $value) {
     sensorId, value, timestamp
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Use time-series DB directly.
 
@@ -383,12 +409,14 @@ Use time-series DB directly.
 **Example anti-pattern**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation SendMessage($chatId: ID!, $text: String!) {
   sendMessage(chatId: $chatId, text: $text) {
     id, text, createdAt
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Use message broker + cache instead.
 
@@ -397,6 +425,7 @@ Use message broker + cache instead.
 ## Decision Flowchart
 
 ```text
+<!-- Code example in TEXT -->
 START
   │
   ├─ Do you need STRONG CONSISTENCY?
@@ -423,6 +452,7 @@ START
   │
   └─ END
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

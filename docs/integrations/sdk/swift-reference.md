@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Swift SDK Reference
+description: Complete API reference for the FraiseQL Swift SDK. Build type-safe GraphQL APIs using Swift 5.9's strongly-typed ecosystem. Native SwiftUI integration, Codable 
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Swift SDK Reference
 
 **Status**: Production-Ready | **Swift Version**: 5.9+ | **Xcode**: 15.0+ | **iOS/macOS**: 13.0+
@@ -11,6 +19,7 @@ Complete API reference for the FraiseQL Swift SDK. Build type-safe GraphQL APIs 
 Add FraiseQL to your `Package.swift`:
 
 ```swift
+<!-- Code example in SWIFT -->
 // Package.swift
 let package = Package(
   name: "MyApp",
@@ -32,7 +41,8 @@ let package = Package(
     )
   ]
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 Or in Xcode: File → Add Packages → Enter repository URL.
 
@@ -72,6 +82,7 @@ Or in Xcode: File → Add Packages → Enter repository URL.
 ### Basic Type Definition with Codable
 
 ```swift
+<!-- Code example in SWIFT -->
 import FraiseQL
 
 @Type
@@ -99,11 +110,13 @@ let userData = """
 
 let user = try JSONDecoder().decode(User.self, from: userData)
 print(user.name) // "Alice"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Optional and Nullable Types
 
 ```swift
+<!-- Code example in SWIFT -->
 // Nullable (can be nil in GraphQL response)
 @Type
 struct UserProfile: Codable {
@@ -126,11 +139,13 @@ let profile: UserProfile? = nil  // Optional parameter
 
 // Non-optional (required in GraphQL)
 let user: User = User(id: 1, name: "Bob", email: "bob@example.com", isActive: true)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Nested Types and Relationships
 
 ```swift
+<!-- Code example in SWIFT -->
 @Type
 struct Post: Codable {
     let id: Int
@@ -152,11 +167,13 @@ struct PostMetadata: Codable {
     let viewCount: Int
     let lastEditedAt: Date
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Enum Types
 
 ```swift
+<!-- Code example in SWIFT -->
 enum OrderStatus: String, Codable {
     case pending = "pending"
     case processing = "processing"
@@ -184,11 +201,13 @@ let order: Order = Order(
 // JSON encoding preserves string values
 let encoder = JSONEncoder()
 let json = try encoder.encode(order)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Generic Collections and Dictionaries
 
 ```swift
+<!-- Code example in SWIFT -->
 @Type
 struct QueryResult: Codable {
     let data: [String: AnyCodable]  // JSON-compatible dictionary
@@ -215,13 +234,15 @@ struct AnyCodable: Codable {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Operations
 
 ### Query Operations with Async/Await
 
 ```swift
+<!-- Code example in SWIFT -->
 import FraiseQL
 
 @Query(sqlSource: "v_users")
@@ -260,11 +281,13 @@ struct UserListView: View {
         isLoading = false
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Single Item Query
 
 ```swift
+<!-- Code example in SWIFT -->
 @Query(sqlSource: "fn_get_user")
 func user(id: Int) async throws -> User? {
     throw FraiseQLError.notImplemented("Compiled at build time")
@@ -277,11 +300,13 @@ if let user = user {
 } else {
     print("User not found")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation Operations
 
 ```swift
+<!-- Code example in SWIFT -->
 @Mutation(sqlSource: "fn_create_user", operation: "CREATE")
 func createUser(email: String, name: String) async throws -> User {
     throw FraiseQLError.notImplemented("Compiled at build time")
@@ -326,11 +351,13 @@ class UserViewModel: ObservableObject {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Subscription Operations (Real-Time)
 
 ```swift
+<!-- Code example in SWIFT -->
 @Subscription(topic: "userCreated", operation: "CREATE")
 func onUserCreated() async throws -> AsyncStream<User> {
     throw FraiseQLError.notImplemented("Compiled at build time")
@@ -362,13 +389,15 @@ struct RealtimeUserView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Advanced Features
 
 ### Fact Tables for Analytics
 
 ```swift
+<!-- Code example in SWIFT -->
 @FactTable(
     tableName: "tf_sales",
     measures: ["revenue", "quantity", "cost"],
@@ -427,11 +456,13 @@ struct SalesChartView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Role-Based Access Control (RBAC)
 
 ```swift
+<!-- Code example in SWIFT -->
 @Type
 struct SensitiveUser: Codable {
     let id: Int
@@ -457,11 +488,13 @@ class SecureUserService {
         return try JSONDecoder().decode(SensitiveUser.self, from: response)
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field-Level Metadata
 
 ```swift
+<!-- Code example in SWIFT -->
 @Type
 struct Product: Codable {
     let id: Int
@@ -495,11 +528,13 @@ func loadProduct(id: Int) async throws -> Product {
     return product
 }
 #endif
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SwiftUI Integration with @StateObject
 
 ```swift
+<!-- Code example in SWIFT -->
 @MainActor
 final class UserRepository: NSObject, ObservableObject {
     @Published var users: [User] = []
@@ -554,11 +589,13 @@ struct ContentView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Thread-Safe Database Operations with Actors
 
 ```swift
+<!-- Code example in SWIFT -->
 @FraiseQLActor
 final class DatabaseService {
     private var cache: [Int: User] = [:]
@@ -602,7 +639,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Scalar Types
 
@@ -632,6 +670,7 @@ FraiseQL Swift SDK maps GraphQL scalars to native Swift types:
 ### Export to File
 
 ```swift
+<!-- Code example in SWIFT -->
 import FraiseQL
 
 // In your schema definition module
@@ -648,11 +687,13 @@ struct SchemaExporter {
 
 // Run from command line
 swift run FraiseQL-schema-export
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Embed in SPM Target
 
 ```swift
+<!-- Code example in SWIFT -->
 // Sources/FraiseQLSchema/main.swift
 import FraiseQL
 
@@ -674,11 +715,13 @@ let package = Package(
         .executable(name: "schema-builder", targets: ["SchemaBuilder"]),
     ]
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Get Schema as Dictionary
 
 ```swift
+<!-- Code example in SWIFT -->
 let schema = try FraiseQL.getSchemaDict()
 print("Queries: \(schema["queries"] as? [[String: Any]] ?? [])")
 print("Mutations: \(schema["mutations"] as? [[String: Any]] ?? [])")
@@ -689,11 +732,13 @@ encoder.outputFormatting = .prettyPrinted
 let jsonData = try encoder.encode(schema)
 let jsonString = String(data: jsonData, encoding: .utf8)!
 print(jsonString)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Schema Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -717,7 +762,8 @@ print(jsonString)
   "mutations": [],
   "subscriptions": []
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Type Mapping
 
@@ -744,6 +790,7 @@ Swift to GraphQL type conversion with Codable:
 ### CRUD with SwiftUI
 
 ```swift
+<!-- Code example in SWIFT -->
 // Create
 struct CreateUserView: View {
     @State var email = ""
@@ -830,11 +877,13 @@ struct EditUserView: View {
         Label("Delete", systemImage: "trash")
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination with SwiftUI
 
 ```swift
+<!-- Code example in SWIFT -->
 struct PaginatedUserView: View {
     @State var users: [User] = []
     @State var currentPage = 0
@@ -893,11 +942,13 @@ struct PaginatedUserView: View {
         isLoading = false
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Filtering and Search
 
 ```swift
+<!-- Code example in SWIFT -->
 struct FilteredUserView: View {
     @State var users: [User] = []
     @State var searchText = ""
@@ -929,13 +980,15 @@ struct FilteredUserView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Error Handling
 
 ### FraiseQL Error Types
 
 ```swift
+<!-- Code example in SWIFT -->
 enum FraiseQLError: Error, LocalizedError {
     case parseError(message: String, location: String?)
     case validationError(message: String, path: String?)
@@ -987,11 +1040,13 @@ func loadUser(id: Int) async throws -> User? {
         throw error
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SwiftUI Error Display
 
 ```swift
+<!-- Code example in SWIFT -->
 struct UserDetailView: View {
     @State var user: User?
     @State var error: Error?
@@ -1040,13 +1095,15 @@ struct UserDetailView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Testing
 
 ### XCTest Patterns
 
 ```swift
+<!-- Code example in SWIFT -->
 import XCTest
 import FraiseQL
 
@@ -1114,11 +1171,13 @@ final class FraiseQLSchemaTests: XCTestCase {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Snapshot Testing for SwiftUI
 
 ```swift
+<!-- Code example in SWIFT -->
 import SnapshotTesting
 import SwiftUI
 
@@ -1136,13 +1195,15 @@ final class UserViewSnapshotTests: XCTestCase {
         assertSnapshot(matching: view, as: .image)
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## iOS/macOS Platform Differences
 
 ### Platform-Specific Code
 
 ```swift
+<!-- Code example in SWIFT -->
 #if os(iOS)
 import UIKit
 
@@ -1190,11 +1251,13 @@ class MacOSUserWindowController: NSWindowController {
 }
 
 #endif
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SwiftUI Platform Adaptation
 
 ```swift
+<!-- Code example in SWIFT -->
 struct AdaptiveUserListView: View {
     @State var users: [User] = []
 
@@ -1222,7 +1285,8 @@ struct AdaptiveUserListView: View {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## See Also
 
@@ -1249,14 +1313,18 @@ struct AdaptiveUserListView: View {
 **Solution**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // Package.swift
 .package(url: "https://github.com/FraiseQL/FraiseQL-swift.git", .upToNextMajor(from: "2.0.0"))
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 swift package update
 swift package resolve
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Swift Version Issues
 
@@ -1265,15 +1333,19 @@ swift package resolve
 **Check version** (5.7+ required):
 
 ```bash
+<!-- Code example in BASH -->
 swift --version
-```
+```text
+<!-- Code example in TEXT -->
 
 **Update Xcode**:
 
 ```bash
+<!-- Code example in BASH -->
 xcode-select --install
 softwareupdate -i -a
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Build Issues
 
@@ -1282,10 +1354,12 @@ softwareupdate -i -a
 **Solution - Clean and rebuild**:
 
 ```bash
+<!-- Code example in BASH -->
 swift package clean
 swift package update
 swift build
-```
+```text
+<!-- Code example in TEXT -->
 
 #### iOS/macOS Compatibility
 
@@ -1294,9 +1368,11 @@ swift build
 **Check minimum deployment**:
 
 ```swift
+<!-- Code example in SWIFT -->
 let minimumOS = "13.0"  // iOS
 let minimumMacOS = "10.15"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1309,6 +1385,7 @@ let minimumMacOS = "10.15"
 **Solution - Implement Codable**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Correct
 struct User: Codable {
     let id: Int
@@ -1327,7 +1404,8 @@ struct User {
     let id: Int
     let email: String
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Optional Issues
 
@@ -1336,6 +1414,7 @@ struct User {
 **Solution - Handle optionals properly**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Explicit optionals
 struct User {
     let email: String      // Non-optional
@@ -1346,7 +1425,8 @@ struct User {
 if let name = user.middleName {
     print(name)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Generic Type Issues
 
@@ -1355,6 +1435,7 @@ if let name = user.middleName {
 **Solution - Use concrete types**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ❌ Won't work - generics
 struct Box<T: Codable> {
     let value: T
@@ -1364,7 +1445,8 @@ struct Box<T: Codable> {
 struct UserBox {
     let value: User
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Async/Await Issues
 
@@ -1373,12 +1455,14 @@ struct UserBox {
 **Solution - Mark async**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Correct
 async func executeQuery(_ query: String) throws -> QueryResult {
     let result = try await FraiseQL.execute(query)
     return result
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1391,6 +1475,7 @@ async func executeQuery(_ query: String) throws -> QueryResult {
 **Solution - Handle network errors**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Handle errors
 do {
     let result = try await FraiseQL.execute(query)
@@ -1400,7 +1485,8 @@ do {
 } catch {
     print("Other error: \(error)")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Decoding Errors
 
@@ -1409,6 +1495,7 @@ do {
 **Solution - Debug decoding**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Use custom decoder
 let decoder = JSONDecoder()
 decoder.dateDecodingStrategy = .iso8601
@@ -1418,7 +1505,8 @@ do {
 } catch {
     print("Decode error: \(error)")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Thread Safety Issues
 
@@ -1427,6 +1515,7 @@ do {
 **Solution - Use MainActor**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Main thread only
 @MainActor
 func updateUI(_ result: QueryResult) {
@@ -1437,7 +1526,8 @@ func updateUI(_ result: QueryResult) {
 nonisolated func backgroundTask() {
     // Not on main thread
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Issues
 
@@ -1446,6 +1536,7 @@ nonisolated func backgroundTask() {
 **Solution - Manage resources**:
 
 ```swift
+<!-- Code example in SWIFT -->
 // ✅ Auto-cleanup
 class MyService {
     var FraiseQL: FraiseQLServer?
@@ -1457,7 +1548,8 @@ class MyService {
 
 // ✅ Or use weak references
 weak var server: FraiseQLServer?
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1470,14 +1562,18 @@ weak var server: FraiseQLServer?
 **Parallel compilation**:
 
 ```bash
+<!-- Code example in BASH -->
 swift build -c release -Xswiftc -g0
-```
+```text
+<!-- Code example in TEXT -->
 
 **Incremental builds**:
 
 ```bash
+<!-- Code example in BASH -->
 swift build -v  # Verbose to see incremental changes
-```
+```text
+<!-- Code example in TEXT -->
 
 #### App Size
 
@@ -1486,14 +1582,18 @@ swift build -v  # Verbose to see incremental changes
 **Optimize with -Onone for development**:
 
 ```bash
+<!-- Code example in BASH -->
 swift build -c release -Xswiftc -Onone
-```
+```text
+<!-- Code example in TEXT -->
 
 **Or full optimization**:
 
 ```bash
+<!-- Code example in BASH -->
 swift build -c release -Xswiftc -Osize
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Usage
 
@@ -1518,10 +1618,12 @@ swift build -c release -Xswiftc -Osize
 **Increase timeout**:
 
 ```swift
+<!-- Code example in SWIFT -->
 var request = URLRequest(url: graphqlURL, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 60)
 let session = URLSession(configuration: .default)
 let data = try await session.data(for: request)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1530,10 +1632,12 @@ let data = try await session.data(for: request)
 #### Print Debugging
 
 ```swift
+<!-- Code example in SWIFT -->
 print("Query: \(query)")
 print("Result: \(result)")
 debugPrint("Detailed: \(result)")
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Xcode Debugger
 
@@ -1545,6 +1649,7 @@ debugPrint("Detailed: \(result)")
 #### Logging
 
 ```swift
+<!-- Code example in SWIFT -->
 import os
 
 let logger = Logger()
@@ -1552,17 +1657,21 @@ let logger = Logger()
 logger.debug("Query: \(query)")
 logger.info("Execution started")
 logger.error("Query failed: \(error)")
-```
+```text
+<!-- Code example in TEXT -->
 
 **View logs**:
 
 ```bash
+<!-- Code example in BASH -->
 log stream --predicate 'eventMessage contains "Query"'
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Unit Tests
 
 ```swift
+<!-- Code example in SWIFT -->
 import XCTest
 
 class FraiseQLTests: XCTestCase {
@@ -1572,7 +1681,8 @@ class FraiseQLTests: XCTestCase {
         XCTAssertNotNil(result)
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1592,6 +1702,7 @@ Provide:
 **Template**:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 **Environment**:
 - Swift: 5.9
 - iOS: 16.0 / macOS: 13.0
@@ -1606,7 +1717,8 @@ Provide:
 
 **Error**:
 [Full error message]
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Community Channels
 

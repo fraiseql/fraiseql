@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Schema Design Best Practices for FraiseQL
+description: Best practices and patterns for designing performant, maintainable FraiseQL schemas with compile-time optimization.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "schema", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Schema Design Best Practices for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -42,6 +50,7 @@ FraiseQL schemas compile to optimized SQL at build time, enabling deterministic 
 #### Example
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class UserProfile:
     """Logical view - computed per query."""
@@ -50,7 +59,8 @@ class UserProfile:
     last_name: str
     full_name: str = field(computed="CONCAT(first_name, ' ', last_name)")
     age: int = field(computed="YEAR(NOW()) - YEAR(birth_date)")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance characteristics
 
@@ -77,6 +87,7 @@ class UserProfile:
 #### Example
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class UserStats:
     """Table-backed view - materialized and refreshed daily."""
@@ -86,11 +97,13 @@ class UserStats:
     like_count: int
     avg_post_length: Decimal
     updated_at: DateTime
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Materialization strategy
 
 ```sql
+<!-- Code example in SQL -->
 -- Materialization query (runs hourly)
 CREATE TABLE tv_user_stats AS
 SELECT
@@ -105,7 +118,8 @@ LEFT JOIN posts p ON u.id = p.user_id
 LEFT JOIN comments c ON p.id = c.post_id
 LEFT JOIN likes l ON c.id = l.comment_id
 GROUP BY u.id;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance characteristics
 
@@ -132,6 +146,7 @@ GROUP BY u.id;
 #### Example
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class ProductAnalytics:
     """Arrow logical projection - columnar format."""
@@ -140,18 +155,21 @@ class ProductAnalytics:
     units_sold: int
     revenue: Decimal
     cost: Decimal
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import pandas as pd
 
 client = flight.connect("grpc://localhost:30000")
 reader = client.do_get(flight.Ticket(b"ProductAnalytics"))
 df = reader.read_pandas()  # Zero-copy to pandas!
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance characteristics
 
@@ -172,6 +190,7 @@ df = reader.read_pandas()  # Zero-copy to pandas!
 #### Example
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class SalesDataWarehouse:
     """Arrow table-backed materialization."""
@@ -180,7 +199,8 @@ class SalesDataWarehouse:
     product_id: ID
     units_sold: int
     revenue: Decimal
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -204,6 +224,7 @@ class SalesDataWarehouse:
 #### Conventions
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     # IDs: Use full entity name or standard suffixes
@@ -234,13 +255,15 @@ class User:
     # Relationships: Use noun, not verb
     organization: Organization      # Not: organizationOf
     creator: User                   # Not: createdBy
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Enum Naming
 
 **Pattern:** `{Entity}{Property}`
 
 ```python
+<!-- Code example in Python -->
 class UserStatus(enum.Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -251,7 +274,8 @@ class OrderStatus(enum.Enum):
     CONFIRMED = "confirmed"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -271,12 +295,14 @@ class OrderStatus(enum.Enum):
 ### Anti-pattern
 
 ```python
+<!-- Code example in Python -->
 # ❌ Wrong: String ID instead of UUID
 id: str = "abc123"
 
 # ✅ Correct: UUID for identifiers
 id: UUID
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Numbers: Precision Matters
 
@@ -290,12 +316,14 @@ id: UUID
 ### Anti-pattern
 
 ```python
+<!-- Code example in Python -->
 # ❌ Wrong: Float for money (precision loss!)
 account_balance: float = 99.99
 
 # ✅ Correct: Decimal for money
 account_balance: Decimal = Decimal("99.99")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Dates & Times
 
@@ -308,13 +336,15 @@ account_balance: Decimal = Decimal("99.99")
 ### Best practice
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Event:
     id: ID
     created_at: DateTime  # Always use DateTime (includes time)
     event_date: Date      # Use Date if time not needed
     event_time: Time      # Rare; use DateTime instead
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -325,6 +355,7 @@ class Event:
 **Pattern:** Foreign key + List type
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -337,7 +368,8 @@ class Post:
     user_id: ID  # Foreign key
     user: User   # Back-reference (optional)
     content: str
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance consideration
 
@@ -349,6 +381,7 @@ class Post:
 **Pattern:** Join table (use TV for performance)
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -368,11 +401,13 @@ class Group:
 #     joined_at TIMESTAMP,
 #     PRIMARY KEY (user_id, group_id)
 # );
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Implementation with table-backed view
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tv_user_groups AS
 SELECT
     u.id,
@@ -387,13 +422,15 @@ FROM users u
 LEFT JOIN user_groups ug ON u.id = ug.user_id
 LEFT JOIN groups g ON ug.group_id = g.id
 GROUP BY u.id;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Self-Referential Relationships
 
 **Pattern:** Foreign key to same table
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Category:
     id: ID
@@ -401,14 +438,17 @@ class Category:
     parent_id: ID | None  # Can be null (root category)
     parent: Category | None  # Back-reference
     children: List[Category]  # Subcategories
-```
+```text
+<!-- Code example in TEXT -->
 
 **Query limitation:** Prevent infinite recursion
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.validation]
 max_query_depth = 10  # Prevent Category -> Category -> Category...
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -437,30 +477,38 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 #### Pattern: Simple WHERE clause
 
 ```sql
+<!-- Code example in SQL -->
 -- Query: users WHERE created_at >= '2026-01-01'
 CREATE INDEX idx_users_created_at ON users(created_at);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern: Composite filters
 
 ```sql
+<!-- Code example in SQL -->
 -- Query: users WHERE tenant_id = ? AND is_active = true
 CREATE INDEX idx_users_tenant_active ON users(tenant_id, is_active);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern: Foreign key joins
 
 ```sql
+<!-- Code example in SQL -->
 -- Query: posts WHERE user_id = ?
 CREATE INDEX idx_posts_user_id ON posts(user_id);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern: Full-text search
 
 ```sql
+<!-- Code example in SQL -->
 -- Query: products WHERE name ILIKE '%search%'
 CREATE INDEX idx_products_name_trgm ON products USING GIST(name gist_trgm_ops);  -- PostgreSQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -471,27 +519,32 @@ CREATE INDEX idx_products_name_trgm ON products USING GIST(name gist_trgm_ops); 
 #### Pattern 1: Simple concatenation (use v_*)
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     first_name: str
     last_name: str
     full_name: str = field(computed="CONCAT(first_name, ' ', last_name)")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Complex aggregation (use tv_*)
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
     post_count: int  # Materialized (updated hourly)
     comment_count: int
     total_engagement: int  # = post_count + comment_count
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Pattern 3: Conditional logic (use CASE)
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Order:
     id: ID
@@ -506,7 +559,8 @@ class Order:
         END
         """
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -517,6 +571,7 @@ class Order:
 **Pattern:** Mark sensitive fields as authorized
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -524,13 +579,15 @@ class User:
     email: str = field(authorize={Roles.SELF, Roles.ADMIN})
     salary: Decimal = field(authorize={Roles.HR})
     password_hash: str = field(authorize=set())  # Never readable
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Row-Level Security
 
 **Pattern:** Use WHERE clause for multi-tenancy
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Post:
     where: Where = FraiseQL.where(
@@ -542,7 +599,8 @@ class Post:
     content: str
     user_id: ID
     is_public: bool
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -551,6 +609,7 @@ class Post:
 ### Adding Fields (✅ Safe)
 
 ```python
+<!-- Code example in Python -->
 # Old schema
 @FraiseQL.type
 class User:
@@ -563,11 +622,13 @@ class User:
     id: ID
     name: str
     email: str  # ← New field (clients ignore it)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Removing Fields (❌ Breaking)
 
 ```python
+<!-- Code example in Python -->
 # Old schema
 @FraiseQL.type
 class User:
@@ -580,11 +641,13 @@ class User:
 class User:
     id: ID
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Safe alternative: Deprecate first
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -593,19 +656,22 @@ class User:
         deprecated="Use 'name' field instead. Removing in v2.1",
         deprecation_reason="Use 'name' field"
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Renaming Fields (❌ Breaking)
 
 #### Workaround: Add alias
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
     name: str
     full_name: str = field(alias="name")  # Support both names
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -614,6 +680,7 @@ class User:
 ### Load Testing View Performance
 
 ```bash
+<!-- Code example in BASH -->
 # Generate test data
 INSERT INTO users (id, name, ...) SELECT ... FROM generate_series(1, 1000000);
 
@@ -621,18 +688,21 @@ INSERT INTO users (id, name, ...) SELECT ... FROM generate_series(1, 1000000);
 EXPLAIN ANALYZE SELECT * FROM v_user_profile LIMIT 100;
 
 # If > 100ms, switch to table-backed view (tv_user_profile)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Index Effectiveness
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if index is used
 EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
 -- Should show "Index Scan" not "Seq Scan"
 
 -- Check index size
 SELECT pg_size_pretty(pg_relation_size('idx_users_created_at'));
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -641,6 +711,7 @@ SELECT pg_size_pretty(pg_relation_size('idx_users_created_at'));
 ### Query for Unused Indexes
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Find unused indexes
 SELECT schemaname, tablename, indexname
 FROM pg_indexes
@@ -649,18 +720,21 @@ WHERE indexname NOT IN (
     WHERE idx_scan > 0
 )
 ORDER BY tablename, indexname;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query for Missing Indexes
 
 ```sql
+<!-- Code example in SQL -->
 -- Check slow queries
 SELECT query, calls, mean_time FROM pg_stat_statements
 WHERE mean_time > 100  -- Queries > 100ms
 ORDER BY mean_time DESC;
 
 -- Analyze missing indexes from slow queries
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -669,6 +743,7 @@ ORDER BY mean_time DESC;
 ### Document Each Type
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     """
@@ -698,11 +773,13 @@ class User:
     name: str
     created_at: DateTime
     posts: List[Post]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Document View Materialization
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class UserStats:
     """
@@ -723,7 +800,8 @@ class UserStats:
     - Shows when data was last materialized
     - Use for cache invalidation
     """
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

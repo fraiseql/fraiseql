@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: View Selection Performance Testing Methodology
+description: - [Quick Reference](./view-selection-quick-reference.md) — Use to decide if testing is needed
+keywords: ["debugging", "implementation", "best-practices", "deployment", "performance", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # View Selection Performance Testing Methodology
 
 **Status:** ✅ Production Ready
@@ -39,6 +47,7 @@ This guide provides the testing methodology.
 **Pre-test Commands**:
 
 ```bash
+<!-- Code example in BASH -->
 # Refresh statistics
 psql -c "ANALYZE;" && echo "Statistics updated"
 
@@ -47,12 +56,14 @@ psql -c "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(sch
          FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
          ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC LIMIT 10;"
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Specifications
 
 **Document before testing:**
 
 ```text
+<!-- Code example in TEXT -->
 Environment: staging | prod | dev
 Database version: _________
 CPU cores: _________
@@ -60,6 +71,7 @@ RAM: _________ GB
 Storage type: SSD | HDD | NVMe
 Other processes running: _________ (should be minimal)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -70,6 +82,7 @@ Other processes running: _________ (should be minimal)
 Choose realistic queries that users actually run:
 
 ```sql
+<!-- Code example in SQL -->
 -- Query 1: Simple lookup
 SELECT * FROM v_user WHERE id = $1;
 
@@ -85,6 +98,7 @@ FROM va_orders
 WHERE created_at >= $1 AND created_at < $2
 GROUP BY DATE(created_at);
 ```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -97,6 +111,7 @@ GROUP BY DATE(created_at);
 Run each query individually with EXPLAIN ANALYZE:
 
 ```sql
+<!-- Code example in SQL -->
 -- Reset statistics
 TRUNCATE pg_stat_statements;
 
@@ -104,6 +119,7 @@ TRUNCATE pg_stat_statements;
 EXPLAIN (ANALYZE, BUFFERS, TIMING, VERBOSE)
 SELECT * FROM v_user_full WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 ```text
+<!-- Code example in TEXT -->
 
 **Record Metrics**:
 
@@ -127,6 +143,7 @@ SELECT * FROM v_user_full WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 Run the same query 10 times to measure cache performance:
 
 ```python
+<!-- Code example in Python -->
 import psycopg2
 import time
 
@@ -153,6 +170,7 @@ p95_time = sorted(times)[int(len(times) * 0.95)]
 
 print(f"Average: {avg_time:.2f}ms, Min: {min_time:.2f}ms, Max: {max_time:.2f}ms, P95: {p95_time:.2f}ms")
 ```text
+<!-- Code example in TEXT -->
 
 **Record**:
 
@@ -167,6 +185,7 @@ print(f"Average: {avg_time:.2f}ms, Min: {min_time:.2f}ms, Max: {max_time:.2f}ms,
 Run multiple concurrent queries to simulate production load:
 
 ```python
+<!-- Code example in Python -->
 import psycopg2
 import threading
 import time
@@ -221,6 +240,7 @@ print(f"Avg response: {mean(all_times):.2f}ms")
 print(f"P95 response: {sorted(all_times)[int(len(all_times) * 0.95)]:.2f}ms")
 print(f"P99 response: {sorted(all_times)[int(len(all_times) * 0.99)]:.2f}ms")
 ```text
+<!-- Code example in TEXT -->
 
 **Record** (Logical View Baseline):
 
@@ -242,6 +262,7 @@ print(f"P99 response: {sorted(all_times)[int(len(all_times) * 0.99)]:.2f}ms")
 ### Create and Populate
 
 ```bash
+<!-- Code example in BASH -->
 # Create the table-backed view
 psql -c "$(cat migration.sql)"
 
@@ -251,6 +272,7 @@ psql -c "SELECT refresh_tv_user_profile();"
 # Verify
 psql -c "SELECT COUNT(*) FROM tv_user_profile;"
 ```text
+<!-- Code example in TEXT -->
 
 - [ ] Table created: ☐ Yes
 - [ ] Initial population: ______ rows
@@ -263,10 +285,12 @@ psql -c "SELECT COUNT(*) FROM tv_user_profile;"
 ### Step 5: Single Query Benchmark (Table-Backed)
 
 ```sql
+<!-- Code example in SQL -->
 -- Same query, different table
 EXPLAIN (ANALYZE, BUFFERS, TIMING, VERBOSE)
 SELECT * FROM tv_user_profile WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 ```text
+<!-- Code example in TEXT -->
 
 **Record Metrics**:
 
@@ -287,12 +311,14 @@ SELECT * FROM tv_user_profile WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 Run the same 10-query test:
 
 ```python
+<!-- Code example in Python -->
 # Same script as Step 3, but with tv_user_profile instead of v_user_full
 times_tv = [...]  # Results from table-backed view
 
 print(f"Table-backed avg: {mean(times_tv):.2f}ms vs Logical avg: {mean(times_v):.2f}ms")
 print(f"Speedup: {mean(times_v) / mean(times_tv):.1f}x")
 ```text
+<!-- Code example in TEXT -->
 
 **Record**:
 
@@ -303,12 +329,14 @@ print(f"Speedup: {mean(times_v) / mean(times_tv):.1f}x")
 ### Step 7: Load Test Benchmark (Table-Backed)
 
 ```python
+<!-- Code example in Python -->
 # Same load test script as Step 4, but with tv_user_profile
 
 print(f"Logical view P95: {logical_p95:.2f}ms")
 print(f"Table-backed P95: {table_backed_p95:.2f}ms")
 print(f"Improvement: {logical_p95 / table_backed_p95:.1f}x")
 ```text
+<!-- Code example in TEXT -->
 
 **Record** (Table-Backed View):
 
@@ -329,6 +357,7 @@ print(f"Improvement: {logical_p95 / table_backed_p95:.1f}x")
 Test how quickly the table-backed view updates after source data changes:
 
 ```python
+<!-- Code example in Python -->
 import time
 import psycopg2
 
@@ -357,6 +386,7 @@ while True:
 
 print(f"Refresh latency: {latency:.0f}ms")
 ```text
+<!-- Code example in TEXT -->
 
 **Record**:
 
@@ -369,6 +399,7 @@ print(f"Refresh latency: {latency:.0f}ms")
 Benchmark the refresh function performance:
 
 ```sql
+<!-- Code example in SQL -->
 -- Measure refresh time
 \timing on
 
@@ -376,6 +407,7 @@ SELECT * FROM refresh_tv_user_profile();
 
 -- Expected: <100ms for small updates, <5s for full refresh
 ```text
+<!-- Code example in TEXT -->
 
 **Record**:
 
@@ -392,6 +424,7 @@ SELECT * FROM refresh_tv_user_profile();
 Verify that logical and table-backed views return the same data:
 
 ```sql
+<!-- Code example in SQL -->
 -- Compare row counts
 SELECT
     (SELECT COUNT(*) FROM v_user_full) logical_count,
@@ -407,12 +440,14 @@ SELECT
     (SELECT COUNT(*) FROM v_user_full WHERE created_at > NOW() - INTERVAL '30 days') logical_30d,
     (SELECT COUNT(*) FROM tv_user_profile WHERE created_at > NOW() - INTERVAL '30 days') table_backed_30d;
 ```text
+<!-- Code example in TEXT -->
 
 **Verify**: ☐ Identical results | ☐ Discrepancies found (investigate)
 
 ### Step 11: Storage Overhead Calculation
 
 ```sql
+<!-- Code example in SQL -->
 -- Measure storage used
 SELECT
     'Logical view' as view_type,
@@ -426,6 +461,7 @@ SELECT
     'Source table',
     pg_size_pretty(pg_total_relation_size('tb_user'));
 ```text
+<!-- Code example in TEXT -->
 
 **Record**:
 
@@ -468,6 +504,7 @@ Fill out this matrix to decide if migration is justified:
 **Decision**:
 
 ```text
+<!-- Code example in TEXT -->
 ☐ PROCEED with migration
   Justification: ________________________
 
@@ -477,6 +514,7 @@ Fill out this matrix to decide if migration is justified:
 ☐ REJECT - not worth it
   Reason: ________________________
 ```text
+<!-- Code example in TEXT -->
 
 **Sign-off**: _________________ Date: _______
 
@@ -485,6 +523,7 @@ Fill out this matrix to decide if migration is justified:
 ## Performance Testing Report Template
 
 ```text
+<!-- Code example in TEXT -->
 # Performance Testing Report: [View Name]
 
 ## Executive Summary
@@ -530,6 +569,7 @@ Fill out this matrix to decide if migration is justified:
 - DBA: _________________ Date: _______
 - Architect: _________________ Date: _______
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -540,6 +580,7 @@ Fill out this matrix to decide if migration is justified:
 Test table-backed view under production-like peak load:
 
 ```python
+<!-- Code example in Python -->
 # Simulate 10x normal load
 num_threads = 50  # vs normal 10
 queries_per_thread = 1000
@@ -547,6 +588,7 @@ queries_per_thread = 1000
 # Run load test
 # Compare against logical view baseline
 ```text
+<!-- Code example in TEXT -->
 
 **Document**: Peak load handling: ☐ Acceptable | ☐ Degraded
 
@@ -555,6 +597,7 @@ queries_per_thread = 1000
 Test refresh performance while queries are running:
 
 ```sql
+<!-- Code example in SQL -->
 -- Session 1: Run continuous queries
 \watch SELECT COUNT(*) FROM tv_user_profile;
 
@@ -563,6 +606,7 @@ SELECT refresh_tv_user_profile();
 
 -- Measure impact on query latency
 ```text
+<!-- Code example in TEXT -->
 
 **Document**: Query latency during refresh: ______ ms (vs normal: ______ ms)
 
@@ -571,6 +615,7 @@ SELECT refresh_tv_user_profile();
 Test performance with cold cache:
 
 ```bash
+<!-- Code example in BASH -->
 # Drop cache
 sync && echo 3 > /proc/sys/vm/drop_caches
 
@@ -579,6 +624,7 @@ EXPLAIN (ANALYZE) SELECT * FROM tv_user_profile WHERE id = ?;
 
 # vs warm cache from previous test
 ```text
+<!-- Code example in TEXT -->
 
 **Document**: Cold cache vs warm cache: ______ x slower
 
@@ -587,6 +633,7 @@ EXPLAIN (ANALYZE) SELECT * FROM tv_user_profile WHERE id = ?;
 Test multiple concurrent refresh operations:
 
 ```sql
+<!-- Code example in SQL -->
 -- In separate transactions, run multiple refreshes
 SELECT refresh_tv_user_profile();  -- Transaction 1
 SELECT refresh_tv_user_profile();  -- Transaction 2
@@ -595,6 +642,7 @@ SELECT refresh_tv_user_profile();  -- Transaction 3
 -- Measure lock contention
 SELECT * FROM pg_locks WHERE relation::regclass::text LIKE 'tv_%';
 ```text
+<!-- Code example in TEXT -->
 
 **Document**: Lock contention: ☐ None | ☐ Minor | ☐ Significant
 
@@ -614,6 +662,7 @@ SELECT * FROM pg_locks WHERE relation::regclass::text LIKE 'tv_%';
 **Debugging**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check indexes exist
 SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
 
@@ -625,6 +674,7 @@ EXPLAIN (VERBOSE) SELECT * FROM tv_user_profile WHERE id = ?;
 SELECT COUNT(*) FROM tv_user_profile;
 SELECT COUNT(*) FROM v_user_profile;  -- Different?
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: High Storage Overhead
 
@@ -637,6 +687,7 @@ SELECT COUNT(*) FROM v_user_profile;  -- Different?
 **Resolution**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Analyze storage breakdown
 SELECT
     schemaname,
@@ -650,6 +701,7 @@ WHERE tablename = 'tv_user_profile';
 -- Consider dropping unnecessary indexes
 -- Or simplify JSONB composition
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Refresh Latency Unacceptable
 

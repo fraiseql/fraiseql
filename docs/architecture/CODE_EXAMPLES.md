@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2: Code Examples
+description: This document provides concrete, runnable code examples for the core architecture components.
+keywords: ["design", "scalability", "fullstack", "code", "performance", "production", "patterns", "sample"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2: Code Examples
 
 **Companion to:** RUST_CORE_ARCHITECTURE.md
@@ -24,6 +32,7 @@ This document provides concrete, runnable code examples for the core architectur
 **GraphQL Query:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { email: { icontains: "example.com" } }) {
     id
@@ -33,11 +42,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rust Execution:**
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_core::{
     db::{DatabaseAdapter, PostgresAdapter, WhereClause, WhereOperator},
     runtime::{Executor, SelectionSet, FieldSelection, FieldSelectionType},
@@ -123,11 +134,13 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": [
@@ -147,7 +160,8 @@ async fn main() -> Result<()> {
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -156,6 +170,7 @@ async fn main() -> Result<()> {
 ### PostgreSQL Adapter
 
 ```rust
+<!-- Code example in RUST -->
 // crates/FraiseQL-core/src/db/postgres/adapter.rs
 
 use async_trait::async_trait;
@@ -300,7 +315,8 @@ impl tokio_postgres::types::ToSql for QueryParameter {
 
     tokio_postgres::types::to_sql_checked!();
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -311,6 +327,7 @@ impl tokio_postgres::types::ToSql for QueryParameter {
 **GraphQL:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 where: {
   _and: [
     { email: { icontains: "example.com" } }
@@ -324,11 +341,13 @@ where: {
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Generated PostgreSQL SQL:**
 
 ```sql
+<!-- Code example in SQL -->
 WHERE (
   data->>'email' ILIKE $1
   AND EXISTS (
@@ -340,11 +359,13 @@ WHERE (
     )
   )
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rust Code:**
 
 ```rust
+<!-- Code example in RUST -->
 use crate::db::{WhereClause, WhereOperator, PostgresWhereGenerator, WhereClauseGenerator};
 use serde_json::json;
 
@@ -386,7 +407,8 @@ fn test_complex_where_generation() {
     assert!(sql.contains("jsonb_array_elements"));
     assert_eq!(params.len(), 3);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -397,6 +419,7 @@ fn test_complex_where_generation() {
 **Input JSONB (from database):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "id": "user-123",
   "email": "alice@example.com",
@@ -417,11 +440,13 @@ fn test_complex_where_generation() {
   "password_hash": "$2a$10$...",
   "internal_notes": "VIP customer"
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **SelectionSet:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 {
   id
   email
@@ -430,11 +455,13 @@ fn test_complex_where_generation() {
     published
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rust Projection:**
 
 ```rust
+<!-- Code example in RUST -->
 use crate::runtime::{
     DefaultJsonbProjector, JsonbProjector,
     SelectionSet, FieldSelection, FieldSelectionType,
@@ -532,11 +559,13 @@ fn test_projection() {
     assert!(posts[0].get("body").is_none());
     assert!(posts[0].get("author").is_none());
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "id": "user-123",
   "email": "alice@example.com",
@@ -547,7 +576,8 @@ fn test_projection() {
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -558,6 +588,7 @@ fn test_projection() {
 **CompiledSchema Authorization Rules:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "authorization": {
     "User": {
@@ -573,11 +604,13 @@ fn test_projection() {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rust Authorization Check:**
 
 ```rust
+<!-- Code example in RUST -->
 use crate::security::{AuthMask, FieldAuthRule, UserContext};
 use std::collections::HashMap;
 
@@ -669,7 +702,8 @@ fn test_field_authorization() {
 
     assert!(auth_mask.is_field_authorized("User", "ssn", &pii_reader));
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -678,6 +712,7 @@ fn test_field_authorization() {
 ### Query Result Caching
 
 ```rust
+<!-- Code example in RUST -->
 use crate::cache::{MemoryCache, CacheBackend, CacheKey, CachedValue};
 use serde_json::json;
 use std::time::Duration;
@@ -744,11 +779,13 @@ fn generate_cache_key(
     let hash = hasher.finalize();
     CacheKey(format!("query:{:x}", hash))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cache Invalidation on Mutation
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_cache_invalidation() {
     let cache = MemoryCache::new(1000);
@@ -775,13 +812,15 @@ fn dummy_value() -> CachedValue {
         cached_at: std::time::Instant::now(),
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Integration Test: Complete Pipeline
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_complete_query_pipeline() {
     // Setup
@@ -873,7 +912,8 @@ async fn test_complete_query_pipeline() {
     let cached = cache.get(&cache_key).await.unwrap();
     assert!(cached.is_some());
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

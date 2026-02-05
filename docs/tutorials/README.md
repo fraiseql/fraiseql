@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Tutorials
+description: Complete, hands-on tutorials for building real-world applications with FraiseQL. Each tutorial focuses on practical schema authoring patterns in different progr
+keywords: ["project", "hands-on", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Tutorials
 
 **Status:** ✅ Production Ready
@@ -324,6 +332,7 @@ All tutorials include working code examples you can copy and run:
 Choose your language and start building:
 
 ```bash
+<!-- Code example in BASH -->
 # TypeScript (Recommended for beginners)
 mkdir blog-api && cd blog-api
 npm init -y
@@ -332,16 +341,19 @@ npm install FraiseQL
 
 # Follow: docs/tutorials/typescript-blog-api.md
 # Then: npm run export && npm run compile && npm run dev
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 # Go - Complete blog API tutorial
 cd FraiseQL-blog-api  # Create new directory
 go mod init FraiseQL-blog-api
 go get github.com/FraiseQL/FraiseQL-go
 
 # Follow: docs/tutorials/go-blog-api.md
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

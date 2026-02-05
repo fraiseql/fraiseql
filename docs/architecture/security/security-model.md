@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Security Model: Authorization, Row-Level Security, Field Masking, and Audit
+description: FraiseQL security operates on five pillars:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Security Model: Authorization, Row-Level Security, Field Masking, and Audit
 
 **Date:** January 2026
@@ -28,7 +36,10 @@ FraiseQL security operates on five pillars:
 
 ### Security Pipeline
 
+**Diagram: Security Architecture** - Multi-layer security pipeline from request to response
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: right
 
 Request: "GraphQL Request\n(with JWT token)" {
@@ -79,7 +90,8 @@ QueryAuth -> Denied: "Operation denied"
 RLS -> FieldAuth: "Row-filtered data"
 FieldAuth -> Audit: "Masked fields"
 Audit -> Response: "Log recorded"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -90,6 +102,7 @@ Audit -> Response: "Log recorded"
 Every request carries user context:
 
 ```python
+<!-- Code example in Python -->
 class UserContext:
     user_id: str                    # "user-456"
     username: str                   # "alice@company.com"
@@ -102,12 +115,14 @@ class UserContext:
     token_expires_at: datetime       # When token expires
     metadata: dict                   # Custom metadata {"department": "engineering"}
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Context Binding
 
 User context is bound at request time:
 
 ```rust
+<!-- Code example in RUST -->
 // Request arrives with JWT token
 let token = extract_bearer_token(&request)?;
 
@@ -132,12 +147,14 @@ request.user_context = user_context;
 // Pass to query/mutation execution
 execute_query(&query, &user_context).await?
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Context Immutability
 
 User context is **read-only** and **immutable** during request:
 
 ```rust
+<!-- Code example in RUST -->
 // User context set once per request
 request.user_context = authenticate(&token)?;
 
@@ -148,6 +165,7 @@ request.user_context = authenticate(&token)?;
 // Attempting to modify context raises error
 // E_AUTH_CONTEXT_TAMPER_501
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -158,6 +176,7 @@ request.user_context = authenticate(&token)?;
 Authorize access to entire type:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 @FraiseQL.authorize(rule="authenticated")  # Only logged-in users
 class Post:
@@ -179,20 +198,24 @@ class Product:
     name: str
     price: float
 ```text
+<!-- Code example in TEXT -->
 
 **Compile-time validation:**
 
 ```python
+<!-- Code example in Python -->
 # During compilation:
 # 1. Check type-level authorization exists
 # 2. Validate authorization rule is defined
 # 3. Validate rule has SQL WHERE clause equivalent
 # 4. Validate all fields inherit type authorization
 ```text
+<!-- Code example in TEXT -->
 
 **Runtime effect:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query: Get admin panel data
 query {
   adminPanel {
@@ -210,12 +233,14 @@ query {
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Field-Level Authorization
 
 Authorize access to individual fields:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID                          # Public
@@ -238,22 +263,26 @@ class Post:
     @FraiseQL.authorize(rule="published_or_author")
     content: str                    # Published posts or author
 ```text
+<!-- Code example in TEXT -->
 
 **Compile-time validation:**
 
 ```python
+<!-- Code example in Python -->
 # During compilation:
 # 1. Check field authorization rule is defined
 # 2. Validate rule references valid user context
 # 3. Validate rule SQL clause is safe
 # 4. Check for conflicting rules on same field
 ```text
+<!-- Code example in TEXT -->
 
 **Runtime effect:**
 
 When field is unauthorized:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($id: ID!) {
   user(id: $id) {
     id              # ✅ Allowed
@@ -287,12 +316,14 @@ query GetUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Mutation-Level Authorization
 
 Authorize mutations (write operations):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.mutation
 @FraiseQL.authorize(rule="authenticated")  # Anyone authenticated can create
 def create_post(input: CreatePostInput) -> Post:
@@ -311,10 +342,14 @@ def delete_post(id: ID!) -> Boolean:
     """Delete a post"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization evaluation:**
 
+**Diagram: Security Architecture** - Multi-layer security pipeline from request to response
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 CreateReq: "Create Post Request" {
@@ -388,7 +423,8 @@ UpdateCheck -> UpdateDeny: "No"
 DeleteReq -> DeleteCheck
 DeleteCheck -> DeleteAllow: "Yes"
 DeleteCheck -> DeleteDeny: "No"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -399,6 +435,7 @@ DeleteCheck -> DeleteDeny: "No"
 Row-level security filters database results based on user context:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 @FraiseQL.rls(
     rule="same_organization"
@@ -427,12 +464,14 @@ class PublicProduct:
     id: ID
     name: str
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 RLS Rule Definition
 
 RLS rules are expressed as SQL WHERE clauses:
 
 ```python
+<!-- Code example in Python -->
 # Built-in RLS rule: same_organization
 RLS_RULE_SAME_ORGANIZATION = """
   organization_id = $current_user_organization_id
@@ -460,12 +499,14 @@ RLS_RULE_TEAM_ACCESS = """
   )
 """
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 RLS at Query Time
 
 When user queries data:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPosts {
   posts {
     id
@@ -473,10 +514,12 @@ query GetPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Compiled to SQL with RLS:**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, title
 FROM v_post
 WHERE
@@ -484,10 +527,12 @@ WHERE
   organization_id = $current_user_organization_id
 ORDER BY created_at DESC
 ```text
+<!-- Code example in TEXT -->
 
 **Result:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "posts": [
@@ -498,12 +543,14 @@ ORDER BY created_at DESC
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.4 RLS Enforcement Points
 
 RLS is enforced at multiple points:
 
 ```text
+<!-- Code example in TEXT -->
 Query Compilation
   ↓
 Add RLS WHERE clause
@@ -516,10 +563,12 @@ Results returned to user
   ↓
 Response transformation (field masking applied)
 ```text
+<!-- Code example in TEXT -->
 
 **If query attempts to bypass RLS:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Malicious query: Try to get all posts
 query {
   posts(where: { organization_id: "other-org" }) {
@@ -534,6 +583,7 @@ WHERE
   AND organization_id = 'other-org'                 # User's filter
   # Cannot satisfy both conditions if user in different org
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -544,6 +594,7 @@ WHERE
 Field masking hides sensitive data from unauthorized users:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -568,12 +619,14 @@ class User:
     )
     password_hash: str
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Masking at Response Time
 
 Masking is applied **after** authorization check:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Authorization check: Can user access field?
    ├─ If no → Return null error
@@ -587,10 +640,12 @@ Masking is applied **after** authorization check:
 
 4. Return to client
 ```text
+<!-- Code example in TEXT -->
 
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($id: ID!) {
   user(id: $id) {
     id
@@ -600,10 +655,12 @@ query GetUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response for user who is NOT owner and NOT admin:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -615,10 +672,12 @@ query GetUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response for user who IS owner:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -630,10 +689,12 @@ query GetUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response for user who IS admin:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -645,12 +706,14 @@ query GetUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Masking Strategies
 
 Different masking strategies for different field types:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Customer:
     # Strategy 1: Return null (most common)
@@ -676,6 +739,7 @@ class Customer:
     )
     approximate_balance: float
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -686,6 +750,7 @@ class Customer:
 Control who can execute specific queries:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.query
 @FraiseQL.authorize(rule="authenticated")
 def get_user(id: ID!) -> User:
@@ -704,10 +769,12 @@ def get_organization_users(org_id: ID!) -> [User!]!:
     """Members of organization can list users in organization"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Authorization Rules Evaluation
 
 ```python
+<!-- Code example in Python -->
 # Rule: "authenticated"
 if not user_context.authenticated:
     raise AuthorizationError("E_AUTH_PERMISSION_401")
@@ -720,6 +787,7 @@ if "admin" not in user_context.roles:
 if args.org_id not in user_context.organizations:
     raise AuthorizationError("E_AUTH_PERMISSION_401")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -730,6 +798,7 @@ if args.org_id not in user_context.organizations:
 FraiseQL includes built-in authorization rules:
 
 ```python
+<!-- Code example in Python -->
 # Authentication rules
 "authenticated"          # User must be logged in
 "not_authenticated"      # User must NOT be logged in
@@ -753,12 +822,14 @@ FraiseQL includes built-in authorization rules:
 "public"                # Anyone can access
 "none"                  # No authorization (deny all)
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Custom Rules
 
 Define custom authorization rules:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.authorization_rule(name="published_or_author")
 def rule_published_or_author(
     resource: Any,
@@ -789,6 +860,7 @@ class Project:
     @FraiseQL.authorize(rule="my_department")
     budget: float
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -799,6 +871,7 @@ class Project:
 Every access attempt is logged to audit trail:
 
 ```python
+<!-- Code example in Python -->
 class AuditEvent:
     timestamp: datetime             # When access occurred
     user_id: str                    # Who accessed
@@ -816,10 +889,12 @@ class AuditEvent:
     user_agent: str                 # Client user agent
     trace_id: str                   # Link to request trace
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Audit Log Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-15T10:30:45.123Z",
   "event_type": "query_executed",
@@ -843,10 +918,12 @@ class AuditEvent:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Audit log for denied access:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-15T10:30:46.456Z",
   "event_type": "access_denied",
@@ -871,6 +948,7 @@ class AuditEvent:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Audit Log Persistence
 
@@ -882,6 +960,7 @@ Audit logs are written to:
 4. **Event bus** — For real-time processing (optional)
 
 ```sql
+<!-- Code example in SQL -->
 -- Audit log schema
 CREATE TABLE tb_audit_log (
     id BIGSERIAL PRIMARY KEY,
@@ -904,12 +983,14 @@ CREATE TABLE tb_audit_log (
 CREATE INDEX idx_audit_user_time ON tb_audit_log(user_id, timestamp DESC);
 CREATE INDEX idx_audit_resource ON tb_audit_log(resource_type, resource_id);
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.4 Audit Queries
 
 Query audit trail for compliance:
 
 ```sql
+<!-- Code example in SQL -->
 -- Who accessed this sensitive record?
 SELECT * FROM tb_audit_log
 WHERE resource_type = 'User' AND resource_id = 'user-123'
@@ -931,6 +1012,7 @@ SELECT * FROM tb_audit_log
 WHERE fields_accessed @> '["ssn", "credit_card"]'
 ORDER BY timestamp DESC;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -941,6 +1023,7 @@ ORDER BY timestamp DESC;
 FraiseQL supports GDPR requirements:
 
 ```python
+<!-- Code example in Python -->
 # Right to be forgotten
 # User can request data deletion
 @FraiseQL.mutation
@@ -963,12 +1046,14 @@ def export_user_data(user_id: ID!) -> JSON:
     """Export all user data"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 HIPAA Compliance
 
 FraiseQL supports HIPAA requirements:
 
 ```python
+<!-- Code example in Python -->
 # Access controls
 @FraiseQL.authorize(rule="healthcare_provider")
 class PatientRecord:
@@ -993,12 +1078,14 @@ def get_anonymized_statistics() -> Statistics:
     """Return de-identified statistics"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 PCI-DSS Compliance
 
 FraiseQL supports PCI-DSS requirements:
 
 ```python
+<!-- Code example in Python -->
 # Never log sensitive data
 # Cardholder data never appears in logs
 
@@ -1020,6 +1107,7 @@ class PaymentMethod:
 # Tokenization
 # Store tokenized references, not card data
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1087,6 +1175,7 @@ class PaymentMethod:
 ### 10.1 Configuration Options
 
 ```python
+<!-- Code example in Python -->
 FraiseQL.security.configure({
     # Authentication
     "authentication": {
@@ -1126,10 +1215,12 @@ FraiseQL.security.configure({
     },
 })
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Enable/disable security features
 FRAISEQL_SECURITY_ENABLED=true
 
@@ -1146,6 +1237,7 @@ FRAISEQL_AUDIT_EXPORT_URL=https://splunk.example.com
 # Security headers
 FRAISEQL_SECURITY_HEADERS_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1156,6 +1248,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
 **Investigation steps:**
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Check if user is authenticated
    → Query: SELECT authenticated_at FROM tb_user WHERE id = 'user-456'
@@ -1180,12 +1273,14 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
       AND authorization_allowed = false
       AND resource_id = 'post-789'
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.2 User Seeing Data They Shouldn't See
 
 **Investigation steps:**
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Check RLS rule on type
    → Query: SELECT rls_rule FROM tb_schema_types WHERE name = 'Post'
@@ -1203,12 +1298,14 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
    → SELECT organization_id FROM tb_user WHERE id = 'user-456'
    → Does query filter match this org?
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 12. Summary: Security Architecture
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────────┐
 │ User Request (with JWT token)            │
 └────────────┬─────────────────────────────┘
@@ -1247,6 +1344,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
       │ Response            │ Return to client
       └─────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

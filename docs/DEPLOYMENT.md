@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Deployment Guide
+description: This guide covers deploying FraiseQL in production environments with focus on security, reliability, and observability.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Deployment Guide
 
 This guide covers deploying FraiseQL in production environments with focus on security, reliability, and observability.
@@ -7,6 +15,7 @@ This guide covers deploying FraiseQL in production environments with focus on se
 ### Local Development with Docker Compose
 
 ```bash
+<!-- Code example in BASH -->
 # Start all services (FraiseQL, PostgreSQL, Redis, Prometheus)
 docker-compose up -d
 
@@ -15,7 +24,8 @@ docker-compose ps
 
 # Stop all services
 docker-compose down
-```
+```text
+<!-- Code example in TEXT -->
 
 Services will be available at:
 
@@ -29,6 +39,7 @@ Services will be available at:
 #### Using Helm (Recommended)
 
 ```bash
+<!-- Code example in BASH -->
 # Add FraiseQL Helm repository
 helm repo add FraiseQL https://charts.FraiseQL.io
 helm repo update
@@ -41,11 +52,13 @@ helm install FraiseQL FraiseQL/FraiseQL \
 # Verify deployment
 kubectl get deployments
 kubectl get pods -l app=FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Using Static Manifests
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy basic configuration
 kubectl apply -f deploy/kubernetes/deployment.yaml
 kubectl apply -f deploy/kubernetes/service.yaml
@@ -56,7 +69,8 @@ kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 
 # Verify deployment
 kubectl get all -l app=FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Architecture
 
@@ -88,6 +102,7 @@ kubectl get all -l app=FraiseQL
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Logging
 RUST_LOG=info                    # Log level (debug, info, warn, error)
 
@@ -105,11 +120,13 @@ COMPLEXITY_LIMIT=1000
 # Security
 RATE_LIMIT_ENABLED=true
 AUDIT_LOG_ENABLED=true
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Configuration File (FraiseQL.toml)
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 port = 8815
 graphql_path = "/graphql"
@@ -121,7 +138,8 @@ audit_logging.enabled = true
 [database]
 pool.min_size = 5
 pool.max_size = 20
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Deployment Checklist
 
@@ -141,12 +159,14 @@ pool.max_size = 20
 ### Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Liveness probe (is service running?)
 curl http://localhost:8815/health
 
 # Readiness probe (can it handle traffic?)
 curl http://localhost:8815/ready
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Metrics
 
@@ -164,12 +184,14 @@ Key metrics:
 View logs:
 
 ```bash
+<!-- Code example in BASH -->
 # Docker Compose
 docker-compose logs -f FraiseQL
 
 # Kubernetes
 kubectl logs -f deployment/FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Scaling
 
@@ -178,8 +200,10 @@ kubectl logs -f deployment/FraiseQL
 Kubernetes automatically scales based on CPU/memory:
 
 ```bash
+<!-- Code example in BASH -->
 kubectl autoscale deployment FraiseQL --min=3 --max=10
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance Tuning
 
@@ -192,12 +216,14 @@ kubectl autoscale deployment FraiseQL --min=3 --max=10
 ### Database Backup
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL backup
 pg_dump -h localhost -U FraiseQL FraiseQL > backup.sql
 
 # Restore
 psql -h localhost -U FraiseQL FraiseQL < backup.sql
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Disaster Recovery
 
@@ -208,12 +234,14 @@ See DEPLOYMENT_RUNBOOKS.md for recovery procedures.
 ### Connection Issues
 
 ```bash
+<!-- Code example in BASH -->
 # Check PostgreSQL connectivity
 psql -h localhost -U FraiseQL -d FraiseQL -c "SELECT 1"
 
 # Check Redis connectivity
 redis-cli -h localhost ping
-```
+```text
+<!-- Code example in TEXT -->
 
 ### High Memory Usage
 

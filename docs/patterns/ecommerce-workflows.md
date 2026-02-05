@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: E-Commerce Platform with Complex Workflows
+description: Complete guide to building a production e-commerce platform with order management, inventory tracking, and fulfillment workflows.
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # E-Commerce Platform with Complex Workflows
 
 **Status:** ✅ Production Ready
@@ -15,6 +23,7 @@ Complete guide to building a production e-commerce platform with order managemen
 ### Products & Inventory
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sku VARCHAR(50) UNIQUE NOT NULL,
@@ -73,10 +82,12 @@ CREATE TABLE stock_movements (
   INDEX idx_movement_type (movement_type)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Orders & Fulfillment
 
 ```sql
+<!-- Code example in SQL -->
 -- Orders (customer purchases)
 CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,10 +178,12 @@ CREATE TABLE return_items (
   INDEX idx_return_id (return_id)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Payments & Discounts
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id),
@@ -210,12 +223,14 @@ CREATE TABLE order_discounts (
   UNIQUE(order_id, discount_id)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## FraiseQL Schema
 
 ```python
+<!-- Code example in Python -->
 # ecommerce_schema.py
 from FraiseQL import types, authorize
 from decimal import Decimal
@@ -371,6 +386,7 @@ class Mutation:
         """Process order payment"""
         pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -378,7 +394,10 @@ class Mutation:
 
 ### State Machine
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Pending: "pending\n(awaiting payment)" {
@@ -419,11 +438,13 @@ Pending -> Cancelled
 Confirmed -> Cancelled
 Processing -> Cancelled
 Shipped -> Cancelled
-```
+```text
+<!-- Code example in TEXT -->
 
 ### State Transitions
 
 ```sql
+<!-- Code example in SQL -->
 -- Trigger to enforce state transitions
 CREATE OR REPLACE FUNCTION validate_order_transition()
 RETURNS TRIGGER AS $$
@@ -450,6 +471,7 @@ FOR EACH ROW
 WHEN (OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION validate_order_transition();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -458,6 +480,7 @@ EXECUTE FUNCTION validate_order_transition();
 ### Reserve on Order Creation
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION reserve_inventory()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -480,10 +503,12 @@ BEFORE INSERT ON order_items
 FOR EACH ROW
 EXECUTE FUNCTION reserve_inventory();
 ```text
+<!-- Code example in TEXT -->
 
 ### Release on Cancellation
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION release_inventory()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -503,12 +528,14 @@ FOR EACH ROW
 WHEN (OLD.status != 'cancelled' AND NEW.status = 'cancelled')
 EXECUTE FUNCTION release_inventory();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Payment Processing
 
 ```typescript
+<!-- Code example in TypeScript -->
 const PROCESS_PAYMENT = gql`
   mutation ProcessPayment($orderId: ID!, $paymentMethod: String!) {
     processPayment(orderId: $orderId, paymentMethod: $paymentMethod) {
@@ -561,12 +588,14 @@ export async function processOrderPayment(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Reporting & Analytics
 
 ```typescript
+<!-- Code example in TypeScript -->
 const ORDER_METRICS = gql`
   query OrderMetrics($startDate: Date!, $endDate: Date!) {
     orderMetrics(startDate: $startDate, endDate: $endDate) {
@@ -608,12 +637,14 @@ export function RevenueReport() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Testing Order Workflows
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('Order Management', () => {
   it('should create order and reserve inventory', async () => {
     const variant = await createVariant();
@@ -654,6 +685,7 @@ describe('Order Management', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

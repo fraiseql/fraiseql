@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: tv_* Table Pattern: Table-Backed JSON Views
+description: - Physical storage on disk (materialized JSONB data)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # tv_* Table Pattern: Table-Backed JSON Views
 
 ## Overview
@@ -47,6 +55,7 @@
 **Logical view (v_user_full)** - Real-time composition:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Fetch user (1ms)
 2. Fetch posts (2-3s via JOIN)
@@ -57,20 +66,24 @@
 7. Build final JSONB (200-300ms)
 Total: 5-10 seconds
 ```text
+<!-- Code example in TEXT -->
 
 **Table-backed view (tv_user_profile)** - Pre-computed:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Fetch pre-composed JSONB (100-200ms)
 Total: 100-200ms
 ```text
+<!-- Code example in TEXT -->
 
 ## DDL Pattern
 
 ### Basic Structure
 
 ```sql
+<!-- Code example in SQL -->
 -- 1. Create physical table with pre-composed JSONB
 CREATE TABLE tv_user_profile (
     id TEXT NOT NULL PRIMARY KEY,
@@ -89,10 +102,12 @@ CREATE TRIGGER trg_refresh_tv_user_profile
     FOR EACH ROW
     EXECUTE FUNCTION refresh_tv_user_profile_trigger();
 ```text
+<!-- Code example in TEXT -->
 
 ### JSONB Composition Pattern
 
 ```sql
+<!-- Code example in SQL -->
 -- Helper view to compose nested data (intermediate step)
 CREATE VIEW v_user_posts_composed AS
 SELECT
@@ -147,6 +162,7 @@ ON CONFLICT (id) DO UPDATE SET
     data = EXCLUDED.data,
     updated_at = NOW();
 ```text
+<!-- Code example in TEXT -->
 
 ## Refresh Strategies
 
@@ -166,6 +182,7 @@ Choose based on your latency and overhead requirements:
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION refresh_tv_user_profile_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -204,6 +221,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile_on_comment
     FOR EACH ROW
     EXECUTE FUNCTION refresh_tv_user_profile_trigger();
 ```text
+<!-- Code example in TEXT -->
 
 ### Option 2: Scheduled Batch (Low Overhead)
 
@@ -219,6 +237,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile_on_comment
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Enable pg_cron extension
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
@@ -261,6 +280,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 ### Option 3: Command-Based Explicit Refresh
 
@@ -276,6 +296,7 @@ $$ LANGUAGE plpgsql;
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION refresh_tv_user_profile(user_id_filter UUID DEFAULT NULL)
 RETURNS TABLE(rows_inserted BIGINT, rows_updated BIGINT) AS $$
 DECLARE
@@ -314,6 +335,7 @@ SELECT * FROM refresh_tv_user_profile('550e8400-e29b-41d4-a716-446655440000'::UU
 -- Usage: Refresh all profiles
 SELECT * FROM refresh_tv_user_profile();
 ```text
+<!-- Code example in TEXT -->
 
 ## Refresh Strategy Decision Matrix
 
@@ -332,19 +354,24 @@ SELECT * FROM refresh_tv_user_profile();
 Create helper views for composition logic (reusable across tv_*, REST APIs, etc.):
 
 ```bash
+<!-- Code example in BASH -->
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/v_user_posts_composed.sql
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/v_user_profile_composed.sql
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Create tv_* Table
 
 ```bash
+<!-- Code example in BASH -->
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/tv_user_profile.sql
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Initial Population
 
 ```sql
+<!-- Code example in SQL -->
 -- Populate table from logical view
 SELECT * FROM refresh_tv_user_profile();
 
@@ -354,12 +381,14 @@ SELECT COUNT(*) as v_user_count FROM v_user;
 
 -- They should be equal
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Update GraphQL Schema
 
 In your authoring layer (Python/TypeScript), bind the `User` type to use `tv_user_profile` instead of `v_user`:
 
 ```python
+<!-- Code example in Python -->
 # Before: Uses v_user (logical view)
 @FraiseQL.type()
 class User:
@@ -374,10 +403,12 @@ class User:
     name: str
     posts: list[Post]
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Monitor Performance
 
 ```sql
+<!-- Code example in SQL -->
 -- Check staleness (how old is the pre-computed data?)
 SELECT MAX(updated_at) - NOW() as staleness
 FROM tv_user_profile;
@@ -392,6 +423,7 @@ SELECT
     (SELECT COUNT(*) FROM v_user) as users,
     (SELECT COUNT(*) FROM tv_user_profile) = (SELECT COUNT(*) FROM v_user) as counts_match;
 ```text
+<!-- Code example in TEXT -->
 
 ## Limitations and Considerations
 
@@ -446,8 +478,10 @@ SELECT
 **Solution**: Run initial population:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM refresh_tv_user_profile();
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: tv_* data stale after writes
 
@@ -456,12 +490,14 @@ SELECT * FROM refresh_tv_user_profile();
 **Solution**: Check trigger status:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM information_schema.triggers
 WHERE trigger_name LIKE 'trg_refresh_tv%';
 
 -- Manually refresh
 SELECT * FROM refresh_tv_user_profile();
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: High CPU from cascading triggers
 
@@ -470,6 +506,7 @@ SELECT * FROM refresh_tv_user_profile();
 **Solution**: Switch to batched refresh:
 
 ```sql
+<!-- Code example in SQL -->
 -- Drop per-row triggers
 DROP TRIGGER IF EXISTS trg_refresh_tv_user_profile_on_post ON tb_post;
 DROP TRIGGER IF EXISTS trg_refresh_tv_user_profile_on_comment ON tb_comment;
@@ -477,6 +514,7 @@ DROP TRIGGER IF EXISTS trg_refresh_tv_user_profile_on_comment ON tb_comment;
 -- Schedule batch refresh instead
 SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: JSONB composition mismatch with GraphQL schema
 

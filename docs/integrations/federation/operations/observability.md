@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Federation Observability System - Complete Implementation Summary
+description: The Federation Observability System is a comprehensive, production-ready implementation of distributed tracing, metrics collection, structured logging, and oper
+keywords: ["framework", "sdk", "deployment", "scaling", "monitoring", "performance", "troubleshooting", "database"]
+tags: ["documentation", "reference"]
+---
+
 # Federation Observability System - Complete Implementation Summary
 
 **Date**: 2026-01-28
@@ -42,6 +50,7 @@ The Federation Observability System is a comprehensive, production-ready impleme
 **Key Features**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationTraceContext {
     pub trace_id: String,           // 128-bit unique trace ID
     pub parent_span_id: String,      // Parent span for correlation
@@ -53,6 +62,7 @@ pub struct FederationTraceContext {
 pub fn to_traceparent(&self) -> String
 // Expected: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -112,11 +122,13 @@ pub fn to_traceparent(&self) -> String
 **Example Collection**:
 
 ```rust
+<!-- Code example in RUST -->
 // Lock-free recording (Relaxed ordering, zero contention)
 metrics.record_entity_resolution(32_100);  // 32.1ms
 metrics.record_subgraph_request(25_300);   // 25.3ms
 metrics.record_cache_hit();
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -137,6 +149,7 @@ metrics.record_cache_hit();
 **Log Context Fields**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationLogContext {
     pub operation_type: FederationOperationType,  // entity_resolution, resolve_db, resolve_http, etc.
     pub query_id: String,                         // Unique per query
@@ -152,10 +165,12 @@ pub struct FederationLogContext {
     pub request_id: Option<String>,               // Request correlation ID
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example Log Emission**:
 
 ```text
+<!-- Code example in TEXT -->
 {
   "timestamp": "2026-01-28T15:23:45.123Z",
   "level": "info",
@@ -172,6 +187,7 @@ pub struct FederationLogContext {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -269,6 +285,7 @@ pub struct FederationLogContext {
 **Example Alert**:
 
 ```yaml
+<!-- Code example in YAML -->
 - alert: EntityResolutionLatencySLOBreach
   expr: histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000 > 100
   for: 5m
@@ -278,6 +295,7 @@ pub struct FederationLogContext {
     summary: "Entity resolution latency exceeds SLO (100ms p99)"
     runbook: https://wiki.internal/federation/entity-resolution-latency
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -384,10 +402,12 @@ pub struct FederationLogContext {
 **Escalation Flowchart**:
 
 ```text
+<!-- Code example in TEXT -->
 Alert → Severity Check → Follow Runbook → Issue Resolved in 15m?
                                                ├─ YES: Close
                                                └─ NO: Escalate
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -396,6 +416,7 @@ Alert → Severity Check → Follow Runbook → Issue Resolved in 15m?
 ### End-to-End Observability Flow
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────┐
 │   GraphQL Query Request     │
 │   (with traceparent header) │
@@ -439,6 +460,7 @@ Res.        Request    Exec.
   Jaeger    Prometheus    ELK
   (Traces)  (Metrics)   (Logs)
 ```text
+<!-- Code example in TEXT -->
 
 ### Metrics Cardinality Optimization
 
@@ -630,6 +652,7 @@ Why faster? Observability metrics collection is concurrent with query execution:
 ### Test Results
 
 ```text
+<!-- Code example in TEXT -->
 === PHASE 7 INTEGRATION TEST RESULTS ===
 
 federation_observability_integration.rs:
@@ -644,6 +667,7 @@ Test Results: 6/6 passing
 Success Rate: 100%
 Execution Time: 80ms (total)
 ```text
+<!-- Code example in TEXT -->
 
 ### Phase Completion
 

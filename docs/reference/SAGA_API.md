@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Saga API Reference
+description: Complete API documentation for FraiseQL saga orchestration.
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # Saga API Reference
 
 Complete API documentation for FraiseQL saga orchestration.
@@ -24,8 +32,10 @@ The central orchestrator for saga execution.
 Create a new saga coordinator.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = SagaCoordinator::new(metadata, store);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -41,9 +51,11 @@ let coordinator = SagaCoordinator::new(metadata, store);
 Execute a saga synchronously (waits for completion).
 
 ```rust
+<!-- Code example in RUST -->
 let result = coordinator.execute(steps).await?;
 println!("Status: {:?}", result.status);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -65,9 +77,11 @@ println!("Status: {:?}", result.status);
 Execute a saga asynchronously (returns immediately with saga ID).
 
 ```rust
+<!-- Code example in RUST -->
 let saga_id = coordinator.execute_async(steps).await?;
 // Saga runs in background
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -82,6 +96,7 @@ let saga_id = coordinator.execute_async(steps).await?;
 Execute independent steps in parallel.
 
 ```rust
+<!-- Code example in RUST -->
 let result = coordinator.execute_parallel(
     steps,
     ParallelConfig {
@@ -89,7 +104,8 @@ let result = coordinator.execute_parallel(
         fail_fast: true,
     }
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -105,8 +121,10 @@ let result = coordinator.execute_parallel(
 Set timeout for entire saga.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = coordinator.with_timeout(Duration::from_secs(300));
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** 5 minutes
 
@@ -117,8 +135,10 @@ let coordinator = coordinator.with_timeout(Duration::from_secs(300));
 Set timeout for individual steps.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = coordinator.with_step_timeout(Duration::from_secs(30));
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** 30 seconds
 
@@ -129,8 +149,10 @@ let coordinator = coordinator.with_step_timeout(Duration::from_secs(30));
 Set maximum retry attempts for failed steps.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = coordinator.with_max_retries(3);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** 3 retries
 
@@ -141,8 +163,10 @@ let coordinator = coordinator.with_max_retries(3);
 Set distributed trace ID for observability.
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = coordinator.with_trace_id("trace-abc-123");
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -151,10 +175,12 @@ let coordinator = coordinator.with_trace_id("trace-abc-123");
 Retrieve saga state by ID.
 
 ```rust
+<!-- Code example in RUST -->
 if let Some(saga) = coordinator.get_saga("saga-123").await? {
     println!("Status: {:?}", saga.status);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters:**
 
@@ -169,9 +195,11 @@ if let Some(saga) = coordinator.get_saga("saga-123").await? {
 Manually trigger recovery of all failed sagas.
 
 ```rust
+<!-- Code example in RUST -->
 let recovered = coordinator.recover_failed_sagas().await?;
 println!("Recovered {} sagas", recovered.len());
-```
+```text
+<!-- Code example in TEXT -->
 
 **Returns:** `Result<Vec<String>>` with IDs of recovered sagas
 
@@ -184,23 +212,27 @@ A single step in a saga.
 ### Structure
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SagaStep {
     pub name: String,
     pub forward: Mutation,
     pub compensation: Option<Mutation>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `new(name: String, forward: Mutation) -> Self`
 
 Create a saga step without compensation.
 
 ```rust
+<!-- Code example in RUST -->
 let step = SagaStep::new(
     "charge_payment".to_string(),
     Mutation { /* ... */ }
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -209,8 +241,10 @@ let step = SagaStep::new(
 Add compensation to a step.
 
 ```rust
+<!-- Code example in RUST -->
 let step = step.with_compensation(Mutation { /* ... */ });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -223,10 +257,12 @@ Persistence layer for saga state.
 Execute raw SQL query (for testing/debugging).
 
 ```rust
+<!-- Code example in RUST -->
 let rows = store.execute_raw_query(
     "SELECT * FROM sagas WHERE status = 'PENDING'"
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -255,11 +291,13 @@ Retrieve saga by ID.
 Get all pending sagas (useful for recovery).
 
 ```rust
+<!-- Code example in RUST -->
 let pending = store.get_pending_sagas().await?;
 for saga in pending {
     println!("Pending: {}", saga.id);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -268,8 +306,10 @@ for saga in pending {
 Count sagas in given status.
 
 ```rust
+<!-- Code example in RUST -->
 let failed = store.count_sagas_by_status(SagaStatus::Failed).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -278,8 +318,10 @@ let failed = store.count_sagas_by_status(SagaStatus::Failed).await?;
 Get sagas stuck for longer than specified duration.
 
 ```rust
+<!-- Code example in RUST -->
 let stuck = store.get_stuck_sagas(Duration::from_secs(3600)).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -292,8 +334,10 @@ Handles automatic saga recovery.
 Create recovery manager.
 
 ```rust
+<!-- Code example in RUST -->
 let manager = RecoveryManager::new(store);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -302,8 +346,10 @@ let manager = RecoveryManager::new(store);
 Set max retries for recovery attempts.
 
 ```rust
+<!-- Code example in RUST -->
 let manager = manager.with_max_retries(3);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** 3
 
@@ -314,8 +360,10 @@ let manager = manager.with_max_retries(3);
 Set delay between retry attempts.
 
 ```rust
+<!-- Code example in RUST -->
 let manager = manager.with_retry_delay(Duration::from_secs(5));
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** 5 seconds
 
@@ -326,9 +374,11 @@ let manager = manager.with_retry_delay(Duration::from_secs(5));
 Enable exponential backoff for retries.
 
 ```rust
+<!-- Code example in RUST -->
 // Delays: 5s, 10s, 20s, 40s, ...
 let manager = manager.with_exponential_backoff(2.0);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Default:** No backoff (fixed delays)
 
@@ -339,8 +389,10 @@ let manager = manager.with_exponential_backoff(2.0);
 Enable automatic recovery on system startup.
 
 ```rust
+<!-- Code example in RUST -->
 let manager = manager.with_crash_recovery();
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -349,9 +401,11 @@ let manager = manager.with_crash_recovery();
 Start background recovery loop.
 
 ```rust
+<!-- Code example in RUST -->
 manager.start_recovery_loop().await?;
 // Recovery runs continuously in background
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -360,8 +414,10 @@ manager.start_recovery_loop().await?;
 Manually recover a specific saga.
 
 ```rust
+<!-- Code example in RUST -->
 let recovered_saga = manager.recover_saga(&failed_saga).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -370,10 +426,12 @@ let recovered_saga = manager.recover_saga(&failed_saga).await?;
 Check if recovery loop is running.
 
 ```rust
+<!-- Code example in RUST -->
 if manager.is_running() {
     println!("Recovery manager active");
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -382,6 +440,7 @@ if manager.is_running() {
 ### `SagaStatus`
 
 ```rust
+<!-- Code example in RUST -->
 pub enum SagaStatus {
     Pending,          // Not yet started
     Executing,        // In progress
@@ -391,11 +450,13 @@ pub enum SagaStatus {
     Failed,           // Compensation failed (manual intervention needed)
     Recovering,       // Being recovered from failure
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `StepStatus`
 
 ```rust
+<!-- Code example in RUST -->
 pub enum StepStatus {
     Pending,          // Not yet started
     Executing,        // Currently running
@@ -405,11 +466,13 @@ pub enum StepStatus {
     Compensating,     // Compensation running
     CompensationFailed, // Compensation failed
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `SagaResult`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SagaResult {
     pub saga_id: String,
     pub status: SagaStatus,
@@ -418,11 +481,13 @@ pub struct SagaResult {
     pub duration_ms: u64,
     pub error: Option<String>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `SagaState`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SagaState {
     pub id: String,
     pub saga_type: String,
@@ -433,11 +498,13 @@ pub struct SagaState {
     pub data: Value,
     pub error: Option<String>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `StepState`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct StepState {
     pub index: usize,
     pub name: String,
@@ -449,27 +516,32 @@ pub struct StepState {
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `Mutation`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct Mutation {
     pub subgraph: String,         // Which subgraph to target
     pub operation: String,        // GraphQL mutation name
     pub variables: Value,         // JSON variables
     pub request_id: Option<String>, // For idempotency
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### `ParallelConfig`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct ParallelConfig {
     pub max_concurrent: usize,    // How many steps in parallel
     pub fail_fast: bool,          // Stop on first failure?
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -478,6 +550,7 @@ pub struct ParallelConfig {
 ### `SagaError`
 
 ```rust
+<!-- Code example in RUST -->
 pub enum SagaError {
     StepFailed {
         step_index: usize,
@@ -504,11 +577,13 @@ pub enum SagaError {
         reason: String,
     },
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Common Error Handling
 
 ```rust
+<!-- Code example in RUST -->
 match coordinator.execute(steps).await {
     Ok(result) => {
         println!("Saga succeeded: {:?}", result.data);
@@ -524,7 +599,8 @@ match coordinator.execute(steps).await {
         eprintln!("Saga error: {:?}", e);
     },
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -533,6 +609,7 @@ match coordinator.execute(steps).await {
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_SAGA_ENABLED=true
 FRAISEQL_SAGA_STORE_TYPE=postgres
 FRAISEQL_SAGA_MAX_RETRIES=3
@@ -544,11 +621,13 @@ FRAISEQL_SAGA_RECOVERY_POLL_INTERVAL_SECONDS=60
 # Store-specific
 FRAISEQL_SAGA_STORE_CONNECTION_STRING=postgres://...
 FRAISEQL_SAGA_STORE_MAX_POOL_SIZE=20
-```
+```text
+<!-- Code example in TEXT -->
 
 ### TOML Configuration
 
 ```toml
+<!-- Code example in TOML -->
 [saga]
 enabled = true
 store_type = "postgres"
@@ -561,7 +640,8 @@ recovery_poll_interval_seconds = 60
 [saga.store.postgres]
 connection_string = "postgres://user:pass@localhost/FraiseQL"
 max_pool_size = 20
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -570,6 +650,7 @@ max_pool_size = 20
 ### Complete Saga Example
 
 ```rust
+<!-- Code example in RUST -->
 async fn example_saga() -> Result<()> {
     // Setup
     let store = PostgresSagaStore::new(config).await?;
@@ -608,7 +689,8 @@ async fn example_saga() -> Result<()> {
         },
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

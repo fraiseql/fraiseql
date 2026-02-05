@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Understanding Optimization Suggestions
+description: This guide explains each type of optimization suggestion in detail, helping you understand:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Understanding Optimization Suggestions
 
 ## Overview
@@ -28,10 +36,12 @@ Every suggestion has a priority based on **impact score**:
 **Example**:
 
 ```text
+<!-- Code example in TEXT -->
 Suggestion: Denormalize dimensions->>'region'
 - 8,500 queries/day × 12.5x speedup = 106,250 impact score
 - Priority: Critical
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -44,6 +54,7 @@ Move frequently-accessed data from JSON/JSONB column to a dedicated direct colum
 **Before (PostgreSQL)**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
     revenue NUMERIC,
@@ -54,10 +65,12 @@ CREATE TABLE tf_sales (
 SELECT * FROM tf_sales
 WHERE dimensions->>'region' = 'US';  -- Parses JSON on every row
 ```text
+<!-- Code example in TEXT -->
 
 **After**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
     revenue NUMERIC,
@@ -71,10 +84,12 @@ CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
 SELECT * FROM tf_sales
 WHERE region_id = 'US';  -- Direct column lookup with index
 ```text
+<!-- Code example in TEXT -->
 
 **Before (SQL Server)**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
     revenue DECIMAL(18,2),
@@ -85,10 +100,12 @@ CREATE TABLE tf_sales (
 SELECT * FROM tf_sales
 WHERE JSON_VALUE(dimensions, '$.region') = 'US';
 ```text
+<!-- Code example in TEXT -->
 
 **After**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGINT PRIMARY KEY,
     revenue DECIMAL(18,2),
@@ -102,6 +119,7 @@ CREATE NONCLUSTERED INDEX idx_tf_sales_region ON tf_sales (region_id);
 SELECT * FROM tf_sales
 WHERE region_id = 'US';
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -117,6 +135,7 @@ Denormalization is suggested when:
 ### Example Suggestion
 
 ```text
+<!-- Code example in TEXT -->
 Denormalize JSONB → Direct Column
 
 Table: tf_sales
@@ -138,6 +157,7 @@ Access patterns:
 - Sort (ORDER BY):    1,200 queries/day
 - Aggregate (GROUP BY): 800 queries/day
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -146,6 +166,7 @@ Access patterns:
 #### Filter Speedup (PostgreSQL JSONB)
 
 ```text
+<!-- Code example in TEXT -->
 JSONB Filter Cost:
 
 - Full table scan: 1,000,000 rows
@@ -161,10 +182,12 @@ Direct Column Cost (with index):
 
 Speedup: 50,000ms ÷ 8.02ms ≈ 6,234x (capped at 100x in practice)
 ```text
+<!-- Code example in TEXT -->
 
 #### Filter Speedup (SQL Server JSON)
 
 ```text
+<!-- Code example in TEXT -->
 JSON Filter Cost:
 
 - Full table scan: 1,000,000 rows
@@ -179,6 +202,7 @@ Direct Column Cost (with nonclustered index):
 
 Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Actual speedup varies by:
 
@@ -192,6 +216,7 @@ Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
 ### Storage Cost Calculation
 
 ```text
+<!-- Code example in TEXT -->
 New Column Storage:
 
 - Column size: 4 bytes (INTEGER) or ~20 bytes (TEXT average)
@@ -205,13 +230,16 @@ Index Storage (B-tree):
 
 Total Storage: 20 MB + 50 MB = 70 MB
 ```text
+<!-- Code example in TEXT -->
 
 **Is it worth it?**
 
 ```text
+<!-- Code example in TEXT -->
 Cost: 70 MB storage (~$0.01/month in cloud)
 Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
 ```text
+<!-- Code example in TEXT -->
 
 **Answer: YES** - Trivial storage cost for massive performance gain.
 
@@ -260,6 +288,7 @@ Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
 **PostgreSQL Trigger**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE OR REPLACE FUNCTION sync_region_id()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -272,13 +301,16 @@ CREATE TRIGGER trg_sync_region_id
 BEFORE INSERT OR UPDATE ON tf_sales
 FOR EACH ROW EXECUTE FUNCTION sync_region_id();
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server Computed Column** (automatic):
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE tf_sales
 ADD region_id AS JSON_VALUE(dimensions, '$.region') PERSISTED;
 ```text
+<!-- Code example in TEXT -->
 
 #### Risk 3: Schema Evolution
 
@@ -300,6 +332,7 @@ Create an index on an existing column that's frequently filtered or sorted.
 **Before**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE users (
     id BIGINT PRIMARY KEY,
     name TEXT,
@@ -311,10 +344,12 @@ SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
 ```text
+<!-- Code example in TEXT -->
 
 **After (PostgreSQL)**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_users_created_at ON users (created_at);
 
 -- Query (fast - index scan):
@@ -322,10 +357,12 @@ SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
 ```text
+<!-- Code example in TEXT -->
 
 **After (SQL Server)**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE NONCLUSTERED INDEX idx_users_created_at
 ON users (created_at DESC);
 
@@ -334,6 +371,7 @@ SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -349,6 +387,7 @@ Index suggestions occur when:
 ### Example Suggestion
 
 ```text
+<!-- Code example in TEXT -->
 Add Index
 
 Table: users
@@ -368,6 +407,7 @@ Query patterns:
 - ORDER BY created_at DESC: 2,880 queries/day
 - WHERE created_at > '...': 320 queries/day
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -402,6 +442,7 @@ Remove an index that's never or rarely used.
 **Before**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE products (
     id BIGINT PRIMARY KEY,
     name TEXT,
@@ -411,10 +452,12 @@ CREATE TABLE products (
 CREATE INDEX idx_products_legacy_sku ON products (legacy_sku);
 -- ↑ Never used (0 scans in 30 days)
 ```text
+<!-- Code example in TEXT -->
 
 **After**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Drop unused index
 DROP INDEX idx_products_legacy_sku;
 
@@ -423,6 +466,7 @@ DROP INDEX idx_products_legacy_sku;
 -- - Faster writes (no index maintenance)
 -- - Reduced storage (reclaim disk space)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -437,6 +481,7 @@ Unused index suggestions occur when:
 ### Example Suggestion
 
 ```text
+<!-- Code example in TEXT -->
 Drop Unused Index
 
 Table: products
@@ -457,6 +502,7 @@ Statistics:
 - Index size: 12 MB
 - Table inserts/day: 15,000
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -491,6 +537,7 @@ Pre-compute expensive aggregate queries and store results.
 **Before**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Expensive aggregate (runs every time):
 SELECT
     region_id,
@@ -500,10 +547,12 @@ SELECT
 FROM orders
 GROUP BY region_id, month;
 ```text
+<!-- Code example in TEXT -->
 
 **After (PostgreSQL)**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE MATERIALIZED VIEW mv_monthly_revenue AS
 SELECT
     region_id,
@@ -522,6 +571,7 @@ ON mv_monthly_revenue (region_id, month);
 -- 2. Periodic: Cron job every hour
 -- 3. Incremental: Trigger on base table updates
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -537,6 +587,7 @@ Materialized view suggestions occur when:
 ### Example Suggestion
 
 ```text
+<!-- Code example in TEXT -->
 Materialize View
 
 Query: salesByRegion
@@ -561,6 +612,7 @@ Refresh Strategy:
 - Recommended: Periodic (every 1 hour)
 - Alternatives: On-demand, Incremental
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -573,6 +625,7 @@ Refresh Strategy:
 **Example**:
 
 ```text
+<!-- Code example in TEXT -->
 Current p95: 1,250ms
 - 95% of queries complete in ≤ 1,250ms
 - 5% of queries are slower (1,250ms+)
@@ -581,16 +634,19 @@ Projected p95: 100ms (after optimization)
 - 95% of queries will complete in ≤ 100ms
 - 12.5x improvement
 ```text
+<!-- Code example in TEXT -->
 
 **Why p95 instead of average?**
 
 Average can be misleading:
 
 ```text
+<!-- Code example in TEXT -->
 Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 - Average: 1,042ms (skewed by outlier)
 - p95: 5,000ms (shows worst-case user experience)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -601,11 +657,13 @@ Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 **Example**:
 
 ```text
+<!-- Code example in TEXT -->
 Table: users (100,000 rows)
 Query: WHERE region = 'US'
 Matches: 15,000 rows
 Selectivity: 15,000 ÷ 100,000 = 0.15 (15%)
 ```text
+<!-- Code example in TEXT -->
 
 **Why it matters**:
 
@@ -625,20 +683,24 @@ Selectivity: 15,000 ÷ 100,000 = 0.15 (15%)
 **Example**:
 
 ```text
+<!-- Code example in TEXT -->
 Analysis window: 7 days
 Total executions: 59,500
 Queries per day: 59,500 ÷ 7 = 8,500
 ```text
+<!-- Code example in TEXT -->
 
 **Why it matters**:
 
 Higher frequency = higher impact:
 
 ```text
+<!-- Code example in TEXT -->
 Optimization 1: 10,000 queries/day × 5x speedup = 50,000 impact
 Optimization 2: 100 queries/day × 50x speedup = 5,000 impact
 → Prioritize Optimization 1 (10x higher impact)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -655,6 +717,7 @@ Each suggestion includes a **confidence score**:
 **Example**:
 
 ```text
+<!-- Code example in TEXT -->
 Suggestion: Denormalize dimensions->>'category'
 
 Confidence: Medium (75%)
@@ -665,6 +728,7 @@ Factors:
 ⚠️  Selectivity estimated (no direct measurement)
 ⚠️  Moderate speedup (5x vs 10x+)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -673,6 +737,7 @@ Factors:
 ### Scenario: Choose 1 of 3 optimizations
 
 ```text
+<!-- Code example in TEXT -->
 Suggestion A: Denormalize tf_sales.region_id
 - 8,500 queries/day × 12.5x speedup = 106,250 impact
 - Storage: 15 MB
@@ -688,6 +753,7 @@ Suggestion C: Materialize view mv_monthly_revenue
 - Storage: 200 MB
 - Risk: Medium (requires refresh strategy)
 ```text
+<!-- Code example in TEXT -->
 
 **Recommendation**: Apply in order A → B → C (by impact score).
 
@@ -766,12 +832,14 @@ Always test in staging first.
 **A**: Yes, via configuration:
 
 ```toml
+<!-- Code example in TOML -->
 [observability.cost_model]
 jsonb_parse_cost_ms = 0.05  # PostgreSQL JSONB parsing
 json_parse_cost_ms = 0.1    # SQL Server text JSON
 index_lookup_cost_ms = 0.001
 row_scan_cost_ms = 0.0001
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

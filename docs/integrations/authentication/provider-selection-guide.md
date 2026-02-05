@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: OAuth Provider Selection Guide
+description: ├─ YES → Keycloak (self-hosted) or SCRAM
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # OAuth Provider Selection Guide
 
 **Status:** ✅ Production Ready
@@ -8,6 +16,7 @@
 ## Quick Decision
 
 ```text
+<!-- Code example in TEXT -->
 Internal Team Only?
 ├─ YES → Keycloak (self-hosted) or SCRAM
 │
@@ -21,6 +30,7 @@ Need Specific IDP?
 ├─ GitHub (developers) → GitHub OAuth
 └─ SAML requirement? → Keycloak + SAML bridge
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -71,6 +81,7 @@ Need Specific IDP?
 ### Question 1: Scale & Control
 
 ```text
+<!-- Code example in TEXT -->
 Need complete control over authentication?
 ├─ YES → Keycloak (self-hosted) ✅
 │        (Full ownership, highest complexity)
@@ -88,10 +99,12 @@ Need complete control over authentication?
    ├─ Azure → Azure AD ✅
    └─ Other → Use OIDC-compliant provider
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 2: User Base
 
 ```text
+<!-- Code example in TEXT -->
 Public internet users?
 ├─ YES → Google OAuth ✅
 │        (Easiest, familiar to users)
@@ -110,10 +123,12 @@ Public internet users?
    │
    └─ NO → Any provider fine
 ```text
+<!-- Code example in TEXT -->
 
 ### Question 3: Features
 
 ```text
+<!-- Code example in TEXT -->
 Need MFA/2FA?
 ├─ YES → Auth0, Keycloak, Cognito ✅
 │
@@ -132,6 +147,7 @@ Need custom attributes?
 Simple auth only?
 └─ YES → Google, SCRAM ✅
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -157,6 +173,7 @@ Simple auth only?
 **Setup Example:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create Google Cloud Project
 # 2. Enable Google+ API
 # 3. Create OAuth credentials
@@ -164,6 +181,7 @@ Simple auth only?
 GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxxxx
 ```text
+<!-- Code example in TEXT -->
 
 **Time to production:** 30 minutes
 **Cost:** Free
@@ -199,6 +217,7 @@ GOOGLE_CLIENT_SECRET=xxxxx
 **Setup Example:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create Auth0 account
 # 2. Create application
 # 3. Copy settings
@@ -206,6 +225,7 @@ AUTH0_DOMAIN=your-domain.auth0.com
 AUTH0_CLIENT_ID=xxxxx
 AUTH0_CLIENT_SECRET=xxxxx
 ```text
+<!-- Code example in TEXT -->
 
 **Time to production:** 1-2 hours
 **Cost:** Free tier available, $13-$2,500/mo for paid
@@ -241,6 +261,7 @@ AUTH0_CLIENT_SECRET=xxxxx
 **Setup Example:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Deploy Keycloak (Docker)
 docker run -d \
   -e KEYCLOAK_ADMIN=admin \
@@ -254,6 +275,7 @@ KEYCLOAK_URL=http://keycloak:8080
 KEYCLOAK_REALM=production
 KEYCLOAK_CLIENT_ID=FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 **Time to production:** 4-8 hours (includes setup)
 **Cost:** Free (self-hosted) + infrastructure costs
@@ -288,12 +310,14 @@ KEYCLOAK_CLIENT_ID=FraiseQL
 **Setup Example:**
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [auth]
 enabled = true
 scheme = "scram"
 database_url = "postgresql://..."
 ```text
+<!-- Code example in TEXT -->
 
 **Time to production:** 10 minutes
 **Cost:** Free
@@ -394,6 +418,7 @@ database_url = "postgresql://..."
 **Downtime:** 10-15 minutes
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create Auth0 account and application
 # 2. Update FraiseQL.toml with Auth0 credentials
 # 3. Deploy update
@@ -408,6 +433,7 @@ database_url = "postgresql://..."
 # - After update: Users re-authenticate once
 # - No data loss
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario: Self-Host Keycloak for Enterprise
 
@@ -415,6 +441,7 @@ database_url = "postgresql://..."
 **Downtime:** 30 minutes (scheduled)
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Deploy Keycloak in production
 # 2. Set up database (PostgreSQL recommended)
 # 3. Configure realm and clients
@@ -429,6 +456,7 @@ database_url = "postgresql://..."
 # - Cutover: 1 hour
 # - Monitoring: Ongoing
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -465,12 +493,14 @@ database_url = "postgresql://..."
 **Bridge Pattern:**
 
 ```text
+<!-- Code example in TEXT -->
 Client → New OAuth Provider (Auth0, Keycloak)
            ↓
          Bridge Service
            ↓
          Legacy LDAP/AD/Custom
 ```text
+<!-- Code example in TEXT -->
 
 Use an OAuth provider as a bridge to your legacy system.
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.5: Error Handling & Validation
+description: FraiseQL's error handling and validation strategy ensures predictable, safe query execution across compile-time and runtime boundaries. Unlike traditional Graph
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.5: Error Handling & Validation
 
 ## Overview
@@ -14,6 +22,7 @@ This topic explains:
 ### Error Handling Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Authoring Layer          Compilation Layer        Runtime Layer
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Python/TypeScript│    │ FraiseQL-cli     │    │ FraiseQL-server  │
@@ -28,6 +37,7 @@ Authoring Layer          Compilation Layer        Runtime Layer
          └──────→ Errors         └──────→ Errors        └──────→ Errors
             (Failed)                (Failed)               (Failed)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -63,13 +73,16 @@ FraiseQL uses a unified error type that represents all possible failures. Errors
 **Client Errors (4xx):**
 
 ```text
+<!-- Code example in TEXT -->
 Parse, Validation, UnknownField, UnknownType,
 Authentication, Authorization, NotFound, Conflict
 ```text
+<!-- Code example in TEXT -->
 
 User made a mistake. The same request will fail repeatedly. Example:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query has unknown field 'usernam' instead of 'username'
 query {
   user(id: 1) {
@@ -77,26 +90,33 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Server Errors (5xx):**
 
 ```text
+<!-- Code example in TEXT -->
 Database, ConnectionPool, Timeout, Cancelled,
 Configuration, Internal
 ```text
+<!-- Code example in TEXT -->
 
 System failure outside user control. May succeed if retried. Example:
 
 ```text
+<!-- Code example in TEXT -->
 Database { message: "connection refused" }  # ← 5xx error
 # May succeed if database recovers and request is retried
 ```text
+<!-- Code example in TEXT -->
 
 **Retryable Errors (can be safely retried):**
 
 ```text
+<!-- Code example in TEXT -->
 ConnectionPool, Timeout, Cancelled
 ```text
+<!-- Code example in TEXT -->
 
 Safe to retry with exponential backoff. Examples:
 
@@ -113,6 +133,7 @@ Safe to retry with exponential backoff. Examples:
 Errors caught while writing Python/TypeScript schema definitions:
 
 ```python
+<!-- Code example in Python -->
 # ✅ VALID: Proper type annotation
 from FraiseQL import type, field
 
@@ -127,6 +148,7 @@ class User:
     id: int
     name: BadType  # ← Python type error (before compilation)
 ```text
+<!-- Code example in TEXT -->
 
 **Tools:** Python type checking (`py`, `mypy`), TypeScript compiler
 
@@ -137,6 +159,7 @@ Errors caught by `FraiseQL-cli compile schema.json`:
 **Schema Reference Validation:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     id: int
@@ -150,10 +173,12 @@ class Post:
 
 # Error: Compilation { message: "Unknown type 'NonExistentUser' referenced in Post.author" }
 ```text
+<!-- Code example in TEXT -->
 
 **Relationship Validation:**
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ VALID: Foreign key exists and matches type definition
 CREATE TABLE tb_post (
     pk_post_id BIGSERIAL PRIMARY KEY,
@@ -168,10 +193,12 @@ CREATE TABLE tb_post (
 
 -- Error: Validation { message: "Foreign key fk_user_id references non-existent column tb_user.pk_nonexistent_id" }
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Generation Validation:**
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     id: int
@@ -182,6 +209,7 @@ class Post:
     # - Type mapping (db int → GraphQL Int) is valid
     # If any validation fails, compilation errors
 ```text
+<!-- Code example in TEXT -->
 
 ### Layer 3: Request-Time Validation
 
@@ -190,6 +218,7 @@ Errors caught before query execution (parameter binding, authorization):
 **Parameter Type Validation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Schema defines: user(id: Int!)
 query {
   user(id: "abc") {  # ← String instead of Int
@@ -199,10 +228,12 @@ query {
 
 # Error: Validation { message: "Expected Int for parameter 'id', got String" }
 ```text
+<!-- Code example in TEXT -->
 
 **Parameter Range Validation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Schema defines: users(limit: Int, offset: Int)
 # Typical impl: limit [1, 10000], offset [0, ∞)
 query {
@@ -213,10 +244,12 @@ query {
 
 # Error: Validation { message: "Parameter 'limit' must be ≤ 10000, got 100000" }
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization Validation:**
 
 ```rust
+<!-- Code example in RUST -->
 // Pre-execution: Check if user can execute mutation
 let auth_result = check_authorization(
     user_id: "user_123",
@@ -235,6 +268,7 @@ match auth_result {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Layer 4: Execution-Time Validation
 
@@ -243,6 +277,7 @@ Errors caught during or after SQL execution:
 **Conflict Detection:**
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ Query succeeds
 INSERT INTO tb_user (username) VALUES ('alice');
 
@@ -254,10 +289,12 @@ INSERT INTO tb_user (username) VALUES ('alice');
 --   sql_state: Some("23505")  -- PostgreSQL unique violation code
 -- }
 ```text
+<!-- Code example in TEXT -->
 
 **Post-Fetch Authorization (visibility filtering):**
 
 ```rust
+<!-- Code example in RUST -->
 // Execution succeeds, but post-fetch rules may remove rows:
 
 // Query: { posts { id, title, secret } }
@@ -275,10 +312,12 @@ INSERT INTO tb_user (username) VALUES ('alice');
 // ]
 // No error - silently drops unauthorized fields
 ```text
+<!-- Code example in TEXT -->
 
 **Timeout Detection:**
 
 ```rust
+<!-- Code example in RUST -->
 // Query execution exceeds configured timeout (default 30s)
 let result = tokio::time::timeout(
     Duration::from_secs(30),
@@ -294,6 +333,7 @@ match result {
     })
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -304,6 +344,7 @@ FraiseQL follows the GraphQL specification for error responses. All errors are r
 ### Single Error Response
 
 ```json
+<!-- Code example in JSON -->
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
@@ -324,10 +365,12 @@ Content-Type: application/json
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Multiple Errors Response
 
 ```json
+<!-- Code example in JSON -->
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
@@ -348,10 +391,12 @@ Content-Type: application/json
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Error Response
 
 ```json
+<!-- Code example in JSON -->
 HTTP/1.1 500 Internal Server Error
 Content-Type: application/json
 
@@ -369,10 +414,12 @@ Content-Type: application/json
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Authorization Error Response
 
 ```json
+<!-- Code example in JSON -->
 HTTP/1.1 403 Forbidden
 Content-Type: application/json
 
@@ -391,6 +438,7 @@ Content-Type: application/json
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -401,6 +449,7 @@ Content-Type: application/json
 Return first error immediately, stop processing:
 
 ```rust
+<!-- Code example in RUST -->
 // Schema: query { posts { id, title, author { name } } }
 // Query execution order:
 // 1. Validate GraphQL syntax       → ✅ Pass
@@ -413,6 +462,7 @@ Return first error immediately, stop processing:
 // HTTP 403 Forbidden
 // { "errors": [{"message": "...", "code": "FORBIDDEN"}] }
 ```text
+<!-- Code example in TEXT -->
 
 **When to use:** Default for all queries. Safe and predictable.
 
@@ -421,6 +471,7 @@ Return first error immediately, stop processing:
 Return available data with errors for failed fields:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query with nested fields
 query {
   posts {
@@ -433,10 +484,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "posts": [
@@ -456,6 +509,7 @@ query {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **When to use:** When some fields are public and others require permission. Provides better UX.
 
@@ -464,6 +518,7 @@ query {
 For retryable errors (ConnectionPool, Timeout, Cancelled):
 
 ```python
+<!-- Code example in Python -->
 import asyncio
 import random
 
@@ -488,6 +543,7 @@ async def execute_with_retry(query, max_attempts=3):
 # Usage
 result = await execute_with_retry(query)
 ```text
+<!-- Code example in TEXT -->
 
 **Error types to retry:**
 
@@ -506,6 +562,7 @@ result = await execute_with_retry(query)
 Provide fallback behavior when queries fail:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Original query with analytics
 const analyticsQuery = `
   query {
@@ -546,6 +603,7 @@ async function getAnalytics() {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -556,6 +614,7 @@ async function getAnalytics() {
 Validate all user input before executing SQL:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, field
 from typing import Annotated
 
@@ -575,10 +634,12 @@ def create_user(input: UserInput) -> User:
     # - input.age is in [13, 150]
     return db.insert_user(input)
 ```text
+<!-- Code example in TEXT -->
 
 **Validation rules are compiled into SQL or application logic:**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL constraint (enforced by database)
 CREATE TABLE tb_user (
     pk_user_id BIGSERIAL PRIMARY KEY,
@@ -593,12 +654,14 @@ CREATE TABLE tb_user (
 
 -- Error: Database { sql_state: "23514" } (CHECK constraint violation)
 ```text
+<!-- Code example in TEXT -->
 
 ### Practice 2: List-Size Limits
 
 Prevent queries from returning excessive data:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Schema definition with limits
 type Query {
   users(
@@ -622,10 +685,12 @@ query {
 }
 # Error: Validation { message: "Parameter 'limit' must be ≤ 10000" }
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 // Runtime parameter validation (before SQL execution)
 fn validate_parameters(params: &QueryParams) -> Result<()> {
     let limit = params.limit.unwrap_or(20);
@@ -646,12 +711,14 @@ fn validate_parameters(params: &QueryParams) -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Practice 3: String Sanitization (Implicit via Parameterization)
 
 FraiseQL prevents SQL injection by never interpolating user input into SQL strings:
 
 ```python
+<!-- Code example in Python -->
 # ❌ UNSAFE (don't do this):
 query = f"SELECT * FROM users WHERE name = '{user_input}'"
 # If user_input = "' OR '1'='1", this becomes:
@@ -662,10 +729,12 @@ query = "SELECT * FROM users WHERE name = ?"
 params = [user_input]
 # Parameterized query - user_input is treated as pure data, never as SQL
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL handles this internally:
 
 ```rust
+<!-- Code example in RUST -->
 // User provides:
 query_params: { userId: "123\"; DROP TABLE users; --" }
 
@@ -674,12 +743,14 @@ query_params: { userId: "123\"; DROP TABLE users; --" }
 // Params: ["123\"; DROP TABLE users; --"]
 // The harmful string is treated as pure data, not executed
 ```text
+<!-- Code example in TEXT -->
 
 ### Practice 4: Enumeration over Free Text
 
 Use enums to restrict input to valid values:
 
 ```python
+<!-- Code example in Python -->
 from enum import Enum
 from FraiseQL import type, field
 
@@ -704,6 +775,7 @@ mutation {
   # Error: Validation { message: "Expected one of [admin, editor, viewer]" }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -714,6 +786,7 @@ mutation {
 Control access based on user role:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, field, permission
 
 @type
@@ -732,22 +805,26 @@ class Post:
 # User with role='editor': Can read and write everything
 # User with role='admin': Can do anything
 ```text
+<!-- Code example in TEXT -->
 
 **Runtime enforcement:**
 
 ```rust
+<!-- Code example in RUST -->
 // When resolving 'secret' field
 match user.role {
     Role::Viewer => Err(FraiseQLError::unauthorized("viewers cannot read post.secret")),
     Role::Editor | Role::Admin => Ok(secret_value),
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Ownership-Based Access Control
 
 Control access based on data ownership:
 
 ```python
+<!-- Code example in Python -->
 @type
 class Post:
     id: int
@@ -761,10 +838,12 @@ class Post:
 
 # Only the post's author or readers of published posts can read content
 ```text
+<!-- Code example in TEXT -->
 
 **SQL with authorization:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Query: user_123 requests unpublished post_456
 -- Rule: owner_id == $1 OR is_published
 
@@ -779,12 +858,14 @@ FROM tb_post
 WHERE pk_post_id = 456
 -- User 456 can only see content if they own it or it's published
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Attribute-Based Access Control (ABAC)
 
 Control access based on user attributes, resource attributes, and context:
 
 ```python
+<!-- Code example in Python -->
 @type
 class Document:
     id: int
@@ -804,6 +885,7 @@ class Document:
 # 1. They're in the same department, AND
 # 2. Either the document is less classified than their clearance, OR they own it
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -812,6 +894,7 @@ class Document:
 ### Scenario 1: User Tries to Access Unauthorized Resource
 
 ```graphql
+<!-- Code example in GraphQL -->
 # User 'alice' with role 'viewer' requests:
 query {
   post(id: 123) {
@@ -820,10 +903,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "post": {
@@ -840,10 +925,12 @@ query {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Client recovery:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 try {
   const result = await client.query(query);
 
@@ -867,20 +954,24 @@ try {
   showError(error.message);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario 2: Database Connection Lost
 
 ```text
+<!-- Code example in TEXT -->
 Database operation fails with ConnectionPool error
 ↓
 Retryable: Yes (eventually, connections will become available)
 ↓
 Client strategy: Retry with exponential backoff
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn execute_with_connection_retry(
     query: &str,
     max_retries: u32,
@@ -907,10 +998,12 @@ pub async fn execute_with_connection_retry(
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario 3: Query Exceeds Timeout
 
 ```text
+<!-- Code example in TEXT -->
 Query execution exceeds 30s limit
 ↓
 Error: Timeout { timeout_ms: 30000 }
@@ -919,10 +1012,12 @@ Retryable: Possibly (with simpler query or raised timeout)
 ↓
 Client strategy: Retry with reduced complexity
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Original query (expensive analytics)
 query FullReport {
   sales(year: 2024) {
@@ -946,8 +1041,10 @@ query QuickReport {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function getReport() {
   try {
     console.log("Fetching full report...");
@@ -961,10 +1058,12 @@ async function getReport() {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario 4: Data Constraint Violation
 
 ```text
+<!-- Code example in TEXT -->
 User tries to create duplicate username
 ↓
 INSERT violates UNIQUE constraint
@@ -975,10 +1074,12 @@ Retryable: No (constraint violation, not transient)
 ↓
 Client strategy: Show error, ask user for different username
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function createUser(username: string, email: string) {
   try {
     const result = await client.mutate(CreateUserMutation, {
@@ -999,6 +1100,7 @@ async function createUser(username: string, email: string) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1007,12 +1109,14 @@ async function createUser(username: string, email: string) {
 ### Scenario A: Simple Read Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: 1) {
     name
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Validation order:**
 
@@ -1029,6 +1133,7 @@ query {
 ### Scenario B: Mutation with Input Validation
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createPost(input: {
     title: "New Post"
@@ -1040,6 +1145,7 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Validation order:**
 
@@ -1059,6 +1165,7 @@ mutation {
 ### Scenario C: Complex Analytics Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   salesByRegion(limit: 100, year: 2024) {
     region
@@ -1071,6 +1178,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Validation order:**
 
@@ -1108,6 +1216,7 @@ query {
 ### E-Commerce: Order Creation with Full Validation
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createOrder(input: {
     userId: 123
@@ -1123,10 +1232,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Comprehensive error handling:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn create_order(
     input: CreateOrderInput,
     user_id: i64,
@@ -1202,12 +1313,14 @@ pub async fn create_order(
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL response scenarios:**
 
 Success:
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "createOrder": {
@@ -1218,10 +1331,12 @@ Success:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Validation error:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Validation error: quantity must be 1-1000",
@@ -1230,10 +1345,12 @@ Validation error:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 Authorization error:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Authorization error: user is not active",
@@ -1245,10 +1362,12 @@ Authorization error:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 Conflict error:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Conflict: Product 42 only has 5 units available",
@@ -1256,10 +1375,12 @@ Conflict error:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 Database error (transient, should retry):
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Query timeout after 30000ms",
@@ -1270,6 +1391,7 @@ Database error (transient, should retry):
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

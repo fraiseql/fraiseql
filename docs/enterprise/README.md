@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Enterprise Features
+description: Enterprise-grade security, compliance, and audit capabilities for production deployments.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Enterprise Features
 
 Enterprise-grade security, compliance, and audit capabilities for production deployments.
@@ -22,10 +30,12 @@ Configured via `FraiseQL.toml` with environment variable overrides.
 **Example:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security.error_sanitization]
 enabled = true
 level = "user"  # Only expose user-friendly messages to clients
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Constant-Time Token Comparison
 
@@ -48,10 +58,12 @@ level = "user"  # Only expose user-friendly messages to clients
 **Example:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security.pkce]
 state_encryption_enabled = true
 encryption_algorithm = "aes-256-gcm"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Rate Limiting
 
@@ -65,13 +77,15 @@ encryption_algorithm = "aes-256-gcm"
 **Example:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
 auth_verify_max_requests = 50
 auth_verify_window_secs = 60
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Audit Logging (v2.0)
 
@@ -87,6 +101,7 @@ auth_verify_window_secs = 60
 All runtime security features are configured in `FraiseQL.toml` under `[FraiseQL.security]`:
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.security]
 # Error handling
 [FraiseQL.security.error_sanitization]
@@ -115,11 +130,13 @@ auth_verify_window_secs = 60
 enabled = true
 log_level = "info"
 secret_access_logging = true
-```
+```text
+<!-- Code example in TEXT -->
 
 Environment variable overrides (production):
 
 ```bash
+<!-- Code example in BASH -->
 # Rate limiting per environment
 FRAISEQL_RATE_LIMITING_ENABLED=true
 FRAISEQL_RATE_LIMITING_AUTH_START_MAX_REQUESTS=50  # Stricter in prod
@@ -127,7 +144,8 @@ FRAISEQL_RATE_LIMITING_AUTH_START_MAX_REQUESTS=50  # Stricter in prod
 # Audit logging
 FRAISEQL_AUDIT_LOGGING_ENABLED=true
 FRAISEQL_AUDIT_LOGGING_LEVEL=debug
-```
+```text
+<!-- Code example in TEXT -->
 
 See [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md) for full configuration management details.
 

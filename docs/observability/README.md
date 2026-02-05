@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Observability-Driven Schema Optimization
+description: Traditional database optimization relies on static analysis and developer intuition. You might guess which columns need indexes or which queries are slow, but w
+keywords: ["schema"]
+tags: ["documentation", "reference"]
+---
+
 # Observability-Driven Schema Optimization
 
 ## What is Observability-Driven Optimization?
@@ -39,6 +47,7 @@ Get optimization suggestions in 5 minutes:
 Add to your environment or config:
 
 ```bash
+<!-- Code example in BASH -->
 # Environment variable
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
@@ -48,6 +57,7 @@ export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
 enabled = true
 sample_rate = 0.1  # 10% sampling
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Run Your Application
 
@@ -63,6 +73,7 @@ Let it collect metrics for **24-48 hours** with normal traffic. The system will:
 ### 3. Analyze Metrics
 
 ```bash
+<!-- Code example in BASH -->
 # Analyze directly from metrics database
 FraiseQL-cli analyze --database postgres://...
 
@@ -70,12 +81,14 @@ FraiseQL-cli analyze --database postgres://...
 curl http://localhost:8080/metrics/export > metrics.json
 FraiseQL-cli analyze --metrics metrics.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Review Suggestions
 
 Example output:
 
 ```text
+<!-- Code example in TEXT -->
 📊 Observability Analysis Report
 
 🚀 High-Impact Optimizations (2):
@@ -104,10 +117,12 @@ Example output:
 
      Reason: Sorted in 90% of queries, no index exists
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Generate and Apply Migrations
 
 ```bash
+<!-- Code example in BASH -->
 # Generate SQL
 FraiseQL-cli analyze --database postgres://... --format sql > optimize.sql
 
@@ -123,6 +138,7 @@ psql production < optimize.sql
 # Update schema and recompile
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -140,22 +156,26 @@ Observability-Driven Optimization is most valuable for:
 ### ✅ Repeated Filtering on Nested Fields
 
 ```sql
+<!-- Code example in SQL -->
 -- Slow: JSONB extraction on every query
 WHERE dimensions->>'region' = 'US'
 
 -- After optimization: Direct column lookup
 WHERE region_id = 'US'  -- 10-15x faster
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Aggregate Queries on Dimensions
 
 ```sql
+<!-- Code example in SQL -->
 -- Slow: GROUP BY on JSONB expression
 GROUP BY dimensions->>'category'
 
 -- After optimization: Indexed column
 GROUP BY category_id  -- 5-10x faster
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Slow Query Alerts
 
@@ -184,6 +204,7 @@ Before using observability:
 **Before**:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.fact_table(
     table_name='tf_sales',
     dimension_column='dimensions'  # JSONB
@@ -193,6 +214,7 @@ class SalesMetrics:
     quantity: int
     dimensions: dict  # {region, category, date}
 ```text
+<!-- Code example in TEXT -->
 
 **Metrics**:
 
@@ -203,14 +225,17 @@ class SalesMetrics:
 **Suggested Optimization**:
 
 ```sql
+<!-- Code example in SQL -->
 ALTER TABLE tf_sales ADD COLUMN region_id TEXT;
 UPDATE tf_sales SET region_id = dimensions->>'region';
 CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
 ```text
+<!-- Code example in TEXT -->
 
 **After**:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.fact_table(
     table_name='tf_sales',
     dimension_column='dimensions',
@@ -222,6 +247,7 @@ class SalesMetrics:
     region_id: str  # Direct column (indexed)
     dimensions: dict
 ```text
+<!-- Code example in TEXT -->
 
 **Results**:
 
@@ -259,12 +285,14 @@ class SalesMetrics:
 Moving data from JSONB column to dedicated column for faster access:
 
 ```sql
+<!-- Code example in SQL -->
 -- Before: Slow JSONB extraction
 dimensions->>'region'
 
 -- After: Fast column lookup
 region_id
 ```text
+<!-- Code example in TEXT -->
 
 ### Metrics Collection
 

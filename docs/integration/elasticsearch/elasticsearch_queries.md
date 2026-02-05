@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Elasticsearch Search Examples for FraiseQL Events
+description: This document shows practical examples of querying FraiseQL events in Elasticsearch.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Elasticsearch Search Examples for FraiseQL Events
 
 This document shows practical examples of querying FraiseQL events in Elasticsearch.
@@ -9,6 +17,7 @@ This document shows practical examples of querying FraiseQL events in Elasticsea
 Find all "created" events:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -19,13 +28,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     },
     "size": 50
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Search by Entity Type
 
 Find all events affecting "Order" entities:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -37,13 +48,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "sort": [{"timestamp": "desc"}],
     "size": 100
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Search by User
 
 Find all events triggered by a specific user:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -54,7 +67,8 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     },
     "sort": [{"timestamp": "desc"}]
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Advanced Queries
 
@@ -63,6 +77,7 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
 Find events with specific text in any field:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -78,13 +93,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     },
     "size": 50
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Date Range Query
 
 Find events in the last 24 hours:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -98,13 +115,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "sort": [{"timestamp": "desc"}],
     "size": 100
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Combination Query (AND/OR)
 
 Find order creation events from the last 7 days:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -119,7 +138,8 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     },
     "sort": [{"timestamp": "desc"}]
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Aggregations
 
@@ -128,6 +148,7 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
 Count events by type (last 7 days):
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -148,13 +169,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
       }
     }
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Entity Type Distribution
 
 Count events by entity type:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -168,13 +191,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
       }
     }
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Timeline Histogram
 
 Events per hour over the last 48 hours:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -195,7 +220,8 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
       }
     }
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Debugging Workflows
 
@@ -204,6 +230,7 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
 Get all events related to a specific entity:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -218,13 +245,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "sort": [{"timestamp": "asc"}],
     "size": 1000
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Find Failed Payment Events
 
 Search for events containing payment errors:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -247,7 +276,8 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "sort": [{"timestamp": "desc"}],
     "size": 100
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Using with Kibana
 
@@ -301,6 +331,7 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
 Filters are cached and faster than queries:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -316,13 +347,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
       }
     }
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Limit Fields Retrieved
 
 Only retrieve needed fields for faster response:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -330,13 +363,15 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "_source": ["event_id", "event_type", "timestamp", "user_id"],
     "size": 100
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Use Search After for Pagination
 
 More efficient than from/size for large result sets:
 
 ```bash
+<!-- Code example in BASH -->
 # Get first page
 curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
   -H 'Content-Type: application/json' \
@@ -355,25 +390,32 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search?pretty" \
     "size": 100,
     "search_after": ["2025-01-25T12:34:56.789Z", "event-id-here"]
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Monitoring Queries
 
 ### Check Cluster Health
 
 ```bash
+<!-- Code example in BASH -->
 curl "localhost:9200/_cluster/health?pretty"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Monitor Query Performance
 
 ```bash
+<!-- Code example in BASH -->
 # Slow log for queries > 500ms
 curl "localhost:9200/_cat/indices/FraiseQL-*?v&sort=store.size:desc"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Check Index Statistics
 
 ```bash
+<!-- Code example in BASH -->
 curl "localhost:9200/FraiseQL-events-*/_stats?pretty"
-```
+```text
+<!-- Code example in TEXT -->

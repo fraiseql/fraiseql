@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Multiple Authoring Languages Architecture
+description: FraiseQL supports **schema authoring in multiple languages** through a unified intermediate representation (IR):
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Multiple Authoring Languages Architecture
 
 **Version:** 1.0
@@ -24,12 +32,14 @@ This is not a "language binding" pattern. This is **language-agnostic compilatio
 All authoring languages (Python, TypeScript, YAML, CLI) produce the same **AuthoringIR** before compilation:
 
 ```text
+<!-- Code example in TEXT -->
 Python Schema (decorators)     ─┐
 TypeScript Schema (interfaces) ─┤
 YAML Schema (structured)       ─┼─→ AuthoringIR ─→ CompiledSchema ─→ Rust Runtime
 GraphQL SDL                    ─┤
 CLI Schema (commands)          ─┘
 ```text
+<!-- Code example in TEXT -->
 
 **Key principle:** The authoring language is **just syntax**. The semantics are expressed in the AuthoringIR.
 
@@ -40,6 +50,7 @@ CLI Schema (commands)          ─┘
 The AuthoringIR is a language-agnostic representation of schema structure:
 
 ```python
+<!-- Code example in Python -->
 class AuthoringIR:
     """Language-agnostic schema intermediate representation."""
 
@@ -97,6 +108,7 @@ class AuthRule:
     requires_roles: list[str]
     requires_claims: list[str]
 ```text
+<!-- Code example in TEXT -->
 
 This is the **semantic bridge** between any authoring language and the compiler.
 
@@ -111,6 +123,7 @@ This is the **semantic bridge** between any authoring language and the compiler.
 **Approach:** Decorators + type hints
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema, type, query, mutation, ID, String, auth
 
 @schema.configure(
@@ -155,6 +168,7 @@ schema.bind("create_user", "procedure", "fn_create_user")
 if __name__ == "__main__":
     compiled = schema.compile()
 ```text
+<!-- Code example in TEXT -->
 
 **Parser:** Python AST inspection + type hints
 **Output:** AuthoringIR
@@ -175,6 +189,7 @@ if __name__ == "__main__":
 **Approach:** Interfaces + decorators (via decorators proposal)
 
 ```typescript
+<!-- Code example in TypeScript -->
 import {
   schema,
   type,
@@ -228,6 +243,7 @@ schema.bind("createUser", "procedure", "fn_create_user");
 // Compilation
 const compiled = await schema.compile();
 ```text
+<!-- Code example in TEXT -->
 
 **Parser:** TypeScript AST inspection + decorator metadata
 **Output:** AuthoringIR
@@ -248,6 +264,7 @@ const compiled = await schema.compile();
 **Approach:** Structured data with clear relationships
 
 ```yaml
+<!-- Code example in YAML -->
 schema:
   name: blog-api
   version: 1.0.0
@@ -316,6 +333,7 @@ bindings:
     type: procedure
     procedure: fn_create_user
 ```text
+<!-- Code example in TEXT -->
 
 **Parser:** YAML → structured dict → AuthoringIR
 **Output:** AuthoringIR
@@ -336,6 +354,7 @@ bindings:
 **Approach:** Standard GraphQL syntax with directives for bindings
 
 ```graphql
+<!-- Code example in GraphQL -->
 """Blog API Schema"""
 schema {
   query: Query
@@ -386,6 +405,7 @@ extend type Mutation {
     @bind(type: "procedure", resource: "fn_create_user")
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Parser:** GraphQL parser → AST → AuthoringIR
 **Output:** AuthoringIR
@@ -404,6 +424,7 @@ extend type Mutation {
 **Commands:** Interactive CLI for schema generation
 
 ```bash
+<!-- Code example in BASH -->
 # Initialize schema
 FraiseQL init --name blog-api --database postgresql
 
@@ -430,6 +451,7 @@ FraiseQL add:mutation createUser \
 # Compile
 FraiseQL compile
 ```text
+<!-- Code example in TEXT -->
 
 **Parser:** CLI arguments → structured data → AuthoringIR
 **Output:** AuthoringIR
@@ -446,6 +468,7 @@ FraiseQL compile
 ## 4. Compilation Pipeline: Language-Agnostic
 
 ```text
+<!-- Code example in TEXT -->
 Python Schema (decorators)
 TypeScript Schema (interfaces)
 YAML Schema (structured)
@@ -474,6 +497,7 @@ Compilation Pipeline (Phases 1-6)
         ↓
         Rust Runtime Execution
 ```text
+<!-- Code example in TEXT -->
 
 **Key insight:** The compiler doesn't care which language produced the AuthoringIR. It's all the same from Phase 1 onward.
 
@@ -484,6 +508,7 @@ Compilation Pipeline (Phases 1-6)
 ### Python Version
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema, type, query, ID, String
 
 @schema.configure(name="shop", database_target="postgresql")
@@ -502,10 +527,12 @@ def products(where: "ProductWhereInput" = None):
 
 schema.bind("products", "view", "v_product")
 ```text
+<!-- Code example in TEXT -->
 
 ### TypeScript Version
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { schema, type, query, ID, String } from "FraiseQL";
 
 @schema.configure({ name: "shop", database_target: "postgresql" })
@@ -523,10 +550,12 @@ export function products(where?: ProductWhereInput): Product[] {}
 
 schema.bind("products", "view", "v_product");
 ```text
+<!-- Code example in TEXT -->
 
 ### YAML Version
 
 ```yaml
+<!-- Code example in YAML -->
 schema:
   name: shop
   database_target: postgresql
@@ -549,10 +578,12 @@ bindings:
     type: view
     view: v_product
 ```text
+<!-- Code example in TEXT -->
 
 ### GraphQL SDL Version
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Product {
   id: ID!
   name: String!
@@ -564,15 +595,18 @@ type Query {
     @bind(type: "view", resource: "v_product")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### CLI Version
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL init --name shop --database postgresql
 FraiseQL add:type Product --field id:ID --field name:String --field price:Float
 FraiseQL add:query products --returns Product --list --binding view:v_product
 FraiseQL compile
 ```text
+<!-- Code example in TEXT -->
 
 **Result:** All five approaches produce **identical CompiledSchema.json**
 
@@ -585,6 +619,7 @@ The generated GraphQL is identical, the SQL lowering is identical, the execution
 ### Pattern 1: Canonical Language + Ecosystem Projections
 
 ```text
+<!-- Code example in TEXT -->
 Canonical source-of-truth schema (one language)
     ↓
 Python version  (for Python developers / Django teams)
@@ -596,6 +631,7 @@ All compile to same CompiledSchema
     ↓
 Single Rust runtime
 ```text
+<!-- Code example in TEXT -->
 
 **Key:** One team maintains the canonical schema. Other languages are **projections** (generated or hand-maintained equivalents) for different ecosystems.
 
@@ -604,18 +640,21 @@ This avoids the maintenance nightmare of truly multi-language schemas.
 ### Pattern 2: Generated + Configuration
 
 ```text
+<!-- Code example in TEXT -->
 Base schema generated from database introspection
     ↓
 YAML overrides applied (bindings, auth rules)
     ↓
 Produces canonical CompiledSchema
 ```text
+<!-- Code example in TEXT -->
 
 **Key:** Machine-generated base + human-maintained config in YAML.
 
 ### Pattern 3: Language-Specific Organization
 
 ```text
+<!-- Code example in TEXT -->
 Core GraphQL Schema Layer (canonical truth)
     ↓
 ┌───────────────────────────┬──────────────────┐
@@ -625,12 +664,14 @@ Python SDK wrapper          TypeScript SDK     YAML config
 
 All expose same underlying CompiledSchema
 ```text
+<!-- Code example in TEXT -->
 
 **Key:** Different organizations might prefer different authoring languages, but they all reference the same underlying schema.
 
 ### Pattern 4: Gradual Migration
 
 ```text
+<!-- Code example in TEXT -->
 v1: All schemas in Python
     ↓
 v2: Evaluate TypeScript for new schemas
@@ -641,6 +682,7 @@ v4: One-time migration of existing schemas to canonical language
     ↓
 v5: Use canonical language going forward
 ```text
+<!-- Code example in TEXT -->
 
 **Key:** Not continuous polyglotism, but ability to migrate at organization boundaries without runtime changes.
 
@@ -661,18 +703,21 @@ The rest of the compiler pipeline works automatically.
 **Example:** Add Kotlin support
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 class KotlinAuthoringIRBuilder {
     fun fromKotlinFile(source: String): AuthoringIR {
         // Parse Kotlin AST → AuthoringIR
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Benefit 2: Easy to Generate Schemas
 
 Tools can generate schemas by producing AuthoringIR:
 
 ```python
+<!-- Code example in Python -->
 def generate_from_database(db_connection) -> AuthoringIR:
     """Introspect database → AuthoringIR"""
     ir = AuthoringIR()
@@ -680,6 +725,7 @@ def generate_from_database(db_connection) -> AuthoringIR:
         ir.types[table.name] = table_to_type_definition(table)
     return ir
 ```text
+<!-- Code example in TEXT -->
 
 Then compile normally. Or save to YAML/GraphQL/etc.
 
@@ -688,6 +734,7 @@ Then compile normally. Or save to YAML/GraphQL/etc.
 Transform schemas before compilation:
 
 ```python
+<!-- Code example in Python -->
 def add_audit_fields(ir: AuthoringIR) -> AuthoringIR:
     """Add created_at, updated_at to all types"""
     for type_def in ir.types.values():
@@ -700,12 +747,14 @@ ir = parse_python_schema(schema_file)
 ir = add_audit_fields(ir)
 compiled = compile(ir)
 ```text
+<!-- Code example in TEXT -->
 
 ### Benefit 4: Easy to Validate
 
 Validation happens on AuthoringIR (language-agnostic):
 
 ```python
+<!-- Code example in Python -->
 def validate_authoring_ir(ir: AuthoringIR) -> list[ValidationError]:
     """Check IR invariants (same for all languages)"""
     errors = []
@@ -723,6 +772,7 @@ def validate_authoring_ir(ir: AuthoringIR) -> list[ValidationError]:
 
     return errors
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -733,45 +783,55 @@ def validate_authoring_ir(ir: AuthoringIR) -> list[ValidationError]:
 #### Python: Native Decorators
 
 ```python
+<!-- Code example in Python -->
 @schema.type
 @cache(ttl=3600)
 @auth.requires_role("admin")
 class User:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 #### TypeScript: Interface Inheritance
 
 ```typescript
+<!-- Code example in TypeScript -->
 @schema.type()
 export interface User extends Identifiable {
   email: string;
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### YAML: Clear Documentation
 
 ```yaml
+<!-- Code example in YAML -->
 types:
   User:
     description: A user account
     # Easy to read, easy to version control
 ```text
+<!-- Code example in TEXT -->
 
 #### GraphQL SDL: Directive Composition
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @cache(ttl: 3600) @auth(requires_role: "admin") {
   id: ID!
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### CLI: Interactive Learning
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL add:type --help
 FraiseQL add:mutation --interactive
 ```text
+<!-- Code example in TEXT -->
 
 All translate to the same AuthoringIR semantics.
 
@@ -798,6 +858,7 @@ All translate to the same AuthoringIR semantics.
 ### CI/CD Integration
 
 ```yaml
+<!-- Code example in YAML -->
 # ci/compile.yml
 jobs:
   compile:
@@ -809,6 +870,7 @@ jobs:
     # All produce identical CompiledSchema.json
     - git diff build/CompiledSchema.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -821,12 +883,15 @@ When adding Kotlin support:
 1. **Write Kotlin parser**
 
    ```kotlin
+<!-- Code example in KOTLIN -->
    fun parseKotlinSchema(file: File): AuthoringIR { }
    ```text
+<!-- Code example in TEXT -->
 
 2. **Register with compiler**
 
    ```rust
+<!-- Code example in RUST -->
    match file_extension {
        "py" => parse_python(content),
        "ts" => parse_typescript(content),
@@ -835,6 +900,7 @@ When adding Kotlin support:
        "kt" => parse_kotlin(content),  // New!
    }
    ```text
+<!-- Code example in TEXT -->
 
 3. **No breaking changes**
    - Existing schemas continue to work
@@ -848,9 +914,11 @@ If adding new feature (e.g., directives):
 1. **Extend AuthoringIR**
 
    ```python
+<!-- Code example in Python -->
    class FieldDef:
        directives: list[DirectiveDef]  # New field
    ```text
+<!-- Code example in TEXT -->
 
 2. **Update all parsers**
    - Python: Parse `@cache` decorator

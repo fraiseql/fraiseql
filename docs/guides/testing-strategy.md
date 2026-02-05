@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Testing Strategy: Comprehensive Guide to Testing Compiled GraphQL Systems
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "graphql", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Testing Strategy: Comprehensive Guide to Testing Compiled GraphQL Systems
 
 **Status:** ✅ Production Ready
@@ -32,6 +40,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 **Testing pyramid:**
 
 ```text
+<!-- Code example in TEXT -->
                     ▲
                    / \
                   /   \
@@ -43,6 +52,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
             /───────────────\
            ───────────────────
 ```text
+<!-- Code example in TEXT -->
 
 **Target metrics:**
 
@@ -66,6 +76,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 Test IR generation from authoring languages:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_schema_parsing.py
 import pytest
 from FraiseQL.compiler.parser import parse_schema
@@ -165,12 +176,14 @@ def test_parse_invalid_schema(invalid_source, expected_error):
 
     assert exc_info.value.code == expected_error
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.1.2 Database Introspection Tests
 
 Test introspection against mock database metadata:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_introspection.py
 import pytest
 from FraiseQL.compiler.introspection import DatabaseIntrospector
@@ -255,12 +268,14 @@ def test_generate_capability_manifest(mock_db_metadata):
     assert "contains" in jsonb_ops
     assert "has_key" in jsonb_ops
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.1.3 Type Binding Tests
 
 Test GraphQL type → database view binding:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_type_binding.py
 import pytest
 from FraiseQL.compiler.binder import TypeBinder
@@ -392,12 +407,14 @@ def test_bind_nested_type():
     assert posts_field.binding.view_name == "v_posts_by_user"
     assert posts_field.binding.parent_key == "user_id"
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.1.4 WHERE Type Generation Tests
 
 Test auto-generation of WHERE input types from database capabilities:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_where_generation.py
 import pytest
 from FraiseQL.compiler.where_gen import WhereTypeGenerator
@@ -491,12 +508,14 @@ def test_generate_where_type_for_uuid_column():
     assert "gt" not in where_type.fields
     assert "lt" not in where_type.fields
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.1.5 Validation Tests
 
 Test schema validation rules:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_validation.py
 import pytest
 from FraiseQL.compiler.validator import SchemaValidator
@@ -575,12 +594,14 @@ def test_validate_authorization_context():
     assert exc_info.value.code == "E_SCHEMA_AUTHORIZATION_INVALID_005"
     assert "department" in str(exc_info.value)
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.1.6 Compilation Tests
 
 Test full compilation pipeline:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_compilation.py
 import pytest
 from FraiseQL.compiler import compile_schema
@@ -669,6 +690,7 @@ class Bindings:
     assert mutation.binding.procedure_name == "fn_create_user"
     assert "input" in mutation.arguments
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Runtime Unit Tests (Rust)
 
@@ -679,6 +701,7 @@ class Bindings:
 #### 1.2.1 Query Parsing Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_query_parsing.rs
 use fraiseql_runtime::parser::parse_graphql_query;
 use fraiseql_runtime::query::Query;
@@ -762,10 +785,12 @@ fn test_parse_invalid_query() {
     assert_eq!(err.code, "E_RUNTIME_QUERY_PARSE_ERROR_100");
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.2.2 Authorization Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_authorization.rs
 use fraiseql_runtime::auth::{AuthContext, AuthRule, enforce_authorization};
 
@@ -870,10 +895,12 @@ fn test_enforce_requires_claim() {
     assert!(result.is_err());
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.2.3 Query Planning Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_query_planning.rs
 use fraiseql_runtime::planner::{QueryPlanner, ExecutionPlan};
 use fraiseql_runtime::schema::CompiledSchema;
@@ -950,10 +977,12 @@ fn test_plan_query_with_where_filter() {
     assert_eq!(plan.steps[0].parameters, vec![Value::String("john%".to_string())]);
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 1.2.4 Result Projection Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_projection.rs
 use fraiseql_runtime::projection::project_result;
 use serde_json::json;
@@ -1030,6 +1059,7 @@ fn test_project_with_field_masking() {
     assert!(projected["ssn"].is_null());  // Masked field returns null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1044,6 +1074,7 @@ fn test_project_with_field_masking() {
 #### 2.1.1 End-to-End Compilation Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/compiler/test_compilation_e2e.py
 import pytest
 from FraiseQL.compiler import compile_schema
@@ -1202,6 +1233,7 @@ class Bindings:
     # Error should suggest available views
     assert "v_user" in str(exc_info.value)
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Runtime Integration Tests
 
@@ -1212,6 +1244,7 @@ class Bindings:
 #### 2.2.1 Query Execution Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/integration/runtime/test_query_execution.rs
 use fraiseql_runtime::Runtime;
 use fraiseql_testing::{TestDatabase, load_compiled_schema};
@@ -1337,10 +1370,12 @@ async fn test_execute_query_with_authorization() {
     assert!(result.errors.is_none());
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.2 Mutation Execution Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/integration/runtime/test_mutation_execution.rs
 use fraiseql_runtime::Runtime;
 use fraiseql_testing::{TestDatabase, load_compiled_schema};
@@ -1450,6 +1485,7 @@ async fn test_mutation_rollback_on_error() {
     assert_eq!(verify_result.data["users"].as_array().unwrap().len(), 0);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Database Integration Tests
 
@@ -1460,6 +1496,7 @@ async fn test_mutation_rollback_on_error() {
 #### 2.3.1 View Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/database/test_views.py
 import pytest
 from FraiseQL.testing import DatabaseFixture
@@ -1556,10 +1593,12 @@ def test_v_posts_by_user_aggregation(db):
     assert result["data"][0]["title"] == "Second post"  # Ordered by created_at DESC
     assert result["data"][1]["title"] == "First post"
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.3.2 Stored Procedure Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/database/test_procedures.py
 import pytest
 from FraiseQL.testing import DatabaseFixture
@@ -1656,6 +1695,7 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
 
     assert "optimistic_lock_failed" in str(exc_info.value)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1670,6 +1710,7 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
 #### 3.1.1 E2E Query Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/test_user_workflows.ts
 import { FraiseQLClient } from '@FraiseQL/client';
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
@@ -1869,6 +1910,7 @@ describe('Authorization Workflows', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Performance Tests
 
@@ -1879,6 +1921,7 @@ describe('Authorization Workflows', () => {
 #### 3.2.1 Query Latency Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/performance/test_latency.ts
 import { FraiseQLClient } from '@FraiseQL/client';
 
@@ -1943,10 +1986,12 @@ describe('Query Latency', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 #### 3.2.2 Throughput Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/performance/test_throughput.ts
 import { FraiseQLClient } from '@FraiseQL/client';
 
@@ -1980,6 +2025,7 @@ describe('Query Throughput', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1992,6 +2038,7 @@ describe('Query Throughput', () => {
 #### 4.1.1 SQL Fixtures
 
 ```sql
+<!-- Code example in SQL -->
 -- tests/fixtures/users.sql
 INSERT INTO tb_user (id, username, email, password_hash) VALUES
   ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@example.com', 'hash1'),
@@ -2003,10 +2050,12 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
   ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Alice Post 2', 'Content'),
   ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000002', 'Bob Post 1', 'Content');
 ```text
+<!-- Code example in TEXT -->
 
 #### 4.1.2 Compiled Schema Fixtures
 
 ```json
+<!-- Code example in JSON -->
 // tests/fixtures/simple_schema.json
 {
   "version": "1.0",
@@ -2040,10 +2089,12 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Test Database Management
 
 ```python
+<!-- Code example in Python -->
 # tests/utils/database.py
 import psycopg
 from contextlib import contextmanager
@@ -2090,6 +2141,7 @@ class DatabaseFixture:
             conn.autocommit = True
             conn.execute(f"DROP DATABASE IF EXISTS {self.database_name}")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2098,6 +2150,7 @@ class DatabaseFixture:
 ### 5.1 GitHub Actions Workflow
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/test.yml
 name: Test Suite
 
@@ -2237,10 +2290,12 @@ jobs:
           tool: 'cargo'
           output-file-path: benchmark_results.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Test Coverage Requirements
 
 ```toml
+<!-- Code example in TOML -->
 # pyproject.toml
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -2260,8 +2315,10 @@ precision = 2
 show_missing = true
 skip_covered = false
 ```text
+<!-- Code example in TEXT -->
 
 ```toml
+<!-- Code example in TOML -->
 # Cargo.toml
 [dev-dependencies]
 criterion = "0.5"
@@ -2271,6 +2328,7 @@ proptest = "1.0"
 name = "query_execution"
 harness = false
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2279,6 +2337,7 @@ harness = false
 ### 6.1 Test Organization
 
 ```text
+<!-- Code example in TEXT -->
 tests/
 ├── unit/                   # Fast, isolated tests
 │   ├── compiler/
@@ -2316,10 +2375,12 @@ tests/
     ├── database.py
     └── client.ts
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Naming Conventions
 
 ```python
+<!-- Code example in Python -->
 # Good test names (describe what, when, and expected)
 def test_parse_simple_type():
     """Test parsing a simple @FraiseQL.type decorated class."""
@@ -2335,10 +2396,12 @@ def test_parser():           # What about parser?
 def test_binding_error():    # Which error?
 def test_query():            # Test what about query?
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Test Independence
 
 ```python
+<!-- Code example in Python -->
 # Good: Each test is independent
 def test_create_user(db):
     user_id = create_user(db, "alice")
@@ -2362,10 +2425,12 @@ def test_update_user(db):
     global user_id
     update_user(db, user_id, email="newemail@example.com")  # Depends on previous test
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.4 Deterministic Tests
 
 ```python
+<!-- Code example in Python -->
 # Good: Deterministic (always same result)
 def test_query_users_by_username():
     db.seed_fixture("users.sql")  # Known data
@@ -2378,10 +2443,12 @@ def test_query_recent_users():
     users = query_users(where={"created_at": {"gt": "now() - interval '1 day'"}})
     assert len(users) > 0  # May fail if no recent users
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.5 Test Documentation
 
 ```python
+<!-- Code example in Python -->
 def test_compile_schema_with_nested_types(db):
     """
     Test compiling schema with nested types (User.posts).
@@ -2403,6 +2470,7 @@ def test_compile_schema_with_nested_types(db):
     compiled = compile_schema(source=schema_source, database=db)
     # ... assertions ...
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2411,6 +2479,7 @@ def test_compile_schema_with_nested_types(db):
 ### 7.1 Pre-commit Hooks
 
 ```yaml
+<!-- Code example in YAML -->
 # .pre-commit-config.yaml
 repos:
   - repo: local
@@ -2429,16 +2498,19 @@ repos:
         pass_filenames: false
         always_run: true
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Watch Mode (Development)
 
 ```bash
+<!-- Code example in BASH -->
 # Python: Auto-run tests on file change
 $ ptw tests/unit/compiler/ --runner "pytest -x"
 
 # Rust: Auto-run tests on file change
 $ cargo watch -x test
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

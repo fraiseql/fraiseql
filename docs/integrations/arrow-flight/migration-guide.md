@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Migrating to Arrow Flight
+description: Arrow Flight is **100% backwards compatible**. Your existing HTTP/JSON clients will continue to work unchanged.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Migrating to Arrow Flight
 
 **Status:** ✅ Production Ready
@@ -57,15 +65,18 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 Arrow Flight runs alongside your existing HTTP/JSON API. Both endpoints available simultaneously:
 
 ```text
+<!-- Code example in TEXT -->
 HTTP/JSON API:    http://localhost:8080/graphql
 Arrow Flight API: grpc://localhost:50051
 ```text
+<!-- Code example in TEXT -->
 
 Choose the transport based on use case, not requirements.
 
 ## Migration Strategy: 4 Phases
 
 ```text
+<!-- Code example in TEXT -->
  (Week 1)          Phase 2 (Weeks 2-3)      Phase 3 (Week 4)         Phase 4 (Week 5)
 ┌──────────────────┐      ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Enable Arrow     │      │ Migrate Analytics│    │ Enable Analytics │    │ Add Debugging    │
@@ -77,12 +88,14 @@ Choose the transport based on use case, not requirements.
 │ • 30 minutes     │      │ • 1-2 weeks      │    │ • 1 week         │    │ • 1 week         │
 └──────────────────┘      └──────────────────┘    └──────────────────┘    └──────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## Phase 1: Enable Arrow Flight Server (Week 1, 30 minutes)
 
 ### Step 1: Update docker-compose.yml
 
 ```yaml
+<!-- Code example in YAML -->
 services:
   FraiseQL:
     ports:
@@ -91,10 +104,12 @@ services:
     environment:
       ARROW_FLIGHT_ENABLED: "true"  # Enable Arrow Flight
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Deploy
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose up -d FraiseQL
 
 # Verify both ports are listening
@@ -112,6 +127,7 @@ client = flight.connect("grpc://localhost:50051")
 print("✅ Arrow Flight works!")
 EOF
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Phase 1 Complete
 
@@ -147,6 +163,7 @@ These get the most benefit from Arrow Flight (15-50x faster).
 **Before** (HTTP/JSON, 30 seconds):
 
 ```python
+<!-- Code example in Python -->
 import requests
 import pandas as pd
 
@@ -172,10 +189,12 @@ df = pd.DataFrame(response.json()['data']['orders'])
 # 30 seconds, 250 MB memory
 print(f"Loaded {len(df)} orders")
 ```text
+<!-- Code example in TEXT -->
 
 **After** (Arrow Flight, 2 seconds):
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import polars as pl
 
@@ -199,6 +218,7 @@ df = pl.from_arrow(client.do_get(ticket).read_all())
 # 2 seconds, 50 MB memory (15x faster!)
 print(f"Loaded {len(df)} orders")
 ```text
+<!-- Code example in TEXT -->
 
 ### Migration Steps
 
@@ -207,6 +227,7 @@ For each analytics script:
 1. **Update import statements**:
 
    ```python
+<!-- Code example in Python -->
    # Remove
    import requests
 
@@ -214,10 +235,12 @@ For each analytics script:
    import pyarrow.flight as flight
    import polars as pl  # or pandas
    ```text
+<!-- Code example in TEXT -->
 
 2. **Replace query execution**:
 
    ```python
+<!-- Code example in Python -->
    # Before
    response = requests.post(
        'http://localhost:8080/graphql',
@@ -230,27 +253,33 @@ For each analytics script:
    ticket = flight.Ticket(b'{"type": "GraphQLQuery", "query": "..."}')
    df = pl.from_arrow(client.do_get(ticket).read_all())
    ```text
+<!-- Code example in TEXT -->
 
 3. **Update DataFrame operations** (optional):
 
    ```python
+<!-- Code example in Python -->
    # If using Polars instead of Pandas
    # Many operations are identical, some have different names
    # See: https://docs.pola.rs
    ```text
+<!-- Code example in TEXT -->
 
 4. **Test**:
 
    ```bash
+<!-- Code example in BASH -->
    # Run script with Arrow Flight
    python script.py
 
    # Verify results match previous version
    ```text
+<!-- Code example in TEXT -->
 
 5. **Benchmark**:
 
    ```python
+<!-- Code example in Python -->
    import time
 
    start = time.time()
@@ -259,21 +288,26 @@ For each analytics script:
 
    print(f"⚡ Loaded {len(df)} rows in {elapsed:.2f}s")
    ```text
+<!-- Code example in TEXT -->
 
 ### Tool Support
 
 **Python**: Migrate requests → pyarrow.flight
 
 ```bash
+<!-- Code example in BASH -->
 pip install pyarrow>=15.0.0 polars>=0.20.0
 ```text
+<!-- Code example in TEXT -->
 
 **R**: Migrate jsonlite → arrow
 
 ```r
+<!-- Code example in R -->
 install.packages("arrow")
 library(arrow)
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Phase 2 Complete
 
@@ -295,6 +329,7 @@ Now enable real-time analytics via ClickHouse.
 ### Step 1: Deploy ClickHouse
 
 ```yaml
+<!-- Code example in YAML -->
 # docker-compose.yml
 services:
   clickhouse:
@@ -307,10 +342,12 @@ services:
     volumes:
       - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Apply Migrations
 
 ```bash
+<!-- Code example in BASH -->
 # Copy migration files
 cp -r ./migrations/clickhouse /var/lib/clickhouse/migrations
 
@@ -321,10 +358,12 @@ docker-compose up clickhouse
 docker exec FraiseQL-clickhouse clickhouse-client \
   --query "SELECT name FROM system.tables WHERE database='default'"
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Configure Observer Events → ClickHouse
 
 ```yaml
+<!-- Code example in YAML -->
 # FraiseQL-config.toml
 [observers]
 clickhouse_enabled = true
@@ -333,10 +372,12 @@ clickhouse_database = "default"
 clickhouse_table = "fraiseql_events"
 clickhouse_batch_size = 10000
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Start Ingestion
 
 ```bash
+<!-- Code example in BASH -->
 # Restart FraiseQL to enable ClickHouse sink
 docker-compose restart FraiseQL
 
@@ -344,12 +385,14 @@ docker-compose restart FraiseQL
 docker exec FraiseQL-clickhouse clickhouse-client \
   --query "SELECT COUNT(*) FROM fraiseql_events"
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Create Real-Time Dashboards
 
 **Example**: Daily order analytics
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     toDate(timestamp) AS day,
     count() AS orders_created,
@@ -361,6 +404,7 @@ GROUP BY day
 ORDER BY day DESC
 LIMIT 30;
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Phase 3 Complete
 
@@ -383,6 +427,7 @@ Finally, enable Elasticsearch for fast event search and incident response.
 ### Step 1: Deploy Elasticsearch
 
 ```yaml
+<!-- Code example in YAML -->
 # docker-compose.yml
 services:
   elasticsearch:
@@ -396,10 +441,12 @@ services:
     volumes:
       - es-data:/usr/share/elasticsearch/data
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Apply Index Templates & ILM
 
 ```bash
+<!-- Code example in BASH -->
 # Apply index template
 curl -X PUT "localhost:9200/_index_template/FraiseQL-events" \
   -H 'Content-Type: application/json' \
@@ -410,10 +457,12 @@ curl -X PUT "localhost:9200/_ilm/policy/FraiseQL-events" \
   -H 'Content-Type: application/json' \
   -d @./migrations/elasticsearch/ilm_policy.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Configure Observer Events → Elasticsearch
 
 ```yaml
+<!-- Code example in YAML -->
 # FraiseQL-config.toml
 [observers]
 elasticsearch_enabled = true
@@ -421,10 +470,12 @@ elasticsearch_url = "http://localhost:9200"
 elasticsearch_index_prefix = "FraiseQL-events"
 elasticsearch_bulk_size = 1000
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Start Indexing
 
 ```bash
+<!-- Code example in BASH -->
 # Restart FraiseQL
 docker-compose restart FraiseQL
 
@@ -432,12 +483,14 @@ docker-compose restart FraiseQL
 curl "localhost:9200/FraiseQL-events-*/_count"
 # Returns: {"count": 12345}
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Create Incident Response Runbooks
 
 **Example**: Find all failed orders in the last hour
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -456,10 +509,12 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
     "sort": [{"timestamp": "desc"}]
   }'
 ```text
+<!-- Code example in TEXT -->
 
 **Team**: Train support team on search queries
 
 ```bash
+<!-- Code example in BASH -->
 # "Find all events for customer-123"
 curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
   -H 'Content-Type: application/json' \
@@ -469,6 +524,7 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
     "size": 1000
   }'
 ```text
+<!-- Code example in TEXT -->
 
 ### ✅ Phase 4 Complete
 
@@ -499,12 +555,14 @@ curl -X POST "localhost:9200/FraiseQL-events-*/_search" \
 Arrow Flight is purely **additive**:
 
 ```bash
+<!-- Code example in BASH -->
 # If you need to rollback
 docker-compose down FraiseQL-arrow-flight
 
 # HTTP/JSON continues working
 curl http://localhost:8080/graphql ...
 ```text
+<!-- Code example in TEXT -->
 
 No data loss, no breaking changes.
 

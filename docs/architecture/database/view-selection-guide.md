@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: View Selection Guide: Choosing Between v_*, tv_*, va_*, and ta_*
+description: FraiseQL supports **four distinct view patterns** across two query planes. This guide helps you choose the right pattern for your use case.
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # View Selection Guide: Choosing Between v_*, tv_*, va_*, and ta_*
 
 ## Overview
@@ -16,6 +24,7 @@ FraiseQL supports **four distinct view patterns** across two query planes. This 
 ## Decision Tree
 
 ```text
+<!-- Code example in TEXT -->
 START: What query plane are you working in?
 
 ├─ JSON PLANE (GraphQL queries)
@@ -55,6 +64,7 @@ START: What query plane are you working in?
          └─ Use va_* (logical)
             Why: Storage overhead not justified
 ```text
+<!-- Code example in TEXT -->
 
 ## Quick Reference by Scenario
 
@@ -187,10 +197,12 @@ START: What query plane are you working in?
 **Current State**:
 
 ```sql
+<!-- Code example in SQL -->
 -- v_user_full: Logical view with real-time composition
 -- Query time: 3-5 seconds
 SELECT * FROM v_user_full WHERE id = ?;
 ```text
+<!-- Code example in TEXT -->
 
 **Problem**: Users reported slow profile loading on high-traffic pages.
 
@@ -199,6 +211,7 @@ SELECT * FROM v_user_full WHERE id = ?;
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: Create intermediate composed views (helper)
 CREATE VIEW v_user_posts_composed AS ...
 CREATE VIEW v_user_full_composed AS ...
@@ -217,6 +230,7 @@ class User: ...
 -- Query time: 100-200ms ✅
 -- User experience: 25-50x faster ✅
 ```text
+<!-- Code example in TEXT -->
 
 **Before/After**:
 
@@ -228,10 +242,12 @@ class User: ...
 **Current State**:
 
 ```sql
+<!-- Code example in SQL -->
 -- va_orders: Logical view over 10M rows
 -- Query time: 5-10 seconds
 SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
 ```text
+<!-- Code example in TEXT -->
 
 **Problem**: BI dashboard queries timing out, blocking other queries.
 
@@ -240,6 +256,7 @@ SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
 **Implementation**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: Create ta_orders table with BRIN indexes
 CREATE TABLE ta_orders (
     id TEXT PRIMARY KEY,
@@ -262,6 +279,7 @@ registry.get("ta_orders")
 -- Query time: 50-100ms ✅
 -- Memory: 500MB-1GB (vs 2-5GB) ✅
 ```text
+<!-- Code example in TEXT -->
 
 **Before/After**:
 
@@ -275,6 +293,7 @@ registry.get("ta_orders")
 Clients don't explicitly choose views; the schema binding determines which view to use:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Client query (same for both v_* and tv_*)
 const query = gql`
   query {
@@ -300,6 +319,7 @@ class User:
     name: str
     posts: list[Post]
 ```text
+<!-- Code example in TEXT -->
 
 **When to use which**:
 
@@ -311,6 +331,7 @@ class User:
 Clients explicitly choose the view when creating tickets:
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 
 client = flight.connect("grpc://localhost:50051")
@@ -331,10 +352,12 @@ ticket_large = {
 }
 stream = client.do_get(flight.Ticket(json.dumps(ticket_large).encode()))
 ```text
+<!-- Code example in TEXT -->
 
 **View Discovery**:
 
 ```python
+<!-- Code example in Python -->
 # List available views
 views = client.list_flights(criteria=None)
 for flight_info in views:
@@ -342,6 +365,7 @@ for flight_info in views:
     print(f"  Type: {'table' if flight_info.name.startswith('ta_') else 'logical'}")
     print(f"  Rows: {flight_info.total_records}")
 ```text
+<!-- Code example in TEXT -->
 
 ## Decision Checklist
 
@@ -373,6 +397,7 @@ Before creating a new view, answer these questions:
 ### Test GraphQL Performance (v_*vs tv_*)
 
 ```sql
+<!-- Code example in SQL -->
 -- Measure v_* execution time
 EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM v_user_full WHERE id = ?;
 -- Note query time (look for "Execution Time")
@@ -381,10 +406,12 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM v_user_full WHERE id = ?;
 EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM tv_user_profile WHERE id = ?;
 -- Should be 10-50x faster
 ```text
+<!-- Code example in TEXT -->
 
 ### Test Analytics Performance (va_*vs ta_*)
 
 ```sql
+<!-- Code example in SQL -->
 -- Measure va_* execution time
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
@@ -394,6 +421,7 @@ EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM ta_orders WHERE created_at >= ? AND created_at < ?;
 -- Should be 50-100x faster for large datasets
 ```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.1: Compilation Pipeline
+description: FraiseQL's core strength is its **build-time compilation**. This topic explains how FraiseQL transforms your schema definitions (Python/TypeScript) into an opti
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.1: Compilation Pipeline
 
 **Audience:** Architects, developers implementing custom extensions, teams deploying FraiseQL
@@ -16,7 +24,10 @@ FraiseQL's core strength is its **build-time compilation**. This topic explains 
 
 ## The Seven-Phase Compilation Pipeline
 
+**Diagram: Compilation Pipeline** - 7-phase process from source code to optimized schema
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Parse: "Parse Schema Definitions\n(Python/TypeScript files)" {
@@ -66,7 +77,8 @@ Analyze -> Optimize: "Cost metrics"
 Optimize -> Authorize: "SQL templates"
 Authorize -> Output: "Auth rules"
 Output -> Server: "Compiled schema"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -77,6 +89,7 @@ Output -> Server: "Compiled schema"
 Your schema definitions in Python or TypeScript:
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 from FraiseQL import schema
 from datetime import datetime
@@ -103,6 +116,7 @@ def get_user(user_id: int) -> User:
 def list_orders(user_id: int) -> List[Order]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Process
 
@@ -117,6 +131,7 @@ def list_orders(user_id: int) -> List[Order]:
 Internal representation of schema structure (parsed AST):
 
 ```text
+<!-- Code example in TEXT -->
 Schema {
   types: [
     Type {
@@ -146,6 +161,7 @@ Schema {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -166,6 +182,7 @@ Parsed schema from Phase 1
 ### Example: Database Introspection
 
 ```sql
+<!-- Code example in SQL -->
 -- Phase 2 queries the database schema
 SELECT
   table_name,
@@ -188,10 +205,12 @@ tb_orders   | fk_user_id   | integer   | false       | NULL
 tb_orders   | total        | numeric   | false       | NULL
 tb_orders   | created_at   | timestamp | false       | now()
 ```text
+<!-- Code example in TEXT -->
 
 ### Output: schema.json
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "database": "postgresql",
@@ -239,6 +258,7 @@ tb_orders   | created_at   | timestamp | false       | now()
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -259,6 +279,7 @@ schema.json with all type and query information
 ### Example: Foreign Key Validation
 
 ```text
+<!-- Code example in TEXT -->
 Validating relationships...
 ✅ tb_orders.fk_user_id → tb_users.pk_user_id (valid)
 ✅ Query getUser expects Int, tb_users.pk_user_id is Int (compatible)
@@ -266,12 +287,14 @@ Validating relationships...
     Suggestion: Use database-level join or batch loading
 ✅ All relationships valid
 ```text
+<!-- Code example in TEXT -->
 
 ### Output
 
 Validation report (warnings + errors):
 
 ```text
+<!-- Code example in TEXT -->
 Relationship Validation Results:
 
 - Errors: 0
@@ -284,6 +307,7 @@ Warnings:
    Pattern: Many-to-one (1 user, N orders)
    Recommendation: Use view or batch query to avoid N+1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -304,6 +328,7 @@ Validated schema.json with relationship information
 ### Example: Query Complexity Analysis
 
 ```text
+<!-- Code example in TEXT -->
 Analyzing query patterns...
 
 Query: getUser(userId: Int!) -> User
@@ -322,12 +347,14 @@ Query: listOrders(userId: Int!) -> List<Order>
 - Recommended indexes: [fk_user_id]
 ⚠️ Missing index on fk_user_id - consider adding
 ```text
+<!-- Code example in TEXT -->
 
 ### Output
 
 Query analysis report with optimization recommendations:
 
 ```text
+<!-- Code example in TEXT -->
 Query Pattern Analysis:
 
 - Simple lookups (O(1)): 5 queries
@@ -340,6 +367,7 @@ Recommendations:
 2. Consider materialized view for user order totals
 3. Add column tb_orders(total_count) for common aggregation
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -360,6 +388,7 @@ Query patterns and complexity analysis from Phase 4
 ### Example: SQL Template Generation
 
 ```python
+<!-- Code example in Python -->
 # Input: getUser query definition
 # Output: SQL template
 
@@ -398,12 +427,14 @@ WHERE fk_user_id = $1  -- Should use index on fk_user_id
 ORDER BY created_at DESC
 """
 ```text
+<!-- Code example in TEXT -->
 
 ### Output
 
 Compiled SQL templates (one per query):
 
 ```text
+<!-- Code example in TEXT -->
 Compiled SQL Templates:
 
 - getUser: 1 template (simple lookup)
@@ -416,6 +447,7 @@ Compiled SQL Templates:
 Total templates: 5
 Memory footprint: ~50KB
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -436,6 +468,7 @@ Query definitions with permission annotations
 ### Example: Permission Compilation
 
 ```python
+<!-- Code example in Python -->
 # Input: Schema with permissions
 @schema.permission("user_role = 'admin'")
 @schema.query()
@@ -452,10 +485,12 @@ class UserProfile:
     @schema.permission("user_role = 'admin'")
     phone: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Compiled Permissions
 
 ```text
+<!-- Code example in TEXT -->
 Permission Rules (Compiled):
 
 1. delete_user:
@@ -472,12 +507,14 @@ Permission Rules (Compiled):
    - Evaluation: Post-fetch (apply to results)
    - Context needed: user_id, user_role, authenticated_user_id
 ```text
+<!-- Code example in TEXT -->
 
 ### Output
 
 Compiled authorization bytecode:
 
 ```text
+<!-- Code example in TEXT -->
 Authorization Bytecode:
 
 - Byte size: ~2KB
@@ -486,6 +523,7 @@ Authorization Bytecode:
 - Post-fetch filters: 7
 - Performance: <1ms per request
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -506,6 +544,7 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
 ### Example: schema.compiled.json Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "2.1.0",
   "fraiseql_version": "2.0.0",
@@ -568,10 +607,12 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Output: Production-Ready Schema
 
 ```text
+<!-- Code example in TEXT -->
 ✅ Compilation Complete
 
 Compiled Schema Statistics:
@@ -586,6 +627,7 @@ Compiled Schema Statistics:
 
 Ready for deployment!
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -596,6 +638,7 @@ Ready for deployment!
 **Input: Python Schema**
 
 ```python
+<!-- Code example in Python -->
 @schema.type(table="v_products")
 class Product:
     product_id: int
@@ -607,6 +650,7 @@ class Product:
 def search_products(query: str, limit: int = 10) -> List[Product]:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Phase 1: Parse**
 → Extract type information, recognize search_products query
@@ -624,12 +668,14 @@ def search_products(query: str, limit: int = 10) -> List[Product]:
 → Generate SQL:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT product_id, name, price, in_stock
 FROM v_products
 WHERE name ILIKE $1 || '%'  -- PostgreSQL ILIKE with leading wildcard
 ORDER BY popularity DESC
 LIMIT $2
 ```text
+<!-- Code example in TEXT -->
 
 **Phase 6: Authorize**
 → No special permissions (public query)
@@ -640,6 +686,7 @@ LIMIT $2
 **Runtime: GraphQL Request**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   searchProducts(query: "laptop", limit: 5) {
     productId
@@ -649,6 +696,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 → Server looks up pre-compiled template
 → Binds parameters ($1="laptop%", $2=5)
@@ -662,37 +710,45 @@ query {
 ### 1. Early Error Detection
 
 ```text
+<!-- Code example in TEXT -->
 ❌ Error caught at compile time:
    Column 'users_id' not found in tb_users
 
 ✅ Not discovered in production
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Performance Optimization
 
 ```text
+<!-- Code example in TEXT -->
  detects missing index:
 → Recommendation: Add index on tb_orders(fk_user_id)
 → DBA adds index before deployment
 → Queries automatically use it
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Security Verification
 
 ```text
+<!-- Code example in TEXT -->
  compiles authorization:
 → All permission rules checked for logic errors
 → Impossible conditions detected
 → Authorization always evaluated consistently
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Deterministic Behavior
 
 ```text
+<!-- Code example in TEXT -->
 All query optimization happens at build time.
 At runtime: just execute pre-compiled template.
 Result: Predictable performance, no surprises.
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -701,30 +757,37 @@ Result: Predictable performance, no surprises.
 ### 1. Query Plan Transparency
 
 ```text
+<!-- Code example in TEXT -->
 Every query has a pre-computed plan:
 SELECT statement, expected cost, required indexes
 All visible before serving requests
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Automatic Optimization
 
 ```text
+<!-- Code example in TEXT -->
 Index missing? Phase 4 detects and recommends
 Index added? Phase 5 generates optimal SQL using it
 No code changes needed
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Schema Versioning
 
 ```text
+<!-- Code example in TEXT -->
 Each compiled schema is versioned:
 schema.compiled.json version 1.2
 Can run multiple versions, gradually migrate clients
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Deployment Safety
 
 ```text
+<!-- Code example in TEXT -->
 Compile server before deploying:
 
 - All queries validated
@@ -733,6 +796,7 @@ Compile server before deploying:
 - If anything fails, don't deploy
 Result: Zero surprises in production
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -741,26 +805,31 @@ Result: Zero surprises in production
 ### Development
 
 ```bash
+<!-- Code example in BASH -->
 # Watch for changes and recompile
 FraiseQL-cli watch schema.py --output schema.compiled.json
 
 # Or one-time compilation
 FraiseQL-cli compile schema.py --output schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### CI/CD Pipeline
 
 ```bash
+<!-- Code example in BASH -->
 # Automated compilation in build step
 FraiseQL-cli compile schema.py \
   --database-url $DATABASE_URL \
   --output schema.compiled.json \
   --strict  # Fail on any warning
 ```text
+<!-- Code example in TEXT -->
 
 ### Production Deployment
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Compile schema (all validations run)
 FraiseQL-cli compile schema.py --database-url prod_db
 
@@ -772,6 +841,7 @@ pytest tests/
 docker build .
 docker push registry/FraiseQL-server:latest
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -780,6 +850,7 @@ docker push registry/FraiseQL-server:latest
 ### Compilation Time
 
 ```text
+<!-- Code example in TEXT -->
 Typical project:
 
 - Schema definitions: 50 types, 30 queries
@@ -794,10 +865,12 @@ Typical project:
 
 Total: ~3 seconds for full recompilation
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime Performance (Per Request)
 
 ```text
+<!-- Code example in TEXT -->
 Query execution with pre-compiled schema:
 
 Traditional GraphQL Server:
@@ -818,6 +891,7 @@ Total: 51ms ← 25% faster
 
 Difference: 17ms per request = 8x faster on median case
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Full-Stack Blog Platform: Java Authoring → FraiseQL Backend → Next.js Frontend
+description: 1. [Architecture Overview](#architecture-overview)
+keywords: ["code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Full-Stack Blog Platform: Java Authoring → FraiseQL Backend → Next.js Frontend
 
 **Status:** ✅ Production-Ready Example
@@ -28,6 +36,7 @@
 ### The Three-Layer Stack
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Next.js Frontend (React)                     │
 │  • Server Components: Static article pages, author profiles      │
@@ -67,6 +76,7 @@
 │  • NO runtime dependency on FraiseQL (compile-time only)          │
 └──────────────────────────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Key Principle:** Java is for *authoring only*. The schema is exported to JSON, compiled by FraiseQL to optimized SQL, and never touched again at runtime.
 
@@ -79,6 +89,7 @@
 Create a Maven project with the FraiseQL schema authoring plugin:
 
 ```xml
+<!-- Code example in XML -->
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -159,12 +170,14 @@ Create a Maven project with the FraiseQL schema authoring plugin:
     </build>
 </project>
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Domain Types
 
 Create Java classes with FraiseQL annotations to define your GraphQL schema:
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/User.java
 package dev.FraiseQL.blog.types;
 
@@ -212,8 +225,10 @@ public class User {
     public java.util.List<Comment> comments;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/UserRole.java
 package dev.FraiseQL.blog.types;
 
@@ -244,8 +259,10 @@ public enum UserRole {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/Category.java
 package dev.FraiseQL.blog.types;
 
@@ -278,8 +295,10 @@ public class Category {
     public java.util.List<Article> articles;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/Tag.java
 package dev.FraiseQL.blog.types;
 
@@ -310,8 +329,10 @@ public class Tag {
     public java.util.List<Article> articles;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/Article.java
 package dev.FraiseQL.blog.types;
 
@@ -386,8 +407,10 @@ public class Article {
     public java.util.List<Comment> comments;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/ArticleStatus.java
 package dev.FraiseQL.blog.types;
 
@@ -415,8 +438,10 @@ public enum ArticleStatus {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/Comment.java
 package dev.FraiseQL.blog.types;
 
@@ -461,8 +486,10 @@ public class Comment {
     public java.util.List<Comment> replies;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/types/CommentStatus.java
 package dev.FraiseQL.blog.types;
 
@@ -490,10 +517,12 @@ public enum CommentStatus {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Query Definitions
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/queries/ArticleQueries.java
 package dev.FraiseQL.blog.queries;
 
@@ -570,8 +599,10 @@ enum SortDirection {
     @GraphQLEnumValue DESC
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/queries/CommentQueries.java
 package dev.FraiseQL.blog.queries;
 
@@ -609,8 +640,10 @@ public class CommentQueries {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/queries/CategoryQueries.java
 package dev.FraiseQL.blog.queries;
 
@@ -644,10 +677,12 @@ public class CategoryQueries {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.4 Mutation Definitions
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/mutations/ArticleMutations.java
 package dev.FraiseQL.blog.mutations;
 
@@ -716,8 +751,10 @@ public class ArticleMutations {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```java
+<!-- Code example in Java -->
 // src/main/java/dev/FraiseQL/blog/mutations/CommentMutations.java
 package dev.FraiseQL.blog.mutations;
 
@@ -768,6 +805,7 @@ public class CommentMutations {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -776,6 +814,7 @@ public class CommentMutations {
 ### 2.1 PostgreSQL Schema
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL schema for blog platform
 -- Created: 2026-02-05
 -- Target: FraiseQL v2.0.0
@@ -969,10 +1008,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Initialize Database
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/init-db.sh
 
@@ -1023,6 +1064,7 @@ EOF
 
 echo "Database initialization complete!"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1031,6 +1073,7 @@ echo "Database initialization complete!"
 ### 3.1 Build Java Schema
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/build-schema.sh
 
@@ -1056,10 +1099,12 @@ cp target/schema.json ../schema.json
 
 echo "✓ Schema exported to ../schema.json"
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Compile Schema with FraiseQL CLI
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/compile-schema.sh
 
@@ -1134,12 +1179,14 @@ fi
 echo "✓ Compilation successful"
 FraiseQL validate schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Compiled Schema Structure
 
 The `schema.compiled.json` contains everything needed at runtime:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "2.0.0",
   "compiled_at": "2026-02-05T12:00:00Z",
@@ -1191,6 +1238,7 @@ The `schema.compiled.json` contains everything needed at runtime:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1199,6 +1247,7 @@ The `schema.compiled.json` contains everything needed at runtime:
 ### 4.1 Dockerfile
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Multi-stage build
 FROM rust:latest as builder
 
@@ -1237,10 +1286,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 ENV RUST_LOG=info
 CMD ["/app/FraiseQL-server", "--schema", "/app/schema.compiled.json"]
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Docker Compose Setup
 
 ```yaml
+<!-- Code example in YAML -->
 # docker-compose.yml
 version: '3.8'
 
@@ -1286,10 +1337,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Deploy to Production
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/deploy.sh
 
@@ -1314,6 +1367,7 @@ kubectl set image deployment/FraiseQL-blog \
 
 echo "✓ Deployment complete: $VERSION"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1322,6 +1376,7 @@ echo "✓ Deployment complete: $VERSION"
 ### 5.1 Project Setup
 
 ```bash
+<!-- Code example in BASH -->
 # Create Next.js 14+ app with TypeScript
 npx create-next-app@latest blog-frontend \
   --typescript \
@@ -1336,10 +1391,12 @@ npm install @apollo/client graphql graphql-request
 npm install --save-dev @graphql-codegen/cli @graphql-codegen/client-preset
 npm install zustand
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Environment Configuration
 
 ```bash
+<!-- Code example in BASH -->
 # .env.local
 NEXT_PUBLIC_GRAPHQL_URL=http://localhost:5000/graphql
 NEXT_PUBLIC_GRAPHQL_WS_URL=ws://localhost:5000/graphql
@@ -1348,10 +1405,12 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 # For production
 # NEXT_PUBLIC_GRAPHQL_URL=https://api.example.com/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 GraphQL Schema & Codegen
 
 ```yaml
+<!-- Code example in YAML -->
 # codegen.yml
 schema: http://localhost:5000/graphql
 documents: 'src/**/*.tsx'
@@ -1362,10 +1421,12 @@ generates:
       useTypeNameAsDefault: true
       skipTypename: false
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.4 GraphQL Queries & Mutations
 
 ```graphql
+<!-- Code example in GraphQL -->
 # src/graphql/queries.graphql
 
 # Get published articles with pagination
@@ -1501,8 +1562,10 @@ query GetTrendingArticles($days: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```graphql
+<!-- Code example in GraphQL -->
 # src/graphql/mutations.graphql
 
 # Add comment
@@ -1554,10 +1617,12 @@ mutation PublishArticle(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.5 Apollo Client Setup
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/lib/apolloClient.ts
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 
@@ -1570,10 +1635,12 @@ export const apolloClient = new ApolloClient({
   cache: new InMemoryCache(),
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.6 Server Components
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/app/components/ArticleList.tsx
 import { Suspense } from 'react';
 import { gql } from '@apollo/client';
@@ -1697,8 +1764,10 @@ export default function ArticleList() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/app/articles/[slug]/page.tsx
 import { Suspense } from 'react';
 import { gql } from '@apollo/client';
@@ -1882,10 +1951,12 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   return <ArticleContent slug={params.slug} />;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.7 Client Components
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/app/components/CommentSection.tsx
 'use client';
 
@@ -2060,8 +2131,10 @@ export default function CommentSection({ articleId }: CommentSectionProps) {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/app/components/SearchArticles.tsx
 'use client';
 
@@ -2154,12 +2227,14 @@ export default function SearchArticles() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Part 6: Project Structure
 
 ```text
+<!-- Code example in TEXT -->
 blog-monorepo/
 ├── java-schema/                    # Java authoring layer
 │   ├── pom.xml
@@ -2235,6 +2310,7 @@ blog-monorepo/
 ├── README.md
 └── docker-compose.yml              # Orchestrate all services
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2243,6 +2319,7 @@ blog-monorepo/
 ### 7.1 Prerequisites
 
 ```bash
+<!-- Code example in BASH -->
 # Check requirements
 java -version          # Java 17+
 mvn -version           # Maven 3.9+
@@ -2250,10 +2327,12 @@ node --version         # Node 18+
 cargo --version        # Rust (for FraiseQL-cli)
 docker --version       # Docker & Docker Compose
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Run Locally (Development)
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/dev-start.sh
 
@@ -2294,10 +2373,12 @@ echo "📖 GraphQL:  http://localhost:5000/graphql"
 echo "🌐 Frontend: http://localhost:3000"
 echo "📊 DB:       localhost:5432 (blog_user/blog_password)"
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Test the Stack
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/test-stack.sh
 
@@ -2319,6 +2400,7 @@ curl -s http://localhost:3000 | grep -q "Blog" && echo "✓ Frontend OK" || echo
 
 echo "✅ Stack tests passed!"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2331,6 +2413,7 @@ echo "✅ Stack tests passed!"
 The author uses the Next.js admin panel to create and publish an article:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // frontend: Create article form submission
 const handlePublishArticle = async (formData) => {
   const result = await client.mutate({
@@ -2350,10 +2433,12 @@ const handlePublishArticle = async (formData) => {
   navigate(`/articles/${result.data.publishArticle.slug}`);
 };
 ```text
+<!-- Code example in TEXT -->
 
 #### Step 2: GraphQL Mutation Execution
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation PublishArticle {
   publishArticle(
     title: "Getting Started with GraphQL"
@@ -2369,12 +2454,14 @@ mutation PublishArticle {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Step 3: FraiseQL Compiles to SQL
 
 The compiled mutation template:
 
 ```sql
+<!-- Code example in SQL -->
 -- Generated by FraiseQL compiler
 INSERT INTO articles (
   title, slug, content, author_id, category_id, status, published_at
@@ -2387,10 +2474,12 @@ RETURNING id, title, status, published_at;
 INSERT INTO article_tags (article_id, tag_id)
 SELECT $1, tag_id FROM tags WHERE tag_id = ANY($2);
 ```text
+<!-- Code example in TEXT -->
 
 #### Step 4: Results Returned to Frontend
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "publishArticle": {
@@ -2402,6 +2491,7 @@ SELECT $1, tag_id FROM tags WHERE tag_id = ANY($2);
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Add Comment Workflow
 
@@ -2413,6 +2503,7 @@ SELECT $1, tag_id FROM tags WHERE tag_id = ANY($2);
 6. **Comment appears** - UI updates with new comment
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Complete flow in CommentSection component
 const handleSubmitComment = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -2432,6 +2523,7 @@ const handleSubmitComment = async (e: React.FormEvent) => {
   await refetch();
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Search Workflow
 
@@ -2441,6 +2533,7 @@ const handleSubmitComment = async (e: React.FormEvent) => {
 4. **UI re-renders** - Search results appear in real-time
 
 ```typescript
+<!-- Code example in TypeScript -->
 const debouncedSearch = debounce((query: string) => {
   if (query.length > 2) {
     searchArticles({
@@ -2449,6 +2542,7 @@ const debouncedSearch = debounce((query: string) => {
   }
 }, 300);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2457,6 +2551,7 @@ const debouncedSearch = debounce((query: string) => {
 ### 9.1 Deploy to Vercel (Frontend)
 
 ```bash
+<!-- Code example in BASH -->
 # Connect Vercel
 vercel link
 
@@ -2466,10 +2561,12 @@ vercel deploy --prod
 # Set environment variables
 vercel env add NEXT_PUBLIC_GRAPHQL_URL https://api.example.com/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Deploy to Kubernetes (Backend)
 
 ```yaml
+<!-- Code example in YAML -->
 # k8s/FraiseQL-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -2524,10 +2621,12 @@ spec:
   selector:
     app: FraiseQL-blog
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Database Migration Strategy
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # scripts/migrate-prod.sh
 
@@ -2546,6 +2645,7 @@ psql "$PROD_DB_URL" -f sql/migrations/002-add-indexes.sql
 
 echo "✓ Migrations complete"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2556,16 +2656,19 @@ echo "✓ Migrations complete"
 **Issue: GraphQL queries timeout**
 
 ```bash
+<!-- Code example in BASH -->
 # Solution: Check database connection pool
 # In FraiseQL.toml:
 [database]
 pool_size = 20  # Increase from default 10
 connection_timeout_secs = 60
 ```text
+<!-- Code example in TEXT -->
 
 **Issue: Compiled schema doesn't include all fields**
 
 ```bash
+<!-- Code example in BASH -->
 # Solution: Ensure Maven plugin scanned all packages
 # In pom.xml:
 <scanPackages>
@@ -2575,21 +2678,25 @@ connection_timeout_secs = 60
   <scanPackage>dev.FraiseQL.blog.mutations</scanPackage>
 </scanPackages>
 ```text
+<!-- Code example in TEXT -->
 
 **Issue: Comments not appearing**
 
 ```bash
+<!-- Code example in BASH -->
 # Solution: Check comment status filter
 # Queries only return APPROVED comments by default
 # In database:
 UPDATE comments SET status = 'approved' WHERE status = 'pending';
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Performance Optimization
 
 **Enable Query Caching**
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [cache]
 enabled = true
@@ -2600,25 +2707,31 @@ max_entries = 10000
 @Cached(ttlSeconds = 600)
 public List<Article> getArticles(...) { ... }
 ```text
+<!-- Code example in TEXT -->
 
 **Add Database Indexes**
 
 ```sql
+<!-- Code example in SQL -->
 -- Already included in schema.sql, but add more as needed:
 CREATE INDEX idx_articles_published_at ON articles(published_at DESC)
 WHERE status = 'published';
 ```text
+<!-- Code example in TEXT -->
 
 **Enable Persisted Queries (APQ)**
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Next.js: Automatic with Apollo Client
 import { createPersistedQueryLink } from "@apollo/client/link/persisted-queries";
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.3 Security Best Practices
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml - Security Configuration
 
 [security.authorization]
@@ -2635,10 +2748,12 @@ auth_start_window_secs = 60
 enabled = true
 log_mutations = true
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.4 Monitoring
 
 ```bash
+<!-- Code example in BASH -->
 # Monitor FraiseQL server
 docker logs -f FraiseQL
 
@@ -2649,10 +2764,12 @@ psql -c "SELECT datname, usename, count(*) FROM pg_stat_activity GROUP BY datnam
 npm run build  # Check for build errors
 npm run lint   # Check for code issues
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.5 Useful Commands
 
 ```bash
+<!-- Code example in BASH -->
 # Build everything
 ./scripts/build-schema.sh && ./scripts/compile-schema.sh
 
@@ -2668,6 +2785,7 @@ FraiseQL validate schema.compiled.json
 # Export database schema
 pg_dump --schema-only blog_db > schema-backup.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

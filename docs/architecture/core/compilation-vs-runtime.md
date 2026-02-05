@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Compilation vs Runtime: Decision Authority Matrix
+description: This document establishes **when decisions are made** in FraiseQL: compile-time (static) vs runtime (dynamic).
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Compilation vs Runtime: Decision Authority Matrix
 
 **Version:** 1.0
@@ -32,7 +40,10 @@ Understanding this boundary is critical because:
 
 ### Timeline of Decisions
 
+**Diagram: Compilation Pipeline** - 7-phase process from source code to optimized schema
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: right
 
 AuthorTime: "Authoring Time\n(Python/TS)" {
@@ -79,7 +90,8 @@ AuthTime -> AuthDecisions
 CompileTime -> CompileDecisions
 RuntimeRequest -> RuntimeDecisions
 Deployment -> DeployDecisions
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -176,6 +188,7 @@ Deployment -> DeployDecisions
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 # Compile-time: Define schema
 @FraiseQL.type
 class User:
@@ -187,6 +200,7 @@ class User:
 # This is impossible:
 # user.add_field("age", Int)  # ❌ NOT ALLOWED
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -198,6 +212,7 @@ class User:
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Compile-time: Query structure
 query {
   users(where: { name: { _eq: $name } }) {  # Structure fixed
@@ -210,6 +225,7 @@ query {
 { "name": "Alice" }  # ✅ Value is runtime
 { "name": "Bob" }    # ✅ Different value, same structure
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -221,6 +237,7 @@ query {
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 # Compile-time: Declare rule
 @FraiseQL.query
 @requires_role("admin")  # Rule declared
@@ -230,6 +247,7 @@ def users():
 # Runtime: Check if user has "admin" role
 # AuthContext.roles includes "admin"? ✅ Allow : ❌ Deny
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -241,6 +259,7 @@ def users():
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 # Compile-time: Enable caching
 config = CompilerConfig(
     caching_enabled=True,         # Compile-time decision
@@ -251,6 +270,7 @@ config = CompilerConfig(
 # Runtime: Cache lookup and storage
 # Is result in cache? ✅ Return cached : ❌ Execute query
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -315,11 +335,13 @@ config = CompilerConfig(
 **Wrong:**
 
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to add field to type
 fn add_field_to_user(schema: &mut CompiledSchema, field_name: &str) {
     schema.types["User"].fields.insert(field_name, ...);  // ❌ FORBIDDEN
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Schema is compile-time contract. Runtime modification breaks determinism.
 
@@ -332,12 +354,14 @@ fn add_field_to_user(schema: &mut CompiledSchema, field_name: &str) {
 **Wrong:**
 
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to emulate unavailable operator
 fn execute_regex_on_mysql(col: &str, pattern: &str) -> String {
     // Fake regex with LIKE + stored procedures
     format!("CALL emulate_regex({}, {})", col, pattern)  // ❌ FORBIDDEN
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** GraphQL schema lies about operator availability. Clients get runtime surprises.
 
@@ -350,6 +374,7 @@ fn execute_regex_on_mysql(col: &str, pattern: &str) -> String {
 **Wrong:**
 
 ```python
+<!-- Code example in Python -->
 # Runtime resolver executes auth logic
 def resolve_user_email(user, context):
     if context.user.role == "admin":  # ❌ Runtime logic
@@ -357,18 +382,21 @@ def resolve_user_email(user, context):
     else:
         return None
 ```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Authorization should be declarative (compile-time), not imperative (runtime).
 
 **Correct:** Declare field-level auth at compile time:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
     name: str
     email: str = FraiseQL.field(requires_role="admin")  # ✅ Compile-time
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -377,6 +405,7 @@ class User:
 **Wrong:**
 
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to change execution plan
 fn execute_query(query: &Query) {
     if query.is_complex() {
@@ -387,6 +416,7 @@ fn execute_query(query: &Query) {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Execution should be deterministic. Same query always uses same plan.
 
@@ -432,6 +462,7 @@ When implementing runtime features, ensure:
 Use this decision tree when unclear about timing:
 
 ```text
+<!-- Code example in TEXT -->
 Does the decision depend on request-specific data?
 ├─ YES → Runtime
 │   Examples: AuthContext, cache hit/miss, SQL parameter values
@@ -443,6 +474,7 @@ Does the decision depend on request-specific data?
     └─ NO → Compile-time (schema structure)
         Examples: types, fields, operators available
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

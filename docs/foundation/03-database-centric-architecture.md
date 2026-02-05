@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 1.3: Database-Centric Architecture
+description: FraiseQL's fundamental design choice is to treat the **database as the primary application interface**, not as a storage afterthought. This topic explains why t
+keywords: ["design", "query-execution", "security", "patterns", "data-planes", "graphql", "scalability", "performance"]
+tags: ["documentation", "reference"]
+---
+
 # 1.3: Database-Centric Architecture
 
 **Audience:** Architects, database teams, developers building data systems
@@ -21,6 +29,7 @@ FraiseQL's fundamental design choice is to treat the **database as the primary a
 Traditional GraphQL servers are designed to aggregate data from multiple sources:
 
 ```text
+<!-- Code example in TEXT -->
 Client
   ↓ (GraphQL Query)
 GraphQL Server
@@ -33,6 +42,7 @@ GraphQL Server
   ↓
 Client (aggregated response)
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:** The server becomes a coordination layer, and you need to write resolvers for every field, cache invalidation logic, N+1 prevention, etc.
 
@@ -43,6 +53,7 @@ Client (aggregated response)
 FraiseQL assumes the database is your **primary and usually only data source**:
 
 ```text
+<!-- Code example in TEXT -->
 Client
   ↓ (GraphQL Query)
 FraiseQL Server
@@ -54,6 +65,7 @@ Database (single source of truth)
   ↓
 Client (direct result)
 ```text
+<!-- Code example in TEXT -->
 
 **Advantage:** Clear data flow, no custom resolvers, deterministic behavior.
 
@@ -124,18 +136,21 @@ FraiseQL is **not** the right choice when:
 ### The Data Hierarchy
 
 ```text
+<!-- Code example in TEXT -->
 Database Schema (DBA responsibility)
     ↓
 FraiseQL Type Definition (Developer responsibility)
     ↓
 GraphQL API (Client interface)
 ```text
+<!-- Code example in TEXT -->
 
 Each level maps directly:
 
 **Database Level:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     username VARCHAR(255) NOT NULL,
@@ -153,10 +168,12 @@ CREATE TABLE tb_orders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL Type Level:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     user_id: int              # ← pk_user
@@ -176,10 +193,12 @@ class Order:
     user: User                # ← reverse relationship
     created_at: datetime      # ← created_at
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL API Level:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   userId: Int!
   username: String!
@@ -210,6 +229,7 @@ query GetUser {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -218,20 +238,24 @@ query GetUser {
 **FraiseQL automatically derives relationships from foreign keys:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Database: Foreign key defines relationship
 ALTER TABLE tb_orders
 ADD CONSTRAINT fk_orders_user
 FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
 ```text
+<!-- Code example in TEXT -->
 
 **Becomes in FraiseQL:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Order:
     user_id: int
     user: User  # Automatically available because of FK
 ```text
+<!-- Code example in TEXT -->
 
 **No extra configuration needed.** The database structure is the API structure.
 
@@ -266,6 +290,7 @@ FraiseQL uses four types of database views, each optimized for different access 
 **Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Write table (source of truth)
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY,
@@ -285,6 +310,7 @@ SELECT
 FROM tb_users
 WHERE deleted_at IS NULL;  -- Only active users
 ```text
+<!-- Code example in TEXT -->
 
 **Characteristics:**
 
@@ -297,6 +323,7 @@ WHERE deleted_at IS NULL;  -- Only active users
 **FraiseQL Integration:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     user_id: int
@@ -305,6 +332,7 @@ class User:
     created_at: datetime
     # Automatically queries v_user view
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -322,6 +350,7 @@ class User:
 **Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Write table
 CREATE TABLE tb_orders (
     pk_order BIGINT PRIMARY KEY,
@@ -368,6 +397,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 **Characteristics:**
 
@@ -380,6 +410,7 @@ $$ LANGUAGE plpgsql;
 **FraiseQL Integration:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class OrderWithUser:
     order_id: int
@@ -387,6 +418,7 @@ class OrderWithUser:
     user: User  # From pre-composed JSONB
     # Automatically queries tv_order_with_user view
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -404,6 +436,7 @@ class OrderWithUser:
 **Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Read view optimized for columnar extraction
 CREATE VIEW va_user_stats AS
 SELECT
@@ -416,6 +449,7 @@ SELECT
 FROM tb_users
 WHERE deleted_at IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 **Characteristics:**
 
@@ -428,6 +462,7 @@ WHERE deleted_at IS NULL;
 **FraiseQL Integration:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.aggregate_query(
     fact_table=None,  # Uses va_user_stats logical view
 )
@@ -435,6 +470,7 @@ WHERE deleted_at IS NULL;
 def user_stats_by_year() -> list[dict]:
     """Returns user count by signup year via Arrow Flight."""
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -456,6 +492,7 @@ def user_stats_by_year() -> list[dict]:
 Numeric columns for fast aggregation. **225x faster** than JSONB aggregation.
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE ta_sales (
     id BIGSERIAL PRIMARY KEY,
 
@@ -476,12 +513,14 @@ FROM ta_sales
 WHERE created_at >= '2026-01-01';
 -- Result: <1ms (1M rows)
 ```text
+<!-- Code example in TEXT -->
 
 #### Component 2: Dimensions (JSONB Column)
 
 Flexible grouping attributes in a single JSON column. No schema migration needed to add new dimensions.
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE ta_sales (
     -- ... measures above
 
@@ -506,38 +545,48 @@ GROUP BY
 ORDER BY total_revenue DESC;
 -- Result: 50-100ms (1M rows), grouping by 2 dimensions
 ```text
+<!-- Code example in TEXT -->
 
 **Database-Specific Dimension Extraction:**
 
 PostgreSQL:
 
 ```sql
+<!-- Code example in SQL -->
 dimension_data->>'category'              -- JSONB operator
 ```text
+<!-- Code example in TEXT -->
 
 MySQL:
 
 ```sql
+<!-- Code example in SQL -->
 JSON_UNQUOTE(JSON_EXTRACT(dimension_data, '$.category'))
 ```text
+<!-- Code example in TEXT -->
 
 SQLite:
 
 ```sql
+<!-- Code example in SQL -->
 json_extract(dimension_data, '$.category')
 ```text
+<!-- Code example in TEXT -->
 
 SQL Server:
 
 ```sql
+<!-- Code example in SQL -->
 JSON_VALUE(dimension_data, '$.category')
 ```text
+<!-- Code example in TEXT -->
 
 #### Component 3: Denormalized Filters (Indexed SQL Columns)
 
 High-selectivity filter columns for fast WHERE clauses.
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE ta_sales (
     -- ... measures and dimensions above
 
@@ -558,10 +607,12 @@ CREATE INDEX idx_ta_sales_status ON ta_sales(filter_status);
 CREATE INDEX idx_ta_sales_data_gin ON ta_sales USING GIN(dimension_data);
 CREATE INDEX idx_ta_sales_revenue_brin ON ta_sales USING BRIN(measure_revenue);
 ```text
+<!-- Code example in TEXT -->
 
 **Query with All Three Components:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Fast WHERE (filters), GROUP BY (dimensions), aggregation (measures)
 SELECT
     dimension_data->>'category' AS category,
@@ -584,10 +635,12 @@ LIMIT 100;
 
 -- Performance: 30-100ms (100M rows)
 ```text
+<!-- Code example in TEXT -->
 
 **Complete Example with Triggers:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Write table (source of truth)
 CREATE TABLE tb_sales (
     pk_sale BIGINT PRIMARY KEY,
@@ -672,6 +725,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```text
+<!-- Code example in TEXT -->
 
 **Characteristics:**
 
@@ -688,6 +742,7 @@ $$ LANGUAGE plpgsql;
 **Problem:** Grouping by temporal buckets (month, quarter, year) requires runtime computation.
 
 ```sql
+<!-- Code example in SQL -->
 -- Slow: Runtime computation
 SELECT
     DATE_TRUNC('month', occurred_at) AS month,
@@ -696,10 +751,12 @@ FROM ta_sales
 GROUP BY DATE_TRUNC('month', occurred_at);
 -- Result: 500ms (1M rows)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution:** Pre-computed temporal buckets in JSONB.
 
 ```sql
+<!-- Code example in SQL -->
 -- Fast: Pre-computed extraction
 CREATE TABLE ta_sales_with_calendar (
     -- ... all columns from ta_sales above
@@ -722,6 +779,7 @@ GROUP BY
 ORDER BY calendar_info->>'month';
 -- Result: 30ms (1M rows) - 16x faster!
 ```text
+<!-- Code example in TEXT -->
 
 **Performance Impact by Rows:**
 
@@ -735,6 +793,7 @@ ORDER BY calendar_info->>'month';
 FraiseQL introspects columns ending with `_info` containing `{date, week, month, quarter, year}` and automatically generates optimal SQL:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.fact_table(table_name="ta_sales")
 @FraiseQL.type
 class Sale:
@@ -743,6 +802,7 @@ class Sale:
     calendar_info: dict   # {date, week, month, quarter, year} ← Auto-detected
     # FraiseQL uses: calendar_info->>'month' (not DATE_TRUNC)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -753,6 +813,7 @@ class Sale:
 FraiseQL supports multiple database backends with **one schema definition**:
 
 ```python
+<!-- Code example in Python -->
 # One schema definition...
 @FraiseQL.type
 class User:
@@ -767,6 +828,7 @@ class User:
 # - SQLite (local dev, testing)
 # - SQL Server (enterprise deployments)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -786,6 +848,7 @@ class User:
 **Same FraiseQL schema:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Product:
     product_id: int
@@ -794,10 +857,12 @@ class Product:
     in_stock: bool
     created_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 **Works on PostgreSQL:**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 CREATE TABLE tb_products (
     pk_product BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -807,10 +872,12 @@ CREATE TABLE tb_products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Works on MySQL:**
 
 ```sql
+<!-- Code example in SQL -->
 -- MySQL
 CREATE TABLE tb_products (
     pk_product BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -820,10 +887,12 @@ CREATE TABLE tb_products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Works on SQLite:**
 
 ```sql
+<!-- Code example in SQL -->
 -- SQLite
 CREATE TABLE tb_products (
     pk_product INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -833,6 +902,7 @@ CREATE TABLE tb_products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Same GraphQL API** ✓
 **Same FraiseQL schema definition** ✓
@@ -847,6 +917,7 @@ While the schema is portable, FraiseQL can leverage database-specific features:
 **PostgreSQL (Primary, Most Features):**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL-specific: JSONB, arrays, types
 CREATE TABLE tb_events (
     pk_event BIGINT PRIMARY KEY,
@@ -863,10 +934,12 @@ class Event:
     tags: List[str]  # Maps to array
     status: EventStatus  # Maps to enum
 ```text
+<!-- Code example in TEXT -->
 
 **MySQL (Limited Custom Types):**
 
 ```sql
+<!-- Code example in SQL -->
 -- MySQL: Standard types, JSON as string
 CREATE TABLE tb_events (
     pk_event BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -875,10 +948,12 @@ CREATE TABLE tb_events (
     status VARCHAR(50)  -- Enum as string
 );
 ```text
+<!-- Code example in TEXT -->
 
 **SQLite (Minimal Types):**
 
 ```sql
+<!-- Code example in SQL -->
 -- SQLite: TEXT for everything complex
 CREATE TABLE tb_events (
     pk_event INTEGER PRIMARY KEY,
@@ -887,6 +962,7 @@ CREATE TABLE tb_events (
     status TEXT  -- Enum as text
 );
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL handles the differences transparently.**
 
@@ -905,11 +981,13 @@ Fact tables (`tf_*` prefix) are the **core analytics data structure** in FraiseQ
 ### The Three-Component Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Fact Table (tf_*)
 ├── Measures (SQL Columns) ← 225x faster aggregation
 ├── Dimensions (JSONB Column) ← Flexible grouping
 └── Filters (Indexed SQL Columns) ← Fast WHERE clauses
 ```text
+<!-- Code example in TEXT -->
 
 This structure enables:
 
@@ -924,6 +1002,7 @@ This structure enables:
 FraiseQL provides decorators for analytics:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import fact_table, aggregate_query, type as fraiseql_type
 
 # Define fact table
@@ -963,10 +1042,12 @@ class Sale:
     filter_status: str
     calendar_info: dict
 ```text
+<!-- Code example in TEXT -->
 
 **Generated GraphQL Aggregate Query:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     where: {
@@ -993,6 +1074,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1003,6 +1085,7 @@ query {
 FraiseQL uses **Apache Arrow Flight** to stream columnar analytics data directly to clients.
 
 ```text
+<!-- Code example in TEXT -->
 Client
   ↓ (Arrow Flight Request with ticket)
 FraiseQL Arrow Server (gRPC)
@@ -1013,6 +1096,7 @@ FraiseQL Arrow Server (gRPC)
   ↓
 Client (receives Arrow format, zero-copy deserialization)
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:**
 
@@ -1027,6 +1111,7 @@ Client (receives Arrow format, zero-copy deserialization)
 Clients request data by submitting a **Flight Ticket**, which encodes the query:
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "OptimizedView",
   "view": "ta_sales",
@@ -1036,6 +1121,7 @@ Clients request data by submitting a **Flight Ticket**, which encodes the query:
   "offset": 0
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Ticket Types:**
 
@@ -1051,11 +1137,13 @@ Clients request data by submitting a **Flight Ticket**, which encodes the query:
 FraiseQL automatically registers Arrow schemas:
 
 ```text
+<!-- Code example in TEXT -->
 va_orders: [id (Int64), total (Float64), created_at (Timestamp), customer_name (Utf8)]
 va_users: [id (Int64), email (Utf8), name (Utf8), created_at (Timestamp)]
 ta_orders: [measure_total (Numeric), dimension_data (Utf8), filter_customer_id (Utf8), calendar_info (Utf8)]
 ta_users: [id (Text), email (Text), name (Text), created_at (Timestamp), source_updated_at (Timestamp)]
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1066,6 +1154,7 @@ ta_users: [id (Text), email (Text), name (Text), created_at (Timestamp), source_
 FraiseQL's database-centric design manifests in four layers:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────┐
 │ Layer 1: AUTHORING (Your Code)              │
 │ Python/TypeScript + @FraiseQL decorators    │
@@ -1137,6 +1226,7 @@ FraiseQL's database-centric design manifests in four layers:
 │ The single source of truth for all data     │
 └─────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

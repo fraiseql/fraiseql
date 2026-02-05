@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Aggregation Operators Specification
+description: This specification defines the aggregation operators available in FraiseQL, organized by database target and phase of implementation.
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Aggregation Operators Specification
 
 **Version:** 1.0
@@ -26,6 +34,7 @@ The capability manifest defines which operators are available for each database 
 ### PostgreSQL Aggregation Operators
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "aggregation": {
@@ -64,11 +73,13 @@ The capability manifest defines which operators are available for each database 
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL Aggregation Operators
 
 ```json
+<!-- Code example in JSON -->
 {
   "mysql": {
     "aggregation": {
@@ -102,11 +113,13 @@ The capability manifest defines which operators are available for each database 
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite Aggregation Operators
 
 ```json
+<!-- Code example in JSON -->
 {
   "sqlite": {
     "aggregation": {
@@ -131,11 +144,13 @@ The capability manifest defines which operators are available for each database 
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server Aggregation Operators
 
 ```json
+<!-- Code example in JSON -->
 {
   "sqlserver": {
     "aggregation": {
@@ -170,7 +185,8 @@ The capability manifest defines which operators are available for each database 
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -181,6 +197,7 @@ For a fact table `tf_sales` with measures `revenue`, `quantity`, compiler genera
 ### PostgreSQL Target (Full Support)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type SalesAggregate {
   # Basic aggregates
   count: Int!
@@ -236,11 +253,13 @@ type Query {
     offset: Int
   ): [SalesAggregate!]!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL Target (Good Support)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type SalesAggregate {
   # Basic aggregates (same as PostgreSQL)
   count: Int!
@@ -264,11 +283,13 @@ type SalesAggregate {
   occurred_at_year: String
   # NO quarter bucket
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite Target (Basic Support)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type SalesAggregate {
   # Basic aggregates only
   count: Int!
@@ -287,11 +308,13 @@ type SalesAggregate {
   occurred_at_month: String
   occurred_at_year: String
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server Target (Enterprise Support)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type SalesAggregate {
   # Basic aggregates
   count: Int!
@@ -313,7 +336,8 @@ type SalesAggregate {
   occurred_at_quarter: String
   occurred_at_year: String
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -328,23 +352,27 @@ Aggregate values into an array.
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     ARRAY_AGG(data->>'product_name') AS product_names
 FROM tf_sales
 GROUP BY data->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Use JSON_ARRAYAGG instead
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
     JSON_ARRAYAGG(JSON_EXTRACT(data, '$.product_name')) AS product_names
 FROM tf_sales
 GROUP BY JSON_EXTRACT(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQLite**: Not supported
 
@@ -357,6 +385,7 @@ Aggregate rows into JSON.
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'customer_id' AS customer_id,
     JSONB_AGG(jsonb_build_object(
@@ -365,11 +394,13 @@ SELECT
     )) AS orders
 FROM tf_sales
 GROUP BY data->>'customer_id';
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_EXTRACT(data, '$.customer_id') AS customer_id,
     JSON_ARRAYAGG(
@@ -380,13 +411,15 @@ SELECT
     ) AS orders
 FROM tf_sales
 GROUP BY JSON_EXTRACT(data, '$.customer_id');
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQLite**: Not supported
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Use FOR JSON PATH
 SELECT
     JSON_VALUE(data, '$.customer_id') AS customer_id,
@@ -400,7 +433,8 @@ SELECT
     ) AS orders
 FROM tf_sales s1
 GROUP BY JSON_VALUE(data, '$.customer_id');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### STRING_AGG / GROUP_CONCAT
 
@@ -409,42 +443,50 @@ Concatenate strings with delimiter.
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'customer_id' AS customer_id,
     STRING_AGG(data->>'product_name', ', ' ORDER BY revenue DESC) AS products
 FROM tf_sales
 GROUP BY data->>'customer_id';
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_EXTRACT(data, '$.customer_id') AS customer_id,
     GROUP_CONCAT(JSON_EXTRACT(data, '$.product_name') ORDER BY revenue DESC SEPARATOR ', ') AS products
 FROM tf_sales
 GROUP BY JSON_EXTRACT(data, '$.customer_id');
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQLite**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     json_extract(data, '$.customer_id') AS customer_id,
     GROUP_CONCAT(json_extract(data, '$.product_name'), ', ') AS products
 FROM tf_sales
 GROUP BY json_extract(data, '$.customer_id');
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_VALUE(data, '$.customer_id') AS customer_id,
     STRING_AGG(JSON_VALUE(data, '$.product_name'), ', ') AS products
 FROM tf_sales
 GROUP BY JSON_VALUE(data, '$.customer_id');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### BOOL_AND / BOOL_OR
 
@@ -453,13 +495,15 @@ Boolean aggregates (all true / any true).
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     data->>'category' AS category,
     BOOL_AND((data->>'in_stock')::boolean) AS all_in_stock,
     BOOL_OR((data->>'on_sale')::boolean) AS any_on_sale
 FROM tf_sales
 GROUP BY data->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL/SQLite/SQL Server**: Emulate with MIN/MAX on boolean values or CASE WHEN.
 
@@ -478,6 +522,7 @@ GROUP BY data->>'category';
 **Example**:
 
 ```rust
+<!-- Code example in RUST -->
 fn is_measure_column(column: &Column) -> bool {
     let numeric_types = ["int", "bigint", "decimal", "float", "numeric", "real", "double"];
     let excluded_names = ["id", "created_at", "updated_at"];
@@ -485,7 +530,8 @@ fn is_measure_column(column: &Column) -> bool {
     numeric_types.contains(&column.data_type.to_lowercase().as_str())
         && !excluded_names.contains(&column.name.to_lowercase().as_str())
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Dimension Path Detection
 
@@ -498,6 +544,7 @@ fn is_measure_column(column: &Column) -> bool {
 **Example**:
 
 ```rust
+<!-- Code example in RUST -->
 fn extract_dimension(column_name: &str, jsonb_column: &str) -> String {
     match database_target {
         "postgresql" => format!("{}->>'{}' AS {}", jsonb_column, column_name, column_name),
@@ -506,21 +553,25 @@ fn extract_dimension(column_name: &str, jsonb_column: &str) -> String {
         "sqlserver" => format!("JSON_VALUE({}, '$.{}') AS {}", jsonb_column, column_name, column_name),
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Temporal Bucketing
 
 **PostgreSQL**:
 
 ```rust
+<!-- Code example in RUST -->
 fn temporal_bucket_postgres(field: &str, bucket: &str) -> String {
     format!("DATE_TRUNC('{}', {})", bucket, field)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL**:
 
 ```rust
+<!-- Code example in RUST -->
 fn temporal_bucket_mysql(field: &str, bucket: &str) -> String {
     let format = match bucket {
         "day" => "%Y-%m-%d",
@@ -531,11 +582,13 @@ fn temporal_bucket_mysql(field: &str, bucket: &str) -> String {
     };
     format!("DATE_FORMAT({}, '{}')", field, format)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQLite**:
 
 ```rust
+<!-- Code example in RUST -->
 fn temporal_bucket_sqlite(field: &str, bucket: &str) -> String {
     let format = match bucket {
         "day" => "%Y-%m-%d",
@@ -546,16 +599,19 @@ fn temporal_bucket_sqlite(field: &str, bucket: &str) -> String {
     };
     format!("strftime('{}', {})", format, field)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```rust
+<!-- Code example in RUST -->
 fn temporal_bucket_sqlserver(field: &str, bucket: &str) -> String {
     let part = bucket; // day, week, month, quarter, year
     format!("DATEPART({}, {})", part, field)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

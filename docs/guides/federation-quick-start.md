@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Federation Quick Start (5 Minutes)
+description: Get a basic federation running in 5 minutes.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Federation Quick Start (5 Minutes)
 
 **Status:** ✅ Production Ready
@@ -16,6 +24,7 @@ Get a basic federation running in 5 minutes.
 ## Step 1: Create Users Subgraph (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # users_service/schema.py
 from FraiseQL import type, key
 
@@ -25,21 +34,25 @@ class User:
     id: str
     name: str
     email: str
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 # Generate schema
 FraiseQL generate --language python
 
 # Deploy
 FraiseQL run --port 8001
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 2: Create Orders Subgraph (1 minute)
 
 ```python
+<!-- Code example in Python -->
 # orders_service/schema.py
 from FraiseQL import type, key, extends, external
 
@@ -56,17 +69,21 @@ class Order:
     user_id: str
     total: float
     user: User  # Reference to User from other subgraph
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL run --port 8002
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 3: Set Up Apollo Router (2 minutes)
 
 ```bash
+<!-- Code example in BASH -->
 # Install Apollo Router
 curl -sSL https://install.apollographql.com | sh
 
@@ -89,24 +106,28 @@ EOF
 # Start router
 rover supergraph compose --config supergraph.yaml > supergraph.graphql
 apollo-router --config router.yaml
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 4: Test Federation (1 minute)
 
 ```bash
+<!-- Code example in BASH -->
 # Query through federation gateway
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
   -d '{
     "query": "{ user(id: \"1\") { id name orders { id total } } }"
   }'
-```
+```text
+<!-- Code example in TEXT -->
 
 Expected response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -118,7 +139,8 @@ Expected response:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

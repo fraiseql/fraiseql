@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Fact-Dimension Pattern
+description: FraiseQL enforces the **fact table pattern** for analytical workloads:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Fact-Dimension Pattern
 
 **Version:** 1.0
@@ -42,6 +50,7 @@ FraiseQL enforces the **fact table pattern** for analytical workloads:
 ### Example: Sales Fact Table
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     -- Primary key
     id BIGSERIAL PRIMARY KEY,
@@ -83,7 +92,8 @@ CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
 -- Composite index for common query pattern
 CREATE INDEX idx_sales_customer_occurred
     ON tf_sales(customer_id, occurred_at DESC);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -107,6 +117,7 @@ CREATE INDEX idx_sales_customer_occurred
 **Why SQL Columns?**:
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ FAST: Direct aggregation on SQL column
 SELECT SUM(revenue) FROM tf_sales WHERE customer_id = $1;
 -- Execution: 0.3ms (1M rows with index)
@@ -115,7 +126,8 @@ SELECT SUM(revenue) FROM tf_sales WHERE customer_id = $1;
 SELECT SUM((dimensions->>'revenue')::numeric) FROM tf_sales WHERE customer_id = $1;
 -- Execution: 52ms (1M rows)
 -- 173x slower!
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Dimensions (JSONB Paths)
 
@@ -142,13 +154,15 @@ SELECT SUM((dimensions->>'revenue')::numeric) FROM tf_sales WHERE customer_id = 
 **Query Pattern**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'category' AS category,
     dimensions->>'region' AS region,
     SUM(revenue) AS total_revenue
 FROM tf_sales
 GROUP BY dimensions->>'category', dimensions->>'region';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Denormalized Filters (Indexed SQL Columns)
 
@@ -168,6 +182,7 @@ GROUP BY dimensions->>'category', dimensions->>'region';
 **Why Denormalized?**:
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ FAST: Indexed SQL column filter
 SELECT * FROM tf_sales
 WHERE customer_id = 'uuid-123' AND occurred_at >= '2024-01-01';
@@ -177,7 +192,8 @@ WHERE customer_id = 'uuid-123' AND occurred_at >= '2024-01-01';
 SELECT * FROM tf_sales
 WHERE dimensions->>'customer_id' = 'uuid-123';
 -- GIN index is slower for exact matches, execution: 2-5ms
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -195,6 +211,7 @@ WHERE dimensions->>'customer_id' = 'uuid-123';
 ### Example
 
 ```sql
+<!-- Code example in SQL -->
 -- ❌ NOT SUPPORTED: Joining dimension tables at query time
 SELECT
     s.revenue,
@@ -212,11 +229,13 @@ SELECT
     dimensions->>'customer_segment' AS segment
 FROM tf_sales;
 -- Category and segment already denormalized by ETL process
-```
+```text
+<!-- Code example in TEXT -->
 
 ### ETL Process (Managed by DBA/Data Team)
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: ETL loads raw transaction
 INSERT INTO staging_sales (transaction_id, product_id, customer_id, revenue)
 VALUES ('txn-001', 'prod-123', 'cust-456', 99.99);
@@ -252,7 +271,8 @@ JOIN td_customers c ON s.customer_id = c.id;
 
 -- Step 3: Staging table is truncated
 TRUNCATE staging_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Important**: This ETL process is managed by the DBA/data team, NOT by FraiseQL.
 
@@ -267,11 +287,13 @@ When the compiler encounters a schema with `fact_table=True`:
 1. **Introspect Fact Table Structure**:
 
    ```rust
+<!-- Code example in RUST -->
    let columns = introspect_table("tf_sales");
    let measures = columns.filter(|col| col.is_numeric());
    let data_column = columns.find(|col| col.name == "dimensions" && col.type == "jsonb");
    let filters = columns.filter(|col| col.has_index());
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 2. **Identify Components**:
    - Measure columns: `revenue`, `quantity`, `cost` (numeric types)
@@ -291,6 +313,7 @@ When executing an aggregation query:
 1. **Parse GROUP BY Request**:
 
    ```graphql
+<!-- Code example in GraphQL -->
    query {
      sales_aggregate(
        groupBy: { category: true, region: true }
@@ -301,11 +324,13 @@ When executing an aggregation query:
        count
      }
    }
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 2. **Generate SELECT Statement**:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT
        dimensions->>'category' AS category,
        dimensions->>'region' AS region,
@@ -313,7 +338,8 @@ When executing an aggregation query:
        COUNT(*) AS count
    FROM tf_sales
    GROUP BY dimensions->>'category', dimensions->>'region';
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 3. **Execute and Return Results**
 
@@ -334,6 +360,7 @@ When executing an aggregation query:
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Advanced JSONB queries
 SELECT
     dimensions->>'category' AS category,
@@ -342,7 +369,8 @@ SELECT
 FROM tf_sales
 WHERE data ? 'category'  -- Has 'category' key
 GROUP BY dimensions->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL
 
@@ -361,13 +389,15 @@ GROUP BY dimensions->>'category';
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- MySQL JSON extraction
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
     SUM(revenue) AS total_revenue
 FROM tf_sales
 GROUP BY JSON_EXTRACT(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite
 
@@ -386,13 +416,15 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- SQLite JSON extraction
 SELECT
     json_extract(data, '$.category') AS category,
     SUM(revenue) AS total_revenue
 FROM tf_sales
 GROUP BY json_extract(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server
 
@@ -411,13 +443,15 @@ GROUP BY json_extract(data, '$.category');
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- SQL Server JSON extraction
 SELECT
     JSON_VALUE(data, '$.category') AS category,
     SUM(revenue) AS total_revenue
 FROM tf_sales
 GROUP BY JSON_VALUE(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -428,6 +462,7 @@ GROUP BY JSON_VALUE(data, '$.category');
 ### Example: Daily Aggregates
 
 ```sql
+<!-- Code example in SQL -->
 -- Pre-aggregated fact table: same structure as tf_sales, daily granularity
 CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
@@ -448,11 +483,13 @@ CREATE TABLE tf_sales_daily (
 
 CREATE UNIQUE INDEX idx_sales_daily_day ON tf_sales_daily(day);
 CREATE INDEX idx_sales_daily_data_gin ON tf_sales_daily USING GIN(data);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Populated via ETL** (managed by DBA/data team):
 
 ```sql
+<!-- Code example in SQL -->
 INSERT INTO tf_sales_daily (day, revenue, quantity, transaction_count, data)
 SELECT
     DATE_TRUNC('day', occurred_at)::DATE AS day,
@@ -466,11 +503,13 @@ ON CONFLICT (day) DO UPDATE SET
     revenue = EXCLUDED.revenue,
     quantity = EXCLUDED.quantity,
     transaction_count = EXCLUDED.transaction_count;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Query Pattern** (FraiseQL treats it like any fact table):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_daily_aggregate(
     where: { day: { _gte: "2024-01-01" } }
@@ -480,7 +519,8 @@ query {
     transaction_count_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -529,6 +569,7 @@ query {
 **Denormalized Filter Columns**:
 
 ```sql
+<!-- Code example in SQL -->
 -- High-cardinality filters
 CREATE INDEX idx_sales_customer ON tf_sales(customer_id);
 CREATE INDEX idx_sales_product ON tf_sales(product_id);
@@ -539,18 +580,21 @@ CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 -- Composite indexes for common patterns
 CREATE INDEX idx_sales_customer_occurred
     ON tf_sales(customer_id, occurred_at DESC);
-```
+```text
+<!-- Code example in TEXT -->
 
 **JSONB Dimensions** (PostgreSQL):
 
 ```sql
+<!-- Code example in SQL -->
 -- GIN index for JSONB queries
 CREATE INDEX idx_sales_data_gin ON tf_sales USING GIN(data);
 
 -- Specific path index for frequently-queried dimension
 CREATE INDEX idx_sales_category
     ON tf_sales ((dimensions->>'category'));
-```
+```text
+<!-- Code example in TEXT -->
 
 **Don't Over-Index**:
 

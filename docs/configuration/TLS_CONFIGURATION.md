@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: TLS/SSL Configuration Guide
+description: - SSL/TLS fundamentals (certificates, keys, handshakes)
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # TLS/SSL Configuration Guide
 
 ## Prerequisites
@@ -52,6 +60,7 @@ FraiseQL v2 Phase 10.10 implements comprehensive TLS encryption for:
 Using OpenSSL:
 
 ```bash
+<!-- Code example in BASH -->
 # Generate private key
 openssl genrsa -out /etc/FraiseQL/key.pem 2048
 
@@ -63,10 +72,12 @@ openssl req -new -x509 -key /etc/FraiseQL/key.pem -out /etc/FraiseQL/cert.pem \
 chmod 600 /etc/FraiseQL/key.pem
 chmod 644 /etc/FraiseQL/cert.pem
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Configure FraiseQL.toml
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 bind_address = "0.0.0.0:8443"  # HTTPS port
 database_url = "postgresql://user:pass@db.example.com/FraiseQL"
@@ -88,15 +99,18 @@ elasticsearch_https = true            # Use HTTPS
 verify_certificates = true            # Verify server certificates
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"  # Optional: CA bundle for verification
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Start Server with TLS
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_TLS_ENABLED=true \
   FRAISEQL_TLS_CERT_PATH=/etc/FraiseQL/cert.pem \
   FRAISEQL_TLS_KEY_PATH=/etc/FraiseQL/key.pem \
   FraiseQL-server --config FraiseQL.toml
 ```text
+<!-- Code example in TEXT -->
 
 ## Configuration Options
 
@@ -127,6 +141,7 @@ FRAISEQL_TLS_ENABLED=true \
 ### Example 1: Development (Permissive)
 
 ```toml
+<!-- Code example in TOML -->
 # Development: TLS optional, minimal validation
 [tls]
 enabled = false
@@ -138,10 +153,12 @@ clickhouse_https = false
 elasticsearch_https = false
 verify_certificates = false
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: Staging (Standard)
 
 ```toml
+<!-- Code example in TOML -->
 # Staging: TLS required, standard validation
 [tls]
 enabled = true
@@ -158,10 +175,12 @@ elasticsearch_https = true
 verify_certificates = true
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 3: Production (Strict mTLS)
 
 ```toml
+<!-- Code example in TOML -->
 # Production: TLS required with mTLS, strict validation
 [tls]
 enabled = true
@@ -179,6 +198,7 @@ elasticsearch_https = true
 verify_certificates = true
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"
 ```text
+<!-- Code example in TEXT -->
 
 ## TLS Enforcement Levels
 
@@ -187,33 +207,39 @@ FraiseQL uses three TLS enforcement profiles:
 ### 1. Permissive (Development)
 
 ```rust
+<!-- Code example in RUST -->
 TlsEnforcer::permissive()
 // - TLS optional for HTTP connections
 // - Client certificates optional
 // - TLS 1.2 minimum (if used)
 ```text
+<!-- Code example in TEXT -->
 
 **Usage**: Local development, testing
 
 ### 2. Standard (Production)
 
 ```rust
+<!-- Code example in RUST -->
 TlsEnforcer::standard()
 // - TLS required (HTTPS only)
 // - Client certificates optional
 // - TLS 1.2 minimum
 ```text
+<!-- Code example in TEXT -->
 
 **Usage**: Default production setup
 
 ### 3. Strict (Regulated Environments)
 
 ```rust
+<!-- Code example in RUST -->
 TlsEnforcer::strict()
 // - TLS required (HTTPS only)
 // - Client certificates required (mTLS)
 // - TLS 1.3 minimum
 ```text
+<!-- Code example in TEXT -->
 
 **Usage**: PCI-DSS, HIPAA, SOC 2 compliance
 
@@ -237,6 +263,7 @@ FraiseQL supports all PostgreSQL SSL modes:
 ### PostgreSQL
 
 ```text
+<!-- Code example in TEXT -->
 # Without TLS
 postgresql://user:pass@localhost:5432/FraiseQL
 
@@ -246,10 +273,12 @@ postgresql://user:pass@localhost:5432/FraiseQL?sslmode=require
 # With TLS (verify-full mode)
 postgresql://user:pass@localhost:5432/FraiseQL?sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca.pem
 ```text
+<!-- Code example in TEXT -->
 
 ### Redis
 
 ```text
+<!-- Code example in TEXT -->
 # Without TLS
 redis://localhost:6379
 
@@ -257,26 +286,31 @@ redis://localhost:6379
 rediss://localhost:6379
 rediss://:password@localhost:6379
 ```text
+<!-- Code example in TEXT -->
 
 ### ClickHouse
 
 ```text
+<!-- Code example in TEXT -->
 # Without TLS
 http://localhost:8123
 
 # With TLS (HTTPS)
 https://localhost:8123
 ```text
+<!-- Code example in TEXT -->
 
 ### Elasticsearch
 
 ```text
+<!-- Code example in TEXT -->
 # Without TLS
 http://localhost:9200
 
 # With TLS (HTTPS)
 https://localhost:9200
 ```text
+<!-- Code example in TEXT -->
 
 ## At-Rest Encryption Configuration
 
@@ -285,6 +319,7 @@ https://localhost:9200
 To enable encryption at rest in ClickHouse:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE fraiseql_events (
     event_id UUID,
     org_id UUID,
@@ -297,6 +332,7 @@ ORDER BY (org_id, timestamp)
 WITH SETTINGS
     storage_disk_name = 'encrypted';
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Requires ClickHouse 21.10+ and disk encryption configured
 
@@ -305,6 +341,7 @@ WITH SETTINGS
 To enable encryption at rest with ILM policy:
 
 ```json
+<!-- Code example in JSON -->
 {
   "policy": "FraiseQL-policy",
   "phases": {
@@ -332,6 +369,7 @@ To enable encryption at rest with ILM policy:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Requires Elasticsearch 7.9+ and subscription-level features
 
@@ -342,6 +380,7 @@ If you're using mTLS (`require_client_cert = true`):
 ### 1. Generate CA Key and Certificate
 
 ```bash
+<!-- Code example in BASH -->
 # CA private key
 openssl genrsa -out ca-key.pem 4096
 
@@ -349,10 +388,12 @@ openssl genrsa -out ca-key.pem 4096
 openssl req -new -x509 -days 3650 -key ca-key.pem -out ca-cert.pem \
   -subj "/CN=FraiseQL-ca/O=YourOrg/C=US"
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Generate Client Certificate
 
 ```bash
+<!-- Code example in BASH -->
 # Client key
 openssl genrsa -out client-key.pem 2048
 
@@ -365,10 +406,12 @@ openssl x509 -req -days 365 -in client.csr \
   -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
   -out client-cert.pem
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Configure in FraiseQL.toml
 
 ```toml
+<!-- Code example in TOML -->
 [tls]
 enabled = true
 cert_path = "/etc/FraiseQL/server-cert.pem"
@@ -377,10 +420,12 @@ require_client_cert = true
 client_ca_path = "/etc/FraiseQL/ca-cert.pem"
 min_version = "1.3"
 ```text
+<!-- Code example in TEXT -->
 
 ## Docker Compose Example
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -418,21 +463,25 @@ services:
       - ./certs/redis-cert.pem:/etc/redis/cert.pem:ro
       - ./certs/redis-key.pem:/etc/redis/key.pem:ro
 ```text
+<!-- Code example in TEXT -->
 
 ## Kubernetes TLS Configuration
 
 ### Secret Setup
 
 ```bash
+<!-- Code example in BASH -->
 # Create TLS secret
 kubectl create secret tls FraiseQL-tls \
   --cert=./certs/cert.pem \
   --key=./certs/key.pem
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment Configuration
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -459,12 +508,14 @@ spec:
         secret:
           secretName: FraiseQL-tls
 ```text
+<!-- Code example in TEXT -->
 
 ## Verification and Testing
 
 ### 1. Test HTTPS Connection
 
 ```bash
+<!-- Code example in BASH -->
 # With curl (ignore self-signed cert warnings)
 curl -k https://localhost:8443/health
 
@@ -478,20 +529,24 @@ curl \
   --key /etc/FraiseQL/client-key.pem \
   https://localhost:8443/health
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Test TLS Version
 
 ```bash
+<!-- Code example in BASH -->
 # Check TLS version
 openssl s_client -connect localhost:8443 -tls1_2 < /dev/null
 
 # Verify minimum version enforcement
 openssl s_client -connect localhost:8443 -tls1_1 < /dev/null  # Should fail
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Test Database Connections
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL
 psql "postgresql://user@localhost/FraiseQL?sslmode=require"
 
@@ -504,6 +559,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:8123/ping
 # Elasticsearch
 curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 ```text
+<!-- Code example in TEXT -->
 
 ## Security Best Practices
 
@@ -519,8 +575,10 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 7. **Monitor certificate expiration**:
 
    ```bash
+<!-- Code example in BASH -->
    openssl x509 -enddate -noout -in /etc/FraiseQL/cert.pem
    ```text
+<!-- Code example in TEXT -->
 
 8. **Use different keys per environment** (dev, staging, production)
 9. **Store private keys in secrets management** (HashiCorp Vault, AWS Secrets Manager)
@@ -531,32 +589,40 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 ### TLS Certificate Not Found
 
 ```text
+<!-- Code example in TEXT -->
 error: TLS enabled but certificate file not found: /etc/FraiseQL/cert.pem
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Verify certificate path exists and is readable by the FraiseQL process
 
 ### TLS Version Too Old
 
 ```text
+<!-- Code example in TEXT -->
 error: Connection TLS version (1.2) is less than minimum required (1.3)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Update client TLS version or lower `min_version` in config
 
 ### Client Certificate Required
 
 ```text
+<!-- Code example in TEXT -->
 error: Client certificate required, but none provided
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Provide client certificate if using mTLS, or disable with `require_client_cert = false`
 
 ### Database Connection SSL Error
 
 ```text
+<!-- Code example in TEXT -->
 error: FATAL: no pg_hba.conf entry for replication connection
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Ensure database SSL is properly configured and using correct `sslmode`
 

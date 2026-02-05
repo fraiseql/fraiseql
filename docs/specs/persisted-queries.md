@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Automatic Persisted Queries (APQ) Specification
+description: - **Reduced Bandwidth**: Send 64-character hash instead of multi-kilobyte queries
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Automatic Persisted Queries (APQ) Specification
 
 **Status:** Stable
@@ -20,6 +28,7 @@
 ### Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Client
   ↓
 APQ Request (hash ± optional query for registration)
@@ -36,6 +45,7 @@ FraiseQL Router
   ↓
 Return Result (from cache or freshly computed)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -66,11 +76,13 @@ FraiseQL supports three APQ security modes, allowing you to balance flexibility 
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="optional"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -84,6 +96,7 @@ config = FraiseQLConfig(
 *First request - register and execute*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -94,10 +107,12 @@ config = FraiseQLConfig(
   "query": "query { users { id name } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 *Subsequent request - hash only*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -107,6 +122,7 @@ config = FraiseQLConfig(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Use Cases**:
 
@@ -121,11 +137,13 @@ config = FraiseQLConfig(
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="required"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -140,6 +158,7 @@ config = FraiseQLConfig(
 *Registration request (requires both)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -150,10 +169,12 @@ config = FraiseQLConfig(
   "query": "query { products { id name price } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 *Subsequent request (hash only)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -163,18 +184,22 @@ config = FraiseQLConfig(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 *Arbitrary query (REJECTED)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "query { __schema { types { name } } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response to Rejected Request**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -187,6 +212,7 @@ config = FraiseQLConfig(
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Use Cases**:
 
@@ -202,11 +228,13 @@ config = FraiseQLConfig(
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="disabled"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -220,14 +248,17 @@ config = FraiseQLConfig(
 *Regular query (processed normally)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "query { articles { id title content } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 *APQ request with hash (treated as regular, hash ignored)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -238,10 +269,12 @@ config = FraiseQLConfig(
   "query": "query { articles { id title content } }"
 }
 ```text
+<!-- Code example in TEXT -->
 
 *APQ hash-only request (FAILS - no query)*:
 
 ```json
+<!-- Code example in JSON -->
 {
   "extensions": {
     "persistedQuery": {
@@ -251,10 +284,12 @@ config = FraiseQLConfig(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response to Hash-Only Request**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -264,6 +299,7 @@ config = FraiseQLConfig(
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Use Cases**:
 
@@ -280,12 +316,14 @@ FraiseQL uses **SHA-256** hashing for deterministic query identification and sec
 ### Hash Algorithm
 
 ```python
+<!-- Code example in Python -->
 import hashlib
 
 def compute_query_hash(query: str) -> str:
     """Compute SHA-256 hash of a GraphQL query."""
     return hashlib.sha256(query.encode("utf-8")).hexdigest()
 ```text
+<!-- Code example in TEXT -->
 
 **Properties**:
 
@@ -301,6 +339,7 @@ def compute_query_hash(query: str) -> str:
 When variables are present in requests, they **must be included in the response cache key** to prevent data leakage between requests with different variables.
 
 ```python
+<!-- Code example in Python -->
 import json
 
 def compute_response_cache_key(
@@ -316,12 +355,14 @@ def compute_response_cache_key(
     combined = f"{query_hash}:{var_json}"
     return hashlib.sha256(combined.encode()).hexdigest()
 ```text
+<!-- Code example in TEXT -->
 
 ### Security Example: Preventing Data Leakage
 
 **Scenario**: Cached response from User A's request leaks to User B
 
 ```python
+<!-- Code example in Python -->
 # User A requests: query getUser($userId: ID!) with userId: "alice-123"
 query_hash = "e4c7e8f5a1b2c3d4..."
 variables_a = {"userId": "alice-123"}
@@ -336,6 +377,7 @@ assert cache_key_a != cache_key_b
 # Result: cache_key_a = "hash:{"userId":"alice-123"}" (SHA-256)
 # Result: cache_key_b = "hash:{"userId":"bob-456"}" (SHA-256)
 ```text
+<!-- Code example in TEXT -->
 
 Without variable-aware cache keys, both users would receive the same cached response containing Alice's data.
 
@@ -344,6 +386,7 @@ Without variable-aware cache keys, both users would receive the same cached resp
 **JavaScript/Apollo Client**:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import crypto from 'crypto';
 
 function computeAPQHash(query) {
@@ -355,15 +398,18 @@ function computeAPQHash(query) {
 
 const hash = computeAPQHash(query);
 ```text
+<!-- Code example in TEXT -->
 
 **Python Client**:
 
 ```python
+<!-- Code example in Python -->
 import hashlib
 
 def compute_apq_hash(query: str) -> str:
     return hashlib.sha256(query.encode()).hexdigest()
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -376,11 +422,13 @@ FraiseQL provides three storage backend options for the hash→query string mapp
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_storage_backend="memory",  # Default for local development
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Characteristics**:
 
@@ -394,12 +442,14 @@ config = FraiseQLConfig(
 **Data Storage**:
 
 ```python
+<!-- Code example in Python -->
 # In-process dictionary: hash → query string mapping
 _query_storage = {
     "e4c7e8f5...": "query { users { id name } }",
     "a1b2c3d4...": "query { products { id price } }",
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Purpose**:
 
@@ -421,6 +471,7 @@ _query_storage = {
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_storage_backend="database",
@@ -431,12 +482,14 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Database Tables**:
 
 #### apq_queries Table
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE apq_queries (
     hash VARCHAR(64) PRIMARY KEY,
     query TEXT NOT NULL,
@@ -447,6 +500,7 @@ CREATE TABLE apq_queries (
 -- Index for efficient storage
 CREATE INDEX idx_apq_queries_created ON apq_queries (created_at);
 ```text
+<!-- Code example in TEXT -->
 
 **Columns**:
 
@@ -483,16 +537,19 @@ CREATE INDEX idx_apq_queries_created ON apq_queries (created_at);
 Monitor storage usage (PostgreSQL example):
 
 ```sql
+<!-- Code example in SQL -->
 -- Check APQ query table size
 SELECT
     pg_size_pretty(pg_total_relation_size('apq_queries')) as table_size,
     count(*) as query_count
 FROM apq_queries;
 ```text
+<!-- Code example in TEXT -->
 
 Clean up unused queries (optional):
 
 ```sql
+<!-- Code example in SQL -->
 -- View queries by registration date
 SELECT hash, created_at, length(query) as query_size
 FROM apq_queries
@@ -502,6 +559,7 @@ ORDER BY created_at DESC;
 DELETE FROM apq_queries
 WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days';
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -512,6 +570,7 @@ For specialized use cases (Redis, DynamoDB, custom cache), implement a custom ba
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_storage_backend="custom",
@@ -522,6 +581,7 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Custom Backend Interface**:
 
@@ -556,6 +616,7 @@ Pre-register all queries at application startup for zero-latency registration:
 **File Structure**:
 
 ```text
+<!-- Code example in TEXT -->
 src/
 ├── graphql/
 │   ├── queries/
@@ -566,10 +627,12 @@ src/
 │       ├── createUser.graphql
 │       └── updateProduct.graphql
 ```text
+<!-- Code example in TEXT -->
 
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="required",
@@ -577,6 +640,7 @@ config = FraiseQLConfig(
     apq_queries_dir="./src/graphql",  # Auto-load at startup
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -601,6 +665,7 @@ Allow clients to register new queries on first request:
 **Configuration**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="optional",  # Allows registration
@@ -608,12 +673,14 @@ config = FraiseQLConfig(
     # No apq_queries_dir - start empty
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Registration Flow**:
 
 *First request (register)*:
 
 ```json
+<!-- Code example in JSON -->
 POST /graphql HTTP/1.1
 
 {
@@ -627,6 +694,7 @@ POST /graphql HTTP/1.1
   "variables": {"id": "user-123"}
 }
 ```text
+<!-- Code example in TEXT -->
 
 *Server processes*:
 
@@ -639,6 +707,7 @@ POST /graphql HTTP/1.1
 *Subsequent requests (cached)*:
 
 ```json
+<!-- Code example in JSON -->
 POST /graphql HTTP/1.1
 
 {
@@ -651,6 +720,7 @@ POST /graphql HTTP/1.1
   "variables": {"id": "user-456"}
 }
 ```text
+<!-- Code example in TEXT -->
 
 *Server processes*:
 
@@ -679,6 +749,7 @@ APQ can optionally work with Query Result Caching (a separate feature described 
 **Two-Layer System**:
 
 ```text
+<!-- Code example in TEXT -->
 Request
   ↓
 Layer 1: Response Cache (JSON passthrough)
@@ -695,6 +766,7 @@ Store in Response Cache
   ↓
 Return Response
 ```text
+<!-- Code example in TEXT -->
 
 **Performance Impact**:
 
@@ -705,6 +777,7 @@ Return Response
 ### Configuration
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="optional",
@@ -715,6 +788,7 @@ config = FraiseQLConfig(
     cache_include_complexity=True,
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Query result caching is configured separately from APQ. See the Caching Specification for complete configuration options including TTL, backends, and complexity-aware settings.
 
@@ -730,8 +804,10 @@ When query result caching is enabled, the cache key includes:
 **Key Construction**:
 
 ```text
+<!-- Code example in TEXT -->
 cache_key = sha256(query_hash + ":" + sorted_variables_json + ":" + tenant_id + ":" + complexity)
 ```text
+<!-- Code example in TEXT -->
 
 **Security Property**:
 
@@ -778,14 +854,18 @@ Query: `query GetUser { user { id name } }` (only `id` and `name` requested)
 Response before filtering:
 
 ```json
+<!-- Code example in JSON -->
 {"data": {"user": {"id": "123", "name": "Alice", "email": "alice@example.com", "ssn": "123-45-6789"}}}
 ```text
+<!-- Code example in TEXT -->
 
 Response after field selection filtering:
 
 ```json
+<!-- Code example in JSON -->
 {"data": {"user": {"id": "123", "name": "Alice"}}}
 ```text
+<!-- Code example in TEXT -->
 
 **Benefits**:
 
@@ -810,6 +890,7 @@ Query result cache invalidation is managed by the query result caching system. S
 ### Development Environment
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="optional",                    # Allow registration
@@ -818,10 +899,12 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=300,             # 5 minutes
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Environment Variables**:
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_DATABASE_URL=postgresql://localhost/fraiseql_db
 FRAISEQL_APQ_MODE=optional
 FRAISEQL_APQ_STORAGE_BACKEND=memory
@@ -829,10 +912,12 @@ FRAISEQL_APQ_CACHE_RESPONSES=true
 FRAISEQL_APQ_RESPONSE_CACHE_TTL=300
 FRAISEQL_APQ_QUERIES_DIR=./src/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### Staging Environment
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://pg-staging/fraiseql_db",
     apq_mode="optional",                    # Allow client registration
@@ -844,10 +929,12 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Production Environment
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://pg-prod-1/fraiseql_db",
     apq_mode="required",                    # Only persisted queries
@@ -862,10 +949,12 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Environment Variables**:
 
 ```bash
+<!-- Code example in BASH -->
 # Production APQ configuration
 FRAISEQL_APQ_MODE=required
 FRAISEQL_APQ_STORAGE_BACKEND=database
@@ -873,6 +962,7 @@ FRAISEQL_APQ_CACHE_RESPONSES=true
 FRAISEQL_APQ_RESPONSE_CACHE_TTL=1800
 FRAISEQL_APQ_QUERIES_DIR=/app/dist/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -911,6 +1001,7 @@ FraiseQL provides comprehensive metrics for APQ operations.
 **Prometheus Metrics** (exported automatically):
 
 ```prometheus
+<!-- Code example in PROMETHEUS -->
 fraiseql_apq_query_cache_hits_total
 fraiseql_apq_query_cache_misses_total
 fraiseql_apq_response_cache_hits_total
@@ -918,10 +1009,12 @@ fraiseql_apq_response_cache_misses_total
 fraiseql_apq_stored_queries_count
 fraiseql_apq_response_cache_size_bytes
 ```text
+<!-- Code example in TEXT -->
 
 **Health Check Endpoint**:
 
 ```python
+<!-- Code example in Python -->
 # GET /health includes APQ metrics
 {
     "status": "healthy",
@@ -933,6 +1026,7 @@ fraiseql_apq_response_cache_size_bytes
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Dashboard Recommendations
 
@@ -1080,6 +1174,7 @@ APQ in `required` mode provides defense-in-depth against:
 **Security**: Variables are included in response cache keys
 
 ```python
+<!-- Code example in Python -->
 # User A
 query_hash = "abc123..."
 variables = {"userId": "alice"}
@@ -1091,23 +1186,27 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
 
 # assert cache_key_a != cache_key_b  ✅ Prevents data leakage
 ```text
+<!-- Code example in TEXT -->
 
 ### Multi-Tenant Isolation
 
 **Tenant ID in Cache Keys**:
 
 ```python
+<!-- Code example in Python -->
 # Query hash: e4c7e8f5...
 # Tenant A: caches response with tenant_id="tenant-123"
 # Tenant B: caches response with tenant_id="tenant-456"
 # Never mixed
 ```text
+<!-- Code example in TEXT -->
 
 ### Sensitive Data in Error Responses
 
 **Safe**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "PersistedQueryNotFound",
@@ -1115,10 +1214,12 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Unsafe** (avoid):
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Query 'SELECT * FROM users' not found",
@@ -1126,6 +1227,7 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1173,6 +1275,7 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
 ### Apollo Client (JavaScript)
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { ApolloClient, InMemoryCache } from '@apollo/client';
 import { createPersistedQueryLink } from '@apollo/client/link/persisted-queries';
 import { HttpLink } from '@apollo/client/link/http';
@@ -1191,10 +1294,12 @@ const client = new ApolloClient({
   cache: new InMemoryCache(),
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### Relay (JavaScript)
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { createRelayNetworkLayer } from 'react-relay-network-layer/lib/index.js';
 
 const network = createRelayNetworkLayer(
@@ -1212,18 +1317,21 @@ const network = createRelayNetworkLayer(
   { disableBatching: false }
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Python Client
 
 Python GraphQL clients (e.g., `gql`, `sgqlc`) support APQ through transport options:
 
 ```text
+<!-- Code example in TEXT -->
 transport = HttpTransport(
     url='https://api.example.com/graphql',
     apq_enabled=True,
 )
 client = Client(transport=transport)
 ```text
+<!-- Code example in TEXT -->
 
 The client library automatically:
 

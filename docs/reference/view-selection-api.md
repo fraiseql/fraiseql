@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: View Selection API: Explicit View Control
+description: FraiseQL allows developers to explicitly control which view backs each GraphQL type or Arrow Flight ticket. This document explains the API patterns for view sel
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # View Selection API: Explicit View Control
 
 ## Overview
@@ -13,6 +21,7 @@ FraiseQL allows developers to explicitly control which view backs each GraphQL t
 In the authoring layer (Python/TypeScript), bind types to specific views using the `view` parameter:
 
 ```python
+<!-- Code example in Python -->
 import FraiseQL
 
 # Default: Uses v_user (logical view)
@@ -38,13 +47,15 @@ class UserProfile:
     posts: list[Post]
     comments: list[Comment]
     likes: list[Like]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Schema Compilation
 
 When you compile the schema, FraiseQL reads the `view` parameter and validates it exists:
 
 ```bash
+<!-- Code example in BASH -->
 # Authoring phase (generates schema.json)
 python -m FraiseQL generate-schema
 
@@ -55,13 +66,15 @@ FraiseQL-cli compile schema.json --validate
 # 1. View exists in database
 # 2. View has required columns (id, data, etc.)
 # 3. data JSONB matches type definition
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Configuration in schema.json
 
 After compilation, the schema includes explicit view references:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -87,13 +100,15 @@ After compilation, the schema includes explicit view references:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Client Usage
 
 Clients don't select views; they query types. The view is determined at schema definition time:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Client query
 query {
   # Simple query uses v_user (fast)
@@ -118,11 +133,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Python Example
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, schema
 
 # Define both simple and complex types
@@ -171,11 +188,13 @@ schema_file = schema.compile(
 #     { "name": "Comment", "view": "v_comment", ... }
 #   ]
 # }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### TypeScript Example
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { type, schema } from "@FraiseQL/typescript";
 
 // Define both simple and complex types
@@ -209,7 +228,8 @@ const schemaFile = schema.compile({
   types: [User, UserWithNested, Post],
   databaseUrl: "postgresql://localhost/fraiseql_dev"
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Arrow Flight (Analytics Plane)
 
@@ -218,6 +238,7 @@ const schemaFile = schema.compile({
 Clients explicitly select which view to query by including it in the Flight ticket:
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import json
 
@@ -240,11 +261,13 @@ ticket_table = {
 }
 stream = client.do_get(flight.Ticket(json.dumps(ticket_table).encode()))
 records = stream.read_all()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Ticket Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "view": "ta_orders",
   "limit": 100000,
@@ -257,7 +280,8 @@ records = stream.read_all()
     "compression": "zstd"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Fields**:
 
@@ -274,6 +298,7 @@ records = stream.read_all()
 ### Python Example
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import json
 import pandas as pd
@@ -319,13 +344,15 @@ def query_orders_table():
 # Usage
 df_small = query_orders_logical()  # 100-200ms
 df_large = query_orders_table()    # 50-100ms (50M rows)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### View Discovery
 
 Clients can discover available views before querying:
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 
 client = flight.connect("grpc://localhost:50051")
@@ -351,11 +378,13 @@ for flight_info in flights:
     schema = client.get_schema(flight_info)
     print(f"  Schema: {schema}")
     print(f"  Rows: {flight_info.total_records}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### When to Use Each View
 
 ```python
+<!-- Code example in Python -->
 def should_use_table_backed(dataset_size: int, query_time_ms: float) -> bool:
     """Decision logic for choosing between logical and table-backed views"""
     # Rule 1: Large datasets (>1M rows) → use table-backed
@@ -378,7 +407,8 @@ if should_use_table_backed(dataset_size=10_000_000, query_time_ms=5000):
     ticket = {"view": "ta_orders"}  # Use ta_*
 else:
     ticket = {"view": "va_orders"}  # Use va_*
-```
+```text
+<!-- Code example in TEXT -->
 
 ## View Validation
 
@@ -387,6 +417,7 @@ else:
 The compiler validates that all views exist and have correct schemas:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json --validate
 
 # Checks:
@@ -397,13 +428,15 @@ FraiseQL-cli compile schema.json --validate
 # ✅ tv_user_profile has columns: id, data
 # ✅ ta_orders exists in database
 # ✅ ta_orders has Arrow-compatible columns
-```
+```text
+<!-- Code example in TEXT -->
 
 ### At Query Time
 
 The runtime validates ticket requests:
 
 ```python
+<!-- Code example in Python -->
 client.do_get(flight.Ticket(json.dumps({
     "view": "nonexistent_view",  # Runtime error
     "limit": 10000
@@ -411,7 +444,8 @@ client.do_get(flight.Ticket(json.dumps({
 
 # Error: View 'nonexistent_view' not found
 # Available views: [ta_orders, va_orders, ta_users, va_users]
-```
+```text
+<!-- Code example in TEXT -->
 
 ## API Documentation
 
@@ -427,6 +461,7 @@ client.do_get(flight.Ticket(json.dumps({
 **Usage**:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type()                    # Uses v_user by default
 class User:
     pass
@@ -434,13 +469,15 @@ class User:
 @FraiseQL.type(view="tv_user")      # Explicit view
 class User:
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Arrow Flight Ticket
 
 **Structure**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 interface FlightTicket {
   view: string;           // Required: view name
   limit?: number;         // Optional: max rows
@@ -453,13 +490,15 @@ interface FlightTicket {
     compression?: string; // zstd, snappy, gzip
   };
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Error Handling
 
 ### View Not Found
 
 ```python
+<!-- Code example in Python -->
 # Error case: view doesn't exist
 ticket = {"view": "ta_nonexistent"}
 try:
@@ -468,11 +507,13 @@ except flight.FlightError as e:
     print(f"Error: {e}")
     # Error: View 'ta_nonexistent' not found
     # Available: [ta_orders, ta_users, va_orders]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Invalid Filter
 
 ```python
+<!-- Code example in Python -->
 # Error case: invalid SQL filter
 ticket = {
     "view": "ta_orders",
@@ -483,11 +524,13 @@ try:
 except flight.FlightError as e:
     print(f"Error: {e}")
     # Error: Invalid filter syntax
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Type Mismatch (GraphQL)
 
 ```python
+<!-- Code example in Python -->
 # Error case: type doesn't match view
 @FraiseQL.type(view="ta_orders")  # ta_* is Arrow-only!
 class Order:
@@ -495,13 +538,15 @@ class Order:
 
 # Compilation error: 'ta_orders' is table-backed Arrow view
 # Cannot use for JSON plane type
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Best Practices
 
 ### 1. Be Explicit About View Choice
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good: Clear intent
 @FraiseQL.type(view="tv_user_profile")
 class UserWithPosts:
@@ -513,11 +558,13 @@ class UserWithPosts:
 class User:
     """User"""
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Document Why You're Using a Specific View
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type(view="tv_order_summary")
 class OrderSummary:
     """Order with line items and customer details.
@@ -528,11 +575,13 @@ class OrderSummary:
     - Typical query time: 2-5s with v_order, 100ms with tv_
     """
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Test Performance Before and After Migration
 
 ```python
+<!-- Code example in Python -->
 import time
 
 def benchmark_view(view_name: str, query_count: int = 100):
@@ -559,11 +608,13 @@ if t_table < t_logical * 0.5:
     print(f"✅ Migration saves {(1 - t_table/t_logical)*100:.0f}%")
 else:
     print(f"❌ Migration not worth it")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Start with Logical Views
 
 ```python
+<!-- Code example in Python -->
 # ✅ Good: Start simple
 @FraiseQL.type()
 class Order:
@@ -573,13 +624,15 @@ class Order:
 @FraiseQL.type(view="tv_order_with_items")
 class OrderWithItems:
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5. Monitor View Freshness
 
 For table-backed views, monitor staleness:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check how old the data is
 SELECT
     view_name,
@@ -591,7 +644,8 @@ FROM (
     SELECT 'tv_order_summary', updated_at FROM tv_order_summary
 ) views
 GROUP BY view_name;
-```
+```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

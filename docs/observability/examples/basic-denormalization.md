@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Example: Basic JSONB Denormalization
+description: This example demonstrates a **complete end-to-end workflow** for denormalizing a frequently-accessed JSONB path to a direct column, resulting in a **12.5x query
+keywords: ["code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Example: Basic JSONB Denormalization
 
 ## Overview
@@ -17,6 +25,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 ### Application Architecture
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────┐
 │  Frontend Dashboard                      │
 │  - Shows sales by region                │
@@ -37,6 +46,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 │  - dimensions JSONB column                    │
 └─────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -45,6 +55,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 ### Database Schema (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
     revenue NUMERIC(12, 2) NOT NULL,
@@ -56,10 +67,12 @@ CREATE TABLE tf_sales (
 CREATE INDEX idx_tf_sales_recorded_at ON tf_sales (recorded_at);
 -- Note: No index on dimensions->>'region' (slow queries)
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Schema (SQL Server)
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     revenue DECIMAL(12, 2) NOT NULL,
@@ -71,12 +84,14 @@ CREATE TABLE tf_sales (
 CREATE NONCLUSTERED INDEX idx_tf_sales_recorded_at
     ON tf_sales (recorded_at);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Application Schema (Python)
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 import FraiseQL
 
@@ -97,6 +112,7 @@ def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -105,6 +121,7 @@ def sales_by_region(region: str = None):
 **GraphQL Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   salesByRegion(where: { region: "US" }) {
     totalRevenue
@@ -113,10 +130,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL (PostgreSQL)**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     SUM(revenue) AS totalRevenue,
     SUM(quantity) AS totalQuantity,
@@ -124,10 +143,12 @@ SELECT
 FROM tf_sales
 WHERE dimensions->>'region' = 'US';  -- ⚠️ Slow: JSONB extraction on every row
 ```text
+<!-- Code example in TEXT -->
 
 **Generated SQL (SQL Server)**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     SUM(revenue) AS totalRevenue,
     SUM(quantity) AS totalQuantity,
@@ -135,6 +156,7 @@ SELECT
 FROM tf_sales
 WHERE JSON_VALUE(dimensions, '$.region') = 'US';  -- ⚠️ Slow: JSON parsing on every row
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -165,15 +187,18 @@ WHERE JSON_VALUE(dimensions, '$.region') = 'US';  -- ⚠️ Slow: JSON parsing o
 ### Configuration
 
 ```bash
+<!-- Code example in BASH -->
 # Enable observability
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1  # 10% sampling
 export FRAISEQL_METRICS_DATABASE_URL=postgres://metrics:pass@localhost:5432/metrics
 ```text
+<!-- Code example in TEXT -->
 
 **Or in `FraiseQL.toml`**:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 0.1
@@ -181,10 +206,12 @@ sample_rate = 0.1
 [observability.database]
 url = "postgres://metrics:pass@localhost:5432/metrics"
 ```text
+<!-- Code example in TEXT -->
 
 ### Restart Application
 
 ```bash
+<!-- Code example in BASH -->
 # Restart to load new config
 kubectl rollout restart deployment/FraiseQL-api
 
@@ -192,6 +219,7 @@ kubectl rollout restart deployment/FraiseQL-api
 kubectl logs -f deployment/FraiseQL-api | grep observability
 # Output: INFO observability enabled, sample_rate=0.1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -208,6 +236,7 @@ kubectl logs -f deployment/FraiseQL-api | grep observability
 **Monitoring Collection**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check metrics are being collected
 SELECT COUNT(*) FROM fraiseql_metrics.query_executions
 WHERE executed_at > NOW() - INTERVAL '1 hour';
@@ -225,6 +254,7 @@ GROUP BY table_name, jsonb_column, path
 ORDER BY accesses DESC;
 -- Expected: tf_sales | dimensions | region | ~850
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -233,14 +263,17 @@ ORDER BY accesses DESC;
 ### Analyze Metrics
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format text
 ```text
+<!-- Code example in TEXT -->
 
 ### Analysis Output
 
 ```text
+<!-- Code example in TEXT -->
 📊 Observability Analysis Report
 
 Database: PostgreSQL
@@ -280,20 +313,24 @@ JSON accesses: 8,500 (dimensions->>'region')
    3. Test in staging
    4. Apply to production
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 6: Generate Migration SQL
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format sql > migrations/denormalize-region-20260112.sql
 ```text
+<!-- Code example in TEXT -->
 
 ### Generated SQL (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- ============================================================
 -- FraiseQL Observability-Driven Schema Optimization
 -- Generated: 2026-01-12 14:30:00 UTC
@@ -349,10 +386,12 @@ ANALYZE tf_sales;
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 ```text
+<!-- Code example in TEXT -->
 
 ### Generated SQL (SQL Server)
 
 ```sql
+<!-- Code example in SQL -->
 -- ============================================================
 -- FraiseQL Observability-Driven Schema Optimization
 -- Generated: 2026-01-12 14:30:00 UTC
@@ -395,6 +434,7 @@ GO
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 -- GO
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -403,6 +443,7 @@ GO
 ### Apply Migration to Staging
 
 ```bash
+<!-- Code example in BASH -->
 # Backup staging database
 pg_dump staging > backup-staging-$(date +%Y%m%d).dump
 
@@ -418,10 +459,12 @@ psql staging < migrations/denormalize-region-20260112.sql
 # CREATE INDEX
 # ANALYZE
 ```text
+<!-- Code example in TEXT -->
 
 ### Verify Schema Changes
 
 ```bash
+<!-- Code example in BASH -->
 # Check new column exists
 psql staging -c "\d tf_sales"
 
@@ -435,12 +478,14 @@ psql staging -c "\d tf_sales"
 #  region_id  | text                     |          |  ← NEW
 #  recorded_at| timestamp with time zone | not null | now()
 ```text
+<!-- Code example in TEXT -->
 
 ### Run Benchmark Queries
 
 **Before Optimization**:
 
 ```bash
+<!-- Code example in BASH -->
 psql staging -c "
 EXPLAIN ANALYZE
 SELECT SUM(revenue) FROM tf_sales
@@ -453,10 +498,12 @@ cat benchmark-before.txt
 # Planning Time: 0.234 ms
 # Execution Time: 1,247.823 ms  ← SLOW
 ```text
+<!-- Code example in TEXT -->
 
 **After Optimization**:
 
 ```bash
+<!-- Code example in BASH -->
 psql staging -c "
 EXPLAIN ANALYZE
 SELECT SUM(revenue) FROM tf_sales
@@ -469,6 +516,7 @@ cat benchmark-after.txt
 # Planning Time: 0.156 ms
 # Execution Time: 98.234 ms  ← FAST! (12.7x improvement)
 ```text
+<!-- Code example in TEXT -->
 
 **Actual Speedup**: 1,247ms / 98ms = **12.7x** ✅
 
@@ -479,6 +527,7 @@ cat benchmark-after.txt
 ### Update Python Schema
 
 ```python
+<!-- Code example in Python -->
 # schema.py (UPDATED)
 import FraiseQL
 
@@ -501,10 +550,12 @@ def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Recompile Schema
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 
 # Output:
@@ -514,12 +565,14 @@ FraiseQL-cli compile schema.json
 #   Types: 5
 #   Queries: 12
 ```text
+<!-- Code example in TEXT -->
 
 ### New Generated SQL
 
 **New PostgreSQL Query** (after schema update):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     SUM(revenue) AS totalRevenue,
     SUM(quantity) AS totalQuantity,
@@ -527,12 +580,14 @@ SELECT
 FROM tf_sales
 WHERE region_id = 'US';  -- ✅ Fast: Direct column with index
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Step 9: Deploy to Staging
 
 ```bash
+<!-- Code example in BASH -->
 git add schema.json schema.compiled.json
 git commit -m "feat: denormalize region_id for 12.5x speedup
 
@@ -552,10 +607,12 @@ git push origin staging
 # Deploy to staging
 kubectl rollout restart deployment/FraiseQL-api --namespace=staging
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitor Staging
 
 ```bash
+<!-- Code example in BASH -->
 # Monitor query latency
 kubectl logs -f deployment/FraiseQL-api --namespace=staging | grep salesByRegion
 
@@ -564,6 +621,7 @@ kubectl logs -f deployment/FraiseQL-api --namespace=staging | grep salesByRegion
 # INFO query=salesByRegion duration=95ms
 # INFO query=salesByRegion duration=98ms
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -581,22 +639,27 @@ kubectl logs -f deployment/FraiseQL-api --namespace=staging | grep salesByRegion
 ### Backup Production
 
 ```bash
+<!-- Code example in BASH -->
 pg_dump production > backup-prod-$(date +%Y%m%d-%H%M%S).dump
 ```text
+<!-- Code example in TEXT -->
 
 ### Apply Migration
 
 ```bash
+<!-- Code example in BASH -->
 # Apply migration to production
 psql production < migrations/denormalize-region-20260112.sql
 
 # Monitor progress
 tail -f /var/log/postgresql/postgresql.log
 ```text
+<!-- Code example in TEXT -->
 
 ### Deploy Updated Schema
 
 ```bash
+<!-- Code example in BASH -->
 git checkout main
 git merge staging
 git push origin main
@@ -604,6 +667,7 @@ git push origin main
 # Deploy to production
 kubectl rollout restart deployment/FraiseQL-api --namespace=production
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -612,6 +676,7 @@ kubectl rollout restart deployment/FraiseQL-api --namespace=production
 ### Immediate Validation
 
 ```bash
+<!-- Code example in BASH -->
 # Check query performance
 psql production -c "
 SELECT
@@ -631,6 +696,7 @@ LIMIT 5
 # mean_exec_time: 95.2  ← Fast!
 # max_exec_time: 185.3
 ```text
+<!-- Code example in TEXT -->
 
 ### 24-Hour Monitoring
 
@@ -672,6 +738,7 @@ LIMIT 5
 ### ROI Calculation
 
 ```text
+<!-- Code example in TEXT -->
 Time Saved Per Day:
   8,500 queries × 1,150ms saved = 9,775 seconds = 2.7 hours
 
@@ -685,6 +752,7 @@ Cost:
 
 ROI: Massive positive impact for minimal cost
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -709,6 +777,7 @@ ROI: Massive positive impact for minimal cost
 Based on continuing analysis:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze --database postgres://... --format text
 
 # Output:
@@ -716,6 +785,7 @@ FraiseQL-cli analyze --database postgres://... --format text
 #   2. Denormalize dimensions->>'category' (5,200 queries/day, 8x speedup)
 #   3. Add index on recorded_at (3,100 queries/day, 6x speedup)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

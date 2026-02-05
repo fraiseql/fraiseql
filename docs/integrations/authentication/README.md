@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication System - Complete Documentation
+description: Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This directory contains complete documentation for implementing, deploying, and main
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication System - Complete Documentation
 
 Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This directory contains complete documentation for implementing, deploying, and maintaining authentication in FraiseQL.
@@ -117,6 +125,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 ### Step 1: Choose OAuth Provider
 
 ```bash
+<!-- Code example in BASH -->
 # Option 1: Google (easiest for testing)
 # https://console.cloud.google.com
 # Create OAuth app, get credentials
@@ -127,10 +136,12 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 # Option 3: Auth0 (managed service)
 # https://manage.auth0.com
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure FraiseQL
 
 ```bash
+<!-- Code example in BASH -->
 # .env file
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
@@ -138,10 +149,12 @@ OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
 JWT_ISSUER=https://accounts.google.com
 DATABASE_URL=postgres://user:pass@localhost/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Register Endpoints
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::{auth_start, auth_callback, auth_refresh, auth_logout};
 
 let auth_routes = Router::new()
@@ -151,10 +164,12 @@ let auth_routes = Router::new()
     .route("/auth/logout", post(auth_logout))
     .with_state(auth_state);
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Test the Flow
 
 ```bash
+<!-- Code example in BASH -->
 # Start login
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
@@ -163,6 +178,7 @@ curl -X POST http://localhost:8000/auth/start \
 # Visit the URL in browser, authenticate
 # Tokens returned in callback response
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -255,6 +271,7 @@ curl -X POST http://localhost:8000/auth/start \
 ## 📊 Architecture Overview
 
 ```text
+<!-- Code example in TEXT -->
 ┌─ Client (Browser/App)
 │
 ├─ POST /auth/start
@@ -285,6 +302,7 @@ curl -X POST http://localhost:8000/auth/start \
    ├─ Revokes session
    └─ User logged out
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -293,6 +311,7 @@ curl -X POST http://localhost:8000/auth/start \
 ### Manual Testing
 
 ```bash
+<!-- Code example in BASH -->
 # Start login flow
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
@@ -308,16 +327,19 @@ curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### Automated Testing
 
 ```bash
+<!-- Code example in BASH -->
 # Run all auth tests
 cargo test -p FraiseQL-server auth:: --lib
 
 # Run with logging
 RUST_LOG=debug cargo test -p FraiseQL-server auth:: --lib -- --nocapture
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -363,6 +385,7 @@ See: [Troubleshooting](./TROUBLESHOOTING.md#database-issues)
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # OAuth Provider Credentials (all required)
 GOOGLE_CLIENT_ID=...                    # From Google Cloud Console
 GOOGLE_CLIENT_SECRET=...                # From Google Cloud Console
@@ -379,6 +402,7 @@ DATABASE_POOL_SIZE=20
 # Logging
 RUST_LOG=info,fraiseql_server::auth=debug
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Environment
 

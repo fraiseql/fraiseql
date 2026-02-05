@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Enterprise RBAC Documentation
+description: FraiseQL's Enterprise Role-Based Access Control (RBAC) system provides:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Enterprise RBAC Documentation
 
 **Status:** ✅ Production Ready
@@ -26,6 +34,7 @@ FraiseQL's Enterprise Role-Based Access Control (RBAC) system provides:
 ### Basic Setup
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.enterprise.rbac import setup_rbac_cache
 from FraiseQL.enterprise.rbac import PermissionResolver
 
@@ -37,10 +46,12 @@ async def app_startup(db_pool):
     # Create permission resolver
     resolver = PermissionResolver(db_pool)
 ```text
+<!-- Code example in TEXT -->
 
 ### Using in GraphQL
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.enterprise.rbac.middleware import create_rbac_middleware
 
 # Add RBAC middleware to GraphQL schema
@@ -50,10 +61,12 @@ schema = strawberry.Schema(
     extensions=[create_rbac_middleware(permission_resolver=resolver)]
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Field-Level Authorization
 
 ```python
+<!-- Code example in Python -->
 import strawberry
 from FraiseQL.enterprise.rbac.directives import requires_permission, requires_role
 
@@ -72,6 +85,7 @@ class User:
         """Only admins can see salary"""
         return self.salary_value
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -82,6 +96,7 @@ class User:
 FraiseQL supports hierarchical role inheritance where roles can inherit from parent roles.
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────┐
 │   System    │  (root role)
 └──────┬──────┘
@@ -96,6 +111,7 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 │Manager  │
 └─────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Key Concepts**:
 
@@ -123,6 +139,7 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 **Cache Invalidation**:
 
 ```text
+<!-- Code example in TEXT -->
 User modifies permission
        ↓
 domain_version incremented
@@ -131,12 +148,14 @@ All cached permissions with old version invalidated
        ↓
 Next request checks version, refreshes if needed
 ```text
+<!-- Code example in TEXT -->
 
 ### Domain Versioning
 
 FraiseQL uses domain versioning for automatic cache invalidation:
 
 ```sql
+<!-- Code example in SQL -->
 -- Each domain has a version
 SELECT version FROM domain_versions WHERE domain = 'role';
 
@@ -150,6 +169,7 @@ SELECT * FROM permission_cache
 WHERE user_id = ?
   AND version = (SELECT version FROM domain_versions WHERE domain = 'role');
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -160,6 +180,7 @@ WHERE user_id = ?
 A role represents a set of permissions within your system.
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class Role:
     id: strawberry.ID
@@ -171,6 +192,7 @@ class Role:
     created_at: datetime
     updated_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 **System Roles** (predefined):
 
@@ -188,6 +210,7 @@ class Role:
 A permission is a pairing of **resource** and **action**.
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class Permission:
     id: strawberry.ID
@@ -196,18 +219,22 @@ class Permission:
     description: str | None
     constraints: dict | None  # Optional JSONB constraints
 ```text
+<!-- Code example in TEXT -->
 
 **Standard Permissions**:
 
 ```text
+<!-- Code example in TEXT -->
 user.create, user.read, user.update, user.delete
 product.create, product.read, product.update, product.delete
 order.create, order.read, order.update, order.delete
 ```text
+<!-- Code example in TEXT -->
 
 **Constraints** (optional JSONB):
 
 ```json
+<!-- Code example in JSON -->
 {
   "own_data_only": true,
   "max_records": 1000,
@@ -215,12 +242,14 @@ order.create, order.read, order.update, order.delete
   "department_only": "engineering"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### User Roles
 
 Assignment of roles to users, with optional expiration.
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class UserRole:
     id: strawberry.ID
@@ -231,6 +260,7 @@ class UserRole:
     granted_by: strawberry.ID  # Who granted this role
     created_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -239,6 +269,7 @@ class UserRole:
 ### How Permissions Are Resolved
 
 ```text
+<!-- Code example in TEXT -->
 User Request
     ↓
 Check request-level cache
@@ -255,10 +286,12 @@ Check request-level cache
 Total uncached: 2-15ms (depends on hierarchy depth)
 Total cached: < 0.5ms
 ```text
+<!-- Code example in TEXT -->
 
 ### API Methods
 
 ```python
+<!-- Code example in Python -->
 # Get all permissions for a user
 permissions = await resolver.get_user_permissions(
     user_id="user-123",
@@ -293,6 +326,7 @@ perms = await resolver.get_role_permissions(
     include_inherited=True
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -301,6 +335,7 @@ perms = await resolver.get_role_permissions(
 ### Creating Role Hierarchies
 
 ```python
+<!-- Code example in Python -->
 # Define roles via GraphQL mutations
 mutation CreateRoles {
   # Create system admin role
@@ -323,10 +358,12 @@ mutation CreateRoles {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Inheritance Chain**:
 
 ```text
+<!-- Code example in TEXT -->
 admin (system role)
   ↑
 user (system role)
@@ -337,6 +374,7 @@ sales_manager
   ↑
 sales_director
 ```text
+<!-- Code example in TEXT -->
 
 A `sales_director` inherits all permissions from:
 
@@ -349,6 +387,7 @@ A `sales_director` inherits all permissions from:
 ### Assigning Roles to Users
 
 ```python
+<!-- Code example in Python -->
 mutation AssignRole {
   assignRoleToUser(
     userId: "user-123"
@@ -369,12 +408,14 @@ mutation AssignRole {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Expiration**: Optional time-based role revocation.
 
 ### Querying Role Hierarchy
 
 ```python
+<!-- Code example in Python -->
 query GetRoleHierarchy {
   role(id: "role-789") {
     id
@@ -403,6 +444,7 @@ query GetRoleHierarchy {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -415,6 +457,7 @@ FraiseQL provides GraphQL directives for field-level access control.
 #### `@requires_permission` Directive
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class User:
     id: strawberry.ID
@@ -430,6 +473,7 @@ class User:
         """Only accessible to users with user:read_salary permission"""
         return self.salary_value
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -440,6 +484,7 @@ class User:
 #### `@requires_role` Directive
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class Product:
     id: strawberry.ID
@@ -455,6 +500,7 @@ class Product:
         """Only sales managers can see margin"""
         return (self.price - self.cost) / self.price
 ```text
+<!-- Code example in TEXT -->
 
 **Behavior**:
 
@@ -467,6 +513,7 @@ class Product:
 When a user doesn't have permission for a field:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "user-123") {
     id        # ✓ Always included
@@ -476,10 +523,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -495,6 +544,7 @@ query {
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -505,6 +555,7 @@ query {
 Row-level security automatically filters query results based on user permissions.
 
 ```python
+<!-- Code example in Python -->
 # Install Rust row constraint resolver
 from FraiseQL.enterprise.rbac.rust_row_constraints import RustRowConstraintResolver
 
@@ -520,12 +571,14 @@ schema = strawberry.Schema(
     extensions=[create_rbac_middleware(row_constraint_resolver=row_resolver)]
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Row Constraints
 
 Define what rows each role can access:
 
 ```python
+<!-- Code example in Python -->
 # Example: Employees can only see their own data
 constraint = RowConstraint(
     role_id="employee",
@@ -540,6 +593,7 @@ constraint = RowConstraint(
     where_clause="department_id = (SELECT department_id FROM users WHERE id = current_user_id)"
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance
 
@@ -552,6 +606,7 @@ Row constraint checking with Rust FFI:
 **Example Query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -560,14 +615,17 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Behind the scenes**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, name, salary
 FROM users
 WHERE department_id = ? -- Automatically added by Rust resolver
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -578,6 +636,7 @@ WHERE department_id = ? -- Automatically added by Rust resolver
 Each role can be scoped to a tenant:
 
 ```python
+<!-- Code example in Python -->
 # Global role (NULL tenant_id)
 role = {
     "id": "role-1",
@@ -594,10 +653,12 @@ role = {
     "permissions": [...]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Permission Resolution with Tenants
 
 ```python
+<!-- Code example in Python -->
 # Get permissions scoped to tenant
 permissions = await resolver.get_user_permissions(
     user_id="user-123",
@@ -612,6 +673,7 @@ await resolver.check_permission(
     tenant_id="tenant-456"  # Tenant isolation
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Isolation**:
 
@@ -626,6 +688,7 @@ await resolver.check_permission(
 ### Creating Roles
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createRole(
     name: "content_manager"
@@ -639,10 +702,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Assigning Permissions
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   grantPermissionToRole(
     roleId: "role-456"
@@ -655,10 +720,12 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Managing User Roles
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   assignRoleToUser(
     userId: "user-123"
@@ -683,6 +750,7 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -723,6 +791,7 @@ mutation {
 Always reuse resolved permissions within a request:
 
 ```python
+<!-- Code example in Python -->
 # GOOD - Single resolution
 user_permissions = await resolver.get_user_permissions(user_id)
 has_create = "resource:create" in user_permissions
@@ -734,12 +803,14 @@ has_create = await resolver.has_permission(user_id, "resource", "create")
 has_read = await resolver.has_permission(user_id, "resource", "read")
 has_update = await resolver.has_permission(user_id, "resource", "update")
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Use Domain Versioning
 
 Domain versioning automatically handles cache invalidation - don't manually clear caches:
 
 ```python
+<!-- Code example in Python -->
 # GOOD - Let domain versioning handle invalidation
 mutation {
   createRole(name: "new_role") {
@@ -751,12 +822,14 @@ mutation {
 # BAD - Manual cache management
 cache.invalidate_all()  # Throws away valid data
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Prefer Inheritance Over Duplication
 
 Build role hierarchies rather than copying permissions:
 
 ```python
+<!-- Code example in Python -->
 # GOOD - Inheritance
 user → team_lead → team_manager → director
 
@@ -764,12 +837,14 @@ user → team_lead → team_manager → director
 user (has all permissions copied)
 team_lead (has all same permissions again)
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Set Expiration Dates
 
 Use role expiration for temporary assignments:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   assignRoleToUser(
     userId: "contractor-123"
@@ -780,16 +855,19 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Audit Role Changes
 
 Log who made what changes:
 
 ```python
+<!-- Code example in Python -->
 # Automatically captured in audit logging
 granted_by: "admin-user-456"  # Who granted the role
 created_at: "2025-01-11T10:30:00Z"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -800,6 +878,7 @@ created_at: "2025-01-11T10:30:00Z"
 1. Check role inheritance:
 
    ```graphql
+<!-- Code example in GraphQL -->
    query {
      user(id: "user-123") {
        roles {
@@ -810,44 +889,55 @@ created_at: "2025-01-11T10:30:00Z"
      }
    }
    ```text
+<!-- Code example in TEXT -->
 
 2. Verify permission assignment:
 
    ```graphql
+<!-- Code example in GraphQL -->
    query {
      role(id: "role-456") {
        permissions { resource action }
      }
    }
    ```text
+<!-- Code example in TEXT -->
 
 3. Check cache version:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT * FROM domain_versions WHERE domain = 'role';
    ```text
+<!-- Code example in TEXT -->
 
 ### High Latency on Permission Checks
 
 1. Check cache hit ratio:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT * FROM permission_cache_stats;
    ```text
+<!-- Code example in TEXT -->
 
 2. Verify domain versioning is working:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT version FROM domain_versions WHERE domain = 'role';
    -- Should be same across requests unless roles changed
    ```text
+<!-- Code example in TEXT -->
 
 3. Monitor role hierarchy depth:
 
    ```sql
+<!-- Code example in SQL -->
    SELECT role_id, max_depth FROM role_hierarchy_depths;
    -- Limit to <10 for optimal performance
    ```text
+<!-- Code example in TEXT -->
 
 ---
 

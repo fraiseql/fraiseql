@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Deployment Checklist
+description: Use this checklist for pre-deployment verification.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Deployment Checklist
 
 Use this checklist for pre-deployment verification.
@@ -54,6 +62,7 @@ Use this checklist for pre-deployment verification.
 #### Database Migration
 
 ```bash
+<!-- Code example in BASH -->
 # Backup existing database
 pg_dump $DATABASE_URL > backup-$(date +%Y%m%d).sql
 
@@ -62,11 +71,13 @@ FraiseQL-cli migrate apply
 
 # Verify schema
 psql $DATABASE_URL -c "\d"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Kubernetes Deployment
 
 ```bash
+<!-- Code example in BASH -->
 # Apply hardened manifests
 kubectl apply -f deploy/kubernetes/FraiseQL-hardened.yaml
 
@@ -75,17 +86,20 @@ kubectl rollout status deployment/FraiseQL --timeout=5m
 
 # Verify pods running
 kubectl get pods -l app=FraiseQL -o wide
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Helm Deployment (Alternative)
 
 ```bash
+<!-- Code example in BASH -->
 # Install/upgrade release
 helm upgrade --install FraiseQL ./deploy/kubernetes/helm/FraiseQL
 
 # Check rollout
 helm status FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Post-Deployment Verification (Immediately after)
 
@@ -99,6 +113,7 @@ helm status FraiseQL
 ### 5. Smoke Tests (30 minutes after)
 
 ```bash
+<!-- Code example in BASH -->
 # Test GraphQL endpoint
 curl -X POST http://FraiseQL:8815/graphql \
   -H "Content-Type: application/json" \
@@ -112,26 +127,31 @@ for i in {1..150}; do curl http://FraiseQL:8815/health; done
 
 # Verify audit logs
 kubectl logs deployment/FraiseQL | grep -i "request"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Rollback Procedure (If needed)
 
 ### Immediate Rollback
 
 ```bash
+<!-- Code example in BASH -->
 # Using kubectl
 kubectl rollout undo deployment/FraiseQL
 
 # Using Helm
 helm rollback FraiseQL 1
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Database Rollback
 
 ```bash
+<!-- Code example in BASH -->
 # Restore from backup if migration failed
 psql $DATABASE_URL < backup-$(date +%Y%m%d).sql
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Post-Deployment Phase
 
@@ -162,6 +182,7 @@ psql $DATABASE_URL < backup-$(date +%Y%m%d).sql
 ### Pod Crashes
 
 ```bash
+<!-- Code example in BASH -->
 # Check logs
 kubectl logs deployment/FraiseQL -c FraiseQL
 
@@ -170,29 +191,34 @@ kubectl describe deployment FraiseQL
 
 # Check resources
 kubectl top pods -l app=FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Database Connection Issues
 
 ```bash
+<!-- Code example in BASH -->
 # Verify connectivity
 kubectl run -it --rm debug --image=postgres --restart=Never -- \
   psql -h postgres -U FraiseQL -d FraiseQL -c "SELECT 1"
 
 # Check connection pool
 curl http://FraiseQL:8815/metrics | grep connections
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Slow Queries
 
 ```bash
+<!-- Code example in BASH -->
 # Enable query logging
 kubectl set env deployment/FraiseQL \
   RUST_LOG=debug
 
 # Check Prometheus for slow queries
 # Query: fraiseql_query_duration_ms{quantile="0.95"}
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Sign-Off
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Arrow Flight Performance Benchmarks
+description: Real-world benchmarks comparing HTTP/JSON vs Arrow Flight across various query sizes and workloads.
+keywords: ["performance"]
+tags: ["documentation", "reference"]
+---
+
 # Arrow Flight Performance Benchmarks
 
 Real-world benchmarks comparing HTTP/JSON vs Arrow Flight across various query sizes and workloads.
@@ -26,15 +34,18 @@ All benchmarks executed on:
 ### Throughput (Rows/Second)
 
 ```text
+<!-- Code example in TEXT -->
 JSON:  100 rows/sec      (serialization overhead)
 Arrow: 500k rows/sec     (columnar, binary format)
 
 Improvement: 5,000x at scale!
 ```text
+<!-- Code example in TEXT -->
 
 ### Memory Usage During Query
 
 ```text
+<!-- Code example in TEXT -->
 Query: "SELECT * FROM users LIMIT 1,000,000"
 
 HTTP/JSON:
@@ -49,6 +60,7 @@ Arrow Flight:
   Final: 0MB (stream closed after transfer)
   Memory retention: O(batch_size) - constant!
 ```text
+<!-- Code example in TEXT -->
 
 ## Observer Events Streaming Performance
 
@@ -70,6 +82,7 @@ Events flowing from NATS → Arrow → ClickHouse/Elasticsearch:
 **HTTP/JSON**:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────┐
 │ JSON Array              │
 │ [                       │
@@ -81,10 +94,12 @@ Events flowing from NATS → Arrow → ClickHouse/Elasticsearch:
 
 Total: ~200MB
 ```text
+<!-- Code example in TEXT -->
 
 **Arrow Flight**:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────┐
 │ Arrow RecordBatch       │
 │ (columnar binary)       │
@@ -95,6 +110,7 @@ Total: ~200MB
 
 Total: ~100MB (0.5x JSON)
 ```text
+<!-- Code example in TEXT -->
 
 **Compression Ratio**: Arrow is **50% the size** of JSON
 
@@ -103,6 +119,7 @@ Total: ~100MB (0.5x JSON)
 ### Traditional (JSON → Elasticsearch)
 
 ```text
+<!-- Code example in TEXT -->
 User Query
   ↓ (5ms - HTTP)
 FraiseQL executes SQL
@@ -115,10 +132,12 @@ Results available
 ───────────────────────
 TOTAL: ~355ms
 ```text
+<!-- Code example in TEXT -->
 
 ### Arrow Flight → ClickHouse
 
 ```text
+<!-- Code example in TEXT -->
 User Query
   ↓ (5ms - gRPC)
 FraiseQL executes SQL
@@ -131,6 +150,7 @@ Results available
 ───────────────────────
 TOTAL: ~22ms (16x faster!)
 ```text
+<!-- Code example in TEXT -->
 
 ## Real-World Use Cases
 
@@ -139,6 +159,7 @@ TOTAL: ~22ms (16x faster!)
 **HTTP/JSON Approach**:
 
 ```text
+<!-- Code example in TEXT -->
 Time: 5 seconds
 Memory: 100MB
 Steps:
@@ -148,10 +169,12 @@ Steps:
   4. Parse JSON (1.5s)
   5. Convert to DataFrame (0.5s)
 ```text
+<!-- Code example in TEXT -->
 
 **Arrow Flight Approach**:
 
 ```text
+<!-- Code example in TEXT -->
 Time: 0.5 seconds (10x faster! ⚡)
 Memory: 10MB
 Steps:
@@ -160,6 +183,7 @@ Steps:
   3. Stream over gRPC (300ms)
   4. Zero-copy to Polars (0ms)
 ```text
+<!-- Code example in TEXT -->
 
 **Cost Impact**: Instead of 5-second daily reports, you get instant analytics.
 
@@ -168,6 +192,7 @@ Steps:
 **HTTP/JSON Approach**:
 
 ```text
+<!-- Code example in TEXT -->
 Time: 5 minutes
 Memory: 2.5GB
 Process:
@@ -175,10 +200,12 @@ Process:
   2. Parse JSON (2m)
   3. Prepare features (2m)
 ```text
+<!-- Code example in TEXT -->
 
 **Arrow Flight Approach**:
 
 ```text
+<!-- Code example in TEXT -->
 Time: 10 seconds (30x faster! ⚡⚡)
 Memory: 100MB (25x less!)
 Process:
@@ -186,6 +213,7 @@ Process:
   2. Zero-copy to Polars (0s)
   3. Prepare features (8s)
 ```text
+<!-- Code example in TEXT -->
 
 **Cost Impact**: ML training pipelines run 30x faster, use 25x less infrastructure.
 
@@ -194,24 +222,29 @@ Process:
 **HTTP/JSON Approach**:
 
 ```text
+<!-- Code example in TEXT -->
 Polling every 10 seconds
 Time to update: ~3 seconds after event
 Can't scale: JSON parsing becomes bottleneck
 ```text
+<!-- Code example in TEXT -->
 
 **Arrow Flight + ClickHouse**:
 
 ```text
+<!-- Code example in TEXT -->
 Streaming updates every 1 second
 Time to dashboard: <200ms after event
 Scales to 1M+ events/sec
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Tuning
 
 ### Query Optimization
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad: Fetch all rows
 ticket = flight.Ticket(b'{"type": "GraphQLQuery", "query": "{ users { * } }"}')
 df = pl.from_arrow(client.do_get(ticket).read_all())
@@ -220,10 +253,12 @@ df = pl.from_arrow(client.do_get(ticket).read_all())
 ticket = flight.Ticket(b'{"type": "GraphQLQuery", "query": "{ users(limit: 10000) { id name } }"}')
 df = pl.from_arrow(client.do_get(ticket).read_all())
 ```text
+<!-- Code example in TEXT -->
 
 ### Batch Processing
 
 ```python
+<!-- Code example in Python -->
 # ❌ Bad: Load everything in memory
 table = reader.read_all()  # Memory: O(n)
 process(table)
@@ -232,10 +267,12 @@ process(table)
 for batch in reader:  # Memory: O(batch_size)
     process(batch)
 ```text
+<!-- Code example in TEXT -->
 
 ### Client Selection
 
 ```python
+<!-- Code example in Python -->
 # Choose based on workload:
 if small_dataset:
     # HTTP/JSON is fine
@@ -244,6 +281,7 @@ elif large_analytics:
     # Arrow Flight is 10-30x faster
     df = pl.from_arrow(client.do_get(...).read_all())
 ```text
+<!-- Code example in TEXT -->
 
 ## System-Level Performance
 
@@ -275,16 +313,19 @@ elif large_analytics:
 ### Linear Growth (Good)
 
 ```text
+<!-- Code example in TEXT -->
 Arrow Flight throughput scales linearly with hardware:
 
 - 4 cores: 10k queries/sec
 - 8 cores: 20k queries/sec
 - 16 cores: 40k queries/sec
 ```text
+<!-- Code example in TEXT -->
 
 ### Exponential Growth (Bad)
 
 ```text
+<!-- Code example in TEXT -->
 HTTP/JSON becomes exponentially more expensive:
 
 - 100 rows: 50ms
@@ -293,12 +334,14 @@ HTTP/JSON becomes exponentially more expensive:
 - 100k rows: 30s
 - 1M rows: 5min
 ```text
+<!-- Code example in TEXT -->
 
 ## Benchmarking Your Own Setup
 
 ### Run Local Benchmarks
 
 ```bash
+<!-- Code example in BASH -->
 # Navigate to benchmark directory
 cd benches
 
@@ -307,10 +350,12 @@ cargo bench --bench arrow_flight_benchmarks
 
 # See output with real numbers for your hardware
 ```text
+<!-- Code example in TEXT -->
 
 ### Create Custom Benchmarks
 
 ```python
+<!-- Code example in Python -->
 import time
 import pyarrow.flight as flight
 import polars as pl
@@ -327,6 +372,7 @@ for size in [100, 1000, 10000, 100000]:
 
     print(f"{size:>6} rows: {elapsed*1000:>6.1f}ms  ({len(df)} rows/sec)")
 ```text
+<!-- Code example in TEXT -->
 
 ## Summary
 

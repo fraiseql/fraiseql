@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Reading Order Guide
+description: This document provides **reading paths** tailored to different roles and use cases. Each path includes:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Reading Order Guide
 
 **Version:** 2.0
@@ -747,6 +755,7 @@ If documentation is unclear, file an issue. Documentation improves through feedb
 **Reading order matters** for some documents. Here's the dependency graph:
 
 ```text
+<!-- Code example in TEXT -->
 README.md
     ↓
 prd/PRD.md
@@ -826,6 +835,7 @@ architecture/decisions/design-decisions.md
 
 architecture/reliability/versioning-strategy.md (standalone, recommended after reliability docs)
 ```text
+<!-- Code example in TEXT -->
 
 **Key insight:** Start with README → PRD → GLOSSARY, then choose your path based on dependencies.
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Subscriptions: Corrected Architecture (Database-Centric)
+description: > **This document describes the ACTUAL FraiseQL subscription architecture.**
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Subscriptions: Corrected Architecture (Database-Centric)
 
 > **This document describes the ACTUAL FraiseQL subscription architecture.**
@@ -10,6 +18,7 @@
 ### 2.1 High-Level Event Flow (CORRECT)
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │ Application (GraphQL Mutation / Direct SQL)                │
 │ Executes: mutation CreateOrder($user_id, $amount)          │
@@ -66,6 +75,7 @@
 └───────────────────┘  └──────────────────┘  └──────────────────┘
      (automation)        (real-time UI)        (event streaming)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -81,6 +91,7 @@
 - Schema:
 
   ```sql
+<!-- Code example in SQL -->
   CREATE TABLE tb_entity_change_log (
       pk_entity_change_log BIGSERIAL PRIMARY KEY,
       id UUID NOT NULL,
@@ -96,6 +107,7 @@
   CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
   CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
   ```text
+<!-- Code example in TEXT -->
 
 **ChangeLogListener** ✅ *Fully implemented*
 
@@ -138,6 +150,7 @@
 Events flow through the system in Debezium envelope format:
 
 ```json
+<!-- Code example in JSON -->
 {
   "pk_entity_change_log": 1234,
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -154,10 +167,12 @@ Events flow through the system in Debezium envelope format:
   "created_at": "2026-01-30T10:00:00.123456Z"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Conversion to SubscriptionEvent:**
 
 ```rust
+<!-- Code example in RUST -->
 // In ObserverRuntime background task
 for entry in entries {
     let entity_event = EntityEvent::from_change_log_entry(entry);
@@ -181,6 +196,7 @@ for entry in entries {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -200,8 +216,10 @@ for entry in entries {
 The previous documentation described this flow:
 
 ```text
+<!-- Code example in TEXT -->
 Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 ```text
+<!-- Code example in TEXT -->
 
 **Problems:**
 
@@ -217,6 +235,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
    - Example:
 
      ```rust
+<!-- Code example in RUST -->
      sqlx::query!(
          "INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
           VALUES ($1, $2, $3, $4)",
@@ -226,6 +245,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
          serde_json::to_value(&order)?
      ).execute(&pool).await?;
      ```text
+<!-- Code example in TEXT -->
 
 2. **SubscriptionManager Not Wired to ObserverRuntime** - Integration pending (Phase A revised)
 

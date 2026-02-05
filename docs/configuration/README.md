@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Configuration Guide
+description: Complete configuration reference for FraiseQL security, networking, and operational settings.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Configuration Guide
 
 Complete configuration reference for FraiseQL security, networking, and operational settings.
@@ -20,6 +28,7 @@ Complete configuration reference for FraiseQL security, networking, and operatio
 FraiseQL uses `FRAISEQL_` prefixed environment variables:
 
 ```bash
+<!-- Code example in BASH -->
 # Security
 FRAISEQL_ENABLE_TLS=true
 FRAISEQL_TLS_CERT=/path/to/cert.pem
@@ -33,7 +42,8 @@ FRAISEQL_RATE_LIMIT_REQUESTS_PER_MINUTE=100
 FRAISEQL_DATABASE_URL=postgresql://user:pass@localhost/db
 FRAISEQL_DATABASE_POOL_SIZE=20
 FRAISEQL_DATABASE_POOL_TIMEOUT=30
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Configuration Priority
 

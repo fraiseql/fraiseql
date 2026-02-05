@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Getting Started with Sagas
+description: 1. [What Are Sagas?](#what-are-sagas)
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # Getting Started with Sagas
 
 **Audience:** Backend developers implementing distributed transactions
@@ -32,12 +40,14 @@ Sagas break a long-running business transaction into a series of **steps**:
 When a customer places an order, multiple services might be involved:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Debit customer's account (Payment Service)
 2. Reserve inventory (Inventory Service)
 3. Schedule delivery (Shipping Service)
 4. Update order status (Order Service)
 ```text
+<!-- Code example in TEXT -->
 
 If step 3 fails (no delivery available), a saga automatically:
 
@@ -88,21 +98,25 @@ The **saga coordinator** orchestrates the execution of all steps in a saga. It:
 - Maintains saga state in a saga store
 
 ```rust
+<!-- Code example in RUST -->
 // The coordinator manages the entire saga lifecycle
 let coordinator = SagaCoordinator::new(metadata, store);
 let saga = coordinator.execute(steps).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Saga Steps
 
 Each step has two parts:
 
 ```rust
+<!-- Code example in RUST -->
 SagaStep {
     forward: Mutation,        // Do the operation
     compensation: Mutation,   // Undo the operation
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Forward Step Example**: Charge customer's credit card
 **Compensation Step Example**: Refund the charge
@@ -130,6 +144,7 @@ Supported backends:
 Create a file `orders/saga_coordinator.rs`:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_core::federation::saga::{
     SagaCoordinator, SagaStep, SagaStore,
 };
@@ -203,19 +218,23 @@ pub async fn create_order_saga(
     Ok(result.data["createOrder"].clone())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure the Saga Store
 
 In `Cargo.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [dependencies]
 FraiseQL-core = { version = "2.0", features = ["saga-postgres"] }
 ```text
+<!-- Code example in TEXT -->
 
 In your application setup:
 
 ```rust
+<!-- Code example in RUST -->
 // Configure PostgreSQL saga store
 let saga_store = PostgresSagaStore::new(
     PostgresSagaStoreConfig {
@@ -225,10 +244,12 @@ let saga_store = PostgresSagaStore::new(
     }
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Call Your Saga
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::main]
 async fn main() -> Result<()> {
     let order = create_order_saga(
@@ -248,6 +269,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -256,6 +278,7 @@ async fn main() -> Result<()> {
 ### Unit Test: Success Path
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_saga_success_path() {
     // Arrange
@@ -272,10 +295,12 @@ async fn test_saga_success_path() {
     assert_eq!(saga_state.completed_steps, 3);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Integration Test: Failure and Compensation
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_saga_compensation_on_failure() {
     // Arrange: Setup mock services where Step 2 fails
@@ -294,10 +319,12 @@ async fn test_saga_compensation_on_failure() {
     assert_eq!(compensation_logs[0].step_index, 1); // Step 1 was compensated
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Chaos Testing: Network Failures
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_saga_recovery_after_network_failure() {
     // Arrange
@@ -315,6 +342,7 @@ async fn test_saga_recovery_after_network_failure() {
     assert!(result.is_ok());
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -333,9 +361,11 @@ The saga waits for each step to complete before moving to the next.
 **Example:**
 
 ```text
+<!-- Code example in TEXT -->
 User places order → Payment processed → Inventory reserved → Response sent
                     (wait)              (wait)
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Fire-and-Forget (Asynchronous)
 
@@ -350,10 +380,12 @@ The saga coordinator returns immediately; steps execute in the background.
 **Example:**
 
 ```rust
+<!-- Code example in RUST -->
 let saga_id = coordinator.execute_async(steps).await?;
 // Return saga_id to user immediately
 // User can check status later with saga_id
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Choreography (Event-Driven)
 
@@ -386,10 +418,12 @@ Services listen for events and trigger actions independently (no central coordin
 4. Look for circular dependencies in compensation steps
 
 ```rust
+<!-- Code example in RUST -->
 // Add timeouts
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_timeout(Duration::from_secs(30));
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Duplicate Mutations
 
@@ -405,6 +439,7 @@ let coordinator = SagaCoordinator::new(metadata, store)
 3. Check saga step retries
 
 ```rust
+<!-- Code example in RUST -->
 // Use idempotent operation IDs
 let step = SagaStep {
     forward: Mutation {
@@ -415,6 +450,7 @@ let step = SagaStep {
     ...
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Compensation Never Runs
 
@@ -431,6 +467,7 @@ let step = SagaStep {
 4. Ensure compensation service is reachable
 
 ```rust
+<!-- Code example in RUST -->
 // Check compensation logs
 let logs = store.get_compensation_logs(saga_id).await?;
 for log in logs {
@@ -439,6 +476,7 @@ for log in logs {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Recovery Not Working
 
@@ -455,6 +493,7 @@ for log in logs {
 4. Review recovery manager configuration
 
 ```rust
+<!-- Code example in RUST -->
 // Verify saga store has persistence
 let saga = store.get_saga(saga_id).await?;
 assert!(saga.is_some(), "Saga should be persisted");
@@ -462,6 +501,7 @@ assert!(saga.is_some(), "Saga should be persisted");
 // Trigger manual recovery if needed
 coordinator.recover_failed_sagas().await?;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

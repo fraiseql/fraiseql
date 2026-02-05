@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Connection Pool Tuning Guide
+description: Connection pooling is essential for GraphQL API performance. A properly tuned connection pool can improve throughput by 2-3x and reduce latency variance.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Connection Pool Tuning Guide
 
 **Version**: 2.0.0-a1
@@ -22,6 +30,7 @@ Connection pooling is essential for GraphQL API performance. A properly tuned co
 ### What This Means
 
 ```text
+<!-- Code example in TEXT -->
 Behavior:
 
 1. Server starts with 0 connections
@@ -29,6 +38,7 @@ Behavior:
 3. Pool grows to max_size (10) as needed
 4. Unused connections closed after 15 minutes
 ```text
+<!-- Code example in TEXT -->
 
 ## Tuning by Workload
 
@@ -43,11 +53,13 @@ Behavior:
 **Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     5  // Small pool is sufficient
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Metrics**:
 
@@ -66,11 +78,13 @@ let adapter = PostgresAdapter::with_pool_size(
 **Configuration** (Recommended):
 
 ```rust
+<!-- Code example in RUST -->
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     20  // Default 10 is often too small
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Metrics**:
 
@@ -89,11 +103,13 @@ let adapter = PostgresAdapter::with_pool_size(
 **Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     50 + num_cpus::get() as usize  // Scale with CPU cores
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Metrics**:
 
@@ -107,6 +123,7 @@ let adapter = PostgresAdapter::with_pool_size(
 ### Rule of Thumb
 
 ```text
+<!-- Code example in TEXT -->
 max_pool_size = (core_count × 2) + effective_spindle_count
 
 For typical cloud VMs:
@@ -117,6 +134,7 @@ For typical cloud VMs:
 - 16 cores: 35 connections
 - 32 cores: 65 connections
 ```text
+<!-- Code example in TEXT -->
 
 ### Rationale
 
@@ -134,6 +152,7 @@ Too large pool → Wasted memory, database may struggle
 ### Key Metrics
 
 ```rust
+<!-- Code example in RUST -->
 let metrics = adapter.pool_metrics();
 
 println!("Total connections:  {}", metrics.total_connections);
@@ -146,6 +165,7 @@ let utilization = (metrics.active_connections as f64
     / metrics.total_connections as f64) * 100.0;
 println!("Pool utilization: {:.1}%", utilization);
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Signals
 
@@ -161,6 +181,7 @@ println!("Pool utilization: {:.1}%", utilization);
 **Option 1: Debug Logging**
 
 ```rust
+<!-- Code example in RUST -->
 // Add monitoring to your GraphQL handler
 async fn handle_graphql(req: GraphQLRequest) -> Result<String> {
     let before = Instant::now();
@@ -183,10 +204,12 @@ async fn handle_graphql(req: GraphQLRequest) -> Result<String> {
     Ok(result)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Option 2: Prometheus Metrics**
 
 ```rust
+<!-- Code example in RUST -->
 // Export pool metrics to Prometheus
 prometheus::histogram_timer!("pool_acquisition_time_ms", {
     executor.adapter.execute_query(query).await?
@@ -195,10 +218,12 @@ prometheus::histogram_timer!("pool_acquisition_time_ms", {
 prometheus::gauge!("pool_active_connections",
     executor.adapter.pool_metrics().active_connections as i64);
 ```text
+<!-- Code example in TEXT -->
 
 **Option 3: Structured Logging**
 
 ```rust
+<!-- Code example in RUST -->
 // Log pool state with every query
 tracing::info!(
     pool_metrics = ?executor.adapter.pool_metrics(),
@@ -206,6 +231,7 @@ tracing::info!(
     "GraphQL query executed"
 );
 ```text
+<!-- Code example in TEXT -->
 
 ## Optimization Techniques
 
@@ -214,6 +240,7 @@ tracing::info!(
 Initialize connections on startup:
 
 ```rust
+<!-- Code example in RUST -->
 async fn initialize_adapter(connection_string: &str) -> Result<PostgresAdapter> {
     let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 
@@ -226,6 +253,7 @@ async fn initialize_adapter(connection_string: &str) -> Result<PostgresAdapter> 
     Ok(adapter)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Benefit**: Eliminates cold-start latency spike
 
@@ -234,16 +262,19 @@ async fn initialize_adapter(connection_string: &str) -> Result<PostgresAdapter> 
 Fast recycling is already enabled. Verify:
 
 ```rust
+<!-- Code example in RUST -->
 cfg.manager = Some(ManagerConfig {
     recycling_method: RecyclingMethod::Fast,  // Reuse immediately
 });
 ```text
+<!-- Code example in TEXT -->
 
 **Benefit**: Faster connection reuse, lower latency
 
 ### 3. Tune Idle Timeout
 
 ```rust
+<!-- Code example in RUST -->
 // Default: 900 seconds (15 minutes)
 // Reduces unnecessary cleanup for long-lived connections
 cfg.manager = Some(ManagerConfig {
@@ -255,12 +286,14 @@ cfg.manager = Some(ManagerConfig {
 //     idle_timeout: Some(Duration::from_secs(300)),  // 5 minutes
 // });
 ```text
+<!-- Code example in TEXT -->
 
 **Benefit**: Reduces idle connection overhead
 
 ### 4. Use Connection Pooling in Client Code
 
 ```rust
+<!-- Code example in RUST -->
 // ✅ GOOD - Use single adapter instance
 let adapter = Arc::new(PostgresAdapter::new(connection_string).await?);
 
@@ -277,8 +310,10 @@ async fn main() {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ BAD - Create new pool per request
 async fn handle_request() {
     // Creates new connection pool each time!
@@ -286,10 +321,12 @@ async fn handle_request() {
     adapter.execute_query(query).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Batch Queries When Possible
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ SLOW - Each query gets different connection
 for user_id in user_ids {
     let result = adapter.execute_where_query(
@@ -309,6 +346,7 @@ let results = futures::future::join_all(
     })
 ).await;
 ```text
+<!-- Code example in TEXT -->
 
 **Benefit**: Reduces connection acquisition overhead
 
@@ -325,29 +363,35 @@ let results = futures::future::join_all(
 1. **Increase pool size**:
 
    ```rust
+<!-- Code example in RUST -->
    // From 10 to 30
    let adapter = PostgresAdapter::with_pool_size(
        connection_string,
        30
    ).await?;
    ```text
+<!-- Code example in TEXT -->
 
 2. **Reduce query latency** (queries hold connections longer if slow):
 
    ```text
+<!-- Code example in TEXT -->
    Enable SQL projection (already done) ✅
    Add database indexes
    Optimize WHERE clauses
    ```text
+<!-- Code example in TEXT -->
 
 3. **Load balance** across multiple servers:
 
    ```text
+<!-- Code example in TEXT -->
    Server A: 8 connections
    Server B: 8 connections
    Total: 16 connections to database
    (vs 16 from single server)
    ```text
+<!-- Code example in TEXT -->
 
 ### Problem: High Latency with Low CPU Usage
 
@@ -358,12 +402,14 @@ let results = futures::future::join_all(
 **Solution**: Check pool metrics
 
 ```rust
+<!-- Code example in RUST -->
 let metrics = adapter.pool_metrics();
 if metrics.waiting_requests > 0 {
     // Requests are waiting for connections
     // Increase pool size
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Connection Leaks (Pool Never Shrinks)
 
@@ -374,18 +420,21 @@ if metrics.waiting_requests > 0 {
 **Solution**: Ensure `DatabaseAdapter` calls are awaited properly
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ WRONG - Connection held indefinitely
 let result = adapter.execute_query(query);  // Not awaited!
 
 // ✅ CORRECT - Connection returned after await
 let result = adapter.execute_query(query).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ## Configuration Reference
 
 ### Creating Custom Pool Configuration
 
 ```rust
+<!-- Code example in RUST -->
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod};
 
 pub async fn create_adapter_with_config(
@@ -409,12 +458,14 @@ pub async fn create_adapter_with_config(
     Ok(PostgresAdapter::from_pool(pool))
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Benchmarking Pool Performance
 
 ### Simple Benchmark
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn bench_pool_acquisition() {
     let adapter = PostgresAdapter::with_pool_size(
@@ -436,14 +487,17 @@ async fn bench_pool_acquisition() {
     assert!(per_acquisition < 1000, "Should be < 1ms");
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Expected Results
 
 ```text
+<!-- Code example in TEXT -->
 Pool size: 10
 Acquisition time: 10-50µs (when connection available)
 Acquisition time: 100-500µs (when creating new connection)
 ```text
+<!-- Code example in TEXT -->
 
 ## Production Checklist
 

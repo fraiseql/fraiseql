@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Federation
+description: Multi-database query composition with SAGA pattern consistency.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Federation
 
 Multi-database query composition with SAGA pattern consistency.
@@ -16,6 +24,7 @@ New to federation? Start here:
 Federation enables querying across multiple databases as if they were one:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -30,6 +39,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Architecture
 
@@ -59,6 +69,7 @@ query {
 ## Architecture Overview
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────┐
 │  FraiseQL       │
 │  Compiler       │
@@ -86,6 +97,7 @@ query {
 │   DB #1  │     │  DB #2   │    │ DB #3   │  │ DB #4   │
 └─────────┘     └──────────┘    └─────────┘  └─────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## When to Use Federation
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: PostgreSQL SCRAM Authentication
+description: FraiseQL supports SCRAM (Salted Challenge Response Authentication Mechanism) authentication for secure connections to PostgreSQL databases.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # PostgreSQL SCRAM Authentication
 
 FraiseQL supports SCRAM (Salted Challenge Response Authentication Mechanism) authentication for secure connections to PostgreSQL databases.
@@ -23,16 +31,19 @@ SCRAM is the modern, secure authentication method for PostgreSQL. It replaces th
 Check your PostgreSQL version:
 
 ```bash
+<!-- Code example in BASH -->
 psql --version
 # or from within psql:
 SELECT version();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### User Password Configuration
 
 Ensure PostgreSQL is configured to use SCRAM for password authentication:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check current password_encryption setting
 SHOW password_encryption;
 -- Output: scram-sha-256 (or md5, which is deprecated)
@@ -43,17 +54,20 @@ SELECT pg_reload_conf();
 
 -- Reset user password to apply new authentication method
 ALTER USER fraiseql_user PASSWORD 'new_secure_password';
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Configuration
 
 ### Basic SCRAM Authentication
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 # PostgreSQL connection string with SCRAM authentication
 url = "postgresql://fraiseql_user:password@localhost:5432/fraiseql_db"
-```
+```text
+<!-- Code example in TEXT -->
 
 FraiseQL automatically:
 
@@ -67,6 +81,7 @@ FraiseQL automatically:
 For the most secure configuration with channel binding:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 # PostgreSQL connection string with SCRAM-SHA-256-PLUS
 url = "postgresql://fraiseql_user:password@localhost:5432/fraiseql_db"
@@ -76,7 +91,8 @@ enabled = true
 ca_cert = "/path/to/ca.crt"
 client_cert = "/path/to/client.crt"
 client_key = "/path/to/client.key"
-```
+```text
+<!-- Code example in TEXT -->
 
 When both TLS and SCRAM are enabled:
 
@@ -123,46 +139,56 @@ If your PostgreSQL instance uses MD5 authentication:
 ### Step 1: Update PostgreSQL
 
 ```bash
+<!-- Code example in BASH -->
 # On PostgreSQL server
 sudo systemctl stop postgresql
 sudo apt-get install postgresql-14  # or later version
 sudo systemctl start postgresql
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure SCRAM
 
 ```sql
+<!-- Code example in SQL -->
 -- Connect as superuser
 sudo -u postgres psql
 
 -- Set SCRAM as default
 ALTER SYSTEM SET password_encryption = 'scram-sha-256';
 SELECT pg_reload_conf();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Reset User Passwords
 
 ```sql
+<!-- Code example in SQL -->
 -- For each user, reset password to apply SCRAM
 ALTER USER fraiseql_user PASSWORD 'secure_password';
 ALTER USER other_user PASSWORD 'their_secure_password';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Verify Migration
 
 ```sql
+<!-- Code example in SQL -->
 -- Check that users are now using SCRAM
 SELECT usename, usepassword FROM pg_user WHERE usename = 'fraiseql_user';
 -- Output should show: $SCRAM-SHA-256$... (not md5...)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Update FraiseQL Configuration
 
 ```toml
+<!-- Code example in TOML -->
 # Update connection string if credentials changed
 [database]
 url = "postgresql://fraiseql_user:new_password@localhost:5432/fraiseql_db"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Password Requirements
 
@@ -188,16 +214,19 @@ FraiseQL uses the `zeroize` crate to:
 ### Test Connection
 
 ```bash
+<!-- Code example in BASH -->
 # Test with psql first
 psql postgresql://fraiseql_user:password@localhost:5432/fraiseql_db
 
 # If successful, FraiseQL should also connect
 FraiseQL-server start
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test with FraiseQL
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_core::database::ConnectionPool;
 
 #[tokio::main]
@@ -210,18 +239,21 @@ async fn main() {
     let pool = ConnectionPool::new(config).await.expect("Connection failed");
     println!("✅ SCRAM authentication successful");
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Verify Authentication Method
 
 ```bash
+<!-- Code example in BASH -->
 # View the authentication message from server
 RUST_LOG=fraiseql_wire::auth=debug FraiseQL-server start
 
 # Should show:
 # [DEBUG] AuthenticationSASL with mechanisms: ["SCRAM-SHA-256"]
 # [DEBUG] SCRAM-SHA-256 authentication successful
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -237,12 +269,14 @@ RUST_LOG=fraiseql_wire::auth=debug FraiseQL-server start
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 # Test with psql first
 psql postgresql://fraiseql_user:password@localhost:5432/fraiseql_db
 
 # Check PostgreSQL logs
 tail -f /var/log/postgresql/postgresql.log
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Password authentication failed"
 
@@ -251,6 +285,7 @@ tail -f /var/log/postgresql/postgresql.log
 **Solution:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Check authentication method
 SHOW password_encryption;
 
@@ -258,7 +293,8 @@ SHOW password_encryption;
 ALTER SYSTEM SET password_encryption = 'scram-sha-256';
 SELECT pg_reload_conf();
 ALTER USER fraiseql_user PASSWORD 'new_password';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Connection refused"
 
@@ -271,6 +307,7 @@ ALTER USER fraiseql_user PASSWORD 'new_password';
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 # Check if PostgreSQL is running
 systemctl status postgresql
 
@@ -278,7 +315,8 @@ systemctl status postgresql
 ss -tlnp | grep postgres
 # or
 netstat -tlnp | grep postgres
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Performance Considerations
 
@@ -292,13 +330,15 @@ SCRAM authentication adds minimal overhead:
 For applications with thousands of connections, use connection pooling:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 url = "postgresql://..."
 
 [pool]
 max_connections = 100
 min_idle = 10
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Security Best Practices
 
@@ -314,12 +354,14 @@ min_idle = 10
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Don't put passwords in code
 export DATABASE_URL="postgresql://fraiseql_user:password@localhost:5432/fraiseql_db"
 
 # Or use a secrets manager
 export DATABASE_PASSWORD=$(vault kv get -field=password secret/FraiseQL/db)
-```
+```text
+<!-- Code example in TEXT -->
 
 ## References
 

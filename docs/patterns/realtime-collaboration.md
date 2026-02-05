@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Real-Time Collaboration with Subscriptions
+description: Complete guide to building collaborative tools (like Google Docs, Figma, Notion) with real-time synchronization using FraiseQL subscriptions.
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # Real-Time Collaboration with Subscriptions
 
 **Status:** ✅ Production Ready
@@ -12,7 +20,10 @@ Complete guide to building collaborative tools (like Google Docs, Figma, Notion)
 
 ## Architecture Overview
 
+**Diagram: Real-Time Architecture** - WebSocket-based collaboration with presence tracking
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Users: "Collaborators" {
@@ -65,7 +76,8 @@ Subscriptions -> Database: "Subscribe to changes"
 Presence -> Database: "Update presence"
 Database -> Server: "Broadcast updates"
 Server -> Users: "Real-time sync"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -74,6 +86,7 @@ Server -> Users: "Real-time sync"
 ### Document Model
 
 ```sql
+<!-- Code example in SQL -->
 -- Documents (editable items)
 CREATE TABLE documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -157,12 +170,14 @@ CREATE TABLE comments (
   INDEX idx_resolved (resolved)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## FraiseQL Schema
 
 ```python
+<!-- Code example in Python -->
 # collaboration_schema.py
 from FraiseQL import types
 from datetime import datetime
@@ -287,6 +302,7 @@ class Subscription:
         """New comments"""
         pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -295,6 +311,7 @@ class Subscription:
 ### Apply Operation
 
 ```python
+<!-- Code example in Python -->
 class OperationTransform:
     @staticmethod
     def apply_operation(text: str, operation: dict) -> str:
@@ -330,6 +347,7 @@ class OperationTransform:
                 }
         return op2
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -338,6 +356,7 @@ class OperationTransform:
 ### Client-Side (React)
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useQuery, useMutation, useSubscription, gql } from '@apollo/client';
 import { useCallback, useRef, useState } from 'react';
 
@@ -539,6 +558,7 @@ function renderCursorPosition(presence: any) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -547,6 +567,7 @@ function renderCursorPosition(presence: any) {
 ### Track Activity
 
 ```sql
+<!-- Code example in SQL -->
 -- Trigger to log activity
 CREATE OR REPLACE FUNCTION log_activity() RETURNS TRIGGER AS $$
 BEGIN
@@ -573,10 +594,12 @@ AFTER INSERT ON document_changes
 FOR EACH ROW
 EXECUTE FUNCTION log_activity();
 ```text
+<!-- Code example in TEXT -->
 
 ### Presence Management
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Update presence every time cursor moves
 const handleCursorMove = useDebouncedCallback((position: number) => {
   updatePresence({
@@ -598,12 +621,14 @@ useEffect(() => {
   };
 }, [documentId]);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Comments & Threading
 
 ```typescript
+<!-- Code example in TypeScript -->
 const ADD_COMMENT = gql`
   mutation AddComment($docId: ID!, $content: String!, $position: Int) {
     addComment(documentId: $docId, content: $content, position: $position) {
@@ -647,6 +672,7 @@ export function CommentsSidebar({ documentId }: { documentId: string }) {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -660,6 +686,7 @@ For documents with concurrent edits:
 4. **Operational Transform** - Adjust operations based on order
 
 ```python
+<!-- Code example in Python -->
 def resolve_conflict(op1: dict, op2: dict, user1_id: str, user2_id: str) -> tuple:
     """Return (transformed_op1, transformed_op2)"""
 
@@ -684,12 +711,14 @@ def resolve_conflict(op1: dict, op2: dict, user1_id: str, user2_id: str) -> tupl
     # Handle other cases...
     return (op1, op2)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Testing Real-Time Collaboration
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('Collaborative Editing', () => {
   it('should merge concurrent edits', async () => {
     const user1Changes = [
@@ -735,6 +764,7 @@ describe('Collaborative Editing', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

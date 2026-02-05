@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Federation API Reference
+description: Complete API reference for Python, TypeScript, and Rust federation support.
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Federation API Reference
 
 Complete API reference for Python, TypeScript, and Rust federation support.
@@ -21,13 +29,15 @@ Complete API reference for Python, TypeScript, and Rust federation support.
 Marks a class as a GraphQL type.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type
 
 @type
 class User:
     id: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**: None
 
@@ -40,6 +50,7 @@ class User:
 Declares the primary key field(s) for federation.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, key
 
 @type
@@ -47,7 +58,8 @@ from FraiseQL import type, key
 class User:
     id: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**:
 
@@ -56,6 +68,7 @@ class User:
 **Multiple Keys** (federation v2):
 
 ```python
+<!-- Code example in Python -->
 @type
 @key(fields=["id"])
 @key(fields=["email"])
@@ -63,18 +76,21 @@ class User:
     id: str
     email: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Composite Keys** (for multi-tenant):
 
 ```python
+<!-- Code example in Python -->
 @type
 @key(fields=["organization_id", "user_id"])
 class User:
     organization_id: str
     user_id: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -83,6 +99,7 @@ class User:
 Marks that this service extends an entity from another service.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, extends, external, key
 
 @type
@@ -91,7 +108,8 @@ from FraiseQL import type, extends, external, key
 class User:
     id: str = external()
     orders: list["Order"]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**: None
 
@@ -108,6 +126,7 @@ class User:
 Marks a field as external (owned by another subgraph).
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, extends, external
 
 @type
@@ -116,7 +135,8 @@ class User:
     id: str = external()
     email: str = external()
     orders: list["Order"]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**: None
 
@@ -133,6 +153,7 @@ class User:
 Specifies fields needed from the authoritative subgraph to resolve this field.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, extends, external, requires
 
 @type
@@ -141,7 +162,8 @@ class User:
     id: str = external()
     email: str = external()
     orders: list["Order"] = requires(fields=["id"])
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**:
 
@@ -150,12 +172,14 @@ class User:
 **Example: Conditional Resolution**:
 
 ```python
+<!-- Code example in Python -->
 @type
 @extends
 class Product:
     id: str = external()
     is_available: bool = requires(fields=["stock_level"])
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -164,6 +188,7 @@ class Product:
 Specifies fields that this subgraph can provide to resolver.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, provides
 
 @type
@@ -171,7 +196,8 @@ class Order:
     id: str
     user_id: str
     total: float = provides(from_fields=["user_id"])
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**:
 
@@ -184,6 +210,7 @@ class Order:
 Marks that multiple subgraphs can provide this field.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, shareable
 
 @type
@@ -191,7 +218,8 @@ class Product:
     id: str
     name: str
     price: float = shareable()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**: None
 
@@ -208,6 +236,7 @@ class Product:
 #### Basic Types
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type
 
 @type
@@ -218,11 +247,13 @@ class User:
     verified: bool             # Boolean
     metadata: dict             # Object/JSON
     tags: list[str]            # Array
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Optional Fields
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type
 from typing import Optional
 
@@ -231,11 +262,13 @@ class User:
     id: str
     email: Optional[str]       # Nullable field (Python 3.10+)
     phone: str | None          # Also valid (3.10+ preferred)
-```
+```text
+<!-- Code example in TEXT -->
 
 #### ID Type
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, ID
 
 @type
@@ -243,11 +276,13 @@ from FraiseQL import type, ID
 class User:
     id: ID                     # Special ID scalar
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Custom Scalars
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, scalar
 
 DateTime = scalar("DateTime", description="ISO 8601 datetime")
@@ -256,13 +291,15 @@ DateTime = scalar("DateTime", description="ISO 8601 datetime")
 class User:
     id: str
     created_at: DateTime
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Query Definition
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type
 from typing import Optional
 
@@ -281,7 +318,8 @@ class Query:
     def users_by_name(self, name: str) -> list["User"]:
         """Get users by name"""
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameter Types**:
 
@@ -302,6 +340,7 @@ class Query:
 ### Mutation Definition
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type
 from typing import Optional
 
@@ -320,13 +359,15 @@ class Mutation:
     def delete_user(self, id: str) -> bool:
         """Delete user"""
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Complete Python Example
 
 ```python
+<!-- Code example in Python -->
 """Users Service with Federation"""
 from FraiseQL import type, key, extends, external, requires, ID
 from typing import Optional
@@ -366,7 +407,8 @@ class Mutation:
         name: Optional[str] = None
     ) -> Optional[User]:
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -379,6 +421,7 @@ class Mutation:
 Marks a class as a GraphQL type.
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type, Key } from '@FraiseQL/typescript';
 
 @Type()
@@ -386,7 +429,8 @@ class User {
   id: string;
   name: string;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -395,6 +439,7 @@ class User {
 Declares federation key field(s).
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type, Key } from '@FraiseQL/typescript';
 
 @Type()
@@ -403,7 +448,8 @@ class User {
   id: string;
   name: string;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parameters**:
 
@@ -418,6 +464,7 @@ class User {
 Marks that this service extends an entity.
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type, Extends, Key, External } from '@FraiseQL/typescript';
 
 @Type()
@@ -429,7 +476,8 @@ class User {
 
   orders: Order[];
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -438,6 +486,7 @@ class User {
 Marks a field as external (owned by another service).
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 @Extends()
 class User {
@@ -447,7 +496,8 @@ class User {
   @External()
   email: string;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -456,6 +506,7 @@ class User {
 Specifies fields needed to resolve this field.
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Requires } from '@FraiseQL/typescript';
 
 @Type()
@@ -467,7 +518,8 @@ class User {
   @Requires({ fields: ['id'] })
   orders: Order[];
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -476,6 +528,7 @@ class User {
 Marks that multiple services provide this field.
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Shareable } from '@FraiseQL/typescript';
 
 @Type()
@@ -486,13 +539,15 @@ class Product {
   @Shareable()
   price: number;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Field Types
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 class User {
   id: string;                   // String
@@ -503,13 +558,15 @@ class User {
   createdAt?: string;          // Optional (nullable)
   email: string | null;        // Union with null
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Query Definition
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type } from '@FraiseQL/typescript';
 
 @Type()
@@ -524,13 +581,15 @@ class Query {
     return [];
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Mutation Definition
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type } from '@FraiseQL/typescript';
 
 @Type()
@@ -554,13 +613,15 @@ class Mutation {
     return true;
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Complete TypeScript Example
 
 ```typescript
+<!-- Code example in TypeScript -->
 import {
   Type,
   Key,
@@ -617,7 +678,8 @@ class Mutation {
     return null;
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -628,6 +690,7 @@ class Mutation {
 #### FederationMetadata
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationMetadata {
     pub enabled: bool,
     pub version: String,
@@ -641,18 +704,21 @@ pub struct FederatedType {
     pub external_fields: Vec<String>,
     pub shareable_fields: Vec<String>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 #### EntityRepresentation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct EntityRepresentation {
     pub typename: String,
     pub key_fields: HashMap<String, Value>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Used to represent entities in `_entities` queries.
 
@@ -661,6 +727,7 @@ Used to represent entities in `_entities` queries.
 #### ResolutionStrategy
 
 ```rust
+<!-- Code example in RUST -->
 pub enum ResolutionStrategy {
     Local {
         view_name: String,
@@ -674,13 +741,15 @@ pub enum ResolutionStrategy {
         key_columns: Vec<String>,
     },
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### FederationResolver
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationResolver {
     pub metadata: FederationMetadata,
     pub config: FederationConfig,
@@ -707,13 +776,15 @@ impl FederationResolver {
         selection: &FieldSelection,
     ) -> Result<Vec<Option<Value>>>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### EntityResolver
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn resolve_entities_by_strategy(
     representations: &[EntityRepresentation],
     typename: &str,
@@ -726,13 +797,15 @@ pub struct EntityResolutionResult {
     pub entities: Vec<Option<Value>>,
     pub errors: Vec<String>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### HTTP Resolution
 
 ```rust
+<!-- Code example in RUST -->
 pub struct HttpEntityResolver {
     client: Option<reqwest::Client>,
     config: HttpClientConfig,
@@ -746,13 +819,15 @@ impl HttpEntityResolver {
         selection: &FieldSelection,
     ) -> Result<Vec<Option<Value>>>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Mutation HTTP Client
 
 ```rust
+<!-- Code example in RUST -->
 pub struct HttpMutationClient {
     client: Option<reqwest::Client>,
     config: HttpMutationConfig,
@@ -767,7 +842,8 @@ impl HttpMutationClient {
         variables: &Value,
     ) -> Result<Value>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -778,6 +854,7 @@ impl HttpMutationClient {
 Create `federation.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [federation]
 enabled = true
 
@@ -807,13 +884,15 @@ retry_delay_ms = 100
 pool_size = 20
 max_idle_time = 300
 connection_timeout = 5
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Runtime Configuration
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationConfig {
     pub enabled: bool,
     pub subgraphs: Vec<SubgraphConfig>,
@@ -832,7 +911,8 @@ pub struct HttpClientConfig {
     pub max_retries: u32,
     pub retry_delay_ms: u64,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -841,19 +921,22 @@ pub struct HttpClientConfig {
 ### Python
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import FraiseQLError
 
 try:
     user = resolver.resolve_entity("User", representation)
 except FraiseQLError as e:
     print(f"Federation error: {e}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### TypeScript
 
 ```typescript
+<!-- Code example in TypeScript -->
 try {
   const user = await resolver.resolveEntity('User', representation);
 } catch (error) {
@@ -861,13 +944,15 @@ try {
     console.error('Federation error:', error.message);
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Rust
 
 ```rust
+<!-- Code example in RUST -->
 match resolver.resolve_entities(reps, "User", selection).await {
     Ok(entities) => {
         // Handle entities
@@ -876,7 +961,8 @@ match resolver.resolve_entities(reps, "User", selection).await {
         eprintln!("Federation error: {}", e);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -887,39 +973,46 @@ match resolver.resolve_entities(reps, "User", selection).await {
 1. **Type Annotations**: Always use type hints
 
 ```python
+<!-- Code example in Python -->
 @type
 @key(fields=["id"])
 class User:
     id: str
     name: str
     email: str | None
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **Composite Keys**: Clearly document when using
 
 ```python
+<!-- Code example in Python -->
 @type
 @key(fields=["organization_id", "user_id"])
 class User:
     organization_id: str
     user_id: str
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **External Fields**: Mark all external fields
 
 ```python
+<!-- Code example in Python -->
 @type
 @extends
 class Order:
     id: str = external()
     user_id: str = external()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### TypeScript
 
 1. **Decorator Order**: Key decorators before field decorators
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 @Key({ fields: ['id'] })
 @Extends()
@@ -927,21 +1020,25 @@ class User {
   @External()
   id: string;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **Null Safety**: Use strict null checks
 
 ```typescript
+<!-- Code example in TypeScript -->
 @Type()
 class User {
   id: string;         // Non-nullable
   email: string | null; // Nullable
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **Interfaces**: Create interfaces for complex types
 
 ```typescript
+<!-- Code example in TypeScript -->
 interface UserInput {
   email: string;
   name: string;
@@ -953,30 +1050,37 @@ class Mutation {
     return {} as User;
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Rust
 
 1. **Error Handling**: Use `Result<T>` consistently
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn resolve_entities(
     &self,
     representations: &[EntityRepresentation],
 ) -> Result<Vec<Option<Value>>>;
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **Async/Await**: Mark async functions properly
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn resolve_entities_by_strategy(...) -> Result<...>;
-```
+```text
+<!-- Code example in TEXT -->
 
 1. **Arc<dyn Trait>**: Use for database adapters
 
 ```rust
+<!-- Code example in RUST -->
 pub fn new(adapter: Arc<dyn DatabaseAdapter>) -> Self;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Capability Manifest Specification
+description: The **Capability Manifest** is a machine-readable declaration of which WHERE operators each database supports. It drives compile-time schema generation, ensurin
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Capability Manifest Specification
 
 **Version:** 1.0
@@ -30,6 +38,7 @@ The **Capability Manifest** is a machine-readable declaration of which WHERE ope
 ### 2.1 High-Level Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "databases": {
@@ -39,13 +48,15 @@ The **Capability Manifest** is a machine-readable declaration of which WHERE ope
     "sqlite": { ... }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Per-Database Structure
 
 Each database entry declares operator support by **type category**:
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "identity": {
@@ -78,7 +89,8 @@ Each database entry declares operator support by **type category**:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -89,6 +101,7 @@ Each database entry declares operator support by **type category**:
 Each operator is a simple string identifier:
 
 ```json
+<!-- Code example in JSON -->
 {
   "String": [
     "_eq",
@@ -104,13 +117,15 @@ Each operator is a simple string identifier:
     "_is_null"
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Standard Operators (All Databases)
 
 These operators are supported by **every database** FraiseQL targets:
 
 ```json
+<!-- Code example in JSON -->
 "standard_operators": {
   "all_types": [
     "_eq",          // Equality
@@ -132,13 +147,15 @@ These operators are supported by **every database** FraiseQL targets:
     "_contained_by" // String contained by
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Database-Specific Operators
 
 #### PostgreSQL (Reference Implementation)
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "String": [
@@ -197,11 +214,13 @@ These operators are supported by **every database** FraiseQL targets:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### MySQL (Limited Operators)
 
 ```json
+<!-- Code example in JSON -->
 {
   "mysql": {
     "String": [
@@ -232,11 +251,13 @@ These operators are supported by **every database** FraiseQL targets:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### SQL Server (Moderate Operators)
 
 ```json
+<!-- Code example in JSON -->
 {
   "sql_server": {
     "String": [
@@ -267,11 +288,13 @@ These operators are supported by **every database** FraiseQL targets:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### SQLite (Minimal Operators)
 
 ```json
+<!-- Code example in JSON -->
 {
   "sqlite": {
     "String": [
@@ -295,7 +318,8 @@ These operators are supported by **every database** FraiseQL targets:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Aggregation Operators
 
@@ -304,6 +328,7 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
 #### PostgreSQL Aggregation (Full Support)
 
 ```json
+<!-- Code example in JSON -->
 {
   "aggregation": {
     "basic": [
@@ -331,11 +356,13 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### MySQL Aggregation (Basic Support)
 
 ```json
+<!-- Code example in JSON -->
 {
   "aggregation": {
     "basic": [
@@ -359,11 +386,13 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### SQLite Aggregation (Minimal Support)
 
 ```json
+<!-- Code example in JSON -->
 {
   "aggregation": {
     "basic": [
@@ -386,11 +415,13 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### SQL Server Aggregation (Enterprise Support)
 
 ```json
+<!-- Code example in JSON -->
 {
   "aggregation": {
     "basic": [
@@ -423,7 +454,8 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Related documentation**: See `docs/specs/aggregation-operators.md` for complete aggregation operator reference with examples.
 
@@ -436,6 +468,7 @@ Aggregation operators are used in analytical queries (fact tables with `tf_*` pr
 Each database can declare feature support:
 
 ```json
+<!-- Code example in JSON -->
 {
   "capabilities": {
     "array_operators": true,           // Array/list filtering
@@ -454,13 +487,15 @@ Each database can declare feature support:
     "foreign_data_wrapper": false      // FDW (PostgreSQL)
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Feature-Gated Operators
 
 Operators are only exposed if capability is true:
 
 ```yaml
+<!-- Code example in YAML -->
 # In compiler phase (WHERE type generation)
 if capabilities.vector_operators:
   # PostgreSQL: Include vector distance operators
@@ -468,7 +503,8 @@ if capabilities.vector_operators:
 else:
   # MySQL: Skip vector operators (pgvector not available)
   skip_operators("Vector", ["_cosine_distance_lt"])
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -479,6 +515,7 @@ else:
 Each operator maps to database-specific SQL:
 
 ```json
+<!-- Code example in JSON -->
 {
   "operator_mappings": {
     "postgresql": {
@@ -528,7 +565,8 @@ Each operator maps to database-specific SQL:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -539,6 +577,7 @@ Each operator maps to database-specific SQL:
 **Phase 4 of compilation pipeline** uses the manifest:
 
 ```python
+<!-- Code example in Python -->
 def generate_where_input_types(
     schema_types: List[Type],
     database_target: str,
@@ -569,13 +608,15 @@ def generate_where_input_types(
             where_types[f"{type_def.name}_{field.name}_Filter"] = filter_type
 
     return where_types
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Result: Database-Specific Schema
 
 **PostgreSQL compilation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 input OrderWhereInput {
   id: IDFilter
   customer_id: IDFilter
@@ -589,11 +630,13 @@ input JSONBFilter {
   _jsonb_has_key: String
   # ... 5 more JSONB operators ...
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL compilation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 input OrderWhereInput {
   id: IDFilter
   customer_id: IDFilter
@@ -607,7 +650,8 @@ input JSONFilter {
   _json_contains: JSON
   # ... no JSONB operators ...
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -618,6 +662,7 @@ input JSONFilter {
 The manifest supports version-specific operator availability:
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "identity": {
@@ -637,16 +682,19 @@ The manifest supports version-specific operator availability:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compilation Target:**
 
 ```yaml
+<!-- Code example in YAML -->
 # FraiseQL.yaml
 database:
   type: postgresql
   version: "14.5"  # ← Selects postgresql_14 manifest entry
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -659,35 +707,41 @@ FraiseQL validates manifests at load time:
 ✅ **Valid:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "String": ["_eq", "_neq", "_like"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ❌ **Invalid (unknown operator):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "String": ["_eq", "_unknown_op"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Error: `Unknown operator: _unknown_op (did you mean _neq?)`
 
 ✅ **Compiler catches undefined operators:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { customer_id: { _cosine_distance: 0.5 } }) {
     # ❌ ERROR: '_cosine_distance' not available for MySQL
     # Available: _eq, _neq, _in, _is_null
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -698,6 +752,7 @@ query {
 To support DuckDB:
 
 ```json
+<!-- Code example in JSON -->
 {
   "duckdb": {
     "identity": {
@@ -725,13 +780,15 @@ To support DuckDB:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Adding a New Operator
 
 To add `_array_contains` for PostgreSQL:
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "Array": [
@@ -742,7 +799,8 @@ To add `_array_contains` for PostgreSQL:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 The compiler automatically:
 
@@ -758,6 +816,7 @@ The compiler automatically:
 ### Complete Entry: PostgreSQL 15+
 
 ```json
+<!-- Code example in JSON -->
 {
   "postgresql": {
     "identity": {
@@ -842,7 +901,8 @@ The compiler automatically:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

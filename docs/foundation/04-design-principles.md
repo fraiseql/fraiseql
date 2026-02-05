@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 1.4: Design Principles
+description: FraiseQL is built on five core design principles that guide every architectural decision. These principles explain not just *what* FraiseQL does, but *why* it d
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 1.4: Design Principles
 
 **Audience:** Architects, team leads, technical decision-makers
@@ -26,6 +34,7 @@ FraiseQL is built on five core design principles that guide every architectural 
 In FraiseQL, you don't build a GraphQL schema and then map it to a database. Instead, you design your **database schema first**, then derive your GraphQL API from it.
 
 ```text
+<!-- Code example in TEXT -->
 Traditional Approach:
 ┌──────────────────┐
 │  GraphQL Schema  │  (source of truth)
@@ -46,12 +55,14 @@ FraiseQL Approach:
 │  GraphQL Schema  │  (API interface)
 └──────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### Why This Matters
 
 **1. Database constraints become API guarantees**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 CREATE TABLE tb_users (
   pk_user_id SERIAL PRIMARY KEY,
@@ -59,15 +70,18 @@ CREATE TABLE tb_users (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 ```text
+<!-- Code example in TEXT -->
 
 When you define `NOT NULL` in the database, FraiseQL's GraphQL schema will correctly reflect that the field is non-nullable. You don't need to specify it twice.
 
 **2. Database performance directly translates to API performance**
 
 ```sql
+<!-- Code example in SQL -->
 -- Adding a database index
 CREATE INDEX idx_users_email ON tb_users(email);
 ```text
+<!-- Code example in TEXT -->
 
 This index doesn't require code changes to your FraiseQL schema. The GraphQL API automatically gets faster because the underlying SQL queries execute faster.
 
@@ -94,18 +108,21 @@ A good database schema—with clear relationships, appropriate denormalization, 
 FraiseQL has three distinct phases:
 
 ```text
+<!-- Code example in TEXT -->
 Authoring (Developer writes code)
     ↓
 Compilation (FraiseQL-cli processes schema)
     ↓
 Runtime (Server executes queries)
 ```text
+<!-- Code example in TEXT -->
 
 Each phase should be optimized separately:
 
 **Authoring:** Easy and ergonomic (Python/TypeScript decorators)
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import schema
 
 @schema.type(table="tb_users")
@@ -114,18 +131,22 @@ class User:
     email: str
     created_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 **Compilation:** Expensive but one-time (comprehensive validation and optimization)
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 # Validates relationships, optimizes joins, generates SQL templates
 # Takes seconds, but only runs once at build time
 ```text
+<!-- Code example in TEXT -->
 
 **Runtime:** Fast and deterministic (execute pre-compiled templates)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUser($id: Int!) {
   user(id: $id) {
     id
@@ -134,6 +155,7 @@ query GetUser($id: Int!) {
 }
 # Executes pre-compiled SQL template: no parsing, no validation, no interpretation
 ```text
+<!-- Code example in TEXT -->
 
 ### Why This Matters
 
@@ -172,6 +194,7 @@ In FraiseQL, type safety is enforced at multiple levels:
 1. **Database schema enforcement**
 
    ```sql
+<!-- Code example in SQL -->
    CREATE TABLE tb_products (
      pk_product_id INT PRIMARY KEY,
      name VARCHAR(255) NOT NULL,      -- String type
@@ -179,10 +202,12 @@ In FraiseQL, type safety is enforced at multiple levels:
      is_active BOOLEAN NOT NULL       -- Boolean type
    );
    ```text
+<!-- Code example in TEXT -->
 
 2. **GraphQL schema enforcement**
 
    ```graphql
+<!-- Code example in GraphQL -->
    type Product {
      id: Int!
      name: String!
@@ -190,14 +215,17 @@ In FraiseQL, type safety is enforced at multiple levels:
      isActive: Boolean!
    }
    ```text
+<!-- Code example in TEXT -->
 
 3. **Authorization enforcement**
 
    ```python
+<!-- Code example in Python -->
    @schema.permission("user_role = 'admin'")
    def delete_user(user_id: int) -> None:
        pass
    ```text
+<!-- Code example in TEXT -->
 
 ### Why This Matters
 
@@ -216,6 +244,7 @@ Authorization rules are checked at compile time for consistency and at runtime f
 ### Example: Type Safety in Action
 
 ```python
+<!-- Code example in Python -->
 # Bad schema (types don't match database)
 @schema.type(table="tb_users")
 class User:
@@ -228,6 +257,7 @@ class User:
     user_id: int  # ✅ Correct: matches INT column
     email: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Implications
 
@@ -255,6 +285,7 @@ Because FraiseQL compiles queries and uses only the database as a data source, t
 - What's the worst-case latency?
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL can analyze this and guarantee no N+1 queries
 query GetUserOrders {
   user(id: 1) {        # 1 query
@@ -270,6 +301,7 @@ query GetUserOrders {
 # Compile time: Plan the optimal SQL query structure
 # Runtime: Execute single optimized query (or pre-batched queries)
 ```text
+<!-- Code example in TEXT -->
 
 ### Why This Matters
 
@@ -304,6 +336,7 @@ If a query suddenly becomes slow, you know something changed in the database (ne
 FraiseQL is designed with a core assumption: **Your primary data is in a relational database.** If that's true, everything else becomes simpler.
 
 ```text
+<!-- Code example in TEXT -->
 If your data is in a single relational database:
   - No need to write custom resolvers
   - No need to orchestrate data from multiple sources
@@ -312,12 +345,14 @@ If your data is in a single relational database:
 
 Result: A GraphQL API with minimal code
 ```text
+<!-- Code example in TEXT -->
 
 ### Examples of This Principle
 
 **Single source of truth**
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL assumes: one database, source of truth
 @schema.type(table="tb_users")
 class User:
@@ -327,21 +362,25 @@ class User:
     # No data fetching from external APIs
     # No caching management
 ```text
+<!-- Code example in TEXT -->
 
 **Relationships are explicit**
 
 ```sql
+<!-- Code example in SQL -->
 -- Foreign keys define relationships
 ALTER TABLE tb_orders
   ADD CONSTRAINT fk_orders_user
   FOREIGN KEY (fk_user_id) REFERENCES tb_users(pk_user_id);
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL uses these foreign keys to automatically enable GraphQL relationships. No custom resolver needed.
 
 **Multi-database, single schema**
 
 ```python
+<!-- Code example in Python -->
 # You can use multiple databases (PostgreSQL + MySQL + SQLite)
 # But each is treated independently
 # No cross-database joins, no distributed transactions
@@ -350,6 +389,7 @@ FraiseQL uses these foreign keys to automatically enable GraphQL relationships. 
 class Schema:
     pass
 ```text
+<!-- Code example in TEXT -->
 
 Each database is a separate source of truth for its own domain.
 
@@ -383,6 +423,7 @@ Without flexibility overhead, you get better performance for the common case (si
 The five principles form a coherent design philosophy:
 
 ```text
+<!-- Code example in TEXT -->
 Database-Centric Design (Principle 1)
     ↓
     Means: Database schema is your API contract
@@ -403,12 +444,14 @@ Simplicity Over Flexibility (Principle 5)
     ↓
     Means: Single data source, minimal code
 ```text
+<!-- Code example in TEXT -->
 
 ### Real-World Consequence: Auditing
 
 These principles together enable a powerful property: **complete query auditability**.
 
 ```sql
+<!-- Code example in SQL -->
 -- Every GraphQL query compiles to a predictable SQL query
 -- Which you can see, analyze, and optimize
 
@@ -416,10 +459,12 @@ These principles together enable a powerful property: **complete query auditabil
 -- So you can audit what data each API endpoint accesses
 -- And verify authorization rules are correct
 ```text
+<!-- Code example in TEXT -->
 
 ### Real-World Consequence: Performance Optimization
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Add database index (Simplicity: you're working with the database)
 2. Recompile schema (Compile-time: detect optimization opportunity)
@@ -427,6 +472,7 @@ These principles together enable a powerful property: **complete query auditabil
 4. Performance improves (Database-centric: optimization at source)
 5. Type safety maintained throughout (Type safety: no errors introduced)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

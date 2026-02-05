@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: CLI Commands Cheat Sheet
+description: Quick reference for all `FraiseQL` CLI commands and options.
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # CLI Commands Cheat Sheet
 
 **Status:** ✅ Production Ready
@@ -14,6 +22,7 @@ Quick reference for all `FraiseQL` CLI commands and options.
 Compile schema to optimized execution plan.
 
 ```bash
+<!-- Code example in BASH -->
 # Compile with defaults
 FraiseQL compile
 
@@ -28,7 +37,8 @@ FraiseQL compile --verbose
 
 # Compile with specific configuration
 FraiseQL compile --config ./FraiseQL.toml
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -46,6 +56,7 @@ FraiseQL compile --config ./FraiseQL.toml
 Start FraiseQL server.
 
 ```bash
+<!-- Code example in BASH -->
 # Start with defaults
 FraiseQL run
 
@@ -63,7 +74,8 @@ FraiseQL run --federation
 
 # Start with federation and specific port
 FraiseQL run --federation --port 4000
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -82,6 +94,7 @@ FraiseQL run --federation --port 4000
 Validate schema without compiling.
 
 ```bash
+<!-- Code example in BASH -->
 # Validate schema
 FraiseQL validate
 
@@ -90,7 +103,8 @@ FraiseQL validate --schema ./schema.json
 
 # Validate and show issues
 FraiseQL validate --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -105,6 +119,7 @@ FraiseQL validate --verbose
 Introspect database and generate schema.
 
 ```bash
+<!-- Code example in BASH -->
 # Introspect database
 FraiseQL introspect
 
@@ -113,7 +128,8 @@ FraiseQL introspect --output ./introspected_schema.json
 
 # Introspect with verbose output
 FraiseQL introspect --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -130,6 +146,7 @@ FraiseQL introspect --verbose
 Run database migrations.
 
 ```bash
+<!-- Code example in BASH -->
 # Run all pending migrations
 FraiseQL migrate
 
@@ -144,7 +161,8 @@ FraiseQL migrate --to 20240105_v2_0_1
 
 # Rollback last migration
 FraiseQL migrate --rollback
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -161,12 +179,14 @@ FraiseQL migrate --rollback
 Create new migration file.
 
 ```bash
+<!-- Code example in BASH -->
 # Create migration
 FraiseQL create-migration --name add_users_table
 
 # Create with specific type
 FraiseQL create-migration --name add_column --type alter
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -182,6 +202,7 @@ FraiseQL create-migration --name add_column --type alter
 Compose subgraph schemas into federated schema.
 
 ```bash
+<!-- Code example in BASH -->
 # Compose from config
 FraiseQL federation-compose
 
@@ -190,7 +211,8 @@ FraiseQL federation-compose --gateway apollo --output ./composed.graphql
 
 # Validate composition
 FraiseQL federation-compose --validate
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -206,6 +228,7 @@ FraiseQL federation-compose --validate
 Publish subgraph to registry.
 
 ```bash
+<!-- Code example in BASH -->
 # Publish subgraph
 FraiseQL subgraph-publish
 
@@ -214,7 +237,8 @@ FraiseQL subgraph-publish --token ABC123
 
 # Publish to specific registry
 FraiseQL subgraph-publish --registry apollo --token ABC123
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -232,6 +256,7 @@ FraiseQL subgraph-publish --registry apollo --token ABC123
 Start development server with hot reload.
 
 ```bash
+<!-- Code example in BASH -->
 # Start dev server
 FraiseQL dev
 
@@ -240,7 +265,8 @@ FraiseQL dev --port 3000
 
 # Dev server with watch
 FraiseQL dev --watch ./src
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -255,6 +281,7 @@ FraiseQL dev --watch ./src
 Run tests.
 
 ```bash
+<!-- Code example in BASH -->
 # Run all tests
 FraiseQL test
 
@@ -269,7 +296,8 @@ FraiseQL test --coverage
 
 # Run with verbose output
 FraiseQL test --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -286,6 +314,7 @@ FraiseQL test --verbose
 Run benchmarks.
 
 ```bash
+<!-- Code example in BASH -->
 # Run benchmarks
 FraiseQL bench
 
@@ -297,7 +326,8 @@ FraiseQL bench --save-baseline main
 
 # Compare to baseline
 FraiseQL bench --baseline main
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -313,6 +343,7 @@ FraiseQL bench --baseline main
 Check code quality.
 
 ```bash
+<!-- Code example in BASH -->
 # Lint schema
 FraiseQL lint
 
@@ -321,7 +352,8 @@ FraiseQL lint --fix
 
 # Lint specific rules
 FraiseQL lint --only performance,security
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -338,6 +370,7 @@ FraiseQL lint --only performance,security
 Initialize new FraiseQL project.
 
 ```bash
+<!-- Code example in BASH -->
 # Initialize in current directory
 FraiseQL init
 
@@ -346,7 +379,8 @@ FraiseQL init --template starter
 
 # Initialize with specific language
 FraiseQL init --language python
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -361,6 +395,7 @@ FraiseQL init --language python
 Generate code from schema.
 
 ```bash
+<!-- Code example in BASH -->
 # Generate code
 FraiseQL generate
 
@@ -369,7 +404,8 @@ FraiseQL generate --language python
 
 # Generate to specific output
 FraiseQL generate --output ./generated
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -386,6 +422,7 @@ FraiseQL generate --output ./generated
 Format schema file.
 
 ```bash
+<!-- Code example in BASH -->
 # Format schema
 FraiseQL format
 
@@ -394,7 +431,8 @@ FraiseQL format --write
 
 # Check format without modifying
 FraiseQL format --check
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -410,6 +448,7 @@ FraiseQL format --check
 Manage configuration.
 
 ```bash
+<!-- Code example in BASH -->
 # Show current config
 FraiseQL config show
 
@@ -421,7 +460,8 @@ FraiseQL config get database.host
 
 # Reset to defaults
 FraiseQL config reset
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -434,6 +474,7 @@ FraiseQL config reset
 Manage environment variables.
 
 ```bash
+<!-- Code example in BASH -->
 # Show environment variables
 FraiseQL env
 
@@ -445,7 +486,8 @@ FraiseQL env get DATABASE_URL
 
 # Load from file
 FraiseQL env load .env.production
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -456,6 +498,7 @@ FraiseQL env load .env.production
 Deploy to production.
 
 ```bash
+<!-- Code example in BASH -->
 # Deploy with defaults
 FraiseQL deploy
 
@@ -467,7 +510,8 @@ FraiseQL deploy --service users-service
 
 # Dry-run deployment
 FraiseQL deploy --dry-run
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -483,6 +527,7 @@ FraiseQL deploy --dry-run
 Check system health.
 
 ```bash
+<!-- Code example in BASH -->
 # Check health
 FraiseQL health
 
@@ -491,7 +536,8 @@ FraiseQL health --service database
 
 # Show verbose status
 FraiseQL health --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -507,6 +553,7 @@ FraiseQL health --verbose
 Diagnose issues.
 
 ```bash
+<!-- Code example in BASH -->
 # Run diagnostics
 FraiseQL diagnose
 
@@ -515,7 +562,8 @@ FraiseQL diagnose --output diagnostics.json
 
 # Diagnose specific component
 FraiseQL diagnose --component database
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -529,6 +577,7 @@ FraiseQL diagnose --component database
 View logs.
 
 ```bash
+<!-- Code example in BASH -->
 # Show recent logs
 FraiseQL logs
 
@@ -540,7 +589,8 @@ FraiseQL logs --level error
 
 # Show last N lines
 FraiseQL logs --tail 100
-```
+```text
+<!-- Code example in TEXT -->
 
 **Flags:**
 
@@ -558,12 +608,14 @@ FraiseQL logs --tail 100
 Show version information.
 
 ```bash
+<!-- Code example in BASH -->
 # Show version
 FraiseQL version
 
 # Show full version info
 FraiseQL version --verbose
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -572,6 +624,7 @@ FraiseQL version --verbose
 Show help information.
 
 ```bash
+<!-- Code example in BASH -->
 # General help
 FraiseQL help
 
@@ -580,7 +633,8 @@ FraiseQL help compile
 
 # List all commands
 FraiseQL commands
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Full-Stack E-Commerce with TypeScript Schema, FraiseQL Backend, and Vue 3 Frontend
+description: This guide demonstrates the complete FraiseQL workflow: schema authoring in TypeScript → compilation to Rust → deployment as a production GraphQL server → front
+keywords: ["schema", "code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Full-Stack E-Commerce with TypeScript Schema, FraiseQL Backend, and Vue 3 Frontend
 
 **Duration**: 2-3 hours (complete walkthrough)
@@ -29,6 +37,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 ## Architecture Overview
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          YOUR APPLICATION                           │
 └─────────────────────────────────────────────────────────────────────┘
@@ -78,6 +87,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 │  • Reactive state    │         │  • User-friendly UI                  │
 └──────────────────────┘         └──────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Flow Summary**:
 
@@ -98,6 +108,7 @@ TypeScript is the **authoring language only**. You define your GraphQL schema us
 Create the main schema definition with all types, queries, and mutations:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // schema.ts
 import { Type, Query, Mutation, Field, ID, String, Int, Float, DateTime } from './decorators';
 
@@ -397,12 +408,14 @@ export default {
   Review,
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `types/User.ts`
 
 Organize types in separate modules for scalability:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // types/User.ts
 import { Type, Field, ID, String, DateTime } from '../decorators';
 
@@ -436,10 +449,12 @@ export class User {
   preferences?: string; // JSON string in GraphQL
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `types/Product.ts`
 
 ```typescript
+<!-- Code example in TypeScript -->
 // types/Product.ts
 import { Type, Field, ID, String, Int, Float, DateTime } from '../decorators';
 
@@ -482,10 +497,12 @@ export class Product {
   updatedAt!: Date;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `types/Order.ts`
 
 ```typescript
+<!-- Code example in TypeScript -->
 // types/Order.ts
 import { Type, Field, ID, String, Int, Float, DateTime } from '../decorators';
 import { User } from './User';
@@ -539,10 +556,12 @@ export class Order {
   updatedAt!: Date;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `types/OrderItem.ts`
 
 ```typescript
+<!-- Code example in TypeScript -->
 // types/OrderItem.ts
 import { Type, Field, ID, Int, Float } from '../decorators';
 import { Product } from './Product';
@@ -571,10 +590,12 @@ export class OrderItem {
   subtotal!: number;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `types/Review.ts`
 
 ```typescript
+<!-- Code example in TypeScript -->
 // types/Review.ts
 import { Type, Field, ID, String, Int, DateTime } from '../decorators';
 import { User } from './User';
@@ -616,12 +637,14 @@ export class Review {
   updatedAt!: Date;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `decorators.ts`
 
 Define the decorator API for schema definition:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // decorators.ts
 /**
  * Decorators for FraiseQL schema definition
@@ -700,10 +723,12 @@ export function Mutation(options: TypeOptions = {}) {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `tsconfig.json`
 
 ```json
+<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -725,10 +750,12 @@ export function Mutation(options: TypeOptions = {}) {
   "exclude": ["node_modules", "dist"]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `package.json` (Schema Authoring)
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "ecommerce-schema",
   "version": "1.0.0",
@@ -748,12 +775,14 @@ export function Mutation(options: TypeOptions = {}) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `scripts/export-schema.js`
 
 Export compiled TypeScript metadata to `schema.json`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // scripts/export-schema.js
 const fs = require('fs');
 const path = require('path');
@@ -835,6 +864,7 @@ const outputPath = path.join(__dirname, '../schema.json');
 fs.writeFileSync(outputPath, JSON.stringify(outputSchema, null, 2));
 console.log(`✅ Schema exported to ${outputPath}`);
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -845,6 +875,7 @@ The FraiseQL compiler generates SQL templates from the TypeScript schema. You de
 ### File: `database/schema.sql`
 
 ```sql
+<!-- Code example in SQL -->
 -- Database schema for e-commerce application
 -- These tables back the GraphQL types defined in schema.ts
 
@@ -1061,12 +1092,14 @@ CREATE TRIGGER orders_updated_at BEFORE UPDATE ON orders
 CREATE TRIGGER reviews_updated_at BEFORE UPDATE ON reviews
   FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `database/seed.sql`
 
 Sample data for development:
 
 ```sql
+<!-- Code example in SQL -->
 -- Seed data for development
 
 INSERT INTO users (email, username, full_name) VALUES
@@ -1086,6 +1119,7 @@ INSERT INTO reviews (product_id, user_id, rating, title, content) VALUES
   ((SELECT id FROM products WHERE sku = 'LAPTOP-001'), (SELECT id FROM users WHERE username = 'bob'), 4, 'Good but pricey', 'Works well but could be cheaper.'),
   ((SELECT id FROM products WHERE sku = 'KEYBOARD-001'), (SELECT id FROM users WHERE username = 'charlie'), 5, 'Perfect for gaming!', 'Love the RGB and mechanical switches.');
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1096,15 +1130,18 @@ INSERT INTO reviews (product_id, user_id, rating, title, content) VALUES
 Run the export script to generate `schema.json`:
 
 ```bash
+<!-- Code example in BASH -->
 cd schema-authoring
 npm install
 npm run build
 npm run export
 ```text
+<!-- Code example in TEXT -->
 
 Output: `/schema.json`
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "2.0.0",
   "types": [
@@ -1141,12 +1178,14 @@ Output: `/schema.json`
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Create FraiseQL Configuration
 
 Create `FraiseQL.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [FraiseQL]
 name = "ecommerce-api"
@@ -1194,10 +1233,12 @@ query_cache_ttl_secs = 3600
 enable_apq = true
 apq_cache_ttl_secs = 86400
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Compile with FraiseQL CLI
 
 ```bash
+<!-- Code example in BASH -->
 # Install FraiseQL-cli (or use cargo)
 cargo install FraiseQL-cli
 
@@ -1207,6 +1248,7 @@ FraiseQL-cli compile schema.json FraiseQL.toml --output schema.compiled.json
 # Verify compilation
 cat schema.compiled.json | head -50
 ```text
+<!-- Code example in TEXT -->
 
 Output: `schema.compiled.json`
 
@@ -1224,6 +1266,7 @@ This file contains:
 ### File: `Dockerfile`
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Stage 1: Builder
 FROM rust:1.75 as builder
 
@@ -1263,10 +1306,12 @@ EXPOSE 8080
 
 CMD ["./FraiseQL-server", "--config", "FraiseQL.toml", "--schema", "schema.compiled.json"]
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `docker-compose.yml`
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -1329,10 +1374,12 @@ networks:
   default:
     name: ecommerce-network
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `backend/.env.example`
 
 ```bash
+<!-- Code example in BASH -->
 # Database
 DATABASE_URL=postgresql://FraiseQL:dev-password@localhost:5432/ecommerce
 
@@ -1346,6 +1393,7 @@ RUST_LOG=info
 GRAPHQL_HOST=0.0.0.0
 GRAPHQL_PORT=8080
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1356,6 +1404,7 @@ GRAPHQL_PORT=8080
 Apollo Client configuration:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/apollo.ts
 import { ApolloClient, InMemoryCache, HttpLink, gql } from '@apollo/client/core';
 
@@ -1377,12 +1426,14 @@ export const apolloClient = new ApolloClient({
   },
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/types/graphql.ts`
 
 TypeScript types generated from schema:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/types/graphql.ts
 export interface User {
   id: string;
@@ -1447,12 +1498,14 @@ export interface CartItem {
   quantity: number;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/composables/useProducts.ts`
 
 Product querying composable:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/composables/useProducts.ts
 import { ref, computed } from 'vue';
 import { useQuery, useLazyQuery } from '@vue/apollo-composable';
@@ -1568,12 +1621,14 @@ export function useProductDetail(productId: string) {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/composables/useOrders.ts`
 
 Order management composable:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/composables/useOrders.ts
 import { ref, computed } from 'vue';
 import { useQuery, useMutation } from '@vue/apollo-composable';
@@ -1688,12 +1743,14 @@ export function useUpdateOrder() {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/components/ProductGrid.vue`
 
 Product listing component:
 
 ```vue
+<!-- Code example in VUE -->
 <!-- src/components/ProductGrid.vue -->
 <template>
   <div class="product-grid">
@@ -1883,12 +1940,14 @@ const addToCart = (productId: string) => {
 }
 </style>
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/components/ShoppingCart.vue`
 
 Shopping cart component:
 
 ```vue
+<!-- Code example in VUE -->
 <!-- src/components/ShoppingCart.vue -->
 <template>
   <div class="cart">
@@ -2111,12 +2170,14 @@ const checkout = async () => {
 }
 </style>
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/composables/useCart.ts`
 
 Cart state management:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/composables/useCart.ts
 import { ref, computed, watch } from 'vue';
 
@@ -2193,12 +2254,14 @@ export function useCart() {
   };
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/src/main.ts`
 
 Vue application setup:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // src/main.ts
 import { createApp } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
@@ -2230,10 +2293,12 @@ provideApolloClient(apolloClient);
 app.use(router);
 app.mount('#app');
 ```text
+<!-- Code example in TEXT -->
 
 ### File: `frontend/package.json`
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "ecommerce-frontend",
   "version": "1.0.0",
@@ -2258,12 +2323,14 @@ app.mount('#app');
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Part 6: Project Structure
 
 ```text
+<!-- Code example in TEXT -->
 ecommerce-project/
 ├── schema-authoring/                 # TypeScript schema definition
 │   ├── src/
@@ -2322,6 +2389,7 @@ ecommerce-project/
 ├── docker-compose.yml
 └── README.md
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2330,6 +2398,7 @@ ecommerce-project/
 ### Step 1: Set Up Development Environment
 
 ```bash
+<!-- Code example in BASH -->
 # Clone repository
 git clone <repo> ecommerce-project
 cd ecommerce-project
@@ -2337,10 +2406,12 @@ cd ecommerce-project
 # Create environment files
 cp backend/.env.example backend/.env
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Build Schema
 
 ```bash
+<!-- Code example in BASH -->
 cd schema-authoring
 npm install
 npm run build
@@ -2349,10 +2420,12 @@ npm run export
 # Verify schema.json created
 cat schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Compile Schema
 
 ```bash
+<!-- Code example in BASH -->
 cd ../backend
 
 # Install FraiseQL CLI
@@ -2364,10 +2437,12 @@ FraiseQL-cli compile ../schema-authoring/schema.json FraiseQL.toml
 # Verify schema.compiled.json created
 ls -lh schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Start the Stack
 
 ```bash
+<!-- Code example in BASH -->
 cd ..
 
 # Start all services (database, backend, frontend)
@@ -2379,10 +2454,12 @@ docker-compose ps
 # Check logs
 docker-compose logs -f graphql-api
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Verify Services
 
 ```bash
+<!-- Code example in BASH -->
 # Check GraphQL endpoint
 curl http://localhost:8080/graphql \
   -X POST \
@@ -2392,6 +2469,7 @@ curl http://localhost:8080/graphql \
 # Check frontend
 open http://localhost:5173
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2404,6 +2482,7 @@ open http://localhost:5173
 **Frontend code**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // In ProductSearch.vue
 const { performSearch, results } = useSearchProducts();
 
@@ -2411,10 +2490,12 @@ const handleSearch = (query: string) => {
   performSearch(query); // Triggers GraphQL query
 };
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL query**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query SearchProducts($query: String!, $limit: Int) {
   searchProducts(query: $query, limit: $limit) {
     id
@@ -2426,6 +2507,7 @@ query SearchProducts($query: String!, $limit: Int) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Rust execution** (FraiseQL):
 
@@ -2442,6 +2524,7 @@ query SearchProducts($query: String!, $limit: Int) {
 **Frontend code**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 const { createOrder } = useCreateOrder();
 
 const handleCheckout = async () => {
@@ -2454,10 +2537,12 @@ const handleCheckout = async () => {
   // Redirect to order confirmation
 };
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL mutation**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: String!) {
   createOrder(productIds: $productIds, quantities: $quantities, shippingAddress: $shippingAddress) {
     id
@@ -2466,6 +2551,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **SQL execution** (FraiseQL):
 
@@ -2482,6 +2568,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
 **Frontend code**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 const { addReview } = useReviews();
 
 const submitReview = async (productId: string, rating: number, title: string, content: string) => {
@@ -2489,10 +2576,12 @@ const submitReview = async (productId: string, rating: number, title: string, co
   // Show success message, refresh reviews
 };
 ```text
+<!-- Code example in TEXT -->
 
 **GraphQL mutation**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: String!) {
   addReview(productId: $productId, rating: $rating, title: $title, content: $content) {
     id
@@ -2503,6 +2592,7 @@ mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: St
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **SQL execution**:
 
@@ -2518,6 +2608,7 @@ mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: St
 ### Option 1: Docker Compose (Single Server)
 
 ```bash
+<!-- Code example in BASH -->
 # Build and push images to registry
 docker build -t myregistry/ecommerce-api:1.0.0 ./backend
 docker build -t myregistry/ecommerce-frontend:1.0.0 ./frontend
@@ -2536,12 +2627,14 @@ docker-compose up -d
 # Verify
 curl https://api.ecommerce.com/health
 ```text
+<!-- Code example in TEXT -->
 
 ### Option 2: Kubernetes
 
 Create `k8s/deployment.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -2579,17 +2672,21 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
 ```text
+<!-- Code example in TEXT -->
 
 Deploy:
 
 ```bash
+<!-- Code example in BASH -->
 kubectl apply -f k8s/deployment.yaml
 kubectl set image deployment/graphql-api api=myregistry/ecommerce-api:1.0.1
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Variables (Production)
 
 ```bash
+<!-- Code example in BASH -->
 # .env.production
 DATABASE_URL=postgresql://user:pass@prod-db.example.com/ecommerce
 JWT_SECRET=<generate-strong-secret>
@@ -2598,6 +2695,7 @@ GRAPHQL_PORT=8080
 RUST_LOG=warn
 ENABLE_INTROSPECTION=false
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2610,6 +2708,7 @@ ENABLE_INTROSPECTION=false
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check database is running
 docker-compose ps postgres
 
@@ -2622,6 +2721,7 @@ docker-compose logs postgres
 # Manually test connection
 psql $DATABASE_URL
 ```text
+<!-- Code example in TEXT -->
 
 ### Schema Compilation Fails
 
@@ -2630,6 +2730,7 @@ psql $DATABASE_URL
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Verify schema.json is valid JSON
 cat schema.json | jq .
 
@@ -2639,6 +2740,7 @@ npm run export --verbose
 # Verify decorators are applied
 npm run build && node -e "require('reflect-metadata'); console.log(require('./dist/schema.js'))"
 ```text
+<!-- Code example in TEXT -->
 
 ### Apollo Client Can't Connect
 
@@ -2647,6 +2749,7 @@ npm run build && node -e "require('reflect-metadata'); console.log(require('./di
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check CORS headers
 curl -i http://localhost:8080/graphql
 
@@ -2659,6 +2762,7 @@ cat frontend/.env
 # Enable debug logging
 VITE_DEBUG=true npm run dev
 ```text
+<!-- Code example in TEXT -->
 
 ### Product Not Showing in Cart
 
@@ -2667,6 +2771,7 @@ VITE_DEBUG=true npm run dev
 **Solution**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Update useCart.ts to fetch product details
 const addItem = async (productId: string, quantity: number = 1) => {
   // Fetch product name from GraphQL
@@ -2683,6 +2788,7 @@ const addItem = async (productId: string, quantity: number = 1) => {
   });
 };
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Migration Issues
 
@@ -2691,6 +2797,7 @@ const addItem = async (productId: string, quantity: number = 1) => {
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Run schema migration manually
 docker exec ecommerce-db psql -U FraiseQL -d ecommerce -f /docker-entrypoint-initdb.d/01-schema.sql
 
@@ -2700,6 +2807,7 @@ docker exec ecommerce-db psql -U FraiseQL -d ecommerce -c "\dt"
 # Check logs
 docker-compose logs postgres
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Issues
 
@@ -2708,6 +2816,7 @@ docker-compose logs postgres
 **Solution**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check query execution plans
 EXPLAIN ANALYZE
 SELECT * FROM products
@@ -2723,6 +2832,7 @@ enable_query_cache = true
 query_cache_ttl_secs = 3600
 enable_apq = true  # Automatic Persisted Queries
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

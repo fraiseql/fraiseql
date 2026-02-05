@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Kotlin SDK Reference
+description: Complete API reference for the FraiseQL Kotlin SDK. This guide covers the complete Kotlin authoring interface for building type-safe GraphQL APIs using Kotlin's
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Kotlin SDK Reference
 
 **Status**: Production-Ready | **Kotlin Version**: 1.9+ | **SDK Version**: 2.0.0+
@@ -12,6 +20,7 @@ Complete API reference for the FraiseQL Kotlin SDK. This guide covers the comple
 Add to your `build.gradle.kts`:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 dependencies {
     implementation("com.FraiseQL:FraiseQL-kotlin:2.0.0")
 
@@ -30,7 +39,8 @@ kotlin {
         freeCompilerArgs.addAll("-opt-in=kotlin.ExperimentalStdlibApi")
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Requirements
 
@@ -44,6 +54,7 @@ kotlin {
 ### First Schema (60 seconds)
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 import com.FraiseQL.*
 
 @Type
@@ -65,14 +76,17 @@ fun main() {
     FraiseQL.exportSchema("schema.json")
     println("Schema exported!")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Export and deploy to your FraiseQL server:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -99,6 +113,7 @@ FraiseQL-server --schema schema.compiled.json
 Marks a data class (or regular class) as a GraphQL type definition. Kotlin data classes provide automatic `equals()`, `hashCode()`, and `copy()` methods.
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // Primary constructor data class (recommended)
 @Type
 data class User(
@@ -127,7 +142,8 @@ data class Post(
     @Field val author: User,
     @Field val comments: List<Comment> = emptyList()
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Best Practices:**
 
@@ -141,6 +157,7 @@ data class Post(
 Marks a property or getter as part of a GraphQL type. Supports nullability, custom names, and type overrides.
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 data class Account(
     @Field(description = "Unique account identifier")
@@ -159,7 +176,8 @@ data class Account(
     @Field
     val notes: String? = null
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Attributes:**
 
@@ -189,6 +207,7 @@ data class Account(
 Use sealed classes to model GraphQL union types:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 sealed class SearchResult {
     @Type
@@ -206,11 +225,13 @@ sealed class SearchResult {
 
 // Register sealed class - all subtypes registered automatically
 FraiseQL.registerType<SearchResult>()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Generics and Complex Types
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 data class Page<T>(
     @Field val items: List<T>,
@@ -232,7 +253,8 @@ data class Connection<T : Any>(
     @Field val edges: List<T>,
     @Field val cursor: String?
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -243,6 +265,7 @@ data class Connection<T : Any>(
 Queries are read-only operations that fetch data. Use extension functions with lambda builders:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // Simple query with extension function
 query("user") {
     returns<User>()
@@ -276,11 +299,13 @@ query("userProfile") {
     description("Get user profile with computed fields")
     securityRule("isOwnerOrAdmin(\$context, \$args.id)")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **QueryBuilder Methods (Lambda):**
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 query(name: String) {
     returns<T>()                        // Set return type (required)
     returnsArray(true/false)            // Whether result is array
@@ -290,13 +315,15 @@ query(name: String) {
     deprecationReason("reason")?        // Mark as deprecated
     securityRule("rule expression")     // Add security rule
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation Operations
 
 Mutations are write operations that modify data (INSERT, UPDATE, DELETE):
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // Create mutation with named parameters
 mutation("createUser") {
     returns<User>()
@@ -332,7 +359,8 @@ mutation("bulkDeleteUsers") {
     arg("ids", "[Int]!")
     description("Delete multiple users")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **MutationBuilder Methods:**
 
@@ -343,6 +371,7 @@ Identical to QueryBuilder interface.
 Subscriptions enable real-time event streaming via WebSocket:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 subscription("userCreated") {
     returns<User>()
     description("Subscribe to new user creation events")
@@ -361,7 +390,8 @@ subscription("orderStatus") {
     arg("topic", "String?")
     description("Subscribe to order status changes")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -372,6 +402,7 @@ subscription("orderStatus") {
 Define analytical tables for OLAP queries with dimensions and measures:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @FactTable(name = "sales_fact", sqlSource = "fact_sales")
 data class SalesFact(
     @Field val dateKey: Int,
@@ -393,13 +424,15 @@ query("salesByProduct") {
     arg("dateRange", "String?")
     description("Total sales by product")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### RBAC & Security Annotations
 
 Define role-based access control at query/mutation/field level:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 @RoleRequired(roles = ["ADMIN"])
 data class AdminPanel(
@@ -434,13 +467,15 @@ data class Account(
     @Secured(roles = ["OWNER", "ADMIN"])
     val accountSsn: String?
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Custom Directives
 
 Define custom GraphQL directives for schema extensions:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Directive(name = "auth", description = "Requires authentication")
 data class AuthDirective(
     val roles: List<String>? = null
@@ -458,13 +493,15 @@ query("profile") {
     description("Get user profile")
     directive("auth", mapOf("roles" to listOf("user")))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field Observers (Event Webhooks)
 
 Trigger external webhooks when fields change:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Observer(
     name = "onUserCreated",
     webhook = "https://api.example.com/webhooks/user-created"
@@ -488,7 +525,8 @@ data class OrderShippedEvent(
 // Register observers
 FraiseQL.registerObserver<UserCreatedEvent>()
 FraiseQL.registerObserver<OrderShippedEvent>()
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -497,6 +535,7 @@ FraiseQL.registerObserver<OrderShippedEvent>()
 FraiseQL supports 60+ scalar types mapped from Kotlin to GraphQL:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // String types
 @Field val name: String                 // String!
 @Field val description: String          // String!
@@ -533,7 +572,8 @@ FraiseQL supports 60+ scalar types mapped from Kotlin to GraphQL:
 // Optional (Nullable) - Kotlin native syntax
 @Field val optional: String?            // String
 @Field val required: String             // String!
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -542,6 +582,7 @@ FraiseQL supports 60+ scalar types mapped from Kotlin to GraphQL:
 ### Export Workflow
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 import com.FraiseQL.*
 
 object SchemaBuilder {
@@ -597,17 +638,20 @@ object SchemaBuilder {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Run export:
 
 ```bash
+<!-- Code example in BASH -->
 # Gradle
 ./gradlew run
 
 # Then compile schema
 FraiseQL-cli compile schema.json FraiseQL.toml
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -641,6 +685,7 @@ Complete Kotlin ↔ GraphQL type mappings:
 ### CRUD with Extension Functions
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 data class Article(
     @Field val id: Int,
@@ -690,11 +735,13 @@ object ArticleSchema {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination with Coroutines
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Type
 data class UserConnection(
     @Field val edges: List<User>,
@@ -729,11 +776,13 @@ suspend fun fetchUsers(first: Int, after: String?): UserConnection = coroutineSc
 
     UserConnection(users, count, count > users.size, PageInfo(null, null, true, false))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Android Development
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // In Android ViewModel
 @HiltViewModel
 class UserViewModel @Inject constructor(
@@ -769,7 +818,8 @@ Fragment {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -778,6 +828,7 @@ Fragment {
 ### Result Sealed Class Pattern
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 sealed class Result<T> {
     data class Success<T>(val data: T) : Result<T>()
     data class Error<T>(val exception: FraiseQLException) : Result<T>()
@@ -793,11 +844,13 @@ when (val result = FraiseQL.query<User>("user", mapOf("id" to 1))) {
     is Result.Success -> println("User: ${result.data}")
     is Result.Error -> println("Error: ${result.exception.message}")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Custom Exception Handling
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 sealed class FraiseQLException(message: String) : Exception(message) {
     data class ValidationError(val message: String) : FraiseQLException(message)
     data class DatabaseError(val code: String, val message: String) : FraiseQLException(message)
@@ -815,7 +868,8 @@ try {
 } catch (e: FraiseQLException.AuthorizationError) {
     System.err.println("Access denied: ${e.message}")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -824,6 +878,7 @@ try {
 ### Kotest Patterns
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBeNull
@@ -868,11 +923,13 @@ class SchemaTest : FunSpec({
         result.errors.shouldBe(emptyList())
     }
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 ### JUnit 5 Patterns
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertTrue
@@ -894,7 +951,8 @@ class SchemaValidationTest {
         assertTrue(schemaJson.contains("User"))
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -922,6 +980,7 @@ class SchemaValidationTest {
 **Solution**:
 
 ```gradle
+<!-- Code example in GRADLE -->
 repositories {
     mavenCentral()
 }
@@ -929,11 +988,14 @@ repositories {
 dependencies {
     implementation 'com.FraiseQL:FraiseQL-kotlin:2.0.0'
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 ./gradlew clean build --refresh-dependencies
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Kotlin Compiler Issues
 
@@ -942,10 +1004,12 @@ dependencies {
 **Check Kotlin version** (1.8+ required):
 
 ```gradle
+<!-- Code example in GRADLE -->
 plugins {
     kotlin("jvm") version "1.9.0"
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Interop Issues
 
@@ -954,6 +1018,7 @@ plugins {
 **Solution - Configure interop**:
 
 ```gradle
+<!-- Code example in GRADLE -->
 kotlin {
     jvmTarget = "11"
 }
@@ -961,7 +1026,8 @@ kotlin {
 sourceSets {
     main.kotlin.srcDirs += 'src/main/java'
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Coroutine Setup
 
@@ -970,11 +1036,13 @@ sourceSets {
 **Add coroutines dependency**:
 
 ```gradle
+<!-- Code example in GRADLE -->
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.0'
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -987,6 +1055,7 @@ dependencies {
 **Solution - Handle nullability explicitly**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ❌ Wrong - nullable but treated as non-null
 @FraiseQLType
 data class User(val name: String)  // Should be String?
@@ -1002,7 +1071,8 @@ data class User(val name: String) {
         require(name.isNotBlank()) { "Name required" }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Data Class Limitations
 
@@ -1011,6 +1081,7 @@ data class User(val name: String) {
 **Solution - Use concrete data classes**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ❌ Won't work - generics
 @FraiseQLType
 data class Box<T>(val value: T)
@@ -1018,7 +1089,8 @@ data class Box<T>(val value: T)
 // ✅ Use concrete types
 @FraiseQLType
 data class UserBox(val value: User)
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Property Delegation Issues
 
@@ -1027,6 +1099,7 @@ data class UserBox(val value: User)
 **Solution - Use simple data classes**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ✅ Simple properties work
 @FraiseQLType
 data class User(
@@ -1034,7 +1107,8 @@ data class User(
     val email: String,
     val middleName: String? = null
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Sealed Class Issues
 
@@ -1043,6 +1117,7 @@ data class User(
 **Solution - Use regular classes or objects**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ✅ Use normal inheritance or composition
 @FraiseQLType
 data class User(val id: Int, val status: String)
@@ -1053,7 +1128,8 @@ data class Result(
     val user: User? = null,
     val error: String? = null
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1066,6 +1142,7 @@ data class Result(
 **Solution - Provide scope**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ❌ Wrong - no scope
 val result = FraiseQL.execute(query)
 
@@ -1079,7 +1156,8 @@ runBlocking {
 suspend fun graphql(@RequestBody request: GraphQLRequest): QueryResult {
     return FraiseQL.executeAsync(request.query)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Java Interop Issues
 
@@ -1088,12 +1166,14 @@ suspend fun graphql(@RequestBody request: GraphQLRequest): QueryResult {
 **Solution - Null safety**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ✅ Use let or !! carefully
 val result = javaMethod()?.let { process(it) }
 
 // Or assert non-null
 val result = javaMethod()!!  // Only if sure it's not null
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Extension Function Issues
 
@@ -1102,6 +1182,7 @@ val result = javaMethod()!!  // Only if sure it's not null
 **Solution - Create extension functions instead**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ✅ Add functionality via extension
 fun Server.executeWithTimeout(query: String, timeoutMs: Long = 30000): QueryResult {
     return withTimeoutOrNull(timeoutMs) {
@@ -1111,7 +1192,8 @@ fun Server.executeWithTimeout(query: String, timeoutMs: Long = 30000): QueryResu
 
 // Usage
 server.executeWithTimeout(query)
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Scope Function Misuse
 
@@ -1120,6 +1202,7 @@ server.executeWithTimeout(query)
 **Solution - Use correct scope function**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 // ✅ let for transforming result
 val ids = users.let { it.map { u -> u.id } }
 
@@ -1132,7 +1215,8 @@ val server = Server.from_compiled("schema.json").apply {
 server.run {
     execute(query)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1145,15 +1229,19 @@ server.run {
 **Parallel compilation**:
 
 ```gradle
+<!-- Code example in GRADLE -->
 org.gradle.parallel=true
 org.gradle.workers.max=4
-```
+```text
+<!-- Code example in TEXT -->
 
 **Or command line**:
 
 ```bash
+<!-- Code example in BASH -->
 ./gradlew build --parallel --max-workers=4
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Coroutine Overhead
 
@@ -1162,12 +1250,14 @@ org.gradle.workers.max=4
 **Limit concurrency**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 val dispatcher = Dispatchers.Default.limitedParallelism(4)
 
 launch(dispatcher) {
     server.executeAsync(query)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Usage
 
@@ -1176,10 +1266,12 @@ launch(dispatcher) {
 **Profile with Kotlin**:
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 val runtime = Runtime.getRuntime()
 val memory = runtime.totalMemory() - runtime.freeMemory()
 println("Memory: ${memory / 1024 / 1024}MB")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1190,13 +1282,16 @@ println("Memory: ${memory / 1024 / 1024}MB")
 **Add logging**:
 
 ```gradle
+<!-- Code example in GRADLE -->
 dependencies {
     implementation 'io.github.microutils:kotlin-logging:3.0.0'
     implementation 'ch.qos.logback:logback-classic:1.4.0'
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 import mu.KotlinLogging
 
 val logger = KotlinLogging.logger {}
@@ -1205,13 +1300,16 @@ fun main() {
     logger.debug { "Starting" }
     server.execute(query)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Run with debug**:
 
 ```bash
+<!-- Code example in BASH -->
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -jar app.jar
-```
+```text
+<!-- Code example in TEXT -->
 
 #### IDE Debugging
 
@@ -1225,13 +1323,15 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -jar app.jar
 #### Testing
 
 ```kotlin
+<!-- Code example in KOTLIN -->
 @Test
 fun testQuery() {
     val server = Server.from_compiled("schema.json")
     val result = server.execute("{ user(id: 1) { id } }")
     assertEquals(1, (result["data"]["user"]["id"] as Int))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1250,10 +1350,12 @@ Provide:
 **Environment**:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 - Kotlin: 1.9.0
 - Java: 11
 - FraiseQL: 2.0.0
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Community Channels
 

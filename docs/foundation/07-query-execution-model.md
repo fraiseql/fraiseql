@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.2: Query Execution Model
+description: While Topic 2.1 explained how FraiseQL **compiles** schemas at build time, this topic explains what happens when a query **executes** at runtime.
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.2: Query Execution Model
 
 **Audience:** Developers implementing FraiseQL servers, operations engineers, backend architects
@@ -16,7 +24,10 @@ While Topic 2.1 explained how FraiseQL **compiles** schemas at build time, this 
 
 ## The Query Execution Model
 
+**Diagram: Query Execution** - 8-stage runtime model with authorization and field masking
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Request: "Client Request\n(GraphQL Query)" {
@@ -72,7 +83,8 @@ AuthCheck -> Execute: "approved"
 Execute -> Fetch: "SQL query"
 Fetch -> Format: "raw data"
 Format -> Return: "JSON response"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -83,6 +95,7 @@ Format -> Return: "JSON response"
 A GraphQL query from a client:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUserProfile($userId: Int!) {
   user(userId: $userId) {
     userId
@@ -97,16 +110,19 @@ query GetUserProfile($userId: Int!) {
 
 # Variables: { "userId": 123 }
 ```text
+<!-- Code example in TEXT -->
 
 ### What the Server Receives
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "query GetUserProfile($userId: Int!) { user(userId: $userId) { ... } }",
   "variables": { "userId": 123 },
   "operationName": "GetUserProfile"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Server Processing
 
@@ -124,6 +140,7 @@ query GetUserProfile($userId: Int!) {
 At compile time, FraiseQL created schema.compiled.json with all query templates:
 
 ```json
+<!-- Code example in JSON -->
 {
   "queries": [
     {
@@ -149,10 +166,12 @@ At compile time, FraiseQL created schema.compiled.json with all query templates:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime Lookup
 
 ```python
+<!-- Code example in Python -->
 # Server loads schema at startup
 schema = load_compiled_schema("schema.compiled.json")
 
@@ -164,6 +183,7 @@ query_template = schema.queries["GetUserProfile"]
 # parameters: [{ name: "userId", type: "Int" }]
 # nested_queries: [...]
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:** O(1) lookup (hash table), <1ms
 
@@ -174,6 +194,7 @@ query_template = schema.queries["GetUserProfile"]
 ### Parameter Validation
 
 ```python
+<!-- Code example in Python -->
 # Request variables: { "userId": 123 }
 # Template expects: { "userId": Int }
 
@@ -194,10 +215,12 @@ for param in template.parameters:
     # Bind to SQL template
     sql_bindings.append(value)
 ```text
+<!-- Code example in TEXT -->
 
 ### SQL Parameter Binding
 
 ```python
+<!-- Code example in Python -->
 # Template: "SELECT * FROM tb_users WHERE pk_user_id = $1"
 # Bindings: [123]
 
@@ -210,6 +233,7 @@ bindings = [request.variables["userId"]]
 #      Database receives: statement + separate bindings
 #      This prevents SQL injection
 ```text
+<!-- Code example in TEXT -->
 
 ### Output
 
@@ -227,6 +251,7 @@ bindings = [request.variables["userId"]]
 ### Permission Evaluation
 
 ```python
+<!-- Code example in Python -->
 # Compiled authorization rule for GetUserProfile:
 # "authenticated_user_id = userId"
 
@@ -241,12 +266,14 @@ context = {
 if not evaluate_permission(auth_rule, context):
     raise GraphQLError("Unauthorized", status_code=403)
 ```text
+<!-- Code example in TEXT -->
 
 ### Pre-Execution vs Post-Fetch Checks
 
 **Pre-Execution (Fast Path)**
 
 ```python
+<!-- Code example in Python -->
 # Rule evaluated before SQL execution
 # Example: "user_role = 'admin'"
 
@@ -256,10 +283,12 @@ if context["user_role"] != "admin":
 # Only if permission passes, execute SQL
 execute_sql(sql, bindings)
 ```text
+<!-- Code example in TEXT -->
 
 **Post-Fetch (Filter Results)**
 
 ```python
+<!-- Code example in Python -->
 # Rule evaluated after fetching results
 # Example: "user_id = authenticated_user_id OR user_role = 'admin'"
 
@@ -271,12 +300,14 @@ filtered_results = [
     if row.user_id == context.authenticated_user_id or context.user_role == "admin"
 ]
 ```text
+<!-- Code example in TEXT -->
 
 ### Compiled Permissions
 
 From Topic 2.1 Phase 6, these are already compiled into efficient bytecode:
 
 ```text
+<!-- Code example in TEXT -->
 Permission Bytecode:
 ├─ Query: GetUserProfile
 │  └─ Rule: authenticated_user_id = userId
@@ -293,6 +324,7 @@ Permission Bytecode:
       Type: Post-fetch
       Cost: ~0.5ms
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:** Pre-execution <0.1ms, Post-fetch ~0.5ms per result
 
@@ -303,6 +335,7 @@ Permission Bytecode:
 ### Database Connection
 
 ```python
+<!-- Code example in Python -->
 # Connection pool (pre-established at server startup)
 db_pool = get_connection_pool()
 connection = db_pool.get_connection()
@@ -318,10 +351,12 @@ except DatabaseError as e:
 finally:
     db_pool.return_connection(connection)
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Execution Example
 
 ```sql
+<!-- Code example in SQL -->
 -- Pre-compiled template (from schema.compiled.json)
 SELECT pk_user_id, email, created_at
 FROM tb_users
@@ -333,10 +368,12 @@ LIMIT 1
 -- pk_user_id | email            | created_at
 -- 123        | user@example.com | 2026-01-01 10:00:00
 ```text
+<!-- Code example in TEXT -->
 
 ### Nested Queries (Relationships)
 
 ```python
+<!-- Code example in Python -->
 # Initial query fetches user
 user_result = {
     "userId": 123,
@@ -357,10 +394,12 @@ orders_results = [
     {"orderId": 789, "total": 149.99}
 ]
 ```text
+<!-- Code example in TEXT -->
 
 ### SQL Optimization Enabled by Compilation
 
 ```sql
+<!-- Code example in SQL -->
 -- FraiseQL queries are optimized at compile time
 -- Database sees well-structured queries
 
@@ -380,6 +419,7 @@ ORDER BY created_at DESC
 -- Query uses: tb_users(pk_user_id), tb_orders(fk_user_id, created_at)
 -- Missing indexes detected and recommended in compilation report
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:** Depends on data size
 
@@ -394,6 +434,7 @@ ORDER BY created_at DESC
 ### Fetch Results
 
 ```python
+<!-- Code example in Python -->
 # Raw database results
 rows = [
     {pk_user_id: 123, email: "user@example.com", created_at: datetime(2026, 1, 1)},
@@ -406,10 +447,12 @@ orders = [
     {pk_order_id: 789, fk_user_id: 123, total: 149.99}
 ]
 ```text
+<!-- Code example in TEXT -->
 
 ### Transform to GraphQL Response
 
 ```python
+<!-- Code example in Python -->
 # Convert database column names to GraphQL field names
 # pk_user_id → userId
 # created_at → createdAt (camelCase)
@@ -434,10 +477,12 @@ response = {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Serialize to JSON
 
 ```python
+<!-- Code example in Python -->
 import json
 
 # Convert Python objects to JSON
@@ -446,6 +491,7 @@ json_response = json.dumps(response)
 # Result:
 # {"data": {"user": {"userId": 123, "email": "user@example.com", ...}}}
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:** <5ms for typical response
 
@@ -456,6 +502,7 @@ json_response = json.dumps(response)
 ### HTTP Response
 
 ```http
+<!-- Code example in HTTP -->
 HTTP/1.1 200 OK
 Content-Type: application/json
 Content-Length: 342
@@ -480,10 +527,12 @@ Content-Length: 342
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Response (If Something Failed)
 
 ```http
+<!-- Code example in HTTP -->
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
@@ -498,6 +547,7 @@ Content-Type: application/json
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -506,6 +556,7 @@ Content-Type: application/json
 ### Example Request
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUserProfile($userId: Int!) {
   user(userId: $userId) {
     userId
@@ -519,10 +570,12 @@ query GetUserProfile($userId: Int!) {
 
 Variables: { "userId": 123 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Execution Timeline (Detailed)
 
 ```text
+<!-- Code example in TEXT -->
 Timeline: Request → Response
 
 T+0ms:    Client sends request
@@ -547,6 +600,7 @@ Breakdown:
 - Database queries: 20ms (74%)
 - Formatting & serialization: 5ms (20%)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -555,6 +609,7 @@ Breakdown:
 ### Type Errors
 
 ```python
+<!-- Code example in Python -->
 # Request: { "userId": "not-a-number" }
 # Expected: Int
 
@@ -566,30 +621,36 @@ except ValueError:
         extensions={"code": "BAD_USER_INPUT"}
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Missing Required Parameters
 
 ```python
+<!-- Code example in Python -->
 if "userId" not in request.variables:
     raise GraphQLError(
         "Variable $userId of required type Int! was not provided",
         extensions={"code": "BAD_USER_INPUT"}
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Authorization Failures
 
 ```python
+<!-- Code example in Python -->
 if not evaluate_permission(auth_rule, context):
     raise GraphQLError(
         "Unauthorized",
         extensions={"code": "FORBIDDEN"}
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Errors
 
 ```python
+<!-- Code example in Python -->
 try:
     results = execute_sql(sql, bindings)
 except DatabaseError as e:
@@ -604,10 +665,12 @@ except DatabaseError as e:
             extensions={"code": "INTERNAL_SERVER_ERROR"}
         )
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Response Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -625,6 +688,7 @@ except DatabaseError as e:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -633,6 +697,7 @@ except DatabaseError as e:
 ### 1. Deterministic Performance
 
 ```text
+<!-- Code example in TEXT -->
 Every query has predictable performance:
 
 - Lookup time: O(1)
@@ -643,10 +708,12 @@ Every query has predictable performance:
 
 Total: Predictable and reproducible
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. No Query Interpretation
 
 ```text
+<!-- Code example in TEXT -->
 Traditional GraphQL:
 
 - Parse query (5ms)
@@ -661,10 +728,12 @@ FraiseQL:
 - Execute SQL template (20-50ms)
 Total: Fast and consistent
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Automatic N+1 Prevention
 
 ```text
+<!-- Code example in TEXT -->
 Compile-time query analysis detects potential N+1 patterns:
 ❌ Bad pattern (would cause N+1):
    for user in users:
@@ -676,10 +745,12 @@ Compile-time query analysis detects potential N+1 patterns:
 
 FraiseQL uses compiled templates that are already optimized.
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Authorization Integrated
 
 ```text
+<!-- Code example in TEXT -->
 Permission checks happen at two points:
 
 1. Pre-execution: Fast fail if not authorized
@@ -689,6 +760,7 @@ Permission checks happen at two points:
 
 All compiled and optimized at build time.
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -697,19 +769,23 @@ All compiled and optimized at build time.
 ### Apollo Server
 
 ```text
+<!-- Code example in TEXT -->
 Request → Parse (5ms) → Validate (3ms) →
 Resolve User (2ms) → Execute query (20ms) →
 Resolve Orders field (2ms) → Execute query (15ms) →
 Format (3ms) → Total: ~50ms
 ```text
+<!-- Code example in TEXT -->
 
 ### FraiseQL
 
 ```text
+<!-- Code example in TEXT -->
 Request → Lookup template (0.1ms) →
 Validate params (0.5ms) → Check auth (<0.1ms) →
 Execute SQL (35ms) → Format (1ms) → Total: ~37ms
 ```text
+<!-- Code example in TEXT -->
 
 **Result:** FraiseQL is ~26% faster because it skips interpretation overhead
 
@@ -720,6 +796,7 @@ Execute SQL (35ms) → Format (1ms) → Total: ~37ms
 ### Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetProductReviews($productId: Int!, $limit: Int = 10) {
   product(productId: $productId) {
     productId
@@ -739,10 +816,12 @@ query GetProductReviews($productId: Int!, $limit: Int = 10) {
 
 Variables: { "productId": 42, "limit": 5 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Execution
 
 ```python
+<!-- Code example in Python -->
 # 1. Look up template (pre-compiled)
 template = schema.queries["GetProductReviews"]
 
@@ -805,6 +884,7 @@ return {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -813,6 +893,7 @@ return {
 ### Query Latency
 
 ```text
+<!-- Code example in TEXT -->
 Typical Query Performance:
 
 Simple lookup (1 result):
@@ -840,10 +921,12 @@ Factors:
 - Result size (more results = slower formatting)
 - Authorization complexity (post-fetch filtering)
 ```text
+<!-- Code example in TEXT -->
 
 ### Throughput
 
 ```text
+<!-- Code example in TEXT -->
 Server Capacity (with connection pooling):
 
 For single FraiseQL server (4 CPUs, 8GB RAM):
@@ -859,6 +942,7 @@ Limiting factors:
 - Network bandwidth
 - Authorization check complexity
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

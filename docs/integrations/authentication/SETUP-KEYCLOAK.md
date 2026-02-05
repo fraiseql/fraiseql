@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Keycloak OAuth 2.0 / OIDC Setup Guide
+description: This guide walks you through setting up Keycloak authentication with FraiseQL.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Keycloak OAuth 2.0 / OIDC Setup Guide
 
 This guide walks you through setting up Keycloak authentication with FraiseQL.
@@ -66,6 +74,7 @@ This guide walks you through setting up Keycloak authentication with FraiseQL.
 Create `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 services:
   keycloak:
@@ -96,12 +105,15 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 Start it:
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose up -d
 ```text
+<!-- Code example in TEXT -->
 
 Access Keycloak at `http://localhost:8080`
 
@@ -163,6 +175,7 @@ If using a hosted Keycloak service:
 Create `.env` file:
 
 ```bash
+<!-- Code example in BASH -->
 # Keycloak Configuration
 KEYCLOAK_URL=http://localhost:8080
 KEYCLOAK_REALM=FraiseQL
@@ -177,10 +190,12 @@ JWT_ALGORITHM=RS256
 # Database Configuration
 DATABASE_URL=postgres://user:password@localhost/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ## Configure FraiseQL Server
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::auth::OidcProvider;
 use std::sync::Arc;
 
@@ -207,16 +222,19 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing the Flow
 
 ### 1. Start Login
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "keycloak"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Complete Authentication
 
@@ -225,11 +243,13 @@ Visit the returned authorization URL and log in with your Keycloak account.
 ### 3. Use Tokens
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ## Advanced: User Federation
 
@@ -268,11 +288,13 @@ Create custom roles for RBAC:
 In your code, check roles:
 
 ```rust
+<!-- Code example in RUST -->
 let user = auth::AuthenticatedUser { /* ... */ };
 if user.has_role("api-admin") {
     // Admin access
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -311,6 +333,7 @@ if user.has_role("api-admin") {
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check logs
 docker-compose logs keycloak
 
@@ -321,6 +344,7 @@ docker-compose restart keycloak
 docker-compose down
 docker-compose up -d
 ```text
+<!-- Code example in TEXT -->
 
 ## Production Deployment
 
@@ -337,6 +361,7 @@ For production Keycloak:
 Example production environment:
 
 ```bash
+<!-- Code example in BASH -->
 # .env.prod
 KEYCLOAK_URL=https://keycloak.example.com
 KEYCLOAK_REALM=production
@@ -349,12 +374,14 @@ JWT_ALGORITHM=RS256
 
 DATABASE_URL=postgres://user:strong-pass@db.internal/FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ## Using with Docker Compose in Production
 
 Production `docker-compose.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 services:
   keycloak:
@@ -390,17 +417,20 @@ services:
       - "8000:8000"
     restart: always
 ```text
+<!-- Code example in TEXT -->
 
 ## Multi-Realm Setup
 
 For different environments, create separate realms:
 
 ```text
+<!-- Code example in TEXT -->
 Keycloak
 ├── development (uses test users)
 ├── staging (mirrors production)
 └── production (uses enterprise LDAP)
 ```text
+<!-- Code example in TEXT -->
 
 Each realm has:
 

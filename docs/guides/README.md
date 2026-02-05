@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Guides
+description: Practical how-to guides for operators, developers, and DevOps teams.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Guides
 
 Practical how-to guides for operators, developers, and DevOps teams.
@@ -93,13 +101,15 @@ See [Integrations Guide](../integrations/) for:
 All guides in this directory follow a consistent metadata format for discoverability and context:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 | Metadata | Values | Example |
 |----------|--------|---------|
 | **Status** | ✅ Production Ready, ⚠️ Beta, 📝 Draft | ✅ Production Ready |
 | **Audience** | Developers, DevOps, DBAs, Architects, SREs | Developers, Architects |
 | **Reading Time** | Estimated minutes | 10-15 minutes |
 | **Last Updated** | YYYY-MM-DD | 2026-02-05 |
-```
+```text
+<!-- Code example in TEXT -->
 
 **What these mean:**
 

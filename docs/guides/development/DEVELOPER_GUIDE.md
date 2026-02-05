@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Developer Guide
+description: Welcome to the FraiseQL development guide! This document covers setup, development workflow, testing, and contribution guidelines.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Developer Guide
 
 Welcome to the FraiseQL development guide! This document covers setup, development workflow, testing, and contribution guidelines.
@@ -24,6 +32,7 @@ Welcome to the FraiseQL development guide! This document covers setup, developme
 ### Initial Setup
 
 ```bash
+<!-- Code example in BASH -->
 # Clone the repository
 git clone https://github.com/FraiseQL/FraiseQL.git
 cd FraiseQL
@@ -39,12 +48,14 @@ rustc --version
 cargo install cargo-watch  # Auto-rebuild
 cargo install cargo-edit   # Dependency management
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Setup
 
 For integration tests, you need PostgreSQL:
 
 ```bash
+<!-- Code example in BASH -->
 # Start PostgreSQL (if using Docker)
 docker run -d \
   --name postgres-FraiseQL \
@@ -56,10 +67,12 @@ docker run -d \
 # Or connect to existing PostgreSQL
 export DATABASE_URL="postgresql://user:password@localhost/fraiseql_test"
 ```text
+<!-- Code example in TEXT -->
 
 ### First Build
 
 ```bash
+<!-- Code example in BASH -->
 # Full build (release)
 cargo build --release
 
@@ -78,10 +91,12 @@ cargo fmt --check
 # Run linter
 cargo clippy --all-targets --all-features
 ```text
+<!-- Code example in TEXT -->
 
 ## Project Structure
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL/
 ├── crates/
 │   ├── FraiseQL-core/          # Core execution engine
@@ -123,12 +138,14 @@ FraiseQL/
 ├── Cargo.lock                  # Dependency lock file
 └── .cargo/config.toml          # Cargo configuration
 ```text
+<!-- Code example in TEXT -->
 
 ## Development Workflow
 
 ### Setting Up a Feature Branch
 
 ```bash
+<!-- Code example in BASH -->
 # Create feature branch from dev
 git checkout dev
 git pull origin dev
@@ -137,10 +154,12 @@ git checkout -b feature/your-feature-name
 # Verify clean state
 git status  # Should show "nothing to commit, working tree clean"
 ```text
+<!-- Code example in TEXT -->
 
 ### Development Cycle
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Make changes
 vim crates/FraiseQL-core/src/some_file.rs
 
@@ -163,10 +182,12 @@ git commit -m "feat(core): Add new feature description"
 # 7. Push and create PR
 git push -u origin feature/your-feature-name
 ```text
+<!-- Code example in TEXT -->
 
 ### Using cargo-watch for Fast Iteration
 
 ```bash
+<!-- Code example in BASH -->
 # Auto-check on file changes
 cargo watch -x check
 
@@ -176,10 +197,12 @@ cargo watch -x "test --lib"
 # Auto-build in another terminal
 cargo watch -x build
 ```text
+<!-- Code example in TEXT -->
 
 ### Running Specific Tests
 
 ```bash
+<!-- Code example in BASH -->
 # Test specific module
 cargo test -p FraiseQL-core cache::result::tests
 
@@ -195,6 +218,7 @@ cargo test -- --ignored
 # Run with logging
 RUST_LOG=debug cargo test test_feature -- --nocapture
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing Strategy
 
@@ -203,15 +227,18 @@ RUST_LOG=debug cargo test test_feature -- --nocapture
 Tests are organized by scope:
 
 ```text
+<!-- Code example in TEXT -->
 Unit Tests (same file)          - Fast, isolated
 Integration Tests (tests/)      - Medium speed, database
 Benchmark Tests (benches/)      - Performance regression
 Doc Tests (in comments)         - API examples
 ```text
+<!-- Code example in TEXT -->
 
 ### Writing Tests
 
 ```rust
+<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,6 +264,7 @@ mod tests {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Test Coverage
 
@@ -250,16 +278,19 @@ Aim for:
 Run coverage locally:
 
 ```bash
+<!-- Code example in BASH -->
 # Using tarpaulin
 cargo tarpaulin --out Html --output-dir coverage
 
 # View results
 open coverage/index.html
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Testing
 
 ```bash
+<!-- Code example in BASH -->
 # Run benchmarks
 cargo bench
 
@@ -269,12 +300,14 @@ cargo bench -- cache_hit
 # Compare against baseline
 cargo bench -- --baseline main
 ```text
+<!-- Code example in TEXT -->
 
 ## Code Standards
 
 ### Naming Conventions
 
 ```rust
+<!-- Code example in RUST -->
 // Modules: lowercase_snake_case
 mod query_matcher { }
 
@@ -292,12 +325,14 @@ fn execute_query(query: &str) -> Result<String> { }
 // Generic types: PascalCase
 fn generic_function<T: Trait>(value: T) { }
 ```text
+<!-- Code example in TEXT -->
 
 ### Documentation
 
 Every public item must have documentation:
 
 ```rust
+<!-- Code example in RUST -->
 /// Brief summary.
 ///
 /// Longer description with examples and important notes.
@@ -313,15 +348,19 @@ Every public item must have documentation:
 ///
 /// # Example
 /// ```text
+<!-- Code example in TEXT -->
 /// let result = function()?;
 /// ```text
+<!-- Code example in TEXT -->
 pub fn function(param: Type) -> Result<Value> {
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Handling
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Avoid panics in library code
 fn parse_schema(json: &str) -> Schema {
     serde_json::from_str(json).unwrap()  // Bad!
@@ -333,10 +372,12 @@ fn parse_schema(json: &str) -> Result<Schema> {
         .map_err(|e| FraiseQLError::Parse { message: e.to_string() })
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Type Annotations
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Old style
 fn get_user(id: i32) -> Option<User> {
     None
@@ -351,6 +392,7 @@ fn get_user(id: i32) -> User | None {
 let users: Vec<User> = vec![];
 let mapping: HashMap<String, u64> = HashMap::new();
 ```text
+<!-- Code example in TEXT -->
 
 ## Debugging & Troubleshooting
 
@@ -359,22 +401,27 @@ let mapping: HashMap<String, u64> = HashMap::new();
 Use the `log` crate for structured logging:
 
 ```rust
+<!-- Code example in RUST -->
 use log::{debug, info, warn, error};
 
 info!("Server starting on {}", addr);
 debug!(field = %value, "Detailed debug info");
 error!("Failed to execute query: {}", err);
 ```text
+<!-- Code example in TEXT -->
 
 Enable logging in tests:
 
 ```bash
+<!-- Code example in BASH -->
 RUST_LOG=debug cargo test test_name -- --nocapture
 ```text
+<!-- Code example in TEXT -->
 
 ### Debugging with Print Statements
 
 ```rust
+<!-- Code example in RUST -->
 // Quick debug print (temporary)
 eprintln!("Debug: {:?}", value);
 
@@ -384,12 +431,14 @@ dbg!(&value);
 // Best: use proper logging
 debug!("Value: {:?}", value);
 ```text
+<!-- Code example in TEXT -->
 
 ### Common Issues & Solutions
 
 #### Lifetime Errors
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Lifetime mismatch
 fn process<'a>(input: &'a str) -> &'static str {
     input  // Error: different lifetime
@@ -400,10 +449,12 @@ fn process(input: &str) -> String {
     input.to_string()
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Borrow Checker Issues
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Multiple mutable borrows
 let mut x = vec![1, 2, 3];
 let a = &mut x;
@@ -417,10 +468,12 @@ let mut x = vec![1, 2, 3];
 }
 let b = &mut x;  // OK
 ```text
+<!-- Code example in TEXT -->
 
 #### Async Issues
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ Not awaiting
 async fn fetch_data() -> Data {
     get_data()  // Error: forgot await
@@ -431,10 +484,12 @@ async fn fetch_data() -> Data {
     get_data().await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Profiling
 
 ```bash
+<!-- Code example in BASH -->
 # Generate flamegraph
 cargo install flamegraph
 cargo flamegraph
@@ -442,6 +497,7 @@ cargo flamegraph
 # View results
 open flamegraph.svg
 ```text
+<!-- Code example in TEXT -->
 
 ## Contributing
 
@@ -457,18 +513,22 @@ open flamegraph.svg
 1. **Ensure clean history**: Squash fixup commits
 
    ```bash
+<!-- Code example in BASH -->
    git rebase -i main
    ```text
+<!-- Code example in TEXT -->
 
 2. **Write clear commit messages**:
 
    ```text
+<!-- Code example in TEXT -->
    feat(scope): Add feature description
 
    Longer explanation of what and why.
 
    Fixes #123
    ```text
+<!-- Code example in TEXT -->
 
 3. **Add tests**: For new features and bug fixes
 
@@ -477,11 +537,13 @@ open flamegraph.svg
 5. **Run full checks**:
 
    ```bash
+<!-- Code example in BASH -->
    cargo fmt
    cargo clippy --all-targets --all-features
    cargo test --lib
    cargo test --test '*'
    ```text
+<!-- Code example in TEXT -->
 
 ### PR Review Process
 
@@ -522,16 +584,19 @@ When reviewing code:
 ### Most Common Commands
 
 ```bash
+<!-- Code example in BASH -->
 cargo fmt              # Format code
 cargo clippy --all     # Lint code
 cargo test --lib       # Run unit tests
 cargo build --release  # Build optimized binary
 cargo watch -x test    # Auto-test on changes
 ```text
+<!-- Code example in TEXT -->
 
 ### Fast Feedback Loop
 
 ```bash
+<!-- Code example in BASH -->
 # Terminal 1: Auto-check on changes
 cargo watch -x check
 
@@ -541,16 +606,19 @@ cargo watch -x "test --lib"
 # Terminal 3: Edit code
 vim src/file.rs
 ```text
+<!-- Code example in TEXT -->
 
 ### Useful Cargo Flags
 
 ```bash
+<!-- Code example in BASH -->
 -p CRATE        # Run for specific crate
 --release       # Optimized build (slower to compile, faster to run)
 --lib           # Only lib target (skip binaries)
 -j 4            # Use 4 parallel jobs (useful on slow machines)
 --verbose       # Detailed output
 ```text
+<!-- Code example in TEXT -->
 
 Happy coding! 🚀
 

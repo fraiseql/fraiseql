@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Glossary
+description: - **Terms are alphabetically ordered**
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Glossary
 
 **Version:** 1.0
@@ -199,8 +207,10 @@ AuthoringIR unifies schema definitions from Python, TypeScript, YAML, GraphQL SD
 **Compilation flow:**
 
 ```text
+<!-- Code example in TEXT -->
 Python/TypeScript/YAML/SDL/CLI → AuthoringIR → Compilation Pipeline → CompiledSchema
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 
@@ -324,6 +334,7 @@ The capability manifest is the source of truth for multi-database support. For e
 Format:
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "success",
   "entity": { ... },
@@ -334,6 +345,7 @@ Format:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 
@@ -447,12 +459,14 @@ CompiledSchema contains:
 Example:
 
 ```python
+<!-- Code example in Python -->
 config = CompilerConfig(
     database_target="postgresql",  # or "mysql", "sqlite", "sqlserver"
     schema_path="schema.py",
     output_dir="build/"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Impact:**
 
@@ -608,12 +622,14 @@ Example: All users can see `User.name`, but only admins can see `User.email`.
 SDL is the GraphQL native schema language:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   name: String!
   email: String
 }
 ```text
+<!-- Code example in TEXT -->
 
 **In FraiseQL:**
 
@@ -671,6 +687,7 @@ FraiseQL supports three introspection policies:
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -683,6 +700,7 @@ FraiseQL supports three introspection policies:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 
@@ -700,6 +718,7 @@ FraiseQL supports three introspection policies:
 Each read view produces a `data` JSONB column containing the full projection. Nested fields compose projections via pre-aggregated views:
 
 ```sql
+<!-- Code example in SQL -->
 -- Pre-aggregated: posts grouped by user
 CREATE VIEW v_posts_by_user AS
 SELECT
@@ -715,6 +734,7 @@ SELECT
 FROM v_user u
 LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 ```text
+<!-- Code example in TEXT -->
 
 **Benefits:**
 
@@ -747,6 +767,7 @@ Mutations in FraiseQL:
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   createUser(input: {name: "Alice", email: "alice@example.com"}) {
     id
@@ -754,6 +775,7 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Executes: `fn_create_user(jsonb)` stored procedure.
 
@@ -777,6 +799,7 @@ Pattern: `v_{entities}_by_{parent}`
 Example:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_posts_by_user AS
 SELECT
     fk_user,
@@ -784,6 +807,7 @@ SELECT
 FROM v_post
 GROUP BY fk_user;
 ```text
+<!-- Code example in TEXT -->
 
 **Benefits:**
 
@@ -978,9 +1002,11 @@ Uses `deleted_at` audit column:
 **Read views filter soft-deleted records:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_user AS
 SELECT ... FROM tb_user WHERE deleted_at IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 **Benefits:**
 
@@ -1009,6 +1035,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
 **Output:** JSON with structure:
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "success|error|noop",
   "entity": { ... },
@@ -1019,6 +1046,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 
@@ -1087,12 +1115,14 @@ Subscription filters:
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     where: WhereOrder = FraiseQL.where(
         user_id=FraiseQL.context.user_id  # Only current user's orders
     )
 ```text
+<!-- Code example in TEXT -->
 
 **Distinguished from runtime variables** — Filters are static, variables are dynamic (see Subscription Variable).
 
@@ -1118,6 +1148,7 @@ Subscription variables:
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     where: WhereOrder = FraiseQL.where(user_id=context.user_id)
@@ -1126,16 +1157,19 @@ class OrderCreated:
     class Filter:
         created_at: DateTimeRange  # Runtime variable
 ```text
+<!-- Code example in TEXT -->
 
 **Client usage:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OrderCreated($since_date: DateTime) {
   orderCreated(since_date: $since_date) {
     id amount created_at
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Distinguished from compile-time filters** — Variables are client-provided, filters are schema-defined.
 
@@ -1154,6 +1188,7 @@ subscription OrderCreated($since_date: DateTime) {
 FraiseQL uses a layered architecture:
 
 ```text
+<!-- Code example in TEXT -->
 Database Event Stream (LISTEN/NOTIFY, CDC)
          ↓
 Subscription Matcher (Filter evaluation)
@@ -1164,6 +1199,7 @@ Transport Adapters
     ├─ Kafka (Event stream)
     └─ gRPC (Service-to-service)
 ```text
+<!-- Code example in TEXT -->
 
 **Each adapter handles:**
 
@@ -1175,6 +1211,7 @@ Transport Adapters
 **Example: Webhook adapter**
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     webhooks={
         "OrderCreated": {
@@ -1185,6 +1222,7 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 
@@ -1209,6 +1247,7 @@ The event buffer serves four purposes in subscriptions:
 **Structure:**
 
 ```sql
+<!-- Code example in SQL -->
 tb_entity_change_log (
     id BIGINT PRIMARY KEY,
     object_type TEXT,           -- Entity type
@@ -1218,16 +1257,19 @@ tb_entity_change_log (
     created_at TIMESTAMPTZ
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Event delivery timeline:**
 
 ```text
+<!-- Code example in TEXT -->
 Database Transaction (Commit)
     → LISTEN/NOTIFY notification (<1ms)
     → tb_entity_change_log insert (1-5ms)
     → Subscription matching (1-2ms)
     → Transport delivery (5-100ms depending on transport)
 ```text
+<!-- Code example in TEXT -->
 
 **Retention policy:** Configurable (default: 30 days)
 
@@ -1290,6 +1332,7 @@ Column: `id` (UUID type, 16 bytes)
 **Structure:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_user AS
 SELECT
     pk_user,
@@ -1303,6 +1346,7 @@ SELECT
 FROM tb_user
 WHERE deleted_at IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 **Key columns:**
 
@@ -1357,6 +1401,7 @@ Generated automatically by compiler based on database target capabilities.
 Example:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   id: IDFilter
   name: StringFilter
@@ -1374,6 +1419,7 @@ input StringFilter {
   _regex: String      # PostgreSQL only
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Database-specific:** Same schema source produces different WHERE types per database target.
 
@@ -1527,11 +1573,13 @@ When Apollo Router needs to resolve an entity (e.g., User with id "123"), it sen
 **Key insight:** Each FraiseQL subgraph is independently compiled for its database. Rust runtime maintains connections to all accessible FraiseQL databases and queries them directly:
 
 ```text
+<!-- Code example in TEXT -->
 Users Subgraph (PostgreSQL)
 ├─ Query v_user (local)
 ├─ Query v_order (via SQL Server connection)
 └─ Query v_product (via MySQL connection)
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:**
 
@@ -1563,6 +1611,7 @@ Users Subgraph (PostgreSQL)
 **Syntax:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   name: String!
@@ -1575,6 +1624,7 @@ type Product @key(fields: "upc") @key(fields: "sku") {
   name: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Compile-time validation:**
 
@@ -1604,6 +1654,7 @@ type Product @key(fields: "upc") @key(fields: "sku") {
 **Syntax:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # In extended type
 type User @key(fields: "id") {
   id: ID! @external
@@ -1612,6 +1663,7 @@ type User @key(fields: "id") {
   orders: [Order!]!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Indicates:**
 
@@ -1641,11 +1693,13 @@ type User @key(fields: "id") {
 **Syntax:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order @key(fields: "id") {
   id: ID!
   user: User @requires(fields: "email")  # Needs email from User subgraph
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Execution:**
 
@@ -1675,18 +1729,21 @@ type Order @key(fields: "id") {
 **Syntax:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Product {
   id: ID!
   name: String!
   vendor: Vendor @provides(fields: "id name")  # View already has vendor data
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Optimization:** Router can satisfy vendor requests from this field without calling Vendor subgraph.
 
 **Database level:** View already includes vendor data as JSONB:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_product AS
 SELECT
   p.id,
@@ -1695,6 +1752,7 @@ SELECT
 FROM tb_product p
 JOIN tb_vendor v ON p.fk_vendor = v.pk_vendor;
 ```text
+<!-- Code example in TEXT -->
 
 **Related specs:**
 

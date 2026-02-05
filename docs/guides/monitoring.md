@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Monitoring & Observability Guide
+description: - Prometheus metrics format and scrape configuration
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Monitoring & Observability Guide
 
 **Status:** ✅ Production Ready
@@ -70,6 +78,7 @@ FraiseQL provides comprehensive monitoring and observability features for produc
 ### Minimal Setup
 
 ```python
+<!-- Code example in Python -->
 from fastapi import FastAPI
 from FraiseQL.monitoring import setup_metrics, MetricsConfig
 from FraiseQL.health import setup_health_endpoints
@@ -82,6 +91,7 @@ setup_metrics(app, MetricsConfig(enabled=True))
 # Enable health check endpoints
 setup_health_endpoints(app)
 ```text
+<!-- Code example in TEXT -->
 
 **Available Endpoints**:
 
@@ -93,6 +103,7 @@ setup_health_endpoints(app)
 ### Complete Setup
 
 ```python
+<!-- Code example in Python -->
 from fastapi import FastAPI
 from FraiseQL.monitoring import setup_metrics, MetricsConfig
 from FraiseQL.tracing import setup_tracing, TracingConfig
@@ -127,6 +138,7 @@ tracker = init_error_tracker(
     enable_notifications=True
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -223,8 +235,10 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 Default buckets (customizable):
 
 ```text
+<!-- Code example in TEXT -->
 [0.005s, 0.01s, 0.025s, 0.05s, 0.1s, 0.25s, 0.5s, 1s, 2.5s, 5s, 10s]
 ```text
+<!-- Code example in TEXT -->
 
 Buckets correspond to:
 
@@ -241,6 +255,7 @@ Buckets correspond to:
 ### Configuration
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.monitoring import MetricsConfig, setup_metrics
 
 config = MetricsConfig(
@@ -263,10 +278,12 @@ config = MetricsConfig(
 
 setup_metrics(app, config)
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Enable/disable
 FRAISEQL_METRICS_ENABLED=true
 
@@ -279,12 +296,14 @@ FRAISEQL_METRICS_PATH=/internal/metrics
 # Histogram buckets (comma-separated)
 FRAISEQL_METRICS_BUCKETS=0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10
 ```text
+<!-- Code example in TEXT -->
 
 ### Prometheus Configuration
 
 Add to `prometheus.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 scrape_configs:
   - job_name: 'FraiseQL'
     static_configs:
@@ -293,12 +312,14 @@ scrape_configs:
     scrape_interval: 15s
     scrape_timeout: 10s
 ```text
+<!-- Code example in TEXT -->
 
 ### Alerting Rules
 
 Example Prometheus alerting rules:
 
 ```yaml
+<!-- Code example in YAML -->
 groups:
   - name: FraiseQL
     interval: 30s
@@ -331,6 +352,7 @@ groups:
         annotations:
           summary: "Cache hit rate < 50%"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -351,6 +373,7 @@ FraiseQL integrates with OpenTelemetry for distributed tracing across microservi
 #### OTLP (Recommended)
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.tracing import setup_tracing, TracingConfig
 
 config = TracingConfig(
@@ -369,10 +392,12 @@ config = TracingConfig(
 
 setup_tracing(app, config)
 ```text
+<!-- Code example in TEXT -->
 
 #### Jaeger
 
 ```python
+<!-- Code example in Python -->
 config = TracingConfig(
     enabled=True,
     service_name="FraiseQL-api",
@@ -383,10 +408,12 @@ config = TracingConfig(
 
 setup_tracing(app, config)
 ```text
+<!-- Code example in TEXT -->
 
 #### Zipkin
 
 ```python
+<!-- Code example in Python -->
 config = TracingConfig(
     enabled=True,
     service_name="FraiseQL-api",
@@ -397,10 +424,12 @@ config = TracingConfig(
 
 setup_tracing(app, config)
 ```text
+<!-- Code example in TEXT -->
 
 ### Configuration
 
 ```python
+<!-- Code example in Python -->
 @dataclass
 class TracingConfig:
     enabled: bool = True
@@ -421,6 +450,7 @@ class TracingConfig:
     }
     attributes: dict[str, Any] = {}       # Custom attributes
 ```text
+<!-- Code example in TEXT -->
 
 ### Span Types
 
@@ -437,6 +467,7 @@ FraiseQL automatically creates spans for:
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 FRAISEQL_TRACING_ENABLED=true
 FRAISEQL_TRACING_SERVICE_NAME=my-service
 FRAISEQL_TRACING_SERVICE_VERSION=1.0.0
@@ -446,6 +477,7 @@ FRAISEQL_TRACING_EXPORT_FORMAT=otlp
 FRAISEQL_TRACING_EXPORT_ENDPOINT=localhost:4317
 FRAISEQL_TRACING_EXPORT_TIMEOUT_MS=30000
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -460,6 +492,7 @@ FraiseQL provides three Kubernetes probe endpoints:
 Quick response indicating if the process is still running.
 
 ```yaml
+<!-- Code example in YAML -->
 # Kubernetes deployment spec
 livenessProbe:
   httpGet:
@@ -468,12 +501,14 @@ livenessProbe:
   initialDelaySeconds: 10
   periodSeconds: 10
 ```text
+<!-- Code example in TEXT -->
 
 #### **Readiness Probe** (`/health/ready`)
 
 Comprehensive check indicating if the service is ready to accept traffic.
 
 ```yaml
+<!-- Code example in YAML -->
 readinessProbe:
   httpGet:
     path: /health/ready
@@ -481,18 +516,22 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 5
 ```text
+<!-- Code example in TEXT -->
 
 #### **Full Health** (`/health`)
 
 Complete health status with detailed information.
 
 ```bash
+<!-- Code example in BASH -->
 GET /health
 ```text
+<!-- Code example in TEXT -->
 
 Response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "healthy",
   "timestamp": "2025-01-11T15:30:00Z",
@@ -524,10 +563,12 @@ Response:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Specialized Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Database only
 GET /health/database
 
@@ -540,6 +581,7 @@ GET /health/graphql
 # Tracing only
 GET /health/tracing
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Assessment Rules
 
@@ -566,6 +608,7 @@ GET /health/tracing
 ### Configuration
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.health import setup_health_endpoints, HealthConfig
 
 config = HealthConfig(
@@ -580,6 +623,7 @@ config = HealthConfig(
 
 setup_health_endpoints(app, config)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -596,8 +640,10 @@ Automatic Persisted Queries (APQ) metrics track query caching performance and hi
 Interactive HTML dashboard with charts and statistics.
 
 ```bash
+<!-- Code example in BASH -->
 GET /admin/apq/dashboard
 ```text
+<!-- Code example in TEXT -->
 
 Features:
 
@@ -612,12 +658,15 @@ Features:
 Comprehensive JSON statistics.
 
 ```bash
+<!-- Code example in BASH -->
 GET /admin/apq/stats
 ```text
+<!-- Code example in TEXT -->
 
 Response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "query_cache": {
     "hits": 15000,
@@ -647,18 +696,22 @@ Response:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Top Queries (`/admin/apq/top-queries`)
 
 Most frequently accessed queries.
 
 ```bash
+<!-- Code example in BASH -->
 GET /admin/apq/top-queries?limit=10
 ```text
+<!-- Code example in TEXT -->
 
 Response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "queries": [
     {
@@ -673,14 +726,17 @@ Response:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Health (`/admin/apq/health`)
 
 APQ system health status.
 
 ```bash
+<!-- Code example in BASH -->
 GET /admin/apq/health
 ```text
+<!-- Code example in TEXT -->
 
 ### Metrics Collected
 
@@ -716,6 +772,7 @@ GET /admin/apq/health
 Analyze GraphQL query complexity before execution.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.analysis.query_complexity import analyze_query_complexity
 
 query = """
@@ -741,10 +798,12 @@ print(f"Field count: {score.field_count}")
 print(f"Max depth: {score.max_depth}")
 print(f"Cache weight: {score.cache_weight}")
 ```text
+<!-- Code example in TEXT -->
 
 ### Complexity Score Breakdown
 
 ```python
+<!-- Code example in Python -->
 @dataclass
 class ComplexityScore:
     field_count: int              # Base: 1 per field
@@ -755,10 +814,12 @@ class ComplexityScore:
     total_score: float            # Composite metric
     cache_weight: float           # 0.1-10.0 (>3.0 avoid caching)
 ```text
+<!-- Code example in TEXT -->
 
 ### Decision Making
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.analysis.query_complexity import should_cache_query
 
 if should_cache_query(query, threshold=200):
@@ -768,6 +829,7 @@ else:
     # Too complex, don't cache
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -778,6 +840,7 @@ else:
 Track individual database queries.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.monitoring import DatabaseMonitor
 
 monitor = DatabaseMonitor(
@@ -795,12 +858,14 @@ await monitor.record_query(QueryMetrics(
     is_slow=False
 ))
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Statistics
 
 Get aggregated statistics.
 
 ```python
+<!-- Code example in Python -->
 stats = await monitor.get_query_statistics()
 print(f"Total: {stats.total_count}")
 print(f"Success rate: {stats.success_rate}%")
@@ -808,22 +873,26 @@ print(f"Average duration: {stats.avg_duration_ms}ms")
 print(f"P95 duration: {stats.p95_duration_ms}ms")
 print(f"Slow queries: {stats.slow_count}")
 ```text
+<!-- Code example in TEXT -->
 
 ### Slow Query Detection
 
 Find queries exceeding threshold.
 
 ```python
+<!-- Code example in Python -->
 slow_queries = await monitor.get_slow_queries(limit=50)
 for query in slow_queries:
     print(f"{query.query_type} on {query.table}: {query.duration_ms}ms")
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Reports
 
 Time-windowed analysis.
 
 ```python
+<!-- Code example in Python -->
 from datetime import datetime, timedelta
 
 end = datetime.utcnow()
@@ -833,15 +902,18 @@ report = await monitor.get_performance_report(start, end)
 print(f"Queries/min: {report.queries_per_minute}")
 print(f"Slow queries: {report.slow_percentage}%")
 ```text
+<!-- Code example in TEXT -->
 
 ### Connection Pool Monitoring
 
 ```python
+<!-- Code example in Python -->
 pool_stats = monitor.get_pool_stats()
 print(f"Active: {pool_stats.active_connections}")
 print(f"Idle: {pool_stats.idle_connections}")
 print(f"Utilization: {pool_stats.utilization * 100:.1f}%")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -850,6 +922,7 @@ print(f"Utilization: {pool_stats.utilization * 100:.1f}%")
 ### Setup
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.monitoring import init_error_tracker
 
 tracker = init_error_tracker(
@@ -869,10 +942,12 @@ tracker = init_error_tracker(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Capturing Errors
 
 ```python
+<!-- Code example in Python -->
 try:
     result = await execute_query(...)
 except Exception as e:
@@ -885,20 +960,24 @@ except Exception as e:
         tags=["critical", "graphql"]
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Grouping
 
 Errors are automatically grouped by fingerprint:
 
 ```text
+<!-- Code example in TEXT -->
 SHA256({error_type}:{filename}:{line_number}:{function_name})
 ```text
+<!-- Code example in TEXT -->
 
 Same errors from different requests are grouped together.
 
 ### Query Errors
 
 ```json
+<!-- Code example in JSON -->
 {
   "error_id": "err_a1b2c3d4e5f6",
   "error_fingerprint": "a1b2c3d4e5f6g7h8",
@@ -928,10 +1007,12 @@ Same errors from different requests are grouped together.
   "status": "unresolved"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Management
 
 ```python
+<!-- Code example in Python -->
 # Get error details
 error = await tracker.get_error(error_id)
 
@@ -951,6 +1032,7 @@ unresolved = await tracker.get_unresolved_errors(limit=50)
 # Get error statistics
 stats = await tracker.get_error_stats(hours=24)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -961,6 +1043,7 @@ stats = await tracker.get_error_stats(hours=24)
 Automatically logged security-relevant events:
 
 ```python
+<!-- Code example in Python -->
 SecurityEventType:
 AUTH_SUCCESS, AUTH_FAILURE, AUTH_TOKEN_EXPIRED
 AUTHZ_DENIED, AUTHZ_FIELD_DENIED
@@ -971,10 +1054,12 @@ DATA_ACCESS_DENIED
 CONFIG_CHANGED
 SYSTEM_INTRUSION_ATTEMPT
 ```text
+<!-- Code example in TEXT -->
 
 ### Audit Event Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "event_type": "AUTH_FAILURE",
   "severity": "warning",
@@ -993,10 +1078,12 @@ SYSTEM_INTRUSION_ATTEMPT
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Accessing Audit Logs
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.audit import get_security_logger
 
 logger = get_security_logger()
@@ -1009,6 +1096,7 @@ events = await logger.get_events(
 for event in events:
     print(f"{event.timestamp} {event.event_type}: {event.reason}")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1019,6 +1107,7 @@ for event in events:
 Example Grafana JSON configuration:
 
 ```json
+<!-- Code example in JSON -->
 {
   "dashboard": {
     "title": "FraiseQL Monitoring",
@@ -1059,6 +1148,7 @@ Example Grafana JSON configuration:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Key Dashboards
 
@@ -1078,23 +1168,29 @@ Example Grafana JSON configuration:
 **Development**:
 
 ```python
+<!-- Code example in Python -->
 TracingConfig(sample_rate=1.0)  # 100%
 MetricsConfig(enabled=True)      # All metrics
 ```text
+<!-- Code example in TEXT -->
 
 **Staging**:
 
 ```python
+<!-- Code example in Python -->
 TracingConfig(sample_rate=0.5)   # 50%
 MetricsConfig(enabled=True)      # All metrics
 ```text
+<!-- Code example in TEXT -->
 
 **Production**:
 
 ```python
+<!-- Code example in Python -->
 TracingConfig(sample_rate=0.1)   # 10% (adjust based on volume)
 MetricsConfig(enabled=True)      # All metrics
 ```text
+<!-- Code example in TEXT -->
 
 ### Alert Thresholds
 

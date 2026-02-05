@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Observer Implementation Guide
+description: Step-by-step implementation guide for setting up event-driven workflows using FraiseQL Observers and webhooks.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Observer Implementation Guide
 
 **Status:** ✅ Production Ready
@@ -21,7 +29,10 @@ FraiseQL Observers react to database changes (mutations, CDC events) and trigger
 
 ### Observer Flow Diagram
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Mutation: "GraphQL Mutation\n(Create, Update, Delete)" {
@@ -78,7 +89,8 @@ Action -> Webhook
 Webhook -> Retry: "Failed"
 Webhook -> Success: "Success"
 Retry -> Webhook
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -87,6 +99,7 @@ Retry -> Webhook
 ### Step 1: Define Observer
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class UserCreatedNotification:
     """Trigger when new user created."""
@@ -102,22 +115,26 @@ class UserCreatedNotification:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure Webhook Provider
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [FraiseQL.webhooks.discord]
 enabled = true
 timeout_seconds = 30
 retry_max_attempts = 3
 retry_backoff_ms = 1000
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Deploy and Test
 
 ```bash
+<!-- Code example in BASH -->
 # Compile
 FraiseQL compile schema.py
 
@@ -127,7 +144,8 @@ FraiseQL serve
 # Create user and watch Discord notification appear
 curl -X POST http://localhost:5000/graphql \
   -d '{"query": "mutation { createUser(name: \"Alice\", email: \"alice@example.com\") { id } }"}'
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -144,6 +162,7 @@ curl -X POST http://localhost:5000/graphql \
 **FraiseQL Configuration:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class OrderNotification:
     trigger = Event.CREATE
@@ -167,7 +186,8 @@ class OrderNotification:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Slack Webhooks
 
@@ -182,6 +202,7 @@ class OrderNotification:
 **FraiseQL Configuration:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class AlertHighValue Order:
     trigger = Event.CREATE
@@ -207,7 +228,8 @@ class AlertHighValue Order:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GitHub Integration
 
@@ -222,6 +244,7 @@ class AlertHighValue Order:
 **FraiseQL Observer (Bidirectional):**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class SyncIssueToDatabase:
     """When GitHub issue created, store in database."""
@@ -245,13 +268,15 @@ class SyncIssueToDatabase:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Email Notifications
 
 **Setup SMTP:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.email]
 provider = "smtp"
 smtp_host = "smtp.gmail.com"
@@ -260,11 +285,13 @@ smtp_username = "noreply@example.com"
 smtp_password = "${SMTP_PASSWORD}"  # Use environment variable!
 from_address = "noreply@example.com"
 from_name = "FraiseQL App"
-```
+```text
+<!-- Code example in TEXT -->
 
 **FraiseQL Observer:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class SendWelcomeEmail:
     trigger = Event.CREATE
@@ -281,19 +308,23 @@ class SendWelcomeEmail:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Search Indexing (Elasticsearch)
 
 **Setup Elasticsearch:**
 
 ```bash
+<!-- Code example in BASH -->
 docker run -d -p 9200:9200 -e "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.0.0
-```
+```text
+<!-- Code example in TEXT -->
 
 **FraiseQL Observer:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class IndexProductInSearch:
     trigger = Event.CREATE | Event.UPDATE
@@ -312,7 +343,8 @@ class IndexProductInSearch:
             }
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -321,6 +353,7 @@ class IndexProductInSearch:
 ### Pattern 1: Conditional Actions
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class ConditionalNotification:
     trigger = Event.UPDATE
@@ -342,11 +375,13 @@ class ConditionalNotification:
             template="high_value_order"
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Chained Actions
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class OrderWorkflow:
     trigger = Event.CREATE
@@ -365,11 +400,13 @@ class OrderWorkflow:
         # 4. Index for search
         Http(url="http://elasticsearch/...", method="POST")
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Rate-Limited Actions
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class RateLimitedAlert:
     trigger = Event.CREATE
@@ -382,7 +419,8 @@ class RateLimitedAlert:
             rate_limit=RateLimit(max_per_minute=5)  # Max 5 alerts/minute
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -391,6 +429,7 @@ class RateLimitedAlert:
 ### Automatic Retries
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class ResilientWebhook:
     trigger = Event.CREATE
@@ -407,11 +446,13 @@ class ResilientWebhook:
             )
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Callbacks
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class HandleWebhookFailure:
     trigger = Event.CREATE
@@ -428,7 +469,8 @@ class HandleWebhookFailure:
             })
         )
     ]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -437,6 +479,7 @@ class HandleWebhookFailure:
 ### Unit Test
 
 ```python
+<!-- Code example in Python -->
 import pytest
 from unittest.mock import patch
 
@@ -453,11 +496,13 @@ def test_user_created_notification(mock_webhook):
     mock_webhook.assert_called_once()
     call_args = mock_webhook.call_args
     assert "Alice" in call_args.kwargs["payload"]["content"]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration Test
 
 ```python
+<!-- Code example in Python -->
 @pytest.mark.integration
 async def test_observer_end_to_end():
     # Start test server
@@ -478,7 +523,8 @@ async def test_observer_end_to_end():
     # Verify webhook was called
     assert len(webhook_calls) == 1
     assert webhook_calls[0]["user"]["name"] == "Alice"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -487,6 +533,7 @@ async def test_observer_end_to_end():
 ### Monitor Observer Execution
 
 ```bash
+<!-- Code example in BASH -->
 # Check observer logs
 tail -f /var/log/FraiseQL-observers.log | grep "OBSERVER"
 
@@ -494,19 +541,23 @@ tail -f /var/log/FraiseQL-observers.log | grep "OBSERVER"
 # [OBSERVER] OrderNotification triggered for Order#123
 # [WEBHOOK] Sending to slack://...
 # [WEBHOOK] Status: 200 OK
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Alert on Observer Failures
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.monitoring]
 observer_failure_alert = true
 observer_failure_threshold = 5  # Alert if 5+ failures in 5 minutes
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Metrics to Track
 
 ```prometheus
+<!-- Code example in PROMETHEUS -->
 # Observer metrics
 fraiseql_observer_executions_total{observer="OrderNotification", status="success"}
 fraiseql_observer_executions_total{observer="OrderNotification", status="failure"}
@@ -514,7 +565,8 @@ fraiseql_observer_latency_seconds{observer="OrderNotification", quantile="p95"}
 fraiseql_webhook_deliveries_total{provider="slack", status="success"}
 fraiseql_webhook_deliveries_total{provider="slack", status="failure"}
 fraiseql_webhook_latency_seconds{provider="slack", quantile="p95"}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

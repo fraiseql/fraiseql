@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Versioning Strategy
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Versioning Strategy
 
 **Date:** January 2026
@@ -49,34 +57,40 @@ FraiseQL adheres to semantic versioning with three-component version numbers:
 ### 1.1 Version Format
 
 ```text
+<!-- Code example in TEXT -->
 MAJOR.MINOR.PATCH
   |      |      |
   |      |      └── Bug fixes and patches (no breaking changes)
   |      └────────── Features and improvements (backward-compatible)
   └──────────────── Breaking changes (incompatible with prior MAJOR version)
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Version Examples
 
 ```text
+<!-- Code example in TEXT -->
 
 2.0.0   → Framework v2, first release
 2.1.0   → Add new feature, backward-compatible with 2.0.x
 2.1.1   → Bug fix, backward-compatible with 2.1.0
 3.0.0   → Incompatible changes, requires migration from 2.x
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Pre-release Versions
 
 For beta testing and early access:
 
 ```text
+<!-- Code example in TEXT -->
 
 2.0.0-beta.1    → Beta version, may have breaking changes
 2.0.0-rc.1      → Release candidate, likely stable
 2.0.0-rc.2      → Second RC before GA
 2.0.0            → General Availability (stable)
 ```text
+<!-- Code example in TEXT -->
 
 **Stability commitment:**
 
@@ -98,6 +112,7 @@ A breaking change is **any modification that requires code changes in user schem
 **Removals** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Remove a field
 # 1.x
 type User {
@@ -108,10 +123,12 @@ type User {
 
 # Would require 2.0.0
 ```text
+<!-- Code example in TEXT -->
 
 **Behavioral changes** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Change return type
 # 1.x
 type Query {
@@ -121,10 +138,12 @@ type Query {
 # 2.x would return User | null → User! (non-null)
 # Clients that didn't handle null must update code
 ```text
+<!-- Code example in TEXT -->
 
 **Argument changes** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Add required argument
 # 1.x
 type Query {
@@ -136,10 +155,12 @@ type Query {
   posts(limit: Int!): [Post!]!  # New required argument
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Input type changes** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Add required field to input
 # 1.x
 input CreateUserInput {
@@ -154,10 +175,12 @@ input CreateUserInput {
   roles: [String!]!  # New required field
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Enum value removal** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Remove enum value
 # 1.x
 enum Role {
@@ -168,12 +191,14 @@ enum Role {
 
 # 2.x removes GUEST
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.2 Operator Changes Breaking Changes
 
 **Removing operators** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Remove an operator
 # 1.x supports: eq, ne, gt, gte, lt, lte, in, nin, contains, regex
 # 2.x removes: regex (for performance reasons)
@@ -181,21 +206,25 @@ enum Role {
 
 # Users must rewrite queries using contains or migrate to database functions
 ```text
+<!-- Code example in TEXT -->
 
 **Changing operator semantics** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Change operator behavior
 # 1.x: in operator is case-sensitive
 # 2.x: in operator is case-insensitive (SQL ILIKE)
 # Queries that relied on case-sensitivity break
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.3 Authorization Changes Breaking Changes
 
 **Removing authorization rules** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Remove field-level masking
 # 1.x: User.ssn field masked for non-admins
 # 2.x: Remove masking (now exposed to everyone)
@@ -203,35 +232,42 @@ enum Role {
 
 # This is a MAJOR version change with security implications
 ```text
+<!-- Code example in TEXT -->
 
 **Adding required authorization rules** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Add row-level security that filters results
 # 1.x: Query returns all posts
 # 2.x: Only return posts by current user
 # Queries that expected all posts now get fewer results
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.4 Error Code Changes Breaking Changes
 
 **Removing error codes** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Error code E_VALIDATION_EMAIL_001 removed
 # 1.x: query fails with E_VALIDATION_EMAIL_001
 # 2.x: Different error code or different error format
 # Client error handling breaks
 ```text
+<!-- Code example in TEXT -->
 
 **Changing error code semantics** (require MAJOR bump):
 
 ```python
+<!-- Code example in Python -->
 # ❌ BREAKING: Change what E_DB_POSTGRES_DEADLOCK_303 means
 # 1.x: Means database deadlock (retry with exponential backoff)
 # 2.x: Now means connection timeout (retry with circuit breaker)
 # Client retry logic becomes ineffective
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Error codes are part of the contract and **never** change within a MAJOR version.
 
@@ -240,6 +276,7 @@ enum Role {
 **Changing compiled schema structure** (require MAJOR bump):
 
 ```text
+<!-- Code example in TEXT -->
 # ❌ BREAKING: Compiled schema JSON structure changes
 # 1.x CompiledSchema:
 {
@@ -258,12 +295,14 @@ enum Role {
 
 # Runtime cannot load 2.x schemas if built for 1.x framework
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.6 Type System Breaking Changes
 
 **Removing a custom scalar** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Remove custom scalar
 # 1.x
 scalar DateTime
@@ -276,15 +315,18 @@ type Event {
 # 2.x removes DateTime scalar
 # Queries fail; schemas using DateTime cannot compile
 ```text
+<!-- Code example in TEXT -->
 
 **Changing scalar serialization** (require MAJOR bump):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ❌ BREAKING: Change how UUID is serialized
 # 1.x: UUID serialized as "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 # 2.x: UUID serialized as "f47ac10b58cc4372a5670e02b2c3d479" (no hyphens)
 # Clients parsing UUID strings break
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Non-Breaking Changes
 
@@ -295,6 +337,7 @@ These changes are safe within the same MAJOR version:
 **Adding new fields** (backward-compatible):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ SAFE: Add optional field
 # 1.x
 type User {
@@ -312,20 +355,24 @@ type User {
   verified_at: DateTime   # New optional field
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Adding new types** (backward-compatible):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ SAFE: Add new type and query
 # 1.x types: User, Post, Comment
 
 # 1.1 adds: Product type and products query
 # Existing clients unaffected
 ```text
+<!-- Code example in TEXT -->
 
 **Adding new enum values** (backward-compatible):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ SAFE: Add enum value (if clients ignore unknown values)
 # 1.x
 enum Role {
@@ -342,10 +389,12 @@ enum Role {
 
 # Clients that don't use SUPER_ADMIN are unaffected
 ```text
+<!-- Code example in TEXT -->
 
 **Adding optional arguments** (backward-compatible):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ SAFE: Add optional argument
 # 1.x
 type Query {
@@ -359,77 +408,94 @@ type Query {
 
 # Existing queries without arguments still work
 ```text
+<!-- Code example in TEXT -->
 
 **Adding new operators** (backward-compatible):
 
 ```python
+<!-- Code example in Python -->
 # ✅ SAFE: Add new operator
 # 1.x supports: eq, ne, gt, gte, lt, lte, in, nin, contains
 
 # 1.1 adds: startsWith, endsWith, regex
 # Existing queries work unchanged
 ```text
+<!-- Code example in TEXT -->
 
 **Adding field-level masking** (backward-compatible):
 
 ```python
+<!-- Code example in Python -->
 # ✅ SAFE: Add masking that previously wasn't masked (restricts data, not expands it)
 # 1.x: User.ssn visible to everyone
 # 1.1: User.ssn now masked for non-admins (returns null for regular users)
 # Admin clients still see ssn; regular clients see null (which is safe)
 ```text
+<!-- Code example in TEXT -->
 
 **Expanding authorization** (backward-compatible):
 
 ```python
+<!-- Code example in Python -->
 # ✅ SAFE: Make row-level security more restrictive (fewer results is safe)
 # 1.x: Query returns posts from all users
 # 1.1: Query now only returns current user's posts
 # Results are filtered but authorization is stricter (more secure)
 ```text
+<!-- Code example in TEXT -->
 
 **Adding new error codes** (backward-compatible):
 
 ```python
+<!-- Code example in Python -->
 # ✅ SAFE: Add new error codes (clients ignore codes they don't recognize)
 # 1.x error codes: E_VALIDATION_*, E_AUTH_*, E_DB_*
 # 1.1 adds: E_RATE_LIMIT_* (new category)
 # Existing error handling still works; clients can add handling for new codes
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.2 Safe Modifications (PATCH version bump)
 
 **Performance improvements** (patch):
 
 ```text
+<!-- Code example in TEXT -->
 # ✅ SAFE: Query execution faster, same semantics
 # 1.0.0 → 1.0.1: Database query optimized from 100ms to 50ms
 # Behavior unchanged; only performance changes
 ```text
+<!-- Code example in TEXT -->
 
 **Bug fixes** (patch):
 
 ```text
+<!-- Code example in TEXT -->
 # ✅ SAFE: Fix incorrect behavior to match specification
 # 1.0.0 had a bug: "in" operator case-sensitive despite spec saying case-insensitive
 # 1.0.1: Fix bug, "in" operator now case-insensitive per spec
 # Note: This is a bug fix (behavior was wrong), not a breaking change
 ```text
+<!-- Code example in TEXT -->
 
 **Documentation updates** (patch):
 
 ```text
+<!-- Code example in TEXT -->
 # ✅ SAFE: Documentation corrections, no code changes
 # 1.0.0 → 1.0.1: Update docs for clarity
 ```text
+<!-- Code example in TEXT -->
 
 **Internal refactoring** (patch):
 
 ```text
+<!-- Code example in TEXT -->
 # ✅ SAFE: Rewrite internals without changing external behavior
 # 1.0.0 → 1.0.1: Rewrite Rust pipeline for performance
 # Compiled schema output identical; only internals change
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -440,18 +506,21 @@ type Query {
 FraiseQL follows a **three-phase deprecation lifecycle** before removal:
 
 ```text
+<!-- Code example in TEXT -->
 ANNOUNCEMENT (Minor Version N)
      ↓
 DEPRECATION (Minor Versions N to N+3)
      ↓
 REMOVAL (Major Version M+1)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Deprecation Timeline (3-Year Stability Window)
 
 FraiseQL commits to a **3-year support window** for each MAJOR version:
 
 ```text
+<!-- Code example in TEXT -->
 v2.0.0 Released (Year 0)
        ├─ v2.1.0 (Year 0, Q2) - Add new feature, announce deprecation
        ├─ v2.2.0 (Year 0, Q4) - Feature fully deprecated
@@ -464,12 +533,14 @@ v2.0.0 Released (Year 0)
 v3.0.0 Released (Year 3)
        └─ v2.x.x no longer supported (Jan 1, Year 3)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Deprecation Announcement Format
 
 When a feature is deprecated, the changelog includes:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 ### v2.1.0 (Deprecation Announcement)
 
 #### Deprecated
@@ -485,12 +556,14 @@ When a feature is deprecated, the changelog includes:
   - **Timeline**: Deprecated v2.1, removal in v3.0
   - **Help**: See migration guide: https://docs.FraiseQL.io/migration/v2.1-mask-deprecation
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Deprecation Warning in Runtime
 
 When deprecated features are used:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query uses deprecated regex operator
 query GetPosts {
   posts(where: { title: { regex: "/draft/" } }) {
@@ -499,10 +572,12 @@ query GetPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response includes deprecation warning:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "posts": [...]
@@ -523,6 +598,7 @@ query GetPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.5 Migration Guides
 
@@ -537,12 +613,14 @@ For each deprecation, FraiseQL provides:
 **Example migration guide structure:**
 
 ```text
+<!-- Code example in TEXT -->
 docs/migration/
 ├── v2.1-regex-deprecation.md
 ├── v2.2-field-masking.md
 ├── v2.3-custom-scalars.md
 └── v3.0-breaking-changes.md
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -555,6 +633,7 @@ Users write schemas in Python (or YAML/TypeScript). These schemas are **versione
 #### 4.1.1 User Schema Version Format
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.version("1.0.0")
 @FraiseQL.type
 class User:
@@ -562,10 +641,12 @@ class User:
     id: ID
     name: str
 ```text
+<!-- Code example in TEXT -->
 
 **User schema versions are independent of framework version:**
 
 ```text
+<!-- Code example in TEXT -->
 Framework v2.0.0
 └─ User schema v1.0.0
    └─ Posts schema v2.5.0
@@ -581,6 +662,7 @@ Framework v3.0.0 (breaking changes)
    └─ Posts schema v3.0.0
    └─ Comments schema v2.0.0
 ```text
+<!-- Code example in TEXT -->
 
 #### 4.1.2 Schema Backward Compatibility
 
@@ -589,6 +671,7 @@ Framework v3.0.0 (breaking changes)
 FraiseQL enforces backward-compatible schema changes:
 
 ```python
+<!-- Code example in Python -->
 # v1.0.0
 @FraiseQL.type
 class User:
@@ -605,12 +688,14 @@ class User:
     phone: str | None = None       # New optional field
     created_at: datetime | None = None  # New optional field
 ```text
+<!-- Code example in TEXT -->
 
 **Between framework MAJOR versions:**
 
 Schema changes may require migration:
 
 ```python
+<!-- Code example in Python -->
 # Framework v2.x
 @FraiseQL.type
 class User:
@@ -626,12 +711,14 @@ class User:
     email: str  # Now required (breaking change in User schema)
     profile: UserProfile  # New required nested type
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Compiled Schema Versioning
 
 The **compiled schema** (internal IR) is versioned separately from user schemas:
 
 ```json
+<!-- Code example in JSON -->
 {
   "framework_version": "2.0.0",
   "compiled_schema_version": 1,
@@ -641,12 +728,14 @@ The **compiled schema** (internal IR) is versioned separately from user schemas:
   "subscriptions": {...}
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 4.2.1 Compiled Schema Format Evolution
 
 Changes to compiled schema JSON format trigger framework MAJOR version bump:
 
 ```json
+<!-- Code example in JSON -->
 # Framework 2.x compiled schema
 {
   "version": "2.0.0",
@@ -660,6 +749,7 @@ Changes to compiled schema JSON format trigger framework MAJOR version bump:
   "entities": {...}  # Renamed from "types"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Impact**: Compiled schemas are not portable across major framework versions.
 
@@ -668,6 +758,7 @@ Changes to compiled schema JSON format trigger framework MAJOR version bump:
 The runtime includes the compiled schema **at build time**:
 
 ```text
+<!-- Code example in TEXT -->
 User defines schema.py
        ↓
 Compiler compiles to compiled-schema.json
@@ -676,6 +767,7 @@ Runtime packages compiled-schema.json with code
        ↓
 Runtime starts with built-in schema (no compilation at runtime)
 ```text
+<!-- Code example in TEXT -->
 
 **Schema is immutable at runtime** — no runtime recompilation.
 
@@ -688,6 +780,7 @@ Runtime starts with built-in schema (no compilation at runtime)
 The **GraphQL schema** (what clients see) is version-locked with the framework:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # FraiseQL v2.0.0
 type Query {
   user(id: ID!): User
@@ -696,6 +789,7 @@ type Query {
 # All queries compile against THIS schema
 # Schema is part of framework, not separately versioned
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Query Compatibility
 
@@ -704,6 +798,7 @@ type Query {
 Queries remain compatible:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query written for v2.0.0
 query GetUser {
   user(id: "123") {
@@ -716,12 +811,14 @@ query GetUser {
 # Same query works on v2.1.0, v2.2.0, v2.3.0, v2.4.0
 # New optional fields added in v2.1+, but this query unchanged
 ```text
+<!-- Code example in TEXT -->
 
 **Across framework MAJOR versions (e.g., v2.x to v3.0):**
 
 Queries may break and require migration:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Query written for v2.x
 query GetPosts {
   posts(filter: { author_id: "123" }) {
@@ -738,12 +835,14 @@ query GetPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Query Validation
 
 FraiseQL validates all queries at **compile time**, not runtime:
 
 ```python
+<!-- Code example in Python -->
 # Compile-time: Query validation
 schema = FraiseQL.compile(schema_definition)
 
@@ -758,6 +857,7 @@ query = """
 
 schema.validate(query)  # Raises CompilationError immediately
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -772,6 +872,7 @@ schema.validate(query)  # Raises CompilationError immediately
 Error codes follow deterministic format:
 
 ```text
+<!-- Code example in TEXT -->
 E_CATEGORY_SUBCATEGORY_NUMBER
 
 E_VALIDATION_EMAIL_001      → Category: VALIDATION, Subcategory: EMAIL, Number: 001
@@ -779,12 +880,14 @@ E_DB_POSTGRES_DEADLOCK_303  → Category: DB, Subcategory: POSTGRES_DEADLOCK, Nu
 E_AUTH_PERMISSION_401       → Category: AUTH, Subcategory: PERMISSION, Number: 401
 E_FED_SUBGRAPH_TIMEOUT_502  → Category: FED, Subcategory: SUBGRAPH_TIMEOUT, Number: 502
 ```text
+<!-- Code example in TEXT -->
 
 #### 6.1.2 Error Code Stability Rules
 
 **Within same MAJOR version:**
 
 ```python
+<!-- Code example in Python -->
 # v2.0.0: Validation error for empty email
 error_code = "E_VALIDATION_EMAIL_001"
 message = "Email cannot be empty"
@@ -797,6 +900,7 @@ message = "Email cannot be empty"
 error_code = "E_VALIDATION_EMAIL_001"
 message = "Email cannot be empty"
 ```text
+<!-- Code example in TEXT -->
 
 **Error messages can change** (provide more details), but codes and semantics are locked.
 
@@ -805,6 +909,7 @@ message = "Email cannot be empty"
 New error codes are safe to add in MINOR versions:
 
 ```python
+<!-- Code example in Python -->
 # v2.0.0 error codes
 E_VALIDATION_EMAIL_001    # Email cannot be empty
 E_VALIDATION_EMAIL_002    # Email format invalid
@@ -812,6 +917,7 @@ E_VALIDATION_EMAIL_002    # Email format invalid
 # v2.1.0 adds new error code
 E_VALIDATION_EMAIL_003    # Email already exists (new in v2.1)
 ```text
+<!-- Code example in TEXT -->
 
 **Client impact**: Clients that don't handle `E_VALIDATION_EMAIL_003` still work; they receive an error they didn't explicitly handle, which is backward-compatible.
 
@@ -820,12 +926,14 @@ E_VALIDATION_EMAIL_003    # Email already exists (new in v2.1)
 Removing error codes is a **BREAKING CHANGE** requiring MAJOR version bump:
 
 ```python
+<!-- Code example in Python -->
 # v2.x
 E_VALIDATION_EMAIL_002    # Email format invalid
 
 # Cannot be removed in v2.5 (would break clients handling this code)
 # Can only be removed in v3.0 (MAJOR version)
 ```text
+<!-- Code example in TEXT -->
 
 **Migration**: Deprecate error code in v2.x, remove in v3.0.
 
@@ -834,6 +942,7 @@ E_VALIDATION_EMAIL_002    # Email format invalid
 Changing what an error code means is a **BREAKING CHANGE**:
 
 ```python
+<!-- Code example in Python -->
 # v2.0: E_DB_POSTGRES_TIMEOUT_304 = Query execution timeout
 #       Client retries with exponential backoff
 
@@ -844,6 +953,7 @@ Changing what an error code means is a **BREAKING CHANGE**:
 # Solution: Create new error code E_DB_POSTGRES_CONN_TIMEOUT_305
 #           Keep 304 for query timeout
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -856,6 +966,7 @@ Changing what an error code means is a **BREAKING CHANGE**:
 **Long answer**: The runtime is **single-schema**. You select which compiled schema to load at startup:
 
 ```rust
+<!-- Code example in RUST -->
 // Rust runtime initialization
 let compiled_schema = load_compiled_schema("v2.0.0");
 let runtime = FraiseQLRuntime::new(compiled_schema);
@@ -863,12 +974,14 @@ let runtime = FraiseQLRuntime::new(compiled_schema);
 // All queries execute against v2.0.0 schema
 // Cannot mix v2.0 and v2.1 schemas in same runtime
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Multiple Versions Across Multiple Instances
 
 To run multiple versions simultaneously, deploy multiple runtime instances:
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────┐
 │ API Gateway                     │
 └──────────┬──────────────────────┘
@@ -882,6 +995,7 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
            └─→ Runtime Instance C (Framework v2.4.0)
                └─ Schema v1.2.0
 ```text
+<!-- Code example in TEXT -->
 
 **Client routing**:
 
@@ -894,6 +1008,7 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
 To migrate from Framework v2.0 to v2.1:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Deploy new runtime instance with Framework v2.1
 2. Route new requests to v2.1 instance
@@ -901,6 +1016,7 @@ To migrate from Framework v2.0 to v2.1:
 4. Gradually migrate clients to v2.1
 5. Once all clients migrated, shut down v2.0 instance
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -911,6 +1027,7 @@ To migrate from Framework v2.0 to v2.1:
 Before upgrading from v2.x to v3.0:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 ### v2.x → v3.0 Pre-Upgrade Checklist
 
 - [ ] Review v3.0 breaking changes guide
@@ -953,12 +1070,14 @@ Before upgrading from v2.x to v3.0:
   [ ] Check for regressions
   [ ] Verify error handling performance
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Version Coexistence Window
 
 During migration from v2.x to v3.0:
 
 ```text
+<!-- Code example in TEXT -->
 Timeline:
   Week 0: v3.0 released
   Week 1: Deploy v3.0 canary, route 5% traffic
@@ -971,12 +1090,14 @@ Timeline:
 
 Duration: ~7 weeks for full migration
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Rollback Window
 
 If issues arise post-upgrade:
 
 ```text
+<!-- Code example in TEXT -->
 If critical issue detected within 48 hours of upgrade:
   → Can rollback to v2.x (keep v2.x instance running during migration)
 
@@ -985,6 +1106,7 @@ If critical issue detected after 7 days:
   → Must fix forward in v3.x
   → Will release v3.0.1 hotfix quickly
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -995,6 +1117,7 @@ If critical issue detected after 7 days:
 Clients lock to a specific FraiseQL framework version:
 
 ```python
+<!-- Code example in Python -->
 # Client code targeting FraiseQL v2.x
 from FraiseQL import Client
 
@@ -1013,12 +1136,14 @@ response = client.execute("""
   }
 """)
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Client Upgrade Path
 
 When server upgrades framework:
 
 ```text
+<!-- Code example in TEXT -->
 Server runs v2.0.0
 └─ Client sends queries
    └─ Server executes against v2.0.0 schema
@@ -1033,12 +1158,14 @@ Server upgrades to v3.0.0 (breaking changes)
    └─ Need to update client code
    └─ Recompile client code for v3.0.0
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Version Negotiation
 
 Runtime can optionally advertise its version:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # GraphQL introspection
 {
   __schema {
@@ -1057,10 +1184,12 @@ Response:
 X-FraiseQL-Version: 2.1.0
 Content-Type: application/json
 ```text
+<!-- Code example in TEXT -->
 
 **Client usage**:
 
 ```python
+<!-- Code example in Python -->
 # Check server version before executing query
 version = response.headers.get('X-FraiseQL-Version')
 if version.startswith('2.0'):
@@ -1073,6 +1202,7 @@ else:
     # Unsupported version
     raise IncompatibleVersionError(version)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1083,6 +1213,7 @@ else:
 When users compile schemas, they specify target framework version:
 
 ```bash
+<!-- Code example in BASH -->
 # Compile for specific framework version
 FraiseQL compile schema.py --target 2.0.0
 
@@ -1092,22 +1223,26 @@ FraiseQL compile schema.py --target latest
 # Compile with version compatibility check
 FraiseQL compile schema.py --target 2.0.0 --strict
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Compiled Schema Portability
 
 Compiled schemas are **not portable across framework versions**:
 
 ```text
+<!-- Code example in TEXT -->
 Compiled schema built with FraiseQL v2.0.0
     ↓
 Runtime v2.0.0: ✅ Works
 Runtime v2.1.0: ✅ Works (backward-compatible)
 Runtime v3.0.0: ❌ Incompatible (different format)
 ```text
+<!-- Code example in TEXT -->
 
 **To upgrade**:
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Recompile schema with new framework version
 FraiseQL compile schema.py --target 3.0.0
 
@@ -1117,6 +1252,7 @@ docker build -t my-api:v3 --build-arg SCHEMA=compiled-schema-v3.json .
 # 3. Deploy new runtime instance
 docker run my-api:v3
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1127,34 +1263,40 @@ docker run my-api:v3
 Client SDKs (Python, TypeScript, Go, Rust) are versioned separately from framework:
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL Framework: v2.1.0
 Python SDK:        v2.1.0  (matches framework)
 TypeScript SDK:    v2.1.1  (patch ahead for bug fixes)
 Go SDK:            v2.0.5  (behind, still testing)
 Rust SDK:          v2.1.0  (matches framework)
 ```text
+<!-- Code example in TEXT -->
 
 **Compatibility matrix**:
 
 ```text
+<!-- Code example in TEXT -->
 SDK v2.1.0 can connect to:
   - Framework v2.0.x ✅ (backward-compatible)
   - Framework v2.1.x ✅ (same version)
   - Framework v2.2+ ✅ (forward-compatible for read)
   - Framework v3.0 ❌ (breaking changes)
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Tool Versions
 
 Development tools have independent versions:
 
 ```text
+<!-- Code example in TEXT -->
 Framework:           v2.1.0
 Compiler:            v2.1.0  (same as framework)
 Migration tool:      v1.3.2  (separate versioning)
 Schema validator:    v2.1.0  (same as framework)
 Performance profiler: v1.0.0 (separate versioning)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1165,6 +1307,7 @@ Performance profiler: v1.0.0 (separate versioning)
 Every release includes a detailed changelog:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 # v2.1.0 Changelog
 
 **Release Date:** January 15, 2024
@@ -1226,12 +1369,14 @@ Every release includes a detailed changelog:
 - Updated federation architecture guide
 - New error code reference
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.2 Migration Guides
 
 For each MAJOR version upgrade, provide detailed guide:
 
 ```text
+<!-- Code example in TEXT -->
 docs/migration/
 ├── v2-to-v3.md                    # Main migration guide
 ├── v3-breaking-changes.md         # What breaks
@@ -1241,12 +1386,14 @@ docs/migration/
 ├── v3-performance-guide.md        # Performance characteristics
 └── v3-troubleshooting.md          # Common issues and solutions
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.3 Deprecation Announcements
 
 Deprecations are announced prominently:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 # ⚠️ Deprecation Notice: `regex` Operator
 
 **Announced in:** v2.1.0
@@ -1260,6 +1407,7 @@ The `regex` operator provides functionality better served by `contains` with sup
 
 ### Before (v2.x)
 ```graphql
+<!-- Code example in GraphQL -->
 query SearchPosts {
   posts(where: { title: { regex: "/^draft/" } }) {
     id
@@ -1267,10 +1415,12 @@ query SearchPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### After (v2.1+)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query SearchPosts {
   posts(where: { title: { startsWith: "draft" } }) {
     id
@@ -1278,6 +1428,7 @@ query SearchPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Impact
 
@@ -1298,6 +1449,7 @@ query SearchPosts {
 - Issues: <https://github.com/FraiseQL/FraiseQL/issues>
 
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1308,6 +1460,7 @@ query SearchPosts {
 FraiseQL commits to support windows for each MAJOR version:
 
 ```text
+<!-- Code example in TEXT -->
 
 v2.x (v2.0.0 released Date X)
   ├─ Active support: 2 years from release
@@ -1322,12 +1475,14 @@ v3.x (released 3 years after v2.0)
   └─ ...continues pattern...
 
 ```text
+<!-- Code example in TEXT -->
 
 ### 13.2 Security Patches
 
 Security vulnerabilities are backported to all supported versions:
 
 ```text
+<!-- Code example in TEXT -->
 
 Security vulnerability discovered in v3.0.0
   ├─ v3.0.1 released with patch (immediate)
@@ -1336,12 +1491,14 @@ Security vulnerability discovered in v3.0.0
   └─ v2.3.1 released with patch (same day)
 
 ```text
+<!-- Code example in TEXT -->
 
 ### 13.3 End of Life (EOL) Handling
 
 When a MAJOR version reaches end of life:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 # v2.x End of Life (December 31, 2026)
 
 **Support ended:** January 1, 2027
@@ -1360,6 +1517,7 @@ To continue receiving support:
 
 We recommend upgrading before December 31, 2026.
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1368,6 +1526,7 @@ We recommend upgrading before December 31, 2026.
 Use this decision tree to determine if a change requires version bump:
 
 ```text
+<!-- Code example in TEXT -->
 Does the change modify user-facing behavior?
 │
 ├─ NO
@@ -1385,6 +1544,7 @@ Does the change modify user-facing behavior?
       └─ YES (removal, incompatibility, behavior change)
          └─ MAJOR version (v2.0.0 → v3.0.0)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1441,6 +1601,7 @@ Does the change modify user-facing behavior?
 **Scenario**: Add optional `phone` field to User type.
 
 ```python
+<!-- Code example in Python -->
 # v2.0.0
 @FraiseQL.type
 class User:
@@ -1459,6 +1620,7 @@ class User:
 # Queries written for v2.0.0 still work in v2.1.0
 # Clients can optionally request 'phone' field
 ```text
+<!-- Code example in TEXT -->
 
 **Version bump**: `2.0.0` → `2.1.0` (MINOR)
 
@@ -1467,6 +1629,7 @@ class User:
 **Scenario**: Remove `regex` operator.
 
 ```python
+<!-- Code example in Python -->
 # v2.x
 # Query with regex operator (works)
 query GetPosts {
@@ -1491,6 +1654,7 @@ query GetPosts {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Version bump**: `2.x.x` → `3.0.0` (MAJOR)
 
@@ -1499,18 +1663,21 @@ query GetPosts {
 **Scenario**: Fix WHERE clause filtering on hybrid tables (Issue #124).
 
 ```python
+<!-- Code example in Python -->
 # v2.0.0
 # WHERE clause not applied to SQL columns on hybrid tables (BUG)
 
 # v2.0.1
 # WHERE clause correctly applied to SQL columns (FIXED)
 ```text
+<!-- Code example in TEXT -->
 
 **Version bump**: `2.0.0` → `2.0.1` (PATCH)
 
 ### 16.4 Example: Deprecation then Removal
 
 ```text
+<!-- Code example in TEXT -->
 Timeline:
   v2.1.0 (Year 0): Announce deprecation of 'regex' operator
   v2.2.0 (Year 0): Still works, warnings shown
@@ -1521,6 +1688,7 @@ Timeline:
 
 Migration required during 3-year window (v2.1 to v3.0).
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1577,6 +1745,7 @@ Migration required during 3-year window (v2.1 to v3.0).
 ### 18.1 Programmatic Version Checks
 
 ```python
+<!-- Code example in Python -->
 import FraiseQL
 
 # Get framework version
@@ -1597,10 +1766,12 @@ print(schema.framework_version)
 print(schema.compiled_schema_version)
 # Returns: 1
 ```text
+<!-- Code example in TEXT -->
 
 ### 18.2 GraphQL Introspection
 
 ```graphql
+<!-- Code example in GraphQL -->
 {
   __schema {
     types {
@@ -1610,10 +1781,12 @@ print(schema.compiled_schema_version)
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 18.3 Runtime Endpoints
 
 ```bash
+<!-- Code example in BASH -->
 # Check framework version
 curl https://api.example.com/version
 # Returns: {"version": "2.1.0"}
@@ -1623,6 +1796,7 @@ curl https://api.example.com/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ __schema { description } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

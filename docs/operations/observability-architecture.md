@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Observability System Architecture
+description: 1. [Overview](#overview)
+keywords: ["design", "deployment", "scaling", "scalability", "troubleshooting", "performance", "monitoring", "patterns"]
+tags: ["documentation", "reference"]
+---
+
 # Observability System Architecture
 
 ## Table of Contents
@@ -29,6 +37,7 @@ FraiseQL's observability system enables **runtime-informed schema optimization**
 ### High-Level Components
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────────┐
 │                     RUNTIME LAYER (Rust)                         │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐  │
@@ -103,6 +112,7 @@ FraiseQL's observability system enables **runtime-informed schema optimization**
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -124,6 +134,7 @@ FraiseQL supports **four database engines** with a unified observability interfa
 **Trait-Based Design**:
 
 ```rust
+<!-- Code example in RUST -->
 // Core abstraction for all databases
 pub trait DatabaseStatistics: Send + Sync {
     /// Get table-level statistics (row count, size, last analyzed)
@@ -144,6 +155,7 @@ pub trait DatabaseStatistics: Send + Sync {
         -> Vec<String>;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation Strategy**: Each database has its own implementation with identical interface.
 
@@ -160,6 +172,7 @@ pub trait DatabaseStatistics: Send + Sync {
 **Data Structure**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct QueryMetrics {
     pub query_name: String,
     pub execution_time_ms: f64,      // Total end-to-end time
@@ -182,6 +195,7 @@ pub struct MetricsCollector {
     config: ObservabilityConfig,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Sampling Strategy**:
 
@@ -192,6 +206,7 @@ pub struct MetricsCollector {
 **Batch Writing**:
 
 ```rust
+<!-- Code example in RUST -->
 impl MetricsCollector {
     async fn flush_to_database(&self) -> Result<()> {
         let mut buffer = self.buffer.lock().await;
@@ -222,10 +237,12 @@ impl MetricsCollector {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Points**:
 
 ```rust
+<!-- Code example in RUST -->
 // In crates/FraiseQL-core/src/runtime/executor.rs
 pub async fn execute_query(&self, query: &str, variables: Variables)
     -> Result<ExecutionResult> {
@@ -265,6 +282,7 @@ pub async fn execute_query(&self, query: &str, variables: Variables)
     Ok(result)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -286,6 +304,7 @@ pub async fn execute_query(&self, query: &str, variables: Variables)
 **Pattern Detection**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct JsonAccessPattern {
     pub table_name: String,
     pub json_column: String,       // "dimensions"
@@ -307,10 +326,12 @@ pub trait JsonPathParser: Send + Sync {
     fn extract_paths(&self, sql: &str) -> Vec<JsonAccessPattern>;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **PostgreSQL Implementation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct PostgresJsonPathParser;
 
 impl JsonPathParser for PostgresJsonPathParser {
@@ -343,10 +364,12 @@ impl JsonPathParser for PostgresJsonPathParser {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server Implementation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SqlServerJsonPathParser;
 
 impl JsonPathParser for SqlServerJsonPathParser {
@@ -390,10 +413,12 @@ impl JsonPathParser for SqlServerJsonPathParser {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Access Type Inference**:
 
 ```rust
+<!-- Code example in RUST -->
 fn infer_access_type(sql: &str, json_expr: &str) -> JsonAccessType {
     let sql_upper = sql.to_uppercase();
     let expr_pos = sql.find(json_expr).unwrap_or(0);
@@ -413,6 +438,7 @@ fn infer_access_type(sql: &str, json_expr: &str) -> JsonAccessType {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -425,6 +451,7 @@ fn infer_access_type(sql: &str, json_expr: &str) -> JsonAccessType {
 **Multi-Database Statistics Trait**:
 
 ```rust
+<!-- Code example in RUST -->
 pub trait DatabaseStatistics: Send + Sync {
     async fn get_table_stats(&self, table: &str) -> Result<TableStatistics>;
     async fn get_column_stats(&self, table: &str, column: &str)
@@ -459,6 +486,7 @@ pub struct IndexStatistics {
     pub is_unique: bool,
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -467,6 +495,7 @@ pub struct IndexStatistics {
 **File**: `crates/FraiseQL-core/src/db/introspection/postgres_statistics.rs`
 
 ```rust
+<!-- Code example in RUST -->
 pub struct PostgresStatistics {
     pool: PgPool,
 }
@@ -567,6 +596,7 @@ impl DatabaseStatistics for PostgresStatistics {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -582,6 +612,7 @@ impl DatabaseStatistics for PostgresStatistics {
 - `DBCC SHOW_STATISTICS` - Detailed histogram data
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SqlServerStatistics {
     pool: MssqlPool,
 }
@@ -689,6 +720,7 @@ impl DatabaseStatistics for SqlServerStatistics {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Key Differences**:
 
@@ -714,6 +746,7 @@ impl DatabaseStatistics for SqlServerStatistics {
 **Analysis Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 pub struct AnalysisConfig {
     /// Minimum queries per day to consider optimization
     pub min_frequency: u64,  // Default: 1000
@@ -738,10 +771,12 @@ pub enum DatabaseType {
     SQLite,
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Core Analysis Algorithm**:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn analyze_denormalization_opportunities(
     metrics: &MetricsCollector,
     json_patterns: &[JsonAccessPattern],
@@ -850,10 +885,12 @@ pub fn analyze_denormalization_opportunities(
     Ok(suggestions)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Suggestion Types**:
 
 ```rust
+<!-- Code example in RUST -->
 pub enum OptimizationSuggestion {
     Denormalize(DenormalizationSuggestion),
     AddIndex(IndexSuggestion),
@@ -893,6 +930,7 @@ pub enum IndexType {
     Clustered,       // SQL Server clustered
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -911,6 +949,7 @@ pub enum IndexType {
 **Filter Speedup Estimation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn estimate_filter_speedup(
     pattern: &JsonAccessPattern,
     stats: &TableStatistics,
@@ -951,10 +990,12 @@ pub fn estimate_filter_speedup(
     (json_cost / column_cost.max(0.001)).min(100.0)  // Cap at 100x
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Sort Speedup Estimation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn estimate_sort_speedup(
     pattern: &JsonAccessPattern,
     stats: &TableStatistics,
@@ -975,10 +1016,12 @@ pub fn estimate_sort_speedup(
     (json_sort_cost / column_sort_cost.max(0.001)).min(100.0)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Aggregate Speedup Estimation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn estimate_aggregate_speedup(
     pattern: &JsonAccessPattern,
     stats: &TableStatistics,
@@ -1008,10 +1051,12 @@ pub fn estimate_aggregate_speedup(
     (json_agg_cost / column_agg_cost.max(0.001)).min(50.0)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Storage Overhead Estimation**:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn estimate_storage_overhead(
     path: &str,
     column_type: &str,
@@ -1042,6 +1087,7 @@ pub fn estimate_storage_overhead(
     (column_storage + index_storage) / 1_048_576.0
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1054,6 +1100,7 @@ pub fn estimate_storage_overhead(
 **Multi-Database Migration Trait**:
 
 ```rust
+<!-- Code example in RUST -->
 pub trait MigrationGenerator: Send + Sync {
     fn generate_denormalization_migration(
         &self,
@@ -1071,12 +1118,14 @@ pub trait MigrationGenerator: Send + Sync {
     ) -> Vec<String>;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 #### PostgreSQL Migration Generator
 
 ```rust
+<!-- Code example in RUST -->
 pub struct PostgresMigrationGenerator;
 
 impl MigrationGenerator for PostgresMigrationGenerator {
@@ -1154,12 +1203,14 @@ impl MigrationGenerator for PostgresMigrationGenerator {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 #### SQL Server Migration Generator
 
 ```rust
+<!-- Code example in RUST -->
 pub struct SqlServerMigrationGenerator;
 
 impl MigrationGenerator for SqlServerMigrationGenerator {
@@ -1237,6 +1288,7 @@ fn map_to_sqlserver_type(generic_type: &str) -> &str {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Key SQL Server Differences**:
 
@@ -1254,6 +1306,7 @@ fn map_to_sqlserver_type(generic_type: &str) -> &str {
 **File**: `crates/FraiseQL-cli/src/commands/analyze.rs`
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn run(
     database: Option<String>,
     metrics_file: Option<String>,
@@ -1327,12 +1380,14 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Output Formats**:
 
 1. **Text Format** (human-readable):
 
 ```text
+<!-- Code example in TEXT -->
 📊 Observability Analysis Report
 
 🚀 High-Impact Optimizations (3):
@@ -1351,10 +1406,12 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
 
      Reason: Frequently filtered with high selectivity (8%)
 ```text
+<!-- Code example in TEXT -->
 
 1. **JSON Format** (for CI/CD):
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "analyzed_at": "2026-01-12T16:30:00Z",
@@ -1377,10 +1434,12 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. **SQL Format** (ready to apply):
 
 ```sql
+<!-- Code example in SQL -->
 -- Migration 1: Denormalize tf_sales.dimensions->>'region'
 -- Database: SQL Server
 -- Estimated impact: 8,500 queries/day, 12.5x speedup
@@ -1399,6 +1458,7 @@ CREATE NONCLUSTERED INDEX idx_tf_sales_region_id
 -- Step 4: Update statistics
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1411,6 +1471,7 @@ UPDATE STATISTICS tf_sales WITH FULLSCAN;
 **Measurement Strategy**:
 
 ```rust
+<!-- Code example in RUST -->
 // Benchmark with observability OFF
 cargo bench --bench query_execution -- --baseline off
 
@@ -1419,6 +1480,7 @@ cargo bench --bench query_execution -- --baseline on
 
 // Compare results
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Overhead**:
 
@@ -1446,6 +1508,7 @@ cargo bench --bench query_execution -- --baseline on
 **Configuration**:
 
 ```bash
+<!-- Code example in BASH -->
 # Must explicitly enable
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 
@@ -1453,6 +1516,7 @@ export FRAISEQL_OBSERVABILITY_ENABLED=true
 [observability]
 enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1502,6 +1566,7 @@ enabled = true
 ### Unit Tests
 
 ```rust
+<!-- Code example in RUST -->
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1553,10 +1618,12 @@ mod tests {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Integration Tests
 
 ```rust
+<!-- Code example in RUST -->
 #[tokio::test]
 async fn test_end_to_end_analysis_sqlserver() {
     // 1. Setup test SQL Server database with metrics
@@ -1601,6 +1668,7 @@ async fn test_end_to_end_analysis_sqlserver() {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

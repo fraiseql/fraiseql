@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: CI/CD Integration Guide
+description: This guide shows how to enforce design quality standards in continuous integration pipelines.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # CI/CD Integration Guide
 
 ## Integrate FraiseQL design quality checks into your development workflow
@@ -26,23 +34,29 @@ This guide shows how to enforce design quality standards in continuous integrati
 **Python Schema Auditor**:
 
 ```bash
+<!-- Code example in BASH -->
 pip install -r examples/agents/python/requirements.txt
 ```text
+<!-- Code example in TEXT -->
 
 **TypeScript Federation Analyzer**:
 
 ```bash
+<!-- Code example in BASH -->
 cd examples/agents/typescript
 npm install
 npm run build
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Start FraiseQL-server
 
 ```bash
+<!-- Code example in BASH -->
 cargo build --release -p FraiseQL-server
 ./target/release/FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 Server runs on `http://localhost:8080` by default.
 
@@ -51,14 +65,18 @@ Server runs on `http://localhost:8080` by default.
 **Python**:
 
 ```bash
+<!-- Code example in BASH -->
 python examples/agents/python/schema_auditor.py schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 **TypeScript**:
 
 ```bash
+<!-- Code example in BASH -->
 npx federation-analyzer --schema schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -69,6 +87,7 @@ npx federation-analyzer --schema schema.compiled.json
 1. Add workflow file:
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/design-quality.yml
 name: Design Quality Check
 
@@ -153,6 +172,7 @@ jobs:
               body: '## 📊 Design Quality Audit\nSee artifacts for detailed HTML report'
             });
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -172,6 +192,7 @@ jobs:
 1. Add to `.gitlab-ci.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 design-quality:
   stage: test
   image: python:3.11
@@ -215,6 +236,7 @@ design-quality:
     - merge_requests
     - main
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -233,6 +255,7 @@ design-quality:
 1. Add to `.circleci/config.yml`:
 
 ```yaml
+<!-- Code example in YAML -->
 version: 2.1
 
 jobs:
@@ -295,6 +318,7 @@ workflows:
                 - main
                 - /^feature\/.*/
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -312,6 +336,7 @@ workflows:
 1. Create `.git/hooks/pre-commit`:
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # Hook to run design audit before committing
 
@@ -351,21 +376,26 @@ else
   exit 1
 fi
 ```text
+<!-- Code example in TEXT -->
 
 1. Make executable:
 
 ```bash
+<!-- Code example in BASH -->
 chmod +x .git/hooks/pre-commit
 ```text
+<!-- Code example in TEXT -->
 
 1. Install globally (optional):
 
 ```bash
+<!-- Code example in BASH -->
 mkdir -p ~/.githooks
 cp .git/hooks/pre-commit ~/.githooks/pre-commit
 chmod +x ~/.githooks/pre-commit
 git config --global core.hooksPath ~/.githooks
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -384,6 +414,7 @@ git config --global core.hooksPath ~/.githooks
 Add to workflow:
 
 ```yaml
+<!-- Code example in YAML -->
 - name: Notify Slack
   if: failure()
   uses: slackapi/slack-github-action@v1.24.0
@@ -418,12 +449,14 @@ Add to workflow:
     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 ```text
+<!-- Code example in TEXT -->
 
 ### GitLab CI
 
 Add to pipeline:
 
 ```yaml
+<!-- Code example in YAML -->
 slack-notify:
   stage: .post
   image: curlimages/curl:latest
@@ -459,6 +492,7 @@ slack-notify:
     - main
     - merge_requests
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -467,6 +501,7 @@ slack-notify:
 ### Threshold Strategy
 
 ```python
+<!-- Code example in Python -->
 # Different thresholds for different contexts
 if branch == "main":
     threshold = 90  # Strict for main
@@ -475,19 +510,23 @@ elif pr.is_from_team_member:
 else:
     threshold = 60  # Lenient for contributors
 ```text
+<!-- Code example in TEXT -->
 
 ### Exit Codes
 
 ```text
+<!-- Code example in TEXT -->
 0: Score >= threshold (pass)
 1: Score < threshold (fail)
 2: API error (fail, but different)
 3: Configuration error
 ```text
+<!-- Code example in TEXT -->
 
 ### Gradual Enforcement
 
 ```bash
+<!-- Code example in BASH -->
 # Week 1: Report only (no blocking)
 python schema_auditor.py --fail-if-below 0
 
@@ -500,6 +539,7 @@ python schema_auditor.py --fail-if-below 70
 # Week 4: Enforce at 80 (production standard)
 python schema_auditor.py --fail-if-below 80
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -510,6 +550,7 @@ python schema_auditor.py --fail-if-below 80
 Store reports for trend analysis:
 
 ```bash
+<!-- Code example in BASH -->
 # Save report with timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 python schema_auditor.py \
@@ -517,10 +558,12 @@ python schema_auditor.py \
   --output "reports/design-audit-$TIMESTAMP.json" \
   --format json
 ```text
+<!-- Code example in TEXT -->
 
 ### Dashboard Example
 
 ```html
+<!-- Code example in HTML -->
 <!-- Simple HTML dashboard -->
 <html>
 <head>
@@ -560,6 +603,7 @@ python schema_auditor.py \
 </body>
 </html>
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -570,6 +614,7 @@ python schema_auditor.py \
 Start lenient, gradually increase standards:
 
 ```yaml
+<!-- Code example in YAML -->
 # Month 1: Informational only
 fail_threshold: 0
 
@@ -582,38 +627,45 @@ fail_threshold: 75
 # Month 4+: Enforce at excellent
 fail_threshold: 85
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. **Team Communication**
 
 Send results to Slack/Discord:
 
 ```bash
+<!-- Code example in BASH -->
 # Extract score from JSON report
 SCORE=$(jq '.data.overall_score' report.json)
 echo "Design Quality Score: $SCORE/100" > /dev/slack
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. **Exemptions**
 
 Allow explicit overrides for well-justified exceptions:
 
 ```bash
+<!-- Code example in BASH -->
 # Skip if approved by architect
 if git log -1 --format=%B | grep -q "DESIGN-OVERRIDE: APPROVED"; then
   exit 0
 fi
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. **Benchmarking**
 
 Track improvement over time:
 
 ```bash
+<!-- Code example in BASH -->
 # Compare to previous version
 PREV_SCORE=$(git show HEAD:design-score.txt)
 CURR_SCORE=$(python schema_auditor.py --json | jq '.data.overall_score')
 echo "Score: $PREV_SCORE → $CURR_SCORE"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -622,6 +674,7 @@ echo "Score: $PREV_SCORE → $CURR_SCORE"
 ### Server Not Found
 
 ```bash
+<!-- Code example in BASH -->
 # Check server is running
 curl http://localhost:8080/health
 
@@ -631,26 +684,31 @@ cargo run -p FraiseQL-server
 # Or use Docker
 docker run -p 8080:8080 FraiseQL/FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 ### Schema Compilation Failure
 
 ```bash
+<!-- Code example in BASH -->
 # Compile schema first
 FraiseQL-cli compile schema.json -o schema.compiled.json
 
 # Then run audit
 python schema_auditor.py schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### API Errors
 
 ```bash
+<!-- Code example in BASH -->
 # Check API endpoint
 curl http://api.example.com/api/v1/design/audit
 
 # Enable verbose logging
 RUST_LOG=debug FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

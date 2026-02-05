@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Getting Started with Arrow Flight (5-Minute Tutorial)
+description: This tutorial gets you running Arrow Flight queries in **5 minutes**.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Getting Started with Arrow Flight (5-Minute Tutorial)
 
 This tutorial gets you running Arrow Flight queries in **5 minutes**.
@@ -11,6 +19,7 @@ This tutorial gets you running Arrow Flight queries in **5 minutes**.
 ## Step 1: Start FraiseQL (1 minute)
 
 ```bash
+<!-- Code example in BASH -->
 # Clone the repository
 git clone https://github.com/FraiseQL/FraiseQL.git
 cd FraiseQL
@@ -25,26 +34,32 @@ docker-compose ps
 # Wait for full startup (PostgreSQL especially)
 sleep 10
 ```text
+<!-- Code example in TEXT -->
 
 **Verify Arrow Flight is accessible**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check if port 50051 is listening
 netstat -tuln | grep 50051
 # Expected: tcp    0    0 0.0.0.0:50051    0.0.0.0:*    LISTEN
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 2: Install Python Libraries (1 minute)
 
 ```bash
+<!-- Code example in BASH -->
 pip install pyarrow>=15.0.0 polars>=0.20.0
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 3: Write Your First Arrow Flight Query (2 minutes)
 
 Create `my_first_query.py`:
 
 ```python
+<!-- Code example in Python -->
 #!/usr/bin/env python3
 """
 First Arrow Flight query: Fetch data as Arrow RecordBatch
@@ -98,16 +113,20 @@ print(f"  Rows: {len(df)}")
 print(f"  Columns: {len(df.columns)}")
 print(f"  Memory: ~{table.nbytes / 1024 / 1024:.1f} MB")
 ```text
+<!-- Code example in TEXT -->
 
 Run it:
 
 ```bash
+<!-- Code example in BASH -->
 python my_first_query.py
 ```text
+<!-- Code example in TEXT -->
 
 **Expected output**:
 
 ```text
+<!-- Code example in TEXT -->
 Connecting to FraiseQL Arrow Flight server...
 ✅ Connected!
 
@@ -141,12 +160,14 @@ shape: (5, 3)
   Columns: 3
   Memory: ~2.1 KB
 ```text
+<!-- Code example in TEXT -->
 
 ## Step 4: Stream Observer Events (1 minute)
 
 Now let's stream real-time observer events. Create `stream_events.py`:
 
 ```python
+<!-- Code example in Python -->
 #!/usr/bin/env python3
 """
 Stream observer events in real-time
@@ -187,12 +208,15 @@ print(f"✅ Streaming complete!")
 print(f"  Total batches: {batch_count}")
 print(f"  Total events: {total_rows}")
 ```text
+<!-- Code example in TEXT -->
 
 Run it:
 
 ```bash
+<!-- Code example in BASH -->
 python stream_events.py
 ```text
+<!-- Code example in TEXT -->
 
 ## Congratulations! 🎉
 
@@ -219,24 +243,30 @@ Arrow Flight supports Python, R, Rust, Java, and other languages. See the [archi
 ### "Connection refused"
 
 ```text
+<!-- Code example in TEXT -->
 Error: Error connecting to grpc://localhost:50051
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Ensure FraiseQL is running (`docker-compose ps`) and Arrow Flight is enabled.
 
 ### "No data returned"
 
 ```text
+<!-- Code example in TEXT -->
 ✅ Success! Fetched 0 rows
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Check your GraphQL query is valid. Try a simple query without filters first.
 
 ### "Module not found: pyarrow"
 
 ```text
+<!-- Code example in TEXT -->
 ModuleNotFoundError: No module named 'pyarrow'
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Install dependencies: `pip install pyarrow polars`
 
@@ -249,15 +279,18 @@ ModuleNotFoundError: No module named 'pyarrow'
 ### Fetch all users with a name
 
 ```python
+<!-- Code example in Python -->
 ticket = flight.Ticket(b'''{
     "type": "GraphQLQuery",
     "query": "{ users { id name email } }"
 }''')
 ```text
+<!-- Code example in TEXT -->
 
 ### Stream orders from last 30 days
 
 ```python
+<!-- Code example in Python -->
 ticket = flight.Ticket(b'''{
     "type": "ObserverEvents",
     "entity_type": "Order",
@@ -265,10 +298,12 @@ ticket = flight.Ticket(b'''{
     "limit": 100000
 }''')
 ```text
+<!-- Code example in TEXT -->
 
 ### Process events with aggregation
 
 ```python
+<!-- Code example in Python -->
 # Stream events
 reader = client.do_get(ticket)
 table = reader.read_all()
@@ -280,22 +315,26 @@ summary = df.groupby("entity_type").agg([
 ])
 print(summary)
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Tips
 
 ### 1. Use Limits for Development
 
 ```python
+<!-- Code example in Python -->
 # Good: limit to 1000 during development
 "limit": 1000
 
 # Bad: no limit on production data!
 # Can transfer GBs of data
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Stream Large Datasets
 
 ```python
+<!-- Code example in Python -->
 # Bad: loads entire dataset in memory
 table = reader.read_all()
 df = pl.from_arrow(table)
@@ -305,10 +344,12 @@ for batch in reader:
     df = pl.from_arrow(batch)
     # Process and discard
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Use Polars for Heavy Lifting
 
 ```python
+<!-- Code example in Python -->
 # Zero-copy from Arrow to Polars
 df = pl.from_arrow(table)
 
@@ -318,12 +359,14 @@ result = df.groupby("category").agg(
     pl.col("price").mean().alias("avg")
 )
 ```text
+<!-- Code example in TEXT -->
 
 ## Time Comparison
 
 **What was 30 seconds with HTTP/JSON now takes 2 seconds with Arrow Flight:**
 
 ```python
+<!-- Code example in Python -->
 import time
 
 # Setup (same for both)
@@ -340,6 +383,7 @@ print(f"Arrow Flight: {arrow_time:.2f}s")  # 2-3 seconds
 # HTTP/JSON would be ~30 seconds (not running here)
 # But you get the idea!
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

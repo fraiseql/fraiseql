@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Sagas in Apollo Federation
+description: 1. [Overview](#overview)
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Sagas in Apollo Federation
 
 **Status:** ✅ Production Ready
@@ -28,6 +36,7 @@ Sagas enable **distributed transactions across multiple Apollo Federation subgra
 Without sagas, coordinating across subgraphs is difficult:
 
 ```text
+<!-- Code example in TEXT -->
 User Service (Subgraph 1)
   ├─ create_user()
 
@@ -37,6 +46,7 @@ Payment Service (Subgraph 2)
 Order Service (Subgraph 3)
   ├─ create_order()
 ```text
+<!-- Code example in TEXT -->
 
 If charge_card() fails after create_user() succeeds, the system is inconsistent.
 
@@ -45,6 +55,7 @@ If charge_card() fails after create_user() succeeds, the system is inconsistent.
 A saga coordinator ensures all steps succeed together or all roll back together:
 
 ```text
+<!-- Code example in TEXT -->
 SagaCoordinator (Central)
   ├─ (1) create_user()      ✓ User created
   ├─ (2) charge_card()      ✓ Payment processed
@@ -54,6 +65,7 @@ SagaCoordinator (Central)
      ├─ refund_card()       ✓ Payment refunded
      └─ delete_user()       ✓ User removed
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -62,6 +74,7 @@ SagaCoordinator (Central)
 ### Components
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────────────────┐
 │          Apollo Router (Gateway)                  │
 │                                                  │
@@ -88,6 +101,7 @@ SagaCoordinator (Central)
     └───────────┘    └─────────────┘ └───────────┘
     (PostgreSQL)     (MySQL)         (MongoDB)
 ```text
+<!-- Code example in TEXT -->
 
 ### Data Flow
 
@@ -122,6 +136,7 @@ SagaCoordinator (Central)
 **Order Processing across 3 Services:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation StartOrderSaga($userId: ID!, $items: [OrderItem!]!, $paymentInfo: PaymentInfo!) {
   startOrderSaga(userId: $userId, items: $items, paymentInfo: $paymentInfo) {
     sagaId
@@ -135,10 +150,12 @@ mutation StartOrderSaga($userId: ID!, $items: [OrderItem!]!, $paymentInfo: Payme
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn start_order_saga(
     user_id: String,
     items: Vec<OrderItem>,
@@ -220,20 +237,24 @@ pub async fn start_order_saga(
     coordinator.execute(steps).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario 2: Parallel Steps Across Subgraphs
 
 **Reducing latency by running independent steps in parallel:**
 
 ```text
+<!-- Code example in TEXT -->
 Parallel execution:
 ├─ Create user account (Users SG)
 ├─ Initialize payment method (Payments SG)
 ├─ Setup shipping address (Shipping SG)
 └─ Create preferences (Preferences SG)
 ```text
+<!-- Code example in TEXT -->
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn onboard_customer_saga(
     customer: CustomerInfo,
 ) -> Result<SagaResult> {
@@ -256,12 +277,14 @@ pub async fn onboard_customer_saga(
     ).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scenario 3: Conditional Paths Across Subgraphs
 
 **Different processing based on customer type:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn process_payment_saga(
     order: Order,
     customer: Customer,
@@ -294,6 +317,7 @@ pub async fn process_payment_saga(
     coordinator.execute(steps).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -304,6 +328,7 @@ pub async fn process_payment_saga(
 User sees the results immediately after saga completes.
 
 ```rust
+<!-- Code example in RUST -->
 // Synchronous saga execution
 let result = coordinator.execute(steps).await?;
 let order = result.data["createOrder"].clone();
@@ -312,12 +337,14 @@ let order = result.data["createOrder"].clone();
 let query = query_user_orders(user_id).await?;
 assert!(query.orders.contains(&order)); // True
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Eventual Consistency
 
 Results become consistent after saga completes.
 
 ```rust
+<!-- Code example in RUST -->
 // Async saga execution
 let saga_id = coordinator.execute_async(steps).await?;
 
@@ -331,6 +358,7 @@ loop {
     sleep(Duration::from_secs(1)).await;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: Multi-Database Consistency
 
@@ -345,6 +373,7 @@ Maintaining consistency across different database backends.
 **Solution:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn multi_db_order_saga(user_id: String) -> Result<SagaResult> {
     let coordinator = get_saga_coordinator();
 
@@ -386,6 +415,7 @@ pub async fn multi_db_order_saga(user_id: String) -> Result<SagaResult> {
     coordinator.execute(steps).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -396,6 +426,7 @@ pub async fn multi_db_order_saga(user_id: String) -> Result<SagaResult> {
 Trace each step across all subgraphs:
 
 ```rust
+<!-- Code example in RUST -->
 // Initialize tracing context
 let trace_id = Uuid::new_v4().to_string();
 let coordinator = get_saga_coordinator()
@@ -404,12 +435,14 @@ let coordinator = get_saga_coordinator()
 // Each step includes trace_id in its mutation
 // All logs/spans can be correlated by trace_id
 ```text
+<!-- Code example in TEXT -->
 
 ### Saga Metrics
 
 Monitor key metrics:
 
 ```rust
+<!-- Code example in RUST -->
 // Metrics to track
 metrics.counter("saga.started", tags!("type": "order")).increment();
 metrics.gauge("saga.duration_ms", duration_ms, tags!("type": "order"));
@@ -417,6 +450,7 @@ metrics.counter("saga.succeeded", tags!("type": "order")).increment();
 metrics.counter("saga.failed", tags!("type": "order")).increment();
 metrics.counter("saga.compensated", tags!("type": "order")).increment();
 ```text
+<!-- Code example in TEXT -->
 
 ### Dashboards and Alerts
 
@@ -428,6 +462,7 @@ metrics.counter("saga.compensated", tags!("type": "order")).increment();
 - Incomplete sagas (older than 1 hour)
 
 ```yaml
+<!-- Code example in YAML -->
 # Prometheus alerting rules
 
 - alert: SagaFailureRateHigh
@@ -442,12 +477,14 @@ metrics.counter("saga.compensated", tags!("type": "order")).increment();
   annotations:
     summary: "High saga compensation rate: {{ $value }}"
 ```text
+<!-- Code example in TEXT -->
 
 ### Logging
 
 Comprehensive saga logging:
 
 ```rust
+<!-- Code example in RUST -->
 info!(
     saga_id = %saga_id,
     step = "charge_payment",
@@ -465,6 +502,7 @@ info!(
     "Saga step completed"
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -473,6 +511,7 @@ info!(
 ### Configuration
 
 ```toml
+<!-- Code example in TOML -->
 [saga]
 enabled = true
 store_type = "postgres"
@@ -487,10 +526,12 @@ connection_string = "postgres://user:pass@db:5432/FraiseQL"
 max_pool_size = 20
 migration_path = "migrations/"
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Setup
 
 ```sql
+<!-- Code example in SQL -->
 -- Create saga tables
 CREATE TABLE sagas (
     id UUID PRIMARY KEY,
@@ -517,10 +558,12 @@ CREATE TABLE saga_steps (
 CREATE INDEX idx_sagas_status ON sagas(status);
 CREATE INDEX idx_saga_steps_saga_id ON saga_steps(saga_id);
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Checks
 
 ```rust
+<!-- Code example in RUST -->
 async fn saga_store_health_check() -> Result<()> {
     // Check saga store connectivity
     let healthy = store.health_check().await?;
@@ -539,10 +582,12 @@ async fn saga_store_health_check() -> Result<()> {
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitoring Saga Health
 
 ```rust
+<!-- Code example in RUST -->
 // Health endpoint that returns saga metrics
 pub async fn saga_health_metrics() -> Result<HealthMetrics> {
     Ok(HealthMetrics {
@@ -555,6 +600,7 @@ pub async fn saga_health_metrics() -> Result<HealthMetrics> {
     })
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -565,6 +611,7 @@ pub async fn saga_health_metrics() -> Result<HealthMetrics> {
 **Scenario:** Order processing across 5 microservices
 
 ```text
+<!-- Code example in TEXT -->
 Saga Steps:
 
 1. Validate order (Order Service)
@@ -573,6 +620,7 @@ Saga Steps:
 4. Calculate shipping (Shipping Service)
 5. Create fulfillment (Fulfillment Service)
 ```text
+<!-- Code example in TEXT -->
 
 **Results:**
 
@@ -585,6 +633,7 @@ Saga Steps:
 **Scenario:** Customer signup across 4 services
 
 ```text
+<!-- Code example in TEXT -->
 Saga Steps:
 
 1. Create account (Auth Service)
@@ -592,6 +641,7 @@ Saga Steps:
 3. Send welcome email (Email Service)
 4. Create default team (Collaboration Service)
 ```text
+<!-- Code example in TEXT -->
 
 **Results:**
 
@@ -604,6 +654,7 @@ Saga Steps:
 **Scenario:** Money transfer across banks
 
 ```text
+<!-- Code example in TEXT -->
 Saga Steps:
 
 1. Verify sender account (Sender Bank)
@@ -612,6 +663,7 @@ Saga Steps:
 4. Confirm transaction (Transaction Service)
 5. Send notifications (Notification Service)
 ```text
+<!-- Code example in TEXT -->
 
 **Results:**
 

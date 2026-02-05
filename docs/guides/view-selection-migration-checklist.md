@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: View Selection Migration Checklist
+description: - SQL query fundamentals and JOIN optimization
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # View Selection Migration Checklist
 
 **Status:** ✅ Production Ready
@@ -65,11 +73,13 @@
 **Action**: Run EXPLAIN ANALYZE on current query
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user_full WHERE id = '550e8400...'
 -- OR
 SELECT * FROM va_orders WHERE created_at >= NOW() - INTERVAL '7 days'
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -89,11 +99,13 @@ SELECT * FROM va_orders WHERE created_at >= NOW() - INTERVAL '7 days'
 **Check**: Run query with different filters to confirm consistency
 
 ```sql
+<!-- Code example in SQL -->
 -- Baseline
 EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE id = ?;
 -- Multiple filters
 EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE created_at > ? AND status = ?;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**: Average slow query time across different conditions: ______ ms
 
@@ -125,6 +137,7 @@ EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE created_at > ? AND status = ?;
 **Template**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Helper view: Aggregate comments per post
 CREATE OR REPLACE VIEW v_comments_by_post AS
 SELECT
@@ -140,7 +153,8 @@ SELECT
 FROM tb_comment
 WHERE deleted_at IS NULL
 GROUP BY fk_post;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -157,6 +171,7 @@ GROUP BY fk_post;
 **Template**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE ta_orders (
     id TEXT PRIMARY KEY,
     total NUMERIC,
@@ -169,7 +184,8 @@ CREATE TABLE ta_orders (
 
     FOREIGN KEY (id) REFERENCES tb_order(id)
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -217,6 +233,7 @@ CREATE TABLE ta_orders (
 **Template Monitoring Queries**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Staleness
 SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
 
@@ -227,7 +244,8 @@ EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 SELECT
     (SELECT COUNT(*) FROM tv_user_profile) tv_count,
     (SELECT COUNT(*) FROM v_user) v_count;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**: Monitoring plan attached: ☐ Yes | ☐ No
 
@@ -248,13 +266,15 @@ SELECT
 **Execution**:
 
 ```bash
+<!-- Code example in BASH -->
 # In dev/staging environment
 psql -h staging-db -U postgres fraiseql_staging < migration.sql
 
 # Verify
 psql -h staging-db -U postgres fraiseql_staging \
   -c "SELECT COUNT(*) FROM tv_user_profile;"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -273,6 +293,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 **Verification**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Row count match
 SELECT
     (SELECT COUNT(*) FROM tv_user_profile) as tv_count,
@@ -284,7 +305,8 @@ SELECT COUNT(*) FROM tv_user_profile WHERE data IS NULL OR data = 'null'::JSONB;
 
 -- Storage
 SELECT pg_size_pretty(pg_total_relation_size('tv_user_profile'));
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -305,6 +327,7 @@ SELECT pg_size_pretty(pg_total_relation_size('tv_user_profile'));
 **Execution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Create trigger function and attach
 psql -h staging-db -U postgres fraiseql_staging < trigger_setup.sql
 
@@ -315,7 +338,8 @@ psql -h staging-db -U postgres fraiseql_staging \
 # Check auto-refresh
 psql -h staging-db -U postgres fraiseql_staging \
   -c "SELECT COUNT(*) FROM tv_user_profile WHERE updated_at > NOW() - INTERVAL '10s';"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -333,13 +357,15 @@ psql -h staging-db -U postgres fraiseql_staging \
 **Execution**:
 
 ```bash
+<!-- Code example in BASH -->
 psql -h staging-db -U postgres fraiseql_staging \
   -c "SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');"
 
 # Test manual execution
 psql -h staging-db -U postgres fraiseql_staging \
   -c "SELECT * FROM refresh_tv_user_profile();"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -357,6 +383,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 **Benchmark Script**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Old view (baseline)
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user_full WHERE id = '550e8400-e29b-41d4-a716-446655440000';
@@ -371,7 +398,8 @@ SELECT * FROM tv_user_profile WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 SELECT
     (SELECT COUNT(*) FROM v_user_full WHERE id = ?) old_count,
     (SELECT COUNT(*) FROM tv_user_profile WHERE id = ?) new_count;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -389,6 +417,7 @@ SELECT
 **Example Change**:
 
 ```python
+<!-- Code example in Python -->
 # Before
 @FraiseQL.type()
 class User:
@@ -398,7 +427,8 @@ class User:
 @FraiseQL.type(view="tv_user_profile")
 class UserProfile:
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -417,6 +447,7 @@ class UserProfile:
 **Test Commands**:
 
 ```bash
+<!-- Code example in BASH -->
 # GraphQL queries
 curl -X POST http://staging-server/graphql \
   -d '{"query": "{ user(id: \"...\") { id name posts { id title } } }"}'
@@ -426,7 +457,8 @@ python -c "import pyarrow.flight as flight; ..."
 
 # Run test suite
 pytest tests/ -v -k "user_profile"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -457,19 +489,23 @@ pytest tests/ -v -k "user_profile"
 #### Step 1: Create Table
 
 ```bash
+<!-- Code example in BASH -->
 # During low-traffic window
 psql -h prod-db -U postgres fraiseql_prod < migration.sql
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Step 2: Verify Creation
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     tablename,
     pg_size_pretty(pg_total_relation_size('public.'||tablename))
 FROM pg_tables
 WHERE tablename = 'tv_user_profile';
-```
+```text
+<!-- Code example in TEXT -->
 
 - [ ] Table created successfully
 - [ ] Size reasonable: ______ MB
@@ -478,8 +514,10 @@ WHERE tablename = 'tv_user_profile';
 #### Step 3: Initial Population
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM refresh_tv_user_profile();
-```
+```text
+<!-- Code example in TEXT -->
 
 - [ ] Rows inserted: ______
 - [ ] Completed without errors: ☐ Yes
@@ -487,12 +525,14 @@ SELECT * FROM refresh_tv_user_profile();
 #### Step 4: Enable Triggers/Schedules
 
 ```sql
+<!-- Code example in SQL -->
 -- Attach triggers or enable schedule
 ALTER TABLE tv_user_profile ENABLE TRIGGER ALL;
 
 -- Or verify schedule
 SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
-```
+```text
+<!-- Code example in TEXT -->
 
 - [ ] Triggers/schedules active: ☐ Yes
 - [ ] Document: Time enabled: _______
@@ -528,6 +568,7 @@ SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
 **Query Health**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check staleness
 SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
 
@@ -538,7 +579,8 @@ SELECT COUNT(*) as row_count FROM tv_user_profile;
 SELECT schemaname, tablename, indexname, idx_scan
 FROM pg_stat_user_indexes
 WHERE tablename = 'tv_user_profile';
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -558,11 +600,13 @@ WHERE tablename = 'tv_user_profile';
 **Rollback Command**:
 
 ```python
+<!-- Code example in Python -->
 # Revert to old view
 @FraiseQL.type()  # Back to v_user_profile
 class UserProfile:
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 **Document**:
 
@@ -644,6 +688,7 @@ class UserProfile:
 **Debug**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check trigger exists
 SELECT * FROM information_schema.triggers
 WHERE event_object_table = 'tb_user' AND trigger_name LIKE 'trg_refresh%';
@@ -653,7 +698,8 @@ SELECT * FROM pg_trigger WHERE tgrelid = 'tb_user'::regclass;
 
 -- Test manually
 SELECT refresh_tv_user_profile_for_user('test-id'::UUID);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Resolution**: Re-create trigger or enable if disabled
 
@@ -664,9 +710,11 @@ SELECT refresh_tv_user_profile_for_user('test-id'::UUID);
 **Debug**:
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 -- Look for sequential scans, missing indexes
-```
+```text
+<!-- Code example in TEXT -->
 
 **Resolution**: Add indexes or switch to batch refresh
 
@@ -677,10 +725,12 @@ EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 **Debug**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check JSONB structure
 SELECT data FROM tv_user_profile LIMIT 1;
 -- Look for missing/changed fields
-```
+```text
+<!-- Code example in TEXT -->
 
 **Resolution**: Manually refresh or re-run initial population
 
@@ -691,13 +741,15 @@ SELECT data FROM tv_user_profile LIMIT 1;
 **Debug**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     tablename,
     pg_size_pretty(pg_total_relation_size('public.'||tablename))
 FROM pg_tables
 WHERE tablename LIKE 'tv_%' OR tablename LIKE 'ta_%'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Resolution**: Archive old data or drop unused views
 

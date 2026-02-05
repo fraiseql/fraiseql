@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Designing Schemas for FraiseQL
+description: This guide covers design patterns specific to FraiseQL's compilation model. FraiseQL automatically optimizes SQL execution for your schema, but *architectural d
+keywords: ["schema"]
+tags: ["documentation", "reference"]
+---
+
 # Designing Schemas for FraiseQL
 
 ## Master the art of architecting GraphQL for compiled SQL execution
@@ -49,6 +57,7 @@ FraiseQL separates what it can optimize from what it can't:
 **Goal**: Each business domain owns its types completely.
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service (owns User, Account, Profile)
 type User @key(fields: "id") {
   id: ID!
@@ -74,7 +83,8 @@ type Post @key(fields: "id") {
   author: User  # Reference to users-service
   content: String!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Why it works for FraiseQL
 
@@ -94,6 +104,7 @@ type Post @key(fields: "id") {
 ❌ **BAD**: User defined in 3+ places
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -111,11 +122,13 @@ type User @key(fields: "id") {
   id: ID!
   commentCount: Int!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ✅ **GOOD**: User lives in one place, other services reference it
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -135,7 +148,8 @@ type Comment @key(fields: "id") {
   id: ID!
   author: User!  # Reference only
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Why it matters for FraiseQL
 
@@ -152,6 +166,7 @@ type Comment @key(fields: "id") {
 ❌ **BAD**: Circular references
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -164,7 +179,8 @@ type Organization @key(fields: "id") {
   id: ID!
   members: [User!]!  # Reference back to users-service
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 When resolving a user's organization's members, you need to go:
 `users-service → org-service → users-service`
@@ -174,6 +190,7 @@ This creates circular dependency chains that impact both cost and cache coherenc
 ✅ **GOOD**: Break the cycle with explicit fields
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -187,11 +204,13 @@ type Organization @key(fields: "id") {
   memberIds: [ID!]!  # Just IDs, handled differently
   members: [User!]!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Better yet**: One service owns the many-to-many relationship
 
 ```graphql
+<!-- Code example in GraphQL -->
 # org-service (owns the relationship)
 type Organization @key(fields: "id") {
   id: ID!
@@ -203,7 +222,8 @@ type User @key(fields: "id") {
   id: ID!
   organizations: [Organization!]!  # Could be reference if needed
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -216,6 +236,7 @@ type User @key(fields: "id") {
 ❌ **BAD**: Unbounded lists
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   posts: [Post!]!  # User can have thousands of posts
@@ -226,7 +247,8 @@ type Post @key(fields: "id") {
   id: ID!
   comments: [Comment!]!  # Post can have thousands of comments
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Query: `user { posts { comments { author { posts { comments } } } } }`
 
@@ -235,6 +257,7 @@ Worst case: 1000 posts × 1000 comments/post × 50 authors × 1000 posts/author 
 ✅ **GOOD**: Paginate to prevent explosion
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   posts(first: 10, after: String): PostConnection!
@@ -250,7 +273,8 @@ type Post @key(fields: "id") {
   id: ID!
   comments(first: 10, after: String): CommentConnection!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **FraiseQL calculates**:
 
@@ -267,6 +291,7 @@ type Post @key(fields: "id") {
 Use metadata to help FraiseQL understand field cost:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   email: String!
@@ -283,7 +308,8 @@ type User @key(fields: "id") {
   # Very expensive: requires external API
   sentiment: SentimentAnalysis! @complexity(value: 500)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 FraiseQL uses these to calculate worst-case scenarios and flag problematic patterns.
 
@@ -298,6 +324,7 @@ FraiseQL uses these to calculate worst-case scenarios and flag problematic patte
 ❌ **BAD**: Different TTLs
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 directive @cache(maxAge: 300) on FIELD_DEFINITION
 
@@ -311,13 +338,15 @@ type Post @key(fields: "id") {
   id: ID!
   author: User! @cache(maxAge: 3600)  # 1 hour (DIFFERENT!)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Scenario: User changes email in users-service, but posts-service still shows old email for 55 more minutes.
 
 ✅ **GOOD**: Consistent strategy across federation
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Agreed standard: 5 minutes for user entities
 # users-service
 type User @key(fields: "id") {
@@ -330,11 +359,13 @@ type Post @key(fields: "id") {
   id: ID!
   author: User! @cache(maxAge: 300)  # Same TTL
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Or use explicit cache groups:
 
 ```graphql
+<!-- Code example in GraphQL -->
 directive @cacheGroup(name: String!) on OBJECT
 
 type User @key(fields: "id") @cacheGroup(name: "user_profile") {
@@ -346,7 +377,8 @@ type Post @key(fields: "id") {
   id: ID!
   author: User! # Inherits cacheGroup: user_profile
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -355,6 +387,7 @@ type Post @key(fields: "id") {
 **Goal**: Cache fields that are expensive to compute.
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
 
@@ -370,7 +403,8 @@ type User @key(fields: "id") {
   # User-specific: don't cache
   followingMe: Boolean!  # No @cache
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -383,6 +417,7 @@ type User @key(fields: "id") {
 ❌ **BAD**: Exposed at federation boundary
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -395,13 +430,15 @@ type Post @key(fields: "id") {
   id: ID!
   author: User!  # Full User including sensitive fields
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Any request to posts-service can now see user emails and passwords!
 
 ✅ **GOOD**: Auth-aware federation fields
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -422,11 +459,13 @@ type Post @key(fields: "id") {
   id: ID!
   author: PublicUserProfile!  # Only public data
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Even better**: Scope-based access
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
 
@@ -436,7 +475,8 @@ type User @key(fields: "id") {
 
   paymentMethods: [PaymentMethod!]! @auth(scopes: ["billing:read"])
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -445,6 +485,7 @@ type User @key(fields: "id") {
 **Goal**: Ensure only authorized callers can perform mutations.
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Mutation {
   # Public: anyone can create account
   signUp(email: String!, password: String!): AuthPayload!
@@ -461,7 +502,8 @@ type Mutation {
   updateBillingInfo(input: BillingInput!): User!
     @auth(scopes: ["billing:write"])
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -472,6 +514,7 @@ type Mutation {
 Every type should have a clear owner (service):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Global schema (for documentation)
 schema {
   query: Query
@@ -491,7 +534,8 @@ type PostComment @ownerService("posts-service") { ... }
 type Organization @key(fields: "id") @ownerService("org-service") { ... }
 type Team @ownerService("org-service") { ... }
 type Role @ownerService("org-service") { ... }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Benefits
 
@@ -506,6 +550,7 @@ type Role @ownerService("org-service") { ... }
 Group related types together, not alphabetically:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Bad: Alphabetical
 type Account { ... }
 type Blog { ... }
@@ -531,7 +576,8 @@ type Comment { ... }
 type Organization { ... }
 type Team { ... }
 type Role { ... }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -542,6 +588,7 @@ type Role { ... }
 ❌ **Bad**: One type trying to do everything
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   email: String!
@@ -558,7 +605,8 @@ type User {
   activityLog: [Activity!]!
   # ... and 50 more fields
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Problems
 
@@ -570,6 +618,7 @@ type User {
 ✅ **Solution**: Decompose into focused types
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   email: String!
@@ -599,7 +648,8 @@ type UserAdmin {
   teams: [Team!]!
   roles: [Role!]!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -608,6 +658,7 @@ type UserAdmin {
 ❌ **Bad**: Object references create circular chains
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Author @key(fields: "id") {
   id: ID!
   posts: [Post!]!
@@ -624,7 +675,8 @@ type Comment @key(fields: "id") {
   post: Post!
   author: Author!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Query: `author { posts { comments { author { posts { comments { ... } } } } } }`
 
@@ -633,6 +685,7 @@ Results in exponential complexity.
 ✅ **Solution**: Use IDs instead of references for circular paths
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Author @key(fields: "id") {
   id: ID!
   posts(first: 10): PostConnection!
@@ -650,7 +703,8 @@ type Comment @key(fields: "id") {
   postId: ID!  # Just the ID
   authorId: ID!  # Just the ID
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -659,24 +713,28 @@ type Comment @key(fields: "id") {
 ❌ **Bad**: Lists with no pagination
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   allPosts: [Post!]!  # Could be millions
   allFriends: [User!]!  # Could be hundreds of thousands
   allComments: [Comment!]!  # Unbounded
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ✅ **Good**: Everything paginated
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   posts(first: 20, after: String): PostConnection!
   friends(first: 20, after: String): UserConnection!
   comments(first: 20, after: String): CommentConnection!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -685,6 +743,7 @@ type User {
 ### Example 1: E-Commerce Platform
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -723,7 +782,8 @@ type Product @key(fields: "id") {
   price: Money!
   inventory: Int! @cache(maxAge: 60)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Why this design works for FraiseQL
 
@@ -738,6 +798,7 @@ type Product @key(fields: "id") {
 ### Example 2: Social Media Platform
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -784,7 +845,8 @@ type UserGraph {
   following(first: 20): UserConnection!
   recommendations(first: 10): UserConnection!  # Paginated
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Why this works
 

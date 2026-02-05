@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Execution Model Architecture
+description: The **execution model** defines how the Rust runtime handles three orthogonal execution patterns:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Execution Model Architecture
 
 **Version:** 1.0
@@ -32,6 +40,7 @@ All three patterns compile to deterministic execution plans; only the delivery m
 ### 2.1 High-Level Flow
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL Query (from client)
     ↓
 Rust Runtime receives request
@@ -69,6 +78,7 @@ Rust Runtime receives request
   - Emit cache invalidation events
   - Return response to client
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -81,6 +91,7 @@ This optional phase occurs **before validation** to optimize response time for f
 If caching is enabled, the runtime checks if this exact query (or query hash) has been executed before:
 
 ```python
+<!-- Code example in Python -->
 def check_cache(
     query: str,
     variables: dict,
@@ -106,6 +117,7 @@ def check_cache(
 
     return None  # Cache miss, continue to validation
 ```text
+<!-- Code example in TEXT -->
 
 **Cache Layers Supported:**
 
@@ -121,6 +133,7 @@ Cache entries are invalidated when mutations trigger cascading changes. See **do
 If APQ is enabled, the runtime resolves persisted queries by their hash:
 
 ```python
+<!-- Code example in Python -->
 def resolve_apq(
     apq_hash: str,
     schema: CompiledSchema
@@ -141,6 +154,7 @@ def resolve_apq(
 
     return query  # Return full query for processing
 ```text
+<!-- Code example in TEXT -->
 
 **APQ Security Modes:**
 
@@ -153,6 +167,7 @@ See **docs/specs/persisted-queries.md** for complete APQ specification including
 ### 2.2.3 Phase 0 Resolution Algorithm
 
 ```python
+<!-- Code example in Python -->
 async def resolve_phase_0(request) -> dict | None:
     """Resolve cache or APQ, return early if possible."""
 
@@ -180,6 +195,7 @@ async def resolve_phase_0(request) -> dict | None:
     # Cache miss or caching disabled — continue to Phase 1
     return None
 ```text
+<!-- Code example in TEXT -->
 
 **Performance Impact:**
 
@@ -209,6 +225,7 @@ async def resolve_phase_0(request) -> dict | None:
 ### 3.2 Validation Algorithm
 
 ```python
+<!-- Code example in Python -->
 def validate_graphql_query(query_ast: QueryAST, schema: CompiledSchema):
     """Validate GraphQL query against schema."""
 
@@ -236,12 +253,14 @@ def validate_graphql_query(query_ast: QueryAST, schema: CompiledSchema):
 
     return errors
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Error Handling
 
 If validation fails, return GraphQL error response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -252,6 +271,7 @@ If validation fails, return GraphQL error response:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -262,6 +282,7 @@ If validation fails, return GraphQL error response:
 All authorization is **declarative metadata** in the CompiledSchema:
 
 ```json
+<!-- Code example in JSON -->
 {
   "authorization": {
     "queries": {
@@ -286,12 +307,14 @@ All authorization is **declarative metadata** in the CompiledSchema:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Auth Context Extraction
 
 The runtime receives auth context from the request (typically from JWT or session):
 
 ```python
+<!-- Code example in Python -->
 class AuthContext:
     subject: str           # User ID
     roles: list[str]       # ["user", "admin"]
@@ -299,10 +322,12 @@ class AuthContext:
     email: str
     # ... custom fields
 ```text
+<!-- Code example in TEXT -->
 
 **Extraction happens externally** (middleware layer):
 
 ```python
+<!-- Code example in Python -->
 # Middleware (outside FraiseQL runtime)
 def extract_auth_context(request) -> AuthContext:
     token = extract_jwt(request.headers["Authorization"])
@@ -313,10 +338,12 @@ def extract_auth_context(request) -> AuthContext:
         email=token.email
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Authorization Decision Algorithm
 
 ```python
+<!-- Code example in Python -->
 def authorize_query(
     query_name: str,
     auth_context: AuthContext,
@@ -344,12 +371,14 @@ def authorize_query(
 
     return True
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.4 Field-Level Authorization
 
 After results are returned, filter fields based on field-level auth:
 
 ```python
+<!-- Code example in Python -->
 # Example: User type, password_hash field requires admin role
 user_data = {
     "id": "123",
@@ -364,12 +393,14 @@ if "admin" not in auth_context.roles:
 # Return to client
 return user_data  # {"id": "123", "email": "user@example.com"}
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.5 Authorization Failure Response
 
 If authorization fails:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -383,6 +414,7 @@ If authorization fails:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -453,6 +485,7 @@ For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
 .5 produces an AggregationExecutionPlan:
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "aggregation",
   "table": "tf_sales",
@@ -470,6 +503,7 @@ For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
   "limit": 100
 }
 ```text
+<!-- Code example in TEXT -->
 
 This plan is passed to Phase 3 (Query Planning) which converts it to database-specific SQL in Phase 4.
 
@@ -488,6 +522,7 @@ This plan is passed to Phase 3 (Query Planning) which converts it to database-sp
 Every query/mutation has a **pre-compiled execution plan** stored in the CompiledSchema:
 
 ```json
+<!-- Code example in JSON -->
 {
   "queries": [
     {
@@ -511,12 +546,14 @@ Every query/mutation has a **pre-compiled execution plan** stored in the Compile
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Plan Types
 
 #### 5.2.1 Simple View Query
 
 ```python
+<!-- Code example in Python -->
 class ViewQueryPlan:
     """Query single view without complex joins."""
     view: str
@@ -527,20 +564,24 @@ class ViewQueryPlan:
     offset_column: str | None
     projection: dict[str, str]       # field_name → source
 ```text
+<!-- Code example in TEXT -->
 
 **SQL generated:**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, email, name, data, created_at
 FROM v_user
 WHERE (WHERE conditions applied by filter_mapping)
 ORDER BY created_at
 LIMIT $1 OFFSET $2
 ```text
+<!-- Code example in TEXT -->
 
 #### 5.2.2 Stored Procedure Call
 
 ```python
+<!-- Code example in Python -->
 class ProcedureCallPlan:
     """Call stored procedure for mutation."""
     procedure: str
@@ -548,31 +589,37 @@ class ProcedureCallPlan:
     output_mapping: dict[str, str]  # response field → GraphQL field
     return_type: str                 # "json" or "jsonb"
 ```text
+<!-- Code example in TEXT -->
 
 **SQL generated:**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT fn_create_user(
     email_param := $1,
     name_param := $2
 )
 ```text
+<!-- Code example in TEXT -->
 
 #### 5.2.3 Federation Query
 
 ```python
+<!-- Code example in Python -->
 class FederationQueryPlan:
     """Query across federated subgraphs."""
     subgraph_name: str
     query_name: str
     # ... cross-subgraph fields
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 WHERE Clause Compilation
 
 WHERE input is compiled to SQL based on introspected columns:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # GraphQL WHERE input
 query {
   users(where: {
@@ -587,20 +634,24 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Compiles to:**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT id, email
 FROM v_user
 WHERE email LIKE '%@example.com'
   AND created_at >= '2026-01-01T00:00:00Z'
   AND name = 'Alice'
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.4 Plan Resolution
 
 ```python
+<!-- Code example in Python -->
 def resolve_execution_plan(
     query_name: str,
     schema: CompiledSchema,
@@ -620,6 +671,7 @@ def resolve_execution_plan(
 
     return plan
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -630,6 +682,7 @@ def resolve_execution_plan(
 The execution plan is translated to SQL:
 
 ```python
+<!-- Code example in Python -->
 def translate_to_sql(plan: ExecutionPlan) -> str:
     """Translate execution plan to SQL."""
 
@@ -640,12 +693,14 @@ def translate_to_sql(plan: ExecutionPlan) -> str:
     else:
         raise ValueError(f"Unknown plan type: {type(plan)}")
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Database-Specific Translation
 
 SQL translation is **database-agnostic** at the plan level, but **database-specific** at SQL generation:
 
 ```python
+<!-- Code example in Python -->
 # For PostgreSQL
 def translate_view_query_postgresql(plan: ViewQueryPlan) -> str:
     sql = f"SELECT {', '.join(plan.select_columns)} FROM {plan.view}"
@@ -712,10 +767,12 @@ def translate_view_query_sqlserver(plan: ViewQueryPlan) -> str:
     # SQL Server uses TOP/OFFSET FETCH instead of LIMIT
     ...
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Query Execution
 
 ```python
+<!-- Code example in Python -->
 async def execute_query(
     sql: str,
     parameters: dict,
@@ -737,12 +794,14 @@ async def execute_query(
             ]
         }
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.4 Result Streaming (Optional)
 
 For large result sets, stream results:
 
 ```python
+<!-- Code example in Python -->
 async def execute_query_streaming(
     sql: str,
     parameters: dict,
@@ -758,6 +817,7 @@ async def execute_query_streaming(
             break
         yield rows
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -768,6 +828,7 @@ async def execute_query_streaming(
 When a view returns JSONB data, extract nested fields:
 
 ```python
+<!-- Code example in Python -->
 def project_result(row: dict, projection_plan: dict) -> dict:
     """Project row to GraphQL type."""
 
@@ -786,12 +847,14 @@ def project_result(row: dict, projection_plan: dict) -> dict:
 
     return result
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Nested Type Projection
 
 For nested types (like `User.posts`), extract from JSONB:
 
 ```python
+<!-- Code example in Python -->
 # Row from v_user:
 {
     "id": "123",
@@ -814,12 +877,14 @@ For nested types (like `User.posts`), extract from JSONB:
     ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Recursive Projection
 
 For deeply nested types:
 
 ```python
+<!-- Code example in Python -->
 def project_recursive(
     row: dict,
     type_def: TypeDef,
@@ -848,12 +913,14 @@ def project_recursive(
 
     return result
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Field-Level Authorization Filtering
 
 During result projection, apply field-level authorization rules to hide sensitive fields from unauthorized users:
 
 ```python
+<!-- Code example in Python -->
 def project_result_with_auth(
     row: dict,
     projection_plan: dict,
@@ -884,10 +951,12 @@ def project_result_with_auth(
 
     return result
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization Examples:**
 
 ```python
+<!-- Code example in Python -->
 # Hide password_hash from non-admin users
 class User:
     id: ID
@@ -899,6 +968,7 @@ class User:
 # password_hash and admin_notes are automatically removed
 # Result: {"id": "123", "email": "user@example.com"}
 ```text
+<!-- Code example in TEXT -->
 
 **Performance:**
 
@@ -917,6 +987,7 @@ See **docs/enterpri../../guides/authorization-quick-start.md** for complete Role
 Handle LIMIT/OFFSET at projection level:
 
 ```python
+<!-- Code example in Python -->
 def apply_pagination(
     rows: list[dict],
     limit: int | None,
@@ -944,6 +1015,7 @@ def apply_pagination(
         }
     }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -954,6 +1026,7 @@ def apply_pagination(
 Mutations follow the same pipeline, but call stored procedures:
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL Mutation
     ↓
 Validation
@@ -972,10 +1045,12 @@ Emit Cache Invalidation Events
     ↓
 Return to Client
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Procedure Call Execution
 
 ```python
+<!-- Code example in Python -->
 async def execute_mutation(
     mutation_name: str,
     arguments: dict,
@@ -1038,6 +1113,7 @@ async def execute_mutation(
             ]
         }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1048,6 +1124,7 @@ async def execute_mutation(
 After successful mutations, emit cache invalidation events:
 
 ```python
+<!-- Code example in Python -->
 def emit_cache_events(
     cascade: dict,
     auth_context: AuthContext
@@ -1094,10 +1171,12 @@ def emit_cache_events(
         )
         emit_to_cache_layer(event)
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Cache Event Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "updated|deleted|invalidation",
   "entity_type": "User",
@@ -1108,6 +1187,7 @@ def emit_cache_events(
   "reason": "user_created"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Integration with CDC Event Streaming
 
@@ -1127,6 +1207,7 @@ The `tb_entity_change_log` table (documented in **docs/specs/schema-conventions.
 Errors at any phase result in GraphQL error response:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -1142,12 +1223,14 @@ Errors at any phase result in GraphQL error response:
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Partial Results
 
 For multi-field queries, return partial results if allowed:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -1164,6 +1247,7 @@ For multi-field queries, return partial results if allowed:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1174,6 +1258,7 @@ For multi-field queries, return partial results if allowed:
 Pre-compile plans to avoid runtime decision-making:
 
 ```python
+<!-- Code example in Python -->
 # Compile-time: Generate plan once
 plan = compile_query("users", schema)
 
@@ -1181,12 +1266,14 @@ plan = compile_query("users", schema)
 for request in requests:
     result = execute_plan(plan, request.variables)
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Connection Pooling
 
 Use database connection pool for efficiency:
 
 ```python
+<!-- Code example in Python -->
 pool = await create_pool(
     database_url,
     min_size=10,
@@ -1197,18 +1284,21 @@ pool = await create_pool(
 async with pool.acquire() as conn:
     result = await execute_query(sql, conn)
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.3 Result Caching
 
 Cache execution results at multiple layers:
 
 ```text
+<!-- Code example in TEXT -->
 HTTP Layer Cache (if request is identical)
     ↓
 Query Result Cache (same query + variables)
     ↓
 Database Query Cache (database-specific)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1219,6 +1309,7 @@ Database Query Cache (database-specific)
 Determine database type at startup:
 
 ```python
+<!-- Code example in Python -->
 async def detect_database_dialect(db_connection) -> str:
     """Detect database product."""
 
@@ -1235,12 +1326,14 @@ async def detect_database_dialect(db_connection) -> str:
     else:
         raise ValueError(f"Unsupported database: {result}")
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.2 Dialect-Specific Optimizations
 
 Each database can have different execution strategies:
 
 ```python
+<!-- Code example in Python -->
 # PostgreSQL: Use native JSONB aggregation
 def execute_postgresql(plan: ViewQueryPlan, db_connection):
     sql = f"SELECT {plan.view}.* FROM {plan.view}"
@@ -1260,6 +1353,7 @@ def execute_sqlserver(plan: ViewQueryPlan, db_connection):
     # SQL Server has JSON_VALUE and JSON_QUERY functions
     return await db_connection.fetch(sql)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1272,6 +1366,7 @@ While queries and mutations are **request-response** patterns (client asks, serv
 FraiseQL subscriptions operate outside the 6-phase query execution pipeline. Instead, they use the **event backbone**:
 
 ```text
+<!-- Code example in TEXT -->
 Database Transaction Commits
     ↓
 Change Detection (LISTEN/NOTIFY or CDC)
@@ -1284,6 +1379,7 @@ Transport Adapter Dispatch (graphql-ws, webhook, Kafka, gRPC)
     ↓
 Client Delivery
 ```text
+<!-- Code example in TEXT -->
 
 **Key difference from queries:**
 
@@ -1295,6 +1391,7 @@ Client Delivery
 Like queries and mutations, subscriptions are **compiled** at schema build time:
 
 ```python
+<!-- Code example in Python -->
 # Schema authoring time
 @FraiseQL.subscription
 class OrderCreated:
@@ -1314,12 +1411,14 @@ class OrderCreated:
     "auth_required": True
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 13.3 Event Processing Pipeline
 
 When a database change occurs:
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Event Capture
    - PostgreSQL: LISTEN/NOTIFY triggers
@@ -1346,12 +1445,14 @@ When a database change occurs:
    - Handle backpressure (slow subscribers)
    - Implement retry logic (webhooks)
 ```text
+<!-- Code example in TEXT -->
 
 ### 13.4 Multi-Transport Event Delivery
 
 Same event stream serves multiple consumers:
 
 ```text
+<!-- Code example in TEXT -->
 Order Created Event
     ├─→ graphql-ws adapter
     │   └─→ Browser client (real-time dashboard) [<10ms]
@@ -1362,6 +1463,7 @@ Order Created Event
     └─→ Kafka adapter
         └─→ Data warehouse [async, offset-tracked]
 ```text
+<!-- Code example in TEXT -->
 
 **Each adapter independently:**
 

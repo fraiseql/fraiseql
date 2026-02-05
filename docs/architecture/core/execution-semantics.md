@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Execution Semantics: Query, Mutation, and Subscription Runtime Behavior
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["design", "query-execution", "scalability", "performance", "patterns", "mutation", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Execution Semantics: Query, Mutation, and Subscription Runtime Behavior
 
 **Date:** January 2026
@@ -37,6 +45,7 @@ FraiseQL execution semantics define the precise runtime behavior of queries, mut
 Every query follows a deterministic five-phase execution model:
 
 ```text
+<!-- Code example in TEXT -->
  Request Parsing & Validation
     ↓
  Authorization & Context Binding
@@ -47,12 +56,14 @@ Every query follows a deterministic five-phase execution model:
     ↓
  Response Transformation & Streaming
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Phase 1: Request Parsing & Validation
 
 **Input**: GraphQL query string (may be pre-compiled or sent at request time)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUserPosts($userId: ID!, $limit: Int) {
   user(id: $userId) {
     id
@@ -64,6 +75,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Parsing tasks:**
 
@@ -90,6 +102,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
 **If validation fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -107,6 +120,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Phase 2: Authorization & Context Binding
 
@@ -115,6 +129,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
 **Authorization checks:**
 
 ```python
+<!-- Code example in Python -->
 # Check query-level authorization:
 # "Can this user execute this query at all?"
 
@@ -130,20 +145,24 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization evaluation (compile-time generated SQL WHERE clauses):**
 
 ```sql
+<!-- Code example in SQL -->
 -- SELECT ... FROM v_user
 -- WHERE
 --   (authorization rules)
 --   AND current_user_id = 'user-456'  (user context)
 --   AND current_user_role IN ('admin', 'user')  (role context)
 ```text
+<!-- Code example in TEXT -->
 
 **If authorization fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -160,6 +179,7 @@ query {
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 **If authorization succeeds:**
 
@@ -176,48 +196,59 @@ query {
 1. **Load compiled SQL plan:**
 
    ```rust
+<!-- Code example in RUST -->
    let sql_plan = compiled_schema.queries.get("GetUserPosts")?;
    // Already optimized from compilation phase
    ```text
+<!-- Code example in TEXT -->
 
 2. **Bind variables to SQL parameters:**
 
    ```rust
+<!-- Code example in RUST -->
    let mut params = Vec::new();
    params.push(sql_param("user_id", variables["userId"]));
    params.push(sql_param("limit", variables.get("limit").unwrap_or(20)));
    params.push(sql_param("current_user_id", user_context.id));
    // Bind all authorization context
    ```text
+<!-- Code example in TEXT -->
 
 3. **Resolve dynamic values:**
 
    ```rust
+<!-- Code example in RUST -->
    // Some fields may have runtime defaults:
    // @field(default=NOW()) → Bind current timestamp
    // @field(default=current_user_id) → Bind from context
    ```text
+<!-- Code example in TEXT -->
 
 4. **Type coercion:**
 
    ```rust
+<!-- Code example in RUST -->
    // Convert GraphQL types to database types:
    // ID → UUID or String (depending on database)
    // DateTime → TIMESTAMP (depending on database)
    // JSON → JSONB (PostgreSQL) or JSON (MySQL)
    ```text
+<!-- Code example in TEXT -->
 
 5. **Prepared statement execution:**
 
    ```rust
+<!-- Code example in RUST -->
    // Use prepared statement for safety and performance:
    let prepared = db.prepare(sql_plan.query)?;
    prepared.query(params)?
    ```text
+<!-- Code example in TEXT -->
 
 **If parameter binding fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -233,6 +264,7 @@ query {
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.5 Phase 4: Database Execution
 
@@ -241,6 +273,7 @@ query {
 **Execution strategy:**
 
 ```rust
+<!-- Code example in RUST -->
 async fn execute_query(
     prepared: PreparedStatement,
     params: Parameters,
@@ -268,6 +301,7 @@ async fn execute_query(
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Query execution guarantees:**
 
@@ -280,6 +314,7 @@ async fn execute_query(
 **Database errors mapped to error codes:**
 
 ```rust
+<!-- Code example in RUST -->
 // PostgreSQL error → FraiseQL error code
 match pg_error.code {
     "57014" => E_DB_QUERY_CANCELLED_305,      // Query cancelled
@@ -290,10 +325,12 @@ match pg_error.code {
     _ => E_DB_UNKNOWN_ERROR_399
 }
 ```text
+<!-- Code example in TEXT -->
 
 **If database execution fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -310,6 +347,7 @@ match pg_error.code {
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.6 Phase 5: Response Transformation & Streaming
 
@@ -320,14 +358,17 @@ match pg_error.code {
 1. **Deserialize database values:**
 
    ```rust
+<!-- Code example in RUST -->
    // JSONB → Rust struct
    // TIMESTAMP → DateTime
    // UUID → String
    ```text
+<!-- Code example in TEXT -->
 
 2. **Apply field-level masking:**
 
    ```rust
+<!-- Code example in RUST -->
    // Fields with @authorize rules:
    // If user not authorized → Set field to NULL
 
@@ -337,27 +378,33 @@ match pg_error.code {
        }
    }
    ```text
+<!-- Code example in TEXT -->
 
 3. **Transform to GraphQL response format:**
 
    ```rust
+<!-- Code example in RUST -->
    // Rust struct → JSON (GraphQL response)
    // Rename fields (database column names → GraphQL field names)
    // Nest objects (flatten JSONB into nested objects)
    ```text
+<!-- Code example in TEXT -->
 
 4. **Stream response (if large):**
 
    ```rust
+<!-- Code example in RUST -->
    // For large result sets, stream response:
    // Chunk data into 64KB packets
    // Send chunks as soon as available
    // Allow client to start processing while query still executing
    ```text
+<!-- Code example in TEXT -->
 
 5. **Include execution metadata:**
 
    ```rust
+<!-- Code example in RUST -->
    {
      "data": {...},
      "extensions": {
@@ -371,10 +418,12 @@ match pg_error.code {
      }
    }
    ```text
+<!-- Code example in TEXT -->
 
 **Example response transformation:**
 
 ```rust
+<!-- Code example in RUST -->
 // Database result (raw):
 Row {
     pk_user: 1,
@@ -407,6 +456,7 @@ Row {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.7 Query Execution Error Handling
 
@@ -427,6 +477,7 @@ Row {
 FraiseQL allows partial results when field-level errors occur:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUsers {
   users {
     id        # ✅ Success
@@ -436,10 +487,12 @@ query GetUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response with field errors:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": [
@@ -465,12 +518,14 @@ query GetUsers {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.8 Query Caching
 
 **Caching strategy:**
 
 ```rust
+<!-- Code example in RUST -->
 async fn execute_query_with_cache(
     query_name: &str,
     variables: &Variables,
@@ -500,6 +555,7 @@ async fn execute_query_with_cache(
     Ok(response)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Cache invalidation:**
 
@@ -519,6 +575,7 @@ Query cache is invalidated when:
 Mutations follow a stricter five-phase model with atomic guarantees:
 
 ```text
+<!-- Code example in TEXT -->
  Request Validation
     ↓
  Input Validation & Transformation
@@ -529,12 +586,14 @@ Mutations follow a stricter five-phase model with atomic guarantees:
     ↓
  Post-mutation Response & Events
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Phase 1: Request Validation
 
 Similar to query validation, but with stricter rules:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreatePost($title: String!, $content: String!) {
   createPost(input: {
     title: $title,
@@ -545,6 +604,7 @@ mutation CreatePost($title: String!, $content: String!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Validation checks:**
 
@@ -558,6 +618,7 @@ mutation CreatePost($title: String!, $content: String!) {
 **Input validation rules:**
 
 ```rust
+<!-- Code example in RUST -->
 // Validate input type
 struct CreatePostInput {
     title: String,      // Required, max 256 chars
@@ -575,10 +636,12 @@ if input.content.len() > 100_000 {
     return Err(E_VALIDATION_CONTENT_TOO_LARGE_106);
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Custom validators:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.mutation
 def create_post(input: CreatePostInput) -> Post:
     """Create a new post"""
@@ -594,10 +657,12 @@ def create_post(input: CreatePostInput) -> Post:
         # Transform input (e.g., strip whitespace, normalize unicode)
         return title.strip().casefold()
 ```text
+<!-- Code example in TEXT -->
 
 **If validation fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -612,12 +677,14 @@ def create_post(input: CreatePostInput) -> Post:
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.4 Phase 3: Pre-mutation Authorization
 
 **Authorization checks before modification:**
 
 ```rust
+<!-- Code example in RUST -->
 // "Can this user execute this mutation?"
 // "Can this user modify this resource?"
 
@@ -626,10 +693,12 @@ def create_post(input: CreatePostInput) -> Post:
 // - Can user create posts in this project? (resource-based)
 // - Does user have write permission on Post type?
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization evaluation:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Check if user can create posts
 SELECT 1
 FROM tb_authorization_rules
@@ -638,10 +707,12 @@ WHERE user_id = $current_user_id
   AND resource_type = 'Post'
 LIMIT 1
 ```text
+<!-- Code example in TEXT -->
 
 **If authorization fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -657,12 +728,14 @@ LIMIT 1
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.5 Phase 4: Atomic Transaction Execution
 
 **Transaction guarantees:**
 
 ```rust
+<!-- Code example in RUST -->
 async fn execute_mutation(
     mutation: MutationPlan,
     input: MutationInput,
@@ -689,10 +762,12 @@ async fn execute_mutation(
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **All-or-nothing semantics:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreatePostAndComment {
   createPost(title: "New Post") {
     id
@@ -702,6 +777,7 @@ mutation CreatePostAndComment {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Result:**
 
@@ -712,6 +788,7 @@ mutation CreatePostAndComment {
 **Example mutation execution:**
 
 ```text
+<!-- Code example in TEXT -->
 
 1. BEGIN TRANSACTION
 2. Validate input ✅
@@ -724,10 +801,12 @@ mutation CreatePostAndComment {
 7. COMMIT TRANSACTION ✅
 8. Return response {id: post-456, title: "New Post"}
 ```text
+<!-- Code example in TEXT -->
 
 **Deadlock handling:**
 
 ```rust
+<!-- Code example in RUST -->
 // If deadlock detected, retry mutation
 for attempt in 1..=3 {
     match execute_mutation_in_transaction(...).await {
@@ -741,10 +820,12 @@ for attempt in 1..=3 {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Constraint violation handling:**
 
 ```rust
+<!-- Code example in RUST -->
 // Constraint check during transaction
 match db.execute(INSERT_STATEMENT).await {
     Ok(rows) => {
@@ -760,6 +841,7 @@ match db.execute(INSERT_STATEMENT).await {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.6 Phase 5: Post-mutation Response & Events
 
@@ -768,6 +850,7 @@ match db.execute(INSERT_STATEMENT).await {
 1. **Event publishing:**
 
    ```rust
+<!-- Code example in RUST -->
    // Publish change events (for subscriptions)
    event_bus.publish(Event {
        type: "PostCreated",
@@ -781,20 +864,24 @@ match db.execute(INSERT_STATEMENT).await {
        }
    });
    ```text
+<!-- Code example in TEXT -->
 
 2. **Side effects (webhooks, notifications):**
 
    ```rust
+<!-- Code example in RUST -->
    // Post-mutation side effects (not in transaction)
    // These run after commit, so they see changes
    trigger_webhooks("post.created", post);
    send_notification(post.author_id, "Your post was created");
    invalidate_caches("posts");
    ```text
+<!-- Code example in TEXT -->
 
 3. **Response transformation:**
 
    ```rust
+<!-- Code example in RUST -->
    // Return new entity state
    {
        "data": {
@@ -812,6 +899,7 @@ match db.execute(INSERT_STATEMENT).await {
        }
    }
    ```text
+<!-- Code example in TEXT -->
 
 ### 2.7 Mutation Error Handling
 
@@ -820,6 +908,7 @@ match db.execute(INSERT_STATEMENT).await {
 If mutation errors mid-transaction:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -831,6 +920,7 @@ If mutation errors mid-transaction:
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Result: Nothing is persisted. Entire transaction rolled back.**
 
@@ -848,6 +938,7 @@ If mutation errors mid-transaction:
 **Non-idempotent mutations (default):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreatePost($title: String!) {
   createPost(title: $title) {
     id
@@ -857,10 +948,12 @@ mutation CreatePost($title: String!) {
 # Call twice with same input → Create two posts
 # Two different IDs returned
 ```text
+<!-- Code example in TEXT -->
 
 **Idempotent mutations (with idempotency key):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreatePostIdempotent(
   $title: String!,
   $idempotency_key: String!
@@ -877,10 +970,12 @@ mutation CreatePostIdempotent(
 # Returns same ID both times (request deduplication)
 # Database checks: If idempotency_key exists, return existing result
 ```text
+<!-- Code example in TEXT -->
 
 **Idempotency implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 async fn execute_idempotent_mutation(
     idempotency_key: &str,
     mutation: &Mutation,
@@ -899,6 +994,7 @@ async fn execute_idempotent_mutation(
     Ok(response)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -909,6 +1005,7 @@ async fn execute_idempotent_mutation(
 Subscriptions are **event-driven, long-lived connections** that push updates to clients:
 
 ```text
+<!-- Code example in TEXT -->
 Client establishes connection
     ↓
 Client sends subscription request
@@ -926,12 +1023,14 @@ Client closes connection
     ↓
 Server cleans up listener
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Phase 1: Subscription Establishment
 
 **Client sends subscription:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OnPostCreated {
   postCreated {
     id
@@ -942,6 +1041,7 @@ subscription OnPostCreated {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Server validation (same as query validation):**
 
@@ -952,6 +1052,7 @@ subscription OnPostCreated {
 **If validation fails:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -961,12 +1062,14 @@ subscription OnPostCreated {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Phase 2: Event Listener Registration
 
 **Server creates event listener:**
 
 ```rust
+<!-- Code example in RUST -->
 struct SubscriptionListener {
     subscription_id: String,
     user_id: String,
@@ -988,10 +1091,12 @@ let listener = SubscriptionListener {
 
 event_manager.register(listener).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Connection setup:**
 
 ```rust
+<!-- Code example in RUST -->
 // WebSocket connection established
 // Send confirmation to client
 send_to_client({
@@ -1012,12 +1117,14 @@ send_to_client({
     }
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Phase 3: Event Capture & Filtering
 
 **When database event occurs:**
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL NOTIFY triggered:
 NOTIFY post_created, '{
   "id": "post-789",
@@ -1025,10 +1132,12 @@ NOTIFY post_created, '{
   "title": "New Post"
 }'
 ```text
+<!-- Code example in TEXT -->
 
 **Event filtering (early):**
 
 ```rust
+<!-- Code example in RUST -->
 // Apply event-level filters BEFORE authorization
 // Filters determine which events to process at all
 
@@ -1044,10 +1153,12 @@ if let Some(filter) = listener.filter {
 
 // Event passed filter, continue to authorization
 ```text
+<!-- Code example in TEXT -->
 
 **Per-entity event ordering guarantee:**
 
 ```rust
+<!-- Code example in RUST -->
 // FraiseQL guarantees event ordering per entity:
 // All events for Post #123 are delivered in order
 // But events for different entities may interleave:
@@ -1062,12 +1173,14 @@ if let Some(filter) = listener.filter {
 // - Post #456 subscriber: Event 2 (isolated)
 // - All posts subscriber: Event 1 → Event 2 → Event 3 (global order maintained)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.5 Phase 4: Authorization & Masking
 
 **Apply subscription-level authorization:**
 
 ```rust
+<!-- Code example in RUST -->
 // Check: Can this user receive this event?
 // Different from mutation authorization (event producer != event consumer)
 
@@ -1082,10 +1195,12 @@ for field in response_fields {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example authorization:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OnPostCreated {
   postCreated {
     id            # Public
@@ -1098,10 +1213,12 @@ subscription OnPostCreated {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Authorization result:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "next",
   "id": "sub-123",
@@ -1120,12 +1237,14 @@ subscription OnPostCreated {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.6 Phase 5: Entity Resolution & Response
 
 **Resolve full entity from event:**
 
 ```rust
+<!-- Code example in RUST -->
 // Event only contains ID, resolve full entity:
 async fn resolve_event_entity(
     event: Event,
@@ -1142,6 +1261,7 @@ async fn resolve_event_entity(
     Ok(entity)
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why full resolution?**
 
@@ -1153,6 +1273,7 @@ async fn resolve_event_entity(
 **Response transformation:**
 
 ```rust
+<!-- Code example in RUST -->
 // Transform database entity to subscription response
 
 let response = SubscriptionMessage {
@@ -1163,10 +1284,12 @@ let response = SubscriptionMessage {
 
 send_to_client(response).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Example subscription response:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "next",
   "id": "sub-123",
@@ -1191,12 +1314,14 @@ send_to_client(response).await?;
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.7 Connection Lifecycle
 
 **Keepalive messages (prevent connection timeout):**
 
 ```rust
+<!-- Code example in RUST -->
 // Send keepalive every 30 seconds if no data
 tokio::spawn(async move {
     loop {
@@ -1208,20 +1333,24 @@ tokio::spawn(async move {
     }
 });
 ```text
+<!-- Code example in TEXT -->
 
 **Client heartbeat:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Client can send ping to verify connection alive
 {"type": "ping"}
 
 # Server responds
 {"type": "pong"}
 ```text
+<!-- Code example in TEXT -->
 
 **Connection cleanup:**
 
 ```rust
+<!-- Code example in RUST -->
 // When client closes subscription:
 event_manager.unregister(&listener).await?;
 
@@ -1236,6 +1365,7 @@ if ws_connection.subscriptions.is_empty() {
     ws_connection.close().await?;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.8 Subscription Error Handling
 
@@ -1252,6 +1382,7 @@ if ws_connection.subscriptions.is_empty() {
 **Event buffer overflow:**
 
 ```rust
+<!-- Code example in RUST -->
 // FraiseQL maintains per-subscription event buffer (1000 events default)
 // If producer outpaces consumer:
 
@@ -1270,10 +1401,12 @@ if buffer.len() > max_size {
     event_manager.terminate(&listener).await?;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Network error during event delivery:**
 
 ```rust
+<!-- Code example in RUST -->
 // If sending event to client fails:
 match send_to_client(event).await {
     Ok(_) => {},
@@ -1295,12 +1428,14 @@ match send_to_client(event).await {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.9 Multi-subscription Handling
 
 **Multiple subscriptions on same connection:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OnPostCreated {
   postCreated { id title }
 }
@@ -1309,10 +1444,12 @@ subscription OnCommentCreated {
   commentCreated { id content }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 struct WebSocketConnection {
     conn_id: String,
     user_id: String,
@@ -1327,6 +1464,7 @@ for (sub_id, listener) in connection.subscriptions {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Resource limits per connection:**
 
@@ -1391,6 +1529,7 @@ for (sub_id, listener) in connection.subscriptions {
 For large result sets, FraiseQL streams results:
 
 ```rust
+<!-- Code example in RUST -->
 // Stream response in chunks
 async fn stream_large_query(
     query: Query,
@@ -1401,20 +1540,24 @@ async fn stream_large_query(
     // Allow client to start processing before query completes
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Streaming response format:**
 
 ```text
+<!-- Code example in TEXT -->
 Frame 1: {"data": {"users": [user1, user2, ...]}}
 Frame 2: [user3, user4, ...]
 Frame 3: [user5, user6, ...]
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Pagination Strategies
 
 **Offset/limit pagination:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPosts($offset: Int!, $limit: Int!) {
   posts(offset: $offset, limit: $limit) {
     id
@@ -1422,10 +1565,12 @@ query GetPosts($offset: Int!, $limit: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Keyset pagination (recommended for scale):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPosts($after: String, $first: Int!) {
   posts(after: $after, first: $first) {
     id
@@ -1434,10 +1579,12 @@ query GetPosts($after: String, $first: Int!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Keyset cursor implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 // Cursor encodes sort key + result ID
 // Format: base64(sort_key:result_id)
 
@@ -1448,12 +1595,14 @@ let cursor = base64_encode(format!("{}:{}", created_at, post_id));
 let (sort_key, result_id) = base64_decode(cursor)?;
 // Query: SELECT * FROM posts WHERE created_at < $sort_key ORDER BY created_at DESC LIMIT 20
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 6. Summary: Execution Flow Diagram
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │ Client Request (Query/Mutation/Subscription)                │
 └────────────────┬────────────────────────────────────────────┘
@@ -1508,6 +1657,7 @@ let (sort_key, result_id) = base64_decode(cursor)?;
         │ Client Processes Result │
         └─────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL C# SDK Reference
+description: Complete API reference for the FraiseQL C# SDK. Provides record types, nullable reference types, and modern async patterns for defining type-safe GraphQL APIs. 
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL C# SDK Reference
 
 **Status**: Production-Ready | **C# Version**: 11+ | **.NET**: 8.0+ | **SDK Version**: 2.0.0+
@@ -8,6 +16,7 @@ Complete API reference for the FraiseQL C# SDK. Provides record types, nullable 
 ## Installation
 
 ```bash
+<!-- Code example in BASH -->
 # Via NuGet Package Manager
 Install-Package FraiseQL
 
@@ -18,7 +27,8 @@ dotnet add package FraiseQL
 <ItemGroup>
   <PackageReference Include="FraiseQL" Version="2.0.*" />
 </ItemGroup>
-```
+```text
+<!-- Code example in TEXT -->
 
 **Requirements**:
 
@@ -30,6 +40,7 @@ dotnet add package FraiseQL
 **Recommended Project Setup**:
 
 ```xml
+<!-- Code example in XML -->
 <!-- YourProject.csproj -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -44,7 +55,8 @@ dotnet add package FraiseQL
     <PackageReference Include="FraiseQL.SourceGenerators" Version="2.0.*" />
   </ItemGroup>
 </Project>
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -72,6 +84,7 @@ dotnet add package FraiseQL
 C# records provide immutable types with automatic equality and ToString():
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 namespace MySchema;
@@ -105,13 +118,15 @@ public record User
 //   isActive: Boolean!
 //   middleName: String
 // }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Nullable Reference Types (`#nullable enable`)
 
 Modern C# distinguishes between nullable and non-nullable references:
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLType]
@@ -130,11 +145,13 @@ public record Article
 //   content: String
 //   author: Author
 // }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Generic Record Types
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLType]
@@ -149,11 +166,13 @@ public record Page<T>(
 // Usage:
 [FraiseQLType]
 public record UserPage : Page<User>;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Complex Nested Types
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLType]
@@ -181,7 +200,8 @@ public record Post
     public string Title { get; init; }
     public DateTime CreatedAt { get; init; }
 };
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -190,6 +210,7 @@ public record Post
 ### Query Operations (async/await)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLSchema]
@@ -225,11 +246,13 @@ public static class UserQueries
     ) =>
         await Task.FromResult([]);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation Operations (async/await)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLSchema]
@@ -290,11 +313,13 @@ public record UpdateUserInput
     public string? Name { get; init; }
     public string? Email { get; init; }
 };
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Builders (LINQ Integration)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLSchema]
@@ -340,7 +365,8 @@ public static class AdvancedQueries
 
     private static IQueryable<User> GetAllUsers() => throw new NotImplementedException();
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -349,6 +375,7 @@ public static class AdvancedQueries
 ### Fact Tables (OLAP Analytics)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 /// <summary>Analytics fact table for sales events.</summary>
@@ -400,11 +427,13 @@ public static class AnalyticsQueries
         public int TotalQuantity { get; init; }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Role-Based Access Control (RBAC)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLSchema]
@@ -450,11 +479,13 @@ public static class SecureQueries
         public DateTime CompletedAt { get; init; }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field-Level Metadata and Validation
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLType]
@@ -503,7 +534,8 @@ public static class Validators
     [FraiseQLType]
     public record ValidationResult(bool IsValid, string? ErrorMessage = null);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -535,6 +567,7 @@ public static class Validators
 ### Custom Scalar Examples
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 /// <summary>ISO 8601 timestamp (FraiseQL custom scalar).</summary>
@@ -558,7 +591,8 @@ public record Event
     public FraiseQLDateTime OccurredAt { get; init; }  // Serialized as DateTime
     public FraiseQLDateTime? CompletedAt { get; init; }  // Nullable DateTime
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -567,6 +601,7 @@ public record Event
 ### Export Workflow
 
 ```csharp
+<!-- Code example in CSHARP -->
 // Program.cs
 using FraiseQL;
 
@@ -582,20 +617,24 @@ await schemaGenerator.ExportSchemaAsync(
 );
 
 Console.WriteLine("✓ Generated schema.json");
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Project Integration (.csproj)
 
 ```xml
+<!-- Code example in XML -->
 <!-- YourProject.csproj -->
 <Target Name="GenerateFraiseQLSchema" BeforeTargets="Build">
   <Exec Command="dotnet run --project ./Schema/SchemaGenerator.csproj" />
 </Target>
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Dependency Injection Integration
 
 ```csharp
+<!-- Code example in CSHARP -->
 // Startup.cs / Program.cs (.NET 6+ minimal hosting)
 using FraiseQL;
 using Microsoft.Extensions.DependencyInjection;
@@ -618,7 +657,8 @@ var serviceProvider = services.BuildServiceProvider();
 // Load and initialize
 var fraiseQL = serviceProvider.GetRequiredService<IFraiseQLServer>();
 await fraiseQL.InitializeAsync();
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -629,6 +669,7 @@ await fraiseQL.InitializeAsync();
 **Input → Record Destructuring:**
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 // GraphQL Input:
@@ -649,11 +690,13 @@ public record CreateUserInput(
 // Deserialization (automatic via source generators):
 // JSON: {"name":"Alice","email":"alice@example.com"}
 // → CreateUserInput("Alice", "alice@example.com", null)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output → Record Serialization:**
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 // C# Record:
@@ -663,11 +706,13 @@ public record User(int Id, string Name, string? MiddleName);
 // Serialization → GraphQL Response:
 var user = new User(Id: 1, Name: "Alice", MiddleName: null);
 // JSON: {"id":1,"name":"Alice","middleName":null}
-```
+```text
+<!-- Code example in TEXT -->
 
 **List Handling:**
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 // GraphQL Field:
@@ -683,7 +728,8 @@ public record UserList
 // Serialization:
 var list = new UserList { Users = [user1, user2] };
 // JSON: {"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -692,6 +738,7 @@ var list = new UserList { Users = [user1, user2] };
 ### CRUD Operations
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 using System.Collections.Generic;
 using System.Threading;
@@ -742,11 +789,13 @@ public static class CrudPatterns
         CancellationToken ct = default
     ) => await Task.FromResult(true);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination Pattern
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 [FraiseQLType]
@@ -786,11 +835,13 @@ public static class PaginationQueries
         return new UserPageResult(items, pagination);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Filtering and Sorting
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 public enum SortOrder { Ascending, Descending }
@@ -821,7 +872,8 @@ public static class FilteredQueries
         CancellationToken ct = default
     ) => await Task.FromResult([]);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -830,6 +882,7 @@ public static class FilteredQueries
 ### Exception Handling
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 using FraiseQL.Exceptions;
@@ -874,11 +927,13 @@ public class OperationException : Exception
     {
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Result Pattern (Functional Error Handling)
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 /// <summary>Functional result type for safe operations.</summary>
@@ -913,7 +968,8 @@ public static class RobustOperations
     private static async Task<User?> GetUserById(int id, CancellationToken ct)
         => await Task.FromResult<User?>(null);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -922,6 +978,7 @@ public static class RobustOperations
 ### xUnit Integration
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 using Xunit;
@@ -990,11 +1047,13 @@ public class MockFraiseQLServer : IFraiseQLServer
         CancellationToken ct = default
     ) => Task.FromResult(new GraphQLResponse());
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration Testing with Test Containers
 
 ```csharp
+<!-- Code example in CSHARP -->
 #nullable enable
 
 using Testcontainers.PostgreSql;
@@ -1036,7 +1095,8 @@ public class IntegrationTests : IAsyncLifetime
         Assert.Equal("Test User", retrieved.Name);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1063,15 +1123,19 @@ public class IntegrationTests : IAsyncLifetime
 **Solution**:
 
 ```xml
+<!-- Code example in XML -->
 <!-- .csproj -->
 <ItemGroup>
   <PackageReference Include="FraiseQL" Version="2.0.0" />
 </ItemGroup>
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 dotnet add package FraiseQL --version 2.0.0
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Assembly Loading
 
@@ -1080,10 +1144,12 @@ dotnet add package FraiseQL --version 2.0.0
 **Solution - Check version**:
 
 ```bash
+<!-- Code example in BASH -->
 dotnet list package --outdated
 dotnet restore
 dotnet clean && dotnet build
-```
+```text
+<!-- Code example in TEXT -->
 
 #### .NET Version Mismatch
 
@@ -1092,14 +1158,18 @@ dotnet clean && dotnet build
 **Check version** (6.0+ required):
 
 ```bash
+<!-- Code example in BASH -->
 dotnet --version
-```
+```text
+<!-- Code example in TEXT -->
 
 **Update .csproj**:
 
 ```xml
+<!-- Code example in XML -->
 <TargetFramework>net8.0</TargetFramework>
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Package Source Issues
 
@@ -1108,9 +1178,11 @@ dotnet --version
 **Configure package source**:
 
 ```bash
+<!-- Code example in BASH -->
 dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org
 dotnet nuget list source
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1123,15 +1195,18 @@ dotnet nuget list source
 **Enable nullable reference types**:
 
 ```xml
+<!-- Code example in XML -->
 <PropertyGroup>
   <Nullable>enable</Nullable>
   <ImplicitUsings>enable</ImplicitUsings>
 </PropertyGroup>
-```
+```text
+<!-- Code example in TEXT -->
 
 **Use correct nullability**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // ❌ Wrong - implicit non-null
 [FraiseQLType]
 public class User
@@ -1146,7 +1221,8 @@ public class User
     public string Email { get; set; }  // Non-null
     public string? MiddleName { get; set; }  // Nullable
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Generic Type Issues
 
@@ -1155,6 +1231,7 @@ public class User
 **Solution - Use concrete types**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // ❌ Won't work - generics
 [FraiseQLType]
 public class Box<T>
@@ -1168,7 +1245,8 @@ public class UserBox
 {
     public User Value { get; set; }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Dynamic Type Issues
 
@@ -1177,6 +1255,7 @@ public class UserBox
 **Solution - Use static types**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // ❌ Don't use dynamic
 var result = (dynamic)FraiseQL.Execute(query);
 
@@ -1185,7 +1264,8 @@ var result = FraiseQL.Execute<QueryResult>(query);
 
 // Or cast after
 var result = FraiseQL.Execute(query) as QueryResult;
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Attributes Issues
 
@@ -1194,12 +1274,14 @@ var result = FraiseQL.Execute(query) as QueryResult;
 **Verify using statements**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 using FraiseQL;
 using FraiseQL.Attributes;
 
 [FraiseQLType]
 public class User { }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1212,6 +1294,7 @@ public class User { }
 **Solution - Use async/await properly**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // ❌ Wrong - not async
 public QueryResult Execute(string query)
 {
@@ -1233,7 +1316,8 @@ public async Task<IActionResult> GraphQL([FromBody] GraphQLRequest request)
     var result = await FraiseQL.ExecuteAsync(request.Query);
     return Ok(result);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Reflection Issues
 
@@ -1242,6 +1326,7 @@ public async Task<IActionResult> GraphQL([FromBody] GraphQLRequest request)
 **Solution - Use proper reflection**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // ✅ Get property correctly
 var propertyInfo = typeof(User).GetProperty("Email",
     System.Reflection.BindingFlags.IgnoreCase |
@@ -1252,7 +1337,8 @@ if (propertyInfo != null)
 {
     var value = propertyInfo.GetValue(user);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Dependency Injection Issues
 
@@ -1261,17 +1347,20 @@ if (propertyInfo != null)
 **Register dependencies**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // Startup.cs or Program.cs
 services.AddSingleton<IFraiseQLServer>(sp =>
     FraiseQLServer.FromCompiled("schema.compiled.json")
 );
 
 services.AddScoped<IGraphQLService, GraphQLService>();
-```
+```text
+<!-- Code example in TEXT -->
 
 **Use in controller**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 [ApiController]
 [Route("api")]
 public class GraphQLController : ControllerBase
@@ -1290,7 +1379,8 @@ public class GraphQLController : ControllerBase
         return Ok(result);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Entity Framework Issues
 
@@ -1299,6 +1389,7 @@ public class GraphQLController : ControllerBase
 **Solution - Use SQL views/functions only, not EF**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 // FraiseQL works with SQL views, not EF entities
 // Don't mix EF with FraiseQL schema
 
@@ -1308,7 +1399,8 @@ CREATE VIEW v_users AS SELECT id, name, email FROM users;
 // Use in FraiseQL schema
 @FraiseQL.query(sql_source = "v_users")
 public User[] GetUsers() { return new User[0]; }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1321,12 +1413,14 @@ public User[] GetUsers() { return new User[0]; }
 **Pre-compile schema**:
 
 ```bash
+<!-- Code example in BASH -->
 # Use FraiseQL-cli
 FraiseQL-cli compile schema.json FraiseQL.toml
 
 # Load pre-compiled (faster)
 var server = FraiseQLServer.FromCompiled("schema.compiled.json");
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Large Assembly Size
 
@@ -1335,15 +1429,19 @@ var server = FraiseQLServer.FromCompiled("schema.compiled.json");
 **Enable trimming**:
 
 ```xml
+<!-- Code example in XML -->
 <PropertyGroup>
   <PublishTrimmed>true</PublishTrimmed>
   <PublishReadyToRun>true</PublishReadyToRun>
 </PropertyGroup>
-```
+```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 dotnet publish -c Release
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Connection Pool Exhaustion
 
@@ -1352,6 +1450,7 @@ dotnet publish -c Release
 **Increase pool size**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 var options = new DbContextOptionsBuilder<MyDbContext>()
     .UseSqlServer(
         connectionString,
@@ -1361,7 +1460,8 @@ var options = new DbContextOptionsBuilder<MyDbContext>()
 
 // Or via connection string
 "Server=...;Max Pool Size=50;Min Pool Size=5;"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Usage in Long-Running Services
 
@@ -1370,6 +1470,7 @@ var options = new DbContextOptionsBuilder<MyDbContext>()
 **Implement cleanup**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 public class GraphQLService : IDisposable
 {
     private readonly IFraiseQLServer _server;
@@ -1392,7 +1493,8 @@ public class GraphQLService : IDisposable
         _server?.Dispose();
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1403,6 +1505,7 @@ public class GraphQLService : IDisposable
 **Setup logging**:
 
 ```csharp
+<!-- Code example in CSHARP -->
 services.AddLogging(builder =>
 {
     builder.AddConsole();
@@ -1419,14 +1522,17 @@ services.AddLogging(builder =>
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Debug Output
 
 ```csharp
+<!-- Code example in CSHARP -->
 System.Diagnostics.Debug.WriteLine($"Query: {query}");
 System.Diagnostics.Debug.WriteLine($"Result: {result}");
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Visual Studio Debugger
 
@@ -1438,6 +1544,7 @@ System.Diagnostics.Debug.WriteLine($"Result: {result}");
 #### Unit Testing
 
 ```csharp
+<!-- Code example in CSHARP -->
 [TestClass]
 public class GraphQLTests
 {
@@ -1457,7 +1564,8 @@ public class GraphQLTests
         Assert.IsNotNull(result.Data);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Profiling
 
@@ -1485,6 +1593,7 @@ Provide:
 **Template**:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 **Environment**:
 - .NET: 8.0
 - Visual Studio: 2022
@@ -1498,7 +1607,8 @@ Provide:
 
 **Error**:
 [Full exception]
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Community Channels
 

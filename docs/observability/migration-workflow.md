@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Migration Workflow: Applying Optimizations Safely
+description: This guide covers the **complete workflow** for safely applying observability-driven schema optimizations to production, including:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Migration Workflow: Applying Optimizations Safely
 
 ## Overview
@@ -41,6 +49,7 @@ This guide covers the **complete workflow** for safely applying observability-dr
 ### Generate Migration SQL
 
 ```bash
+<!-- Code example in BASH -->
 # Step 1: Analyze metrics
 FraiseQL-cli analyze \
   --database postgres://metrics-db:5432/metrics \
@@ -49,6 +58,7 @@ FraiseQL-cli analyze \
 # Step 2: Review SQL
 less migrations/optimize-20260112.sql
 ```text
+<!-- Code example in TEXT -->
 
 **What to check**:
 
@@ -69,12 +79,15 @@ Before applying to **any environment**:
 - [ ] **Verify database connection**
 
   ```bash
+<!-- Code example in BASH -->
   psql $DATABASE_URL -c "SELECT version()"
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Check database size and free space**
 
   ```bash
+<!-- Code example in BASH -->
   # PostgreSQL
   psql $DATABASE_URL -c "
     SELECT pg_size_pretty(pg_database_size(current_database()))
@@ -85,28 +98,34 @@ Before applying to **any environment**:
     EXEC sp_spaceused
   "
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Check current locks**
 
   ```bash
+<!-- Code example in BASH -->
   # PostgreSQL
   psql $DATABASE_URL -c "
     SELECT * FROM pg_locks WHERE granted = false
   "
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Estimate migration duration**
 
   ```bash
+<!-- Code example in BASH -->
   # Test on copy of production data
   time psql staging < migrations/optimize-20260112.sql
   ```text
+<!-- Code example in TEXT -->
 
 #### Backup Checks
 
 - [ ] **Create full database backup**
 
   ```bash
+<!-- Code example in BASH -->
   # PostgreSQL
   pg_dump -Fc $DATABASE_URL > backup-$(date +%Y%m%d-%H%M%S).dump
 
@@ -115,20 +134,24 @@ Before applying to **any environment**:
     BACKUP DATABASE mydb TO DISK = 'C:\Backups\mydb-20260112.bak'
   "
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Verify backup integrity**
 
   ```bash
+<!-- Code example in BASH -->
   # PostgreSQL: List backup contents
   pg_restore --list backup-20260112-143000.dump | head
 
   # SQL Server: Verify backup
   sqlcmd -Q "RESTORE VERIFYONLY FROM DISK = 'C:\Backups\mydb-20260112.bak'"
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Test backup restore** (in separate environment)
 
   ```bash
+<!-- Code example in BASH -->
   # PostgreSQL
   createdb test_restore
   pg_restore -d test_restore backup-20260112-143000.dump
@@ -136,19 +159,23 @@ Before applying to **any environment**:
   # SQL Server
   sqlcmd -Q "RESTORE DATABASE test_restore FROM DISK = '...'"
   ```text
+<!-- Code example in TEXT -->
 
 #### Application Checks
 
 - [ ] **Review application schema references**
 
   ```bash
+<!-- Code example in BASH -->
   # Check if new columns need schema updates
   grep -r "dimensions->>region" app/
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Prepare schema.json updates**
 
   ```python
+<!-- Code example in Python -->
   # Before migration:
   @FraiseQL.fact_table(
       table_name='tf_sales',
@@ -162,12 +189,15 @@ Before applying to **any environment**:
       denormalized_filters=['region_id']  # NEW
   )
   ```text
+<!-- Code example in TEXT -->
 
 - [ ] **Compile new schema**
 
   ```bash
+<!-- Code example in BASH -->
   FraiseQL-cli compile schema.json --check
   ```text
+<!-- Code example in TEXT -->
 
 #### Team Communication
 
@@ -182,9 +212,11 @@ Before applying to **any environment**:
 #### Apply Migration
 
 ```bash
+<!-- Code example in BASH -->
 # Apply to staging database
 psql $STAGING_DATABASE_URL < migrations/optimize-20260112.sql
 ```text
+<!-- Code example in TEXT -->
 
 **Watch for**:
 
@@ -195,6 +227,7 @@ psql $STAGING_DATABASE_URL < migrations/optimize-20260112.sql
 #### Verify Schema Changes
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL: Check new columns
 psql $STAGING_DATABASE_URL -c "
   SELECT column_name, data_type
@@ -211,10 +244,12 @@ sqlcmd -S staging -Q "
   AND COLUMN_NAME = 'region_id'
 "
 ```text
+<!-- Code example in TEXT -->
 
 #### Verify Indexes
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL
 psql $STAGING_DATABASE_URL -c "
   SELECT indexname, indexdef
@@ -231,12 +266,14 @@ sqlcmd -Q "
   AND name = 'idx_tf_sales_region_id'
 "
 ```text
+<!-- Code example in TEXT -->
 
 #### Run Benchmark Queries
 
 **Before Migration** (baseline):
 
 ```bash
+<!-- Code example in BASH -->
 # Capture baseline performance
 psql $STAGING_DATABASE_URL -c "
   EXPLAIN ANALYZE
@@ -244,10 +281,12 @@ psql $STAGING_DATABASE_URL -c "
   WHERE dimensions->>'region' = 'US'
 " > benchmark-before.txt
 ```text
+<!-- Code example in TEXT -->
 
 **After Migration**:
 
 ```bash
+<!-- Code example in BASH -->
 # Measure new performance
 psql $STAGING_DATABASE_URL -c "
   EXPLAIN ANALYZE
@@ -255,10 +294,12 @@ psql $STAGING_DATABASE_URL -c "
   WHERE region_id = 'US'
 " > benchmark-after.txt
 ```text
+<!-- Code example in TEXT -->
 
 **Compare Results**:
 
 ```bash
+<!-- Code example in BASH -->
 # Extract execution times
 grep "Execution Time" benchmark-before.txt
 # Execution Time: 1,250.456 ms
@@ -268,10 +309,12 @@ grep "Execution Time" benchmark-after.txt
 
 # Actual speedup: 1,250 / 98 = 12.76x ✅
 ```text
+<!-- Code example in TEXT -->
 
 #### Update Application Schema
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Update schema.json
 vim schema.json
 
@@ -283,10 +326,12 @@ git add schema.compiled.json
 git commit -m "chore: update schema with denormalized region_id"
 git push origin staging
 ```text
+<!-- Code example in TEXT -->
 
 #### Run Application Tests
 
 ```bash
+<!-- Code example in BASH -->
 # Run full test suite
 npm test
 
@@ -297,6 +342,7 @@ npm run test:integration
 curl http://staging-api.example.com/graphql \
   -d '{"query": "{ sales(where: {region: \"US\"}) { revenue } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 #### Monitor Staging for 24-48 Hours
 
@@ -310,6 +356,7 @@ curl http://staging-api.example.com/graphql \
 **Tools**:
 
 ```bash
+<!-- Code example in BASH -->
 # Query performance
 psql $STAGING_DATABASE_URL -c "
   SELECT
@@ -323,6 +370,7 @@ psql $STAGING_DATABASE_URL -c "
   LIMIT 10
 "
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -335,6 +383,7 @@ psql $STAGING_DATABASE_URL -c "
 **Best for**: Migrations requiring table locks (< 1 minute downtime)
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Enable maintenance mode
 curl -X POST https://api.example.com/admin/maintenance
 
@@ -350,6 +399,7 @@ psql $PRODUCTION_DATABASE_URL -c "\d tf_sales"
 # 5. Disable maintenance mode
 curl -X POST https://api.example.com/admin/maintenance/off
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 1-5 minutes
 **Risk**: Low (predictable)
@@ -364,6 +414,7 @@ curl -X POST https://api.example.com/admin/maintenance/off
 **PostgreSQL: Use CONCURRENTLY**
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: Add column (non-blocking)
 ALTER TABLE tf_sales ADD COLUMN region_id TEXT;
 
@@ -402,6 +453,7 @@ CREATE INDEX CONCURRENTLY idx_tf_sales_region_id
 -- Step 4: Analyze table
 ANALYZE tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 10-60 minutes (depending on table size)
 **Risk**: Low
@@ -414,6 +466,7 @@ ANALYZE tf_sales;
 **SQL Server: Use Online Index Rebuild**
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: Add computed column (instant)
 ALTER TABLE tf_sales
 ADD region_id AS JSON_VALUE(dimensions, '$.region');
@@ -435,6 +488,7 @@ GO
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 GO
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 5-30 minutes
 **Risk**: Low
@@ -445,6 +499,7 @@ GO
 #### Execute Production Migration
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Final backup (immediately before migration)
 pg_dump -Fc $PRODUCTION_DATABASE_URL > backup-pre-migration.dump
 
@@ -464,12 +519,14 @@ psql $PRODUCTION_DATABASE_URL -c "
 "
 # Expected: Non-zero count
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Update Application
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Update schema.json with denormalized columns
 vim schema.json
 
@@ -497,6 +554,7 @@ git push origin main
 # 5. Restart application servers (if needed)
 kubectl rollout restart deployment/FraiseQL-api
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -505,6 +563,7 @@ kubectl rollout restart deployment/FraiseQL-api
 #### Immediate Validation (First 5 Minutes)
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Check error logs
 kubectl logs -f deployment/FraiseQL-api | grep -i error
 
@@ -527,6 +586,7 @@ psql $PRODUCTION_DATABASE_URL -c "
   LIMIT 5
 "
 ```text
+<!-- Code example in TEXT -->
 
 #### Short-Term Validation (First 24 Hours)
 
@@ -541,6 +601,7 @@ psql $PRODUCTION_DATABASE_URL -c "
 **Compare Before/After**:
 
 ```bash
+<!-- Code example in BASH -->
 # Query performance comparison
 psql $PRODUCTION_DATABASE_URL -c "
   SELECT
@@ -553,10 +614,12 @@ psql $PRODUCTION_DATABASE_URL -c "
   ORDER BY calls DESC
 "
 ```text
+<!-- Code example in TEXT -->
 
 **Expected Results**:
 
 ```text
+<!-- Code example in TEXT -->
 Before Migration:
 query_snippet: SELECT * FROM tf_sales WHERE dimensions->>'region'
 calls: 8,500
@@ -569,6 +632,7 @@ calls: 8,500
 avg_ms: 68.5  ✅ (12.3x improvement)
 max_ms: 185.0 ✅
 ```text
+<!-- Code example in TEXT -->
 
 #### Long-Term Validation (7-30 Days)
 
@@ -592,6 +656,7 @@ Rollback if:
 ### Quick Rollback (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Rollback Script (generated by analyze command)
 
 -- Step 1: Drop index
@@ -603,16 +668,20 @@ ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 -- Step 3: Analyze table
 ANALYZE tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 **Execution**:
 
 ```bash
+<!-- Code example in BASH -->
 psql $PRODUCTION_DATABASE_URL < migrations/rollback-20260112.sql
 ```text
+<!-- Code example in TEXT -->
 
 ### Quick Rollback (SQL Server)
 
 ```sql
+<!-- Code example in SQL -->
 -- Rollback Script
 
 -- Step 1: Drop index
@@ -627,10 +696,12 @@ GO
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 GO
 ```text
+<!-- Code example in TEXT -->
 
 ### Application Rollback
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Revert schema changes
 git revert HEAD
 
@@ -641,6 +712,7 @@ FraiseQL-cli compile schema.json
 git push origin main
 kubectl rollout restart deployment/FraiseQL-api
 ```text
+<!-- Code example in TEXT -->
 
 ### Full Database Restore (Last Resort)
 
@@ -651,6 +723,7 @@ kubectl rollout restart deployment/FraiseQL-api
 - Critical production issue
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL
 pg_restore -d mydb backup-pre-migration.dump
 
@@ -658,6 +731,7 @@ pg_restore -d mydb backup-pre-migration.dump
 RESTORE DATABASE mydb FROM DISK = 'C:\Backups\backup-pre-migration.bak'
 WITH REPLACE;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -668,6 +742,7 @@ WITH REPLACE;
 **Strategy**: Simple ALTER TABLE (fast, low risk)
 
 ```bash
+<!-- Code example in BASH -->
 # Total time: < 1 second
 psql $DATABASE_URL <<EOF
 ALTER TABLE small_table ADD COLUMN region_id TEXT;
@@ -676,6 +751,7 @@ CREATE INDEX idx_small_table_region ON small_table (region_id);
 ANALYZE small_table;
 EOF
 ```text
+<!-- Code example in TEXT -->
 
 **Risk**: Negligible
 **Downtime**: None (< 100ms lock)
@@ -687,6 +763,7 @@ EOF
 **Strategy**: Batched updates (safe, moderate time)
 
 ```sql
+<!-- Code example in SQL -->
 -- Step 1: Add column (instant)
 ALTER TABLE medium_table ADD COLUMN region_id TEXT;
 
@@ -713,6 +790,7 @@ END $$;
 CREATE INDEX CONCURRENTLY idx_medium_table_region
   ON medium_table (region_id);
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 5-15 minutes
 **Risk**: Low
@@ -727,16 +805,19 @@ CREATE INDEX CONCURRENTLY idx_medium_table_region
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Use pg_repack for minimal blocking (requires extension)
 CREATE EXTENSION IF NOT EXISTS pg_repack;
 
 -- Add column + backfill + index (all online)
 -- This may take hours for very large tables
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Use online index build with MAXDOP
 CREATE NONCLUSTERED INDEX idx_large_table_region
   ON large_table (region_id)
@@ -748,6 +829,7 @@ CREATE NONCLUSTERED INDEX idx_large_table_region
     MAX_DURATION = 120       -- Auto-pause after 120 minutes
   );
 ```text
+<!-- Code example in TEXT -->
 
 **Duration**: 1-4 hours (depending on table size)
 **Risk**: Medium (monitor closely)
@@ -762,12 +844,15 @@ CREATE NONCLUSTERED INDEX idx_large_table_region
 **Terminal 1: Run Migration**
 
 ```bash
+<!-- Code example in BASH -->
 psql $DATABASE_URL < migrations/optimize-20260112.sql
 ```text
+<!-- Code example in TEXT -->
 
 **Terminal 2: Monitor Progress**
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL: Watch long-running queries
 watch -n 1 "psql $DATABASE_URL -c \"
   SELECT
@@ -780,10 +865,12 @@ watch -n 1 "psql $DATABASE_URL -c \"
   ORDER BY duration DESC
 \""
 ```text
+<!-- Code example in TEXT -->
 
 **Terminal 3: Monitor Locks**
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL: Watch for blocking locks
 watch -n 1 "psql $DATABASE_URL -c \"
   SELECT
@@ -796,6 +883,7 @@ watch -n 1 "psql $DATABASE_URL -c \"
   WHERE NOT l.granted
 \""
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -808,28 +896,33 @@ Never apply migrations directly to production.
 ### 2. Use CONCURRENTLY for Index Creation
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ Good (non-blocking)
 CREATE INDEX CONCURRENTLY idx_name ON table (column);
 
 -- ❌ Bad (blocks writes)
 CREATE INDEX idx_name ON table (column);
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Batch Large Updates
 
 ```sql
+<!-- Code example in SQL -->
 -- ✅ Good (batched)
 UPDATE table SET col = val WHERE id IN (SELECT id LIMIT 10000);
 
 -- ❌ Bad (locks entire table)
 UPDATE table SET col = val;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Monitor Replication Lag
 
 For replicated databases:
 
 ```bash
+<!-- Code example in BASH -->
 # Check replication lag
 psql $REPLICA_URL -c "
   SELECT
@@ -842,6 +935,7 @@ psql $REPLICA_URL -c "
   FROM pg_stat_replication
 "
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Schedule During Low Traffic
 
@@ -864,24 +958,30 @@ Apply migrations during:
 1. **Check for blocking locks**
 
    ```sql
+<!-- Code example in SQL -->
    SELECT * FROM pg_locks WHERE NOT granted;
    ```text
+<!-- Code example in TEXT -->
 
 2. **Kill long-running queries**
 
    ```sql
+<!-- Code example in SQL -->
    SELECT pg_terminate_backend(pid)
    FROM pg_stat_activity
    WHERE state = 'active' AND query_start < NOW() - INTERVAL '1 hour';
    ```text
+<!-- Code example in TEXT -->
 
 3. **Increase resources temporarily**
 
    ```sql
+<!-- Code example in SQL -->
    -- PostgreSQL
    SET maintenance_work_mem = '2GB';
    SET max_parallel_maintenance_workers = 4;
    ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -894,6 +994,7 @@ Apply migrations during:
 **Solution**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Find duplicates
 SELECT column_name, COUNT(*)
 FROM table
@@ -902,6 +1003,7 @@ HAVING COUNT(*) > 1;
 
 -- Clean up duplicates before creating index
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

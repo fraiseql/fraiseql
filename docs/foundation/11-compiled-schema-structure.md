@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 2.6: Compiled Schema Structure
+description: The **compiled schema** (`schema.compiled.json`) is the artifact produced by the FraiseQL compiler. It contains the complete GraphQL schema in a form optimized 
+keywords: ["query-execution", "schema", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 2.6: Compiled Schema Structure
 
 ## Overview
@@ -13,6 +21,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 ### Compilation Flow
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────┐
 │ Python/TypeScript   │
 │ @FraiseQL.type      │  ← Schema definitions
@@ -39,6 +48,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 │ Execute queries     │
 └─────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -47,6 +57,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 The compiled schema is a JSON object with these top-level keys:
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [...],              // GraphQL object types
   "enums": [...],              // GraphQL enum types
@@ -63,10 +74,12 @@ The compiled schema is a JSON object with these top-level keys:
   "schema_sdl": "..."          // Raw GraphQL SDL (optional, for introspection)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Schema Statistics
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": 45,           // 45 object types defined
   "enums": 8,            // 8 enum types
@@ -80,6 +93,7 @@ The compiled schema is a JSON object with these top-level keys:
   "total_operations": 41 // queries + mutations + subscriptions
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -90,6 +104,7 @@ The compiled schema is a JSON object with these top-level keys:
 Each type definition contains:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "User",                          // Type name (GraphQL)
   "sql_source": "v_user",                  // Table/view name in database
@@ -100,10 +115,12 @@ Each type definition contains:
   "implements": ["Node"]                   // Interfaces implemented
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Complete Type Example
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "Post",
   "sql_source": "v_post",
@@ -157,12 +174,14 @@ Each type definition contains:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Field Definitions
 
 Each field contains:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "title",                    // Field name (camelCase in GraphQL)
   "field_type": "String!",            // Type with modifiers (! for non-null, [] for list)
@@ -179,6 +198,7 @@ Each field contains:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -189,6 +209,7 @@ Each field contains:
 Each query contains:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "posts",                    // Query name
   "return_type": "Post",              // Type returned
@@ -206,10 +227,12 @@ Each query contains:
   "deprecation": null                 // Deprecation info if applicable
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Complete Query Example
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "posts",
   "return_type": "Post",
@@ -254,12 +277,14 @@ Each query contains:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Argument Details
 
 Each argument specifies:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "authorId",         // Argument name
   "arg_type": "Int",          // Type (scalar, list, input type)
@@ -272,6 +297,7 @@ Each argument specifies:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -282,6 +308,7 @@ Each argument specifies:
 Each mutation contains:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "createPost",               // Mutation name
   "return_type": "Post",              // Type returned
@@ -291,10 +318,12 @@ Each mutation contains:
   "deprecation": null                 // Deprecation info
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Complete Mutation Example
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "createPost",
   "return_type": "Post",
@@ -310,10 +339,12 @@ Each mutation contains:
   "operation": "Custom"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Input Type (for Mutations)
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "CreatePostInput",
   "fields": [
@@ -345,12 +376,14 @@ Each mutation contains:
   "description": "Input for post creation"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Enum Definitions
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "PostStatus",
   "description": "Status of a post",
@@ -370,6 +403,7 @@ Each mutation contains:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -378,6 +412,7 @@ Each mutation contains:
 ### Complete Schema (E-commerce Example)
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -639,6 +674,7 @@ Each mutation contains:
   "observers": []
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -647,6 +683,7 @@ Each mutation contains:
 ### Loading the Schema
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_core::schema::CompiledSchema;
 use std::fs;
 
@@ -661,10 +698,12 @@ schema.validate()?;
 let posts_query = schema.find_query("posts");
 let user_type = schema.find_type("User");
 ```text
+<!-- Code example in TEXT -->
 
 ### Introspection Operations
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_core::schema::CompiledSchema;
 
 let schema = load_schema()?;
@@ -702,10 +741,12 @@ for type_def in &schema.types {
 println!("Total operations: {}", schema.operation_count());
 println!("Total types: {}", schema.types.len());
 ```text
+<!-- Code example in TEXT -->
 
 ### Validating Against Schema
 
 ```rust
+<!-- Code example in RUST -->
 // Validate that a GraphQL query is valid against the schema
 pub fn validate_query(schema: &CompiledSchema, query_name: &str) -> Result<()> {
     // 1. Check query exists
@@ -742,6 +783,7 @@ fn is_builtin_scalar(name: &str) -> bool {
     matches!(name, "String" | "Int" | "Float" | "Boolean" | "ID" | "DateTime" | "JSON" | "UUID")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -761,6 +803,7 @@ fn is_builtin_scalar(name: &str) -> bool {
 ### Loading Performance
 
 ```text
+<!-- Code example in TEXT -->
 Schema Deserialization Benchmark
 ─────────────────────────────────
 Small schema (25 KB):     < 1ms
@@ -770,12 +813,14 @@ Massive schema (3.2 MB):  40-60ms
 
 Memory footprint: ~2-3x JSON size (after deserialization)
 ```text
+<!-- Code example in TEXT -->
 
 ### Schema Caching Strategy
 
 **Typical deployment:**
 
 ```rust
+<!-- Code example in RUST -->
 // Server startup (once)
 let schema = CompiledSchema::from_json(&fs::read_to_string("schema.compiled.json")?)?;
 let schema = Arc::new(schema);  // Immutable, shared across threads
@@ -784,6 +829,7 @@ let schema = Arc::new(schema);  // Immutable, shared across threads
 let schema = Arc::clone(&schema);  // Clone Arc (cheap pointer copy)
 let query_def = schema.find_query("posts")?;
 ```text
+<!-- Code example in TEXT -->
 
 Cost per request: Just a pointer lookup (O(1) amortized).
 
@@ -796,6 +842,7 @@ Cost per request: Just a pointer lookup (O(1) amortized).
 Optional metadata field in compiled schema:
 
 ```json
+<!-- Code example in JSON -->
 {
   "schema_version": "1.2.3",
   "compiled_at": "2026-01-29T15:30:00Z",
@@ -804,12 +851,14 @@ Optional metadata field in compiled schema:
   "...": "rest of schema"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Backwards Compatibility
 
 When schema changes (new types, queries added):
 
 ```text
+<!-- Code example in TEXT -->
 Old Client           Server
 (schema v1)          (schema v2)
     │                  │
@@ -819,6 +868,7 @@ Old Client           Server
     │ 200 OK           │
     │←─────────────────│
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL can serve multiple schema versions in a single deployment by maintaining a registry of compiled schemas.
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Example: Production Deployment at Scale
+description: This example demonstrates deploying observability in a **high-traffic production environment** with best practices for monitoring, maintenance, and continuous o
+keywords: ["deployment", "scaling", "code", "fullstack", "production", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # Example: Production Deployment at Scale
 
 ## Overview
@@ -13,6 +21,7 @@ This example demonstrates deploying observability in a **high-traffic production
 ## Production Architecture
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────────────────────────┐
 │  Load Balancer (10,000 qps)                              │
 └────────────────┬─────────────────────────────────────────┘
@@ -37,6 +46,7 @@ This example demonstrates deploying observability in a **high-traffic production
 │  Time-series optimized           │
 └──────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -45,6 +55,7 @@ This example demonstrates deploying observability in a **high-traffic production
 ### High-Traffic Settings
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 0.01  # 1% sampling (500K queries/day sampled)
@@ -65,6 +76,7 @@ timeout_secs = 10  # Fail fast
 min_frequency = 10000  # Only high-traffic patterns
 min_speedup = 10.0     # Only major wins
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -73,6 +85,7 @@ min_speedup = 10.0     # Only major wins
 ### Key Metrics
 
 ```yaml
+<!-- Code example in YAML -->
 # Prometheus alerts
 
 - alert: ObservabilityMetricsLag
@@ -90,6 +103,7 @@ min_speedup = 10.0     # Only major wins
   annotations:
     summary: "New high-priority optimizations available"
 ```text
+<!-- Code example in TEXT -->
 
 ### Dashboards
 
@@ -105,6 +119,7 @@ min_speedup = 10.0     # Only major wins
 ### Automated Analysis
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # weekly-analysis.sh (runs every Monday 2 AM)
 
@@ -134,6 +149,7 @@ if [ $HIGH_PRIORITY -gt 0 ]; then
   slack-upload $REPORT_DIR/analysis-$(date +%Y%m%d).json --channel=#database-ops
 fi
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -218,6 +234,7 @@ fi
 ### Access Control
 
 ```sql
+<!-- Code example in SQL -->
 -- Metrics database: Separate users
 CREATE USER fraiseql_collector WITH PASSWORD '...';
 GRANT INSERT ON fraiseql_metrics.* TO fraiseql_collector;
@@ -228,10 +245,12 @@ GRANT SELECT ON fraiseql_metrics.* TO fraiseql_analyst;
 -- No access to application database from metrics service
 REVOKE ALL ON public.* FROM fraiseql_collector;
 ```text
+<!-- Code example in TEXT -->
 
 ### Network Isolation
 
 ```yaml
+<!-- Code example in YAML -->
 # Kubernetes NetworkPolicy
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -252,6 +271,7 @@ spec:
     - protocol: TCP
       port: 5432
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

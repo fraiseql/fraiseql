@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Troubleshooting Decision Tree
+description: Use this decision tree to quickly identify which troubleshooting guide applies to your problem.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Troubleshooting Decision Tree
 
 **Status:** ✅ Production Ready
@@ -16,6 +24,7 @@ Use this decision tree to quickly identify which troubleshooting guide applies t
 **Select the one that best describes your situation:**
 
 ```text
+<!-- Code example in TEXT -->
 Does your problem involve...
 
 1. Starting the server or deployment?
@@ -48,6 +57,7 @@ Does your problem involve...
 10. Multi-service or federation problems?
     → Go to: FEDERATION ISSUES
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -87,6 +97,7 @@ Does your problem involve...
 **Error type:**
 
 ```text
+<!-- Code example in TEXT -->
 Is the error about...
 
 a) "Field X doesn't exist"?
@@ -107,6 +118,7 @@ d) "Query timeout"?
 e) Something else?
    → Go to: ERROR CODE LOOKUP
 ```text
+<!-- Code example in TEXT -->
 
 **Query returns null when expecting data:**
 
@@ -136,6 +148,7 @@ e) Something else?
 **Error type:**
 
 ```text
+<!-- Code example in TEXT -->
 Is the error about...
 
 a) "Constraint violation" (duplicate key, foreign key)?
@@ -157,6 +170,7 @@ d) Database error?
 e) Something else?
    → Go to: ERROR CODE LOOKUP
 ```text
+<!-- Code example in TEXT -->
 
 **Mutation succeeds but data looks wrong:**
 
@@ -345,6 +359,7 @@ e) Something else?
 **Have an error code?** (Format: E_XXXXX_NNN)
 
 ```text
+<!-- Code example in TEXT -->
 Error Category:
 - E_PARSE_* → GraphQL parsing errors
 - E_BINDING_* → Schema binding/type errors
@@ -359,6 +374,7 @@ To find your error:
 2. Search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
 3. Refer to [Main Troubleshooting Guide](../TROUBLESHOOTING.md)
 ```text
+<!-- Code example in TEXT -->
 
 **Don't see your error?**
 

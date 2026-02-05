@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Structured JSON Logging in FraiseQL v2
+description: FraiseQL v2 provides a comprehensive structured logging system that outputs all logs in JSON format, making them easy to parse, aggregate, and analyze with log 
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # Structured JSON Logging in FraiseQL v2
 
 ## Overview
@@ -22,17 +30,20 @@ FraiseQL v2 provides a comprehensive structured logging system that outputs all 
 Unique identifier for each request, automatically generated using UUID v4.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::RequestId;
 
 let request_id = RequestId::new();
 println!("{}", request_id); // e.g., "550e8400-e29b-41d4-a716-446655440000"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### RequestContext
 
 Tracks request-level information for correlation and analysis.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::RequestContext;
 
 let context = RequestContext::new()
@@ -40,13 +51,15 @@ let context = RequestContext::new()
     .with_user_id("user123".to_string())
     .with_client_ip("192.168.1.1".to_string())
     .with_api_version("v1".to_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 #### StructuredLogEntry
 
 The main log entry structure containing message, context, metrics, and error information.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{StructuredLogEntry, LogLevel, LogMetrics, RequestContext};
 
 let entry = StructuredLogEntry::new(LogLevel::Info, "Query executed successfully".to_string())
@@ -54,25 +67,29 @@ let entry = StructuredLogEntry::new(LogLevel::Info, "Query executed successfully
     .with_metrics(LogMetrics::new().with_duration_ms(42.5));
 
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 #### RequestLogger
 
 Convenience wrapper for contextual logging within a request scope.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::RequestLogger;
 
 let logger = RequestLogger::new(context);
 let entry = logger.info("Processing GraphQL query");
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Usage Examples
 
 ### Basic Logging
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{StructuredLogEntry, LogLevel};
 
 // Create a log entry
@@ -83,11 +100,13 @@ let entry = StructuredLogEntry::new(
 
 // Print as JSON
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2024-01-16T15:30:45.123Z",
   "level": "INFO",
@@ -98,11 +117,13 @@ println!("{}", entry.to_json_string());
   "source": null,
   "context": null
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Request Context Logging
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{StructuredLogEntry, LogLevel, RequestContext};
 
 let context = RequestContext::new()
@@ -117,11 +138,13 @@ let entry = StructuredLogEntry::new(
 .with_request_context(context);
 
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2024-01-16T15:30:45.456Z",
   "level": "INFO",
@@ -138,11 +161,13 @@ println!("{}", entry.to_json_string());
   "source": null,
   "context": null
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance Metrics Logging
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{StructuredLogEntry, LogLevel, LogMetrics};
 
 let metrics = LogMetrics::new()
@@ -158,11 +183,13 @@ let entry = StructuredLogEntry::new(
 .with_metrics(metrics);
 
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2024-01-16T15:30:45.789Z",
   "level": "INFO",
@@ -175,11 +202,13 @@ println!("{}", entry.to_json_string());
     "db_queries": 3
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Logging
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{StructuredLogEntry, LogLevel, ErrorDetails};
 
 let error = ErrorDetails::new(
@@ -195,11 +224,13 @@ let entry = StructuredLogEntry::new(
 .with_error(error);
 
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 **Output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2024-01-16T15:30:46.123Z",
   "level": "ERROR",
@@ -211,11 +242,13 @@ println!("{}", entry.to_json_string());
     "stack_trace": null
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Request Logger (Convenience API)
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{RequestLogger, RequestContext};
 
 let context = RequestContext::new()
@@ -227,7 +260,8 @@ let logger = RequestLogger::new(context);
 // Log with implicit request context
 let entry = logger.info("User update initiated");
 println!("{}", entry.to_json_string());
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Integration with Log Aggregation Systems
 
@@ -236,6 +270,7 @@ println!("{}", entry.to_json_string());
 Configure Logstash to parse JSON logs:
 
 ```conf
+<!-- Code example in CONF -->
 input {
   stdin { }
 }
@@ -252,35 +287,41 @@ output {
     index => "FraiseQL-%{+YYYY.MM.dd}"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Splunk
 
 Enable HTTP Event Collector (HEC) and configure application to send JSON logs:
 
 ```bash
+<!-- Code example in BASH -->
 curl -k https://splunk-host:8088/services/collector \
   -H "Authorization: Splunk your-hec-token" \
   -d '{"sourcetype": "json", "event": {"level": "INFO", ...}}'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### DataDog
 
 Configure tracing to send structured logs:
 
 ```rust
+<!-- Code example in RUST -->
 // Using datadog-statsd crate
 let statsd = statsd::Client::new("127.0.0.1:8125", "FraiseQL")
     .expect("Failed to create statsd client");
 
 // Logs are automatically picked up by DataDog agent
-```
+```text
+<!-- Code example in TEXT -->
 
 ### CloudWatch (AWS)
 
 Send JSON logs to CloudWatch:
 
 ```rust
+<!-- Code example in RUST -->
 // Using rusoto_logs crate
 let logs_client = CloudWatchLogsClient::new(Region::UsEast1);
 
@@ -295,7 +336,8 @@ let put_log_events_request = PutLogEventsRequest {
     ],
     ..Default::default()
 };
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Log Levels and Severity
 
@@ -373,12 +415,14 @@ Estimate log volume:
 All logging components are fully tested:
 
 ```bash
+<!-- Code example in BASH -->
 # Run logging tests
 cargo test -p FraiseQL-server --lib logging
 
 # Run middleware tests
 cargo test -p FraiseQL-server --lib middleware::logging
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Future Enhancements
 

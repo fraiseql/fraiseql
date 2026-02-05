@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Framework Integration Guides
+description: Comprehensive guide for integrating FraiseQL GraphQL APIs with popular web frameworks across Python, TypeScript/JavaScript, Go, Java, and Ruby ecosystems.
+keywords: ["framework", "debugging", "implementation", "best-practices", "sdk", "deployment", "monitoring", "database"]
+tags: ["documentation", "reference"]
+---
+
 # Framework Integration Guides
 
 **Status**: Production-Ready | **Updated**: 2026-02-05 | **Version**: 2.0.0+
@@ -59,6 +67,7 @@ FraiseQL compiles GraphQL schemas to optimized SQL at build time. This guide sho
 **Example Setup**:
 
 ```python
+<!-- Code example in Python -->
 from fastapi import FastAPI, Depends, HTTPException
 from FraiseQL import FraiseQLServer
 import asyncio
@@ -101,6 +110,7 @@ async def get_user(user_id: int):
 async def websocket_endpoint(websocket):
     await fraiseql_server.handle_subscription(websocket)
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -137,6 +147,7 @@ async def websocket_endpoint(websocket):
 **Example Setup**:
 
 ```python
+<!-- Code example in Python -->
 # settings.py
 FRAISEQL = {
     'SCHEMA': 'schema.compiled.json',
@@ -177,6 +188,7 @@ class GraphQLView(View):
         )
         return JsonResponse(result)
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -212,6 +224,7 @@ class GraphQLView(View):
 **Example Setup**:
 
 ```python
+<!-- Code example in Python -->
 from flask import Flask, request, jsonify
 from FraiseQL import FraiseQLServer
 
@@ -239,6 +252,7 @@ def graphql_ws():
     # WebSocket handling via Flask-SocketIO
     return fraiseql_server.handle_subscription(request.environ['wsgi.input'])
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -270,6 +284,7 @@ def graphql_ws():
 **Example Setup**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Module, Controller, Post, Body } from '@nestjs/common';
 import { FraiseQLServer } from 'FraiseQL';
 
@@ -305,6 +320,7 @@ export class GraphQLController {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -333,6 +349,7 @@ export class GraphQLController {
 **Example Setup**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 import express from 'express';
 import { FraiseQLServer } from 'FraiseQL';
 
@@ -370,6 +387,7 @@ app.use(
   },
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -399,6 +417,7 @@ app.use(
 **Example Setup**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 import Fastify from 'fastify';
 import { FraiseQLServer } from 'FraiseQL';
 
@@ -431,6 +450,7 @@ fastify.setErrorHandler((error, request, reply) => {
 
 fastify.listen({ port: 3000 });
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -461,6 +481,7 @@ fastify.listen({ port: 3000 });
 **Example Setup**:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -516,6 +537,7 @@ func main() {
  router.Run(":8080")
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -544,6 +566,7 @@ func main() {
 **Example Setup**:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -591,6 +614,7 @@ func main() {
  e.Logger.Fatal(e.Start(":8080"))
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -619,6 +643,7 @@ func main() {
 **Example Setup**:
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -652,6 +677,7 @@ func handleGraphQL(server *FraiseQL.Server) http.HandlerFunc {
  }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -683,6 +709,7 @@ func handleGraphQL(server *FraiseQL.Server) http.HandlerFunc {
 **Example Setup**:
 
 ```java
+<!-- Code example in Java -->
 @SpringBootApplication
 public class FraiseQLApplication {
     public static void main(String[] args) {
@@ -740,6 +767,7 @@ public class GraphQLController {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -768,6 +796,7 @@ public class GraphQLController {
 **Example Setup**:
 
 ```java
+<!-- Code example in Java -->
 @ApplicationScoped
 public class FraiseQLProducer {
     @Inject
@@ -804,6 +833,7 @@ public class GraphQLResource {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -835,6 +865,7 @@ public class GraphQLResource {
 **Example Setup**:
 
 ```ruby
+<!-- Code example in RUBY -->
 # config/routes.rb
 Rails.application.routes.draw do
   namespace :api do
@@ -873,6 +904,7 @@ end
 # config/application.rb
 config.middleware.use Rack::CORSMiddleware
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -901,6 +933,7 @@ config.middleware.use Rack::CORSMiddleware
 **Example Setup**:
 
 ```ruby
+<!-- Code example in RUBY -->
 require 'sinatra'
 require 'FraiseQL'
 require 'json'
@@ -932,6 +965,7 @@ get '/health' do
   { status: 'ok' }.to_json
 end
 ```text
+<!-- Code example in TEXT -->
 
 **Integration Checklist**:
 
@@ -953,6 +987,7 @@ end
 All frameworks share a common pattern for the core GraphQL endpoint:
 
 ```text
+<!-- Code example in TEXT -->
 POST /graphql
 Content-Type: application/json
 
@@ -966,6 +1001,7 @@ Response:
   "data": { "user": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Best Practices**:
 
@@ -981,6 +1017,7 @@ Response:
 Wrap specific GraphQL operations as REST endpoints:
 
 ```text
+<!-- Code example in TEXT -->
 GET /api/users/123
 
 Internally executes:
@@ -989,22 +1026,26 @@ query { user(id: 123) { id name email } }
 Response:
 { "id": 123, "name": "Alice", "email": "alice@example.com" }
 ```text
+<!-- Code example in TEXT -->
 
 **Adapter Pattern**:
 
 ```python
+<!-- Code example in Python -->
 class RestAdapter:
     def get_user(self, user_id):
         query = f'query {{ user(id: {user_id}) {{ id name email }} }}'
         result = self.FraiseQL.execute(query)
         return result['data']['user']
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. WebSocket Subscriptions
 
 Set up real-time subscriptions:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Client
 const ws = new WebSocket('ws://localhost:3000/graphql/ws');
 ws.send(JSON.stringify({
@@ -1021,6 +1062,7 @@ ws.on('message', (event) => {
   }
 });
 ```text
+<!-- Code example in TEXT -->
 
 **Server Implementation**:
 
@@ -1035,6 +1077,7 @@ ws.on('message', (event) => {
 Standardize error responses across all frameworks:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -1047,6 +1090,7 @@ Standardize error responses across all frameworks:
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Common Error Types**:
 
@@ -1099,31 +1143,38 @@ Standardize error responses across all frameworks:
 **Python (async/await)**:
 
 ```python
+<!-- Code example in Python -->
 async def graphql(query, variables):
     result = await fraiseql_server.execute(query, variables)
     return result
 ```text
+<!-- Code example in TEXT -->
 
 **TypeScript (Promises)**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 async executeQuery(query: string): Promise<Result> {
   const result = await FraiseQL.execute(query);
   return result;
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Go (goroutines)**:
 
 ```go
+<!-- Code example in Go -->
 go fraiseqlServer.Execute(ctx, request)
 ```text
+<!-- Code example in TEXT -->
 
 ### Testing Setup
 
 **Python (pytest)**:
 
 ```python
+<!-- Code example in Python -->
 @pytest.fixture
 def fraiseql_server():
     return FraiseQLServer.from_compiled('schema.compiled.json')
@@ -1132,10 +1183,12 @@ def test_query(fraiseql_server):
     result = fraiseql_server.execute('query { user(id: 1) { id } }')
     assert result['data'] is not None
 ```text
+<!-- Code example in TEXT -->
 
 **TypeScript (Jest)**:
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('GraphQL', () => {
   it('should execute query', async () => {
     const result = await FraiseQL.execute('query { user(id: 1) { id } }');
@@ -1143,6 +1196,7 @@ describe('GraphQL', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment Considerations
 
@@ -1177,8 +1231,10 @@ describe('GraphQL', () => {
 2. **Compile Schema**
 
    ```bash
+<!-- Code example in BASH -->
    FraiseQL-cli compile schema.json FraiseQL.toml
    ```text
+<!-- Code example in TEXT -->
 
 3. **Setup Framework**
    - Choose framework from above
@@ -1201,6 +1257,7 @@ describe('GraphQL', () => {
 **Development Workflow**:
 
 ```bash
+<!-- Code example in BASH -->
 # Watch for schema changes
 watchmedo shell-command \
   --patterns="*.py" \
@@ -1211,16 +1268,19 @@ watchmedo shell-command \
 # Start server in another terminal
 python main.py
 ```text
+<!-- Code example in TEXT -->
 
 **Production Deployment**:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 FROM python:3.12
 COPY schema.compiled.json /app/
 COPY FraiseQL.toml /app/
 COPY app.py /app/
 CMD ["python", "/app/app.py"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Tips
 

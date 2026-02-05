@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication Security Checklist
+description: Complete security checklist for FraiseQL authentication deployment.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication Security Checklist
 
 Complete security checklist for FraiseQL authentication deployment.
@@ -292,6 +300,7 @@ Complete security checklist for FraiseQL authentication deployment.
 ### Testing Incident Response
 
 ```bash
+<!-- Code example in BASH -->
 # Simulate breach
 
 1. Manually revoke all sessions
@@ -299,7 +308,8 @@ Complete security checklist for FraiseQL authentication deployment.
 3. Verify users can log back in
 4. Document time to recovery
 5. Review logs for completeness
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Communication
 

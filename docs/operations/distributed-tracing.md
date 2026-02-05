@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Distributed Tracing in FraiseQL v2
+description: FraiseQL v2 provides comprehensive distributed tracing support for tracking requests across service boundaries. Built on W3C Trace Context standards, it enables
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # Distributed Tracing in FraiseQL v2
 
 ## Overview
@@ -23,6 +31,7 @@ FraiseQL v2 provides comprehensive distributed tracing support for tracking requ
 Main context for request propagation across service boundaries.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Create new trace
@@ -42,12 +51,14 @@ let ctx_with_baggage = ctx
 // Check baggage
 assert_eq!(ctx_with_baggage.baggage_item("user_id"), Some("user_id"));
 ```text
+<!-- Code example in TEXT -->
 
 #### TraceSpan
 
 Individual operation within a trace.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceSpan;
 
 let span = TraceSpan::new(
@@ -68,12 +79,14 @@ let mut span = span;
 span.finish();
 assert!(span.end_time_ms.is_some());
 ```text
+<!-- Code example in TEXT -->
 
 #### TraceEvent
 
 Significant event during span execution.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceEvent;
 
 let event = TraceEvent::new("cache_miss".to_string())
@@ -82,12 +95,14 @@ let event = TraceEvent::new("cache_miss".to_string())
 
 println!("Event: {} at {}", event.name, event.timestamp_ms);
 ```text
+<!-- Code example in TEXT -->
 
 #### SpanStatus
 
 Status enumeration for span execution.
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::SpanStatus;
 
 // Successful execution
@@ -100,12 +115,14 @@ let error_status = SpanStatus::Error {
 
 println!("Status: {}", error_status);
 ```text
+<!-- Code example in TEXT -->
 
 ## Usage Examples
 
 ### Basic Request Tracing
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Incoming request
@@ -120,10 +137,12 @@ tracing::info!(
     "Processing GraphQL query"
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### W3C Trace Context Headers
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Create trace
@@ -147,10 +166,12 @@ let downstream_trace = TraceContext::from_w3c_traceparent(incoming_header)
 assert_eq!(downstream_trace.trace_id, trace.trace_id);
 assert_eq!(downstream_trace.parent_span_id, Some(trace.span_id));
 ```text
+<!-- Code example in TEXT -->
 
 ### Baggage for Cross-cutting Context
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Add authentication and organizational context
@@ -167,10 +188,12 @@ let child = trace.child_span();
 assert_eq!(child.baggage_item("user_id"), Some("user_456"));
 assert_eq!(child.baggage_item("tenant_id"), Some("tenant_789"));
 ```text
+<!-- Code example in TEXT -->
 
 ### Span Lifecycle
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{TraceSpan, SpanStatus, TraceEvent};
 
 let trace_id = "trace-12345".to_string();
@@ -201,10 +224,12 @@ println!("Duration: {:?}ms", span.duration_ms());
 // Success status
 span = span.set_ok();
 ```text
+<!-- Code example in TEXT -->
 
 ### Error Tracking in Traces
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{TraceSpan, SpanStatus};
 
 let mut span = TraceSpan::new("trace-123".to_string(), "DatabaseQuery".to_string());
@@ -227,10 +252,12 @@ match &span.status {
     _ => println!("Unexpected status")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Request Context Integration
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{TraceContext, RequestContext, RequestId};
 
 // Create request-scoped context
@@ -248,6 +275,7 @@ tracing::info!(
     "Query initiated"
 );
 ```text
+<!-- Code example in TEXT -->
 
 ## Integration with Tracing Systems
 
@@ -256,6 +284,7 @@ tracing::info!(
 Export trace context to Jaeger:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 let trace = TraceContext::new();
@@ -277,12 +306,14 @@ let payload = serde_json::json!({
     ]
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### Zipkin
 
 Export to Zipkin:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 let trace = TraceContext::new();
@@ -299,12 +330,14 @@ let span = serde_json::json!({
     }
 });
 ```text
+<!-- Code example in TEXT -->
 
 ### Datadog
 
 Integrate with Datadog:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 let trace = TraceContext::new();
@@ -316,12 +349,14 @@ tracing::info!(
     "Event for Datadog correlation"
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Custom Backend
 
 Implement custom trace exporter:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{TraceContext, TraceSpan};
 
 pub struct CustomTraceExporter;
@@ -343,12 +378,14 @@ impl CustomTraceExporter {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## W3C Trace Context Format
 
 FraiseQL uses the W3C Trace Context standard for interoperability:
 
 ```text
+<!-- Code example in TEXT -->
 Header: traceparent
 Format: version-traceid-spanid-traceflags
 
@@ -364,12 +401,14 @@ Components:
   - 0x01: Sampled
   - 0x00: Not sampled
 ```text
+<!-- Code example in TEXT -->
 
 ## Sampling Strategy
 
 Control trace sampling for high-volume scenarios:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::TraceContext;
 
 // Sample all traces
@@ -397,6 +436,7 @@ fn should_sample(user_id: Option<&str>, priority: Option<&str>) -> bool {
     rand::random::<f64>() < 0.1
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Considerations
 
@@ -443,12 +483,14 @@ fn should_sample(user_id: Option<&str>, priority: Option<&str>) -> bool {
 All tracing components are fully tested:
 
 ```bash
+<!-- Code example in BASH -->
 # Run tracing tests
 cargo test -p FraiseQL-server --lib tracing
 
 # Run all tests
 cargo test -p FraiseQL-server --lib
 ```text
+<!-- Code example in TEXT -->
 
 ## Future Enhancements
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Consistency Model: CAP Theorem in FraiseQL
+description: - CAP theorem fundamentals (Consistency, Availability, Partition Tolerance)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Consistency Model: CAP Theorem in FraiseQL
 
 **Status:** ✅ Production Ready
@@ -63,7 +71,10 @@ FraiseQL makes a deliberate architectural choice based on the CAP theorem:
 
 When a network partition occurs between services, you must choose:
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 ServiceA: "Service A\n(DB primary)" {
@@ -108,7 +119,8 @@ ServiceB -> CPChoice
 ServiceB -> APChoice
 CPChoice -> CPBenefit
 APChoice -> APBenefit
-```
+```text
+<!-- Code example in TEXT -->
 
 **Your choice:**
 
@@ -136,7 +148,10 @@ If Service B's database can't confirm consistency with Service A, FraiseQL retur
 
 ### How Mutations Work
 
+**Diagram: Query Execution** - 8-stage runtime model with authorization and field masking
+
 ```d2
+<!-- Code example in D2 Diagram -->
 direction: down
 
 Client: "Client sends mutation\n(blocking)" {
@@ -208,13 +223,15 @@ Success -> Return
 Failure -> Return
 
 note: "⏱️ Client waits 100-500ms\n(blocking until complete,\nnever queued/maybe)"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Key point**: The client blocks until the mutation completes. There's no "queued, we'll process later" response.
 
 ### Example
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreateOrder($input: CreateOrderInput!) {
   createOrder(input: $input) {
     id
@@ -223,6 +240,7 @@ mutation CreateOrder($input: CreateOrderInput!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **What happens**:
 
@@ -243,6 +261,7 @@ mutation CreateOrder($input: CreateOrderInput!) {
 FraiseQL uses NATS JetStream for **side effects**, not **core mutations**:
 
 ```text
+<!-- Code example in TEXT -->
 Mutation (synchronous, blocking)
     ├─ Database: updateUser(...) ✅ completes
     └─ Returns to client immediately
@@ -253,6 +272,7 @@ Side Effects (asynchronous, via NATS)
     ├─ Events: Publish user.updated → published
     └─ Background jobs: process in Redis queue
 ```text
+<!-- Code example in TEXT -->
 
 **The mutation completes synchronously.**
 
@@ -270,6 +290,7 @@ Side Effects (asynchronous, via NATS)
 **Example**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation DeleteUser($id: ID!) {
   deleteUser(id: $id) {
     id
@@ -277,6 +298,7 @@ mutation DeleteUser($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Timeline**:
 
@@ -297,6 +319,7 @@ If the webhook fails, it retries. If it permanently fails, it goes to Dead Lette
 When mutations span multiple services:
 
 ```text
+<!-- Code example in TEXT -->
 Mutation on Service A and Service B
          │
          ├─ Acquire locks on both databases
@@ -312,10 +335,12 @@ Mutation on Service A and Service B
             ├─ Undo Service A change
             └─ Return error to client
 ```text
+<!-- Code example in TEXT -->
 
 ### Example: Multi-Service Mutation
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation TransferInventory(
   $productId: ID!
   $fromWarehouse: ID!
@@ -334,6 +359,7 @@ mutation TransferInventory(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Step-by-step execution**:
 
@@ -388,6 +414,7 @@ mutation TransferInventory(
 **Isolation Level**: Serializable (ACID guarantees)
 
 ```sql
+<!-- Code example in SQL -->
 -- FraiseQL uses serializable transactions
 -- Equivalent to:
 BEGIN ISOLATION LEVEL SERIALIZABLE;
@@ -395,6 +422,7 @@ UPDATE users SET name = 'Alice' WHERE id = 1;
 SELECT * FROM users WHERE id = 1;  -- Sees 'Alice'
 COMMIT;
 ```text
+<!-- Code example in TEXT -->
 
 **Guarantee**: No dirty reads, no phantom reads, no lost updates.
 
@@ -403,6 +431,7 @@ COMMIT;
 **Isolation Level**: Causal consistency (not strict serializability)
 
 ```text
+<!-- Code example in TEXT -->
 Service A executes mutation
     ↓
 Service B waits for result
@@ -411,16 +440,19 @@ Service B can see the effects of Service A's mutation
     ↓
 But Service A can't retroactively see what Service B did
 ```text
+<!-- Code example in TEXT -->
 
 **Guarantee**: Ordered causality, not global ordering.
 
 **Example**: You can't have this scenario:
 
 ```text
+<!-- Code example in TEXT -->
 Time T1: Service A changes User.name → "Alice"
 Time T2: Service B reads User.name → gets "Bob" (stale)
 Time T3: Service B returns response to client
 ```text
+<!-- Code example in TEXT -->
 
 Because SAGA ensures T1's effects are visible in T2.
 
@@ -433,6 +465,7 @@ Because SAGA ensures T1's effects are visible in T2.
 FraiseQL enforces strict per-tenant data scoping:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Configured at schema compile time
 query users(tenantId: ID!) {
   users(where: { tenantId: { _eq: $tenantId } }) {
@@ -441,6 +474,7 @@ query users(tenantId: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Guarantee**: No query can accidentally leak Tenant A's data to Tenant B.
 
@@ -455,6 +489,7 @@ query users(tenantId: ID!) {
 You cannot do:
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation UpdateUser($id: ID!, $name: String!) {
   updateUser(id: $id, name: $name) {
     id
@@ -462,10 +497,12 @@ mutation UpdateUser($id: ID!, $name: String!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 And then:
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription onUserUpdate($id: ID!) {
   userUpdated(id: $id) {
     id
@@ -474,6 +511,7 @@ subscription onUserUpdate($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why not?** Because:
 
@@ -502,6 +540,7 @@ Or implement it yourself:
 ### Latency Tradeoff
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL (CP)         100-500ms per mutation
   ├─ Validation: 5ms
   ├─ SAGA execution: 50-400ms (database dependent)
@@ -512,6 +551,7 @@ Eventual Consistency  <10ms mutation response
   ├─ Actual processing: later
   └─ Client waits for subscription
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL is slower for individual mutations.**
 
@@ -533,6 +573,7 @@ Eventual Consistency  <10ms mutation response
 ## Decision Tree: Is FraiseQL Right for Me?
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Do mutations need to complete before returning to client?
    YES → Continue
@@ -554,6 +595,7 @@ Eventual Consistency  <10ms mutation response
    YES → FraiseQL is perfect
    NO → Use eventual consistency system
 ```text
+<!-- Code example in TEXT -->
 
 **If you answer YES to questions 1-5, use FraiseQL.**
 

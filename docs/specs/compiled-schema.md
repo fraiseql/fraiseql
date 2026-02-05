@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: CompiledSchema Specification
+description: The **CompiledSchema** is the compiled output from the authoring layer. It contains all information the Rust runtime needs to execute GraphQL queries without fu
+keywords: ["format", "compliance", "schema", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # CompiledSchema Specification
 
 **Version:** 1.0
@@ -23,6 +31,7 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
 ## 2. Top-Level Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "metadata": { ... },
@@ -33,13 +42,15 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
   "authorization": { ... },
   "capabilities": { ... }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 3. Metadata
 
 ```json
+<!-- Code example in JSON -->
 {
   "metadata": {
     "name": "acme-api",
@@ -74,7 +85,8 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Fields
 
@@ -93,6 +105,7 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
 ### 4.1 Type Definitions
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -150,7 +163,8 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Type Kinds
 
@@ -168,6 +182,7 @@ The **CompiledSchema** is the compiled output from the authoring layer. It conta
 Built-in scalars:
 
 ```json
+<!-- Code example in JSON -->
 {
   "scalars": [
     {
@@ -223,11 +238,13 @@ Built-in scalars:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Custom scalars:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "Email",
   "description": "Valid email address",
@@ -237,11 +254,13 @@ Custom scalars:
     "pattern": "^[^@]+@[^@]+\\.[^@]+$"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.4 Input Types
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "UserWhereInput",
   "kind": "input",
@@ -286,11 +305,13 @@ Custom scalars:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.5 Filter Input Types
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "StringFilter",
   "kind": "input",
@@ -351,13 +372,15 @@ Custom scalars:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 5. Queries
 
 ```json
+<!-- Code example in JSON -->
 {
   "queries": [
     {
@@ -416,13 +439,15 @@ Custom scalars:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 6. Mutations
 
 ```json
+<!-- Code example in JSON -->
 {
   "mutations": [
     {
@@ -454,7 +479,8 @@ Custom scalars:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -463,6 +489,7 @@ Custom scalars:
 Bindings connect GraphQL types to database resources:
 
 ```json
+<!-- Code example in JSON -->
 {
   "bindings": {
     "User": {
@@ -512,7 +539,8 @@ Bindings connect GraphQL types to database resources:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Binding fields
 
@@ -528,6 +556,7 @@ Bindings connect GraphQL types to database resources:
 ## 8. Authorization
 
 ```json
+<!-- Code example in JSON -->
 {
   "authorization": {
     "authContextType": {
@@ -591,7 +620,8 @@ Bindings connect GraphQL types to database resources:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -600,6 +630,7 @@ Bindings connect GraphQL types to database resources:
 References the database capability manifest:
 
 ```json
+<!-- Code example in JSON -->
 {
   "capabilities": {
     "databaseTarget": "postgresql",
@@ -627,13 +658,15 @@ References the database capability manifest:
     "logicalOperators": ["_and", "_or", "_not"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 10. Example: Complete Minimal Schema
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "metadata": {
@@ -707,7 +740,8 @@ References the database capability manifest:
     "rules": []
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

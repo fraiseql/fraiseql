@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Go SDK Reference
+description: Complete API reference for the FraiseQL Go SDK. This guide covers the Go authoring interface for building type-safe GraphQL APIs with struct tags, builder patte
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Go SDK Reference
 
 **Status**: Production-Ready | **Go Version**: 1.22+ | **SDK Version**: 2.0.0+
@@ -8,12 +16,14 @@ Complete API reference for the FraiseQL Go SDK. This guide covers the Go authori
 ## Quick Start
 
 ```bash
+<!-- Code example in BASH -->
 # Installation
 go get github.com/FraiseQL/FraiseQL-go
 
 # Or with Go workspaces
 go get -u github.com/FraiseQL/FraiseQL-go@latest
-```
+```text
+<!-- Code example in TEXT -->
 
 **Requirements**:
 
@@ -24,6 +34,7 @@ go get -u github.com/FraiseQL/FraiseQL-go@latest
 **First Schema** (30 seconds):
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -53,15 +64,18 @@ func main() {
   panic(err)
  }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Export and deploy:
 
 ```bash
+<!-- Code example in BASH -->
 go run main.go                              # Generates schema.json
 FraiseQL-cli compile schema.json
 FraiseQL-server --schema schema.compiled.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -85,6 +99,7 @@ FraiseQL-server --schema schema.compiled.json
 Define GraphQL fields using Go struct tags in the `FraiseQL` namespace:
 
 ```go
+<!-- Code example in Go -->
 type Product struct {
  ID       int     `FraiseQL:"id,type=Int"`
  Name     string  `FraiseQL:"name,type=String"`
@@ -92,7 +107,8 @@ type Product struct {
  InStock  bool    `FraiseQL:"in_stock,type=Boolean"`
  IsActive *bool   `FraiseQL:"is_active,type=Boolean,nullable=true"`
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Tag Format**: `FraiseQL:"<field_name>,type=<type>[,nullable=<true|false>]"`
 
@@ -126,6 +142,7 @@ type Product struct {
 ### Advanced Type Patterns
 
 ```go
+<!-- Code example in Go -->
 // With nested types
 type Address struct {
  Street    string `FraiseQL:"street,type=String"`
@@ -146,7 +163,8 @@ type Company struct {
 func init() {
  FraiseQL.RegisterTypes(User{}, Address{}, Company{})
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -157,6 +175,7 @@ func init() {
 Define read-only operations mapping to SQL views:
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewQuery("users").
  ReturnType(User{}).
  ReturnsArray(true).
@@ -173,7 +192,8 @@ FraiseQL.NewQuery("users").
  Arg("active", "Boolean", nil).
  Description("Get all users with pagination").
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Builder Methods**:
 
@@ -188,6 +208,7 @@ FraiseQL.NewQuery("users").
 **Examples**:
 
 ```go
+<!-- Code example in Go -->
 // Single result
 FraiseQL.NewQuery("user").
  ReturnType(User{}).
@@ -216,13 +237,15 @@ FraiseQL.NewQuery("searchUsers").
  Arg("isActive", "Boolean", true).
  Description("Search users").
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation Builder
 
 Define write operations mapping to SQL functions:
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewMutation("createUser").
  ReturnType(User{}).
  Config(map[string]interface{}{
@@ -233,7 +256,8 @@ FraiseQL.NewMutation("createUser").
  Arg("email", "String", nil).
  Description("Create new user").
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Builder Methods** (same as Query):
 
@@ -245,6 +269,7 @@ FraiseQL.NewMutation("createUser").
 **Examples**:
 
 ```go
+<!-- Code example in Go -->
 // Create
 FraiseQL.NewMutation("createUser").
  ReturnType(User{}).
@@ -276,7 +301,8 @@ FraiseQL.NewMutation("deleteUser").
  }).
  Arg("id", "Int", nil).
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -287,6 +313,7 @@ FraiseQL.NewMutation("deleteUser").
 Define OLAP tables with measures and dimensions:
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewFactTable("sales").
  TableName("tf_sales").
  Measure("revenue", "sum", "avg", "max").
@@ -299,7 +326,8 @@ FraiseQL.NewFactTable("sales").
  }).
  Description("Sales fact table for OLAP analysis").
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Builder Methods**:
 
@@ -313,13 +341,15 @@ FraiseQL.NewFactTable("sales").
 ### Aggregate Query
 
 ```go
+<!-- Code example in Go -->
 FraiseQL.NewAggregateQueryConfig("salesByCategory").
  FactTableName("sales").
  AutoGroupBy(true).
  AutoAggregates(true).
  Description("Sales aggregated by category").
  Register()
-```
+```text
+<!-- Code example in TEXT -->
 
 **Builder Methods**:
 
@@ -334,13 +364,15 @@ FraiseQL.NewAggregateQueryConfig("salesByCategory").
 Use struct tags for additional field configuration:
 
 ```go
+<!-- Code example in Go -->
 type SalesMetrics struct {
  ID        int64     `FraiseQL:"id,type=Int"`
  Revenue   float64   `FraiseQL:"revenue,type=Float,measure=sum;avg;max"`
  Quantity  int       `FraiseQL:"quantity,type=Int,measure=sum;count"`
  CreatedAt time.Time `FraiseQL:"created_at,type=String"`
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -366,6 +398,7 @@ FraiseQL Go SDK maps to standard Go types:
 ### Programmatic Export
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import (
@@ -392,11 +425,13 @@ func main() {
  }
  log.Println(schema)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### CLI Workflow
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Run Go program to generate schema.json
 go run main.go
 
@@ -405,7 +440,8 @@ FraiseQL-cli compile schema.json
 
 # 3. Deploy compiled schema
 FraiseQL-server --schema schema.compiled.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -424,6 +460,7 @@ FraiseQL-server --schema schema.compiled.json
 ### Container Types
 
 ```go
+<!-- Code example in Go -->
 // List of ints
 type Result struct {
  IDs []int `FraiseQL:"ids,type=[Int]"`
@@ -439,7 +476,8 @@ type Nested struct {
  User User   `FraiseQL:"user,type=User"`
  Tags []string `FraiseQL:"tags,type=[String]"`
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -448,6 +486,7 @@ type Nested struct {
 ### CRUD Operations
 
 ```go
+<!-- Code example in Go -->
 type Todo struct {
  ID    int    `FraiseQL:"id,type=Int"`
  Title string `FraiseQL:"title,type=String"`
@@ -484,11 +523,13 @@ func init() {
   Arg("id", "Int", nil).
   Register()
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination Pattern
 
 ```go
+<!-- Code example in Go -->
 type PageInfo struct {
  HasNext     bool `FraiseQL:"has_next,type=Boolean"`
  HasPrevious bool `FraiseQL:"has_previous,type=Boolean"`
@@ -509,11 +550,13 @@ func init() {
   Arg("offset", "Int", 0).
   Register()
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Handling in Go
 
 ```go
+<!-- Code example in Go -->
 func initSchema() error {
  if err := FraiseQL.RegisterTypes(User{}, Post{}); err != nil {
   return fmt.Errorf("failed to register types: %w", err)
@@ -531,7 +574,8 @@ func main() {
   log.Fatalf("initialization failed: %v", err)
  }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -540,6 +584,7 @@ func main() {
 ### Table-Driven Tests
 
 ```go
+<!-- Code example in Go -->
 func TestQueryRegistration(t *testing.T) {
  tests := []struct {
   name    string
@@ -559,11 +604,13 @@ func TestQueryRegistration(t *testing.T) {
   })
  }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Schema Validation
 
 ```go
+<!-- Code example in Go -->
 func TestSchemaValidity(t *testing.T) {
  schema, err := FraiseQL.ExportSchemaString()
  if err != nil {
@@ -582,7 +629,8 @@ func TestSchemaValidity(t *testing.T) {
   t.Error("schema missing 'queries' field")
  }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -591,6 +639,7 @@ func TestSchemaValidity(t *testing.T) {
 Common errors and recovery patterns:
 
 ```go
+<!-- Code example in Go -->
 import "github.com/FraiseQL/FraiseQL-go/FraiseQL"
 
 // Type registration errors
@@ -610,7 +659,8 @@ FraiseQL.NewQuery("users").
  ReturnType(User{}). // Must be registered type
  Config(map[string]interface{}{"sql_source": "v_users"}).
  Register() // Panics if validation fails
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -624,13 +674,15 @@ FraiseQL.NewQuery("users").
 4. **Document with comments**: Becomes GraphQL descriptions
 
 ```go
+<!-- Code example in Go -->
 // User represents a system user account
 type User struct {
  ID    int    `FraiseQL:"id,type=Int"`
  Name  string `FraiseQL:"name,type=String"`
  Email string `FraiseQL:"email,type=String"`
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Builder Pattern
 
@@ -640,6 +692,7 @@ type User struct {
 4. **Use init() for registration**: Runs at package load time
 
 ```go
+<!-- Code example in Go -->
 func init() {
  FraiseQL.NewQuery("users").
   ReturnType(User{}).
@@ -649,19 +702,22 @@ func init() {
   Description("Get paginated users").
   Register()
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Concurrency
 
 Go SDK is thread-safe for schema export during `init()`:
 
 ```go
+<!-- Code example in Go -->
 // Safe to call from goroutines after init completes
 go func() {
  schema, _ := FraiseQL.ExportSchemaString()
  // Process schema
 }()
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -676,6 +732,7 @@ go func() {
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Add module to go.mod
 go get github.com/FraiseQL/FraiseQL-go
 
@@ -684,7 +741,8 @@ go mod verify
 
 # Tidy dependencies
 go mod tidy
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Compilation Errors
 
@@ -695,6 +753,7 @@ go mod tidy
 **Solution**:
 
 ```go
+<!-- Code example in Go -->
 // ✅ Correct import
 import "github.com/FraiseQL/FraiseQL-go"
 
@@ -705,7 +764,8 @@ func init() {
         "email": FraiseQL.String,
     })
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Version Compatibility
 
@@ -714,15 +774,19 @@ func init() {
 **Check version**:
 
 ```bash
+<!-- Code example in BASH -->
 go list -m github.com/FraiseQL/FraiseQL-go
-```
+```text
+<!-- Code example in TEXT -->
 
 **Update to latest**:
 
 ```bash
+<!-- Code example in BASH -->
 go get -u github.com/FraiseQL/FraiseQL-go@latest
 go mod tidy
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Build Tag Issues
 
@@ -731,12 +795,14 @@ go mod tidy
 **Solution - Use correct build tags**:
 
 ```bash
+<!-- Code example in BASH -->
 # Build with observer support
 go build -tags=observers
 
 # Build with arrow support
 go build -tags=arrow_flight
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -751,6 +817,7 @@ go build -tags=arrow_flight
 **Solution**:
 
 ```go
+<!-- Code example in Go -->
 // ❌ Wrong - direct assignment
 user := User{Email: "test@example.com"}  // string, not Email
 
@@ -758,18 +825,21 @@ user := User{Email: "test@example.com"}  // string, not Email
 user := User{
     Email: FraiseQL.Email("test@example.com"),
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Or use type definitions**:
 
 ```go
+<!-- Code example in Go -->
 type Email string
 
 func (e Email) Validate() error {
     // Email validation
     return nil
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Null Handling
 
@@ -778,6 +848,7 @@ func (e Email) Validate() error {
 **Solution - Use pointers for optional fields**:
 
 ```go
+<!-- Code example in Go -->
 // ❌ Wrong - can't be nil
 type User struct {
     Email FraiseQL.String
@@ -797,7 +868,8 @@ type User struct {
 if user.Email.IsSome() {
     fmt.Println(user.Email.Unwrap())
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Reflection Issues
 
@@ -808,6 +880,7 @@ if user.Email.IsSome() {
 **Solution - Use struct tags**:
 
 ```go
+<!-- Code example in Go -->
 type User struct {
     ID    int    `FraiseQL:"id,required"`
     Email string `FraiseQL:"email,type=Email"`
@@ -815,7 +888,8 @@ type User struct {
 
 // Schema compiler reads tags
 schema, _ := FraiseQL.ExportSchema("path/to/schema.json")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -830,6 +904,7 @@ schema, _ := FraiseQL.ExportSchema("path/to/schema.json")
 **Solution - Use sync.Once**:
 
 ```go
+<!-- Code example in Go -->
 var (
     serverOnce sync.Once
     server *FraiseQL.Server
@@ -843,7 +918,8 @@ func getServer() *FraiseQL.Server {
     })
     return server
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Context Timeout
 
@@ -852,13 +928,15 @@ func getServer() *FraiseQL.Server {
 **Solution - Set proper timeout**:
 
 ```go
+<!-- Code example in Go -->
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
 result, err := server.Execute(ctx, FraiseQL.ExecuteRequest{
     Query: query,
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Connection Pool Exhaustion
 
@@ -867,18 +945,22 @@ result, err := server.Execute(ctx, FraiseQL.ExecuteRequest{
 **Check pool status**:
 
 ```go
+<!-- Code example in Go -->
 stats := server.PoolStats()
 fmt.Printf("Open: %d, MaxOpen: %d\n", stats.OpenConnections, stats.MaxOpenConnections)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Increase pool size**:
 
 ```go
+<!-- Code example in Go -->
 server, _ := FraiseQL.NewServer(FraiseQL.Config{
     PoolSize: 20,      // Max connections
     PoolMinSize: 5,    // Min idle
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Variable Binding Issues
 
@@ -887,6 +969,7 @@ server, _ := FraiseQL.NewServer(FraiseQL.Config{
 **Solution - Check variable types**:
 
 ```go
+<!-- Code example in Go -->
 // Variables must match expected types
 variables := map[string]interface{}{
     "id": 123,           // Must be int, not string "123"
@@ -897,7 +980,8 @@ result, _ := server.Execute(ctx, FraiseQL.ExecuteRequest{
     Query: query,
     Variables: variables,
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -910,6 +994,7 @@ result, _ := server.Execute(ctx, FraiseQL.ExecuteRequest{
 **Debug with pprof**:
 
 ```go
+<!-- Code example in Go -->
 import _ "net/http/pprof"
 
 go func() {
@@ -917,17 +1002,20 @@ go func() {
 }()
 
 // Then visit http://localhost:6060/debug/pprof/goroutine
-```
+```text
+<!-- Code example in TEXT -->
 
 **Solution - Ensure cleanup**:
 
 ```go
+<!-- Code example in Go -->
 defer server.Close()  // Releases resources
 
 // Or use context cancellation
 ctx, cancel := context.WithCancel(context.Background())
 defer cancel()  // Cancels all in-flight operations
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Slow Queries
 
@@ -936,15 +1024,18 @@ defer cancel()  // Cancels all in-flight operations
 **Enable query logging**:
 
 ```go
+<!-- Code example in Go -->
 server, _ := FraiseQL.NewServer(FraiseQL.Config{
     Debug: true,
     LogLevel: "debug",
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 **Optimize**:
 
 ```go
+<!-- Code example in Go -->
 // Add pagination
 query := `
     query($limit: Int!, $offset: Int!) {
@@ -955,7 +1046,8 @@ query := `
 // Use caching
 query := `query { trending(limit: 10) { id } }`
 // Request cached for 5 minutes
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Spikes
 
@@ -964,9 +1056,11 @@ query := `query { trending(limit: 10) { id } }`
 **Profile with pprof**:
 
 ```bash
+<!-- Code example in BASH -->
 go test -memprofile=mem.prof -bench .
 go tool pprof mem.prof
-```
+```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -981,14 +1075,18 @@ go tool pprof mem.prof
 **Parallel compilation**:
 
 ```bash
+<!-- Code example in BASH -->
 go build -p 4  # Use 4 cores
-```
+```text
+<!-- Code example in TEXT -->
 
 **Cache dependencies**:
 
 ```bash
+<!-- Code example in BASH -->
 go mod download  # Pre-fetch modules
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -999,6 +1097,7 @@ go mod download  # Pre-fetch modules
 **Set debug mode**:
 
 ```go
+<!-- Code example in Go -->
 server, _ := FraiseQL.NewServer(FraiseQL.Config{
     Debug: true,
 })
@@ -1006,19 +1105,23 @@ server, _ := FraiseQL.NewServer(FraiseQL.Config{
 // Or environment variable
 os.Setenv("FRAISEQL_DEBUG", "true")
 os.Setenv("RUST_LOG", "FraiseQL=debug")
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Use fmt.Printf for Debugging
 
 ```go
+<!-- Code example in Go -->
 result, err := server.Execute(ctx, req)
 fmt.Printf("Result: %+v\n", result)
 fmt.Printf("Error: %v\n", err)
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Structured Logging
 
 ```go
+<!-- Code example in Go -->
 import "log/slog"
 
 logger := slog.Default()
@@ -1028,44 +1131,53 @@ result, err := server.Execute(ctx, req)
 if err != nil {
     logger.Error("Query failed", "error", err)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Network Traffic Inspection
 
 **Using tcpdump**:
 
 ```bash
+<!-- Code example in BASH -->
 tcpdump -i lo -A 'tcp port 5432'  # Monitor database traffic
-```
+```text
+<!-- Code example in TEXT -->
 
 **Using curl to test endpoint**:
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8080/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ user(id: 1) { id } }"}' \
   -v
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Type and Schema Inspection
 
 **Print schema**:
 
 ```go
+<!-- Code example in Go -->
 schema, _ := FraiseQL.ExportSchemaString()
 fmt.Println(schema)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Validate schema**:
 
 ```go
+<!-- Code example in Go -->
 valid, errors := FraiseQL.ValidateSchema(schemaJSON)
 if !valid {
     for _, err := range errors {
         fmt.Println(err)
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1085,6 +1197,7 @@ Provide when reporting:
 **Issue template**:
 
 ```markdown
+<!-- Code example in MARKDOWN -->
 **Environment**:
 - Go: go1.21
 - FraiseQL-go: v2.0.0
@@ -1098,7 +1211,8 @@ Provide when reporting:
 
 **Error**:
 [Full error message]
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Community Channels
 
@@ -1111,6 +1225,7 @@ Provide when reporting:
 **CPU profiling**:
 
 ```go
+<!-- Code example in Go -->
 import "runtime/pprof"
 
 cpuFile, _ := os.Create("cpu.prof")
@@ -1119,25 +1234,30 @@ pprof.StartCPUProfile(cpuFile)
 defer pprof.StopCPUProfile()
 
 // Your code here
-```
+```text
+<!-- Code example in TEXT -->
 
 **Memory profiling**:
 
 ```go
+<!-- Code example in Go -->
 import "runtime/pprof"
 
 memFile, _ := os.Create("mem.prof")
 defer memFile.Close()
 pprof.WriteHeapProfile(memFile)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Analyze with go tool pprof**:
 
 ```bash
+<!-- Code example in BASH -->
 go tool pprof cpu.prof
 > top  # Show top functions
 > list functionName  # Show function code
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

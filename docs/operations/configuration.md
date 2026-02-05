@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Observability Configuration Reference
+description: This document provides complete configuration reference for FraiseQL's observability system. All settings are **opt-in** and carefully tuned for production safe
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # Observability Configuration Reference
 
 ## Overview
@@ -13,20 +21,24 @@ This document provides complete configuration reference for FraiseQL's observabi
 Enable observability with defaults:
 
 ```bash
+<!-- Code example in BASH -->
 # Environment variable
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
 ```text
+<!-- Code example in TEXT -->
 
 Or in `FraiseQL.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 
 [database]
 url = "postgres://user:pass@localhost/mydb"
 ```text
+<!-- Code example in TEXT -->
 
 That's it! The system will use conservative defaults.
 
@@ -43,6 +55,7 @@ FraiseQL supports three configuration methods (in order of precedence):
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Core settings
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1
@@ -56,12 +69,14 @@ export FRAISEQL_METRICS_BUFFER_SIZE=100
 export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 export FRAISEQL_METRICS_BATCH_SIZE=100
 ```text
+<!-- Code example in TEXT -->
 
 ### Configuration File
 
 Create `FraiseQL.toml` in your project root:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 0.1
@@ -84,6 +99,7 @@ min_frequency = 1000
 min_speedup = 5.0
 min_selectivity = 0.1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -100,13 +116,17 @@ Enable or disable observability system.
 **Important**: Observability is **opt-in** for production safety. You must explicitly enable it.
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -129,10 +149,12 @@ Percentage of queries to collect metrics for.
 **Example**:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 # Sample 1% of queries in high-traffic production
 sample_rate = 0.01
 ```text
+<!-- Code example in TEXT -->
 
 **Note**: Even at 1% sampling, patterns are reliably detected with sufficient traffic.
 
@@ -147,9 +169,11 @@ sample_rate = 0.01
 How long to keep metrics data before automatic cleanup.
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 retention_days = 30  # Keep metrics for 30 days
 ```text
+<!-- Code example in TEXT -->
 
 **Storage Estimates** (per day, 10% sampling, 1000 qps):
 
@@ -162,6 +186,7 @@ retention_days = 30  # Keep metrics for 30 days
 **Cleanup Query** (runs daily):
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 DELETE FROM fraiseql_metrics.query_executions
 WHERE executed_at < NOW() - INTERVAL '30 days';
@@ -170,6 +195,7 @@ WHERE executed_at < NOW() - INTERVAL '30 days';
 DELETE FROM fraiseql_metrics.query_executions
 WHERE executed_at < DATEADD(day, -30, GETDATE());
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -184,9 +210,11 @@ WHERE executed_at < DATEADD(day, -30, GETDATE());
 In-memory buffer size before flushing to database.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.metrics]
 buffer_size = 100  # Flush after 100 queries
 ```text
+<!-- Code example in TEXT -->
 
 **Trade-offs**:
 
@@ -206,9 +234,11 @@ buffer_size = 100  # Flush after 100 queries
 Maximum seconds to wait before flushing buffer (even if not full).
 
 ```toml
+<!-- Code example in TOML -->
 [observability.metrics]
 flush_interval_secs = 60  # Flush at least every minute
 ```text
+<!-- Code example in TEXT -->
 
 **Why needed**: Ensures metrics aren't delayed indefinitely during low traffic.
 
@@ -223,9 +253,11 @@ flush_interval_secs = 60  # Flush at least every minute
 Number of metrics to insert in a single database transaction.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.metrics]
 batch_size = 100
 ```text
+<!-- Code example in TEXT -->
 
 **Performance Impact**:
 
@@ -254,22 +286,28 @@ Database connection string for metrics storage.
 1. **Same database as application** (simple):
 
    ```toml
+<!-- Code example in TOML -->
    # Omit this setting to use main database
    ```text
+<!-- Code example in TEXT -->
 
 2. **Separate database on same server** (recommended):
 
    ```toml
+<!-- Code example in TOML -->
    [observability.database]
    url = "postgres://app:pass@localhost:5432/fraiseql_metrics"
    ```text
+<!-- Code example in TEXT -->
 
 3. **Separate metrics server** (production best practice):
 
    ```toml
+<!-- Code example in TOML -->
    [observability.database]
    url = "postgres://metrics:pass@metrics-db.internal:5432/metrics"
    ```text
+<!-- Code example in TEXT -->
 
 **Benefits of Separate Database**:
 
@@ -289,9 +327,11 @@ Database connection string for metrics storage.
 Connection pool size for metrics database.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.database]
 pool_size = 10
 ```text
+<!-- Code example in TEXT -->
 
 **Guidelines**:
 
@@ -312,9 +352,11 @@ pool_size = 10
 Query timeout for metrics writes (seconds).
 
 ```toml
+<!-- Code example in TOML -->
 [observability.database]
 timeout_secs = 30
 ```text
+<!-- Code example in TEXT -->
 
 **Important**: If metrics writes timeout, they're dropped (doesn't block application queries).
 
@@ -333,13 +375,17 @@ These settings control the `FraiseQL-cli analyze` command behavior.
 Minimum queries per day to suggest optimization.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.analysis]
 min_frequency = 1000
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze --min-frequency 500  # Override default
 ```text
+<!-- Code example in TEXT -->
 
 **Guidelines**:
 
@@ -360,13 +406,17 @@ FraiseQL-cli analyze --min-frequency 500  # Override default
 Minimum speedup factor (e.g., 5.0 = 5x faster) to suggest optimization.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.analysis]
 min_speedup = 5.0
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze --min-speedup 3.0  # Lower threshold
 ```text
+<!-- Code example in TEXT -->
 
 **Guidelines**:
 
@@ -387,19 +437,23 @@ FraiseQL-cli analyze --min-speedup 3.0  # Lower threshold
 Minimum filter selectivity (% of rows filtered) for denormalization suggestions.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.analysis]
 min_selectivity = 0.1  # 10% of rows filtered
 ```text
+<!-- Code example in TEXT -->
 
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 -- High selectivity (15% of rows match) → Suggest denormalization
 WHERE JSON_VALUE(dimensions, '$.region') = 'US'  -- Returns 15,000 / 100,000 rows
 
 -- Low selectivity (90% match) → Don't suggest (most rows match anyway)
 WHERE JSON_VALUE(dimensions, '$.active') = 'true'  -- Returns 90,000 / 100,000 rows
 ```text
+<!-- Code example in TEXT -->
 
 **Guidelines**:
 
@@ -420,13 +474,17 @@ WHERE JSON_VALUE(dimensions, '$.active') = 'true'  -- Returns 90,000 / 100,000 r
 Time window for analysis.
 
 ```toml
+<!-- Code example in TOML -->
 [observability.analysis]
 window = "7d"  # Last 7 days
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze --window 30d  # Last 30 days
 ```text
+<!-- Code example in TEXT -->
 
 **Supported Formats**:
 
@@ -480,6 +538,7 @@ Whether to collect query arguments (variables).
 **PostgreSQL**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create dedicated metrics user
 CREATE USER fraiseql_metrics WITH PASSWORD 'secure_password';
 
@@ -494,10 +553,12 @@ GRANT INSERT ON fraiseql_metrics.jsonb_accesses TO fraiseql_metrics;
 CREATE USER fraiseql_analyst WITH PASSWORD 'analyst_password';
 GRANT SELECT ON ALL TABLES IN SCHEMA fraiseql_metrics TO fraiseql_analyst;
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create dedicated login and user
 CREATE LOGIN fraiseql_metrics WITH PASSWORD = 'secure_password';
 CREATE USER fraiseql_metrics FOR LOGIN fraiseql_metrics;
@@ -510,6 +571,7 @@ CREATE LOGIN fraiseql_analyst WITH PASSWORD = 'analyst_password';
 CREATE USER fraiseql_analyst FOR LOGIN fraiseql_analyst;
 GRANT SELECT ON SCHEMA::fraiseql_metrics TO fraiseql_analyst;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -518,6 +580,7 @@ GRANT SELECT ON SCHEMA::fraiseql_metrics TO fraiseql_analyst;
 ### Small Application (< 100 qps)
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 1.0  # 100% sampling (low traffic)
@@ -533,12 +596,14 @@ min_frequency = 100  # Lower threshold (less traffic)
 min_speedup = 3.0
 min_selectivity = 0.1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Medium Application (100-1000 qps)
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 0.1  # 10% sampling (default)
@@ -559,12 +624,14 @@ min_frequency = 1000  # Default
 min_speedup = 5.0
 min_selectivity = 0.1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### Large Application (> 1000 qps)
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 enabled = true
 sample_rate = 0.01  # 1% sampling (high traffic)
@@ -587,6 +654,7 @@ min_speedup = 10.0  # Only huge wins
 min_selectivity = 0.05
 window = "30d"  # Longer window to capture patterns at 1% sampling
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -595,6 +663,7 @@ window = "30d"  # Longer window to capture patterns at 1% sampling
 **PostgreSQL Primary + SQL Server Secondary**:
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 url = "postgres://app:pass@localhost:5432/myapp"
 
@@ -613,6 +682,7 @@ url = "postgres://metrics:pass@metrics-db:5432/metrics"
 # Analyzer detects database type from query patterns
 # Generates appropriate SQL for each database
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -623,6 +693,7 @@ url = "postgres://metrics:pass@metrics-db:5432/metrics"
 The observability system automatically creates these tables on first run:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create schema
 CREATE SCHEMA IF NOT EXISTS fraiseql_metrics;
 
@@ -679,12 +750,14 @@ CREATE TABLE fraiseql_metrics.query_stats (
     last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### SQL Server
 
 ```sql
+<!-- Code example in SQL -->
 -- Create schema
 CREATE SCHEMA fraiseql_metrics;
 GO
@@ -741,6 +814,7 @@ CREATE TABLE fraiseql_metrics.query_stats (
 );
 GO
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -751,14 +825,18 @@ If auto-creation is disabled or fails:
 **PostgreSQL**:
 
 ```bash
+<!-- Code example in BASH -->
 psql -U fraiseql_metrics -d fraiseql_metrics -f schema/postgres_metrics.sql
 ```text
+<!-- Code example in TEXT -->
 
 **SQL Server**:
 
 ```bash
+<!-- Code example in BASH -->
 sqlcmd -S localhost -U fraiseql_metrics -P password -i schema/sqlserver_metrics.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -769,6 +847,7 @@ sqlcmd -S localhost -U fraiseql_metrics -P password -i schema/sqlserver_metrics.
 For applications with > 10,000 qps:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 sample_rate = 0.001  # 0.1% sampling
 
@@ -781,12 +860,14 @@ flush_interval_secs = 120  # Flush every 2 minutes
 pool_size = 50
 timeout_secs = 10  # Fail fast
 ```text
+<!-- Code example in TEXT -->
 
 ### Low-Latency Requirements
 
 For applications where every millisecond counts:
 
 ```toml
+<!-- Code example in TOML -->
 [observability]
 sample_rate = 0.01  # 1% sampling
 
@@ -801,6 +882,7 @@ url = "postgres://metrics:pass@async-metrics-db:5432/metrics"
 pool_size = 20
 timeout_secs = 5  # Drop metrics if DB is slow
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -811,6 +893,7 @@ timeout_secs = 5  # Drop metrics if DB is slow
 **Application-Level** (via logs):
 
 ```rust
+<!-- Code example in RUST -->
 // Log metrics collection health
 if metrics_buffer_full {
     warn!("Metrics buffer full, dropping oldest entries");
@@ -826,10 +909,12 @@ info!(
     collected_count, flushed_count, dropped_count, buffer_len
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Database-Level** (query metrics tables):
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL: Metrics collection rate
 SELECT
     DATE_TRUNC('hour', executed_at) AS hour,
@@ -848,6 +933,7 @@ WHERE executed_at > DATEADD(hour, -24, GETDATE())
 GROUP BY DATEPART(hour, executed_at)
 ORDER BY hour DESC;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -860,28 +946,36 @@ ORDER BY hour DESC;
 1. Is observability enabled?
 
    ```bash
+<!-- Code example in BASH -->
    echo $FRAISEQL_OBSERVABILITY_ENABLED
    # Should output: true
    ```text
+<!-- Code example in TEXT -->
 
 2. Is sample rate too low?
 
    ```bash
+<!-- Code example in BASH -->
    echo $FRAISEQL_OBSERVABILITY_SAMPLE_RATE
    # Should be > 0.0
    ```text
+<!-- Code example in TEXT -->
 
 3. Check database connection:
 
    ```bash
+<!-- Code example in BASH -->
    psql $FRAISEQL_METRICS_DATABASE_URL -c "SELECT 1"
    ```text
+<!-- Code example in TEXT -->
 
 4. Check application logs:
 
    ```text
+<!-- Code example in TEXT -->
    grep "observability" app.log
    ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -894,10 +988,12 @@ ORDER BY hour DESC;
 **Solution**:
 
 ```toml
+<!-- Code example in TOML -->
 [observability.metrics]
 buffer_size = 50          # Reduce from 100
 flush_interval_secs = 30  # Flush more frequently
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -910,23 +1006,29 @@ flush_interval_secs = 30  # Flush more frequently
 1. **Increase timeout**:
 
    ```toml
+<!-- Code example in TOML -->
    [observability.database]
    timeout_secs = 60  # From 30
    ```text
+<!-- Code example in TEXT -->
 
 2. **Increase pool size**:
 
    ```toml
+<!-- Code example in TOML -->
    [observability.database]
    pool_size = 20  # From 10
    ```text
+<!-- Code example in TEXT -->
 
 3. **Use separate database** (recommended):
 
    ```toml
+<!-- Code example in TOML -->
    [observability.database]
    url = "postgres://metrics-only-db:5432/metrics"
    ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -941,12 +1043,14 @@ flush_interval_secs = 30  # Flush more frequently
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Lower thresholds temporarily
 FraiseQL-cli analyze \
     --min-frequency 10 \
     --min-speedup 2.0 \
     --window 1d
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -973,6 +1077,7 @@ Complete list of all environment variables:
 FraiseQL validates configuration on startup:
 
 ```rust
+<!-- Code example in RUST -->
 // Invalid configuration example
 [observability]
 enabled = true
@@ -982,6 +1087,7 @@ sample_rate = 1.5  # ❌ ERROR: Must be 0.0-1.0
 // Error: Invalid observability configuration
 //   - sample_rate must be between 0.0 and 1.0 (got 1.5)
 ```text
+<!-- Code example in TEXT -->
 
 **Validation Rules**:
 

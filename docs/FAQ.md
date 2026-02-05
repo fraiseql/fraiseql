@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Frequently Asked Questions (FAQ)
+description: 1. [General Questions](#general-questions)
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Frequently Asked Questions (FAQ)
 
 **Last Updated**: 2026-01-29
@@ -67,6 +75,7 @@ All databases can be used together in federation. See [multi-database consistenc
 A: **Yes**. FraiseQL works with existing schema by mapping GraphQL types to database tables via the `@key` directive.
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.federation import federated_type, key
 
 @federated_type
@@ -76,6 +85,7 @@ class User:
     name: str
     email: str
 ```text
+<!-- Code example in TEXT -->
 
 This maps to your existing `users` table.
 
@@ -102,6 +112,7 @@ See [federation sagas](integrations/federation/sagas.md) for FraiseQL implementa
 A: Entity resolution maps keys from the gateway to actual database rows in each service:
 
 ```text
+<!-- Code example in TEXT -->
 Gateway Query: { user(id: "123") { name orders { total } } }
                                               ↓
 User Service:   SELECT * FROM users WHERE id = '123'
@@ -110,6 +121,7 @@ User Service:   SELECT * FROM users WHERE id = '123'
 Orders Service: SELECT * FROM orders WHERE user_id = '123'
                 Returns: [{ id: "1", user_id: "123", total: 100 }]
 ```text
+<!-- Code example in TEXT -->
 
 Performance: <5ms local, <20ms direct DB, <200ms HTTP.
 
@@ -120,6 +132,7 @@ Performance: <5ms local, <20ms direct DB, <200ms HTTP.
 A: **Yes**. Both are fully implemented and runtime-enforced:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!
   email: String!
@@ -131,6 +144,7 @@ type Order @key(fields: "id") {
   userId: ID! @provides(fields: "User.id")  # Provides User reference
 }
 ```text
+<!-- Code example in TEXT -->
 
 See [runtime directive enforcement](integrations/federation/sagas.md#runtime-directive-enforcement).
 
@@ -141,6 +155,7 @@ See [runtime directive enforcement](integrations/federation/sagas.md#runtime-dir
 A: Use Apollo Router with a supergraph:
 
 ```yaml
+<!-- Code example in YAML -->
 # docker-compose.yml
 services:
   users-service:
@@ -154,6 +169,7 @@ services:
       - ./supergraph.graphql:/etc/router/supergraph.graphql
     ports: ["4000:4000"]
 ```text
+<!-- Code example in TEXT -->
 
 See [saga-basic example](../examples/federation/saga-basic/).
 
@@ -166,6 +182,7 @@ See [saga-basic example](../examples/federation/saga-basic/).
 A: Sagas are distributed transactions that coordinate operations across multiple services. They handle failure by automatically reversing (compensating) completed steps.
 
 ```text
+<!-- Code example in TEXT -->
 Step 1: Verify User ✓
 Step 2: Charge Payment ✓
 Step 3: Reserve Inventory ✗ Out of stock
@@ -174,6 +191,7 @@ Step 2 Reverse: Refund ✓
 Step 1 Reverse: N/A (verify only)
 Result: No order, payment refunded
 ```text
+<!-- Code example in TEXT -->
 
 See [federation guide](integrations/federation/guide.md).
 
@@ -201,16 +219,19 @@ Don't use sagas when:
 A: **Automatic Compensation**: System-driven reversal
 
 ```rust
+<!-- Code example in RUST -->
 SagaStep {
     forward: Mutation { operation: "chargeCard" },
     compensation: Some(Mutation { operation: "refundCharge" })
 }
 // Compensation runs automatically if later step fails
 ```text
+<!-- Code example in TEXT -->
 
 **Manual Compensation**: Logic-driven reversal
 
 ```rust
+<!-- Code example in RUST -->
 match coordinator.execute(steps).await {
     Ok(result) => { /* success */ },
     Err(e) => {
@@ -221,6 +242,7 @@ match coordinator.execute(steps).await {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 See [compensation strategies](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
@@ -231,6 +253,7 @@ See [compensation strategies](integrations/federation/sagas.md#best-practices-fo
 A: Sagas have built-in failure handling:
 
 ```text
+<!-- Code example in TEXT -->
 Transient Failures (network, timeouts):
   → Automatic retry with exponential backoff
   → Max 3 retries by default
@@ -244,14 +267,17 @@ Stuck Sagas (no progress >1 hour):
   → Recovery manager attempts retry
   → Alert operations team
 ```text
+<!-- Code example in TEXT -->
 
 Configure with:
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_SAGA_MAX_RETRIES=3
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=30
 export FRAISEQL_SAGA_RECOVERY_ENABLED=true
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -262,13 +288,16 @@ A: **Idempotency** means running an operation twice produces the same result as 
 **Example**: Transfer $100 twice with same `transactionId`
 
 ```text
+<!-- Code example in TEXT -->
 First attempt:  Account A: $1000 → $900, Account B: $500 → $600
 Second attempt: Returns cached result, no double charge ✓
 ```text
+<!-- Code example in TEXT -->
 
 Use `request_id` or `transactionId`:
 
 ```rust
+<!-- Code example in RUST -->
 SagaStep {
     forward: Mutation {
         request_id: Some("txn-123"),  // Unique per request
@@ -276,6 +305,7 @@ SagaStep {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 See [idempotency best practices](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
@@ -309,6 +339,7 @@ See [performance characteristics](integrations/federation/sagas.md#observability
 A: Use parallel execution for independent steps:
 
 ```rust
+<!-- Code example in RUST -->
 // Sequential (600ms total)
 coordinator.execute(vec![
     create_account,
@@ -322,6 +353,7 @@ coordinator.execute_parallel(
     ParallelConfig { max_concurrent: 3, fail_fast: true }
 ).await
 ```text
+<!-- Code example in TEXT -->
 
 See [saga-complex example](../examples/federation/saga-complex/).
 
@@ -334,17 +366,21 @@ A: **5 minutes** for entire saga, **30 seconds** per step.
 Increase if needed:
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_SAGA_TIMEOUT_SECONDS=600  # 10 minutes
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=60  # 1 minute per step
 ```text
+<!-- Code example in TEXT -->
 
 Or programmatically:
 
 ```rust
+<!-- Code example in RUST -->
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_timeout(Duration::from_secs(600))
     .with_step_timeout(Duration::from_secs(60));
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -355,18 +391,22 @@ let coordinator = SagaCoordinator::new(metadata, store)
 A: **Docker + Docker Compose** (recommended):
 
 ```bash
+<!-- Code example in BASH -->
 cd examples/federation/saga-basic
 docker-compose up -d
 docker-compose ps  # Verify all services healthy
 ```text
+<!-- Code example in TEXT -->
 
 **Kubernetes**:
 
 ```bash
+<!-- Code example in BASH -->
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 kubectl get pods  # Verify running
 ```text
+<!-- Code example in TEXT -->
 
 **Manual** (advanced):
 
@@ -381,6 +421,7 @@ kubectl get pods  # Verify running
 A: Check saga state directly:
 
 ```sql
+<!-- Code example in SQL -->
 -- PostgreSQL
 SELECT id, saga_type, status, created_at
 FROM sagas
@@ -391,13 +432,16 @@ ORDER BY created_at DESC;
 SELECT * FROM sagas
 WHERE status = 'EXECUTING' AND created_at < NOW() - INTERVAL '1 hour';
 ```text
+<!-- Code example in TEXT -->
 
 Or use metrics:
 
 ```bash
+<!-- Code example in BASH -->
 # Prometheus metrics available
 curl http://localhost:9090/metrics | grep saga
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -406,6 +450,7 @@ curl http://localhost:9090/metrics | grep saga
 A: Backup these databases:
 
 ```bash
+<!-- Code example in BASH -->
 # PostgreSQL (saga state)
 pg_dump -U FraiseQL FraiseQL > saga_backup.sql
 
@@ -415,6 +460,7 @@ mysqldump -u root -p FraiseQL > orders_backup.sql
 # All application data
 docker-compose exec postgres pg_dump -U FraiseQL FraiseQL > backup.sql
 ```text
+<!-- Code example in TEXT -->
 
 See [deployment guide](deployment/guide.md) for production-deployment steps.
 
@@ -427,6 +473,7 @@ A: Scale horizontally:
 1. **Add more instances** (load balancer needed):
 
 ```yaml
+<!-- Code example in YAML -->
 FraiseQL-server-1:
   image: FraiseQL:latest
 
@@ -437,18 +484,23 @@ load-balancer:
   image: nginx:latest
   ports: ["80:80"]
 ```text
+<!-- Code example in TEXT -->
 
 1. **Increase connection pool**:
 
 ```bash
+<!-- Code example in BASH -->
 export DATABASE_POOL_SIZE=50  # From 20
 ```text
+<!-- Code example in TEXT -->
 
 1. **Cache results**:
 
 ```bash
+<!-- Code example in BASH -->
 export CACHE_TTL_SECONDS=300  # 5 minutes
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -459,6 +511,7 @@ export CACHE_TTL_SECONDS=300  # 5 minutes
 A: The @requires directive field wasn't included. Ensure all required fields are present:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Schema
 type User {
   email: String! @requires(fields: "phone")
@@ -468,6 +521,7 @@ type User {
 # Database query must include phone
 SELECT id, email, phone FROM users WHERE id = $1
 ```text
+<!-- Code example in TEXT -->
 
 See [entity resolution troubleshooting](TROUBLESHOOTING.md#problem-entity-resolution-fails).
 
@@ -478,15 +532,19 @@ See [entity resolution troubleshooting](TROUBLESHOOTING.md#problem-entity-resolu
 A: Check subgraph health:
 
 ```bash
+<!-- Code example in BASH -->
 curl http://orders-service:4000/graphql -d '{"query":"query{__typename}"}'
 docker-compose restart orders-service
 ```text
+<!-- Code example in TEXT -->
 
 Then force recovery:
 
 ```rust
+<!-- Code example in RUST -->
 recovery_manager.recover_saga(&stuck_saga).await?;
 ```text
+<!-- Code example in TEXT -->
 
 See [saga troubleshooting](TROUBLESHOOTING.md#problem-saga-stuck-in-executing).
 
@@ -497,6 +555,7 @@ See [saga troubleshooting](TROUBLESHOOTING.md#problem-saga-stuck-in-executing).
 A: Verify @key directives match:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ Correct
 type User @key(fields: "id") { ... }      // users-service
 extend type User @key(fields: "id") { ... }  // orders-service
@@ -504,6 +563,7 @@ extend type User @key(fields: "id") { ... }  // orders-service
 # ❌ Wrong
 extend type User @key(fields: "userId") { ... }  // Different key!
 ```text
+<!-- Code example in TEXT -->
 
 See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-supergraph).
 
@@ -514,16 +574,20 @@ See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-super
 A: Set log level:
 
 ```bash
+<!-- Code example in BASH -->
 export RUST_LOG=FraiseQL=debug,tracing=trace
 RUST_LOG=debug cargo run --bin FraiseQL-server
 ```text
+<!-- Code example in TEXT -->
 
 Watch for logs like:
 
 ```text
+<!-- Code example in TEXT -->
 [DEBUG fraiseql_core::federation::entity_resolver] Resolving entity User:123
 [TRACE fraiseql_core::database::query_executor] Executing: SELECT * FROM users
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

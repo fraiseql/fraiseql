@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Extension Points: Plugins, Customization, and Integration Hooks
+description: FraiseQL provides extension points for customization without modifying core framework. Developers can extend behavior through hooks, custom validators, authoriz
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Extension Points: Plugins, Customization, and Integration Hooks
 
 **Date:** January 2026
@@ -21,6 +29,7 @@ FraiseQL provides extension points for customization without modifying core fram
 Define custom rules beyond built-in:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.authorization_rule(name="published_or_author")
 def rule_published_or_author(
     resource: Any,
@@ -50,13 +59,15 @@ class Post:
 class Project:
     @FraiseQL.authorize(rule="team_member")
     budget: float
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Complex Rule Logic
 
 Rules can access database for context:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.authorization_rule(name="department_lead_or_admin")
 async def rule_department_lead(
     resource: Any,
@@ -74,13 +85,15 @@ async def rule_department_lead(
         [user_context.user_id, resource.department_id]
     )
     return bool(is_lead)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Dynamic Rule Caching
 
 Cache authorization decisions:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.authorization_rule(
     name="expensive_rule",
     cache_ttl_seconds=300,
@@ -93,7 +106,8 @@ async def expensive_rule(resource, user_context, db):
 
     result = await db.query_expensive(...)
     return result
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -104,6 +118,7 @@ async def expensive_rule(resource, user_context, db):
 Define validation on input fields:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.validator(name="email_validator")
 def validate_email(value: str) -> None:
     """Validate email format and domain"""
@@ -137,13 +152,15 @@ class User:
     def update_password(self, new_password: str) -> bool:
         """Update user password"""
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Async Validators
 
 Validators can query database:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.validator(name="unique_email")
 async def validate_unique_email(
     value: str,
@@ -164,7 +181,8 @@ def create_user(input: CreateUserInput) -> User:
     """Create user with unique email validation"""
     # @unique_email validator runs during input validation
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -175,6 +193,7 @@ def create_user(input: CreateUserInput) -> User:
 Execute code before/after queries:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.hook(event="query.before_execution")
 async def log_query_start(
     query_name: str,
@@ -208,13 +227,15 @@ async def log_query_end(
             f"Query {query_name} completed in {duration_ms}ms",
             extra={"user_id": user_context.user_id}
         )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Mutation Hooks
 
 Execute code before/after mutations:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.hook(event="mutation.before_execution")
 async def audit_mutation_intent(
     mutation_name: str,
@@ -244,13 +265,15 @@ async def handle_mutation_side_effects(
     elif mutation_name == "CreateOrder":
         # Send confirmation email
         await send_order_confirmation(result.order_id)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Subscription Hooks
 
 Execute code on subscription lifecycle:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.hook(event="subscription.connected")
 async def on_subscription_connected(
     subscription_id: str,
@@ -282,13 +305,15 @@ async def on_subscription_disconnected(
     )
 
     await metrics.gauge("active_subscriptions", increment=-1)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Error Hooks
 
 Execute code on errors:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.hook(event="error.occurred")
 async def handle_error(
     error: Exception,
@@ -313,7 +338,8 @@ async def handle_error(
             extra={"error": str(error)}
         )
         await alert_oncall("Database error detected")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -324,6 +350,7 @@ async def handle_error(
 Track occurrences:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.metric(name="user_created", type="counter")
 def track_user_creation():
     """Track user creation count"""
@@ -336,13 +363,15 @@ async def track_mutations(mutation_name, result):
     if mutation_name == "CreateUser":
         metrics.increment("user_created")
         metrics.increment("mutations_total", labels={"type": "create"})
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Gauge Metrics
 
 Track instantaneous values:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.metric(name="active_sessions", type="gauge")
 async def update_active_sessions():
     """Track active user sessions"""
@@ -355,13 +384,15 @@ async def update_active_sessions():
 @FraiseQL.schedule(interval_seconds=60)
 async def refresh_gauge_metrics():
     await update_active_sessions()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Histogram Metrics
 
 Track distributions:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.metric(name="query_duration_ms", type="histogram")
 async def track_query_latency(duration_ms: float):
     """Track query latency distribution"""
@@ -375,7 +406,8 @@ async def record_latency(duration_ms, query_name):
         duration_ms,
         labels={"operation": query_name}
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -386,6 +418,7 @@ async def record_latency(duration_ms, query_name):
 Define domain-specific types:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.scalar(name="Email")
 class EmailScalar:
     """Custom Email scalar with validation"""
@@ -434,7 +467,8 @@ class User:
 @FraiseQL.type
 class Order:
     total: Money  # Custom scalar
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -445,6 +479,7 @@ class Order:
 Apply behavior to fields:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.directive(name="uppercase")
 def uppercase_directive(value: str) -> str:
     """Convert field value to uppercase"""
@@ -465,13 +500,15 @@ class User:
 
     @redact_directive
     ssn: str
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Query Directives
 
 Apply behavior to queries:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.directive(name="cache")
 def cache_directive(result: Any, ttl_seconds: int) -> Any:
     """Cache query result"""
@@ -500,7 +537,8 @@ def rate_limit_directive(
 def get_user_posts(user_id: ID) -> [Post]:
     """Get user's posts (cached, rate-limited)"""
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -511,6 +549,7 @@ def get_user_posts(user_id: ID) -> [Post]:
 Transform input before validation:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.transform(event="input.before_validation")
 def normalize_email(input_data: dict) -> dict:
     """Normalize email to lowercase"""
@@ -525,13 +564,15 @@ def sanitize_text(input_data: dict) -> dict:
         if field in input_data and isinstance(input_data[field], str):
             input_data[field] = sanitize_html(input_data[field])
     return input_data
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Output Transform
 
 Transform response before sending:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.transform(event="response.before_sending")
 def add_metadata(response: dict) -> dict:
     """Add request metadata to response"""
@@ -549,7 +590,8 @@ def redact_sensitive(response: dict) -> dict:
         if "password_hash" in user:
             del user["password_hash"]
     return response
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -560,6 +602,7 @@ def redact_sensitive(response: dict) -> dict:
 Process requests:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.middleware(type="request")
 async def add_request_id(request, next_handler):
     """Add unique request ID"""
@@ -581,13 +624,15 @@ async def extract_user_context(request, next_handler):
     if token:
         request.user_context = verify_token(token)
     return await next_handler(request)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Response Middleware
 
 Process responses:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.middleware(type="response")
 async def add_cache_headers(request, response, next_handler):
     """Add cache control headers"""
@@ -602,7 +647,8 @@ async def compress_response(request, response, next_handler):
         response.body = gzip_compress(response.body)
         response.headers["Content-Encoding"] = "gzip"
     return response
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -613,6 +659,7 @@ async def compress_response(request, response, next_handler):
 Call custom database functions from queries:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.database_function(name="search_full_text")
 def search_full_text(
     db: Database,
@@ -630,13 +677,15 @@ def search_full_text(
 def search_posts(query: str) -> [Post]:
     """Search posts by full-text"""
     return search_full_text(query, "tb_post")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Custom Database Views
 
 Define custom materialized views:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.view(name="v_user_stats")
 def create_user_stats_view(db: Database) -> str:
     """Create materialized view with user statistics"""
@@ -656,7 +705,8 @@ def create_user_stats_view(db: Database) -> str:
 
     CREATE INDEX idx_user_stats_id ON v_user_stats(id);
     """
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -667,6 +717,7 @@ def create_user_stats_view(db: Database) -> str:
 Control which extensions are active:
 
 ```python
+<!-- Code example in Python -->
 FraiseQL.extensions.configure({
     "authorization": {
         "custom_rules": True,
@@ -705,13 +756,15 @@ FraiseQL.extensions.configure({
         ]
     }
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Extension Namespace
 
 Organize extensions:
 
 ```python
+<!-- Code example in Python -->
 # Define extension namespace
 class CustomExtensions:
     @FraiseQL.authorization_rule(name="my_rule_1")
@@ -728,7 +781,8 @@ class CustomExtensions:
 
 # Register namespace
 FraiseQL.extensions.register(CustomExtensions)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -758,6 +812,7 @@ FraiseQL.extensions.register(CustomExtensions)
 ### 11.2 Performance Considerations
 
 ```python
+<!-- Code example in Python -->
 # ❌ SLOW: Complex rule evaluated for every request
 @FraiseQL.authorization_rule(name="slow_rule")
 async def slow_rule(resource, user_context, db):
@@ -774,7 +829,8 @@ async def fast_rule(resource, user_context, db):
     # Cached for 5 minutes
     result = await db.query_expensive(...)
     return result
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

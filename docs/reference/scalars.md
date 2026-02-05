@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Custom Scalar Types Reference
+description: 1. [Overview](#overview)
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # Custom Scalar Types Reference
 
 **Status:** ✅ Production Ready
@@ -31,8 +39,10 @@ FraiseQL provides 56 domain-specific custom scalar types beyond GraphQL's built-
 All scalars are imported from the main FraiseQL package and available for use in type definitions:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.types import Date, DateTime, UUID, Money, Vector, IpAddressString
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1248,11 +1258,13 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
 - **Example**:
 
   ```json
+<!-- Code example in JSON -->
   {
     "indices": [0, 2, 5],
     "values": [0.1, 0.3, 0.2]
   }
-  ```
+  ```text
+<!-- Code example in TEXT -->
 
 - **Memory Advantage**: Extremely efficient for high-dimensional, sparse data
 - **Use Cases**:
@@ -1277,13 +1289,15 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
 - **Example**:
 
   ```json
+<!-- Code example in JSON -->
   {
     "codebook_id": 1,
     "code": 42,
     "scale": 0.5,
     "offset": [0.1, 0.2, 0.3]
   }
-  ```
+  ```text
+<!-- Code example in TEXT -->
 
 - **Use Cases**:
   - Extremely large-scale embeddings (billions of vectors)
@@ -1385,6 +1399,7 @@ Vector scalars represent embeddings and vector data for semantic search and RAG 
 Scalars are used in `@FraiseQL.type` decorators:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type, field
 from FraiseQL.types import (
     Date, DateTime, UUID, Money, CurrencyCode,
@@ -1422,7 +1437,8 @@ class BlogPost:
     content: Markdown
     created_at: DateTime
     tags: list[str]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1498,6 +1514,7 @@ class BlogPost:
 All scalars are available from:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.types import (
     # Temporal
     Date, DateTime, Time, Duration, DateRange, Timezone,
@@ -1551,7 +1568,8 @@ from FraiseQL.types import (
     # Vector
     Vector, HalfVector, SparseVector, QuantizedVector,
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Federation vs Monolithic Database: Decision Guide
+description: Single database server sufficient?
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Federation vs Monolithic Database: Decision Guide
 
 **Status:** ✅ Production Ready
@@ -8,6 +16,7 @@
 ## Quick Answer
 
 ```text
+<!-- Code example in TEXT -->
 Single database server sufficient?
 ├─ YES → Stick with single database
 │        (simpler until you outgrow it)
@@ -22,6 +31,7 @@ Single database server sufficient?
 │
 └─ Still deciding? Use this guide
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -66,6 +76,7 @@ Single database server sufficient?
 ### Phase 1: Current State
 
 ```text
+<!-- Code example in TEXT -->
 Single database working fine?
 ├─ YES → Keep monolith
 │        Continue until pain point appears
@@ -77,10 +88,12 @@ Single database working fine?
    ├─ Compliance → Federation
    └─ Multiple tech → Federation
 ```text
+<!-- Code example in TEXT -->
 
 ### Phase 2: Scale Analysis
 
 ```text
+<!-- Code example in TEXT -->
 How much data?
 ├─ <100GB → Monolith fine
 ├─ 100GB-1TB → Still monolith (with work)
@@ -91,10 +104,12 @@ How many queries per second?
 ├─ 1,000-10,000 QPS → Monolith with optimization
 └─ >10,000 QPS → Federation
 ```text
+<!-- Code example in TEXT -->
 
 ### Phase 3: Operational Needs
 
 ```text
+<!-- Code example in TEXT -->
 Multiple independent teams?
 ├─ YES → Federation (each team owns subgraph)
 ├─ NO: Need data residency (GDPR/HIPAA)?
@@ -105,6 +120,7 @@ Multiple independent teams?
 │        ├─ YES → Federation
 │        └─ NO → Stay with monolith
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -124,12 +140,14 @@ Multiple independent teams?
 **Operational Model:**
 
 ```text
+<!-- Code example in TEXT -->
 ┌─ FraiseQL Application ─┐
 │                         │
 └─ PostgreSQL (single)   ─┘
 
 Single node, simpler operations, full transaction support
 ```text
+<!-- Code example in TEXT -->
 
 **Scaling strategy:**
 
@@ -146,6 +164,7 @@ Single node, simpler operations, full transaction support
 **Example Architecture:**
 
 ```yaml
+<!-- Code example in YAML -->
 FraiseQL-server:
   database: postgresql://prod-db.internal:5432/FraiseQL
   replicas:
@@ -154,6 +173,7 @@ FraiseQL-server:
   caching:
     redis: localhost:6379
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -171,6 +191,7 @@ FraiseQL-server:
 **Operational Model:**
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────┐
 │   Apollo Router (Gateway)     │
 ├──────────────────────────────┤
@@ -179,6 +200,7 @@ FraiseQL-server:
 │  ↓             ↓              │ ↓
 │  PostgreSQL    MySQL          │ ClickHouse
 ```text
+<!-- Code example in TEXT -->
 
 Multiple services, owned independently, coordinated by gateway
 
@@ -196,6 +218,7 @@ Multiple services, owned independently, coordinated by gateway
 **Example Architecture:**
 
 ```yaml
+<!-- Code example in YAML -->
 apollo-gateway:
   port: 4000
 
@@ -212,6 +235,7 @@ subgraphs:
     url: http://products-service:8000/graphql
     database: sqlite:///products.db
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -240,6 +264,7 @@ subgraphs:
 **Before federating:**
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Run EXPLAIN ANALYZE on slow query
 # 2. Add indexes on missing columns
 # 3. Partition large tables
@@ -248,6 +273,7 @@ subgraphs:
 
 # Only THEN consider federation
 ```text
+<!-- Code example in TEXT -->
 
 **Federation helps if:**
 
@@ -295,12 +321,14 @@ subgraphs:
 ### Stage 1: Monolith (Year 1)
 
 ```text
+<!-- Code example in TEXT -->
 Single PostgreSQL
 ↓
 All services query same database
 ↓
 Fast development, simple operations
 ```text
+<!-- Code example in TEXT -->
 
 **Red flags appearing:**
 
@@ -312,6 +340,7 @@ Fast development, simple operations
 ### Stage 2: Federation Planning (Quarter before pain)
 
 ```text
+<!-- Code example in TEXT -->
 Monolith → Federated
     ↓
 1. Identify service boundaries
@@ -319,10 +348,12 @@ Monolith → Federated
 3. Test federation locally
 4. Prepare dual-write strategy
 ```text
+<!-- Code example in TEXT -->
 
 ### Stage 3: Migration (2-4 weeks)
 
 ```text
+<!-- Code example in TEXT -->
 Week 1: Set up federation infrastructure
     ├─ Deploy Apollo Router
     ├─ Set up subgraph services
@@ -343,6 +374,7 @@ Week 4: Cleanup
     ├─ Final testing
     └─ Return to normal operations
 ```text
+<!-- Code example in TEXT -->
 
 **Downtime:** 0-5 minutes (if well-planned)
 **Risk:** Low (can rollback to monolith)
@@ -369,6 +401,7 @@ Week 4: Cleanup
 **Pattern:** Start monolith, add federation selectively
 
 ```text
+<!-- Code example in TEXT -->
 Monolith (Users, Core)
     ↓
     ├─ Analytics → Federation (add ClickHouse)
@@ -378,6 +411,7 @@ Monolith (Users, Core)
 Result: 80% on monolith, 20% on federation
         (lower complexity than full federation)
 ```text
+<!-- Code example in TEXT -->
 
 **Benefits:**
 

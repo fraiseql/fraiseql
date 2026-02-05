@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: CLI Query Tool for FraiseQL
+description: Complete guide for querying FraiseQL servers from the command line using the `FraiseQL-query` CLI tool.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "query-execution", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # CLI Query Tool for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -19,6 +27,7 @@ Complete guide for querying FraiseQL servers from the command line using the `Fr
 ### Install CLI Tool
 
 ```bash
+<!-- Code example in BASH -->
 # Using npm
 npm install -g @FraiseQL/cli
 
@@ -28,13 +37,16 @@ brew install FraiseQL
 # Or download binary directly
 # https://github.com/FraiseQL/FraiseQL-cli/releases
 ```text
+<!-- Code example in TEXT -->
 
 ### Verify Installation
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query --version
 # FraiseQL-query 2.0.0
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -43,14 +55,17 @@ FraiseQL-query --version
 ### Simple Query
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }"
 ```text
+<!-- Code example in TEXT -->
 
 Output:
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": [
@@ -60,24 +75,29 @@ Output:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "query GetUser(\$id: ID!) { user(id: \$id) { id name email } }" \
   --variables '{"id": "1"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### Pretty-Print Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format pretty
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -86,6 +106,7 @@ FraiseQL-query \
 ### Create Query File
 
 ```graphql
+<!-- Code example in GraphQL -->
 # queries/get_users.graphql
 query GetUsers {
   users {
@@ -96,18 +117,22 @@ query GetUsers {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Execute from File
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### Variables in File
 
 ```graphql
+<!-- Code example in GraphQL -->
 # queries/get_user_by_id.graphql
 query GetUserById($id: ID!) {
   user(id: $id) {
@@ -121,8 +146,10 @@ query GetUserById($id: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 # Create variables file
 cat > variables.json <<EOF
 {
@@ -136,6 +163,7 @@ FraiseQL-query \
   --file queries/get_user_by_id.graphql \
   --variables-file variables.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -144,6 +172,7 @@ FraiseQL-query \
 ### Execute Mutation
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "mutation CreatePost(\$title: String!, \$content: String!) {
@@ -155,10 +184,12 @@ FraiseQL-query \
   }" \
   --variables '{"title": "My First Post", "content": "Hello World"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### Mutation File
 
 ```graphql
+<!-- Code example in GraphQL -->
 # mutations/create_post.graphql
 mutation CreatePost($title: String!, $content: String!) {
   createPost(title: $title, content: $content) {
@@ -169,13 +200,16 @@ mutation CreatePost($title: String!, $content: String!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --file mutations/create_post.graphql \
   --variables '{"title": "Test", "content": "Content"}'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -184,41 +218,50 @@ FraiseQL-query \
 ### JSON Output (Default)
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format json
 ```text
+<!-- Code example in TEXT -->
 
 ### CSV Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format csv
 ```text
+<!-- Code example in TEXT -->
 
 Output:
 
 ```text
+<!-- Code example in TEXT -->
 id,name,email
 1,Alice,alice@example.com
 2,Bob,bob@example.com
 ```text
+<!-- Code example in TEXT -->
 
 ### Table Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format table
 ```text
+<!-- Code example in TEXT -->
 
 Output:
 
 ```text
+<!-- Code example in TEXT -->
 ┌────┬───────┬───────────────────┐
 │ id │ name  │ email             │
 ├────┼───────┼───────────────────┤
@@ -226,15 +269,18 @@ Output:
 │ 2  │ Bob   │ bob@example.com   │
 └────┴───────┴───────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### YAML Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format yaml
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -243,6 +289,7 @@ FraiseQL-query \
 ### Bash Script Example
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # fetch_user_data.sh
 
@@ -260,17 +307,21 @@ FraiseQL-query \
   --variables "{\"id\": \"$USER_ID\"}" \
   --format pretty
 ```text
+<!-- Code example in TEXT -->
 
 Run:
 
 ```bash
+<!-- Code example in BASH -->
 chmod +x fetch_user_data.sh
 ./fetch_user_data.sh 1
 ```text
+<!-- Code example in TEXT -->
 
 ### Batch Operations
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # batch_create_posts.sh
 
@@ -291,10 +342,12 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r title content; do
     --format json | jq '.data.createPost.id'
 done
 ```text
+<!-- Code example in TEXT -->
 
 ### Parallel Execution
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # parallel_queries.sh
 
@@ -314,6 +367,7 @@ wait
 # Combine results
 jq -s '.' user_*.json > all_users.json
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -322,25 +376,30 @@ jq -s '.' user_*.json > all_users.json
 ### Bearer Token
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --auth "Bearer token_here"
 ```text
+<!-- Code example in TEXT -->
 
 ### Custom Headers
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --header "Authorization: Bearer token_here" \
   --header "X-Custom-Header: value"
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Variable
 
 ```bash
+<!-- Code example in BASH -->
 export FRAISEQL_TOKEN="my_secret_token"
 
 FraiseQL-query \
@@ -348,6 +407,7 @@ FraiseQL-query \
   --query "{ me { id name } }" \
   --auth "Bearer $FRAISEQL_TOKEN"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -356,6 +416,7 @@ FraiseQL-query \
 ### Config File
 
 ```toml
+<!-- Code example in TOML -->
 # ~/.FraiseQL/config.toml
 [default]
 endpoint = "http://localhost:5000/graphql"
@@ -370,23 +431,28 @@ auth = "Bearer ${FRAISEQL_PROD_TOKEN}"
 endpoint = "https://staging-api.example.com/graphql"
 auth = "Bearer ${FRAISEQL_STAGING_TOKEN}"
 ```text
+<!-- Code example in TEXT -->
 
 ### Use Config Profile
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --config production \
   --file queries/get_users.graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### Override Config
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --config production \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -395,15 +461,18 @@ FraiseQL-query \
 ### Show Query Execution Time
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --show-timing
 ```text
+<!-- Code example in TEXT -->
 
 Output:
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": { "users": [...] },
   "timing": {
@@ -414,24 +483,29 @@ Output:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Enable Debug Output
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --debug
 ```text
+<!-- Code example in TEXT -->
 
 ### Verbose Logging
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --verbose
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -440,6 +514,7 @@ FraiseQL-query \
 ### Capture Errors in Script
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # safe_query.sh
 
@@ -466,10 +541,12 @@ fi
 # Process successful response
 echo "$result" | jq '.data.users'
 ```text
+<!-- Code example in TEXT -->
 
 ### Retry Logic
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # retry_query.sh
 
@@ -497,6 +574,7 @@ done
 echo "Query failed after $MAX_RETRIES attempts"
 exit 1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -505,6 +583,7 @@ exit 1
 ### Cron Job for Data Export
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # export_users_daily.sh
 # Run daily: 0 2 * * * /path/to/export_users_daily.sh
@@ -524,10 +603,12 @@ gzip "$OUTPUT_DIR/users_$DATE.csv"
 # Upload to S3
 aws s3 cp "$OUTPUT_DIR/users_$DATE.csv.gz" s3://my-bucket/exports/
 ```text
+<!-- Code example in TEXT -->
 
 ### GitHub Actions Workflow
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/sync_data.yml
 name: Sync Data
 
@@ -559,6 +640,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -567,6 +649,7 @@ jobs:
 ### Streaming Large Datasets
 
 ```bash
+<!-- Code example in BASH -->
 # Stream results directly to file without loading in memory
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
@@ -574,25 +657,30 @@ FraiseQL-query \
   --format csv \
   --stream > large_export.csv
 ```text
+<!-- Code example in TEXT -->
 
 ### GraphQL Introspection
 
 ```bash
+<!-- Code example in BASH -->
 # Get schema introspection
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --introspect > schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ### Validate Query
 
 ```bash
+<!-- Code example in BASH -->
 # Validate query syntax without executing
 FraiseQL-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --validate
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

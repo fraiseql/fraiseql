@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Docker Quickstart
+description: Get FraiseQL running in 30 seconds without local Rust compilation.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Docker Quickstart
 
 Get FraiseQL running in 30 seconds without local Rust compilation.
@@ -5,14 +13,18 @@ Get FraiseQL running in 30 seconds without local Rust compilation.
 ## Start in One Command
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml up -d
-```
+```text
+<!-- Code example in TEXT -->
 
 Wait for all services to be healthy (typically 15-30 seconds):
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml ps
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Open Your Browser
 
@@ -29,6 +41,7 @@ docker compose -f docker/docker-compose.demo.yml ps
 2. Copy this query into the editor:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetUsers {
   users(limit: 10) {
     id
@@ -37,7 +50,8 @@ query GetUsers {
     created_at
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 1. Click the **Play** button
 2. See the results in the right panel!
@@ -67,6 +81,7 @@ The PostgreSQL database comes pre-populated with sample blog data:
 The `examples/basic/queries/` directory contains starter queries:
 
 ```bash
+<!-- Code example in BASH -->
 # List all users
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -81,7 +96,8 @@ curl -X POST http://localhost:8000/graphql \
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "query { posts(filter: {author_id: 1}) { id title author { name } } }"}'
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Learn More
 
@@ -95,38 +111,48 @@ curl -X POST http://localhost:8000/graphql \
 ### View Service Logs
 
 ```bash
+<!-- Code example in BASH -->
 # All services
 docker compose -f docker/docker-compose.demo.yml logs -f
 
 # Specific service
 docker compose -f docker/docker-compose.demo.yml logs -f FraiseQL-server
 docker compose -f docker/docker-compose.demo.yml logs -f postgres-blog
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Stop Everything
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml down
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Remove Database Volume (Fresh Start)
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml down -v
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Check Service Health
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml ps
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Access PostgreSQL CLI
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
   psql -U FraiseQL -d blog_fraiseql
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -135,10 +161,12 @@ docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
 **Check if ports are in use:**
 
 ```bash
+<!-- Code example in BASH -->
 lsof -i :8000  # Check port 8000
 lsof -i :3000  # Check port 3000
 lsof -i :5432  # Check port 5432
-```
+```text
+<!-- Code example in TEXT -->
 
 **If ports are occupied**, either:
 
@@ -150,29 +178,37 @@ lsof -i :5432  # Check port 5432
 **Check if server is healthy:**
 
 ```bash
+<!-- Code example in BASH -->
 curl http://localhost:8000/health
-```
+```text
+<!-- Code example in TEXT -->
 
 **View server logs:**
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml logs FraiseQL-server
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Database Connection Failed
 
 **Verify PostgreSQL is running:**
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml logs postgres-blog
-```
+```text
+<!-- Code example in TEXT -->
 
 **Check database directly:**
 
 ```bash
+<!-- Code example in BASH -->
 docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
   pg_isready -U FraiseQL -d blog_fraiseql
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Next Steps
 
@@ -187,12 +223,14 @@ docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
 If you have `make` installed, use these shortcuts:
 
 ```bash
+<!-- Code example in BASH -->
 make demo-start      # Start demo stack
 make demo-stop       # Stop demo stack
 make demo-logs       # View logs
 make demo-status     # Check health
 make demo-clean      # Remove volumes and stop
-```
+```text
+<!-- Code example in TEXT -->
 
 See `Makefile` for complete list of targets.
 

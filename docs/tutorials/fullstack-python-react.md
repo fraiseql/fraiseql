@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Full-Stack Blog Application: Python Schema + React Frontend + FraiseQL Backend
+description: In this comprehensive full-stack tutorial, you'll build a complete Blog Application by:
+keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]
+tags: ["documentation", "reference"]
+---
+
 # Full-Stack Blog Application: Python Schema + React Frontend + FraiseQL Backend
 
 **Duration**: 90 minutes
@@ -19,6 +27,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 ### Architecture Flow
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────┐
 │   Developer Workstation │
 ├─────────────────────────┤
@@ -63,6 +72,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 │  - Like Buttons                  │
 └──────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ### What You'll Build
 
@@ -91,6 +101,7 @@ A **Full-Stack Blog Application** supporting:
 Create the following project structure:
 
 ```text
+<!-- Code example in TEXT -->
 fullstack-blog/
 ├── backend/
 │   ├── schema.py                      # Python schema definition
@@ -126,10 +137,12 @@ fullstack-blog/
 ├── docker-compose.yml                 # Multi-container orchestration
 └── README.md                           # Getting started guide
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Initialize Backend Project
 
 ```bash
+<!-- Code example in BASH -->
 # Create backend directory
 mkdir -p fullstack-blog/backend
 cd fullstack-blog/backend
@@ -141,10 +154,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 ```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Initialize Frontend Project
 
 ```bash
+<!-- Code example in BASH -->
 # Create React app (from project root)
 cd fullstack-blog
 npm create vite@latest frontend -- --template react
@@ -158,6 +173,7 @@ npm install graphql-tag
 # Development server
 npm run dev  # Runs on http://localhost:5173
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -168,6 +184,7 @@ npm run dev  # Runs on http://localhost:5173
 Create `database/schema.sql`:
 
 ```sql
+<!-- Code example in SQL -->
 -- Enable UUID and timestamps
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -485,16 +502,19 @@ INSERT INTO likes (post_id, user_id) VALUES
     (2, 1), (2, 3),
     (3, 1);
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Loading the Schema
 
 ```bash
+<!-- Code example in BASH -->
 # From project root with PostgreSQL running
 psql -U postgres -d blog_db -f database/schema.sql
 
 # Or with docker-compose (after it's set up):
 docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-initdb.d/schema.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -505,15 +525,18 @@ docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-
 Create `backend/requirements.txt`:
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL==2.0.0a1
 pydantic==2.5.0
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Python Schema Definition
 
 Create `backend/schema.py`:
 
 ```python
+<!-- Code example in Python -->
 """
 FraiseQL Blog API Schema
 
@@ -992,10 +1015,12 @@ if __name__ == "__main__":
         print(f"✗ Error exporting schema: {e}", file=sys.stderr)
         sys.exit(1)
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Exporting the Schema
 
 ```bash
+<!-- Code example in BASH -->
 # From backend directory
 python schema.py
 
@@ -1005,6 +1030,7 @@ python schema.py
 #   Queries: 6
 #   Mutations: 8
 ```text
+<!-- Code example in TEXT -->
 
 This generates `schema.json` containing all types, queries, and mutations.
 
@@ -1017,6 +1043,7 @@ This generates `schema.json` containing all types, queries, and mutations.
 Create `backend/FraiseQL.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL]
 name = "blog-api"
 version = "1.0.0"
@@ -1049,10 +1076,12 @@ cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 graphql_path = "/graphql"
 health_path = "/health"
 ```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Compile the Schema
 
 ```bash
+<!-- Code example in BASH -->
 # From backend directory
 FraiseQL-cli compile schema.json FraiseQL.toml
 
@@ -1064,6 +1093,7 @@ FraiseQL-cli compile schema.json FraiseQL.toml
 #   Mutations: 8 (optimized to 6 SQL functions)
 #   Output: schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 This generates `schema.compiled.json` containing:
 
@@ -1082,6 +1112,7 @@ This generates `schema.compiled.json` containing:
 Create `backend/Dockerfile`:
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # FraiseQL server is already compiled to Rust binary
 # We just need to set up the runtime environment
 
@@ -1122,12 +1153,14 @@ EXPOSE 8000
 # Start FraiseQL server
 CMD ["FraiseQL-server", "--schema", "schema.compiled.json", "--config", "FraiseQL.toml"]
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Docker Compose Orchestration
 
 Create `docker-compose.yml` in the project root:
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.9'
 
 services:
@@ -1174,10 +1207,12 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Launching the Backend
 
 ```bash
+<!-- Code example in BASH -->
 # From project root
 docker-compose up -d
 
@@ -1195,6 +1230,7 @@ curl http://localhost:8000/graphql -X POST \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 10) { id name email } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1205,6 +1241,7 @@ curl http://localhost:8000/graphql -X POST \
 Create `frontend/src/apollo-client.js`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { ApolloClient, InMemoryCache, HttpLink, gql } from "@apollo/client";
 
 const httpLink = new HttpLink({
@@ -1224,20 +1261,24 @@ const client = new ApolloClient({
 
 export default client;
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Environment Configuration
 
 Create `frontend/.env.local`:
 
 ```env
+<!-- Code example in ENV -->
 REACT_APP_GRAPHQL_API=http://localhost:8000/graphql
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.3 GraphQL Queries & Mutations
 
 Create `frontend/src/queries.js`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { gql } from "@apollo/client";
 
 // Queries
@@ -1375,6 +1416,7 @@ export const UNLIKE_POST = gql`
   }
 `;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1385,6 +1427,7 @@ export const UNLIKE_POST = gql`
 Create `frontend/src/components/PostList.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { useQuery } from "@apollo/client";
 import { GET_POSTS } from "../queries";
 import PostCard from "./PostCard";
@@ -1416,12 +1459,14 @@ export default function PostList() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.2 PostCard Component
 
 Create `frontend/src/components/PostCard.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { Link } from "react-router-dom";
 import LikeButton from "./LikeButton";
 import "./PostCard.css";
@@ -1458,12 +1503,14 @@ export default function PostCard({ post }) {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 PostDetail Component
 
 Create `frontend/src/components/PostDetail.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { useQuery, useMutation } from "@apollo/client";
 import { useParams } from "react-router-dom";
 import { GET_POST, UPDATE_POST, DELETE_POST } from "../queries";
@@ -1513,12 +1560,14 @@ export default function PostDetail() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.4 CommentSection Component
 
 Create `frontend/src/components/CommentSection.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { useQuery, useMutation } from "@apollo/client";
 import { useState } from "react";
 import { GET_COMMENTS, CREATE_COMMENT } from "../queries";
@@ -1588,12 +1637,14 @@ export default function CommentSection({ postId }) {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.5 LikeButton Component
 
 Create `frontend/src/components/LikeButton.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { useMutation } from "@apollo/client";
 import { useState } from "react";
 import { LIKE_POST, UNLIKE_POST } from "../queries";
@@ -1637,6 +1688,7 @@ export default function LikeButton({ postId, likeCount = 0 }) {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1647,6 +1699,7 @@ export default function LikeButton({ postId, likeCount = 0 }) {
 Create `frontend/src/App.jsx`:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ApolloProvider } from "@apollo/client";
 import client from "./apollo-client";
@@ -1673,12 +1726,14 @@ export default function App() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 8.2 package.json Scripts
 
 Update `frontend/package.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "blog-frontend",
   "private": true,
@@ -1704,6 +1759,7 @@ Update `frontend/package.json`:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1712,6 +1768,7 @@ Update `frontend/package.json`:
 ### 9.1 Step-by-Step Launch
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Start PostgreSQL and FraiseQL server
 cd fullstack-blog
 docker-compose up -d
@@ -1729,10 +1786,12 @@ npm run dev
 # 3. Open browser and visit http://localhost:5173
 # You should see the blog homepage with posts!
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Full-Stack Test
 
 ```bash
+<!-- Code example in BASH -->
 # Test the GraphQL API directly
 curl http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -1755,6 +1814,7 @@ curl http://localhost:8000/graphql \
 #   }
 # }
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Workflow
 
@@ -1776,6 +1836,7 @@ curl http://localhost:8000/graphql \
 **Frontend (React):**
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // User fills form and submits
 const handleCreatePost = async (title, content) => {
   const result = await createPost({
@@ -1791,10 +1852,12 @@ const handleCreatePost = async (title, content) => {
   return result.data.createPost;
 };
 ```text
+<!-- Code example in TEXT -->
 
 **Execution Path:**
 
 ```text
+<!-- Code example in TEXT -->
 React Component
     ↓ (Apollo sends GraphQL)
 FraiseQL Server (port 8000)
@@ -1809,12 +1872,14 @@ Apollo caches result
     ↓
 React re-renders with new post
 ```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Fetching Post with Comments
 
 **React Query:**
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 export const GET_POST_WITH_COMMENTS = gql`
   query GetPostDetails($postId: Int!) {
     post(postId: $postId) {
@@ -1831,10 +1896,12 @@ export const GET_POST_WITH_COMMENTS = gql`
   }
 `;
 ```text
+<!-- Code example in TEXT -->
 
 **Execution Path:**
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL Server receives query
     ↓
 Looks up "post" query → v_post_detail view
@@ -1849,6 +1916,7 @@ React receives nested structure
     ↓
 CommentSection component maps over comments
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1857,6 +1925,7 @@ CommentSection component maps over comments
 ### 11.1 Docker Build for Production
 
 ```bash
+<!-- Code example in BASH -->
 # Build images for production
 docker-compose build
 
@@ -1864,12 +1933,14 @@ docker-compose build
 docker tag blog-FraiseQL-server myregistry/blog-FraiseQL:v1.0
 docker push myregistry/blog-FraiseQL:v1.0
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Kubernetes Deployment
 
 Create `k8s/deployment.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1915,10 +1986,12 @@ spec:
     targetPort: 8000
   type: LoadBalancer
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.3 React Frontend Production Build
 
 ```bash
+<!-- Code example in BASH -->
 cd frontend
 npm run build
 # Output: dist/
@@ -1927,6 +2000,7 @@ npm run build
 # Update REACT_APP_GRAPHQL_API to production endpoint
 REACT_APP_GRAPHQL_API=https://api.example.com/graphql npm run build
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1935,25 +2009,30 @@ REACT_APP_GRAPHQL_API=https://api.example.com/graphql npm run build
 ### 12.1 Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Check server health
 curl http://localhost:8000/health
 
 # Response (when healthy):
 # {"status": "ok", "version": "1.0.0"}
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.2 GraphQL Introspection
 
 ```bash
+<!-- Code example in BASH -->
 # Get GraphQL schema (for tools like GraphQL Playground)
 curl http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ __schema { types { name } } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.3 Logs
 
 ```bash
+<!-- Code example in BASH -->
 # View FraiseQL server logs
 docker-compose logs -f FraiseQL-server
 
@@ -1963,10 +2042,12 @@ docker-compose logs -f postgres
 # View React build logs
 npm run dev 2>&1 | tee frontend.log
 ```text
+<!-- Code example in TEXT -->
 
 ### 12.4 Performance Analysis
 
 ```bash
+<!-- Code example in BASH -->
 # Test query performance
 time curl http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -1974,6 +2055,7 @@ time curl http://localhost:8000/graphql \
     "query": "{ posts(limit: 100) { id title } }"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1986,9 +2068,11 @@ time curl http://localhost:8000/graphql \
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 docker-compose ps  # Check if FraiseQL-server is running
 curl http://localhost:8000/health  # Test connectivity
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: Apollo Client returns "Network error"
 
@@ -1997,10 +2081,12 @@ curl http://localhost:8000/health  # Test connectivity
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 # Check CORS settings in FraiseQL.toml
 # Ensure React app URL is in cors_origins
 curl -H "Origin: http://localhost:5173" http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: "Relation 'v_posts' does not exist"
 
@@ -2009,9 +2095,11 @@ curl -H "Origin: http://localhost:5173" http://localhost:8000/health
 **Solution:**
 
 ```bash
+<!-- Code example in BASH -->
 # Reload database schema
 docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-initdb.d/schema.sql
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem: React components show "Loading..." indefinitely
 
@@ -2020,6 +2108,7 @@ docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-
 **Solution:**
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Add error handling to Apollo queries
 const { loading, error, data } = useQuery(GET_POSTS);
 
@@ -2028,6 +2117,7 @@ if (error) {
   return <div>Error: {error.message}</div>;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2074,6 +2164,7 @@ if (error) {
 After following this tutorial, your project structure should be:
 
 ```text
+<!-- Code example in TEXT -->
 fullstack-blog/
 ├── backend/
 │   ├── schema.py                    # Python schema (authoring)
@@ -2110,6 +2201,7 @@ fullstack-blog/
 ├── docker-compose.yml               # Full-stack orchestration
 └── README.md
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2127,6 +2219,7 @@ The key insight: **FraiseQL is the compiled GraphQL backend**. You write Python,
 ### Quick Commands Reference
 
 ```bash
+<!-- Code example in BASH -->
 # Backend
 cd backend && python schema.py export              # Export schema
 FraiseQL-cli compile schema.json FraiseQL.toml     # Compile
@@ -2140,6 +2233,7 @@ docker-compose up -d                               # Start services
 curl http://localhost:8000/health                  # Test health
 open http://localhost:5173                         # Open frontend
 ```text
+<!-- Code example in TEXT -->
 
 **Your application is now running at <http://localhost:5173>!**
 

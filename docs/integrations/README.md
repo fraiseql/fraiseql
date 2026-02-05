@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Integrations
+description: Integration guides for connecting FraiseQL with external services and databases.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # Integrations
 
 Integration guides for connecting FraiseQL with external services and databases.

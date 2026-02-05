@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication Deployment Guide
+description: Production deployment guide for FraiseQL's authentication system.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication Deployment Guide
 
 Production deployment guide for FraiseQL's authentication system.
@@ -68,6 +76,7 @@ Production deployment guide for FraiseQL's authentication system.
 ### Production Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # OAuth Provider (Google, Keycloak, Auth0, etc.)
 OAUTH_PROVIDER=google
 GOOGLE_CLIENT_ID=<prod-client-id>
@@ -101,10 +110,12 @@ SERVER_HOST=0.0.0.0
 TLS_CERT_PATH=/etc/FraiseQL/certs/server.crt
 TLS_KEY_PATH=/etc/FraiseQL/certs/server.key
 ```text
+<!-- Code example in TEXT -->
 
 ### .env.prod File
 
 ```bash
+<!-- Code example in BASH -->
 # Create in your deployment server
 source /etc/FraiseQL/auth.env
 
@@ -113,12 +124,14 @@ echo "OAuth Provider: $OAUTH_PROVIDER"
 echo "Database: $DATABASE_URL (hidden)"
 echo "JWT Issuer: $JWT_ISSUER"
 ```text
+<!-- Code example in TEXT -->
 
 ## Database Setup
 
 ### 1. Create Database
 
 ```bash
+<!-- Code example in BASH -->
 # On PostgreSQL server
 sudo -u postgres psql
 
@@ -134,10 +147,12 @@ GRANT ALL PRIVILEGES ON DATABASE FraiseQL TO fraiseql_app;
 \c FraiseQL
 GRANT ALL PRIVILEGES ON SCHEMA public TO fraiseql_app;
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Create Sessions Table
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE IF NOT EXISTS _system.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL,
@@ -156,19 +171,23 @@ CREATE INDEX idx_sessions_revoked_at ON _system.sessions(revoked_at);
 GRANT ALL PRIVILEGES ON TABLE _system.sessions TO fraiseql_app;
 GRANT ALL PRIVILEGES ON SEQUENCE _system.sessions_id_seq TO fraiseql_app;
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Verify Connection
 
 ```bash
+<!-- Code example in BASH -->
 export DATABASE_URL="postgres://fraiseql_app:strong_password_here@prod-db.internal:5432/FraiseQL"
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM _system.sessions;"
 ```text
+<!-- Code example in TEXT -->
 
 ## Docker Deployment
 
 ### Dockerfile
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 FROM rust:1.75 AS builder
 
 WORKDIR /build
@@ -189,10 +208,12 @@ EXPOSE 8000
 
 ENTRYPOINT ["FraiseQL-server"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Docker Compose Production
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -250,12 +271,14 @@ services:
 volumes:
   postgres_data:
 ```text
+<!-- Code example in TEXT -->
 
 ## Nginx Configuration
 
 ### nginx.conf
 
 ```nginx
+<!-- Code example in NGINX -->
 upstream FraiseQL {
     server FraiseQL:8000;
 }
@@ -307,12 +330,14 @@ server {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## SSL/TLS Setup
 
 ### Using Let's Encrypt
 
 ```bash
+<!-- Code example in BASH -->
 # Install certbot
 sudo apt-get install certbot python3-certbot-nginx
 
@@ -326,12 +351,14 @@ sudo systemctl start certbot.timer
 # Verify renewal
 sudo certbot renew --dry-run
 ```text
+<!-- Code example in TEXT -->
 
 ## Kubernetes Deployment
 
 ### FraiseQL-deployment.yaml
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -427,12 +454,14 @@ spec:
         type: Utilization
         averageUtilization: 80
 ```text
+<!-- Code example in TEXT -->
 
 ## Monitoring Setup
 
 ### Prometheus Configuration
 
 ```yaml
+<!-- Code example in YAML -->
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -443,6 +472,7 @@ scrape_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
 ```text
+<!-- Code example in TEXT -->
 
 ### Grafana Dashboard
 
@@ -453,6 +483,7 @@ Import dashboard from `/docs/auth/grafana-dashboard.json`
 ### Database Backups
 
 ```bash
+<!-- Code example in BASH -->
 #!/bin/bash
 # backup.sh
 
@@ -473,20 +504,25 @@ find $BACKUP_DIR -name "fraiseql_*.sql.gz" -mtime +30 -delete
 aws s3 cp $BACKUP_DIR/fraiseql_$TIMESTAMP.sql.gz \
   s3://FraiseQL-backups/
 ```text
+<!-- Code example in TEXT -->
 
 Schedule with cron:
 
 ```bash
+<!-- Code example in BASH -->
 # Run daily at 2 AM
 0 2 * * * /scripts/backup.sh
 ```text
+<!-- Code example in TEXT -->
 
 ### Restore from Backup
 
 ```bash
+<!-- Code example in BASH -->
 gunzip -c fraiseql_20260121_020000.sql.gz | \
   psql -h prod-db.internal -U fraiseql_app FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ## Scaling
 
@@ -502,39 +538,47 @@ gunzip -c fraiseql_20260121_020000.sql.gz | \
 Adjust resource limits:
 
 ```bash
+<!-- Code example in BASH -->
 # In Kubernetes
 kubectl set resources deployment FraiseQL \
   --limits=memory=1Gi,cpu=1000m \
   --requests=memory=512Mi,cpu=500m
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Tuning
 
 ### PostgreSQL Connection Pool
 
 ```bash
+<!-- Code example in BASH -->
 DATABASE_POOL_SIZE=50
 DATABASE_MAX_LIFETIME=1800
 ```text
+<!-- Code example in TEXT -->
 
 ### Session Cache (if using Redis)
 
 ```bash
+<!-- Code example in BASH -->
 REDIS_URL=redis://redis.internal:6379
 SESSION_CACHE_TTL=300
 ```text
+<!-- Code example in TEXT -->
 
 ## High Availability
 
 ### Multi-Region Setup
 
 ```text
+<!-- Code example in TEXT -->
 Region 1: Primary database
 Region 2: Read replica
 Region 3: Standby replica
 
 Failover: Automatic via RDS
 ```text
+<!-- Code example in TEXT -->
 
 ### Disaster Recovery
 
@@ -571,6 +615,7 @@ Key metrics to monitor:
 ### Service Won't Start
 
 ```bash
+<!-- Code example in BASH -->
 # Check logs
 docker logs FraiseQL
 
@@ -580,26 +625,31 @@ psql $DATABASE_URL -c "SELECT 1"
 # Check OAuth provider
 curl https://accounts.google.com/.well-known/openid-configuration
 ```text
+<!-- Code example in TEXT -->
 
 ### High Latency
 
 ```bash
+<!-- Code example in BASH -->
 # Check database slow queries
 SELECT * FROM pg_stat_statements ORDER BY total_time DESC;
 
 # Check OAuth provider latency
 time curl https://accounts.google.com/.well-known/openid-configuration
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Connection Pool Exhausted
 
 ```bash
+<!-- Code example in BASH -->
 # Increase pool size
 DATABASE_POOL_SIZE=100
 
 # Check active connections
 psql -c "SELECT count(*) FROM pg_stat_activity;"
 ```text
+<!-- Code example in TEXT -->
 
 ## See Also
 

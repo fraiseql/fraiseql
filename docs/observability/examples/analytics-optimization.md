@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Example: Analytics Dashboard Optimization
+description: This example demonstrates optimizing a **complex analytics dashboard** with multiple JSON dimensions, resulting in significant performance improvements through 
+keywords: ["code", "production", "fullstack", "sample", "real-world"]
+tags: ["documentation", "reference"]
+---
+
 # Example: Analytics Dashboard Optimization
 
 ## Overview
@@ -17,6 +25,7 @@ This example demonstrates optimizing a **complex analytics dashboard** with mult
 ### Schema
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.fact_table(
     table_name='tf_sales',
     measures=['revenue', 'cost', 'profit', 'quantity'],
@@ -29,6 +38,7 @@ class SalesMetrics:
     quantity: int
     dimensions: dict  # {tenant_id, region, category, product_id, date, customer_tier}
 ```text
+<!-- Code example in TEXT -->
 
 ### Problem Queries
 
@@ -45,12 +55,15 @@ Dashboard has 5 main views, all slow:
 ## Analysis Results
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli analyze --database postgres://... --format text
 ```text
+<!-- Code example in TEXT -->
 
 **Output**:
 
 ```text
+<!-- Code example in TEXT -->
 🚀 High-Impact Optimizations (5):
 
 1. Denormalize dimensions->>'region' (8,500 queries/day, 12.5x speedup)
@@ -59,6 +72,7 @@ FraiseQL-cli analyze --database postgres://... --format text
 4. Add index on recorded_at (used in time-series queries)
 5. Denormalize dimensions->>'tenant_id' (multi-tenant isolation)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -67,6 +81,7 @@ FraiseQL-cli analyze --database postgres://... --format text
 ### Migration (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Denormalize all key dimensions
 ALTER TABLE tf_sales ADD COLUMN region_id TEXT;
 ALTER TABLE tf_sales ADD COLUMN category_id TEXT;
@@ -89,6 +104,7 @@ CREATE INDEX CONCURRENTLY idx_tf_sales_tenant_region ON tf_sales (tenant_id, reg
 
 ANALYZE tf_sales;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

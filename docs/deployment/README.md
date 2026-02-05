@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Deployment Guide
+description: Complete guide for deploying FraiseQL in various environments.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Deployment Guide
 
 Complete guide for deploying FraiseQL in various environments.
@@ -9,6 +17,7 @@ Choose your deployment environment:
 ### Local Development
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Compile schema
 FraiseQL-cli compile schema.json -o schema.compiled.json
 
@@ -16,11 +25,13 @@ FraiseQL-cli compile schema.json -o schema.compiled.json
 FraiseQL-server -c config.toml
 
 # Server at http://localhost:8080
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Docker
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Build image
 docker build -t FraiseQL-server:latest .
 
@@ -29,7 +40,8 @@ docker run -p 8080:8080 \
   -v $(pwd)/config.toml:/etc/FraiseQL/config.toml \
   -e DATABASE_URL=postgresql://... \
   FraiseQL-server:latest
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes
 
@@ -74,6 +86,7 @@ Before deployment, configure:
 ## Running Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Check configuration
 FraiseQL-cli validate schema.json config.toml
 
@@ -82,7 +95,8 @@ curl http://localhost:8080/health
 
 # Metrics endpoint
 curl http://localhost:8080/metrics
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 

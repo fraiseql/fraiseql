@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Language Generators
+description: - GraphQL fundamentals (types, fields, queries, mutations, resolvers)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Language Generators
 
 **Status:** ✅ Production Ready
@@ -52,6 +60,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
 ## Architecture
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │                  Language Generators                         │
 ├──────────────────┬──────────────────┬──────────────────┬────┤
@@ -75,6 +84,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
                       │ (optimized execution)  │
                       └────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## Status Summary
 
@@ -91,15 +101,18 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
 ### Installation
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-python
 pip install -e .
 # or with uv:
 uv sync
 ```text
+<!-- Code example in TEXT -->
 
 ### Basic Usage
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import (
     type as fraiseql_type,
     query as fraiseql_query,
@@ -149,10 +162,12 @@ def createUser(name: str, email: str) -> User:
 # Export schema
 fraiseql_schema.export_schema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 ### Analytics Support
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import fact_table, aggregate_query
 
 @fact_table(
@@ -176,6 +191,7 @@ def salesByCategory(category: str) -> dict:
     """Sales aggregated by category."""
     pass
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -189,27 +205,32 @@ def salesByCategory(category: str) -> dict:
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-python
 python -m pytest tests/ -v
 
 # E2E test
 python -m pytest tests/e2e/python_e2e_test.py -v
 ```text
+<!-- Code example in TEXT -->
 
 ## TypeScript Generator
 
 ### Installation
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-typescript
 npm install
 # or
 npm ci
 ```text
+<!-- Code example in TEXT -->
 
 ### Basic Usage
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Type, Query, Mutation, SchemaRegistry, ExportSchema } from "./src/decorators";
 
 // Define types
@@ -256,10 +277,12 @@ createUser(name: string, email: string): User {
 // Export schema
 ExportSchema("schema.json");
 ```text
+<!-- Code example in TEXT -->
 
 ### Analytics Support
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FactTable, AggregateQuery } from "./src/decorators";
 
 @FactTable({
@@ -277,12 +300,14 @@ salesByCategory(category: string): Record<string, any> {
   return {};
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Configuration
 
 Enable experimental decorators in `tsconfig.json`:
 
 ```json
+<!-- Code example in JSON -->
 {
   "compilerOptions": {
     "experimentalDecorators": true,
@@ -291,6 +316,7 @@ Enable experimental decorators in `tsconfig.json`:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -304,6 +330,7 @@ Enable experimental decorators in `tsconfig.json`:
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-typescript
 npm test
 
@@ -311,19 +338,23 @@ npm test
 npm run example:basic
 npm run example:analytics
 ```text
+<!-- Code example in TEXT -->
 
 ## Go Generator
 
 ### Installation
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-go
 go mod download
 ```text
+<!-- Code example in TEXT -->
 
 ### Basic Usage
 
 ```go
+<!-- Code example in Go -->
 package main
 
 import "github.com/FraiseQL/FraiseQL-go/FraiseQL"
@@ -356,6 +387,7 @@ func main() {
     FraiseQL.ExportSchema("schema.json")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -369,25 +401,30 @@ func main() {
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-go
 go test ./FraiseQL/... -v
 
 # Run example
 go run examples/basic_schema.go
 ```text
+<!-- Code example in TEXT -->
 
 ## Java Generator
 
 ### Installation
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-java
 mvn clean install
 ```text
+<!-- Code example in TEXT -->
 
 ### Basic Usage
 
 ```java
+<!-- Code example in Java -->
 package com.FraiseQL.example;
 
 import com.FraiseQL.annotations.*;
@@ -431,6 +468,7 @@ public class Schema {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -443,22 +481,27 @@ public class Schema {
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-java
 mvn test
 ```text
+<!-- Code example in TEXT -->
 
 ## PHP Generator
 
 ### Installation
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-php
 composer install
 ```text
+<!-- Code example in TEXT -->
 
 ### Basic Usage
 
 ```php
+<!-- Code example in PHP -->
 <?php
 
 namespace FraiseQL\Example;
@@ -504,6 +547,7 @@ class Schema {
 (new SchemaExporter())->export('schema.json');
 ?>
 ```text
+<!-- Code example in TEXT -->
 
 ### Features
 
@@ -516,9 +560,11 @@ class Schema {
 ### Testing
 
 ```bash
+<!-- Code example in BASH -->
 cd FraiseQL-php
 vendor/bin/phpunit tests/
 ```text
+<!-- Code example in TEXT -->
 
 ## Schema Generation Workflow
 
@@ -531,14 +577,18 @@ Use language-specific decorators/annotations to define types, queries, and mutat
 All generators export to `schema.json`:
 
 ```python
+<!-- Code example in Python -->
 fraiseql_schema.export_schema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Compile with CLI
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 This produces `schema.compiled.json` with:
 
@@ -551,8 +601,10 @@ This produces `schema.compiled.json` with:
 Use compiled schema with runtime:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-server --schema schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ## Feature Comparison
 
@@ -573,6 +625,7 @@ FraiseQL-server --schema schema.compiled.json
 ### 1. Use Consistent Naming
 
 ```python
+<!-- Code example in Python -->
 # Good: Clear, descriptive names
 @fraiseql_type
 class UserProfile:
@@ -585,10 +638,12 @@ class U:
     uid: int
     nm: str
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Leverage Type Safety
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Good: Full type annotations
 @Query(sql_source = "v_users")
 users(limit: number, offset: number): User[] {
@@ -601,10 +656,12 @@ users(limit: any, offset: any): any[] {
   return [];
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Document Complex Schemas
 
 ```go
+<!-- Code example in Go -->
 // Good: Document purpose and constraints
 type SalesAnalytics struct {
     // Revenue in cents for precision
@@ -619,10 +676,12 @@ type SalesData struct {
     D string
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Test Before Compilation
 
 ```bash
+<!-- Code example in BASH -->
 # Run language-specific tests first
 go test ./FraiseQL/...
 npm test --prefix FraiseQL-typescript
@@ -630,6 +689,7 @@ npm test --prefix FraiseQL-typescript
 # Then compile
 FraiseQL-cli compile schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Considerations
 

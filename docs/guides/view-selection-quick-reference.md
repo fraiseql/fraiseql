@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: View Selection Quick Reference Card
+description: - FraiseQL view naming conventions (v_*, va_*, tv_*, ta_*)
+keywords: ["debugging", "implementation", "directives", "best-practices", "types", "deployment", "schema", "scalars"]
+tags: ["documentation", "reference"]
+---
+
 # View Selection Quick Reference Card
 
 **Status:** ✅ Production Ready
@@ -33,6 +41,7 @@
 ### JSON Plane (GraphQL)
 
 ```text
+<!-- Code example in TEXT -->
 Simple query? → v_*
   Example: SELECT * FROM v_user WHERE id = ?
   Time: 50-100ms
@@ -44,10 +53,12 @@ Complex query (3+ JOINs)? → tv_*
 Query slow (>1s)? → Migrate to tv_*
   Benefit: 10-50x faster
 ```text
+<!-- Code example in TEXT -->
 
 ### Arrow Plane (Analytics)
 
 ```text
+<!-- Code example in TEXT -->
 Small dataset (<100K rows)? → va_*
   Example: Daily summary (10K rows)
   Time: 100-200ms
@@ -59,6 +70,7 @@ Large dataset (>1M rows)? → ta_*
 Query slow (>1s)? → Migrate to ta_*
   Benefit: 50-100x faster
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -141,6 +153,7 @@ Query slow (>1s)? → Migrate to ta_*
 ### From v_*to tv_* (JSON)
 
 ```text
+<!-- Code example in TEXT -->
 Is query time > 1 second?
 ├─ YES → Migrate to tv_*
 └─ NO ─→ Check read volume
@@ -153,12 +166,14 @@ Are there 3+ table joins?
 ├─ YES → Migrate to tv_*
 └─ NO ─→ Keep v_*
 ```text
+<!-- Code example in TEXT -->
 
 **Estimated benefit**: 10-50x faster queries
 
 ### From va_*to ta_* (Arrow)
 
 ```text
+<!-- Code example in TEXT -->
 Is dataset > 1M rows?
 ├─ YES → Migrate to ta_*
 └─ NO ─→ Check query time
@@ -171,6 +186,7 @@ Are queries doing aggregations on large ranges?
 ├─ YES → Migrate to ta_*
 └─ NO ─→ Keep va_*
 ```text
+<!-- Code example in TEXT -->
 
 **Estimated benefit**: 50-100x faster queries
 
@@ -181,6 +197,7 @@ Are queries doing aggregations on large ranges?
 ### Creating a tv_* (5 steps, ~30 min)
 
 ```sql
+<!-- Code example in SQL -->
 -- 1. Create intermediate composed views (reusable helpers)
 CREATE VIEW v_user_posts_composed AS ...
 
@@ -200,12 +217,14 @@ CREATE TRIGGER trg_refresh_tv_user_profile ...
 -- 5. Initial population
 SELECT refresh_tv_user_profile();
 ```text
+<!-- Code example in TEXT -->
 
 **See**: `examples/sql/postgres/tv_user_profile.sql`
 
 ### Creating a ta_* (4 steps, ~30 min)
 
 ```sql
+<!-- Code example in SQL -->
 -- 1. Create physical table with extracted columns
 CREATE TABLE ta_orders (
     id TEXT PRIMARY KEY,
@@ -223,6 +242,7 @@ CREATE TRIGGER trg_refresh_ta_orders ...
 -- 4. Initial population
 SELECT refresh_ta_orders();
 ```text
+<!-- Code example in TEXT -->
 
 **See**: `examples/sql/postgres/ta_orders.sql`
 
@@ -257,16 +277,19 @@ SELECT refresh_ta_orders();
 ### Check View Freshness
 
 ```sql
+<!-- Code example in SQL -->
 -- How old is the data?
 SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
 
 -- Any stale profiles?
 SELECT COUNT(*) FROM tv_user_profile WHERE updated_at < NOW() - INTERVAL '1 minute';
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitor Refresh Performance
 
 ```sql
+<!-- Code example in SQL -->
 -- How fast are refreshes?
 EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 
@@ -275,10 +298,12 @@ SELECT schemaname, tablename, idx_scan, idx_tup_read
 FROM pg_stat_user_indexes
 WHERE tablename LIKE 'tv_%' OR tablename LIKE 'ta_%';
 ```text
+<!-- Code example in TEXT -->
 
 ### Verify Data Accuracy
 
 ```sql
+<!-- Code example in SQL -->
 -- Row counts match?
 SELECT
     (SELECT COUNT(*) FROM tv_user_profile) as tv_count,
@@ -291,6 +316,7 @@ UNION
 SELECT
     SUM(total) as v_total FROM v_order;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -301,8 +327,10 @@ SELECT
 **Fix**: Run initial population
 
 ```sql
+<!-- Code example in SQL -->
 SELECT refresh_tv_user_profile();
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Data is stale (not updating)
 
@@ -310,9 +338,11 @@ SELECT refresh_tv_user_profile();
 **Fix**: Manually refresh + check trigger status
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM refresh_tv_user_profile();
 SELECT * FROM information_schema.triggers WHERE trigger_name LIKE 'trg_refresh%';
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: High CPU from triggers
 
@@ -320,12 +350,14 @@ SELECT * FROM information_schema.triggers WHERE trigger_name LIKE 'trg_refresh%'
 **Fix**: Switch to scheduled batch
 
 ```sql
+<!-- Code example in SQL -->
 -- Drop per-row trigger
 DROP TRIGGER trg_refresh_tv_user_profile_on_user ON tb_user;
 
 -- Schedule batch instead
 SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Query still slow after migration
 
@@ -333,12 +365,14 @@ SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_use
 **Fix**: Verify using EXPLAIN
 
 ```sql
+<!-- Code example in SQL -->
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM tv_user_profile WHERE id = ?;
 
 -- Check indexes exist
 SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Storage growing too fast
 
@@ -346,6 +380,7 @@ SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
 **Fix**: Review DDL + consider scheduled batch only
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     schemaname,
     tablename,
@@ -354,6 +389,7 @@ FROM pg_tables
 WHERE tablename LIKE 'tv_%' OR tablename LIKE 'ta_%'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -362,6 +398,7 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ### GraphQL Schema Binding
 
 ```python
+<!-- Code example in Python -->
 # Use logical view (default, fast enough)
 @FraiseQL.type()
 class User:
@@ -376,10 +413,12 @@ class UserProfile:
     posts: list[Post]
     comments: list[Comment]
 ```text
+<!-- Code example in TEXT -->
 
 ### Arrow Flight Query
 
 ```python
+<!-- Code example in Python -->
 import pyarrow.flight as flight
 import json
 
@@ -393,6 +432,7 @@ stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
 ticket = {"view": "ta_orders", "limit": 1000000}
 stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -413,6 +453,7 @@ stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
 ## Decision Flowchart
 
 ```text
+<!-- Code example in TEXT -->
 START: Do you have a performance problem?
   ├─ NO → Use v_* or va_*, move on
   └─ YES → Measure query time with EXPLAIN
@@ -441,6 +482,7 @@ Did query time improve >5x?
   ├─ YES → Deploy, monitor freshness
   └─ NO → Investigate other bottlenecks
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -462,8 +504,10 @@ Did query time improve >5x?
 **Solution**: Add index to base table on JOIN columns
 
 ```sql
+<!-- Code example in SQL -->
 CREATE INDEX idx_base_col ON base_table(col);
 ```text
+<!-- Code example in TEXT -->
 
 ### "Materialized view refresh is blocking queries"
 
@@ -484,9 +528,11 @@ If all true: Optimize query or increase ClickHouse resources.
 **Measure first**: Run with v_* for one week, collect metrics
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8000/graphql -d '{your_query}' \
   | jq '.extensions.timing'
 ```text
+<!-- Code example in TEXT -->
 
 Then compare after migration to tv_*.
 

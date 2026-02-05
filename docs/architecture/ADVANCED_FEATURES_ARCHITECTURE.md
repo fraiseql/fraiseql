@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2: Advanced Features Architecture
+description: 1. [Extension Points & Pluggability](#extension-points--pluggability)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2: Advanced Features Architecture
 
 **Companion to:** RUST_CORE_ARCHITECTURE.md
@@ -26,6 +34,7 @@
 The architecture designed in RUST_CORE_ARCHITECTURE.md uses **trait-based abstraction** throughout, making all components pluggable:
 
 ```rust
+<!-- Code example in RUST -->
 // Database backends are pluggable
 pub trait DatabaseAdapter: Send + Sync { /* ... */ }
 
@@ -38,13 +47,15 @@ pub trait JsonbProjector { /* ... */ }
 // Cache backends are pluggable
 #[async_trait]
 pub trait CacheBackend: Send + Sync { /* ... */ }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Extension Point Registry
 
 **New module:** `crates/FraiseQL-core/src/extensions/mod.rs`
 
 ```rust
+<!-- Code example in RUST -->
 /// Registry for all extension points.
 pub struct ExtensionRegistry {
     authorization_rules: HashMap<String, Box<dyn AuthorizationRule>>,
@@ -77,11 +88,13 @@ impl ExtensionRegistry {
         self.middleware.push(Box::new(middleware));
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Custom Authorization Rule Trait
 
 ```rust
+<!-- Code example in RUST -->
 /// Custom authorization rule extension point.
 #[async_trait]
 pub trait AuthorizationRule: Send + Sync {
@@ -113,11 +126,13 @@ pub trait AuthorizationRule: Send + Sync {
         None
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Example: Team Member Authorization Rule
 
 ```rust
+<!-- Code example in RUST -->
 pub struct TeamMemberRule;
 
 #[async_trait]
@@ -152,11 +167,13 @@ impl AuthorizationRule for TeamMemberRule {
 // Register at startup
 let mut registry = ExtensionRegistry::new();
 registry.register_auth_rule("team_member", TeamMemberRule);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Validator Trait
 
 ```rust
+<!-- Code example in RUST -->
 /// Custom validator extension point.
 #[async_trait]
 pub trait Validator: Send + Sync {
@@ -171,11 +188,13 @@ pub trait Validator: Send + Sync {
         db: Option<&dyn DatabaseAdapter>,
     ) -> Result<()>;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Example: Email Domain Validator
 
 ```rust
+<!-- Code example in RUST -->
 pub struct EmailDomainValidator {
     allowed_domains: Vec<String>,
 }
@@ -213,11 +232,13 @@ registry.register_validator(
         allowed_domains: vec!["company.com".to_string(), "trusted.com".to_string()],
     },
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Middleware & Hooks
 
 ```rust
+<!-- Code example in RUST -->
 /// Middleware for execution pipeline.
 #[async_trait]
 pub trait Middleware: Send + Sync {
@@ -245,11 +266,13 @@ pub trait Middleware: Send + Sync {
         context: &ExecutionContext,
     );
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Example: Metrics Middleware
 
 ```rust
+<!-- Code example in RUST -->
 pub struct MetricsMiddleware {
     metrics: Arc<Metrics>,
 }
@@ -294,7 +317,8 @@ impl Middleware for MetricsMiddleware {
         );
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -307,6 +331,7 @@ impl Middleware for MetricsMiddleware {
 Federation requires resolving entities by ID:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Federation query (from Apollo Router)
 query {
   _entities(representations: [{ __typename: "User", id: "user-123" }]) {
@@ -317,7 +342,8 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### How this maps to our architecture
 
@@ -330,6 +356,7 @@ query {
 **New module:** `crates/FraiseQL-core/src/federation/mod.rs`
 
 ```rust
+<!-- Code example in RUST -->
 /// Federation entity resolver.
 #[async_trait]
 pub trait FederationResolver: Send + Sync {
@@ -373,11 +400,13 @@ pub struct EntityRepresentation {
     pub id: String,
     pub additional_keys: HashMap<String, serde_json::Value>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Default Federation Resolver Implementation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct DefaultFederationResolver {
     db_adapter: Arc<dyn DatabaseAdapter>,
     projector: Arc<dyn JsonbProjector>,
@@ -488,11 +517,13 @@ fn build_federation_query(representations: &[EntityRepresentation]) -> String {
         "#
     )
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration with Executor
 
 ```rust
+<!-- Code example in RUST -->
 impl Executor {
     pub async fn execute_federation_query(
         &self,
@@ -516,7 +547,8 @@ impl Executor {
         }))
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -527,6 +559,7 @@ impl Executor {
 **New module:** `crates/FraiseQL-core/src/security/rbac.rs`
 
 ```rust
+<!-- Code example in RUST -->
 /// RBAC permission resolver with caching.
 pub struct RBACResolver {
     db_adapter: Arc<dyn DatabaseAdapter>,
@@ -608,13 +641,15 @@ impl RBACResolver {
         self.domain_version.fetch_add(1, Ordering::Relaxed);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field-Level Authorization with RBAC
 
 #### Enhancement to `AuthMask`
 
 ```rust
+<!-- Code example in RUST -->
 impl AuthMask {
     /// Build auth mask from RBAC permissions.
     pub async fn from_rbac(
@@ -661,7 +696,8 @@ impl AuthMask {
         Self { rules }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -672,6 +708,7 @@ impl AuthMask {
 **New module:** `crates/FraiseQL-core/src/subscriptions/mod.rs`
 
 ```rust
+<!-- Code example in RUST -->
 /// Subscription event stream.
 #[async_trait]
 pub trait EventStream: Send + Sync {
@@ -711,11 +748,13 @@ pub struct Event {
     pub user_id: Option<String>,
     pub tenant_id: Option<String>,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### PostgreSQL LISTEN/NOTIFY Implementation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct PostgresEventStream {
     db_adapter: Arc<PostgresAdapter>,
     event_channel: (Sender<Event>, Receiver<Event>),
@@ -799,11 +838,13 @@ impl EventStream for PostgresEventStream {
         Ok(())
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Subscription Execution Integration
 
 ```rust
+<!-- Code example in RUST -->
 impl Executor {
     pub async fn execute_subscription(
         &self,
@@ -835,7 +876,8 @@ impl Executor {
         Ok(Box::pin(projected_stream))
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -846,6 +888,7 @@ impl Executor {
 **New module:** `crates/FraiseQL-core/src/observability/metrics.rs`
 
 ```rust
+<!-- Code example in RUST -->
 /// Metrics collector trait (pluggable backends).
 pub trait MetricsCollector: Send + Sync {
     fn increment_counter(&self, name: &str);
@@ -877,11 +920,13 @@ impl MetricsCollector for PrometheusMetrics {
 
     // ... other methods
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Tracing Integration
 
 ```rust
+<!-- Code example in RUST -->
 use tracing::{info, warn, error, instrument};
 
 impl Executor {
@@ -907,11 +952,13 @@ impl Executor {
         result
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Execution Context with Tracing
 
 ```rust
+<!-- Code example in RUST -->
 pub struct ExecutionContext {
     pub request_id: String,
     pub user: UserContext,
@@ -940,7 +987,8 @@ impl ExecutionContext {
         self.start_time.elapsed()
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -949,6 +997,7 @@ impl ExecutionContext {
 ### Authorization Rule Registry
 
 ```rust
+<!-- Code example in RUST -->
 impl ExtensionRegistry {
     /// Get authorization rule by name.
     pub fn get_auth_rule(&self, name: &str) -> Option<&dyn AuthorizationRule> {
@@ -973,7 +1022,8 @@ impl AuthMask {
         rule.is_authorized(resource, user, db).await
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -982,6 +1032,7 @@ impl AuthMask {
 ### Pre-Mutation Validation
 
 ```rust
+<!-- Code example in RUST -->
 impl Executor {
     pub async fn execute_mutation(
         &self,
@@ -1011,7 +1062,8 @@ impl Executor {
             .await
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1020,6 +1072,7 @@ impl Executor {
 ### GraphQL-WS Adapter (WebSocket)
 
 ```rust
+<!-- Code example in RUST -->
 pub struct GraphQLWSAdapter {
     event_stream: Arc<dyn EventStream>,
 }
@@ -1041,11 +1094,13 @@ impl GraphQLWSAdapter {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Webhook Adapter
 
 ```rust
+<!-- Code example in RUST -->
 pub struct WebhookAdapter {
     event_stream: Arc<dyn EventStream>,
     http_client: reqwest::Client,
@@ -1070,7 +1125,8 @@ impl WebhookAdapter {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

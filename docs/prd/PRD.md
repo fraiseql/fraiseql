@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 — Product Requirements Document
+description: FraiseQL is a **compiled database execution layer** that provides a GraphQL API over transactional state managed by the database.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 — Product Requirements Document
 
 **Version:** 2.0
@@ -69,6 +77,7 @@ FraiseQL prioritizes **correctness, predictability, and evolvability** over flex
 ### 2.1 High-Level Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Schema Authoring (Any Language)
  ├─ Python / TypeScript / Java / Kotlin / CLI
  │   └─ emits CompiledSchema
@@ -91,6 +100,7 @@ FraiseQL Runtime (Rust)
  ├─ Cache invalidation emission
  └─ JSON / Arrow output
 ```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Compilation Model
 
@@ -239,6 +249,7 @@ Each read view (`v_*`) produces a `data` JSONB column containing the projection.
 **Pre-aggregated views** enable efficient composition:
 
 ```sql
+<!-- Code example in SQL -->
 -- Pre-aggregated: posts grouped by user
 CREATE VIEW v_posts_by_user AS
 SELECT
@@ -258,6 +269,7 @@ SELECT
 FROM v_user u
 LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 ```text
+<!-- Code example in TEXT -->
 
 The database performs all composition. The runtime receives fully-formed JSONB.
 
@@ -361,6 +373,7 @@ Analytical workloads use **fact tables** following a standardized pattern:
 **Example fact table**:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tf_sales (
     id BIGSERIAL PRIMARY KEY,
     -- Measures (SQL columns)
@@ -373,6 +386,7 @@ CREATE TABLE tf_sales (
     occurred_at TIMESTAMPTZ NOT NULL
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Pre-aggregated fact tables** (e.g., `tf_sales_daily`, `tf_events_monthly`) follow the same structure as raw fact tables, just at different granularity. Use descriptive suffixes to indicate granularity.
 
@@ -495,6 +509,7 @@ An auth provider:
 Example auth context:
 
 ```json
+<!-- Code example in JSON -->
 {
   "subject": "user_123",
   "roles": ["admin"],
@@ -504,6 +519,7 @@ Example auth context:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 The auth context is:
 
@@ -531,6 +547,7 @@ Authorization requirements are **additive**: all applicable rules must be satisf
 #### 4.3.2 Authorization Declaration (Conceptual)
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User
   @auth(role: "admin") {
   id: ID!
@@ -545,6 +562,7 @@ query users
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Authorization directives:
 

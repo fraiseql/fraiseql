@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Operations Guide
+description: Complete guide for deploying, monitoring, and maintaining FraiseQL in production environments.
+keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
+tags: ["documentation", "reference"]
+---
+
 # Operations Guide
 
 Complete guide for deploying, monitoring, and maintaining FraiseQL in production environments.

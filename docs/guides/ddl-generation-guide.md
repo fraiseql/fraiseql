@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: DDL Generation Guide: Creating Table-Backed Views
+description: - SQL fundamentals (SELECT, JOIN, WHERE clauses)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # DDL Generation Guide: Creating Table-Backed Views
 
 **Status:** ✅ Production Ready
@@ -73,6 +81,7 @@ This guide explains how to use FraiseQL's DDL generation tools to create SQL for
 ### I'm using Python
 
 ```python
+<!-- Code example in Python -->
 from fraiseql_tools.views import generate_tv_ddl, load_schema
 
 # Load your schema
@@ -92,10 +101,12 @@ with open("tv_user_profile.sql", "w") as f:
 
 print("Generated tv_user_profile.sql")
 ```text
+<!-- Code example in TEXT -->
 
 ### I'm using TypeScript
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { generateTvDdl, loadSchema } from "@FraiseQL/tools/views";
 import { writeFileSync } from "fs";
 
@@ -115,16 +126,19 @@ writeFileSync("tv_user_profile.sql", ddl);
 
 console.log("Generated tv_user_profile.sql");
 ```text
+<!-- Code example in TEXT -->
 
 ### I'm using the CLI
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL generate-views \
   --schema schema.json \
   --entity User \
   --view tv_user_profile \
   --output tv_user_profile.sql
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -163,6 +177,7 @@ All generation functions take similar parameters:
 The entity name must match a type in your `schema.json`:
 
 ```python
+<!-- Code example in Python -->
 # Your schema.json has:
 {
   "types": [
@@ -174,6 +189,7 @@ The entity name must match a type in your `schema.json`:
 # Generate for User
 ddl = generate_tv_ddl(schema, entity="User", view="tv_user_profile")
 ```text
+<!-- Code example in TEXT -->
 
 ### View Name
 
@@ -199,6 +215,7 @@ Choose based on your workload:
 **Examples:**
 
 ```python
+<!-- Code example in Python -->
 # Real-time user profile updates
 ddl = generate_tv_ddl(
     schema,
@@ -215,6 +232,7 @@ ddl = generate_ta_ddl(
     refresh_strategy="scheduled"  # Updates once per night
 )
 ```text
+<!-- Code example in TEXT -->
 
 See [Performance Testing Guide](./view-selection-performance-testing.md) for help choosing.
 
@@ -223,6 +241,7 @@ See [Performance Testing Guide](./view-selection-performance-testing.md) for hel
 When `include_composition_views=True` (default), the generator creates helper views for nested relationships:
 
 ```sql
+<!-- Code example in SQL -->
 -- Helper views (automatically created)
 CREATE VIEW v_user_posts_composed AS ...
 CREATE VIEW v_posts_comments_composed AS ...
@@ -234,10 +253,12 @@ CREATE TABLE tv_user_profile (
     ...
 );
 ```text
+<!-- Code example in TEXT -->
 
 Set to `False` if you're managing composition views manually:
 
 ```python
+<!-- Code example in Python -->
 ddl = generate_tv_ddl(
     schema,
     entity="User",
@@ -245,20 +266,24 @@ ddl = generate_tv_ddl(
     include_composition_views=False  # You'll create these manually
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Include Monitoring Functions
 
 When `include_monitoring_functions=True` (default), the generator adds functions to track staleness:
 
 ```sql
+<!-- Code example in SQL -->
 -- Monitoring functions (automatically created)
 CREATE FUNCTION tv_user_profile_staleness() AS ...
 CREATE FUNCTION tv_user_profile_row_count() AS ...
 ```text
+<!-- Code example in TEXT -->
 
 These are useful for production monitoring. Set to `False` if you're managing monitoring separately:
 
 ```python
+<!-- Code example in Python -->
 ddl = generate_tv_ddl(
     schema,
     entity="User",
@@ -266,6 +291,7 @@ ddl = generate_tv_ddl(
     include_monitoring_functions=False
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -274,6 +300,7 @@ ddl = generate_tv_ddl(
 Generated DDL contains 6 sections:
 
 ```sql
+<!-- Code example in SQL -->
 -- 1. Composition Helper Views (if include_composition_views=True)
 -- These pre-compose nested relationships into JSONB format
 CREATE VIEW v_user_posts_composed AS
@@ -314,6 +341,7 @@ CREATE TRIGGER trg_tv_user_profile_refresh
 CREATE FUNCTION tv_user_profile_staleness() AS ...
 CREATE FUNCTION tv_user_profile_row_count() AS ...
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -324,12 +352,15 @@ CREATE FUNCTION tv_user_profile_row_count() AS ...
 **Installation:**
 
 ```bash
+<!-- Code example in BASH -->
 pip install FraiseQL-tools
 ```text
+<!-- Code example in TEXT -->
 
 **Basic Usage:**
 
 ```python
+<!-- Code example in Python -->
 from fraiseql_tools.views import (
     generate_tv_ddl,
     generate_ta_ddl,
@@ -369,6 +400,7 @@ with open("views.sql", "w") as f:
     f.write("\n\n")
     f.write(ta_ddl)
 ```text
+<!-- Code example in TEXT -->
 
 **Full Example:**
 
@@ -379,12 +411,15 @@ See [`examples/ddl-generation/python-example.py`](../../examples/ddl-generation/
 **Installation:**
 
 ```bash
+<!-- Code example in BASH -->
 npm install @FraiseQL/tools
 ```text
+<!-- Code example in TEXT -->
 
 **Basic Usage:**
 
 ```typescript
+<!-- Code example in TypeScript -->
 import {
     generateTvDdl,
     generateTaDdl,
@@ -423,6 +458,7 @@ if (errors.length > 0) {
 // Save to file
 writeFileSync("views.sql", tvDdl + "\n\n" + taDdl);
 ```text
+<!-- Code example in TEXT -->
 
 **Full Examples:**
 
@@ -433,13 +469,16 @@ See the [DDL Generation Examples](../../examples/ddl-generation/) directory for 
 **Installation:**
 
 ```bash
+<!-- Code example in BASH -->
 # Already included with FraiseQL-cli
 cargo install FraiseQL-cli
 ```text
+<!-- Code example in TEXT -->
 
 **Basic Usage:**
 
 ```bash
+<!-- Code example in BASH -->
 # Generate trigger-based tv_*
 FraiseQL generate-views \
   --schema schema.json \
@@ -458,14 +497,18 @@ FraiseQL generate-views \
 # Combine multiple views
 cat tv_user_profile.sql ta_orders.sql > all_views.sql
 ```text
+<!-- Code example in TEXT -->
 
 **All Options:**
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL generate-views --help
 ```text
+<!-- Code example in TEXT -->
 
 ```text
+<!-- Code example in TEXT -->
 USAGE:
     FraiseQL generate-views [OPTIONS] --schema <SCHEMA> --entity <ENTITY> --view <VIEW>
 
@@ -497,6 +540,7 @@ OPTIONS:
     --verbose
         Show generation steps
 ```text
+<!-- Code example in TEXT -->
 
 **Full Example:**
 
@@ -524,12 +568,15 @@ Read through the generated SQL carefully:
 Run the DDL in your staging database:
 
 ```bash
+<!-- Code example in BASH -->
 psql -h staging-db -U postgres mydb < tv_user_profile.sql
 ```text
+<!-- Code example in TEXT -->
 
 Monitor the initial population:
 
 ```sql
+<!-- Code example in SQL -->
 -- Check row count
 SELECT COUNT(*) FROM tv_user_profile;
 
@@ -539,6 +586,7 @@ SELECT tv_user_profile_staleness();
 -- Spot-check a few rows
 SELECT * FROM tv_user_profile LIMIT 5;
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Follow Migration Checklist
 
@@ -555,6 +603,7 @@ Once staging verification passes, deploy to production.
 ### User Profile with Nested Posts
 
 ```python
+<!-- Code example in Python -->
 from fraiseql_tools.views import generate_tv_ddl, load_schema
 
 schema = load_schema("schema.json")
@@ -567,10 +616,12 @@ ddl = generate_tv_ddl(
     refresh_strategy="trigger-based"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Generated Structure:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "id": "user-123",
   "name": "Alice",
@@ -584,10 +635,12 @@ ddl = generate_tv_ddl(
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Order Summary with Line Items
 
 ```python
+<!-- Code example in Python -->
 ddl = generate_tv_ddl(
     schema,
     entity="Order",
@@ -595,10 +648,12 @@ ddl = generate_tv_ddl(
     refresh_strategy="scheduled"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Generated Structure:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "id": "order-123",
   "customer_id": "cust-456",
@@ -613,10 +668,12 @@ ddl = generate_tv_ddl(
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Analytics Table with Denormalized Columns
 
 ```python
+<!-- Code example in Python -->
 ddl = generate_ta_ddl(
     schema,
     entity="Event",
@@ -624,6 +681,7 @@ ddl = generate_ta_ddl(
     refresh_strategy="scheduled"
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Generated Columns:**
 
@@ -687,6 +745,7 @@ All generated DDL is automatically validated for:
 To validate manually:
 
 ```python
+<!-- Code example in Python -->
 from fraiseql_tools.views import validate_generated_ddl
 
 errors = validate_generated_ddl(ddl)
@@ -696,6 +755,7 @@ if errors:
 else:
     print("✅ Valid DDL")
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

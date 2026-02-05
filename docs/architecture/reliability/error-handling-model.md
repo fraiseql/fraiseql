@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Error Handling Model
+description: FraiseQL's error handling model is **deterministic, predictable, and classifiable**. Unlike traditional GraphQL servers where error handling varies by resolver 
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Error Handling Model
 
 **Version:** 1.0
@@ -37,6 +45,7 @@ FraiseQL's error handling model is **deterministic, predictable, and classifiabl
 #### 2.1.1 Schema Validation Errors
 
 ```text
+<!-- Code example in TEXT -->
 Category: SCHEMA_INVALID
 Code: E_SCHEMA_<subtype>_<number>
 
@@ -47,6 +56,7 @@ Examples:
   E_SCHEMA_OPERATOR_UNSUPPORTED_004
   E_SCHEMA_AUTHORIZATION_INVALID_005
 ```text
+<!-- Code example in TEXT -->
 
 **Causes:**
 
@@ -59,6 +69,7 @@ Examples:
 **Example:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: Schema compilation failed
   Type: Type closure violation
   Code: E_SCHEMA_TYPE_NOT_DEFINED_001
@@ -67,10 +78,12 @@ Error: Schema compilation failed
   Suggestion: Add @FraiseQL.type class User or check spelling
   File: schema.py, line 42
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.2 Database Binding Errors
 
 ```text
+<!-- Code example in TEXT -->
 Category: BINDING_INVALID
 Code: E_BINDING_<subtype>_<number>
 
@@ -80,6 +93,7 @@ Examples:
   E_BINDING_TYPE_MISMATCH_012
   E_BINDING_PROCEDURE_SIGNATURE_MISMATCH_013
 ```text
+<!-- Code example in TEXT -->
 
 **Causes:**
 
@@ -91,6 +105,7 @@ Examples:
 **Example:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: Database binding failed
   Type: View not found
   Code: E_BINDING_VIEW_NOT_FOUND_010
@@ -99,10 +114,12 @@ Error: Database binding failed
   Suggestion: Create view v_user or fix binding to existing view
   Available views: v_user, v_user_archived, v_user_deleted
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.3 Capability Errors
 
 ```text
+<!-- Code example in TEXT -->
 Category: DATABASE_CAPABILITY_UNSUPPORTED
 Code: E_CAPABILITY_<database>_<operator>
 
@@ -111,6 +128,7 @@ Examples:
   E_CAPABILITY_MYSQL_COSINE_DISTANCE_002
   E_CAPABILITY_SQLSERVER_JSONB_CONTAINS_003
 ```text
+<!-- Code example in TEXT -->
 
 **Causes:**
 
@@ -120,6 +138,7 @@ Examples:
 **Example:**
 
 ```text
+<!-- Code example in TEXT -->
 Error: Operator not supported by database
   Type: Database capability mismatch
   Code: E_CAPABILITY_SQLITE_REGEX_001
@@ -128,10 +147,12 @@ Error: Operator not supported by database
   Field: User.email
   Suggestion: Use _like operator instead, or target postgresql
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.1.4 Authorization Configuration Errors
 
 ```text
+<!-- Code example in TEXT -->
 Category: AUTHORIZATION_INVALID
 Code: E_AUTH_<subtype>_<number>
 
@@ -140,6 +161,7 @@ Examples:
   E_AUTH_ROLE_UNDEFINED_021
   E_AUTH_RULE_CIRCULAR_DEPENDENCY_022
 ```text
+<!-- Code example in TEXT -->
 
 **Causes:**
 
@@ -159,6 +181,7 @@ Examples:
 #### 2.2.1 Validation Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: VALIDATION_FAILED
 Code: E_VALIDATION_<subtype>
@@ -179,6 +202,7 @@ Structure:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -195,6 +219,7 @@ Structure:
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Field 'invalid_field' not found on type 'User'",
@@ -211,16 +236,19 @@ Structure:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.2 Authorization Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: AUTHORIZATION_DENIED
 Code: E_AUTH_<subtype>
 
 Structure: Same as validation errors above
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -237,6 +265,7 @@ Structure: Same as validation errors above
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Insufficient permissions to query 'adminUsers'",
@@ -252,16 +281,19 @@ Structure: Same as validation errors above
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.3 Database Execution Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: DATABASE_ERROR
 Code: E_DB_<database>_<error_class>
 
 Structure: Same as others
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -281,6 +313,7 @@ Structure: Same as others
 **Example (Retryable):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Database connection timeout after 5s",
@@ -299,10 +332,12 @@ Structure: Same as others
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Example (Non-Retryable):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Unique constraint violation on users.email",
@@ -321,16 +356,19 @@ Structure: Same as others
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.4 Execution Logic Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: EXECUTION_ERROR
 Code: E_EXEC_<subtype>
 
 Structure: Same as others
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -346,6 +384,7 @@ Structure: Same as others
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Query result would exceed maximum size of 100MB",
@@ -362,16 +401,19 @@ Structure: Same as others
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.5 Federation Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: FEDERATION_ERROR
 Code: E_FED_<subtype>
 
 Structure: Same as others
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -386,6 +428,7 @@ Structure: Same as others
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Federation subgraph 'orders' unreachable",
@@ -403,16 +446,19 @@ Structure: Same as others
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.6 Subscription/Event Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: SUBSCRIPTION_ERROR
 Code: E_SUB_<subtype>
 
 Structure: Same as others (sent to client over WebSocket)
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -428,6 +474,7 @@ Structure: Same as others (sent to client over WebSocket)
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "error",
   "id": "1",
@@ -447,16 +494,19 @@ Structure: Same as others (sent to client over WebSocket)
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### 2.2.7 Internal Errors
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL error
 Category: INTERNAL_ERROR
 Code: E_INTERNAL_<subtype>
 
 Structure: Same as others
 ```text
+<!-- Code example in TEXT -->
 
 **Error Types:**
 
@@ -470,6 +520,7 @@ Structure: Same as others
 **Example:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "Internal server error: unexpected panic",
@@ -486,6 +537,7 @@ Structure: Same as others
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -496,6 +548,7 @@ Structure: Same as others
 All runtime errors follow the GraphQL spec with FraiseQL extensions:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -525,6 +578,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
   "data": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Error Context Fields
 
@@ -642,6 +696,7 @@ Examples:
 When an error occurs during query execution, FraiseQL follows this strategy:
 
 ```text
+<!-- Code example in TEXT -->
 Query: { user { id name } posts { id title } }
 
 Execution:
@@ -664,6 +719,7 @@ Result:
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Rule:** Field with error is set to `null` in partial response. Parent queries continue executing. This allows clients to use partial data.
 
@@ -672,6 +728,7 @@ Result:
 Mutations are **atomic**: if ANY part fails, the entire mutation fails with no partial data.
 
 ```text
+<!-- Code example in TEXT -->
 Mutation: mutation {
   createUser(name: "Bob", email: "bob@example.com") { id }
   createPost(title: "Hello", userId: "123") { id }
@@ -691,6 +748,7 @@ Result:
   "data": null  // ENTIRE mutation fails, no partial data
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Rule:** Mutations provide all-or-nothing semantics. If any part fails, all changes roll back (database transaction semantics).
 
@@ -699,6 +757,7 @@ Result:
 Subscription errors are **per-event**. One event's error doesn't stop subscription.
 
 ```text
+<!-- Code example in TEXT -->
 Subscription: subscription {
   orderCreated { id amount }
 }
@@ -737,6 +796,7 @@ Event 3: Success (continues after error)
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Rule:** Subscription continues after error. One error event doesn't close subscription (unless close_code indicates connection close).
 
@@ -749,15 +809,18 @@ Event 3: Success (continues after error)
 **Step 1: Check for errors in response**
 
 ```python
+<!-- Code example in Python -->
 response = await client.execute(query)
 if response.get("errors"):
     # Handle errors
     pass
 ```text
+<!-- Code example in TEXT -->
 
 **Step 2: Classify errors by category**
 
 ```python
+<!-- Code example in Python -->
 for error in response["errors"]:
     code = error["extensions"]["code"]
     category = error["extensions"]["category"]
@@ -775,10 +838,12 @@ for error in response["errors"]:
         # Log and notify support
         pass
 ```text
+<!-- Code example in TEXT -->
 
 **Step 3: Implement retry logic**
 
 ```python
+<!-- Code example in Python -->
 async def retry_query(query, max_attempts=3, backoff_base=1000):
     for attempt in range(1, max_attempts + 1):
         response = await client.execute(query)
@@ -803,6 +868,7 @@ async def retry_query(query, max_attempts=3, backoff_base=1000):
         else:
             return response  # Max attempts reached
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Error Display to End-Users
 
@@ -830,6 +896,7 @@ async def retry_query(query, max_attempts=3, backoff_base=1000):
 Every error includes a `trace_id` for correlation:
 
 ```text
+<!-- Code example in TEXT -->
 Client sees:
 {
   "errors": [{
@@ -844,6 +911,7 @@ Server logs:
 [2026-01-11 15:35:00] TRACE req_550e8400: query { users { id } }
 [2026-01-11 15:35:01] ERROR req_550e8400: connection timeout after 5s
 ```text
+<!-- Code example in TEXT -->
 
 **Use trace_id to:**
 
@@ -856,6 +924,7 @@ Server logs:
 FraiseQL can enable debug mode to include additional error context:
 
 ```text
+<!-- Code example in TEXT -->
 # Enable debug mode (dev environments only!)
 FRAISEQL_DEBUG=true
 
@@ -877,12 +946,14 @@ Response with debug mode:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Error Context Logging
 
 Enable structured logging to capture error context:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-11T15:35:00Z",
   "level": "ERROR",
@@ -899,6 +970,7 @@ Enable structured logging to capture error context:
   "retryable": true
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -940,6 +1012,7 @@ Enable structured logging to capture error context:
 When an error becomes obsolete, it's marked deprecated:
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [{
     "message": "...",
@@ -953,6 +1026,7 @@ When an error becomes obsolete, it's marked deprecated:
   }]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

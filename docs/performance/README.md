@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Performance Tuning Guide
+description: If you just upgraded to v2.0.0-alpha.1:
+keywords: ["performance"]
+tags: ["documentation", "reference"]
+---
+
 # Performance Tuning Guide
 
 **Status**: 🟢 Production Ready
@@ -13,28 +21,34 @@ If you just upgraded to v2.0.0-alpha.1:
 SQL projection optimization is **enabled automatically**. Your queries are now 42-55% faster.
 
 ```bash
+<!-- Code example in BASH -->
 # Just deploy the new version
 cargo build --release
 # Queries automatically faster!
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Verify It's Working
 
 Check logs for projection SQL:
 
 ```bash
+<!-- Code example in BASH -->
 RUST_LOG=fraiseql_core::runtime=debug cargo run
 # Look for: "SQL with projection = jsonb_build_object(...)"
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Monitor Performance
 
 ```bash
+<!-- Code example in BASH -->
 # Measure latency before/after
 wrk -t4 -c100 -d30s http://localhost:3000/graphql
 
 # Expected: 40-55% improvement automatically
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Improvements Already Included
 
@@ -90,8 +104,10 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 **Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected**:
 
@@ -106,8 +122,10 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 **Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected**:
 
@@ -127,9 +145,11 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 **Configuration**:
 
 ```rust
+<!-- Code example in RUST -->
 let max_size = (num_cpus::get() * 2) + 5;
 let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await?;
 ```text
+<!-- Code example in TEXT -->
 
 **Expected**:
 
@@ -174,21 +194,27 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 1. Check if projection is working:
 
    ```bash
+<!-- Code example in BASH -->
    RUST_LOG=fraiseql_core::runtime=debug cargo run
    ```text
+<!-- Code example in TEXT -->
 
 2. Disable projection temporarily:
 
    ```bash
+<!-- Code example in BASH -->
    FRAISEQL_DISABLE_PROJECTION=true cargo run
    ```text
+<!-- Code example in TEXT -->
 
 3. Check pool metrics:
 
    ```rust
+<!-- Code example in RUST -->
    let metrics = adapter.pool_metrics();
    println!("{:?}", metrics);
    ```text
+<!-- Code example in TEXT -->
 
 4. Check query complexity:
    - Did you add complex joins?
@@ -202,24 +228,30 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 1. Pool utilization:
 
    ```rust
+<!-- Code example in RUST -->
    if metrics.waiting_requests > 0 {
        // Pool too small - increase size
    }
    ```text
+<!-- Code example in TEXT -->
 
 2. Query performance:
 
    ```bash
+<!-- Code example in BASH -->
    RUST_LOG=debug  # Check query times
    ```text
+<!-- Code example in TEXT -->
 
 3. Database load:
 
    ```sql
+<!-- Code example in SQL -->
    -- Check for slow queries
    SELECT * FROM pg_stat_statements
    WHERE mean_time > 100;
    ```text
+<!-- Code example in TEXT -->
 
 ### Connection Pool Exhaustion
 
@@ -237,6 +269,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 ### Key Metrics
 
 ```text
+<!-- Code example in TEXT -->
 Query Latency (p50/p95/p99):  __ms
 Pool Utilization:             __%
 Active Connections:           __
@@ -245,10 +278,12 @@ Database Connections:         __
 Network Bandwidth:            __MB/s
 Error Rate:                   __%
 ```text
+<!-- Code example in TEXT -->
 
 ### Alert Thresholds
 
 ```yaml
+<!-- Code example in YAML -->
 queries:
   - name: High Latency
     condition: p95_latency > 100ms
@@ -262,6 +297,7 @@ queries:
     condition: error_rate > 1%
     action: Page on-call
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Benchmarks
 
@@ -270,20 +306,24 @@ queries:
 With v2.0.0-alpha.1 on medium hardware (8 cores, 16GB RAM):
 
 ```text
+<!-- Code example in TEXT -->
 Latency (p50):     12ms
 Latency (p95):     28ms
 Latency (p99):     35ms
 Throughput:        6000+ req/s
 Concurrent Users:  500+
 ```text
+<!-- Code example in TEXT -->
 
 ### Scaling Characteristics
 
 ```text
+<!-- Code example in TEXT -->
 1K users:   Single server (max pool 20)
 10K users:  5-10 servers (load balanced)
 100K users: 50-100 servers (geo-distributed)
 ```text
+<!-- Code example in TEXT -->
 
 ## FAQ
 
@@ -342,6 +382,7 @@ A: Each database gets its own pool. Tune separately.
 ### Enable Tuning (30 seconds)
 
 ```rust
+<!-- Code example in RUST -->
 // Calculate pool size
 let pool_size = (num_cpus::get() * 2) + 5;
 
@@ -357,10 +398,12 @@ if metrics.waiting_requests > 0 {
     eprintln!("Pool saturation: {} waiting", metrics.waiting_requests);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Verify Performance Improvement
 
 ```bash
+<!-- Code example in BASH -->
 # Before upgrade (save this)
 wrk -t4 -c100 -d30s http://old-server/graphql > before.txt
 
@@ -369,10 +412,12 @@ wrk -t4 -c100 -d30s http://new-server/graphql > after.txt
 
 # Compare (expect ~40-55% improvement)
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitor Production
 
 ```bash
+<!-- Code example in BASH -->
 # Watch latency trend
 watch -n 5 'psql $DATABASE_URL -c "SELECT
   percentile_cont(0.5) WITHIN GROUP (ORDER BY query_time),
@@ -380,6 +425,7 @@ watch -n 5 'psql $DATABASE_URL -c "SELECT
   COUNT(*)
 FROM query_log WHERE timestamp > now() - interval 1 minute"'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Design Quality Performance Guide
+description: FraiseQL's design quality analysis is optimized for fast feedback during development and CI/CD pipelines.
+keywords: ["performance"]
+tags: ["documentation", "reference"]
+---
+
 # Design Quality Performance Guide
 
 ## Performance Characteristics
@@ -33,6 +41,7 @@ FraiseQL's design quality analysis is optimized for fast feedback during develop
 ### For CLI Usage
 
 ```bash
+<!-- Code example in BASH -->
 # Fastest: Single category audit
 FraiseQL lint schema.json --federation  # <50ms
 
@@ -47,10 +56,12 @@ for schema in schemas/*.json; do
   FraiseQL lint "$schema" --json | jq '.data.overall_score'
 done
 ```text
+<!-- Code example in TEXT -->
 
 ### For API Server
 
 ```bash
+<!-- Code example in BASH -->
 # Design audit endpoints are optimized for real-time feedback
 POST /api/v1/design/federation-audit    # ~15ms
 POST /api/v1/design/cost-audit          # ~20ms
@@ -58,6 +69,7 @@ POST /api/v1/design/cache-audit         # ~10ms
 POST /api/v1/design/auth-audit          # ~15ms
 POST /api/v1/design/audit               # ~50ms (all categories)
 ```text
+<!-- Code example in TEXT -->
 
 ### For Large Schemas
 
@@ -71,6 +83,7 @@ If analyzing very large schemas (500+ types):
 Example:
 
 ```bash
+<!-- Code example in BASH -->
 # Instead of complete audit
 # FraiseQL lint huge-schema.json  # Might take 150-200ms
 
@@ -79,21 +92,25 @@ FraiseQL lint huge-schema.json --federation --json | jq '.data'
 FraiseQL lint huge-schema.json --cost --json | jq '.data'
 FraiseQL lint huge-schema.json --cache --json | jq '.data'
 ```text
+<!-- Code example in TEXT -->
 
 ## Benchmarking & Profiling
 
 ### Run Benchmarks
 
 ```bash
+<!-- Code example in BASH -->
 # Run Criterion benchmarks
 cargo bench -p FraiseQL-core --bench design_analysis
 
 # Output: Detailed latency distributions for each schema size
 ```text
+<!-- Code example in TEXT -->
 
 ### Profile Memory Usage
 
 ```bash
+<!-- Code example in BASH -->
 # Using valgrind (Linux)
 valgrind --tool=massif FraiseQL lint schema.json
 ms_print massif.out.<pid>  # View results
@@ -101,10 +118,12 @@ ms_print massif.out.<pid>  # View results
 # Using Instruments (macOS)
 time FraiseQL lint schema.json  # Shows memory usage
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitor Performance
 
 ```bash
+<!-- Code example in BASH -->
 # CLI performance monitoring
 time FraiseQL lint schema.json --verbose
 
@@ -114,6 +133,7 @@ curl -w "@format.txt" -o /dev/null -s \
   -H "Content-Type: application/json" \
   -d @schema.json
 ```text
+<!-- Code example in TEXT -->
 
 ## Performance Regression Testing
 
@@ -126,35 +146,41 @@ Design quality analysis performance is monitored for regressions:
 Run regression tests:
 
 ```bash
+<!-- Code example in BASH -->
 # Baseline measurements
 cargo bench -p FraiseQL-core --bench design_analysis -- --save-baseline phase4
 
 # Later: Compare against baseline
 cargo bench -p FraiseQL-core --bench design_analysis -- --baseline phase4
 ```text
+<!-- Code example in TEXT -->
 
 ## Scalability
 
 ### Scaling with Schema Size
 
 ```text
+<!-- Code example in TEXT -->
 Schema Size | Analysis Time | Memory
 1 type      | <5ms         | <1MB
 10 types    | <15ms        | <2MB
 100 types   | <40ms        | <10MB
 1000 types  | <150ms       | <80MB
 ```text
+<!-- Code example in TEXT -->
 
 Linear time complexity: O(n) where n = number of types + relationships
 
 ### Scaling with Federation Depth
 
 ```text
+<!-- Code example in TEXT -->
 Subgraph Depth | Federation Audit | Complexity
 1-2 levels     | <20ms           | O(subgraphs × entities)
 3-5 levels     | <30ms           | Circular detection enabled
 6+ levels      | <50ms           | Optimization active
 ```text
+<!-- Code example in TEXT -->
 
 ## Deployment Recommendations
 
@@ -206,12 +232,14 @@ For future optimization:
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Move schema to memory
 FraiseQL lint /tmp/schema.json  # Faster than network drive
 
 # Use filtered audit
 FraiseQL lint schema.json --federation  # Faster than complete
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: API audit endpoints timing out
 
@@ -219,12 +247,14 @@ FraiseQL lint schema.json --federation  # Faster than complete
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Increase timeouts
 curl --max-time 5 http://localhost:8080/api/v1/design/audit
 
 # Use rate limiting
 # Configure in FraiseQL-server config
 ```text
+<!-- Code example in TEXT -->
 
 ### Issue: Memory usage exceeds 100MB
 
@@ -232,12 +262,14 @@ curl --max-time 5 http://localhost:8080/api/v1/design/audit
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 # Process in batches
 split -l 100 schema.json schema_part_
 for part in schema_part_*; do
   FraiseQL lint "$part" --json | jq '.data.overall_score'
 done
 ```text
+<!-- Code example in TEXT -->
 
 ## References
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Health Checks Guide
+description: This guide explains FraiseQL's three-tier health check system for production deployments. Health checks enable automated monitoring, graceful failover, and oper
+keywords: ["directives", "types", "scalars", "deployment", "schema", "scaling", "performance", "monitoring"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Health Checks Guide
 
 **Version**: 1.0
@@ -39,19 +47,23 @@ This guide explains FraiseQL's three-tier health check system for production dep
 **Request**:
 
 ```bash
+<!-- Code example in BASH -->
 GET /health HTTP/1.1
 Host: localhost:8000
 ```text
+<!-- Code example in TEXT -->
 
 **Response - Healthy** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "healthy",
   "timestamp": 1706794800,
   "uptime_seconds": 3600
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields**:
 
@@ -75,13 +87,16 @@ Host: localhost:8000
 **Request**:
 
 ```bash
+<!-- Code example in BASH -->
 GET /ready HTTP/1.1
 Host: localhost:8000
 ```text
+<!-- Code example in TEXT -->
 
 **Response - Ready** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "ready": true,
   "database_connected": true,
@@ -89,10 +104,12 @@ Host: localhost:8000
   "reason": null
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Response - Not Ready** (HTTP 503 Service Unavailable):
 
 ```json
+<!-- Code example in JSON -->
 {
   "ready": false,
   "database_connected": false,
@@ -100,6 +117,7 @@ Host: localhost:8000
   "reason": "Database unavailable"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields**:
 
@@ -131,19 +149,23 @@ Host: localhost:8000
 **Request**:
 
 ```bash
+<!-- Code example in BASH -->
 GET /live HTTP/1.1
 Host: localhost:8000
 ```text
+<!-- Code example in TEXT -->
 
 **Response** (HTTP 200):
 
 ```json
+<!-- Code example in JSON -->
 {
   "alive": true,
   "pid": 42157,
   "response_time_ms": 1
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields**:
 
@@ -174,6 +196,7 @@ Host: localhost:8000
 Complete Kubernetes deployment with all three probes:
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -269,10 +292,12 @@ spec:
       # Termination grace period should match server's shutdown timeout
       terminationGracePeriodSeconds: 30
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 2: Docker Compose
 
 ```yaml
+<!-- Code example in YAML -->
 version: '3.8'
 
 services:
@@ -307,10 +332,12 @@ services:
       timeout: 5s
       retries: 5
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 3: AWS Application Load Balancer
 
 ```hcl
+<!-- Code example in HCL -->
 resource "aws_lb_target_group" "FraiseQL" {
   name        = "FraiseQL-tg"
   port        = 8000
@@ -340,10 +367,12 @@ resource "aws_lb_target_group" "FraiseQL" {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Pattern 4: HAProxy
 
 ```text
+<!-- Code example in TEXT -->
 global
   log stdout local0
   maxconn 2048
@@ -375,6 +404,7 @@ backend fraiseql_be
   # Session persistence
   cookie SERVERID insert indirect nocache
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -419,6 +449,7 @@ backend fraiseql_be
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check logs for error message
 kubectl logs deployment/FraiseQL -f
 
@@ -430,6 +461,7 @@ kubectl exec -it pod/FraiseQL-xxx -- \
 kubectl exec -it pod/FraiseQL-xxx -- \
   sh -c 'psql $DATABASE_URL -c "SELECT 1"'
 ```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -451,6 +483,7 @@ kubectl exec -it pod/FraiseQL-xxx -- \
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check pod restart count
 kubectl describe pod/FraiseQL-xxx
 
@@ -460,6 +493,7 @@ kubectl logs pod/FraiseQL-xxx --previous
 # Check events
 kubectl describe pod/FraiseQL-xxx
 ```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -479,6 +513,7 @@ kubectl describe pod/FraiseQL-xxx
 **Diagnosis**:
 
 ```bash
+<!-- Code example in BASH -->
 # Test endpoint manually
 curl -v http://localhost:8000/live
 
@@ -491,6 +526,7 @@ time curl http://localhost:8000/live
 # - Database query locks
 # - Memory pressure
 ```text
+<!-- Code example in TEXT -->
 
 **Solutions**:
 
@@ -520,6 +556,7 @@ time curl http://localhost:8000/live
 ### 2. Timeout and Threshold Settings
 
 ```yaml
+<!-- Code example in YAML -->
 # Conservative (slow but stable)
 periodSeconds: 30
 timeoutSeconds: 5
@@ -532,12 +569,15 @@ timeoutSeconds: 1
 failureThreshold: 2
 # Reacts in 10 seconds (2 * 5) but may flap
 ```text
+<!-- Code example in TEXT -->
 
 ### 3. Graceful Shutdown Coordination
 
 ```yaml
+<!-- Code example in YAML -->
 terminationGracePeriodSeconds: 30  # Matches server timeout
 ```text
+<!-- Code example in TEXT -->
 
 Ensure these align:
 
@@ -550,6 +590,7 @@ Ensure these align:
 Monitor the health check endpoints themselves:
 
 ```yaml
+<!-- Code example in YAML -->
 # Prometheus alerts
 
 - alert: HighReadinessFailureRate
@@ -560,10 +601,12 @@ Monitor the health check endpoints themselves:
   expr: increase(pod_restarts_total[5m]) > 0
   for: 1m
 ```text
+<!-- Code example in TEXT -->
 
 ### 5. Testing Health Checks
 
 ```bash
+<!-- Code example in BASH -->
 # Test manually before deployment
 curl -v http://localhost:8000/health
 curl -v http://localhost:8000/ready
@@ -576,6 +619,7 @@ timeout 1 curl http://localhost:8000/ready
 kill $(pidof postgres)
 curl http://localhost:8000/ready  # Should return 503
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -584,6 +628,7 @@ curl http://localhost:8000/ready  # Should return 503
 ### High-Reliability Cluster
 
 ```yaml
+<!-- Code example in YAML -->
 # For mission-critical services
 livenessProbe:
   periodSeconds: 30
@@ -595,10 +640,12 @@ readinessProbe:
   failureThreshold: 2
   # 10 seconds to detect and remove from LB
 ```text
+<!-- Code example in TEXT -->
 
 ### Development Environment
 
 ```yaml
+<!-- Code example in YAML -->
 # For rapid iteration
 livenessProbe:
   periodSeconds: 60
@@ -608,10 +655,12 @@ readinessProbe:
   periodSeconds: 30
   failureThreshold: 3
 ```text
+<!-- Code example in TEXT -->
 
 ### Gradual Rollout
 
 ```yaml
+<!-- Code example in YAML -->
 # For canary deployments
 readinessProbe:
   periodSeconds: 10
@@ -619,6 +668,7 @@ readinessProbe:
   # Allows 30 seconds before first check
   # Checks every 10 seconds after
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: ADR-009: Federation Architecture (Direct DB + HTTP Fallback)
+description: How should FraiseQL implement federation for composing multiple subgraphs into a single federated graph?
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # ADR-009: Federation Architecture (Direct DB + HTTP Fallback)
 
 **Date:** January 11, 2026
@@ -54,11 +62,13 @@ How should FraiseQL implement federation for composing multiple subgraphs into a
 **Example latency:**
 
 ```text
+<!-- Code example in TEXT -->
 User → Order federation:
   1. HTTP POST to Orders subgraph: 100-150ms
   2. Network round-trip: 50-100ms
   3. Remote database query: 10-50ms
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -106,27 +116,33 @@ User → Order federation:
 1. **Local Resolution** (<5ms)
 
    ```text
+<!-- Code example in TEXT -->
    User subgraph resolving User entity
    → Query local PostgreSQL database
    → SELECT data FROM v_user WHERE id = ?
    ```text
+<!-- Code example in TEXT -->
 
 2. **Direct DB Federation** (<10-20ms)
 
    ```text
+<!-- Code example in TEXT -->
    User subgraph resolving Order entity (from Orders subgraph on SQL Server)
    → Rust runtime has SQL Server connection pool
    → Query remote SQL Server directly
    → SELECT data FROM v_order WHERE user_id = ?
    ```text
+<!-- Code example in TEXT -->
 
 3. **HTTP Fallback** (50-200ms)
 
    ```text
+<!-- Code example in TEXT -->
    User subgraph resolving Review entity (from Apollo Server)
    → HTTP POST to reviews-api.example.com/graphql
    → _entities query with representation
    ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -198,6 +214,7 @@ User → Order federation:
 **Phase: Federation Analysis & Validation**
 
 ```python
+<!-- Code example in Python -->
 # Compiler detects federation targets
 for extended_type in schema.extended_types:
     target_subgraph = discover_subgraph(extended_type.typename)
@@ -214,12 +231,14 @@ for extended_type in schema.extended_types:
             subgraph_url=target_subgraph.graphql_url
         )
 ```text
+<!-- Code example in TEXT -->
 
 ### Runtime
 
 **Initialization:**
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FederationRuntime {
     local_pool: DatabasePool,                      // Local database
     remote_pools: HashMap<String, DatabasePool>,   // Remote FraiseQL databases
@@ -236,10 +255,12 @@ for subgraph in &config.subgraphs {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Entity Resolution:**
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>> {
     for (typename, reps) in group_by_typename(representations) {
         match select_strategy(typename) {
@@ -250,6 +271,7 @@ pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>>
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -260,6 +282,7 @@ pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>>
 **`FraiseQL.toml` (subgraph declares accessible databases):**
 
 ```toml
+<!-- Code example in TOML -->
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@localhost/users_db"
@@ -275,6 +298,7 @@ typename = "Review"
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Checks
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Rate Limiting
+description: FraiseQL implements request rate limiting to prevent denial-of-service (DoS) attacks and resource exhaustion.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Rate Limiting
 
 FraiseQL implements request rate limiting to prevent denial-of-service (DoS) attacks and resource exhaustion.
@@ -48,6 +56,7 @@ Rate limiting is implemented using a token bucket algorithm with support for:
 Rate limiting configuration is defined in your server configuration file:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limit]
 # Enable/disable rate limiting
 enabled = true
@@ -64,6 +73,7 @@ burst_size = 500
 # Cleanup interval for stale entries (seconds)
 cleanup_interval_secs = 300
 ```text
+<!-- Code example in TEXT -->
 
 ### Default Values
 
@@ -115,6 +125,7 @@ When extracting the client IP address:
 To support rate limiting through proxies, configure trusted proxy IP ranges:
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limit]
 enabled = true
 rps_per_ip = 100
@@ -127,10 +138,11 @@ trusted_proxies = [
     "203.0.113.5/32",      # Specific trusted reverse proxy
 ]
 ```text
+<!-- Code example in TEXT -->
 
 ### Best Practices
 
-1. **Whitelist only known proxies**: Only add IPs/CIDRs of proxies you control
+1. **allowlist only known proxies**: Only add IPs/CIDRs of proxies you control
 2. **Use specific IPs when possible**: Prefer individual IPs over large CIDR blocks
 3. **Monitor proxy configurations**: Update if infrastructure changes
 4. **Test rate limiting**: Verify correct keys are used before deployment
@@ -140,14 +152,17 @@ trusted_proxies = [
 When a request is accepted, FraiseQL includes rate limit information in HTTP response headers:
 
 ```text
+<!-- Code example in TEXT -->
 X-RateLimit-Limit: 100          # Maximum requests per second
 X-RateLimit-Remaining: 45       # Remaining requests in current window
 Retry-After: 60                 # Seconds to wait before retrying (when limited)
 ```text
+<!-- Code example in TEXT -->
 
 Example client handling:
 
 ```python
+<!-- Code example in Python -->
 import time
 import requests
 
@@ -163,6 +178,7 @@ def graphql_request(url, query):
 
         return response.json()
 ```text
+<!-- Code example in TEXT -->
 
 ## Token Bucket Algorithm
 
@@ -180,20 +196,24 @@ The implementation uses a token bucket algorithm:
 With `rps_per_ip=100` and `burst_size=500`:
 
 ```text
+<!-- Code example in TEXT -->
 Initial: [████████████████████] 500 tokens
 After 1 request: [███████████████████] 499 tokens
 After 100 requests: [████] 400 tokens
 1 second later: [██████] 500 tokens (refilled)
 ```text
+<!-- Code example in TEXT -->
 
 ## Disabling Rate Limiting
 
 To disable rate limiting (not recommended for production):
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limit]
 enabled = false
 ```text
+<!-- Code example in TEXT -->
 
 Rate limiting can also be disabled at runtime by setting `enabled=false` in the configuration before server startup.
 
@@ -202,24 +222,28 @@ Rate limiting can also be disabled at runtime by setting `enabled=false` in the 
 Monitor rate limiting activity through logging:
 
 ```rust
+<!-- Code example in RUST -->
 // Debug level logs IP limit violations
 debug!(ip = "192.168.1.100", "Rate limit exceeded for IP");
 
 // Warn level logs user limit violations
 warn!(user_id = "user123", "Rate limit exceeded for user");
 ```text
+<!-- Code example in TEXT -->
 
 Enable debug logging to see rate limit activity:
 
 ```bash
+<!-- Code example in BASH -->
 RUST_LOG=fraiseql_server::middleware::rate_limit=debug
 ```text
+<!-- Code example in TEXT -->
 
 ## Security Considerations
 
 1. **DoS Protection**: Rate limiting helps prevent DoS attacks but should be combined with other protections (firewall rules, WAF)
 
-2. **Proxy Spoofing**: Always whitelist specific trusted proxies. Never trust `X-Forwarded-For` from untrusted sources
+2. **Proxy Spoofing**: Always allowlist specific trusted proxies. Never trust `X-Forwarded-For` from untrusted sources
 
 3. **Distributed Attacks**: Rate limiting is per-server instance. Use shared backend (Redis) for distributed rate limiting in multi-server deployments
 
@@ -232,6 +256,7 @@ RUST_LOG=fraiseql_server::middleware::rate_limit=debug
 Test the implementation:
 
 ```bash
+<!-- Code example in BASH -->
 # Test IP-based limiting
 for i in {1..110}; do
     curl -s http://localhost:4000/graphql -d '{"query":"{ users { id } }"}' \
@@ -239,6 +264,7 @@ for i in {1..110}; do
     echo "Request $i"
 done
 ```text
+<!-- Code example in TEXT -->
 
 The 101st+ requests should return HTTP 429 (Too Many Requests).
 

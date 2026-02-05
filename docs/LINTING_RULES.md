@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Linting Rules Reference
+description: Each rule detects patterns that conflict with FraiseQL's compilation model. Violations don't prevent compilation—they reduce design quality scores and flag pote
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Linting Rules Reference
 
 ## Comprehensive guide to FraiseQL's design quality rules
@@ -30,6 +38,7 @@ Federation rules detect patterns that prevent efficient JSONB batching across su
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") { id: ID! }
 
@@ -39,6 +48,7 @@ type User @key(fields: "id") { id: ID!, postCount: Int! }
 # comments-service
 type User @key(fields: "id") { id: ID!, commentCount: Int! }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -53,6 +63,7 @@ type User @key(fields: "id") { id: ID!, commentCount: Int! }
 3. Add fields to User for cross-domain data:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service (single owner)
 type User @key(fields: "id") {
   id: ID!
@@ -67,6 +78,7 @@ type Post @key(fields: "id") {
   author: User!  # Reference only
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Real-World Example**:
 A 3-subgraph platform (users, content, analytics) had User in all three. Solution: User owns profile + identity, content owns content stats separately.
@@ -82,9 +94,11 @@ A 3-subgraph platform (users, content, analytics) had User in all three. Solutio
 **What It Detects**:
 
 ```text
+<!-- Code example in TEXT -->
 users-service → posts-service → comments-service → users-service
 A → B → A (simplest case)
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -98,6 +112,7 @@ A → B → A (simplest case)
 1. Identify the circular reference:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   organizations: [Organization!]!  # Reference to org-service
@@ -108,10 +123,12 @@ type Organization @key(fields: "id") {
   members: [User!]!  # Reference back to users-service (CYCLE!)
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Break the cycle by using IDs instead of references:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # org-service (owns the relationship)
 type Organization @key(fields: "id") {
   id: ID!
@@ -125,10 +142,12 @@ type User @key(fields: "id") {
   organizationIds: [ID!]!  # IDs only
 }
 ```text
+<!-- Code example in TEXT -->
 
 Or consolidate the relationship in one service:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # org-service (owns relationship)
 type Organization {
   members: [User!]!  # Managed relationship
@@ -140,6 +159,7 @@ type User {
   organizationId: ID!  # Just metadata
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Real-World Example**:
 A platform had User ↔ Organization ↔ Team circular references. Solution: org-service owns relationships, users-service only stores IDs.
@@ -155,6 +175,7 @@ A platform had User ↔ Organization ↔ Team circular references. Solution: org
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service (defines User)
 type User @key(fields: "id") { ... }
 
@@ -163,6 +184,7 @@ type Post {
   author: User!  # User referenced but has no @key in posts-service
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -175,6 +197,7 @@ type Post {
 1. Ensure entity has @key in all subgraphs where it's defined:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # posts-service
 type User @key(fields: "id") {
   id: ID!
@@ -184,15 +207,18 @@ type Post {
   author: User!
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or, only define in one subgraph:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # posts-service (reference only)
 type Post {
   author: User!  # Defined in users-service, just referenced here
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -205,12 +231,14 @@ type Post {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # posts-service
 type Post @key(fields: "id") {
   author: User!  # Must resolve User
   authorId: ID!  # Also stores ID
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -224,20 +252,24 @@ Choose one pattern:
 **Pattern A**: Store ID only, resolve on demand
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Post {
   authorId: ID!
   author: User  # Optional: expensive to resolve
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Pattern B**: Store reference, derive ID when needed
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Post {
   author: User!
   # authorId can be extracted from User.id in resolvers
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -254,6 +286,7 @@ Cost rules detect patterns that lead to worst-case complexity explosions.
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   posts: [Post!]!  # No pagination - could be millions
   comments: [Comment!]!  # Unbounded
@@ -263,6 +296,7 @@ type Post @key(fields: "id") {
   comments: [Comment!]!  # Unbounded
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -275,6 +309,7 @@ type Post @key(fields: "id") {
 1. Add pagination to all collections:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   posts(first: 20, after: String): PostConnection!
   comments(first: 20, after: String): CommentConnection!
@@ -290,15 +325,18 @@ type PageInfo {
   endCursor: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or limit with maxItems:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   topPosts(limit: 10): [Post!]!  # Hard limit
   recentComments(days: 7): [Comment!]!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -311,6 +349,7 @@ type User {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Query {
   users(first: 100): [User!]!  # 100 users
 }
@@ -327,6 +366,7 @@ type Comment {
   author: User!  # × 1 (batched) = 1M
 }
 ```text
+<!-- Code example in TEXT -->
 
 Query: `{ users { posts { comments { author { posts { comments } } } } } }`
 
@@ -343,6 +383,7 @@ Worst case: 100 × 100 × 100 × 100 = **100M JSONB records**
 1. Add complexity directives:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   posts(first: 20): PostConnection! @complexity(value: 5)
 }
@@ -355,10 +396,12 @@ type Comment {
   author: User! @complexity(value: 1)
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Reduce pagination limits:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Query {
   users(first: 10): [User!]!  # Reduced from 100
 }
@@ -371,10 +414,12 @@ type Post {
   comments(first: 10): [Comment!]!  # Reduced from 100
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Disable nesting on expensive fields:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Post {
   comments(first: 100): [Comment!]!  # Many, but not nested further
 
@@ -382,6 +427,7 @@ type Post {
   # { posts { comments { author { posts { ... } } } } }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -394,6 +440,7 @@ type Post {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   # No @complexity directive
   friends: [User!]!
@@ -402,6 +449,7 @@ type User {
   sentiment: SentimentScore!  # External API call
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -413,6 +461,7 @@ type User {
 Add complexity hints to expensive fields:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   friends: [User!]! @complexity(value: 10)  # Not too bad
   posts: [Post!]! @complexity(value: 5)  # Moderate
@@ -420,6 +469,7 @@ type User {
   sentiment: SentimentScore! @complexity(value: 100)  # External API
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -436,6 +486,7 @@ Cache rules ensure cached data stays coherent across subgraphs.
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @cache(maxAge: 300) {  # 5 minutes
   id: ID!
@@ -448,6 +499,7 @@ type User @cache(maxAge: 3600) {  # 1 hour (INCONSISTENT!)
   postCount: Int!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -460,6 +512,7 @@ type User @cache(maxAge: 3600) {  # 1 hour (INCONSISTENT!)
 1. Define federation-wide cache policy:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Agreed: All user data cached 5 minutes
 type User @cache(maxAge: 300) {
   id: ID!
@@ -467,10 +520,12 @@ type User @cache(maxAge: 300) {
   postCount: Int!  # Even cross-service refs
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Use cache groups for related entities:
 
 ```graphql
+<!-- Code example in GraphQL -->
 directive @cacheGroup(group: String!) on OBJECT
 
 type User @cacheGroup(group: "user_profile") {
@@ -482,10 +537,12 @@ type Post @cache(maxAge: 300) {  # Same as user_profile group
   author: User!
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or separate by mutability:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   # Static data: longer TTL
   id: ID! @cache(maxAge: 3600)
@@ -496,6 +553,7 @@ type User {
   lastLogin: DateTime! @cache(maxAge: 60)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -508,6 +566,7 @@ type User {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   email: String!  # Cheap, doesn't need cache
 
@@ -516,6 +575,7 @@ type User {
   recommendations: [User!]!  # Very expensive, no @cache!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -527,6 +587,7 @@ type User {
 Add cache directives to expensive computations:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   email: String!  # Not cached (cheap)
 
@@ -535,6 +596,7 @@ type User {
   recommendations: [User!]! @cache(maxAge: 3600)  # Cache 1 hour
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -547,6 +609,7 @@ type User {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order {
   id: ID!
   items: [OrderItem!]! @cache(maxAge: 3600)  # Always same
@@ -554,6 +617,7 @@ type Order {
   createdAt: DateTime! @cache(maxAge: 3600)  # Never changes
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -565,6 +629,7 @@ type Order {
 Match TTL to data mutability:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order {
   id: ID! @cache(maxAge: 0)  # Permanent key
   createdAt: DateTime! @cache(maxAge: 31536000)  # Cache forever
@@ -572,6 +637,7 @@ type Order {
   status: OrderStatus! @cache(maxAge: 60)  # Cache 1 minute
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -588,6 +654,7 @@ Authorization rules ensure sensitive data doesn't leak across service boundaries
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @key(fields: "id") {
   id: ID!
@@ -602,6 +669,7 @@ type Post {
   author: User!  # Full User exposed
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -615,6 +683,7 @@ type Post {
 1. Create public view of user:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type PublicUserProfile {
   id: ID!
   displayName: String!
@@ -634,10 +703,12 @@ type Post {
   author: PublicUserProfile!  # Safe, public data only
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or use scopes:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   email: String! @auth(scopes: ["user:email"])
@@ -646,6 +717,7 @@ type User {
   # Only exposed if caller has scope
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -658,6 +730,7 @@ type User {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Mutation {
   # Anyone can do this!
   deleteUser(id: ID!): Boolean!
@@ -669,6 +742,7 @@ type Mutation {
   grantRole(userId: ID!, role: String!): Boolean!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -681,6 +755,7 @@ type Mutation {
 1. Add authentication requirements:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Mutation {
   # Only authenticated users can delete their own account
   deleteUser(id: ID!): Boolean! @auth(requires: "authenticated")
@@ -694,16 +769,19 @@ type Mutation {
     @auth(requires: "admin", scopes: ["admin:grant_role"])
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Add ownership validation in resolver:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Mutation {
   deleteUser(id: ID!): Boolean!
     @auth(requires: "authenticated")
     # Resolver must verify id == currentUser.id
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -716,6 +794,7 @@ type Mutation {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User @auth(requires: "authenticated") {
   id: ID!
@@ -728,6 +807,7 @@ type Post @key(fields: "id") {
   author: User!  # Unauthenticated service can fetch User
 }
 ```text
+<!-- Code example in TEXT -->
 
 Scenario: Anonymous user queries posts-service → sees User.email
 
@@ -741,6 +821,7 @@ Scenario: Anonymous user queries posts-service → sees User.email
 1. Remove sensitive data from federation references:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # users-service
 type User {
   email: String! @auth(requires: "authenticated")
@@ -752,15 +833,18 @@ type Post {
   author: PublicUserProfile!  # Not sensitive
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or enforce auth in post-service too:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # posts-service
 type Post @auth(requires: "authenticated") {
   author: User!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -777,6 +861,7 @@ Compilation rules ensure your schema can be compiled to deterministic SQL.
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Author {
   books: [Book!]!
 }
@@ -785,6 +870,7 @@ type Book {
   author: Author!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters for FraiseQL**:
 
@@ -797,6 +883,7 @@ type Book {
 1. Break cycle with IDs:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Author {
   id: ID!
   books: [Book!]!
@@ -808,10 +895,12 @@ type Book {
   author: Author  # Optional, resolved separately
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or use separate query:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Author {
   id: ID!
   bookIds: [ID!]!  # Just IDs
@@ -821,6 +910,7 @@ type Query {
   books(ids: [ID!]!): [Book!]!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -833,11 +923,13 @@ type Query {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {  # @key present
   name: String!
   # But missing actual 'id' field!
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -850,20 +942,24 @@ type User @key(fields: "id") {  # @key present
 1. Add the primary key field:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "id") {
   id: ID!  # Must be declared
   name: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 1. Or change @key to use existing field:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User @key(fields: "email") {
   email: String!  # Use email as key
   name: String!
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -876,12 +972,14 @@ type User @key(fields: "email") {
 **What It Detects**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Post {
   comments: [Comment!]!  # Could be 0 or 1M, unknown
 }
 
 # No hint about expected cardinality
 ```text
+<!-- Code example in TEXT -->
 
 **Why It Matters**:
 
@@ -893,12 +991,14 @@ type Post {
 Add cardinality directives:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Post {
   comments: [Comment!]! @cardinality(estimate: "many")
   author: User! @cardinality(estimate: "one")
   tags: [String!]! @cardinality(estimate: "few")
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -940,6 +1040,7 @@ Minor issues, doesn't prevent compilation. Nice to fix.
 ### Example 1: E-Commerce Platform
 
 ```text
+<!-- Code example in TEXT -->
 Base: 100
 - Unbounded `User.posts`: -8
 - Missing `Post.comments` complexity: -3
@@ -948,10 +1049,12 @@ Base: 100
 
 = 81/100 (Good)
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: Social Media
 
 ```text
+<!-- Code example in TEXT -->
 Base: 100
 - User exposed across 3 subgraphs: -10
 - Circular User ↔ Organization: -15
@@ -961,10 +1064,12 @@ Base: 100
 
 = 42/100 (Poor)
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 3: Well-Designed
 
 ```text
+<!-- Code example in TEXT -->
 Base: 100
 - Proper pagination: 0
 - Consolidated entities: 0
@@ -974,6 +1079,7 @@ Base: 100
 
 = 100/100 (Excellent)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

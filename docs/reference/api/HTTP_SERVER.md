@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL HTTP Server Guide
+description: The FraiseQL HTTP server is a high-performance GraphQL execution engine built with Axum that loads pre-compiled schemas and executes GraphQL queries with zero r
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL HTTP Server Guide
 
 ## Overview
@@ -7,6 +15,7 @@ The FraiseQL HTTP server is a high-performance GraphQL execution engine built wi
 ## Architecture
 
 ```text
+<!-- Code example in TEXT -->
 Client Request
     ↓
 HTTP Handler (Axum)
@@ -21,6 +30,7 @@ Response Formatting (GraphQL spec-compliant)
     ↓
 Client Response
 ```text
+<!-- Code example in TEXT -->
 
 ## Getting Started
 
@@ -29,6 +39,7 @@ Client Response
 Configure the server via environment variables or the `ServerConfig` struct:
 
 ```rust
+<!-- Code example in RUST -->
 use fraiseql_server::{Server, ServerConfig};
 
 let config = ServerConfig::new()
@@ -40,10 +51,12 @@ let config = ServerConfig::new()
 let server = Server::new(config).await?;
 server.run().await?;
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Server
 FRAISEQL_HOST=127.0.0.1              # Default: 127.0.0.1
 FRAISEQL_PORT=8000                    # Default: 8000
@@ -61,6 +74,7 @@ FRAISEQL_POOL_TIMEOUT_SECS=30         # Default: 30
 FRAISEQL_MAX_QUERY_DEPTH=10           # Default: 10
 FRAISEQL_MAX_QUERY_COMPLEXITY=100     # Default: 100
 ```text
+<!-- Code example in TEXT -->
 
 ## HTTP Endpoints
 
@@ -73,6 +87,7 @@ Executes GraphQL queries with optional variables.
 #### Request Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "query": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
   "variables": {
@@ -81,6 +96,7 @@ Executes GraphQL queries with optional variables.
   "operationName": "GetUser"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields:**
 
@@ -91,6 +107,7 @@ Executes GraphQL queries with optional variables.
 #### Response Format (Success)
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "user": {
@@ -101,10 +118,12 @@ Executes GraphQL queries with optional variables.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Response Format (Error)
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -121,6 +140,7 @@ Executes GraphQL queries with optional variables.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Check Endpoint
 
@@ -131,6 +151,7 @@ Returns server and database health status.
 #### Response Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "status": "healthy",
   "database": {
@@ -147,6 +168,7 @@ Returns server and database health status.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Status Values:**
 
@@ -163,6 +185,7 @@ Returns GraphQL schema introspection data for schema discovery.
 #### Response Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -190,6 +213,7 @@ Returns GraphQL schema introspection data for schema discovery.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Query Validation
 
@@ -200,6 +224,7 @@ The server validates all incoming queries before execution to prevent abuse and 
 Prevents deeply nested queries that could cause exponential query complexity.
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ OK (depth = 3)
 {
   user {
@@ -224,6 +249,7 @@ Prevents deeply nested queries that could cause exponential query complexity.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Default**: Maximum depth of 10 levels
 **Configuration**: Set `FRAISEQL_MAX_QUERY_DEPTH` environment variable
@@ -239,6 +265,7 @@ Scores query complexity based on structural patterns to prevent resource-exhaust
 - Each `(` = 1 point (arguments)
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ OK (complexity = 4)
 {
   user {
@@ -259,6 +286,7 @@ Scores query complexity based on structural patterns to prevent resource-exhaust
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Default**: Maximum complexity of 100 points
 **Configuration**: Set `FRAISEQL_MAX_QUERY_COMPLEXITY` environment variable
@@ -268,6 +296,7 @@ Scores query complexity based on structural patterns to prevent resource-exhaust
 Ensures query variables are properly formatted objects.
 
 ```json
+<!-- Code example in JSON -->
 // ✅ Valid
 {
   "query": "query($id: ID!) { ... }",
@@ -283,6 +312,7 @@ Ensures query variables are properly formatted objects.
   "variables": ["123", "John"]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Error Handling
 
@@ -307,6 +337,7 @@ The server implements GraphQL spec-compliant error responses with detailed error
 ### Error Response Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "errors": [
     {
@@ -328,6 +359,7 @@ The server implements GraphQL spec-compliant error responses with detailed error
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Fields:**
 
@@ -342,32 +374,40 @@ The server implements GraphQL spec-compliant error responses with detailed error
 #### Query Too Deep
 
 ```text
+<!-- Code example in TEXT -->
 Query exceeds maximum depth of 10: depth = 15
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Simplify query nesting or contact administrator to increase limit
 
 #### Query Too Complex
 
 ```text
+<!-- Code example in TEXT -->
 Query exceeds maximum complexity of 100: score = 157
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Reduce number of array selections or requested fields
 
 #### Malformed Query
 
 ```text
+<!-- Code example in TEXT -->
 Empty query
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Provide non-empty GraphQL query string
 
 #### Database Error
 
 ```text
+<!-- Code example in TEXT -->
 Failed to connect to database: connection refused
 ```text
+<!-- Code example in TEXT -->
 
 **Solution**: Verify database URL and credentials in environment variables
 
@@ -378,6 +418,7 @@ Failed to connect to database: connection refused
 The connection pool manages database connections efficiently.
 
 ```bash
+<!-- Code example in BASH -->
 # Increase pool size for high-concurrency workloads
 FRAISEQL_POOL_MIN=10
 FRAISEQL_POOL_MAX=50
@@ -385,6 +426,7 @@ FRAISEQL_POOL_MAX=50
 # Adjust timeout for slow network connections
 FRAISEQL_POOL_TIMEOUT_SECS=60
 ```text
+<!-- Code example in TEXT -->
 
 **Recommendations:**
 
@@ -397,6 +439,7 @@ FRAISEQL_POOL_TIMEOUT_SECS=60
 Adjust validation limits based on your schema complexity.
 
 ```bash
+<!-- Code example in BASH -->
 # More permissive for complex schemas
 FRAISEQL_MAX_QUERY_DEPTH=15
 FRAISEQL_MAX_QUERY_COMPLEXITY=200
@@ -405,6 +448,7 @@ FRAISEQL_MAX_QUERY_COMPLEXITY=200
 FRAISEQL_MAX_QUERY_DEPTH=5
 FRAISEQL_MAX_QUERY_COMPLEXITY=50
 ```text
+<!-- Code example in TEXT -->
 
 ### Monitoring
 
@@ -420,6 +464,7 @@ Monitor key metrics to identify performance issues:
 ### Docker
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 FROM rust:latest as builder
 WORKDIR /app
 COPY . .
@@ -434,10 +479,12 @@ ENV FRAISEQL_SCHEMA_PATH=/app/schema.json
 EXPOSE 8000
 CMD ["FraiseQL-server"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Environment Setup
 
 ```bash
+<!-- Code example in BASH -->
 # .env.production
 FRAISEQL_HOST=0.0.0.0
 FRAISEQL_PORT=8000
@@ -449,10 +496,12 @@ FRAISEQL_POOL_TIMEOUT_SECS=30
 FRAISEQL_MAX_QUERY_DEPTH=10
 FRAISEQL_MAX_QUERY_COMPLEXITY=100
 ```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -500,6 +549,7 @@ spec:
             memory: "512Mi"
             cpu: "500m"
 ```text
+<!-- Code example in TEXT -->
 
 ## Troubleshooting
 
@@ -510,9 +560,11 @@ spec:
 **Solution**: Change port or kill existing process:
 
 ```bash
+<!-- Code example in BASH -->
 kill -9 $(lsof -t -i:8000)
 FRAISEQL_PORT=8001 cargo run
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Connection Failed
 
@@ -565,6 +617,7 @@ FRAISEQL_PORT=8001 cargo run
 ### cURL
 
 ```bash
+<!-- Code example in BASH -->
 # Simple query
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -581,10 +634,12 @@ curl -X POST http://localhost:8000/graphql \
 # Health check
 curl http://localhost:8000/health
 ```text
+<!-- Code example in TEXT -->
 
 ### JavaScript/Node.js
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const response = await fetch('http://localhost:8000/graphql', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -600,10 +655,12 @@ if (data.errors) {
   console.log('Result:', data.data);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Python
 
 ```python
+<!-- Code example in Python -->
 import requests
 
 response = requests.post('http://localhost:8000/graphql', json={
@@ -616,6 +673,7 @@ if 'errors' in data:
 else:
     print(f"Result: {data['data']}")
 ```text
+<!-- Code example in TEXT -->
 
 ## Next Steps
 

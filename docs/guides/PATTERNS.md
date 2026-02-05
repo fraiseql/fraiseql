@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Common Patterns - Real-World Solutions
+description: - GraphQL fundamentals (types, fields, queries, mutations)
+keywords: ["workflow", "debugging", "implementation", "best-practices", "deployment", "saas", "realtime", "ecommerce"]
+tags: ["documentation", "reference"]
+---
+
 # Common Patterns - Real-World Solutions
 
 **Status:** ✅ Production Ready
@@ -62,6 +70,7 @@ Implement a complete authentication flow: register → login → validate token 
 ### Schema Definition
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -112,10 +121,12 @@ Implement a complete authentication flow: register → login → validate token 
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use serde::{Serialize, Deserialize};
 use bcrypt::{hash, verify};
@@ -250,10 +261,12 @@ fn validate_token(token: &str) -> Result<String> {
     })
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Usage
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Register
 mutation {
   register(
@@ -294,6 +307,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Trade-offs & Security
 
@@ -328,6 +342,7 @@ Implement cursor-based pagination for efficient data retrieval.
 ### Schema Definition
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -369,10 +384,12 @@ Implement cursor-based pagination for efficient data retrieval.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 use base64::{Engine, engine::general_purpose};
 
 pub struct PaginationArgs {
@@ -479,10 +496,12 @@ fn decode_cursor(cursor: &str) -> Result<i32> {
         })
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Usage
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetFirstPage {
   users(first: 10) {
     edges {
@@ -515,6 +534,7 @@ query GetNextPage {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Performance Characteristics
 
@@ -545,6 +565,7 @@ Implement multiple filter types and combine them efficiently.
 ### Schema Definition
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -570,10 +591,12 @@ Implement multiple filter types and combine them efficiently.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct UserFilter {
     pub name: Option<String>,
     pub email: Option<String>,
@@ -627,10 +650,12 @@ pub async fn get_users(
     db.query_raw(&query, &params).await
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Usage
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Search by name
 query {
   users(filter: { name: "alice" }) {
@@ -664,15 +689,18 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Full-Text Search Performance
 
 ```sql
+<!-- Code example in SQL -->
 -- Create index for fast searches
 CREATE INDEX idx_users_name_search ON users USING GIN (
   to_tsvector('english', name || ' ' || email)
 );
 ```text
+<!-- Code example in TEXT -->
 
 With index:
 
@@ -695,6 +723,7 @@ Implement subscriptions using WebSocket protocol.
 ### Schema Definition
 
 ```json
+<!-- Code example in JSON -->
 {
   "subscriptions": [
     {
@@ -714,10 +743,12 @@ Implement subscriptions using WebSocket protocol.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 use tokio::sync::mpsc;
 use futures_util::{Stream, StreamExt};
 
@@ -787,10 +818,12 @@ pub async fn update_user_and_notify(
     Ok(user)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Usage
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Subscribe to new users
 subscription {
   userCreated {
@@ -810,17 +843,20 @@ subscription {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Scaling Subscriptions
 
 For multi-server deployments, use Redis Pub/Sub:
 
 ```rust
+<!-- Code example in RUST -->
 let publisher = RedisPublisher::new(
     redis_client,
     "FraiseQL:events"
 ).await?;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -837,6 +873,7 @@ Implement file upload handling with S3 storage.
 ### Schema Definition
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": [
     {
@@ -861,10 +898,12 @@ Implement file upload handling with S3 storage.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 pub struct FileUpload {
     pub filename: String,
     pub mimetype: String,
@@ -915,10 +954,12 @@ pub async fn upload_user_avatar(
     Ok(user)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Client Usage
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation UploadAvatar($userId: ID!, $file: Upload!) {
   uploadUserAvatar(userId: $userId, file: $file) {
     id
@@ -927,10 +968,12 @@ mutation UploadAvatar($userId: ID!, $file: Upload!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 JavaScript client:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 const input = document.querySelector('input[type="file"]');
 const formData = new FormData();
 
@@ -950,6 +993,7 @@ fetch('/graphql', {
   body: formData
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -966,6 +1010,7 @@ Implement multi-layer caching strategy.
 ### Schema Definition (with cache directives)
 
 ```json
+<!-- Code example in JSON -->
 {
   "queries": [
     {
@@ -1000,10 +1045,12 @@ Implement multi-layer caching strategy.
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Implementation
 
 ```rust
+<!-- Code example in RUST -->
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -1105,6 +1152,7 @@ pub async fn update_user(
     Ok(user)
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Caching Strategy
 
@@ -1129,6 +1177,7 @@ pub async fn update_user(
 ### Performance Impact
 
 ```text
+<!-- Code example in TEXT -->
 Without cache:
 
 - Query time: 50ms
@@ -1146,6 +1195,7 @@ With L1+L2 cache (80% hit rate):
 - Database load: 20 queries/sec
 - Reduction: 80%
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: 1.2: Core Concepts & Terminology
+description: Before diving into FraiseQL's architecture and capabilities, you need to understand the vocabulary and mental models that underpin the system. This topic define
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # 1.2: Core Concepts & Terminology
 
 **Audience:** All users (developers, architects, operations)
@@ -29,6 +37,7 @@ In FraiseQL, a schema is authored once (in Python or TypeScript) and defines:
 - Authorization rules (who can access what)
 
 ```python
+<!-- Code example in Python -->
 # Schema definition (Python)
 @FraiseQL.type
 class User:
@@ -40,6 +49,7 @@ class User:
     is_active: bool           # Field: boolean flag
     created_at: datetime      # Field: timestamp
 ```text
+<!-- Code example in TEXT -->
 
 **Mental model:** Schema is a *contract* between your client and server. It says "these are the exact types, fields, and relationships available to query."
 
@@ -54,6 +64,7 @@ FraiseQL has several type categories:
 **1. Object Types** - Represent entities in your domain
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     user_id: int
@@ -66,10 +77,12 @@ class Order:
     total: Decimal
     created_at: datetime
 ```text
+<!-- Code example in TEXT -->
 
 **2. Scalar Types** - Basic values (strings, numbers, dates, etc.)
 
 ```text
+<!-- Code example in TEXT -->
 String    → text (username, email, description)
 Int       → whole numbers (user_id, quantity)
 Float     → decimal numbers (price, rating)
@@ -80,10 +93,12 @@ UUID      → unique identifiers (tracking IDs)
 Decimal   → precise decimals (prices, amounts)
 JSON      → arbitrary data (metadata, config)
 ```text
+<!-- Code example in TEXT -->
 
 **3. Enum Types** - Limited set of named values
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.enum
 class OrderStatus:
     PENDING = "pending"
@@ -92,6 +107,7 @@ class OrderStatus:
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 ```text
+<!-- Code example in TEXT -->
 
 **4. Interface Types** - Shared fields across multiple types (advanced)
 
@@ -106,6 +122,7 @@ class OrderStatus:
 **Definition:** A named value within a type, with a specific data type and optional validation rules.
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Product:
     product_id: int          # Field name: product_id, type: Int
@@ -114,10 +131,12 @@ class Product:
     in_stock: bool           # Field name: in_stock, type: Boolean
     created_at: datetime     # Field name: created_at, type: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 **Field modifiers:**
 
 ```python
+<!-- Code example in Python -->
 # Required (must always have a value)
 name: str                    # Required - cannot be null
 
@@ -125,6 +144,7 @@ name: str                    # Required - cannot be null
 middle_name: str | None      # Optional - can be null
 nickname: Optional[str]      # Alternative Python syntax
 ```text
+<!-- Code example in TEXT -->
 
 **Mental model:** Fields are *columns in a database table*. Each field has a name, type, and nullability.
 
@@ -135,6 +155,7 @@ nickname: Optional[str]      # Alternative Python syntax
 **Definition:** A read operation that retrieves data from the system without modifying it.
 
 ```graphql
+<!-- Code example in GraphQL -->
 # A query is a request for data
 query GetUser {
   user(id: 1) {
@@ -144,6 +165,7 @@ query GetUser {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **How it works in FraiseQL:**
 
@@ -162,6 +184,7 @@ query GetUser {
 **Definition:** A write operation that modifies data (creates, updates, or deletes).
 
 ```graphql
+<!-- Code example in GraphQL -->
 # A mutation modifies data
 mutation CreateOrder {
   createOrder(input: {
@@ -174,6 +197,7 @@ mutation CreateOrder {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **How it works in FraiseQL:**
 
@@ -195,15 +219,18 @@ mutation CreateOrder {
 In traditional GraphQL servers, resolvers are *custom code* you write:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Apollo Server - Traditional resolver (you write this)
 const userResolver = async (parent, args, context) => {
   return db.query("SELECT * FROM tb_users WHERE pk_user = ?", [args.id]);
 };
 ```text
+<!-- Code example in TEXT -->
 
 In FraiseQL, resolvers are *automatically generated* at compile time:
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL - Resolver compiled, not written
 @FraiseQL.type
 class User:
@@ -212,6 +239,7 @@ class User:
     # Resolver for user_id field automatically generated
     # Resolver maps to: SELECT pk_user FROM tb_users WHERE ...
 ```text
+<!-- Code example in TEXT -->
 
 **Mental model:** A resolver is the *glue between GraphQL and database*. In FraiseQL, this glue is generated and optimized at compile time, not written by hand.
 
@@ -224,6 +252,7 @@ class User:
 **One-to-Many** (User has many Orders):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     user_id: int
@@ -236,20 +265,24 @@ class Order:
     total: Decimal
     fk_user: int         # Foreign key back to user
 ```text
+<!-- Code example in TEXT -->
 
 **Many-to-One** (Order belongs to User):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Order:
     order_id: int
     total: Decimal
     user: User           # Many orders → one user
 ```text
+<!-- Code example in TEXT -->
 
 **Many-to-Many** (Students enroll in Courses):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Student:
     student_id: int
@@ -262,10 +295,12 @@ class Course:
     name: str
     students: List[Student]  # Many courses → many students
 ```text
+<!-- Code example in TEXT -->
 
 **Self-Relationships** (Employee has manager):
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Employee:
     employee_id: int
@@ -273,6 +308,7 @@ class Employee:
     manager: Employee | None  # Self-relationship
     reports: List[Employee]   # Reverse relationship
 ```text
+<!-- Code example in TEXT -->
 
 **Mental model:** Relationships are *foreign keys in databases*. They connect tables and define how data relates.
 
@@ -314,6 +350,7 @@ A schema is a contract between client and server:
 In FraiseQL, types directly correspond to database tables:
 
 ```python
+<!-- Code example in Python -->
 # GraphQL Type
 @FraiseQL.type
 class User:
@@ -328,6 +365,7 @@ class User:
 #     email VARCHAR(255)
 # );
 ```text
+<!-- Code example in TEXT -->
 
 **Why this matters:**
 
@@ -349,6 +387,7 @@ class User:
 Every GraphQL query compiles to a SQL SELECT statement:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # GraphQL Query
 query GetUser {
   user(id: 1) {
@@ -361,10 +400,12 @@ query GetUser {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Compiles to approximately:
 
 ```sql
+<!-- Code example in SQL -->
 -- Compiled SQL (simplified)
 SELECT
     u.pk_user,
@@ -375,6 +416,7 @@ FROM tb_users u
 LEFT JOIN tb_orders o ON u.pk_user = o.fk_user
 WHERE u.pk_user = 1;
 ```text
+<!-- Code example in TEXT -->
 
 **Why this matters:**
 
@@ -392,6 +434,7 @@ WHERE u.pk_user = 1;
 GraphQL mutations compile to SQL INSERT, UPDATE, or DELETE statements:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # GraphQL Mutation
 mutation CreateOrder {
   createOrder(input: {
@@ -404,15 +447,18 @@ mutation CreateOrder {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Compiles to:
 
 ```sql
+<!-- Code example in SQL -->
 -- Compiled SQL
 INSERT INTO tb_orders (fk_user, total, created_at)
 VALUES (1, 99.99, CURRENT_TIMESTAMP)
 RETURNING pk_order, status, created_at;
 ```text
+<!-- Code example in TEXT -->
 
 **Why this matters:**
 
@@ -432,10 +478,12 @@ FraiseQL separates **build time** from **runtime**:
 **Build Time (Compilation):**
 
 ```text
+<!-- Code example in TEXT -->
 Python/TypeScript Schema → Compiler → Optimized SQL Templates
                         ↓
                    schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 At build time:
 
@@ -448,10 +496,12 @@ At build time:
 **Runtime (Execution):**
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL Query → Pre-compiled SQL Template → Database → Results
              ↓
         Microseconds (no interpretation)
 ```text
+<!-- Code example in TEXT -->
 
 At runtime:
 
@@ -479,18 +529,22 @@ At runtime:
 Traditional application architecture:
 
 ```text
+<!-- Code example in TEXT -->
 Client → Application Code → ORM → Database
                     ↑
          (custom resolvers, business logic, caching)
 ```text
+<!-- Code example in TEXT -->
 
 FraiseQL architecture:
 
 ```text
+<!-- Code example in TEXT -->
 Client → Compiled SQL Templates → Database
          (no application code)
          (deterministic)
 ```text
+<!-- Code example in TEXT -->
 
 **Why this matters:**
 
@@ -511,6 +565,7 @@ FraiseQL uses database **views** extensively:
 **Write Tables** (`tb_*` prefix):
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY,
     username VARCHAR(255),
@@ -518,12 +573,14 @@ CREATE TABLE tb_users (
     created_at TIMESTAMP
 );
 ```text
+<!-- Code example in TEXT -->
 
 → Normalized, DBA-owned, source of truth
 
 **Read Views** (`v_*` prefix):
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_user AS
 SELECT
     pk_user AS user_id,
@@ -533,12 +590,14 @@ SELECT
 FROM tb_users
 WHERE deleted_at IS NULL;  -- Soft deletes
 ```text
+<!-- Code example in TEXT -->
 
 → Curated for GraphQL, handles soft deletes, derived fields
 
 **Analytics Views** (`va_*` prefix):
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW va_user AS
 SELECT
     pk_user,
@@ -547,16 +606,19 @@ SELECT
     created_at
 FROM tb_users;
 ```text
+<!-- Code example in TEXT -->
 
 → Optimized for columnar queries (Arrow plane)
 
 **Transaction Views** (`tv_*` prefix):
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW tv_user AS
 SELECT * FROM tb_users;
 -- Used for mutations (INSERT, UPDATE, DELETE)
 ```text
+<!-- Code example in TEXT -->
 
 **Mental model:** Views are *application-facing interfaces* to database tables. Tables are DBA-owned and normalized; views are curated for different access patterns.
 
@@ -567,6 +629,7 @@ SELECT * FROM tb_users;
 FraiseQL supports multiple databases:
 
 ```python
+<!-- Code example in Python -->
 # PostgreSQL (primary, most features)
 @FraiseQL.database("postgresql")
 class User:
@@ -587,6 +650,7 @@ class User:
 class User:
     user_id: int
 ```text
+<!-- Code example in TEXT -->
 
 **Why this matters:**
 
@@ -606,6 +670,7 @@ class User:
 **What happens:**
 
 ```text
+<!-- Code example in TEXT -->
 Schema (Python/TypeScript)
     ↓
 Parser (validates syntax)
@@ -620,6 +685,7 @@ Validator (finds errors)
     ↓
 schema.compiled.json (output artifact)
 ```text
+<!-- Code example in TEXT -->
 
 **What is caught at compile time:**
 
@@ -632,6 +698,7 @@ schema.compiled.json (output artifact)
 **Example - Caught at Compile Time:**
 
 ```python
+<!-- Code example in Python -->
 # Error: Column type mismatch
 @FraiseQL.type
 class User:
@@ -640,6 +707,7 @@ class User:
 # Compilation fails with clear error message
 # "Type mismatch: User.user_id is String, but pk_user in tb_users is BIGINT"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -648,6 +716,7 @@ class User:
 **What happens:**
 
 ```text
+<!-- Code example in TEXT -->
 GraphQL Query
     ↓
 Parser (validate syntax - compiled already)
@@ -662,6 +731,7 @@ Formatter (shape results to schema)
     ↓
 Response (send to client)
 ```text
+<!-- Code example in TEXT -->
 
 **What is checked at runtime:**
 
@@ -673,6 +743,7 @@ Response (send to client)
 **Example - Checked at Runtime:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Runtime check: Does user have permission?
 query GetUser {
   user(id: 123) {  # Authorization: Can I see user 123?
@@ -682,6 +753,7 @@ query GetUser {
 
 # Error (if unauthorized): "Not authorized to view user 123"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -703,6 +775,7 @@ query GetUser {
 ## Summary: The FraiseQL Mental Model
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────┐
 │ Your Business Domain                                │
 │ (E-commerce, SaaS, Data Platform, etc.)             │
@@ -750,6 +823,7 @@ query GetUser {
 │ - Type safe (guaranteed by schema)                 │
 └─────────────────────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

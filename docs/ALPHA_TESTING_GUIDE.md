@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2.0.0-alpha.1 Testing Guide
+description: Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test the system and provide valuable feedback.
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2.0.0-alpha.1 Testing Guide
 
 Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test the system and provide valuable feedback.
@@ -104,24 +112,29 @@ FraiseQL v2 is a complete redesign and **not backwards compatible** with v1:
 #### Option A: From source
 
 ```bash
+<!-- Code example in BASH -->
 git clone https://github.com/FraiseQL/FraiseQL.git
 cd FraiseQL
 cargo build --release
 ./target/release/FraiseQL-cli --version
 ```text
+<!-- Code example in TEXT -->
 
 #### Option B: With Docker
 
 ```bash
+<!-- Code example in BASH -->
 docker build -t FraiseQL:alpha .
 docker run FraiseQL:alpha FraiseQL-cli --version
 ```text
+<!-- Code example in TEXT -->
 
 ### 2. Define a Test Schema
 
 Create `schema.py`:
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import type as fraiseql_type, query as fraiseql_query, schema
 
 @fraiseql_type
@@ -136,23 +149,28 @@ def users(limit: int = 10) -> list[User]:
 
 schema.export_schema("schema.json")
 ```text
+<!-- Code example in TEXT -->
 
 Run: `python schema.py`
 
 ### 3. Compile Schema
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-cli compile schema.json -o schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 4. Setup Database
 
 For PostgreSQL, create your views:
 
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_users AS
 SELECT id, name, email FROM tb_user;
 ```text
+<!-- Code example in TEXT -->
 
 For other databases, see [Database Schema Conventions](specs/schema-conventions.md).
 
@@ -161,6 +179,7 @@ For other databases, see [Database Schema Conventions](specs/schema-conventions.
 Create `config.toml`:
 
 ```toml
+<!-- Code example in TOML -->
 [server]
 bind_addr = "0.0.0.0:8080"
 database_url = "postgresql://localhost/testdb"
@@ -168,20 +187,25 @@ database_url = "postgresql://localhost/testdb"
 [FraiseQL.security]
 rate_limiting.enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 Start server:
 
 ```bash
+<!-- Code example in BASH -->
 FraiseQL-server -c config.toml --schema schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ### 6. Test Queries
 
 ```bash
+<!-- Code example in BASH -->
 curl -X POST http://localhost:8080/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 5) { id name email } }"}'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -201,6 +225,7 @@ curl -X POST http://localhost:8080/graphql \
 #### For bugs:
 
 ```text
+<!-- Code example in TEXT -->
 ## Description
 Brief description of the issue
 
@@ -224,10 +249,12 @@ What actually happened
 - OS: Linux / macOS / Windows
 - Error message (if applicable)
 ```text
+<!-- Code example in TEXT -->
 
 ### For feature requests:
 
 ```text
+<!-- Code example in TEXT -->
 ## Use Case
 Why do you need this?
 
@@ -237,6 +264,7 @@ How should this work?
 ## Current Workaround
 Are you working around this now?
 ```text
+<!-- Code example in TEXT -->
 
 ### Tag Your Issue
 
@@ -366,12 +394,14 @@ If you're interested in performance testing:
 ### Running Benchmarks
 
 ```bash
+<!-- Code example in BASH -->
 # Arrow vs JSON serialization
 cargo bench -p FraiseQL-arrow
 
 # Query execution performance
 cargo bench -p FraiseQL-core
 ```text
+<!-- Code example in TEXT -->
 
 ### What to Measure
 

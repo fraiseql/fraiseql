@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Analytics Patterns Guide
+description: - SQL aggregation functions (SUM, AVG, COUNT, GROUP BY, HAVING)
+keywords: ["workflow", "debugging", "implementation", "best-practices", "deployment", "saas", "realtime", "ecommerce"]
+tags: ["documentation", "reference"]
+---
+
 # Analytics Patterns Guide
 
 **Status:** ✅ Production Ready
@@ -64,6 +72,7 @@ This guide provides practical examples of common analytical query patterns in Fr
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate {
     count
@@ -71,17 +80,20 @@ query {
     revenue_avg
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum,
     AVG(revenue) AS revenue_avg
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~0.2ms for 1M rows (with no WHERE clause, uses table statistics)
 
@@ -94,6 +106,7 @@ FROM tf_sales;
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(groupBy: { category: true }) {
     category
@@ -101,18 +114,21 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum,
     COUNT(*) AS count
 FROM tf_sales
 GROUP BY dimensions->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~1-2ms for 1M rows (with GIN index on `data`)
 
@@ -125,6 +141,7 @@ GROUP BY dimensions->>'category';
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: {
@@ -138,11 +155,13 @@ query {
     quantity_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'category' AS category,
     dimensions->>'region' AS region,
@@ -150,7 +169,8 @@ SELECT
     SUM(quantity) AS quantity_sum
 FROM tf_sales
 GROUP BY dimensions->>'category', dimensions->>'region';
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~2-3ms for 1M rows
 
@@ -163,6 +183,7 @@ GROUP BY dimensions->>'category', dimensions->>'region';
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { occurred_at_day: true }
@@ -172,11 +193,13 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     DATE_TRUNC('day', occurred_at) AS occurred_at_day,
     SUM(revenue) AS revenue_sum,
@@ -184,7 +207,8 @@ SELECT
 FROM tf_sales
 GROUP BY DATE_TRUNC('day', occurred_at)
 ORDER BY occurred_at_day;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~5-10ms for 1M rows (with index on `occurred_at`)
 
@@ -197,6 +221,7 @@ ORDER BY occurred_at_day;
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     where: { customer_id: { _eq: "uuid-123" } }
@@ -205,18 +230,21 @@ query {
     revenue_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 WHERE customer_id = $1;
 -- Parameters: ["uuid-123"]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~0.05ms (using B-tree index on `customer_id`)
 
@@ -229,6 +257,7 @@ WHERE customer_id = $1;
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { category: true },
@@ -238,11 +267,13 @@ query {
     revenue_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum
@@ -250,7 +281,8 @@ FROM tf_sales
 GROUP BY dimensions->>'category'
 HAVING SUM(revenue) > $1;
 -- Parameters: [10000]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~1-2ms for 1M rows
 
@@ -263,6 +295,7 @@ HAVING SUM(revenue) > $1;
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate {
     count
@@ -275,29 +308,34 @@ query {
     )
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum,
     SUM(revenue) FILTER (WHERE dimensions->>'payment_method' = 'credit_card') AS revenue_sum_credit_card,
     SUM(revenue) FILTER (WHERE dimensions->>'payment_method' = 'paypal') AS revenue_sum_paypal
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL/SQLite/SQL Server** (emulated with CASE WHEN):
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     COUNT(*) AS count,
     SUM(revenue) AS revenue_sum,
     SUM(CASE WHEN dimensions->>'payment_method' = 'credit_card' THEN revenue ELSE 0 END) AS revenue_sum_credit_card,
     SUM(CASE WHEN dimensions->>'payment_method' = 'paypal' THEN revenue ELSE 0 END) AS revenue_sum_paypal
 FROM tf_sales;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -308,6 +346,7 @@ FROM tf_sales;
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: {
@@ -323,11 +362,13 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     DATE_TRUNC('month', occurred_at) AS occurred_at_month,
     dimensions->>'category' AS category,
@@ -340,7 +381,8 @@ GROUP BY
     dimensions->>'category',
     dimensions->>'region'
 ORDER BY occurred_at_month, category, region;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~10-20ms for 1M rows
 
@@ -353,15 +395,18 @@ ORDER BY occurred_at_month, category, region;
 ### Schema Definition
 
 ```python
+<!-- Code example in Python -->
 @schema.type
 class Sales:
     # ...
     customer_segment: str  # Maps to dimensions#>>'{customer,segment}'
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { customer_segment: true }
@@ -370,17 +415,20 @@ query {
     revenue_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions#>>'{customer,segment}' AS customer_segment,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 GROUP BY dimensions#>>'{customer,segment}';
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -391,6 +439,7 @@ GROUP BY dimensions#>>'{customer,segment}';
 ### GraphQL Query
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     where: {
@@ -406,11 +455,13 @@ query {
     quantity_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Execution (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'region' AS region,
     SUM(revenue) AS revenue_sum,
@@ -419,7 +470,8 @@ FROM tf_sales
 WHERE occurred_at >= $1 AND occurred_at < $2
 GROUP BY dimensions->>'region';
 -- Parameters: ["2024-01-01", "2024-04-01"]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance**: ~0.5-1ms (using index on `occurred_at`)
 
@@ -432,16 +484,20 @@ GROUP BY dimensions->>'region';
 ❌ **SLOW** (JSONB filter):
 
 ```sql
+<!-- Code example in SQL -->
 WHERE dimensions->>'customer_id' = 'uuid-123'
 -- ~5-10ms (even with GIN index)
-```
+```text
+<!-- Code example in TEXT -->
 
 ✅ **FAST** (indexed SQL column):
 
 ```sql
+<!-- Code example in SQL -->
 WHERE customer_id = 'uuid-123'
 -- ~0.05ms (B-tree index)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 100-200x faster
 
@@ -450,6 +506,7 @@ WHERE customer_id = 'uuid-123'
 Create pre-aggregated fact tables for frequently-used rollups:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create pre-aggregated fact table (daily granularity)
 CREATE TABLE tf_sales_daily (
     id BIGSERIAL PRIMARY KEY,
@@ -475,7 +532,8 @@ ON CONFLICT (day) DO UPDATE SET
     revenue = EXCLUDED.revenue,
     quantity = EXCLUDED.quantity,
     transaction_count = EXCLUDED.transaction_count;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Query Speed**: ~0.1ms (reading from pre-aggregated table vs ~10ms from raw fact table)
 
@@ -499,6 +557,7 @@ FraiseQL's Arrow plane automatically optimizes columnar data transfer for pre-ag
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     dimensions->>'category' AS category,
     SUM(revenue) AS revenue_sum,
@@ -506,7 +565,8 @@ SELECT
 FROM tf_sales
 WHERE dimensions @> '{"region": "North America"}'
 GROUP BY dimensions->>'category';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MySQL
 
@@ -525,12 +585,14 @@ GROUP BY dimensions->>'category';
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_EXTRACT(data, '$.category') AS category,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 GROUP BY JSON_EXTRACT(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQLite
 
@@ -549,12 +611,14 @@ GROUP BY JSON_EXTRACT(data, '$.category');
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     json_extract(data, '$.category') AS category,
     SUM(revenue) AS revenue_sum
 FROM tf_sales
 GROUP BY json_extract(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SQL Server
 
@@ -573,13 +637,15 @@ GROUP BY json_extract(data, '$.category');
 **Example**:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
     JSON_VALUE(data, '$.category') AS category,
     SUM(revenue) AS revenue_sum,
     STDEV(revenue) AS revenue_stdev
 FROM tf_sales
 GROUP BY JSON_VALUE(data, '$.category');
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -590,6 +656,7 @@ GROUP BY JSON_VALUE(data, '$.category');
 **Daily Sales Trend**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { occurred_at_day: true }
@@ -600,11 +667,13 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Top Products by Revenue**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   sales_aggregate(
     groupBy: { product_name: true }
@@ -616,13 +685,15 @@ query {
     quantity_sum
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SaaS Metrics
 
 **Monthly Recurring Revenue by Plan**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   subscriptions_aggregate(
     where: { status: { _eq: "active" } }
@@ -634,11 +705,13 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Churn Rate**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   subscriptions_aggregate(
     where: { status: { _eq: "cancelled" } }
@@ -648,13 +721,15 @@ query {
     count
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### API Monitoring
 
 **Requests by Endpoint**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   api_requests_aggregate(
     groupBy: { endpoint: true }
@@ -664,11 +739,13 @@ query {
     duration_ms_avg
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error Rate by Status Code**:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   api_requests_aggregate(
     groupBy: { status_code: true }
@@ -679,7 +756,8 @@ query {
     duration_ms_avg
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

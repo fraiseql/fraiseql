@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Security Runtime Initialization
+description: This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes security configuration at server runtime.
+keywords: ["security"]
+tags: ["documentation", "reference"]
+---
+
 # Security Runtime Initialization
 
 This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes security configuration at server runtime.
@@ -7,6 +15,7 @@ This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes securi
 Security configuration flows through the system in three stages:
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────────┐
 │ FraiseQL.toml    │  Developer specifies configuration
 └────────┬─────────┘
@@ -23,6 +32,7 @@ Security configuration flows through the system in three stages:
 │ + env overrides          │
 └──────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ## Loading Security Configuration
 
@@ -46,6 +56,7 @@ When the FraiseQL server starts, it performs the following steps:
 ### Example Flow in main.rs
 
 ```rust
+<!-- Code example in RUST -->
 // Load compiled schema
 let schema = schema_loader.load().await?;
 
@@ -62,6 +73,7 @@ validate_security_config(&security_config)?;
 // Log configuration for observability
 log_security_config(&security_config);
 ```text
+<!-- Code example in TEXT -->
 
 ## Environment Variable Overrides
 
@@ -70,6 +82,7 @@ The loaded configuration supports environment variable overrides for production 
 ### Supported Environment Variables
 
 ```bash
+<!-- Code example in BASH -->
 # Audit logging
 AUDIT_LOG_LEVEL=debug                    # Override log level
 
@@ -83,20 +96,24 @@ RATE_LIMIT_FAILED_LOGIN=3                # Override failed login max requests
 # State encryption
 STATE_ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # Override encryption key
 ```text
+<!-- Code example in TEXT -->
 
 ### Example
 
 ```bash
+<!-- Code example in BASH -->
 # Start server with custom rate limiting
 RATE_LIMIT_FAILED_LOGIN=1 RATE_LIMIT_AUTH_START=50 \
   FraiseQL-server --schema schema.compiled.json
 ```text
+<!-- Code example in TEXT -->
 
 ## Configuration Validation
 
 The server validates the loaded security configuration before startup:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()> {
     // Ensure sensitive data leaking is disabled
     if config.error_sanitization.leak_sensitive_details {
@@ -115,12 +132,14 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
     Ok(())
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Default Configuration
 
 If the schema doesn't include a security section or loading fails, sensible defaults are used:
 
 ```rust
+<!-- Code example in RUST -->
 pub fn init_default_security_config() -> SecurityConfigFromSchema {
     SecurityConfigFromSchema {
         audit_logging: AuditLoggingSettings {
@@ -154,12 +173,14 @@ pub fn init_default_security_config() -> SecurityConfigFromSchema {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ## Observability
 
 The loaded configuration is logged at startup for audit and debugging purposes:
 
 ```text
+<!-- Code example in TEXT -->
 INFO Audit logging configuration:
      audit_logging_enabled=true, audit_log_level=info,
      audit_async_logging=true, audit_buffer_size=1000
@@ -176,6 +197,7 @@ INFO State encryption configuration:
      state_encryption_enabled=true, state_encryption_algorithm=chacha20-poly1305,
      state_encryption_nonce_size=12, state_encryption_key_size=32
 ```text
+<!-- Code example in TEXT -->
 
 ## Integration with Security Subsystems
 
@@ -189,6 +211,7 @@ The loaded `SecurityConfigFromSchema` provides values for initializing:
 Example usage:
 
 ```rust
+<!-- Code example in RUST -->
 // Initialize rate limiter from config
 let auth_start_limiter = KeyedRateLimiter::new(
     RateLimitConfig {
@@ -200,6 +223,7 @@ let auth_start_limiter = KeyedRateLimiter::new(
 // Initialize state encryption from config
 let state_encryption = StateEncryption::new(&encryption_key)?;
 ```text
+<!-- Code example in TEXT -->
 
 ## Testing
 

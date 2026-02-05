@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Production Deployment Guide
+description: - Docker containerization and image management
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Production Deployment Guide
 
 **Status:** ✅ Production Ready
@@ -94,6 +102,7 @@ This guide covers deploying FraiseQL to production environments with:
 FraiseQL uses Pydantic BaseSettings with `FRAISEQL_` prefix:
 
 ```bash
+<!-- Code example in BASH -->
 # Application
 FRAISEQL_ENVIRONMENT=production
 FRAISEQL_DEBUG=false
@@ -128,10 +137,12 @@ FRAISEQL_TRACING_ENABLED=true
 FRAISEQL_TRACING_SAMPLE_RATE=0.1
 FRAISEQL_SLOW_QUERY_THRESHOLD_MS=100
 ```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes ConfigMap
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -147,10 +158,12 @@ data:
   FRAISEQL_METRICS_ENABLED: "true"
   FRAISEQL_TRACING_SAMPLE_RATE: "0.1"
 ```text
+<!-- Code example in TEXT -->
 
 ### Kubernetes Secret
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: Secret
 metadata:
@@ -162,6 +175,7 @@ stringData:
   AUTH0_DOMAIN: "your-tenant.auth0.com"
   AUTH0_API_IDENTIFIER: "https://api.example.com"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -172,6 +186,7 @@ stringData:
 #### Building the Image
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Multi-stage build
 FROM python:3.13-slim as builder
 
@@ -193,10 +208,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 CMD ["gunicorn", "app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
 ```text
+<!-- Code example in TEXT -->
 
 #### Building & Pushing
 
 ```bash
+<!-- Code example in BASH -->
 # Build
 docker build -t myregistry/FraiseQL:1.0.0 .
 docker build -t myregistry/FraiseQL:latest .
@@ -208,6 +225,7 @@ docker push myregistry/FraiseQL:latest
 # Scan for vulnerabilities
 trivy image myregistry/FraiseQL:1.0.0
 ```text
+<!-- Code example in TEXT -->
 
 #### Hardened Image (Government-Grade)
 
@@ -220,8 +238,10 @@ FraiseQL provides a hardened Dockerfile with:
 - No shell access
 
 ```bash
+<!-- Code example in BASH -->
 docker build -f Dockerfile.hardened -t myregistry/FraiseQL:hardened .
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -230,6 +250,7 @@ docker build -f Dockerfile.hardened -t myregistry/FraiseQL:hardened .
 ### Standard Deployment
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -353,10 +374,12 @@ spec:
 
       terminationGracePeriodSeconds: 30
 ```text
+<!-- Code example in TEXT -->
 
 ### Service
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: v1
 kind: Service
 metadata:
@@ -375,10 +398,12 @@ spec:
     protocol: TCP
   sessionAffinity: None  # Round-robin, no sticky sessions
 ```text
+<!-- Code example in TEXT -->
 
 ### Horizontal Pod Autoscaler
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -432,10 +457,12 @@ spec:
         periodSeconds: 15
       selectPolicy: Max
 ```text
+<!-- Code example in TEXT -->
 
 ### Pod Disruption Budget
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -447,10 +474,12 @@ spec:
     matchLabels:
       app: FraiseQL
 ```text
+<!-- Code example in TEXT -->
 
 ### Network Policies (Zero Trust)
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -502,10 +531,12 @@ spec:
     - protocol: TCP
       port: 443
 ```text
+<!-- Code example in TEXT -->
 
 ### Ingress
 
 ```yaml
+<!-- Code example in YAML -->
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -539,6 +570,7 @@ spec:
             port:
               number: 8000
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -547,6 +579,7 @@ spec:
 ### PostgreSQL Setup
 
 ```sql
+<!-- Code example in SQL -->
 -- Create database
 CREATE DATABASE FraiseQL
   WITH ENCODING 'UTF8'
@@ -568,10 +601,12 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO fraiseql_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fraiseql_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fraiseql_app;
 ```text
+<!-- Code example in TEXT -->
 
 ### Connection Pool Configuration
 
 ```python
+<!-- Code example in Python -->
 # Optimal pool settings for production
 pool_config = {
     "host": "db.example.com",
@@ -589,10 +624,12 @@ pool_config = {
     "ssl_certificate": "/etc/ssl/certs/ca-bundle.crt"
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Indexing Strategy
 
 ```sql
+<!-- Code example in SQL -->
 -- User-related indexes
 CREATE INDEX idx_users_id ON users(id);
 CREATE INDEX idx_users_email ON users(email) WHERE deleted_at IS NULL;
@@ -612,6 +649,7 @@ CREATE INDEX idx_products_content ON products USING gin(to_tsvector('english', n
 -- Soft delete queries
 CREATE INDEX idx_active_records ON (table_name) WHERE deleted_at IS NULL;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -620,11 +658,13 @@ CREATE INDEX idx_active_records ON (table_name) WHERE deleted_at IS NULL;
 ### Introspection Control
 
 ```python
+<!-- Code example in Python -->
 # Disable introspection in production
 config = FraiseQLConfig(
     introspection_policy=IntrospectionPolicy.DISABLED
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Introspection Policies**:
 
@@ -635,6 +675,7 @@ config = FraiseQLConfig(
 ### Rate Limiting
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     rate_limit_enabled=True,
     rate_limit_requests_per_minute=100,      # 100 req/min = ~1.67 req/sec
@@ -645,10 +686,12 @@ config = FraiseQLConfig(
     rate_limit_blacklist=["malicious.ips"]
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### Query Complexity Limits
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     complexity_enabled=True,
     complexity_max_score=1000,     # Reject complex queries
@@ -662,10 +705,12 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### TLS/mTLS Configuration
 
 ```python
+<!-- Code example in Python -->
 # Connection string with TLS
 DATABASE_URL = "postgresql://user:pass@db.example.com:5432/FraiseQL?sslmode=require"
 
@@ -696,10 +741,12 @@ volumes:
   secret:
     secretName: FraiseQL-tls-keys
 ```text
+<!-- Code example in TEXT -->
 
 ### Security Headers
 
 ```yaml
+<!-- Code example in YAML -->
 # Nginx Ingress annotations
 annotations:
   nginx.ingress.kubernetes.io/configuration-snippet: |
@@ -710,10 +757,12 @@ annotations:
     more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
     more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
 ```text
+<!-- Code example in TEXT -->
 
 ### CORS Configuration
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     cors_enabled=False  # Disable by default, handle at Ingress
 )
@@ -726,6 +775,7 @@ cors_headers=["Content-Type", "Authorization"]
 cors_allow_credentials=True
 cors_max_age=3600
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -736,6 +786,7 @@ cors_max_age=3600
 **For bandwidth optimization**:
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     apq_mode=APQMode.REQUIRED,           # Only persisted queries
     apq_storage_backend="postgresql",     # Persistent storage
@@ -743,15 +794,18 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=600            # 10 minutes
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Register queries at deploy time**:
 
 ```bash
+<!-- Code example in BASH -->
 # Move GraphQL files to directory
 FRAISEQL_APQ_QUERIES_DIR=/app/graphql/queries
 
 # Queries in /app/graphql/queries/*.graphql are auto-registered
 ```text
+<!-- Code example in TEXT -->
 
 **Expected performance**:
 
@@ -762,6 +816,7 @@ FRAISEQL_APQ_QUERIES_DIR=/app/graphql/queries
 ### Caching Strategy
 
 ```python
+<!-- Code example in Python -->
 # Multi-level caching
 config = FraiseQLConfig(
     cache_ttl=300,                           # 5 minutes
@@ -770,6 +825,7 @@ config = FraiseQLConfig(
     turbo_router_cache_size=1000             # Route caching
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Expected hit rates**:
 
@@ -780,6 +836,7 @@ config = FraiseQLConfig(
 ### Connection Pooling
 
 ```python
+<!-- Code example in Python -->
 # Optimal pool settings
 pool = DatabasePool(
     dsn=database_url,
@@ -789,6 +846,7 @@ pool = DatabasePool(
     max_lifetime=1800      # Renew connections every 30 min
 )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -797,6 +855,7 @@ pool = DatabasePool(
 ### Prometheus Metrics
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.monitoring import setup_metrics, MetricsConfig
 
 setup_metrics(app, MetricsConfig(
@@ -805,10 +864,12 @@ setup_metrics(app, MetricsConfig(
     metrics_path="/metrics"
 ))
 ```text
+<!-- Code example in TEXT -->
 
 ### OpenTelemetry Tracing
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.tracing import setup_tracing, TracingConfig
 
 setup_tracing(app, TracingConfig(
@@ -819,14 +880,17 @@ setup_tracing(app, TracingConfig(
     sample_rate=0.1  # 10% sampling in production
 ))
 ```text
+<!-- Code example in TEXT -->
 
 ### Health Checks
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL.health import setup_health_endpoints
 
 setup_health_endpoints(app)
 ```text
+<!-- Code example in TEXT -->
 
 **Available endpoints**:
 
@@ -841,6 +905,7 @@ setup_health_endpoints(app)
 ### GitOps Workflow
 
 ```bash
+<!-- Code example in BASH -->
 # 1. Create feature branch
 git checkout -b feature/new-feature
 
@@ -862,10 +927,12 @@ gh pr create
 # 5. PR merged to main
 # 6. ArgoCD syncs changes to production
 ```text
+<!-- Code example in TEXT -->
 
 ### Helm Chart Deployment
 
 ```bash
+<!-- Code example in BASH -->
 # Install
 helm install FraiseQL ./helm-chart \
   --namespace default \
@@ -879,6 +946,7 @@ helm upgrade FraiseQL ./helm-chart \
 # Rollback
 helm rollback FraiseQL 1
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -887,6 +955,7 @@ helm rollback FraiseQL 1
 ### Backup Strategy
 
 ```sql
+<!-- Code example in SQL -->
 -- Daily backup
 pg_dump FraiseQL > /backups/fraiseql_$(date +%Y%m%d).sql
 
@@ -896,10 +965,12 @@ pg_dump -Fc FraiseQL > /backups/fraiseql_$(date +%Y%m%d).dump
 -- With parallel jobs
 pg_dump -Fd -j 4 FraiseQL > /backups/fraiseql_$(date +%Y%m%d)_parallel/
 ```text
+<!-- Code example in TEXT -->
 
 ### Restore Procedure
 
 ```sql
+<!-- Code example in SQL -->
 -- From SQL dump
 psql FraiseQL < /backups/fraiseql_20250111.sql
 
@@ -910,10 +981,12 @@ pg_restore -d FraiseQL /backups/fraiseql_20250111.dump
 SELECT COUNT(*) FROM users;
 SELECT MAX(created_at) FROM audit_events;
 ```text
+<!-- Code example in TEXT -->
 
 ### Database Replication
 
 ```sql
+<!-- Code example in SQL -->
 -- Primary-Replica setup
 -- On primary:
 CREATE PUBLICATION FraiseQL FOR ALL TABLES;
@@ -924,6 +997,7 @@ CREATE SUBSCRIPTION FraiseQL CONNECTION 'postgresql://primary:5432/FraiseQL' PUB
 -- Monitor replication lag
 SELECT now() - pg_last_wal_receive_lsn()::text::pg_lsn / 1000000 AS replication_lag_seconds;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -932,10 +1006,12 @@ SELECT now() - pg_last_wal_receive_lsn()::text::pg_lsn / 1000000 AS replication_
 ### Single-Region (Recommended Starting Point)
 
 ```text
+<!-- Code example in TEXT -->
 3 FraiseQL pods (minimum)
 1 PostgreSQL instance (managed)
 Prometheus (1 instance)
 ```text
+<!-- Code example in TEXT -->
 
 **Capacity**:
 
@@ -946,10 +1022,12 @@ Prometheus (1 instance)
 ### Multi-Region
 
 ```text
+<!-- Code example in TEXT -->
 3 FraiseQL pods per region (3+ regions)
 PostgreSQL primary + replicas
 Cross-region failover
 ```text
+<!-- Code example in TEXT -->
 
 **Capacity**:
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Flutter with GraphQL Client for FraiseQL
+description: Complete guide for querying FraiseQL servers from Flutter mobile applications.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "graphql", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Flutter with GraphQL Client for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -21,6 +29,7 @@ Complete guide for querying FraiseQL servers from Flutter mobile applications.
 ### Add Dependencies
 
 ```yaml
+<!-- Code example in YAML -->
 # pubspec.yaml
 dependencies:
   flutter:
@@ -37,13 +46,15 @@ dev_dependencies:
   flutter_test:
     SDK: flutter
   build_runner: ^2.4.0
-```
+```text
+<!-- Code example in TEXT -->
 
 Run `flutter pub get`
 
 ### Initialize GraphQL & Hive
 
 ```dart
+<!-- Code example in DART -->
 // main.dart
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
@@ -108,7 +119,8 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -117,6 +129,7 @@ class MyApp extends StatelessWidget {
 ### Basic Query
 
 ```dart
+<!-- Code example in DART -->
 import 'package:graphql_flutter/graphql_flutter.dart';
 
 const String GET_USERS = r'''
@@ -166,11 +179,13 @@ class UserList extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```dart
+<!-- Code example in DART -->
 const String GET_USER_BY_ID = r'''
   query GetUserById($id: ID!) {
     user(id: $id) {
@@ -227,11 +242,13 @@ class UserDetail extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Pagination Pattern
 
 ```dart
+<!-- Code example in DART -->
 const String GET_POSTS_PAGINATED = r'''
   query GetPosts($limit: Int!, $offset: Int!) {
     posts(limit: $limit, offset: $offset) {
@@ -302,7 +319,8 @@ class _PostListPaginatedState extends State<PostListPaginated> {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -311,6 +329,7 @@ class _PostListPaginatedState extends State<PostListPaginated> {
 ### Basic Mutation
 
 ```dart
+<!-- Code example in DART -->
 const String CREATE_POST = r'''
   mutation CreatePost($title: String!, $content: String!) {
     createPost(title: $title, content: $content) {
@@ -389,11 +408,13 @@ class _CreatePostFormState extends State<CreatePostForm> {
     super.dispose();
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Update Cache After Mutation
 
 ```dart
+<!-- Code example in DART -->
 const String GET_POSTS = r'''
   query GetPosts {
     posts { id title }
@@ -460,7 +481,8 @@ class PostListWithAdd extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -469,6 +491,7 @@ class PostListWithAdd extends StatelessWidget {
 ### Real-Time Subscriptions
 
 ```dart
+<!-- Code example in DART -->
 const String ON_POST_CREATED = r'''
   subscription OnPostCreated {
     postCreated {
@@ -524,7 +547,8 @@ class PostFeed extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -533,6 +557,7 @@ class PostFeed extends StatelessWidget {
 ### Handle Different Error Types
 
 ```dart
+<!-- Code example in DART -->
 class SafeQueryWidget extends StatelessWidget {
   final String query;
 
@@ -589,7 +614,8 @@ class SafeQueryWidget extends StatelessWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -598,6 +624,7 @@ class SafeQueryWidget extends StatelessWidget {
 ### Query Provider
 
 ```dart
+<!-- Code example in DART -->
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final graphqlClientProvider = Provider((ref) {
@@ -647,7 +674,8 @@ class UserListWithRiverpod extends ConsumerWidget {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -656,6 +684,7 @@ class UserListWithRiverpod extends ConsumerWidget {
 ### Setup Hive
 
 ```dart
+<!-- Code example in DART -->
 import 'package:hive_flutter/hive_flutter.dart';
 
 void main() async {
@@ -693,11 +722,13 @@ class Post extends HiveObject {
 
   Post({required this.id, required this.title});
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cache GraphQL Results
 
 ```dart
+<!-- Code example in DART -->
 class CachedUserList extends StatefulWidget {
   const CachedUserList({Key? key}) : super(key: key);
 
@@ -755,7 +786,8 @@ class _CachedUserListState extends State<CachedUserList> {
     );
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -764,6 +796,7 @@ class _CachedUserListState extends State<CachedUserList> {
 ### Mock GraphQL Responses
 
 ```dart
+<!-- Code example in DART -->
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -809,7 +842,8 @@ void main() {
     });
   });
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -818,16 +852,19 @@ void main() {
 ### Build iOS App
 
 ```bash
+<!-- Code example in BASH -->
 # Build iOS release
 flutter build ios --release
 
 # Upload to App Store (requires Apple Developer account)
 # Use Xcode or fastlane
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Build Android App
 
 ```bash
+<!-- Code example in BASH -->
 # Build Android release APK
 flutter build apk --release
 
@@ -836,7 +873,8 @@ flutter build appbundle --release
 
 # Upload to Play Store (requires Google Play Developer account)
 # Use Google Play Console or fastlane
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

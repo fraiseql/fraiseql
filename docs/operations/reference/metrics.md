@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Metrics Reference
+description: This document lists all Prometheus metrics exposed by FraiseQL v2 for monitoring and observability.
+keywords: ["directives", "types", "scalars", "deployment", "schema", "scaling", "performance", "monitoring"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Metrics Reference
 
 **Version**: 1.0
@@ -129,49 +137,60 @@ Common queries for monitoring FraiseQL:
 ### Query: Current Error Rate
 
 ```promql
+<!-- Code example in PROMQL -->
 # Current error rate (errors per second)
 rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m])
 ```text
+<!-- Code example in TEXT -->
 
 ### Query: Queries Per Second
 
 ```promql
+<!-- Code example in PROMQL -->
 # QPS over last 5 minutes
 rate(graphql_requests_total[5m])
 ```text
+<!-- Code example in TEXT -->
 
 ### Query: P95 Latency (with histogram)
 
 *Note: Requires histogram metric - current implementation provides average*
 
 ```promql
+<!-- Code example in PROMQL -->
 # Average latency (current metric)
 graphql_duration_ms
 
 # Alert if average latency exceeds 100ms
 graphql_duration_ms > 100
 ```text
+<!-- Code example in TEXT -->
 
 ### Query: Cache Hit Ratio
 
 ```promql
+<!-- Code example in PROMQL -->
 # Current cache hit ratio
 cache_hit_ratio
 
 # Alert if cache hit ratio below 50%
 cache_hit_ratio < 0.5
 ```text
+<!-- Code example in TEXT -->
 
 ### Query: Database Load
 
 ```promql
+<!-- Code example in PROMQL -->
 # Database queries per second
 rate(database_queries_total[5m])
 ```text
+<!-- Code example in TEXT -->
 
 ### Query: Error Budget (SLO)
 
 ```promql
+<!-- Code example in PROMQL -->
 # Errors allowed per minute for 99.9% uptime SLO
 # (assuming 1000 QPS)
 (1 - 0.999) * rate(graphql_requests_total[5m]) * 60
@@ -183,6 +202,7 @@ rate(graphql_errors_total[5m]) * 60
 ((1 - 0.999) * rate(graphql_requests_total[5m]) * 60)
 - (rate(graphql_errors_total[5m]) * 60)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -191,6 +211,7 @@ rate(graphql_errors_total[5m]) * 60
 Example Prometheus alerting rules for FraiseQL:
 
 ```yaml
+<!-- Code example in YAML -->
 groups:
 
 - name: FraiseQL
@@ -248,6 +269,7 @@ groups:
       summary: "High schema validation error rate"
       description: "{{ $value }} validation errors/sec"
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -287,6 +309,7 @@ groups:
 ### Using curl
 
 ```bash
+<!-- Code example in BASH -->
 # Get all metrics
 curl http://localhost:8000/metrics
 
@@ -303,10 +326,12 @@ curl http://localhost:8000/metrics
 # # TYPE graphql_duration_ms gauge
 # graphql_duration_ms 23.5
 ```text
+<!-- Code example in TEXT -->
 
 ### Using Prometheus Scrape Config
 
 ```yaml
+<!-- Code example in YAML -->
 # prometheus.yml
 global:
   scrape_interval: 15s
@@ -320,10 +345,12 @@ scrape_configs:
     scrape_interval: 10s
     scrape_timeout: 5s
 ```text
+<!-- Code example in TEXT -->
 
 ### Using Grafana Data Source
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "prometheus",
   "name": "Prometheus",
@@ -332,6 +359,7 @@ scrape_configs:
   "isDefault": true
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -355,6 +383,7 @@ All FraiseQL metrics follow these conventions:
 ### Example 1: 99.9% Uptime SLO
 
 ```text
+<!-- Code example in TEXT -->
 Allowed error budget: (1 - 0.999) = 0.1% of requests
 Per month (assuming 1M requests/day):
 
@@ -362,21 +391,26 @@ Per month (assuming 1M requests/day):
 - Allowed errors: 30,000
 - Available errors per request rate
 ```text
+<!-- Code example in TEXT -->
 
 **Alerting Strategy**:
 
 ```promql
+<!-- Code example in PROMQL -->
 # Burn rate alerts
 rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m]) > 0.001
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: P95 Latency < 100ms SLO
 
 ```promql
+<!-- Code example in PROMQL -->
 # Current metric is average, not P95
 # For accurate P95: use histogram implementation
 histogram_quantile(0.95, rate(graphql_duration_ms_bucket[5m])) > 100
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

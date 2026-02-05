@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Diagramming Enhancement Roadmap
+description: - Renders correctly on GitHub markdown without build dependencies
+keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
+tags: ["documentation", "reference"]
+---
+
 # Diagramming Enhancement Roadmap
 
 **Status:** ENHANCEMENT PLAN
@@ -51,6 +59,7 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 **Current ASCII:**
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────┐
 │  Authoring (Python/TypeScript)      │
 └────────────┬────────────────────────┘
@@ -67,10 +76,14 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 │  Runtime Server (query execution)   │
 └─────────────────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 **Future D2 Version:**
 
+**Diagram: Query Execution** - 8-stage runtime model with authorization and field masking
+
 ```d2
+<!-- Code example in D2 Diagram -->
 Authoring: {
   label: "Authoring\n(Python/TypeScript)"
 }
@@ -88,6 +101,7 @@ Authoring -> Schema JSON: generates
 Schema JSON -> Compiled Schema: compiles
 Compiled Schema -> Runtime: loads
 ```text
+<!-- Code example in TEXT -->
 
 ### D2 Diagrams to Implement
 
@@ -178,7 +192,10 @@ Compiled Schema -> Runtime: loads
 
 When implementing D2, use consistent styling:
 
+**Diagram:** System architecture visualization
+
 ```d2
+<!-- Code example in D2 Diagram -->
 # Color scheme matching FraiseQL brand
 direction: down
 classes: {
@@ -206,6 +223,7 @@ classes: {
   stroke-width: 2
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

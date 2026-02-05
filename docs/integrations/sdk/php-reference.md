@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL PHP SDK Reference
+description: Complete API reference for the FraiseQL PHP SDK. This guide covers the complete PHP authoring interface for building type-safe GraphQL APIs with PHP 8 attribute
+keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL PHP SDK Reference
 
 **Status**: Production-Ready | **PHP Version**: 8.2+ | **SDK Version**: 2.0.0+
@@ -10,12 +18,14 @@ Complete API reference for the FraiseQL PHP SDK. This guide covers the complete 
 ### Composer Installation
 
 ```bash
+<!-- Code example in BASH -->
 # Add to existing project
 composer require FraiseQL/SDK "^2.0"
 
 # Or create new project
 composer create-project FraiseQL/php-starter my-api
-```
+```text
+<!-- Code example in TEXT -->
 
 **Requirements**:
 
@@ -29,6 +39,7 @@ composer create-project FraiseQL/php-starter my-api
 Create `composer.json` with PSR-4 autoloading:
 
 ```json
+<!-- Code example in JSON -->
 {
   "name": "my-company/my-api",
   "description": "GraphQL API with FraiseQL",
@@ -44,11 +55,13 @@ Create `composer.json` with PSR-4 autoloading:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### First Schema (60 seconds)
 
 ```php
+<!-- Code example in PHP -->
 <?php
 declare(strict_types=1);
 
@@ -71,15 +84,18 @@ readonly class User
         public string $email,
     ) {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Export and compile:
 
 ```bash
+<!-- Code example in BASH -->
 vendor/bin/FraiseQL export src/GraphQL schema.json
 FraiseQL-cli compile schema.json FraiseQL.toml
 FraiseQL-server --schema schema.compiled.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -109,13 +125,15 @@ Define GraphQL object types using readonly PHP classes with attributes.
 **Signature:**
 
 ```php
+<!-- Code example in PHP -->
 #[Type(
     name: string = 'ClassName',
     description: string = '',
     table: string = null,  // Database table for mapping
 )]
 readonly class MyType {}
-```
+```text
+<!-- Code example in TEXT -->
 
 **Key Features**:
 
@@ -129,6 +147,7 @@ readonly class MyType {}
 **Examples**:
 
 ```php
+<!-- Code example in PHP -->
 // ✅ Basic type with readonly properties
 #[Type(
     name: 'User',
@@ -192,24 +211,28 @@ readonly class Product
         public float $price,
     ) {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Field Definitions with `#[Field]`
 
 The `#[Field]` attribute defines properties with type and metadata:
 
 ```php
+<!-- Code example in PHP -->
 #[Field(
     type: string,           // GraphQL type: 'String', 'Int', 'ID', etc.
     description: string = '',
     nullable: bool = false,
     deprecated: string = null,  // "Use X instead" message
 )]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Common Field Types**:
 
 ```php
+<!-- Code example in PHP -->
 readonly class FieldExamples
 {
     public function __construct(
@@ -244,7 +267,8 @@ readonly class FieldExamples
         public string $legacyField,
     ) {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -255,6 +279,7 @@ readonly class FieldExamples
 Define read-only GraphQL queries that select from database tables:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 declare(strict_types=1);
 
@@ -298,13 +323,15 @@ class UserQueries
         // Full-text search implementation
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation Operations
 
 Define write operations (INSERT, UPDATE, DELETE):
 
 ```php
+<!-- Code example in PHP -->
 <?php
 namespace MyApp\GraphQL\Mutations;
 
@@ -356,7 +383,8 @@ class UserMutations
         // Compiler generates DELETE statement
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -367,6 +395,7 @@ class UserMutations
 Define OLAP fact tables with measures and dimensions:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 namespace MyApp\GraphQL\Analytics;
 
@@ -419,13 +448,15 @@ class SalesAnalytics
     )]
     public int $orderCount;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Role-Based Access Control (RBAC)
 
 Restrict field access by authentication scopes:
 
 ```php
+<!-- Code example in PHP -->
 #[Type]
 readonly class SensitiveData
 {
@@ -446,13 +477,15 @@ readonly class SensitiveData
         public string $staffField,
     ) {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Field Metadata and Validation
 
 Add custom metadata and validation rules:
 
 ```php
+<!-- Code example in PHP -->
 #[Type(name: 'BlogPost')]
 readonly class BlogPost
 {
@@ -491,7 +524,8 @@ readonly class BlogPost
         public int $rating,
     ) {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -515,6 +549,7 @@ readonly class BlogPost
 ### Scalar Type Definitions
 
 ```php
+<!-- Code example in PHP -->
 // Built-in scalars
 #[Field(type: 'String')]     // UTF-8 string
 #[Field(type: 'Int')]        // 32-bit integer
@@ -528,7 +563,8 @@ readonly class BlogPost
 #[Field(type: 'UUID')]       // RFC 4122 UUID
 #[Field(type: 'Email')]      // RFC 5322 email
 #[Field(type: 'URL')]        // RFC 3986 URI
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -539,18 +575,21 @@ readonly class BlogPost
 The `#[Type]`, `#[Query]`, `#[Mutation]` attributes are automatically discovered via PSR-4 autoloading:
 
 ```bash
+<!-- Code example in BASH -->
 # Export schema from all PSR-4 namespaces
 vendor/bin/FraiseQL export src/GraphQL schema.json
 
 # Or specific directory
 vendor/bin/FraiseQL export src/GraphQL/Types schema.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration with Laravel
 
 Configure in `config/FraiseQL.php`:
 
 ```php
+<!-- Code example in PHP -->
 return [
     'namespaces' => [
         'types' => 'App\\GraphQL\\Types',
@@ -560,32 +599,38 @@ return [
     'schema_path' => 'database/FraiseQL/schema.json',
     'compiled_path' => 'database/FraiseQL/schema.compiled.json',
 ];
-```
+```text
+<!-- Code example in TEXT -->
 
 Use in routes (`routes/api.php`):
 
 ```php
+<!-- Code example in PHP -->
 use Fraiseql\Laravel\FraiseqlController;
 
 Route::post('/graphql', FraiseqlController::class);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration with Symfony
 
 Configure in `config/packages/FraiseQL.yaml`:
 
 ```yaml
+<!-- Code example in YAML -->
 FraiseQL:
   namespaces:
     types: 'App\GraphQL\Types'
     queries: 'App\GraphQL\Queries'
     mutations: 'App\GraphQL\Mutations'
   schema_path: '%kernel.project_dir%/var/FraiseQL/schema.json'
-```
+```text
+<!-- Code example in TEXT -->
 
 Use in controller:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 namespace App\Controller;
 
@@ -603,7 +648,8 @@ class GraphQLController extends AbstractController
         return $this->FraiseQL->handle($request);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -612,6 +658,7 @@ class GraphQLController extends AbstractController
 ### CRUD Operations
 
 ```php
+<!-- Code example in PHP -->
 <?php
 namespace MyApp\GraphQL;
 
@@ -655,11 +702,13 @@ class PostOperations
         #[Field(type: 'Int')] int $offset = 0,
     ): array {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Filtering and Pagination
 
 ```php
+<!-- Code example in PHP -->
 #[InputType(name: 'PostFilter')]
 readonly class PostFilter
 {
@@ -683,7 +732,8 @@ class PostQueries
         #[Field(type: 'Int')] int $offset = 0,
     ): array {}
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -694,6 +744,7 @@ class PostQueries
 FraiseQL provides typed exceptions following PSR standards:
 
 ```php
+<!-- Code example in PHP -->
 use Fraiseql\Exception\FraiseQLException;
 use Fraiseql\Exception\ValidationException;
 use Fraiseql\Exception\NotFoundException;
@@ -714,7 +765,8 @@ try {
     // General FraiseQL error
     http_response_code(500);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -723,6 +775,7 @@ try {
 ### Basic Test Pattern
 
 ```php
+<!-- Code example in PHP -->
 <?php
 namespace Tests\GraphQL;
 
@@ -750,7 +803,8 @@ class UserQueriesTest extends SchemaTestCase
         ]);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -777,10 +831,12 @@ class UserQueriesTest extends SchemaTestCase
 **Solution**:
 
 ```bash
+<!-- Code example in BASH -->
 composer require FraiseQL/FraiseQL "^2.0"
 composer update
 composer dump-autoload
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Autoloader Issues
 
@@ -789,12 +845,14 @@ composer dump-autoload
 **Solution - Require autoloader**:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 require 'vendor/autoload.php';
 
 use FraiseQL\Server;
 $server = Server::fromCompiled('schema.compiled.json');
-```
+```text
+<!-- Code example in TEXT -->
 
 #### PHP Version Issues
 
@@ -803,17 +861,21 @@ $server = Server::fromCompiled('schema.compiled.json');
 **Check PHP version** (7.4+ required):
 
 ```bash
+<!-- Code example in BASH -->
 php --version
-```
+```text
+<!-- Code example in TEXT -->
 
 **Update PHP**:
 
 ```bash
+<!-- Code example in BASH -->
 php -v
 # Or use version manager
 phpenv versions
 phpenv global 8.2
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Extension Issues
 
@@ -822,9 +884,11 @@ phpenv global 8.2
 **Solution - Rebuild extensions**:
 
 ```bash
+<!-- Code example in BASH -->
 pecl install FraiseQL
 php -m | grep FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -837,6 +901,7 @@ php -m | grep FraiseQL
 **Solution - Use proper types**:
 
 ```php
+<!-- Code example in PHP -->
 // ✅ Declare return types
 public function getUsers(): array {
     return $this->server->execute($query);
@@ -846,7 +911,8 @@ public function getUsers(): array {
 public function getUser(int $id): ?User {
     return $this->server->execute($query);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Attribute Issues
 
@@ -855,6 +921,7 @@ public function getUser(int $id): ?User {
 **Solution - Use correct syntax**:
 
 ```php
+<!-- Code example in PHP -->
 // ✅ PHP 8 attributes
 #[FraiseQL\Type]
 class User {
@@ -868,7 +935,8 @@ class User {
  */
 class User {
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Class Type Issues
 
@@ -877,6 +945,7 @@ class User {
 **Solution - Import classes**:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 use FraiseQL\Type;
 use FraiseQL\Query;
@@ -886,7 +955,8 @@ class User { }
 
 #[Query(sqlSource: 'v_users')]
 function getUsers(): array { }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -899,12 +969,15 @@ function getUsers(): array { }
 **Check environment**:
 
 ```bash
+<!-- Code example in BASH -->
 echo $DATABASE_URL
-```
+```text
+<!-- Code example in TEXT -->
 
 **Solution - Configure database**:
 
 ```php
+<!-- Code example in PHP -->
 $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
@@ -914,7 +987,8 @@ $server = \FraiseQL\Server::fromCompiled(
         'database_url' => $_ENV['DATABASE_URL']
     ]
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Session Issues
 
@@ -923,6 +997,7 @@ $server = \FraiseQL\Server::fromCompiled(
 **Solution - Set headers early**:
 
 ```php
+<!-- Code example in PHP -->
 <?php
 // Must be first
 header('Content-Type: application/json');
@@ -931,7 +1006,8 @@ header('Access-Control-Allow-Origin: *');
 // Then your code
 $result = $server->execute($query);
 echo json_encode($result);
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Variable Type Mismatch
 
@@ -940,12 +1016,14 @@ echo json_encode($result);
 **Solution - Cast properly**:
 
 ```php
+<!-- Code example in PHP -->
 // ✅ Correct types
 $result = $server->execute(
     query: $query,
     variables: ['id' => (int)$id]  // Must be int, not string
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -958,11 +1036,13 @@ $result = $server->execute(
 **Enable caching**:
 
 ```php
+<!-- Code example in PHP -->
 $server = \FraiseQL\Server::fromCompiled(
     'schema.compiled.json',
     ['cache_ttl' => 300]  // 5 minutes
 );
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Memory Issues
 
@@ -971,19 +1051,23 @@ $server = \FraiseQL\Server::fromCompiled(
 **Increase memory limit**:
 
 ```php
+<!-- Code example in PHP -->
 ini_set('memory_limit', '512M');
 
 // Or in php.ini
 memory_limit = 512M
-```
+```text
+<!-- Code example in TEXT -->
 
 **Or check for leaks**:
 
 ```php
+<!-- Code example in PHP -->
 echo memory_get_usage() . " bytes\n";
 $result = $server->execute($query);
 echo memory_get_usage() . " bytes\n";
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -992,6 +1076,7 @@ echo memory_get_usage() . " bytes\n";
 #### Error Reporting
 
 ```php
+<!-- Code example in PHP -->
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -999,22 +1084,26 @@ ini_set('display_errors', 1);
 // Or log errors
 ini_set('log_errors', 1);
 ini_set('error_log', '/var/log/php-error.log');
-```
+```text
+<!-- Code example in TEXT -->
 
 #### var_dump Debugging
 
 ```php
+<!-- Code example in PHP -->
 <?php
 $result = $server->execute($query);
 var_dump($result);
 
 // Or pretty print
 echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Xdebug Profiling
 
 ```php
+<!-- Code example in PHP -->
 <?php
 xdebug_start_code_coverage();
 
@@ -1022,7 +1111,8 @@ $result = $server->execute($query);
 
 $coverage = xdebug_get_code_coverage();
 var_dump($coverage);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Real-World Application Patterns
+description: Complete architectural patterns and implementation guides for production FraiseQL applications.
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # Real-World Application Patterns
 
 **Status:** ✅ Production Ready
@@ -281,6 +289,7 @@ Choose a pattern based on your application needs:
 **Solution:** Use FraiseQL's nested query syntax or batch queries
 
 ```graphql
+<!-- Code example in GraphQL -->
 # ✅ Good: Single query with nested relationships
 query GetPostsWithAuthors {
   posts {
@@ -299,6 +308,7 @@ query GetPostsWithAuthors {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Challenge: Large Result Sets
 
@@ -307,6 +317,7 @@ query GetPostsWithAuthors {
 **Solution:** Implement cursor-based pagination
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPostsPaginated($first: Int!, $after: String) {
   posts(first: $first, after: $after) {
     edges {
@@ -323,6 +334,7 @@ query GetPostsPaginated($first: Int!, $after: String) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Challenge: Complex Authorization Rules
 
@@ -331,10 +343,12 @@ query GetPostsPaginated($first: Int!, $after: String) {
 **Solution:** Use row-level security in database + custom claims in JWT
 
 ```text
+<!-- Code example in TEXT -->
 JWT Claims: { userId: "123", role: "admin", tenantId: "tenant_456" }
               ↓
 Database RLS Policy: WHERE tenant_id = JWT.tenantId AND (is_public OR owner_id = JWT.userId)
 ```text
+<!-- Code example in TEXT -->
 
 ### Challenge: Real-Time Updates
 
@@ -343,6 +357,7 @@ Database RLS Policy: WHERE tenant_id = JWT.tenantId AND (is_public OR owner_id =
 **Solution:** Use WebSocket subscriptions with intelligent filtering
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OnUserOnline {
   userStatusChanged {
     userId
@@ -351,6 +366,7 @@ subscription OnUserOnline {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

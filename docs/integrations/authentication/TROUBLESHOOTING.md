@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication Troubleshooting Guide
+description: Common issues and solutions for FraiseQL authentication.
+keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication Troubleshooting Guide
 
 Common issues and solutions for FraiseQL authentication.
@@ -18,6 +26,7 @@ Common issues and solutions for FraiseQL authentication.
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check configured redirect URI
 echo $OAUTH_REDIRECT_URI
 
@@ -32,7 +41,8 @@ echo $OAUTH_REDIRECT_URI
 
 # ❌ http://example.com/auth/callback     (no https)
 # ✅ https://example.com/auth/callback
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Invalid State" Error
 
@@ -48,6 +58,7 @@ echo $OAUTH_REDIRECT_URI
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Increase state expiry if needed (edit auth/handlers.rs)
 // 10 minutes * 60 = 600 seconds
 state_expiry = now + 600;
@@ -63,7 +74,8 @@ state_expiry = now + 600;
 # 3. Should work
 
 # If works, increase user time allowance
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Invalid Code" or "Code Expired"
 
@@ -79,6 +91,7 @@ state_expiry = now + 600;
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check client credentials
 echo "Client ID: $GOOGLE_CLIENT_ID"
 echo "Client Secret length: ${#GOOGLE_CLIENT_SECRET}"
@@ -96,7 +109,8 @@ RUST_LOG=debug cargo run
 # - Network connectivity
 
 curl -v https://oauth2.googleapis.com/token
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "User Not Found" or "Invalid Credentials"
 
@@ -112,6 +126,7 @@ curl -v https://oauth2.googleapis.com/token
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # For Google:
 # - Verify Google account exists
 # - Check if 2FA enabled (may need app password)
@@ -128,7 +143,8 @@ curl -v https://oauth2.googleapis.com/token
 # - Check user is not blocked
 # - If using DB connection, check it's enabled
 # - If using social login, check it's enabled
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Token Issues
 
@@ -146,6 +162,7 @@ curl -v https://oauth2.googleapis.com/token
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check server clock
 date -u
 # Should be within ±30 seconds of NTP server
@@ -168,7 +185,8 @@ payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
 import time
 print(f'Expires in: {payload[\"exp\"] - int(time.time())} seconds')
 "
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Invalid Signature" on Token
 
@@ -184,6 +202,7 @@ print(f'Expires in: {payload[\"exp\"] - int(time.time())} seconds')
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Verify public key endpoint
 curl https://accounts.google.com/oauth2/v1/certs | jq .
 
@@ -201,7 +220,8 @@ echo "JWT_ISSUER: $JWT_ISSUER"
 
 # Restart to clear caches:
 docker restart FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Can't Refresh Token
 
@@ -217,6 +237,7 @@ docker restart FraiseQL
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Verify refresh token format
 # Should start with base64 characters
 
@@ -232,7 +253,8 @@ docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT revoked_at FROM _system.sessions LIMIT 1;"
 
 # If revoked, need to log in again
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Database Issues
 
@@ -250,6 +272,7 @@ docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check database is running
 docker-compose ps postgres
 
@@ -270,7 +293,8 @@ echo "Password length: ${#DATABASE_PASSWORD}"
 
 # Try with more verbose output
 RUST_LOG=debug cargo run
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "FATAL: database does not exist"
 
@@ -279,6 +303,7 @@ RUST_LOG=debug cargo run
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Create database if missing
 docker exec FraiseQL-db psql -U postgres -c \
   "CREATE DATABASE FraiseQL;"
@@ -288,7 +313,8 @@ psql $DATABASE_URL -c "\dt _system.sessions;"
 
 # If not, create it
 psql $DATABASE_URL < /path/to/init.sql
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Table does not exist"
 
@@ -297,6 +323,7 @@ psql $DATABASE_URL < /path/to/init.sql
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Create sessions table
 psql $DATABASE_URL << EOF
 CREATE TABLE IF NOT EXISTS _system.sessions (
@@ -316,7 +343,8 @@ EOF
 
 # Verify
 psql $DATABASE_URL -c "\d _system.sessions;"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Performance Issues
 
@@ -334,6 +362,7 @@ psql $DATABASE_URL -c "\d _system.sessions;"
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check provider latency
 time curl -I https://accounts.google.com/
 
@@ -352,7 +381,8 @@ DATABASE_POOL_SIZE=50
 
 # If still slow, enable query logging:
 RUST_LOG=debug
-```
+```text
+<!-- Code example in TEXT -->
 
 ### High CPU Usage
 
@@ -368,6 +398,7 @@ RUST_LOG=debug
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check active connections
 docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT count(*) FROM pg_stat_activity;"
@@ -384,7 +415,8 @@ limit_req_zone $binary_remote_addr zone=auth:10m rate=1r/s;
 
 # If legitimate traffic, scale horizontally:
 # Add more server instances
-```
+```text
+<!-- Code example in TEXT -->
 
 ### High Memory Usage
 
@@ -399,6 +431,7 @@ limit_req_zone $binary_remote_addr zone=auth:10m rate=1r/s;
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check session count
 docker exec FraiseQL-db psql -U fraiseql_app -d FraiseQL -c \
   "SELECT COUNT(*) FROM _system.sessions \
@@ -414,7 +447,8 @@ docker restart FraiseQL
 
 # Set memory limits
 docker update --memory 512m FraiseQL
-```
+```text
+<!-- Code example in TEXT -->
 
 ## OAuth Provider Issues
 
@@ -432,6 +466,7 @@ docker update --memory 512m FraiseQL
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check provider status
 curl https://accounts.google.com/o/oauth2/v2/auth?client_id=test
 
@@ -446,7 +481,8 @@ sudo ufw status
 
 # If behind proxy:
 export https_proxy=http://proxy.internal:3128
-```
+```text
+<!-- Code example in TEXT -->
 
 ### "Cannot Get Public Keys"
 
@@ -455,6 +491,7 @@ export https_proxy=http://proxy.internal:3128
 **Solutions**:
 
 ```bash
+<!-- Code example in BASH -->
 # Check OIDC metadata endpoint
 curl https://accounts.google.com/.well-known/openid-configuration
 
@@ -466,23 +503,27 @@ docker restart FraiseQL
 
 # Check for certificate issues
 curl -v https://accounts.google.com/ 2>&1 | grep "certificate"
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Debugging
 
 ### Enable Debug Logging
 
 ```bash
+<!-- Code example in BASH -->
 # In .env or command line
 RUST_LOG=debug,fraiseql_server::auth=trace
 
 # Or more selective
 RUST_LOG=fraiseql_server::auth::handlers=debug
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Check Detailed Logs
 
 ```bash
+<!-- Code example in BASH -->
 # View real-time logs
 docker logs -f FraiseQL
 
@@ -494,11 +535,13 @@ docker logs FraiseQL | grep "error\|warn"
 
 # Get metrics
 curl http://localhost:8000/metrics/auth | json_pp
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Test Endpoints Manually
 
 ```bash
+<!-- Code example in BASH -->
 # Start login
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
@@ -510,7 +553,8 @@ psql $DATABASE_URL -c \
 
 # Check health
 curl http://localhost:8000/health/auth | jq .
-```
+```text
+<!-- Code example in TEXT -->
 
 ## Getting Help
 

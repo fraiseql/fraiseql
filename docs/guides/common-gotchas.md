@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Common Gotchas & Pitfalls
+description: Learn from common mistakes and pitfalls when using FraiseQL. Each gotcha includes diagnosis steps and solutions.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Common Gotchas & Pitfalls
 
 **Status:** ✅ Production Ready
@@ -24,6 +32,7 @@ This guide documents common mistakes, surprising behaviors, and anti-patterns di
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -35,6 +44,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **What happens:**
 
@@ -51,16 +61,19 @@ FraiseQL executes nested fields one level at a time. Without optimization, it fe
 **Check database query count:**
 
 ```bash
+<!-- Code example in BASH -->
 # Enable query logging
 FRAISEQL_LOG_LEVEL=debug cargo run
 
 # Count queries in logs
 grep "SELECT" logs.txt | wc -l
 ```text
+<!-- Code example in TEXT -->
 
 **Check profiling output:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users {
     id
@@ -71,6 +84,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Solutions
 
@@ -79,6 +93,7 @@ query {
 FraiseQL automatically batches nested field queries:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(first: 100) {
     id
@@ -90,12 +105,14 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Result:** ~2 queries total (users + batched posts)
 
 **Solution 2: Use table-backed views (tv_*)**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class UserWithPosts:
     """Denormalized view with posts included."""
@@ -103,20 +120,24 @@ class UserWithPosts:
     name: str
     posts_json: List[PostSummary]  # Pre-fetched via view
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Flatten queries temporarily**
 
 Instead of:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users { posts { comments { likes } } }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Do:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users { id posts { id } }
 }
@@ -129,10 +150,12 @@ query {
   comments { id likes }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 4: Add pagination to nested fields**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(first: 50) {          # Smaller parent batch
     id
@@ -144,6 +167,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Prevention
 
@@ -168,6 +192,7 @@ query {
 **Use keyset pagination (RECOMMENDED):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(after: "user123", first: 100) {
     id
@@ -175,6 +200,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Keyset advantages:**
 
@@ -185,9 +211,11 @@ query {
 **Or limit maximum offset:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.pagination]
 max_offset = 5000  # Disallow offset > 5000
 ```text
+<!-- Code example in TEXT -->
 
 ### Edge Case: Results Changing During Pagination
 
@@ -198,17 +226,20 @@ max_offset = 5000  # Disallow offset > 5000
 **Example:**
 
 ```text
+<!-- Code example in TEXT -->
 Request 1: skip 0, take 10   → gets records 1-10
 [New record inserted]
 Request 2: skip 10, take 10  → gets records 12-21 (record 11 is new)
 Result: Skipped record 11!
 ```text
+<!-- Code example in TEXT -->
 
 **Solutions:**
 
 **Use keyset pagination:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(after: "cursor_from_previous", first: 10) {
     id
@@ -216,18 +247,21 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 Keyset pagination uses the last record's ID as cursor, immune to inserts.
 
 **Or use snapshot isolation:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(snapshotAt: "2026-02-05T10:00:00Z", skip: 10, take: 10) {
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Edge Case: Cursor Expiry
 
@@ -240,6 +274,7 @@ query {
 **Handle expired cursor gracefully:**
 
 ```python
+<!-- Code example in Python -->
 try:
     result = await client.query(query, variables={"after": cursor})
 except FraiseQLError as e:
@@ -248,6 +283,7 @@ except FraiseQLError as e:
         cursor = None
         result = await client.query(query, variables={"after": cursor})
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -260,6 +296,7 @@ except FraiseQLError as e:
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   updateUser(id: "123", name: "Alice") {
     id
@@ -273,6 +310,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why:** Cache key doesn't match. Query uses `{id: "123"}`, but mutation might cache invalidate `{id: "123", name: "Alice"}`.
 
@@ -281,6 +319,7 @@ query {
 **Solution 1: Explicit cache invalidation**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation {
   updateUser(id: "123", name: "Alice") @cache(invalidate: true) {
     id
@@ -288,23 +327,28 @@ mutation {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: TTL-based invalidation**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.caching]
 ttl_seconds = 60  # All caches expire after 60 seconds
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Dependency-based invalidation**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.mutation
 def update_user(id: str, name: str):
     # Mark all queries involving this user as invalid
     cache.invalidate(User, id=id)
     return update_user_in_db(id, name)
 ```text
+<!-- Code example in TEXT -->
 
 ### Gotcha: Cache Hit When You Need Fresh Data
 
@@ -313,28 +357,33 @@ def update_user(id: str, name: str):
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   inventory(productId: "123") {
     quantity  # Cached for 5 minutes, but inventory changes every second!
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Solutions
 
 **Solution 1: Disable caching for critical fields**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Inventory:
     id: ID
     quantity: int = field(cache=False)  # Never cache inventory
     updated_at: DateTime = field(cache=False)
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Use subscriptions for real-time data**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription {
   inventoryChanged(productId: "123") {
     quantity
@@ -342,10 +391,12 @@ subscription {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Add versioning to cache keys**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "123", version: "current") {  # Always gets latest
     id
@@ -353,6 +404,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -365,6 +417,7 @@ query {
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -373,6 +426,7 @@ class User:
     password_hash: str  # ← OOPS! No @authorize decorator
     salary: Decimal    # ← OOPS! No @authorize decorator
 ```text
+<!-- Code example in TEXT -->
 
 **Why:** Field-level authorization is opt-in. If you don't add `@authorize`, the field is readable by anyone.
 
@@ -381,6 +435,7 @@ class User:
 **Add authorization to every sensitive field:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     id: ID
@@ -389,10 +444,12 @@ class User:
     password_hash: str = field(authorize=set())  # Never readable
     salary: Decimal = field(authorize={Roles.HR, Roles.SELF})
 ```text
+<!-- Code example in TEXT -->
 
 **Or use row-level security:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class User:
     where: Where = FraiseQL.where(
@@ -400,6 +457,7 @@ class User:
         is_sensitive_visible=FraiseQL.context.role in [Roles.ADMIN, Roles.SELF]
     )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -412,21 +470,25 @@ class User:
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { id: { eq: "123" } }) {  # String
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Database schema:**
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE products (
   id INT PRIMARY KEY,  -- Number!
   ...
 );
 ```text
+<!-- Code example in TEXT -->
 
 **Why:** Type mismatch. GraphQL string `"123"` doesn't match database INT.
 
@@ -435,12 +497,14 @@ CREATE TABLE products (
 **Ensure types match in schema:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Product:
     id: int          # Use int, not str
     sku: str         # Use str for text IDs
     price: Decimal   # Use Decimal for money, not float
 ```text
+<!-- Code example in TEXT -->
 
 ### Gotcha: NULL Handling in WHERE Clauses
 
@@ -449,12 +513,14 @@ class Product:
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { middleName: { eq: null } }) {  # Finds users WITH middle names!
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Why:** In SQL, `column = NULL` returns false (use `IS NULL` instead).
 
@@ -463,12 +529,14 @@ query {
 **Use is_null operator:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: { middleName: { is_null: true } }) {  # Correct!
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -481,6 +549,7 @@ query {
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 # users-service
 @FraiseQL.type
 @extends
@@ -495,12 +564,14 @@ class User:
     id: str = external()
     orders: List[Order]  # Extends back to Order
 ```text
+<!-- Code example in TEXT -->
 
 ### Solution
 
 **Flatten the hierarchy:**
 
 ```python
+<!-- Code example in Python -->
 # Solution: Only users-service owns User, only orders-service owns Order
 # Don't create bidirectional extends
 
@@ -518,6 +589,7 @@ class Order:
     id: str
     user_id: str  # Foreign key reference, not @extends
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -534,13 +606,16 @@ class Order:
 **Solution 1: Increase SAGA timeout**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.federation.sagas]
 timeout_seconds = 300  # 5 minutes instead of default 30 seconds
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Break into smaller steps**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.saga
 async def bulk_update_users(user_ids: List[str]):
     # Instead of updating 10,000 users in one step:
@@ -552,11 +627,13 @@ async def bulk_update_users(user_ids: List[str]):
             undo=undo_user_batch
         )
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Use async tasks instead**
 For very long operations, use background tasks instead of SAGA:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.mutation
 async def bulk_update_users(user_ids: List[str]):
     # Queue background job
@@ -566,6 +643,7 @@ async def bulk_update_users(user_ids: List[str]):
     )
     return { "status": "processing", "job_id": job_id }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -582,6 +660,7 @@ async def bulk_update_users(user_ids: List[str]):
 **Switch to table-backed views (tv_*):**
 
 ```python
+<!-- Code example in Python -->
 # Replace v_user_summary (logical view):
 @FraiseQL.type
 class UserSummary:  # Was v_user_summary
@@ -597,6 +676,7 @@ class UserSummary:  # Now tv_user_summary_materialized
     post_count: int
     updated_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 **Table-backed views advantages:**
 
@@ -615,12 +695,14 @@ class UserSummary:  # Now tv_user_summary_materialized
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: { createdAt: { gte: "2026-02-05" } }) {
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Problem:** `"2026-02-05"` is interpreted as `2026-02-05T00:00:00Z`. If user created order at `2026-02-04T23:00:00Z` (previous day in their timezone), it won't match.
 
@@ -629,6 +711,7 @@ query {
 **Solution 1: Use DateTime with timezone**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   orders(where: {
     createdAt: {
@@ -639,23 +722,28 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Use Date type for date-only fields**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Order:
     id: ID
     created_date: Date  # Use Date, not DateTime
     created_at: DateTime  # Use DateTime for timestamps
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Compare at database level**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT * FROM orders
 WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -672,28 +760,34 @@ WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
 **Solution 1: Set subscription timeout**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.subscriptions]
 timeout_seconds = 3600  # Close connection after 1 hour
 idle_timeout_seconds = 300  # Close if idle for 5 minutes
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Explicit subscription cleanup**
 
 ```python
+<!-- Code example in Python -->
 try:
     async for event in subscription:
         process_event(event)
 finally:
     subscription.close()  # Always close
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Monitor active subscriptions**
 
 ```bash
+<!-- Code example in BASH -->
 # Check for zombie subscriptions
 SELECT COUNT(*) FROM pg_stat_activity
 WHERE state = 'active' AND query LIKE '%subscription%'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -710,13 +804,16 @@ WHERE state = 'active' AND query LIKE '%subscription%'
 **Use strong consistency guarantees:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.federation]
 consistency_level = "strong"  # Wait for all replicas
 ```text
+<!-- Code example in TEXT -->
 
 **Or use regional routing:**
 
 ```python
+<!-- Code example in Python -->
 # Route writes to primary region
 # Route reads to local region (accept eventual consistency)
 @FraiseQL.query
@@ -724,6 +821,7 @@ async def get_user(id: str, region: str = "primary"):
     db = db_connection(region)
     return await db.query("SELECT * FROM users WHERE id = ?", [id])
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -736,6 +834,7 @@ async def get_user(id: str, region: str = "primary"):
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user: users(id: "123") {  # Alias "user" shadows field "users"
     id
@@ -743,10 +842,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Result:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "user": {
     "id": "123",
@@ -754,16 +855,19 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Later:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(id: "123") {  # Different field name
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Leads to confusion about response structure.**
 
@@ -772,6 +876,7 @@ query {
 **Use aliases carefully and consistently:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   activeUsers: users(status: "active") {
     id
@@ -783,10 +888,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Document expected response structure:**
 
 ```python
+<!-- Code example in Python -->
 # Add comment to schema
 @FraiseQL.query
 def users(status: str = None):
@@ -801,6 +908,7 @@ def users(status: str = None):
     }
     """
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -813,30 +921,36 @@ def users(status: str = None):
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   products(where: { tags: { contains: ["sale", "new"] } }) {  # Works on PostgreSQL, fails on MySQL!
     id
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Solution
 
 **Check database support:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.validation]
 array_operators_postgresql_only = true  # Warn if using array operators
 ```text
+<!-- Code example in TEXT -->
 
 **Or store arrays as JSON:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.type
 class Product:
     id: ID
     tags: JSON  # Store as JSON, works everywhere
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -853,20 +967,25 @@ class Product:
 **Solution 1: Set connection timeout**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.database]
 connection_timeout_seconds = 10
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 2: Implement query timeout**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.database]
 query_timeout_seconds = 30
 ```text
+<!-- Code example in TEXT -->
 
 **Solution 3: Monitor connection pool**
 
 ```bash
+<!-- Code example in BASH -->
 # Check active connections
 SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'
 
@@ -874,6 +993,7 @@ SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity
 WHERE query_start < now() - interval '5 minutes'
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -886,6 +1006,7 @@ WHERE query_start < now() - interval '5 minutes'
 **Example:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "1") {
     id
@@ -899,19 +1020,23 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Solution
 
 **Implement depth limits:**
 
 ```toml
+<!-- Code example in TOML -->
 [FraiseQL.validation]
 max_query_depth = 15  # Prevent deep nesting
 ```text
+<!-- Code example in TEXT -->
 
 **Or use explicit iteration:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   user(id: "1") {
     id
@@ -925,6 +1050,7 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

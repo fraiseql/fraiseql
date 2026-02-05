@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Subscriptions: Event Projections from the Database
+description: 1. [Overview](#1-overview)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Subscriptions: Event Projections from the Database
 
 **Version:** 2.0
@@ -40,6 +48,7 @@ FraiseQL subscriptions are **compiled projections of database events** delivered
 **Traditional GraphQL Subscriptions:**
 
 ```text
+<!-- Code example in TEXT -->
 Client subscribes to User.nameChanged
     ↓
 Server executes resolver function
@@ -48,10 +57,12 @@ Resolver polls database or listens to app events
     ↓
 Resolver emits value to client
 ```text
+<!-- Code example in TEXT -->
 
 **FraiseQL Subscriptions:**
 
 ```text
+<!-- Code example in TEXT -->
 Database commits transaction (user.name updated)
     ↓
 Application inserts event into tb_entity_change_log
@@ -64,6 +75,7 @@ Event matching filters from CompiledSchema
     ↓
 Delivered via transport adapter (graphql-ws, webhook, Kafka)
 ```text
+<!-- Code example in TEXT -->
 
 ### Use Cases
 
@@ -98,6 +110,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 ### 2.1 High-Level Event Flow (CORRECT)
 
 ```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────────────────────┐
 │ Application (GraphQL Mutation / Direct SQL)                │
 │ Executes: mutation CreateOrder($user_id, $amount)          │
@@ -154,6 +167,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 └───────────────────┘  └──────────────────┘  └──────────────────┘
      (automation)        (real-time UI)        (event streaming)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -169,6 +183,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 - Schema:
 
   ```sql
+<!-- Code example in SQL -->
   CREATE TABLE tb_entity_change_log (
       pk_entity_change_log BIGSERIAL PRIMARY KEY,
       id UUID NOT NULL,
@@ -184,6 +199,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
   CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
   CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
   ```text
+<!-- Code example in TEXT -->
 
 **ChangeLogListener** ✅ *Fully implemented*
 
@@ -226,6 +242,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 Events flow through the system in Debezium envelope format:
 
 ```json
+<!-- Code example in JSON -->
 {
   "pk_entity_change_log": 1234,
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -242,10 +259,12 @@ Events flow through the system in Debezium envelope format:
   "created_at": "2026-01-30T10:00:00.123456Z"
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Conversion to SubscriptionEvent:**
 
 ```rust
+<!-- Code example in RUST -->
 // In ObserverRuntime background task
 for entry in entries {
     let entity_event = EntityEvent::from_change_log_entry(entry);
@@ -269,6 +288,7 @@ for entry in entries {
     }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -290,8 +310,10 @@ FraiseQL subscriptions use database-centric polling architecture rather than Pos
 A LISTEN/NOTIFY based architecture would create:
 
 ```text
+<!-- Code example in TEXT -->
 Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 ```text
+<!-- Code example in TEXT -->
 
 **Problems:**
 
@@ -307,6 +329,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
    - Example:
 
      ```rust
+<!-- Code example in RUST -->
      sqlx::query!(
          "INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
           VALUES ($1, $2, $3, $4)",
@@ -316,6 +339,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
          serde_json::to_value(&order)?
      ).execute(&pool).await?;
      ```text
+<!-- Code example in TEXT -->
 
 2. **SubscriptionManager Not Wired to ObserverRuntime** - Integration pending (see migration path below)
 
@@ -368,6 +392,7 @@ FraiseQL has **two separate event consumer systems** sharing the same event sour
 #### Architecture: Two Branches from Same Source
 
 ```text
+<!-- Code example in TEXT -->
 tb_entity_change_log (single source of truth)
     ↓
 ChangeLogListener (polls every 100ms)
@@ -384,6 +409,7 @@ ObserverRuntime (in-process routing)
         ├─ Kafka
         └─ HTTP webhooks
 ```text
+<!-- Code example in TEXT -->
 
 #### Why Subscriptions Don't Use NATS Directly
 
@@ -405,16 +431,19 @@ ObserverRuntime (in-process routing)
 **Default (Composition):**
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [observer_runtime]
 transport = "in_process"  # Direct routing, no NATS required
 
 # Both observers and subscriptions get events from same ObserverRuntime
 ```text
+<!-- Code example in TEXT -->
 
 **Optional (NATS Everywhere):**
 
 ```toml
+<!-- Code example in TOML -->
 [observer_runtime]
 transport = "nats"
 nats_url = "nats://localhost:4222"
@@ -423,6 +452,7 @@ stream_name = "FraiseQL.events"
 # All events published to NATS once
 # ObserverExecutor and SubscriptionManager both consume from NATS
 ```text
+<!-- Code example in TEXT -->
 
 **Key Insight:** FraiseQL defaults to **database-centric composition** (no NATS required), but makes **NATS everywhere** easy to enable for distributed deployments.
 
@@ -437,6 +467,7 @@ Subscriptions are declared using the same schema authoring languages as types an
 **Python Example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     """Events for new orders created by the authenticated user."""
@@ -486,6 +517,7 @@ class OrderStatusChanged:
     updated_at: DateTime
     updated_by_user: User
 ```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Compile-Time Validation
 
@@ -508,6 +540,7 @@ When the schema is compiled, the compiler:
 4. **Generates subscription dispatch table**
 
    ```json
+<!-- Code example in JSON -->
    {
      "subscriptions": {
        "OrderCreated": {
@@ -521,12 +554,14 @@ When the schema is compiled, the compiler:
      }
    }
    ```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Multiple Key Subscriptions
 
 Subscriptions can filter on multiple fields:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderUpdated:
     """Subscription for specific order updates."""
@@ -541,6 +576,7 @@ class OrderUpdated:
     status: str
     updated_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -553,6 +589,7 @@ The primary transport for real-time UI updates using the standard `graphql-ws` p
 #### Connection Lifecycle
 
 ```text
+<!-- Code example in TEXT -->
 Client                              Server
   │                                   │
   ├──────── Connection Request ──────→│
@@ -602,10 +639,12 @@ Client                              Server
   ├───────── Close Connection ───────→│
   │                                   │
 ```text
+<!-- Code example in TEXT -->
 
 #### Example: Browser Client
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // React component using graphql-ws
 import { useSubscription } from '@apollo/client';
 
@@ -641,10 +680,12 @@ export function LiveOrders() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Error Handling
 
 ```json
+<!-- Code example in JSON -->
 {
   "type": "error",
   "id": "1",
@@ -658,6 +699,7 @@ export function LiveOrders() {
   ]
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Common errors:**
 
@@ -673,6 +715,7 @@ For push-based delivery to external systems.
 #### Webhook Event
 
 ```json
+<!-- Code example in JSON -->
 POST https://external-service.example.com/webhooks/FraiseQL
 
 {
@@ -692,10 +735,12 @@ POST https://external-service.example.com/webhooks/FraiseQL
   "signature": "sha256=<hmac_signature>"
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Webhook Configuration
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     webhooks={
         "OrderCreated": {
@@ -707,6 +752,7 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 #### Delivery Semantics
 
@@ -732,6 +778,7 @@ Examples:
 #### Kafka Message
 
 ```json
+<!-- Code example in JSON -->
 Key: "ord_123" (entity_id)
 
 Value:
@@ -746,10 +793,12 @@ Value:
   "data": {...}
 }
 ```text
+<!-- Code example in TEXT -->
 
 #### Kafka Configuration
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     kafka={
         "enabled": True,
@@ -763,6 +812,7 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 #### Delivery Semantics
 
@@ -776,6 +826,7 @@ config = FraiseQLConfig(
 For low-latency service-to-service streaming.
 
 ```protobuf
+<!-- Code example in PROTOBUF -->
 service FraiseQLSubscriptions {
   rpc StreamEvents (StreamRequest) returns (stream Event);
 }
@@ -795,6 +846,7 @@ message Event {
   google.protobuf.Struct data = 6;
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -805,6 +857,7 @@ message Event {
 Subscriptions filter events using WHERE clauses evaluated at compile time and rendered as SQL predicates.
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     # Filter: Only orders for authenticated user
@@ -815,20 +868,24 @@ class OrderCreated:
 # Compiled to:
 # WHERE user_id = $1 (with $1 bound to context.user_id at runtime)
 ```text
+<!-- Code example in TEXT -->
 
 **Available context variables:**
 
 ```python
+<!-- Code example in Python -->
 FraiseQL.context.user_id         # Authenticated user ID
 FraiseQL.context.org_id          # Organization/tenant ID
 FraiseQL.context.role            # User role (string or list)
 FraiseQL.context.permissions     # User permissions
 FraiseQL.context.custom_claim    # Custom auth claim
 ```text
+<!-- Code example in TEXT -->
 
 **Example: Multi-tenant filtering**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderUpdated:
     where: WhereOrder = FraiseQL.where(
@@ -841,12 +898,14 @@ class OrderUpdated:
     status: OrderStatus
     updated_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Runtime Variables
 
 Subscriptions accept typed runtime variables for additional filtering.
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     where: WhereOrder = FraiseQL.where(
@@ -876,6 +935,7 @@ subscription OrderCreated(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **At runtime:**
 
@@ -897,6 +957,7 @@ Subscriptions enforce authorization rules at compile time with runtime-safe para
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class SensitiveDataAccessed:
     # Only admins receive this subscription
@@ -907,10 +968,12 @@ class SensitiveDataAccessed:
     # If context.role != "admin", subscription unavailable
     # Compile-time error or runtime 403 FORBIDDEN
 ```text
+<!-- Code example in TEXT -->
 
 **Row-level authorization example:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class UserProfileUpdated:
     # User only sees updates to their own profile
@@ -926,6 +989,7 @@ class UserProfileUpdated:
 # If User ID = 123 subscribes, only receives updates where id = 123
 # No cross-user data leakage possible (enforced at compile time)
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -938,6 +1002,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
 **CDC Event (raw, in database):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
   "event_type": "entity:created",
@@ -958,10 +1023,12 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Subscription Event (projected, sent to client):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
   "event_name": "OrderCreated",
@@ -977,6 +1044,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Transformation logic:**
 
@@ -990,6 +1058,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
 Subscription selection sets determine which fields are included in the event.
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class UserUpdated:
     # All user fields available for projection
@@ -1020,12 +1089,14 @@ subscription UserUpdated {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Nested Projections
 
 Subscriptions can project nested entities.
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     id: ID
@@ -1061,6 +1132,7 @@ subscription OrderCreated {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1073,6 +1145,7 @@ subscription OrderCreated {
 **Event capture mechanism:** Database table polling (`tb_entity_change_log`)
 
 ```sql
+<!-- Code example in SQL -->
 -- Event log table (already exists)
 CREATE TABLE tb_entity_change_log (
     pk_entity_change_log BIGSERIAL PRIMARY KEY,
@@ -1095,6 +1168,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
 VALUES ('Order', 'ord_123', 'INSERT', '{"id": "ord_123", "user_id": "usr_456", ...}'::jsonb);
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages (Reference Implementation):**
 
@@ -1120,6 +1194,7 @@ VALUES ('Order', 'ord_123', 'INSERT', '{"id": "ord_123", "user_id": "usr_456", .
 **MySQL-specific considerations:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Same table schema as PostgreSQL
 CREATE TABLE tb_entity_change_log (
     pk_entity_change_log BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1137,6 +1212,7 @@ CREATE TABLE tb_entity_change_log (
 CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
 CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -1159,6 +1235,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 **SQL Server-specific considerations:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Same table schema as PostgreSQL
 CREATE TABLE tb_entity_change_log (
     pk_entity_change_log BIGINT IDENTITY(1,1) PRIMARY KEY,
@@ -1176,6 +1253,7 @@ CREATE TABLE tb_entity_change_log (
 CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
 CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -1194,6 +1272,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 **Event capture mechanism:** Triggers on temporary in-memory event log
 
 ```sql
+<!-- Code example in SQL -->
 -- Triggers capture changes to temp table
 CREATE TEMP TABLE fraiseql_events (
     id INTEGER PRIMARY KEY,
@@ -1212,6 +1291,7 @@ VALUES ('Order', NEW.id, 'INSERT', json(...));
 -- Subscribers poll events from temp table
 -- (No push capability; pull-based)
 ```text
+<!-- Code example in TEXT -->
 
 **Advantages:**
 
@@ -1230,6 +1310,7 @@ VALUES ('Order', NEW.id, 'INSERT', json(...));
 FraiseQL abstracts database-specific CDC via a plugin interface:
 
 ```rust
+<!-- Code example in RUST -->
 pub trait CDCBackend {
     async fn listen(&self, entity_types: Vec<String>) -> Result<EventStream>;
     async fn query_events(&self, after_seq: u64) -> Result<Vec<CDCEvent>>;
@@ -1242,6 +1323,7 @@ impl CDCBackend for MySQLCDC { ... }
 impl CDCBackend for SQLServerCDC { ... }
 impl CDCBackend for SQLiteCDC { ... }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1357,6 +1439,7 @@ Authorization enforced at **event capture time** (not delivery time):
 **Example: User creates order in UI, sees confirmation**
 
 ```text
+<!-- Code example in TEXT -->
 
 1. Mutation committed (1ms)
 2. Event inserted into tb_entity_change_log (1ms)
@@ -1369,6 +1452,7 @@ Authorization enforced at **event capture time** (not delivery time):
 ────────────────
 Total: ~100-150ms (imperceptible to users)
 ```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Throughput
 
@@ -1438,12 +1522,14 @@ Total: ~100-150ms (imperceptible to users)
 - Subscribe across multiple entities in single query
 
   ```graphql
+<!-- Code example in GraphQL -->
   # NOT ALLOWED: Subscribes to Order changes, but also User changes
   subscription {
     orderCreated { id }
     userUpdated { id }
   }
   ```text
+<!-- Code example in TEXT -->
 
 - Guarantee global event ordering (only per-entity ordering)
 - Transform events via resolvers
@@ -1506,6 +1592,7 @@ Total: ~100-150ms (imperceptible to users)
 Subscriptions require authentication same as mutations:
 
 ```python
+<!-- Code example in Python -->
 # Only authenticated users can subscribe
 @FraiseQL.subscription
 class OrderCreated:
@@ -1514,6 +1601,7 @@ class OrderCreated:
     )
     # Fails if context.user_id is None (unauthenticated)
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Row-Level Authorization
 
@@ -1528,6 +1616,7 @@ WHERE clauses enforce row-level access control through compile-time rule definit
 **Examples:**
 
 ```python
+<!-- Code example in Python -->
 # User only sees their own orders
 where: WhereOrder = FraiseQL.where(user_id=FraiseQL.context.user_id)
 
@@ -1537,12 +1626,14 @@ where: WhereOrder = FraiseQL.where(fk_org=FraiseQL.context.org_id)
 # Admin sees everything (no WHERE filter)
 where: WhereOrder = FraiseQL.where()  # No filter = all rows
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.3 Field-Level Authorization
 
 Projected fields can have authorization rules:
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     id: ID  # Always visible
@@ -1555,12 +1646,14 @@ class OrderCreated:
 
 # If context.role != "admin", sensitive_notes omitted from events
 ```text
+<!-- Code example in TEXT -->
 
 ### 11.4 Signature Verification (Webhooks)
 
 Webhooks include HMAC-SHA256 signature for verification:
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Webhook handler
 const signature = req.headers['x-FraiseQL-signature'];
 const payload = req.rawBody;
@@ -1574,6 +1667,7 @@ if (signature !== expected) {
   return res.status(401).send('Signature mismatch');
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1584,6 +1678,7 @@ if (signature !== expected) {
 **Schema definition:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class OrderCreated:
     """Stream new orders for the organization."""
@@ -1612,10 +1707,12 @@ class OrderStatusChanged:
     new_status: OrderStatus
     updated_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 **Client (React):**
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { useSubscription } from '@apollo/client';
 
 export function OrderDashboard() {
@@ -1650,12 +1747,14 @@ export function OrderDashboard() {
   );
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 2: Event Streaming to Analytics
 
 **Schema definition:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class UserRegistered:
     """Stream new user registrations (no filter, analytics event)."""
@@ -1682,10 +1781,12 @@ class PurchaseMade:
     items: list[OrderItem]
     created_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 **Kafka configuration:**
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     kafka={
         "enabled": True,
@@ -1703,10 +1804,12 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 **Consumer (Python):**
 
 ```python
+<!-- Code example in Python -->
 from kafka import KafkaConsumer
 import json
 
@@ -1726,12 +1829,14 @@ for message in consumer:
         event_time=event['timestamp']
     )
 ```text
+<!-- Code example in TEXT -->
 
 ### Example 3: Multi-Tenant Filtering with Variables
 
 **Schema definition:**
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.subscription
 class ActivityInOrganization:
     """Stream activity (creates, updates, deletes) in organization."""
@@ -1753,10 +1858,12 @@ class ActivityInOrganization:
     user: User
     created_at: DateTime
 ```text
+<!-- Code example in TEXT -->
 
 **Client with filtering:**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription ActivityInOrganization($min_severity: AuditSeverity) {
   activityInOrganization(min_severity: $min_severity) {
     id
@@ -1768,10 +1875,12 @@ subscription ActivityInOrganization($min_severity: AuditSeverity) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Usage:**
 
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Subscribe to high-priority events only
 useSubscription(ActivityInOrganization, {
   variables: {
@@ -1779,6 +1888,7 @@ useSubscription(ActivityInOrganization, {
   }
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1789,6 +1899,7 @@ useSubscription(ActivityInOrganization, {
 **Check if subscription is defined:**
 
 ```bash
+<!-- Code example in BASH -->
 # Query introspection
 query {
   __type(name: "Subscription") {
@@ -1798,10 +1909,12 @@ query {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 **Monitor event flow:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Check event buffer
 SELECT COUNT(*) as pending_events
 FROM tb_entity_change_log
@@ -1812,10 +1925,12 @@ SELECT entity_type, MAX(created_at) as last_event
 FROM tb_entity_change_log
 GROUP BY entity_type;
 ```text
+<!-- Code example in TEXT -->
 
 **Enable subscription tracing (Rust runtime):**
 
 ```rust
+<!-- Code example in RUST -->
 if config.debug {
     trace!("Subscription: OrderCreated");
     trace!("  Filter: WHERE user_id = {} AND deleted_at IS NULL", user_id);
@@ -1823,18 +1938,21 @@ if config.debug {
     trace!("  Delivered to: {} clients", client_count);
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### B. Monitoring Metrics
 
 **Key metrics to track:**
 
 ```text
+<!-- Code example in TEXT -->
 FraiseQL.subscription.connections     # Current active connections
 FraiseQL.subscription.events_emitted   # Events matching filters
 FraiseQL.subscription.events_delivered # Events sent to clients
 FraiseQL.subscription.lag_seconds      # Delay from database to client
 FraiseQL.subscription.error_count      # Delivery failures
 ```text
+<!-- Code example in TEXT -->
 
 ### C. Connection Pool Sizing
 
@@ -1847,6 +1965,7 @@ FraiseQL.subscription.error_count      # Delivery failures
 **Example:**
 
 ```python
+<!-- Code example in Python -->
 config = FraiseQLConfig(
     database_url="postgresql://...",
     subscriptions={
@@ -1856,6 +1975,7 @@ config = FraiseQLConfig(
     }
 )
 ```text
+<!-- Code example in TEXT -->
 
 ### D. References
 

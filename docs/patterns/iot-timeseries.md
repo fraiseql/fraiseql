@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: IoT Platform with Time-Series Data
+description: Complete guide to building a scalable IoT platform for collecting and querying sensor data efficiently.
+keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]
+tags: ["documentation", "reference"]
+---
+
 # IoT Platform with Time-Series Data
 
 **Status:** ✅ Production Ready
@@ -13,6 +21,7 @@ Complete guide to building a scalable IoT platform for collecting and querying s
 ## Architecture Overview
 
 ```text
+<!-- Code example in TEXT -->
 ┌──────────────┬──────────────┬──────────────┐
 │   Devices    │   Devices    │   Devices    │
 │  (millions)  │  (millions)  │  (millions)  │
@@ -42,6 +51,7 @@ Complete guide to building a scalable IoT platform for collecting and querying s
          │  (Query Layer)         │
          └────────────────────────┘
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -50,6 +60,7 @@ Complete guide to building a scalable IoT platform for collecting and querying s
 ### Devices & Metadata
 
 ```sql
+<!-- Code example in SQL -->
 -- Device registry
 CREATE TABLE devices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,10 +108,12 @@ CREATE TABLE sensors (
   INDEX idx_device_id (device_id)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ### Time-Series Data
 
 ```sql
+<!-- Code example in SQL -->
 -- Raw sensor readings (hypertable with TimescaleDB)
 CREATE TABLE sensor_readings (
   time TIMESTAMP NOT NULL,
@@ -125,10 +138,12 @@ SELECT add_retention_policy('sensor_readings', INTERVAL '1 year');
 CREATE INDEX idx_device_time ON sensor_readings (device_id, time DESC);
 CREATE INDEX idx_sensor_time ON sensor_readings (sensor_name, time DESC);
 ```text
+<!-- Code example in TEXT -->
 
 ### Aggregated Data (Pre-Computed)
 
 ```sql
+<!-- Code example in SQL -->
 -- Hourly aggregates (faster for dashboards)
 CREATE TABLE sensor_readings_1h (
   time TIMESTAMP NOT NULL,
@@ -171,10 +186,12 @@ FROM sensor_readings
 WHERE time >= NOW() - INTERVAL '1 year'
 GROUP BY time_bucket('1 day', time), device_id, sensor_name;
 ```text
+<!-- Code example in TEXT -->
 
 ### Alerts & Events
 
 ```sql
+<!-- Code example in SQL -->
 CREATE TABLE device_alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id UUID NOT NULL REFERENCES devices(id),
@@ -193,12 +210,14 @@ CREATE TABLE device_alerts (
   INDEX idx_created_at (created_at)
 );
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## FraiseQL Schema
 
 ```python
+<!-- Code example in Python -->
 # iot_schema.py
 from FraiseQL import types
 from datetime import datetime
@@ -335,6 +354,7 @@ class Subscription:
         """Real-time metric updates"""
         pass
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -343,6 +363,7 @@ class Subscription:
 ### Stream Processor
 
 ```python
+<!-- Code example in Python -->
 import asyncio
 import aiomqtt
 from datetime import datetime
@@ -431,6 +452,7 @@ class MQTTIngestionService:
                 VALUES ($1, 'threshold_exceeded', 'warning', $2, $3)
             """, (device_id, value, sensor_threshold['max']))
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -439,6 +461,7 @@ class MQTTIngestionService:
 ### Real-Time Dashboard
 
 ```graphql
+<!-- Code example in GraphQL -->
 query DeviceDashboard($deviceId: ID!) {
   device(id: $deviceId) {
     id
@@ -459,10 +482,12 @@ query DeviceDashboard($deviceId: ID!) {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ### Time-Series Analysis
 
 ```graphql
+<!-- Code example in GraphQL -->
 query TemperatureTrend(
   $deviceId: ID!
   $startTime: String!
@@ -482,6 +507,7 @@ query TemperatureTrend(
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -490,16 +516,19 @@ query TemperatureTrend(
 ### Time-Based Partitioning
 
 ```sql
+<!-- Code example in SQL -->
 -- Automatic partitioning by date with TimescaleDB
 SELECT set_integer_now_func('sensor_readings', 'pg_catalog.extract_epoch(now())::bigint'::regprocedure);
 
 -- Chunks are automatically created
 SELECT show_chunks('sensor_readings');
 ```text
+<!-- Code example in TEXT -->
 
 ### Data Retention
 
 ```sql
+<!-- Code example in SQL -->
 -- Automatically delete old data
 SELECT add_retention_policy('sensor_readings', INTERVAL '1 year');
 
@@ -511,10 +540,12 @@ WHERE time < NOW() - INTERVAL '1 year';
 DELETE FROM sensor_readings
 WHERE time < NOW() - INTERVAL '1 year';
 ```text
+<!-- Code example in TEXT -->
 
 ### Downsampling
 
 ```sql
+<!-- Code example in SQL -->
 -- For very long-term storage, downsample to daily
 CREATE MATERIALIZED VIEW sensor_summary_long_term AS
 SELECT
@@ -528,6 +559,7 @@ FROM sensor_readings
 WHERE time < NOW() - INTERVAL '90 days'
 GROUP BY DATE(time), device_id, sensor_name;
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -536,6 +568,7 @@ GROUP BY DATE(time), device_id, sensor_name;
 ### Rule Engine
 
 ```python
+<!-- Code example in Python -->
 # Define alert rules
 ALERT_RULES = [
     {
@@ -575,12 +608,14 @@ async def evaluate_alert_rules():
                 message=rule['message']
             )
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Testing
 
 ```typescript
+<!-- Code example in TypeScript -->
 describe('IoT Platform', () => {
   it('should ingest sensor readings', async () => {
     const deviceId = 'device_123';
@@ -640,12 +675,14 @@ describe('IoT Platform', () => {
   });
 });
 ```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Monitoring
 
 ```graphql
+<!-- Code example in GraphQL -->
 query ClusterHealth {
   deviceStatusSummary {
     total_devices
@@ -658,6 +695,7 @@ query ClusterHealth {
   }
 }
 ```text
+<!-- Code example in TEXT -->
 
 ---
 

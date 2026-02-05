@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Role-Specific Quick Start Guides
+description: Tailored quick-start guides for different roles and experience levels. Select your role:
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Role-Specific Quick Start Guides
 
 **Status:** ✅ Production Ready
@@ -15,6 +23,7 @@ Tailored quick-start guides for different roles and experience levels. Select yo
 ### Prerequisites
 
 ```bash
+<!-- Code example in BASH -->
 # Install FraiseQL
 cargo install FraiseQL-cli
 
@@ -28,10 +37,12 @@ npm install @FraiseQL/client
 # Go:
 go get github.com/FraiseQL/FraiseQL-go/v2
 ```text
+<!-- Code example in TEXT -->
 
 ### Create Your First Schema
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 from FraiseQL import type, field
 
@@ -50,19 +61,23 @@ class Post:
     content: str
     user: User
 ```text
+<!-- Code example in TEXT -->
 
 ### Configure Database
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [database]
 url = "postgresql://localhost/myapp"
 pool_size = 10
 ```text
+<!-- Code example in TEXT -->
 
 ### Compile and Run
 
 ```bash
+<!-- Code example in BASH -->
 # Compile schema
 FraiseQL compile schema.py --config FraiseQL.toml
 
@@ -82,10 +97,12 @@ curl -X POST http://localhost:5000/graphql \
     }"
   }'
 ```text
+<!-- Code example in TEXT -->
 
 ### Query from Your App
 
 ```python
+<!-- Code example in Python -->
 from FraiseQL import AsyncClient
 import asyncio
 
@@ -105,6 +122,7 @@ async def main():
 
 asyncio.run(main())
 ```text
+<!-- Code example in TEXT -->
 
 ### Next Steps
 
@@ -122,6 +140,7 @@ asyncio.run(main())
 ### Step 1: Map Your Domain
 
 ```text
+<!-- Code example in TEXT -->
 Users Service (Service 1)
 ├─ Table: users
 ├─ Fields: id, name, email, created_at
@@ -135,10 +154,12 @@ Orders Service (Service 2)
 ├─ Foreign Key: user_id → users.id (federation)
 └─ Relationships: 1:M → Items
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Define Federated Types
 
 ```python
+<!-- Code example in Python -->
 # services/users/schema.py
 @type
 @key("id")
@@ -170,10 +191,12 @@ class Order:
     created_at: str
     user: User  # Reference back to user
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Add Authorization
 
 ```python
+<!-- Code example in Python -->
 @type
 @extends
 @key("id")
@@ -189,10 +212,12 @@ class User:
     )
     orders: List[Order]
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Optimize with Views
 
 ```python
+<!-- Code example in Python -->
 @type
 class UserStats:
     """Materialized daily for performance."""
@@ -202,10 +227,12 @@ class UserStats:
     avg_order_value: Decimal
     updated_at: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Configure Deployment
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [FraiseQL.federation]
 enabled = true
@@ -221,6 +248,7 @@ name = "Users"
 strategy = "http"
 url = "http://users-service:5000/graphql"
 ```text
+<!-- Code example in TEXT -->
 
 ### Validation Checklist
 
@@ -245,6 +273,7 @@ url = "http://users-service:5000/graphql"
 ### Step 1: Containerization
 
 ```dockerfile
+<!-- Code example in DOCKERFILE -->
 # Dockerfile
 FROM rust:latest as builder
 WORKDIR /app
@@ -257,10 +286,12 @@ COPY FraiseQL.toml /etc/FraiseQL/
 EXPOSE 5000
 ENTRYPOINT ["FraiseQL", "serve"]
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configuration Management
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [server]
 port = 5000
@@ -281,10 +312,12 @@ auth_required = true
 metrics_enabled = true
 tracing_enabled = true
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Kubernetes Deployment
 
 ```yaml
+<!-- Code example in YAML -->
 # k8s/FraiseQL-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -331,10 +364,12 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Monitoring & Logging
 
 ```yaml
+<!-- Code example in YAML -->
 # k8s/prometheus-config.yaml
 global:
   scrape_interval: 15s
@@ -355,10 +390,12 @@ groups:
     expr: fraiseql_query_latency_p95 > 1000  # ms
     for: 5m
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Secrets Management
 
 ```bash
+<!-- Code example in BASH -->
 # Create secrets
 kubectl create secret generic FraiseQL-secrets \
   --from-literal=database-url="postgresql://user:pass@db:5432/FraiseQL" \
@@ -367,6 +404,7 @@ kubectl create secret generic FraiseQL-secrets \
 # Verify
 kubectl get secrets
 ```text
+<!-- Code example in TEXT -->
 
 ### Deployment Checklist
 
@@ -392,6 +430,7 @@ kubectl get secrets
 ### Step 1: Define Analytical Views
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 @type
 class SalesAnalytics:
@@ -413,22 +452,26 @@ class CustomerSegmentation:
     days_active: int
     purchase_frequency: float
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Enable Arrow Flight
 
 ```toml
+<!-- Code example in TOML -->
 # FraiseQL.toml
 [arrow_flight]
 enabled = true
 port = 30000
 tls_enabled = false  # Enable in production!
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Connect BI Tool
 
 **DuckDB (for SQL exploration):**
 
 ```python
+<!-- Code example in Python -->
 import duckdb
 
 conn = duckdb.connect()
@@ -442,6 +485,7 @@ result = conn.execute("""
     ORDER BY date DESC
 """).fetchall()
 ```text
+<!-- Code example in TEXT -->
 
 **Tableau (native Arrow Flight connector):**
 
@@ -454,6 +498,7 @@ result = conn.execute("""
 **Python Analytics:**
 
 ```python
+<!-- Code example in Python -->
 import pandas as pd
 import pyarrow.flight as flight
 
@@ -468,10 +513,12 @@ print(df.groupby('region')['revenue'].sum())
 import polars as pl
 pl_df = pl.from_arrow(reader.read_all())
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Schedule Exports
 
 ```bash
+<!-- Code example in BASH -->
 # Daily export to data warehouse
 0 2 * * * /scripts/export-analytics.sh
 
@@ -491,6 +538,7 @@ engine = create_engine("postgresql://warehouse/analytics")
 df.to_sql('sales_analytics', engine, if_exists='append', index=False)
 EOF
 ```text
+<!-- Code example in TEXT -->
 
 ### Next Steps
 
@@ -507,6 +555,7 @@ EOF
 ### Step 1: Design SaaS Schema
 
 ```python
+<!-- Code example in Python -->
 # schema.py
 @type
 class Organization:
@@ -547,10 +596,12 @@ class Project:
     owner_id: str
     created_at: str
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 2: Configure Authentication
 
 ```toml
+<!-- Code example in TOML -->
 [authentication.oauth]
 enabled = true
 provider = "google"  # Or Auth0, GitHub, etc.
@@ -563,10 +614,12 @@ algorithm = "RS256"
 issuer = "https://auth.example.com"
 audience = "https://api.example.com"
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 3: Add Rate Limiting
 
 ```toml
+<!-- Code example in TOML -->
 [rate_limiting]
 enabled = true
 
@@ -578,10 +631,12 @@ window_seconds = 60  # 10 requests/minute
 max_requests = 100
 window_seconds = 60  # 100 requests/minute per user
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 4: Deploy to Production
 
 ```bash
+<!-- Code example in BASH -->
 # On your server:
 # 1. Clone repo
 git clone https://github.com/yourcompany/FraiseQL-backend
@@ -604,10 +659,12 @@ docker-compose up -d
 # 6. Test API
 curl https://api.example.com/health
 ```text
+<!-- Code example in TEXT -->
 
 ### Step 5: Set Up Webhooks
 
 ```python
+<!-- Code example in Python -->
 @FraiseQL.observer
 class SendWelcomeEmail:
     trigger = Event.CREATE
@@ -621,6 +678,7 @@ class SendWelcomeEmail:
         )
     ]
 ```text
+<!-- Code example in TEXT -->
 
 ### Launch Checklist
 

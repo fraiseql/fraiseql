@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Node.js Runtime Client for FraiseQL
+description: Complete guide for querying FraiseQL servers from Node.js backend services using the FraiseQL runtime client.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Node.js Runtime Client for FraiseQL
 
 **Status:** ✅ Production Ready
@@ -20,16 +28,19 @@ Complete guide for querying FraiseQL servers from Node.js backend services using
 ### Install Package
 
 ```bash
+<!-- Code example in BASH -->
 npm install @FraiseQL/client
 
 # or
 yarn add @FraiseQL/client
 pnpm add @FraiseQL/client
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Create Client Instance
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FraiseQLClient } from '@FraiseQL/client';
 
 const client = new FraiseQLClient({
@@ -43,11 +54,13 @@ const client = new FraiseQLClient({
 });
 
 export default client;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### With Authentication
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FraiseQLClient } from '@FraiseQL/client';
 
 const client = new FraiseQLClient({
@@ -60,7 +73,8 @@ const client = new FraiseQLClient({
 });
 
 export default client;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -69,6 +83,7 @@ export default client;
 ### Basic Query
 
 ```typescript
+<!-- Code example in TypeScript -->
 import client from './client';
 import { gql } from '@FraiseQL/client';
 
@@ -92,11 +107,13 @@ async function fetchUsers() {
     throw error;
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Variables
 
 ```typescript
+<!-- Code example in TypeScript -->
 const GET_USER_BY_ID = gql`
   query GetUserById($id: ID!) {
     user(id: $id) {
@@ -118,11 +135,13 @@ async function fetchUserById(userId: string) {
 
   return result.data.user;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Typed Queries (TypeScript)
 
 ```typescript
+<!-- Code example in TypeScript -->
 interface User {
   id: string;
   name: string;
@@ -145,11 +164,13 @@ async function getUserById(id: string): Promise<User> {
 
   return result.data.user;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query with Custom Options
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function fetchUsersWithOptions() {
   const result = await client.query(GET_USERS, {
     variables: {},
@@ -162,7 +183,8 @@ async function fetchUsersWithOptions() {
 
   return result.data.users;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -171,6 +193,7 @@ async function fetchUsersWithOptions() {
 ### Basic Mutation
 
 ```typescript
+<!-- Code example in TypeScript -->
 const CREATE_POST = gql`
   mutation CreatePost($title: String!, $content: String!) {
     createPost(title: $title, content: $content) {
@@ -194,11 +217,13 @@ async function createPost(input: CreatePostInput) {
 
   return result.data.createPost;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Multiple Mutations
 
 ```typescript
+<!-- Code example in TypeScript -->
 const UPDATE_USER = gql`
   mutation UpdateUser($id: ID!, $name: String!) {
     updateUser(id: $id, name: $name) {
@@ -219,11 +244,13 @@ async function updateUserBatch(updates: Array<{ id: string; name: string }>) {
 
   return results.map((r) => r.data.updateUser);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Mutation with Error Handling
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function safeCreatePost(input: CreatePostInput) {
   try {
     const result = await client.mutation(CREATE_POST, {
@@ -249,7 +276,8 @@ async function safeCreatePost(input: CreatePostInput) {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -258,6 +286,7 @@ async function safeCreatePost(input: CreatePostInput) {
 ### Long-Polling Subscriptions
 
 ```typescript
+<!-- Code example in TypeScript -->
 const ON_POST_CREATED = gql`
   subscription OnPostCreated {
     postCreated {
@@ -282,11 +311,13 @@ async function subscribeToPostsLongPoll() {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### WebSocket Subscriptions
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FraiseQLWSClient } from '@FraiseQL/client/ws';
 
 const wsClient = new FraiseQLWSClient({
@@ -306,7 +337,8 @@ wsClient.subscribe(ON_POST_CREATED, {
     console.log('Subscription complete');
   },
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -315,6 +347,7 @@ wsClient.subscribe(ON_POST_CREATED, {
 ### Execute Multiple Queries in One Request
 
 ```typescript
+<!-- Code example in TypeScript -->
 const GET_STATS = gql`
   query GetStats {
     userCount
@@ -357,7 +390,8 @@ async function fetchDashboardBatched() {
     recentPosts: result[1].data.posts,
   };
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -366,6 +400,7 @@ async function fetchDashboardBatched() {
 ### Connection Pool
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { FraiseQLClient, ConnectionPool } from '@FraiseQL/client';
 
 const pool = new ConnectionPool({
@@ -382,11 +417,13 @@ async function executeWithPooling(query: string) {
     pool.release(connection);
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Response Caching
 
 ```typescript
+<!-- Code example in TypeScript -->
 const client = new FraiseQLClient({
   url: 'http://localhost:5000/graphql',
   cache: {
@@ -401,7 +438,8 @@ await client.query(GET_USERS);
 
 // Second call (within 1 min) - returns cached response
 await client.query(GET_USERS);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -410,6 +448,7 @@ await client.query(GET_USERS);
 ### Network Errors
 
 ```typescript
+<!-- Code example in TypeScript -->
 import {
   NetworkError,
   ValidationError,
@@ -435,11 +474,13 @@ async function resilientQuery() {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Retry with Backoff
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function queryWithRetry(
   query: any,
   variables?: any,
@@ -462,7 +503,8 @@ async function queryWithRetry(
 
   throw lastError;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -471,6 +513,7 @@ async function queryWithRetry(
 ### GraphQL Endpoint Wrapper
 
 ```typescript
+<!-- Code example in TypeScript -->
 import express from 'express';
 import client from './client';
 
@@ -502,11 +545,13 @@ app.get('/api/users', async (req, res) => {
 });
 
 app.listen(3000);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Middleware for FraiseQL Queries
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Request, Response, NextFunction } from 'express';
 import client from './client';
 
@@ -525,13 +570,15 @@ app.get('/api/user/:id', async (req, res) => {
   });
   res.json(user);
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Integration with Fastify
 
 ```typescript
+<!-- Code example in TypeScript -->
 import Fastify from 'fastify';
 import client from './client';
 
@@ -556,7 +603,8 @@ fastify.register(async (fastify) => {
 });
 
 fastify.listen({ port: 3000 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -565,6 +613,7 @@ fastify.listen({ port: 3000 });
 ### Create Service
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Injectable } from '@nestjs/common';
 import { FraiseQLClient } from '@FraiseQL/client';
 import { GET_USERS, GET_USER_BY_ID } from './queries';
@@ -591,11 +640,13 @@ export class UsersService {
     return result.data.user;
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Create Controller
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { Controller, Get, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 
@@ -613,7 +664,8 @@ export class UsersController {
     return this.usersService.getUserById(id);
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -622,6 +674,7 @@ export class UsersController {
 ### Mock Client for Unit Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { jest } from '@jest/globals';
 import { FraiseQLClient } from '@FraiseQL/client';
 
@@ -654,11 +707,13 @@ describe('UserService', () => {
     expect(users[0].name).toBe('Alice');
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Integration Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import client from './client';
 
@@ -689,7 +744,8 @@ describe('FraiseQL Integration', () => {
     expect(result.data.createPost.title).toBe('Test Post');
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -698,6 +754,7 @@ describe('FraiseQL Integration', () => {
 ### Query Complexity Analysis
 
 ```typescript
+<!-- Code example in TypeScript -->
 async function complexQuery() {
   const result = await client.query(COMPLEX_QUERY, {
     complexity: {
@@ -708,11 +765,13 @@ async function complexQuery() {
 
   return result;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Request Deduplication
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Automatically deduplicate identical concurrent requests
 const client = new FraiseQLClient({
   url: 'http://localhost:5000/graphql',
@@ -724,17 +783,20 @@ const [users1, users2] = await Promise.all([
   client.query(GET_USERS),
   client.query(GET_USERS), // Deduplicated
 ]);
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Persistent Queries
 
 ```typescript
+<!-- Code example in TypeScript -->
 // Use pre-defined query IDs to reduce payload
 const result = await client.query({
   id: 'GetUsers', // Predefined query ID
   variables: {},
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
