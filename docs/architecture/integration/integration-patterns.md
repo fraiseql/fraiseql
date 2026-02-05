@@ -119,7 +119,7 @@ CREATE USER MAPPING FOR current_user SERVER orders_fdw
 
 -- Foreign table
 CREATE FOREIGN TABLE orders_schema_v_order (
-    pk_order INTEGER,
+    pk_order BIGINTEGER,
     id UUID,
     user_id UUID,
     data JSONB

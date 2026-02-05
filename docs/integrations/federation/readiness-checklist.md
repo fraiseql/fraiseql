@@ -111,7 +111,7 @@ from FraiseQL import type, key
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 

@@ -392,14 +392,14 @@ In your authoring layer (Python/TypeScript), bind the `User` type to use `tv_use
 # Before: Uses v_user (logical view)
 @FraiseQL.type()
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     posts: list[Post]
 
 # After: Uses tv_user_profile (table-backed view)
 @FraiseQL.type(view="tv_user_profile")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     posts: list[Post]
 ```text

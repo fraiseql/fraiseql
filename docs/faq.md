@@ -72,22 +72,23 @@ All databases can be used together in federation. See [multi-database consistenc
 
 ### Q: Can I use FraiseQL with existing databases?
 
-A: **Yes**. FraiseQL works with existing schema by mapping GraphQL types to database tables via the `@key` directive.
+A: **Yes**. FraiseQL works with existing schema by mapping GraphQL types to database tables via the `@key` directive. Always use UUID v4 for entity identifiers (see [Naming Patterns: id: UUID v4](reference/naming-patterns.md#1-id-uuid-v4-graphql-primary-identifier)).
 
 ```python
 <!-- Code example in Python -->
+from uuid import UUID
 from FraiseQL.federation import federated_type, key
 
 @federated_type
 @key(fields="id")
 class User:
-    id: int
+    id: UUID                 # ✅ UUID v4 for public GraphQL ID
     name: str
     email: str
 ```text
 <!-- Code example in TEXT -->
 
-This maps to your existing `users` table.
+This maps to your existing `tb_user` table (singular, following [Naming Patterns](reference/naming-patterns.md)).
 
 ---
 

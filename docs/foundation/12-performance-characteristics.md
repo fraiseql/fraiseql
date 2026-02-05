@@ -354,7 +354,7 @@ CREATE TABLE tb_post (
 );
 
 -- Foreign keys (for relationship queries)
-CREATE INDEX idx_post_author ON tb_post(fk_user_id);
+CREATE INDEX idx_post_author ON tb_post(fk_user);
 CREATE INDEX idx_comment_post ON tb_comment(fk_post_id);
 
 -- Frequently filtered fields
@@ -363,8 +363,8 @@ CREATE INDEX idx_user_email ON tb_user(email);
 CREATE INDEX idx_post_created ON tb_post(created_at DESC);
 
 -- Composite indexes for common patterns
-CREATE INDEX idx_post_author_status ON tb_post(fk_user_id, status);
-CREATE INDEX idx_post_user_date ON tb_post(fk_user_id, created_at DESC);
+CREATE INDEX idx_post_author_status ON tb_post(fk_user, status);
+CREATE INDEX idx_post_user_date ON tb_post(fk_user, created_at DESC);
 ```text
 <!-- Code example in TEXT -->
 
@@ -382,7 +382,7 @@ Always analyze PostgreSQL query plans:
 <!-- Code example in SQL -->
 EXPLAIN ANALYZE
 SELECT * FROM tb_post
-WHERE fk_user_id = 1 AND status = 'PUBLISHED'
+WHERE fk_user = 1 AND status = 'PUBLISHED'
 ORDER BY created_at DESC
 LIMIT 50;
 ```text
@@ -600,7 +600,7 @@ query {
 -- Instead of N queries, use JOIN
 SELECT users.id, users.name, posts.id, posts.title
 FROM tb_user
-LEFT JOIN tb_post ON tb_post.fk_user_id = tb_user.pk_user_id
+LEFT JOIN tb_post ON tb_post.fk_user = tb_user.pk_user
 ORDER BY users.id, posts.id;
 ```text
 <!-- Code example in TEXT -->

@@ -381,7 +381,7 @@ from datetime import datetime
 
 @types.object
 class Tenant:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     slug: str
     name: str
     plan: str
@@ -393,7 +393,7 @@ class Tenant:
 
 @types.object
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
     full_name: str
     role: str  # owner, admin, member, viewer
@@ -405,7 +405,7 @@ class User:
 
 @types.object
 class Project:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     description: str
     owner: User
@@ -416,7 +416,7 @@ class Project:
 
 @types.object
 class Task:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     description: str
     status: str
@@ -429,7 +429,7 @@ class Task:
 
 @types.object
 class Subscription:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     plan: str
     status: str
     current_period_start: str

@@ -101,7 +101,7 @@ import FraiseQL
     dimension_column='dimensions'  # JSONB column
 )
 class SalesMetrics:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     revenue: float
     quantity: int
     dimensions: dict  # {region: str, category: str, date: str}
@@ -538,7 +538,7 @@ import FraiseQL
     denormalized_filters=['region_id']  # ← NEW: Use direct column for filtering
 )
 class SalesMetrics:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     revenue: float
     quantity: int
     region_id: str  # ← NEW: Direct column

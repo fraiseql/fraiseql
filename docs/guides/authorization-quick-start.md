@@ -30,7 +30,7 @@ from FraiseQL import type, field, authorize
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str = field(authorize={"read": ["admin", "self"]})  # Only admin or user's own
     salary: float = field(authorize={"read": ["admin"]})       # Admin only
@@ -38,8 +38,8 @@ class User:
 
 @type
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float = field(authorize={"read": ["admin", "owner"]})  # Admin or order owner
 ```text
 <!-- Code example in TEXT -->

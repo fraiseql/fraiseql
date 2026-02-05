@@ -94,17 +94,17 @@ Your schema definitions in Python or TypeScript:
 from FraiseQL import schema
 from datetime import datetime
 
-@schema.type(table="tb_users")
+@schema.type(table="tb_user")
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     email: str
     created_at: datetime
     is_active: bool
 
-@schema.type(table="tb_orders")
+@schema.type(table="tb_order")
 class Order:
-    order_id: int
-    user_id: int
+    order_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float
     created_at: datetime
 
@@ -136,9 +136,9 @@ Schema {
   types: [
     Type {
       name: "User",
-      source: "tb_users",
+      source: "tb_user",
       fields: [
-        Field { name: "userId", type: "Int", column: "pk_user_id" },
+        Field { name: "userId", type: "Int", column: "pk_user" },
         Field { name: "email", type: "String", column: "email" },
         Field { name: "createdAt", type: "DateTime", column: "created_at" },
         Field { name: "isActive", type: "Boolean", column: "is_active" }
@@ -146,10 +146,10 @@ Schema {
     },
     Type {
       name: "Order",
-      source: "tb_orders",
+      source: "tb_order",
       fields: [
-        Field { name: "orderId", type: "Int", column: "pk_order_id" },
-        Field { name: "userId", type: "Int", column: "fk_user_id" },
+        Field { name: "orderId", type: "Int", column: "pk_order" },
+        Field { name: "userId", type: "Int", column: "fk_user" },
         Field { name: "total", type: "Float", column: "total" },
         Field { name: "createdAt", type: "DateTime", column: "created_at" }
       ]
@@ -191,19 +191,19 @@ SELECT
   is_nullable,
   column_default
 FROM information_schema.columns
-WHERE table_name IN ('tb_users', 'tb_orders')
+WHERE table_name IN ('tb_user', 'tb_order')
 ORDER BY table_name, ordinal_position;
 
 -- Result:
 table_name  | column_name  | data_type | is_nullable | column_default
 ------------|--------------|-----------|-------------|----------------
-tb_users    | pk_user_id   | integer   | false       | nextval(...)
-tb_users    | email        | character | false       | NULL
-tb_users    | created_at   | timestamp | false       | now()
-tb_orders   | pk_order_id  | integer   | false       | nextval(...)
-tb_orders   | fk_user_id   | integer   | false       | NULL
-tb_orders   | total        | numeric   | false       | NULL
-tb_orders   | created_at   | timestamp | false       | now()
+tb_user    | pk_user   | integer   | false       | nextval(...)
+tb_user    | email        | character | false       | NULL
+tb_user    | created_at   | timestamp | false       | now()
+tb_order   | pk_order  | integer   | false       | nextval(...)
+tb_order   | fk_user   | integer   | false       | NULL
+tb_order   | total        | numeric   | false       | NULL
+tb_order   | created_at   | timestamp | false       | now()
 ```text
 <!-- Code example in TEXT -->
 
@@ -217,13 +217,13 @@ tb_orders   | created_at   | timestamp | false       | now()
   "types": [
     {
       "name": "User",
-      "source": "tb_users",
+      "source": "tb_user",
       "fields": [
         {
           "name": "userId",
           "type": "Int",
           "nullable": false,
-          "column": "pk_user_id",
+          "column": "pk_user",
           "database_type": "integer"
         },
         {
@@ -270,7 +270,7 @@ schema.json with all type and query information
 
 ### Process
 
-1. **Validate foreign keys** (fk_user_id in orders table → references tb_users)
+1. **Validate foreign keys** (fk_user in orders table → references tb_user)
 2. **Verify type compatibility** (parameter types match column types)
 3. **Check for circular references** (detect and warn about cycles)
 4. **Validate view relationships** (for database views: verify dependencies)
@@ -281,8 +281,8 @@ schema.json with all type and query information
 ```text
 <!-- Code example in TEXT -->
 Validating relationships...
-✅ tb_orders.fk_user_id → tb_users.pk_user_id (valid)
-✅ Query getUser expects Int, tb_users.pk_user_id is Int (compatible)
+✅ tb_order.fk_user → tb_user.pk_user (valid)
+✅ Query getUser expects Int, tb_user.pk_user is Int (compatible)
 ⚠️  N+1 risk detected: listOrders(userId) will load orders for each user
     Suggestion: Use database-level join or batch loading
 ✅ All relationships valid
@@ -334,18 +334,18 @@ Analyzing query patterns...
 Query: getUser(userId: Int!) -> User
 - Complexity: O(1) simple lookup
 - Expected joins: 0
-- Expected filters: 1 (WHERE pk_user_id = ?)
+- Expected filters: 1 (WHERE pk_user = ?)
 - Estimated cost: 1-5ms
-- Recommended indexes: [pk_user_id] (already primary key)
+- Recommended indexes: [pk_user] (already primary key)
 ✅ Query is efficient
 
 Query: listOrders(userId: Int!) -> List<Order>
 - Complexity: O(N) where N = number of orders
 - Expected joins: 0
-- Expected filters: 1 (WHERE fk_user_id = ?)
+- Expected filters: 1 (WHERE fk_user = ?)
 - Estimated cost: 10-50ms (depends on data volume)
-- Recommended indexes: [fk_user_id]
-⚠️ Missing index on fk_user_id - consider adding
+- Recommended indexes: [fk_user]
+⚠️ Missing index on fk_user - consider adding
 ```text
 <!-- Code example in TEXT -->
 
@@ -363,9 +363,9 @@ Query Pattern Analysis:
 
 Recommendations:
 
-1. Add index on tb_orders(fk_user_id)
+1. Add index on tb_order(fk_user)
 2. Consider materialized view for user order totals
-3. Add column tb_orders(total_count) for common aggregation
+3. Add column tb_order(total_count) for common aggregation
 ```text
 <!-- Code example in TEXT -->
 
@@ -394,36 +394,36 @@ Query patterns and complexity analysis from Phase 4
 
 sql_template = """
 SELECT
-  pk_user_id,
+  pk_user,
   email,
   created_at,
   is_active
-FROM tb_users
-WHERE pk_user_id = $1
+FROM tb_user
+WHERE pk_user = $1
 LIMIT 1
 """
 
 # With optimization hints (PostgreSQL):
 sql_template_optimized = """
 SELECT
-  pk_user_id,
+  pk_user,
   email,
   created_at,
   is_active
-FROM tb_users
-WHERE pk_user_id = $1  -- Uses primary key index
+FROM tb_user
+WHERE pk_user = $1  -- Uses primary key index
 LIMIT 1
 """
 
 # For list query with potential N+1:
 sql_template_list = """
 SELECT
-  pk_order_id,
-  fk_user_id,
+  pk_order,
+  fk_user,
   total,
   created_at
-FROM tb_orders
-WHERE fk_user_id = $1  -- Should use index on fk_user_id
+FROM tb_order
+WHERE fk_user = $1  -- Should use index on fk_user
 ORDER BY created_at DESC
 """
 ```text
@@ -476,9 +476,9 @@ def delete_user(user_id: int) -> bool:
     pass
 
 @schema.permission("user_id = authenticated_user_id")
-@schema.type(table="tb_users")
+@schema.type(table="tb_user")
 class UserProfile:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     email: str
     phone: str  # Only visible to self or admin
 
@@ -555,12 +555,12 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
   "types": [
     {
       "name": "User",
-      "source": "tb_users",
+      "source": "tb_user",
       "fields": [
         {
           "name": "userId",
           "type": "Int",
-          "column": "pk_user_id",
+          "column": "pk_user",
           "nullable": false,
           "permissions": []
         },
@@ -587,10 +587,10 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
       ],
       "returns": "User",
       "permissions": [],
-      "sql_template": "SELECT pk_user_id, email, ... FROM tb_users WHERE pk_user_id = $1",
+      "sql_template": "SELECT pk_user, email, ... FROM tb_user WHERE pk_user = $1",
       "complexity": "O(1)",
       "estimated_cost_ms": 5,
-      "required_indexes": ["tb_users(pk_user_id)"]
+      "required_indexes": ["tb_user(pk_user)"]
     }
   ],
 
@@ -641,7 +641,7 @@ Ready for deployment!
 <!-- Code example in Python -->
 @schema.type(table="v_products")
 class Product:
-    product_id: int
+    product_id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: float
     in_stock: bool
@@ -712,7 +712,7 @@ query {
 ```text
 <!-- Code example in TEXT -->
 ❌ Error caught at compile time:
-   Column 'users_id' not found in tb_users
+   Column 'users_id' not found in tb_user
 
 ✅ Not discovered in production
 ```text
@@ -723,7 +723,7 @@ query {
 ```text
 <!-- Code example in TEXT -->
  detects missing index:
-→ Recommendation: Add index on tb_orders(fk_user_id)
+→ Recommendation: Add index on tb_order(fk_user)
 → DBA adds index before deployment
 → Queries automatically use it
 ```text

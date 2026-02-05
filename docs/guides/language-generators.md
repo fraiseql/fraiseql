@@ -123,7 +123,7 @@ from FraiseQL import (
 # Define types
 @fraiseql_type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str | None
     createdAt: str
@@ -131,7 +131,7 @@ class User:
 
 @fraiseql_type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
     authorId: int
@@ -635,7 +635,7 @@ class UserProfile:
 # Avoid: Vague or abbreviated names
 @fraiseql_type
 class U:
-    uid: int
+    uid: UUID  # UUID v4 for GraphQL ID
     nm: str
 ```text
 <!-- Code example in TEXT -->

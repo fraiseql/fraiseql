@@ -277,7 +277,7 @@ def delete_user(id: ID) -> bool:
 class User:
     id: ID
     email: str
-    created_by_user_id: str
+    created_by_user_id: UUID  # UUID v4 for GraphQL ID
 
 @FraiseQL.query
 @FraiseQL.authorize(rule="owner_or_admin")
@@ -494,7 +494,7 @@ def get_users():
 # Root cause: Missing index on filter column
 # Fix: Add index (simple, high impact)
 
-CREATE INDEX idx_users_status ON tb_user(status);
+CREATE INDEX idx_user_status ON tb_user(status);
 
 # Speedup: 500ms → 50ms (10x faster, 1 line of SQL)
 ```text

@@ -157,7 +157,7 @@ Each language generator creates a schema:
 <!-- Code example in Python -->
 @fraiseql_type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @fraiseql_query(sql_source="v_users")
@@ -245,7 +245,7 @@ def test_python_e2e_basic_schema():
     # Step 1: Define schema
     @fraiseql_type
     class User:
-        id: int
+        id: UUID  # UUID v4 for GraphQL ID
         name: str
 
     # Step 2: Export to JSON

@@ -350,7 +350,7 @@ ORDER BY created_at DESC;
 
 ```sql
 <!-- Code example in SQL -->
-CREATE INDEX idx_users_created_at ON users (created_at);
+CREATE INDEX idx_user_created_at ON users (created_at);
 
 -- Query (fast - index scan):
 SELECT * FROM users
@@ -363,7 +363,7 @@ ORDER BY created_at DESC;
 
 ```sql
 <!-- Code example in SQL -->
-CREATE NONCLUSTERED INDEX idx_users_created_at
+CREATE NONCLUSTERED INDEX idx_user_created_at
 ON users (created_at DESC);
 
 -- Query (fast - index seek):

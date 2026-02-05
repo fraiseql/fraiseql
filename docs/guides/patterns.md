@@ -696,7 +696,7 @@ query {
 ```sql
 <!-- Code example in SQL -->
 -- Create index for fast searches
-CREATE INDEX idx_users_name_search ON users USING GIN (
+CREATE INDEX idx_user_name_search ON users USING GIN (
   to_tsvector('english', name || ' ' || email)
 );
 ```text

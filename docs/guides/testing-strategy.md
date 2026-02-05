@@ -90,7 +90,7 @@ import FraiseQL
 @FraiseQL.type
 class User:
     """A user account."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     '''
@@ -614,7 +614,7 @@ import FraiseQL
 
 @FraiseQL.type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
 
@@ -1133,7 +1133,7 @@ import FraiseQL
 
 @FraiseQL.type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     created_at: str
@@ -1207,7 +1207,7 @@ import FraiseQL
 
 @FraiseQL.type
 class Product:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @FraiseQL.query

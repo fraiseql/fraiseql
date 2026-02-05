@@ -31,7 +31,7 @@ from FraiseQL import type, key
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 ```text
@@ -65,8 +65,8 @@ class User:
 @type
 @key("id")
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float
     user: User  # Reference to User from other subgraph
 ```text

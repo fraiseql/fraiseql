@@ -402,13 +402,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 # Use logical view (default, fast enough)
 @FraiseQL.type()
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 # Use table-backed view (complex nesting)
 @FraiseQL.type(view="tv_user_profile")
 class UserProfile:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     posts: list[Post]
     comments: list[Comment]

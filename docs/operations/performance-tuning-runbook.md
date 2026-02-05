@@ -136,7 +136,7 @@ ORDER BY mean_time DESC LIMIT 5;
 ```sql
 <!-- Code example in SQL -->
 -- Identify filter columns from EXPLAIN output
-CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX idx_user_created_at ON users(created_at);
 
 -- Verify index is used
 EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
@@ -149,7 +149,7 @@ EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
 ```sql
 <!-- Code example in SQL -->
 -- PostgreSQL: Concurrent index creation (doesn't lock table)
-CREATE INDEX CONCURRENTLY idx_users_created_at ON users(created_at);
+CREATE INDEX CONCURRENTLY idx_user_created_at ON users(created_at);
 
 -- MySQL: Online index creation (5.7+)
 ALTER TABLE users ADD INDEX idx_created_at (created_at), ALGORITHM=INPLACE;
@@ -164,7 +164,7 @@ CREATE INDEX idx_created_at ON users(created_at) WITH (ONLINE=ON);
 ```sql
 <!-- Code example in SQL -->
 -- If queries often filter by both tenant and status:
--- CREATE INDEX idx_users_tenant_status ON users(tenant_id, status);
+-- CREATE INDEX idx_user_tenant_status ON users(tenant_id, status);
 -- Covers WHERE tenant_id = X AND status = 'active'
 
 -- If queries filter by range, put range column last:
@@ -350,13 +350,13 @@ ORDER BY count_read DESC;
 ```sql
 <!-- Code example in SQL -->
 -- Reindex single index (requires lock)
-REINDEX INDEX idx_users_created_at;
+REINDEX INDEX idx_user_created_at;
 
 -- Reindex entire table (rebuilds all indexes)
 REINDEX TABLE users;
 
 -- Concurrent reindex (no lock, v12+)
-REINDEX INDEX CONCURRENTLY idx_users_created_at;
+REINDEX INDEX CONCURRENTLY idx_user_created_at;
 ```text
 <!-- Code example in TEXT -->
 
@@ -499,7 +499,7 @@ CREATE INDEX idx_posts_user_id ON posts(user_id);
 CREATE INDEX idx_orders_status ON orders(status);
 
 -- For: Multiple columns in GROUP BY
-CREATE INDEX idx_users_org_status ON users(organization_id, status);
+CREATE INDEX idx_user_org_status ON users(organization_id, status);
 ```text
 <!-- Code example in TEXT -->
 

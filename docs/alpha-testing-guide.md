@@ -135,15 +135,16 @@ Create `schema.py`:
 
 ```python
 <!-- Code example in Python -->
+from uuid import UUID
 from FraiseQL import type as fraiseql_type, query as fraiseql_query, schema
 
 @fraiseql_type
 class User:
-    id: int
+    id: UUID                # ✅ UUID v4 (see Naming Patterns)
     name: str
     email: str | None
 
-@fraiseql_query(sql_source="v_users")
+@fraiseql_query(sql_source="v_users")  # ✅ Read from v_users view, not tb_user
 def users(limit: int = 10) -> list[User]:
     pass
 

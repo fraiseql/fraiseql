@@ -151,7 +151,7 @@ Each level maps directly:
 
 ```sql
 <!-- Code example in SQL -->
-CREATE TABLE tb_users (
+CREATE TABLE tb_user (
     pk_user BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     username VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
@@ -161,9 +161,9 @@ CREATE TABLE tb_users (
     deleted_at TIMESTAMP
 );
 
-CREATE TABLE tb_orders (
+CREATE TABLE tb_order (
     pk_order BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    fk_user BIGINT NOT NULL REFERENCES tb_users(pk_user),
+    fk_user BIGINT NOT NULL REFERENCES tb_user(pk_user),
     total DECIMAL(10, 2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -240,9 +240,9 @@ query GetUser {
 ```sql
 <!-- Code example in SQL -->
 -- Database: Foreign key defines relationship
-ALTER TABLE tb_orders
-ADD CONSTRAINT fk_orders_user
-FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
+ALTER TABLE tb_order
+ADD CONSTRAINT fk_order_user
+FOREIGN KEY (fk_user) REFERENCES tb_user(pk_user);
 ```text
 <!-- Code example in TEXT -->
 
@@ -252,7 +252,7 @@ FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
 <!-- Code example in Python -->
 @FraiseQL.type
 class Order:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     user: User  # Automatically available because of FK
 ```text
 <!-- Code example in TEXT -->
@@ -292,7 +292,7 @@ FraiseQL uses four types of database views, each optimized for different access 
 ```sql
 <!-- Code example in SQL -->
 -- Write table (source of truth)
-CREATE TABLE tb_users (
+CREATE TABLE tb_user (
     pk_user BIGINT PRIMARY KEY,
     username VARCHAR(255),
     email VARCHAR(255),
@@ -307,7 +307,7 @@ SELECT
     username,
     email,
     created_at
-FROM tb_users
+FROM tb_user
 WHERE deleted_at IS NULL;  -- Only active users
 ```text
 <!-- Code example in TEXT -->
@@ -326,7 +326,7 @@ WHERE deleted_at IS NULL;  -- Only active users
 <!-- Code example in Python -->
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     created_at: datetime
@@ -352,23 +352,23 @@ class User:
 ```sql
 <!-- Code example in SQL -->
 -- Write table
-CREATE TABLE tb_orders (
+CREATE TABLE tb_order (
     pk_order BIGINT PRIMARY KEY,
-    fk_user BIGINT NOT NULL REFERENCES tb_users(pk_user),
+    fk_user BIGINT NOT NULL REFERENCES tb_user(pk_user),
     total DECIMAL(10,2),
     created_at TIMESTAMP
 );
 
 -- Materialized JSON view (pre-composed nested data)
 CREATE TABLE tv_order_with_user (
-    pk_order BIGINT PRIMARY KEY REFERENCES tb_orders(pk_order) ON DELETE CASCADE,
+    pk_order BIGINT PRIMARY KEY REFERENCES tb_order(pk_order) ON DELETE CASCADE,
     data JSONB NOT NULL,  -- Contains: {orderId, total, user: {userId, username, email}}
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Trigger: Update tv_order_with_user when tb_orders or tb_users changes
+-- Trigger: Update tv_order_with_user when tb_order or tb_user changes
 CREATE TRIGGER trg_refresh_tv_order_with_user
-AFTER INSERT OR UPDATE ON tb_orders
+AFTER INSERT OR UPDATE ON tb_order
 FOR EACH ROW
 EXECUTE FUNCTION refresh_tv_order_with_user();
 
@@ -388,8 +388,8 @@ BEGIN
                 'email', u.email
             )
         )
-    FROM tb_orders o
-    JOIN tb_users u ON u.pk_user = o.fk_user
+    FROM tb_order o
+    JOIN tb_user u ON u.pk_user = o.fk_user
     WHERE o.pk_order = NEW.pk_order
     ON CONFLICT (pk_order) DO UPDATE
     SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP;
@@ -413,7 +413,7 @@ $$ LANGUAGE plpgsql;
 <!-- Code example in Python -->
 @FraiseQL.type
 class OrderWithUser:
-    order_id: int
+    order_id: UUID  # UUID v4 for GraphQL ID
     total: Decimal
     user: User  # From pre-composed JSONB
     # Automatically queries tv_order_with_user view
@@ -446,7 +446,7 @@ SELECT
     COUNT(*) OVER (PARTITION BY EXTRACT(YEAR FROM created_at)) AS users_per_year,
     EXTRACT(YEAR FROM created_at) AS signup_year,
     created_at
-FROM tb_users
+FROM tb_user
 WHERE deleted_at IS NULL;
 ```text
 <!-- Code example in TEXT -->
@@ -714,8 +714,8 @@ BEGIN
         NEW.occurred_at,
         NEW.status,
         NEW.created_at
-    FROM tb_products p
-    JOIN tb_customers c ON c.fk_customer = NEW.fk_customer
+    FROM tb_product p
+    JOIN tb_customer c ON c.fk_customer = NEW.fk_customer
     WHERE p.pk_product = NEW.fk_product
     ON CONFLICT (id) DO UPDATE
     SET
@@ -817,7 +817,7 @@ FraiseQL supports multiple database backends with **one schema definition**:
 # One schema definition...
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     orders: List[Order]
@@ -851,7 +851,7 @@ class User:
 <!-- Code example in Python -->
 @FraiseQL.type
 class Product:
-    product_id: int
+    product_id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: Decimal
     in_stock: bool
@@ -864,7 +864,7 @@ class Product:
 ```sql
 <!-- Code example in SQL -->
 -- PostgreSQL
-CREATE TABLE tb_products (
+CREATE TABLE tb_product (
     pk_product BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     name VARCHAR(255),
     price NUMERIC(10, 2),
@@ -879,7 +879,7 @@ CREATE TABLE tb_products (
 ```sql
 <!-- Code example in SQL -->
 -- MySQL
-CREATE TABLE tb_products (
+CREATE TABLE tb_product (
     pk_product BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255),
     price DECIMAL(10, 2),
@@ -894,8 +894,8 @@ CREATE TABLE tb_products (
 ```sql
 <!-- Code example in SQL -->
 -- SQLite
-CREATE TABLE tb_products (
-    pk_product INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE tb_product (
+    pk_product BIGINTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     price REAL,
     in_stock BOOLEAN DEFAULT true,
@@ -929,7 +929,7 @@ CREATE TABLE tb_events (
 -- FraiseQL can leverage these
 @FraiseQL.type
 class Event:
-    event_id: int
+    event_id: UUID  # UUID v4 for GraphQL ID
     data: JSON  # Maps to JSONB
     tags: List[str]  # Maps to array
     status: EventStatus  # Maps to enum
@@ -1031,13 +1031,13 @@ from FraiseQL import fact_table, aggregate_query, type as fraiseql_type
 @fraiseql_type
 class Sale:
     """Sales fact table for analytics."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     measure_revenue: float
     measure_quantity: int
     measure_cost: float
     dimension_data: dict
-    filter_customer_id: str
-    filter_product_id: str
+    filter_customer_id: UUID  # UUID v4 for GraphQL ID
+    filter_product_id: UUID  # UUID v4 for GraphQL ID
     filter_occurred_at: datetime
     filter_status: str
     calendar_info: dict

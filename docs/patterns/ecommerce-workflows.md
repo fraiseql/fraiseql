@@ -238,7 +238,7 @@ from datetime import datetime, date
 
 @types.object
 class Product:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     sku: str
     name: str
     price: Decimal
@@ -251,7 +251,7 @@ class Product:
 
 @types.object
 class ProductVariant:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     product: Product
     name: str
     price: Decimal
@@ -261,7 +261,7 @@ class ProductVariant:
 
 @types.object
 class Order:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     order_number: str
     customer: 'Customer'
     status: str
@@ -278,7 +278,7 @@ class Order:
 
 @types.object
 class OrderItem:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     variant: ProductVariant
     quantity: int
     unit_price: Decimal
@@ -286,7 +286,7 @@ class OrderItem:
 
 @types.object
 class Fulfillment:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     order: Order
     status: str
     tracking_number: str | None
@@ -296,7 +296,7 @@ class Fulfillment:
 
 @types.object
 class Return:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     order: Order
     status: str
     items: list['ReturnItem']

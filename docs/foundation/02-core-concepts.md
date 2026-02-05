@@ -67,13 +67,13 @@ FraiseQL has several type categories:
 <!-- Code example in Python -->
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
 
 @FraiseQL.type
 class Order:
-    order_id: int
+    order_id: UUID  # UUID v4 for GraphQL ID
     total: Decimal
     created_at: datetime
 ```text
@@ -222,7 +222,7 @@ In traditional GraphQL servers, resolvers are *custom code* you write:
 <!-- Code example in JAVASCRIPT -->
 // Apollo Server - Traditional resolver (you write this)
 const userResolver = async (parent, args, context) => {
-  return db.query("SELECT * FROM tb_users WHERE pk_user = ?", [args.id]);
+  return db.query("SELECT * FROM tb_user WHERE pk_user = ?", [args.id]);
 };
 ```text
 <!-- Code example in TEXT -->
@@ -234,10 +234,10 @@ In FraiseQL, resolvers are *automatically generated* at compile time:
 # FraiseQL - Resolver compiled, not written
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     # Resolver for user_id field automatically generated
-    # Resolver maps to: SELECT pk_user FROM tb_users WHERE ...
+    # Resolver maps to: SELECT pk_user FROM tb_user WHERE ...
 ```text
 <!-- Code example in TEXT -->
 
@@ -255,13 +255,13 @@ class User:
 <!-- Code example in Python -->
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     orders: List[Order]  # One user → many orders
 
 @FraiseQL.type
 class Order:
-    order_id: int
+    order_id: UUID  # UUID v4 for GraphQL ID
     total: Decimal
     fk_user: int         # Foreign key back to user
 ```text
@@ -273,7 +273,7 @@ class Order:
 <!-- Code example in Python -->
 @FraiseQL.type
 class Order:
-    order_id: int
+    order_id: UUID  # UUID v4 for GraphQL ID
     total: Decimal
     user: User           # Many orders → one user
 ```text
@@ -285,13 +285,13 @@ class Order:
 <!-- Code example in Python -->
 @FraiseQL.type
 class Student:
-    student_id: int
+    student_id: UUID  # UUID v4 for GraphQL ID
     name: str
     courses: List[Course]  # Many students → many courses
 
 @FraiseQL.type
 class Course:
-    course_id: int
+    course_id: UUID  # UUID v4 for GraphQL ID
     name: str
     students: List[Student]  # Many courses → many students
 ```text
@@ -303,7 +303,7 @@ class Course:
 <!-- Code example in Python -->
 @FraiseQL.type
 class Employee:
-    employee_id: int
+    employee_id: UUID  # UUID v4 for GraphQL ID
     name: str
     manager: Employee | None  # Self-relationship
     reports: List[Employee]   # Reverse relationship
@@ -354,12 +354,12 @@ In FraiseQL, types directly correspond to database tables:
 # GraphQL Type
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
 
 # Maps directly to database table
-# CREATE TABLE tb_users (
+# CREATE TABLE tb_user (
 #     pk_user BIGINT PRIMARY KEY,
 #     username VARCHAR(255),
 #     email VARCHAR(255)
@@ -412,8 +412,8 @@ SELECT
     u.username,
     o.pk_order,
     o.total
-FROM tb_users u
-LEFT JOIN tb_orders o ON u.pk_user = o.fk_user
+FROM tb_user u
+LEFT JOIN tb_order o ON u.pk_user = o.fk_user
 WHERE u.pk_user = 1;
 ```text
 <!-- Code example in TEXT -->
@@ -454,7 +454,7 @@ Compiles to:
 ```sql
 <!-- Code example in SQL -->
 -- Compiled SQL
-INSERT INTO tb_orders (fk_user, total, created_at)
+INSERT INTO tb_order (fk_user, total, created_at)
 VALUES (1, 99.99, CURRENT_TIMESTAMP)
 RETURNING pk_order, status, created_at;
 ```text
@@ -566,7 +566,7 @@ FraiseQL uses database **views** extensively:
 
 ```sql
 <!-- Code example in SQL -->
-CREATE TABLE tb_users (
+CREATE TABLE tb_user (
     pk_user BIGINT PRIMARY KEY,
     username VARCHAR(255),
     email VARCHAR(255),
@@ -587,7 +587,7 @@ SELECT
     username,
     email,
     created_at
-FROM tb_users
+FROM tb_user
 WHERE deleted_at IS NULL;  -- Soft deletes
 ```text
 <!-- Code example in TEXT -->
@@ -604,7 +604,7 @@ SELECT
     username,
     COUNT(*) OVER (PARTITION BY EXTRACT(YEAR FROM created_at)) AS users_per_year,
     created_at
-FROM tb_users;
+FROM tb_user;
 ```text
 <!-- Code example in TEXT -->
 
@@ -615,7 +615,7 @@ FROM tb_users;
 ```sql
 <!-- Code example in SQL -->
 CREATE VIEW tv_user AS
-SELECT * FROM tb_users;
+SELECT * FROM tb_user;
 -- Used for mutations (INSERT, UPDATE, DELETE)
 ```text
 <!-- Code example in TEXT -->
@@ -633,22 +633,22 @@ FraiseQL supports multiple databases:
 # PostgreSQL (primary, most features)
 @FraiseQL.database("postgresql")
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 # MySQL (secondary)
 @FraiseQL.database("mysql")
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 # SQLite (local dev)
 @FraiseQL.database("sqlite")
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 # SQL Server (enterprise)
 @FraiseQL.database("sqlserver")
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
 ```text
 <!-- Code example in TEXT -->
 
@@ -705,7 +705,7 @@ class User:
     user_id: str  # ❌ ERROR: database has INT, schema has str
 
 # Compilation fails with clear error message
-# "Type mismatch: User.user_id is String, but pk_user in tb_users is BIGINT"
+# "Type mismatch: User.user_id is String, but pk_user in tb_user is BIGINT"
 ```text
 <!-- Code example in TEXT -->
 
@@ -891,7 +891,7 @@ Now that you understand the terminology and mental models:
 | **Mutation** | Write operation | `mutation CreateOrder { ... }` |
 | **Resolver** | GraphQL ↔ DB logic | Auto-generated at compile time |
 | **Relationship** | Connection between types | `orders: List[Order]` |
-| **Table** | Database write table | `tb_users` |
+| **Table** | Database write table | `tb_user` |
 | **View** | Database read view | `v_user` |
 
 ---

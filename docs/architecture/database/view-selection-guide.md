@@ -315,7 +315,7 @@ const query = gql`
 // FraiseQL schema binding (server-side)
 @FraiseQL.type(view="tv_user_profile")  // Uses tv_* for performance
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     posts: list[Post]
 ```text

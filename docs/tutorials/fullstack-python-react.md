@@ -565,7 +565,7 @@ blog_schema = schema.Schema(
 )
 class User:
     """User type representing blog authors and commenters."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     bio: Optional[str] = None
@@ -580,10 +580,10 @@ class User:
 )
 class Post:
     """Post type representing individual blog articles."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
-    author_id: int
+    author_id: UUID  # UUID v4 for GraphQL ID
     published: bool
     created_at: datetime
     updated_at: datetime
@@ -600,9 +600,9 @@ class Post:
 )
 class Comment:
     """Comment type for user comments on posts."""
-    id: int
-    post_id: int
-    user_id: int
+    id: UUID  # UUID v4 for GraphQL ID
+    post_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     created_at: datetime
     # Author info
@@ -618,9 +618,9 @@ class Comment:
 )
 class Like:
     """Like type representing post likes."""
-    id: int
-    post_id: int
-    user_id: int
+    id: UUID  # UUID v4 for GraphQL ID
+    post_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     created_at: datetime
 
 
@@ -658,7 +658,7 @@ class CreatePostInput:
     """Input type for post creation."""
     title: str
     content: str
-    author_id: int
+    author_id: UUID  # UUID v4 for GraphQL ID
     published: bool = False
 
 
@@ -681,8 +681,8 @@ class UpdatePostInput:
 )
 class CreateCommentInput:
     """Input type for comment creation."""
-    post_id: int
-    user_id: int
+    post_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
 
 

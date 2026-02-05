@@ -338,8 +338,8 @@ class Sales:
     product_name: str        # dimensions->>'product_name'
     customer_segment: str    # dimensions->>'customer_segment'
     # Denormalized filters
-    customer_id: str
-    product_id: str
+    customer_id: UUID  # UUID v4 for GraphQL ID
+    product_id: UUID  # UUID v4 for GraphQL ID
     occurred_at: str
 
 @schema.query

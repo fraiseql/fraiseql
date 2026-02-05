@@ -261,7 +261,7 @@ from datetime import datetime, date
 @types.object
 class Event:
     """Event fact table - denormalized for fast analytics"""
-    event_id: int
+    event_id: UUID  # UUID v4 for GraphQL ID
     event_date: date
     event_timestamp: datetime
 

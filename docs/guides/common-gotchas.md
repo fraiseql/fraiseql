@@ -579,14 +579,14 @@ class User:
 @FraiseQL.type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 # orders-service
 @FraiseQL.type
 @key("id")
 class Order:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     user_id: str  # Foreign key reference, not @extends
 ```text
 <!-- Code example in TEXT -->

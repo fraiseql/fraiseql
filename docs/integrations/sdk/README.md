@@ -143,7 +143,7 @@ import FraiseQL
 
 @FraiseQL.type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @FraiseQL.query(sql_source="v_users")

@@ -48,15 +48,15 @@ from FraiseQL import type, field
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     created_at: str
 
 @type
 class Post:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
     user: User
@@ -165,7 +165,7 @@ Orders Service (Service 2)
 @key("id")
 class User:
     """User owned by Users Service."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     created_at: str
@@ -184,8 +184,8 @@ class User:
 @key("id")
 class Order:
     """Order owned by Orders Service."""
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: Decimal
     status: OrderStatus
     created_at: str
@@ -221,7 +221,7 @@ class User:
 @type
 class UserStats:
     """Materialized daily for performance."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     order_count: int
     total_spent: Decimal
     avg_order_value: Decimal
@@ -437,7 +437,7 @@ class SalesAnalytics:
     """Daily sales data in Arrow format."""
     date: Date
     region: str
-    product_id: str
+    product_id: UUID  # UUID v4 for GraphQL ID
     units_sold: int
     revenue: Decimal
     cost: Decimal
@@ -446,7 +446,7 @@ class SalesAnalytics:
 @type
 class CustomerSegmentation:
     """Customer behavior analytics."""
-    customer_id: str
+    customer_id: UUID  # UUID v4 for GraphQL ID
     segment: str  # "high-value", "churn-risk", etc.
     ltv: Decimal  # Lifetime value
     days_active: int
@@ -560,7 +560,7 @@ EOF
 @type
 class Organization:
     """Customer organization."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     plan: PlanTier  # "free", "pro", "enterprise"
     created_at: str
@@ -574,8 +574,8 @@ class User:
         fk_org=FraiseQL.context.org_id  # Automatic tenant isolation
     )
 
-    id: str
-    org_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    org_id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str = field(authorize={Roles.SELF, Roles.ADMIN})
     role: UserRole  # "owner", "admin", "member"
@@ -588,12 +588,12 @@ class Project:
         fk_org=FraiseQL.context.org_id
     )
 
-    id: str
-    org_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    org_id: UUID  # UUID v4 for GraphQL ID
     name: str
     description: str
     data: JSON  # Flexible project data
-    owner_id: str
+    owner_id: UUID  # UUID v4 for GraphQL ID
     created_at: str
 ```text
 <!-- Code example in TEXT -->

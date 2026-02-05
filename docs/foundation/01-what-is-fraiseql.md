@@ -137,15 +137,15 @@ FraiseQL treats the database as the primary source of truth, not an afterthought
 ```sql
 <!-- Code example in SQL -->
 -- Your database schema defines your API
-CREATE TABLE tb_users (
+CREATE TABLE tb_user (
     pk_user BIGINT PRIMARY KEY,
     username VARCHAR(255),
     email VARCHAR(255)
 );
 
-CREATE TABLE tb_orders (
+CREATE TABLE tb_order (
     pk_order BIGINT PRIMARY KEY,
-    fk_user BIGINT REFERENCES tb_users(pk_user),
+    fk_user BIGINT REFERENCES tb_user(pk_user),
     total DECIMAL(10, 2),
     created_at TIMESTAMP
 );
@@ -234,7 +234,7 @@ def get_user(user_id: int) -> User:
 # FraiseQL Schema
 @FraiseQL.type
 class Product:
-    product_id: int
+    product_id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: Decimal
     in_stock: bool  # Synced from tb_inventory
@@ -263,8 +263,8 @@ def search_products(query: str, category: str) -> List[Product]:
 # FraiseQL handles tenant isolation
 @FraiseQL.type
 class Invoice:
-    invoice_id: int
-    customer_id: int
+    invoice_id: UUID  # UUID v4 for GraphQL ID
+    customer_id: UUID  # UUID v4 for GraphQL ID
     amount: Decimal
     created_at: datetime
 
@@ -446,7 +446,7 @@ FraiseQL's architecture separates concerns:
 # Your Python or TypeScript code
 @FraiseQL.type
 class User:
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     name: str
     emails: List[Email]
 ```text

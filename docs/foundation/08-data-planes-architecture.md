@@ -222,7 +222,7 @@ Look up template
   ↓
 Bind parameters
   ↓
-Execute SQL: SELECT pk_user_id, email, created_at FROM tb_users WHERE pk_user_id = $1
+Execute SQL: SELECT pk_user, email, created_at FROM tb_user WHERE pk_user = $1
   ↓
 Fetch result from database
   ↓

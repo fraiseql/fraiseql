@@ -225,8 +225,8 @@ from decimal import Decimal
 
 @types.object
 class Device:
-    id: str
-    device_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    device_id: UUID  # UUID v4 for GraphQL ID
     name: str
     device_type: str
     location: str | None
@@ -240,7 +240,7 @@ class Device:
 
 @types.object
 class Sensor:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     device: Device
     sensor_name: str
     unit: str
@@ -266,7 +266,7 @@ class SensorMetric:
 
 @types.object
 class Alert:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     device: Device
     alert_type: str
     severity: str  # info, warning, critical

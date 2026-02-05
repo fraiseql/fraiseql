@@ -153,11 +153,11 @@ At compile time, FraiseQL created schema.compiled.json with all query templates:
         }
       ],
       "returns": "User",
-      "sql_template": "SELECT pk_user_id, email, created_at FROM tb_users WHERE pk_user_id = $1",
+      "sql_template": "SELECT pk_user, email, created_at FROM tb_user WHERE pk_user = $1",
       "nested_queries": [
         {
           "field": "orders",
-          "sql_template": "SELECT pk_order_id, fk_user_id, total FROM tb_orders WHERE fk_user_id = $1 ORDER BY created_at DESC"
+          "sql_template": "SELECT pk_order, fk_user, total FROM tb_order WHERE fk_user = $1 ORDER BY created_at DESC"
         }
       ],
       "complexity": "O(1) + O(N)",
@@ -179,7 +179,7 @@ schema = load_compiled_schema("schema.compiled.json")
 query_template = schema.queries["GetUserProfile"]
 
 # Result: Pre-optimized SQL template + metadata
-# sql_template: "SELECT pk_user_id, email, created_at FROM tb_users WHERE pk_user_id = $1"
+# sql_template: "SELECT pk_user, email, created_at FROM tb_user WHERE pk_user = $1"
 # parameters: [{ name: "userId", type: "Int" }]
 # nested_queries: [...]
 ```text
@@ -221,14 +221,14 @@ for param in template.parameters:
 
 ```python
 <!-- Code example in Python -->
-# Template: "SELECT * FROM tb_users WHERE pk_user_id = $1"
+# Template: "SELECT * FROM tb_user WHERE pk_user = $1"
 # Bindings: [123]
 
 sql = template.sql_template
 bindings = [request.variables["userId"]]
 
 # Database driver (e.g., psycopg2, pymysql) handles safe binding
-# Result: "SELECT * FROM tb_users WHERE pk_user_id = 123"
+# Result: "SELECT * FROM tb_user WHERE pk_user = 123"
 # BUT: parameters are NEVER concatenated into SQL string
 #      Database receives: statement + separate bindings
 #      This prevents SQL injection
@@ -343,7 +343,7 @@ connection = db_pool.get_connection()
 try:
     # Execute pre-optimized SQL with bound parameters
     results = connection.execute(
-        sql,           # "SELECT pk_user_id, email, created_at FROM tb_users WHERE pk_user_id = $1"
+        sql,           # "SELECT pk_user, email, created_at FROM tb_user WHERE pk_user = $1"
         bindings       # [123]
     )
 except DatabaseError as e:
@@ -358,14 +358,14 @@ finally:
 ```sql
 <!-- Code example in SQL -->
 -- Pre-compiled template (from schema.compiled.json)
-SELECT pk_user_id, email, created_at
-FROM tb_users
-WHERE pk_user_id = $1  -- Uses primary key index (very fast)
+SELECT pk_user, email, created_at
+FROM tb_user
+WHERE pk_user = $1  -- Uses primary key index (very fast)
 LIMIT 1
 
 -- Result:
 
--- pk_user_id | email            | created_at
+-- pk_user | email            | created_at
 -- 123        | user@example.com | 2026-01-01 10:00:00
 ```text
 <!-- Code example in TEXT -->
@@ -404,19 +404,19 @@ orders_results = [
 -- Database sees well-structured queries
 
 -- Good: Uses indexes effectively
-SELECT pk_user_id, email, created_at
-FROM tb_users
-WHERE pk_user_id = $1  -- ← Primary key (indexed)
+SELECT pk_user, email, created_at
+FROM tb_user
+WHERE pk_user = $1  -- ← Primary key (indexed)
 LIMIT 1
 
 -- Good: Batch loading pattern (avoid N+1)
-SELECT pk_order_id, fk_user_id, total
-FROM tb_orders
-WHERE fk_user_id = ANY($1)  -- ← IN clause, uses index
+SELECT pk_order, fk_user, total
+FROM tb_order
+WHERE fk_user = ANY($1)  -- ← IN clause, uses index
 ORDER BY created_at DESC
 
 -- Good: Indexes recommended at compile time
--- Query uses: tb_users(pk_user_id), tb_orders(fk_user_id, created_at)
+-- Query uses: tb_user(pk_user), tb_order(fk_user, created_at)
 -- Missing indexes detected and recommended in compilation report
 ```text
 <!-- Code example in TEXT -->
@@ -437,14 +437,14 @@ ORDER BY created_at DESC
 <!-- Code example in Python -->
 # Raw database results
 rows = [
-    {pk_user_id: 123, email: "user@example.com", created_at: datetime(2026, 1, 1)},
+    {pk_user: 123, email: "user@example.com", created_at: datetime(2026, 1, 1)},
     # ... (from orders query)
 ]
 
 # Include nested results
 orders = [
-    {pk_order_id: 456, fk_user_id: 123, total: 99.99},
-    {pk_order_id: 789, fk_user_id: 123, total: 149.99}
+    {pk_order: 456, fk_user: 123, total: 99.99},
+    {pk_order: 789, fk_user: 123, total: 149.99}
 ]
 ```text
 <!-- Code example in TEXT -->
@@ -454,7 +454,7 @@ orders = [
 ```python
 <!-- Code example in Python -->
 # Convert database column names to GraphQL field names
-# pk_user_id → userId
+# pk_user → userId
 # created_at → createdAt (camelCase)
 
 response = {
@@ -835,7 +835,7 @@ if not check_auth(template, request.user, bindings):
 
 # 4. Execute initial query
 product = db.execute(
-    "SELECT pk_product_id, name, price FROM tb_products WHERE pk_product_id = $1",
+    "SELECT pk_product, name, price FROM tb_product WHERE pk_product = $1",
     [42]
 )
 
@@ -843,9 +843,9 @@ product = db.execute(
 reviews = db.execute(
     """
     SELECT rv.pk_review_id, rv.fk_product_id, rv.rating, rv.content,
-           u.pk_user_id, u.username
+           u.pk_user, u.username
     FROM tb_reviews rv
-    JOIN tb_users u ON rv.fk_user_id = u.pk_user_id
+    JOIN tb_user u ON rv.fk_user = u.pk_user
     WHERE rv.fk_product_id = $1
     ORDER BY rv.created_at DESC
     LIMIT $2
@@ -874,7 +874,7 @@ return {
                     "rating": review.rating,
                     "content": review.content,
                     "author": {
-                        "userId": review.pk_user_id,
+                        "userId": review.pk_user,
                         "username": review.username
                     }
                 }

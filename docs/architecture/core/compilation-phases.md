@@ -788,7 +788,7 @@ CREATE SERVER products_fdw FOREIGN DATA WRAPPER postgres_fdw
 
 -- Create foreign table (schema mapped from FraiseQL view)
 CREATE FOREIGN TABLE products_schema_v_product (
-    pk_product INTEGER,
+    pk_product BIGINTEGER,
     id UUID,
     vendor_id UUID,
     data JSONB

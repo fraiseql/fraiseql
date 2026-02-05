@@ -774,7 +774,7 @@ class SAMLAttributeMapper:
     def map_attributes(
         self,
         saml_attributes: dict[str, str],
-        user_id: str
+        user_id: UUID  # UUID v4 for GraphQL ID
     ) -> dict[str, Any]:
         """Map SAML attributes to user object
 

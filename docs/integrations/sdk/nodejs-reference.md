@@ -180,7 +180,7 @@ FraiseQL performs runtime type validation at execution boundaries:
 const result = await client.query('users', {
   limit: 10,              // ✅ Valid: number
   offset: 'invalid',      // ❌ Error: expected number
-  status: 'active',       // ✅ Valid: string
+  status: 'active',       // ✅ Valid: UUID  # UUID v4 for GraphQL ID
 });
 ```text
 <!-- Code example in TEXT -->

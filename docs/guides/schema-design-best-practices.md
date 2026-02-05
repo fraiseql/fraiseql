@@ -479,7 +479,7 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 ```sql
 <!-- Code example in SQL -->
 -- Query: users WHERE created_at >= '2026-01-01'
-CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX idx_user_created_at ON users(created_at);
 ```text
 <!-- Code example in TEXT -->
 
@@ -488,7 +488,7 @@ CREATE INDEX idx_users_created_at ON users(created_at);
 ```sql
 <!-- Code example in SQL -->
 -- Query: users WHERE tenant_id = ? AND is_active = true
-CREATE INDEX idx_users_tenant_active ON users(tenant_id, is_active);
+CREATE INDEX idx_user_tenant_active ON users(tenant_id, is_active);
 ```text
 <!-- Code example in TEXT -->
 
@@ -700,7 +700,7 @@ EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
 -- Should show "Index Scan" not "Seq Scan"
 
 -- Check index size
-SELECT pg_size_pretty(pg_relation_size('idx_users_created_at'));
+SELECT pg_size_pretty(pg_relation_size('idx_user_created_at'));
 ```text
 <!-- Code example in TEXT -->
 

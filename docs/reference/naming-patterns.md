@@ -554,7 +554,7 @@ CREATE TABLE tf_sales (
 
 | Rule | Pattern | Enforced By | Example |
 |------|---------|------------|---------|
-| **Singular entity names** | `tb_user`, not `tb_users` | Schema validation | ✅ `tb_order`, ❌ `tb_orders` |
+| **Singular entity names** | `tb_user`, not `tb_user` | Schema validation | ✅ `tb_order`, ❌ `tb_order` |
 | **No abbreviations** | `tb_customer`, not `tb_cust` | Naming conventions | ✅ `tb_customer`, ❌ `tb_cust` |
 | **UUID for public ID** | Always `UUID`, never `VARCHAR` | Type checking | ✅ `id: UUID`, ❌ `id: VARCHAR` |
 | **BIGINT for internal keys** | `pk_*`, `fk_*` always BIGINT | Schema validation | ✅ `pk_user BIGINT`, ❌ `pk_user UUID` |

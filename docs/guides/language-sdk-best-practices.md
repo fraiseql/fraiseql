@@ -52,7 +52,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 class User(BaseModel):
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: EmailStr
     age: int | None = None  # Python 3.10+ union syntax

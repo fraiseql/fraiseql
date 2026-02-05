@@ -139,13 +139,13 @@ from FraiseQL import type, field
 
 @type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 # ❌ INVALID: Invalid field type (caught by Python type checker)
 @type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: BadType  # ← Python type error (before compilation)
 ```text
 <!-- Code example in TEXT -->
@@ -162,13 +162,13 @@ Errors caught by `FraiseQL-cli compile schema.json`:
 <!-- Code example in Python -->
 @type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     author: User  # ← Must exist and be a @type, not a Python class
 
 # ❌ FAILS COMPILATION: Author references non-existent type
 @type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     author: NonExistentUser
 
 # Error: Compilation { message: "Unknown type 'NonExistentUser' referenced in Post.author" }
@@ -182,16 +182,16 @@ class Post:
 -- ✅ VALID: Foreign key exists and matches type definition
 CREATE TABLE tb_post (
     pk_post_id BIGSERIAL PRIMARY KEY,
-    fk_user_id BIGINT NOT NULL REFERENCES tb_user(pk_user_id)
+    fk_user BIGINT NOT NULL REFERENCES tb_user(pk_user)
 );
 
 -- ❌ INVALID: Foreign key points to non-existent column
 CREATE TABLE tb_post (
     pk_post_id BIGSERIAL PRIMARY KEY,
-    fk_user_id BIGINT NOT NULL REFERENCES tb_user(pk_nonexistent_id)
+    fk_user BIGINT NOT NULL REFERENCES tb_user(pk_nonexistent_id)
 );
 
--- Error: Validation { message: "Foreign key fk_user_id references non-existent column tb_user.pk_nonexistent_id" }
+-- Error: Validation { message: "Foreign key fk_user references non-existent column tb_user.pk_nonexistent_id" }
 ```text
 <!-- Code example in TEXT -->
 
@@ -201,7 +201,7 @@ CREATE TABLE tb_post (
 <!-- Code example in Python -->
 @type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     # Compiler validates:
     # - Table tb_post exists in connected database
@@ -642,7 +642,7 @@ def create_user(input: UserInput) -> User:
 <!-- Code example in SQL -->
 -- PostgreSQL constraint (enforced by database)
 CREATE TABLE tb_user (
-    pk_user_id BIGSERIAL PRIMARY KEY,
+    pk_user BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
     email VARCHAR(255) NOT NULL,
     age INT NOT NULL CHECK (age >= 13 AND age <= 150),
@@ -739,7 +739,7 @@ FraiseQL handles this internally:
 query_params: { userId: "123\"; DROP TABLE users; --" }
 
 // FraiseQL generates:
-// SQL: SELECT * FROM posts WHERE pk_user_id = $1
+// SQL: SELECT * FROM posts WHERE pk_user = $1
 // Params: ["123\"; DROP TABLE users; --"]
 // The harmful string is treated as pure data, not executed
 ```text
@@ -761,7 +761,7 @@ class UserRole(str, Enum):
 
 @type
 class UpdateUserInput:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     role: UserRole  # ← Restricted to 3 valid values
 
 # Valid requests:
@@ -791,7 +791,7 @@ from FraiseQL import type, field, permission
 
 @type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
 
     @permission("read", roles=["viewer", "editor", "admin"])
@@ -827,7 +827,7 @@ Control access based on data ownership:
 <!-- Code example in Python -->
 @type
 class Post:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
 
     @permission(
@@ -868,7 +868,7 @@ Control access based on user attributes, resource attributes, and context:
 <!-- Code example in Python -->
 @type
 class Document:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
 
     @permission(
@@ -1125,7 +1125,7 @@ query {
 3. ✅ Validate 'id' parameter is Int
 4. ✅ Validate 'name' field exists on User type
 5. ✅ Check authorization (user can read User.name)
-6. ✅ Execute SQL: SELECT name FROM tb_user WHERE pk_user_id = $1
+6. ✅ Execute SQL: SELECT name FROM tb_user WHERE pk_user = $1
 7. ✅ Check authorization (post-fetch, if any field-level rules)
 8. ✅ Format JSON response
 9. ✅ Return result

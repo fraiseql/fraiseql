@@ -34,7 +34,7 @@ from FraiseQL import type
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 ```text
 <!-- Code example in TEXT -->
@@ -56,7 +56,7 @@ from FraiseQL import type, key
 @type
 @key(fields=["id"])
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 ```text
 <!-- Code example in TEXT -->
@@ -73,7 +73,7 @@ class User:
 @key(fields=["id"])
 @key(fields=["email"])
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
     name: str
 ```text
@@ -86,8 +86,8 @@ class User:
 @type
 @key(fields=["organization_id", "user_id"])
 class User:
-    organization_id: str
-    user_id: str
+    organization_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     name: str
 ```text
 <!-- Code example in TEXT -->
@@ -193,8 +193,8 @@ from FraiseQL import type, provides
 
 @type
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float = provides(from_fields=["user_id"])
 ```text
 <!-- Code example in TEXT -->
@@ -215,7 +215,7 @@ from FraiseQL import type, shareable
 
 @type
 class Product:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: float = shareable()
 ```text
@@ -259,7 +259,7 @@ from typing import Optional
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: Optional[str]       # Nullable field (Python 3.10+)
     phone: str | None          # Also valid (3.10+ preferred)
 ```text
@@ -289,7 +289,7 @@ DateTime = scalar("DateTime", description="ISO 8601 datetime")
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     created_at: DateTime
 ```text
 <!-- Code example in TEXT -->
@@ -977,7 +977,7 @@ match resolver.resolve_entities(reps, "User", selection).await {
 @type
 @key(fields=["id"])
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str | None
 ```text
@@ -990,8 +990,8 @@ class User:
 @type
 @key(fields=["organization_id", "user_id"])
 class User:
-    organization_id: str
-    user_id: str
+    organization_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
 ```text
 <!-- Code example in TEXT -->
 

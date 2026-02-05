@@ -39,7 +39,7 @@ import FraiseQL
 
 @FraiseQL.type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @FraiseQL.query(sql_source="v_users")
@@ -113,7 +113,7 @@ class MyType:
 @FraiseQL.type
 class User:
     """A user account."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
 
@@ -121,7 +121,7 @@ class User:
 @FraiseQL.type
 class Post:
     """A blog post."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     body: str
     published_at: str | None  # Optional field
@@ -130,7 +130,7 @@ class Post:
 @FraiseQL.type
 class Blog:
     """A blog with multiple posts."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     posts: list[Post]
     tags: list[str]
@@ -147,7 +147,7 @@ class Address:
 @FraiseQL.type
 class Company:
     """A company with address."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     headquarters: Address
     employees: list[User]
@@ -163,7 +163,7 @@ class Product:
     - price: Product price in USD
     - in_stock: Availability status
     """
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: float
     in_stock: bool
@@ -184,7 +184,7 @@ class UserSearchResult:
 @FraiseQL.type
 class Department:
     """Represents a department."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     manager: User | None
     members: list[User]
@@ -195,7 +195,7 @@ class Department:
 @FraiseQL.type
 class Organization:
     """An organization with multiple departments."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     departments: list[Department]
 ```text
@@ -596,7 +596,7 @@ Define analytics tables for OLAP queries.
 )
 @FraiseQL.type
 class Sale:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     revenue: float
     quantity: int
 ```text
@@ -646,7 +646,7 @@ class Sale:
 @FraiseQL.type
 class Sale:
     """A sales fact record."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     revenue: float          # Measure for SUM/AVG
     quantity: int          # Measure for SUM/COUNT
     cost: float           # Measure for SUM
@@ -674,10 +674,10 @@ class Sale:
 @FraiseQL.type
 class Event:
     """An analytics event."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     count: int
     duration: float
-    user_id: int
+    user_id: UUID  # UUID v4 for GraphQL ID
     occurred_at: str
 ```text
 <!-- Code example in TEXT -->
@@ -917,7 +917,7 @@ def admin_stats() -> dict:
 # User query with field-level security
 @FraiseQL.type
 class UserProfile:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     ssn: str  # Sensitive field
@@ -1305,7 +1305,7 @@ Isolate data by tenant:
 @FraiseQL.type
 class TenantData:
     """Tenant-scoped data."""
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     tenant_id: UUID
     content: str
 
@@ -1344,7 +1344,7 @@ from FraiseQL.scalars import DateTime, Decimal
 )
 @FraiseQL.type
 class Metric:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     value: Decimal
     count: int
     recorded_at: DateTime
@@ -1413,7 +1413,7 @@ def query1() -> UndefinedType:  # ERROR: Type not decorated
 # ✅ Correct
 @FraiseQL.type
 class GoodType:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
 
 @FraiseQL.query(sql_source="v_data")
 def query1() -> GoodType:
@@ -1536,7 +1536,7 @@ class User:
 
     Represents a registered user with identity and contact info.
     """
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
     name: str
     bio: str | None
@@ -1648,7 +1648,7 @@ class TimestampedData:
 
 @FraiseQL.type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     created_at: str  # Redundant, but necessary without interfaces
     updated_at: str
 
@@ -1908,7 +1908,7 @@ def users() -> UserType:  # Not decorated with @FraiseQL.type
 # ✅ Correct - Define the type first
 @FraiseQL.type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @FraiseQL.query(sql_source="v_users")
@@ -2102,7 +2102,7 @@ def users(limit: int = 20, offset: int = 0) -> list[User]:
     pass
 
 # Add database indexes
-# CREATE INDEX idx_users_email ON users(email);
+# CREATE INDEX idx_user_email ON users(email);
 ```text
 <!-- Code example in TEXT -->
 

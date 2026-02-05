@@ -185,7 +185,7 @@ from typing import Optional
 
 @types.object
 class Document:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content_type: str
     content: str  # Current document state
@@ -198,15 +198,15 @@ class Document:
 
 @types.object
 class DocumentPermission:
-    user_id: str
+    user_id: UUID  # UUID v4 for GraphQL ID
     permission: str  # view, edit, comment, manage
     granted_at: datetime
 
 @types.object
 class DocumentChange:
     """Individual operation (for reconstruction)"""
-    id: int
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     operation: dict  # type, position, content
     vector_clock: dict  # For CRDT
     created_at: datetime
@@ -214,7 +214,7 @@ class DocumentChange:
 @types.object
 class Presence:
     """Real-time user presence"""
-    user_id: str
+    user_id: UUID  # UUID v4 for GraphQL ID
     cursor_position: int
     selection_start: Optional[int]
     selection_end: Optional[int]
@@ -223,15 +223,15 @@ class Presence:
 @types.object
 class DocumentActivity:
     """Activity stream"""
-    user_id: str
+    user_id: UUID  # UUID v4 for GraphQL ID
     activity_type: str  # edit, comment, join, leave
     metadata: dict
     created_at: datetime
 
 @types.object
 class Comment:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     position: Optional[int]
     resolved: bool

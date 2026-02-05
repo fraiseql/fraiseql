@@ -186,7 +186,7 @@ from decimal import Decimal
 
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     created_at: datetime
@@ -195,14 +195,14 @@ class User:
 
 @type
 class Post:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     created_at: datetime
 
 @type
 class Organization:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     created_at: datetime
 ```text
@@ -216,7 +216,7 @@ class Organization:
 <!-- Code example in Python -->
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     created_at: datetime
@@ -227,8 +227,8 @@ class User:
 
 @type
 class Post:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     created_at: datetime
     # NEW: Relationships
@@ -237,7 +237,7 @@ class Post:
 
 @type
 class Organization:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     created_at: datetime
     # NEW: Relationships
@@ -257,8 +257,8 @@ class Post:
         fk_organization=FraiseQL.context.org_id,  # Only user's org
     )
 
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     user: User
     comments: List[Comment]
@@ -273,8 +273,8 @@ class Comment:
         )
     )
 
-    id: str
-    post_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    post_id: UUID  # UUID v4 for GraphQL ID
     content: str
 ```text
 <!-- Code example in TEXT -->
@@ -287,7 +287,7 @@ class Comment:
 <!-- Code example in Python -->
 @type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str = field(
         authorize={Roles.SELF, Roles.ADMIN, Roles.HR}
@@ -310,7 +310,7 @@ class User:
 @type
 class UserStats:
     """Materialized daily - fast lookups for aggregations."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     post_count: int
     comment_count: int
     avg_likes_per_post: Decimal
@@ -754,7 +754,7 @@ CREATE INDEX idx_posts_created_at ON posts(created_at);
 @type
 class UserStats:
     """Changed from v_user_stats (logical) to tv_user_stats (materialized)."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     post_count: int
     total_engagement: int
 ```text

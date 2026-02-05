@@ -842,9 +842,9 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_user_username ON users(username);
+CREATE INDEX idx_user_email ON users(email);
+CREATE INDEX idx_user_role ON users(role);
 
 -- Categories table
 CREATE TABLE categories (

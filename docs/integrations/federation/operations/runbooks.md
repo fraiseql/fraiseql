@@ -157,7 +157,7 @@ kubectl logs -l app=FraiseQL --all-containers --tail=1000 | \
     "spike_p99": "125ms",
     "increase": "291%"
   },
-  "resolution": "CREATE INDEX idx_users_id ON users(id);",
+  "resolution": "CREATE INDEX idx_user_id ON users(id);",
   "time_to_resolve": "5 minutes",
   "prevention": "Add index monitoring to CI/CD checks"
 }

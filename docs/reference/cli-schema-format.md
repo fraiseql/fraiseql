@@ -98,7 +98,7 @@ All language generators produce compatible JSON schemas:
 <!-- Code example in Python -->
 @FraiseQL.type
 class User:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str | None
 

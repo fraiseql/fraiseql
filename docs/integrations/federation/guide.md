@@ -74,7 +74,7 @@ from FraiseQL import type, key
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 ```text
@@ -170,8 +170,8 @@ Federation is enabled via `@key` directives:
 @key("id")           # Single key field
 @key("org_id id")    # Composite key
 class User:
-    id: str
-    org_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    org_id: UUID  # UUID v4 for GraphQL ID
 ```text
 <!-- Code example in TEXT -->
 
@@ -190,13 +190,13 @@ Declares the primary key for entity identification in federation.
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
 
 @type
 @key("organizationId id")  # Composite key
 class OrgUser:
     organizationId: str
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
 ```text
 <!-- Code example in TEXT -->
 
@@ -275,7 +275,7 @@ Marks fields that can be resolved by multiple subgraphs.
 @type
 @shareable
 class Product:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     description: str  # Shareable - can be computed anywhere
 ```text
@@ -309,7 +309,7 @@ SELECT id, name, email FROM users WHERE id IN (?, ?, ...)
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
@@ -399,7 +399,7 @@ url = "http://orders-service:4000/graphql"
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
@@ -414,8 +414,8 @@ class User:
 @type
 @key("id")
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float
 ```text
 <!-- Code example in TEXT -->
@@ -449,8 +449,8 @@ query {
 @type
 @key("organization_id id")
 class OrgUser:
-    organization_id: str
-    id: str
+    organization_id: UUID  # UUID v4 for GraphQL ID
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
@@ -465,9 +465,9 @@ class OrgUser:
 @type
 @key("organization_id id")
 class OrgOrder:
-    organization_id: str
-    id: str
-    user_id: str
+    organization_id: UUID  # UUID v4 for GraphQL ID
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     total: float
 ```text
 <!-- Code example in TEXT -->
@@ -490,7 +490,7 @@ class OrgOrder:
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 # orders-service: extends User, owns Order
@@ -503,8 +503,8 @@ class User:
 @type
 @key("id")
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 # products-service: extends Order, owns Product
 @type
@@ -516,8 +516,8 @@ class Order:
 @type
 @key("id")
 class Product:
-    id: str
-    order_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    order_id: UUID  # UUID v4 for GraphQL ID
     price: float
 ```text
 <!-- Code example in TEXT -->
@@ -541,20 +541,20 @@ class Product:
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
 @type
 @key("id")
 class Order:
-    id: str
-    user_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 @type
 @key("id")
 class Product:
-    id: str
-    order_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    order_id: UUID  # UUID v4 for GraphQL ID
 ```text
 <!-- Code example in TEXT -->
 
@@ -610,7 +610,7 @@ FraiseQL deploy products-subgraph \
 # ✅ Correct: Same key definition
 # users-service
 @key("id")
-class User: id: str
+class User: id: UUID  # UUID v4 for GraphQL ID
 
 # orders-service
 @extends
@@ -800,7 +800,7 @@ from FraiseQL import type, key, extends, external, shareable
 @type
 @key("id")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
 
 # Extend entity from another subgraph
 @extends

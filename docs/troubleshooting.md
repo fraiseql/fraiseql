@@ -119,7 +119,7 @@ Add database indexes:
 
 ```sql
 <!-- Code example in SQL -->
-CREATE INDEX idx_users_id ON users(id);
+CREATE INDEX idx_user_id ON users(id);
 ```text
 <!-- Code example in TEXT -->
 

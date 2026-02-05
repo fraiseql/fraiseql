@@ -383,7 +383,7 @@ class User:
         updated_at: Last account update timestamp
     """
 
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     bio: str | None
@@ -408,10 +408,10 @@ class Post:
     when needed.
     """
 
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
-    author_id: int
+    author_id: UUID  # UUID v4 for GraphQL ID
     published: bool
     created_at: str
     updated_at: str
@@ -430,9 +430,9 @@ class Comment:
         updated_at: Last comment update timestamp
     """
 
-    id: int
-    post_id: int
-    user_id: int
+    id: UUID  # UUID v4 for GraphQL ID
+    post_id: UUID  # UUID v4 for GraphQL ID
+    user_id: UUID  # UUID v4 for GraphQL ID
     content: str
     created_at: str
     updated_at: str
@@ -1702,10 +1702,10 @@ Python schema:
 <!-- Code example in Python -->
 @FraiseQL.type
 class PostWithAuthor:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
-    author_id: int
+    author_id: UUID  # UUID v4 for GraphQL ID
     author_name: str
     author_email: str
 

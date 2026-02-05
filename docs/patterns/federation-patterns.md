@@ -119,7 +119,7 @@ from FraiseQL import types, database
 @types.object
 class Customer:
     """Primary customer data from PostgreSQL"""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
     name: str
     created_at: str
@@ -136,15 +136,15 @@ class Customer:
 
 @types.object
 class CustomerDetails:
-    customer_id: str
+    customer_id: UUID  # UUID v4 for GraphQL ID
     phone: str
     address: str
     preferred_timezone: str
 
 @types.object
 class Order:
-    id: str
-    customer_id: str
+    id: UUID  # UUID v4 for GraphQL ID
+    customer_id: UUID  # UUID v4 for GraphQL ID
     order_date: str
     total_amount: float
 
@@ -156,8 +156,8 @@ class Order:
 
 @types.object
 class OrderItem:
-    order_id: str
-    product_id: str
+    order_id: UUID  # UUID v4 for GraphQL ID
+    product_id: UUID  # UUID v4 for GraphQL ID
     quantity: int
     price: float
 
@@ -230,7 +230,7 @@ export async function getCustomerWithHistory(customerId: string) {
 # Define relationship across databases
 @types.object
 class Customer:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
 
     @database('mysql_historical')
@@ -397,7 +397,7 @@ async def transfer_customer_data(customer_id: str):
 # Mark data with source and timestamp
 @types.object
 class Customer:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     email: str
     source_database: str  # postgres_primary, mysql_historical
     last_sync: datetime
@@ -560,7 +560,7 @@ config = {
 # 2. Create unified schema
 @types.object
 class Order:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
 
     @database('postgres_new')
     def customer(self) -> 'Customer':

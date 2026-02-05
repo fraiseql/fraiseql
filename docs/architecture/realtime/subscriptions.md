@@ -1852,7 +1852,7 @@ class ActivityInOrganization:
 
     id: ID
     entity_type: str
-    entity_id: str
+    entity_id: UUID  # UUID v4 for GraphQL ID
     operation: str
     severity: AuditSeverity
     user: User

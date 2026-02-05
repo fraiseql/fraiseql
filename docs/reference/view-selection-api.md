@@ -27,21 +27,21 @@ import FraiseQL
 # Default: Uses v_user (logical view)
 @FraiseQL.type()
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
 # Explicit: Uses v_user (same as default, for clarity)
 @FraiseQL.type(view="v_user")
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
 # Table-backed: Uses tv_user_profile (pre-computed JSONB)
 @FraiseQL.type(view="tv_user_profile")
 class UserProfile:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     posts: list[Post]
@@ -146,14 +146,14 @@ from FraiseQL import type, schema
 @type()
 class User:
     """Simple user view"""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
 
 @type(view="tv_user_profile")
 class UserWithNested:
     """Complex user profile with nested data"""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     email: str
     posts: list['Post']
@@ -162,16 +162,16 @@ class UserWithNested:
 
 @type()
 class Post:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     title: str
     content: str
-    user_id: str
+    user_id: UUID  # UUID v4 for GraphQL ID
 
 @type()
 class Comment:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     text: str
-    post_id: str
+    post_id: UUID  # UUID v4 for GraphQL ID
 
 # Schema compilation
 schema_file = schema.compile(
@@ -534,7 +534,7 @@ except flight.FlightError as e:
 # Error case: type doesn't match view
 @FraiseQL.type(view="ta_orders")  # ta_* is Arrow-only!
 class Order:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
 
 # Compilation error: 'ta_orders' is table-backed Arrow view
 # Cannot use for JSON plane type

@@ -725,7 +725,7 @@ Why:
 <!-- Code example in Python -->
 @schema.type(table="v_products")
 class Product:
-    id: int
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
     price: float
     rating: float

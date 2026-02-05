@@ -631,17 +631,17 @@ pool_config = {
 ```sql
 <!-- Code example in SQL -->
 -- User-related indexes
-CREATE INDEX idx_users_id ON users(id);
-CREATE INDEX idx_users_email ON users(email) WHERE deleted_at IS NULL;
-CREATE INDEX idx_users_created_at ON users(created_at DESC);
+CREATE INDEX idx_user_id ON users(id);
+CREATE INDEX idx_user_email ON users(email) WHERE deleted_at IS NULL;
+CREATE INDEX idx_user_created_at ON users(created_at DESC);
 
 -- Order-related indexes (composite)
 CREATE INDEX idx_orders_user_date ON orders(user_id, created_at DESC) WHERE status != 'deleted';
 CREATE INDEX idx_orders_status ON orders(status) WHERE created_at > now() - interval '90 days';
 
 -- JSONB indexes
-CREATE INDEX idx_users_metadata ON users USING gin(metadata);
-CREATE INDEX idx_users_metadata_tags ON users USING gin(metadata->'tags');
+CREATE INDEX idx_user_metadata ON users USING gin(metadata);
+CREATE INDEX idx_user_metadata_tags ON users USING gin(metadata->'tags');
 
 -- Full-text search
 CREATE INDEX idx_products_content ON products USING gin(to_tsvector('english', name || ' ' || description));

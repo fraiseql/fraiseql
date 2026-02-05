@@ -155,7 +155,7 @@ Each type definition contains:
       "description": "Post author",
       "relationship": {
         "type": "one-to-one",
-        "foreign_key": "fk_user_id",
+        "foreign_key": "fk_user",
         "target_type": "User"
       }
     },
@@ -425,7 +425,7 @@ Each mutation contains:
           "name": "id",
           "field_type": "ID!",
           "nullable": false,
-          "sql_column": "pk_user_id"
+          "sql_column": "pk_user"
         },
         {
           "name": "email",
@@ -451,7 +451,7 @@ Each mutation contains:
           "nullable": false,
           "relationship": {
             "type": "one-to-many",
-            "foreign_key": "fk_user_id",
+            "foreign_key": "fk_user",
             "target_type": "Post"
           }
         },
@@ -493,7 +493,7 @@ Each mutation contains:
           "nullable": false,
           "relationship": {
             "type": "one-to-one",
-            "foreign_key": "fk_user_id",
+            "foreign_key": "fk_user",
             "target_type": "User"
           }
         },

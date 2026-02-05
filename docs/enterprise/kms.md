@@ -758,7 +758,7 @@ async def register_user(
 @strawberry.mutation
 async def generate_api_key(
     info: strawberry.types.Info,
-    user_id: str
+    user_id: UUID  # UUID v4 for GraphQL ID
 ) -> ApiKeyResponse:
     key_manager = info.context["key_manager"]
 

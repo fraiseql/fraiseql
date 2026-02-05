@@ -462,7 +462,7 @@ ANALYZE tf_sales;
 -- ------------------------------------------------------------
 
 -- Step 1: Create index
-CREATE INDEX CONCURRENTLY idx_users_created_at
+CREATE INDEX CONCURRENTLY idx_user_created_at
   ON users (created_at);
 
 -- Step 2: Analyze for statistics
@@ -470,7 +470,7 @@ ANALYZE users;
 
 -- Rollback (if needed):
 
--- DROP INDEX IF EXISTS idx_users_created_at;
+-- DROP INDEX IF EXISTS idx_user_created_at;
 
 
 -- ============================================================
