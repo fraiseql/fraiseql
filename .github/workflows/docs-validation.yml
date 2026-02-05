@@ -6,6 +6,8 @@ on:
     paths:
       - 'docs/**'
       - 'README.md'
+      - '.vale.ini'
+      - '.vale/**'
       - '.github/workflows/docs-validation.yml'
       - 'tools/validate-docs-links.py'
   pull_request:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'docs/**'
       - 'README.md'
+      - '.vale.ini'
+      - '.vale/**'
       - '.github/workflows/docs-validation.yml'
       - 'tools/validate-docs-links.py'
 
@@ -56,6 +60,22 @@ jobs:
       - name: Run markdownlint on docs
         run: |
           markdownlint 'docs/**/*.md' || true
+
+  # Check prose quality and consistency
+  prose-lint:
+    name: Prose Linting (Vale)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vale
+        run: |
+          curl -sL https://github.com/errata-ai/vale/releases/download/v3.13.0/vale_3.13.0_Linux_64-bit.tar.gz | tar -xz -C /usr/local/bin
+          vale --version
+
+      - name: Run Vale on docs
+        run: |
+          vale docs/ || true
 
   # Check for unresolved references and broken anchors
   doc-structure:
@@ -184,7 +204,7 @@ jobs:
   # Final status check
   docs-validation-success:
     name: Docs Validation Success
-    needs: [link-validation, markdown-lint, doc-structure, anchor-check]
+    needs: [link-validation, markdown-lint, prose-lint, doc-structure, anchor-check]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -192,6 +212,7 @@ jobs:
         run: |
           if [ "${{ needs.link-validation.result }}" == "failure" ] || \
              [ "${{ needs.markdown-lint.result }}" == "failure" ] || \
+             [ "${{ needs.prose-lint.result }}" == "failure" ] || \
              [ "${{ needs.doc-structure.result }}" == "failure" ] || \
              [ "${{ needs.anchor-check.result }}" == "failure" ]; then
             echo "❌ Documentation validation failed"
