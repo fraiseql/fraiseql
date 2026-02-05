@@ -41,7 +41,7 @@ This guide explains FraiseQL's three-tier health check system for production dep
 ```bash
 GET /health HTTP/1.1
 Host: localhost:8000
-```
+```text
 
 **Response - Healthy** (HTTP 200):
 
@@ -51,7 +51,7 @@ Host: localhost:8000
   "timestamp": 1706794800,
   "uptime_seconds": 3600
 }
-```
+```text
 
 **Fields**:
 
@@ -77,7 +77,7 @@ Host: localhost:8000
 ```bash
 GET /ready HTTP/1.1
 Host: localhost:8000
-```
+```text
 
 **Response - Ready** (HTTP 200):
 
@@ -88,7 +88,7 @@ Host: localhost:8000
   "cache_available": true,
   "reason": null
 }
-```
+```text
 
 **Response - Not Ready** (HTTP 503 Service Unavailable):
 
@@ -99,7 +99,7 @@ Host: localhost:8000
   "cache_available": true,
   "reason": "Database unavailable"
 }
-```
+```text
 
 **Fields**:
 
@@ -133,7 +133,7 @@ Host: localhost:8000
 ```bash
 GET /live HTTP/1.1
 Host: localhost:8000
-```
+```text
 
 **Response** (HTTP 200):
 
@@ -143,7 +143,7 @@ Host: localhost:8000
   "pid": 42157,
   "response_time_ms": 1
 }
-```
+```text
 
 **Fields**:
 
@@ -268,7 +268,7 @@ spec:
 
       # Termination grace period should match server's shutdown timeout
       terminationGracePeriodSeconds: 30
-```
+```text
 
 ### Pattern 2: Docker Compose
 
@@ -306,7 +306,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-```
+```text
 
 ### Pattern 3: AWS Application Load Balancer
 
@@ -339,11 +339,11 @@ resource "aws_lb_target_group" "fraiseql" {
     enabled         = false
   }
 }
-```
+```text
 
 ### Pattern 4: HAProxy
 
-```
+```text
 global
   log stdout local0
   maxconn 2048
@@ -374,7 +374,7 @@ backend fraiseql_be
 
   # Session persistence
   cookie SERVERID insert indirect nocache
-```
+```text
 
 ---
 
@@ -429,7 +429,7 @@ kubectl exec -it pod/fraiseql-xxx -- \
 # Check database connectivity
 kubectl exec -it pod/fraiseql-xxx -- \
   sh -c 'psql $DATABASE_URL -c "SELECT 1"'
-```
+```text
 
 **Solutions**:
 
@@ -459,7 +459,7 @@ kubectl logs pod/fraiseql-xxx --previous
 
 # Check events
 kubectl describe pod/fraiseql-xxx
-```
+```text
 
 **Solutions**:
 
@@ -490,7 +490,7 @@ time curl http://localhost:8000/live
 # - High CPU usage
 # - Database query locks
 # - Memory pressure
-```
+```text
 
 **Solutions**:
 
@@ -531,13 +531,13 @@ periodSeconds: 5
 timeoutSeconds: 1
 failureThreshold: 2
 # Reacts in 10 seconds (2 * 5) but may flap
-```
+```text
 
 ### 3. Graceful Shutdown Coordination
 
 ```yaml
 terminationGracePeriodSeconds: 30  # Matches server timeout
-```
+```text
 
 Ensure these align:
 
@@ -559,7 +559,7 @@ Monitor the health check endpoints themselves:
 - alert: HighLivenessRestartRate
   expr: increase(pod_restarts_total[5m]) > 0
   for: 1m
-```
+```text
 
 ### 5. Testing Health Checks
 
@@ -575,7 +575,7 @@ timeout 1 curl http://localhost:8000/ready
 # Test after stopping database
 kill $(pidof postgres)
 curl http://localhost:8000/ready  # Should return 503
-```
+```text
 
 ---
 
@@ -594,7 +594,7 @@ readinessProbe:
   periodSeconds: 5
   failureThreshold: 2
   # 10 seconds to detect and remove from LB
-```
+```text
 
 ### Development Environment
 
@@ -607,7 +607,7 @@ livenessProbe:
 readinessProbe:
   periodSeconds: 30
   failureThreshold: 3
-```
+```text
 
 ### Gradual Rollout
 
@@ -618,7 +618,7 @@ readinessProbe:
   initialDelaySeconds: 30
   # Allows 30 seconds before first check
   # Checks every 10 seconds after
-```
+```text
 
 ---
 

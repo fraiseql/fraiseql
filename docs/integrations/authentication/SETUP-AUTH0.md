@@ -66,25 +66,25 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 
 3. Scroll down to "Allowed Callback URLs" and add:
 
-   ```
+   ```text
    http://localhost:8000/auth/callback
    https://yourdomain.com/auth/callback
-   ```
+   ```text
 
 4. Scroll to "Allowed Logout URLs" and add:
 
-   ```
+   ```text
    http://localhost:3000
    https://yourdomain.com
-   ```
+   ```text
 
 5. Scroll to "Allowed Web Origins" and add:
 
-   ```
+   ```text
    http://localhost:3000
    http://localhost:8000
    https://yourdomain.com
-   ```
+   ```text
 
 6. Click "Save Changes"
 
@@ -114,7 +114,7 @@ JWT_ALGORITHM=RS256
 
 # Database Configuration
 DATABASE_URL=postgres://user:password@localhost/fraiseql
-```
+```text
 
 ## Step 5: Configure FraiseQL Server
 
@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
     // Register auth endpoints...
     Ok(())
 }
-```
+```text
 
 ## Step 6: Register Auth Endpoints
 
@@ -161,7 +161,7 @@ let auth_routes = Router::new()
 let app = Router::new()
     .merge(auth_routes)
     // ... other routes
-```
+```text
 
 ## Testing
 
@@ -171,7 +171,7 @@ let app = Router::new()
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "auth0"}'
-```
+```text
 
 ### 2. Complete Authentication
 
@@ -184,7 +184,7 @@ curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
-```
+```text
 
 ## Advanced: User Management
 
@@ -197,7 +197,7 @@ Auth0 provides user management APIs. Access them via:
 let user_info = oauth_provider.user_info(&access_token).await?;
 println!("User ID: {}", user_info.id);
 println!("Email: {}", user_info.email);
-```
+```text
 
 ## Advanced: Rules and Actions
 
@@ -217,7 +217,7 @@ Auth0 Rules (legacy) or Actions allow custom logic:
        api.accessToken.setCustomClaim(`${namespace}/org_id`, event.user.org_id);
      }
    };
-   ```
+   ```text
 
 6. Click "Save" → "Deploy"
 
@@ -227,7 +227,7 @@ Then access in FraiseQL:
 let user = auth::AuthenticatedUser { /* ... */ };
 let roles = user.get_custom_claim("https://fraiseql.example.com/roles");
 let org_id = user.get_custom_claim("https://fraiseql.example.com/org_id");
-```
+```text
 
 ## Advanced: Social Login
 
@@ -274,7 +274,7 @@ let user = auth::AuthenticatedUser { /* ... */ };
 if user.has_role("admin") {
     // Admin logic
 }
-```
+```text
 
 ## Troubleshooting
 
@@ -321,7 +321,7 @@ curl https://your-domain.auth0.com/.well-known/openid-configuration
 
 # Check FraiseQL logs for errors
 # Verify DATABASE_URL is correct
-```
+```text
 
 ## Production Deployment
 
@@ -338,7 +338,7 @@ JWT_ISSUER=https://your-domain.auth0.com/
 JWT_ALGORITHM=RS256
 
 DATABASE_URL=postgres://user:pass@prod-db/fraiseql
-```
+```text
 
 ### Auth0 Tenant Configuration
 

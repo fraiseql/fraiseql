@@ -48,7 +48,7 @@ FraiseQL shifts work from runtime to build time:
 
 ### 1. Performance & Predictability
 
-**Traditional GraphQL Problem:**
+#### Traditional GraphQL Problem:
 
 ```python
 # Apollo Server - Query interpreted at runtime
@@ -68,7 +68,7 @@ query GetUserOrders {
 # Speed depends on resolver implementation and caching
 ```
 
-**FraiseQL Solution:**
+#### FraiseQL Solution:
 
 ```python
 # FraiseQL - Query compiled to optimized SQL
@@ -175,28 +175,28 @@ def get_user(user_id: int) -> User:
 
 ### ✅ FraiseQL is Ideal For
 
-**1. Data-Centric Applications**
+#### 1. Data-Centric Applications
 
 - Databases are your primary data source
 - GraphQL is an API layer over relational databases
 - You want type-safe database access
 - Example: E-commerce, SaaS, analytics platforms
 
-**2. Performance-Critical Systems**
+### 2. Performance-Critical Systems
 
 - Latency and throughput matter
 - You need predictable query performance
 - N+1 queries are unacceptable
 - Example: High-volume APIs, real-time platforms, data pipelines
 
-**3. Structured Data Domains**
+### 3. Structured Data Domains
 
 - Data follows clear schemas (not fully unstructured)
 - Relationships are well-defined (foreign keys)
 - Authorization is role/permission-based
 - Example: Business applications, operational systems
 
-**4. Teams That Want Simplicity**
+### 4. Teams That Want Simplicity
 
 - Your team wants less custom code
 - You prefer convention over configuration
@@ -227,7 +227,7 @@ def search_products(query: str, category: str) -> List[Product]:
     pass
 ```
 
-**Result:**
+### Result:
 
 - Compiled to single optimized SQL query (no N+1)
 - In-stock filter pushed to database
@@ -253,7 +253,7 @@ class Invoice:
 # - Audit logging rules
 ```
 
-**Result:**
+### Result:
 
 - Zero tenant data leaks (verified at compile time)
 - Permission checks optimized into SQL
@@ -277,7 +277,7 @@ query GetUserAnalytics {
 # vs JSON plane: 10-20 MB/s row-by-row
 ```
 
-**Result:**
+### Result:
 
 - 5-10x throughput improvement
 - Lower memory usage
@@ -289,27 +289,27 @@ query GetUserAnalytics {
 
 ### ❌ FraiseQL Is Not Ideal For
 
-**1. Highly Dynamic APIs**
+#### 1. Highly Dynamic APIs
 
 - Your schema changes frequently (not at build time)
 - You need runtime schema customization
 - GraphQL is more than a database API
 - **Alternative:** Apollo Server, WunderGraph
 
-**2. Unstructured or Document-Based Data**
+### 2. Unstructured or Document-Based Data
 
 - Data doesn't fit relational schema
 - You need flexible document queries
 - **Alternative:** Hasura, PostGraphile, custom resolvers
 
-**3. Microservices Federation Heavy**
+### 3. Microservices Federation Heavy
 
 - You're aggregating many external APIs
 - GraphQL is orchestration layer, not data access
 - You need extensive transformation logic
 - **Alternative:** Apollo Federation, WunderGraph
 
-**4. Extremely Simple APIs**
+### 4. Extremely Simple APIs
 
 - Your API is trivial (why pay compilation cost?)
 - You just need a REST wrapper
@@ -367,28 +367,28 @@ query GetUserAnalytics {
 
 ### Ideal Users: Your Target Audience
 
-**1. Python Data Engineers**
+#### 1. Python Data Engineers
 
 - Building data platforms
 - Need typed, performant APIs
 - Familiar with databases
 - Want GraphQL without complexity
 
-**2. TypeScript/Node Teams**
+### 2. TypeScript/Node Teams
 
 - Building SaaS applications
 - Want type-safe backend
 - Performance-conscious
 - Prefer conventions over custom code
 
-**3. DevOps/SRE Teams**
+### 3. DevOps/SRE Teams
 
 - Operating database-centric systems
 - Want predictable performance
 - Need observability
 - Prefer less custom code to maintain
 
-**4. Technical Architects**
+### 4. Technical Architects
 
 - Designing new systems
 - Need clear performance model
@@ -483,7 +483,7 @@ If you need something else:
 
 ---
 
-**Quick Reference:**
+### Quick Reference:
 
 - Problem: Traditional GraphQL interprets at runtime
 - Solution: FraiseQL compiles at build time

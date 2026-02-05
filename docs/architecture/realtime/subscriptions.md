@@ -39,7 +39,7 @@ FraiseQL subscriptions are **compiled projections of database events** delivered
 
 **Traditional GraphQL Subscriptions:**
 
-```
+```text
 Client subscribes to User.nameChanged
     ↓
 Server executes resolver function
@@ -47,11 +47,11 @@ Server executes resolver function
 Resolver polls database or listens to app events
     ↓
 Resolver emits value to client
-```
+```text
 
 **FraiseQL Subscriptions:**
 
-```
+```text
 Database commits transaction (user.name updated)
     ↓
 Application inserts event into tb_entity_change_log
@@ -63,7 +63,7 @@ ObserverRuntime processes event
 Event matching filters from CompiledSchema
     ↓
 Delivered via transport adapter (graphql-ws, webhook, Kafka)
-```
+```text
 
 ### Use Cases
 
@@ -97,7 +97,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 
 ### 2.1 High-Level Event Flow (CORRECT)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ Application (GraphQL Mutation / Direct SQL)                │
 │ Executes: mutation CreateOrder($user_id, $amount)          │
@@ -153,7 +153,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 │ └─ Search Index   │  │                  │  │                  │
 └───────────────────┘  └──────────────────┘  └──────────────────┘
      (automation)        (real-time UI)        (event streaming)
-```
+```text
 
 ---
 
@@ -183,7 +183,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
   );
   CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
   CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
-  ```
+  ```text
 
 **ChangeLogListener** ✅ *Fully implemented*
 
@@ -241,7 +241,7 @@ Events flow through the system in Debezium envelope format:
   "extra_metadata": {},
   "created_at": "2026-01-30T10:00:00.123456Z"
 }
-```
+```text
 
 **Conversion to SubscriptionEvent:**
 
@@ -268,7 +268,7 @@ for entry in entries {
         sub_manager.publish_event(subscription_event).await?;
     }
 }
-```
+```text
 
 ---
 
@@ -289,9 +289,9 @@ FraiseQL subscriptions use database-centric polling architecture rather than Pos
 
 A LISTEN/NOTIFY based architecture would create:
 
-```
+```text
 Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
-```
+```text
 
 **Problems:**
 
@@ -315,7 +315,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
          "INSERT",
          serde_json::to_value(&order)?
      ).execute(&pool).await?;
-     ```
+     ```text
 
 2. **SubscriptionManager Not Wired to ObserverRuntime** - Integration pending (see migration path below)
 
@@ -367,7 +367,7 @@ FraiseQL has **two separate event consumer systems** sharing the same event sour
 
 #### Architecture: Two Branches from Same Source
 
-```
+```text
 tb_entity_change_log (single source of truth)
     ↓
 ChangeLogListener (polls every 100ms)
@@ -383,7 +383,7 @@ ObserverRuntime (in-process routing)
         ├─ graphql-ws (WebSocket)
         ├─ Kafka
         └─ HTTP webhooks
-```
+```text
 
 #### Why Subscriptions Don't Use NATS Directly
 
@@ -410,7 +410,7 @@ ObserverRuntime (in-process routing)
 transport = "in_process"  # Direct routing, no NATS required
 
 # Both observers and subscriptions get events from same ObserverRuntime
-```
+```text
 
 **Optional (NATS Everywhere):**
 
@@ -422,7 +422,7 @@ stream_name = "fraiseql.events"
 
 # All events published to NATS once
 # ObserverExecutor and SubscriptionManager both consume from NATS
-```
+```text
 
 **Key Insight:** FraiseQL defaults to **database-centric composition** (no NATS required), but makes **NATS everywhere** easy to enable for distributed deployments.
 
@@ -485,7 +485,7 @@ class OrderStatusChanged:
     status: OrderStatus
     updated_at: DateTime
     updated_by_user: User
-```
+```text
 
 ### 3.2 Compile-Time Validation
 
@@ -520,7 +520,7 @@ When the schema is compiled, the compiler:
        }
      }
    }
-   ```
+   ```text
 
 ### 3.3 Multiple Key Subscriptions
 
@@ -540,7 +540,7 @@ class OrderUpdated:
     id: ID
     status: str
     updated_at: DateTime
-```
+```text
 
 ---
 
@@ -552,7 +552,7 @@ The primary transport for real-time UI updates using the standard `graphql-ws` p
 
 #### Connection Lifecycle
 
-```
+```text
 Client                              Server
   │                                   │
   ├──────── Connection Request ──────→│
@@ -601,7 +601,7 @@ Client                              Server
   │                                   │
   ├───────── Close Connection ───────→│
   │                                   │
-```
+```text
 
 #### Example: Browser Client
 
@@ -640,7 +640,7 @@ export function LiveOrders() {
     </div>
   );
 }
-```
+```text
 
 #### Error Handling
 
@@ -657,7 +657,7 @@ export function LiveOrders() {
     }
   ]
 }
-```
+```text
 
 **Common errors:**
 
@@ -691,7 +691,7 @@ POST https://external-service.example.com/webhooks/fraiseql
   },
   "signature": "sha256=<hmac_signature>"
 }
-```
+```text
 
 #### Webhook Configuration
 
@@ -706,7 +706,7 @@ config = FraiseQLConfig(
         }
     }
 )
-```
+```text
 
 #### Delivery Semantics
 
@@ -745,7 +745,7 @@ Value:
   "sequence_number": 4521,
   "data": {...}
 }
-```
+```text
 
 #### Kafka Configuration
 
@@ -762,7 +762,7 @@ config = FraiseQLConfig(
         }
     }
 )
-```
+```text
 
 #### Delivery Semantics
 
@@ -794,7 +794,7 @@ message Event {
   google.protobuf.Timestamp timestamp = 5;
   google.protobuf.Struct data = 6;
 }
-```
+```text
 
 ---
 
@@ -814,7 +814,7 @@ class OrderCreated:
 
 # Compiled to:
 # WHERE user_id = $1 (with $1 bound to context.user_id at runtime)
-```
+```text
 
 **Available context variables:**
 
@@ -824,7 +824,7 @@ fraiseql.context.org_id          # Organization/tenant ID
 fraiseql.context.role            # User role (string or list)
 fraiseql.context.permissions     # User permissions
 fraiseql.context.custom_claim    # Custom auth claim
-```
+```text
 
 **Example: Multi-tenant filtering**
 
@@ -840,7 +840,7 @@ class OrderUpdated:
     id: ID
     status: OrderStatus
     updated_at: DateTime
-```
+```text
 
 ### 5.2 Runtime Variables
 
@@ -875,7 +875,7 @@ subscription OrderCreated(
     created_at
   }
 }
-```
+```text
 
 **At runtime:**
 
@@ -906,7 +906,7 @@ class SensitiveDataAccessed:
 
     # If context.role != "admin", subscription unavailable
     # Compile-time error or runtime 403 FORBIDDEN
-```
+```text
 
 **Row-level authorization example:**
 
@@ -925,7 +925,7 @@ class UserProfileUpdated:
 
 # If User ID = 123 subscribes, only receives updates where id = 123
 # No cross-user data leakage possible (enforced at compile time)
-```
+```text
 
 ---
 
@@ -957,7 +957,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
     }
   }
 }
-```
+```text
 
 **Subscription Event (projected, sent to client):**
 
@@ -976,7 +976,7 @@ Subscription events are derived from CDC events in `tb_entity_change_log`.
     "created_at": "2026-01-11T15:35:00.123456Z"
   }
 }
-```
+```text
 
 **Transformation logic:**
 
@@ -1019,7 +1019,7 @@ subscription UserUpdated {
     "name": "Alice Smith"
   }
 }
-```
+```text
 
 ### 6.3 Nested Projections
 
@@ -1060,7 +1060,7 @@ subscription OrderCreated {
     "created_at": "2026-01-11T15:35:00.123456Z"
   }
 }
-```
+```text
 
 ---
 
@@ -1094,7 +1094,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 -- Application code inserts events after mutations
 INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
 VALUES ('Order', 'ord_123', 'INSERT', '{"id": "ord_123", "user_id": "usr_456", ...}'::jsonb);
-```
+```text
 
 **Advantages (Reference Implementation):**
 
@@ -1136,7 +1136,7 @@ CREATE TABLE tb_entity_change_log (
 
 CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
 CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
-```
+```text
 
 **Advantages:**
 
@@ -1175,7 +1175,7 @@ CREATE TABLE tb_entity_change_log (
 
 CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
 CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
-```
+```text
 
 **Advantages:**
 
@@ -1211,7 +1211,7 @@ VALUES ('Order', NEW.id, 'INSERT', json(...));
 
 -- Subscribers poll events from temp table
 -- (No push capability; pull-based)
-```
+```text
 
 **Advantages:**
 
@@ -1241,7 +1241,7 @@ impl CDCBackend for PostgresCDC { ... }
 impl CDCBackend for MySQLCDC { ... }
 impl CDCBackend for SQLServerCDC { ... }
 impl CDCBackend for SQLiteCDC { ... }
-```
+```text
 
 ---
 
@@ -1356,7 +1356,7 @@ Authorization enforced at **event capture time** (not delivery time):
 
 **Example: User creates order in UI, sees confirmation**
 
-```
+```text
 
 1. Mutation committed (1ms)
 2. Event inserted into tb_entity_change_log (1ms)
@@ -1368,7 +1368,7 @@ Authorization enforced at **event capture time** (not delivery time):
 8. Client receives (5-10ms network)
 ────────────────
 Total: ~100-150ms (imperceptible to users)
-```
+```text
 
 ### 9.2 Throughput
 
@@ -1443,7 +1443,7 @@ Total: ~100-150ms (imperceptible to users)
     orderCreated { id }
     userUpdated { id }
   }
-  ```
+  ```text
 
 - Guarantee global event ordering (only per-entity ordering)
 - Transform events via resolvers
@@ -1513,7 +1513,7 @@ class OrderCreated:
         user_id=fraiseql.context.user_id
     )
     # Fails if context.user_id is None (unauthenticated)
-```
+```text
 
 ### 11.2 Row-Level Authorization
 
@@ -1536,7 +1536,7 @@ where: WhereOrder = fraiseql.where(fk_org=fraiseql.context.org_id)
 
 # Admin sees everything (no WHERE filter)
 where: WhereOrder = fraiseql.where()  # No filter = all rows
-```
+```text
 
 ### 11.3 Field-Level Authorization
 
@@ -1554,7 +1554,7 @@ class OrderCreated:
     )
 
 # If context.role != "admin", sensitive_notes omitted from events
-```
+```text
 
 ### 11.4 Signature Verification (Webhooks)
 
@@ -1573,7 +1573,7 @@ const expected = crypto
 if (signature !== expected) {
   return res.status(401).send('Signature mismatch');
 }
-```
+```text
 
 ---
 
@@ -1611,7 +1611,7 @@ class OrderStatusChanged:
     old_status: OrderStatus
     new_status: OrderStatus
     updated_at: DateTime
-```
+```text
 
 **Client (React):**
 
@@ -1649,7 +1649,7 @@ export function OrderDashboard() {
     </div>
   );
 }
-```
+```text
 
 ### Example 2: Event Streaming to Analytics
 
@@ -1681,7 +1681,7 @@ class PurchaseMade:
     amount: Decimal
     items: list[OrderItem]
     created_at: DateTime
-```
+```text
 
 **Kafka configuration:**
 
@@ -1702,7 +1702,7 @@ config = FraiseQLConfig(
         }
     }
 )
-```
+```text
 
 **Consumer (Python):**
 
@@ -1725,7 +1725,7 @@ for message in consumer:
         amount=event['data']['amount'],
         event_time=event['timestamp']
     )
-```
+```text
 
 ### Example 3: Multi-Tenant Filtering with Variables
 
@@ -1752,7 +1752,7 @@ class ActivityInOrganization:
     severity: AuditSeverity
     user: User
     created_at: DateTime
-```
+```text
 
 **Client with filtering:**
 
@@ -1767,7 +1767,7 @@ subscription ActivityInOrganization($min_severity: AuditSeverity) {
     created_at
   }
 }
-```
+```text
 
 **Usage:**
 
@@ -1778,7 +1778,7 @@ useSubscription(ActivityInOrganization, {
     min_severity: "HIGH"
   }
 });
-```
+```text
 
 ---
 
@@ -1797,7 +1797,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Monitor event flow:**
 
@@ -1811,7 +1811,7 @@ WHERE created_at > NOW() - INTERVAL '1 minute';
 SELECT entity_type, MAX(created_at) as last_event
 FROM tb_entity_change_log
 GROUP BY entity_type;
-```
+```text
 
 **Enable subscription tracing (Rust runtime):**
 
@@ -1822,19 +1822,19 @@ if config.debug {
     trace!("  Event matched: {}", event_matches_filter);
     trace!("  Delivered to: {} clients", client_count);
 }
-```
+```text
 
 ### B. Monitoring Metrics
 
 **Key metrics to track:**
 
-```
+```text
 fraiseql.subscription.connections     # Current active connections
 fraiseql.subscription.events_emitted   # Events matching filters
 fraiseql.subscription.events_delivered # Events sent to clients
 fraiseql.subscription.lag_seconds      # Delay from database to client
 fraiseql.subscription.error_count      # Delivery failures
-```
+```text
 
 ### C. Connection Pool Sizing
 
@@ -1855,7 +1855,7 @@ config = FraiseQLConfig(
         "idle_timeout": 60
     }
 )
-```
+```text
 
 ### D. References
 

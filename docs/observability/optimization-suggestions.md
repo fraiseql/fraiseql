@@ -27,11 +27,11 @@ Every suggestion has a priority based on **impact score**:
 
 **Example**:
 
-```
+```text
 Suggestion: Denormalize dimensions->>'region'
 - 8,500 queries/day × 12.5x speedup = 106,250 impact score
 - Priority: Critical
-```
+```text
 
 ---
 
@@ -53,7 +53,7 @@ CREATE TABLE tf_sales (
 -- Query (slow):
 SELECT * FROM tf_sales
 WHERE dimensions->>'region' = 'US';  -- Parses JSON on every row
-```
+```text
 
 **After**:
 
@@ -70,7 +70,7 @@ CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
 -- Query (fast):
 SELECT * FROM tf_sales
 WHERE region_id = 'US';  -- Direct column lookup with index
-```
+```text
 
 **Before (SQL Server)**:
 
@@ -84,7 +84,7 @@ CREATE TABLE tf_sales (
 -- Query (slow):
 SELECT * FROM tf_sales
 WHERE JSON_VALUE(dimensions, '$.region') = 'US';
-```
+```text
 
 **After**:
 
@@ -101,7 +101,7 @@ CREATE NONCLUSTERED INDEX idx_tf_sales_region ON tf_sales (region_id);
 -- Query (fast):
 SELECT * FROM tf_sales
 WHERE region_id = 'US';
-```
+```text
 
 ---
 
@@ -116,7 +116,7 @@ Denormalization is suggested when:
 
 ### Example Suggestion
 
-```
+```text
 Denormalize JSONB → Direct Column
 
 Table: tf_sales
@@ -137,7 +137,7 @@ Access patterns:
 - Filter (WHERE):     6,500 queries/day
 - Sort (ORDER BY):    1,200 queries/day
 - Aggregate (GROUP BY): 800 queries/day
-```
+```text
 
 ---
 
@@ -145,7 +145,7 @@ Access patterns:
 
 #### Filter Speedup (PostgreSQL JSONB)
 
-```
+```text
 JSONB Filter Cost:
 
 - Full table scan: 1,000,000 rows
@@ -160,11 +160,11 @@ Direct Column Cost (with index):
 - Total: 8.02ms
 
 Speedup: 50,000ms ÷ 8.02ms ≈ 6,234x (capped at 100x in practice)
-```
+```text
 
 #### Filter Speedup (SQL Server JSON)
 
-```
+```text
 JSON Filter Cost:
 
 - Full table scan: 1,000,000 rows
@@ -178,7 +178,7 @@ Direct Column Cost (with nonclustered index):
 - Total: 16.02ms
 
 Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
-```
+```text
 
 **Note**: Actual speedup varies by:
 
@@ -191,7 +191,7 @@ Speedup: 100,000ms ÷ 16.02ms ≈ 6,242x (capped at 100x)
 
 ### Storage Cost Calculation
 
-```
+```text
 New Column Storage:
 
 - Column size: 4 bytes (INTEGER) or ~20 bytes (TEXT average)
@@ -204,14 +204,14 @@ Index Storage (B-tree):
 - Total: 20 MB × 2.5 = 50 MB
 
 Total Storage: 20 MB + 50 MB = 70 MB
-```
+```text
 
 **Is it worth it?**
 
-```
+```text
 Cost: 70 MB storage (~$0.01/month in cloud)
 Benefit: 8,500 queries/day × 1,150ms saved = 9,775 seconds/day saved
-```
+```text
 
 **Answer: YES** - Trivial storage cost for massive performance gain.
 
@@ -271,14 +271,14 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_sync_region_id
 BEFORE INSERT OR UPDATE ON tf_sales
 FOR EACH ROW EXECUTE FUNCTION sync_region_id();
-```
+```text
 
 **SQL Server Computed Column** (automatic):
 
 ```sql
 ALTER TABLE tf_sales
 ADD region_id AS JSON_VALUE(dimensions, '$.region') PERSISTED;
-```
+```text
 
 #### Risk 3: Schema Evolution
 
@@ -310,7 +310,7 @@ CREATE TABLE users (
 SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
-```
+```text
 
 **After (PostgreSQL)**:
 
@@ -321,7 +321,7 @@ CREATE INDEX idx_users_created_at ON users (created_at);
 SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
-```
+```text
 
 **After (SQL Server)**:
 
@@ -333,7 +333,7 @@ ON users (created_at DESC);
 SELECT * FROM users
 WHERE created_at > '2026-01-01'
 ORDER BY created_at DESC;
-```
+```text
 
 ---
 
@@ -348,7 +348,7 @@ Index suggestions occur when:
 
 ### Example Suggestion
 
-```
+```text
 Add Index
 
 Table: users
@@ -367,7 +367,7 @@ Query patterns:
 
 - ORDER BY created_at DESC: 2,880 queries/day
 - WHERE created_at > '...': 320 queries/day
-```
+```text
 
 ---
 
@@ -410,7 +410,7 @@ CREATE TABLE products (
 
 CREATE INDEX idx_products_legacy_sku ON products (legacy_sku);
 -- ↑ Never used (0 scans in 30 days)
-```
+```text
 
 **After**:
 
@@ -422,7 +422,7 @@ DROP INDEX idx_products_legacy_sku;
 
 -- - Faster writes (no index maintenance)
 -- - Reduced storage (reclaim disk space)
-```
+```text
 
 ---
 
@@ -436,7 +436,7 @@ Unused index suggestions occur when:
 
 ### Example Suggestion
 
-```
+```text
 Drop Unused Index
 
 Table: products
@@ -456,7 +456,7 @@ Statistics:
 - Last used: Never
 - Index size: 12 MB
 - Table inserts/day: 15,000
-```
+```text
 
 ---
 
@@ -499,7 +499,7 @@ SELECT
     COUNT(*) AS order_count
 FROM orders
 GROUP BY region_id, month;
-```
+```text
 
 **After (PostgreSQL)**:
 
@@ -521,7 +521,7 @@ ON mv_monthly_revenue (region_id, month);
 -- 1. On-demand: REFRESH MATERIALIZED VIEW mv_monthly_revenue;
 -- 2. Periodic: Cron job every hour
 -- 3. Incremental: Trigger on base table updates
-```
+```text
 
 ---
 
@@ -536,7 +536,7 @@ Materialized view suggestions occur when:
 
 ### Example Suggestion
 
-```
+```text
 Materialize View
 
 Query: salesByRegion
@@ -560,7 +560,7 @@ Refresh Strategy:
 
 - Recommended: Periodic (every 1 hour)
 - Alternatives: On-demand, Incremental
-```
+```text
 
 ---
 
@@ -572,7 +572,7 @@ Refresh Strategy:
 
 **Example**:
 
-```
+```text
 Current p95: 1,250ms
 - 95% of queries complete in ≤ 1,250ms
 - 5% of queries are slower (1,250ms+)
@@ -580,17 +580,17 @@ Current p95: 1,250ms
 Projected p95: 100ms (after optimization)
 - 95% of queries will complete in ≤ 100ms
 - 12.5x improvement
-```
+```text
 
 **Why p95 instead of average?**
 
 Average can be misleading:
 
-```
+```text
 Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 - Average: 1,042ms (skewed by outlier)
 - p95: 5,000ms (shows worst-case user experience)
-```
+```text
 
 ---
 
@@ -600,12 +600,12 @@ Query times: [50ms, 55ms, 60ms, 45ms, 5000ms]
 
 **Example**:
 
-```
+```text
 Table: users (100,000 rows)
 Query: WHERE region = 'US'
 Matches: 15,000 rows
 Selectivity: 15,000 ÷ 100,000 = 0.15 (15%)
-```
+```text
 
 **Why it matters**:
 
@@ -624,21 +624,21 @@ Selectivity: 15,000 ÷ 100,000 = 0.15 (15%)
 
 **Example**:
 
-```
+```text
 Analysis window: 7 days
 Total executions: 59,500
 Queries per day: 59,500 ÷ 7 = 8,500
-```
+```text
 
 **Why it matters**:
 
 Higher frequency = higher impact:
 
-```
+```text
 Optimization 1: 10,000 queries/day × 5x speedup = 50,000 impact
 Optimization 2: 100 queries/day × 50x speedup = 5,000 impact
 → Prioritize Optimization 1 (10x higher impact)
-```
+```text
 
 ---
 
@@ -654,7 +654,7 @@ Each suggestion includes a **confidence score**:
 
 **Example**:
 
-```
+```text
 Suggestion: Denormalize dimensions->>'category'
 
 Confidence: Medium (75%)
@@ -664,7 +664,7 @@ Factors:
 ✅ Used in filters
 ⚠️  Selectivity estimated (no direct measurement)
 ⚠️  Moderate speedup (5x vs 10x+)
-```
+```text
 
 ---
 
@@ -672,7 +672,7 @@ Factors:
 
 ### Scenario: Choose 1 of 3 optimizations
 
-```
+```text
 Suggestion A: Denormalize tf_sales.region_id
 - 8,500 queries/day × 12.5x speedup = 106,250 impact
 - Storage: 15 MB
@@ -687,7 +687,7 @@ Suggestion C: Materialize view mv_monthly_revenue
 - 450 queries/day × 25x speedup = 11,250 impact
 - Storage: 200 MB
 - Risk: Medium (requires refresh strategy)
-```
+```text
 
 **Recommendation**: Apply in order A → B → C (by impact score).
 
@@ -771,7 +771,7 @@ jsonb_parse_cost_ms = 0.05  # PostgreSQL JSONB parsing
 json_parse_cost_ms = 0.1    # SQL Server text JSON
 index_lookup_cost_ms = 0.001
 row_scan_cost_ms = 0.0001
-```
+```text
 
 ---
 

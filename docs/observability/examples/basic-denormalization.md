@@ -16,7 +16,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 
 ### Application Architecture
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │  Frontend Dashboard                      │
 │  - Shows sales by region                │
@@ -36,7 +36,7 @@ This example demonstrates a **complete end-to-end workflow** for denormalizing a
 │  - tf_sales table (1.5M rows)           │
 │  - dimensions JSONB column                    │
 └─────────────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -55,7 +55,7 @@ CREATE TABLE tf_sales (
 
 CREATE INDEX idx_tf_sales_recorded_at ON tf_sales (recorded_at);
 -- Note: No index on dimensions->>'region' (slow queries)
-```
+```text
 
 ### Database Schema (SQL Server)
 
@@ -70,7 +70,7 @@ CREATE TABLE tf_sales (
 
 CREATE NONCLUSTERED INDEX idx_tf_sales_recorded_at
     ON tf_sales (recorded_at);
-```
+```text
 
 ---
 
@@ -96,7 +96,7 @@ class SalesMetrics:
 def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
-```
+```text
 
 ---
 
@@ -112,7 +112,7 @@ query {
     averageOrderValue
   }
 }
-```
+```text
 
 **Generated SQL (PostgreSQL)**:
 
@@ -123,7 +123,7 @@ SELECT
     AVG(revenue) AS averageOrderValue
 FROM tf_sales
 WHERE dimensions->>'region' = 'US';  -- ⚠️ Slow: JSONB extraction on every row
-```
+```text
 
 **Generated SQL (SQL Server)**:
 
@@ -134,7 +134,7 @@ SELECT
     AVG(revenue) AS averageOrderValue
 FROM tf_sales
 WHERE JSON_VALUE(dimensions, '$.region') = 'US';  -- ⚠️ Slow: JSON parsing on every row
-```
+```text
 
 ---
 
@@ -169,7 +169,7 @@ WHERE JSON_VALUE(dimensions, '$.region') = 'US';  -- ⚠️ Slow: JSON parsing o
 export FRAISEQL_OBSERVABILITY_ENABLED=true
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1  # 10% sampling
 export FRAISEQL_METRICS_DATABASE_URL=postgres://metrics:pass@localhost:5432/metrics
-```
+```text
 
 **Or in `fraiseql.toml`**:
 
@@ -180,7 +180,7 @@ sample_rate = 0.1
 
 [observability.database]
 url = "postgres://metrics:pass@localhost:5432/metrics"
-```
+```text
 
 ### Restart Application
 
@@ -191,7 +191,7 @@ kubectl rollout restart deployment/fraiseql-api
 # Verify observability is active
 kubectl logs -f deployment/fraiseql-api | grep observability
 # Output: INFO observability enabled, sample_rate=0.1
-```
+```text
 
 ---
 
@@ -224,7 +224,7 @@ WHERE recorded_at > NOW() - INTERVAL '1 day'
 GROUP BY table_name, jsonb_column, path
 ORDER BY accesses DESC;
 -- Expected: tf_sales | dimensions | region | ~850
-```
+```text
 
 ---
 
@@ -236,11 +236,11 @@ ORDER BY accesses DESC;
 fraiseql-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format text
-```
+```text
 
 ### Analysis Output
 
-```
+```text
 📊 Observability Analysis Report
 
 Database: PostgreSQL
@@ -279,7 +279,7 @@ JSON accesses: 8,500 (dimensions->>'region')
    2. Review: less optimize.sql
    3. Test in staging
    4. Apply to production
-```
+```text
 
 ---
 
@@ -289,7 +289,7 @@ JSON accesses: 8,500 (dimensions->>'region')
 fraiseql-cli analyze \
   --database postgres://metrics:pass@localhost:5432/metrics \
   --format sql > migrations/denormalize-region-20260112.sql
-```
+```text
 
 ### Generated SQL (PostgreSQL)
 
@@ -348,7 +348,7 @@ ANALYZE tf_sales;
 -- ------------------------------------------------------------
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
-```
+```text
 
 ### Generated SQL (SQL Server)
 
@@ -394,7 +394,7 @@ GO
 -- GO
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 -- GO
-```
+```text
 
 ---
 
@@ -417,7 +417,7 @@ psql staging < migrations/denormalize-region-20260112.sql
 # NOTICE: Updated 5000 rows
 # CREATE INDEX
 # ANALYZE
-```
+```text
 
 ### Verify Schema Changes
 
@@ -434,7 +434,7 @@ psql staging -c "\d tf_sales"
 #  dimensions | jsonb                    | not null |
 #  region_id  | text                     |          |  ← NEW
 #  recorded_at| timestamp with time zone | not null | now()
-```
+```text
 
 ### Run Benchmark Queries
 
@@ -452,7 +452,7 @@ cat benchmark-before.txt
 #   Filter: ((dimensions ->> 'region'::text) = 'US'::text)
 # Planning Time: 0.234 ms
 # Execution Time: 1,247.823 ms  ← SLOW
-```
+```text
 
 **After Optimization**:
 
@@ -468,7 +468,7 @@ cat benchmark-after.txt
 #   Index Cond: (region_id = 'US'::text)
 # Planning Time: 0.156 ms
 # Execution Time: 98.234 ms  ← FAST! (12.7x improvement)
-```
+```text
 
 **Actual Speedup**: 1,247ms / 98ms = **12.7x** ✅
 
@@ -500,7 +500,7 @@ class SalesMetrics:
 def sales_by_region(region: str = None):
     """Get sales aggregated by region"""
     pass
-```
+```text
 
 ### Recompile Schema
 
@@ -513,7 +513,7 @@ fraiseql-cli compile schema.json
 #   Output: schema.compiled.json
 #   Types: 5
 #   Queries: 12
-```
+```text
 
 ### New Generated SQL
 
@@ -526,7 +526,7 @@ SELECT
     AVG(revenue) AS averageOrderValue
 FROM tf_sales
 WHERE region_id = 'US';  -- ✅ Fast: Direct column with index
-```
+```text
 
 ---
 
@@ -551,7 +551,7 @@ git push origin staging
 
 # Deploy to staging
 kubectl rollout restart deployment/fraiseql-api --namespace=staging
-```
+```text
 
 ### Monitor Staging
 
@@ -563,7 +563,7 @@ kubectl logs -f deployment/fraiseql-api --namespace=staging | grep salesByRegion
 # INFO query=salesByRegion duration=102ms  ← Fast!
 # INFO query=salesByRegion duration=95ms
 # INFO query=salesByRegion duration=98ms
-```
+```text
 
 ---
 
@@ -582,7 +582,7 @@ kubectl logs -f deployment/fraiseql-api --namespace=staging | grep salesByRegion
 
 ```bash
 pg_dump production > backup-prod-$(date +%Y%m%d-%H%M%S).dump
-```
+```text
 
 ### Apply Migration
 
@@ -592,7 +592,7 @@ psql production < migrations/denormalize-region-20260112.sql
 
 # Monitor progress
 tail -f /var/log/postgresql/postgresql.log
-```
+```text
 
 ### Deploy Updated Schema
 
@@ -603,7 +603,7 @@ git push origin main
 
 # Deploy to production
 kubectl rollout restart deployment/fraiseql-api --namespace=production
-```
+```text
 
 ---
 
@@ -630,7 +630,7 @@ LIMIT 5
 # calls: 8500
 # mean_exec_time: 95.2  ← Fast!
 # max_exec_time: 185.3
-```
+```text
 
 ### 24-Hour Monitoring
 
@@ -671,7 +671,7 @@ LIMIT 5
 
 ### ROI Calculation
 
-```
+```text
 Time Saved Per Day:
   8,500 queries × 1,150ms saved = 9,775 seconds = 2.7 hours
 
@@ -684,7 +684,7 @@ Cost:
   Storage: $0.01/month
 
 ROI: Massive positive impact for minimal cost
-```
+```text
 
 ---
 
@@ -715,7 +715,7 @@ fraiseql-cli analyze --database postgres://... --format text
 # 🚀 Additional Optimizations (2):
 #   2. Denormalize dimensions->>'category' (5,200 queries/day, 8x speedup)
 #   3. Add index on recorded_at (3,100 queries/day, 6x speedup)
-```
+```text
 
 ---
 

@@ -43,7 +43,7 @@ query GetUserWithEverything {
     }
   }
 }
-```
+```text
 
 **Problem:**
 
@@ -83,7 +83,7 @@ query GetPostComments($postId: ID!) {
     }
   }
 }
-```
+```text
 
 **Implementation**: Set max query depth at compile time
 
@@ -91,7 +91,7 @@ query GetPostComments($postId: ID!) {
 @fraiseql.schema_rule(max_query_depth=3)
 class MySchema:
     pass
-```
+```text
 
 ---
 
@@ -108,7 +108,7 @@ query GetAllUsers {
     email
   }
 }
-```
+```text
 
 **Problem:**
 
@@ -138,7 +138,7 @@ query GetUsers($first: Int!, $after: String) {
     }
   }
 }
-```
+```text
 
 ---
 
@@ -161,7 +161,7 @@ def create_order(input: OrderInput) -> Order:
 
     # Total: 3 seconds (should be 50ms)
     return order
-```
+```text
 
 **Problem:**
 
@@ -196,7 +196,7 @@ async def create_order(input: OrderInput) -> Order:
     return order
 
 # Mutation latency: 50ms (as it should be)
-```
+```text
 
 ---
 
@@ -228,7 +228,7 @@ def delete_user(id: ID) -> bool:
 
     db.delete("tb_user", id)
     return True
-```
+```text
 
 **Problem:**
 
@@ -267,7 +267,7 @@ def delete_user(id: ID) -> bool:
     # Same rule everywhere (consistent)
     db.delete("tb_user", id)
     return True
-```
+```text
 
 ---
 
@@ -284,7 +284,7 @@ def get_admin_panel() -> AdminPanel:
         return admin_panel_data
 
     raise PermissionError()
-```
+```text
 
 **Problem:**
 
@@ -308,7 +308,7 @@ def get_admin_panel() -> AdminPanel:
     # Authorization derived from verified JWT
     # Client cannot forge role
     return admin_panel_data
-```
+```text
 
 ---
 
@@ -335,7 +335,7 @@ mutation UpdateProduct {
 
 # Cache not invalidated!
 # Next query still sees old price (for up to 1 hour)
-```
+```text
 
 **Problem:**
 
@@ -364,7 +364,7 @@ async def update_product(id: ID, input: UpdateInput) -> Product:
     cache.invalidate(f"products_by_category:{product.category}")
 
     return product
-```
+```text
 
 ---
 
@@ -378,7 +378,7 @@ cache.set(f"user:{user_id}", user_data)  # Contains email!
 
 # In multi-tenant system, another tenant might hit same cache
 # if they guess the key (or keys are leaked in logs)
-```
+```text
 
 **Problem:**
 
@@ -405,7 +405,7 @@ cache.set(f"user:{user_id}", {
 
 # Sensitive data fetched separately (not cached)
 # Or cached with very short TTL (30 seconds)
-```
+```text
 
 ---
 
@@ -431,7 +431,7 @@ def get_users():
 # Measurements show: This is SLOWER than simple query
 # Because: Offset pagination is O(n), not O(1)
 # Real fix: Use keyset pagination (1 query, not n queries)
-```
+```text
 
 **Problem:**
 
@@ -456,7 +456,7 @@ def get_users():
 CREATE INDEX idx_users_status ON tb_user(status);
 
 # Speedup: 500ms → 50ms (10x faster, 1 line of SQL)
-```
+```text
 
 ---
 
@@ -480,7 +480,7 @@ Configuration:
   └─ Read replica 10
 
 # Problem: Replication lag, storage bloat, complexity
-```
+```text
 
 **Problem:**
 
@@ -508,7 +508,7 @@ Configuration:
 # Replication lag: <1 second
 # Storage: Manageable
 # Complexity: Operationally reasonable
-```
+```text
 
 ---
 
@@ -531,7 +531,7 @@ user = {
 # But it's stale in database
 
 # Query assumes score is current (it's not!)
-```
+```text
 
 **Problem:**
 
@@ -569,7 +569,7 @@ BEGIN
     SET score = (SELECT COUNT(*) FROM tb_activity WHERE user_id = NEW.user_id)
     WHERE id = NEW.user_id;
 END;
-```
+```text
 
 ---
 
@@ -591,7 +591,7 @@ db.update("tb_user", user_id, {"name": "Bob", "version": 2})
 db.update("tb_user", user_id, {"email": "alice@example.com", "version": 1})
 
 # Result: Race condition, version conflict
-```
+```text
 
 **Problem:**
 
@@ -623,7 +623,7 @@ result = db.execute(
 
 if result.rowcount == 0:
     raise ConflictError("Version mismatch, refresh and retry")
-```
+```text
 
 ---
 
@@ -647,7 +647,7 @@ subscription OnAllEvents {
 if (event.type === "order_created") {
   handleOrderCreated(event);
 }
-```
+```text
 
 **Problem:**
 
@@ -676,7 +676,7 @@ subscription OnOrderCreated {
 # Server only sends order created events
 # No buffer overflow
 # Network efficient
-```
+```text
 
 ---
 
@@ -690,7 +690,7 @@ subscription = await client.subscribe(query)
 
 async for event in subscription:
     process_event(event)  # Dies silently if disconnected
-```
+```text
 
 **Problem:**
 
@@ -720,7 +720,7 @@ async def monitor_subscription():
 async for event in subscription:
     subscription.last_message = time.time()
     process_event(event)
-```
+```text
 
 ---
 
@@ -741,7 +741,7 @@ def test_delete_user():
     result = mutation(DeleteUserMutation, variables={"id": "user-1"})
     assert result.success == True
     # Missing: Test that non-owner cannot delete!
-```
+```text
 
 **Problem:**
 
@@ -778,7 +778,7 @@ def test_delete_user_non_owner():
     # Non-owner cannot delete
     result = mutation(DeleteUserMutation, user_id="user-1", variables={"id": "user-2"})
     assert result.errors[0].code == "E_AUTH_PERMISSION_401"
-```
+```text
 
 ---
 
@@ -788,7 +788,7 @@ def test_delete_user_non_owner():
 
 **Anti-pattern**: Different instances using different schema versions
 
-```
+```text
 Production deployment:
 ├─ Instance 1: CompiledSchema v2.0.0
 ├─ Instance 2: CompiledSchema v2.0.0
@@ -796,7 +796,7 @@ Production deployment:
 └─ Load balancer: Routes to all 3
 
 Problem: Instance 3 has different behavior
-```
+```text
 
 **Problem:**
 
@@ -812,7 +812,7 @@ Problem: Instance 3 has different behavior
 
 **Solution**: Atomic deployments
 
-```
+```text
 Correct deployment:
 
 1. Deploy new code version
@@ -822,7 +822,7 @@ Correct deployment:
 
 All instances have identical schema
 All instances behave identically
-```
+```text
 
 ---
 

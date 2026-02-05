@@ -47,7 +47,7 @@ export FRAISEQL_DATABASE_URL=postgres://user:pass@localhost/mydb
 [observability]
 enabled = true
 sample_rate = 0.1  # 10% sampling
-```
+```text
 
 ### 2. Run Your Application
 
@@ -69,13 +69,13 @@ fraiseql-cli analyze --database postgres://...
 # Or export and analyze offline
 curl http://localhost:8080/metrics/export > metrics.json
 fraiseql-cli analyze --metrics metrics.json
-```
+```text
 
 ### 4. Review Suggestions
 
 Example output:
 
-```
+```text
 📊 Observability Analysis Report
 
 🚀 High-Impact Optimizations (2):
@@ -103,7 +103,7 @@ Example output:
      • Storage cost: +5 MB
 
      Reason: Sorted in 90% of queries, no index exists
-```
+```text
 
 ### 5. Generate and Apply Migrations
 
@@ -122,7 +122,7 @@ psql production < optimize.sql
 
 # Update schema and recompile
 fraiseql-cli compile schema.json
-```
+```text
 
 ---
 
@@ -145,7 +145,7 @@ WHERE dimensions->>'region' = 'US'
 
 -- After optimization: Direct column lookup
 WHERE region_id = 'US'  -- 10-15x faster
-```
+```text
 
 ### ✅ Aggregate Queries on Dimensions
 
@@ -155,7 +155,7 @@ GROUP BY dimensions->>'category'
 
 -- After optimization: Indexed column
 GROUP BY category_id  -- 5-10x faster
-```
+```text
 
 ### ✅ Slow Query Alerts
 
@@ -192,7 +192,7 @@ class SalesMetrics:
     revenue: float
     quantity: int
     dimensions: dict  # {region, category, date}
-```
+```text
 
 **Metrics**:
 
@@ -206,7 +206,7 @@ class SalesMetrics:
 ALTER TABLE tf_sales ADD COLUMN region_id TEXT;
 UPDATE tf_sales SET region_id = dimensions->>'region';
 CREATE INDEX idx_tf_sales_region ON tf_sales (region_id);
-```
+```text
 
 **After**:
 
@@ -221,7 +221,7 @@ class SalesMetrics:
     quantity: int
     region_id: str  # Direct column (indexed)
     dimensions: dict
-```
+```text
 
 **Results**:
 
@@ -264,7 +264,7 @@ dimensions->>'region'
 
 -- After: Fast column lookup
 region_id
-```
+```text
 
 ### Metrics Collection
 

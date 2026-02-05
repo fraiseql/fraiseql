@@ -6,7 +6,7 @@ This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes securi
 
 Security configuration flows through the system in three stages:
 
-```
+```text
 ┌──────────────────┐
 │ fraiseql.toml    │  Developer specifies configuration
 └────────┬─────────┘
@@ -22,7 +22,7 @@ Security configuration flows through the system in three stages:
 │ RuntimeSecurityConfig    │  Loaded and validated
 │ + env overrides          │
 └──────────────────────────┘
-```
+```text
 
 ## Loading Security Configuration
 
@@ -61,7 +61,7 @@ validate_security_config(&security_config)?;
 
 // Log configuration for observability
 log_security_config(&security_config);
-```
+```text
 
 ## Environment Variable Overrides
 
@@ -82,7 +82,7 @@ RATE_LIMIT_FAILED_LOGIN=3                # Override failed login max requests
 
 # State encryption
 STATE_ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # Override encryption key
-```
+```text
 
 ### Example
 
@@ -90,7 +90,7 @@ STATE_ENCRYPTION_KEY=<base64-encoded-32-byte-key>  # Override encryption key
 # Start server with custom rate limiting
 RATE_LIMIT_FAILED_LOGIN=1 RATE_LIMIT_AUTH_START=50 \
   fraiseql-server --schema schema.compiled.json
-```
+```text
 
 ## Configuration Validation
 
@@ -114,7 +114,7 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
 
     Ok(())
 }
-```
+```text
 
 ## Default Configuration
 
@@ -153,13 +153,13 @@ pub fn init_default_security_config() -> SecurityConfigFromSchema {
         },
     }
 }
-```
+```text
 
 ## Observability
 
 The loaded configuration is logged at startup for audit and debugging purposes:
 
-```
+```text
 INFO Audit logging configuration:
      audit_logging_enabled=true, audit_log_level=info,
      audit_async_logging=true, audit_buffer_size=1000
@@ -175,7 +175,7 @@ INFO Rate limiting configuration:
 INFO State encryption configuration:
      state_encryption_enabled=true, state_encryption_algorithm=chacha20-poly1305,
      state_encryption_nonce_size=12, state_encryption_key_size=32
-```
+```text
 
 ## Integration with Security Subsystems
 
@@ -199,7 +199,7 @@ let auth_start_limiter = KeyedRateLimiter::new(
 
 // Initialize state encryption from config
 let state_encryption = StateEncryption::new(&encryption_key)?;
-```
+```text
 
 ## Testing
 

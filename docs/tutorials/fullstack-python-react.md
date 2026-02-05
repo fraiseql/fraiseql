@@ -18,7 +18,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 
 ### Architecture Flow
 
-```
+```text
 ┌─────────────────────────┐
 │   Developer Workstation │
 ├─────────────────────────┤
@@ -62,7 +62,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 │  - Comments Section              │
 │  - Like Buttons                  │
 └──────────────────────────────────┘
-```
+```text
 
 ### What You'll Build
 
@@ -90,7 +90,7 @@ A **Full-Stack Blog Application** supporting:
 
 Create the following project structure:
 
-```
+```text
 fullstack-blog/
 ├── backend/
 │   ├── schema.py                      # Python schema definition
@@ -125,7 +125,7 @@ fullstack-blog/
 │   └── schema.sql                     # PostgreSQL DDL
 ├── docker-compose.yml                 # Multi-container orchestration
 └── README.md                           # Getting started guide
-```
+```text
 
 ### 1.2 Initialize Backend Project
 
@@ -140,7 +140,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
+```text
 
 ### 1.3 Initialize Frontend Project
 
@@ -157,7 +157,7 @@ npm install graphql-tag
 
 # Development server
 npm run dev  # Runs on http://localhost:5173
-```
+```text
 
 ---
 
@@ -484,7 +484,7 @@ INSERT INTO likes (post_id, user_id) VALUES
     (1, 2), (1, 3),
     (2, 1), (2, 3),
     (3, 1);
-```
+```text
 
 ### 2.2 Loading the Schema
 
@@ -494,7 +494,7 @@ psql -U postgres -d blog_db -f database/schema.sql
 
 # Or with docker-compose (after it's set up):
 docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-initdb.d/schema.sql
-```
+```text
 
 ---
 
@@ -504,10 +504,10 @@ docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-
 
 Create `backend/requirements.txt`:
 
-```
+```text
 fraiseql==2.0.0a1
 pydantic==2.5.0
-```
+```text
 
 ### 3.2 Python Schema Definition
 
@@ -991,7 +991,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"✗ Error exporting schema: {e}", file=sys.stderr)
         sys.exit(1)
-```
+```text
 
 ### 3.3 Exporting the Schema
 
@@ -1004,7 +1004,7 @@ python schema.py
 #   Types: 8
 #   Queries: 6
 #   Mutations: 8
-```
+```text
 
 This generates `schema.json` containing all types, queries, and mutations.
 
@@ -1048,7 +1048,7 @@ host = "0.0.0.0"
 cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 graphql_path = "/graphql"
 health_path = "/health"
-```
+```text
 
 ### 4.2 Compile the Schema
 
@@ -1063,7 +1063,7 @@ fraiseql-cli compile schema.json fraiseql.toml
 #   Queries: 6 (optimized to 4 SQL queries)
 #   Mutations: 8 (optimized to 6 SQL functions)
 #   Output: schema.compiled.json
-```
+```text
 
 This generates `schema.compiled.json` containing:
 
@@ -1121,7 +1121,7 @@ EXPOSE 8000
 
 # Start FraiseQL server
 CMD ["fraiseql-server", "--schema", "schema.compiled.json", "--config", "fraiseql.toml"]
-```
+```text
 
 ### 5.2 Docker Compose Orchestration
 
@@ -1173,7 +1173,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 ### 5.3 Launching the Backend
 
@@ -1194,7 +1194,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/graphql -X POST \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 10) { id name email } }"}'
-```
+```text
 
 ---
 
@@ -1223,7 +1223,7 @@ const client = new ApolloClient({
 });
 
 export default client;
-```
+```text
 
 ### 6.2 Environment Configuration
 
@@ -1231,7 +1231,7 @@ Create `frontend/.env.local`:
 
 ```env
 REACT_APP_GRAPHQL_API=http://localhost:8000/graphql
-```
+```text
 
 ### 6.3 GraphQL Queries & Mutations
 
@@ -1374,7 +1374,7 @@ export const UNLIKE_POST = gql`
     }
   }
 `;
-```
+```text
 
 ---
 
@@ -1415,7 +1415,7 @@ export default function PostList() {
     </div>
   );
 }
-```
+```text
 
 ### 7.2 PostCard Component
 
@@ -1457,7 +1457,7 @@ export default function PostCard({ post }) {
     </div>
   );
 }
-```
+```text
 
 ### 7.3 PostDetail Component
 
@@ -1512,7 +1512,7 @@ export default function PostDetail() {
     </div>
   );
 }
-```
+```text
 
 ### 7.4 CommentSection Component
 
@@ -1587,7 +1587,7 @@ export default function CommentSection({ postId }) {
     </div>
   );
 }
-```
+```text
 
 ### 7.5 LikeButton Component
 
@@ -1636,7 +1636,7 @@ export default function LikeButton({ postId, likeCount = 0 }) {
     </button>
   );
 }
-```
+```text
 
 ---
 
@@ -1672,7 +1672,7 @@ export default function App() {
     </ApolloProvider>
   );
 }
-```
+```text
 
 ### 8.2 package.json Scripts
 
@@ -1703,7 +1703,7 @@ Update `frontend/package.json`:
     "vite": "^5.0.0"
   }
 }
-```
+```text
 
 ---
 
@@ -1728,7 +1728,7 @@ npm run dev
 
 # 3. Open browser and visit http://localhost:5173
 # You should see the blog homepage with posts!
-```
+```text
 
 ### 9.2 Full-Stack Test
 
@@ -1754,7 +1754,7 @@ curl http://localhost:8000/graphql \
 #     ]
 #   }
 # }
-```
+```text
 
 ### 9.3 Workflow
 
@@ -1790,11 +1790,11 @@ const handleCreatePost = async (title, content) => {
   });
   return result.data.createPost;
 };
-```
+```text
 
 **Execution Path:**
 
-```
+```text
 React Component
     ↓ (Apollo sends GraphQL)
 FraiseQL Server (port 8000)
@@ -1808,7 +1808,7 @@ FraiseQL formats as JSON
 Apollo caches result
     ↓
 React re-renders with new post
-```
+```text
 
 ### 10.2 Fetching Post with Comments
 
@@ -1830,11 +1830,11 @@ export const GET_POST_WITH_COMMENTS = gql`
     }
   }
 `;
-```
+```text
 
 **Execution Path:**
 
-```
+```text
 FraiseQL Server receives query
     ↓
 Looks up "post" query → v_post_detail view
@@ -1848,7 +1848,7 @@ Results combined into single JSON
 React receives nested structure
     ↓
 CommentSection component maps over comments
-```
+```text
 
 ---
 
@@ -1863,7 +1863,7 @@ docker-compose build
 # Push to registry (optional)
 docker tag blog-fraiseql-server myregistry/blog-fraiseql:v1.0
 docker push myregistry/blog-fraiseql:v1.0
-```
+```text
 
 ### 11.2 Kubernetes Deployment
 
@@ -1914,7 +1914,7 @@ spec:
     port: 80
     targetPort: 8000
   type: LoadBalancer
-```
+```text
 
 ### 11.3 React Frontend Production Build
 
@@ -1926,7 +1926,7 @@ npm run build
 # Deploy to Vercel, Netlify, or S3
 # Update REACT_APP_GRAPHQL_API to production endpoint
 REACT_APP_GRAPHQL_API=https://api.example.com/graphql npm run build
-```
+```text
 
 ---
 
@@ -1940,7 +1940,7 @@ curl http://localhost:8000/health
 
 # Response (when healthy):
 # {"status": "ok", "version": "1.0.0"}
-```
+```text
 
 ### 12.2 GraphQL Introspection
 
@@ -1949,7 +1949,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ __schema { types { name } } }"}'
-```
+```text
 
 ### 12.3 Logs
 
@@ -1962,7 +1962,7 @@ docker-compose logs -f postgres
 
 # View React build logs
 npm run dev 2>&1 | tee frontend.log
-```
+```text
 
 ### 12.4 Performance Analysis
 
@@ -1973,7 +1973,7 @@ time curl http://localhost:8000/graphql \
   -d '{
     "query": "{ posts(limit: 100) { id title } }"
   }'
-```
+```text
 
 ---
 
@@ -1988,7 +1988,7 @@ time curl http://localhost:8000/graphql \
 ```bash
 docker-compose ps  # Check if fraiseql-server is running
 curl http://localhost:8000/health  # Test connectivity
-```
+```text
 
 ### Problem: Apollo Client returns "Network error"
 
@@ -2000,7 +2000,7 @@ curl http://localhost:8000/health  # Test connectivity
 # Check CORS settings in fraiseql.toml
 # Ensure React app URL is in cors_origins
 curl -H "Origin: http://localhost:5173" http://localhost:8000/health
-```
+```text
 
 ### Problem: "Relation 'v_posts' does not exist"
 
@@ -2011,7 +2011,7 @@ curl -H "Origin: http://localhost:5173" http://localhost:8000/health
 ```bash
 # Reload database schema
 docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-initdb.d/schema.sql
-```
+```text
 
 ### Problem: React components show "Loading..." indefinitely
 
@@ -2027,7 +2027,7 @@ if (error) {
   console.error("GraphQL Error:", error);
   return <div>Error: {error.message}</div>;
 }
-```
+```text
 
 ---
 
@@ -2073,7 +2073,7 @@ if (error) {
 
 After following this tutorial, your project structure should be:
 
-```
+```text
 fullstack-blog/
 ├── backend/
 │   ├── schema.py                    # Python schema (authoring)
@@ -2109,7 +2109,7 @@ fullstack-blog/
 │   └── schema.sql                   # PostgreSQL DDL + views + functions
 ├── docker-compose.yml               # Full-stack orchestration
 └── README.md
-```
+```text
 
 ---
 
@@ -2139,7 +2139,7 @@ cd frontend && npm install && npm run dev          # Dev server
 docker-compose up -d                               # Start services
 curl http://localhost:8000/health                  # Test health
 open http://localhost:5173                         # Open frontend
-```
+```text
 
 **Your application is now running at <http://localhost:5173>!**
 

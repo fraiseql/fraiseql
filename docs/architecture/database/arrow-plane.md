@@ -60,11 +60,11 @@ Where the JSON plane represents nested GraphQL selections as single responses wi
     ]
   }
 }
-```
+```text
 
 **Arrow Plane (Flat, Relational):**
 
-```
+```text
 users_batch:
   | id  | name  |
   | 123 | Alice |
@@ -73,7 +73,7 @@ posts_batch:
   | id | user_id | title  |
   | a1 | 123     | First  |
   | a2 | 123     | Second |
-```
+```text
 
 The Arrow plane outputs **multiple batches** with explicit foreign key references. Clients join them using columnar tools (Pandas merge, SQL, Spark join).
 
@@ -117,7 +117,7 @@ Arrow projections follow **semantic versioning** for their schemas:
   version="2.3.1",              # MAJOR.MINOR.PATCH
   stability="stable"            # stable, beta, deprecated
 )
-```
+```text
 
 **Version Semantics:**
 
@@ -166,7 +166,7 @@ When a projection becomes obsolete:
      replacement="orders_analytics_v2",
      sunset_date="2026-07-11"  # 6 months ahead
    )
-   ```
+   ```text
 
 2. **Support** (N+2 minor versions / 60 days): Both old and new available
    - Consumers see warnings in logs
@@ -191,7 +191,7 @@ When a projection becomes obsolete:
 class OrderAnalytics:
     orders: Arrow.Batch([...])         # 4 columns: id, amount, created_at, status
     order_items: Arrow.Batch([...])    # 5 columns: id, order_id, product_id, qty, price
-```
+```text
 
 **Scenario 1: Add column to order_items only**
 
@@ -199,7 +199,7 @@ class OrderAnalytics:
 # v1.1: order_items now has 6 columns (new "discount" column)
 orders: Arrow.Batch([...])         # ← Still 4 columns
 order_items: Arrow.Batch([...])    # ← Now 6 columns (NEW)
-```
+```text
 
 **Decision:** Increment to v1.1 (backward-compatible MINOR change)
 
@@ -212,7 +212,7 @@ order_items: Arrow.Batch([...])    # ← Now 6 columns (NEW)
 # v2.0: order_items no longer has "price" column
 orders: Arrow.Batch([...])         # ← Still 4 columns
 order_items: Arrow.Batch([...])    # ← Now 4 columns (removed "price")
-```
+```text
 
 **Decision:** Increment to v2.0 (breaking MAJOR change)
 
@@ -250,30 +250,30 @@ query {
     }
   }
 }
-```
+```text
 
 Compiles to **two Arrow batches**:
 
 **Batch 1: `users`**
 
-```
+```text
 ┌────┬───────┬──────────────────┐
 │ id │ name  │ email            │
 ├────┼───────┼──────────────────┤
 │123 │ Alice │ alice@example.com│
 └────┴───────┴──────────────────┘
-```
+```text
 
 **Batch 2: `user_posts`** (with foreign key reference)
 
-```
+```text
 ┌────┬──────┬─────────────────────────────┐
 │ id │ user_id │ title        │ createdAt │
 ├────┼─────────┼──────────────┼───────────┤
 │ a1 │ 123     │ First Post   │ 2025-01-01│
 │ a2 │ 123     │ Second Post  │ 2025-01-02│
 └────┴─────────┴──────────────┴───────────┘
-```
+```text
 
 **Client reconstruction** (Pandas):
 
@@ -290,7 +290,7 @@ result = pd.merge(
     left_on='id',
     right_on='user_id'
 )
-```
+```text
 
 ### 2.1.5 Foreign Key Semantics
 
@@ -313,31 +313,31 @@ Foreign keys in Arrow projections are **logical, not enforced constraints**. The
 
 **Scenario 1: Orphaned rows (valid)**
 
-```
+```text
 users: [id=1, id=2, id=3]
 posts: [user_id=1, user_id=1, user_id=99]  ← user_id=99 doesn't exist
 
 posts.user_id=99 is a valid analytical state.
 No error. No constraint violation.
 BI tool must treat as missing parent.
-```
+```text
 
 **Scenario 2: Empty child batch (valid)**
 
-```
+```text
 users: [id=1, id=2, id=3]
 posts: []  ← No posts from any user
 
 Empty batch is valid analytical state.
 Null rows in join are expected.
-```
+```text
 
 **Scenario 3: Multiple parents per child (possible in wide projections)**
 
-```
+```text
 # If projection includes: orders + items + warehouses
 items.warehouse_id could reference multiple batches
-```
+```text
 
 **Best practice:**
 Treat Arrow FK joins like SQL LEFT OUTER JOIN, not INNER JOIN:
@@ -348,7 +348,7 @@ result = pd.merge(users_df, posts_df, on='user_id', how='left')
 
 # ❌ Risky: Drops orphaned children
 result = pd.merge(users_df, posts_df, on='user_id', how='inner')
-```
+```text
 
 This prevents silent data loss when processing.
 
@@ -365,7 +365,7 @@ Arrow projections should remain **shallow** (1–2 relationship hops maximum).
 
 **Design Rule:**
 
-```
+```text
 Arrow Depth Limit: 2 relationship hops maximum
 ├─ Level 0: Entity (User, Order, Product)
 ├─ Level 1: Direct relationships (User → Orders, Orders → Items)
@@ -373,7 +373,7 @@ Arrow Depth Limit: 2 relationship hops maximum
     └─ STOP: Don't go deeper
 
 For deeper requirements: Define multiple specialized projections
-```
+```text
 
 **Example: What NOT to do**
 
@@ -392,7 +392,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Solution: Create focused projections**
 
@@ -419,7 +419,7 @@ class CommentThreads:
     comments: Arrow.Batch([...])
     authors: Arrow.Batch([...])  # Author profile info
     # 1 hop: Comment → Author
-```
+```text
 
 **BI Tool Compatibility:**
 Most BI tools (Tableau, Looker, PowerBI) work best with **3-5 related tables maximum**. Shallow projections align naturally with BI architecture.
@@ -480,7 +480,7 @@ batches:
       - name: unit_price
         type: Decimal128
         nullable: false
-```
+```text
 
 ### 2.4 Streaming vs. File Format
 
@@ -495,13 +495,13 @@ Arrow supports multiple serialization formats:
 
 The FraiseQL runtime chooses the format based on the **HTTP `Accept` header**:
 
-```
+```text
 Accept: application/x-arrow               → IPC Streaming (real-time)
 Accept: application/vnd.apache.arrow.file → Arrow File format
 Accept: application/parquet               → Parquet (if enabled)
 Accept: text/csv                          → CSV (fallback)
 Accept: application/json                  → JSON (fallback)
-```
+```text
 
 ### 2.5 Arrow vs. JSON Plane Trade-offs
 
@@ -587,7 +587,7 @@ class OrderWithItemsArrow:
             ArrowField("unit_price", "Decimal128", nullable=False),
         ]
     )
-```
+```text
 
 ### 3.2 TypeScript Authoring
 
@@ -621,7 +621,7 @@ class OrderWithItemsArrow {
     ]
   };
 }
-```
+```text
 
 ### 3.3 Compile-Time Validation
 
@@ -636,11 +636,11 @@ FraiseQL validates Arrow projections at compile time:
 
 **Example Validation Error:**
 
-```
+```text
 ❌ ArrowProjectionError in order_with_items:
    Field 'metadata' (JSON type) cannot be represented in Arrow.
    Suggestion: Use JSON.stringify() in database view and project as String
-```
+```text
 
 ---
 
@@ -659,7 +659,7 @@ curl -X POST https://api.example.com/graphql \
   -d '{
     "query": "query { orderWithItems { ... } }"
   }'
-```
+```text
 
 **Response Format:**
 
@@ -670,13 +670,13 @@ curl -X POST https://api.example.com/graphql \
 
 Arrow IPC (Inter-Process Communication) is a standardized binary format that transmits Arrow batches:
 
-```
+```text
 [Arrow Magic Number] [Metadata Message] [RecordBatch] [RecordBatch] ... [EOF]
-```
+```text
 
 **Example Decoded (for reference):**
 
-```
+```text
 Batch 1 (orders):
   ┌─────────────────────────┐
   │ Metadata                │
@@ -705,7 +705,7 @@ Batch 2 (order_items):
   │ - quantity: [0x...]     │
   │ - unit_price: [0x...]   │
   └─────────────────────────┘
-```
+```text
 
 ### 4.3 Client-Side Deserialization
 
@@ -732,7 +732,7 @@ items_df = batches[1].to_pandas()
 
 # Join using foreign key
 result = pd.merge(orders_df, items_df, left_on='id', right_on='order_id')
-```
+```text
 
 **JavaScript (Node.js):**
 
@@ -756,7 +756,7 @@ const ordersTable = reader.readNext().value;  // First batch
 const itemsTable = reader.readNext().value;   // Second batch
 
 // Join using arrow-js utilities (or convert to DataFrame)
-```
+```text
 
 ---
 
@@ -790,7 +790,7 @@ SELECT
 FROM tb_order_item
 WHERE deleted_at IS NULL
 ORDER BY pk_order_item;
-```
+```text
 
 ### 5.2 Batch Aggregation Queries
 
@@ -809,7 +809,7 @@ WHERE created_at > NOW() - INTERVAL '30 days'
 GROUP BY status;
 
 -- Result: Single Arrow batch with 4 columns
-```
+```text
 
 ### 5.3 Pagination Support: Keyset from Start
 
@@ -821,7 +821,7 @@ OFFSET/LIMIT works fine at small offsets (<1M rows):
 
 ```sql
 SELECT ... ORDER BY id LIMIT 1000 OFFSET 10000000;
-```
+```text
 
 But at 10M+ rows, OFFSET scans and skips all prior rows. **Keyset pagination** only reads from the last cursor:
 
@@ -831,7 +831,7 @@ SELECT ... LIMIT 1000 OFFSET 10000000;
 
 -- ✅ Fast: Read directly from cursor position
 SELECT ... WHERE id > '2025-01-11T15:30:00Z' LIMIT 1000;
-```
+```text
 
 **Keyset Pagination Design:**
 
@@ -847,7 +847,7 @@ cursor = base64(encode({
     'created_at': last_created_at,
     'sequence': last_sequence
 }))
-```
+```text
 
 **Request Pattern (Relay-Compatible):**
 
@@ -864,7 +864,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Compiled SQL:**
 
@@ -877,7 +877,7 @@ SELECT ...
 WHERE (created_at, id) > (?, ?)
 ORDER BY created_at, id
 LIMIT 1000;
-```
+```text
 
 **Response Format:**
 
@@ -894,7 +894,7 @@ LIMIT 1000;
     "endCursor": "eyJpZCI6IjEyNCIsImNyZWF0ZWRfYXQiOiIyMDI1LTAxLTExVDE1OjMxOjAwWiJ9"
   }
 }
-```
+```text
 
 **Implementation Strategy:**
 
@@ -922,11 +922,11 @@ Both Arrow and JSON planes use **identical keyset pagination**:
 
 FraiseQL will emit warnings in logs if clients attempt large OFFSETs:
 
-```
+```text
 WARNING: Large OFFSET (10000000) detected.
 Consider using keyset pagination for better performance.
 See: docs/pagination.md
-```
+```text
 
 ---
 
@@ -956,7 +956,7 @@ SELECT
     occurred_at
 FROM tf_sales
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Arrow schema**:
 
@@ -974,7 +974,7 @@ WHERE deleted_at IS NULL;
     {"name": "occurred_at", "type": "timestamp[us, UTC]"}
   ]
 }
-```
+```text
 
 ### 5.5.2 Pre-Aggregated Views for BI Tools
 
@@ -991,7 +991,7 @@ SELECT
     data->>'category' AS category,
     data->>'region' AS region
 FROM tf_sales_daily;
-```
+```text
 
 **Use case**: BI tools (Tableau, PowerBI, Metabase) query `av_sales_daily` via Arrow for 10-100x faster data transfer compared to JSON.
 
@@ -1013,7 +1013,7 @@ query {
     count
   }
 }
-```
+```text
 
 **SQL Execution** (PostgreSQL):
 
@@ -1026,7 +1026,7 @@ SELECT
     COUNT(*) AS count
 FROM tf_sales
 GROUP BY data->>'category', data->>'region';
-```
+```text
 
 **Arrow Batch** (columnar layout):
 
@@ -1051,7 +1051,7 @@ SELECT
 FROM tf_sales
 GROUP BY DATE_TRUNC('day', occurred_at)
 ORDER BY day;
-```
+```text
 
 **Arrow Schema**:
 
@@ -1063,7 +1063,7 @@ ORDER BY day;
     {"name": "transaction_count", "type": "int64"}
   ]
 }
-```
+```text
 
 ### 5.5.5 Batching Strategy for Grouped Data
 
@@ -1081,7 +1081,7 @@ SELECT * FROM av_sales WHERE category = 'Electronics' LIMIT 10000;
 SELECT * FROM av_sales WHERE category = 'Clothing' LIMIT 10000;
 
 -- ... (100 batches total)
-```
+```text
 
 **Client receives**: 100 Arrow batches, each representing one category, enabling progressive rendering in BI dashboards.
 
@@ -1136,7 +1136,7 @@ SELECT * FROM av_sales WHERE category = 'Clothing' LIMIT 10000;
 
 For a 10,000-row Arrow query:
 
-```
+```text
 Network setup:        2ms
 Query parse:          1ms
 Authorization check:  1ms
@@ -1145,7 +1145,7 @@ Arrow serialization: 30ms
 Network transmission:10ms
 ─────────────────────────
 Total:              ~94ms (target: <100ms)
-```
+```text
 
 ---
 
@@ -1170,7 +1170,7 @@ Arrow projections inherit FraiseQL's **compile-time authorization rules**. Row-l
 class UserOrdersAnalytics:
     orders: Arrow.Batch([...])
     items: Arrow.Batch([...])
-```
+```text
 
 **Compilation Result:**
 
@@ -1180,7 +1180,7 @@ CREATE VIEW v_user_orders_analytics_orders AS
 SELECT ... FROM tb_order
 WHERE user_id = $1          -- ← Authorization bound at query time
   AND deleted_at IS NULL;
-```
+```text
 
 **Runtime Behavior:**
 
@@ -1197,7 +1197,7 @@ query {
 # 2. Apply row filter: WHERE user_id = 456
 # 3. Materialize Arrow batch (only user's orders)
 # 4. No sensitive data leaks to BI tool
-```
+```text
 
 **Key guarantee:** Row-level security is **deterministic and auditable**. The same SQL predicate applies every time.
 
@@ -1215,7 +1215,7 @@ class CustomerAnalytics:
         ArrowField("phone", "String", mask="hash"),        # ← Hashed
         ArrowField("ssn", "String", mask="encrypt"),       # ← Encrypted
     ])
-```
+```text
 
 **Masking Strategies:**
 
@@ -1234,7 +1234,7 @@ ArrowField("email", "String", mask="redact")
 
 # ❌ Error: Can't mask after projection (data already leaked)
 ArrowField("email", "String", projection="raw")  # Then mask later
-```
+```text
 
 ### 7.3 Auditability & Compliance
 
@@ -1257,7 +1257,7 @@ Arrow projection access is **fully auditable** for compliance (SOC 2, HIPAA, GDP
     "compliant": true
   }
 }
-```
+```text
 
 **Compliance Features:**
 
@@ -1283,7 +1283,7 @@ When Arrow projections are exported to external systems (data lakes, Parquet fil
 )
 class AnalyticsExport:
     ...
-```
+```text
 
 **Export Types & Policies:**
 
@@ -1314,7 +1314,7 @@ class AnalyticsExport:
 ```sql
 CREATE INDEX idx_order_created_at_brin ON tb_order
   USING BRIN (created_at);
-```
+```text
 
 ### 8.2 SQL Server
 
@@ -1331,7 +1331,7 @@ CREATE INDEX idx_order_created_at_brin ON tb_order
 ```sql
 CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
   ON tb_order;
-```
+```text
 
 ### 8.3 MySQL
 
@@ -1499,7 +1499,7 @@ class ProductsAnalytics:
         ArrowField("price", "Decimal128", nullable=False),
         ArrowField("category", "String", nullable=False),
     ])
-```
+```text
 
 **Query:**
 
@@ -1512,17 +1512,17 @@ query {
     category
   }
 }
-```
+```text
 
 **Result (Arrow):**
 
-```
+```text
 products_batch:
   | id  | name          | price  | category    |
   | p1  | Widget        | 9.99   | Hardware    |
   | p2  | Gadget        | 29.99  | Electronics |
   | p3  | Gizmo         | 49.99  | Electronics |
-```
+```text
 
 ### Example 2: Multi-Batch with Foreign Keys
 
@@ -1555,7 +1555,7 @@ class CustomersWithOrders:
         ArrowField("customer_id", "String", nullable=False, foreign_key="customers.id"),
         ArrowField("total", "Decimal128", nullable=False),
     ])
-```
+```text
 
 **Client Code (Pandas):**
 
@@ -1570,7 +1570,7 @@ orders = reader.get_batch(1).to_pandas()
 # Join via foreign key
 result = pd.merge(customers, orders,
                   left_on='id', right_on='customer_id')
-```
+```text
 
 ### Example 3: Aggregated Metrics Batch
 
@@ -1585,7 +1585,7 @@ class DailySalesMetrics:
         ArrowField("total_revenue", "Decimal128", nullable=False),
         ArrowField("avg_order_value", "Decimal128", nullable=False),
     ])
-```
+```text
 
 **Compiled SQL:**
 
@@ -1599,7 +1599,7 @@ FROM tb_order
 WHERE deleted_at IS NULL
 GROUP BY DATE(created_at)
 ORDER BY date DESC;
-```
+```text
 
 ---
 
@@ -1634,7 +1634,7 @@ ORDER BY date DESC;
 
 ### Decision Tree
 
-```
+```text
 Start: "I want to query FraiseQL data"
 
 ├─ Is it for an application user interface?
@@ -1661,7 +1661,7 @@ Start: "I want to query FraiseQL data"
    ├─ YES → Use Arrow plane
    │        (Keyset pagination, columnar performance)
    └─ NO → Either (choose based on nesting preference)
-```
+```text
 
 ### Performance Considerations
 
@@ -1719,11 +1719,11 @@ Start: "I want to query FraiseQL data"
 
 ### The Three Planes (Unified Architecture)
 
-```
+```text
 JSON Plane      ← Interaction (application queries, request-response)
 Arrow Plane     ← Computation (analytics, bulk reads, columnar)
 Delta Plane     ← Change Data (events, real-time streams, CDC)
-```
+```text
 
 All three planes source from the same database transactions.
 
@@ -1753,7 +1753,7 @@ The Delta plane is **already implemented in subscriptions architecture** with:
 ```sql
 SELECT * FROM orders LIMIT 10000
 -- Keyset pagination for next batch
-```
+```text
 
 **Delta plane:** "Stream me ORDER changes in real-time"
 
@@ -1764,7 +1764,7 @@ subscription {
     cursor  # For replay from this point
   }
 }
-```
+```text
 
 **Both use identical::**
 
@@ -1784,7 +1784,7 @@ subscription {
   }
 }
 # Delivered via graphql-ws (<5ms latency, reference deployment)
-```
+```text
 
 **Incremental data lake sync**
 
@@ -1797,7 +1797,7 @@ subscription {
 }
 # Delivered via Kafka (<5ms to broker)
 # Consumed by Delta Lake, Iceberg for incremental materialization
-```
+```text
 
 **Event-driven federation**
 
@@ -1809,7 +1809,7 @@ subscription {
     user_id, order_count, timestamp
   }
 }
-```
+```text
 
 **Audit trail (compliance)**
 
@@ -1839,7 +1839,7 @@ subscription {
     "transaction_id": "1234567890"
   }
 }
-```
+```text
 
 Same format across all databases and transports.
 
@@ -1907,7 +1907,7 @@ query {
     # Arrow results filtered to total >= 100
   }
 }
-```
+```text
 
 **Q: What if my data doesn't fit in memory as Arrow?**
 
@@ -1919,7 +1919,7 @@ query {
     # Returns 10K rows, memory proportional to batch size
   }
 }
-```
+```text
 
 **Q: Can I export Arrow directly to Parquet?**
 
@@ -1928,7 +1928,7 @@ A: Yes. Specify `Accept: application/parquet`:
 ```bash
 curl -H "Accept: application/parquet" https://api.example.com/graphql
 # Returns Parquet file directly
-```
+```text
 
 **Q: Does Arrow support nested JSON fields?**
 
@@ -1943,7 +1943,7 @@ ArrowField("metadata_json", "String")  # JSON-serialized
 
 # Then deserialize in client:
 metadata = json.loads(row['metadata_json'])
-```
+```text
 
 **Q: How do I join Arrow batches in SQL (e.g., DuckDB)?**
 
@@ -1961,7 +1961,7 @@ duckdb.execute(f"""
     ON customers.id = orders.customer_id
   GROUP BY customers.name
 """)
-```
+```text
 
 ---
 
@@ -2019,7 +2019,7 @@ duckdb.execute(f"""
     ]
   }
 }
-```
+```text
 
 ---
 

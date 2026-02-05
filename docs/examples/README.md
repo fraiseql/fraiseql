@@ -29,14 +29,14 @@ Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow
 
 **Project Structure**:
 
-```
+```text
 ecommerce-project/
 ├── schema-authoring/    # TypeScript schema definition
 ├── backend/             # Rust FraiseQL server
 ├── database/            # PostgreSQL schema and seeds
 ├── frontend/            # Vue 3 application
 └── docker-compose.yml   # Complete stack orchestration
-```
+```text
 
 **Duration**: 2-3 hours to understand and implement
 
@@ -70,14 +70,14 @@ ecommerce-project/
 
 **Project Structure**:
 
-```
+```text
 blog-monorepo/
 ├── java-schema/             # Maven project with FraiseQL annotations
 ├── fraiseql-server/         # Rust FraiseQL server
 ├── nextjs-frontend/         # Next.js 14 app with Server Components
 ├── sql/                     # PostgreSQL schema and seed data
 └── docker-compose.yml       # Complete stack orchestration
-```
+```text
 
 **Duration**: 2-3 hours to understand and implement
 
@@ -113,13 +113,13 @@ blog-monorepo/
 
 Each example follows FraiseQL's core principle: **Separation of Concerns**
 
-```
+```text
 Authoring       →    Compilation    →    Runtime      →    Frontend
 (TypeScript)   →    (Rust/CLI)      →    (Rust Srv)   →    (Vue/Flutter)
 
 Your code      →    Smart compiler  →    Production   →    Your users
                                          GraphQL API
-```
+```text
 
 **Key Point**: The authoring language (TypeScript, Go, Python) is **independent** from the runtime. You use what you're comfortable with for schema definition, then FraiseQL handles the efficient compilation and execution.
 
@@ -158,7 +158,7 @@ docker-compose up
 
 # 4. Open browser
 open http://localhost:5173
-```
+```text
 
 ### Without Docker
 

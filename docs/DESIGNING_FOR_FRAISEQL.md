@@ -1,6 +1,6 @@
 # Designing Schemas for FraiseQL
 
-**Master the art of architecting GraphQL for compiled SQL execution**
+### Master the art of architecting GraphQL for compiled SQL execution
 
 This guide covers design patterns specific to FraiseQL's compilation model. FraiseQL automatically optimizes SQL execution for your schema, but *architectural decisions* matter—and matter a lot.
 
@@ -23,14 +23,14 @@ This guide covers design patterns specific to FraiseQL's compilation model. Frai
 
 FraiseQL separates what it can optimize from what it can't:
 
-**FraiseQL DOES:**
+### FraiseQL DOES:
 
 - ✅ Prevent n+1 queries via JSONB view batching
 - ✅ Pre-optimize SQL execution at compile time
 - ✅ Generate efficient joins and aggregations
 - ✅ Handle query complexity scaling
 
-**FraiseQL CANNOT:**
+### FraiseQL CANNOT:
 
 - ❌ Fix federation fragmentation (your architectural choice)
 - ❌ Auto-correct circular dependency chains
@@ -76,7 +76,7 @@ type Post @key(fields: "id") {
 }
 ```
 
-**Why it works for FraiseQL:**
+### Why it works for FraiseQL:
 
 - Entity lives in one place (no fragmentation)
 - Clean batching: `User -> Profile` is local
@@ -137,7 +137,7 @@ type Comment @key(fields: "id") {
 }
 ```
 
-**Why it matters for FraiseQL:**
+### Why it matters for FraiseQL:
 
 - JSONB batching works best with consolidated entities
 - Reduces resolution chains
@@ -493,7 +493,7 @@ type Team @ownerService("org-service") { ... }
 type Role @ownerService("org-service") { ... }
 ```
 
-**Benefits:**
+### Benefits:
 
 - Clear responsibility
 - Easier debugging (which service owns that bug?)
@@ -560,7 +560,7 @@ type User {
 }
 ```
 
-**Problems:**
+### Problems:
 
 - Impossible to cache effectively (too many variations)
 - Massive JSONB blobs
@@ -725,7 +725,7 @@ type Product @key(fields: "id") {
 }
 ```
 
-**Why this design works for FraiseQL:**
+### Why this design works for FraiseQL:
 
 - Clear ownership (each service owns its domain)
 - User consolidated in one place (no fragmentation)
@@ -786,7 +786,7 @@ type UserGraph {
 }
 ```
 
-**Why this works:**
+### Why this works:
 
 - Public/private data clearly separated
 - User relationships paginated (no explosion)

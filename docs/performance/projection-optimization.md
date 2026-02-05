@@ -12,10 +12,10 @@ FraiseQL automatically optimizes GraphQL queries by projecting only requested fi
 
 Traditional GraphQL servers fetch full objects from the database, then filter fields on the server. FraiseQL projects fields at the database level:
 
-```
+```text
 Traditional:     Database → Full JSON → Network → GraphQL Filtering
 FraiseQL:        Database → Projected JSON → Network (smaller!)
-```
+```text
 
 ### Performance Impact
 
@@ -41,7 +41,7 @@ query {
     email
   }
 }
-```
+```text
 
 FraiseQL generates optimized SQL:
 
@@ -55,7 +55,7 @@ SELECT jsonb_build_object(
   'name', data->>'name',
   'email', data->>'email'
 ) FROM v_user LIMIT 100
-```
+```text
 
 The database returns only the fields you need. Unused fields (like `metadata`, `created_at`, etc.) never leave the database.
 
@@ -83,7 +83,7 @@ Projection is **enabled by default**. No configuration needed.
 ```rust
 // Projection automatically applied
 let results = executor.execute(query, variables).await?;
-```
+```text
 
 ### Disable (For Debugging)
 
@@ -93,14 +93,14 @@ To disable projection and test with full JSONB:
 
 ```bash
 FRAISEQL_DISABLE_PROJECTION=true cargo run
-```
+```text
 
 **In code**:
 
 ```rust
 // Note: execute_where_query() bypasses projection
 // Use execute_with_projection(view, None, clause, limit) to disable
-```
+```text
 
 ## Performance Characteristics
 
@@ -121,9 +121,9 @@ Field projection overhead is minimal and consistent:
 
 Projection scales linearly with data size:
 
-```
+```text
 Latency = 130ns × num_fields + 200ns base overhead
-```
+```text
 
 No exponential degradation even with complex queries.
 
@@ -141,9 +141,9 @@ Projection **reduces memory usage** by filtering unused fields:
 
 Full optimization using `jsonb_build_object()`:
 
-```
+```text
 Improvement: 42-55% latency reduction
-```
+```text
 
 ### MySQL, SQLite, SQL Server ⏳ (Fallback)
 
@@ -168,19 +168,19 @@ Check these in order:
    ```bash
    # Check which database you're using
    echo $DATABASE_URL
-   ```
+   ```text
 
 2. **Enable Logging**: See what SQL is generated
 
    ```bash
    RUST_LOG=fraiseql_core=debug cargo run
-   ```
+   ```text
 
 3. **Disable Temporarily**
 
    ```bash
    FRAISEQL_DISABLE_PROJECTION=true cargo run
-   ```
+   ```text
 
 ### Performance Not Improving?
 
@@ -212,7 +212,7 @@ query {
     email
   }
 }
-```
+```text
 
 ❌ **Bad** - Force full object fetch:
 
@@ -226,7 +226,7 @@ query {
 fragment AllUserFields on User {
   # All 50+ fields
 }
-```
+```text
 
 ### 2. Use Nested Queries When Needed
 
@@ -242,7 +242,7 @@ query UserList {
 query UserDetail($id: ID!) {
   user(id: $id) { ...AllUserFields }
 }
-```
+```text
 
 ### 3. Monitor Query Performance
 
@@ -250,13 +250,13 @@ Use the logging output to verify projection is working:
 
 ```bash
 RUST_LOG=fraiseql_core::runtime=debug cargo run
-```
+```text
 
 Look for in logs:
 
-```
+```text
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
-```
+```text
 
 ### 4. Profile Your Queries
 
@@ -266,7 +266,7 @@ For production deployments:
 # Capture query metrics
 curl -H "X-Debug: true" http://localhost:3000/graphql \
   -d '{"query": "..."}'
-```
+```text
 
 Results show projection impact in response headers.
 
@@ -283,7 +283,7 @@ query {
     email
   }
 }
-```
+```text
 
 **Generated SQL** (automatic):
 
@@ -292,7 +292,7 @@ SELECT jsonb_build_object(
   'id', data->>'id',
   'email', data->>'email'
 ) AS data FROM v_user LIMIT 10
-```
+```text
 
 **Result**: 42% latency reduction automatically
 
@@ -315,7 +315,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Generated SQL** (automatic):
 
@@ -336,7 +336,7 @@ SELECT jsonb_build_object(
     ) FROM jsonb_array_elements(data->'comments') elem
   )
 ) AS data FROM v_post LIMIT 100
-```
+```text
 
 **Result**: 54% latency reduction on 100-row results
 
@@ -351,7 +351,7 @@ FRAISEQL_DISABLE_PROJECTION=true cargo run
 # Via code (fetch full object)
 // The adapter will use execute_where_query() internally
 // which skips projection optimization
-```
+```text
 
 ## Migration Guide
 
@@ -373,7 +373,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql \
 
 # After: Compare results (should be 40-55% faster)
 # No query changes needed!
-```
+```text
 
 ## Technical Details
 
@@ -386,7 +386,7 @@ let generator = PostgresProjectionGenerator::new();
 let fields = vec!["id".to_string(), "email".to_string()];
 let sql = generator.generate_projection_sql(&fields)?;
 // Returns: jsonb_build_object('id', data->>'id', 'email', data->>'email')
-```
+```text
 
 ### Integration Point
 
@@ -415,7 +415,7 @@ let results = self.adapter.execute_with_projection(
     None,
     None,
 ).await?;
-```
+```text
 
 ## FAQ
 

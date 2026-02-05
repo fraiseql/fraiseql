@@ -62,14 +62,14 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 
 ### Feature Limitations
 
-**Not Included in Alpha:**
+#### Not Included in Alpha:
 
 - Subscriptions/real-time queries (planned for v2.1)
 - GraphQL directives beyond `@auth` and `@cache` (others planned for v2.1)
 - Advanced performance optimizations (deferred to v2.1)
 - Oracle database support (no Rust driver available)
 
-**Partially Supported:**
+### Partially Supported:
 
 - Language SDKs: Only Python, TypeScript, Go, PHP ready for alpha. Other languages coming in beta/GA.
 - Integration providers: 11 webhook providers included; more planned for v2.1
@@ -101,21 +101,21 @@ FraiseQL v2 is a complete redesign and **not backwards compatible** with v1:
 
 ### 1. Install FraiseQL
 
-**Option A: From source**
+#### Option A: From source
 
 ```bash
 git clone https://github.com/fraiseql/fraiseql.git
 cd fraiseql
 cargo build --release
 ./target/release/fraiseql-cli --version
-```
+```text
 
-**Option B: With Docker**
+#### Option B: With Docker
 
 ```bash
 docker build -t fraiseql:alpha .
 docker run fraiseql:alpha fraiseql-cli --version
-```
+```text
 
 ### 2. Define a Test Schema
 
@@ -135,7 +135,7 @@ def users(limit: int = 10) -> list[User]:
     pass
 
 schema.export_schema("schema.json")
-```
+```text
 
 Run: `python schema.py`
 
@@ -143,7 +143,7 @@ Run: `python schema.py`
 
 ```bash
 fraiseql-cli compile schema.json -o schema.compiled.json
-```
+```text
 
 ### 4. Setup Database
 
@@ -152,7 +152,7 @@ For PostgreSQL, create your views:
 ```sql
 CREATE VIEW v_users AS
 SELECT id, name, email FROM tb_user;
-```
+```text
 
 For other databases, see [Database Schema Conventions](docs/specs/schema-conventions.md).
 
@@ -167,13 +167,13 @@ database_url = "postgresql://localhost/testdb"
 
 [fraiseql.security]
 rate_limiting.enabled = true
-```
+```text
 
 Start server:
 
 ```bash
 fraiseql-server -c config.toml --schema schema.compiled.json
-```
+```text
 
 ### 6. Test Queries
 
@@ -181,7 +181,7 @@ fraiseql-server -c config.toml --schema schema.compiled.json
 curl -X POST http://localhost:8080/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 5) { id name email } }"}'
-```
+```text
 
 ---
 
@@ -198,9 +198,9 @@ curl -X POST http://localhost:8080/graphql \
 
 ### What to Include
 
-**For bugs:**
+#### For bugs:
 
-```
+```text
 ## Description
 Brief description of the issue
 
@@ -223,11 +223,11 @@ What actually happened
 - Database: PostgreSQL 15 / MySQL 8.0 / etc.
 - OS: Linux / macOS / Windows
 - Error message (if applicable)
-```
+```text
 
-**For feature requests:**
+### For feature requests:
 
-```
+```text
 ## Use Case
 Why do you need this?
 
@@ -236,7 +236,7 @@ How should this work?
 
 ## Current Workaround
 Are you working around this now?
-```
+```text
 
 ### Tag Your Issue
 
@@ -371,7 +371,7 @@ cargo bench -p fraiseql-arrow
 
 # Query execution performance
 cargo bench -p fraiseql-core
-```
+```text
 
 ### What to Measure
 
@@ -411,4 +411,4 @@ See [Benchmarking Guide](guides/development/benchmarking.md) for detailed setup.
 
 Thank you for testing FraiseQL v2! Your feedback is crucial for making this the best GraphQL execution engine for relational databases.
 
-**Happy testing!**
+### Happy testing!

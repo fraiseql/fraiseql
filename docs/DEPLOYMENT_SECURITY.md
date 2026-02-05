@@ -35,7 +35,7 @@ Scan image:
 
 ```bash
 trivy image fraiseql:latest --severity HIGH,CRITICAL
-```
+```text
 
 ### Runtime Security
 
@@ -50,7 +50,7 @@ securityContext:
   readOnlyRootFilesystem: false
   runAsNonRoot: true
   runAsUser: 65532
-```
+```text
 
 ## Kubernetes Security
 
@@ -60,7 +60,7 @@ Enforce:
 
 ```bash
 kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
-```
+```text
 
 Requirements:
 
@@ -75,18 +75,18 @@ Default: Deny all traffic
 
 Allow only:
 
-```
+```text
 - Ingress from nginx-ingress on port 8815
 - Egress to DNS (port 53)
 - Egress to PostgreSQL (port 5432)
 - Egress to Redis (port 6379)
-```
+```text
 
 Apply:
 
 ```bash
 kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
-```
+```text
 
 ## Secrets Management
 
@@ -96,7 +96,7 @@ kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
 # Set sensitive env vars (don't commit to Git)
 export DATABASE_URL="postgresql://user:$PASSWORD@host/db"
 export AUTH_TOKEN="secret..."
-```
+```text
 
 ### Kubernetes Secrets
 
@@ -112,7 +112,7 @@ env:
     secretKeyRef:
       name: fraiseql-db
       key: url
-```
+```text
 
 ### External Secret Management (Recommended)
 
@@ -121,19 +121,19 @@ env:
    ```bash
    # Install Vault Agent
    helm install vault hashicorp/vault --namespace vault
-   ```
+   ```text
 
 2. **AWS Secrets Manager**
 
    ```bash
    # Use IAM roles for pod authentication
-   ```
+   ```text
 
 3. **Azure Key Vault**
 
    ```bash
    # Use managed identities
-   ```
+   ```text
 
 ## Data Security
 
@@ -163,7 +163,7 @@ type User {
   name: String!
   sensitive_data: String!
 }
-```
+```text
 
 ## Audit & Compliance
 
@@ -180,7 +180,7 @@ All operations logged:
   "result": "success",
   "duration_ms": 45
 }
-```
+```text
 
 Enable in configuration:
 
@@ -188,7 +188,7 @@ Enable in configuration:
 [security.audit_logging]
 enabled = true
 log_level = "info"
-```
+```text
 
 ### Compliance
 

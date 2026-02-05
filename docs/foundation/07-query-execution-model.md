@@ -16,7 +16,7 @@ While Topic 2.1 explained how FraiseQL **compiles** schemas at build time, this 
 
 ## The Query Execution Model
 
-```
+```text
 Client Request (GraphQL Query)
          ↓
 Parse Request
@@ -34,7 +34,7 @@ Fetch Results from Database
 Format Response
          ↓
 Return to Client
-```
+```text
 
 ---
 
@@ -58,7 +58,7 @@ query GetUserProfile($userId: Int!) {
 }
 
 # Variables: { "userId": 123 }
-```
+```text
 
 ### What the Server Receives
 
@@ -68,7 +68,7 @@ query GetUserProfile($userId: Int!) {
   "variables": { "userId": 123 },
   "operationName": "GetUserProfile"
 }
-```
+```text
 
 ### Server Processing
 
@@ -110,7 +110,7 @@ At compile time, FraiseQL created schema.compiled.json with all query templates:
     }
   ]
 }
-```
+```text
 
 ### Runtime Lookup
 
@@ -125,7 +125,7 @@ query_template = schema.queries["GetUserProfile"]
 # sql_template: "SELECT pk_user_id, email, created_at FROM tb_users WHERE pk_user_id = $1"
 # parameters: [{ name: "userId", type: "Int" }]
 # nested_queries: [...]
-```
+```text
 
 **Performance:** O(1) lookup (hash table), <1ms
 
@@ -155,7 +155,7 @@ for param in template.parameters:
 
     # Bind to SQL template
     sql_bindings.append(value)
-```
+```text
 
 ### SQL Parameter Binding
 
@@ -171,7 +171,7 @@ bindings = [request.variables["userId"]]
 # BUT: parameters are NEVER concatenated into SQL string
 #      Database receives: statement + separate bindings
 #      This prevents SQL injection
-```
+```text
 
 ### Output
 
@@ -202,7 +202,7 @@ context = {
 # Evaluate rule
 if not evaluate_permission(auth_rule, context):
     raise GraphQLError("Unauthorized", status_code=403)
-```
+```text
 
 ### Pre-Execution vs Post-Fetch Checks
 
@@ -217,7 +217,7 @@ if context["user_role"] != "admin":
 
 # Only if permission passes, execute SQL
 execute_sql(sql, bindings)
-```
+```text
 
 **Post-Fetch (Filter Results)**
 
@@ -232,13 +232,13 @@ filtered_results = [
     row for row in results
     if row.user_id == context.authenticated_user_id or context.user_role == "admin"
 ]
-```
+```text
 
 ### Compiled Permissions
 
 From Topic 2.1 Phase 6, these are already compiled into efficient bytecode:
 
-```
+```text
 Permission Bytecode:
 ├─ Query: GetUserProfile
 │  └─ Rule: authenticated_user_id = userId
@@ -254,7 +254,7 @@ Permission Bytecode:
    └─ Rule: user_role = 'admin'
       Type: Post-fetch
       Cost: ~0.5ms
-```
+```text
 
 **Performance:** Pre-execution <0.1ms, Post-fetch ~0.5ms per result
 
@@ -279,7 +279,7 @@ except DatabaseError as e:
     raise GraphQLError(f"Database error: {e}")
 finally:
     db_pool.return_connection(connection)
-```
+```text
 
 ### Query Execution Example
 
@@ -294,7 +294,7 @@ LIMIT 1
 
 -- pk_user_id | email            | created_at
 -- 123        | user@example.com | 2026-01-01 10:00:00
-```
+```text
 
 ### Nested Queries (Relationships)
 
@@ -318,7 +318,7 @@ orders_results = [
     {"orderId": 456, "total": 99.99},
     {"orderId": 789, "total": 149.99}
 ]
-```
+```text
 
 ### SQL Optimization Enabled by Compilation
 
@@ -341,7 +341,7 @@ ORDER BY created_at DESC
 -- Good: Indexes recommended at compile time
 -- Query uses: tb_users(pk_user_id), tb_orders(fk_user_id, created_at)
 -- Missing indexes detected and recommended in compilation report
-```
+```text
 
 **Performance:** Depends on data size
 
@@ -367,7 +367,7 @@ orders = [
     {pk_order_id: 456, fk_user_id: 123, total: 99.99},
     {pk_order_id: 789, fk_user_id: 123, total: 149.99}
 ]
-```
+```text
 
 ### Transform to GraphQL Response
 
@@ -395,7 +395,7 @@ response = {
         }
     }
 }
-```
+```text
 
 ### Serialize to JSON
 
@@ -407,7 +407,7 @@ json_response = json.dumps(response)
 
 # Result:
 # {"data": {"user": {"userId": 123, "email": "user@example.com", ...}}}
-```
+```text
 
 **Performance:** <5ms for typical response
 
@@ -441,7 +441,7 @@ Content-Length: 342
     }
   }
 }
-```
+```text
 
 ### Error Response (If Something Failed)
 
@@ -459,7 +459,7 @@ Content-Type: application/json
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -480,11 +480,11 @@ query GetUserProfile($userId: Int!) {
 }
 
 Variables: { "userId": 123 }
-```
+```text
 
 ### Execution Timeline (Detailed)
 
-```
+```text
 Timeline: Request → Response
 
 T+0ms:    Client sends request
@@ -508,7 +508,7 @@ Breakdown:
 - Authorization: <1ms (2%)
 - Database queries: 20ms (74%)
 - Formatting & serialization: 5ms (20%)
-```
+```text
 
 ---
 
@@ -527,7 +527,7 @@ except ValueError:
         "Variable $userId of type Int! was not provided a valid Int value",
         extensions={"code": "BAD_USER_INPUT"}
     )
-```
+```text
 
 ### Missing Required Parameters
 
@@ -537,7 +537,7 @@ if "userId" not in request.variables:
         "Variable $userId of required type Int! was not provided",
         extensions={"code": "BAD_USER_INPUT"}
     )
-```
+```text
 
 ### Authorization Failures
 
@@ -547,7 +547,7 @@ if not evaluate_permission(auth_rule, context):
         "Unauthorized",
         extensions={"code": "FORBIDDEN"}
     )
-```
+```text
 
 ### Database Errors
 
@@ -565,7 +565,7 @@ except DatabaseError as e:
             "Database query failed",
             extensions={"code": "INTERNAL_SERVER_ERROR"}
         )
-```
+```text
 
 ### Error Response Format
 
@@ -586,7 +586,7 @@ except DatabaseError as e:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -594,7 +594,7 @@ except DatabaseError as e:
 
 ### 1. Deterministic Performance
 
-```
+```text
 Every query has predictable performance:
 
 - Lookup time: O(1)
@@ -604,11 +604,11 @@ Every query has predictable performance:
 - Response formatting: O(N) where N = number of results
 
 Total: Predictable and reproducible
-```
+```text
 
 ### 2. No Query Interpretation
 
-```
+```text
 Traditional GraphQL:
 
 - Parse query (5ms)
@@ -622,11 +622,11 @@ FraiseQL:
 - Look up pre-compiled template (0.1ms)
 - Execute SQL template (20-50ms)
 Total: Fast and consistent
-```
+```text
 
 ### 3. Automatic N+1 Prevention
 
-```
+```text
 Compile-time query analysis detects potential N+1 patterns:
 ❌ Bad pattern (would cause N+1):
    for user in users:
@@ -637,11 +637,11 @@ Compile-time query analysis detects potential N+1 patterns:
    orders = query_orders_for_users([user.id for user in users])  # 1 query!
 
 FraiseQL uses compiled templates that are already optimized.
-```
+```text
 
 ### 4. Authorization Integrated
 
-```
+```text
 Permission checks happen at two points:
 
 1. Pre-execution: Fast fail if not authorized
@@ -650,7 +650,7 @@ Permission checks happen at two points:
    Example: "user_id = authenticated_user_id" → Filter after SQL
 
 All compiled and optimized at build time.
-```
+```text
 
 ---
 
@@ -658,20 +658,20 @@ All compiled and optimized at build time.
 
 ### Apollo Server
 
-```
+```text
 Request → Parse (5ms) → Validate (3ms) →
 Resolve User (2ms) → Execute query (20ms) →
 Resolve Orders field (2ms) → Execute query (15ms) →
 Format (3ms) → Total: ~50ms
-```
+```text
 
 ### FraiseQL
 
-```
+```text
 Request → Lookup template (0.1ms) →
 Validate params (0.5ms) → Check auth (<0.1ms) →
 Execute SQL (35ms) → Format (1ms) → Total: ~37ms
-```
+```text
 
 **Result:** FraiseQL is ~26% faster because it skips interpretation overhead
 
@@ -700,7 +700,7 @@ query GetProductReviews($productId: Int!, $limit: Int = 10) {
 }
 
 Variables: { "productId": 42, "limit": 5 }
-```
+```text
 
 ### Execution
 
@@ -766,7 +766,7 @@ return {
         }
     }
 }
-```
+```text
 
 ---
 
@@ -774,7 +774,7 @@ return {
 
 ### Query Latency
 
-```
+```text
 Typical Query Performance:
 
 Simple lookup (1 result):
@@ -801,11 +801,11 @@ Factors:
 - Network latency (distance to database)
 - Result size (more results = slower formatting)
 - Authorization complexity (post-fetch filtering)
-```
+```text
 
 ### Throughput
 
-```
+```text
 Server Capacity (with connection pooling):
 
 For single FraiseQL server (4 CPUs, 8GB RAM):
@@ -820,7 +820,7 @@ Limiting factors:
 - Database capacity
 - Network bandwidth
 - Authorization check complexity
-```
+```text
 
 ---
 

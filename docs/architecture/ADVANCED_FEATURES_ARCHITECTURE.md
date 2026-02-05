@@ -115,7 +115,7 @@ pub trait AuthorizationRule: Send + Sync {
 }
 ```
 
-**Example: Team Member Authorization Rule**
+#### Example: Team Member Authorization Rule
 
 ```rust
 pub struct TeamMemberRule;
@@ -173,7 +173,7 @@ pub trait Validator: Send + Sync {
 }
 ```
 
-**Example: Email Domain Validator**
+#### Example: Email Domain Validator
 
 ```rust
 pub struct EmailDomainValidator {
@@ -247,7 +247,7 @@ pub trait Middleware: Send + Sync {
 }
 ```
 
-**Example: Metrics Middleware**
+#### Example: Metrics Middleware
 
 ```rust
 pub struct MetricsMiddleware {
@@ -302,7 +302,7 @@ impl Middleware for MetricsMiddleware {
 
 ### Entity Resolution Integration
 
-**The JSONB projection architecture already supports federation!**
+#### The JSONB projection architecture already supports federation!
 
 Federation requires resolving entities by ID:
 
@@ -319,7 +319,7 @@ query {
 }
 ```
 
-**How this maps to our architecture:**
+### How this maps to our architecture:
 
 1. **WHERE clause generation** handles `id = "user-123"`
 2. **Database query** executes `SELECT data FROM v_user WHERE id = $1`
@@ -490,7 +490,7 @@ fn build_federation_query(representations: &[EntityRepresentation]) -> String {
 }
 ```
 
-**Integration with Executor:**
+### Integration with Executor:
 
 ```rust
 impl Executor {
@@ -612,7 +612,7 @@ impl RBACResolver {
 
 ### Field-Level Authorization with RBAC
 
-**Enhancement to `AuthMask`:**
+#### Enhancement to `AuthMask`:
 
 ```rust
 impl AuthMask {
@@ -1086,7 +1086,7 @@ impl WebhookAdapter {
 | **Validators** | `Validator` trait + registry | Called pre-mutation, async with DB access |
 | **Transport Adapters** | `EventStream` subscription | Multiple transports (WebSocket, webhook, Kafka) |
 
-**All features are trait-based and pluggable. The core architecture from RUST_CORE_ARCHITECTURE.md supports all of them without modification.**
+### All features are trait-based and pluggable. The core architecture from RUST_CORE_ARCHITECTURE.md supports all of them without modification.
 
 ---
 
@@ -1094,37 +1094,37 @@ impl WebhookAdapter {
 
 ### Phase Timeline
 
-**Phase 2-3 (Basic):**
+#### Phase 2-3 (Basic):
 
 - ✅ Core database + WHERE + projection + auth
 - ✅ Basic field-level authorization
 - ✅ Connection pooling + caching
 
-**Phase 6 (HTTP Server):**
+### Phase 6 (HTTP Server):
 
 - 🔧 Add `ExtensionRegistry`
 - 🔧 Add `Middleware` support
 - 🔧 Add basic metrics middleware
 
-**Phase 7 (Federation Support):**
+### Phase 7 (Federation Support):
 
 - 🔧 Implement `FederationResolver`
 - 🔧 Add `_entities` query resolver
 - 🔧 Support view-based + HTTP federation
 
-**Phase 8 (Enterprise Features):**
+### Phase 8 (Enterprise Features):
 
 - 🔧 Implement `RBACResolver`
 - 🔧 Add hierarchical role support
 - 🔧 Permission caching with domain versioning
 
-**Phase 9 (Subscriptions):**
+### Phase 9 (Subscriptions):
 
 - 🔧 Implement `EventStream` trait
 - 🔧 Add PostgreSQL LISTEN/NOTIFY
 - 🔧 Build transport adapters (WebSocket, webhooks)
 
-**Observability & Monitoring:**
+### Observability & Monitoring:
 
 - 🔧 Full Prometheus metrics
 - 🔧 OpenTelemetry tracing
@@ -1134,4 +1134,4 @@ All features build on the core foundation (schema compilation, runtime execution
 
 ---
 
-**End of Advanced Features Architecture**
+

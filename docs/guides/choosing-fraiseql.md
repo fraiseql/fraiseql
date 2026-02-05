@@ -11,7 +11,7 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 
 ## Prerequisites
 
-**Required Knowledge:**
+### Required Knowledge:
 
 - GraphQL concepts and use cases
 - Database architecture and query patterns
@@ -22,16 +22,16 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 - Latency and throughput requirements
 - Data consistency requirements
 
-**Required Software:**
+### Required Software:
 
 - None (this is a decision-making guide, not hands-on implementation)
 - Optional: Documentation from your existing system/architecture
 
-**Required Infrastructure:**
+### Required Infrastructure:
 
 - None (decision guide only)
 
-**Optional but Recommended:**
+#### Optional but Recommended:
 
 - Performance baseline data from current system (if migrating)
 - Team technical expertise assessment
@@ -49,11 +49,11 @@ Answer these questions honestly:
 - [ ] Do you have **relational data** (not primarily document-oriented)?
 - [ ] Do you need **ACID compliance** or regulated industry support?
 
-**4+ YES → FraiseQL is likely a good fit**
+### 4+ YES → FraiseQL is likely a good fit
 
-**2-3 YES → Evaluate carefully**
+### 2-3 YES → Evaluate carefully
 
-**0-1 YES → Probably choose something else**
+### 0-1 YES → Probably choose something else
 
 ---
 
@@ -122,7 +122,7 @@ mutation Transfer($fromId: ID!, $toId: ID!, $amount: Money!) {
     transactionId
   }
 }
-```
+```text
 
 FraiseQL guarantees: Either both accounts updated, or neither. No partial transfers.
 
@@ -146,7 +146,7 @@ mutation PrescribeMedication($patientId: ID!, $medication: String!) {
     prescription { id, medication }
   }
 }
-```
+```text
 
 FraiseQL guarantees: Prescription never issued if allergy check fails.
 
@@ -175,7 +175,7 @@ mutation MoveInventory(
     toWarehouse { available }
   }
 }
-```
+```text
 
 FraiseQL guarantees: Inventory either moves completely or not at all.
 
@@ -204,7 +204,7 @@ mutation AddUser($tenantId: ID!, $email: String!, $role: String!) {
     id, email, role
   }
 }
-```
+```text
 
 FraiseQL guarantees: No cross-tenant data leaks, mutations atomic per tenant.
 
@@ -276,7 +276,7 @@ query RealTimeMetrics {
     timestamp, value
   }
 }
-```
+```text
 
 FraiseQL would be slow. Use Cassandra instead.
 
@@ -301,7 +301,7 @@ mutation LikePost($postId: ID!) {
     likes  # Doesn't need exact count
   }
 }
-```
+```text
 
 DynamoDB's eventual consistency is perfect here.
 
@@ -326,7 +326,7 @@ mutation LogSensorReading($sensorId: ID!, $value: Float!) {
     sensorId, value, timestamp
   }
 }
-```
+```text
 
 Use time-series DB directly.
 
@@ -351,7 +351,7 @@ mutation SendMessage($chatId: ID!, $text: String!) {
     id, text, createdAt
   }
 }
-```
+```text
 
 Use message broker + cache instead.
 
@@ -359,7 +359,7 @@ Use message broker + cache instead.
 
 ## Decision Flowchart
 
-```
+```text
 START
   │
   ├─ Do you need STRONG CONSISTENCY?
@@ -385,7 +385,7 @@ START
   │     │     │     │     │     └─ FraiseQL works, but simpler systems might too
   │
   └─ END
-```
+```text
 
 ---
 
@@ -524,7 +524,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "I'm unsure if FraiseQL is right for us"
 
-**Decision Framework:**
+#### Decision Framework:
 
 1. **What's your primary concern?**
    - Data consistency → FraiseQL ✅
@@ -550,13 +550,13 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
    - REST API comfortable → No GraphQL learning ❌
    - Needs ORM (no schema code) → Other options ✅
 
-**If 3+ checks passed: Strong FraiseQL fit**
-**If 1-2 checks passed: Evaluate carefully**
-**If 0 checks passed: Probably wrong tool**
+### If 3+ checks passed: Strong FraiseQL fit
+### If 1-2 checks passed: Evaluate carefully
+### If 0 checks passed: Probably wrong tool
 
 ### "Our team is skeptical about consistency trade-offs"
 
-**Address Concerns:**
+#### Address Concerns:
 
 | Concern | Counter-Point | Evidence |
 |---------|---------------|----------|
@@ -567,7 +567,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "We're between FraiseQL and [Alternative]"
 
-**Quick Comparison:**
+#### Quick Comparison:
 
 | Need | FraiseQL | Firebase | DynamoDB | GraphQL-Core |
 |------|----------|----------|----------|--------------|
@@ -579,7 +579,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 | Serverless | ❌ | ✅ | ✅ | ❌ |
 | Learning curve | Medium | Low | Low | High |
 
-**Recommendation:**
+### Recommendation:
 
 - If you need consistency + schema safety → FraiseQL
 - If you need serverless + real-time → Firebase/DynamoDB
@@ -587,9 +587,9 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "How do we pilot FraiseQL to prove it works?"
 
-**Phased Approach:**
+#### Phased Approach:
 
-**Phase 1 (Week 1): POC on single feature**
+#### Phase 1 (Week 1): POC on single feature
 
 - Pick one GraphQL query with 2-3 tables
 - Define schema in Python/TypeScript
@@ -597,7 +597,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Time: 2-4 hours
 - Success metric: Query executes and returns data
 
-**Phase 2 (Week 2): Expand to one service**
+### Phase 2 (Week 2): Expand to one service
 
 - Migrate one real service to FraiseQL
 - Run side-by-side with existing API for comparison
@@ -605,7 +605,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Time: 2-3 days
 - Success metric: FraiseQL performance acceptable
 
-**Phase 3 (Weeks 3-4): Production trial**
+### Phase 3 (Weeks 3-4): Production trial
 
 - Deploy to staging
 - Shadow traffic (duplicate requests to both)
@@ -613,7 +613,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Time: 1-2 weeks
 - Success metric: All metrics within acceptable range
 
-**Phase 4 (Week 5+): Full migration**
+### Phase 4 (Week 5+): Full migration
 
 - Gradual cutover: 10% → 25% → 50% → 100%
 - Rollback plan ready

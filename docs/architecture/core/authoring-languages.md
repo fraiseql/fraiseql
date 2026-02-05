@@ -23,13 +23,13 @@ This is not a "language binding" pattern. This is **language-agnostic compilatio
 
 All authoring languages (Python, TypeScript, YAML, CLI) produce the same **AuthoringIR** before compilation:
 
-```
+```text
 Python Schema (decorators)     ─┐
 TypeScript Schema (interfaces) ─┤
 YAML Schema (structured)       ─┼─→ AuthoringIR ─→ CompiledSchema ─→ Rust Runtime
 GraphQL SDL                    ─┤
 CLI Schema (commands)          ─┘
-```
+```text
 
 **Key principle:** The authoring language is **just syntax**. The semantics are expressed in the AuthoringIR.
 
@@ -96,7 +96,7 @@ class AuthRule:
     requires_auth: bool
     requires_roles: list[str]
     requires_claims: list[str]
-```
+```text
 
 This is the **semantic bridge** between any authoring language and the compiler.
 
@@ -154,7 +154,7 @@ schema.bind("create_user", "procedure", "fn_create_user")
 # Compilation
 if __name__ == "__main__":
     compiled = schema.compile()
-```
+```text
 
 **Parser:** Python AST inspection + type hints
 **Output:** AuthoringIR
@@ -227,7 +227,7 @@ schema.bind("createUser", "procedure", "fn_create_user");
 
 // Compilation
 const compiled = await schema.compile();
-```
+```text
 
 **Parser:** TypeScript AST inspection + decorator metadata
 **Output:** AuthoringIR
@@ -315,7 +315,7 @@ bindings:
   createUser:
     type: procedure
     procedure: fn_create_user
-```
+```text
 
 **Parser:** YAML → structured dict → AuthoringIR
 **Output:** AuthoringIR
@@ -385,7 +385,7 @@ extend type Mutation {
   createUser(email: String!, name: String!): User!
     @bind(type: "procedure", resource: "fn_create_user")
 }
-```
+```text
 
 **Parser:** GraphQL parser → AST → AuthoringIR
 **Output:** AuthoringIR
@@ -429,7 +429,7 @@ fraiseql add:mutation createUser \
 
 # Compile
 fraiseql compile
-```
+```text
 
 **Parser:** CLI arguments → structured data → AuthoringIR
 **Output:** AuthoringIR
@@ -445,7 +445,7 @@ fraiseql compile
 
 ## 4. Compilation Pipeline: Language-Agnostic
 
-```
+```text
 Python Schema (decorators)
 TypeScript Schema (interfaces)
 YAML Schema (structured)
@@ -473,7 +473,7 @@ Compilation Pipeline (Phases 1-6)
         validation-report.txt
         ↓
         Rust Runtime Execution
-```
+```text
 
 **Key insight:** The compiler doesn't care which language produced the AuthoringIR. It's all the same from Phase 1 onward.
 
@@ -501,7 +501,7 @@ def products(where: "ProductWhereInput" = None):
     pass
 
 schema.bind("products", "view", "v_product")
-```
+```text
 
 ### TypeScript Version
 
@@ -522,7 +522,7 @@ export interface Product {
 export function products(where?: ProductWhereInput): Product[] {}
 
 schema.bind("products", "view", "v_product");
-```
+```text
 
 ### YAML Version
 
@@ -548,7 +548,7 @@ bindings:
   products:
     type: view
     view: v_product
-```
+```text
 
 ### GraphQL SDL Version
 
@@ -563,7 +563,7 @@ type Query {
   products: [Product!]!
     @bind(type: "view", resource: "v_product")
 }
-```
+```text
 
 ### CLI Version
 
@@ -572,7 +572,7 @@ fraiseql init --name shop --database postgresql
 fraiseql add:type Product --field id:ID --field name:String --field price:Float
 fraiseql add:query products --returns Product --list --binding view:v_product
 fraiseql compile
-```
+```text
 
 **Result:** All five approaches produce **identical CompiledSchema.json**
 
@@ -584,7 +584,7 @@ The generated GraphQL is identical, the SQL lowering is identical, the execution
 
 ### Pattern 1: Canonical Language + Ecosystem Projections
 
-```
+```text
 Canonical source-of-truth schema (one language)
     ↓
 Python version  (for Python developers / Django teams)
@@ -595,7 +595,7 @@ GraphQL SDL  (for tools/explorers)
 All compile to same CompiledSchema
     ↓
 Single Rust runtime
-```
+```text
 
 **Key:** One team maintains the canonical schema. Other languages are **projections** (generated or hand-maintained equivalents) for different ecosystems.
 
@@ -603,19 +603,19 @@ This avoids the maintenance nightmare of truly multi-language schemas.
 
 ### Pattern 2: Generated + Configuration
 
-```
+```text
 Base schema generated from database introspection
     ↓
 YAML overrides applied (bindings, auth rules)
     ↓
 Produces canonical CompiledSchema
-```
+```text
 
 **Key:** Machine-generated base + human-maintained config in YAML.
 
 ### Pattern 3: Language-Specific Organization
 
-```
+```text
 Core GraphQL Schema Layer (canonical truth)
     ↓
 ┌───────────────────────────┬──────────────────┐
@@ -624,13 +624,13 @@ Python SDK wrapper          TypeScript SDK     YAML config
 (Python decorators)         (interfaces)       (deployment)
 
 All expose same underlying CompiledSchema
-```
+```text
 
 **Key:** Different organizations might prefer different authoring languages, but they all reference the same underlying schema.
 
 ### Pattern 4: Gradual Migration
 
-```
+```text
 v1: All schemas in Python
     ↓
 v2: Evaluate TypeScript for new schemas
@@ -640,7 +640,7 @@ v3: Decide on canonical language (e.g., GraphQL SDL)
 v4: One-time migration of existing schemas to canonical language
     ↓
 v5: Use canonical language going forward
-```
+```text
 
 **Key:** Not continuous polyglotism, but ability to migrate at organization boundaries without runtime changes.
 
@@ -666,7 +666,7 @@ class KotlinAuthoringIRBuilder {
         // Parse Kotlin AST → AuthoringIR
     }
 }
-```
+```text
 
 ### Benefit 2: Easy to Generate Schemas
 
@@ -679,7 +679,7 @@ def generate_from_database(db_connection) -> AuthoringIR:
     for table in db_connection.list_tables():
         ir.types[table.name] = table_to_type_definition(table)
     return ir
-```
+```text
 
 Then compile normally. Or save to YAML/GraphQL/etc.
 
@@ -699,7 +699,7 @@ def add_audit_fields(ir: AuthoringIR) -> AuthoringIR:
 ir = parse_python_schema(schema_file)
 ir = add_audit_fields(ir)
 compiled = compile(ir)
-```
+```text
 
 ### Benefit 4: Easy to Validate
 
@@ -722,7 +722,7 @@ def validate_authoring_ir(ir: AuthoringIR) -> list[ValidationError]:
             errors.append(f"Binding references unknown operation {op_name}")
 
     return errors
-```
+```text
 
 ---
 
@@ -738,7 +738,7 @@ def validate_authoring_ir(ir: AuthoringIR) -> list[ValidationError]:
 @auth.requires_role("admin")
 class User:
     pass
-```
+```text
 
 #### TypeScript: Interface Inheritance
 
@@ -747,7 +747,7 @@ class User:
 export interface User extends Identifiable {
   email: string;
 }
-```
+```text
 
 #### YAML: Clear Documentation
 
@@ -756,7 +756,7 @@ types:
   User:
     description: A user account
     # Easy to read, easy to version control
-```
+```text
 
 #### GraphQL SDL: Directive Composition
 
@@ -764,14 +764,14 @@ types:
 type User @cache(ttl: 3600) @auth(requires_role: "admin") {
   id: ID!
 }
-```
+```text
 
 #### CLI: Interactive Learning
 
 ```bash
 fraiseql add:type --help
 fraiseql add:mutation --interactive
-```
+```text
 
 All translate to the same AuthoringIR semantics.
 
@@ -808,7 +808,7 @@ jobs:
 
     # All produce identical CompiledSchema.json
     - git diff build/CompiledSchema.json
-```
+```text
 
 ---
 
@@ -822,7 +822,7 @@ When adding Kotlin support:
 
    ```kotlin
    fun parseKotlinSchema(file: File): AuthoringIR { }
-   ```
+   ```text
 
 2. **Register with compiler**
 
@@ -834,7 +834,7 @@ When adding Kotlin support:
        "graphql" => parse_graphql(content),
        "kt" => parse_kotlin(content),  // New!
    }
-   ```
+   ```text
 
 3. **No breaking changes**
    - Existing schemas continue to work
@@ -850,7 +850,7 @@ If adding new feature (e.g., directives):
    ```python
    class FieldDef:
        directives: list[DirectiveDef]  # New field
-   ```
+   ```text
 
 2. **Update all parsers**
    - Python: Parse `@cache` decorator

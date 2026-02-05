@@ -135,7 +135,7 @@ class User:
 # Runtime: Can't add fields or change types
 # This is impossible:
 # user.add_field("age", Int)  # ❌ NOT ALLOWED
-```
+```text
 
 ---
 
@@ -158,7 +158,7 @@ query {
 # Runtime: Variable values change per request
 { "name": "Alice" }  # ✅ Value is runtime
 { "name": "Bob" }    # ✅ Different value, same structure
-```
+```text
 
 ---
 
@@ -178,7 +178,7 @@ def users():
 
 # Runtime: Check if user has "admin" role
 # AuthContext.roles includes "admin"? ✅ Allow : ❌ Deny
-```
+```text
 
 ---
 
@@ -199,7 +199,7 @@ config = CompilerConfig(
 
 # Runtime: Cache lookup and storage
 # Is result in cache? ✅ Return cached : ❌ Execute query
-```
+```text
 
 ---
 
@@ -268,7 +268,7 @@ config = CompilerConfig(
 fn add_field_to_user(schema: &mut CompiledSchema, field_name: &str) {
     schema.types["User"].fields.insert(field_name, ...);  // ❌ FORBIDDEN
 }
-```
+```text
 
 **Why wrong?** Schema is compile-time contract. Runtime modification breaks determinism.
 
@@ -286,7 +286,7 @@ fn execute_regex_on_mysql(col: &str, pattern: &str) -> String {
     // Fake regex with LIKE + stored procedures
     format!("CALL emulate_regex({}, {})", col, pattern)  // ❌ FORBIDDEN
 }
-```
+```text
 
 **Why wrong?** GraphQL schema lies about operator availability. Clients get runtime surprises.
 
@@ -305,7 +305,7 @@ def resolve_user_email(user, context):
         return user.email
     else:
         return None
-```
+```text
 
 **Why wrong?** Authorization should be declarative (compile-time), not imperative (runtime).
 
@@ -317,7 +317,7 @@ class User:
     id: ID
     name: str
     email: str = fraiseql.field(requires_role="admin")  # ✅ Compile-time
-```
+```text
 
 ---
 
@@ -335,7 +335,7 @@ fn execute_query(query: &Query) {
         execute_normally(query);
     }
 }
-```
+```text
 
 **Why wrong?** Execution should be deterministic. Same query always uses same plan.
 
@@ -380,7 +380,7 @@ When implementing runtime features, ensure:
 
 Use this decision tree when unclear about timing:
 
-```
+```text
 Does the decision depend on request-specific data?
 ├─ YES → Runtime
 │   Examples: AuthContext, cache hit/miss, SQL parameter values
@@ -391,7 +391,7 @@ Does the decision depend on request-specific data?
     │   Examples: database target, caching enabled, security profile
     └─ NO → Compile-time (schema structure)
         Examples: types, fields, operators available
-```
+```text
 
 ---
 

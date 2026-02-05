@@ -100,7 +100,7 @@ async def get_user(user_id: int):
 @app.websocket("/graphql/ws")
 async def websocket_endpoint(websocket):
     await fraiseql_server.handle_subscription(websocket)
-```
+```text
 
 **Integration Checklist**:
 
@@ -176,7 +176,7 @@ class GraphQLView(View):
             context=context
         )
         return JsonResponse(result)
-```
+```text
 
 **Integration Checklist**:
 
@@ -238,7 +238,7 @@ def graphql():
 def graphql_ws():
     # WebSocket handling via Flask-SocketIO
     return fraiseql_server.handle_subscription(request.environ['wsgi.input'])
-```
+```text
 
 **Integration Checklist**:
 
@@ -304,7 +304,7 @@ export class GraphQLController {
     return this.fraiseql.execute(query, variables, context);
   }
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -369,7 +369,7 @@ app.use(
     });
   },
 );
-```
+```text
 
 **Integration Checklist**:
 
@@ -430,7 +430,7 @@ fastify.setErrorHandler((error, request, reply) => {
 });
 
 fastify.listen({ port: 3000 });
-```
+```text
 
 **Integration Checklist**:
 
@@ -515,7 +515,7 @@ func main() {
 
  router.Run(":8080")
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -590,7 +590,7 @@ func main() {
 
  e.Logger.Fatal(e.Start(":8080"))
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -651,7 +651,7 @@ func handleGraphQL(server *fraiseql.Server) http.HandlerFunc {
   json.NewEncoder(w).Encode(result)
  }
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -739,7 +739,7 @@ public class GraphQLController {
         );
     }
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -803,7 +803,7 @@ public class GraphQLResource {
         );
     }
 }
-```
+```text
 
 **Integration Checklist**:
 
@@ -872,7 +872,7 @@ end
 
 # config/application.rb
 config.middleware.use Rack::CORSMiddleware
-```
+```text
 
 **Integration Checklist**:
 
@@ -931,7 +931,7 @@ get '/health' do
   content_type :json
   { status: 'ok' }.to_json
 end
-```
+```text
 
 **Integration Checklist**:
 
@@ -952,7 +952,7 @@ end
 
 All frameworks share a common pattern for the core GraphQL endpoint:
 
-```
+```text
 POST /graphql
 Content-Type: application/json
 
@@ -965,7 +965,7 @@ Response:
 {
   "data": { "user": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
 }
-```
+```text
 
 **Best Practices**:
 
@@ -980,7 +980,7 @@ Response:
 
 Wrap specific GraphQL operations as REST endpoints:
 
-```
+```text
 GET /api/users/123
 
 Internally executes:
@@ -988,7 +988,7 @@ query { user(id: 123) { id name email } }
 
 Response:
 { "id": 123, "name": "Alice", "email": "alice@example.com" }
-```
+```text
 
 **Adapter Pattern**:
 
@@ -998,7 +998,7 @@ class RestAdapter:
         query = f'query {{ user(id: {user_id}) {{ id name email }} }}'
         result = self.fraiseql.execute(query)
         return result['data']['user']
-```
+```text
 
 ### 3. WebSocket Subscriptions
 
@@ -1020,7 +1020,7 @@ ws.on('message', (event) => {
     console.log('User created:', message.payload.data);
   }
 });
-```
+```text
 
 **Server Implementation**:
 
@@ -1046,7 +1046,7 @@ Standardize error responses across all frameworks:
     }
   ]
 }
-```
+```text
 
 **Common Error Types**:
 
@@ -1102,7 +1102,7 @@ Standardize error responses across all frameworks:
 async def graphql(query, variables):
     result = await fraiseql_server.execute(query, variables)
     return result
-```
+```text
 
 **TypeScript (Promises)**:
 
@@ -1111,13 +1111,13 @@ async executeQuery(query: string): Promise<Result> {
   const result = await fraiseql.execute(query);
   return result;
 }
-```
+```text
 
 **Go (goroutines)**:
 
 ```go
 go fraiseqlServer.Execute(ctx, request)
-```
+```text
 
 ### Testing Setup
 
@@ -1131,7 +1131,7 @@ def fraiseql_server():
 def test_query(fraiseql_server):
     result = fraiseql_server.execute('query { user(id: 1) { id } }')
     assert result['data'] is not None
-```
+```text
 
 **TypeScript (Jest)**:
 
@@ -1142,7 +1142,7 @@ describe('GraphQL', () => {
     expect(result.data).toBeDefined();
   });
 });
-```
+```text
 
 ### Deployment Considerations
 
@@ -1178,7 +1178,7 @@ describe('GraphQL', () => {
 
    ```bash
    fraiseql-cli compile schema.json fraiseql.toml
-   ```
+   ```text
 
 3. **Setup Framework**
    - Choose framework from above
@@ -1210,7 +1210,7 @@ watchmedo shell-command \
 
 # Start server in another terminal
 python main.py
-```
+```text
 
 **Production Deployment**:
 
@@ -1220,7 +1220,7 @@ COPY schema.compiled.json /app/
 COPY fraiseql.toml /app/
 COPY app.py /app/
 CMD ["python", "/app/app.py"]
-```
+```text
 
 ### Performance Tips
 

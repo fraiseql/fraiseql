@@ -17,7 +17,7 @@ A domain is a cohesive unit of business logic with its own types, queries, and m
 
 Your GraphQL schema organization matches your application code:
 
-```
+```text
 src/
 ├── auth/          ← Domain
 │   └── schema.py
@@ -35,13 +35,13 @@ schema/
 │   └── types.json
 └── orders/        ← Domain
     └── types.json
-```
+```text
 
 ### ✅ Scalable
 
 Start with monolithic, grow to many domains:
 
-```
+```text
 Small Project          Medium Project         Large Project
 schema.json        →   schema/                schema/
                        ├── auth/              ├── auth/
@@ -51,7 +51,7 @@ schema.json        →   schema/                schema/
                                               ├── payments/
                                               ├── shipping/
                                               └── analytics/
-```
+```text
 
 ### ✅ Team-Friendly
 
@@ -73,34 +73,34 @@ Teams work independently with clear contracts (types each domain exports).
 
 Each domain follows a consistent structure:
 
-```
+```text
 schema/
 └── {domain_name}/
     ├── types.json          # Types, queries, mutations
     ├── queries.json        # (Optional) Query-only file
     ├── mutations.json      # (Optional) Mutation-only file
     └── README.md           # (Optional) Domain documentation
-```
+```text
 
 ### Simple: Single File per Domain
 
-```
+```text
 schema/auth/types.json
 {
   "types": [...],
   "queries": [...],
   "mutations": [...]
 }
-```
+```text
 
 ### Advanced: Separate Files
 
-```
+```text
 schema/auth/
 ├── types.json      # Type definitions only
 ├── queries.json    # Auth queries
 └── mutations.json  # Login, logout, register
-```
+```text
 
 ## Configuration
 
@@ -112,13 +112,13 @@ Automatically discover all domains in a directory:
 [domain_discovery]
 enabled = true
 root_dir = "schema"
-```
+```text
 
 Then compile:
 
 ```bash
 fraiseql compile fraiseql.toml
-```
+```text
 
 The compiler will:
 
@@ -146,11 +146,11 @@ mutations = [
   "schema/auth/mutations.json",
   "schema/orders/mutations.json"
 ]
-```
+```text
 
 ## Example: E-Commerce
 
-```
+```text
 schema/
 ├── auth/
 │   └── types.json       # User, Session, login, logout
@@ -160,7 +160,7 @@ schema/
 │   └── types.json       # Order, OrderItem, createOrder, getOrder
 └── inventory/
     └── types.json       # Inventory, checkStock, updateStock
-```
+```text
 
 ### Auth Domain
 
@@ -179,7 +179,7 @@ schema/
     {"name": "logout", "return_type": "User"}
   ]
 }
-```
+```text
 
 ### Products Domain
 
@@ -197,7 +197,7 @@ schema/
     {"name": "createProduct", "return_type": "Product", "operation": "insert"}
   ]
 }
-```
+```text
 
 ### Orders Domain (Cross-Domain References)
 
@@ -218,7 +218,7 @@ schema/
     {"name": "createOrder", "return_type": "Order", "operation": "insert"}
   ]
 }
-```
+```text
 
 ## Best Practices
 
@@ -226,34 +226,34 @@ schema/
 
 Good:
 
-```
+```text
 schema/auth/ - Authentication only
 schema/products/ - Product catalog only
-```
+```text
 
 Bad:
 
-```
+```text
 schema/everything/ - Types, products, auth, billing, ...
-```
+```text
 
 ### 2. Domain Owns Its Types
 
 The **auth domain** should define `User`, not the orders domain:
 
-```
+```text
 ✅ schema/auth/types.json
    {"name": "User", "fields": [...]}
 
 ❌ schema/orders/types.json
    {"name": "User", "fields": [...]}  // Don't duplicate!
-```
+```text
 
 ### 3. Consumer Owns Cross-Domain Queries
 
 The **orders domain** (consumer) should define cross-domain queries:
 
-```
+```text
 ✅ schema/orders/queries.json
    {
      "name": "getOrderByUser",
@@ -268,7 +268,7 @@ The **orders domain** (consumer) should define cross-domain queries:
      "name": "getUserOrders",  // Orders domain owns this query
      ...
    }
-```
+```text
 
 ### 4. Document Your Domains
 
@@ -302,7 +302,7 @@ None - core domain
 
 - Orders domain references User
 - Products domain references User (vendor)
-```
+```text
 
 ### 5. Validate Your Schema
 
@@ -310,7 +310,7 @@ Always validate after adding/removing domains:
 
 ```bash
 fraiseql compile fraiseql.toml --check
-```
+```text
 
 This validates:
 
@@ -323,18 +323,18 @@ This validates:
 
 ### Pattern 1: Simple (2-5 Domains)
 
-```
+```text
 schema/
 ├── auth/
 ├── products/
 └── orders/
-```
+```text
 
 Use: `fraiseql compile fraiseql.toml`
 
 ### Pattern 2: Medium (5-15 Domains)
 
-```
+```text
 schema/
 ├── auth/
 ├── products/
@@ -342,13 +342,13 @@ schema/
 ├── inventory/
 ├── billing/
 └── shipping/
-```
+```text
 
 Use: Auto-discovery with clear domain ownership
 
 ### Pattern 3: Large (15+ Domains)
 
-```
+```text
 schema/
 ├── core/
 │   └── auth/      # Multi-level nesting
@@ -361,7 +361,7 @@ schema/
 │   └── billing/
 │   └── shipping/
 └── analytics/
-```
+```text
 
 Consider:
 
@@ -376,25 +376,25 @@ Consider:
 
 **Before**:
 
-```
+```text
 schema.json (2000 lines)
-```
+```text
 
 **After**:
 
-```
+```text
 schema/
 ├── auth/types.json
 ├── products/types.json
 ├── orders/types.json
 └── inventory/types.json
-```
+```text
 
 **Step 1**: Create domain structure
 
 ```bash
 mkdir -p schema/{auth,products,orders,inventory}
-```
+```text
 
 **Step 2**: Split schema.json into domains
 
@@ -403,7 +403,7 @@ mkdir -p schema/{auth,products,orders,inventory}
 # Copy User, Session types to schema/auth/types.json
 # Copy Product, Category types to schema/products/types.json
 # etc.
-```
+```text
 
 **Step 3**: Configure domain discovery
 
@@ -411,14 +411,14 @@ mkdir -p schema/{auth,products,orders,inventory}
 [domain_discovery]
 enabled = true
 root_dir = "schema"
-```
+```text
 
 **Step 4**: Compile and verify
 
 ```bash
 fraiseql compile fraiseql.toml
 fraiseql compile fraiseql.toml --check
-```
+```text
 
 ## Examples
 
@@ -444,7 +444,7 @@ Build any example:
 ```bash
 cd examples/ecommerce
 fraiseql compile fraiseql.toml
-```
+```text
 
 ## Troubleshooting
 
@@ -479,7 +479,7 @@ fraiseql lint domains --detect-cycles
 
 # Generate domain dependency graph
 fraiseql docs domains --graph
-```
+```text
 
 These are potential future enhancements to FraiseQL.
 

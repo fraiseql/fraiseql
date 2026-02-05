@@ -68,7 +68,7 @@ FraiseQL prioritizes **correctness, predictability, and evolvability** over flex
 
 ### 2.1 High-Level Architecture
 
-```
+```text
 Schema Authoring (Any Language)
  ├─ Python / TypeScript / Java / Kotlin / CLI
  │   └─ emits CompiledSchema
@@ -90,7 +90,7 @@ FraiseQL Runtime (Rust)
  ├─ Database execution
  ├─ Cache invalidation emission
  └─ JSON / Arrow output
-```
+```text
 
 ### 2.2 Compilation Model
 
@@ -257,7 +257,7 @@ SELECT
     ) AS data
 FROM v_user u
 LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
-```
+```text
 
 The database performs all composition. The runtime receives fully-formed JSONB.
 
@@ -372,7 +372,7 @@ CREATE TABLE tf_sales (
     customer_id UUID NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL
 );
-```
+```text
 
 **Pre-aggregated fact tables** (e.g., `tf_sales_daily`, `tf_events_monthly`) follow the same structure as raw fact tables, just at different granularity. Use descriptive suffixes to indicate granularity.
 
@@ -503,7 +503,7 @@ Example auth context:
     "email": "a@b.com"
   }
 }
-```
+```text
 
 The auth context is:
 
@@ -544,7 +544,7 @@ query users
     email
   }
 }
-```
+```text
 
 Authorization directives:
 

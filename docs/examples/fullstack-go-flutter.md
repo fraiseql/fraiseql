@@ -4,12 +4,12 @@ This guide demonstrates a complete end-to-end integration of a Go GraphQL schema
 
 **Architecture Overview:**
 
-```
+```text
 Go Schema Definition        FraiseQL Compiler        FraiseQL Server          Flutter Mobile App
 (movies.go)         →      (fraiseql-cli)    →    (schema.compiled.json)  →   (Flutter client)
                                                         + Rust runtime
                                                         + PostgreSQL
-```
+```text
 
 ---
 
@@ -23,7 +23,7 @@ Create a new Go module:
 mkdir movie-schema
 cd movie-schema
 go mod init github.com/example/movie-schema
-```
+```text
 
 ### 1.2 Go Schema Definitions
 
@@ -99,7 +99,7 @@ type Query struct{}
 
 // Mutation represents the root mutation type
 type Mutation struct{}
-```
+```text
 
 ### 1.3 Query Definitions
 
@@ -153,7 +153,7 @@ func (q *Query) GetTopRatedMovies(ctx context.Context, limit int) ([]Movie, erro
  // Schema only
  return nil, nil
 }
-```
+```text
 
 ### 1.4 Mutation Definitions
 
@@ -235,7 +235,7 @@ type RemoveFromWatchlistOutput struct {
  Success bool   `json:"success"`
  Message string `json:"message"`
 }
-```
+```text
 
 ### 1.5 Go Module File
 
@@ -249,7 +249,7 @@ go 1.21
 require (
  github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
 )
-```
+```text
 
 ---
 
@@ -359,7 +359,7 @@ CREATE TRIGGER trigger_update_stats_on_rating
 AFTER INSERT ON ratings
 FOR EACH ROW
 EXECUTE FUNCTION update_movie_stats();
-```
+```text
 
 ---
 
@@ -566,7 +566,7 @@ func getSQLType(t reflect.Type) string {
   return "TEXT"
  }
 }
-```
+```text
 
 ### 3.2 Compilation Command
 
@@ -581,7 +581,7 @@ fraiseql-cli compile \
   --schema schema.json \
   --config fraiseql.toml \
   --output schema.compiled.json
-```
+```text
 
 ---
 
@@ -648,7 +648,7 @@ enabled = true
 export_interval_secs = 30
 prometheus_enabled = true
 prometheus_port = 9090
-```
+```text
 
 ### 4.2 Docker Deployment
 
@@ -684,7 +684,7 @@ EXPOSE 8000 9090
 ENV RUST_LOG=info
 
 CMD ["./fraiseql-server", "--config", "fraiseql.toml"]
-```
+```text
 
 Create `docker-compose.yml`:
 
@@ -726,7 +726,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 Deployment:
 
@@ -739,7 +739,7 @@ docker-compose exec postgres psql -U fraiseql -d movies -f /docker-entrypoint-in
 
 # Check server health
 curl http://localhost:8000/health
-```
+```text
 
 ---
 
@@ -759,7 +759,7 @@ flutter pub add http
 
 # Install dependencies
 flutter pub get
-```
+```text
 
 ### 5.2 GraphQL Client Configuration
 
@@ -815,7 +815,7 @@ class GraphQLClientService {
     );
   }
 }
-```
+```text
 
 ### 5.3 GraphQL Queries
 
@@ -968,7 +968,7 @@ class MovieMutations {
     }
   ''';
 }
-```
+```text
 
 ### 5.4 Models
 
@@ -1095,7 +1095,7 @@ class WatchlistItem extends Equatable {
   @override
   List<Object?> get props => [id, movieId, userId, status, addedAt];
 }
-```
+```text
 
 ### 5.5 Provider State Management
 
@@ -1320,7 +1320,7 @@ class MovieProvider extends ChangeNotifier {
     }
   }
 }
-```
+```text
 
 ### 5.6 UI Screens
 
@@ -1511,7 +1511,7 @@ class MovieCard extends StatelessWidget {
     );
   }
 }
-```
+```text
 
 Create `lib/screens/movie_detail_screen.dart`:
 
@@ -1751,7 +1751,7 @@ class ReviewTile extends StatelessWidget {
     );
   }
 }
-```
+```text
 
 Create `lib/screens/review_form_screen.dart`:
 
@@ -1910,7 +1910,7 @@ class _ReviewFormScreenState extends State<ReviewFormScreen> {
     );
   }
 }
-```
+```text
 
 ### 5.7 Main App
 
@@ -1946,13 +1946,13 @@ class MovieApp extends StatelessWidget {
     );
   }
 }
-```
+```text
 
 ---
 
 ## Part 6: Flutter Project Structure
 
-```
+```text
 movie_app/
 ├── android/                      # Android native code
 ├── ios/                          # iOS native code
@@ -1972,7 +1972,7 @@ movie_app/
 │       └── movie_queries.dart   # GraphQL queries & mutations
 ├── pubspec.yaml                 # Dependencies
 └── README.md
-```
+```text
 
 Create `pubspec.yaml`:
 
@@ -2013,7 +2013,7 @@ flutter:
         - asset: assets/fonts/Roboto-Regular.ttf
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
-```
+```text
 
 ---
 
@@ -2034,7 +2034,7 @@ flutter doctor
 # Docker & Docker Compose
 sudo pacman -S docker docker-compose  # Arch
 # or brew install docker docker-compose  # macOS
-```
+```text
 
 ### 7.2 Start FraiseQL Backend
 
@@ -2052,7 +2052,7 @@ INSERT INTO movies (title, description, release_date, genre, director, duration,
 ('Inception', 'A skilled thief who steals corporate secrets through dream-sharing technology...', '2010-07-16', 'Sci-Fi', 'Christopher Nolan', 148, 'https://image.tmdb.org/t/p/w500/9gk7adHYeDMNNGceKc06f1DjQcO.jpg', 8.8),
 ('Interstellar', 'A team of explorers travel through a wormhole in space...', '2014-11-07', 'Sci-Fi', 'Christopher Nolan', 169, 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', 8.6);
 EOF
-```
+```text
 
 ### 7.3 Configure Flutter App
 
@@ -2076,7 +2076,7 @@ final httpLink = HttpLink(
   'http://<your-machine-ip>:8000/graphql',
   defaultHeaders: {'Content-Type': 'application/json'},
 );
-```
+```text
 
 ### 7.4 Run Flutter App
 
@@ -2093,7 +2093,7 @@ flutter run -d sim
 
 # Run on physical device
 flutter run -d <device_id>
-```
+```text
 
 ---
 
@@ -2119,7 +2119,7 @@ query SearchMovies($query: String!, $genre: String, $limit: Int!) {
     director
   }
 }
-```
+```text
 
 ### 8.2 View Movie Details with Reviews
 
@@ -2151,7 +2151,7 @@ query GetMovieDetails($movieId: Int!) {
     }
   }
 }
-```
+```text
 
 ### 8.3 Submit a Review
 
@@ -2189,7 +2189,7 @@ mutation AddReview(
     createdAt
   }
 }
-```
+```text
 
 ### 8.4 Manage Watchlist
 
@@ -2215,7 +2215,7 @@ mutation AddToWatchlist(
     addedAt
   }
 }
-```
+```text
 
 **Get Watchlist:**
 
@@ -2229,7 +2229,7 @@ query GetUserWatchlist($userId: Int!, $status: String) {
     rating
   }
 }
-```
+```text
 
 ---
 
@@ -2258,7 +2258,7 @@ flutter build ios --release
 open ios/Runner.xcworkspace
 # Product → Scheme → Edit Scheme → Run → Release
 # Product → Archive
-```
+```text
 
 ### 9.2 Android Deployment
 
@@ -2291,7 +2291,7 @@ flutter build appbundle --release
 
 # Upload to Google Play Console
 # Using internal testing, closed testing, or production
-```
+```text
 
 ### 9.3 App Store Release Checklist
 
@@ -2342,7 +2342,7 @@ flutter build appbundle --release
   # Reset database
   docker-compose down -v
   docker-compose up
-  ```
+  ```text
 
 ### Flutter Build Issues
 
@@ -2355,7 +2355,7 @@ flutter build appbundle --release
   flutter pub get
   flutter analyze
   flutter test
-  ```
+  ```text
 
 ### Performance Issues
 

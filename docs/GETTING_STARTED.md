@@ -13,7 +13,7 @@
 ```bash
 cargo new my-graphql-api
 cd my-graphql-api
-```
+```text
 
 ### Add FraiseQL to `Cargo.toml`
 
@@ -22,13 +22,13 @@ cd my-graphql-api
 fraiseql = "2.0"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
-```
+```text
 
 ### Verify installation
 
 ```bash
 cargo check
-```
+```text
 
 Expected output: `Finished 'dev' profile`
 
@@ -87,7 +87,7 @@ Save this as `schema.json` in your project root:
     }
   ]
 }
-```
+```text
 
 ### What this means
 
@@ -133,17 +133,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-```
+```text
 
 ### Run it
 
 ```bash
 cargo run
-```
+```text
 
 Expected output:
 
-```
+```text
 Query result:
 {
   "data": {
@@ -161,7 +161,7 @@ Query result:
     ]
   }
 }
-```
+```text
 
 **If you get an error:**
 

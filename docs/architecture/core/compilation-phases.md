@@ -30,7 +30,7 @@ FraiseQL's compiler transforms user-defined schemas into deterministic, database
 
 **Compilation flow**:
 
-```
+```text
 User Schema (Python/YAML)
     ↓ Phase 1: Schema Parsing & Validation
 SchemaAST (Abstract Syntax Tree)
@@ -46,7 +46,7 @@ OperationPlan (executable query/mutation/subscription plans)
 CompiledSchema (final executable IR)
     ↓
 Runtime executes CompiledSchema
-```
+```text
 
 ---
 
@@ -95,7 +95,7 @@ class Role:
     ADMIN = "admin"
     USER = "user"
     GUEST = "guest"
-```
+```text
 
 ### 1.3 Input Format: YAML
 
@@ -140,7 +140,7 @@ enums:
     ADMIN: "admin"
     USER: "user"
     GUEST: "guest"
-```
+```text
 
 ### 1.4 Input Format: SDL (GraphQL Schema Definition Language)
 
@@ -167,7 +167,7 @@ enum Role {
   USER
   GUEST
 }
-```
+```text
 
 ### 1.5 Parsing Rules
 
@@ -251,7 +251,7 @@ class FieldDef:
     decorators: dict[str, Any]  # e.g., {"authorize": "owner_only"}
     default_value: Any | None
     source_location: SourceLocation
-```
+```text
 
 ---
 
@@ -282,7 +282,7 @@ type_registry = {
     "JSON": SCALAR_JSON,
     "UUID": SCALAR_UUID,
 }
-```
+```text
 
 **Step 2: Resolve all type references**
 
@@ -300,7 +300,7 @@ raise CompilationError(
     f"Type 'User' not defined. Line {field.source_location.line}",
     code="E_SCHEMA_UNKNOWN_TYPE_101"
 )
-```
+```text
 
 **Step 3: Resolve list and nullable modifiers**
 
@@ -314,7 +314,7 @@ raise CompilationError(
 field.list = True
 field.element_required = True
 field.required = True
-```
+```text
 
 **Step 4: Handle forward references**
 
@@ -327,13 +327,13 @@ field.required = True
 field.type = TypeReference("Post")  # String reference
 # To:
 field.type_def = type_registry["Post"]  # Resolved
-```
+```text
 
 ### 2.3 Dependency Analysis
 
 Build type dependency graph:
 
-```
+```text
 User
 ├─ depends on: UserProfile, Role
 └─ no dependencies on Post
@@ -345,7 +345,7 @@ Post
 Comment
 ├─ depends on: Post, User, DateTime
 └─ depends on: Post (circular with Post.comments)
-```
+```text
 
 **Circular dependency detection:**
 
@@ -361,7 +361,7 @@ User.best_friend: User!  # Can be nested infinitely
 # Circular but allowed if nullable:
 User.profile: UserProfile
 UserProfile.user: User | None  # Nullable, can be null at leaf
-```
+```text
 
 ### 2.4 Validation Rules
 
@@ -407,7 +407,7 @@ class ResolvedFieldDef:
     required: bool
     list: bool
     decorators: dict[str, Any]
-```
+```text
 
 ---
 
@@ -434,7 +434,7 @@ User.email → tb_user.email (column)
 User.name → tb_user.name (column)
 User.created_at → tb_user.created_at (column)
 User.profile → v_user_profile (via join or subquery)
-```
+```text
 
 **Step 2: Resolve database column names**
 
@@ -452,7 +452,7 @@ raise CompilationError(
 class User:
     @fraiseql.column("email_address")  # Maps to column 'email_address'
     email: str
-```
+```text
 
 **Step 3: Handle relationships**
 
@@ -466,7 +466,7 @@ class User:
 
 Post.author_id: ID  # Foreign key (scalar)
 Post.author: User   # Relationship (object)
-```
+```text
 
 **Step 4: Apply field-level authorization**
 
@@ -480,7 +480,7 @@ class User:
 # Authorization binding:
 # User.ssn → apply "owner_or_admin" rule at query time
 # Rule means: Only owner of user or admin can access ssn
-```
+```text
 
 ### 3.3 Authorization Rule Compilation
 
@@ -519,7 +519,7 @@ class User:
         masked_value=None
     )
     ssn: str
-```
+```text
 
 **Rule resolution:**
 
@@ -532,7 +532,7 @@ class User:
 
 # "is_published_or_author" →
 # Custom rule: Compile from rule definition in schema
-```
+```text
 
 ### 3.4 Masking & Filtering
 
@@ -552,7 +552,7 @@ class User:
 
 # If field is required and user unauthorized:
 # Result: GraphQL null error (cannot return null for non-null field)
-```
+```text
 
 **Row-level security (applied in Phase 5):**
 
@@ -563,7 +563,7 @@ class User:
 
 # RLS rule: "current_user.id == user.id OR current_user.role == 'admin'"
 # Result: Only return own user + admin can see all
-```
+```text
 
 ### 3.5 BoundSchema Structure
 
@@ -594,7 +594,7 @@ class MaskingRule:
     show_to: list[str]  # Roles/users who can see
     hide_from: list[str]  # Roles/users who cannot see
     masked_value: Any  # What to show if masked (None, 0, "", etc.)
-```
+```text
 
 ---
 
@@ -618,7 +618,7 @@ class User:
     id: ID
     email: str
     name: str
-```
+```text
 
 **Step 2: Validate key fields**
 
@@ -632,7 +632,7 @@ class User:
 
 # Validate key field is indexed:
 # Fields should have database index for performance
-```
+```text
 
 **Step 3: Validate extended types**
 
@@ -644,7 +644,7 @@ class Post:
 
     # New field owned by this subgraph:
     comments: [Comment]
-```
+```text
 
 **Validation rules:**
 
@@ -676,7 +676,7 @@ CREATE FUNCTION resolve_user_by_email(keys TEXT[]) RETURNS JSONB[] AS $$
   FROM unnest(keys) WITH ORDINALITY AS t(key, idx)
   JOIN v_user ON v_user.email = t.key
 $$ LANGUAGE sql STABLE;
-```
+```text
 
 **Step 2: Generate dispatch metadata**
 
@@ -699,7 +699,7 @@ federation_metadata = {
         }
     }
 }
-```
+```text
 
 ### 4.4 Database Linking Configuration (PostgreSQL FDW)
 
@@ -712,7 +712,7 @@ federation_metadata = {
 class Product:  # Extended from Products subgraph
     id: ID = fraiseql.external()
     vendor: Vendor = fraiseql.requires(fields=["id"])  # Requires external field
-```
+```text
 
 **Step 2: Generate foreign table definitions**
 
@@ -734,7 +734,7 @@ CREATE FOREIGN TABLE products_schema_v_product (
 -- Create user mapping
 CREATE USER MAPPING FOR current_user SERVER products_fdw
   OPTIONS (user 'fdw_user', password 'secret');
-```
+```text
 
 **Step 3: Generate entity resolution with FDW joins**
 
@@ -750,7 +750,7 @@ CREATE FUNCTION resolve_product_with_vendor(keys UUID[]) RETURNS JSONB[] AS $$
   JOIN products_schema_v_product p ON p.id = t.key
   LEFT JOIN vendors_schema_v_vendor v ON v.id = p.vendor_id
 $$ LANGUAGE sql STABLE;
-```
+```text
 
 ### 4.5 FederationSchema Structure
 
@@ -776,7 +776,7 @@ class DatabaseLink:
     db_type: str  # "postgresql", "sqlserver", "mysql"
     connection_string: str
     foreign_tables: dict[str, ForeignTableDef]
-```
+```text
 
 ---
 
@@ -807,11 +807,11 @@ query GetPosts($published: Boolean) {
     }
   }
 }
-```
+```text
 
 **Step 2: Build execution plan**
 
-```
+```text
 QueryPlan:
   ├─ Resolve root: posts
   │  └─ Database query: SELECT * FROM v_post WHERE published = $1 LIMIT 20
@@ -837,7 +837,7 @@ QueryPlan:
   │
   └─ Resolve field: comments.id, comments.content
      └─ Already available from comment join
-```
+```text
 
 **Step 3: Optimize and generate SQL**
 
@@ -862,7 +862,7 @@ FROM v_post p
 JOIN v_user u ON p.author_id = u.id
 WHERE p.published = true
 LIMIT 20
-```
+```text
 
 **Step 4: Apply authorization**
 
@@ -877,7 +877,7 @@ WHERE p.published = true
     p.author_id = $current_user_id OR p.published = true
   )
 LIMIT 20
-```
+```text
 
 ### 5.3 Mutation Compilation
 
@@ -893,11 +893,11 @@ mutation CreatePost($title: String!, $content: String!) {
     title
   }
 }
-```
+```text
 
 **Step 2: Build execution plan**
 
-```
+```text
 MutationPlan:
   ├─ Validate input: title required, content required
   ├─ Apply authorization: Check if user can create posts
@@ -905,7 +905,7 @@ MutationPlan:
   ├─ Execute: INSERT INTO tb_post (title, content, author_id) VALUES (...)
   ├─ Return: SELECT * FROM v_post WHERE id = ...
   └─ Apply authorization: Check if user can read created post
-```
+```text
 
 **Step 3: Compile to SQL**
 
@@ -919,7 +919,7 @@ RETURNING (
     'title', title
   ) FROM v_post WHERE tb_post.id = v_post.id
 )
-```
+```text
 
 ### 5.4 Subscription Compilation
 
@@ -935,11 +935,11 @@ subscription OnPostCreated {
     }
   }
 }
-```
+```text
 
 **Step 2: Build event subscription plan**
 
-```
+```text
 SubscriptionPlan:
   ├─ Event trigger: PostgreSQL LISTEN "post_created"
   ├─ Event handler: PostgreSQL NOTIFY with entity ID
@@ -947,7 +947,7 @@ SubscriptionPlan:
   ├─ Apply authorization: Only notify if user can see post
   ├─ Transform: Convert entity to subscription response format
   └─ Transport: Send via WebSocket/webhook/message queue
-```
+```text
 
 **Step 3: Generate event trigger SQL**
 
@@ -971,7 +971,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER post_created_trigger
 AFTER INSERT ON tb_post
 FOR EACH ROW EXECUTE FUNCTION notify_post_created();
-```
+```text
 
 **Step 4: Runtime subscription handler**
 
@@ -983,7 +983,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_created();
 //    - Check user authorization
 //    - Query entity (same SQL as query resolution)
 //    - Send to client
-```
+```text
 
 ### 5.5 Field Resolution Strategies
 
@@ -997,7 +997,7 @@ query {
     title   # Already have from query
   }
 }
-```
+```text
 
 **Strategy 2: Join (direct relationship)**
 
@@ -1011,7 +1011,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Strategy 3: Subquery (filtered relationship)**
 
@@ -1025,7 +1025,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Strategy 4: Federation (external type)**
 
@@ -1039,7 +1039,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### 5.6 OperationPlan Structure
 
@@ -1063,7 +1063,7 @@ class AuthorizationPlan:
     rules: list[AuthorizationRule]
     sql_where_clause: str  # SQL WHERE for row-level security
     field_masks: dict[str, MaskingRule]
-```
+```text
 
 ---
 
@@ -1086,7 +1086,7 @@ class AuthorizationPlan:
 # 3. Limits result sets early (push LIMIT down)
 # 4. Uses prepared statements (parameterized queries)
 # 5. Enables query plan caching
-```
+```text
 
 **Step 2: Query optimization techniques**
 
@@ -1126,7 +1126,7 @@ LEFT JOIN LATERAL (
   WHERE post_id = p.id
   LIMIT 5
 ) a ON true
-```
+```text
 
 ### 6.3 Prepared Statement Generation
 
@@ -1138,7 +1138,7 @@ query GetPosts($published: Boolean!, $limit: Int) {
     id
   }
 }
-```
+```text
 
 **Step 2: Generate prepared statement**
 
@@ -1148,7 +1148,7 @@ PREPARE get_posts (BOOLEAN, INTEGER) AS
   FROM v_post
   WHERE published = $1
   LIMIT COALESCE($2, 20);
-```
+```text
 
 **Step 3: Parameter binding at runtime**
 
@@ -1156,7 +1156,7 @@ PREPARE get_posts (BOOLEAN, INTEGER) AS
 // At runtime:
 let params = (published_value, limit_value);
 db.execute_prepared("get_posts", params).await?
-```
+```text
 
 ### 6.4 Caching Metadata Generation
 
@@ -1176,7 +1176,7 @@ CacheMetadata {
     cache_key: "GetPosts:$published:$limit",
     ttl_seconds: 300  # Cache 5 minutes
 }
-```
+```text
 
 **Step 2: Authorization-aware cache keys**
 
@@ -1189,7 +1189,7 @@ cache_key = f"GetPosts:$published:$limit:user_{user_id}"
 # - User 1 sees User 1's posts
 # - User 2 sees User 2's posts
 # - Cache keeps both separate
-```
+```text
 
 ### 6.5 Error Handling Code Generation
 
@@ -1202,7 +1202,7 @@ cache_key = f"GetPosts:$published:$limit:user_{user_id}"
 // 3. Authorization errors (user not allowed)
 // 4. Database errors (query timeout, deadlock)
 // 5. Type errors (wrong argument type)
-```
+```text
 
 **Step 2: Error code mapping**
 
@@ -1214,7 +1214,7 @@ error_cases = {
     "unauthorized": "E_AUTH_PERMISSION_401",
     "query_timeout": "E_DB_QUERY_TIMEOUT_302",
 }
-```
+```text
 
 ### 6.6 CompiledSchema Structure
 
@@ -1279,7 +1279,7 @@ error_cases = {
     ...
   }
 }
-```
+```text
 
 ### 6.7 Optimization Techniques
 
@@ -1321,54 +1321,54 @@ error_cases = {
 
 **Syntax Errors:**
 
-```
+```text
 E_SCHEMA_SYNTAX_ERROR_001: Invalid schema syntax
 E_SCHEMA_DUPLICATE_TYPE_002: Type defined twice
 E_SCHEMA_INVALID_NAME_003: Invalid type/field name
-```
+```text
 
 **Resolution Errors:**
 
-```
+```text
 E_SCHEMA_UNKNOWN_TYPE_101: Type reference not found
 E_SCHEMA_CIRCULAR_DEPENDENCY_102: Circular non-nullable reference
 E_SCHEMA_INVALID_MODIFIER_103: Invalid type modifier
-```
+```text
 
 **Binding Errors:**
 
-```
+```text
 E_BINDING_NO_COLUMN_201: Field has no database mapping
 E_BINDING_UNKNOWN_FIELD_202: Field not found in type
 E_BINDING_AMBIGUOUS_MAPPING_203: Multiple possible mappings
 E_BINDING_NO_RELATIONSHIP_204: Cannot resolve relationship
-```
+```text
 
 **Federation Errors:**
 
-```
+```text
 E_FED_NO_KEY_301: Extended type missing @key
 E_FED_KEY_MISMATCH_302: @key doesn't match original type
 E_FED_EXTERNAL_NOT_FOUND_303: External field not in original type
 E_FED_INVALID_REQUIRES_304: @requires field not found
-```
+```text
 
 **Query Errors:**
 
-```
+```text
 E_QUERY_UNKNOWN_FIELD_401: Field doesn't exist in type
 E_QUERY_INVALID_ARGUMENT_402: Argument doesn't exist or wrong type
 E_QUERY_AUTHORIZATION_DENIED_403: Query not allowed by authorization rules
 E_QUERY_AMBIGUOUS_FRAGMENT_404: Fragment definition ambiguous
-```
+```text
 
 **Code Generation Errors:**
 
-```
+```text
 E_CODEGEN_INVALID_SQL_501: Generated SQL is invalid
 E_CODEGEN_OPTIMIZATION_FAILED_502: Optimization produced wrong result
 E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
-```
+```text
 
 ### 7.2 Error Reporting Format
 
@@ -1395,7 +1395,7 @@ E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
     ]
   }
 }
-```
+```text
 
 ### 7.3 Validation Rules Matrix
 
@@ -1422,7 +1422,7 @@ class User:
     id: ID
     name: str
     email: str | None = None
-```
+```text
 
 **Phase 1 (Parsing):**
 
@@ -1439,7 +1439,7 @@ SchemaAST {
         }
     }
 }
-```
+```text
 
 **Phase 2 (Resolution):**
 
@@ -1453,7 +1453,7 @@ ResolvedSchema {
         }
     }
 }
-```
+```text
 
 **Phase 3 (Binding):**
 
@@ -1470,7 +1470,7 @@ BoundSchema {
         }
     }
 }
-```
+```text
 
 **Phase 6 (Final):**
 
@@ -1486,7 +1486,7 @@ BoundSchema {
     }
   }
 }
-```
+```text
 
 ### 8.2 Query Compilation with Authorization
 
@@ -1507,14 +1507,14 @@ class User:
 
     @fraiseql.authorize(rule="owner_only")
     email: str
-```
+```text
 
 **Phase 3 (Authorization binding):**
 
 ```python
 # content field: Apply "published_or_author" rule
 # email field: Apply "owner_only" rule
-```
+```text
 
 **Phase 5 (Query compilation):**
 
@@ -1530,7 +1530,7 @@ query GetPost($id: ID!) {
     }
   }
 }
-```
+```text
 
 **Phase 6 (SQL generation):**
 
@@ -1556,7 +1556,7 @@ SELECT
 FROM v_post p
 JOIN v_user u ON p.author_id = u.id
 WHERE p.id = $1
-```
+```text
 
 ---
 

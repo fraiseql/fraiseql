@@ -62,7 +62,7 @@ The FraiseQL Observer System enables event-driven architectures by triggering ac
 
 ### Architecture
 
-```
+```text
 Database Change (INSERT/UPDATE/DELETE)
          ↓
    Change Log Table (tb_entity_change_log)
@@ -74,7 +74,7 @@ Database Change (INSERT/UPDATE/DELETE)
    Action Execution (webhooks, notifications)
          ↓
    Retry on Failure (configurable backoff)
-```
+```text
 
 ---
 
@@ -116,7 +116,7 @@ ObserverBuilder.create('onPaymentFailure')
     .add_action(Webhook.create('https://api.example.com/payment-failures'))
     .retry(max_attempts=5, backoff_strategy='exponential')
     .register()
-```
+```text
 
 ### TypeScript
 
@@ -144,7 +144,7 @@ ObserverBuilder.create('onOrderShipped')
         from: 'noreply@example.com'
     }))
     .register();
-```
+```text
 
 ### Go
 
@@ -172,7 +172,7 @@ observers.NewBuilder("onOrderShipped").
         "noreply@example.com",
     )).
     Register()
-```
+```text
 
 ### Java
 
@@ -200,7 +200,7 @@ ObserverBuilder.create("onOrderShipped")
         "noreply@example.com"
     ))
     .register();
-```
+```text
 
 ### PHP
 
@@ -228,7 +228,7 @@ ObserverBuilder::create('onOrderShipped')
         'noreply@example.com'
     ))
     ->register();
-```
+```text
 
 ---
 
@@ -260,7 +260,7 @@ Use FraiseQL DSL to filter events:
 
 # Multiple fields
 .condition("total > 1000 and customer_tier == 'premium'")
-```
+```text
 
 **Available Functions**:
 
@@ -295,7 +295,7 @@ Webhook.create('https://api.example.com/webhook', body_template='''
     "data": {{_json}}
 }
 ''')
-```
+```text
 
 **Payload Format**:
 
@@ -312,7 +312,7 @@ Webhook.create('https://api.example.com/webhook', body_template='''
     },
     "timestamp": "2026-01-23T10:30:00Z"
 }
-```
+```text
 
 #### 2. Slack Action
 
@@ -327,7 +327,7 @@ SlackAction.create('#sales', '🎉 High-value order {id}: ${total}')
 
 # URL from environment
 SlackAction.with_env('SLACK_WEBHOOK_URL', '#alerts', 'Payment failed: {id}')
-```
+```text
 
 **Template Variables**:
 
@@ -362,7 +362,7 @@ EmailAction.create(
     body='<h1>Order {id}</h1><p>Total: ${total}</p>',
     content_type='text/html'
 )
-```
+```text
 
 ### Retry Configuration
 
@@ -392,7 +392,7 @@ Automatic retry with backoff strategies:
     initial_delay_ms=5000,
     max_delay_ms=5000
 )
-```
+```text
 
 **Backoff Formulas**:
 
@@ -441,7 +441,7 @@ Observers are compiled into JSON schema:
         }
     ]
 }
-```
+```text
 
 ---
 
@@ -466,7 +466,7 @@ go get github.com/fraiseql/fraiseql-go@v2.0.0
 
 # PHP
 composer require fraiseql/fraiseql:^2.0
-```
+```text
 
 **Step 2**: Add observer definitions to your schema
 
@@ -480,13 +480,13 @@ ObserverBuilder.create('onOrderCreated')
     .event('INSERT')
     .add_action(Webhook.create('https://api.example.com/orders'))
     .register()
-```
+```text
 
 **Step 3**: Recompile schema
 
 ```bash
 fraiseql-cli compile schema.json
-```
+```text
 
 **Step 4**: Deploy updated schema
 
@@ -496,7 +496,7 @@ fraiseql-server --schema schema.compiled.json
 
 # Production
 # Update deployed schema file and restart server
-```
+```text
 
 ### Backward Compatibility
 
@@ -524,7 +524,7 @@ Use descriptive, action-oriented names:
 'observer1'
 'order_webhook'
 'check_status'
-```
+```text
 
 ### 2. Condition Design
 
@@ -537,7 +537,7 @@ Keep conditions simple and readable:
 
 # ❌ Bad - Too complex, hard to debug
 .condition('(total > 1000 and tier == "premium") or (total > 5000 and tier == "standard") and status != "cancelled"')
-```
+```text
 
 For complex logic, use multiple observers:
 
@@ -557,7 +557,7 @@ ObserverBuilder.create('onStandardVeryHighValueOrder')
     .condition('total > 5000 and tier == "standard"')
     .add_action(...)
     .register()
-```
+```text
 
 ### 3. Action Design
 
@@ -572,7 +572,7 @@ ObserverBuilder.create('onOrderShipped')
     .add_action(EmailAction.with_from(...))  # Customer notification
     .add_action(SlackAction.create('#ops', 'Order shipped: {id}'))
     .register()
-```
+```text
 
 **Separate unrelated actions**:
 
@@ -593,7 +593,7 @@ ObserverBuilder.create('onOrderShipped')
 ObserverBuilder.create('onOrderCancelled')
     .condition("status == 'cancelled'")
     ...
-```
+```text
 
 ### 4. Retry Configuration
 
@@ -608,7 +608,7 @@ ObserverBuilder.create('onOrderCancelled')
 
 # Non-critical notifications - Fixed delay (simple)
 .retry(max_attempts=3, backoff_strategy='fixed')
-```
+```text
 
 **Set reasonable limits**:
 
@@ -621,7 +621,7 @@ ObserverBuilder.create('onOrderCancelled')
 
 # ⚠️ Risky - Too passive (events may be lost)
 .retry(max_attempts=1, initial_delay_ms=10000, max_delay_ms=10000)
-```
+```text
 
 ### 5. Security
 
@@ -633,7 +633,7 @@ Webhook.with_env('WEBHOOK_URL')
 
 # ❌ Bad - Hardcoded secrets
 Webhook.create('https://api.example.com/webhook?token=secret123')
-```
+```text
 
 **Validate webhook endpoints**:
 
@@ -643,7 +643,7 @@ Webhook.create('https://api.example.com/webhook', headers={
     'Authorization': 'Bearer {WEBHOOK_TOKEN}',
     'X-FraiseQL-Signature': '{signature}'
 })
-```
+```text
 
 ### 6. Performance
 
@@ -661,7 +661,7 @@ Webhook.create('https://api.example.com/webhook', headers={
 
 # ❌ Bad - Broad, many executions
 .condition('status != null')
-```
+```text
 
 **Optimize webhook payloads**:
 
@@ -671,7 +671,7 @@ Webhook.create(..., body_template='{"id": "{{id}}", "status": "{{status}}"}')
 
 # ❌ Bad - Full payload for large entities
 Webhook.create(..., body_template='{{_json}}')  # May be 100KB+
-```
+```text
 
 ---
 
@@ -695,7 +695,7 @@ FROM core.tb_observer_log
 WHERE observer_name = 'onHighValueOrder'
 ORDER BY created_at DESC
 LIMIT 100;
-```
+```text
 
 ### Dead Letter Queue (DLQ)
 
@@ -712,7 +712,7 @@ SELECT
 FROM core.tb_observer_dlq
 WHERE observer_name = 'onPaymentFailure'
 ORDER BY last_attempted_at DESC;
-```
+```text
 
 **Reprocess DLQ entries**:
 
@@ -723,7 +723,7 @@ SET retry_count = 0,
     status = 'pending'
 WHERE observer_name = 'onPaymentFailure'
   AND entity_id = 'payment-123';
-```
+```text
 
 ### Metrics
 
@@ -749,7 +749,7 @@ SELECT
 FROM core.tb_observer_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY observer_name;
-```
+```text
 
 ### Runtime Health
 
@@ -768,7 +768,7 @@ curl http://localhost:8080/health/observers
     "last_checkpoint": "2026-01-23T10:30:00Z",
     "uptime_seconds": 86400
 }
-```
+```text
 
 ---
 
@@ -799,7 +799,7 @@ ObserverBuilder.create('notifyOrderCreated')
     .event('INSERT')
     .add_action(EmailAction.create(...))
     .register()
-```
+```text
 
 ### Conditional Routing
 
@@ -821,7 +821,7 @@ ObserverBuilder.create('onInternationalOrder')
     .condition('country != "US"')
     .add_action(Webhook.create('https://international.shipping.com'))
     .register()
-```
+```text
 
 ### Cascading Events
 
@@ -845,7 +845,7 @@ ObserverBuilder.create('onInvoiceCreated')
         body='...'
     ))
     .register()
-```
+```text
 
 ### Circuit Breaker Pattern
 
@@ -865,7 +865,7 @@ HAVING COUNT(*) FILTER (WHERE status = 'failed') > 50;
 
 -- Alert when threshold exceeded
 -- (Integrate with monitoring system)
-```
+```text
 
 ---
 
@@ -878,7 +878,7 @@ HAVING COUNT(*) FILTER (WHERE status = 'failed') > 50;
 ```bash
 # Check compiled schema
 jq '.observers[] | select(.name == "onHighValueOrder")' schema.compiled.json
-```
+```text
 
 **Check 2**: Verify condition evaluation
 
@@ -890,7 +890,7 @@ SELECT
     CASE WHEN total > 1000 THEN 'MATCH' ELSE 'NO MATCH' END as condition_result
 FROM v_order
 WHERE id = 'order-123';
-```
+```text
 
 **Check 3**: Check change log
 
@@ -901,7 +901,7 @@ WHERE object_type = 'Order'
   AND object_id = 'order-123'
 ORDER BY created_at DESC
 LIMIT 10;
-```
+```text
 
 ### Webhook Failures
 
@@ -911,7 +911,7 @@ LIMIT 10;
 curl -X POST https://api.example.com/webhook \
   -H "Content-Type: application/json" \
   -d '{"test": true}'
-```
+```text
 
 **Check 2**: Check observer logs
 
@@ -922,7 +922,7 @@ WHERE observer_name = 'onHighValueOrder'
   AND status = 'failed'
 ORDER BY created_at DESC
 LIMIT 10;
-```
+```text
 
 **Check 3**: Review DLQ
 
@@ -930,7 +930,7 @@ LIMIT 10;
 SELECT entity_id, error_message, event_data
 FROM core.tb_observer_dlq
 WHERE observer_name = 'onHighValueOrder';
-```
+```text
 
 ### High Retry Counts
 
@@ -947,7 +947,7 @@ FROM core.tb_observer_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY observer_name
 HAVING AVG(attempt_count) > 2;
-```
+```text
 
 **Solutions**:
 
@@ -985,7 +985,7 @@ resources:
     memory: 512Mi
   requests:
     memory: 256Mi
-```
+```text
 
 ---
 
@@ -1001,7 +1001,7 @@ Adjust based on latency requirements:
 poll_interval_ms = 100  # Low latency (10 events/sec max per poll)
 poll_interval_ms = 1000  # Standard (default)
 poll_interval_ms = 5000  # Batch processing
-```
+```text
 
 **Trade-offs**:
 
@@ -1017,7 +1017,7 @@ Process multiple events per poll:
 batch_size = 10   # Low volume
 batch_size = 100  # Standard (default)
 batch_size = 1000 # High volume
-```
+```text
 
 **Recommendations**:
 
@@ -1034,7 +1034,7 @@ Balance durability vs performance:
 checkpoint_interval_ms = 1000   # Every second (safest)
 checkpoint_interval_ms = 5000   # Every 5 seconds (default)
 checkpoint_interval_ms = 10000  # Every 10 seconds (fastest)
-```
+```text
 
 ---
 
@@ -1055,7 +1055,7 @@ Yes! Observers work with any table that has the FraiseQL change log trigger inst
 CREATE TRIGGER tr_order_change_log
 AFTER INSERT OR UPDATE OR DELETE ON public.t_order
 FOR EACH ROW EXECUTE FUNCTION core.fn_log_entity_change('Order');
-```
+```text
 
 ### Do observers slow down INSERT/UPDATE/DELETE?
 
@@ -1075,7 +1075,7 @@ curl -X POST http://localhost:8080/admin/observers/stop
 
 # Restart observer runtime
 curl -X POST http://localhost:8080/admin/observers/start
-```
+```text
 
 ### How do I test observers in development?
 
@@ -1090,7 +1090,7 @@ Webhook.create('http://localhost:8080/webhook')
 
 # Verify requests
 curl http://localhost:8080/mockserver/expectation
-```
+```text
 
 ### Can observers call other FraiseQL mutations?
 
@@ -1109,7 +1109,7 @@ ObserverBuilder.create('onOrderCreated')
         headers={'Content-Type': 'application/json'}
     ))
     .register()
-```
+```text
 
 ---
 

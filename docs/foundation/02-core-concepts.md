@@ -39,7 +39,7 @@ class User:
     orders: List[Order]       # Relationship: one user has many orders
     is_active: bool           # Field: boolean flag
     created_at: datetime      # Field: timestamp
-```
+```text
 
 **Mental model:** Schema is a *contract* between your client and server. It says "these are the exact types, fields, and relationships available to query."
 
@@ -65,11 +65,11 @@ class Order:
     order_id: int
     total: Decimal
     created_at: datetime
-```
+```text
 
 **2. Scalar Types** - Basic values (strings, numbers, dates, etc.)
 
-```
+```text
 String    → text (username, email, description)
 Int       → whole numbers (user_id, quantity)
 Float     → decimal numbers (price, rating)
@@ -79,7 +79,7 @@ Date      → just dates (birthday, due_date)
 UUID      → unique identifiers (tracking IDs)
 Decimal   → precise decimals (prices, amounts)
 JSON      → arbitrary data (metadata, config)
-```
+```text
 
 **3. Enum Types** - Limited set of named values
 
@@ -91,7 +91,7 @@ class OrderStatus:
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
-```
+```text
 
 **4. Interface Types** - Shared fields across multiple types (advanced)
 
@@ -113,7 +113,7 @@ class Product:
     price: Decimal           # Field name: price, type: Decimal
     in_stock: bool           # Field name: in_stock, type: Boolean
     created_at: datetime     # Field name: created_at, type: DateTime
-```
+```text
 
 **Field modifiers:**
 
@@ -124,7 +124,7 @@ name: str                    # Required - cannot be null
 # Optional (can be null/absent)
 middle_name: str | None      # Optional - can be null
 nickname: Optional[str]      # Alternative Python syntax
-```
+```text
 
 **Mental model:** Fields are *columns in a database table*. Each field has a name, type, and nullability.
 
@@ -143,7 +143,7 @@ query GetUser {
     email
   }
 }
-```
+```text
 
 **How it works in FraiseQL:**
 
@@ -173,7 +173,7 @@ mutation CreateOrder {
     created_at
   }
 }
-```
+```text
 
 **How it works in FraiseQL:**
 
@@ -199,7 +199,7 @@ In traditional GraphQL servers, resolvers are *custom code* you write:
 const userResolver = async (parent, args, context) => {
   return db.query("SELECT * FROM tb_users WHERE pk_user = ?", [args.id]);
 };
-```
+```text
 
 In FraiseQL, resolvers are *automatically generated* at compile time:
 
@@ -211,7 +211,7 @@ class User:
     username: str
     # Resolver for user_id field automatically generated
     # Resolver maps to: SELECT pk_user FROM tb_users WHERE ...
-```
+```text
 
 **Mental model:** A resolver is the *glue between GraphQL and database*. In FraiseQL, this glue is generated and optimized at compile time, not written by hand.
 
@@ -235,7 +235,7 @@ class Order:
     order_id: int
     total: Decimal
     fk_user: int         # Foreign key back to user
-```
+```text
 
 **Many-to-One** (Order belongs to User):
 
@@ -245,7 +245,7 @@ class Order:
     order_id: int
     total: Decimal
     user: User           # Many orders → one user
-```
+```text
 
 **Many-to-Many** (Students enroll in Courses):
 
@@ -261,7 +261,7 @@ class Course:
     course_id: int
     name: str
     students: List[Student]  # Many courses → many students
-```
+```text
 
 **Self-Relationships** (Employee has manager):
 
@@ -272,7 +272,7 @@ class Employee:
     name: str
     manager: Employee | None  # Self-relationship
     reports: List[Employee]   # Reverse relationship
-```
+```text
 
 **Mental model:** Relationships are *foreign keys in databases*. They connect tables and define how data relates.
 
@@ -327,7 +327,7 @@ class User:
 #     username VARCHAR(255),
 #     email VARCHAR(255)
 # );
-```
+```text
 
 **Why this matters:**
 
@@ -360,7 +360,7 @@ query GetUser {
     }
   }
 }
-```
+```text
 
 Compiles to approximately:
 
@@ -374,7 +374,7 @@ SELECT
 FROM tb_users u
 LEFT JOIN tb_orders o ON u.pk_user = o.fk_user
 WHERE u.pk_user = 1;
-```
+```text
 
 **Why this matters:**
 
@@ -403,7 +403,7 @@ mutation CreateOrder {
     created_at
   }
 }
-```
+```text
 
 Compiles to:
 
@@ -412,7 +412,7 @@ Compiles to:
 INSERT INTO tb_orders (fk_user, total, created_at)
 VALUES (1, 99.99, CURRENT_TIMESTAMP)
 RETURNING pk_order, status, created_at;
-```
+```text
 
 **Why this matters:**
 
@@ -431,11 +431,11 @@ FraiseQL separates **build time** from **runtime**:
 
 **Build Time (Compilation):**
 
-```
+```text
 Python/TypeScript Schema → Compiler → Optimized SQL Templates
                         ↓
                    schema.compiled.json
-```
+```text
 
 At build time:
 
@@ -447,11 +447,11 @@ At build time:
 
 **Runtime (Execution):**
 
-```
+```text
 GraphQL Query → Pre-compiled SQL Template → Database → Results
              ↓
         Microseconds (no interpretation)
-```
+```text
 
 At runtime:
 
@@ -478,19 +478,19 @@ At runtime:
 
 Traditional application architecture:
 
-```
+```text
 Client → Application Code → ORM → Database
                     ↑
          (custom resolvers, business logic, caching)
-```
+```text
 
 FraiseQL architecture:
 
-```
+```text
 Client → Compiled SQL Templates → Database
          (no application code)
          (deterministic)
-```
+```text
 
 **Why this matters:**
 
@@ -517,7 +517,7 @@ CREATE TABLE tb_users (
     email VARCHAR(255),
     created_at TIMESTAMP
 );
-```
+```text
 
 → Normalized, DBA-owned, source of truth
 
@@ -532,7 +532,7 @@ SELECT
     created_at
 FROM tb_users
 WHERE deleted_at IS NULL;  -- Soft deletes
-```
+```text
 
 → Curated for GraphQL, handles soft deletes, derived fields
 
@@ -546,7 +546,7 @@ SELECT
     COUNT(*) OVER (PARTITION BY EXTRACT(YEAR FROM created_at)) AS users_per_year,
     created_at
 FROM tb_users;
-```
+```text
 
 → Optimized for columnar queries (Arrow plane)
 
@@ -556,7 +556,7 @@ FROM tb_users;
 CREATE VIEW tv_user AS
 SELECT * FROM tb_users;
 -- Used for mutations (INSERT, UPDATE, DELETE)
-```
+```text
 
 **Mental model:** Views are *application-facing interfaces* to database tables. Tables are DBA-owned and normalized; views are curated for different access patterns.
 
@@ -586,7 +586,7 @@ class User:
 @fraiseql.database("sqlserver")
 class User:
     user_id: int
-```
+```text
 
 **Why this matters:**
 
@@ -605,7 +605,7 @@ class User:
 
 **What happens:**
 
-```
+```text
 Schema (Python/TypeScript)
     ↓
 Parser (validates syntax)
@@ -619,7 +619,7 @@ Optimizer (improves performance)
 Validator (finds errors)
     ↓
 schema.compiled.json (output artifact)
-```
+```text
 
 **What is caught at compile time:**
 
@@ -639,7 +639,7 @@ class User:
 
 # Compilation fails with clear error message
 # "Type mismatch: User.user_id is String, but pk_user in tb_users is BIGINT"
-```
+```text
 
 ---
 
@@ -647,7 +647,7 @@ class User:
 
 **What happens:**
 
-```
+```text
 GraphQL Query
     ↓
 Parser (validate syntax - compiled already)
@@ -661,7 +661,7 @@ SQL Executor (run on database)
 Formatter (shape results to schema)
     ↓
 Response (send to client)
-```
+```text
 
 **What is checked at runtime:**
 
@@ -681,7 +681,7 @@ query GetUser {
 }
 
 # Error (if unauthorized): "Not authorized to view user 123"
-```
+```text
 
 ---
 
@@ -702,7 +702,7 @@ query GetUser {
 
 ## Summary: The FraiseQL Mental Model
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │ Your Business Domain                                │
 │ (E-commerce, SaaS, Data Platform, etc.)             │
@@ -749,7 +749,7 @@ query GetUser {
 │ - Receives typed results                           │
 │ - Type safe (guaranteed by schema)                 │
 └─────────────────────────────────────────────────────┘
-```
+```text
 
 ---
 

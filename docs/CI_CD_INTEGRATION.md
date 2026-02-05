@@ -1,6 +1,6 @@
 # CI/CD Integration Guide
 
-**Integrate FraiseQL design quality checks into your development workflow**
+### Integrate FraiseQL design quality checks into your development workflow
 
 This guide shows how to enforce design quality standards in continuous integration pipelines.
 
@@ -27,7 +27,7 @@ This guide shows how to enforce design quality standards in continuous integrati
 
 ```bash
 pip install -r examples/agents/python/requirements.txt
-```
+```text
 
 **TypeScript Federation Analyzer**:
 
@@ -35,14 +35,14 @@ pip install -r examples/agents/python/requirements.txt
 cd examples/agents/typescript
 npm install
 npm run build
-```
+```text
 
 ### 2. Start fraiseql-server
 
 ```bash
 cargo build --release -p fraiseql-server
 ./target/release/fraiseql-server
-```
+```text
 
 Server runs on `http://localhost:8080` by default.
 
@@ -52,13 +52,13 @@ Server runs on `http://localhost:8080` by default.
 
 ```bash
 python examples/agents/python/schema_auditor.py schema.compiled.json
-```
+```text
 
 **TypeScript**:
 
 ```bash
 npx federation-analyzer --schema schema.compiled.json
-```
+```text
 
 ---
 
@@ -152,7 +152,7 @@ jobs:
               repo: context.repo.repo,
               body: '## 📊 Design Quality Audit\nSee artifacts for detailed HTML report'
             });
-```
+```text
 
 ### Features
 
@@ -214,7 +214,7 @@ design-quality:
   only:
     - merge_requests
     - main
-```
+```text
 
 ### Features
 
@@ -294,7 +294,7 @@ workflows:
               only:
                 - main
                 - /^feature\/.*/
-```
+```text
 
 ### Features
 
@@ -350,13 +350,13 @@ else
   echo "Fix issues or override with: git commit --no-verify"
   exit 1
 fi
-```
+```text
 
 1. Make executable:
 
 ```bash
 chmod +x .git/hooks/pre-commit
-```
+```text
 
 1. Install globally (optional):
 
@@ -365,7 +365,7 @@ mkdir -p ~/.githooks
 cp .git/hooks/pre-commit ~/.githooks/pre-commit
 chmod +x ~/.githooks/pre-commit
 git config --global core.hooksPath ~/.githooks
-```
+```text
 
 ### Features
 
@@ -417,7 +417,7 @@ Add to workflow:
   env:
     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-```
+```text
 
 ### GitLab CI
 
@@ -458,7 +458,7 @@ slack-notify:
   only:
     - main
     - merge_requests
-```
+```text
 
 ---
 
@@ -474,16 +474,16 @@ elif pr.is_from_team_member:
     threshold = 75  # Reasonable for team
 else:
     threshold = 60  # Lenient for contributors
-```
+```text
 
 ### Exit Codes
 
-```
+```text
 0: Score >= threshold (pass)
 1: Score < threshold (fail)
 2: API error (fail, but different)
 3: Configuration error
-```
+```text
 
 ### Gradual Enforcement
 
@@ -499,7 +499,7 @@ python schema_auditor.py --fail-if-below 70
 
 # Week 4: Enforce at 80 (production standard)
 python schema_auditor.py --fail-if-below 80
-```
+```text
 
 ---
 
@@ -516,7 +516,7 @@ python schema_auditor.py \
   schema.compiled.json \
   --output "reports/design-audit-$TIMESTAMP.json" \
   --format json
-```
+```text
 
 ### Dashboard Example
 
@@ -559,7 +559,7 @@ python schema_auditor.py \
   </script>
 </body>
 </html>
-```
+```text
 
 ---
 
@@ -581,7 +581,7 @@ fail_threshold: 75
 
 # Month 4+: Enforce at excellent
 fail_threshold: 85
-```
+```text
 
 ### 2. **Team Communication**
 
@@ -591,7 +591,7 @@ Send results to Slack/Discord:
 # Extract score from JSON report
 SCORE=$(jq '.data.overall_score' report.json)
 echo "Design Quality Score: $SCORE/100" > /dev/slack
-```
+```text
 
 ### 3. **Exemptions**
 
@@ -602,7 +602,7 @@ Allow explicit overrides for well-justified exceptions:
 if git log -1 --format=%B | grep -q "DESIGN-OVERRIDE: APPROVED"; then
   exit 0
 fi
-```
+```text
 
 ### 4. **Benchmarking**
 
@@ -613,7 +613,7 @@ Track improvement over time:
 PREV_SCORE=$(git show HEAD:design-score.txt)
 CURR_SCORE=$(python schema_auditor.py --json | jq '.data.overall_score')
 echo "Score: $PREV_SCORE → $CURR_SCORE"
-```
+```text
 
 ---
 
@@ -630,7 +630,7 @@ cargo run -p fraiseql-server
 
 # Or use Docker
 docker run -p 8080:8080 fraiseql/fraiseql-server
-```
+```text
 
 ### Schema Compilation Failure
 
@@ -640,7 +640,7 @@ fraiseql-cli compile schema.json -o schema.compiled.json
 
 # Then run audit
 python schema_auditor.py schema.compiled.json
-```
+```text
 
 ### API Errors
 
@@ -650,7 +650,7 @@ curl http://api.example.com/api/v1/design/audit
 
 # Enable verbose logging
 RUST_LOG=debug fraiseql-server
-```
+```text
 
 ---
 

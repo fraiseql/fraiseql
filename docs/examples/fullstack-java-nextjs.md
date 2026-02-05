@@ -27,7 +27,7 @@
 
 ### The Three-Layer Stack
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Next.js Frontend (React)                     │
 │  • Server Components: Static article pages, author profiles      │
@@ -66,7 +66,7 @@
 │  • Export: fraiseql-maven-plugin → schema.json                    │
 │  • NO runtime dependency on FraiseQL (compile-time only)          │
 └──────────────────────────────────────────────────────────────────┘
-```
+```text
 
 **Key Principle:** Java is for *authoring only*. The schema is exported to JSON, compiled by FraiseQL to optimized SQL, and never touched again at runtime.
 
@@ -158,7 +158,7 @@ Create a Maven project with the FraiseQL schema authoring plugin:
         </plugins>
     </build>
 </project>
-```
+```text
 
 ### 1.2 Domain Types
 
@@ -211,7 +211,7 @@ public class User {
     @Relationship(type = "hasMany", target = "Comment", foreignKey = "author_id")
     public java.util.List<Comment> comments;
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/UserRole.java
@@ -243,7 +243,7 @@ public enum UserRole {
         return value;
     }
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/Category.java
@@ -277,7 +277,7 @@ public class Category {
     @Relationship(type = "hasMany", target = "Article", foreignKey = "category_id")
     public java.util.List<Article> articles;
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/Tag.java
@@ -309,7 +309,7 @@ public class Tag {
     )
     public java.util.List<Article> articles;
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/Article.java
@@ -385,7 +385,7 @@ public class Article {
     @Relationship(type = "hasMany", target = "Comment", foreignKey = "article_id")
     public java.util.List<Comment> comments;
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/ArticleStatus.java
@@ -414,7 +414,7 @@ public enum ArticleStatus {
         return value;
     }
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/Comment.java
@@ -460,7 +460,7 @@ public class Comment {
     @Relationship(type = "hasMany", target = "Comment", foreignKey = "parent_id")
     public java.util.List<Comment> replies;
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/types/CommentStatus.java
@@ -489,7 +489,7 @@ public enum CommentStatus {
         return value;
     }
 }
-```
+```text
 
 ### 1.3 Query Definitions
 
@@ -569,7 +569,7 @@ enum SortDirection {
     @GraphQLEnumValue ASC,
     @GraphQLEnumValue DESC
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/queries/CommentQueries.java
@@ -608,7 +608,7 @@ public class CommentQueries {
         return null;
     }
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/queries/CategoryQueries.java
@@ -643,7 +643,7 @@ public class CategoryQueries {
         return null;
     }
 }
-```
+```text
 
 ### 1.4 Mutation Definitions
 
@@ -715,7 +715,7 @@ public class ArticleMutations {
         return null;
     }
 }
-```
+```text
 
 ```java
 // src/main/java/dev/fraiseql/blog/mutations/CommentMutations.java
@@ -767,7 +767,7 @@ public class CommentMutations {
         return null;
     }
 }
-```
+```text
 
 ---
 
@@ -968,7 +968,7 @@ BEGIN
     LIMIT 20;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 ### 2.2 Initialize Database
 
@@ -1022,7 +1022,7 @@ INSERT INTO tags (name, slug) VALUES
 EOF
 
 echo "Database initialization complete!"
-```
+```text
 
 ---
 
@@ -1055,7 +1055,7 @@ echo "✓ schema.json generated successfully"
 cp target/schema.json ../schema.json
 
 echo "✓ Schema exported to ../schema.json"
-```
+```text
 
 ### 3.2 Compile Schema with FraiseQL CLI
 
@@ -1133,7 +1133,7 @@ fi
 
 echo "✓ Compilation successful"
 fraiseql validate schema.compiled.json
-```
+```text
 
 ### 3.3 Compiled Schema Structure
 
@@ -1190,7 +1190,7 @@ The `schema.compiled.json` contains everything needed at runtime:
     }
   }
 }
-```
+```text
 
 ---
 
@@ -1236,7 +1236,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # Run server
 ENV RUST_LOG=info
 CMD ["/app/fraiseql-server", "--schema", "/app/schema.compiled.json"]
-```
+```text
 
 ### 4.2 Docker Compose Setup
 
@@ -1285,7 +1285,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 ### 4.3 Deploy to Production
 
@@ -1313,7 +1313,7 @@ kubectl set image deployment/fraiseql-blog \
     --namespace production
 
 echo "✓ Deployment complete: $VERSION"
-```
+```text
 
 ---
 
@@ -1335,7 +1335,7 @@ cd blog-frontend
 npm install @apollo/client graphql graphql-request
 npm install --save-dev @graphql-codegen/cli @graphql-codegen/client-preset
 npm install zustand
-```
+```text
 
 ### 5.2 Environment Configuration
 
@@ -1347,7 +1347,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 
 # For production
 # NEXT_PUBLIC_GRAPHQL_URL=https://api.example.com/graphql
-```
+```text
 
 ### 5.3 GraphQL Schema & Codegen
 
@@ -1361,7 +1361,7 @@ generates:
     config:
       useTypeNameAsDefault: true
       skipTypename: false
-```
+```text
 
 ### 5.4 GraphQL Queries & Mutations
 
@@ -1500,7 +1500,7 @@ query GetTrendingArticles($days: Int!) {
     }
   }
 }
-```
+```text
 
 ```graphql
 # src/graphql/mutations.graphql
@@ -1553,7 +1553,7 @@ mutation PublishArticle(
     publishedAt
   }
 }
-```
+```text
 
 ### 5.5 Apollo Client Setup
 
@@ -1569,7 +1569,7 @@ export const apolloClient = new ApolloClient({
   }),
   cache: new InMemoryCache(),
 });
-```
+```text
 
 ### 5.6 Server Components
 
@@ -1696,7 +1696,7 @@ export default function ArticleList() {
     </Suspense>
   );
 }
-```
+```text
 
 ```typescript
 // src/app/articles/[slug]/page.tsx
@@ -1881,7 +1881,7 @@ async function ArticleContent({ slug }: { slug: string }) {
 export default function ArticlePage({ params }: ArticlePageProps) {
   return <ArticleContent slug={params.slug} />;
 }
-```
+```text
 
 ### 5.7 Client Components
 
@@ -2059,7 +2059,7 @@ export default function CommentSection({ articleId }: CommentSectionProps) {
     </div>
   );
 }
-```
+```text
 
 ```typescript
 // src/app/components/SearchArticles.tsx
@@ -2153,13 +2153,13 @@ export default function SearchArticles() {
     </div>
   );
 }
-```
+```text
 
 ---
 
 ## Part 6: Project Structure
 
-```
+```text
 blog-monorepo/
 ├── java-schema/                    # Java authoring layer
 │   ├── pom.xml
@@ -2234,7 +2234,7 @@ blog-monorepo/
 ├── .env.local
 ├── README.md
 └── docker-compose.yml              # Orchestrate all services
-```
+```text
 
 ---
 
@@ -2249,7 +2249,7 @@ mvn -version           # Maven 3.9+
 node --version         # Node 18+
 cargo --version        # Rust (for fraiseql-cli)
 docker --version       # Docker & Docker Compose
-```
+```text
 
 ### 7.2 Run Locally (Development)
 
@@ -2293,7 +2293,7 @@ echo "✅ Stack is running!"
 echo "📖 GraphQL:  http://localhost:5000/graphql"
 echo "🌐 Frontend: http://localhost:3000"
 echo "📊 DB:       localhost:5432 (blog_user/blog_password)"
-```
+```text
 
 ### 7.3 Test the Stack
 
@@ -2318,7 +2318,7 @@ echo "Testing Next.js..."
 curl -s http://localhost:3000 | grep -q "Blog" && echo "✓ Frontend OK" || echo "✗ Frontend failed"
 
 echo "✅ Stack tests passed!"
-```
+```text
 
 ---
 
@@ -2349,7 +2349,7 @@ const handlePublishArticle = async (formData) => {
   // Article is now published and visible on blog
   navigate(`/articles/${result.data.publishArticle.slug}`);
 };
-```
+```text
 
 #### Step 2: GraphQL Mutation Execution
 
@@ -2368,7 +2368,7 @@ mutation PublishArticle {
     publishedAt
   }
 }
-```
+```text
 
 #### Step 3: FraiseQL Compiles to SQL
 
@@ -2386,7 +2386,7 @@ RETURNING id, title, status, published_at;
 -- Then insert tags
 INSERT INTO article_tags (article_id, tag_id)
 SELECT $1, tag_id FROM tags WHERE tag_id = ANY($2);
-```
+```text
 
 #### Step 4: Results Returned to Frontend
 
@@ -2401,7 +2401,7 @@ SELECT $1, tag_id FROM tags WHERE tag_id = ANY($2);
     }
   }
 }
-```
+```text
 
 ### 8.2 Add Comment Workflow
 
@@ -2431,7 +2431,7 @@ const handleSubmitComment = async (e: React.FormEvent) => {
   // Refetch comments (invalidates cache)
   await refetch();
 };
-```
+```text
 
 ### 8.3 Search Workflow
 
@@ -2448,7 +2448,7 @@ const debouncedSearch = debounce((query: string) => {
     });
   }
 }, 300);
-```
+```text
 
 ---
 
@@ -2465,7 +2465,7 @@ vercel deploy --prod
 
 # Set environment variables
 vercel env add NEXT_PUBLIC_GRAPHQL_URL https://api.example.com/graphql
-```
+```text
 
 ### 9.2 Deploy to Kubernetes (Backend)
 
@@ -2523,7 +2523,7 @@ spec:
     targetPort: 5000
   selector:
     app: fraiseql-blog
-```
+```text
 
 ### 9.3 Database Migration Strategy
 
@@ -2545,7 +2545,7 @@ psql "$PROD_DB_URL" -f sql/migrations/001-initial-schema.sql
 psql "$PROD_DB_URL" -f sql/migrations/002-add-indexes.sql
 
 echo "✓ Migrations complete"
-```
+```text
 
 ---
 
@@ -2561,7 +2561,7 @@ echo "✓ Migrations complete"
 [database]
 pool_size = 20  # Increase from default 10
 connection_timeout_secs = 60
-```
+```text
 
 **Issue: Compiled schema doesn't include all fields**
 
@@ -2574,7 +2574,7 @@ connection_timeout_secs = 60
   <scanPackage>dev.fraiseql.blog.queries</scanPackage>
   <scanPackage>dev.fraiseql.blog.mutations</scanPackage>
 </scanPackages>
-```
+```text
 
 **Issue: Comments not appearing**
 
@@ -2583,7 +2583,7 @@ connection_timeout_secs = 60
 # Queries only return APPROVED comments by default
 # In database:
 UPDATE comments SET status = 'approved' WHERE status = 'pending';
-```
+```text
 
 ### 10.2 Performance Optimization
 
@@ -2599,7 +2599,7 @@ max_entries = 10000
 # In Java schema:
 @Cached(ttlSeconds = 600)
 public List<Article> getArticles(...) { ... }
-```
+```text
 
 **Add Database Indexes**
 
@@ -2607,14 +2607,14 @@ public List<Article> getArticles(...) { ... }
 -- Already included in schema.sql, but add more as needed:
 CREATE INDEX idx_articles_published_at ON articles(published_at DESC)
 WHERE status = 'published';
-```
+```text
 
 **Enable Persisted Queries (APQ)**
 
 ```typescript
 // Next.js: Automatic with Apollo Client
 import { createPersistedQueryLink } from "@apollo/client/link/persisted-queries";
-```
+```text
 
 ### 10.3 Security Best Practices
 
@@ -2634,7 +2634,7 @@ auth_start_window_secs = 60
 [security.audit_logging]
 enabled = true
 log_mutations = true
-```
+```text
 
 ### 10.4 Monitoring
 
@@ -2648,7 +2648,7 @@ psql -c "SELECT datname, usename, count(*) FROM pg_stat_activity GROUP BY datnam
 # Monitor Next.js
 npm run build  # Check for build errors
 npm run lint   # Check for code issues
-```
+```text
 
 ### 10.5 Useful Commands
 
@@ -2667,7 +2667,7 @@ fraiseql validate schema.compiled.json
 
 # Export database schema
 pg_dump --schema-only blog_db > schema-backup.sql
-```
+```text
 
 ---
 

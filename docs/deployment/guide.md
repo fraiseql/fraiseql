@@ -32,7 +32,7 @@ export FRAISEQL_POOL_MAX=10
 cargo run -p fraiseql-server
 
 # Server starts at http://localhost:8000
-```
+```text
 
 ### Development Environment Setup
 
@@ -60,14 +60,14 @@ FRAISEQL_MAX_QUERY_COMPLEXITY=500
 
 # Logging
 RUST_LOG=debug
-```
+```text
 
 Load environment:
 
 ```bash
 source .env.dev
 cargo run -p fraiseql-server
-```
+```text
 
 ### Local Database Setup
 
@@ -86,14 +86,14 @@ sleep 5
 
 # Connect and verify
 psql -h localhost -U devuser -d fraiseql_dev -c "SELECT 1"
-```
+```text
 
 SQLite (simplest for testing):
 
 ```bash
 # Create in-memory database for testing
 DATABASE_URL=sqlite::memory: cargo run -p fraiseql-server
-```
+```text
 
 ## Docker Deployment
 
@@ -141,13 +141,13 @@ ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
 
 # Run server
 CMD ["fraiseql-server"]
-```
+```text
 
 Build image:
 
 ```bash
 docker build -t fraiseql-server:v2.0 .
-```
+```text
 
 ### Run Docker Container
 
@@ -159,7 +159,7 @@ docker run -d \
   -e FRAISEQL_POOL_MIN=10 \
   -e FRAISEQL_POOL_MAX=50 \
   fraiseql-server:v2.0
-```
+```text
 
 ### Docker Compose (Development)
 
@@ -209,7 +209,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 Start services:
 
@@ -221,7 +221,7 @@ docker-compose logs -f fraiseql
 
 # Stop services
 docker-compose down
-```
+```text
 
 ## Kubernetes Deployment
 
@@ -251,7 +251,7 @@ data:
   FRAISEQL_POOL_TIMEOUT_SECS: "30"
   FRAISEQL_MAX_QUERY_DEPTH: "10"
   FRAISEQL_MAX_QUERY_COMPLEXITY: "100"
-```
+```text
 
 ### Secret (Database Credentials)
 
@@ -266,7 +266,7 @@ metadata:
 type: Opaque
 stringData:
   DATABASE_URL: postgresql://user:password@db.prod.internal:5432/fraiseql_prod
-```
+```text
 
 ### Deployment
 
@@ -360,7 +360,7 @@ spec:
           preStop:
             exec:
               command: ["/bin/sh", "-c", "sleep 15"]
-```
+```text
 
 ### Service
 
@@ -381,7 +381,7 @@ spec:
     port: 80
     targetPort: 8000
     protocol: TCP
-```
+```text
 
 ### Deploy to Kubernetes
 
@@ -407,7 +407,7 @@ kubectl port-forward service/fraiseql-server 8000:80
 
 # Test
 curl http://localhost:8000/health
-```
+```text
 
 ## AWS Deployment
 
@@ -417,7 +417,7 @@ curl http://localhost:8000/health
 
 ```bash
 aws ecr create-repository --repository-name fraiseql-server
-```
+```text
 
 1. **Push Image**:
 
@@ -425,7 +425,7 @@ aws ecr create-repository --repository-name fraiseql-server
 docker tag fraiseql-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
 aws ecr get-login-password | docker login --username AWS --password-stdin {account}.dkr.ecr.us-east-1.amazonaws.com
 docker push {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
-```
+```text
 
 1. **Create RDS Database**:
 
@@ -436,7 +436,7 @@ aws rds create-db-instance \
   --engine postgres \
   --master-username admin \
   --allocated-storage 20
-```
+```text
 
 1. **Create ECS Task Definition** (in AWS Console):
 
@@ -454,7 +454,7 @@ aws ecs create-service \
   --service-name fraiseql-server \
   --task-definition fraiseql-server:1 \
   --desired-count 3
-```
+```text
 
 ### Lambda + API Gateway (Serverless)
 
@@ -472,7 +472,7 @@ gcloud builds submit --tag gcr.io/PROJECT_ID/fraiseql-server
 # Or manually
 docker tag fraiseql-server:v2.0 gcr.io/PROJECT_ID/fraiseql-server:v2.0
 docker push gcr.io/PROJECT_ID/fraiseql-server:v2.0
-```
+```text
 
 1. **Deploy**:
 
@@ -485,7 +485,7 @@ gcloud run deploy fraiseql-server \
   --set-env-vars=DATABASE_URL=postgresql://... \
   --memory 512Mi \
   --cpu 1
-```
+```text
 
 ### GKE (Google Kubernetes Engine)
 
@@ -497,7 +497,7 @@ gcloud container clusters create fraiseql-cluster \
   --machine-type n1-standard-2
 
 kubectl apply -f k8s/
-```
+```text
 
 ## Azure Deployment
 
@@ -513,7 +513,7 @@ az container create \
   --environment-variables \
     DATABASE_URL=postgresql://... \
   --ports 8000
-```
+```text
 
 ### App Service
 
@@ -528,7 +528,7 @@ az webapp create \
   --plan fraiseql-plan \
   --name fraiseql-server \
   --deployment-container-image-name myregistry/fraiseql-server:v2.0
-```
+```text
 
 ## Production Checklist
 
@@ -560,16 +560,16 @@ curl http://localhost:8000/health
 
 # Database connection status
 SELECT count(*) FROM pg_stat_activity WHERE datname = 'fraiseql_prod';
-```
+```text
 
 ### Prometheus Metrics (Future)
 
-```
+```text
 fraiseql_query_duration_seconds
 fraiseql_query_errors_total
 fraiseql_connection_pool_active
 fraiseql_connection_pool_idle
-```
+```text
 
 ## Troubleshooting
 
@@ -586,7 +586,7 @@ kubectl logs deployment/fraiseql-server
 
 # Local
 RUST_LOG=debug cargo run -p fraiseql-server
-```
+```text
 
 Common issues:
 
@@ -600,13 +600,13 @@ Common issues:
 
 ```sql
 SELECT * FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;
-```
+```text
 
 1. Monitor connection pool:
 
 ```bash
 curl http://localhost:8000/health | jq .database.connection_pool
-```
+```text
 
 1. Check query complexity:
 
@@ -632,7 +632,7 @@ replicas: 5
 
 # Docker Swarm
 docker service scale fraiseql=5
-```
+```text
 
 Connection pool scales across instances (no coordination needed).
 
@@ -645,7 +645,7 @@ resources:
   limits:
     memory: 1Gi
     cpu: 1000m
-```
+```text
 
 Typically not needed for GraphQL execution.
 
@@ -656,13 +656,13 @@ Typically not needed for GraphQL execution.
 ```bash
 kubectl rollout history deployment/fraiseql-server
 kubectl rollout undo deployment/fraiseql-server --to-revision=2
-```
+```text
 
 ### Docker Swarm
 
 ```bash
 docker service rollback fraiseql-server
-```
+```text
 
 ### Manual
 
@@ -671,7 +671,7 @@ Keep previous v2 image tags:
 ```bash
 docker run -p 8000:8000 fraiseql-server:v2.0.0-alpha.0  # Previous v2 version
 # Note: v1 versions are NOT compatible with v2 schemas
-```
+```text
 
 ## Next Steps
 

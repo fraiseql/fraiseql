@@ -48,35 +48,35 @@ FraiseQL adheres to semantic versioning with three-component version numbers:
 
 ### 1.1 Version Format
 
-```
+```text
 MAJOR.MINOR.PATCH
   |      |      |
   |      |      └── Bug fixes and patches (no breaking changes)
   |      └────────── Features and improvements (backward-compatible)
   └──────────────── Breaking changes (incompatible with prior MAJOR version)
-```
+```text
 
 ### 1.2 Version Examples
 
-```
+```text
 
 2.0.0   → Framework v2, first release
 2.1.0   → Add new feature, backward-compatible with 2.0.x
 2.1.1   → Bug fix, backward-compatible with 2.1.0
 3.0.0   → Incompatible changes, requires migration from 2.x
-```
+```text
 
 ### 1.3 Pre-release Versions
 
 For beta testing and early access:
 
-```
+```text
 
 2.0.0-beta.1    → Beta version, may have breaking changes
 2.0.0-rc.1      → Release candidate, likely stable
 2.0.0-rc.2      → Second RC before GA
 2.0.0            → General Availability (stable)
-```
+```text
 
 **Stability commitment:**
 
@@ -107,7 +107,7 @@ type User {
 }
 
 # Would require 2.0.0
-```
+```text
 
 **Behavioral changes** (require MAJOR bump):
 
@@ -120,7 +120,7 @@ type Query {
 
 # 2.x would return User | null → User! (non-null)
 # Clients that didn't handle null must update code
-```
+```text
 
 **Argument changes** (require MAJOR bump):
 
@@ -135,7 +135,7 @@ type Query {
 type Query {
   posts(limit: Int!): [Post!]!  # New required argument
 }
-```
+```text
 
 **Input type changes** (require MAJOR bump):
 
@@ -153,7 +153,7 @@ input CreateUserInput {
   email: String!  # Now required
   roles: [String!]!  # New required field
 }
-```
+```text
 
 **Enum value removal** (require MAJOR bump):
 
@@ -167,7 +167,7 @@ enum Role {
 }
 
 # 2.x removes GUEST
-```
+```text
 
 #### 2.1.2 Operator Changes Breaking Changes
 
@@ -180,7 +180,7 @@ enum Role {
 # Queries using 'regex' operator fail
 
 # Users must rewrite queries using contains or migrate to database functions
-```
+```text
 
 **Changing operator semantics** (require MAJOR bump):
 
@@ -189,7 +189,7 @@ enum Role {
 # 1.x: in operator is case-sensitive
 # 2.x: in operator is case-insensitive (SQL ILIKE)
 # Queries that relied on case-sensitivity break
-```
+```text
 
 #### 2.1.3 Authorization Changes Breaking Changes
 
@@ -202,7 +202,7 @@ enum Role {
 # Security expectations break; clients may violate compliance
 
 # This is a MAJOR version change with security implications
-```
+```text
 
 **Adding required authorization rules** (require MAJOR bump):
 
@@ -211,7 +211,7 @@ enum Role {
 # 1.x: Query returns all posts
 # 2.x: Only return posts by current user
 # Queries that expected all posts now get fewer results
-```
+```text
 
 #### 2.1.4 Error Code Changes Breaking Changes
 
@@ -222,7 +222,7 @@ enum Role {
 # 1.x: query fails with E_VALIDATION_EMAIL_001
 # 2.x: Different error code or different error format
 # Client error handling breaks
-```
+```text
 
 **Changing error code semantics** (require MAJOR bump):
 
@@ -231,7 +231,7 @@ enum Role {
 # 1.x: Means database deadlock (retry with exponential backoff)
 # 2.x: Now means connection timeout (retry with circuit breaker)
 # Client retry logic becomes ineffective
-```
+```text
 
 **Note**: Error codes are part of the contract and **never** change within a MAJOR version.
 
@@ -239,7 +239,7 @@ enum Role {
 
 **Changing compiled schema structure** (require MAJOR bump):
 
-```
+```text
 # ❌ BREAKING: Compiled schema JSON structure changes
 # 1.x CompiledSchema:
 {
@@ -257,7 +257,7 @@ enum Role {
 }
 
 # Runtime cannot load 2.x schemas if built for 1.x framework
-```
+```text
 
 #### 2.1.6 Type System Breaking Changes
 
@@ -275,7 +275,7 @@ type Event {
 
 # 2.x removes DateTime scalar
 # Queries fail; schemas using DateTime cannot compile
-```
+```text
 
 **Changing scalar serialization** (require MAJOR bump):
 
@@ -284,7 +284,7 @@ type Event {
 # 1.x: UUID serialized as "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 # 2.x: UUID serialized as "f47ac10b58cc4372a5670e02b2c3d479" (no hyphens)
 # Clients parsing UUID strings break
-```
+```text
 
 ### 2.2 Non-Breaking Changes
 
@@ -311,7 +311,7 @@ type User {
   phone: String           # New optional field
   verified_at: DateTime   # New optional field
 }
-```
+```text
 
 **Adding new types** (backward-compatible):
 
@@ -321,7 +321,7 @@ type User {
 
 # 1.1 adds: Product type and products query
 # Existing clients unaffected
-```
+```text
 
 **Adding new enum values** (backward-compatible):
 
@@ -341,7 +341,7 @@ enum Role {
 }
 
 # Clients that don't use SUPER_ADMIN are unaffected
-```
+```text
 
 **Adding optional arguments** (backward-compatible):
 
@@ -358,7 +358,7 @@ type Query {
 }
 
 # Existing queries without arguments still work
-```
+```text
 
 **Adding new operators** (backward-compatible):
 
@@ -368,7 +368,7 @@ type Query {
 
 # 1.1 adds: startsWith, endsWith, regex
 # Existing queries work unchanged
-```
+```text
 
 **Adding field-level masking** (backward-compatible):
 
@@ -377,7 +377,7 @@ type Query {
 # 1.x: User.ssn visible to everyone
 # 1.1: User.ssn now masked for non-admins (returns null for regular users)
 # Admin clients still see ssn; regular clients see null (which is safe)
-```
+```text
 
 **Expanding authorization** (backward-compatible):
 
@@ -386,7 +386,7 @@ type Query {
 # 1.x: Query returns posts from all users
 # 1.1: Query now only returns current user's posts
 # Results are filtered but authorization is stricter (more secure)
-```
+```text
 
 **Adding new error codes** (backward-compatible):
 
@@ -395,41 +395,41 @@ type Query {
 # 1.x error codes: E_VALIDATION_*, E_AUTH_*, E_DB_*
 # 1.1 adds: E_RATE_LIMIT_* (new category)
 # Existing error handling still works; clients can add handling for new codes
-```
+```text
 
 #### 2.2.2 Safe Modifications (PATCH version bump)
 
 **Performance improvements** (patch):
 
-```
+```text
 # ✅ SAFE: Query execution faster, same semantics
 # 1.0.0 → 1.0.1: Database query optimized from 100ms to 50ms
 # Behavior unchanged; only performance changes
-```
+```text
 
 **Bug fixes** (patch):
 
-```
+```text
 # ✅ SAFE: Fix incorrect behavior to match specification
 # 1.0.0 had a bug: "in" operator case-sensitive despite spec saying case-insensitive
 # 1.0.1: Fix bug, "in" operator now case-insensitive per spec
 # Note: This is a bug fix (behavior was wrong), not a breaking change
-```
+```text
 
 **Documentation updates** (patch):
 
-```
+```text
 # ✅ SAFE: Documentation corrections, no code changes
 # 1.0.0 → 1.0.1: Update docs for clarity
-```
+```text
 
 **Internal refactoring** (patch):
 
-```
+```text
 # ✅ SAFE: Rewrite internals without changing external behavior
 # 1.0.0 → 1.0.1: Rewrite Rust pipeline for performance
 # Compiled schema output identical; only internals change
-```
+```text
 
 ---
 
@@ -439,19 +439,19 @@ type Query {
 
 FraiseQL follows a **three-phase deprecation lifecycle** before removal:
 
-```
+```text
 ANNOUNCEMENT (Minor Version N)
      ↓
 DEPRECATION (Minor Versions N to N+3)
      ↓
 REMOVAL (Major Version M+1)
-```
+```text
 
 ### 3.2 Deprecation Timeline (3-Year Stability Window)
 
 FraiseQL commits to a **3-year support window** for each MAJOR version:
 
-```
+```text
 v2.0.0 Released (Year 0)
        ├─ v2.1.0 (Year 0, Q2) - Add new feature, announce deprecation
        ├─ v2.2.0 (Year 0, Q4) - Feature fully deprecated
@@ -463,7 +463,7 @@ v2.0.0 Released (Year 0)
 
 v3.0.0 Released (Year 3)
        └─ v2.x.x no longer supported (Jan 1, Year 3)
-```
+```text
 
 ### 3.3 Deprecation Announcement Format
 
@@ -484,7 +484,7 @@ When a feature is deprecated, the changelog includes:
   - **Reason**: @authorize more expressive; @mask conflates field-level with row-level
   - **Timeline**: Deprecated v2.1, removal in v3.0
   - **Help**: See migration guide: https://docs.fraiseql.io/migration/v2.1-mask-deprecation
-```
+```text
 
 ### 3.4 Deprecation Warning in Runtime
 
@@ -498,7 +498,7 @@ query GetPosts {
     title
   }
 }
-```
+```text
 
 **Response includes deprecation warning:**
 
@@ -522,7 +522,7 @@ query GetPosts {
     ]
   }
 }
-```
+```text
 
 ### 3.5 Migration Guides
 
@@ -536,13 +536,13 @@ For each deprecation, FraiseQL provides:
 
 **Example migration guide structure:**
 
-```
+```text
 docs/migration/
 ├── v2.1-regex-deprecation.md
 ├── v2.2-field-masking.md
 ├── v2.3-custom-scalars.md
 └── v3.0-breaking-changes.md
-```
+```text
 
 ---
 
@@ -561,11 +561,11 @@ class User:
     """Version 1.0.0 of User type"""
     id: ID
     name: str
-```
+```text
 
 **User schema versions are independent of framework version:**
 
-```
+```text
 Framework v2.0.0
 └─ User schema v1.0.0
    └─ Posts schema v2.5.0
@@ -580,7 +580,7 @@ Framework v3.0.0 (breaking changes)
 └─ User schema v2.0.0 (may need updates for new framework)
    └─ Posts schema v3.0.0
    └─ Comments schema v2.0.0
-```
+```text
 
 #### 4.1.2 Schema Backward Compatibility
 
@@ -604,7 +604,7 @@ class User:
     email: str | None = None
     phone: str | None = None       # New optional field
     created_at: datetime | None = None  # New optional field
-```
+```text
 
 **Between framework MAJOR versions:**
 
@@ -625,7 +625,7 @@ class User:
     name: str
     email: str  # Now required (breaking change in User schema)
     profile: UserProfile  # New required nested type
-```
+```text
 
 ### 4.2 Compiled Schema Versioning
 
@@ -640,7 +640,7 @@ The **compiled schema** (internal IR) is versioned separately from user schemas:
   "federation": {...},
   "subscriptions": {...}
 }
-```
+```text
 
 #### 4.2.1 Compiled Schema Format Evolution
 
@@ -659,7 +659,7 @@ Changes to compiled schema JSON format trigger framework MAJOR version bump:
   "compiled_schema_version": 2,
   "entities": {...}  # Renamed from "types"
 }
-```
+```text
 
 **Impact**: Compiled schemas are not portable across major framework versions.
 
@@ -667,7 +667,7 @@ Changes to compiled schema JSON format trigger framework MAJOR version bump:
 
 The runtime includes the compiled schema **at build time**:
 
-```
+```text
 User defines schema.py
        ↓
 Compiler compiles to compiled-schema.json
@@ -675,7 +675,7 @@ Compiler compiles to compiled-schema.json
 Runtime packages compiled-schema.json with code
        ↓
 Runtime starts with built-in schema (no compilation at runtime)
-```
+```text
 
 **Schema is immutable at runtime** — no runtime recompilation.
 
@@ -695,7 +695,7 @@ type Query {
 
 # All queries compile against THIS schema
 # Schema is part of framework, not separately versioned
-```
+```text
 
 ### 5.2 Query Compatibility
 
@@ -715,7 +715,7 @@ query GetUser {
 
 # Same query works on v2.1.0, v2.2.0, v2.3.0, v2.4.0
 # New optional fields added in v2.1+, but this query unchanged
-```
+```text
 
 **Across framework MAJOR versions (e.g., v2.x to v3.0):**
 
@@ -737,7 +737,7 @@ query GetPosts {
     title
   }
 }
-```
+```text
 
 ### 5.3 Query Validation
 
@@ -757,7 +757,7 @@ query = """
 """
 
 schema.validate(query)  # Raises CompilationError immediately
-```
+```text
 
 ---
 
@@ -771,14 +771,14 @@ schema.validate(query)  # Raises CompilationError immediately
 
 Error codes follow deterministic format:
 
-```
+```text
 E_CATEGORY_SUBCATEGORY_NUMBER
 
 E_VALIDATION_EMAIL_001      → Category: VALIDATION, Subcategory: EMAIL, Number: 001
 E_DB_POSTGRES_DEADLOCK_303  → Category: DB, Subcategory: POSTGRES_DEADLOCK, Number: 303
 E_AUTH_PERMISSION_401       → Category: AUTH, Subcategory: PERMISSION, Number: 401
 E_FED_SUBGRAPH_TIMEOUT_502  → Category: FED, Subcategory: SUBGRAPH_TIMEOUT, Number: 502
-```
+```text
 
 #### 6.1.2 Error Code Stability Rules
 
@@ -796,7 +796,7 @@ message = "Email cannot be empty"
 # v2.5.0: Still same error code
 error_code = "E_VALIDATION_EMAIL_001"
 message = "Email cannot be empty"
-```
+```text
 
 **Error messages can change** (provide more details), but codes and semantics are locked.
 
@@ -811,7 +811,7 @@ E_VALIDATION_EMAIL_002    # Email format invalid
 
 # v2.1.0 adds new error code
 E_VALIDATION_EMAIL_003    # Email already exists (new in v2.1)
-```
+```text
 
 **Client impact**: Clients that don't handle `E_VALIDATION_EMAIL_003` still work; they receive an error they didn't explicitly handle, which is backward-compatible.
 
@@ -825,7 +825,7 @@ E_VALIDATION_EMAIL_002    # Email format invalid
 
 # Cannot be removed in v2.5 (would break clients handling this code)
 # Can only be removed in v3.0 (MAJOR version)
-```
+```text
 
 **Migration**: Deprecate error code in v2.x, remove in v3.0.
 
@@ -843,7 +843,7 @@ Changing what an error code means is a **BREAKING CHANGE**:
 
 # Solution: Create new error code E_DB_POSTGRES_CONN_TIMEOUT_305
 #           Keep 304 for query timeout
-```
+```text
 
 ---
 
@@ -862,13 +862,13 @@ let runtime = FraiseQLRuntime::new(compiled_schema);
 
 // All queries execute against v2.0.0 schema
 // Cannot mix v2.0 and v2.1 schemas in same runtime
-```
+```text
 
 ### 7.2 Multiple Versions Across Multiple Instances
 
 To run multiple versions simultaneously, deploy multiple runtime instances:
 
-```
+```text
 ┌─────────────────────────────────┐
 │ API Gateway                     │
 └──────────┬──────────────────────┘
@@ -881,7 +881,7 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
            │
            └─→ Runtime Instance C (Framework v2.4.0)
                └─ Schema v1.2.0
-```
+```text
 
 **Client routing**:
 
@@ -893,14 +893,14 @@ To run multiple versions simultaneously, deploy multiple runtime instances:
 
 To migrate from Framework v2.0 to v2.1:
 
-```
+```text
 
 1. Deploy new runtime instance with Framework v2.1
 2. Route new requests to v2.1 instance
 3. Keep v2.0 instance running for existing clients
 4. Gradually migrate clients to v2.1
 5. Once all clients migrated, shut down v2.0 instance
-```
+```text
 
 ---
 
@@ -952,13 +952,13 @@ Before upgrading from v2.x to v3.0:
   [ ] Benchmark queries on v3.0
   [ ] Check for regressions
   [ ] Verify error handling performance
-```
+```text
 
 ### 8.2 Version Coexistence Window
 
 During migration from v2.x to v3.0:
 
-```
+```text
 Timeline:
   Week 0: v3.0 released
   Week 1: Deploy v3.0 canary, route 5% traffic
@@ -970,13 +970,13 @@ Timeline:
   Week 7: Decommission v2.x instance
 
 Duration: ~7 weeks for full migration
-```
+```text
 
 ### 8.3 Rollback Window
 
 If issues arise post-upgrade:
 
-```
+```text
 If critical issue detected within 48 hours of upgrade:
   → Can rollback to v2.x (keep v2.x instance running during migration)
 
@@ -984,7 +984,7 @@ If critical issue detected after 7 days:
   → Cannot safely rollback (data may have changed)
   → Must fix forward in v3.x
   → Will release v3.0.1 hotfix quickly
-```
+```text
 
 ---
 
@@ -1012,13 +1012,13 @@ response = client.execute("""
     }
   }
 """)
-```
+```text
 
 ### 9.2 Client Upgrade Path
 
 When server upgrades framework:
 
-```
+```text
 Server runs v2.0.0
 └─ Client sends queries
    └─ Server executes against v2.0.0 schema
@@ -1032,7 +1032,7 @@ Server upgrades to v3.0.0 (breaking changes)
 └─ Client queries may break
    └─ Need to update client code
    └─ Recompile client code for v3.0.0
-```
+```text
 
 ### 9.3 Version Negotiation
 
@@ -1056,7 +1056,7 @@ Response:
 200 OK
 X-FraiseQL-Version: 2.1.0
 Content-Type: application/json
-```
+```text
 
 **Client usage**:
 
@@ -1072,7 +1072,7 @@ elif version.startswith('2.1'):
 else:
     # Unsupported version
     raise IncompatibleVersionError(version)
-```
+```text
 
 ---
 
@@ -1091,19 +1091,19 @@ fraiseql compile schema.py --target latest
 
 # Compile with version compatibility check
 fraiseql compile schema.py --target 2.0.0 --strict
-```
+```text
 
 ### 10.2 Compiled Schema Portability
 
 Compiled schemas are **not portable across framework versions**:
 
-```
+```text
 Compiled schema built with FraiseQL v2.0.0
     ↓
 Runtime v2.0.0: ✅ Works
 Runtime v2.1.0: ✅ Works (backward-compatible)
 Runtime v3.0.0: ❌ Incompatible (different format)
-```
+```text
 
 **To upgrade**:
 
@@ -1116,7 +1116,7 @@ docker build -t my-api:v3 --build-arg SCHEMA=compiled-schema-v3.json .
 
 # 3. Deploy new runtime instance
 docker run my-api:v3
-```
+```text
 
 ---
 
@@ -1126,35 +1126,35 @@ docker run my-api:v3
 
 Client SDKs (Python, TypeScript, Go, Rust) are versioned separately from framework:
 
-```
+```text
 FraiseQL Framework: v2.1.0
 Python SDK:        v2.1.0  (matches framework)
 TypeScript SDK:    v2.1.1  (patch ahead for bug fixes)
 Go SDK:            v2.0.5  (behind, still testing)
 Rust SDK:          v2.1.0  (matches framework)
-```
+```text
 
 **Compatibility matrix**:
 
-```
+```text
 SDK v2.1.0 can connect to:
   - Framework v2.0.x ✅ (backward-compatible)
   - Framework v2.1.x ✅ (same version)
   - Framework v2.2+ ✅ (forward-compatible for read)
   - Framework v3.0 ❌ (breaking changes)
-```
+```text
 
 ### 11.2 Tool Versions
 
 Development tools have independent versions:
 
-```
+```text
 Framework:           v2.1.0
 Compiler:            v2.1.0  (same as framework)
 Migration tool:      v1.3.2  (separate versioning)
 Schema validator:    v2.1.0  (same as framework)
 Performance profiler: v1.0.0 (separate versioning)
-```
+```text
 
 ---
 
@@ -1225,13 +1225,13 @@ Every release includes a detailed changelog:
 - Added keyset pagination guide
 - Updated federation architecture guide
 - New error code reference
-```
+```text
 
 ### 12.2 Migration Guides
 
 For each MAJOR version upgrade, provide detailed guide:
 
-```
+```text
 docs/migration/
 ├── v2-to-v3.md                    # Main migration guide
 ├── v3-breaking-changes.md         # What breaks
@@ -1240,7 +1240,7 @@ docs/migration/
 ├── v3-schema-examples.md          # Before/after schema examples
 ├── v3-performance-guide.md        # Performance characteristics
 └── v3-troubleshooting.md          # Common issues and solutions
-```
+```text
 
 ### 12.3 Deprecation Announcements
 
@@ -1266,7 +1266,7 @@ query SearchPosts {
     title
   }
 }
-```
+```text
 
 ### After (v2.1+)
 
@@ -1277,7 +1277,7 @@ query SearchPosts {
     title
   }
 }
-```
+```text
 
 ## Impact
 
@@ -1297,7 +1297,7 @@ query SearchPosts {
 - Support: <support@fraiseql.io>
 - Issues: <https://github.com/fraiseql/fraiseql/issues>
 
-```
+```text
 
 ---
 
@@ -1307,7 +1307,7 @@ query SearchPosts {
 
 FraiseQL commits to support windows for each MAJOR version:
 
-```
+```text
 
 v2.x (v2.0.0 released Date X)
   ├─ Active support: 2 years from release
@@ -1321,13 +1321,13 @@ v3.x (released 3 years after v2.0)
   ├─ Active support: 2 years from release
   └─ ...continues pattern...
 
-```
+```text
 
 ### 13.2 Security Patches
 
 Security vulnerabilities are backported to all supported versions:
 
-```
+```text
 
 Security vulnerability discovered in v3.0.0
   ├─ v3.0.1 released with patch (immediate)
@@ -1335,7 +1335,7 @@ Security vulnerability discovered in v3.0.0
   ├─ v2.4.2 released with patch (same day)
   └─ v2.3.1 released with patch (same day)
 
-```
+```text
 
 ### 13.3 End of Life (EOL) Handling
 
@@ -1359,7 +1359,7 @@ To continue receiving support:
 2. Follow upgrade guide: https://docs.fraiseql.io/migration/v2-to-v3
 
 We recommend upgrading before December 31, 2026.
-```
+```text
 
 ---
 
@@ -1367,7 +1367,7 @@ We recommend upgrading before December 31, 2026.
 
 Use this decision tree to determine if a change requires version bump:
 
-```
+```text
 Does the change modify user-facing behavior?
 │
 ├─ NO
@@ -1384,7 +1384,7 @@ Does the change modify user-facing behavior?
       │
       └─ YES (removal, incompatibility, behavior change)
          └─ MAJOR version (v2.0.0 → v3.0.0)
-```
+```text
 
 ---
 
@@ -1458,7 +1458,7 @@ class User:
 
 # Queries written for v2.0.0 still work in v2.1.0
 # Clients can optionally request 'phone' field
-```
+```text
 
 **Version bump**: `2.0.0` → `2.1.0` (MINOR)
 
@@ -1490,7 +1490,7 @@ query GetPosts {
     id
   }
 }
-```
+```text
 
 **Version bump**: `2.x.x` → `3.0.0` (MAJOR)
 
@@ -1504,13 +1504,13 @@ query GetPosts {
 
 # v2.0.1
 # WHERE clause correctly applied to SQL columns (FIXED)
-```
+```text
 
 **Version bump**: `2.0.0` → `2.0.1` (PATCH)
 
 ### 16.4 Example: Deprecation then Removal
 
-```
+```text
 Timeline:
   v2.1.0 (Year 0): Announce deprecation of 'regex' operator
   v2.2.0 (Year 0): Still works, warnings shown
@@ -1520,7 +1520,7 @@ Timeline:
   v3.0.0 (Year 3): Operator removed, queries fail
 
 Migration required during 3-year window (v2.1 to v3.0).
-```
+```text
 
 ---
 
@@ -1596,7 +1596,7 @@ print(schema.framework_version)
 
 print(schema.compiled_schema_version)
 # Returns: 1
-```
+```text
 
 ### 18.2 GraphQL Introspection
 
@@ -1609,7 +1609,7 @@ print(schema.compiled_schema_version)
     }
   }
 }
-```
+```text
 
 ### 18.3 Runtime Endpoints
 
@@ -1622,7 +1622,7 @@ curl https://api.example.com/version
 curl https://api.example.com/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ __schema { description } }"}'
-```
+```text
 
 ---
 

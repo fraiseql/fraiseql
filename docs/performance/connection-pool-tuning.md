@@ -21,14 +21,14 @@ Connection pooling is essential for GraphQL API performance. A properly tuned co
 
 ### What This Means
 
-```
+```text
 Behavior:
 
 1. Server starts with 0 connections
 2. First request creates 1 connection
 3. Pool grows to max_size (10) as needed
 4. Unused connections closed after 15 minutes
-```
+```text
 
 ## Tuning by Workload
 
@@ -47,7 +47,7 @@ let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     5  // Small pool is sufficient
 ).await?;
-```
+```text
 
 **Expected Metrics**:
 
@@ -70,7 +70,7 @@ let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     20  // Default 10 is often too small
 ).await?;
-```
+```text
 
 **Expected Metrics**:
 
@@ -93,7 +93,7 @@ let adapter = PostgresAdapter::with_pool_size(
     connection_string,
     50 + num_cpus::get() as usize  // Scale with CPU cores
 ).await?;
-```
+```text
 
 **Expected Metrics**:
 
@@ -106,7 +106,7 @@ let adapter = PostgresAdapter::with_pool_size(
 
 ### Rule of Thumb
 
-```
+```text
 max_pool_size = (core_count × 2) + effective_spindle_count
 
 For typical cloud VMs:
@@ -116,7 +116,7 @@ For typical cloud VMs:
 - 8 cores:  20 connections
 - 16 cores: 35 connections
 - 32 cores: 65 connections
-```
+```text
 
 ### Rationale
 
@@ -145,7 +145,7 @@ println!("Waiting requests:   {}", metrics.waiting_requests);
 let utilization = (metrics.active_connections as f64
     / metrics.total_connections as f64) * 100.0;
 println!("Pool utilization: {:.1}%", utilization);
-```
+```text
 
 ### Health Signals
 
@@ -182,7 +182,7 @@ async fn handle_graphql(req: GraphQLRequest) -> Result<String> {
 
     Ok(result)
 }
-```
+```text
 
 **Option 2: Prometheus Metrics**
 
@@ -194,7 +194,7 @@ prometheus::histogram_timer!("pool_acquisition_time_ms", {
 
 prometheus::gauge!("pool_active_connections",
     executor.adapter.pool_metrics().active_connections as i64);
-```
+```text
 
 **Option 3: Structured Logging**
 
@@ -205,7 +205,7 @@ tracing::info!(
     query_latency_ms = ?elapsed.as_millis(),
     "GraphQL query executed"
 );
-```
+```text
 
 ## Optimization Techniques
 
@@ -225,7 +225,7 @@ async fn initialize_adapter(connection_string: &str) -> Result<PostgresAdapter> 
     println!("Pool initialized with 5 connections");
     Ok(adapter)
 }
-```
+```text
 
 **Benefit**: Eliminates cold-start latency spike
 
@@ -237,7 +237,7 @@ Fast recycling is already enabled. Verify:
 cfg.manager = Some(ManagerConfig {
     recycling_method: RecyclingMethod::Fast,  // Reuse immediately
 });
-```
+```text
 
 **Benefit**: Faster connection reuse, lower latency
 
@@ -254,7 +254,7 @@ cfg.manager = Some(ManagerConfig {
 // cfg.manager = Some(ManagerConfig {
 //     idle_timeout: Some(Duration::from_secs(300)),  // 5 minutes
 // });
-```
+```text
 
 **Benefit**: Reduces idle connection overhead
 
@@ -276,7 +276,7 @@ async fn main() {
         });
     }
 }
-```
+```text
 
 ```rust
 // ❌ BAD - Create new pool per request
@@ -285,7 +285,7 @@ async fn handle_request() {
     let adapter = PostgresAdapter::new(connection_string).await?;
     adapter.execute_query(query).await
 }
-```
+```text
 
 ### 5. Batch Queries When Possible
 
@@ -308,7 +308,7 @@ let results = futures::future::join_all(
         adapter.execute_where_query("v_user", Some(&clause), None, None)
     })
 ).await;
-```
+```text
 
 **Benefit**: Reduces connection acquisition overhead
 
@@ -330,24 +330,24 @@ let results = futures::future::join_all(
        connection_string,
        30
    ).await?;
-   ```
+   ```text
 
 2. **Reduce query latency** (queries hold connections longer if slow):
 
-   ```
+   ```text
    Enable SQL projection (already done) ✅
    Add database indexes
    Optimize WHERE clauses
-   ```
+   ```text
 
 3. **Load balance** across multiple servers:
 
-   ```
+   ```text
    Server A: 8 connections
    Server B: 8 connections
    Total: 16 connections to database
    (vs 16 from single server)
-   ```
+   ```text
 
 ### Problem: High Latency with Low CPU Usage
 
@@ -363,7 +363,7 @@ if metrics.waiting_requests > 0 {
     // Requests are waiting for connections
     // Increase pool size
 }
-```
+```text
 
 ### Problem: Connection Leaks (Pool Never Shrinks)
 
@@ -379,7 +379,7 @@ let result = adapter.execute_query(query);  // Not awaited!
 
 // ✅ CORRECT - Connection returned after await
 let result = adapter.execute_query(query).await?;
-```
+```text
 
 ## Configuration Reference
 
@@ -408,7 +408,7 @@ pub async fn create_adapter_with_config(
 
     Ok(PostgresAdapter::from_pool(pool))
 }
-```
+```text
 
 ## Benchmarking Pool Performance
 
@@ -435,15 +435,15 @@ async fn bench_pool_acquisition() {
     println!("Connection acquisition: {}µs", per_acquisition);
     assert!(per_acquisition < 1000, "Should be < 1ms");
 }
-```
+```text
 
 ### Expected Results
 
-```
+```text
 Pool size: 10
 Acquisition time: 10-50µs (when connection available)
 Acquisition time: 100-500µs (when creating new connection)
-```
+```text
 
 ## Production Checklist
 

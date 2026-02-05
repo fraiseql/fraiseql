@@ -19,7 +19,7 @@
 
 ### Architecture
 
-```
+```text
 Client
   ↓
 APQ Request (hash ± optional query for registration)
@@ -35,7 +35,7 @@ FraiseQL Router
   └─ [Store Result Cache] (Optional) Cache query result if enabled
   ↓
 Return Result (from cache or freshly computed)
-```
+```text
 
 ---
 
@@ -70,7 +70,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="optional"
 )
-```
+```text
 
 **Behavior**:
 
@@ -93,7 +93,7 @@ config = FraiseQLConfig(
   },
   "query": "query { users { id name } }"
 }
-```
+```text
 
 *Subsequent request - hash only*:
 
@@ -106,7 +106,7 @@ config = FraiseQLConfig(
     }
   }
 }
-```
+```text
 
 **Use Cases**:
 
@@ -125,7 +125,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="required"
 )
-```
+```text
 
 **Behavior**:
 
@@ -149,7 +149,7 @@ config = FraiseQLConfig(
   },
   "query": "query { products { id name price } }"
 }
-```
+```text
 
 *Subsequent request (hash only)*:
 
@@ -162,7 +162,7 @@ config = FraiseQLConfig(
     }
   }
 }
-```
+```text
 
 *Arbitrary query (REJECTED)*:
 
@@ -170,7 +170,7 @@ config = FraiseQLConfig(
 {
   "query": "query { __schema { types { name } } }"
 }
-```
+```text
 
 **Response to Rejected Request**:
 
@@ -186,7 +186,7 @@ config = FraiseQLConfig(
     }
   ]
 }
-```
+```text
 
 **Use Cases**:
 
@@ -206,7 +206,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_mode="disabled"
 )
-```
+```text
 
 **Behavior**:
 
@@ -223,7 +223,7 @@ config = FraiseQLConfig(
 {
   "query": "query { articles { id title content } }"
 }
-```
+```text
 
 *APQ request with hash (treated as regular, hash ignored)*:
 
@@ -237,7 +237,7 @@ config = FraiseQLConfig(
   },
   "query": "query { articles { id title content } }"
 }
-```
+```text
 
 *APQ hash-only request (FAILS - no query)*:
 
@@ -250,7 +250,7 @@ config = FraiseQLConfig(
     }
   }
 }
-```
+```text
 
 **Response to Hash-Only Request**:
 
@@ -263,7 +263,7 @@ config = FraiseQLConfig(
     }
   ]
 }
-```
+```text
 
 **Use Cases**:
 
@@ -285,7 +285,7 @@ import hashlib
 def compute_query_hash(query: str) -> str:
     """Compute SHA-256 hash of a GraphQL query."""
     return hashlib.sha256(query.encode("utf-8")).hexdigest()
-```
+```text
 
 **Properties**:
 
@@ -315,7 +315,7 @@ def compute_response_cache_key(
     var_json = json.dumps(variables, sort_keys=True, separators=(",", ":"))
     combined = f"{query_hash}:{var_json}"
     return hashlib.sha256(combined.encode()).hexdigest()
-```
+```text
 
 ### Security Example: Preventing Data Leakage
 
@@ -335,7 +335,7 @@ cache_key_b = compute_response_cache_key(query_hash, variables_b)
 assert cache_key_a != cache_key_b
 # Result: cache_key_a = "hash:{"userId":"alice-123"}" (SHA-256)
 # Result: cache_key_b = "hash:{"userId":"bob-456"}" (SHA-256)
-```
+```text
 
 Without variable-aware cache keys, both users would receive the same cached response containing Alice's data.
 
@@ -354,7 +354,7 @@ function computeAPQHash(query) {
 }
 
 const hash = computeAPQHash(query);
-```
+```text
 
 **Python Client**:
 
@@ -363,7 +363,7 @@ import hashlib
 
 def compute_apq_hash(query: str) -> str:
     return hashlib.sha256(query.encode()).hexdigest()
-```
+```text
 
 ---
 
@@ -380,7 +380,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     apq_storage_backend="memory",  # Default for local development
 )
-```
+```text
 
 **Characteristics**:
 
@@ -399,7 +399,7 @@ _query_storage = {
     "e4c7e8f5...": "query { users { id name } }",
     "a1b2c3d4...": "query { products { id price } }",
 }
-```
+```text
 
 **Purpose**:
 
@@ -430,7 +430,7 @@ config = FraiseQLConfig(
         "connection_timeout": 30,
     }
 )
-```
+```text
 
 **Database Tables**:
 
@@ -446,7 +446,7 @@ CREATE TABLE apq_queries (
 
 -- Index for efficient storage
 CREATE INDEX idx_apq_queries_created ON apq_queries (created_at);
-```
+```text
 
 **Columns**:
 
@@ -488,7 +488,7 @@ SELECT
     pg_size_pretty(pg_total_relation_size('apq_queries')) as table_size,
     count(*) as query_count
 FROM apq_queries;
-```
+```text
 
 Clean up unused queries (optional):
 
@@ -501,7 +501,7 @@ ORDER BY created_at DESC;
 -- Delete very old queries if needed (careful: clients may still reference)
 DELETE FROM apq_queries
 WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days';
-```
+```text
 
 ---
 
@@ -521,7 +521,7 @@ config = FraiseQLConfig(
         "ttl": 3600,  # 1 hour
     }
 )
-```
+```text
 
 **Custom Backend Interface**:
 
@@ -555,7 +555,7 @@ Pre-register all queries at application startup for zero-latency registration:
 
 **File Structure**:
 
-```
+```text
 src/
 ├── graphql/
 │   ├── queries/
@@ -565,7 +565,7 @@ src/
 │   └── mutations/
 │       ├── createUser.graphql
 │       └── updateProduct.graphql
-```
+```text
 
 **Configuration**:
 
@@ -576,7 +576,7 @@ config = FraiseQLConfig(
     apq_storage_backend="postgresql",
     apq_queries_dir="./src/graphql",  # Auto-load at startup
 )
-```
+```text
 
 **Behavior**:
 
@@ -607,7 +607,7 @@ config = FraiseQLConfig(
     apq_storage_backend="postgresql",
     # No apq_queries_dir - start empty
 )
-```
+```text
 
 **Registration Flow**:
 
@@ -626,7 +626,7 @@ POST /graphql HTTP/1.1
   "query": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
   "variables": {"id": "user-123"}
 }
-```
+```text
 
 *Server processes*:
 
@@ -650,7 +650,7 @@ POST /graphql HTTP/1.1
   },
   "variables": {"id": "user-456"}
 }
-```
+```text
 
 *Server processes*:
 
@@ -678,7 +678,7 @@ APQ can optionally work with Query Result Caching (a separate feature described 
 
 **Two-Layer System**:
 
-```
+```text
 Request
   ↓
 Layer 1: Response Cache (JSON passthrough)
@@ -694,7 +694,7 @@ Layer 2: GraphQL Execution
 Store in Response Cache
   ↓
 Return Response
-```
+```text
 
 **Performance Impact**:
 
@@ -714,7 +714,7 @@ config = FraiseQLConfig(
     cache_default_ttl=300,              # 5 minutes default
     cache_include_complexity=True,
 )
-```
+```text
 
 **Note**: Query result caching is configured separately from APQ. See the Caching Specification for complete configuration options including TTL, backends, and complexity-aware settings.
 
@@ -729,9 +729,9 @@ When query result caching is enabled, the cache key includes:
 
 **Key Construction**:
 
-```
+```text
 cache_key = sha256(query_hash + ":" + sorted_variables_json + ":" + tenant_id + ":" + complexity)
-```
+```text
 
 **Security Property**:
 
@@ -779,13 +779,13 @@ Response before filtering:
 
 ```json
 {"data": {"user": {"id": "123", "name": "Alice", "email": "alice@example.com", "ssn": "123-45-6789"}}}
-```
+```text
 
 Response after field selection filtering:
 
 ```json
 {"data": {"user": {"id": "123", "name": "Alice"}}}
-```
+```text
 
 **Benefits**:
 
@@ -817,7 +817,7 @@ config = FraiseQLConfig(
     apq_cache_responses=True,               # Optimization
     apq_response_cache_ttl=300,             # 5 minutes
 )
-```
+```text
 
 **Environment Variables**:
 
@@ -828,7 +828,7 @@ FRAISEQL_APQ_STORAGE_BACKEND=memory
 FRAISEQL_APQ_CACHE_RESPONSES=true
 FRAISEQL_APQ_RESPONSE_CACHE_TTL=300
 FRAISEQL_APQ_QUERIES_DIR=./src/graphql
-```
+```text
 
 ### Staging Environment
 
@@ -843,7 +843,7 @@ config = FraiseQLConfig(
         "auto_create_tables": True,
     }
 )
-```
+```text
 
 ### Production Environment
 
@@ -861,7 +861,7 @@ config = FraiseQLConfig(
         "connection_timeout": 30,
     }
 )
-```
+```text
 
 **Environment Variables**:
 
@@ -872,7 +872,7 @@ FRAISEQL_APQ_STORAGE_BACKEND=database
 FRAISEQL_APQ_CACHE_RESPONSES=true
 FRAISEQL_APQ_RESPONSE_CACHE_TTL=1800
 FRAISEQL_APQ_QUERIES_DIR=/app/dist/graphql
-```
+```text
 
 ---
 
@@ -917,7 +917,7 @@ fraiseql_apq_response_cache_hits_total
 fraiseql_apq_response_cache_misses_total
 fraiseql_apq_stored_queries_count
 fraiseql_apq_response_cache_size_bytes
-```
+```text
 
 **Health Check Endpoint**:
 
@@ -932,7 +932,7 @@ fraiseql_apq_response_cache_size_bytes
         "cached_responses_count": 15234
     }
 }
-```
+```text
 
 ### Dashboard Recommendations
 
@@ -1090,7 +1090,7 @@ variables = {"userId": "bob"}
 cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
 
 # assert cache_key_a != cache_key_b  ✅ Prevents data leakage
-```
+```text
 
 ### Multi-Tenant Isolation
 
@@ -1101,7 +1101,7 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
 # Tenant A: caches response with tenant_id="tenant-123"
 # Tenant B: caches response with tenant_id="tenant-456"
 # Never mixed
-```
+```text
 
 ### Sensitive Data in Error Responses
 
@@ -1114,7 +1114,7 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
     "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"}
   }]
 }
-```
+```text
 
 **Unsafe** (avoid):
 
@@ -1125,7 +1125,7 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
     "extensions": {"provided_query": "SELECT * FROM users"}
   }]
 }
-```
+```text
 
 ---
 
@@ -1190,7 +1190,7 @@ const client = new ApolloClient({
   ),
   cache: new InMemoryCache(),
 });
-```
+```text
 
 ### Relay (JavaScript)
 
@@ -1211,19 +1211,19 @@ const network = createRelayNetworkLayer(
   ],
   { disableBatching: false }
 );
-```
+```text
 
 ### Python Client
 
 Python GraphQL clients (e.g., `gql`, `sgqlc`) support APQ through transport options:
 
-```
+```text
 transport = HttpTransport(
     url='https://api.example.com/graphql',
     apq_enabled=True,
 )
 client = Client(transport=transport)
-```
+```text
 
 The client library automatically:
 

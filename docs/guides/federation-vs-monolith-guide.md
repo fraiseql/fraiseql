@@ -7,7 +7,7 @@
 
 ## Quick Answer
 
-```
+```text
 Single database server sufficient?
 ├─ YES → Stick with single database
 │        (simpler until you outgrow it)
@@ -21,7 +21,7 @@ Single database server sufficient?
 │  └─ Database conflicts → Federation
 │
 └─ Still deciding? Use this guide
-```
+```text
 
 ---
 
@@ -65,7 +65,7 @@ Single database server sufficient?
 
 ### Phase 1: Current State
 
-```
+```text
 Single database working fine?
 ├─ YES → Keep monolith
 │        Continue until pain point appears
@@ -76,11 +76,11 @@ Single database working fine?
    ├─ Multiple teams → Federation
    ├─ Compliance → Federation
    └─ Multiple tech → Federation
-```
+```text
 
 ### Phase 2: Scale Analysis
 
-```
+```text
 How much data?
 ├─ <100GB → Monolith fine
 ├─ 100GB-1TB → Still monolith (with work)
@@ -90,11 +90,11 @@ How many queries per second?
 ├─ <1,000 QPS → Monolith fine
 ├─ 1,000-10,000 QPS → Monolith with optimization
 └─ >10,000 QPS → Federation
-```
+```text
 
 ### Phase 3: Operational Needs
 
-```
+```text
 Multiple independent teams?
 ├─ YES → Federation (each team owns subgraph)
 ├─ NO: Need data residency (GDPR/HIPAA)?
@@ -104,7 +104,7 @@ Multiple independent teams?
 │     └─ NO: Performance not acceptable?
 │        ├─ YES → Federation
 │        └─ NO → Stay with monolith
-```
+```text
 
 ---
 
@@ -123,13 +123,13 @@ Multiple independent teams?
 
 **Operational Model:**
 
-```
+```text
 ┌─ FraiseQL Application ─┐
 │                         │
 └─ PostgreSQL (single)   ─┘
 
 Single node, simpler operations, full transaction support
-```
+```text
 
 **Scaling strategy:**
 
@@ -153,7 +153,7 @@ fraiseql-server:
     - postgresql://replica2.internal:5432/fraiseql
   caching:
     redis: localhost:6379
-```
+```text
 
 ---
 
@@ -170,7 +170,7 @@ fraiseql-server:
 
 **Operational Model:**
 
-```
+```text
 ┌──────────────────────────────┐
 │   Apollo Router (Gateway)     │
 ├──────────────────────────────┤
@@ -178,7 +178,7 @@ fraiseql-server:
 │  (Users)       (Orders)       │ (Analytics)
 │  ↓             ↓              │ ↓
 │  PostgreSQL    MySQL          │ ClickHouse
-```
+```text
 
 Multiple services, owned independently, coordinated by gateway
 
@@ -211,7 +211,7 @@ subgraphs:
   products:
     url: http://products-service:8000/graphql
     database: sqlite:///products.db
-```
+```text
 
 ---
 
@@ -247,7 +247,7 @@ subgraphs:
 # 5. Scale database vertically (bigger server)
 
 # Only THEN consider federation
-```
+```text
 
 **Federation helps if:**
 
@@ -294,13 +294,13 @@ subgraphs:
 
 ### Stage 1: Monolith (Year 1)
 
-```
+```text
 Single PostgreSQL
 ↓
 All services query same database
 ↓
 Fast development, simple operations
-```
+```text
 
 **Red flags appearing:**
 
@@ -311,18 +311,18 @@ Fast development, simple operations
 
 ### Stage 2: Federation Planning (Quarter before pain)
 
-```
+```text
 Monolith → Federated
     ↓
 1. Identify service boundaries
 2. Plan subgraph split
 3. Test federation locally
 4. Prepare dual-write strategy
-```
+```text
 
 ### Stage 3: Migration (2-4 weeks)
 
-```
+```text
 Week 1: Set up federation infrastructure
     ├─ Deploy Apollo Router
     ├─ Set up subgraph services
@@ -342,7 +342,7 @@ Week 4: Cleanup
     ├─ Decommission monolith
     ├─ Final testing
     └─ Return to normal operations
-```
+```text
 
 **Downtime:** 0-5 minutes (if well-planned)
 **Risk:** Low (can rollback to monolith)
@@ -368,7 +368,7 @@ Week 4: Cleanup
 
 **Pattern:** Start monolith, add federation selectively
 
-```
+```text
 Monolith (Users, Core)
     ↓
     ├─ Analytics → Federation (add ClickHouse)
@@ -377,7 +377,7 @@ Monolith (Users, Core)
 
 Result: 80% on monolith, 20% on federation
         (lower complexity than full federation)
-```
+```text
 
 **Benefits:**
 

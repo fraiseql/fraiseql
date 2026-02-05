@@ -20,7 +20,7 @@ FraiseQL's fundamental design choice is to treat the **database as the primary a
 
 Traditional GraphQL servers are designed to aggregate data from multiple sources:
 
-```
+```text
 Client
   ↓ (GraphQL Query)
 GraphQL Server
@@ -32,7 +32,7 @@ GraphQL Server
   └→ Webhook
   ↓
 Client (aggregated response)
-```
+```text
 
 **Problem:** The server becomes a coordination layer, and you need to write resolvers for every field, cache invalidation logic, N+1 prevention, etc.
 
@@ -42,7 +42,7 @@ Client (aggregated response)
 
 FraiseQL assumes the database is your **primary and usually only data source**:
 
-```
+```text
 Client
   ↓ (GraphQL Query)
 FraiseQL Server
@@ -53,7 +53,7 @@ FraiseQL Server
 Database (single source of truth)
   ↓
 Client (direct result)
-```
+```text
 
 **Advantage:** Clear data flow, no custom resolvers, deterministic behavior.
 
@@ -123,13 +123,13 @@ FraiseQL is **not** the right choice when:
 
 ### The Data Hierarchy
 
-```
+```text
 Database Schema (DBA responsibility)
     ↓
 FraiseQL Type Definition (Developer responsibility)
     ↓
 GraphQL API (Client interface)
-```
+```text
 
 Each level maps directly:
 
@@ -152,7 +152,7 @@ CREATE TABLE tb_orders (
     total DECIMAL(10, 2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-```
+```text
 
 **FraiseQL Type Level:**
 
@@ -175,7 +175,7 @@ class Order:
     total: Decimal            # ← total
     user: User                # ← reverse relationship
     created_at: datetime      # ← created_at
-```
+```text
 
 **GraphQL API Level:**
 
@@ -209,7 +209,7 @@ query GetUser {
     }
   }
 }
-```
+```text
 
 ---
 
@@ -222,7 +222,7 @@ query GetUser {
 ALTER TABLE tb_orders
 ADD CONSTRAINT fk_orders_user
 FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
-```
+```text
 
 **Becomes in FraiseQL:**
 
@@ -231,7 +231,7 @@ FOREIGN KEY (fk_user) REFERENCES tb_users(pk_user);
 class Order:
     user_id: int
     user: User  # Automatically available because of FK
-```
+```text
 
 **No extra configuration needed.** The database structure is the API structure.
 
@@ -284,7 +284,7 @@ SELECT
     created_at
 FROM tb_users
 WHERE deleted_at IS NULL;  -- Only active users
-```
+```text
 
 **Characteristics:**
 
@@ -304,7 +304,7 @@ class User:
     email: str
     created_at: datetime
     # Automatically queries v_user view
-```
+```text
 
 ---
 
@@ -367,7 +367,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 **Characteristics:**
 
@@ -386,7 +386,7 @@ class OrderWithUser:
     total: Decimal
     user: User  # From pre-composed JSONB
     # Automatically queries tv_order_with_user view
-```
+```text
 
 ---
 
@@ -415,7 +415,7 @@ SELECT
     created_at
 FROM tb_users
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Characteristics:**
 
@@ -434,7 +434,7 @@ WHERE deleted_at IS NULL;
 @fraiseql.query
 def user_stats_by_year() -> list[dict]:
     """Returns user count by signup year via Arrow Flight."""
-```
+```text
 
 ---
 
@@ -475,7 +475,7 @@ SELECT
 FROM ta_sales
 WHERE created_at >= '2026-01-01';
 -- Result: <1ms (1M rows)
-```
+```text
 
 #### Component 2: Dimensions (JSONB Column)
 
@@ -505,7 +505,7 @@ GROUP BY
     dimension_data->>'region'
 ORDER BY total_revenue DESC;
 -- Result: 50-100ms (1M rows), grouping by 2 dimensions
-```
+```text
 
 **Database-Specific Dimension Extraction:**
 
@@ -513,25 +513,25 @@ PostgreSQL:
 
 ```sql
 dimension_data->>'category'              -- JSONB operator
-```
+```text
 
 MySQL:
 
 ```sql
 JSON_UNQUOTE(JSON_EXTRACT(dimension_data, '$.category'))
-```
+```text
 
 SQLite:
 
 ```sql
 json_extract(dimension_data, '$.category')
-```
+```text
 
 SQL Server:
 
 ```sql
 JSON_VALUE(dimension_data, '$.category')
-```
+```text
 
 #### Component 3: Denormalized Filters (Indexed SQL Columns)
 
@@ -557,7 +557,7 @@ CREATE INDEX idx_ta_sales_occurred ON ta_sales(filter_occurred_at);
 CREATE INDEX idx_ta_sales_status ON ta_sales(filter_status);
 CREATE INDEX idx_ta_sales_data_gin ON ta_sales USING GIN(dimension_data);
 CREATE INDEX idx_ta_sales_revenue_brin ON ta_sales USING BRIN(measure_revenue);
-```
+```text
 
 **Query with All Three Components:**
 
@@ -583,7 +583,7 @@ ORDER BY month DESC
 LIMIT 100;
 
 -- Performance: 30-100ms (100M rows)
-```
+```text
 
 **Complete Example with Triggers:**
 
@@ -671,7 +671,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 **Characteristics:**
 
@@ -695,7 +695,7 @@ SELECT
 FROM ta_sales
 GROUP BY DATE_TRUNC('month', occurred_at);
 -- Result: 500ms (1M rows)
-```
+```text
 
 **Solution:** Pre-computed temporal buckets in JSONB.
 
@@ -721,7 +721,7 @@ GROUP BY
     calendar_info->>'month'
 ORDER BY calendar_info->>'month';
 -- Result: 30ms (1M rows) - 16x faster!
-```
+```text
 
 **Performance Impact by Rows:**
 
@@ -742,7 +742,7 @@ class Sale:
     dimension_data: dict  # {category, product_name, region}
     calendar_info: dict   # {date, week, month, quarter, year} ← Auto-detected
     # FraiseQL uses: calendar_info->>'month' (not DATE_TRUNC)
-```
+```text
 
 ---
 
@@ -766,7 +766,7 @@ class User:
 # - MySQL (secondary, good support)
 # - SQLite (local dev, testing)
 # - SQL Server (enterprise deployments)
-```
+```text
 
 ---
 
@@ -793,7 +793,7 @@ class Product:
     price: Decimal
     in_stock: bool
     created_at: datetime
-```
+```text
 
 **Works on PostgreSQL:**
 
@@ -806,7 +806,7 @@ CREATE TABLE tb_products (
     in_stock BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-```
+```text
 
 **Works on MySQL:**
 
@@ -819,7 +819,7 @@ CREATE TABLE tb_products (
     in_stock BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-```
+```text
 
 **Works on SQLite:**
 
@@ -832,7 +832,7 @@ CREATE TABLE tb_products (
     in_stock BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-```
+```text
 
 **Same GraphQL API** ✓
 **Same FraiseQL schema definition** ✓
@@ -862,7 +862,7 @@ class Event:
     data: JSON  # Maps to JSONB
     tags: List[str]  # Maps to array
     status: EventStatus  # Maps to enum
-```
+```text
 
 **MySQL (Limited Custom Types):**
 
@@ -874,7 +874,7 @@ CREATE TABLE tb_events (
     tags JSON,  -- Array as JSON string
     status VARCHAR(50)  -- Enum as string
 );
-```
+```text
 
 **SQLite (Minimal Types):**
 
@@ -886,7 +886,7 @@ CREATE TABLE tb_events (
     tags TEXT,  -- JSON array as text
     status TEXT  -- Enum as text
 );
-```
+```text
 
 **FraiseQL handles the differences transparently.**
 
@@ -904,12 +904,12 @@ Fact tables (`tf_*` prefix) are the **core analytics data structure** in FraiseQ
 
 ### The Three-Component Architecture
 
-```
+```text
 Fact Table (tf_*)
 ├── Measures (SQL Columns) ← 225x faster aggregation
 ├── Dimensions (JSONB Column) ← Flexible grouping
 └── Filters (Indexed SQL Columns) ← Fast WHERE clauses
-```
+```text
 
 This structure enables:
 
@@ -962,7 +962,7 @@ class Sale:
     filter_occurred_at: datetime
     filter_status: str
     calendar_info: dict
-```
+```text
 
 **Generated GraphQL Aggregate Query:**
 
@@ -992,7 +992,7 @@ query {
     measure_quantity_avg
   }
 }
-```
+```text
 
 ---
 
@@ -1002,7 +1002,7 @@ query {
 
 FraiseQL uses **Apache Arrow Flight** to stream columnar analytics data directly to clients.
 
-```
+```text
 Client
   ↓ (Arrow Flight Request with ticket)
 FraiseQL Arrow Server (gRPC)
@@ -1012,7 +1012,7 @@ FraiseQL Arrow Server (gRPC)
   └─ Stream columnar Arrow batches
   ↓
 Client (receives Arrow format, zero-copy deserialization)
-```
+```text
 
 **Performance:**
 
@@ -1035,7 +1035,7 @@ Clients request data by submitting a **Flight Ticket**, which encodes the query:
   "limit": 100000,
   "offset": 0
 }
-```
+```text
 
 **Ticket Types:**
 
@@ -1050,12 +1050,12 @@ Clients request data by submitting a **Flight Ticket**, which encodes the query:
 
 FraiseQL automatically registers Arrow schemas:
 
-```
+```text
 va_orders: [id (Int64), total (Float64), created_at (Timestamp), customer_name (Utf8)]
 va_users: [id (Int64), email (Utf8), name (Utf8), created_at (Timestamp)]
 ta_orders: [measure_total (Numeric), dimension_data (Utf8), filter_customer_id (Utf8), calendar_info (Utf8)]
 ta_users: [id (Text), email (Text), name (Text), created_at (Timestamp), source_updated_at (Timestamp)]
-```
+```text
 
 ---
 
@@ -1065,7 +1065,7 @@ ta_users: [id (Text), email (Text), name (Text), created_at (Timestamp), source_
 
 FraiseQL's database-centric design manifests in four layers:
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │ Layer 1: AUTHORING (Your Code)              │
 │ Python/TypeScript + @fraiseql decorators    │
@@ -1136,7 +1136,7 @@ FraiseQL's database-centric design manifests in four layers:
 │                                             │
 │ The single source of truth for all data     │
 └─────────────────────────────────────────────┘
-```
+```text
 
 ---
 

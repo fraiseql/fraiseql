@@ -12,7 +12,7 @@ Complete guide to federating queries across multiple databases (PostgreSQL, MySQ
 
 ## Architecture Overview
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │                  FraiseQL Server                          │
 │          (Single GraphQL endpoint)                        │
@@ -28,7 +28,7 @@ Complete guide to federating queries across multiple databases (PostgreSQL, MySQ
 All queries federated to appropriate database
 Cross-database joins handled in FraiseQL Rust layer
 Results merged and returned as single GraphQL response
-```
+```text
 
 ---
 
@@ -67,7 +67,7 @@ engine = "sqlite"
 path = "/var/cache/fraiseql.db"
 pool_size = 1
 read_write = false  # Read-only cache
-```
+```text
 
 ---
 
@@ -139,7 +139,7 @@ class Query:
     def customers(self, limit: int = 50) -> list[Customer]:
         """Query primary, fallback to cache"""
         pass
-```
+```text
 
 ---
 
@@ -181,7 +181,7 @@ export async function getCustomerWithHistory(customerId: string) {
     orders,
   };
 }
-```
+```text
 
 ### Pattern 2: Virtual Foreign Keys
 
@@ -213,7 +213,7 @@ query = """
     }
   }
 """
-```
+```text
 
 ---
 
@@ -230,7 +230,7 @@ def get_customer(self, id: str) -> Customer:
     3. Return whichever succeeds
     """
     pass
-```
+```text
 
 ### Pattern 2: Write-Through Cache
 
@@ -254,7 +254,7 @@ CREATE TRIGGER postgres_to_cache
 AFTER INSERT OR UPDATE ON customers
 FOR EACH ROW
 EXECUTE FUNCTION sync_to_cache();
-```
+```text
 
 ### Pattern 3: Background Sync
 
@@ -287,7 +287,7 @@ scheduler.add_job(
     hour=2,  # 2 AM daily
     minute=0
 )
-```
+```text
 
 ---
 
@@ -334,7 +334,7 @@ async def transfer_customer_data(customer_id: str):
     finally:
         await pg_pool.release(pg_tx)
         await mysql_pool.release(mysql_tx)
-```
+```text
 
 ---
 
@@ -351,7 +351,7 @@ class Customer:
     source_database: str  # postgres_primary, mysql_historical
     last_sync: datetime
     is_stale: bool  # True if > 1 hour since sync
-```
+```text
 
 ### Reconciliation Queries
 
@@ -370,7 +370,7 @@ SELECT
 FROM postgres_primary.customers p
 JOIN mysql_historical.customers m ON p.id = m.id
 WHERE p.email != m.email;
-```
+```text
 
 ---
 
@@ -393,7 +393,7 @@ def get_historical_orders(self, id: str) -> list[Order]:
 def search_products(self, term: str) -> list[Product]:
     """Precomputed cache, fastest"""
     pass
-```
+```text
 
 ### Query Optimization
 
@@ -412,7 +412,7 @@ def get_customers_with_orders(self, customer_ids: list[str]):
       - Join in application layer
     """
     pass
-```
+```text
 
 ---
 
@@ -466,7 +466,7 @@ describe('Database Federation', () => {
     expect(cacheData[0].email).toBe('test@example.com');
   });
 });
-```
+```text
 
 ---
 
@@ -531,7 +531,7 @@ SELECT
     ELSE 'missing'
   END as status
 FROM mysql_legacy.orders;
-```
+```text
 
 ---
 
@@ -548,7 +548,7 @@ query FederationHealth {
     last_check
   }
 }
-```
+```text
 
 ### Query Tracing
 
@@ -567,7 +567,7 @@ print(result.meta.trace)
 #     {'query': 'SELECT * FROM orders WHERE customer_id = $1', 'database': 'mysql_historical', 'time_ms': 120}
 #   ]
 # }
-```
+```text
 
 ---
 

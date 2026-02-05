@@ -45,7 +45,7 @@ key_manager = KeyManager(
 
 # Initialize (generates cached data key)
 await key_manager.initialize()
-```
+```text
 
 ### AWS KMS Setup
 
@@ -66,7 +66,7 @@ key_manager = KeyManager(
 )
 
 await key_manager.initialize()
-```
+```text
 
 ### GCP Cloud KMS Setup
 
@@ -88,7 +88,7 @@ key_manager = KeyManager(
 )
 
 await key_manager.initialize()
-```
+```text
 
 ### Using KMS in GraphQL
 
@@ -113,7 +113,7 @@ async def create_user(
     )
 
     return create_user_record(email, encrypted_password)
-```
+```text
 
 ---
 
@@ -137,7 +137,7 @@ decrypted = key_manager.local_decrypt(encrypted)  # Microseconds
 
 # Periodically: Rotate the data key
 scheduler.add_job(key_manager.rotate_data_key, trigger="interval", hours=1)
-```
+```text
 
 **Performance**:
 
@@ -148,11 +148,11 @@ scheduler.add_job(key_manager.rotate_data_key, trigger="interval", hours=1)
 
 **Envelope Encryption**:
 
-```
+```text
 KMS stores: Master key (never leaves KMS)
 Application stores: Data key (AES-256) encrypted by master key
 Application RAM: Decrypted data key (for current hour)
-```
+```text
 
 #### Pattern 2: Per-Request KMS (High Security)
 
@@ -168,7 +168,7 @@ encrypted = await key_manager.encrypt(
 
 # Decryption with context
 plaintext = await key_manager.decrypt(encrypted, context={"purpose": "api_key_encryption"})
-```
+```text
 
 **Performance**:
 
@@ -186,7 +186,7 @@ plaintext = await key_manager.decrypt(encrypted, context={"purpose": "api_key_en
 
 FraiseQL uses **AES-256-GCM** for local encryption:
 
-```
+```text
 Plaintext
     ↓
 Generate random 96-bit nonce
@@ -198,7 +198,7 @@ Compute authentication tag (128-bit)
 Serialize: nonce + ciphertext + auth_tag
     ↓
 Encrypted data
-```
+```text
 
 **Security Properties**:
 
@@ -228,7 +228,7 @@ config = VaultConfig(
 )
 
 provider = VaultKMSProvider(config)
-```
+```text
 
 **Vault Setup** (one-time):
 
@@ -255,7 +255,7 @@ EOF
 # Generate AppRole credentials
 vault auth enable approle
 vault write auth/approle/role/app policies="app"
-```
+```text
 
 **Authentication Methods**:
 
@@ -278,15 +278,15 @@ config = AWSKMSConfig(
 )
 
 provider = AWSKMSProvider(config)
-```
+```text
 
 **Key ID Formats**:
 
-```
+```text
 arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
 alias/my-encryption-key
 12345678-1234-1234-1234-123456789012
-```
+```text
 
 **Permissions Required**:
 
@@ -306,7 +306,7 @@ alias/my-encryption-key
     }
   ]
 }
-```
+```text
 
 ### GCP Cloud KMS
 
@@ -324,13 +324,13 @@ config = GCPKMSConfig(
 )
 
 provider = GCPKMSProvider(config)
-```
+```text
 
 **Key ID Format**:
 
-```
+```text
 projects/my-project/locations/global/keyRings/my-keyring/cryptoKeys/my-key
-```
+```text
 
 ### Local Development KMS
 
@@ -344,7 +344,7 @@ config = LocalKMSConfig(
 )
 
 provider = LocalKMSProvider(config)
-```
+```text
 
 **Warning**: Local KMS stores everything in-memory and is NOT suitable for production!
 
@@ -368,7 +368,7 @@ class KeyReference:
     @property
     def qualified_id(self) -> str:
         return f"{provider}:{key_id}"
-```
+```text
 
 ### EncryptedData
 
@@ -395,7 +395,7 @@ class EncryptedData:
             "encrypted_at": self.encrypted_at.isoformat(),
             "context": self.context
         }
-```
+```text
 
 ### DataKeyPair
 
@@ -407,7 +407,7 @@ class DataKeyPair:
     plaintext_key: bytes        # Use immediately, never persist
     encrypted_key: EncryptedData # Persist alongside data
     key_reference: KeyReference
-```
+```text
 
 ### RotationPolicy
 
@@ -420,7 +420,7 @@ class RotationPolicy:
     rotation_period_days: int
     last_rotation: datetime | None
     next_rotation: datetime | None
-```
+```text
 
 ---
 
@@ -435,7 +435,7 @@ await key_manager.initialize()
 # Check if initialized
 if key_manager.is_initialized:
     print("Ready to encrypt/decrypt")
-```
+```text
 
 ### Hot-Path Encryption (No KMS)
 
@@ -445,7 +445,7 @@ encrypted_bytes = key_manager.local_encrypt(plaintext_bytes)
 
 # Decrypt with cached key (microseconds)
 plaintext_bytes = key_manager.local_decrypt(encrypted_bytes)
-```
+```text
 
 ### Per-Request Encryption (With KMS)
 
@@ -466,7 +466,7 @@ db.save(encrypted_data.to_dict())
 
 # Decrypt via KMS (reads key_reference from encrypted_data)
 plaintext = await key_manager.decrypt(encrypted_data)
-```
+```text
 
 ### Field Encryption
 
@@ -483,7 +483,7 @@ password = await key_manager.decrypt_field(
     encrypted_password,
     field_type="text"
 )
-```
+```text
 
 ### Key Rotation
 
@@ -501,7 +501,7 @@ scheduler.add_job(
 # Get rotation status
 policy = key_manager.get_rotation_policy()
 print(f"Next rotation: {policy.next_rotation}")
-```
+```text
 
 ### Generate Data Key Pair
 
@@ -520,7 +520,7 @@ db.save(encrypted_key=key_pair.encrypted_key)
 
 # Later: Decrypt to get plaintext_key again
 decrypted_key = await key_manager.decrypt(key_pair.encrypted_key)
-```
+```text
 
 ---
 
@@ -555,7 +555,7 @@ vault_provider = VaultKMSProvider(
 
 # BAD - Local KMS in production
 local_provider = LocalKMSProvider(...)  # Development only!
-```
+```text
 
 ### 2. Rotate Keys Regularly
 
@@ -571,7 +571,7 @@ scheduler.add_job(
 
 # BAD - Manual or no rotation
 # (forgotten rotations = outdated keys)
-```
+```text
 
 ### 3. Use Encryption Context
 
@@ -590,7 +590,7 @@ encrypted = await key_manager.encrypt(
 
 # BAD - No context (less secure)
 encrypted = await key_manager.encrypt(secret)
-```
+```text
 
 ### 4. Separate Key Per Purpose
 
@@ -610,7 +610,7 @@ password_hashing = await key_manager.encrypt(
 # BAD - Single key for everything
 secret = await key_manager.encrypt(api_key, key_id="universal-key")
 password = await key_manager.encrypt(password, key_id="universal-key")
-```
+```text
 
 ### 5. Never Log Plaintext Keys
 
@@ -625,7 +625,7 @@ except DecryptionError as e:
 
 # BAD - Logs plaintext key
 logger.debug(f"Decrypted key: {decrypted_key}")  # SECURITY RISK!
-```
+```text
 
 ### 6. Verify TLS Certificates
 
@@ -644,7 +644,7 @@ vault_config = VaultConfig(
     vault_addr="https://vault.example.com",
     tls_verify=False  # Security risk!
 )
-```
+```text
 
 ---
 
@@ -675,7 +675,7 @@ async def register_user(
     await db.save(user)
 
     return user
-```
+```text
 
 ### API Key Encryption
 
@@ -707,7 +707,7 @@ async def generate_api_key(
 
     # Return plaintext key ONLY at creation time
     return ApiKeyResponse(api_key=api_key)
-```
+```text
 
 ---
 
@@ -736,7 +736,7 @@ except ProviderConnectionError:
 except EncryptionError as e:
     # General encryption failure
     logger.error(f"Encryption failed: {e}")
-```
+```text
 
 ---
 
@@ -756,7 +756,7 @@ except ProviderConnectionError:
     # 2. Vault is running
     # 3. Network/firewall allows connection
     # 4. TLS certificate is valid
-```
+```text
 
 ### Key Rotation Failures
 
@@ -770,7 +770,7 @@ if policy.last_rotation is None:
 time_since_rotation = datetime.now() - policy.last_rotation
 if time_since_rotation > timedelta(hours=2):
     print("Rotation may be delayed")
-```
+```text
 
 ### Decryption Errors
 
@@ -788,7 +788,7 @@ except DecryptionError:
     print(f"Provider: {encrypted_data.key_reference.provider}")
     print(f"Algorithm: {encrypted_data.algorithm}")
     print(f"Context: {encrypted_data.context}")
-```
+```text
 
 ---
 
@@ -804,7 +804,7 @@ key_manager = KeyManager(
     providers=providers,
     initialization_timeout=10  # 10 seconds
 )
-```
+```text
 
 ### Rotation Frequency
 
@@ -818,7 +818,7 @@ scheduler.add_job(key_manager.rotate_data_key, trigger="interval", hours=1)
 scheduler.add_job(key_manager.rotate_data_key, trigger="interval", hours=12)
 
 # Recommended: 1-4 hours for most applications
-```
+```text
 
 ### Caching Strategy
 
@@ -831,7 +831,7 @@ async def get_api_key_decrypted(api_key_id):
 
 # Don't cache plaintext secrets (security risk)
 # Always decrypt on demand for passwords/tokens
-```
+```text
 
 ---
 

@@ -32,7 +32,7 @@
 
 ### JSON Plane (GraphQL)
 
-```
+```text
 Simple query? → v_*
   Example: SELECT * FROM v_user WHERE id = ?
   Time: 50-100ms
@@ -43,11 +43,11 @@ Complex query (3+ JOINs)? → tv_*
 
 Query slow (>1s)? → Migrate to tv_*
   Benefit: 10-50x faster
-```
+```text
 
 ### Arrow Plane (Analytics)
 
-```
+```text
 Small dataset (<100K rows)? → va_*
   Example: Daily summary (10K rows)
   Time: 100-200ms
@@ -58,7 +58,7 @@ Large dataset (>1M rows)? → ta_*
 
 Query slow (>1s)? → Migrate to ta_*
   Benefit: 50-100x faster
-```
+```text
 
 ---
 
@@ -140,7 +140,7 @@ Query slow (>1s)? → Migrate to ta_*
 
 ### From v_*to tv_* (JSON)
 
-```
+```text
 Is query time > 1 second?
 ├─ YES → Migrate to tv_*
 └─ NO ─→ Check read volume
@@ -152,13 +152,13 @@ Is read volume > 100 req/sec?
 Are there 3+ table joins?
 ├─ YES → Migrate to tv_*
 └─ NO ─→ Keep v_*
-```
+```text
 
 **Estimated benefit**: 10-50x faster queries
 
 ### From va_*to ta_* (Arrow)
 
-```
+```text
 Is dataset > 1M rows?
 ├─ YES → Migrate to ta_*
 └─ NO ─→ Check query time
@@ -170,7 +170,7 @@ Is query time > 1 second?
 Are queries doing aggregations on large ranges?
 ├─ YES → Migrate to ta_*
 └─ NO ─→ Keep va_*
-```
+```text
 
 **Estimated benefit**: 50-100x faster queries
 
@@ -199,7 +199,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile ...
 
 -- 5. Initial population
 SELECT refresh_tv_user_profile();
-```
+```text
 
 **See**: `examples/sql/postgres/tv_user_profile.sql`
 
@@ -222,7 +222,7 @@ CREATE TRIGGER trg_refresh_ta_orders ...
 
 -- 4. Initial population
 SELECT refresh_ta_orders();
-```
+```text
 
 **See**: `examples/sql/postgres/ta_orders.sql`
 
@@ -262,7 +262,7 @@ SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
 
 -- Any stale profiles?
 SELECT COUNT(*) FROM tv_user_profile WHERE updated_at < NOW() - INTERVAL '1 minute';
-```
+```text
 
 ### Monitor Refresh Performance
 
@@ -274,7 +274,7 @@ EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 SELECT schemaname, tablename, idx_scan, idx_tup_read
 FROM pg_stat_user_indexes
 WHERE tablename LIKE 'tv_%' OR tablename LIKE 'ta_%';
-```
+```text
 
 ### Verify Data Accuracy
 
@@ -290,7 +290,7 @@ SELECT
 UNION
 SELECT
     SUM(total) as v_total FROM v_order;
-```
+```text
 
 ---
 
@@ -302,7 +302,7 @@ SELECT
 
 ```sql
 SELECT refresh_tv_user_profile();
-```
+```text
 
 ### Issue: Data is stale (not updating)
 
@@ -312,7 +312,7 @@ SELECT refresh_tv_user_profile();
 ```sql
 SELECT * FROM refresh_tv_user_profile();
 SELECT * FROM information_schema.triggers WHERE trigger_name LIKE 'trg_refresh%';
-```
+```text
 
 ### Issue: High CPU from triggers
 
@@ -325,7 +325,7 @@ DROP TRIGGER trg_refresh_tv_user_profile_on_user ON tb_user;
 
 -- Schedule batch instead
 SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');
-```
+```text
 
 ### Issue: Query still slow after migration
 
@@ -338,7 +338,7 @@ SELECT * FROM tv_user_profile WHERE id = ?;
 
 -- Check indexes exist
 SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
-```
+```text
 
 ### Issue: Storage growing too fast
 
@@ -353,7 +353,7 @@ SELECT
 FROM pg_tables
 WHERE tablename LIKE 'tv_%' OR tablename LIKE 'ta_%'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
+```text
 
 ---
 
@@ -375,7 +375,7 @@ class UserProfile:
     name: str
     posts: list[Post]
     comments: list[Comment]
-```
+```text
 
 ### Arrow Flight Query
 
@@ -392,7 +392,7 @@ stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
 # Use table-backed view
 ticket = {"view": "ta_orders", "limit": 1000000}
 stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
-```
+```text
 
 ---
 
@@ -412,7 +412,7 @@ stream = client.do_get(flight.Ticket(json.dumps(ticket).encode()))
 
 ## Decision Flowchart
 
-```
+```text
 START: Do you have a performance problem?
   ├─ NO → Use v_* or va_*, move on
   └─ YES → Measure query time with EXPLAIN
@@ -440,7 +440,7 @@ Create table-backed view:
 Did query time improve >5x?
   ├─ YES → Deploy, monitor freshness
   └─ NO → Investigate other bottlenecks
-```
+```text
 
 ---
 
@@ -463,7 +463,7 @@ Did query time improve >5x?
 
 ```sql
 CREATE INDEX idx_base_col ON base_table(col);
-```
+```text
 
 ### "Materialized view refresh is blocking queries"
 
@@ -486,7 +486,7 @@ If all true: Optimize query or increase ClickHouse resources.
 ```bash
 curl -X POST http://localhost:8000/graphql -d '{your_query}' \
   | jq '.extensions.timing'
-```
+```text
 
 Then compare after migration to tv_*.
 

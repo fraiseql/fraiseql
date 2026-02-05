@@ -38,7 +38,7 @@ This is FraiseQL's "binary interface" between compilation and runtime:
 │ fraiseql-server     │
 │ Execute queries     │
 └─────────────────────┘
-```
+```text
 
 ---
 
@@ -62,7 +62,7 @@ The compiled schema is a JSON object with these top-level keys:
   "federation": {...},         // Apollo Federation v2 metadata (optional)
   "schema_sdl": "..."          // Raw GraphQL SDL (optional, for introspection)
 }
-```
+```text
 
 ### Schema Statistics
 
@@ -79,7 +79,7 @@ The compiled schema is a JSON object with these top-level keys:
   "total_fields": 256,   // Across all types
   "total_operations": 41 // queries + mutations + subscriptions
 }
-```
+```text
 
 ---
 
@@ -99,7 +99,7 @@ Each type definition contains:
   "sql_projection_hint": {...},            // Optional optimization hint
   "implements": ["Node"]                   // Interfaces implemented
 }
-```
+```text
 
 ### Complete Type Example
 
@@ -156,7 +156,7 @@ Each type definition contains:
     "estimated_reduction_percent": 35
   }
 }
-```
+```text
 
 ### Field Definitions
 
@@ -178,7 +178,7 @@ Each field contains:
     "target_type": "Comment"
   }
 }
-```
+```text
 
 ---
 
@@ -205,7 +205,7 @@ Each query contains:
   },
   "deprecation": null                 // Deprecation info if applicable
 }
-```
+```text
 
 ### Complete Query Example
 
@@ -253,7 +253,7 @@ Each query contains:
     "has_offset": true
   }
 }
-```
+```text
 
 ### Query Argument Details
 
@@ -271,7 +271,7 @@ Each argument specifies:
     "max": 2147483647
   }
 }
-```
+```text
 
 ---
 
@@ -290,7 +290,7 @@ Each mutation contains:
   "operation": "Custom",              // Operation type: Insert, Update, Delete, Custom
   "deprecation": null                 // Deprecation info
 }
-```
+```text
 
 ### Complete Mutation Example
 
@@ -309,7 +309,7 @@ Each mutation contains:
   "description": "Create a new blog post",
   "operation": "Custom"
 }
-```
+```text
 
 ### Input Type (for Mutations)
 
@@ -344,7 +344,7 @@ Each mutation contains:
   ],
   "description": "Input for post creation"
 }
-```
+```text
 
 ---
 
@@ -369,7 +369,7 @@ Each mutation contains:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -638,7 +638,7 @@ Each mutation contains:
   "fact_tables": {},
   "observers": []
 }
-```
+```text
 
 ---
 
@@ -660,7 +660,7 @@ schema.validate()?;
 // Use schema for operations
 let posts_query = schema.find_query("posts");
 let user_type = schema.find_type("User");
-```
+```text
 
 ### Introspection Operations
 
@@ -701,7 +701,7 @@ for type_def in &schema.types {
 // Get statistics
 println!("Total operations: {}", schema.operation_count());
 println!("Total types: {}", schema.types.len());
-```
+```text
 
 ### Validating Against Schema
 
@@ -741,7 +741,7 @@ fn is_valid_type_reference(schema: &CompiledSchema, type_ref: &str) -> bool {
 fn is_builtin_scalar(name: &str) -> bool {
     matches!(name, "String" | "Int" | "Float" | "Boolean" | "ID" | "DateTime" | "JSON" | "UUID")
 }
-```
+```text
 
 ---
 
@@ -760,7 +760,7 @@ fn is_builtin_scalar(name: &str) -> bool {
 
 ### Loading Performance
 
-```
+```text
 Schema Deserialization Benchmark
 ─────────────────────────────────
 Small schema (25 KB):     < 1ms
@@ -769,7 +769,7 @@ Large schema (650 KB):    8-12ms
 Massive schema (3.2 MB):  40-60ms
 
 Memory footprint: ~2-3x JSON size (after deserialization)
-```
+```text
 
 ### Schema Caching Strategy
 
@@ -783,7 +783,7 @@ let schema = Arc::new(schema);  // Immutable, shared across threads
 // In request handlers (per request)
 let schema = Arc::clone(&schema);  // Clone Arc (cheap pointer copy)
 let query_def = schema.find_query("posts")?;
-```
+```text
 
 Cost per request: Just a pointer lookup (O(1) amortized).
 
@@ -803,7 +803,7 @@ Optional metadata field in compiled schema:
   "graphql_spec_version": "2021-06",
   "...": "rest of schema"
 }
-```
+```text
 
 ### Backwards Compatibility
 
@@ -818,7 +818,7 @@ Old Client           Server
     │                  │ Returns only v1 compatible response
     │ 200 OK           │
     │←─────────────────│
-```
+```text
 
 FraiseQL can serve multiple schema versions in a single deployment by maintaining a registry of compiled schemas.
 

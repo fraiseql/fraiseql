@@ -34,7 +34,7 @@ audit_logger = AuditEventLogger(
     connection_string="postgresql://user:pass@host/db",
     use_rust=True  # Prefer Rust FFI (faster)
 )
-```
+```text
 
 ### Logging Events
 
@@ -57,7 +57,7 @@ event_id = await audit_logger.log_event(
     event_type="auth.login",
     ip_address="203.0.113.1"
 )
-```
+```text
 
 ### Querying Audit Events
 
@@ -76,7 +76,7 @@ events, total = await audit_logger.get_events(
 
 for event in events:
     print(f"{event.created_at} {event.event_type}: {event.user_id}")
-```
+```text
 
 ### Verifying Chain Integrity
 
@@ -91,7 +91,7 @@ if result.is_valid:
 else:
     print(f"Chain broken at event {result.broken_at_index}")
     print(f"Error: {result.error_message}")
-```
+```text
 
 ---
 
@@ -137,7 +137,7 @@ class AuditEvent:
 
     # Metadata
     created_at: datetime      # Immutable timestamp
-```
+```text
 
 ### Debezium-Compatible Format
 
@@ -156,7 +156,7 @@ class DebeziumEvent:
     source: dict           # Source metadata
     op: str                # Operation: c/r/u/d
     ts_ms: int             # Timestamp in milliseconds
-```
+```text
 
 **Example**:
 
@@ -181,13 +181,13 @@ class DebeziumEvent:
   "op": "u",
   "ts_ms": 1705000000000
 }
-```
+```text
 
 ### Cryptographic Chain
 
 FraiseQL maintains an immutable cryptographic chain:
 
-```
+```text
 Event 1
 ├─ event_hash: SHA256(event_data)
 ├─ previous_hash: NULL (first event)
@@ -202,7 +202,7 @@ Event 3
 ├─ event_hash: SHA256(event_data)
 ├─ previous_hash: Event2.event_hash
 └─ signature: HMAC(event_hash, secret_key)
-```
+```text
 
 **Chain Verification**:
 
@@ -307,7 +307,7 @@ event_id = await audit_logger.log_event(
     duration_ms=78.5,
     result_size_bytes=2048
 )
-```
+```text
 
 ### Query Events
 
@@ -344,7 +344,7 @@ events, total = await audit_logger.get_events(
         start_time=datetime.now() - timedelta(days=7)
     )
 )
-```
+```text
 
 ### Verify Chain Integrity
 
@@ -361,7 +361,7 @@ print(f"Verified events: {result.verified_events}")
 if not result.is_valid:
     print(f"Break at event {result.broken_at_index}")
     print(f"Error: {result.error_message}")
-```
+```text
 
 ---
 
@@ -378,7 +378,7 @@ class QueryEventData:
     query_depth: int
     query_complexity: int
     query_fields_count: int
-```
+```text
 
 ### MutationEventData
 
@@ -390,7 +390,7 @@ class MutationEventData:
     variables: dict | None
     changes_count: int
     affected_tables: list[str]
-```
+```text
 
 ### QueryCompletionEventData
 
@@ -402,7 +402,7 @@ class QueryCompletionEventData:
     field_count: int
     cache_hit: bool
     result_size_bytes: int
-```
+```text
 
 ### AuthenticationEventData
 
@@ -415,7 +415,7 @@ class AuthenticationEventData:
     user_agent: str | None
     success: bool
     failure_reason: str | None
-```
+```text
 
 ### SecurityViolationEventData
 
@@ -427,7 +427,7 @@ class SecurityViolationEventData:
     ip_address: str
     user_id: str | None
     details: dict
-```
+```text
 
 ---
 
@@ -444,7 +444,7 @@ schema = strawberry.Schema(
     mutation=Mutation,
     extensions=[create_audit_middleware(audit_logger=audit_logger)]
 )
-```
+```text
 
 **Automatically logs**:
 
@@ -479,7 +479,7 @@ async def publish_post(
     )
 
     return post
-```
+```text
 
 ---
 
@@ -511,7 +511,7 @@ CREATE TRIGGER audit_immutable
 BEFORE UPDATE OR DELETE ON audit_events
 FOR EACH ROW
 RAISE EXCEPTION 'Audit events are immutable';
-```
+```text
 
 ### Retention Policies
 
@@ -529,7 +529,7 @@ archived = await audit_logger.archive_events(
     before_date=datetime.now() - timedelta(days=90),
     destination="s3://archive-bucket/audit/"
 )
-```
+```text
 
 ### Compliance Reporting
 
@@ -547,7 +547,7 @@ print(f"Mutations: {report.mutation_count}")
 print(f"Auth events: {report.auth_count}")
 print(f"Security violations: {report.violation_count}")
 print(f"Chain valid: {report.chain_verification.is_valid}")
-```
+```text
 
 ---
 
@@ -569,7 +569,7 @@ event_id = await audit_logger.log_event(
     duration_ms=45.3,
     result_size_bytes=4096
 )
-```
+```text
 
 ### Performance Analytics
 
@@ -590,7 +590,7 @@ for event in slow_queries:
     print(f"Query: {event.query_hash}")
     print(f"Duration: {event.duration_ms}ms")
     print(f"Complexity: {event.query_complexity}")
-```
+```text
 
 ### Query Complexity Distribution
 
@@ -604,7 +604,7 @@ report = await audit_logger.get_complexity_report(
 print(f"Avg complexity: {report.avg_complexity}")
 print(f"Max complexity: {report.max_complexity}")
 print(f"Queries > 100: {report.high_complexity_count}")
-```
+```text
 
 ---
 
@@ -624,7 +624,7 @@ events, total = await audit_logger.get_events(
 
 for event in events:
     print(f"{event.created_at} {event.event_type}")
-```
+```text
 
 ### Failed Authentication Detection
 
@@ -644,7 +644,7 @@ ips = Counter(e.ip_address for e in failed_logins)
 for ip, count in ips.most_common(10):
     if count > 5:
         print(f"Alert: {count} failed logins from {ip}")
-```
+```text
 
 ### Data Access Audit
 
@@ -661,7 +661,7 @@ sensitive_queries = await audit_logger.get_events(
 for event in sensitive_queries:
     print(f"User {event.user_id} accessed sensitive data at {event.created_at}")
     print(f"From IP: {event.ip_address}")
-```
+```text
 
 ### Configuration Change Tracking
 
@@ -679,7 +679,7 @@ for event in config_changes:
     print(f"Changed by: {event.user_id}")
     print(f"Before: {event.before_data}")
     print(f"After: {event.after_data}")
-```
+```text
 
 ---
 
@@ -710,7 +710,7 @@ async def verify_audit_chain_daily():
                 verified_count=result.verified_events,
                 total_count=result.total_events
             )
-```
+```text
 
 ### Chain Repair
 
@@ -775,7 +775,7 @@ await audit_logger.log_event(
     tenant_id=tenant_id,
     event_type="mutation.completed"
 )
-```
+```text
 
 ### 2. Use Rust FFI Mode
 
@@ -790,7 +790,7 @@ audit_logger = AuditEventLogger(
 )
 
 # Falls back to Python if Rust unavailable
-```
+```text
 
 ### 3. Run Regular Verification
 
@@ -803,7 +803,7 @@ scheduler.add_job(
     trigger="cron",
     hour=2  # 2 AM daily
 )
-```
+```text
 
 ### 4. Archive Old Events
 
@@ -817,7 +817,7 @@ scheduler.add_job(
     day=1,  # First day of month
     hour=3
 )
-```
+```text
 
 ### 5. Monitor Chain Health
 
@@ -830,7 +830,7 @@ if not verification_result.is_valid:
         f"Audit chain integrity violation detected "
         f"at event {verification_result.broken_at_index}"
     )
-```
+```text
 
 ---
 
@@ -842,7 +842,7 @@ if not verification_result.is_valid:
 
    ```sql
    SELECT COUNT(*) FROM audit_events WHERE tenant_id = ?;
-   ```
+   ```text
 
 2. Inspect event at break point:
 
@@ -850,14 +850,14 @@ if not verification_result.is_valid:
    SELECT id, event_hash, previous_hash FROM audit_events
    WHERE tenant_id = ? AND created_at > ?
    ORDER BY created_at LIMIT 10;
-   ```
+   ```text
 
 3. Verify signatures:
 
    ```sql
    SELECT id, signature FROM audit_events WHERE tenant_id = ?
    ORDER BY created_at DESC LIMIT 100;
-   ```
+   ```text
 
 ### High Event Logging Latency
 
@@ -865,7 +865,7 @@ if not verification_result.is_valid:
 
    ```sql
    EXPLAIN ANALYZE INSERT INTO audit_events (...);
-   ```
+   ```text
 
 2. Monitor Rust FFI:
    - Check if Rust library is loaded: `audit_logger.use_rust`
@@ -877,7 +877,7 @@ if not verification_result.is_valid:
    # Batch multiple events
    events = [...]
    await audit_logger.batch_log_events(events)
-   ```
+   ```text
 
 ---
 

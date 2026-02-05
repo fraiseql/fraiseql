@@ -48,7 +48,7 @@ fraiseql-cli analyze \
 
 # Step 2: Review SQL
 less migrations/optimize-20260112.sql
-```
+```text
 
 **What to check**:
 
@@ -70,7 +70,7 @@ Before applying to **any environment**:
 
   ```bash
   psql $DATABASE_URL -c "SELECT version()"
-  ```
+  ```text
 
 - [ ] **Check database size and free space**
 
@@ -84,7 +84,7 @@ Before applying to **any environment**:
   sqlcmd -S localhost -Q "
     EXEC sp_spaceused
   "
-  ```
+  ```text
 
 - [ ] **Check current locks**
 
@@ -93,14 +93,14 @@ Before applying to **any environment**:
   psql $DATABASE_URL -c "
     SELECT * FROM pg_locks WHERE granted = false
   "
-  ```
+  ```text
 
 - [ ] **Estimate migration duration**
 
   ```bash
   # Test on copy of production data
   time psql staging < migrations/optimize-20260112.sql
-  ```
+  ```text
 
 #### Backup Checks
 
@@ -114,7 +114,7 @@ Before applying to **any environment**:
   sqlcmd -S localhost -Q "
     BACKUP DATABASE mydb TO DISK = 'C:\Backups\mydb-20260112.bak'
   "
-  ```
+  ```text
 
 - [ ] **Verify backup integrity**
 
@@ -124,7 +124,7 @@ Before applying to **any environment**:
 
   # SQL Server: Verify backup
   sqlcmd -Q "RESTORE VERIFYONLY FROM DISK = 'C:\Backups\mydb-20260112.bak'"
-  ```
+  ```text
 
 - [ ] **Test backup restore** (in separate environment)
 
@@ -135,7 +135,7 @@ Before applying to **any environment**:
 
   # SQL Server
   sqlcmd -Q "RESTORE DATABASE test_restore FROM DISK = '...'"
-  ```
+  ```text
 
 #### Application Checks
 
@@ -144,7 +144,7 @@ Before applying to **any environment**:
   ```bash
   # Check if new columns need schema updates
   grep -r "dimensions->>region" app/
-  ```
+  ```text
 
 - [ ] **Prepare schema.json updates**
 
@@ -161,13 +161,13 @@ Before applying to **any environment**:
       dimension_column='dimensions',
       denormalized_filters=['region_id']  # NEW
   )
-  ```
+  ```text
 
 - [ ] **Compile new schema**
 
   ```bash
   fraiseql-cli compile schema.json --check
-  ```
+  ```text
 
 #### Team Communication
 
@@ -184,7 +184,7 @@ Before applying to **any environment**:
 ```bash
 # Apply to staging database
 psql $STAGING_DATABASE_URL < migrations/optimize-20260112.sql
-```
+```text
 
 **Watch for**:
 
@@ -210,7 +210,7 @@ sqlcmd -S staging -Q "
   WHERE TABLE_NAME = 'tf_sales'
   AND COLUMN_NAME = 'region_id'
 "
-```
+```text
 
 #### Verify Indexes
 
@@ -230,7 +230,7 @@ sqlcmd -Q "
   WHERE object_id = OBJECT_ID('tf_sales')
   AND name = 'idx_tf_sales_region_id'
 "
-```
+```text
 
 #### Run Benchmark Queries
 
@@ -243,7 +243,7 @@ psql $STAGING_DATABASE_URL -c "
   SELECT * FROM tf_sales
   WHERE dimensions->>'region' = 'US'
 " > benchmark-before.txt
-```
+```text
 
 **After Migration**:
 
@@ -254,7 +254,7 @@ psql $STAGING_DATABASE_URL -c "
   SELECT * FROM tf_sales
   WHERE region_id = 'US'
 " > benchmark-after.txt
-```
+```text
 
 **Compare Results**:
 
@@ -267,7 +267,7 @@ grep "Execution Time" benchmark-after.txt
 # Execution Time: 98.123 ms
 
 # Actual speedup: 1,250 / 98 = 12.76x ✅
-```
+```text
 
 #### Update Application Schema
 
@@ -282,7 +282,7 @@ fraiseql-cli compile schema.json
 git add schema.compiled.json
 git commit -m "chore: update schema with denormalized region_id"
 git push origin staging
-```
+```text
 
 #### Run Application Tests
 
@@ -296,7 +296,7 @@ npm run test:integration
 # Manual smoke tests
 curl http://staging-api.example.com/graphql \
   -d '{"query": "{ sales(where: {region: \"US\"}) { revenue } }"}'
-```
+```text
 
 #### Monitor Staging for 24-48 Hours
 
@@ -322,7 +322,7 @@ psql $STAGING_DATABASE_URL -c "
   ORDER BY mean_exec_time DESC
   LIMIT 10
 "
-```
+```text
 
 ---
 
@@ -349,7 +349,7 @@ psql $PRODUCTION_DATABASE_URL -c "\d tf_sales"
 
 # 5. Disable maintenance mode
 curl -X POST https://api.example.com/admin/maintenance/off
-```
+```text
 
 **Duration**: 1-5 minutes
 **Risk**: Low (predictable)
@@ -401,7 +401,7 @@ CREATE INDEX CONCURRENTLY idx_tf_sales_region_id
 
 -- Step 4: Analyze table
 ANALYZE tf_sales;
-```
+```text
 
 **Duration**: 10-60 minutes (depending on table size)
 **Risk**: Low
@@ -434,7 +434,7 @@ GO
 -- Step 4: Update statistics
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 GO
-```
+```text
 
 **Duration**: 5-30 minutes
 **Risk**: Low
@@ -463,7 +463,7 @@ psql $PRODUCTION_DATABASE_URL -c "
   SELECT COUNT(*) FROM tf_sales WHERE region_id = 'US'
 "
 # Expected: Non-zero count
-```
+```text
 
 ---
 
@@ -496,7 +496,7 @@ git push origin main
 
 # 5. Restart application servers (if needed)
 kubectl rollout restart deployment/fraiseql-api
-```
+```text
 
 ---
 
@@ -526,7 +526,7 @@ psql $PRODUCTION_DATABASE_URL -c "
   ORDER BY calls DESC
   LIMIT 5
 "
-```
+```text
 
 #### Short-Term Validation (First 24 Hours)
 
@@ -552,11 +552,11 @@ psql $PRODUCTION_DATABASE_URL -c "
   WHERE query LIKE '%tf_sales%'
   ORDER BY calls DESC
 "
-```
+```text
 
 **Expected Results**:
 
-```
+```text
 Before Migration:
 query_snippet: SELECT * FROM tf_sales WHERE dimensions->>'region'
 calls: 8,500
@@ -568,7 +568,7 @@ query_snippet: SELECT * FROM tf_sales WHERE region_id = 'US'
 calls: 8,500
 avg_ms: 68.5  ✅ (12.3x improvement)
 max_ms: 185.0 ✅
-```
+```text
 
 #### Long-Term Validation (7-30 Days)
 
@@ -602,13 +602,13 @@ ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 
 -- Step 3: Analyze table
 ANALYZE tf_sales;
-```
+```text
 
 **Execution**:
 
 ```bash
 psql $PRODUCTION_DATABASE_URL < migrations/rollback-20260112.sql
-```
+```text
 
 ### Quick Rollback (SQL Server)
 
@@ -626,7 +626,7 @@ GO
 -- Step 3: Update statistics
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
 GO
-```
+```text
 
 ### Application Rollback
 
@@ -640,7 +640,7 @@ fraiseql-cli compile schema.json
 # 3. Redeploy
 git push origin main
 kubectl rollout restart deployment/fraiseql-api
-```
+```text
 
 ### Full Database Restore (Last Resort)
 
@@ -657,7 +657,7 @@ pg_restore -d mydb backup-pre-migration.dump
 # SQL Server
 RESTORE DATABASE mydb FROM DISK = 'C:\Backups\backup-pre-migration.bak'
 WITH REPLACE;
-```
+```text
 
 ---
 
@@ -675,7 +675,7 @@ UPDATE small_table SET region_id = dimensions->>'region';
 CREATE INDEX idx_small_table_region ON small_table (region_id);
 ANALYZE small_table;
 EOF
-```
+```text
 
 **Risk**: Negligible
 **Downtime**: None (< 100ms lock)
@@ -712,7 +712,7 @@ END $$;
 -- Step 3: Create index concurrently
 CREATE INDEX CONCURRENTLY idx_medium_table_region
   ON medium_table (region_id);
-```
+```text
 
 **Duration**: 5-15 minutes
 **Risk**: Low
@@ -732,7 +732,7 @@ CREATE EXTENSION IF NOT EXISTS pg_repack;
 
 -- Add column + backfill + index (all online)
 -- This may take hours for very large tables
-```
+```text
 
 **SQL Server**:
 
@@ -747,7 +747,7 @@ CREATE NONCLUSTERED INDEX idx_large_table_region
     RESUMABLE = ON,          -- Can pause/resume if needed
     MAX_DURATION = 120       -- Auto-pause after 120 minutes
   );
-```
+```text
 
 **Duration**: 1-4 hours (depending on table size)
 **Risk**: Medium (monitor closely)
@@ -763,7 +763,7 @@ CREATE NONCLUSTERED INDEX idx_large_table_region
 
 ```bash
 psql $DATABASE_URL < migrations/optimize-20260112.sql
-```
+```text
 
 **Terminal 2: Monitor Progress**
 
@@ -779,7 +779,7 @@ watch -n 1 "psql $DATABASE_URL -c \"
   WHERE state != 'idle'
   ORDER BY duration DESC
 \""
-```
+```text
 
 **Terminal 3: Monitor Locks**
 
@@ -795,7 +795,7 @@ watch -n 1 "psql $DATABASE_URL -c \"
   JOIN pg_stat_activity a ON l.pid = a.pid
   WHERE NOT l.granted
 \""
-```
+```text
 
 ---
 
@@ -813,7 +813,7 @@ CREATE INDEX CONCURRENTLY idx_name ON table (column);
 
 -- ❌ Bad (blocks writes)
 CREATE INDEX idx_name ON table (column);
-```
+```text
 
 ### 3. Batch Large Updates
 
@@ -823,7 +823,7 @@ UPDATE table SET col = val WHERE id IN (SELECT id LIMIT 10000);
 
 -- ❌ Bad (locks entire table)
 UPDATE table SET col = val;
-```
+```text
 
 ### 4. Monitor Replication Lag
 
@@ -841,7 +841,7 @@ psql $REPLICA_URL -c "
     sync_state
   FROM pg_stat_replication
 "
-```
+```text
 
 ### 5. Schedule During Low Traffic
 
@@ -865,7 +865,7 @@ Apply migrations during:
 
    ```sql
    SELECT * FROM pg_locks WHERE NOT granted;
-   ```
+   ```text
 
 2. **Kill long-running queries**
 
@@ -873,7 +873,7 @@ Apply migrations during:
    SELECT pg_terminate_backend(pid)
    FROM pg_stat_activity
    WHERE state = 'active' AND query_start < NOW() - INTERVAL '1 hour';
-   ```
+   ```text
 
 3. **Increase resources temporarily**
 
@@ -881,7 +881,7 @@ Apply migrations during:
    -- PostgreSQL
    SET maintenance_work_mem = '2GB';
    SET max_parallel_maintenance_workers = 4;
-   ```
+   ```text
 
 ---
 
@@ -901,7 +901,7 @@ GROUP BY column_name
 HAVING COUNT(*) > 1;
 
 -- Clean up duplicates before creating index
-```
+```text
 
 ---
 

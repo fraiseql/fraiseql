@@ -16,7 +16,7 @@ SQL projection optimization is **enabled automatically**. Your queries are now 4
 # Just deploy the new version
 cargo build --release
 # Queries automatically faster!
-```
+```text
 
 ### 2. Verify It's Working
 
@@ -25,7 +25,7 @@ Check logs for projection SQL:
 ```bash
 RUST_LOG=fraiseql_core::runtime=debug cargo run
 # Look for: "SQL with projection = jsonb_build_object(...)"
-```
+```text
 
 ### 3. Monitor Performance
 
@@ -34,7 +34,7 @@ RUST_LOG=fraiseql_core::runtime=debug cargo run
 wrk -t4 -c100 -d30s http://localhost:3000/graphql
 
 # Expected: 40-55% improvement automatically
-```
+```text
 
 ## Performance Improvements Already Included
 
@@ -91,7 +91,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 
 ```rust
 let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
-```
+```text
 
 **Expected**:
 
@@ -107,7 +107,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 
 ```rust
 let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
-```
+```text
 
 **Expected**:
 
@@ -129,7 +129,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 ```rust
 let max_size = (num_cpus::get() * 2) + 5;
 let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await?;
-```
+```text
 
 **Expected**:
 
@@ -175,20 +175,20 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 
    ```bash
    RUST_LOG=fraiseql_core::runtime=debug cargo run
-   ```
+   ```text
 
 2. Disable projection temporarily:
 
    ```bash
    FRAISEQL_DISABLE_PROJECTION=true cargo run
-   ```
+   ```text
 
 3. Check pool metrics:
 
    ```rust
    let metrics = adapter.pool_metrics();
    println!("{:?}", metrics);
-   ```
+   ```text
 
 4. Check query complexity:
    - Did you add complex joins?
@@ -205,13 +205,13 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
    if metrics.waiting_requests > 0 {
        // Pool too small - increase size
    }
-   ```
+   ```text
 
 2. Query performance:
 
    ```bash
    RUST_LOG=debug  # Check query times
-   ```
+   ```text
 
 3. Database load:
 
@@ -219,7 +219,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
    -- Check for slow queries
    SELECT * FROM pg_stat_statements
    WHERE mean_time > 100;
-   ```
+   ```text
 
 ### Connection Pool Exhaustion
 
@@ -236,7 +236,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 
 ### Key Metrics
 
-```
+```text
 Query Latency (p50/p95/p99):  __ms
 Pool Utilization:             __%
 Active Connections:           __
@@ -244,7 +244,7 @@ Waiting Requests:             __
 Database Connections:         __
 Network Bandwidth:            __MB/s
 Error Rate:                   __%
-```
+```text
 
 ### Alert Thresholds
 
@@ -261,7 +261,7 @@ queries:
   - name: High Error Rate
     condition: error_rate > 1%
     action: Page on-call
-```
+```text
 
 ## Performance Benchmarks
 
@@ -269,21 +269,21 @@ queries:
 
 With v2.0.0-alpha.1 on medium hardware (8 cores, 16GB RAM):
 
-```
+```text
 Latency (p50):     12ms
 Latency (p95):     28ms
 Latency (p99):     35ms
 Throughput:        6000+ req/s
 Concurrent Users:  500+
-```
+```text
 
 ### Scaling Characteristics
 
-```
+```text
 1K users:   Single server (max pool 20)
 10K users:  5-10 servers (load balanced)
 100K users: 50-100 servers (geo-distributed)
-```
+```text
 
 ## FAQ
 
@@ -356,7 +356,7 @@ let metrics = adapter.pool_metrics();
 if metrics.waiting_requests > 0 {
     eprintln!("Pool saturation: {} waiting", metrics.waiting_requests);
 }
-```
+```text
 
 ### Verify Performance Improvement
 
@@ -368,7 +368,7 @@ wrk -t4 -c100 -d30s http://old-server/graphql > before.txt
 wrk -t4 -c100 -d30s http://new-server/graphql > after.txt
 
 # Compare (expect ~40-55% improvement)
-```
+```text
 
 ### Monitor Production
 
@@ -379,7 +379,7 @@ watch -n 5 'psql $DATABASE_URL -c "SELECT
   percentile_cont(0.95) WITHIN GROUP (ORDER BY query_time),
   COUNT(*)
 FROM query_log WHERE timestamp > now() - interval 1 minute"'
-```
+```text
 
 ---
 

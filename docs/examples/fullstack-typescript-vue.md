@@ -28,7 +28,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          YOUR APPLICATION                           │
 └─────────────────────────────────────────────────────────────────────┘
@@ -77,7 +77,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 │  • useMutation hooks │         │  • Real-time updates                 │
 │  • Reactive state    │         │  • User-friendly UI                  │
 └──────────────────────┘         └──────────────────────────────────────┘
-```
+```text
 
 **Flow Summary**:
 
@@ -396,7 +396,7 @@ export default {
   OrderItem,
   Review,
 };
-```
+```text
 
 ### File: `types/User.ts`
 
@@ -435,7 +435,7 @@ export class User {
   @Field(String)
   preferences?: string; // JSON string in GraphQL
 }
-```
+```text
 
 ### File: `types/Product.ts`
 
@@ -481,7 +481,7 @@ export class Product {
   @Field(DateTime, { required: true })
   updatedAt!: Date;
 }
-```
+```text
 
 ### File: `types/Order.ts`
 
@@ -538,7 +538,7 @@ export class Order {
   @Field(DateTime, { required: true })
   updatedAt!: Date;
 }
-```
+```text
 
 ### File: `types/OrderItem.ts`
 
@@ -570,7 +570,7 @@ export class OrderItem {
   @Field(Float, { required: true })
   subtotal!: number;
 }
-```
+```text
 
 ### File: `types/Review.ts`
 
@@ -615,7 +615,7 @@ export class Review {
   @Field(DateTime, { required: true })
   updatedAt!: Date;
 }
-```
+```text
 
 ### File: `decorators.ts`
 
@@ -699,7 +699,7 @@ export function Mutation(options: TypeOptions = {}) {
     return constructor;
   };
 }
-```
+```text
 
 ### File: `tsconfig.json`
 
@@ -724,7 +724,7 @@ export function Mutation(options: TypeOptions = {}) {
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
-```
+```text
 
 ### File: `package.json` (Schema Authoring)
 
@@ -747,7 +747,7 @@ export function Mutation(options: TypeOptions = {}) {
     "@types/node": "^20.0.0"
   }
 }
-```
+```text
 
 ### File: `scripts/export-schema.js`
 
@@ -834,7 +834,7 @@ const outputSchema = {
 const outputPath = path.join(__dirname, '../schema.json');
 fs.writeFileSync(outputPath, JSON.stringify(outputSchema, null, 2));
 console.log(`✅ Schema exported to ${outputPath}`);
-```
+```text
 
 ---
 
@@ -1060,7 +1060,7 @@ CREATE TRIGGER orders_updated_at BEFORE UPDATE ON orders
 
 CREATE TRIGGER reviews_updated_at BEFORE UPDATE ON reviews
   FOR EACH ROW EXECUTE FUNCTION update_timestamp();
-```
+```text
 
 ### File: `database/seed.sql`
 
@@ -1085,7 +1085,7 @@ INSERT INTO reviews (product_id, user_id, rating, title, content) VALUES
   ((SELECT id FROM products WHERE sku = 'LAPTOP-001'), (SELECT id FROM users WHERE username = 'alice'), 5, 'Excellent laptop!', 'Great performance and build quality.'),
   ((SELECT id FROM products WHERE sku = 'LAPTOP-001'), (SELECT id FROM users WHERE username = 'bob'), 4, 'Good but pricey', 'Works well but could be cheaper.'),
   ((SELECT id FROM products WHERE sku = 'KEYBOARD-001'), (SELECT id FROM users WHERE username = 'charlie'), 5, 'Perfect for gaming!', 'Love the RGB and mechanical switches.');
-```
+```text
 
 ---
 
@@ -1100,7 +1100,7 @@ cd schema-authoring
 npm install
 npm run build
 npm run export
-```
+```text
 
 Output: `/schema.json`
 
@@ -1140,7 +1140,7 @@ Output: `/schema.json`
     { "name": "getProductReviews", "returnType": "Review", "isList": true }
   ]
 }
-```
+```text
 
 ### Step 2: Create FraiseQL Configuration
 
@@ -1193,7 +1193,7 @@ query_cache_ttl_secs = 3600
 # APQ (Automatic Persisted Queries)
 enable_apq = true
 apq_cache_ttl_secs = 86400
-```
+```text
 
 ### Step 3: Compile with FraiseQL CLI
 
@@ -1206,7 +1206,7 @@ fraiseql-cli compile schema.json fraiseql.toml --output schema.compiled.json
 
 # Verify compilation
 cat schema.compiled.json | head -50
-```
+```text
 
 Output: `schema.compiled.json`
 
@@ -1262,7 +1262,7 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
 EXPOSE 8080
 
 CMD ["./fraiseql-server", "--config", "fraiseql.toml", "--schema", "schema.compiled.json"]
-```
+```text
 
 ### File: `docker-compose.yml`
 
@@ -1328,7 +1328,7 @@ volumes:
 networks:
   default:
     name: ecommerce-network
-```
+```text
 
 ### File: `backend/.env.example`
 
@@ -1345,7 +1345,7 @@ RUST_LOG=info
 # Server
 GRAPHQL_HOST=0.0.0.0
 GRAPHQL_PORT=8080
-```
+```text
 
 ---
 
@@ -1376,7 +1376,7 @@ export const apolloClient = new ApolloClient({
     },
   },
 });
-```
+```text
 
 ### File: `frontend/src/types/graphql.ts`
 
@@ -1446,7 +1446,7 @@ export interface CartItem {
   productId: string;
   quantity: number;
 }
-```
+```text
 
 ### File: `frontend/src/composables/useProducts.ts`
 
@@ -1567,7 +1567,7 @@ export function useProductDetail(productId: string) {
     error,
   };
 }
-```
+```text
 
 ### File: `frontend/src/composables/useOrders.ts`
 
@@ -1687,7 +1687,7 @@ export function useUpdateOrder() {
     error,
   };
 }
-```
+```text
 
 ### File: `frontend/src/components/ProductGrid.vue`
 
@@ -1882,7 +1882,7 @@ const addToCart = (productId: string) => {
   color: #d9534f;
 }
 </style>
-```
+```text
 
 ### File: `frontend/src/components/ShoppingCart.vue`
 
@@ -2110,7 +2110,7 @@ const checkout = async () => {
   cursor: not-allowed;
 }
 </style>
-```
+```text
 
 ### File: `frontend/src/composables/useCart.ts`
 
@@ -2192,7 +2192,7 @@ export function useCart() {
     clear,
   };
 }
-```
+```text
 
 ### File: `frontend/src/main.ts`
 
@@ -2229,7 +2229,7 @@ const app = createApp(App);
 provideApolloClient(apolloClient);
 app.use(router);
 app.mount('#app');
-```
+```text
 
 ### File: `frontend/package.json`
 
@@ -2257,13 +2257,13 @@ app.mount('#app');
     "vue-tsc": "^1.8.0"
   }
 }
-```
+```text
 
 ---
 
 ## Part 6: Project Structure
 
-```
+```text
 ecommerce-project/
 ├── schema-authoring/                 # TypeScript schema definition
 │   ├── src/
@@ -2321,7 +2321,7 @@ ecommerce-project/
 │
 ├── docker-compose.yml
 └── README.md
-```
+```text
 
 ---
 
@@ -2336,7 +2336,7 @@ cd ecommerce-project
 
 # Create environment files
 cp backend/.env.example backend/.env
-```
+```text
 
 ### Step 2: Build Schema
 
@@ -2348,7 +2348,7 @@ npm run export
 
 # Verify schema.json created
 cat schema.json
-```
+```text
 
 ### Step 3: Compile Schema
 
@@ -2363,7 +2363,7 @@ fraiseql-cli compile ../schema-authoring/schema.json fraiseql.toml
 
 # Verify schema.compiled.json created
 ls -lh schema.compiled.json
-```
+```text
 
 ### Step 4: Start the Stack
 
@@ -2378,7 +2378,7 @@ docker-compose ps
 
 # Check logs
 docker-compose logs -f graphql-api
-```
+```text
 
 ### Step 5: Verify Services
 
@@ -2391,7 +2391,7 @@ curl http://localhost:8080/graphql \
 
 # Check frontend
 open http://localhost:5173
-```
+```text
 
 ---
 
@@ -2410,7 +2410,7 @@ const { performSearch, results } = useSearchProducts();
 const handleSearch = (query: string) => {
   performSearch(query); // Triggers GraphQL query
 };
-```
+```text
 
 **GraphQL query**:
 
@@ -2425,7 +2425,7 @@ query SearchProducts($query: String!, $limit: Int) {
     reviewCount
   }
 }
-```
+```text
 
 **Rust execution** (FraiseQL):
 
@@ -2453,7 +2453,7 @@ const handleCheckout = async () => {
   const order = await createOrder(cart, '123 Main St');
   // Redirect to order confirmation
 };
-```
+```text
 
 **GraphQL mutation**:
 
@@ -2465,7 +2465,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
     status
   }
 }
-```
+```text
 
 **SQL execution** (FraiseQL):
 
@@ -2488,7 +2488,7 @@ const submitReview = async (productId: string, rating: number, title: string, co
   const review = await addReview(productId, rating, title, content);
   // Show success message, refresh reviews
 };
-```
+```text
 
 **GraphQL mutation**:
 
@@ -2502,7 +2502,7 @@ mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: St
     createdAt
   }
 }
-```
+```text
 
 **SQL execution**:
 
@@ -2535,7 +2535,7 @@ docker-compose up -d
 
 # Verify
 curl https://api.ecommerce.com/health
-```
+```text
 
 ### Option 2: Kubernetes
 
@@ -2578,14 +2578,14 @@ spec:
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
-```
+```text
 
 Deploy:
 
 ```bash
 kubectl apply -f k8s/deployment.yaml
 kubectl set image deployment/graphql-api api=myregistry/ecommerce-api:1.0.1
-```
+```text
 
 ### Environment Variables (Production)
 
@@ -2597,7 +2597,7 @@ GRAPHQL_HOST=0.0.0.0
 GRAPHQL_PORT=8080
 RUST_LOG=warn
 ENABLE_INTROSPECTION=false
-```
+```text
 
 ---
 
@@ -2621,7 +2621,7 @@ docker-compose logs postgres
 
 # Manually test connection
 psql $DATABASE_URL
-```
+```text
 
 ### Schema Compilation Fails
 
@@ -2638,7 +2638,7 @@ npm run export --verbose
 
 # Verify decorators are applied
 npm run build && node -e "require('reflect-metadata'); console.log(require('./dist/schema.js'))"
-```
+```text
 
 ### Apollo Client Can't Connect
 
@@ -2658,7 +2658,7 @@ cat frontend/.env
 
 # Enable debug logging
 VITE_DEBUG=true npm run dev
-```
+```text
 
 ### Product Not Showing in Cart
 
@@ -2682,7 +2682,7 @@ const addItem = async (productId: string, quantity: number = 1) => {
     unitPrice: product.data.getProduct.price,
   });
 };
-```
+```text
 
 ### Database Migration Issues
 
@@ -2699,7 +2699,7 @@ docker exec ecommerce-db psql -U fraiseql -d ecommerce -c "\dt"
 
 # Check logs
 docker-compose logs postgres
-```
+```text
 
 ### Performance Issues
 
@@ -2722,7 +2722,7 @@ CREATE INDEX idx_products_name_trgm ON products USING gin(name gin_trgm_ops);
 enable_query_cache = true
 query_cache_ttl_secs = 3600
 enable_apq = true  # Automatic Persisted Queries
-```
+```text
 
 ---
 

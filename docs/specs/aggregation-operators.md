@@ -568,4 +568,4 @@ fn temporal_bucket_sqlserver(field: &str, bucket: &str) -> String {
 
 ---
 
-*End of Aggregation Operators Specification*
+

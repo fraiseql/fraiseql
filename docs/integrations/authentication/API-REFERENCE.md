@@ -4,10 +4,10 @@ Complete API documentation for FraiseQL's OAuth 2.0 / OIDC authentication system
 
 ## Base URL
 
-```
+```text
 Development: http://localhost:8000
 Production: https://api.yourdomain.com
-```
+```text
 
 ## Endpoints
 
@@ -23,7 +23,7 @@ curl -X POST http://localhost:8000/auth/start \
   -d '{
     "provider": "google"
   }'
-```
+```text
 
 **Request Body**
 
@@ -37,7 +37,7 @@ curl -X POST http://localhost:8000/auth/start \
 {
   "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
 }
-```
+```text
 
 **Response Fields**
 
@@ -74,9 +74,9 @@ OAuth provider redirects here after user authentication.
 
 **Example Request**
 
-```
+```text
 GET http://localhost:8000/auth/callback?code=4/0A...&state=xyz123
-```
+```text
 
 **Response (200 OK)**
 
@@ -87,7 +87,7 @@ GET http://localhost:8000/auth/callback?code=4/0A...&state=xyz123
   "token_type": "Bearer",
   "expires_in": 3600
 }
-```
+```text
 
 **Response Fields**
 
@@ -126,7 +126,7 @@ curl -X POST http://localhost:8000/auth/refresh \
   -d '{
     "refresh_token": "base64_encoded_refresh_token"
   }'
-```
+```text
 
 **Request Body**
 
@@ -142,7 +142,7 @@ curl -X POST http://localhost:8000/auth/refresh \
   "token_type": "Bearer",
   "expires_in": 3600
 }
-```
+```text
 
 **Response Fields**
 
@@ -174,7 +174,7 @@ const { access_token, expires_in } = await response.json();
 localStorage.setItem('accessToken', access_token);
 // Schedule refresh before expiry
 setTimeout(() => refreshToken(), expires_in * 1000 - 300000);
-```
+```text
 
 ---
 
@@ -190,7 +190,7 @@ curl -X POST http://localhost:8000/auth/logout \
   -d '{
     "refresh_token": "base64_encoded_refresh_token"
   }'
-```
+```text
 
 **Request Body**
 
@@ -221,7 +221,7 @@ curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer access_token_..." \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
-```
+```text
 
 ### Optional Authentication
 
@@ -241,7 +241,7 @@ Access tokens are JWT tokens containing:
   "email": "user@example.com",   // Custom claims from provider
   "name": "User Name"
 }
-```
+```text
 
 ---
 
@@ -260,7 +260,7 @@ All errors follow a consistent format:
     }
   ]
 }
-```
+```text
 
 ### Error Codes
 
@@ -301,7 +301,7 @@ JWT_ALGORITHM=RS256
 
 # Database
 DATABASE_URL=postgres://user:pass@localhost/fraiseql
-```
+```text
 
 ### Configuration File
 
@@ -319,7 +319,7 @@ issuer = "http://localhost:8080/realms/fraiseql"
 client_id_env = "KEYCLOAK_CLIENT_ID"
 client_secret_env = "KEYCLOAK_CLIENT_SECRET"
 redirect_uri = "http://localhost:8000/auth/callback"
-```
+```text
 
 ---
 
@@ -359,7 +359,7 @@ const graphqlResponse = await fetch('/graphql', {
 });
 
 const data = await graphqlResponse.json();
-```
+```text
 
 ### Token Refresh (JavaScript)
 
@@ -384,7 +384,7 @@ async function refreshAccessToken() {
     logout();
   }
 }
-```
+```text
 
 ### Logout (JavaScript)
 
@@ -402,7 +402,7 @@ async function logout() {
   localStorage.removeItem('refreshToken');
   window.location.href = '/';
 }
-```
+```text
 
 ### With Axios
 
@@ -443,7 +443,7 @@ api.interceptors.response.use(
 const user = await api.post('/graphql', {
   query: '{ user { id } }'
 });
-```
+```text
 
 ---
 
@@ -462,7 +462,7 @@ let layer = GovernorLayer {
 };
 
 app = app.layer(layer);
-```
+```text
 
 ---
 

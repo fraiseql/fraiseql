@@ -12,7 +12,7 @@ Complete guide to building collaborative tools (like Google Docs, Figma, Notion)
 
 ## Architecture Overview
 
-```
+```text
 User A (Editor)          User B (Editor)          User C (Viewer)
     │                         │                         │
     └─────────────────────────┼─────────────────────────┘
@@ -35,7 +35,7 @@ User A (Editor)          User B (Editor)          User C (Viewer)
                     │  - Operations     │
                     │  - Changes log    │
                     └───────────────────┘
-```
+```text
 
 ---
 
@@ -126,7 +126,7 @@ CREATE TABLE comments (
   INDEX idx_document_id (document_id),
   INDEX idx_resolved (resolved)
 );
-```
+```text
 
 ---
 
@@ -256,7 +256,7 @@ class Subscription:
     def comments(self, document_id: str) -> Comment:
         """New comments"""
         pass
-```
+```text
 
 ---
 
@@ -299,7 +299,7 @@ class OperationTransform:
                     'position': op2['position'] + len(op1.get('content', ''))
                 }
         return op2
-```
+```text
 
 ---
 
@@ -508,7 +508,7 @@ function renderCursorPosition(presence: any) {
     cursor.style.left = presence.cursorPosition + 'px';
   }
 }
-```
+```text
 
 ---
 
@@ -542,7 +542,7 @@ CREATE TRIGGER document_changes_activity
 AFTER INSERT ON document_changes
 FOR EACH ROW
 EXECUTE FUNCTION log_activity();
-```
+```text
 
 ### Presence Management
 
@@ -567,7 +567,7 @@ useEffect(() => {
     });
   };
 }, [documentId]);
-```
+```text
 
 ---
 
@@ -616,7 +616,7 @@ export function CommentsSidebar({ documentId }: { documentId: string }) {
     </aside>
   );
 }
-```
+```text
 
 ---
 
@@ -653,7 +653,7 @@ def resolve_conflict(op1: dict, op2: dict, user1_id: str, user2_id: str) -> tupl
 
     # Handle other cases...
     return (op1, op2)
-```
+```text
 
 ---
 
@@ -704,7 +704,7 @@ describe('Collaborative Editing', () => {
     expect(reply.parentCommentId).toBe(comment.id);
   });
 });
-```
+```text
 
 ---
 

@@ -27,7 +27,7 @@ Sagas enable **distributed transactions across multiple Apollo Federation subgra
 
 Without sagas, coordinating across subgraphs is difficult:
 
-```
+```text
 User Service (Subgraph 1)
   ├─ create_user()
 
@@ -36,7 +36,7 @@ Payment Service (Subgraph 2)
 
 Order Service (Subgraph 3)
   ├─ create_order()
-```
+```text
 
 If charge_card() fails after create_user() succeeds, the system is inconsistent.
 
@@ -44,7 +44,7 @@ If charge_card() fails after create_user() succeeds, the system is inconsistent.
 
 A saga coordinator ensures all steps succeed together or all roll back together:
 
-```
+```text
 SagaCoordinator (Central)
   ├─ (1) create_user()      ✓ User created
   ├─ (2) charge_card()      ✓ Payment processed
@@ -53,7 +53,7 @@ SagaCoordinator (Central)
   └─ Compensation (reverse order):
      ├─ refund_card()       ✓ Payment refunded
      └─ delete_user()       ✓ User removed
-```
+```text
 
 ---
 
@@ -61,7 +61,7 @@ SagaCoordinator (Central)
 
 ### Components
 
-```
+```text
 ┌──────────────────────────────────────────────────┐
 │          Apollo Router (Gateway)                  │
 │                                                  │
@@ -87,7 +87,7 @@ SagaCoordinator (Central)
     │ -update   │    │             │ │-confirm   │
     └───────────┘    └─────────────┘ └───────────┘
     (PostgreSQL)     (MySQL)         (MongoDB)
-```
+```text
 
 ### Data Flow
 
@@ -134,7 +134,7 @@ mutation StartOrderSaga($userId: ID!, $items: [OrderItem!]!, $paymentInfo: Payme
     }
   }
 }
-```
+```text
 
 **Implementation:**
 
@@ -219,19 +219,19 @@ pub async fn start_order_saga(
 
     coordinator.execute(steps).await
 }
-```
+```text
 
 ### Scenario 2: Parallel Steps Across Subgraphs
 
 **Reducing latency by running independent steps in parallel:**
 
-```
+```text
 Parallel execution:
 ├─ Create user account (Users SG)
 ├─ Initialize payment method (Payments SG)
 ├─ Setup shipping address (Shipping SG)
 └─ Create preferences (Preferences SG)
-```
+```text
 
 ```rust
 pub async fn onboard_customer_saga(
@@ -255,7 +255,7 @@ pub async fn onboard_customer_saga(
         }
     ).await
 }
-```
+```text
 
 ### Scenario 3: Conditional Paths Across Subgraphs
 
@@ -293,7 +293,7 @@ pub async fn process_payment_saga(
 
     coordinator.execute(steps).await
 }
-```
+```text
 
 ---
 
@@ -311,7 +311,7 @@ let order = result.data["createOrder"].clone();
 // Order is immediately readable
 let query = query_user_orders(user_id).await?;
 assert!(query.orders.contains(&order)); // True
-```
+```text
 
 ### Pattern 2: Eventual Consistency
 
@@ -330,7 +330,7 @@ loop {
     }
     sleep(Duration::from_secs(1)).await;
 }
-```
+```text
 
 ### Pattern 3: Multi-Database Consistency
 
@@ -385,7 +385,7 @@ pub async fn multi_db_order_saga(user_id: String) -> Result<SagaResult> {
 
     coordinator.execute(steps).await
 }
-```
+```text
 
 ---
 
@@ -403,7 +403,7 @@ let coordinator = get_saga_coordinator()
 
 // Each step includes trace_id in its mutation
 // All logs/spans can be correlated by trace_id
-```
+```text
 
 ### Saga Metrics
 
@@ -416,7 +416,7 @@ metrics.gauge("saga.duration_ms", duration_ms, tags!("type": "order"));
 metrics.counter("saga.succeeded", tags!("type": "order")).increment();
 metrics.counter("saga.failed", tags!("type": "order")).increment();
 metrics.counter("saga.compensated", tags!("type": "order")).increment();
-```
+```text
 
 ### Dashboards and Alerts
 
@@ -441,7 +441,7 @@ metrics.counter("saga.compensated", tags!("type": "order")).increment();
   for: 5m
   annotations:
     summary: "High saga compensation rate: {{ $value }}"
-```
+```text
 
 ### Logging
 
@@ -464,7 +464,7 @@ info!(
     charge_id = %charge_id,
     "Saga step completed"
 );
-```
+```text
 
 ---
 
@@ -486,7 +486,7 @@ recovery_poll_interval_seconds = 60
 connection_string = "postgres://user:pass@db:5432/fraiseql"
 max_pool_size = 20
 migration_path = "migrations/"
-```
+```text
 
 ### Database Setup
 
@@ -516,7 +516,7 @@ CREATE TABLE saga_steps (
 
 CREATE INDEX idx_sagas_status ON sagas(status);
 CREATE INDEX idx_saga_steps_saga_id ON saga_steps(saga_id);
-```
+```text
 
 ### Health Checks
 
@@ -538,7 +538,7 @@ async fn saga_store_health_check() -> Result<()> {
 
     Ok(())
 }
-```
+```text
 
 ### Monitoring Saga Health
 
@@ -554,7 +554,7 @@ pub async fn saga_health_metrics() -> Result<HealthMetrics> {
         success_rate: store.get_success_rate().await?,
     })
 }
-```
+```text
 
 ---
 
@@ -564,7 +564,7 @@ pub async fn saga_health_metrics() -> Result<HealthMetrics> {
 
 **Scenario:** Order processing across 5 microservices
 
-```
+```text
 Saga Steps:
 
 1. Validate order (Order Service)
@@ -572,7 +572,7 @@ Saga Steps:
 3. Reserve inventory (Inventory Service)
 4. Calculate shipping (Shipping Service)
 5. Create fulfillment (Fulfillment Service)
-```
+```text
 
 **Results:**
 
@@ -584,14 +584,14 @@ Saga Steps:
 
 **Scenario:** Customer signup across 4 services
 
-```
+```text
 Saga Steps:
 
 1. Create account (Auth Service)
 2. Initialize payment method (Billing Service)
 3. Send welcome email (Email Service)
 4. Create default team (Collaboration Service)
-```
+```text
 
 **Results:**
 
@@ -603,7 +603,7 @@ Saga Steps:
 
 **Scenario:** Money transfer across banks
 
-```
+```text
 Saga Steps:
 
 1. Verify sender account (Sender Bank)
@@ -611,7 +611,7 @@ Saga Steps:
 3. Receive funds (Recipient Bank)
 4. Confirm transaction (Transaction Service)
 5. Send notifications (Notification Service)
-```
+```text
 
 **Results:**
 

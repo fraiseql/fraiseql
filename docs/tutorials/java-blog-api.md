@@ -82,13 +82,13 @@ CREATE INDEX idx_posts_slug ON posts(slug);
 CREATE INDEX idx_posts_status ON posts(status);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_author_id ON comments(author_id);
-```
+```text
 
 To apply this schema:
 
 ```bash
 psql -U postgres -d blog_db -f schema.sql
-```
+```text
 
 ---
 
@@ -105,7 +105,7 @@ mvn archetype:generate \
     -DarchetypeArtifactId=maven-archetype-quickstart \
     -DinteractiveMode=false
 cd blog-api
-```
+```text
 
 Replace your `pom.xml` with:
 
@@ -215,7 +215,7 @@ Replace your `pom.xml` with:
         </plugins>
     </build>
 </project>
-```
+```text
 
 ### Gradle Configuration
 
@@ -252,7 +252,7 @@ tasks.register('exportSchema', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.example.schema.SchemaExporter'
 }
-```
+```text
 
 ### IDE Setup
 
@@ -311,7 +311,7 @@ public class User {
     @GraphQLField(name = "updated_at", description = "When the user was last updated")
     public LocalDateTime updatedAt;
 }
-```
+```text
 
 Create `src/main/java/com/example/schema/types/Post.java`:
 
@@ -362,7 +362,7 @@ public class Post {
     @GraphQLField(name = "updated_at", description = "When the post was last updated")
     public LocalDateTime updatedAt;
 }
-```
+```text
 
 Create `src/main/java/com/example/schema/types/Comment.java`:
 
@@ -397,7 +397,7 @@ public class Comment {
     @GraphQLField(name = "updated_at", description = "When the comment was last updated")
     public LocalDateTime updatedAt;
 }
-```
+```text
 
 Create `src/main/java/com/example/schema/types/Tag.java`:
 
@@ -422,7 +422,7 @@ public class Tag {
     @GraphQLField(description = "URL-friendly tag slug")
     public String slug;
 }
-```
+```text
 
 ### Step 2: Define GraphQL Queries
 
@@ -616,7 +616,7 @@ public class SchemaBuilder {
         registerMutations();
     }
 }
-```
+```text
 
 ### Understanding the Builder Pattern
 
@@ -634,7 +634,7 @@ FraiseQL.query("posts")           // Create query named "posts"
 
 // This is equivalent to GraphQL:
 // posts(limit: Int = 20, offset: Int = 0): [Post!]!
-```
+```text
 
 **Key patterns:**
 
@@ -667,7 +667,7 @@ public class Post {
     )
     public String oldEmail;
 }
-```
+```text
 
 **Important patterns:**
 
@@ -698,7 +698,7 @@ public class User {
     @GraphQLField public String email;
     @GraphQLField(nullable = true) public String bio;
 }
-```
+```text
 
 Records are recommended for immutability and less boilerplate.
 
@@ -719,7 +719,7 @@ public String bio;    // GraphQL: bio: String
 public Optional<String> bio() {
     return Optional.ofNullable(this.bio);
 }
-```
+```text
 
 ---
 
@@ -759,7 +759,7 @@ public class SchemaExporter {
         System.out.println("2. Deploy schema.compiled.json to your server");
     }
 }
-```
+```text
 
 ### Run Schema Export
 
@@ -767,13 +767,13 @@ public class SchemaExporter {
 
 ```bash
 mvn exec:java -Dexec.mainClass="com.example.schema.SchemaExporter"
-```
+```text
 
 **With Gradle:**
 
 ```bash
 gradle exportSchema
-```
+```text
 
 This generates `schema.json`:
 
@@ -826,7 +826,7 @@ This generates `schema.json`:
     ...
   ]
 }
-```
+```text
 
 ---
 
@@ -841,13 +841,13 @@ The `schema.json` file is now ready to be compiled by FraiseQL CLI into an optim
 cargo install fraiseql-cli
 
 # Or download binary from: https://github.com/fraiseql/fraiseql/releases
-```
+```text
 
 ### Compile Schema
 
 ```bash
 fraiseql-cli compile schema.json
-```
+```text
 
 This generates `schema.compiled.json` containing:
 
@@ -885,7 +885,7 @@ Add to `pom.xml` to automatically compile during build:
         </execution>
     </executions>
 </plugin>
-```
+```text
 
 ---
 
@@ -1043,7 +1043,7 @@ public class SchemaExportTest {
         return false;
     }
 }
-```
+```text
 
 Run tests:
 
@@ -1053,7 +1053,7 @@ mvn test
 
 # Gradle
 gradle test
-```
+```text
 
 ---
 
@@ -1068,7 +1068,7 @@ FraiseQL.query("posts")
     .arg("limit", "Int", 20)      // Default page size
     .arg("offset", "Int", 0)      // Default offset
     .register();
-```
+```text
 
 In GraphQL queries:
 
@@ -1079,7 +1079,7 @@ query {
     title
   }
 }
-```
+```text
 
 ### Filtering
 
@@ -1091,7 +1091,7 @@ FraiseQL.query("posts")
     .arg("tag", "String", null)             // Filter by tag
     .arg("authorId", "ID", null)            // Filter by author
     .register();
-```
+```text
 
 ### Sorting
 
@@ -1102,7 +1102,7 @@ FraiseQL.query("posts")
     .arg("sortBy", "String", "created_at")  // Sort field
     .arg("sortOrder", "String", "DESC")     // ASC or DESC
     .register();
-```
+```text
 
 ### Relationships
 
@@ -1120,7 +1120,7 @@ public class Post {
     @GraphQLField
     public List<Tag> tags;           // Many-to-many
 }
-```
+```text
 
 ### Java Stream API Integration
 
@@ -1132,7 +1132,7 @@ List<Post> publishedPosts = posts.stream()
     .sorted((a, b) -> b.createdAt.compareTo(a.createdAt))
     .limit(20)
     .collect(Collectors.toList());
-```
+```text
 
 ---
 
@@ -1169,7 +1169,7 @@ public class BlogApiApplication {
         }
     }
 }
-```
+```text
 
 ### Docker Deployment
 
@@ -1187,14 +1187,14 @@ COPY --from=builder /app/target/blog-api-*.jar app.jar
 COPY schema.compiled.json schema.compiled.json
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
-```
+```text
 
 Build and run:
 
 ```bash
 docker build -t blog-api:1.0 .
 docker run -p 8080:8080 blog-api:1.0
-```
+```text
 
 ### JAR Deployment
 
@@ -1202,13 +1202,13 @@ Build:
 
 ```bash
 mvn clean package
-```
+```text
 
 Run:
 
 ```bash
 java -jar target/blog-api-1.0.0.jar
-```
+```text
 
 ---
 
@@ -1232,7 +1232,7 @@ public class PostResolver {
         return service.findPublished(limit, offset);
     }
 }
-```
+```text
 
 ### 2. Building REST Endpoints
 
@@ -1262,7 +1262,7 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
     <artifactId>fraiseql-java</artifactId>
     <version>2.0.0</version>
 </dependency>
-```
+```text
 
 ### Type Mismatch Issues
 
@@ -1284,7 +1284,7 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 
 ```bash
 cargo install fraiseql-cli
-```
+```text
 
 Or ensure it's in your system PATH.
 
@@ -1296,7 +1296,7 @@ Or ensure it's in your system PATH.
 
 ```bash
 chmod 755 /path/to/schema/output
-```
+```text
 
 ---
 
@@ -1304,7 +1304,7 @@ chmod 755 /path/to/schema/output
 
 ### Project Structure
 
-```
+```text
 blog-api/
 ├── pom.xml
 ├── src/
@@ -1324,7 +1324,7 @@ blog-api/
 ├── schema.json (generated)
 ├── schema.compiled.json (generated)
 └── Dockerfile
-```
+```text
 
 ### Key Commands
 
@@ -1344,7 +1344,7 @@ mvn clean package
 # Deploy with Docker
 docker build -t blog-api:1.0 .
 docker run -p 8080:8080 blog-api:1.0
-```
+```text
 
 ### Key Takeaways
 

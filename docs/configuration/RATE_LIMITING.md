@@ -63,7 +63,7 @@ burst_size = 500
 
 # Cleanup interval for stale entries (seconds)
 cleanup_interval_secs = 300
-```
+```text
 
 ### Default Values
 
@@ -126,7 +126,7 @@ trusted_proxies = [
     "203.0.113.0/24",      # CDN egress IPs
     "203.0.113.5/32",      # Specific trusted reverse proxy
 ]
-```
+```text
 
 ### Best Practices
 
@@ -139,11 +139,11 @@ trusted_proxies = [
 
 When a request is accepted, FraiseQL includes rate limit information in HTTP response headers:
 
-```
+```text
 X-RateLimit-Limit: 100          # Maximum requests per second
 X-RateLimit-Remaining: 45       # Remaining requests in current window
 Retry-After: 60                 # Seconds to wait before retrying (when limited)
-```
+```text
 
 Example client handling:
 
@@ -162,7 +162,7 @@ def graphql_request(url, query):
             continue
 
         return response.json()
-```
+```text
 
 ## Token Bucket Algorithm
 
@@ -179,12 +179,12 @@ The implementation uses a token bucket algorithm:
 
 With `rps_per_ip=100` and `burst_size=500`:
 
-```
+```text
 Initial: [████████████████████] 500 tokens
 After 1 request: [███████████████████] 499 tokens
 After 100 requests: [████] 400 tokens
 1 second later: [██████] 500 tokens (refilled)
-```
+```text
 
 ## Disabling Rate Limiting
 
@@ -193,7 +193,7 @@ To disable rate limiting (not recommended for production):
 ```toml
 [rate_limit]
 enabled = false
-```
+```text
 
 Rate limiting can also be disabled at runtime by setting `enabled=false` in the configuration before server startup.
 
@@ -207,13 +207,13 @@ debug!(ip = "192.168.1.100", "Rate limit exceeded for IP");
 
 // Warn level logs user limit violations
 warn!(user_id = "user123", "Rate limit exceeded for user");
-```
+```text
 
 Enable debug logging to see rate limit activity:
 
 ```bash
 RUST_LOG=fraiseql_server::middleware::rate_limit=debug
-```
+```text
 
 ## Security Considerations
 
@@ -238,7 +238,7 @@ for i in {1..110}; do
          -H "Content-Type: application/json"
     echo "Request $i"
 done
-```
+```text
 
 The 101st+ requests should return HTTP 429 (Too Many Requests).
 

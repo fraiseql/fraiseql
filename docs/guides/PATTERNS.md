@@ -111,7 +111,7 @@ Implement a complete authentication flow: register → login → validate token 
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -249,7 +249,7 @@ fn validate_token(token: &str) -> Result<String> {
         path: None,
     })
 }
-```
+```text
 
 ### Usage
 
@@ -293,7 +293,7 @@ query {
     email
   }
 }
-```
+```text
 
 ### Trade-offs & Security
 
@@ -368,7 +368,7 @@ Implement cursor-based pagination for efficient data retrieval.
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -478,7 +478,7 @@ fn decode_cursor(cursor: &str) -> Result<i32> {
             path: Some("after".to_string()),
         })
 }
-```
+```text
 
 ### Usage
 
@@ -514,7 +514,7 @@ query GetNextPage {
     }
   }
 }
-```
+```text
 
 ### Performance Characteristics
 
@@ -569,7 +569,7 @@ Implement multiple filter types and combine them efficiently.
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -626,7 +626,7 @@ pub async fn get_users(
 
     db.query_raw(&query, &params).await
 }
-```
+```text
 
 ### Usage
 
@@ -663,7 +663,7 @@ query {
     email
   }
 }
-```
+```text
 
 ### Full-Text Search Performance
 
@@ -672,7 +672,7 @@ query {
 CREATE INDEX idx_users_name_search ON users USING GIN (
   to_tsvector('english', name || ' ' || email)
 );
-```
+```text
 
 With index:
 
@@ -713,7 +713,7 @@ Implement subscriptions using WebSocket protocol.
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -786,7 +786,7 @@ pub async fn update_user_and_notify(
 
     Ok(user)
 }
-```
+```text
 
 ### Usage
 
@@ -809,7 +809,7 @@ subscription {
     updatedAt
   }
 }
-```
+```text
 
 ### Scaling Subscriptions
 
@@ -820,7 +820,7 @@ let publisher = RedisPublisher::new(
     redis_client,
     "fraiseql:events"
 ).await?;
-```
+```text
 
 ---
 
@@ -860,7 +860,7 @@ Implement file upload handling with S3 storage.
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -914,7 +914,7 @@ pub async fn upload_user_avatar(
 
     Ok(user)
 }
-```
+```text
 
 ### Client Usage
 
@@ -926,7 +926,7 @@ mutation UploadAvatar($userId: ID!, $file: Upload!) {
     avatarUrl
   }
 }
-```
+```text
 
 JavaScript client:
 
@@ -949,7 +949,7 @@ fetch('/graphql', {
   method: 'POST',
   body: formData
 });
-```
+```text
 
 ---
 
@@ -999,7 +999,7 @@ Implement multi-layer caching strategy.
     }
   ]
 }
-```
+```text
 
 ### Implementation
 
@@ -1104,7 +1104,7 @@ pub async fn update_user(
 
     Ok(user)
 }
-```
+```text
 
 ### Caching Strategy
 
@@ -1128,7 +1128,7 @@ pub async fn update_user(
 
 ### Performance Impact
 
-```
+```text
 Without cache:
 
 - Query time: 50ms
@@ -1145,7 +1145,7 @@ With L1+L2 cache (80% hit rate):
 - Query time: 10ms (average)
 - Database load: 20 queries/sec
 - Reduction: 80%
-```
+```text
 
 ---
 

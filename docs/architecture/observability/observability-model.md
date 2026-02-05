@@ -26,7 +26,7 @@ All observability data includes **rich context** (user ID, query plan, authoriza
 
 FraiseQL produces metrics across five dimensions:
 
-```
+```text
 ┌─────────────────────────┐
 │ Operation Metrics       │ Queries/second, mutations/second, subscriptions active
 ├─────────────────────────┤
@@ -38,13 +38,13 @@ FraiseQL produces metrics across five dimensions:
 ├─────────────────────────┤
 │ Business Metrics        │ Custom defined by application (user signups, revenue)
 └─────────────────────────┘
-```
+```text
 
 ### 1.2 Core Metrics (Always Available)
 
 **1.2.1 Query Metrics**
 
-```
+```text
 fraiseql_query_requests_total
   {
     operation_name="GetUserPosts",
@@ -80,11 +80,11 @@ fraiseql_query_rows_returned
     operation_name="GetUserPosts"
   }
   1500  # Average rows per query
-```
+```text
 
 **1.2.2 Mutation Metrics**
 
-```
+```text
 fraiseql_mutation_requests_total
   {
     operation_name="CreatePost",
@@ -111,11 +111,11 @@ fraiseql_mutation_deadlock_retries
     operation_name="UpdatePost"
   }
   12  # 12 deadlock retries in this window
-```
+```text
 
 **1.2.3 Subscription Metrics**
 
-```
+```text
 fraiseql_subscriptions_active
   {
     subscription_name="OnPostCreated",
@@ -142,11 +142,11 @@ fraiseql_subscription_buffer_utilization
     subscription_name="OnPostCreated"
   }
   0.45  # 45% of buffer used (1000 event capacity)
-```
+```text
 
 **1.2.4 Authorization Metrics**
 
-```
+```text
 fraiseql_authorization_checks_total
   {
     result="allowed",    # allowed, denied
@@ -167,11 +167,11 @@ fraiseql_authorization_denials
     rule_type="admin_only"
   }
   15  # 15 denials this window
-```
+```text
 
 **1.2.5 Cache Metrics**
 
-```
+```text
 fraiseql_cache_requests_total
   {
     result="hit",    # hit, miss, expire
@@ -195,11 +195,11 @@ fraiseql_cache_size_bytes
 fraiseql_cache_ttl_max_seconds
   {}
   300  # Max TTL 5 minutes
-```
+```text
 
 **1.2.6 Database Connection Metrics**
 
-```
+```text
 fraiseql_db_connections_active
   {
     database="postgresql",
@@ -226,11 +226,11 @@ fraiseql_db_indexes_used
     index="idx_post_published"
   }
   1  # Index was used (1 = yes)
-```
+```text
 
 **1.2.7 Error Metrics**
 
-```
+```text
 fraiseql_errors_total
   {
     error_code="E_DB_QUERY_TIMEOUT_302",
@@ -251,7 +251,7 @@ fraiseql_errors_total
     category="VALIDATION_ERROR"
   }
   80   # 80 input validation errors
-```
+```text
 
 ### 1.3 Custom Metrics (Application-Defined)
 
@@ -289,11 +289,11 @@ def custom_metric_handler():
         name="pending_orders",
         value=count_pending_orders()
     )
-```
+```text
 
 **Custom metric example:**
 
-```
+```text
 fraiseql_custom_user_created
   {}
   1250  # 1250 users created
@@ -303,13 +303,13 @@ fraiseql_custom_order_revenue
     currency="USD"
   }
   450000.50  # $450K in orders
-```
+```text
 
 ### 1.4 Metric Export Formats
 
 **Prometheus format (default):**
 
-```
+```text
 # HELP fraiseql_query_requests_total Total queries executed
 # TYPE fraiseql_query_requests_total counter
 fraiseql_query_requests_total{operation_name="GetUserPosts",status="success"} 5000
@@ -322,7 +322,7 @@ fraiseql_query_duration_seconds_bucket{operation_name="GetUserPosts",le="0.1"} 4
 fraiseql_query_duration_seconds_bucket{operation_name="GetUserPosts",le="+Inf"} 5000
 fraiseql_query_duration_seconds_sum{operation_name="GetUserPosts"} 225
 fraiseql_query_duration_seconds_count{operation_name="GetUserPosts"} 5000
-```
+```text
 
 **JSON export:**
 
@@ -340,7 +340,7 @@ fraiseql_query_duration_seconds_count{operation_name="GetUserPosts"} 5000
     }
   ]
 }
-```
+```text
 
 **CloudWatch format (AWS):**
 
@@ -357,7 +357,7 @@ fraiseql_query_duration_seconds_count{operation_name="GetUserPosts"} 5000
     }
   ]
 }
-```
+```text
 
 ### 1.5 Metric Aggregation & Queries
 
@@ -378,7 +378,7 @@ histogram_quantile(0.99, rate(fraiseql_query_duration_seconds_bucket[5m]))
 
 # Top queries by latency
 topk(5, rate(fraiseql_query_duration_seconds_sum[5m]) / rate(fraiseql_query_duration_seconds_count[5m]))
-```
+```text
 
 ---
 
@@ -439,7 +439,7 @@ All logs are structured JSON with consistent schema:
     "environment": "production"
   }
 }
-```
+```text
 
 ### 2.3 Query Execution Logs
 
@@ -459,7 +459,7 @@ All logs are structured JSON with consistent schema:
     "limit": 20
   }
 }
-```
+```text
 
 **Query completion (INFO):**
 
@@ -484,7 +484,7 @@ All logs are structured JSON with consistent schema:
     "ttl_seconds": 300
   }
 }
-```
+```text
 
 **Query timeout (ERROR):**
 
@@ -505,7 +505,7 @@ All logs are structured JSON with consistent schema:
     "retryable": true
   }
 }
-```
+```text
 
 ### 2.4 Mutation Execution Logs
 
@@ -525,7 +525,7 @@ All logs are structured JSON with consistent schema:
     "content": "Content preview..."
   }
 }
-```
+```text
 
 **Mutation committed (INFO):**
 
@@ -549,7 +549,7 @@ All logs are structured JSON with consistent schema:
     "subscribers": 127
   }
 }
-```
+```text
 
 **Mutation rolled back (ERROR):**
 
@@ -570,7 +570,7 @@ All logs are structured JSON with consistent schema:
     "retryable": false
   }
 }
-```
+```text
 
 ### 2.5 Authorization Logs
 
@@ -590,7 +590,7 @@ All logs are structured JSON with consistent schema:
     "duration_ms": 1
   }
 }
-```
+```text
 
 **Authorization denied (WARN):**
 
@@ -609,7 +609,7 @@ All logs are structured JSON with consistent schema:
     "duration_ms": 2
   }
 }
-```
+```text
 
 ### 2.6 Error Logs
 
@@ -631,7 +631,7 @@ All logs are structured JSON with consistent schema:
     ]
   }
 }
-```
+```text
 
 ### 2.7 Log Filtering & Sampling
 
@@ -646,7 +646,7 @@ fraiseql.logging.configure({
         "always_sample_errors": True  # Always log errors
     }
 })
-```
+```text
 
 **Dynamic log levels:**
 
@@ -660,7 +660,7 @@ curl -X POST http://localhost:8000/admin/logging \
 
 # Result: fraiseql.query logs now at DEBUG level
 # Reverts after 1 hour or on restart
-```
+```text
 
 ---
 
@@ -677,11 +677,11 @@ Every request includes **trace context** for distributed tracing:
   "parent_span_id": "00f067aa0ba902b7",
   "trace_flags": "01"  // Sampled
 }
-```
+```text
 
 **Context propagation:**
 
-```
+```text
 Client Request
   ↓ (contains trace_id)
 FraiseQL API
@@ -691,33 +691,33 @@ FraiseQL API
   │  │  └─ Includes trace_id in database driver
   │  └─ Creates span: "response.transform"
   └─ Returns response with trace_id
-```
+```text
 
 ### 3.2 W3C Trace Context Headers
 
 FraiseQL uses W3C standard for trace propagation:
 
-```
+```text
 HTTP Request:
 traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 tracestate: congo=t61rcWpm35YzTP60
-```
+```text
 
 **Header format:**
 
-```
+```text
 traceparent: version-trace_id-parent_span_id-trace_flags
 00         = version 0 (W3C spec v1)
 4bf92...   = trace ID (16 bytes hex)
 00f067...  = parent span ID (8 bytes hex)
 01         = trace flags (01 = sampled)
-```
+```text
 
 ### 3.3 Span Hierarchy
 
 Every query generates trace spans:
 
-```
+```text
 Span: query.execution (root)
 ├─ start: 2026-01-15T10:30:45.000Z
 ├─ end: 2026-01-15T10:30:45.045Z
@@ -759,7 +759,7 @@ Span: query.execution (root)
    └─ attributes:
       ├─ format: "json"
       └─ size_bytes: 5120
-```
+```text
 
 ### 3.4 Span Attributes (Events)
 
@@ -785,7 +785,7 @@ Each span records attributes about the operation:
     }
   ]
 }
-```
+```text
 
 ### 3.5 Sampling Strategy
 
@@ -800,7 +800,7 @@ if error_rate > 0.01 {  // If >1% error rate
 if error_rate > 0.05 {  // If >5% error rate
     sampling_rate = 1.0;   // Sample 100% (full debugging)
 }
-```
+```text
 
 **Request context sampling:**
 
@@ -820,7 +820,7 @@ elif user.prefer_full_tracing:
 # Default: Sample 1%
 else:
     trace.sample_rate = 0.01
-```
+```text
 
 ### 3.6 Trace Export
 
@@ -851,7 +851,7 @@ else:
     }
   ]
 }
-```
+```text
 
 **OpenTelemetry format:**
 
@@ -881,7 +881,7 @@ else:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -948,7 +948,7 @@ groups:
         annotations:
           summary: "Database queries timing out"
           remediation: "Optimize slow queries or increase timeout"
-```
+```text
 
 ### 4.2 Custom Alerts
 
@@ -972,7 +972,7 @@ def slow_query_detection(context):
         "for": "5m",
         "message": f"Query {context.operation.name} taking {context.operation.duration_ms}ms"
     }
-```
+```text
 
 ### 4.3 Alert Routing & Notification
 
@@ -1006,7 +1006,7 @@ receivers:
   - name: email
     email_configs:
       - to: alerts@company.com
-```
+```text
 
 ---
 
@@ -1042,7 +1042,7 @@ GET /health
   "uptime_seconds": 86400,
   "start_time": "2026-01-14T10:30:45Z"
 }
-```
+```text
 
 ### 5.2 Kubernetes Probes
 
@@ -1073,7 +1073,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 2
           failureThreshold: 2
-```
+```text
 
 ---
 
@@ -1096,7 +1096,7 @@ GET /debug/pprof/goroutine
 # Download as pprof format
 curl http://localhost:8000/debug/pprof/profile > cpu.prof
 go tool pprof cpu.prof
-```
+```text
 
 ### 6.2 Query Execution Plan Analysis
 
@@ -1119,7 +1119,7 @@ Response:
   },
   "recommendation": "Query is well-optimized"
 }
-```
+```text
 
 ### 6.3 Slow Query Log
 
@@ -1140,7 +1140,7 @@ Response:
     "suggestion": "Add WHERE clause to filter by email first"
   }
 }
-```
+```text
 
 ---
 
@@ -1192,7 +1192,7 @@ fraiseql.observability.configure({
         "memory_sample_rate": 0.1,
     },
 })
-```
+```text
 
 ### 7.2 Environment Variables
 
@@ -1218,7 +1218,7 @@ DD_AGENT_PORT=8125
 FRAISEQL_TRACE_EXPORTER=jaeger
 JAEGER_AGENT_HOST=localhost
 JAEGER_AGENT_PORT=6831
-```
+```text
 
 ---
 
@@ -1226,7 +1226,7 @@ JAEGER_AGENT_PORT=6831
 
 ### 8.1 Grafana Dashboard: Query Performance
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │ FraiseQL Query Performance Dashboard                      │
 ├──────────────────────────────────────────────────────────┤
@@ -1250,11 +1250,11 @@ JAEGER_AGENT_PORT=6831
 │  └─ Other: 5%               Utilization: 86%              │
 │                                                            │
 └──────────────────────────────────────────────────────────┘
-```
+```text
 
 ### 8.2 Grafana Dashboard: System Health
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │ FraiseQL System Health Dashboard                          │
 ├──────────────────────────────────────────────────────────┤
@@ -1273,7 +1273,7 @@ JAEGER_AGENT_PORT=6831
 │  │ custom_rule: 8.2ms       Hit Rate: 87%                │
 │                                                            │
 └──────────────────────────────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -1285,7 +1285,7 @@ JAEGER_AGENT_PORT=6831
 
 **Solution:**
 
-```
+```text
 
 1. Check trace span: query.execution (5000ms)
    ├─ validation: 2ms ✓ Fast
@@ -1304,7 +1304,7 @@ JAEGER_AGENT_PORT=6831
    CREATE INDEX idx_user_status ON tb_user(status);
 
 4. After fix: Trace shows 35ms total (100x faster!)
-```
+```text
 
 ### 9.2 Using Logs to Debug Authorization
 
@@ -1312,7 +1312,7 @@ JAEGER_AGENT_PORT=6831
 
 **Solution:**
 
-```
+```text
 
 1. Find error log:
    "Authorization check failed"
@@ -1330,7 +1330,7 @@ JAEGER_AGENT_PORT=6831
 
 4. Conclusion: User denied correctly
    Recommendation: User must be owner or admin
-```
+```text
 
 ---
 

@@ -31,13 +31,13 @@ Sagas break a long-running business transaction into a series of **steps**:
 
 When a customer places an order, multiple services might be involved:
 
-```
+```text
 
 1. Debit customer's account (Payment Service)
 2. Reserve inventory (Inventory Service)
 3. Schedule delivery (Shipping Service)
 4. Update order status (Order Service)
-```
+```text
 
 If step 3 fails (no delivery available), a saga automatically:
 
@@ -91,7 +91,7 @@ The **saga coordinator** orchestrates the execution of all steps in a saga. It:
 // The coordinator manages the entire saga lifecycle
 let coordinator = SagaCoordinator::new(metadata, store);
 let saga = coordinator.execute(steps).await?;
-```
+```text
 
 ### Saga Steps
 
@@ -102,7 +102,7 @@ SagaStep {
     forward: Mutation,        // Do the operation
     compensation: Mutation,   // Undo the operation
 }
-```
+```text
 
 **Forward Step Example**: Charge customer's credit card
 **Compensation Step Example**: Refund the charge
@@ -202,7 +202,7 @@ pub async fn create_order_saga(
     let result = coordinator.execute(steps).await?;
     Ok(result.data["createOrder"].clone())
 }
-```
+```text
 
 ### Step 2: Configure the Saga Store
 
@@ -211,7 +211,7 @@ In `Cargo.toml`:
 ```toml
 [dependencies]
 fraiseql-core = { version = "2.0", features = ["saga-postgres"] }
-```
+```text
 
 In your application setup:
 
@@ -224,7 +224,7 @@ let saga_store = PostgresSagaStore::new(
         migration_path: "migrations/",
     }
 ).await?;
-```
+```text
 
 ### Step 3: Call Your Saga
 
@@ -247,7 +247,7 @@ async fn main() -> Result<()> {
     println!("Order created: {:?}", order);
     Ok(())
 }
-```
+```text
 
 ---
 
@@ -271,7 +271,7 @@ async fn test_saga_success_path() {
     assert_eq!(saga_state.status, SagaStatus::Completed);
     assert_eq!(saga_state.completed_steps, 3);
 }
-```
+```text
 
 ### Integration Test: Failure and Compensation
 
@@ -293,7 +293,7 @@ async fn test_saga_compensation_on_failure() {
     assert_eq!(compensation_logs.len(), 1);
     assert_eq!(compensation_logs[0].step_index, 1); // Step 1 was compensated
 }
-```
+```text
 
 ### Chaos Testing: Network Failures
 
@@ -314,7 +314,7 @@ async fn test_saga_recovery_after_network_failure() {
     // Assert: Saga recovered and succeeded
     assert!(result.is_ok());
 }
-```
+```text
 
 ---
 
@@ -332,10 +332,10 @@ The saga waits for each step to complete before moving to the next.
 
 **Example:**
 
-```
+```text
 User places order → Payment processed → Inventory reserved → Response sent
                     (wait)              (wait)
-```
+```text
 
 ### Pattern 2: Fire-and-Forget (Asynchronous)
 
@@ -353,7 +353,7 @@ The saga coordinator returns immediately; steps execute in the background.
 let saga_id = coordinator.execute_async(steps).await?;
 // Return saga_id to user immediately
 // User can check status later with saga_id
-```
+```text
 
 ### Pattern 3: Choreography (Event-Driven)
 
@@ -389,7 +389,7 @@ Services listen for events and trigger actions independently (no central coordin
 // Add timeouts
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_timeout(Duration::from_secs(30));
-```
+```text
 
 ### Problem: Duplicate Mutations
 
@@ -414,7 +414,7 @@ let step = SagaStep {
     },
     ...
 };
-```
+```text
 
 ### Problem: Compensation Never Runs
 
@@ -438,7 +438,7 @@ for log in logs {
         println!("Failed compensation: {:?}", log.error);
     }
 }
-```
+```text
 
 ### Problem: Recovery Not Working
 
@@ -461,7 +461,7 @@ assert!(saga.is_some(), "Saga should be persisted");
 
 // Trigger manual recovery if needed
 coordinator.recover_failed_sagas().await?;
-```
+```text
 
 ---
 

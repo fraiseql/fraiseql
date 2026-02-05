@@ -10,11 +10,11 @@ This document specifies the GraphQL API provided by the FraiseQL HTTP server. Th
 
 All GraphQL operations use **POST** to `/graphql` endpoint.
 
-```
+```text
 POST /graphql HTTP/1.1
 Host: api.example.com
 Content-Type: application/json
-```
+```text
 
 ### Request Body
 
@@ -26,7 +26,7 @@ Content-Type: application/json
   },
   "operationName": "GetUser"
 }
-```
+```text
 
 **Fields:**
 
@@ -59,7 +59,7 @@ Validation errors return HTTP 400 with error details.
     }
   }
 }
-```
+```text
 
 **Fields:**
 
@@ -89,7 +89,7 @@ Validation errors return HTTP 400 with error details.
     }
   ]
 }
-```
+```text
 
 ### Partial Success Response
 
@@ -110,7 +110,7 @@ Validation errors return HTTP 400 with error details.
     }
   ]
 }
-```
+```text
 
 **Note**: When errors occur for nullable fields, `data` is still returned with null for error fields.
 
@@ -126,7 +126,7 @@ query {
     email
   }
 }
-```
+```text
 
 ### Query with Arguments
 
@@ -138,7 +138,7 @@ query {
     email
   }
 }
-```
+```text
 
 ### Query with Variables
 
@@ -150,7 +150,7 @@ query GetUser($userId: ID!) {
     email
   }
 }
-```
+```text
 
 **Variables**:
 
@@ -158,7 +158,7 @@ query GetUser($userId: ID!) {
 {
   "userId": "123"
 }
-```
+```text
 
 ### Query with Aliases
 
@@ -173,7 +173,7 @@ query {
     name
   }
 }
-```
+```text
 
 ### Query with Fragments
 
@@ -193,7 +193,7 @@ fragment userFields on User {
     avatar
   }
 }
-```
+```text
 
 ### Nested Queries
 
@@ -213,7 +213,7 @@ query {
     }
   }
 }
-```
+```text
 
 ## Data Types
 
@@ -249,7 +249,7 @@ tags: [String]
 
 # Required list of required strings
 tags: [String!]!
-```
+```text
 
 ## Mutations
 
@@ -265,7 +265,7 @@ mutation {
     email
   }
 }
-```
+```text
 
 ### Mutation with Input Variables
 
@@ -277,7 +277,7 @@ mutation CreateUser($input: CreateUserInput!) {
     email
   }
 }
-```
+```text
 
 **Variables**:
 
@@ -288,7 +288,7 @@ mutation CreateUser($input: CreateUserInput!) {
     "email": "jane@example.com"
   }
 }
-```
+```text
 
 ### Multiple Mutations
 
@@ -301,7 +301,7 @@ mutation {
     id
   }
 }
-```
+```text
 
 ## Error Handling
 
@@ -318,7 +318,7 @@ Occur before execution (query syntax, depth, complexity, variables).
     }
   ]
 }
-```
+```text
 
 HTTP Status: **400 Bad Request**
 
@@ -335,7 +335,7 @@ Occur when query syntax is invalid.
     }
   ]
 }
-```
+```text
 
 HTTP Status: **400 Bad Request**
 
@@ -356,7 +356,7 @@ Occur during query execution (field resolution, database errors).
     }
   ]
 }
-```
+```text
 
 HTTP Status: **200 OK** (even with errors in data)
 
@@ -371,7 +371,7 @@ HTTP Status: **200 OK** (even with errors in data)
     }
   ]
 }
-```
+```text
 
 HTTP Status: **500 Internal Server Error**
 
@@ -397,7 +397,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Specific Type Introspection
 
@@ -419,7 +419,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Available Fields
 
@@ -454,7 +454,7 @@ query {
     name
   }
 }
-```
+```text
 
 ✅ **Good** (variables):
 
@@ -464,7 +464,7 @@ query GetUser($id: ID!) {
     name
   }
 }
-```
+```text
 
 **Why**: Security (prevents injection), reusability, caching.
 
@@ -484,7 +484,7 @@ query {
     salaryHistory
   }
 }
-```
+```text
 
 ✅ **Good** (exact fields):
 
@@ -496,7 +496,7 @@ query {
     email
   }
 }
-```
+```text
 
 **Why**: Reduces bandwidth, faster execution, security.
 
@@ -517,7 +517,7 @@ query {
     email
   }
 }
-```
+```text
 
 ✅ **Good** (fragments):
 
@@ -536,7 +536,7 @@ fragment userFields on User {
   name
   email
 }
-```
+```text
 
 ### 4. Handle Nullable Fields
 
@@ -549,7 +549,7 @@ query {
     phone        # Could be null
   }
 }
-```
+```text
 
 Always check for null in client code:
 
@@ -560,7 +560,7 @@ if (user.email) {
 } else {
   // Handle missing email
 }
-```
+```text
 
 ### 5. Understand Rate Limits
 
@@ -592,7 +592,7 @@ query($id: ID!) {
     ...
   }
 }
-```
+```text
 
 **Why**: Better logging, easier debugging, improved monitoring.
 
@@ -602,11 +602,11 @@ query($id: ID!) {
 
 ❌ **Inefficient** (3 requests):
 
-```
+```text
 POST /graphql { query: GetUser($id: "1") ... }
 POST /graphql { query: GetUser($id: "2") ... }
 POST /graphql { query: GetUser($id: "3") ... }
-```
+```text
 
 ✅ **Efficient** (1 request):
 
@@ -616,7 +616,7 @@ query {
   user2: user(id: "2") { ... }
   user3: user(id: "3") { ... }
 }
-```
+```text
 
 ### 2. Use Pagination
 
@@ -636,7 +636,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### 3. Cache Queries
 
@@ -655,7 +655,7 @@ const GET_USER_PROFILE = `
 
 // Reuse across requests
 execute({ query: GET_USER_PROFILE, variables: { id } });
-```
+```text
 
 ### 4. Monitor Query Complexity
 

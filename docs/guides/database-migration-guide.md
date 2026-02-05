@@ -60,7 +60,7 @@ This guide covers migrating from:
 - DevOps Lead: [Name]
 - QA Lead: [Name]
 - Database Admin: [Name]
-```
+```text
 
 ### 3. Audit Current Schema
 
@@ -78,7 +78,7 @@ sqlite3 $DATABASE ".schema" > schema.sql
 
 # SQL Server
 sqlcmd -S $SERVER -d $DATABASE -i "schema.sql" -x
-```
+```text
 
 ---
 
@@ -100,15 +100,15 @@ SHOW TABLES;
 
 # SQL Server: List all tables
 SELECT name FROM sys.tables;
-```
+```text
 
 **Output format:**
 
-```
+```text
 TABLE_NAME | COLUMNS | ROWS | SIZE | INDEXES | PK | NOTES
 users      | 12      | 2M   | 500MB | 3      | id | Active users table
 posts      | 8       | 10M  | 2GB   | 4      | id | Need tv_* materialization
-```
+```text
 
 ### Step 1.2: Identify Access Patterns
 
@@ -123,7 +123,7 @@ ORDER BY calls DESC LIMIT 20;
 SELECT query, mean_time FROM pg_stat_statements
 WHERE mean_time > 100
 ORDER BY mean_time DESC LIMIT 20;
-```
+```text
 
 **Use this to decide:**
 
@@ -135,7 +135,7 @@ ORDER BY mean_time DESC LIMIT 20;
 
 **Create relationship diagram:**
 
-```
+```text
 Users (id, name, email)
   ├─ 1:M → Posts (id, user_id, content)
   │          ├─ 1:M → Comments (id, post_id, text)
@@ -146,7 +146,7 @@ Users (id, name, email)
 Organizations (id, name)
   ├─ 1:M → Users
   └─ 1:M → Teams
-```
+```text
 
 ---
 
@@ -184,7 +184,7 @@ class Organization:
     id: str
     name: str
     created_at: datetime
-```
+```text
 
 ### Step 2.2: Add Relationships
 
@@ -219,7 +219,7 @@ class Organization:
     created_at: datetime
     # NEW: Relationships
     users: List[User]  # 1:M reverse
-```
+```text
 
 ### Step 2.3: Add Row-Level Security
 
@@ -251,7 +251,7 @@ class Comment:
     id: str
     post_id: str
     content: str
-```
+```text
 
 ### Step 2.4: Add Authorization
 
@@ -271,7 +271,7 @@ class User:
     password_hash: str = field(
         authorize=set()  # Never readable
     )
-```
+```text
 
 ### Step 2.5: Optimize with Views
 
@@ -304,7 +304,7 @@ LEFT JOIN (
     GROUP BY post_id
 ) l ON p.id = l.post_id
 GROUP BY u.id;
-```
+```text
 
 ---
 
@@ -323,7 +323,7 @@ mysqldump $PROD_DATABASE | mysql $STAGING_DATABASE
 
 # SQLite
 cp $PROD_DATABASE $STAGING_DATABASE
-```
+```text
 
 ### Step 3.2: Compile FraiseQL Schema
 
@@ -336,7 +336,7 @@ fraiseql compile schema.py --config fraiseql.toml
 
 # Verify compilation
 ls -la schema.compiled.json
-```
+```text
 
 ### Step 3.3: Start FraiseQL Server
 
@@ -348,7 +348,7 @@ FRAISEQL_DATABASE_URL=postgresql://staging_db fraiseql serve
 curl -X POST http://localhost:5000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users { id name } }"}'
-```
+```text
 
 ### Step 3.4: Query Compatibility Testing
 
@@ -371,7 +371,7 @@ query {
 
 # Should return same data in FraiseQL
 # Verify: Response structure, field names, values, types
-```
+```text
 
 **Test harness:**
 
@@ -396,7 +396,7 @@ for query in queries:
     assert old_result["data"] == new_result["data"], f"Query mismatch: {query}"
 
 print("✅ All queries compatible!")
-```
+```text
 
 ### Step 3.5: Performance Baseline
 
@@ -416,7 +416,7 @@ wrk -t4 -c100 -d60s \
   http://localhost:5000/graphql
 
 # Compare: Should be similar or faster
-```
+```text
 
 ---
 
@@ -447,7 +447,7 @@ server {
         proxy_pass http://old_server;
     }
 }
-```
+```text
 
 **Monitor:**
 
@@ -464,7 +464,7 @@ if ($random < 0.5) {
     proxy_pass http://new_server;
 }
 proxy_pass http://old_server;
-```
+```text
 
 **Monitor:**
 
@@ -477,7 +477,7 @@ proxy_pass http://old_server;
 ```nginx
 # 100% to FraiseQL
 proxy_pass http://new_server;
-```
+```text
 
 **Post-cutover monitoring:**
 
@@ -505,7 +505,7 @@ for i in {1..1000}; do
   curl http://localhost:5000/graphql &
 done
 wait
-```
+```text
 
 ### Step 5.2: Monitoring Setup
 
@@ -522,7 +522,7 @@ fraiseql_db_connections{state="active"}
 error_rate > 1%
 response_latency_p95 > 500ms
 db_connection_exhaustion > 80%
-```
+```text
 
 ### Step 5.3: Rollback Plan
 
@@ -538,7 +538,7 @@ db_connection_exhaustion > 80%
 # Emergency rollback (1 minute RTO)
 nginx -s reload  # Change configuration
 # Verify: Traffic going to old server
-```
+```text
 
 ---
 
@@ -611,7 +611,7 @@ class Product:
 @type
 class Product:
     price: Decimal  # ✅ Always use Decimal for money
-```
+```text
 
 ### Issue: Relationship Not Loading
 
@@ -630,7 +630,7 @@ class Post:
 
 # Verify in database
 SELECT COUNT(*) FROM posts WHERE user_id IS NULL;
-```
+```text
 
 ### Issue: Authorization Denying All Queries
 
@@ -647,7 +647,7 @@ class Post:
         # This might be too restrictive!
         is_public=True
     )
-```
+```text
 
 **Fix:**
 
@@ -658,7 +658,7 @@ class Post:
         # OR condition: public OR owned by user
         is_public=True or fk_user=fraiseql.context.user_id
     )
-```
+```text
 
 ---
 
@@ -671,7 +671,7 @@ class Post:
 SELECT query, calls, mean_time FROM pg_stat_statements
 WHERE mean_time > 100
 ORDER BY mean_time DESC LIMIT 20;
-```
+```text
 
 ### Step 2: Add Indexes
 
@@ -679,7 +679,7 @@ ORDER BY mean_time DESC LIMIT 20;
 -- From slow queries, identify columns in WHERE clauses
 CREATE INDEX idx_posts_user_id ON posts(user_id);
 CREATE INDEX idx_posts_created_at ON posts(created_at);
-```
+```text
 
 ### Step 3: Materialize Expensive Views
 
@@ -690,7 +690,7 @@ class UserStats:
     id: str
     post_count: int
     total_engagement: int
-```
+```text
 
 ### Step 4: Enable Query Caching
 
@@ -698,7 +698,7 @@ class UserStats:
 [fraiseql.caching]
 enabled = true
 default_ttl_seconds = 300
-```
+```text
 
 ---
 

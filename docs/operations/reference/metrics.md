@@ -131,14 +131,14 @@ Common queries for monitoring FraiseQL:
 ```promql
 # Current error rate (errors per second)
 rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m])
-```
+```text
 
 ### Query: Queries Per Second
 
 ```promql
 # QPS over last 5 minutes
 rate(graphql_requests_total[5m])
-```
+```text
 
 ### Query: P95 Latency (with histogram)
 
@@ -150,7 +150,7 @@ graphql_duration_ms
 
 # Alert if average latency exceeds 100ms
 graphql_duration_ms > 100
-```
+```text
 
 ### Query: Cache Hit Ratio
 
@@ -160,14 +160,14 @@ cache_hit_ratio
 
 # Alert if cache hit ratio below 50%
 cache_hit_ratio < 0.5
-```
+```text
 
 ### Query: Database Load
 
 ```promql
 # Database queries per second
 rate(database_queries_total[5m])
-```
+```text
 
 ### Query: Error Budget (SLO)
 
@@ -182,7 +182,7 @@ rate(graphql_errors_total[5m]) * 60
 # Remaining budget
 ((1 - 0.999) * rate(graphql_requests_total[5m]) * 60)
 - (rate(graphql_errors_total[5m]) * 60)
-```
+```text
 
 ---
 
@@ -247,7 +247,7 @@ groups:
     annotations:
       summary: "High schema validation error rate"
       description: "{{ $value }} validation errors/sec"
-```
+```text
 
 ---
 
@@ -302,7 +302,7 @@ curl http://localhost:8000/metrics
 # # HELP graphql_duration_ms Average duration
 # # TYPE graphql_duration_ms gauge
 # graphql_duration_ms 23.5
-```
+```text
 
 ### Using Prometheus Scrape Config
 
@@ -319,7 +319,7 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 10s
     scrape_timeout: 5s
-```
+```text
 
 ### Using Grafana Data Source
 
@@ -331,7 +331,7 @@ scrape_configs:
   "access": "proxy",
   "isDefault": true
 }
-```
+```text
 
 ---
 
@@ -354,21 +354,21 @@ All FraiseQL metrics follow these conventions:
 
 ### Example 1: 99.9% Uptime SLO
 
-```
+```text
 Allowed error budget: (1 - 0.999) = 0.1% of requests
 Per month (assuming 1M requests/day):
 
 - Total requests: 30M
 - Allowed errors: 30,000
 - Available errors per request rate
-```
+```text
 
 **Alerting Strategy**:
 
 ```promql
 # Burn rate alerts
 rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m]) > 0.001
-```
+```text
 
 ### Example 2: P95 Latency < 100ms SLO
 
@@ -376,7 +376,7 @@ rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m]) > 0.001
 # Current metric is average, not P95
 # For accurate P95: use histogram implementation
 histogram_quantile(0.95, rate(graphql_duration_ms_bucket[5m])) > 100
-```
+```text
 
 ---
 

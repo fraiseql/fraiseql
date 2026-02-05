@@ -28,17 +28,17 @@ Before running analysis, ensure:
 
 ```bash
 fraiseql-cli analyze --database postgres://user:pass@localhost:5432/mydb
-```
+```text
 
 ### Basic Analysis (SQL Server)
 
 ```bash
 fraiseql-cli analyze --database sqlserver://user:pass@localhost:1433/mydb
-```
+```text
 
 **Output**:
 
-```
+```text
 📊 Observability Analysis Report
 
 Database: PostgreSQL
@@ -59,7 +59,7 @@ Analyzed: 8,500,000 query executions
      • Storage cost: +15 MB
 
      Reason: Frequently filtered with high selectivity (8%)
-```
+```text
 
 ---
 
@@ -67,7 +67,7 @@ Analyzed: 8,500,000 query executions
 
 ```bash
 fraiseql-cli analyze [OPTIONS]
-```
+```text
 
 ### Required Options (Pick One)
 
@@ -97,7 +97,7 @@ fraiseql-cli analyze --database postgres://... --window 30d
 
 # Last 7 days (default)
 fraiseql-cli analyze --database postgres://...
-```
+```text
 
 **Supported formats**:
 
@@ -131,7 +131,7 @@ fraiseql-cli analyze \
 fraiseql-cli analyze \
   --database postgres://... \
   --min-frequency 5000
-```
+```text
 
 **Guidelines**:
 
@@ -171,7 +171,7 @@ fraiseql-cli analyze \
 fraiseql-cli analyze \
   --database postgres://... \
   --min-speedup 10.0
-```
+```text
 
 **Guidelines**:
 
@@ -194,7 +194,7 @@ Minimum filter selectivity (fraction of rows filtered).
 fraiseql-cli analyze \
   --database postgres://... \
   --min-selectivity 0.01  # 1% of rows
-```
+```text
 
 **Selectivity Explained**:
 
@@ -210,7 +210,7 @@ WHERE JSON_VALUE(metadata, '$.country') = 'USA'
 -- Low selectivity (90%): NOT a good candidate
 WHERE JSON_VALUE(metadata, '$.active') = 'true'
 -- Returns 90,000 / 100,000 rows → selectivity = 0.9
-```
+```text
 
 **Why selectivity matters**:
 
@@ -229,11 +229,11 @@ Human-readable output for terminal viewing.
 
 ```bash
 fraiseql-cli analyze --database postgres://... --format text
-```
+```text
 
 **Output**:
 
-```
+```text
 📊 Observability Analysis Report
 
 Database: PostgreSQL
@@ -288,7 +288,7 @@ Query patterns: 250 unique queries
    2. Review changes: less optimize.sql
    3. Test in staging: psql staging < optimize.sql
    4. Apply to production: psql production < optimize.sql
-```
+```text
 
 ---
 
@@ -300,7 +300,7 @@ Machine-readable output for CI/CD integration.
 
 ```bash
 fraiseql-cli analyze --database postgres://... --format json > report.json
-```
+```text
 
 **Output**:
 
@@ -353,7 +353,7 @@ fraiseql-cli analyze --database postgres://... --format json > report.json
     }
   ]
 }
-```
+```text
 
 **Use in CI/CD**:
 
@@ -365,7 +365,7 @@ if [ $SUGGESTIONS -gt 0 ]; then
   echo "⚠️  Found $SUGGESTIONS optimization opportunities"
   echo "Run 'fraiseql-cli analyze --format text' for details"
 fi
-```
+```text
 
 ---
 
@@ -377,7 +377,7 @@ Ready-to-execute migration SQL.
 
 ```bash
 fraiseql-cli analyze --database postgres://... --format sql > optimize.sql
-```
+```text
 
 **PostgreSQL Output**:
 
@@ -441,7 +441,7 @@ ANALYZE users;
 -- 2. Recompile: fraiseql-cli compile schema.json
 -- 3. Monitor query performance
 -- ============================================================
-```
+```text
 
 **SQL Server Output**:
 
@@ -483,7 +483,7 @@ GO
 -- DROP INDEX IF EXISTS idx_tf_sales_region_id ON tf_sales;
 -- ALTER TABLE tf_sales DROP COLUMN IF EXISTS region_id;
 -- GO
-```
+```text
 
 ---
 
@@ -495,7 +495,7 @@ GO
 
 ```bash
 curl http://localhost:8080/metrics/export > metrics.json
-```
+```text
 
 **Via CLI** (if server not running):
 
@@ -504,13 +504,13 @@ fraiseql-cli export-metrics \
   --database postgres://... \
   --output metrics.json \
   --window 7d
-```
+```text
 
 ### Step 2: Analyze Offline
 
 ```bash
 fraiseql-cli analyze --metrics metrics.json
-```
+```text
 
 **Why export?**
 
@@ -539,7 +539,7 @@ Only analyze specific table(s).
 fraiseql-cli analyze \
   --database postgres://... \
   --table tf_sales
-```
+```text
 
 ### By Suggestion Type
 
@@ -552,7 +552,7 @@ Filter by suggestion type: `denormalize`, `add_index`, `drop_index`.
 fraiseql-cli analyze \
   --database postgres://... \
   --type denormalize
-```
+```text
 
 ### By Impact
 
@@ -565,17 +565,17 @@ Filter by impact score (frequency × speedup).
 fraiseql-cli analyze \
   --database postgres://... \
   --min-impact 10000
-```
+```text
 
 **Impact Score Calculation**:
 
-```
+```text
 Impact = (Queries Per Day) × (Speedup Factor)
 
 Example:
 
 - 8,500 queries/day × 12.5x speedup = 106,250 impact score
-```
+```text
 
 ---
 
@@ -595,11 +595,11 @@ fraiseql-cli analyze --database postgres://... --format json > week2.json
 
 # Compare
 fraiseql-cli diff-analysis week1.json week2.json
-```
+```text
 
 **Output**:
 
-```
+```text
 📊 Analysis Comparison
 
 Week 1 (2026-01-05):
@@ -618,7 +618,7 @@ Week 2 (2026-01-12):
 
 ⏳ Remaining opportunities:
   - orders.customer_tier (3.2x speedup)
-```
+```text
 
 ---
 
@@ -635,7 +635,7 @@ fraiseql-cli analyze \
   --min-speedup 2.0 \        # 2x speedup
   --min-selectivity 0.05 \   # 5% selectivity
   --window 1d                # Last 24 hours
-```
+```text
 
 ### High-Traffic Production
 
@@ -648,7 +648,7 @@ fraiseql-cli analyze \
   --min-speedup 10.0 \       # 10x speedup minimum
   --min-selectivity 0.2 \    # 20% selectivity
   --window 30d               # 30-day window
-```
+```text
 
 ---
 
@@ -665,7 +665,7 @@ Run analysis weekly and alert on new suggestions:
 0 2 * * 1 fraiseql fraiseql-cli analyze \
   --database postgres://metrics:pass@metrics-db:5432/metrics \
   --format json > /var/log/fraiseql/analysis-$(date +\%Y\%m\%d).json
-```
+```text
 
 **Alerting script**:
 
@@ -678,7 +678,7 @@ if [ $SUGGESTIONS -gt 0 ]; then
   echo "⚠️  Found $SUGGESTIONS optimization opportunities" | \
     mail -s "FraiseQL Analysis Alert" [email protected]
 fi
-```
+```text
 
 ---
 
@@ -698,7 +698,7 @@ fi
      SELECT COUNT(*) FROM fraiseql_metrics.query_executions
      WHERE executed_at > NOW() - INTERVAL '7 days'
    "
-   ```
+   ```text
 
    **Solution**: Wait for 24-48 hours of metrics collection
 
@@ -710,7 +710,7 @@ fi
      --database postgres://... \
      --min-frequency 10 \
      --min-speedup 2.0
-   ```
+   ```text
 
 3. **No JSON usage**
 
@@ -750,20 +750,20 @@ fi
    ```sql
    CREATE INDEX idx_query_name ON fraiseql_metrics.query_executions (query_name);
    CREATE INDEX idx_jsonb_path ON fraiseql_metrics.jsonb_accesses (table_name, path);
-   ```
+   ```text
 
 2. **Use shorter time window**:
 
    ```bash
    fraiseql-cli analyze --database postgres://... --window 1d
-   ```
+   ```text
 
 3. **Export and analyze offline**:
 
    ```bash
    fraiseql-cli export-metrics --database postgres://... --output metrics.json
    fraiseql-cli analyze --metrics metrics.json
-   ```
+   ```text
 
 ---
 
@@ -793,7 +793,7 @@ fraiseql-cli benchmark --database postgres://staging
 
 # If successful, apply to production
 psql production < optimize.sql
-```
+```text
 
 ### 4. Monitor After Migrations
 
@@ -805,7 +805,7 @@ fraiseql-cli analyze --database postgres://... --window 7d > before.txt
 # (apply migrations)
 fraiseql-cli analyze --database postgres://... --window 7d > after.txt
 diff before.txt after.txt
-```
+```text
 
 ### 5. Keep Historical Reports
 
@@ -814,7 +814,7 @@ Archive analysis reports for trend analysis:
 ```bash
 fraiseql-cli analyze --database postgres://... --format json > \
   reports/analysis-$(date +%Y-%m-%d).json
-```
+```text
 
 ---
 
@@ -844,7 +844,7 @@ if [ $HIGH_PRIORITY -gt 0 ]; then
   echo "⚠️  Found $HIGH_PRIORITY high-priority optimizations" | \
     slack-notify --channel=#db-ops
 fi
-```
+```text
 
 ### Workflow 2: Development Iteration
 
@@ -867,7 +867,7 @@ fraiseql-cli compile schema.json
 
 # 5. Test queries
 npm test
-```
+```text
 
 ---
 

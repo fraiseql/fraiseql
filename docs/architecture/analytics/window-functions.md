@@ -38,7 +38,7 @@ SELECT
     RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC) AS rank,
     DENSE_RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC) AS dense_rank
 FROM tf_sales;
-```
+```text
 
 ### 2. Value Functions
 
@@ -60,7 +60,7 @@ SELECT
     LAG(revenue, 1) OVER (PARTITION BY data->>'category' ORDER BY occurred_at) AS prev_day_revenue,
     LEAD(revenue, 1) OVER (PARTITION BY data->>'category' ORDER BY occurred_at) AS next_day_revenue
 FROM tf_sales;
-```
+```text
 
 ### 3. Aggregate Functions as Windows
 
@@ -85,7 +85,7 @@ SELECT
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS running_total
 FROM tf_sales;
-```
+```text
 
 ---
 
@@ -99,7 +99,7 @@ Divides rows into partitions (groups). Window function applies separately to eac
 
 ```sql
 OVER (PARTITION BY column1, column2, ...)
-```
+```text
 
 **Example**:
 
@@ -109,7 +109,7 @@ ROW_NUMBER() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
 
 -- No partition = single global window
 ROW_NUMBER() OVER (ORDER BY revenue DESC)
-```
+```text
 
 ### ORDER BY
 
@@ -119,7 +119,7 @@ Defines row ordering within each partition. Required for ranking functions and f
 
 ```sql
 OVER (PARTITION BY ... ORDER BY column1 [ASC|DESC], column2 [ASC|DESC], ...)
-```
+```text
 
 **Example**:
 
@@ -129,7 +129,7 @@ RANK() OVER (PARTITION BY data->>'category' ORDER BY revenue DESC)
 
 -- Running total ordered by date
 SUM(revenue) OVER (PARTITION BY data->>'category' ORDER BY occurred_at ASC)
-```
+```text
 
 ### Frame Clauses
 
@@ -183,7 +183,7 @@ SUM(revenue) OVER (
     PARTITION BY data->>'category'
     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
 )
-```
+```text
 
 ---
 
@@ -212,9 +212,9 @@ SUM(revenue) OVER (
 
 **Execution Order**:
 
-```
+```text
 WHERE → GROUP BY → HAVING → Window Functions → ORDER BY → LIMIT
-```
+```text
 
 ---
 
@@ -244,7 +244,7 @@ SELECT
         EXCLUDE CURRENT ROW
     ) AS cumulative_revenue_excluding_current
 FROM tf_sales;
-```
+```text
 
 ### MySQL (8.0+)
 
@@ -266,7 +266,7 @@ SELECT
     revenue,
     ROW_NUMBER() OVER (PARTITION BY JSON_EXTRACT(data, '$.category') ORDER BY revenue DESC) AS rank
 FROM tf_sales;
-```
+```text
 
 ### SQLite (3.25+)
 
@@ -292,7 +292,7 @@ SELECT
         ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
     ) AS moving_avg_7d
 FROM tf_sales;
-```
+```text
 
 ### SQL Server
 
@@ -317,7 +317,7 @@ SELECT
         ORDER BY occurred_at
     ) AS prev_day_revenue
 FROM tf_sales;
-```
+```text
 
 ---
 
@@ -339,7 +339,7 @@ SELECT
     ) AS cumulative_revenue
 FROM tf_sales
 ORDER BY data->>'category', occurred_at;
-```
+```text
 
 ### 2. Moving Averages
 
@@ -358,7 +358,7 @@ SELECT
 FROM tf_sales
 GROUP BY data->>'category', occurred_at::DATE
 ORDER BY data->>'category', occurred_at::DATE;
-```
+```text
 
 ### 3. Year-Over-Year Comparison
 
@@ -373,7 +373,7 @@ SELECT
 FROM tf_sales
 GROUP BY DATE_TRUNC('month', occurred_at)
 ORDER BY month;
-```
+```text
 
 ### 4. Top-N Per Category
 
@@ -394,7 +394,7 @@ SELECT * FROM (
 ) ranked
 WHERE rank <= 10
 ORDER BY category, rank;
-```
+```text
 
 ### 5. Percentile Ranking
 
@@ -409,7 +409,7 @@ SELECT
 FROM tf_sales
 GROUP BY data->>'product_name'
 ORDER BY total_revenue DESC;
-```
+```text
 
 ### 6. Trend Analysis
 
@@ -429,7 +429,7 @@ SELECT
 FROM tf_sales
 GROUP BY occurred_at::DATE
 ORDER BY occurred_at::DATE;
-```
+```text
 
 ---
 
@@ -442,14 +442,14 @@ ORDER BY occurred_at::DATE;
 ```sql
 -- Index columns used in PARTITION BY
 CREATE INDEX idx_sales_category ON tf_sales ((dimensions->>'category'));
-```
+```text
 
 **ORDER BY Columns**:
 
 ```sql
 -- Index columns used in ORDER BY within window
 CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
-```
+```text
 
 **Composite Indexes**:
 
@@ -457,7 +457,7 @@ CREATE INDEX idx_sales_occurred ON tf_sales(occurred_at);
 -- Composite index for common window pattern
 CREATE INDEX idx_sales_category_occurred
     ON tf_sales ((dimensions->>'category'), occurred_at);
-```
+```text
 
 ### Window Function Evaluation
 
@@ -492,7 +492,7 @@ CREATE INDEX idx_sales_category_occurred
        ORDER BY occurred_at
        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
    )
-   ```
+   ```text
 
 2. **Partition Data Appropriately**:
    - Balance partition size (not too large, not too many)
@@ -516,7 +516,7 @@ CREATE INDEX idx_sales_category_occurred
 
    CREATE INDEX idx_mv_category_occurred
        ON mv_sales_running_totals(category, occurred_at);
-   ```
+   ```text
 
 4. **Limit Window Size**:
    - Prefer `ROWS BETWEEN 6 PRECEDING` over `UNBOUNDED PRECEDING` when possible
@@ -590,7 +590,7 @@ enum BoundaryType {
   N_FOLLOWING
   UNBOUNDED_FOLLOWING
 }
-```
+```text
 
 ### Example Query
 
@@ -650,7 +650,7 @@ query {
     prev_day_revenue
   }
 }
-```
+```text
 
 ---
 

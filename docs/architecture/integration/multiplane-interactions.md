@@ -18,7 +18,7 @@ FraiseQL's three execution planes (JSON, Arrow, Delta) operate from the same sch
 
 ### 1.1 Three Planes
 
-```
+```text
 JSON Plane (Interactive)
 ├─ GraphQL queries/mutations
 ├─ Real-time requests
@@ -36,13 +36,13 @@ Delta Plane (Streaming)
 ├─ Subscriptions
 ├─ Real-time events
 └─ Ordered by entity
-```
+```text
 
 ### 1.2 Concurrent Execution
 
 All three planes can execute simultaneously on same dataset:
 
-```
+```text
 Time T0:
   JSON: User.getProfile()
   Arrow: AnalyticsReport.run()
@@ -57,13 +57,13 @@ Time T2 (immediately after T1):
   Arrow: See new user in next batch query
   Delta: Subscribers notified of new user
   JSON: New user available in next query
-```
+```text
 
 ### 1.3 Data Consistency Across Planes
 
 All planes see consistent view of data (snapshot isolation or SERIALIZABLE per database):
 
-```
+```text
 Database state at time T: {User[1], User[2], User[3]}
 
 JSON Plane query at T+10ms: Sees User[1], User[2], User[3]
@@ -73,7 +73,7 @@ Delta Plane event at T+5ms: User[4] created
 Result at T+30ms:
 JSON Plane query now: Sees User[1..4]
 Arrow Plane batch now: Sees User[1..4]
-```
+```text
 
 ---
 
@@ -83,7 +83,7 @@ Arrow Plane batch now: Sees User[1..4]
 
 JSON Plane operates as traditional GraphQL:
 
-```
+```text
 Client Request (GraphQL query)
     ↓
 Server: Parse & validate
@@ -99,13 +99,13 @@ Server: Serialize to JSON
 Response (JSON result)
     ↓
 Client processes result
-```
+```text
 
 ### 2.2 JSON Plane Execution Isolation
 
 Each JSON request is independent:
 
-```
+```text
 Request 1 (User A, GetPosts):
   ├─ Transaction 1: SELECT FROM v_post WHERE user_id = A
   └─ Sees data as of T1
@@ -118,7 +118,7 @@ Requests are concurrent but isolated:
   ├─ Each has own database transaction
   ├─ Each has own connection
   └─ Each sees snapshot-consistent data
-```
+```text
 
 ### 2.3 Mutation Side Effects
 
@@ -137,7 +137,7 @@ Mutations in JSON Plane trigger:
 
 Arrow Plane executes batch queries returning columnar Apache Arrow format:
 
-```
+```text
 Client Request (Arrow batch query)
   {
     "query": "SELECT * FROM v_product WHERE category = 'electronics'",
@@ -155,13 +155,13 @@ Response (Arrow RecordBatch)
   ├─ Columnar representation
   ├─ Compressed (by default)
   └─ Streaming chunks
-```
+```text
 
 ### 3.2 Arrow Plane Execution Isolation
 
 Arrow queries run in long-lived transactions (may take minutes):
 
-```
+```text
 Arrow Batch Query Start (T0):
   ├─ BEGIN TRANSACTION
   ├─ SET ISOLATION LEVEL SERIALIZABLE  (or READ_COMMITTED)
@@ -180,13 +180,13 @@ Meanwhile:
   ├─ JSON Plane queries execute → See mutations from T0+
   ├─ Delta Plane events generated → Per mutation
   └─ Database state evolved
-```
+```text
 
 ### 3.3 Long Transaction Considerations
 
 Arrow queries hold resources:
 
-```
+```text
 Connection pool:
   ├─ JSON queries: Rapid (release quickly)
   ├─ Arrow batch: Hold connection for 10 minutes
@@ -201,13 +201,13 @@ Lock contention:
   ├─ Long transactions hold locks longer
   ├─ Mutations may wait for Arrow to complete
   ├─ Can cause JSON Plane latency spikes
-```
+```text
 
 ### 3.4 Arrow Plane Streaming
 
 Results can stream incrementally (not wait for complete result):
 
-```
+```text
 Query: "SELECT * FROM huge_table" (1 billion rows)
 
 Option 1: Wait for all (memory intensive)
@@ -226,7 +226,7 @@ Streaming advantages:
   ├─ Can start processing before query finishes
   ├─ Better UX (progress visible)
   └─ Latency: First result in 100ms, complete in 1 hour
-```
+```text
 
 ---
 
@@ -236,7 +236,7 @@ Streaming advantages:
 
 Delta Plane generates events from database changes:
 
-```
+```text
 User mutation in JSON Plane
   ├─ INSERT/UPDATE/DELETE in database
   ├─ Transaction commits
@@ -253,13 +253,13 @@ Subscribers receive events
   ├─ Via WebSocket, webhook, or message queue
   ├─ In order (per entity)
   ├─ At-least-once delivery
-```
+```text
 
 ### 4.2 Delta Events from JSON Mutations
 
 When JSON Plane mutation completes:
 
-```
+```text
 Mutation execution:
   1. BEGIN TRANSACTION
   2. INSERT/UPDATE/DELETE
@@ -277,13 +277,13 @@ Timing:
   ├─ Event published: 21ms (inside database trigger)
   ├─ Delta subscribers notified: 25ms
   ├─ Total latency to event receipt: 5ms
-```
+```text
 
 ### 4.3 Delta Events from Arrow Queries
 
 Arrow queries (read-only) don't generate Delta events:
 
-```
+```text
 Arrow batch query:
   ├─ SELECT only (no modification)
   ├─ No triggers fire
@@ -294,13 +294,13 @@ Exception: Arrow query includes mutation logic:
   ├─ INSERT into temp table (for analysis)
   ├─ Trigger fires → Event generated
   └─ But temp table events usually filtered
-```
+```text
 
 ### 4.4 Delta Plane Ordering Guarantees
 
 **Per-entity ordering (guaranteed):**
 
-```
+```text
 Sequence of events for Post #123:
 
 Event 1: post_created (Post #123)
@@ -316,11 +316,11 @@ Event 3: post_updated (Post #123, content changed)
   └─ Subscriber 1 receives: Order #3 (after Event 2)
 
 Guarantee: Subscriber always receives events in order for same post
-```
+```text
 
 **Global ordering NOT guaranteed:**
 
-```
+```text
 Event 1: post_created (Post #123) at T0
 Event 2: user_updated (User #456) at T0 + 50ms
 Event 3: post_updated (Post #123) at T0 + 100ms
@@ -330,7 +330,7 @@ Subscriber to "all events":
   OR: Event 1 → Event 2 → Event 3 (in order)
 
 No guarantee on relative ordering of different entities
-```
+```text
 
 ---
 
@@ -340,7 +340,7 @@ No guarantee on relative ordering of different entities
 
 Complete flow:
 
-```
+```text
 Time T0: JSON Mutation (CreatePost)
   ├─ CreatePost(title="New", content="...")
   ├─ Database: INSERT INTO tb_post (...)
@@ -363,13 +363,13 @@ Result:
   ├─ Delta: Subscribers notified of new post
   ├─ Arrow: Batch reports sees new post
   ├─ All consistent (same data source: database)
-```
+```text
 
 ### 5.2 Arrow Query Performance Impact on JSON Plane
 
 Long-running Arrow queries can impact JSON Plane performance:
 
-```
+```text
 Scenario: Large analytics query (10 minutes)
 
 Time T0: Arrow query starts
@@ -391,11 +391,11 @@ Time T0 + 6 seconds: JSON mutation completes (delayed)
   └─ Delta events delayed
 
 Result: Arrow query impacts JSON latency tail (p99, p99.9)
-```
+```text
 
 **Mitigation:**
 
-```
+```text
 
 1. Use lower isolation level for Arrow (READ_COMMITTED)
    ├─ Faster (fewer conflicts)
@@ -410,13 +410,13 @@ Result: Arrow query impacts JSON latency tail (p99, p99.9)
    ├─ Dedicated read replica for Arrow queries
    ├─ Primary database for JSON/Delta
    ├─ No cross-plane resource contention
-```
+```text
 
 ### 5.3 Delta Events During Arrow Queries
 
 Events continue to be generated while Arrow query runs:
 
-```
+```text
 Time T0: Arrow batch starts
   ├─ BEGIN TRANSACTION
   └─ SELECT ... (long-running)
@@ -432,7 +432,7 @@ Arrow query finishes at T0 + 10 minutes:
   ├─ Sees state as of T0 (immutable snapshot)
   ├─ Events available to Delta subscribers (real-time)
   └─ New Arrow query would see all changes
-```
+```text
 
 ---
 
@@ -442,7 +442,7 @@ Arrow query finishes at T0 + 10 minutes:
 
 All planes evaluate same authorization rules:
 
-```
+```text
 Schema:
   @fraiseql.type
   class Post:
@@ -458,13 +458,13 @@ User B (not author):
   ├─ JSON: GetPost #123 → Sees content if published, else null
   ├─ Arrow: SELECT * FROM v_post → Sees content if published, else null
   └─ Delta: Subscribe to Post #123 → Receives content if published
-```
+```text
 
 ### 6.2 Row-Level Security Across Planes
 
 RLS rules filter results per user:
 
-```
+```text
 RLS rule: same_organization
 
 User A (org=Acme):
@@ -480,7 +480,7 @@ User B (org=Beta):
 Database has: [Acme User 1, Acme User 2, Beta User 1, Beta User 2]
 
 Query results vary by user (RLS enforced in all planes)
-```
+```text
 
 ---
 
@@ -490,7 +490,7 @@ Query results vary by user (RLS enforced in all planes)
 
 Each plane has independent cache:
 
-```
+```text
 JSON Plane Cache:
   ├─ Cached query results (GraphQL)
   ├─ TTL: 5 minutes default
@@ -508,13 +508,13 @@ Delta Plane Cache:
   ├─ Capacity: 1000 events per subscription
   ├─ FIFO eviction (oldest dropped if overflow)
   └─ Used for: Catch-up when client reconnects
-```
+```text
 
 ### 7.2 Cache Invalidation Coordination
 
 When data changes, all plane caches affected:
 
-```
+```text
 Time T0: JSON mutation (UpdatePost #789)
   ├─ Update title
   └─ Commit to database
@@ -530,7 +530,7 @@ Time T0 + 100ms: First subsequent JSON query
   ├─ Query database
   ├─ Sees updated post
   ├─ Re-caches for 5 minutes
-```
+```text
 
 ---
 
@@ -548,11 +548,11 @@ subscription OnPostCreated {
     authorId
   }
 }
-```
+```text
 
 **Events received:**
 
-```
+```text
 Event 1: Post #1 created
   { id: "post-1", title: "First", authorId: "user-123" }
 
@@ -560,7 +560,7 @@ Event 2: Post #2 created
   { id: "post-2", title: "Second", authorId: "user-456" }
 
 ...
-```
+```text
 
 ### 8.2 Nested Subscription
 
@@ -577,17 +577,17 @@ subscription OnPostCreatedWithAuthor {
     }
   }
 }
-```
+```text
 
 **Execution:**
 
-```
+```text
 Database event: Post created
   ├─ Event payload: { id: "post-789", author_id: "user-456" }
   ├─ Runtime fetches author (authorization check)
   ├─ Author: { id: "user-456", name: "Alice" }
   └─ Send to subscriber: Full nested payload
-```
+```text
 
 ### 8.3 Filtered Subscription
 
@@ -600,11 +600,11 @@ subscription OnMyPostsCreated($userId: ID!) {
     title
   }
 }
-```
+```text
 
 **Filtering:**
 
-```
+```text
 Event: Post created by user-456
   ├─ Check filter: authorId == $userId
   ├─ If match → Send to subscriber
@@ -614,7 +614,7 @@ Authorization:
   ├─ User can only subscribe to own posts (owner_only)
   ├─ If filter == current user → Allowed
   ├─ If filter != current user → Denied
-```
+```text
 
 ---
 
@@ -622,7 +622,7 @@ Authorization:
 
 ### 9.1 Transient Errors (Retry-able)
 
-```
+```text
 JSON Plane:
   ├─ Query timeout → Error code E_DB_QUERY_TIMEOUT_302
   ├─ Connection lost → Error code E_DB_CONNECTION_FAILED_301
@@ -637,11 +637,11 @@ Delta Plane:
   ├─ Event delivery failed → Retry up to 3 times
   ├─ Connection lost → Reconnect
   ├─ Buffer overflow → Terminate subscription
-```
+```text
 
 ### 9.2 Authorization Errors (Non-Retryable)
 
-```
+```text
 JSON Plane:
   ├─ User not authorized → E_AUTH_PERMISSION_401
   ├─ Response: { data: null, error: {...} }
@@ -655,7 +655,7 @@ Delta Plane:
   ├─ User not authorized → E_AUTH_PERMISSION_401
   ├─ Subscription denied
   ├─ No events sent
-```
+```text
 
 ---
 
@@ -665,7 +665,7 @@ Delta Plane:
 
 Each plane transaction is independent:
 
-```
+```text
 Time T0: Arrow query begins
   ├─ BEGIN TRANSACTION (isolation: SERIALIZABLE)
   └─ SELECT * FROM v_product (starts)
@@ -682,13 +682,13 @@ Arrow query (still running):
   ├─ Doesn't see update from JSON mutation
   ├─ Consistent snapshot maintained
   ├─ When Arrow finishes, new query sees update
-```
+```text
 
 ### 10.2 No Cross-Plane Transactions
 
 Transactions do NOT span planes:
 
-```
+```text
 ❌ INVALID: Multi-plane transaction
   ├─ Create user (JSON mutation)
   ├─ Immediately run analytics (Arrow query)
@@ -698,7 +698,7 @@ Transactions do NOT span planes:
   ├─ Multiple JSON mutations → Atomic
   ├─ Single Arrow query → Single transaction
   ├─ Atomic within plane
-```
+```text
 
 ---
 
@@ -706,7 +706,7 @@ Transactions do NOT span planes:
 
 ### 11.1 Plane Selection Guide
 
-```
+```text
 Use JSON Plane when:
   ├─ Interactive requests (<100ms latency required)
   ├─ Single user per request
@@ -724,11 +724,11 @@ Use Delta Plane when:
   ├─ Event-driven architecture
   ├─ Broadcast to many clients
   ├─ Subscription patterns (WebSocket, webhooks)
-```
+```text
 
 ### 11.2 Avoiding Cross-Plane Issues
 
-```
+```text
 ✅ DO:
   ├─ Design for single plane primary access
   ├─ Use read replicas for Arrow (avoid impacting JSON)
@@ -742,7 +742,7 @@ Use Delta Plane when:
   ├─ Rely on global event ordering (use per-entity ordering)
   ├─ Run unlimited Arrow queries (resource contention)
   ├─ Ignore authorization differences between planes (none, but verify)
-```
+```text
 
 ---
 
@@ -750,7 +750,7 @@ Use Delta Plane when:
 
 ### 12.1 Peak Performance Scenarios
 
-```
+```text
 JSON Plane:
   ├─ 5,000 req/sec (simple queries)
   ├─ 1,000 req/sec (complex queries)
@@ -766,11 +766,11 @@ Delta Plane:
   ├─ 10,000 events/sec
   ├─ 1000 active subscriptions
   └─ Per-event latency: <100ms
-```
+```text
 
 ### 11.2 Resource Contention Scenarios
 
-```
+```text
 Scenario: Arrow query on 1GB table + Peak JSON traffic
 
 Result:
@@ -783,7 +783,7 @@ Solution:
   ├─ JSON continues at normal performance
   ├─ Arrow takes 5 minutes (as expected)
   ├─ No cross-plane impact
-```
+```text
 
 ---
 

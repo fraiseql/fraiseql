@@ -100,7 +100,7 @@ SERVER_HOST=0.0.0.0
 # HTTPS (optional)
 TLS_CERT_PATH=/etc/fraiseql/certs/server.crt
 TLS_KEY_PATH=/etc/fraiseql/certs/server.key
-```
+```text
 
 ### .env.prod File
 
@@ -112,7 +112,7 @@ source /etc/fraiseql/auth.env
 echo "OAuth Provider: $OAUTH_PROVIDER"
 echo "Database: $DATABASE_URL (hidden)"
 echo "JWT Issuer: $JWT_ISSUER"
-```
+```text
 
 ## Database Setup
 
@@ -133,7 +133,7 @@ GRANT ALL PRIVILEGES ON DATABASE fraiseql TO fraiseql_app;
 
 \c fraiseql
 GRANT ALL PRIVILEGES ON SCHEMA public TO fraiseql_app;
-```
+```text
 
 ### 2. Create Sessions Table
 
@@ -155,14 +155,14 @@ CREATE INDEX idx_sessions_revoked_at ON _system.sessions(revoked_at);
 -- Grant permissions
 GRANT ALL PRIVILEGES ON TABLE _system.sessions TO fraiseql_app;
 GRANT ALL PRIVILEGES ON SEQUENCE _system.sessions_id_seq TO fraiseql_app;
-```
+```text
 
 ### 3. Verify Connection
 
 ```bash
 export DATABASE_URL="postgres://fraiseql_app:strong_password_here@prod-db.internal:5432/fraiseql"
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM _system.sessions;"
-```
+```text
 
 ## Docker Deployment
 
@@ -188,7 +188,7 @@ COPY --from=builder /build/target/release/fraiseql-server /usr/local/bin/
 EXPOSE 8000
 
 ENTRYPOINT ["fraiseql-server"]
-```
+```text
 
 ### Docker Compose Production
 
@@ -249,7 +249,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 ## Nginx Configuration
 
@@ -306,7 +306,7 @@ server {
         proxy_pass http://fraiseql;
     }
 }
-```
+```text
 
 ## SSL/TLS Setup
 
@@ -325,7 +325,7 @@ sudo systemctl start certbot.timer
 
 # Verify renewal
 sudo certbot renew --dry-run
-```
+```text
 
 ## Kubernetes Deployment
 
@@ -426,7 +426,7 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-```
+```text
 
 ## Monitoring Setup
 
@@ -442,7 +442,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
-```
+```text
 
 ### Grafana Dashboard
 
@@ -472,21 +472,21 @@ find $BACKUP_DIR -name "fraiseql_*.sql.gz" -mtime +30 -delete
 # Upload to S3
 aws s3 cp $BACKUP_DIR/fraiseql_$TIMESTAMP.sql.gz \
   s3://fraiseql-backups/
-```
+```text
 
 Schedule with cron:
 
 ```bash
 # Run daily at 2 AM
 0 2 * * * /scripts/backup.sh
-```
+```text
 
 ### Restore from Backup
 
 ```bash
 gunzip -c fraiseql_20260121_020000.sql.gz | \
   psql -h prod-db.internal -U fraiseql_app fraiseql
-```
+```text
 
 ## Scaling
 
@@ -506,7 +506,7 @@ Adjust resource limits:
 kubectl set resources deployment fraiseql \
   --limits=memory=1Gi,cpu=1000m \
   --requests=memory=512Mi,cpu=500m
-```
+```text
 
 ## Performance Tuning
 
@@ -515,26 +515,26 @@ kubectl set resources deployment fraiseql \
 ```bash
 DATABASE_POOL_SIZE=50
 DATABASE_MAX_LIFETIME=1800
-```
+```text
 
 ### Session Cache (if using Redis)
 
 ```bash
 REDIS_URL=redis://redis.internal:6379
 SESSION_CACHE_TTL=300
-```
+```text
 
 ## High Availability
 
 ### Multi-Region Setup
 
-```
+```text
 Region 1: Primary database
 Region 2: Read replica
 Region 3: Standby replica
 
 Failover: Automatic via RDS
-```
+```text
 
 ### Disaster Recovery
 
@@ -579,7 +579,7 @@ psql $DATABASE_URL -c "SELECT 1"
 
 # Check OAuth provider
 curl https://accounts.google.com/.well-known/openid-configuration
-```
+```text
 
 ### High Latency
 
@@ -589,7 +589,7 @@ SELECT * FROM pg_stat_statements ORDER BY total_time DESC;
 
 # Check OAuth provider latency
 time curl https://accounts.google.com/.well-known/openid-configuration
-```
+```text
 
 ### Database Connection Pool Exhausted
 
@@ -599,7 +599,7 @@ DATABASE_POOL_SIZE=100
 
 # Check active connections
 psql -c "SELECT count(*) FROM pg_stat_activity;"
-```
+```text
 
 ## See Also
 

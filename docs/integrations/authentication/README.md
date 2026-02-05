@@ -126,7 +126,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 
 # Option 3: Auth0 (managed service)
 # https://manage.auth0.com
-```
+```text
 
 ### Step 2: Configure FraiseQL
 
@@ -137,7 +137,7 @@ GOOGLE_CLIENT_SECRET=...
 OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
 JWT_ISSUER=https://accounts.google.com
 DATABASE_URL=postgres://user:pass@localhost/fraiseql
-```
+```text
 
 ### Step 3: Register Endpoints
 
@@ -150,7 +150,7 @@ let auth_routes = Router::new()
     .route("/auth/refresh", post(auth_refresh))
     .route("/auth/logout", post(auth_logout))
     .with_state(auth_state);
-```
+```text
 
 ### Step 4: Test the Flow
 
@@ -162,7 +162,7 @@ curl -X POST http://localhost:8000/auth/start \
 
 # Visit the URL in browser, authenticate
 # Tokens returned in callback response
-```
+```text
 
 ---
 
@@ -254,7 +254,7 @@ curl -X POST http://localhost:8000/auth/start \
 
 ## 📊 Architecture Overview
 
-```
+```text
 ┌─ Client (Browser/App)
 │
 ├─ POST /auth/start
@@ -284,7 +284,7 @@ curl -X POST http://localhost:8000/auth/start \
 └─ POST /auth/logout
    ├─ Revokes session
    └─ User logged out
-```
+```text
 
 ---
 
@@ -307,7 +307,7 @@ curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
-```
+```text
 
 ### Automated Testing
 
@@ -317,7 +317,7 @@ cargo test -p fraiseql-server auth:: --lib
 
 # Run with logging
 RUST_LOG=debug cargo test -p fraiseql-server auth:: --lib -- --nocapture
-```
+```text
 
 ---
 
@@ -378,7 +378,7 @@ DATABASE_POOL_SIZE=20
 
 # Logging
 RUST_LOG=info,fraiseql_server::auth=debug
-```
+```text
 
 ### Docker Environment
 

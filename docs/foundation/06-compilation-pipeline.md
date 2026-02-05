@@ -16,7 +16,7 @@ FraiseQL's core strength is its **build-time compilation**. This topic explains 
 
 ## The Seven-Phase Compilation Pipeline
 
-```
+```text
  Parse Schema Definitions
          ↓ (Python/TypeScript files)
  Extract Type Information
@@ -32,7 +32,7 @@ FraiseQL's core strength is its **build-time compilation**. This topic explains 
  Output Compiled Schema
          ↓ (schema.compiled.json)
 Production-Ready Server
-```
+```text
 
 ---
 
@@ -68,7 +68,7 @@ def get_user(user_id: int) -> User:
 @schema.query()
 def list_orders(user_id: int) -> List[Order]:
     pass
-```
+```text
 
 ### Process
 
@@ -82,7 +82,7 @@ def list_orders(user_id: int) -> List[Order]:
 
 Internal representation of schema structure (parsed AST):
 
-```
+```text
 Schema {
   types: [
     Type {
@@ -111,7 +111,7 @@ Schema {
     Query { name: "listOrders", params: { userId: "Int" }, returns: "List<Order>" }
   ]
 }
-```
+```text
 
 ---
 
@@ -153,7 +153,7 @@ tb_orders   | pk_order_id  | integer   | false       | nextval(...)
 tb_orders   | fk_user_id   | integer   | false       | NULL
 tb_orders   | total        | numeric   | false       | NULL
 tb_orders   | created_at   | timestamp | false       | now()
-```
+```text
 
 ### Output: schema.json
 
@@ -204,7 +204,7 @@ tb_orders   | created_at   | timestamp | false       | now()
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -224,20 +224,20 @@ schema.json with all type and query information
 
 ### Example: Foreign Key Validation
 
-```
+```text
 Validating relationships...
 ✅ tb_orders.fk_user_id → tb_users.pk_user_id (valid)
 ✅ Query getUser expects Int, tb_users.pk_user_id is Int (compatible)
 ⚠️  N+1 risk detected: listOrders(userId) will load orders for each user
     Suggestion: Use database-level join or batch loading
 ✅ All relationships valid
-```
+```text
 
 ### Output
 
 Validation report (warnings + errors):
 
-```
+```text
 Relationship Validation Results:
 
 - Errors: 0
@@ -249,7 +249,7 @@ Warnings:
 1. Relationship: User → Orders
    Pattern: Many-to-one (1 user, N orders)
    Recommendation: Use view or batch query to avoid N+1
-```
+```text
 
 ---
 
@@ -269,7 +269,7 @@ Validated schema.json with relationship information
 
 ### Example: Query Complexity Analysis
 
-```
+```text
 Analyzing query patterns...
 
 Query: getUser(userId: Int!) -> User
@@ -287,13 +287,13 @@ Query: listOrders(userId: Int!) -> List<Order>
 - Estimated cost: 10-50ms (depends on data volume)
 - Recommended indexes: [fk_user_id]
 ⚠️ Missing index on fk_user_id - consider adding
-```
+```text
 
 ### Output
 
 Query analysis report with optimization recommendations:
 
-```
+```text
 Query Pattern Analysis:
 
 - Simple lookups (O(1)): 5 queries
@@ -305,7 +305,7 @@ Recommendations:
 1. Add index on tb_orders(fk_user_id)
 2. Consider materialized view for user order totals
 3. Add column tb_orders(total_count) for common aggregation
-```
+```text
 
 ---
 
@@ -363,13 +363,13 @@ FROM tb_orders
 WHERE fk_user_id = $1  -- Should use index on fk_user_id
 ORDER BY created_at DESC
 """
-```
+```text
 
 ### Output
 
 Compiled SQL templates (one per query):
 
-```
+```text
 Compiled SQL Templates:
 
 - getUser: 1 template (simple lookup)
@@ -381,7 +381,7 @@ Compiled SQL Templates:
 
 Total templates: 5
 Memory footprint: ~50KB
-```
+```text
 
 ---
 
@@ -417,11 +417,11 @@ class UserProfile:
 
     @schema.permission("user_role = 'admin'")
     phone: str
-```
+```text
 
 ### Compiled Permissions
 
-```
+```text
 Permission Rules (Compiled):
 
 1. delete_user:
@@ -437,13 +437,13 @@ Permission Rules (Compiled):
      b) user_id = authenticated_user_id (default)
    - Evaluation: Post-fetch (apply to results)
    - Context needed: user_id, user_role, authenticated_user_id
-```
+```text
 
 ### Output
 
 Compiled authorization bytecode:
 
-```
+```text
 Authorization Bytecode:
 
 - Byte size: ~2KB
@@ -451,7 +451,7 @@ Authorization Bytecode:
 - Pre-execution filters: 5
 - Post-fetch filters: 7
 - Performance: <1ms per request
-```
+```text
 
 ---
 
@@ -533,11 +533,11 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
     }
   }
 }
-```
+```text
 
 ### Output: Production-Ready Schema
 
-```
+```text
 ✅ Compilation Complete
 
 Compiled Schema Statistics:
@@ -551,7 +551,7 @@ Compiled Schema Statistics:
 - Checksum: sha256:abc123def456...
 
 Ready for deployment!
-```
+```text
 
 ---
 
@@ -572,7 +572,7 @@ class Product:
 @schema.query()
 def search_products(query: str, limit: int = 10) -> List[Product]:
     pass
-```
+```text
 
 **Phase 1: Parse**
 → Extract type information, recognize search_products query
@@ -595,7 +595,7 @@ FROM v_products
 WHERE name ILIKE $1 || '%'  -- PostgreSQL ILIKE with leading wildcard
 ORDER BY popularity DESC
 LIMIT $2
-```
+```text
 
 **Phase 6: Authorize**
 → No special permissions (public query)
@@ -614,7 +614,7 @@ query {
     inStock
   }
 }
-```
+```text
 
 → Server looks up pre-compiled template
 → Binds parameters ($1="laptop%", $2=5)
@@ -627,38 +627,38 @@ query {
 
 ### 1. Early Error Detection
 
-```
+```text
 ❌ Error caught at compile time:
    Column 'users_id' not found in tb_users
 
 ✅ Not discovered in production
-```
+```text
 
 ### 2. Performance Optimization
 
-```
+```text
  detects missing index:
 → Recommendation: Add index on tb_orders(fk_user_id)
 → DBA adds index before deployment
 → Queries automatically use it
-```
+```text
 
 ### 3. Security Verification
 
-```
+```text
  compiles authorization:
 → All permission rules checked for logic errors
 → Impossible conditions detected
 → Authorization always evaluated consistently
-```
+```text
 
 ### 4. Deterministic Behavior
 
-```
+```text
 All query optimization happens at build time.
 At runtime: just execute pre-compiled template.
 Result: Predictable performance, no surprises.
-```
+```text
 
 ---
 
@@ -666,31 +666,31 @@ Result: Predictable performance, no surprises.
 
 ### 1. Query Plan Transparency
 
-```
+```text
 Every query has a pre-computed plan:
 SELECT statement, expected cost, required indexes
 All visible before serving requests
-```
+```text
 
 ### 2. Automatic Optimization
 
-```
+```text
 Index missing? Phase 4 detects and recommends
 Index added? Phase 5 generates optimal SQL using it
 No code changes needed
-```
+```text
 
 ### 3. Schema Versioning
 
-```
+```text
 Each compiled schema is versioned:
 schema.compiled.json version 1.2
 Can run multiple versions, gradually migrate clients
-```
+```text
 
 ### 4. Deployment Safety
 
-```
+```text
 Compile server before deploying:
 
 - All queries validated
@@ -698,7 +698,7 @@ Compile server before deploying:
 - All indexes recommended
 - If anything fails, don't deploy
 Result: Zero surprises in production
-```
+```text
 
 ---
 
@@ -712,7 +712,7 @@ fraiseql-cli watch schema.py --output schema.compiled.json
 
 # Or one-time compilation
 fraiseql-cli compile schema.py --output schema.compiled.json
-```
+```text
 
 ### CI/CD Pipeline
 
@@ -722,7 +722,7 @@ fraiseql-cli compile schema.py \
   --database-url $DATABASE_URL \
   --output schema.compiled.json \
   --strict  # Fail on any warning
-```
+```text
 
 ### Production Deployment
 
@@ -737,7 +737,7 @@ pytest tests/
 # 3. Deploy if tests pass
 docker build .
 docker push registry/fraiseql-server:latest
-```
+```text
 
 ---
 
@@ -745,7 +745,7 @@ docker push registry/fraiseql-server:latest
 
 ### Compilation Time
 
-```
+```text
 Typical project:
 
 - Schema definitions: 50 types, 30 queries
@@ -759,11 +759,11 @@ Typical project:
   * Phase 7 (Output): 0.1s
 
 Total: ~3 seconds for full recompilation
-```
+```text
 
 ### Runtime Performance (Per Request)
 
-```
+```text
 Query execution with pre-compiled schema:
 
 Traditional GraphQL Server:
@@ -783,7 +783,7 @@ FraiseQL:
 Total: 51ms ← 25% faster
 
 Difference: 17ms per request = 8x faster on median case
-```
+```text
 
 ---
 

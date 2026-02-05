@@ -29,7 +29,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Architecture
 
@@ -58,7 +58,7 @@ query {
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────┐
 │  FraiseQL       │
 │  Compiler       │
@@ -85,7 +85,7 @@ query {
 │PostgreSQL│     │ MySQL    │    │SQLite   │  │SQL Srv  │
 │   DB #1  │     │  DB #2   │    │ DB #3   │  │ DB #4   │
 └─────────┘     └──────────┘    └─────────┘  └─────────┘
-```
+```text
 
 ## When to Use Federation
 

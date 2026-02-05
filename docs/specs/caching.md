@@ -43,9 +43,9 @@ Query Result Caching stores the complete result of GraphQL queries in a cache, e
 
 #### Structure
 
-```
+```text
 {prefix}:{tenant_id}:{operation_hash}:{variables_hash}:{complexity_hash}
-```
+```text
 
 **Components:**
 
@@ -57,9 +57,9 @@ Query Result Caching stores the complete result of GraphQL queries in a cache, e
 
 #### Example
 
-```
+```text
 fraiseql:org_550e8400-e29b-41d4:a7f3e9d2c1b:4f6a8e9d:low
-```
+```text
 
 **Tenant Isolation Guarantee:**
 Cache keys are scoped by `tenant_id` at the highest level. Even with cache backend compromise, an attacker cannot retrieve data from tenant A if requesting with tenant B credentials.
@@ -95,7 +95,7 @@ class CacheConfig:
 
     # Tenant isolation
     require_tenant_id: bool = True  # Fail if tenant_id not provided
-```
+```text
 
 #### Usage
 
@@ -114,7 +114,7 @@ app = create_fraiseql_app(
     schema=schema,
     cache_config=cache_config
 )
-```
+```text
 
 ### 2.4 Cache Backends
 
@@ -141,7 +141,7 @@ backend = MemoryCacheBackend(
     max_entries=100_000,
     auto_cleanup_interval=300      # Cleanup every 5 minutes
 )
-```
+```text
 
 **Automatic Cleanup:**
 
@@ -178,7 +178,7 @@ CREATE INDEX idx_cache_expires_at ON fraiseql_cache(expires_at);
 CREATE INDEX idx_cache_tenant ON fraiseql_cache(
     (cache_key LIKE 'fraiseql:%')  -- Tenant extraction for cleanup
 );
-```
+```text
 
 **Configuration:**
 
@@ -192,7 +192,7 @@ backend = PostgreSQLCacheBackend(
     cleanup_interval=300,           # Cleanup every 5 minutes
     max_cleanup_batch=1000          # Clean up to 1000 expired entries per run
 )
-```
+```text
 
 **UNLOGGED Table Tradeoff:**
 
@@ -207,7 +207,7 @@ backend = PostgreSQLCacheBackend(
 DELETE FROM fraiseql_cache
 WHERE expires_at < NOW()
 LIMIT 1000;  -- Batch cleanup to avoid long locks
-```
+```text
 
 #### 2.4.3 Custom Backend
 
@@ -246,7 +246,7 @@ class RedisCacheBackend(BaseCacheBackend):
     async def clear(self) -> None:
         """Clear all cache entries."""
         await self.redis.flushdb()
-```
+```text
 
 **Usage:**
 
@@ -260,7 +260,7 @@ app = create_fraiseql_app(
     schema=schema,
     cache_backend=backend
 )
-```
+```text
 
 ### 2.5 Cache Invalidation Strategies
 
@@ -287,17 +287,17 @@ def calculate_ttl(query_complexity: float, config: CacheConfig) -> int:
         return config.default_ttl // 2  # 150s
     else:
         return 30  # Very expensive queries cached briefly
-```
+```text
 
 **Example:**
 
-```
+```text
 GET /graphql?query={users{id name}}
 Cache-Control: max-age=600  # Simple query, cached 10 minutes
 
 GET /graphql?query={users{id name posts{id comments{...}}}}
 Cache-Control: max-age=30   # Complex query, cached 30 seconds
-```
+```text
 
 #### 2.5.2 Manual Invalidation
 
@@ -318,7 +318,7 @@ await cache_manager.invalidate_pattern(
 
 # Clear entire cache
 await cache_manager.clear_all()
-```
+```text
 
 #### 2.5.3 graphql-cascade Integration (Automatic)
 
@@ -358,7 +358,7 @@ mutation UpdateUser($id: ID!, $name: String!) {
     }
   }
 }
-```
+```text
 
 **Cascade Invalidation Pattern:**
 
@@ -398,7 +398,7 @@ async def update_user(info, id: UUID, name: str):
             "invalidations": invalidations
         }
     }
-```
+```text
 
 ### 2.6 Multi-Tenant Cache Isolation
 
@@ -406,11 +406,11 @@ async def update_user(info, id: UUID, name: str):
 
 Cache keys **always include tenant_id** as the highest-level discriminator:
 
-```
+```text
 {prefix}:{tenant_id}:{operation_hash}:{variables_hash}:{complexity_hash}
            ^^^^^^^^^^^
            Cannot retrieve other tenant's data
-```
+```text
 
 **Proof of Isolation:**
 
@@ -424,7 +424,7 @@ assert await cache.get(org_a_key) != await cache.get(org_b_key)
 
 # If attacker queries as org_b, gets org_b data even if same query
 # No cross-tenant data leakage possible
-```
+```text
 
 #### Multi-Tenant Deployment Pattern
 
@@ -441,7 +441,7 @@ async def get_user(info, id: UUID) -> User:
         {"id": id, "tenant_id": tenant_id}
     )
     return user
-```
+```text
 
 ### 2.7 Performance Characteristics
 
@@ -494,7 +494,7 @@ fraiseql_cache_evictions_total{
     reason="lru|ttl|manual",
     tenant_id="org_123"
 }
-```
+```text
 
 #### Example Monitoring Query
 
@@ -514,7 +514,7 @@ WHERE
     AND tenant_id = $tenant_id
 GROUP BY operation_name
 ORDER BY hit_rate_pct DESC;
-```
+```text
 
 #### Monitoring Dashboard Recommendations
 
@@ -540,9 +540,9 @@ APQ Response Caching caches the **HTTP response** of persisted queries, eliminat
 
 ### 3.2 Response Cache Key
 
-```
+```text
 {prefix}:{tenant_id}:{query_hash}:{variables_hash}:{field_selection_hash}
-```
+```text
 
 **Critical Component: Variables Hash**
 
@@ -562,7 +562,7 @@ def compute_variables_hash(variables: dict) -> str:
     """
     sorted_vars = json.dumps(variables, sort_keys=True)
     return hashlib.sha256(sorted_vars.encode()).hexdigest()
-```
+```text
 
 ### 3.3 Configuration
 
@@ -585,7 +585,7 @@ class APQConfig:
 
     # Maximum response size to cache
     max_response_size_bytes: int = 1_000_000  # 1 MB
-```
+```text
 
 ### 3.4 Field Selection Optimization
 
@@ -612,7 +612,7 @@ query GetUser($id: ID!) {
     name
   }
 }
-```
+```text
 
 **With field selection optimization:**
 
@@ -633,7 +633,7 @@ def prune_response_fields(cached_response: dict, requested_fields: set) -> dict:
         return obj
 
     return prune_recursive(cached_response, requested_fields)
-```
+```text
 
 ---
 
@@ -654,7 +654,7 @@ class CacheInvalidation:
     scope: str               # EXACT, PREFIX, SUFFIX, INFIX
     user_id: str | None      # Optional: filter by user
     tenant_id: str | None    # Optional: filter by tenant
-```
+```text
 
 **Pattern Matching:**
 
@@ -678,7 +678,7 @@ def matches_invalidation(
         return pattern.query_name in cached_operation_name
 
     return False
-```
+```text
 
 ### 4.3 Example: User Update Cascade
 
@@ -715,7 +715,7 @@ async def update_user(info, user_id: UUID, data: dict):
             "invalidations": invalidations
         }
     }
-```
+```text
 
 ### 4.4 Database-Level Cascade (PostgreSQL)
 
@@ -748,7 +748,7 @@ CREATE TRIGGER user_cache_invalidation
 AFTER UPDATE ON tb_user
 FOR EACH ROW
 EXECUTE FUNCTION log_cache_invalidation();
-```
+```text
 
 ---
 
@@ -766,7 +766,7 @@ cache_config = CacheConfig(
         max_size_bytes=100_000_000  # 100 MB (plenty for dev)
     )
 )
-```
+```text
 
 ### 5.2 Staging Configuration
 
@@ -780,7 +780,7 @@ cache_config = CacheConfig(
         connection_string=os.getenv("STAGING_DB_URL")
     )
 )
-```
+```text
 
 ### 5.3 Production Configuration
 
@@ -798,7 +798,7 @@ cache_config = CacheConfig(
         max_size_bytes=10_000_000_000  # 10 GB
     )
 )
-```
+```text
 
 ### 5.4 Environment Variables
 
@@ -822,7 +822,7 @@ FRAISEQL_CACHE_BACKEND=postgresql
 FRAISEQL_CACHE_DB_URL=postgresql://...
 FRAISEQL_CACHE_SIZE_BYTES=10000000000
 FRAISEQL_CACHE_INCLUDE_COMPLEXITY=true
-```
+```text
 
 ---
 
@@ -830,7 +830,7 @@ FRAISEQL_CACHE_INCLUDE_COMPLEXITY=true
 
 ### 6.1 Cache Strategy Decision Tree
 
-```
+```text
 Is data frequently queried?
 ├─ YES: Cache it
 │   ├─ Is data frequently modified?
@@ -839,7 +839,7 @@ Is data frequently queried?
 │   └─ End: Use caching
 └─ NO: Don't cache
     └─ Monitor to ensure cache isn't wasted
-```
+```text
 
 ### 6.2 TTL Guidelines
 
@@ -860,7 +860,7 @@ complex_query_ttl = 60       # 1 minute (expensive, aggressive invalidation)
 
 # This forces expensive queries to be regenerated frequently
 # Preventing cache from becoming a bottleneck
-```
+```text
 
 ### 6.4 Monitoring Checklist
 
@@ -943,7 +943,7 @@ async def get_user(info, id: UUID) -> User:
 
     # WRONG: user-provided tenant_id
     tenant_id = info.arguments.get("tenant_id")  # ❌ SECURITY BUG
-```
+```text
 
 ### 8.2 Error Caching
 
@@ -955,7 +955,7 @@ cache_errors=True  # SECURITY RISK
 
 # ✅ Only cache errors in development
 cache_errors=os.getenv("ENVIRONMENT") == "development"
-```
+```text
 
 ### 8.3 Sensitive Data
 
@@ -973,7 +973,7 @@ async def get_user(info, id: UUID) -> User:
 async def get_user_profile(info, id: UUID) -> UserProfile:
     """Returns only public profile."""
     return await db.find_one("user_profiles", {"id": id})
-```
+```text
 
 ---
 

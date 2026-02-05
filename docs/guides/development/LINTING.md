@@ -49,7 +49,7 @@ FraiseQL enables the following Clippy lint groups:
 ```rust
 #![warn(clippy::all)]       // All clippy lints
 #![warn(clippy::pedantic)]  // Pedantic lints for code quality
-```
+```text
 
 ### Core Rules
 
@@ -93,7 +93,7 @@ cargo test --lib
 
 # Optional: Run benchmark for performance regression
 cargo bench --no-run
-```
+```text
 
 ### CI/CD Pipeline
 
@@ -126,7 +126,7 @@ pub fn execute_query(query: &str) -> Result<String> { }
 /// # Errors
 /// Returns error if query is invalid or execution fails
 pub fn execute_query(query: &str) -> Result<String> { }
-```
+```text
 
 #### Unnecessary Box/Arc
 
@@ -136,7 +136,7 @@ let x = Box::new(value);
 
 // ✅ Let compiler infer when possible
 let x = value;
-```
+```text
 
 #### Pedantic Improvements
 
@@ -153,7 +153,7 @@ if condition {
     return Ok(());
 }
 return Err(err);
-```
+```text
 
 ## Allowed Exceptions
 
@@ -169,7 +169,7 @@ Example:
 #![allow(clippy::too_many_arguments)]
 // QueryExecutor needs many args for type information, database connection, etc.
 // Consider refactoring into a builder if logic becomes too complex.
-```
+```text
 
 ## Best Practices
 
@@ -181,7 +181,7 @@ let results = query.execute().collect();
 
 // ✅ Explicit
 let results: Vec<Row> = query.execute().collect();
-```
+```text
 
 ### 2. Document Complex Logic
 
@@ -196,7 +196,7 @@ if x.len() > 1024 && y.is_some() {
 if x.len() > 1024 && y.is_some() {
     process(z);
 }
-```
+```text
 
 ### 3. Use Builder Pattern for Complex Types
 
@@ -206,7 +206,7 @@ let config = ServerConfig::builder()
     .bind_addr("127.0.0.1:8000".parse()?)
     .metrics_enabled(true)
     .build()?;
-```
+```text
 
 ### 4. Prefer Iterator Adapters
 
@@ -225,7 +225,7 @@ let results: Vec<_> = items
     .filter(|item| item.valid())
     .map(|item| item.transform())
     .collect();
-```
+```text
 
 ## Formatting Standards
 
@@ -235,17 +235,17 @@ Use `rustfmt` with project defaults:
 
 ```bash
 cargo fmt
-```
+```text
 
 ### Commit Message Format
 
-```
+```text
 <type>(<scope>): <description>
 
 <body>
 
 <footer>
-```
+```text
 
 **Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
@@ -281,10 +281,10 @@ All public items require documentation:
 /// * `Error::Variant` - When this happens
 ///
 /// # Example
-/// ```
+/// ```text
 /// let result = function(arg1, arg2)?;
 /// assert_eq!(result, expected);
-/// ```
+/// ```text
 ///
 /// # Performance
 /// O(n log n) complexity due to sorting
@@ -294,7 +294,7 @@ All public items require documentation:
 pub fn function(param1: Type1, param2: Type2) -> Result<Type3> {
     // ...
 }
-```
+```text
 
 ## Testing & Linting Integration
 
@@ -320,7 +320,7 @@ fn test_excessive_bools_intentional() {
     };
     assert!(config.cors_enabled);
 }
-```
+```text
 
 ## Continuous Improvement
 

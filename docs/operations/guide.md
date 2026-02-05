@@ -61,30 +61,30 @@ SLA (Customer Commitment):
   latency_p95: <150ms        # 50% buffer for customer expectations
   error_rate: <0.2%          # 2x buffer from SLO
   credits: 10% for 99-99.5%, 25% for 98-99%, 50% for <98%
-```
+```text
 
 ### How to Calculate SLO Compliance
 
 **Monthly Availability**:
 
-```
+```text
 Uptime % = (Uptime Minutes / Total Minutes in Month) × 100
 Target: 99.9% = 43.2 minutes downtime allowed per month
-```
+```text
 
 **Latency SLI** (Service Level Indicator):
 
-```
+```text
 Latency SLI = (Queries with P95 < 100ms / Total Queries) × 100
 Target: 99.9% of queries meet latency target
-```
+```text
 
 **Error Rate SLI**:
 
-```
+```text
 Error Rate SLI = (Successful Queries / Total Queries) × 100
 Target: 99.9% success rate (0.1% error rate)
-```
+```text
 
 ### Customization Checklist
 
@@ -108,7 +108,7 @@ Returns overall system health including uptime:
 
 ```bash
 curl http://localhost:8000/health
-```
+```text
 
 **Response** (HTTP 200):
 
@@ -118,7 +118,7 @@ curl http://localhost:8000/health
   "timestamp": 1706794800,
   "uptime_seconds": 3600
 }
-```
+```text
 
 **Use Case**: General health monitoring, dashboards, observability
 
@@ -130,7 +130,7 @@ Checks if the server is ready to accept requests (database connectivity, cache a
 
 ```bash
 curl http://localhost:8000/ready
-```
+```text
 
 **Response - Ready** (HTTP 200):
 
@@ -141,7 +141,7 @@ curl http://localhost:8000/ready
   "cache_available": true,
   "reason": null
 }
-```
+```text
 
 **Response - Not Ready** (HTTP 503):
 
@@ -152,7 +152,7 @@ curl http://localhost:8000/ready
   "cache_available": true,
   "reason": "Database unavailable"
 }
-```
+```text
 
 **Kubernetes Configuration** (recommended):
 
@@ -166,7 +166,7 @@ readinessProbe:
   timeoutSeconds: 2
   successThreshold: 1
   failureThreshold: 3
-```
+```text
 
 **What It Checks**:
 
@@ -184,7 +184,7 @@ Checks if the process is still running (lightweight, no dependency checks):
 
 ```bash
 curl http://localhost:8000/live
-```
+```text
 
 **Response** (HTTP 200):
 
@@ -194,7 +194,7 @@ curl http://localhost:8000/live
   "pid": 42157,
   "response_time_ms": 1
 }
-```
+```text
 
 **Kubernetes Configuration** (recommended):
 
@@ -208,7 +208,7 @@ livenessProbe:
   timeoutSeconds: 2
   successThreshold: 1
   failureThreshold: 3
-```
+```text
 
 **What It Checks**:
 
@@ -270,7 +270,7 @@ spec:
 
         # Termination Grace Period - Allow graceful shutdown
         terminationGracePeriodSeconds: 30
-```
+```text
 
 ### Graceful Shutdown
 
@@ -288,13 +288,13 @@ FraiseQL handles graceful shutdown with signal handling:
 
 ```yaml
 terminationGracePeriodSeconds: 30  # Allow 30s for graceful shutdown
-```
+```text
 
 **Docker Configuration**:
 
 ```dockerfile
 STOPSIGNAL SIGTERM
-```
+```text
 
 **Manual Testing**:
 
@@ -309,7 +309,7 @@ kill -TERM <pid>
 # - "Shutdown requested"
 # - "Draining in-flight requests..."
 # - "Clean shutdown complete"
-```
+```text
 
 **Load Balancer Configuration**:
 
@@ -335,7 +335,7 @@ health_check {
   protocol = "HTTP"
   matcher = "200"
 }
-```
+```text
 
 **Nginx**:
 
@@ -356,17 +356,17 @@ server {
 }
 
 # Health check (external configuration)
-```
+```text
 
 **HAProxy**:
 
-```
+```text
 backend fraiseql
   option httpchk GET /ready HTTP/1.1
   default-server inter 30s fall 3 rise 2
   server fraiseql-1 localhost:8000 check
   server fraiseql-2 localhost:8001 check
-```
+```text
 
 ---
 
@@ -376,7 +376,7 @@ FraiseQL exposes Prometheus metrics at `/metrics`:
 
 **Key Metrics to Monitor**:
 
-```
+```text
 # Query execution
 fraiseql_queries_total{status="success"}    # Total queries
 fraiseql_query_duration_seconds             # Query latency
@@ -398,7 +398,7 @@ fraiseql_http_request_duration_seconds      # HTTP latency
 
 # System
 fraiseql_uptime_seconds                     # Process uptime
-```
+```text
 
 **Prometheus Configuration**:
 
@@ -410,7 +410,7 @@ scrape_configs:
       - targets: ['localhost:9090']
     scrape_interval: 30s
     scrape_timeout: 5s
-```
+```text
 
 ---
 
@@ -466,7 +466,7 @@ groups:
           severity: critical
         annotations:
           summary: "Disk less than 10% available"
-```
+```text
 
 **Customize Alert Thresholds**:
 
@@ -502,11 +502,11 @@ groups:
 
 **Example Grafana Variables**:
 
-```
+```text
 $job = fraiseql (data source: Prometheus)
 $environment = production
 $cluster = us-east-1
-```
+```text
 
 ---
 
@@ -529,7 +529,7 @@ FraiseQL logs in JSON format for easy parsing:
     "status": "success"
   }
 }
-```
+```text
 
 **Log Aggregation Setup** (e.g., Elasticsearch):
 
@@ -547,7 +547,7 @@ output.elasticsearch:
 
 setup.dashboards.enabled: true
 setup.kibana.host: "kibana.example.com:5601"
-```
+```text
 
 **Log Retention**:
 
@@ -563,7 +563,7 @@ setup.kibana.host: "kibana.example.com:5601"
 
 **CRITICAL** (Immediate Response Required)
 
-```
+```text
 Impact: Complete service outage or data loss
 Examples:
   - Service completely unresponsive (0% success rate)
@@ -573,11 +573,11 @@ Examples:
 Response Target: <2 minutes to acknowledge
 Escalation: Page all on-call staff immediately
 Communication: Status page update + customer notification within 15 min
-```
+```text
 
 **HIGH** (Urgent Response Required)
 
-```
+```text
 Impact: Significant degradation, customer impact
 Examples:
   - 25-99% of traffic failing
@@ -588,11 +588,11 @@ Examples:
 Response Target: <15 minutes
 Escalation: Page if not acknowledged within 15 min
 Communication: Customer notification if >30 min impact
-```
+```text
 
 **MEDIUM** (Standard Response)
 
-```
+```text
 Impact: Minor issues, customer may notice
 Examples:
   - <25% of traffic affected
@@ -603,11 +603,11 @@ Examples:
 Response Target: <1 hour
 Escalation: Ticket queue with daily check-in
 Communication: Slack notification only
-```
+```text
 
 **LOW** (Routine Response)
 
-```
+```text
 Impact: No immediate customer impact
 Examples:
   - Warning-level alerts
@@ -617,7 +617,7 @@ Examples:
 Response Target: <24 hours
 Escalation: Ticket system
 Communication: Weekly summary
-```
+```text
 
 ---
 
@@ -668,7 +668,7 @@ Based on root cause, implement fix:
 
 #### Template 1: Incident Declaration (Slack)
 
-```
+```text
 :warning: **INCIDENT DECLARED: [SERVICE]**
 
 **Severity**: [CRITICAL / HIGH / MEDIUM]
@@ -684,11 +684,11 @@ Based on root cause, implement fix:
 **Next Update**: In 5 minutes
 
 **Assigned To**: @on-call-engineer
-```
+```text
 
 #### Template 2: Status Update
 
-```
+```text
 :clock1: **INCIDENT UPDATE** - [TIME] UTC
 
 **Status**: [Investigating / Identified / Mitigating / Monitoring]
@@ -708,11 +708,11 @@ Based on root cause, implement fix:
 - Affected customers: [~N]
 
 **ETA**: [Estimated time to resolution]
-```
+```text
 
 #### Template 3: Resolution (Slack)
 
-```
+```text
 :white_check_mark: **INCIDENT RESOLVED** - [TIME] UTC
 
 **Duration**: [HH:MM] (from [start] to [end] UTC)
@@ -730,11 +730,11 @@ Based on root cause, implement fix:
 
 **RCA Meeting**: [DATE] [TIME] UTC
 Questions? Ping @incident-commander
-```
+```text
 
 #### Template 4: Customer Notification (Email)
 
-```
+```text
 Subject: [RESOLVED] Service Disruption - [DATE]
 
 Dear Valued Customer,
@@ -766,7 +766,7 @@ APOLOGY:
 We sincerely apologize for the disruption.
 
 Contact: support@fraiseql.com
-```
+```text
 
 ---
 
@@ -783,35 +783,35 @@ Contact: support@fraiseql.com
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: Connection refused or timeout
-   ```
+   ```text
 
 2. Check logs for recent errors:
 
    ```bash
    kubectl logs -f deployment/fraiseql-api
    # Look for: panic, segfault, out of memory
-   ```
+   ```text
 
 3. Restart service:
 
    ```bash
    kubectl rollout restart deployment/fraiseql-api
    # Or: systemctl restart fraiseql
-   ```
+   ```text
 
 4. Verify restart:
 
    ```bash
    kubectl get deployment fraiseql-api
    # Expected: Ready 1/1, Restarts: 1
-   ```
+   ```text
 
 5. Health check:
 
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: 200 OK, status: healthy
-   ```
+   ```text
 
 6. Monitor metrics for 5 minutes:
    - Error rate returns to baseline
@@ -844,20 +844,20 @@ Contact: support@fraiseql.com
    ```sql
    SELECT COUNT(*) FROM users;
    -- Is this number correct?
-   ```
+   ```text
 
 2. Stop application (prevent further writes):
 
    ```bash
    kubectl scale deployment fraiseql-api --replicas=0
-   ```
+   ```text
 
 3. Find latest backup:
 
    ```bash
    aws s3 ls s3://your-backup-bucket/ | sort
    # Find most recent backup before incident
-   ```
+   ```text
 
 4. Download and restore:
 
@@ -867,27 +867,27 @@ Contact: support@fraiseql.com
 
    psql -h your-database.rds.amazonaws.com -U fraiseql -d fraiseql \
      < 2026-03-15-12-00.sql
-   ```
+   ```text
 
 5. Verify restoration:
 
    ```sql
    SELECT COUNT(*) FROM users;
    -- Should match expected count from before incident
-   ```
+   ```text
 
 6. Restart application:
 
    ```bash
    kubectl scale deployment fraiseql-api --replicas=3
-   ```
+   ```text
 
 7. Health check:
 
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: 200 OK
-   ```
+   ```text
 
 8. Monitor metrics:
    - Error rate normal
@@ -912,11 +912,11 @@ Contact: support@fraiseql.com
 
 1. Identify compromised key:
 
-   ```
+   ```text
    From anomaly alert:
    - Key: fraiseql_us_east_1_xxxxx
    - Activity: Rate spike + new field access (PII)
-   ```
+   ```text
 
 2. Verify compromise:
 
@@ -925,7 +925,7 @@ Contact: support@fraiseql.com
    curl -H "Authorization: Bearer $ES_TOKEN" \
      "elasticsearch.example.com/_search" \
      -d '{"query": {"term": {"api_key": "key_xyz"}}}'
-   ```
+   ```text
 
 3. Revoke key immediately:
 
@@ -934,7 +934,7 @@ Contact: support@fraiseql.com
    SET revoked_at = NOW(),
        revoke_reason = 'Security incident - suspected compromise'
    WHERE api_key_id = 'key_xyz';
-   ```
+   ```text
 
 4. Verify revocation:
 
@@ -942,7 +942,7 @@ Contact: support@fraiseql.com
    curl -H "Authorization: Bearer fraiseql_us_east_1_xxxxx" \
      https://your-fraiseql-api.com/graphql
    # Expected: 401 Unauthorized
-   ```
+   ```text
 
 5. Generate replacement key:
 
@@ -951,7 +951,7 @@ Contact: support@fraiseql.com
      --name "replacement-key" \
      --tier premium \
      --permissions "read,write"
-   ```
+   ```text
 
 6. Notify customer (use template 4):
    - Explain what happened
@@ -965,7 +965,7 @@ Contact: support@fraiseql.com
    # What data did they access?
    # Which tables/fields?
    # How many queries?
-   ```
+   ```text
 
 8. Document incident:
    - Time revoked: [TIME]
@@ -998,7 +998,7 @@ Contact: support@fraiseql.com
 
    # Check logs
    grep "429\|rate.limit" /var/log/fraiseql/access.log
-   ```
+   ```text
 
 2. Verify it's legitimate traffic:
 
@@ -1008,7 +1008,7 @@ Contact: support@fraiseql.com
    WHERE timestamp > now() - interval '5 minutes'
    GROUP BY api_key, source_ip
    ORDER BY requests DESC;
-   ```
+   ```text
 
 3. Increase limit temporarily (if legitimate):
 
@@ -1021,7 +1021,7 @@ Contact: support@fraiseql.com
    # Edit config.toml
    # [rate_limits]
    # tier.premium.rps = 2000
-   ```
+   ```text
 
 4. Monitor impact:
 
@@ -1030,7 +1030,7 @@ Contact: support@fraiseql.com
    watch -n 1 'curl -s https://your-fraiseql-api.com/metrics | grep rate_limit'
 
    # Check error rate didn't increase
-   ```
+   ```text
 
 5. Permanent fix (if pattern repeats):
 
@@ -1041,7 +1041,7 @@ Contact: support@fraiseql.com
 
    # Deploy
    kubectl rollout restart deployment/fraiseql-api
-   ```
+   ```text
 
 6. Document decision:
    - Why increased? [REASON]
@@ -1185,13 +1185,13 @@ Contact: support@fraiseql.com
 
 **Schedule**:
 
-```
+```text
 Every 6 hours:
   00:00 UTC - Full backup
   06:00 UTC - Full backup
   12:00 UTC - Full backup
   18:00 UTC - Full backup
-```
+```text
 
 **Process**:
 

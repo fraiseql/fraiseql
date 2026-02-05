@@ -6,7 +6,7 @@ Complete architectural documentation for FraiseQL v2.
 
 ## 🚀 Rust Core Implementation
 
-**Complete Rust implementation for FraiseQL v2.0.0-alpha.1**
+### Complete Rust implementation for FraiseQL v2.0.0-alpha.1
 
 | Document | Description | Lines | Status |
 |----------|-------------|-------|--------|
@@ -14,7 +14,7 @@ Complete architectural documentation for FraiseQL v2.
 | **[CODE_EXAMPLES.md](CODE_EXAMPLES.md)** | Runnable code examples | 800+ | ✅ Complete |
 | **[ADVANCED_FEATURES_ARCHITECTURE.md](ADVANCED_FEATURES_ARCHITECTURE.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Complete |
 
-**Core Features Designed:**
+### Core Features Designed:
 
 - ✅ Database abstraction layer (PostgreSQL, MySQL, SQLite, SQL Server)
 - ✅ WHERE clause generation (50+ operators, SQL injection proof)
@@ -23,7 +23,7 @@ Complete architectural documentation for FraiseQL v2.
 - ✅ Connection pooling (deadpool)
 - ✅ Caching (LRU + Redis)
 
-**Advanced Features Designed:**
+### Advanced Features Designed:
 
 - ✅ **Federation** - Apollo Federation v2 with view-based protocol
 - ✅ **RBAC** - Hierarchical roles with permission caching
@@ -125,21 +125,21 @@ Monitoring, logging, and instrumentation.
 
 ## 🎯 Recommended Reading Order
 
-**For System Understanding:**
+### For System Understanding:
 
 1. Core: compilation-pipeline.md
 2. Core: execution-model.md
 3. Database: database-targeting.md
 4. Security: security-model.md
 
-**For Deep Dive:**
+### For Deep Dive:
 
 1. Core: compilation-phases.md
 2. Core: execution-semantics.md
 3. Integration: federation.md
 4. Real-time: subscriptions.md
 
-**For Production:**
+### For Production:
 
 1. Reliability: consistency-model.md
 2. Reliability: failure-modes-and-recovery.md

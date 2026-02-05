@@ -746,7 +746,7 @@ If documentation is unclear, file an issue. Documentation improves through feedb
 
 **Reading order matters** for some documents. Here's the dependency graph:
 
-```
+```text
 README.md
     ↓
 prd/PRD.md
@@ -825,7 +825,7 @@ architecture/decisions/design-decisions.md
     └─→ architecture/decisions/state-management.md
 
 architecture/reliability/versioning-strategy.md (standalone, recommended after reliability docs)
-```
+```text
 
 **Key insight:** Start with README → PRD → GLOSSARY, then choose your path based on dependencies.
 

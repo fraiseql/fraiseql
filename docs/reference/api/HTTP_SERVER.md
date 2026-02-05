@@ -6,7 +6,7 @@ The FraiseQL HTTP server is a high-performance GraphQL execution engine built wi
 
 ## Architecture
 
-```
+```text
 Client Request
     ↓
 HTTP Handler (Axum)
@@ -20,7 +20,7 @@ Database Adapter (PostgreSQL/MySQL/SQLite)
 Response Formatting (GraphQL spec-compliant)
     ↓
 Client Response
-```
+```text
 
 ## Getting Started
 
@@ -39,7 +39,7 @@ let config = ServerConfig::new()
 
 let server = Server::new(config).await?;
 server.run().await?;
-```
+```text
 
 ### Environment Variables
 
@@ -60,7 +60,7 @@ FRAISEQL_POOL_TIMEOUT_SECS=30         # Default: 30
 # Query Validation
 FRAISEQL_MAX_QUERY_DEPTH=10           # Default: 10
 FRAISEQL_MAX_QUERY_COMPLEXITY=100     # Default: 100
-```
+```text
 
 ## HTTP Endpoints
 
@@ -80,7 +80,7 @@ Executes GraphQL queries with optional variables.
   },
   "operationName": "GetUser"
 }
-```
+```text
 
 **Fields:**
 
@@ -100,7 +100,7 @@ Executes GraphQL queries with optional variables.
     }
   }
 }
-```
+```text
 
 #### Response Format (Error)
 
@@ -120,7 +120,7 @@ Executes GraphQL queries with optional variables.
     }
   ]
 }
-```
+```text
 
 ### Health Check Endpoint
 
@@ -146,7 +146,7 @@ Returns server and database health status.
     "path": "schema.compiled.json"
   }
 }
-```
+```text
 
 **Status Values:**
 
@@ -189,7 +189,7 @@ Returns GraphQL schema introspection data for schema discovery.
     }
   ]
 }
-```
+```text
 
 ## Query Validation
 
@@ -223,7 +223,7 @@ Prevents deeply nested queries that could cause exponential query complexity.
     }
   }
 }
-```
+```text
 
 **Default**: Maximum depth of 10 levels
 **Configuration**: Set `FRAISEQL_MAX_QUERY_DEPTH` environment variable
@@ -258,7 +258,7 @@ Scores query complexity based on structural patterns to prevent resource-exhaust
     ]
   ]
 }
-```
+```text
 
 **Default**: Maximum complexity of 100 points
 **Configuration**: Set `FRAISEQL_MAX_QUERY_COMPLEXITY` environment variable
@@ -282,7 +282,7 @@ Ensures query variables are properly formatted objects.
   "query": "query($id: ID!) { ... }",
   "variables": ["123", "John"]
 }
-```
+```text
 
 ## Error Handling
 
@@ -327,7 +327,7 @@ The server implements GraphQL spec-compliant error responses with detailed error
     }
   ]
 }
-```
+```text
 
 **Fields:**
 
@@ -341,33 +341,33 @@ The server implements GraphQL spec-compliant error responses with detailed error
 
 #### Query Too Deep
 
-```
+```text
 Query exceeds maximum depth of 10: depth = 15
-```
+```text
 
 **Solution**: Simplify query nesting or contact administrator to increase limit
 
 #### Query Too Complex
 
-```
+```text
 Query exceeds maximum complexity of 100: score = 157
-```
+```text
 
 **Solution**: Reduce number of array selections or requested fields
 
 #### Malformed Query
 
-```
+```text
 Empty query
-```
+```text
 
 **Solution**: Provide non-empty GraphQL query string
 
 #### Database Error
 
-```
+```text
 Failed to connect to database: connection refused
-```
+```text
 
 **Solution**: Verify database URL and credentials in environment variables
 
@@ -384,7 +384,7 @@ FRAISEQL_POOL_MAX=50
 
 # Adjust timeout for slow network connections
 FRAISEQL_POOL_TIMEOUT_SECS=60
-```
+```text
 
 **Recommendations:**
 
@@ -404,7 +404,7 @@ FRAISEQL_MAX_QUERY_COMPLEXITY=200
 # Stricter for public APIs
 FRAISEQL_MAX_QUERY_DEPTH=5
 FRAISEQL_MAX_QUERY_COMPLEXITY=50
-```
+```text
 
 ### Monitoring
 
@@ -433,7 +433,7 @@ WORKDIR /app
 ENV FRAISEQL_SCHEMA_PATH=/app/schema.json
 EXPOSE 8000
 CMD ["fraiseql-server"]
-```
+```text
 
 ### Environment Setup
 
@@ -448,7 +448,7 @@ FRAISEQL_POOL_MAX=50
 FRAISEQL_POOL_TIMEOUT_SECS=30
 FRAISEQL_MAX_QUERY_DEPTH=10
 FRAISEQL_MAX_QUERY_COMPLEXITY=100
-```
+```text
 
 ### Kubernetes
 
@@ -499,7 +499,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-```
+```text
 
 ## Troubleshooting
 
@@ -512,7 +512,7 @@ spec:
 ```bash
 kill -9 $(lsof -t -i:8000)
 FRAISEQL_PORT=8001 cargo run
-```
+```text
 
 ### Database Connection Failed
 
@@ -580,7 +580,7 @@ curl -X POST http://localhost:8000/graphql \
 
 # Health check
 curl http://localhost:8000/health
-```
+```text
 
 ### JavaScript/Node.js
 
@@ -599,7 +599,7 @@ if (data.errors) {
 } else {
   console.log('Result:', data.data);
 }
-```
+```text
 
 ### Python
 
@@ -615,7 +615,7 @@ if 'errors' in data:
     print(f"Error: {data['errors'][0]['message']}")
 else:
     print(f"Result: {data['data']}")
-```
+```text
 
 ## Next Steps
 

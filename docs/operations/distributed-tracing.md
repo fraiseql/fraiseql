@@ -41,7 +41,7 @@ let ctx_with_baggage = ctx
 
 // Check baggage
 assert_eq!(ctx_with_baggage.baggage_item("user_id"), Some("user_id"));
-```
+```text
 
 #### TraceSpan
 
@@ -67,7 +67,7 @@ let span = span.add_event(event);
 let mut span = span;
 span.finish();
 assert!(span.end_time_ms.is_some());
-```
+```text
 
 #### TraceEvent
 
@@ -81,7 +81,7 @@ let event = TraceEvent::new("cache_miss".to_string())
     .with_attribute("cache_type".to_string(), "redis".to_string());
 
 println!("Event: {} at {}", event.name, event.timestamp_ms);
-```
+```text
 
 #### SpanStatus
 
@@ -99,7 +99,7 @@ let error_status = SpanStatus::Error {
 };
 
 println!("Status: {}", error_status);
-```
+```text
 
 ## Usage Examples
 
@@ -119,7 +119,7 @@ tracing::info!(
     span_id = %trace_ctx.span_id,
     "Processing GraphQL query"
 );
-```
+```text
 
 ### W3C Trace Context Headers
 
@@ -146,7 +146,7 @@ let downstream_trace = TraceContext::from_w3c_traceparent(incoming_header)
 // Same trace, different span
 assert_eq!(downstream_trace.trace_id, trace.trace_id);
 assert_eq!(downstream_trace.parent_span_id, Some(trace.span_id));
-```
+```text
 
 ### Baggage for Cross-cutting Context
 
@@ -166,7 +166,7 @@ println!("User: {}", trace.baggage_item("user_id").unwrap_or("unknown"));
 let child = trace.child_span();
 assert_eq!(child.baggage_item("user_id"), Some("user_456"));
 assert_eq!(child.baggage_item("tenant_id"), Some("tenant_789"));
-```
+```text
 
 ### Span Lifecycle
 
@@ -200,7 +200,7 @@ println!("Duration: {:?}ms", span.duration_ms());
 
 // Success status
 span = span.set_ok();
-```
+```text
 
 ### Error Tracking in Traces
 
@@ -226,7 +226,7 @@ match &span.status {
     },
     _ => println!("Unexpected status")
 }
-```
+```text
 
 ### Request Context Integration
 
@@ -247,7 +247,7 @@ tracing::info!(
     user_id = %request_ctx.user_id.as_ref().unwrap_or(&"unknown".to_string()),
     "Query initiated"
 );
-```
+```text
 
 ## Integration with Tracing Systems
 
@@ -276,7 +276,7 @@ let payload = serde_json::json!({
         }
     ]
 });
-```
+```text
 
 ### Zipkin
 
@@ -298,7 +298,7 @@ let span = serde_json::json!({
         "span.kind": "SPAN_KIND_INTERNAL"
     }
 });
-```
+```text
 
 ### Datadog
 
@@ -315,7 +315,7 @@ tracing::info!(
     dd_span_id = %trace.span_id,
     "Event for Datadog correlation"
 );
-```
+```text
 
 ### Custom Backend
 
@@ -342,13 +342,13 @@ impl CustomTraceExporter {
         Ok(())
     }
 }
-```
+```text
 
 ## W3C Trace Context Format
 
 FraiseQL uses the W3C Trace Context standard for interoperability:
 
-```
+```text
 Header: traceparent
 Format: version-traceid-spanid-traceflags
 
@@ -363,7 +363,7 @@ Components:
 - 01: Trace flags (2 hex digits)
   - 0x01: Sampled
   - 0x00: Not sampled
-```
+```text
 
 ## Sampling Strategy
 
@@ -396,7 +396,7 @@ fn should_sample(user_id: Option<&str>, priority: Option<&str>) -> bool {
     // Sample 10% of other requests
     rand::random::<f64>() < 0.1
 }
-```
+```text
 
 ## Performance Considerations
 
@@ -448,7 +448,7 @@ cargo test -p fraiseql-server --lib tracing
 
 # Run all tests
 cargo test -p fraiseql-server --lib
-```
+```text
 
 ## Future Enhancements
 

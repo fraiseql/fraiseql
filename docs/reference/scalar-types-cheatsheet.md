@@ -63,7 +63,7 @@ Quick reference for all FraiseQL scalar types, mappings, and examples.
 
 ### PostgreSQL
 
-```
+```text
 String       → VARCHAR
 Int          → INTEGER
 Float        → DOUBLE PRECISION
@@ -73,11 +73,11 @@ Boolean      → BOOLEAN
 JSON         → JSONB
 Binary       → BYTEA
 Decimal      → NUMERIC
-```
+```text
 
 ### MySQL
 
-```
+```text
 String       → VARCHAR(255)
 Int          → INT
 Float        → DOUBLE
@@ -87,11 +87,11 @@ Boolean      → TINYINT(1)
 JSON         → JSON
 Binary       → BLOB
 Decimal      → DECIMAL
-```
+```text
 
 ### SQLite
 
-```
+```text
 String       → TEXT
 Int          → INTEGER
 Float        → REAL
@@ -101,11 +101,11 @@ Boolean      → INTEGER (0/1)
 JSON         → TEXT
 Binary       → BLOB
 Decimal      → REAL
-```
+```text
 
 ### SQL Server
 
-```
+```text
 String       → NVARCHAR(MAX)
 Int          → INT
 Float        → FLOAT
@@ -115,7 +115,7 @@ Boolean      → BIT
 JSON         → NVARCHAR(MAX)
 Binary       → VARBINARY(MAX)
 Decimal      → NUMERIC
-```
+```text
 
 ---
 
@@ -148,7 +148,7 @@ class User:
     created_at: DateTime # Account creation time
     is_active: Boolean  # Account status
     preferences: JSON   # User settings
-```
+```text
 
 ### Product Table
 
@@ -163,7 +163,7 @@ class Product:
     release_date: Date
     is_available: Boolean
     metadata: JSON      # Flexible data
-```
+```text
 
 ### Event Table
 
@@ -176,7 +176,7 @@ class Event:
     duration: Duration   # How long it lasted
     data: JSONB          # Event details
     created_at: DateTime
-```
+```text
 
 ---
 
@@ -198,7 +198,7 @@ class Event:
 
 # Boolean
 { users(where: { is_active: { equals: true } }) }
-```
+```text
 
 ### Sorting
 
@@ -211,7 +211,7 @@ class Event:
 
 # Strings
 { users(order_by: { name: ASC }) }
-```
+```text
 
 ### Aggregation
 
@@ -227,7 +227,7 @@ class Event:
 
 # Min/Max
 { orders_aggregate { min_price: price_min, max_price: price_max } }
-```
+```text
 
 ---
 
@@ -240,7 +240,7 @@ class Event:
 @type
 class Order:
     total: Float  # Rounding errors!
-```
+```text
 
 ### ✅ Using Decimal for Money
 
@@ -249,7 +249,7 @@ class Order:
 @type
 class Order:
     total: Decimal  # Exact precision
-```
+```text
 
 ---
 
@@ -260,7 +260,7 @@ class Order:
 @type
 class User:
     is_active: String  # "true" or "false"?
-```
+```text
 
 ### ✅ Using Boolean
 
@@ -269,7 +269,7 @@ class User:
 @type
 class User:
     is_active: Boolean  # true or false, unambiguous
-```
+```text
 
 ---
 
@@ -278,14 +278,14 @@ class User:
 ```python
 # WRONG (ambiguous)
 created_at: DateTime  # Which timezone?
-```
+```text
 
 ### ✅ DateTime With Time Zone
 
 ```python
 # RIGHT (unambiguous)
 created_at: DateTime  # Always UTC, explicit
-```
+```text
 
 ---
 

@@ -30,7 +30,7 @@ fn main() {
 
     // Now all auth events are automatically logged
 }
-```
+```text
 
 ### Log Format (JSON)
 
@@ -45,7 +45,7 @@ fn main() {
   "duration_ms": 2.5,
   "request_id": "req-abc123"
 }
-```
+```text
 
 ### Logging Auth Events
 
@@ -59,7 +59,7 @@ let event = AuthEvent::new("login")
     .success(50.0);
 
 event.log();
-```
+```text
 
 ## Metrics Collection
 
@@ -86,7 +86,7 @@ let metrics = Arc::new(Mutex::new(AuthMetrics::new()));
     println!("Success rate: {:.2}%", m.success_rate());
     println!("Total attempts: {}", m.total_auth_attempts);
 }
-```
+```text
 
 ### Available Metrics
 
@@ -99,7 +99,7 @@ pub struct AuthMetrics {
     pub tokens_refreshed: u64,              // Tokens refreshed
     pub sessions_revoked: u64,              // Sessions revoked
 }
-```
+```text
 
 ### Accessing Metrics via HTTP
 
@@ -116,7 +116,7 @@ async fn metrics_handler(
 }
 
 app.route("/metrics/auth", get(metrics_handler))
-```
+```text
 
 Response:
 
@@ -131,7 +131,7 @@ curl http://localhost:8000/metrics/auth
   "tokens_refreshed": 42,
   "sessions_revoked": 38
 }
-```
+```text
 
 ## Performance Monitoring
 
@@ -151,7 +151,7 @@ async fn auth_callback() -> Result<impl IntoResponse> {
     // Logs: "Operation completed: oauth_exchange (45.2ms)"
     Ok(response)
 }
-```
+```text
 
 ### Expected Performance
 
@@ -198,7 +198,7 @@ groups:
         annotations:
           summary: "Many sessions being revoked"
           description: "More than 100 sessions revoked in 5 minutes"
-```
+```text
 
 ## Grafana Dashboard
 
@@ -246,7 +246,7 @@ Import the dashboard configuration:
     ]
   }
 }
-```
+```text
 
 ## Log Analysis
 
@@ -257,20 +257,20 @@ Import the dashboard configuration:
 ```bash
 # In ELK, Datadog, or similar
 status: "error" AND event: "token_validation"
-```
+```text
 
 **Slow OAuth exchanges:**
 
 ```bash
 event: "oauth_exchange" AND duration_ms: > 500
-```
+```text
 
 **User lockout detection:**
 
 ```bash
 user_id: "user123" AND status: "error" AND event: "login"
 | stats count by user_id
-```
+```text
 
 ## Health Checks
 
@@ -300,7 +300,7 @@ async fn health_check(
 }
 
 app.route("/health/auth", get(health_check))
-```
+```text
 
 Health check response:
 
@@ -312,7 +312,7 @@ curl http://localhost:8000/health/auth
   "oauth_provider": "ok",
   "db": "ok"
 }
-```
+```text
 
 ## Docker Compose with Monitoring
 
@@ -350,7 +350,7 @@ services:
     volumes:
       - /var/log:/var/log
     command: -config.file=/etc/promtail/config.yml
-```
+```text
 
 ## Best Practices
 
@@ -371,29 +371,29 @@ services:
 
 Check logs for:
 
-```
+```text
 error: "invalid_state"  # State validation failed
 error: "oauth_error"    # Provider error
 error: "token_expired"  # Token already expired
-```
+```text
 
 ### Slow Authentication
 
 Check performance logs:
 
-```
+```text
 duration_ms: > 500  # Identify slow operations
 event: "oauth_exchange"  # Likely provider latency
-```
+```text
 
 ### Session Issues
 
 Check session logs:
 
-```
+```text
 event: "session_revoked"  # Track revocations
 event: "session_created"  # Track creation rate
-```
+```text
 
 ## Metrics Integration
 
@@ -432,7 +432,7 @@ impl AuthPrometheus {
         })
     }
 }
-```
+```text
 
 ## See Also
 

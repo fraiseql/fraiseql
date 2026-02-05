@@ -90,7 +90,7 @@ JWT_ALGORITHM=RS256
 
 # Session Configuration
 DATABASE_URL=postgres://user:password@localhost/fraiseql
-```
+```text
 
 ## Step 5: Update Server Configuration
 
@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-```
+```text
 
 ## Step 6: Register Auth Endpoints
 
@@ -150,7 +150,7 @@ let auth_routes = Router::new()
 let app = Router::new()
     .merge(auth_routes)
     // ... other routes
-```
+```text
 
 ## Step 7: Test the Flow
 
@@ -160,7 +160,7 @@ let app = Router::new()
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "google"}'
-```
+```text
 
 Response:
 
@@ -168,7 +168,7 @@ Response:
 {
   "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
 }
-```
+```text
 
 ### 2. Visit the Authorization URL
 
@@ -178,9 +178,9 @@ Open the URL in a browser. You'll see Google's login page.
 
 After authentication, Google will redirect to:
 
-```
+```text
 http://localhost:8000/auth/callback?code=...&state=...
-```
+```text
 
 This endpoint will:
 
@@ -199,7 +199,7 @@ Response:
   "token_type": "Bearer",
   "expires_in": 3600
 }
-```
+```text
 
 ### 4. Use the Access Token
 
@@ -208,7 +208,7 @@ curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer access_token_..." \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id name } }"}'
-```
+```text
 
 ### 5. Refresh Token
 
@@ -216,7 +216,7 @@ curl -X POST http://localhost:8000/graphql \
 curl -X POST http://localhost:8000/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "refresh_token_..."}'
-```
+```text
 
 ### 6. Logout
 
@@ -224,7 +224,7 @@ curl -X POST http://localhost:8000/auth/refresh \
 curl -X POST http://localhost:8000/auth/logout \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "refresh_token_..."}'
-```
+```text
 
 ## Frontend Integration
 
@@ -258,7 +258,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
   },
   body: JSON.stringify({ query: '{ user { id } }' })
 });
-```
+```text
 
 ## Troubleshooting
 
@@ -327,7 +327,7 @@ For production:
    GOOGLE_CLIENT_ID=prod.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=<secret>
    OAUTH_REDIRECT_URI=https://yourdomain.com/auth/callback
-   ```
+   ```text
 
 3. Ensure database is backed up
 4. Enable HTTPS with valid certificate
@@ -343,7 +343,7 @@ Google allows multiple accounts in development:
 # 1. Using incognito mode for each account
 # 2. Or explicitly signing out before each test
 # 3. Or using multiple browsers
-```
+```text
 
 ## Rate Limiting
 

@@ -91,7 +91,7 @@ with open("tv_user_profile.sql", "w") as f:
     f.write(ddl)
 
 print("Generated tv_user_profile.sql")
-```
+```text
 
 ### I'm using TypeScript
 
@@ -114,7 +114,7 @@ const ddl = generateTvDdl({
 writeFileSync("tv_user_profile.sql", ddl);
 
 console.log("Generated tv_user_profile.sql");
-```
+```text
 
 ### I'm using the CLI
 
@@ -124,7 +124,7 @@ fraiseql generate-views \
   --entity User \
   --view tv_user_profile \
   --output tv_user_profile.sql
-```
+```text
 
 ---
 
@@ -173,7 +173,7 @@ The entity name must match a type in your `schema.json`:
 
 # Generate for User
 ddl = generate_tv_ddl(schema, entity="User", view="tv_user_profile")
-```
+```text
 
 ### View Name
 
@@ -214,7 +214,7 @@ ddl = generate_ta_ddl(
     view="ta_orders",
     refresh_strategy="scheduled"  # Updates once per night
 )
-```
+```text
 
 See [Performance Testing Guide](./view-selection-performance-testing.md) for help choosing.
 
@@ -233,7 +233,7 @@ CREATE TABLE tv_user_profile (
     data JSONB,  -- Contains nested posts + comments
     ...
 );
-```
+```text
 
 Set to `False` if you're managing composition views manually:
 
@@ -244,7 +244,7 @@ ddl = generate_tv_ddl(
     view="tv_user_profile",
     include_composition_views=False  # You'll create these manually
 )
-```
+```text
 
 ### Include Monitoring Functions
 
@@ -254,7 +254,7 @@ When `include_monitoring_functions=True` (default), the generator adds functions
 -- Monitoring functions (automatically created)
 CREATE FUNCTION tv_user_profile_staleness() AS ...
 CREATE FUNCTION tv_user_profile_row_count() AS ...
-```
+```text
 
 These are useful for production monitoring. Set to `False` if you're managing monitoring separately:
 
@@ -265,7 +265,7 @@ ddl = generate_tv_ddl(
     view="tv_user_profile",
     include_monitoring_functions=False
 )
-```
+```text
 
 ---
 
@@ -313,7 +313,7 @@ CREATE TRIGGER trg_tv_user_profile_refresh
 -- Track view health and staleness
 CREATE FUNCTION tv_user_profile_staleness() AS ...
 CREATE FUNCTION tv_user_profile_row_count() AS ...
-```
+```text
 
 ---
 
@@ -325,7 +325,7 @@ CREATE FUNCTION tv_user_profile_row_count() AS ...
 
 ```bash
 pip install fraiseql-tools
-```
+```text
 
 **Basic Usage:**
 
@@ -368,7 +368,7 @@ with open("views.sql", "w") as f:
     f.write(tv_ddl)
     f.write("\n\n")
     f.write(ta_ddl)
-```
+```text
 
 **Full Example:**
 
@@ -380,7 +380,7 @@ See [`examples/ddl-generation/python-example.py`](../../examples/ddl-generation/
 
 ```bash
 npm install @fraiseql/tools
-```
+```text
 
 **Basic Usage:**
 
@@ -422,7 +422,7 @@ if (errors.length > 0) {
 
 // Save to file
 writeFileSync("views.sql", tvDdl + "\n\n" + taDdl);
-```
+```text
 
 **Full Examples:**
 
@@ -435,7 +435,7 @@ See the [DDL Generation Examples](../../examples/ddl-generation/) directory for 
 ```bash
 # Already included with fraiseql-cli
 cargo install fraiseql-cli
-```
+```text
 
 **Basic Usage:**
 
@@ -457,15 +457,15 @@ fraiseql generate-views \
 
 # Combine multiple views
 cat tv_user_profile.sql ta_orders.sql > all_views.sql
-```
+```text
 
 **All Options:**
 
 ```bash
 fraiseql generate-views --help
-```
+```text
 
-```
+```text
 USAGE:
     fraiseql generate-views [OPTIONS] --schema <SCHEMA> --entity <ENTITY> --view <VIEW>
 
@@ -496,7 +496,7 @@ OPTIONS:
 
     --verbose
         Show generation steps
-```
+```text
 
 **Full Example:**
 
@@ -525,7 +525,7 @@ Run the DDL in your staging database:
 
 ```bash
 psql -h staging-db -U postgres mydb < tv_user_profile.sql
-```
+```text
 
 Monitor the initial population:
 
@@ -538,7 +538,7 @@ SELECT tv_user_profile_staleness();
 
 -- Spot-check a few rows
 SELECT * FROM tv_user_profile LIMIT 5;
-```
+```text
 
 ### 4. Follow Migration Checklist
 
@@ -566,7 +566,7 @@ ddl = generate_tv_ddl(
     view="tv_user_profile",
     refresh_strategy="trigger-based"
 )
-```
+```text
 
 **Generated Structure:**
 
@@ -583,7 +583,7 @@ ddl = generate_tv_ddl(
     }
   ]
 }
-```
+```text
 
 ### Order Summary with Line Items
 
@@ -594,7 +594,7 @@ ddl = generate_tv_ddl(
     view="tv_order_summary",
     refresh_strategy="scheduled"
 )
-```
+```text
 
 **Generated Structure:**
 
@@ -612,7 +612,7 @@ ddl = generate_tv_ddl(
     }
   ]
 }
-```
+```text
 
 ### Analytics Table with Denormalized Columns
 
@@ -623,7 +623,7 @@ ddl = generate_ta_ddl(
     view="ta_events",
     refresh_strategy="scheduled"
 )
-```
+```text
 
 **Generated Columns:**
 
@@ -695,7 +695,7 @@ if errors:
         print(f"❌ {error}")
 else:
     print("✅ Valid DDL")
-```
+```text
 
 ---
 

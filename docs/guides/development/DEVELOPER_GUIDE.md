@@ -38,7 +38,7 @@ rustc --version
 # Install optional tools
 cargo install cargo-watch  # Auto-rebuild
 cargo install cargo-edit   # Dependency management
-```
+```text
 
 ### Database Setup
 
@@ -55,7 +55,7 @@ docker run -d \
 
 # Or connect to existing PostgreSQL
 export DATABASE_URL="postgresql://user:password@localhost/fraiseql_test"
-```
+```text
 
 ### First Build
 
@@ -77,11 +77,11 @@ cargo fmt --check
 
 # Run linter
 cargo clippy --all-targets --all-features
-```
+```text
 
 ## Project Structure
 
-```
+```text
 fraiseql/
 ├── crates/
 │   ├── fraiseql-core/          # Core execution engine
@@ -122,7 +122,7 @@ fraiseql/
 ├── Cargo.toml                  # Workspace root
 ├── Cargo.lock                  # Dependency lock file
 └── .cargo/config.toml          # Cargo configuration
-```
+```text
 
 ## Development Workflow
 
@@ -136,7 +136,7 @@ git checkout -b feature/your-feature-name
 
 # Verify clean state
 git status  # Should show "nothing to commit, working tree clean"
-```
+```text
 
 ### Development Cycle
 
@@ -162,7 +162,7 @@ git commit -m "feat(core): Add new feature description"
 
 # 7. Push and create PR
 git push -u origin feature/your-feature-name
-```
+```text
 
 ### Using cargo-watch for Fast Iteration
 
@@ -175,7 +175,7 @@ cargo watch -x "test --lib"
 
 # Auto-build in another terminal
 cargo watch -x build
-```
+```text
 
 ### Running Specific Tests
 
@@ -194,7 +194,7 @@ cargo test -- --ignored
 
 # Run with logging
 RUST_LOG=debug cargo test test_feature -- --nocapture
-```
+```text
 
 ## Testing Strategy
 
@@ -202,12 +202,12 @@ RUST_LOG=debug cargo test test_feature -- --nocapture
 
 Tests are organized by scope:
 
-```
+```text
 Unit Tests (same file)          - Fast, isolated
 Integration Tests (tests/)      - Medium speed, database
 Benchmark Tests (benches/)      - Performance regression
 Doc Tests (in comments)         - API examples
-```
+```text
 
 ### Writing Tests
 
@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(result, expected);
     }
 }
-```
+```text
 
 ### Test Coverage
 
@@ -255,7 +255,7 @@ cargo tarpaulin --out Html --output-dir coverage
 
 # View results
 open coverage/index.html
-```
+```text
 
 ### Performance Testing
 
@@ -268,7 +268,7 @@ cargo bench -- cache_hit
 
 # Compare against baseline
 cargo bench -- --baseline main
-```
+```text
 
 ## Code Standards
 
@@ -291,7 +291,7 @@ fn execute_query(query: &str) -> Result<String> { }
 
 // Generic types: PascalCase
 fn generic_function<T: Trait>(value: T) { }
-```
+```text
 
 ### Documentation
 
@@ -312,12 +312,12 @@ Every public item must have documentation:
 /// Description of error conditions
 ///
 /// # Example
-/// ```
+/// ```text
 /// let result = function()?;
-/// ```
+/// ```text
 pub fn function(param: Type) -> Result<Value> {
 }
-```
+```text
 
 ### Error Handling
 
@@ -332,7 +332,7 @@ fn parse_schema(json: &str) -> Result<Schema> {
     serde_json::from_str(json)
         .map_err(|e| FraiseQLError::Parse { message: e.to_string() })
 }
-```
+```text
 
 ### Type Annotations
 
@@ -350,7 +350,7 @@ fn get_user(id: i32) -> User | None {
 // ✅ For collections
 let users: Vec<User> = vec![];
 let mapping: HashMap<String, u64> = HashMap::new();
-```
+```text
 
 ## Debugging & Troubleshooting
 
@@ -364,13 +364,13 @@ use log::{debug, info, warn, error};
 info!("Server starting on {}", addr);
 debug!(field = %value, "Detailed debug info");
 error!("Failed to execute query: {}", err);
-```
+```text
 
 Enable logging in tests:
 
 ```bash
 RUST_LOG=debug cargo test test_name -- --nocapture
-```
+```text
 
 ### Debugging with Print Statements
 
@@ -383,7 +383,7 @@ dbg!(&value);
 
 // Best: use proper logging
 debug!("Value: {:?}", value);
-```
+```text
 
 ### Common Issues & Solutions
 
@@ -399,7 +399,7 @@ fn process<'a>(input: &'a str) -> &'static str {
 fn process(input: &str) -> String {
     input.to_string()
 }
-```
+```text
 
 #### Borrow Checker Issues
 
@@ -416,7 +416,7 @@ let mut x = vec![1, 2, 3];
     a.push(4);
 }
 let b = &mut x;  // OK
-```
+```text
 
 #### Async Issues
 
@@ -430,7 +430,7 @@ async fn fetch_data() -> Data {
 async fn fetch_data() -> Data {
     get_data().await
 }
-```
+```text
 
 ### Profiling
 
@@ -441,7 +441,7 @@ cargo flamegraph
 
 # View results
 open flamegraph.svg
-```
+```text
 
 ## Contributing
 
@@ -458,17 +458,17 @@ open flamegraph.svg
 
    ```bash
    git rebase -i main
-   ```
+   ```text
 
 2. **Write clear commit messages**:
 
-   ```
+   ```text
    feat(scope): Add feature description
 
    Longer explanation of what and why.
 
    Fixes #123
-   ```
+   ```text
 
 3. **Add tests**: For new features and bug fixes
 
@@ -481,7 +481,7 @@ open flamegraph.svg
    cargo clippy --all-targets --all-features
    cargo test --lib
    cargo test --test '*'
-   ```
+   ```text
 
 ### PR Review Process
 
@@ -527,7 +527,7 @@ cargo clippy --all     # Lint code
 cargo test --lib       # Run unit tests
 cargo build --release  # Build optimized binary
 cargo watch -x test    # Auto-test on changes
-```
+```text
 
 ### Fast Feedback Loop
 
@@ -540,7 +540,7 @@ cargo watch -x "test --lib"
 
 # Terminal 3: Edit code
 vim src/file.rs
-```
+```text
 
 ### Useful Cargo Flags
 
@@ -550,7 +550,7 @@ vim src/file.rs
 --lib           # Only lib target (skip binaries)
 -j 4            # Use 4 parallel jobs (useful on slow machines)
 --verbose       # Detailed output
-```
+```text
 
 Happy coding! 🚀
 

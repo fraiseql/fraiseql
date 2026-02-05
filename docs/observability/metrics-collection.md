@@ -44,7 +44,7 @@ pub struct QueryMetrics {
     pub cache_hit: bool,              // Was result cached?
     pub timestamp: SystemTime,        // When query executed
 }
-```
+```text
 
 ### Example
 
@@ -58,7 +58,7 @@ query {
     email
   }
 }
-```
+```text
 
 **Collected Metrics**:
 
@@ -73,7 +73,7 @@ query {
   "cache_hit": false,
   "timestamp": "2026-01-12T14:32:15Z"
 }
-```
+```text
 
 **Breakdown**:
 
@@ -99,7 +99,7 @@ CREATE TABLE fraiseql_metrics.query_executions (
 
 CREATE INDEX idx_query_executions_name_time
     ON fraiseql_metrics.query_executions (query_name, executed_at DESC);
-```
+```text
 
 ### Storage (SQL Server)
 
@@ -118,7 +118,7 @@ CREATE TABLE fraiseql_metrics.query_executions (
 
 CREATE NONCLUSTERED INDEX idx_query_executions_name_time
     ON fraiseql_metrics.query_executions (query_name, executed_at DESC);
-```
+```text
 
 ---
 
@@ -151,7 +151,7 @@ pub enum JsonAccessType {
     Project,    // SELECT clause
     Aggregate,  // GROUP BY or aggregate function
 }
-```
+```text
 
 ### Example: PostgreSQL JSONB
 
@@ -168,7 +168,7 @@ query {
     quantity
   }
 }
-```
+```text
 
 **Generated SQL**:
 
@@ -181,7 +181,7 @@ FROM tf_sales
 WHERE dimensions->>'region' = 'US'
 ORDER BY (dimensions->>'date')::date DESC
 GROUP BY dimensions->>'category'
-```
+```text
 
 **Collected Patterns**:
 
@@ -215,7 +215,7 @@ GROUP BY dimensions->>'category'
     "timestamp": "2026-01-12T14:32:15Z"
   }
 ]
-```
+```text
 
 ### Example: SQL Server JSON
 
@@ -228,7 +228,7 @@ query {
     name
   }
 }
-```
+```text
 
 **Generated SQL**:
 
@@ -236,7 +236,7 @@ query {
 SELECT id, name
 FROM users
 WHERE JSON_VALUE(metadata, '$.country') = 'USA'
-```
+```text
 
 **Collected Pattern**:
 
@@ -250,7 +250,7 @@ WHERE JSON_VALUE(metadata, '$.country') = 'USA'
   "selectivity": 0.32,
   "timestamp": "2026-01-12T14:35:20Z"
 }
-```
+```text
 
 ### How Selectivity is Calculated
 
@@ -291,7 +291,7 @@ impl JsonPathParser for PostgresJsonPathParser {
         // ... parse and classify
     }
 }
-```
+```text
 
 #### SQL Server JSON Functions
 
@@ -312,7 +312,7 @@ impl JsonPathParser for SqlServerJsonPathParser {
         // ... parse and classify
     }
 }
-```
+```text
 
 ### Storage (PostgreSQL)
 
@@ -330,7 +330,7 @@ CREATE TABLE fraiseql_metrics.jsonb_accesses (
 
 CREATE INDEX idx_jsonb_accesses_lookup
     ON fraiseql_metrics.jsonb_accesses (table_name, jsonb_column, path);
-```
+```text
 
 ### Storage (SQL Server)
 
@@ -348,7 +348,7 @@ CREATE TABLE fraiseql_metrics.json_accesses (
 
 CREATE NONCLUSTERED INDEX idx_json_accesses_lookup
     ON fraiseql_metrics.json_accesses (table_name, json_column, path);
-```
+```text
 
 ---
 
@@ -384,7 +384,7 @@ SELECT
     pg_total_relation_size(schemaname || '.' || relname) AS size_bytes
 FROM pg_stat_user_tables
 WHERE relname = $1;
-```
+```text
 
 **Data Collected**:
 
@@ -397,7 +397,7 @@ pub struct TableStatistics {
     pub last_analyze: Option<SystemTime>,
     pub size_bytes: u64,              // Total table + TOAST + indexes
 }
-```
+```text
 
 **Example**:
 
@@ -410,7 +410,7 @@ pub struct TableStatistics {
   "last_analyze": "2026-01-12T01:00:00Z",
   "size_bytes": 524288000
 }
-```
+```text
 
 #### Column Statistics
 
@@ -425,7 +425,7 @@ SELECT
     most_common_vals::text[] AS mcv
 FROM pg_stats
 WHERE tablename = $1 AND attname = $2;
-```
+```text
 
 **Data Collected**:
 
@@ -437,7 +437,7 @@ pub struct ColumnStatistics {
     pub avg_width_bytes: i32,
     pub most_common_values: Vec<String>,
 }
-```
+```text
 
 **Example**:
 
@@ -449,7 +449,7 @@ pub struct ColumnStatistics {
   "avg_width_bytes": 4,
   "most_common_values": ["US", "EU", "APAC"]
 }
-```
+```text
 
 #### Index Statistics
 
@@ -470,7 +470,7 @@ JOIN pg_attribute a ON a.attrelid = i.relid AND a.attnum = ANY(ix.indkey)
 WHERE i.relname = $1
 GROUP BY i.indexrelname, i.idx_scan, i.idx_tup_read,
          i.idx_tup_fetch, i.indexrelid, ix.indisunique;
-```
+```text
 
 **Data Collected**:
 
@@ -484,7 +484,7 @@ pub struct IndexStatistics {
     pub size_bytes: u64,
     pub is_unique: bool,
 }
-```
+```text
 
 **Example**:
 
@@ -498,7 +498,7 @@ pub struct IndexStatistics {
   "size_bytes": 45875200,
   "is_unique": false
 }
-```
+```text
 
 ---
 
@@ -520,7 +520,7 @@ INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
 LEFT JOIN sys.stats s ON t.object_id = s.object_id
 WHERE t.name = @P1 AND p.index_id IN (0, 1)
 GROUP BY t.name;
-```
+```text
 
 **Data Collected**:
 
@@ -533,7 +533,7 @@ pub struct TableStatistics {
     pub last_analyze: Option<SystemTime>,
     pub size_bytes: u64,
 }
-```
+```text
 
 #### Column Statistics
 
@@ -541,7 +541,7 @@ pub struct TableStatistics {
 
 ```sql
 DBCC SHOW_STATISTICS('table_name', 'stat_name') WITH STAT_HEADER;
-```
+```text
 
 **Data Collected**: Similar structure to PostgreSQL, but obtained through different queries.
 
@@ -571,7 +571,7 @@ INNER JOIN sys.tables t ON i.object_id = t.object_id
 WHERE t.name = @P1
 GROUP BY i.name, s.user_seeks, s.user_scans, s.user_lookups,
          s.user_seeks, s.user_lookups, i.is_unique;
-```
+```text
 
 ---
 
@@ -607,7 +607,7 @@ impl CacheMetrics {
         self.hits as f64 / total as f64
     }
 }
-```
+```text
 
 **Example**:
 
@@ -620,7 +620,7 @@ impl CacheMetrics {
   "entry_count": 2500,
   "hit_rate": 0.9
 }
-```
+```text
 
 ---
 
@@ -643,7 +643,7 @@ CREATE TABLE fraiseql_metrics.query_stats (
     avg_rows FLOAT,
     last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-```
+```text
 
 **SQL Server**:
 
@@ -658,7 +658,7 @@ CREATE TABLE fraiseql_metrics.query_stats (
     avg_rows FLOAT,
     last_updated DATETIME2 NOT NULL DEFAULT GETDATE()
 );
-```
+```text
 
 **Aggregation Query** (runs hourly):
 
@@ -686,7 +686,7 @@ ON CONFLICT (query_name) DO UPDATE SET
     p99_ms = EXCLUDED.p99_ms,
     avg_rows = EXCLUDED.avg_rows,
     last_updated = EXCLUDED.last_updated;
-```
+```text
 
 ---
 
@@ -704,7 +704,7 @@ query {
     name
   }
 }
-```
+```text
 
 ❌ **Actual Data Values**
 
@@ -714,7 +714,7 @@ query {
 -- id    | name          | email
 -- ------|---------------|------------------
 -- 1001  | Alice Johnson | alice@example.com  # ❌ NOT logged
-```
+```text
 
 ❌ **Personally Identifiable Information**
 
@@ -740,7 +740,7 @@ query {
     name
   }
 }
-```
+```text
 
 ✅ **Performance Metrics**
 
@@ -750,7 +750,7 @@ query {
   "execution_time_ms": 45.2,
   "rows_returned": 1
 }
-```
+```text
 
 ✅ **JSON Path Patterns**
 
@@ -759,7 +759,7 @@ query {
   "path": "metadata.country",  # ✅ Path logged, NOT values
   "access_type": "Filter"
 }
-```
+```text
 
 ---
 
@@ -805,7 +805,7 @@ WHERE executed_at < NOW() - INTERVAL '30 days';
 
 DELETE FROM fraiseql_metrics.jsonb_accesses
 WHERE recorded_at < NOW() - INTERVAL '30 days';
-```
+```text
 
 ```sql
 -- SQL Server
@@ -814,7 +814,7 @@ WHERE executed_at < DATEADD(day, -30, GETDATE());
 
 DELETE FROM fraiseql_metrics.json_accesses
 WHERE recorded_at < DATEADD(day, -30, GETDATE());
-```
+```text
 
 **Aggregated stats**: Indefinite (small footprint)
 
@@ -852,7 +852,7 @@ impl MetricsCollector {
 if self.metrics.should_sample() {
     self.metrics.record(query_metrics).await;
 }
-```
+```text
 
 ### Sample Rate Guidelines
 
@@ -890,17 +890,17 @@ This is **statistically significant** for detecting:
 
 **Baseline** (observability OFF):
 
-```
+```text
 Query execution: 45.2ms
 Throughput: 1000 qps
-```
+```text
 
 **With Observability** (10% sampling):
 
-```
+```text
 Query execution: 47.1ms  (+1.9ms, 4.2% increase)
 Throughput: 980 qps  (2% decrease)
-```
+```text
 
 ### Overhead Breakdown
 
@@ -924,7 +924,7 @@ Export metrics as JSON for offline analysis:
 
 ```bash
 curl http://localhost:8080/metrics/export > metrics.json
-```
+```text
 
 **Response Format**:
 
@@ -963,7 +963,7 @@ curl http://localhost:8080/metrics/export > metrics.json
     "hit_rate": 0.9
   }
 }
-```
+```text
 
 ### CLI Export
 
@@ -973,7 +973,7 @@ fraiseql-cli export-metrics \
   --database postgres://... \
   --output metrics.json \
   --window 7d
-```
+```text
 
 ---
 
@@ -991,7 +991,7 @@ SELECT
     MAX(executed_at) AS last_metric
 FROM fraiseql_metrics.query_executions
 WHERE executed_at > NOW() - INTERVAL '1 day';
-```
+```text
 
 ```sql
 -- SQL Server
@@ -1001,15 +1001,15 @@ SELECT
     MAX(executed_at) AS last_metric
 FROM fraiseql_metrics.query_executions
 WHERE executed_at > DATEADD(day, -1, GETDATE());
-```
+```text
 
 **Expected Result** (10% sampling, 1000 qps):
 
-```
+```text
 metrics_today: ~8,640,000
 first_metric:  2026-01-12 00:00:00
 last_metric:   2026-01-12 23:59:58
-```
+```text
 
 ### Alert Thresholds
 
@@ -1020,14 +1020,14 @@ Set up alerts for:
    ```sql
    SELECT MAX(executed_at) < NOW() - INTERVAL '1 hour'
    FROM fraiseql_metrics.query_executions;
-   ```
+   ```text
 
 2. **Metrics lag** (> 5 minutes behind):
 
    ```sql
    SELECT MAX(executed_at) < NOW() - INTERVAL '5 minutes'
    FROM fraiseql_metrics.query_executions;
-   ```
+   ```text
 
 3. **Low sample rate** (< expected):
 
@@ -1035,7 +1035,7 @@ Set up alerts for:
    SELECT COUNT(*) < 7200000  -- Expected: 8.6M per day at 10% sampling
    FROM fraiseql_metrics.query_executions
    WHERE executed_at > NOW() - INTERVAL '1 day';
-   ```
+   ```text
 
 ---
 

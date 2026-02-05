@@ -198,9 +198,9 @@ AuthoringIR unifies schema definitions from Python, TypeScript, YAML, GraphQL SD
 
 **Compilation flow:**
 
-```
+```text
 Python/TypeScript/YAML/SDL/CLI → AuthoringIR → Compilation Pipeline → CompiledSchema
-```
+```text
 
 **Related specs:**
 
@@ -333,7 +333,7 @@ Format:
     "invalidations": ["user:123.posts", "post:456.comments"]
   }
 }
-```
+```text
 
 **Related specs:**
 
@@ -452,7 +452,7 @@ config = CompilerConfig(
     schema_path="schema.py",
     output_dir="build/"
 )
-```
+```text
 
 **Impact:**
 
@@ -613,7 +613,7 @@ type User {
   name: String!
   email: String
 }
-```
+```text
 
 **In FraiseQL:**
 
@@ -682,7 +682,7 @@ FraiseQL supports three introspection policies:
     }
   }
 }
-```
+```text
 
 **Related specs:**
 
@@ -714,7 +714,7 @@ SELECT
     u.data || jsonb_build_object('posts', COALESCE(p.posts, '[]'::jsonb)) AS data
 FROM v_user u
 LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
-```
+```text
 
 **Benefits:**
 
@@ -753,7 +753,7 @@ mutation {
     name
   }
 }
-```
+```text
 
 Executes: `fn_create_user(jsonb)` stored procedure.
 
@@ -783,7 +783,7 @@ SELECT
     jsonb_agg(data ORDER BY created_at DESC) AS posts
 FROM v_post
 GROUP BY fk_user;
-```
+```text
 
 **Benefits:**
 
@@ -980,7 +980,7 @@ Uses `deleted_at` audit column:
 ```sql
 CREATE VIEW v_user AS
 SELECT ... FROM tb_user WHERE deleted_at IS NULL;
-```
+```text
 
 **Benefits:**
 
@@ -1018,7 +1018,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
     "invalidations": [...]
   }
 }
-```
+```text
 
 **Related specs:**
 
@@ -1092,7 +1092,7 @@ class OrderCreated:
     where: WhereOrder = fraiseql.where(
         user_id=fraiseql.context.user_id  # Only current user's orders
     )
-```
+```text
 
 **Distinguished from runtime variables** — Filters are static, variables are dynamic (see Subscription Variable).
 
@@ -1125,7 +1125,7 @@ class OrderCreated:
     @fraiseql.variable(name="since_date")
     class Filter:
         created_at: DateTimeRange  # Runtime variable
-```
+```text
 
 **Client usage:**
 
@@ -1135,7 +1135,7 @@ subscription OrderCreated($since_date: DateTime) {
     id amount created_at
   }
 }
-```
+```text
 
 **Distinguished from compile-time filters** — Variables are client-provided, filters are schema-defined.
 
@@ -1153,7 +1153,7 @@ subscription OrderCreated($since_date: DateTime) {
 
 FraiseQL uses a layered architecture:
 
-```
+```text
 Database Event Stream (LISTEN/NOTIFY, CDC)
          ↓
 Subscription Matcher (Filter evaluation)
@@ -1163,7 +1163,7 @@ Transport Adapters
     ├─ Webhook (HTTP POST)
     ├─ Kafka (Event stream)
     └─ gRPC (Service-to-service)
-```
+```text
 
 **Each adapter handles:**
 
@@ -1184,7 +1184,7 @@ config = FraiseQLConfig(
         }
     }
 )
-```
+```text
 
 **Related specs:**
 
@@ -1217,17 +1217,17 @@ tb_entity_change_log (
     object_data JSONB,          -- Debezium envelope
     created_at TIMESTAMPTZ
 )
-```
+```text
 
 **Event delivery timeline:**
 
-```
+```text
 Database Transaction (Commit)
     → LISTEN/NOTIFY notification (<1ms)
     → tb_entity_change_log insert (1-5ms)
     → Subscription matching (1-2ms)
     → Transport delivery (5-100ms depending on transport)
-```
+```text
 
 **Retention policy:** Configurable (default: 30 days)
 
@@ -1302,7 +1302,7 @@ SELECT
     ) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Key columns:**
 
@@ -1373,7 +1373,7 @@ input StringFilter {
   _ilike: String      # PostgreSQL only
   _regex: String      # PostgreSQL only
 }
-```
+```text
 
 **Database-specific:** Same schema source produces different WHERE types per database target.
 
@@ -1526,12 +1526,12 @@ When Apollo Router needs to resolve an entity (e.g., User with id "123"), it sen
 
 **Key insight:** Each FraiseQL subgraph is independently compiled for its database. Rust runtime maintains connections to all accessible FraiseQL databases and queries them directly:
 
-```
+```text
 Users Subgraph (PostgreSQL)
 ├─ Query v_user (local)
 ├─ Query v_order (via SQL Server connection)
 └─ Query v_product (via MySQL connection)
-```
+```text
 
 **Performance:**
 
@@ -1574,7 +1574,7 @@ type Product @key(fields: "upc") @key(fields: "sku") {
   sku: String!
   name: String!
 }
-```
+```text
 
 **Compile-time validation:**
 
@@ -1611,7 +1611,7 @@ type User @key(fields: "id") {
   # Fields we add:
   orders: [Order!]!
 }
-```
+```text
 
 **Indicates:**
 
@@ -1645,7 +1645,7 @@ type Order @key(fields: "id") {
   id: ID!
   user: User @requires(fields: "email")  # Needs email from User subgraph
 }
-```
+```text
 
 **Execution:**
 
@@ -1680,7 +1680,7 @@ type Product {
   name: String!
   vendor: Vendor @provides(fields: "id name")  # View already has vendor data
 }
-```
+```text
 
 **Optimization:** Router can satisfy vendor requests from this field without calling Vendor subgraph.
 
@@ -1694,7 +1694,7 @@ SELECT
   jsonb_build_object('id', v.id, 'name', v.name) AS vendor_data
 FROM tb_product p
 JOIN tb_vendor v ON p.fk_vendor = v.pk_vendor;
-```
+```text
 
 **Related specs:**
 

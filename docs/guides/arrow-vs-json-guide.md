@@ -7,7 +7,7 @@
 
 ## Quick Answer
 
-```
+```text
 Use JSON (HTTP/GraphQL) for:
 ├─ Web applications (browser, mobile)
 ├─ Individual user requests
@@ -22,7 +22,7 @@ Use Arrow (gRPC/Flight) for:
 ├─ Time-series analysis
 ├─ Large batch operations
 └─ Direct data science access (Python, R)
-```
+```text
 
 ---
 
@@ -80,7 +80,7 @@ Use Arrow (gRPC/Flight) for:
 
 ### Question 1: Client Type?
 
-```
+```text
 Browser or mobile app?
 ├─ YES → JSON ✅
 │        (Only standard HTTP, no gRPC)
@@ -91,11 +91,11 @@ Browser or mobile app?
    │
    └─ NO: Backend service?
       └─ Depends on next question
-```
+```text
 
 ### Question 2: Data Volume?
 
-```
+```text
 Result size typically...
 
 < 10K rows?
@@ -110,11 +110,11 @@ Result size typically...
 > 100K rows?
 └─ YES → Arrow ✅
          (JSON too slow)
-```
+```text
 
 ### Question 3: Update Frequency?
 
-```
+```text
 Need real-time updates?
 ├─ YES → JSON (WebSocket) ✅
 │        (Arrow not for real-time)
@@ -124,11 +124,11 @@ Need real-time updates?
    ├─ 1-10 seconds → Either OK
    ├─ >10 seconds → Arrow preferred ✅
    └─ Hours/days → Arrow ✅
-```
+```text
 
 ### Question 4: Access Pattern?
 
-```
+```text
 How will data be accessed?
 
 Direct GraphQL queries?
@@ -142,7 +142,7 @@ BI dashboard (Tableau, Superset)?
 │
 API from web app?
 └─ YES → JSON ✅
-```
+```text
 
 ---
 
@@ -161,7 +161,7 @@ API from web app?
 
 **Performance Profile:**
 
-```
+```text
 Result Size  │ Latency    │ Throughput
 ─────────────┼────────────┼───────────
 100 rows     │ 5-20ms     │ 1000+ req/s
@@ -169,7 +169,7 @@ Result Size  │ Latency    │ Throughput
 10K rows     │ 100-500ms  │ 10-100 req/s
 100K rows    │ 1000-5000ms│ 1-10 req/s
 1M rows      │ >10s       │ <1 req/s
-```
+```text
 
 **Example:**
 
@@ -185,7 +185,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Response:**
 
@@ -204,7 +204,7 @@ query {
     ]
   }
 }
-```
+```text
 
 **Advantages:**
 
@@ -243,7 +243,7 @@ query {
 
 **Performance Profile:**
 
-```
+```text
 Result Size  │ Latency     │ Throughput
 ─────────────┼─────────────┼─────────────
 100 rows     │ 5-20ms      │ 10000+ req/s
@@ -252,7 +252,7 @@ Result Size  │ Latency     │ Throughput
 100K rows    │ 100-500ms   │ 10-100 req/s
 1M rows      │ 200-1000ms  │ 1-10 req/s
 10M rows     │ 1-5s        │ 0.1-1 req/s
-```
+```text
 
 **Example:**
 
@@ -274,7 +274,7 @@ print(f"Retrieved {len(table)} rows")
 
 # Save to Parquet
 csv.write_csv(table, "orders.parquet")
-```
+```text
 
 **Response:** Binary Apache Arrow format (50-90% smaller than JSON)
 
@@ -325,7 +325,7 @@ query {
     count
   }
 }
-```
+```text
 
 **Why JSON:**
 
@@ -368,7 +368,7 @@ table = client.do_get(
 
 # Export to Tableau
 table.to_pandas().to_csv("sales_trends.csv")
-```
+```text
 
 **Why Arrow:**
 
@@ -403,7 +403,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Why JSON:**
 
@@ -418,7 +418,7 @@ query {
 
 ### Pattern: Start JSON, Add Arrow
 
-```
+```text
 Phase 1: JSON Only (MVP)
   ├─ Web app: JSON ✅
   └─ Reports: Slow JSON ⚠️
@@ -429,13 +429,13 @@ Phase 2: Add Arrow (Analytics)
   └─ Reports: Now fast ✅
 
 Result: Best of both worlds
-```
+```text
 
 **Timeline:** 2-3 weeks to add Arrow support
 
 ### Pattern: Cached JSON, Arrow for Exports
 
-```
+```text
 Real-time data: JSON (with caching)
   ├─ Frequent queries → Redis cache → Fast
   ├─ Infrequent queries → Database → Slower
@@ -443,7 +443,7 @@ Real-time data: JSON (with caching)
 Export/ETL: Arrow
   ├─ Large bulk exports → Arrow Flight → Fast
   └─ Data warehouse load → Direct Arrow → Efficient
-```
+```text
 
 ---
 
@@ -484,7 +484,7 @@ query {
     product_category
   }
 }
-```
+```text
 
 **Optimization strategies:**
 
@@ -509,7 +509,7 @@ query = """
   WHERE created_at > NOW() - INTERVAL '30 days'
   GROUP BY user_id
 """
-```
+```text
 
 **Optimization strategies:**
 
@@ -533,7 +533,7 @@ query = """
 time curl -X POST http://api/graphql -d '{ query }'
 
 # If >2 seconds for >10K rows: Use Arrow instead
-```
+```text
 
 ### "Arrow queries failing - schema mismatch"
 

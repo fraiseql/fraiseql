@@ -15,7 +15,7 @@ FraiseQL supports **four distinct view patterns** across two query planes. This 
 
 ## Decision Tree
 
-```
+```text
 START: What query plane are you working in?
 
 ├─ JSON PLANE (GraphQL queries)
@@ -54,7 +54,7 @@ START: What query plane are you working in?
       └─ Query time < 1 second?
          └─ Use va_* (logical)
             Why: Storage overhead not justified
-```
+```text
 
 ## Quick Reference by Scenario
 
@@ -190,7 +190,7 @@ START: What query plane are you working in?
 -- v_user_full: Logical view with real-time composition
 -- Query time: 3-5 seconds
 SELECT * FROM v_user_full WHERE id = ?;
-```
+```text
 
 **Problem**: Users reported slow profile loading on high-traffic pages.
 
@@ -216,7 +216,7 @@ class User: ...
 -- Step 5: Verify performance
 -- Query time: 100-200ms ✅
 -- User experience: 25-50x faster ✅
-```
+```text
 
 **Before/After**:
 
@@ -231,7 +231,7 @@ class User: ...
 -- va_orders: Logical view over 10M rows
 -- Query time: 5-10 seconds
 SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
-```
+```text
 
 **Problem**: BI dashboard queries timing out, blocking other queries.
 
@@ -261,7 +261,7 @@ registry.get("ta_orders")
 -- Step 5: Verify performance
 -- Query time: 50-100ms ✅
 -- Memory: 500MB-1GB (vs 2-5GB) ✅
-```
+```text
 
 **Before/After**:
 
@@ -299,7 +299,7 @@ class User:
     id: str
     name: str
     posts: list[Post]
-```
+```text
 
 **When to use which**:
 
@@ -330,7 +330,7 @@ ticket_large = {
     "limit": 1000000
 }
 stream = client.do_get(flight.Ticket(json.dumps(ticket_large).encode()))
-```
+```text
 
 **View Discovery**:
 
@@ -341,7 +341,7 @@ for flight_info in views:
     print(f"View: {flight_info.name}")
     print(f"  Type: {'table' if flight_info.name.startswith('ta_') else 'logical'}")
     print(f"  Rows: {flight_info.total_records}")
-```
+```text
 
 ## Decision Checklist
 
@@ -380,7 +380,7 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM v_user_full WHERE id = ?;
 -- Measure tv_* execution time
 EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM tv_user_profile WHERE id = ?;
 -- Should be 10-50x faster
-```
+```text
 
 ### Test Analytics Performance (va_*vs ta_*)
 
@@ -393,7 +393,7 @@ SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM ta_orders WHERE created_at >= ? AND created_at < ?;
 -- Should be 50-100x faster for large datasets
-```
+```text
 
 ## See Also
 

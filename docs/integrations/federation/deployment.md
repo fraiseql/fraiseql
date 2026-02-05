@@ -101,7 +101,7 @@ aws ecs create-service \
   --task-definition fraiseql-users:1 \
   --desired-count 2 \
   --load-balancers targetGroupArn=arn:aws:elasticloadbalancing:...
-```
+```text
 
 **Expected Performance:**
 
@@ -135,7 +135,7 @@ gcloud run deploy fraiseql-users \
   --platform managed \
   --region us-central1 \
   --set-env-vars DATABASE_URL=postgresql://...
-```
+```text
 
 **Expected Performance:**
 
@@ -180,7 +180,7 @@ az container create \
   --name fraiseql-users \
   --image fraiseql.azurecr.io/fraiseql-users:latest \
   --environment-variables DATABASE_URL=postgresql://...
-```
+```text
 
 **Expected Performance:**
 
@@ -194,7 +194,7 @@ az container create \
 
 ### Architecture
 
-```
+```text
      Federation Gateway (Apollo Router / Kong)
             |
     +-------+-------+-------+
@@ -203,7 +203,7 @@ az container create \
    |       |       |       |
  Users   Orders  Products Inventory
   DB      DB      DB      DB
-```
+```text
 
 ### Deployment Steps
 
@@ -221,7 +221,7 @@ gcloud container registries create --location=eu gcr.io/PROJECT/fraiseql-orders
 # Azure: Products Service
 az postgres server create --resource-group prod --name products --location westeurope
 az acr create --resource-group prod --name fraiseql
-```
+```text
 
 #### 2. Configure Federation
 
@@ -253,7 +253,7 @@ url = "https://products.example.com/graphql"
 timeout_ms = 5000
 max_retries = 3
 retry_delay_ms = 100
-```
+```text
 
 #### 3. Deploy Services
 
@@ -269,7 +269,7 @@ retry_delay_ms = 100
 
 # Deploy Gateway (Optional - use Apollo Router)
 ./deploy-gateway.sh
-```
+```text
 
 #### 4. Verify Federation
 
@@ -286,7 +286,7 @@ curl https://products.example.com/graphql -d '{"query": "{products{id}}"}'
 # Test federated query
 curl https://gateway.example.com/graphql \
   -d '{"query": "{user(id:\"1\"){id orders{id products{id}}}}"}'
-```
+```text
 
 ---
 
@@ -319,7 +319,7 @@ CREATE INDEX idx_product_id ON orders(product_id);
 
 -- Query optimization
 CREATE INDEX idx_status ON orders(status) WHERE status != 'completed';
-```
+```text
 
 **Impact:** 10-50x query speedup for federation
 
@@ -334,7 +334,7 @@ CREATE INDEX idx_status ON orders(status) WHERE status != 'completed';
 pool_size = 20           # Connections per pool
 max_idle_time = 300      # Seconds
 connection_timeout = 5   # Seconds
-```
+```text
 
 **Impact:** 20-30% reduction in query latency
 
@@ -352,7 +352,7 @@ max_size_mb = 256        # Cache size limit
 [[cache.patterns]]
 query = "_entities"
 ttl_seconds = 60         # Shorter TTL for entities
-```
+```text
 
 **Impact:** 50-90% reduction for repeated queries
 
@@ -383,7 +383,7 @@ query {
     orders { id total }
   }
 }
-```
+```text
 
 **Impact:** 20-40% reduction in payload and latency
 
@@ -404,7 +404,7 @@ prometheus_port = 9090
 # - fraiseql_federation_entities_resolved: Entities resolved
 # - fraiseql_federation_cache_hits: Cache hit rate
 # - fraiseql_database_queries_total: Total queries
-```
+```text
 
 ---
 
@@ -412,7 +412,7 @@ prometheus_port = 9090
 
 Key metrics to monitor:
 
-```
+```text
 
 - Federation Latency (P50, P95, P99)
 - Entity Resolution Success Rate
@@ -420,7 +420,7 @@ Key metrics to monitor:
 - Database Connection Pool Utilization
 - HTTP Federation Error Rate
 - Cross-Cloud Latency
-```
+```text
 
 ---
 
@@ -438,7 +438,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 # - Remote subgraph calls
 # - Cache hits/misses
 # - Latency breakdown
-```
+```text
 
 ---
 
@@ -462,7 +462,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 - name: DatabaseConnPoolExhausted
   condition: idle_connections == 0
   action: scale_up
-```
+```text
 
 ---
 
@@ -483,7 +483,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 # Test network latency
 ping orders-service.example.com
 traceroute orders-service.example.com
-```
+```text
 
 ---
 
@@ -498,19 +498,19 @@ traceroute orders-service.example.com
    ```toml
    [federation.http]
    timeout_ms = 10000  # Increase from 5000
-   ```
+   ```text
 
 2. Check remote service health:
 
    ```bash
    curl -v https://orders.example.com/health
-   ```
+   ```text
 
 3. Check network connectivity:
 
    ```bash
    curl -w "@curl-format.txt" -o /dev/null -s https://orders.example.com/graphql
-   ```
+   ```text
 
 ---
 
@@ -524,13 +524,13 @@ traceroute orders-service.example.com
 
    ```bash
    curl https://orders.example.com/_service
-   ```
+   ```text
 
 2. Review logs for specific errors
 
    ```bash
    kubectl logs -l app=orders-service --tail=100
-   ```
+   ```text
 
 3. Enable retry logic (automatic in FraiseQL):
 
@@ -538,7 +538,7 @@ traceroute orders-service.example.com
    [federation.http]
    max_retries = 5
    retry_delay_ms = 100
-   ```
+   ```text
 
 ---
 

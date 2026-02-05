@@ -27,7 +27,7 @@ Authoring Layer          Compilation Layer        Runtime Layer
          │                       │                       │
          └──────→ Errors         └──────→ Errors        └──────→ Errors
             (Failed)                (Failed)               (Failed)
-```
+```text
 
 ---
 
@@ -62,10 +62,10 @@ FraiseQL uses a unified error type that represents all possible failures. Errors
 
 **Client Errors (4xx):**
 
-```
+```text
 Parse, Validation, UnknownField, UnknownType,
 Authentication, Authorization, NotFound, Conflict
-```
+```text
 
 User made a mistake. The same request will fail repeatedly. Example:
 
@@ -76,27 +76,27 @@ query {
     usernam  # ← Parse error (4xx)
   }
 }
-```
+```text
 
 **Server Errors (5xx):**
 
-```
+```text
 Database, ConnectionPool, Timeout, Cancelled,
 Configuration, Internal
-```
+```text
 
 System failure outside user control. May succeed if retried. Example:
 
-```
+```text
 Database { message: "connection refused" }  # ← 5xx error
 # May succeed if database recovers and request is retried
-```
+```text
 
 **Retryable Errors (can be safely retried):**
 
-```
+```text
 ConnectionPool, Timeout, Cancelled
-```
+```text
 
 Safe to retry with exponential backoff. Examples:
 
@@ -126,7 +126,7 @@ class User:
 class User:
     id: int
     name: BadType  # ← Python type error (before compilation)
-```
+```text
 
 **Tools:** Python type checking (`py`, `mypy`), TypeScript compiler
 
@@ -149,7 +149,7 @@ class Post:
     author: NonExistentUser
 
 # Error: Compilation { message: "Unknown type 'NonExistentUser' referenced in Post.author" }
-```
+```text
 
 **Relationship Validation:**
 
@@ -167,7 +167,7 @@ CREATE TABLE tb_post (
 );
 
 -- Error: Validation { message: "Foreign key fk_user_id references non-existent column tb_user.pk_nonexistent_id" }
-```
+```text
 
 **SQL Generation Validation:**
 
@@ -181,7 +181,7 @@ class Post:
     # - Columns pk_post_id, title exist
     # - Type mapping (db int → GraphQL Int) is valid
     # If any validation fails, compilation errors
-```
+```text
 
 ### Layer 3: Request-Time Validation
 
@@ -198,7 +198,7 @@ query {
 }
 
 # Error: Validation { message: "Expected Int for parameter 'id', got String" }
-```
+```text
 
 **Parameter Range Validation:**
 
@@ -212,7 +212,7 @@ query {
 }
 
 # Error: Validation { message: "Parameter 'limit' must be ≤ 10000, got 100000" }
-```
+```text
 
 **Authorization Validation:**
 
@@ -234,7 +234,7 @@ match auth_result {
         // Return 403 immediately without executing SQL
     }
 }
-```
+```text
 
 ### Layer 4: Execution-Time Validation
 
@@ -253,7 +253,7 @@ INSERT INTO tb_user (username) VALUES ('alice');
 --   message: "duplicate key value violates unique constraint \"uc_user_username\"",
 --   sql_state: Some("23505")  -- PostgreSQL unique violation code
 -- }
-```
+```text
 
 **Post-Fetch Authorization (visibility filtering):**
 
@@ -274,7 +274,7 @@ INSERT INTO tb_user (username) VALUES ('alice');
 //   { id: 2, title: "Draft" }
 // ]
 // No error - silently drops unauthorized fields
-```
+```text
 
 **Timeout Detection:**
 
@@ -293,7 +293,7 @@ match result {
         query: Some(truncate_query(&query, 200))
     })
 }
-```
+```text
 
 ---
 
@@ -323,7 +323,7 @@ Content-Type: application/json
     }
   ]
 }
-```
+```text
 
 ### Multiple Errors Response
 
@@ -347,7 +347,7 @@ Content-Type: application/json
     }
   ]
 }
-```
+```text
 
 ### Database Error Response
 
@@ -368,7 +368,7 @@ Content-Type: application/json
     }
   ]
 }
-```
+```text
 
 ### Authorization Error Response
 
@@ -390,7 +390,7 @@ Content-Type: application/json
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -412,7 +412,7 @@ Return first error immediately, stop processing:
 // Response:
 // HTTP 403 Forbidden
 // { "errors": [{"message": "...", "code": "FORBIDDEN"}] }
-```
+```text
 
 **When to use:** Default for all queries. Safe and predictable.
 
@@ -432,7 +432,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Response:**
 
@@ -455,7 +455,7 @@ query {
     }
   ]
 }
-```
+```text
 
 **When to use:** When some fields are public and others require permission. Provides better UX.
 
@@ -487,7 +487,7 @@ async def execute_with_retry(query, max_attempts=3):
 
 # Usage
 result = await execute_with_retry(query)
-```
+```text
 
 **Error types to retry:**
 
@@ -545,7 +545,7 @@ async function getAnalytics() {
     throw error;
   }
 }
-```
+```text
 
 ---
 
@@ -574,7 +574,7 @@ def create_user(input: UserInput) -> User:
     # - input.email is guaranteed valid email format
     # - input.age is in [13, 150]
     return db.insert_user(input)
-```
+```text
 
 **Validation rules are compiled into SQL or application logic:**
 
@@ -592,7 +592,7 @@ CREATE TABLE tb_user (
 -- If insert violates constraint:
 
 -- Error: Database { sql_state: "23514" } (CHECK constraint violation)
-```
+```text
 
 ### Practice 2: List-Size Limits
 
@@ -621,7 +621,7 @@ query {
   users(limit: 100000, offset: 0) { id name }
 }
 # Error: Validation { message: "Parameter 'limit' must be ≤ 10000" }
-```
+```text
 
 **Implementation:**
 
@@ -645,7 +645,7 @@ fn validate_parameters(params: &QueryParams) -> Result<()> {
 
     Ok(())
 }
-```
+```text
 
 ### Practice 3: String Sanitization (Implicit via Parameterization)
 
@@ -661,7 +661,7 @@ query = f"SELECT * FROM users WHERE name = '{user_input}'"
 query = "SELECT * FROM users WHERE name = ?"
 params = [user_input]
 # Parameterized query - user_input is treated as pure data, never as SQL
-```
+```text
 
 FraiseQL handles this internally:
 
@@ -673,7 +673,7 @@ query_params: { userId: "123\"; DROP TABLE users; --" }
 // SQL: SELECT * FROM posts WHERE pk_user_id = $1
 // Params: ["123\"; DROP TABLE users; --"]
 // The harmful string is treated as pure data, not executed
-```
+```text
 
 ### Practice 4: Enumeration over Free Text
 
@@ -703,7 +703,7 @@ mutation {
   updateUser(input: {id: 1, role: "superuser"})  # ❌
   # Error: Validation { message: "Expected one of [admin, editor, viewer]" }
 }
-```
+```text
 
 ---
 
@@ -731,7 +731,7 @@ class Post:
 # User with role='viewer': Can read post.title, but not post.secret
 # User with role='editor': Can read and write everything
 # User with role='admin': Can do anything
-```
+```text
 
 **Runtime enforcement:**
 
@@ -741,7 +741,7 @@ match user.role {
     Role::Viewer => Err(FraiseQLError::unauthorized("viewers cannot read post.secret")),
     Role::Editor | Role::Admin => Ok(secret_value),
 }
-```
+```text
 
 ### Pattern 2: Ownership-Based Access Control
 
@@ -760,7 +760,7 @@ class Post:
     content: str
 
 # Only the post's author or readers of published posts can read content
-```
+```text
 
 **SQL with authorization:**
 
@@ -778,7 +778,7 @@ SELECT
 FROM tb_post
 WHERE pk_post_id = 456
 -- User 456 can only see content if they own it or it's published
-```
+```text
 
 ### Pattern 3: Attribute-Based Access Control (ABAC)
 
@@ -803,7 +803,7 @@ class Document:
 # User can read if:
 # 1. They're in the same department, AND
 # 2. Either the document is less classified than their clearance, OR they own it
-```
+```text
 
 ---
 
@@ -819,7 +819,7 @@ query {
     secret      # ❌ Denied for viewers
   }
 }
-```
+```text
 
 **Response:**
 
@@ -839,7 +839,7 @@ query {
     }
   ]
 }
-```
+```text
 
 **Client recovery:**
 
@@ -866,17 +866,17 @@ try {
 } catch (error) {
   showError(error.message);
 }
-```
+```text
 
 ### Scenario 2: Database Connection Lost
 
-```
+```text
 Database operation fails with ConnectionPool error
 ↓
 Retryable: Yes (eventually, connections will become available)
 ↓
 Client strategy: Retry with exponential backoff
-```
+```text
 
 **Implementation:**
 
@@ -906,11 +906,11 @@ pub async fn execute_with_connection_retry(
         }
     }
 }
-```
+```text
 
 ### Scenario 3: Query Exceeds Timeout
 
-```
+```text
 Query execution exceeds 30s limit
 ↓
 Error: Timeout { timeout_ms: 30000 }
@@ -918,7 +918,7 @@ Error: Timeout { timeout_ms: 30000 }
 Retryable: Possibly (with simpler query or raised timeout)
 ↓
 Client strategy: Retry with reduced complexity
-```
+```text
 
 **Implementation:**
 
@@ -945,7 +945,7 @@ query QuickReport {
     costs
   }
 }
-```
+```text
 
 ```typescript
 async function getReport() {
@@ -960,11 +960,11 @@ async function getReport() {
     throw error;
   }
 }
-```
+```text
 
 ### Scenario 4: Data Constraint Violation
 
-```
+```text
 User tries to create duplicate username
 ↓
 INSERT violates UNIQUE constraint
@@ -974,7 +974,7 @@ Error: Database { sql_state: "23505" }
 Retryable: No (constraint violation, not transient)
 ↓
 Client strategy: Show error, ask user for different username
-```
+```text
 
 **Implementation:**
 
@@ -998,7 +998,7 @@ async function createUser(username: string, email: string) {
     throw error;
   }
 }
-```
+```text
 
 ---
 
@@ -1012,7 +1012,7 @@ query {
     name
   }
 }
-```
+```text
 
 **Validation order:**
 
@@ -1039,7 +1039,7 @@ mutation {
     title
   }
 }
-```
+```text
 
 **Validation order:**
 
@@ -1070,7 +1070,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Validation order:**
 
@@ -1122,7 +1122,7 @@ mutation {
     total
   }
 }
-```
+```text
 
 **Comprehensive error handling:**
 
@@ -1201,7 +1201,7 @@ pub async fn create_order(
         }
     }
 }
-```
+```text
 
 **GraphQL response scenarios:**
 
@@ -1217,7 +1217,7 @@ Success:
     }
   }
 }
-```
+```text
 
 Validation error:
 
@@ -1229,7 +1229,7 @@ Validation error:
     "path": ["createOrder"]
   }]
 }
-```
+```text
 
 Authorization error:
 
@@ -1244,7 +1244,7 @@ Authorization error:
     }
   }]
 }
-```
+```text
 
 Conflict error:
 
@@ -1255,7 +1255,7 @@ Conflict error:
     "code": "CONFLICT"
   }]
 }
-```
+```text
 
 Database error (transient, should retry):
 
@@ -1269,7 +1269,7 @@ Database error (transient, should retry):
     }
   }]
 }
-```
+```text
 
 ---
 

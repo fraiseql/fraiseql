@@ -24,7 +24,7 @@ enabled = true
 auth_start_max_requests = 100
 
 # ... and so on
-```
+```text
 
 This configuration is then:
 
@@ -35,7 +35,7 @@ This configuration is then:
 
 ## Architecture
 
-```
+```text
 fraiseql.toml (source of truth)
      ↓
 fraiseql-cli compile (reads TOML, validates, generates JSON)
@@ -49,7 +49,7 @@ fraiseql-server (reads compiled schema)
 Environment variables (optional overrides)
      ↓
 Runtime security policies enforced
-```
+```text
 
 ## Configuration File Structure
 
@@ -120,7 +120,7 @@ apply_to_jwt = true                   # JWT signature verification
 apply_to_session_tokens = true        # Session token comparison
 apply_to_csrf_tokens = true           # CSRF token validation
 apply_to_refresh_tokens = true        # Refresh token comparison
-```
+```text
 
 ## Configuration Sections
 
@@ -230,7 +230,7 @@ At runtime, environment variables **override** TOML settings. This allows deploy
 ```bash
 # Override log level
 export AUDIT_LOG_LEVEL=debug    # "debug", "info", "warn"
-```
+```text
 
 ### Rate Limiting
 
@@ -245,14 +245,14 @@ export RATE_LIMIT_AUTH_LOGOUT=40
 
 # Override failed login limit
 export RATE_LIMIT_FAILED_LOGIN=3        # 3 failed attempts before lockout
-```
+```text
 
 ### State Encryption
 
 ```bash
 # REQUIRED: Encryption key (base64-encoded 32-byte key)
 export STATE_ENCRYPTION_KEY=$(openssl rand -base64 32)
-```
+```text
 
 ## Examples
 
@@ -274,7 +274,7 @@ failed_login_max_requests = 1000
 
 [fraiseql.security.error_sanitization]
 user_facing_format = "detailed"     # Show errors for debugging
-```
+```text
 
 ### Production Configuration
 
@@ -304,7 +304,7 @@ enabled = true                      # Always enabled
 
 [fraiseql.security.constant_time]
 enabled = true                      # Always enabled
-```
+```text
 
 ### High-Security Configuration (Enterprise)
 
@@ -334,7 +334,7 @@ key_rotation_enabled = false        # Future: enable for key rotation
 
 [fraiseql.security.constant_time]
 enabled = true                      # All tokens protected
-```
+```text
 
 ## Deployment
 
@@ -346,14 +346,14 @@ cp fraiseql.toml.example fraiseql.toml
 
 # Edit for your environment
 nano fraiseql.toml
-```
+```text
 
 ### 2. Validate Configuration
 
 ```bash
 # The CLI will validate during compilation
 fraiseql compile schema.json --check
-```
+```text
 
 ### 3. Generate Encryption Key
 
@@ -361,14 +361,14 @@ fraiseql compile schema.json --check
 # For STATE_ENCRYPTION_KEY
 KEY=$(openssl rand -base64 32)
 echo "STATE_ENCRYPTION_KEY=$KEY" > .env.production
-```
+```text
 
 ### 4. Compile Schema
 
 ```bash
 # Compiles TOML → schema.json → schema.compiled.json
 fraiseql compile schema.json
-```
+```text
 
 ### 5. Start Server with Env Vars
 
@@ -381,7 +381,7 @@ source .env.production
   --schema schema.compiled.json \
   --listen 0.0.0.0:8080 \
   --db postgresql://user:pass@localhost/db
-```
+```text
 
 ## Validation & Error Handling
 
@@ -406,13 +406,13 @@ The TOML configuration is validated at **compile time**:
 
 ### Example Error Output
 
-```
+```text
 error: Configuration validation failed
   ├─ leak_sensitive_details=true is a security risk! Never enable in production.
   └─ auth_start_window_secs must be positive
 
 Failed to compile schema
-```
+```text
 
 ## Security Guarantees
 

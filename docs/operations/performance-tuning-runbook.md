@@ -22,7 +22,7 @@ This runbook provides **diagnosis workflows** and **remediation steps** for comm
 
 ## Quick Diagnosis Tree
 
-```
+```text
 Is performance issue...
 
 1. NEW: Slow since deployment?
@@ -39,7 +39,7 @@ Is performance issue...
 
 5. BROAD: Many queries slow?
    → Go to: DATABASE TUNING or NETWORK LATENCY
-```
+```text
 
 ---
 
@@ -58,7 +58,7 @@ systemctl restart fraiseql
 
 # Watch logs
 tail -f /var/log/fraiseql.log | grep "QUERY"
-```
+```text
 
 **Look for:**
 
@@ -82,7 +82,7 @@ SELECT ... FROM ... WHERE ...;
 SET STATISTICS IO ON;
 SET STATISTICS TIME ON;
 SELECT ... FROM ... WHERE ...;
-```
+```text
 
 **Interpret output:**
 
@@ -111,7 +111,7 @@ ORDER BY mean_time DESC LIMIT 5;
 
 -- Example output: "SELECT * FROM users WHERE created_at >= ..."
 -- → Need index on created_at
-```
+```text
 
 ### Solutions
 
@@ -124,7 +124,7 @@ CREATE INDEX idx_users_created_at ON users(created_at);
 -- Verify index is used
 EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
 -- Should show "Index Scan" not "Seq Scan"
-```
+```text
 
 **Syntax per database:**
 
@@ -137,7 +137,7 @@ ALTER TABLE users ADD INDEX idx_created_at (created_at), ALGORITHM=INPLACE;
 
 -- SQL Server: Online index creation
 CREATE INDEX idx_created_at ON users(created_at) WITH (ONLINE=ON);
-```
+```text
 
 **Solution 2: Composite Indexes for Common Filter Combinations**
 
@@ -149,7 +149,7 @@ CREATE INDEX idx_created_at ON users(created_at) WITH (ONLINE=ON);
 -- If queries filter by range, put range column last:
 -- CREATE INDEX idx_posts_user_date ON posts(user_id, created_at);
 -- Covers WHERE user_id = X AND created_at >= Y
-```
+```text
 
 **Solution 3: Switch to Materialized View (tv_*)**
 
@@ -165,7 +165,7 @@ class UserStats:
 @type
 class UserStats:
     post_count: int  # Pre-computed, indexed
-```
+```text
 
 **Solution 4: Reduce Query Scope**
 
@@ -187,7 +187,7 @@ query {
     posts { id title }
   }
 }
-```
+```text
 
 ### Prevention
 
@@ -220,7 +220,7 @@ ORDER BY query_start;
 -- MySQL: Check connection count
 SHOW PROCESSLIST;
 SHOW VARIABLES LIKE 'max_connections';
-```
+```text
 
 ### Solutions
 
@@ -230,7 +230,7 @@ SHOW VARIABLES LIKE 'max_connections';
 # fraiseql.toml
 [database]
 pool_size = 50  # Was 10, increase to 50
-```
+```text
 
 **Maximum safe values:**
 
@@ -252,7 +252,7 @@ mydb = host=localhost port=5432 dbname=mydb
 pool_mode = transaction
 max_client_conn = 1000
 default_pool_size = 25
-```
+```text
 
 **Solution 3: Kill Slow/Idle Connections**
 
@@ -265,7 +265,7 @@ AND query_start < now() - interval '5 minutes';
 
 -- MySQL: Kill long-running connections
 KILL QUERY process_id;
-```
+```text
 
 **Solution 4: Set Connection Timeout**
 
@@ -273,7 +273,7 @@ KILL QUERY process_id;
 [database]
 connection_timeout_seconds = 10  # Wait max 10s for connection
 query_timeout_seconds = 30       # Abort query after 30s
-```
+```text
 
 ### Prevention
 
@@ -303,7 +303,7 @@ SELECT object_schema, object_name, count_read, count_write
 FROM performance_schema.table_io_waits_summary_by_index_usage
 WHERE count_read > 0
 ORDER BY count_read DESC;
-```
+```text
 
 ### Solutions
 
@@ -318,7 +318,7 @@ REINDEX TABLE users;
 
 -- Concurrent reindex (no lock, v12+)
 REINDEX INDEX CONCURRENTLY idx_users_created_at;
-```
+```text
 
 **Solution 2: Optimize Table (MySQL)**
 
@@ -328,7 +328,7 @@ OPTIMIZE TABLE users;
 
 -- Analyze statistics
 ANALYZE TABLE users;
-```
+```text
 
 **Solution 3: Regular Maintenance Schedule**
 
@@ -338,7 +338,7 @@ ANALYZE TABLE users;
 
 # Monthly full optimization
 0 2 1 * * fraiseql-maintenance optimize --full
-```
+```text
 
 ### Prevention
 
@@ -368,7 +368,7 @@ SELECT object_schema, object_name, count_insert, count_update, count_delete
 FROM performance_schema.table_io_waits_summary_by_table
 WHERE count_insert > 10000 OR count_update > 10000
 ORDER BY count_insert DESC;
-```
+```text
 
 ### Solutions
 
@@ -384,7 +384,7 @@ ANALYZE TABLE users;
 
 -- SQL Server
 UPDATE STATISTICS users;
-```
+```text
 
 **Solution 2: Auto-Vacuum Configuration (PostgreSQL)**
 
@@ -394,7 +394,7 @@ SELECT name, setting FROM pg_settings WHERE name LIKE 'autovacuum%';
 
 -- Increase frequency if needed
 ALTER DATABASE mydb SET autovacuum_naptime = '30s';  -- Default 60s
-```
+```text
 
 **Solution 3: Schedule Regular ANALYZE**
 
@@ -404,7 +404,7 @@ ALTER DATABASE mydb SET autovacuum_naptime = '30s';  -- Default 60s
 
 # Daily full database analysis
 0 2 * * * psql -d $DATABASE -c "ANALYZE;"
-```
+```text
 
 ### Prevention
 
@@ -430,7 +430,7 @@ ORDER BY mean_time DESC LIMIT 5;
 -- Check if they use indexes
 EXPLAIN SELECT COUNT(DISTINCT user_id) FROM posts;
 -- Look for "Seq Scan" (bad) vs "Index Only Scan" (good)
-```
+```text
 
 ### Solutions
 
@@ -445,7 +445,7 @@ CREATE INDEX idx_orders_status ON orders(status);
 
 -- For: Multiple columns in GROUP BY
 CREATE INDEX idx_users_org_status ON users(organization_id, status);
-```
+```text
 
 **Solution 2: Pre-Compute with Materialized View**
 
@@ -462,7 +462,7 @@ class UserStats:
     user_id: ID
     post_count: int  # Pre-computed, updated hourly
     updated_at: DateTime
-```
+```text
 
 **Solution 3: Approximate Aggregations**
 
@@ -474,7 +474,7 @@ For very large datasets where approximate values acceptable:
 class PostStats:
     unique_users_approx: int  # HyperLogLog count
     # 5% error but 100x faster
-```
+```text
 
 **Solution 4: Partition Large Tables**
 
@@ -485,7 +485,7 @@ CREATE TABLE posts_2026_01 PARTITION OF posts
 
 -- Aggregation on monthly partition is much faster
 SELECT COUNT(*) FROM posts_2026_01;
-```
+```text
 
 ### Prevention
 
@@ -510,14 +510,14 @@ export RUST_LOG=fraiseql_core=debug
 # Look for: "Executing SELECT..." repeated for each parent record
 
 # Example: Query 100 users, then 100 queries for posts = 101 queries!
-```
+```text
 
 **Count queries:**
 
 ```bash
 grep -c "Executing SELECT" logs.txt
 # 101 queries → N+1 problem!
-```
+```text
 
 ### Solutions
 
@@ -534,7 +534,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Result:** ~2 queries total (users + batched posts)
 
@@ -547,7 +547,7 @@ class UserWithPosts:
     id: ID
     name: str
     posts_json: List[Post]  # Fetched in view definition
-```
+```text
 
 **Solution 3: Flatten Query Structure**
 
@@ -557,7 +557,7 @@ Instead of:
 query {
   users { id posts { id comments { id } } }
 }
-```
+```text
 
 Do separate queries:
 
@@ -565,7 +565,7 @@ Do separate queries:
 query { users { id } }
 query { posts { id userId } }
 query { comments { id postId } }
-```
+```text
 
 ### Prevention
 
@@ -597,7 +597,7 @@ time psql -h database-host -d mydb -c "SELECT COUNT(*) FROM users;"
 # Check network path
 traceroute database-host
 # Look for high latency at any hop
-```
+```text
 
 ### Solutions
 
@@ -615,14 +615,14 @@ result = await db.query("""
     LEFT JOIN posts p ON u.id = p.user_id
     WHERE u.id = ?
 """, [user_id])
-```
+```text
 
 **Solution 2: Use Connection Pooling Closer to App**
 
 ```bash
 # Deploy PgBouncer/ProxySQL on same host as FraiseQL
 # Reduces network roundtrips from 100ms to 1ms
-```
+```text
 
 **Solution 3: Cache Frequently Accessed Data**
 
@@ -630,7 +630,7 @@ result = await db.query("""
 [fraiseql.caching]
 enabled = true
 ttl_seconds = 300  # Cache query results 5 minutes
-```
+```text
 
 ### Prevention
 
@@ -663,7 +663,7 @@ SELECT count(*) FROM pg_stat_activity WHERE usename = 'fraiseql_user';
 
 # Check subscription connections
 SELECT count(*) FROM websocket_connections;
-```
+```text
 
 ### Solutions
 
@@ -680,7 +680,7 @@ finally:
 # Ensure database connections returned to pool
 async with pool.acquire() as conn:
     # Connection automatically returned when block exits
-```
+```text
 
 **Solution 2: Set Resource Limits**
 
@@ -689,7 +689,7 @@ async with pool.acquire() as conn:
 max_concurrent_queries = 1000
 max_subscription_connections = 5000
 max_result_size_bytes = 10485760  # 10MB
-```
+```text
 
 **Solution 3: Regular Memory Profiling**
 
@@ -699,7 +699,7 @@ cargo profiling memory --duration 60s
 
 # Restart after 24 hours if needed
 systemctl restart fraiseql
-```
+```text
 
 ### Prevention
 
@@ -731,7 +731,7 @@ curl -X POST http://localhost:5000/graphql \
   -d '{"query": "{ users { id } }"}'
 
 # Check logs for "cache hit" vs "cache miss"
-```
+```text
 
 ### Solutions
 
@@ -741,7 +741,7 @@ curl -X POST http://localhost:5000/graphql \
 [fraiseql.caching]
 enabled = true
 default_ttl_seconds = 300  # Cache 5 minutes
-```
+```text
 
 **Solution 2: Invalidate Cache on Mutation**
 
@@ -752,7 +752,7 @@ mutation {
     name
   }
 }
-```
+```text
 
 **Solution 3: Adjust TTL Based on Data Freshness**
 
@@ -767,7 +767,7 @@ class User:
 class InventoryLevel:
     # Don't cache (inventory changes constantly)
     quantity: int = field(cache=False)
-```
+```text
 
 ### Prevention
 

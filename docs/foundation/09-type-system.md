@@ -16,7 +16,7 @@ FraiseQL's type system is the bridge between your database schema and your Graph
 
 ## Type System Architecture
 
-```
+```text
 Database Schema
 (PostgreSQL, MySQL, SQLite, SQL Server)
          ↓
@@ -31,7 +31,7 @@ GraphQL Scalar Types
          ↓
 API Contracts
 (sent to client)
-```
+```text
 
 ---
 
@@ -70,7 +70,7 @@ CREATE TABLE tb_users (
   metadata JSONB,                              -- ← JSON (nullable)
   avatar_data BYTEA                            -- ← Bytes (nullable)
 );
-```
+```text
 
 **Generated GraphQL Type:**
 
@@ -85,7 +85,7 @@ type User {
   metadata: JSON            # Nullable
   avatarData: Bytes         # Nullable
 }
-```
+```text
 
 **Python Schema (Optional - explicit definition):**
 
@@ -104,7 +104,7 @@ class User:
     created_at: datetime      # Required
     metadata: dict | None     # Optional
     avatar_data: bytes | None # Optional
-```
+```text
 
 ---
 
@@ -121,7 +121,7 @@ CREATE TABLE tb_orders (
   total NUMERIC(10, 2),                  -- NULL allowed (nullable)
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
 );
-```
+```text
 
 **Result in GraphQL:**
 
@@ -132,7 +132,7 @@ type Order {
   total: Decimal             # Nullable (no constraint)
   status: String!            # Non-nullable (NOT NULL + DEFAULT)
 }
-```
+```text
 
 **Rule 2: DEFAULT → Non-Nullable (if NO NULL allowed)**
 
@@ -142,7 +142,7 @@ CREATE TABLE tb_products (
   price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,  -- Has default, NOT NULL
   discount NUMERIC(10, 2) DEFAULT 0.00         -- Has default, but NULL allowed
 );
-```
+```text
 
 **Result in GraphQL:**
 
@@ -152,7 +152,7 @@ type Product {
   price: Decimal!     # Non-nullable (DEFAULT + NOT NULL)
   discount: Decimal   # Nullable (can be NULL even with default)
 }
-```
+```text
 
 ### When Types Are Nullable
 
@@ -171,7 +171,7 @@ query {
     phone    # Included if set, null if not
   }
 }
-```
+```text
 
 ---
 
@@ -189,7 +189,7 @@ type Order {
   createdAt: DateTime!
   status: String!
 }
-```
+```text
 
 **Database Table:**
 
@@ -201,7 +201,7 @@ CREATE TABLE tb_orders (
   created_at TIMESTAMP NOT NULL,
   status VARCHAR(20) NOT NULL
 );
-```
+```text
 
 ### Relationships: One-to-Many
 
@@ -218,7 +218,7 @@ CREATE TABLE tb_orders (
   fk_user_id INT NOT NULL REFERENCES tb_users(pk_user_id),
   total NUMERIC(10, 2) NOT NULL
 );
-```
+```text
 
 **GraphQL Types with Relationship:**
 
@@ -234,7 +234,7 @@ type Order {
   total: Decimal!
   user: User!            # Many-to-one: Order belongs to User
 }
-```
+```text
 
 **Query Example:**
 
@@ -249,7 +249,7 @@ query GetUserWithOrders($userId: Int!) {
     }
   }
 }
-```
+```text
 
 ### Relationships: Many-to-Many
 
@@ -271,7 +271,7 @@ CREATE TABLE tj_student_courses (
   fk_course_id INT NOT NULL REFERENCES tb_courses(pk_course_id),
   PRIMARY KEY (fk_student_id, fk_course_id)
 );
-```
+```text
 
 **GraphQL Types with Many-to-Many:**
 
@@ -287,7 +287,7 @@ type Course {
   title: String!
   students: [Student!]!  # Many-to-many relationship
 }
-```
+```text
 
 **Query Example:**
 
@@ -300,7 +300,7 @@ query GetStudentCourses($studentId: Int!) {
     }
   }
 }
-```
+```text
 
 ---
 
@@ -321,7 +321,7 @@ type User {
 # Invalid:
 { tags: null }           # ❌ List is non-null
 { tags: ["vip", null] }  # ❌ Items must be non-null
-```
+```text
 
 **Nullable List:**
 
@@ -336,7 +336,7 @@ type User {
 
 # Invalid:
 { tags: ["vip", null] }  # ❌ Items can't be null
-```
+```text
 
 **List of Nullable Items:**
 
@@ -351,7 +351,7 @@ type User {
 
 # Invalid:
 { notes: null }          # ❌ List is non-null
-```
+```text
 
 ### Database to List Mapping
 
@@ -363,7 +363,7 @@ CREATE TABLE tb_orders (
   fk_user_id INT NOT NULL,
   ...
 );
-```
+```text
 
 **Maps to GraphQL List:**
 
@@ -371,7 +371,7 @@ CREATE TABLE tb_orders (
 type User {
   orders: [Order!]!      # Automatically inferred from foreign key relationship
 }
-```
+```text
 
 ---
 
@@ -391,7 +391,7 @@ CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,
   status order_status NOT NULL DEFAULT 'pending'
 );
-```
+```text
 
 **FraiseQL Inference:**
 
@@ -407,7 +407,7 @@ type Order {
   orderId: Int!
   status: OrderStatus!   # Automatically inferred enum type
 }
-```
+```text
 
 ### Custom Scalar Definitions
 
@@ -429,7 +429,7 @@ class User:
     phone: PhoneNumber      # Custom scalar: validates phone format
     created_at: datetime
     available_dates: DateRange  # Custom scalar: complex type
-```
+```text
 
 **Validation:**
 
@@ -446,7 +446,7 @@ def serialize_date_range(value: dict) -> dict:
         "start": value["start"],
         "end": value["end"]
     }
-```
+```text
 
 ---
 
@@ -467,7 +467,7 @@ query {
     email  # ✅ Valid
   }
 }
-```
+```text
 
 **Optional Field (Nullable):**
 
@@ -482,7 +482,7 @@ query {
     phone  # ✅ Valid (might return null)
   }
 }
-```
+```text
 
 ### List Modifiers
 
@@ -491,7 +491,7 @@ query {
 [String!]       # List can be null, items non-null
 [String]!       # List non-null, items can be null
 [String!]!      # List non-null, items non-null
-```
+```text
 
 ---
 
@@ -506,17 +506,17 @@ query {
 class User:
     user_id: int
     email: str
-```
+```text
 
 **Compile-Time Checks:**
 
-```
+```text
 ✅ user_id: column pk_user_id is INT → type int ✓
 ✅ email: column email is VARCHAR → type str ✓
 ✅ PRIMARY KEY constraint → non-null ✓
 ✅ NOT NULL constraint on email → non-null ✓
 ✅ All types match database schema ✓
-```
+```text
 
 ### Runtime Type Validation
 
@@ -531,14 +531,14 @@ query GetUser($userId: Int!) {
 }
 
 Variables: { "userId": "not-a-number" }
-```
+```text
 
 **Runtime Check:**
 
-```
+```text
 ❌ Variable $userId: expected Int, got String
 Error: "Variable $userId of type Int! was not provided a valid Int value"
-```
+```text
 
 ---
 
@@ -559,7 +559,7 @@ CREATE TABLE tb_products (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-```
+```text
 
 **Inferred GraphQL Type:**
 
@@ -574,7 +574,7 @@ type Product {
   createdAt: DateTime!         # TIMESTAMP NOT NULL DEFAULT
   updatedAt: DateTime!         # TIMESTAMP NOT NULL DEFAULT
 }
-```
+```text
 
 **Optional Python Schema (explicit):**
 
@@ -589,7 +589,7 @@ class Product:
     is_featured: bool
     created_at: datetime
     updated_at: datetime
-```
+```text
 
 ### Example 2: Complex User Type with Relationships
 
@@ -610,7 +610,7 @@ CREATE TABLE tb_orders (
   total NUMERIC(10, 2) NOT NULL,
   created_at TIMESTAMP NOT NULL
 );
-```
+```text
 
 **Inferred GraphQL Types:**
 
@@ -631,7 +631,7 @@ type Order {
   createdAt: DateTime!
   user: User!                    # Many-to-one relationship
 }
-```
+```text
 
 ---
 
@@ -639,7 +639,7 @@ type Order {
 
 ### 1. Automatic Consistency
 
-```
+```text
 Database Schema (source of truth)
          ↓
 Compile-time Inference
@@ -647,7 +647,7 @@ Compile-time Inference
 GraphQL Schema (always in sync)
          ↓
 No manual type synchronization needed
-```
+```text
 
 ### 2. Safety Guarantees
 
@@ -658,7 +658,7 @@ type Order {
                      # GraphQL enforces non-null
                      # Application can rely on it
 }
-```
+```text
 
 ### 3. Self-Documenting API
 
@@ -671,7 +671,7 @@ type Order {
   createdAt: DateTime! # Always present, always a timestamp
   user: User!          # Always present, always a User object
 }
-```
+```text
 
 ---
 
@@ -690,7 +690,7 @@ type User {
   email: String!      # Always present
   phone: String       # Can be null (user didn't provide)
 }
-```
+```text
 
 ### 2. Use Relationships Over Foreign Keys
 
@@ -706,7 +706,7 @@ type Order {
   orderId: Int!
   user: User!         # Automatic relationship resolution
 }
-```
+```text
 
 ### 3. Name Fields Clearly
 
@@ -722,7 +722,7 @@ type User {
   email: String!
   age: Int!
 }
-```
+```text
 
 ### 4. Use Enums for Constrained Values
 
@@ -743,7 +743,7 @@ enum OrderStatus {
 type Order {
   status: OrderStatus!  # Limited to defined values
 }
-```
+```text
 
 ---
 

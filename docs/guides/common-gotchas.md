@@ -34,7 +34,7 @@ query {
     }
   }
 }
-```
+```text
 
 **What happens:**
 
@@ -56,7 +56,7 @@ FRAISEQL_LOG_LEVEL=debug cargo run
 
 # Count queries in logs
 grep "SELECT" logs.txt | wc -l
-```
+```text
 
 **Check profiling output:**
 
@@ -70,7 +70,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Solutions
 
@@ -89,7 +89,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Result:** ~2 queries total (users + batched posts)
 
@@ -102,7 +102,7 @@ class UserWithPosts:
     id: ID
     name: str
     posts_json: List[PostSummary]  # Pre-fetched via view
-```
+```text
 
 **Solution 3: Flatten queries temporarily**
 
@@ -112,7 +112,7 @@ Instead of:
 query {
   users { posts { comments { likes } } }
 }
-```
+```text
 
 Do:
 
@@ -128,7 +128,7 @@ query {
 query {
   comments { id likes }
 }
-```
+```text
 
 **Solution 4: Add pagination to nested fields**
 
@@ -143,7 +143,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Prevention
 
@@ -174,7 +174,7 @@ query {
     name
   }
 }
-```
+```text
 
 **Keyset advantages:**
 
@@ -187,7 +187,7 @@ query {
 ```toml
 [fraiseql.pagination]
 max_offset = 5000  # Disallow offset > 5000
-```
+```text
 
 ### Edge Case: Results Changing During Pagination
 
@@ -197,12 +197,12 @@ max_offset = 5000  # Disallow offset > 5000
 
 **Example:**
 
-```
+```text
 Request 1: skip 0, take 10   → gets records 1-10
 [New record inserted]
 Request 2: skip 10, take 10  → gets records 12-21 (record 11 is new)
 Result: Skipped record 11!
-```
+```text
 
 **Solutions:**
 
@@ -215,7 +215,7 @@ query {
     cursor
   }
 }
-```
+```text
 
 Keyset pagination uses the last record's ID as cursor, immune to inserts.
 
@@ -227,7 +227,7 @@ query {
     id
   }
 }
-```
+```text
 
 ### Edge Case: Cursor Expiry
 
@@ -247,7 +247,7 @@ except FraiseQLError as e:
         # Restart from beginning or last valid position
         cursor = None
         result = await client.query(query, variables={"after": cursor})
-```
+```text
 
 ---
 
@@ -272,7 +272,7 @@ query {
     name  # Still returns old name!
   }
 }
-```
+```text
 
 **Why:** Cache key doesn't match. Query uses `{id: "123"}`, but mutation might cache invalidate `{id: "123", name: "Alice"}`.
 
@@ -287,14 +287,14 @@ mutation {
     name
   }
 }
-```
+```text
 
 **Solution 2: TTL-based invalidation**
 
 ```toml
 [fraiseql.caching]
 ttl_seconds = 60  # All caches expire after 60 seconds
-```
+```text
 
 **Solution 3: Dependency-based invalidation**
 
@@ -304,7 +304,7 @@ def update_user(id: str, name: str):
     # Mark all queries involving this user as invalid
     cache.invalidate(User, id=id)
     return update_user_in_db(id, name)
-```
+```text
 
 ### Gotcha: Cache Hit When You Need Fresh Data
 
@@ -318,7 +318,7 @@ query {
     quantity  # Cached for 5 minutes, but inventory changes every second!
   }
 }
-```
+```text
 
 ### Solutions
 
@@ -330,7 +330,7 @@ class Inventory:
     id: ID
     quantity: int = field(cache=False)  # Never cache inventory
     updated_at: DateTime = field(cache=False)
-```
+```text
 
 **Solution 2: Use subscriptions for real-time data**
 
@@ -341,7 +341,7 @@ subscription {
     updated_at
   }
 }
-```
+```text
 
 **Solution 3: Add versioning to cache keys**
 
@@ -352,7 +352,7 @@ query {
     name
   }
 }
-```
+```text
 
 ---
 
@@ -372,7 +372,7 @@ class User:
     email: str
     password_hash: str  # ← OOPS! No @authorize decorator
     salary: Decimal    # ← OOPS! No @authorize decorator
-```
+```text
 
 **Why:** Field-level authorization is opt-in. If you don't add `@authorize`, the field is readable by anyone.
 
@@ -388,7 +388,7 @@ class User:
     email: str = field(authorize={Roles.ADMIN, Roles.SELF})
     password_hash: str = field(authorize=set())  # Never readable
     salary: Decimal = field(authorize={Roles.HR, Roles.SELF})
-```
+```text
 
 **Or use row-level security:**
 
@@ -399,7 +399,7 @@ class User:
         fk_org=fraiseql.context.org_id,  # Only users in same org
         is_sensitive_visible=fraiseql.context.role in [Roles.ADMIN, Roles.SELF]
     )
-```
+```text
 
 ---
 
@@ -417,7 +417,7 @@ query {
     id
   }
 }
-```
+```text
 
 **Database schema:**
 
@@ -426,7 +426,7 @@ CREATE TABLE products (
   id INT PRIMARY KEY,  -- Number!
   ...
 );
-```
+```text
 
 **Why:** Type mismatch. GraphQL string `"123"` doesn't match database INT.
 
@@ -440,7 +440,7 @@ class Product:
     id: int          # Use int, not str
     sku: str         # Use str for text IDs
     price: Decimal   # Use Decimal for money, not float
-```
+```text
 
 ### Gotcha: NULL Handling in WHERE Clauses
 
@@ -454,7 +454,7 @@ query {
     id
   }
 }
-```
+```text
 
 **Why:** In SQL, `column = NULL` returns false (use `IS NULL` instead).
 
@@ -468,7 +468,7 @@ query {
     id
   }
 }
-```
+```text
 
 ---
 
@@ -494,7 +494,7 @@ class Order:
 class User:
     id: str = external()
     orders: List[Order]  # Extends back to Order
-```
+```text
 
 ### Solution
 
@@ -517,7 +517,7 @@ class User:
 class Order:
     id: str
     user_id: str  # Foreign key reference, not @extends
-```
+```text
 
 ---
 
@@ -536,7 +536,7 @@ class Order:
 ```toml
 [fraiseql.federation.sagas]
 timeout_seconds = 300  # 5 minutes instead of default 30 seconds
-```
+```text
 
 **Solution 2: Break into smaller steps**
 
@@ -551,7 +551,7 @@ async def bulk_update_users(user_ids: List[str]):
             args=[batch],
             undo=undo_user_batch
         )
-```
+```text
 
 **Solution 3: Use async tasks instead**
 For very long operations, use background tasks instead of SAGA:
@@ -565,7 +565,7 @@ async def bulk_update_users(user_ids: List[str]):
         user_ids=user_ids
     )
     return { "status": "processing", "job_id": job_id }
-```
+```text
 
 ---
 
@@ -596,7 +596,7 @@ class UserSummary:  # Now tv_user_summary_materialized
     name: str
     post_count: int
     updated_at: DateTime
-```
+```text
 
 **Table-backed views advantages:**
 
@@ -620,7 +620,7 @@ query {
     id
   }
 }
-```
+```text
 
 **Problem:** `"2026-02-05"` is interpreted as `2026-02-05T00:00:00Z`. If user created order at `2026-02-04T23:00:00Z` (previous day in their timezone), it won't match.
 
@@ -638,7 +638,7 @@ query {
     id
   }
 }
-```
+```text
 
 **Solution 2: Use Date type for date-only fields**
 
@@ -648,14 +648,14 @@ class Order:
     id: ID
     created_date: Date  # Use Date, not DateTime
     created_at: DateTime  # Use DateTime for timestamps
-```
+```text
 
 **Solution 3: Compare at database level**
 
 ```sql
 SELECT * FROM orders
 WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
-```
+```text
 
 ---
 
@@ -675,7 +675,7 @@ WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
 [fraiseql.subscriptions]
 timeout_seconds = 3600  # Close connection after 1 hour
 idle_timeout_seconds = 300  # Close if idle for 5 minutes
-```
+```text
 
 **Solution 2: Explicit subscription cleanup**
 
@@ -685,7 +685,7 @@ try:
         process_event(event)
 finally:
     subscription.close()  # Always close
-```
+```text
 
 **Solution 3: Monitor active subscriptions**
 
@@ -693,7 +693,7 @@ finally:
 # Check for zombie subscriptions
 SELECT COUNT(*) FROM pg_stat_activity
 WHERE state = 'active' AND query LIKE '%subscription%'
-```
+```text
 
 ---
 
@@ -712,7 +712,7 @@ WHERE state = 'active' AND query LIKE '%subscription%'
 ```toml
 [fraiseql.federation]
 consistency_level = "strong"  # Wait for all replicas
-```
+```text
 
 **Or use regional routing:**
 
@@ -723,7 +723,7 @@ consistency_level = "strong"  # Wait for all replicas
 async def get_user(id: str, region: str = "primary"):
     db = db_connection(region)
     return await db.query("SELECT * FROM users WHERE id = ?", [id])
-```
+```text
 
 ---
 
@@ -742,7 +742,7 @@ query {
     name
   }
 }
-```
+```text
 
 **Result:**
 
@@ -753,7 +753,7 @@ query {
     "name": "Alice"
   }
 }
-```
+```text
 
 **Later:**
 
@@ -763,7 +763,7 @@ query {
     id
   }
 }
-```
+```text
 
 **Leads to confusion about response structure.**
 
@@ -782,7 +782,7 @@ query {
     name
   }
 }
-```
+```text
 
 **Document expected response structure:**
 
@@ -800,7 +800,7 @@ def users(status: str = None):
       ]
     }
     """
-```
+```text
 
 ---
 
@@ -818,7 +818,7 @@ query {
     id
   }
 }
-```
+```text
 
 ### Solution
 
@@ -827,7 +827,7 @@ query {
 ```toml
 [fraiseql.validation]
 array_operators_postgresql_only = true  # Warn if using array operators
-```
+```text
 
 **Or store arrays as JSON:**
 
@@ -836,7 +836,7 @@ array_operators_postgresql_only = true  # Warn if using array operators
 class Product:
     id: ID
     tags: JSON  # Store as JSON, works everywhere
-```
+```text
 
 ---
 
@@ -855,14 +855,14 @@ class Product:
 ```toml
 [fraiseql.database]
 connection_timeout_seconds = 10
-```
+```text
 
 **Solution 2: Implement query timeout**
 
 ```toml
 [fraiseql.database]
 query_timeout_seconds = 30
-```
+```text
 
 **Solution 3: Monitor connection pool**
 
@@ -873,7 +873,7 @@ SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'
 # Kill slow queries
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity
 WHERE query_start < now() - interval '5 minutes'
-```
+```text
 
 ---
 
@@ -898,7 +898,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Solution
 
@@ -907,7 +907,7 @@ query {
 ```toml
 [fraiseql.validation]
 max_query_depth = 15  # Prevent deep nesting
-```
+```text
 
 **Or use explicit iteration:**
 
@@ -924,7 +924,7 @@ query {
     }
   }
 }
-```
+```text
 
 ---
 

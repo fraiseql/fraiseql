@@ -34,7 +34,7 @@ The `fraiseql-cli` command-line tool compiles FraiseQL schemas from JSON format 
   "mutations": [],
   "fact_tables": []
 }
-```
+```text
 
 ### Type Definition
 
@@ -96,7 +96,7 @@ def users(limit: int = 10) -> list[User]:
     pass
 
 fraiseql.export_schema("schema.json")
-```
+```text
 
 Output: Valid `schema.json` for CLI compilation
 
@@ -114,7 +114,7 @@ class User {
 users(limit?: number): User[] { /* ... */ }
 
 ExportSchema("schema.json");
-```
+```text
 
 Output: Valid `schema.json` for CLI compilation
 
@@ -132,7 +132,7 @@ type UserQuery struct {
 }
 
 ExportSchema("schema.json")
-```
+```text
 
 Output: Valid `schema.json` for CLI compilation
 
@@ -149,15 +149,15 @@ The CLI validates:
 
 ```bash
 fraiseql-cli compile schema.json
-```
+```text
 
 Output includes validation warnings and suggestions:
 
-```
+```text
 ⚠️  Warnings (2):
    Query 'posts' returns a list but has no sql_source
    Query 'users' returns a list but has no sql_source
-```
+```text
 
 ### Step 2: Generate Compiled Schema
 
@@ -177,19 +177,19 @@ The compiler produces `schema.compiled.json`:
     "source_hash": "abc123"
   }
 }
-```
+```text
 
 ### Step 3: Optimization Suggestions
 
 The compiler provides optimization hints:
 
-```
+```text
 📊 Optimization Suggestions:
 
   Indexes:
   • Query 'posts': List query with arguments benefits from index
     Columns: authorId, published, limit, offset
-```
+```text
 
 ## Usage Examples
 
@@ -203,19 +203,19 @@ cd ..
 
 # Compile with CLI
 fraiseql-cli compile fraiseql-python/schema.json -o schema.compiled.json
-```
+```text
 
 ### With Custom Output Path
 
 ```bash
 fraiseql-cli compile schema.json --output compiled.json
-```
+```text
 
 ### Validate Only (no output)
 
 ```bash
 fraiseql-cli validate schema.json
-```
+```text
 
 ## Schema Format Compatibility
 
@@ -240,7 +240,7 @@ All 5 language generators produce compatible schemas:
 ```bash
 cargo build --release -p fraiseql-cli
 export PATH="$(pwd)/target/release:$PATH"
-```
+```text
 
 ### Issue: SQL source not recognized
 
@@ -260,7 +260,7 @@ The compiled schema is consumed by the FraiseQL runtime server:
 
 ```bash
 fraiseql-server --schema schema.compiled.json --port 4000
-```
+```text
 
 The server then:
 
@@ -293,7 +293,7 @@ The server then:
     }
   ]
 }
-```
+```text
 
 ### Type Extensions
 
@@ -307,7 +307,7 @@ The server then:
     }
   ]
 }
-```
+```text
 
 ### Subscriptions
 
@@ -321,7 +321,7 @@ The server then:
     }
   ]
 }
-```
+```text
 
 ## See Also
 

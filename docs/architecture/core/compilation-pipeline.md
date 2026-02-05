@@ -53,7 +53,7 @@ class SchemaIR:
     auth_context: AuthContextDef
     bindings: dict[str, BindingDef]        # query/mutation/subscription name -> BindingDef
     auth_rules: list[AuthRule]
-```
+```text
 
 ### 2.3 Type Definition IR
 
@@ -72,7 +72,7 @@ class FieldDef:
     graphql_type: str                      # e.g., "String!", "[User!]!"
     description: str
     directives: list[str]
-```
+```text
 
 ### 2.4 Binding Definition IR
 
@@ -96,7 +96,7 @@ class BindingDef:
     subscription_filters: list[WhereClause]  # Compile-time filters
     event_types: list[str]                # "INSERT" | "UPDATE" | "DELETE"
     authorization: AuthRule               # Enforced at event capture time
-```
+```text
 
 ### 2.5 Subscription Definition IR (v2.0+)
 
@@ -116,7 +116,7 @@ class SubscriptionBindingDef:
     entity_types: list[str]               # Which entities trigger events
     where_filters: list[WhereClause]      # Compile-time filters for events
     authorization: AuthRule               # Row-level filtering per subscriber
-```
+```text
 
 ---
 
@@ -145,7 +145,7 @@ The compiler **introspects only declared bindings**, not the entire database:
 # - Internal tables like tb_posts_audit
 # - Unused views
 # - Helper functions
-```
+```text
 
 ### 3.3 View Column Discovery
 
@@ -163,18 +163,18 @@ FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'v_user'
 ORDER BY ordinal_position;
-```
+```text
 
 **Discovered columns:**
 
-```
+```text
 id          → UUID
 email       → TEXT (nullable: false)
 name        → TEXT
 posts       → JSONB (array of posts)
 created_at  → TIMESTAMP
 items__product__category_id  → UUID (nullable: true)
-```
+```text
 
 ### 3.4 JSONB Path Discovery
 
@@ -188,7 +188,7 @@ For JSONB columns, introspect paths:
 # etc.
 
 # These become available for filtering in WHERE types
-```
+```text
 
 ### 3.5 Stored Procedure Discovery
 
@@ -205,16 +205,16 @@ SELECT
     prorettype
 FROM pg_proc
 WHERE proname = 'fn_create_user';
-```
+```text
 
 **Discovered signature:**
 
-```
+```text
 fn_create_user(
     email_param: TEXT,
     name_param: TEXT
 ) → JSON
-```
+```text
 
 ### 3.6 Column Indexing Analysis
 
@@ -224,7 +224,7 @@ Analyze indexing for performance warnings:
 # Introspect: Is column indexed?
 # If not indexed and used in WHERE types, emit warning:
 # ⚠ Column 'v_user.email' used in WHERE but not indexed
-```
+```text
 
 ---
 
@@ -249,7 +249,7 @@ schema.bind("User", view="v_user", data_column="data")
 # ✓ View v_user exists
 # ✓ Column 'data' (JSONB) exists in v_user
 # ✓ All fields (id, email, posts) discoverable in view or JSONB
-```
+```text
 
 ### 4.2 Field-to-Column Mapping
 
@@ -260,17 +260,17 @@ User.id        → v_user.id (SQL column)
 User.email     → v_user.email (SQL column)
 User.posts     → v_user.data->>'posts' (JSONB path)
 User.createdAt → v_user.created_at (SQL column)
-```
+```text
 
 **Discovery algorithm:**
 
-```
+```text
 for each field in GraphQL type:
     1. Check if column exists with same name
     2. If not, check JSONB paths in data column
     3. If found, record mapping
     4. If not found, error: field not discoverable
-```
+```text
 
 ### 4.3 Foreign Key Inference
 
@@ -286,7 +286,7 @@ class User:
 class Post:
     id: ID
     author: User       # Inferred FK: Post → User
-```
+```text
 
 **Verification:**
 
@@ -331,7 +331,7 @@ posts[0].author.id → IDFilter
 
 # Flattened foreign key columns (if exist):
 items__product__category_id  → IDFilter  # For efficient filtering
-```
+```text
 
 ### 5.3 Capability Manifest Application
 
@@ -356,7 +356,7 @@ The database capability manifest defines which operators are available:
     }
   }
 }
-```
+```text
 
 ### 5.4 WHERE Type Generation Algorithm
 
@@ -388,7 +388,7 @@ def generate_where_type(type_name: str, bound_view: str, capabilities: dict):
         name=f"{type_name}WhereInput",
         fields=where_fields
     )
-```
+```text
 
 ### 5.5 Generated WHERE Type Example
 
@@ -420,7 +420,7 @@ input IDFilter {
   _neq: ID
   _in: [ID!]
 }
-```
+```text
 
 ### 5.6 Capability-Driven Operator Inclusion
 
@@ -439,7 +439,7 @@ If targeting SQLite (no regex support):
     }
   }
 }
-```
+```text
 
 The generated `StringFilter` for SQLite would **omit** `_regex` and `_ilike`.
 
@@ -534,7 +534,7 @@ query {
     email
   }
 }
-```
+```text
 
 **Capability Detection:**
 At compilation time, the compiler:
@@ -567,7 +567,7 @@ class OrderCreated:
 
     # Compile-time filter
     where: WhereClause = WhereClause(user_id=current_user_id)
-```
+```text
 
 ### 7.2 Subscription Binding
 
@@ -579,7 +579,7 @@ schema.bind("OrderCreated",
     entity_types=["Order"],
     operation_types=["INSERT"]
 )
-```
+```text
 
 **Binding validates:**
 
@@ -599,7 +599,7 @@ SELECT * FROM tb_entity_change_log
 WHERE entity_type = 'Order'
   AND operation = 'INSERT'
   AND (data->>'user_id')::UUID = $1  -- Runtime-bound user_id
-```
+```text
 
 ### 6.4 Authorization Binding
 
@@ -616,7 +616,7 @@ class OrderCreated:
 # - RLS policy enforcement at event capture
 # - subscription_matchers per authenticated user
 # - Auth context binding for runtime variable resolution
-```
+```text
 
 ### 6.5 Subscription Dispatch Table Generation
 
@@ -640,7 +640,7 @@ The compiler generates a dispatch table for runtime:
     }
   }
 }
-```
+```text
 
 ### 6.6 Subscription Schema Validation
 
@@ -677,16 +677,16 @@ Every referenced type must be defined:
 @fraiseql.query
 def users() -> list[User]:  # User must be @fraiseql.type
     pass
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Type closure violation
   Query 'users' returns 'list[User]'
   Type 'User' not defined
   → Define @fraiseql.type class User
-```
+```text
 
 #### 7.1.2 Binding Existence
 
@@ -699,15 +699,15 @@ def users() -> list[User]:
 
 # Must have:
 schema.bind("users", view="v_user")
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Missing binding
   Query 'users' returns 'list[User]'
   → schema.bind("users", "view", "v_user")
-```
+```text
 
 #### 7.1.3 View Existence
 
@@ -715,16 +715,16 @@ Bound views must exist in database:
 
 ```python
 schema.bind("users", view="v_user_missing")  # ❌ Doesn't exist
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: View not found
   Binding 'users' references 'v_user_missing'
   → View does not exist in database
   → Check with: \dv v_user*
-```
+```text
 
 #### 7.1.4 Column Existence
 
@@ -735,16 +735,16 @@ All GraphQL fields must map to discoverable columns:
 class User:
     id: ID
     undefined_field: str  # ❌ Not in v_user
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Column not found
   Type 'User' field 'undefinedField'
   → Not found in view 'v_user' or JSONB paths
   → Check view schema: \d v_user
-```
+```text
 
 #### 7.1.5 Procedure Signature Match
 
@@ -761,16 +761,16 @@ schema.bind("create_user", procedure="fn_create_user")
 # ✓ fn_create_user exists
 # ✓ Has parameters matching: email, name
 # ✓ Returns JSON
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Procedure signature mismatch
   Mutation 'createUser' declares inputs: email, name
   Procedure 'fn_create_user' has params: email_param, name_param
   → Use input_mapping: {"email": "email_param", ...}
-```
+```text
 
 #### 7.1.6 Operator Support
 
@@ -781,16 +781,16 @@ All used filters must be in capability manifest:
 where: {
   email: { _regex: "^test" }  # ❌ SQLite doesn't support regex
 }
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Operator not supported
   Filter uses '_regex' on 'email' field
   → Database 'sqlite' does not support regex operator
   → Use '_like' instead or target 'postgresql'
-```
+```text
 
 #### 7.1.7 Authorization Validity
 
@@ -801,22 +801,22 @@ Auth rules must reference valid auth context fields:
 @auth.requires_claim("invalid_field")  # ❌ Not in AuthContext
 def secure_query() -> User:
     pass
-```
+```text
 
 **Error if violated:**
 
-```
+```text
 Error: Auth context mismatch
   Rule requires claim 'invalidField'
   → Field not in AuthContext
   → Add field to @fraiseql.auth_context
-```
+```text
 
 ### 7.2 Validation Output
 
 After validation, compiler emits a **validation report**:
 
-```
+```text
 ✓ Compilation successful (2026-01-11T15:35:00Z)
 
 Schema: acme-api v2.1.0
@@ -841,7 +841,7 @@ Generated Artifacts:
   ✓ CompiledSchema.json (24 KB)
   ✓ schema.graphql (12 KB)
   ✓ capability-manifest.json (8 KB)
-```
+```text
 
 ---
 
@@ -866,7 +866,7 @@ The executable schema consumed by Rust runtime:
   "authorization": { ... },
   "capabilities": { ... }
 }
-```
+```text
 
 See: `specs/compiled-schema.md` for full structure.
 
@@ -886,7 +886,7 @@ type Query {
   users(where: UserWhereInput, limit: Int = 100): [User!]!
   userByEmail(email: String!): User!
 }
-```
+```text
 
 #### 7.1.3 capability-manifest.json
 
@@ -908,11 +908,11 @@ Database-specific capabilities applied during compilation:
     }
   }
 }
-```
+```text
 
 ### 7.2 File Organization
 
-```
+```text
 my-api/
 ├── schema.py           # Authoring input
 ├── build/
@@ -920,7 +920,7 @@ my-api/
 │   ├── schema.graphql
 │   ├── capability-manifest.json
 │   └── validation-report.txt
-```
+```text
 
 ---
 
@@ -937,21 +937,21 @@ fraiseql compile schema.py \
 # Or with environment variable
 export DATABASE_URL=postgresql://...
 fraiseql compile schema.py
-```
+```text
 
 ### 8.2 Validation-Only Mode
 
 ```bash
 # Validate without database connection (use cached schema)
 fraiseql compile schema.py --validate-only
-```
+```text
 
 ### 8.3 Dry-Run Mode
 
 ```bash
 # Show what would be compiled, no changes
 fraiseql compile schema.py --dry-run
-```
+```text
 
 ---
 
@@ -974,7 +974,7 @@ All errors include:
 2. **Location** — File, line, field involved
 3. **Suggestion** — How to fix
 
-```
+```text
 Error: View not found
   File: schema.py, line 35
   Binding 'users' references 'v_user_missing'
@@ -985,7 +985,7 @@ Error: View not found
     → Check view exists: \dv v_user*
     → Use correct view name in binding
     → Or create view in database
-```
+```text
 
 ---
 
@@ -1013,7 +1013,7 @@ fraiseql compile schema.py --database-url postgresql://...
 
 # Subsequent compiles: use cache
 fraiseql compile schema.py  # Skips DB queries if schema unchanged
-```
+```text
 
 ---
 
@@ -1025,7 +1025,7 @@ fraiseql compile schema.py  # Skips DB queries if schema unchanged
 # Compile for multiple targets
 fraiseql compile schema.py \
   --targets postgresql,sqlite,mysql
-```
+```text
 
 Each target produces:
 
@@ -1038,7 +1038,7 @@ Each target produces:
 ```bash
 # Generate migration metadata
 fraiseql compile schema.py --version 2.1.0 --prev-version 2.0.0
-```
+```text
 
 Produces schema diff for documentation and client versioning.
 

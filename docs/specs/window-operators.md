@@ -336,4 +336,4 @@ FROM tf_sales;
 
 ---
 
-*End of Window Operators Specification*
+

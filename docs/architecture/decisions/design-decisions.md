@@ -31,13 +31,13 @@ This document records the fundamental architectural decisions behind FraiseQL, i
 
 **FraiseQL approach**: Compile everything ahead of time:
 
-```
+```text
 Schema (Python)
     ↓ Compile
 CompiledSchema (optimized IR)
     ↓ Runtime
 Execute deterministically
-```
+```text
 
 ### Trade-offs
 
@@ -95,7 +95,7 @@ Execute deterministically
 
 **FraiseQL approach**: All joins happen in database:
 
-```
+```text
 Query: user.posts.comments.author
 ↓
 Compiled to single SQL query with JOINs
@@ -103,7 +103,7 @@ Compiled to single SQL query with JOINs
 Database executes optimally
 ↓
 Single round-trip
-```
+```text
 
 ### Trade-offs
 
@@ -170,12 +170,12 @@ All three are **first-class**, compiled from same schema, not afterthoughts.
 
 **FraiseQL approach**: One schema, three optimal interfaces:
 
-```
+```text
 Schema
 ├─ JSON Plane (GraphQL): Interactive queries (OLTP)
 ├─ Arrow Plane (columnar): Analytics (OLAP)
 └─ Delta Plane (streams): Events (CDC)
-```
+```text
 
 ### Trade-offs
 
@@ -237,10 +237,10 @@ Schema
 
 **FraiseQL approach**: Optimize federation for same-database cases:
 
-```
+```text
 Different database: User → HTTP → remote_db → User (50ms)
 Same database: User → FDW → same_db → User (5ms, 10x faster)
-```
+```text
 
 ### Trade-offs
 
@@ -309,7 +309,7 @@ Same database: User → FDW → same_db → User (5ms, 10x faster)
 class Post:
     @fraiseql.authorize(rule="published_or_author")  # Explicit per-field
     content: str
-```
+```text
 
 ### Trade-offs
 
@@ -378,7 +378,7 @@ CREATE TABLE tb_audit_log (
 -- Only INSERT allowed
 -- Even database role can't DELETE
 REVOKE DELETE ON tb_audit_log FROM audit_role;
-```
+```text
 
 ### Trade-offs
 
@@ -438,7 +438,7 @@ REVOKE DELETE ON tb_audit_log FROM audit_role;
 
 **FraiseQL approach**: Database as event source:
 
-```
+```text
 User mutation committed
     ↓
 Trigger fires in database
@@ -448,7 +448,7 @@ Event published via LISTEN/NOTIFY
 Runtime receives guaranteed event
     ↓
 Send to subscribers
-```
+```text
 
 ### Trade-offs
 
@@ -509,12 +509,12 @@ Send to subscribers
 
 **FraiseQL approach**: Generate per-database schema:
 
-```
+```text
 User schema (generic)
     ├─ Compile for PostgreSQL 15 → PostgreSQL-optimized schema
     ├─ Compile for MySQL 8 → MySQL-optimized schema
     └─ Compile for SQL Server 2022 → SQL Server-optimized schema
-```
+```text
 
 Each uses database-specific features (JSONB, partitioning, etc.)
 
@@ -572,7 +572,7 @@ Each uses database-specific features (JSONB, partitioning, etc.)
 
 **FraiseQL approach**: Query-level cache:
 
-```
+```text
 Query: GetUserPosts
     ├─ Cache key: {operation_name, variables, user_id}
     ├─ Cached result: {id, title, author, comments}
@@ -580,7 +580,7 @@ Query: GetUserPosts
 
 When data changes:
     └─ Invalidate entire "GetUserPosts" (all variants)
-```
+```text
 
 ### Trade-offs
 
@@ -636,7 +636,7 @@ When data changes:
 
 **FraiseQL approach**: Server derives authorization:
 
-```
+```text
 Client: "I'm user-456 (don't trust)"
     ↓
 Server verifies JWT/token signature
@@ -647,7 +647,7 @@ Server queries: SELECT roles FROM tb_user WHERE id = 'user-456'
     ↓
 Server evaluates authorization rules
     ✓ Result: User can read this field
-```
+```text
 
 ### Trade-offs
 
@@ -703,12 +703,12 @@ Server evaluates authorization rules
 
 **FraiseQL approach**: Lock error codes within version:
 
-```
+```text
 v2.0.0: E_DB_QUERY_TIMEOUT_302 = "Query timeout"
 v2.1.0: Same (cannot change)
 v2.5.0: Same (still cannot change)
 v3.0.0: Can change (new major version)
-```
+```text
 
 ### Trade-offs
 
@@ -762,7 +762,7 @@ v3.0.0: Can change (new major version)
 
 **FraiseQL approach**: Safe by default:
 
-```
+```text
 Default: SERIALIZABLE (safest)
     ├─ No dirty reads
     ├─ No non-repeatable reads
@@ -773,7 +773,7 @@ Optional: READ_COMMITTED (faster, weaker)
     ├─ Possible non-repeatable reads
     ├─ Possible phantom reads
     └─ Use only if you understand risks
-```
+```text
 
 ### Trade-offs
 
@@ -828,20 +828,20 @@ Optional: READ_COMMITTED (faster, weaker)
 
 **FraiseQL approach**: Version in compiled schema only:
 
-```
+```text
 CompiledSchema {
     framework_version: "2.0.0",
     compiled_schema_version: 1,
     types: { User, Post, ... }
 }
-```
+```text
 
 Runtime checks version at startup:
 
-```
+```text
 Compiled schema v2.0.0 matches runtime v2.0.0 ✓
 → Load schema
-```
+```text
 
 ### Trade-offs
 
@@ -896,7 +896,7 @@ Compiled schema v2.0.0 matches runtime v2.0.0 ✓
 
 **FraiseQL approach**: Two schemas:
 
-```
+```text
 User Schema (Python)
     @fraiseql.type
     class User:
@@ -921,7 +921,7 @@ Compiled Schema (executable)
         "subscriptions": {...},
         "sql_plans": {...}
     }
-```
+```text
 
 ### Trade-offs
 
@@ -990,7 +990,7 @@ class Post:
 
     # Explicit: This field is ours
     comments: [Comment]
-```
+```text
 
 ### Trade-offs
 
@@ -1033,7 +1033,7 @@ class Post:
 
 FraiseQL's architectural decisions stem from these core principles:
 
-```
+```text
 
 1. Predictability: Same inputs, same outputs (determinism)
 2. Security: Deny by default, explicit allow
@@ -1043,7 +1043,7 @@ FraiseQL's architectural decisions stem from these core principles:
 6. Performance: Compiled execution, zero-cost abstractions
 7. Consistency: Strong consistency by default
 8. Compatibility: Follows standards (Apollo Federation v2, W3C Trace, etc.)
-```
+```text
 
 ---
 

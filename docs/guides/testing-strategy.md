@@ -31,7 +31,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 
 **Testing pyramid:**
 
-```
+```text
                     ▲
                    / \
                   /   \
@@ -42,7 +42,7 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
              /    Unit     \      60% — Unit tests (1000-2000 tests)
             /───────────────\
            ───────────────────
-```
+```text
 
 **Target metrics:**
 
@@ -164,7 +164,7 @@ def test_parse_invalid_schema(invalid_source, expected_error):
         parse_schema(invalid_source, language="python")
 
     assert exc_info.value.code == expected_error
-```
+```text
 
 #### 1.1.2 Database Introspection Tests
 
@@ -254,7 +254,7 @@ def test_generate_capability_manifest(mock_db_metadata):
     jsonb_ops = manifest.column_types["jsonb"].operators
     assert "contains" in jsonb_ops
     assert "has_key" in jsonb_ops
-```
+```text
 
 #### 1.1.3 Type Binding Tests
 
@@ -391,7 +391,7 @@ def test_bind_nested_type():
     posts_field = user_type.fields["posts"]
     assert posts_field.binding.view_name == "v_posts_by_user"
     assert posts_field.binding.parent_key == "user_id"
-```
+```text
 
 #### 1.1.4 WHERE Type Generation Tests
 
@@ -490,7 +490,7 @@ def test_generate_where_type_for_uuid_column():
     # No gt/lt operators for UUID
     assert "gt" not in where_type.fields
     assert "lt" not in where_type.fields
-```
+```text
 
 #### 1.1.5 Validation Tests
 
@@ -574,7 +574,7 @@ def test_validate_authorization_context():
 
     assert exc_info.value.code == "E_SCHEMA_AUTHORIZATION_INVALID_005"
     assert "department" in str(exc_info.value)
-```
+```text
 
 #### 1.1.6 Compilation Tests
 
@@ -668,7 +668,7 @@ class Bindings:
     mutation = compiled.mutations["create_user"]
     assert mutation.binding.procedure_name == "fn_create_user"
     assert "input" in mutation.arguments
-```
+```text
 
 ### 1.2 Runtime Unit Tests (Rust)
 
@@ -761,7 +761,7 @@ fn test_parse_invalid_query() {
     let err = result.unwrap_err();
     assert_eq!(err.code, "E_RUNTIME_QUERY_PARSE_ERROR_100");
 }
-```
+```text
 
 #### 1.2.2 Authorization Tests
 
@@ -869,7 +869,7 @@ fn test_enforce_requires_claim() {
     let result = enforce_authorization(&auth_rule, &non_matching_context);
     assert!(result.is_err());
 }
-```
+```text
 
 #### 1.2.3 Query Planning Tests
 
@@ -949,7 +949,7 @@ fn test_plan_query_with_where_filter() {
     assert!(plan.steps[0].where_clause.as_ref().unwrap().contains("username LIKE"));
     assert_eq!(plan.steps[0].parameters, vec![Value::String("john%".to_string())]);
 }
-```
+```text
 
 #### 1.2.4 Result Projection Tests
 
@@ -1029,7 +1029,7 @@ fn test_project_with_field_masking() {
     assert_eq!(projected["email"], "alice@example.com");
     assert!(projected["ssn"].is_null());  // Masked field returns null
 }
-```
+```text
 
 ---
 
@@ -1201,7 +1201,7 @@ class Bindings:
 
     # Error should suggest available views
     assert "v_user" in str(exc_info.value)
-```
+```text
 
 ### 2.2 Runtime Integration Tests
 
@@ -1336,7 +1336,7 @@ async fn test_execute_query_with_authorization() {
     let result = runtime.execute(query, None, Some(admin_auth)).await.unwrap();
     assert!(result.errors.is_none());
 }
-```
+```text
 
 #### 2.2.2 Mutation Execution Tests
 
@@ -1449,7 +1449,7 @@ async fn test_mutation_rollback_on_error() {
     let verify_result = runtime.execute(verify_query, None, None).await.unwrap();
     assert_eq!(verify_result.data["users"].as_array().unwrap().len(), 0);
 }
-```
+```text
 
 ### 2.3 Database Integration Tests
 
@@ -1555,7 +1555,7 @@ def test_v_posts_by_user_aggregation(db):
     assert len(result["data"]) == 2
     assert result["data"][0]["title"] == "Second post"  # Ordered by created_at DESC
     assert result["data"][1]["title"] == "First post"
-```
+```text
 
 #### 2.3.2 Stored Procedure Tests
 
@@ -1655,7 +1655,7 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
         db.query_one("SELECT fn_update_user('00000000-0000-0000-0000-000000000001', 'alice3', 1) AS result")
 
     assert "optimistic_lock_failed" in str(exc_info.value)
-```
+```text
 
 ---
 
@@ -1868,7 +1868,7 @@ describe('Authorization Workflows', () => {
     expect(result.data.adminUsers).toBeInstanceOf(Array);
   });
 });
-```
+```text
 
 ### 3.2 Performance Tests
 
@@ -1942,7 +1942,7 @@ describe('Query Latency', () => {
     expect(p95).toBeLessThan(200);
   });
 });
-```
+```text
 
 #### 3.2.2 Throughput Tests
 
@@ -1979,7 +1979,7 @@ describe('Query Throughput', () => {
     expect(qps).toBeGreaterThan(10_000);
   });
 });
-```
+```text
 
 ---
 
@@ -2002,7 +2002,7 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
   ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Alice Post 1', 'Content'),
   ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Alice Post 2', 'Content'),
   ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000002', 'Bob Post 1', 'Content');
-```
+```text
 
 #### 4.1.2 Compiled Schema Fixtures
 
@@ -2039,7 +2039,7 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
     }
   }
 }
-```
+```text
 
 ### 4.2 Test Database Management
 
@@ -2089,7 +2089,7 @@ class DatabaseFixture:
         with psycopg.connect("dbname=postgres") as conn:
             conn.autocommit = True
             conn.execute(f"DROP DATABASE IF EXISTS {self.database_name}")
-```
+```text
 
 ---
 
@@ -2236,7 +2236,7 @@ jobs:
         with:
           tool: 'cargo'
           output-file-path: benchmark_results.json
-```
+```text
 
 ### 5.2 Test Coverage Requirements
 
@@ -2259,7 +2259,7 @@ source = ["fraiseql"]
 precision = 2
 show_missing = true
 skip_covered = false
-```
+```text
 
 ```toml
 # Cargo.toml
@@ -2270,7 +2270,7 @@ proptest = "1.0"
 [[bench]]
 name = "query_execution"
 harness = false
-```
+```text
 
 ---
 
@@ -2278,7 +2278,7 @@ harness = false
 
 ### 6.1 Test Organization
 
-```
+```text
 tests/
 ├── unit/                   # Fast, isolated tests
 │   ├── compiler/
@@ -2315,7 +2315,7 @@ tests/
 └── utils/                  # Test utilities
     ├── database.py
     └── client.ts
-```
+```text
 
 ### 6.2 Naming Conventions
 
@@ -2334,7 +2334,7 @@ def test_execute_query_with_authorization():
 def test_parser():           # What about parser?
 def test_binding_error():    # Which error?
 def test_query():            # Test what about query?
-```
+```text
 
 ### 6.3 Test Independence
 
@@ -2361,7 +2361,7 @@ def test_create_user(db):
 def test_update_user(db):
     global user_id
     update_user(db, user_id, email="newemail@example.com")  # Depends on previous test
-```
+```text
 
 ### 6.4 Deterministic Tests
 
@@ -2377,7 +2377,7 @@ def test_query_users_by_username():
 def test_query_recent_users():
     users = query_users(where={"created_at": {"gt": "now() - interval '1 day'"}})
     assert len(users) > 0  # May fail if no recent users
-```
+```text
 
 ### 6.5 Test Documentation
 
@@ -2402,7 +2402,7 @@ def test_compile_schema_with_nested_types(db):
     schema_source = '''...'''
     compiled = compile_schema(source=schema_source, database=db)
     # ... assertions ...
-```
+```text
 
 ---
 
@@ -2428,7 +2428,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-```
+```text
 
 ### 7.2 Watch Mode (Development)
 
@@ -2438,7 +2438,7 @@ $ ptw tests/unit/compiler/ --runner "pytest -x"
 
 # Rust: Auto-run tests on file change
 $ cargo watch -x test
-```
+```text
 
 ---
 

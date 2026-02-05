@@ -29,7 +29,7 @@ FraiseQL is designed for **consistent, predictable performance** at scale. Perfo
 
 All benchmarks measure wall-clock time from request arrival to response start:
 
-```
+```text
 Request arrives
   ↓ (measure start)
 Parse & validate
@@ -39,7 +39,7 @@ Database execution
 Response transformation
   ↓ (measure end)
 Response sent
-```
+```text
 
 **Benchmark conditions:**
 
@@ -54,12 +54,12 @@ Response sent
 
 **Query: SELECT id, name FROM users**
 
-```
+```text
 Warm cache hit:     5ms ± 1ms   (cached response)
 Cold cache:        12ms ± 2ms   (query + parse + respond)
 Database time:      5ms ± 1ms   (SELECT execution)
 Overhead:           7ms         (parsing, auth, response)
-```
+```text
 
 **Breakdown:**
 
@@ -83,12 +83,12 @@ Overhead:           7ms         (parsing, auth, response)
 
 **Query: SELECT posts with author, comments, and nested author (5 fields, 3 joins)**
 
-```
+```text
 Warm cache hit:     15ms ± 2ms   (cached response)
 Cold cache:         45ms ± 5ms   (query + joins + respond)
 Database time:      35ms ± 3ms   (JOINs + aggregation)
 Overhead:          10ms         (parsing, auth, response)
-```
+```text
 
 **Breakdown:**
 
@@ -112,13 +112,13 @@ Overhead:          10ms         (parsing, auth, response)
 
 **Query: SELECT posts with external author from federation**
 
-```
+```text
 Warm local cache:    5ms     (federated query cached)
 Cold local cache:   100ms ± 10ms (local + federation)
   ├─ Local query:    12ms
   ├─ Federation:     80ms (HTTP round-trip to subgraph)
   └─ Response:        8ms
-```
+```text
 
 **Breakdown:**
 
@@ -141,19 +141,19 @@ Cold local cache:   100ms ± 10ms (local + federation)
 
 **OFFSET/LIMIT (avoid for scale):**
 
-```
+```text
 Offset 0, Limit 20:        12ms
 Offset 1000, Limit 20:     45ms   (must scan 1000 rows)
 Offset 100000, Limit 20:  500ms   (must scan 100K rows)
-```
+```text
 
 **Keyset pagination (recommended):**
 
-```
+```text
 First page (no cursor):     12ms
 Middle page (with cursor):  12ms   (same latency)
 Last page (with cursor):    12ms   (same latency)
-```
+```text
 
 ---
 
@@ -163,7 +163,7 @@ Last page (with cursor):    12ms   (same latency)
 
 **Mutation: INSERT new user**
 
-```
+```text
 Transaction start:     1ms
 Validate input:        1ms
 Authorization check:   1ms
@@ -172,7 +172,7 @@ Event publish:         2ms
 Response transform:    2ms
 ────────────────────────
 Total:                17ms
-```
+```text
 
 **Latency percentiles:**
 
@@ -186,7 +186,7 @@ Total:                17ms
 
 **Mutation: Create post with 3 comments and notify 100 subscribers**
 
-```
+```text
 Transaction start:       1ms
 Validate input:          2ms
 Authorization check:     2ms
@@ -196,7 +196,7 @@ Cache invalidation:     5ms (4 cache entries)
 Response transform:     5ms
 ────────────────────────
 Total:                 65ms
-```
+```text
 
 **Impact of concurrent mutations:**
 
@@ -209,20 +209,20 @@ Total:                 65ms
 
 **Deadlock handling:**
 
-```
+```text
 Deadlock detected:     1ms (detect)
 Rollback transaction:  2ms (abort work)
 Sleep + backoff:      50ms (exponential backoff)
 Retry:               17ms (retry)
 ────────────────────────
 Total on deadlock:    70ms (retry succeeds)
-```
+```text
 
 ### 2.3 Batch Mutation Latency
 
 **Mutation: Create 1000 users in single transaction**
 
-```
+```text
 Timing (1000 INSERT statements):
 
 - Transaction start: 1ms
@@ -232,7 +232,7 @@ Timing (1000 INSERT statements):
 - Response: 10ms
 ─────────────────────────
 Total: 181ms
-```
+```text
 
 **Rate:** 1000 users / 181ms = **5,500 users/second**
 
@@ -244,7 +244,7 @@ Total: 181ms
 
 From database event to client notification:
 
-```
+```text
 Database change occurs:
   ↓
 Trigger fires:              1ms
@@ -256,7 +256,7 @@ Response transformation:     3ms
 Sent to client:             2ms (WebSocket send)
 ─────────────────────────────
 Total latency:             26ms (p50)
-```
+```text
 
 **Latency percentiles:**
 
@@ -271,12 +271,12 @@ Total latency:             26ms (p50)
 
 **Maximum events per second per instance:**
 
-```
+```text
 Single subscription:       1000 events/second
 10 subscriptions:         5000 events/second (load distributed)
 100 subscriptions:       10,000 events/second (approaching limit)
 1000 subscriptions:       8,000 events/second (backpressure, buffering)
-```
+```text
 
 **Resource usage per 1000 events/second:**
 
@@ -288,7 +288,7 @@ Single subscription:       1000 events/second
 
 When production rate > consumption rate:
 
-```
+```text
 Events produced:   1000/sec
 Events consumed:    500/sec (slow client)
 Buffer buildup:    +500/sec
@@ -300,7 +300,7 @@ At overflow:
 → Connection terminated (E_SUB_BUFFER_OVERFLOW_601)
 → Client reconnects
 → Subscription re-established
-```
+```text
 
 ---
 
@@ -310,7 +310,7 @@ At overflow:
 
 **Scenario: Query same posts repeatedly (5-minute cache TTL)**
 
-```
+```text
 Hit rate vs latency:
 
 - 0% hit rate:   50ms average (always query database)
@@ -320,7 +320,7 @@ Hit rate vs latency:
 - 95% hit rate:   7ms average
 
 Cache key: {operation_name}:{variable_hash}:{user_id}
-```
+```text
 
 **Typical hit rates by query type:**
 
@@ -335,14 +335,14 @@ Cache key: {operation_name}:{variable_hash}:{user_id}
 
 When data changes:
 
-```
+```text
 Mutation committed:          1ms
 Cache invalidation triggered:  1ms (add to queue)
 Process invalidation queue:    5ms (batch 100 entries)
 Invalidate entries:           2ms (remove from Redis)
 ────────────────────────────
 Total cache latency impact:   9ms
-```
+```text
 
 **Cache backends comparison:**
 
@@ -357,7 +357,7 @@ Total cache latency impact:   9ms
 
 **Scenario: 100K unique queries, varying cache size**
 
-```
+```text
 Cache size    Hit rate    Miss latency    Memory
 ─────────────────────────────────────────────
 100MB         45%         25ms            -
@@ -369,7 +369,7 @@ Cache size    Hit rate    Miss latency    Memory
 20GB+         95%         8ms             -
 
 Diminishing returns after 10GB (80% of queries cached)
-```
+```text
 
 ---
 
@@ -390,7 +390,7 @@ LIMIT 20
 Execution: 50ms
   - Full table scan: 40ms (10K rows)
   - Sort: 10ms
-```
+```text
 
 **After query optimization (with index):**
 
@@ -402,7 +402,7 @@ Execution: 15ms
   - Sort: 0ms (already sorted by index)
   - Join: 10ms (20 rows joining)
   - Return: 3ms
-```
+```text
 
 **Optimization impact: 50ms → 15ms (3.3x faster)**
 
@@ -421,7 +421,7 @@ Execution: 15ms
 
 **Connection pool resource usage:**
 
-```
+```text
 Pool size: 50
 Active connections: 43
 Idle connections: 5
@@ -438,20 +438,20 @@ Active: 50
 Waiting: 51+
 Connection timeout: 5 seconds
 Requests fail with E_DB_CONNECTION_TIMEOUT_307
-```
+```text
 
 **Pool sizing recommendation:**
 
-```
+```text
 pool_size = (concurrent_users / 10) + 10
 Example: 1000 concurrent users → pool_size = 110
-```
+```text
 
 ### 5.4 Transaction Performance
 
 **Transaction overhead analysis:**
 
-```
+```text
 Simple query (SELECT):
   - No transaction: 10ms
   - With transaction: 12ms (2ms overhead)
@@ -464,7 +464,7 @@ Complex transaction (5 operations):
   - Sequential without transaction: 50ms (5 × 10ms)
   - Atomic transaction: 52ms (minimal overhead)
   - Deadlock + retry: 70ms (includes backoff)
-```
+```text
 
 ---
 
@@ -474,27 +474,27 @@ Complex transaction (5 operations):
 
 **Single instance (1 CPU, 4GB RAM):**
 
-```
+```text
 Simple query:       5,000 req/sec
 Complex query:      1,000 req/sec
 Mutation:            500 req/sec
 Mixed workload:     2,000 req/sec
-```
+```text
 
 **Multi-instance cluster (10 instances):**
 
-```
+```text
 Simple query:      50,000 req/sec
 Complex query:     10,000 req/sec
 Mutation:           5,000 req/sec
 Mixed workload:    20,000 req/sec
-```
+```text
 
 ### 6.2 Throughput vs Latency Trade-off
 
 **As load increases:**
 
-```
+```text
 Load (req/sec)  | Avg Latency | P95 Latency | P99 Latency | Status
 ────────────────────────────────────────────────────────────────
 500             | 5ms         | 8ms         | 12ms        | ✅ Healthy
@@ -503,7 +503,7 @@ Load (req/sec)  | Avg Latency | P95 Latency | P99 Latency | Status
 3000            | 25ms        | 75ms        | 150ms       | ⚠️ Degrading
 4000            | 50ms        | 150ms       | 300ms       | ⚠️ Poor
 5000+           | 100ms+      | 300ms+      | 1000ms+     | ❌ Unacceptable
-```
+```text
 
 **Recommendation: Keep p95 latency < 200ms**
 
@@ -513,45 +513,45 @@ Load (req/sec)  | Avg Latency | P95 Latency | P99 Latency | Status
 
 ### 7.1 Memory Usage at Rest
 
-```
+```text
 Minimum runtime:            50MB
 With compiled schema (1000 types): 150MB
 Query execution buffer:      10MB
 Cache layer (Redis adapter): 20MB
 ────────────────────────
 Baseline per instance:      230MB
-```
+```text
 
 ### 7.2 Memory Usage Per Operation
 
-```
+```text
 Simple query:      <1MB
 Complex query:     2-5MB (JSONB construction)
 Mutation:          1-2MB
 Subscription:      0.5MB (event buffer per subscription)
-```
+```text
 
 **Memory per concurrent user:**
 
-```
+```text
 Idle subscription (no queries):    50KB
 Active (processing query):         500KB
 Peak (during complex query):       2MB
-```
+```text
 
 **Scaling memory for concurrent users:**
 
-```
+```text
 1000 concurrent users: 230MB + (1000 × 50KB) = 280MB
 10,000 concurrent users: 230MB + (10000 × 50KB) = 730MB
 100,000 concurrent users: 230MB + (100000 × 50KB) = 5.2GB
-```
+```text
 
 ### 7.3 Memory Efficiency
 
 **GC (garbage collection) impact:**
 
-```
+```text
 Default GC (Rust): <1ms pause (negligible)
 Gen2 collection: <10ms pause (rare)
 Memory leaks: None (Rust memory safety)
@@ -559,7 +559,7 @@ Memory leaks: None (Rust memory safety)
 Comparison (Java):
 GC pause: 10-100ms (noticeable)
 Memory leaks possible
-```
+```text
 
 ---
 
@@ -569,7 +569,7 @@ Memory leaks possible
 
 **1. Add selective filters:**
 
-```
+```text
 Before:
 SELECT * FROM users
 → Scans 10M rows, returns 20
@@ -579,11 +579,11 @@ After:
 SELECT * FROM users WHERE created_at > NOW() - INTERVAL '7 days'
 → Scans 100K rows (index), returns 20
 → 50ms (10x faster)
-```
+```text
 
 **2. Use keyset pagination:**
 
-```
+```text
 Before:
 SELECT * FROM users OFFSET 1,000,000 LIMIT 20
 → Scans 1M rows, returns 20
@@ -593,11 +593,11 @@ After:
 SELECT * FROM users WHERE id > 'cursor-value' LIMIT 20
 → Index seek, returns 20
 → 10ms (100x faster)
-```
+```text
 
 **3. Denormalize frequently joined data:**
 
-```
+```text
 Before (3 JOINs):
 SELECT p.*, a.name, c.*, r.rating FROM post p
   JOIN author a ON p.author_id = a.id
@@ -609,13 +609,13 @@ After (materialized view):
 SELECT * FROM v_post_enriched
 → Pre-joined JSONB
 → 15ms (3x faster)
-```
+```text
 
 ### 8.2 Mutation Optimization
 
 **1. Batch operations:**
 
-```
+```text
 Before (1000 individual mutations):
 for i in 1..1000:
   createUser(...)
@@ -624,11 +624,11 @@ for i in 1..1000:
 After (batch mutation):
 createUsersBatch([...1000 users...])
 → 200ms (100x faster)
-```
+```text
 
 **2. Defer non-critical operations:**
 
-```
+```text
 Before (all in transaction):
 
 1. Create user (2ms)
@@ -643,21 +643,21 @@ After (async):
 3. Queue email (async)
 4. Log audit event (async)
 → Total: 2ms (256x faster)
-```
+```text
 
 ### 8.3 Cache Optimization
 
 **1. Adjust TTL based on data freshness:**
 
-```
+```text
 Static data (product catalog):   TTL = 1 hour
 User-specific data:              TTL = 5 minutes
 Real-time data (current user):   TTL = 30 seconds
-```
+```text
 
 **2. Pre-warm cache on startup:**
 
-```
+```text
 fraiseql.cache.preload([
     "GetPopularProducts",
     "GetTrendingPosts",
@@ -665,17 +665,17 @@ fraiseql.cache.preload([
 ])
 
 Result: 95%+ hit rate from moment 1
-```
+```text
 
 **3. Monitor cache efficiency:**
 
-```
+```text
 @fraiseql.metric(name="cache_efficiency")
 def track_cache():
     hit_rate = cache_hits / (cache_hits + cache_misses)
     if hit_rate < 0.80:
         alert("Cache hit rate below 80%")
-```
+```text
 
 ---
 
@@ -685,51 +685,51 @@ def track_cache():
 
 **CPU cores impact:**
 
-```
+```text
 1 core:   2,000 req/sec
 2 cores:  4,000 req/sec (linear scaling up to 4 cores)
 4 cores:  7,000 req/sec (sublinear due to coordination overhead)
 8 cores: 10,000 req/sec (coordination overhead dominates)
-```
+```text
 
 **Memory impact:**
 
-```
+```text
 4GB:   2,000 concurrent users
 8GB:   5,000 concurrent users
 16GB: 12,000 concurrent users
 32GB: 25,000 concurrent users
 64GB: 50,000 concurrent users
-```
+```text
 
 ### 9.2 Horizontal Scaling (Multiple Instances)
 
 **Cluster with N instances (stateless):**
 
-```
+```text
 Throughput scales linearly:
 
 1 instance:  2,000 req/sec
 2 instances: 4,000 req/sec
 10 instances: 20,000 req/sec
-```
+```text
 
 **Database becomes bottleneck:**
 
-```
+```text
 Database can handle:  10,000 req/sec (PostgreSQL)
 
 Cluster can send:     20,000 req/sec (10 instances)
 
 Result: Database is bottleneck at 10+ instances
 Solution: Database replication (read replicas)
-```
+```text
 
 ### 9.3 Database Scaling
 
 **Read replicas for queries:**
 
-```
+```text
 Master database:        Handles mutations
 Read replicas (5 copies): Handle queries
 
@@ -739,11 +739,11 @@ Distribution:
 - Queries: Distributed to 5 read replicas (90%)
 
 Result: Can scale queries 5x beyond master capacity
-```
+```text
 
 **Sharding for very large datasets:**
 
-```
+```text
 Shard by user_id:
 
 - User 1-100K:   Shard A
@@ -752,7 +752,7 @@ Shard by user_id:
 
 Each shard can independently scale
 Total capacity = sum of all shards
-```
+```text
 
 ---
 
@@ -760,7 +760,7 @@ Total capacity = sum of all shards
 
 ### 10.1 Key Metrics to Track
 
-```
+```text
 Query latency:
   - p50 (typical): target <50ms
   - p95 (most users): target <200ms
@@ -784,11 +784,11 @@ Infrastructure:
   - CPU utilization: target 60-80%
   - Memory utilization: target <80%
   - Network: track trends
-```
+```text
 
 ### 10.2 Performance Alerts
 
-```
+```text
 Alert: High query latency
   Condition: p95 latency > 200ms for 5 minutes
   Action: Investigate slow queries, check database
@@ -804,11 +804,11 @@ Alert: High error rate
 Alert: Connection pool exhausted
   Condition: Connection utilization > 95% for 2 minutes
   Action: Increase pool size or add instances
-```
+```text
 
 ### 10.3 Performance Dashboard
 
-```
+```text
 ┌────────────────────────────────────────────────┐
 │ FraiseQL Performance Dashboard                  │
 ├────────────────────────────────────────────────┤
@@ -827,7 +827,7 @@ Alert: Connection pool exhausted
 │ 3. NestedFetch: 85ms    Waiting: 0             │
 │                                                  │
 └────────────────────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -835,7 +835,7 @@ Alert: Connection pool exhausted
 
 ### 11.1 Systematic Tuning Process
 
-```
+```text
 
 1. Establish baseline
    - Measure current p50, p95, p99 latency
@@ -861,7 +861,7 @@ Alert: Connection pool exhausted
 5. Repeat
    - New bottleneck emerges
    - Go back to step 2
-```
+```text
 
 ### 11.2 Common Tuning Mistakes
 
@@ -891,7 +891,7 @@ Alert: Connection pool exhausted
 
 ### 12.1 SLA Targets
 
-```
+```text
 Query SLA:
   p99 latency: <500ms
   Error rate: <0.1%
@@ -905,11 +905,11 @@ Mutation SLA:
 Subscription SLA:
   Event delivery: <100ms (p99)
   Reliability: 99.9%
-```
+```text
 
 ### 12.2 Performance Budget
 
-```
+```text
 Per query, target allocation:
 
 Simple query (20 ms budget):
@@ -927,7 +927,7 @@ Complex query (100ms budget):
   └─ Buffer: 2ms
 
 If database takes >80% of budget, optimize queries first
-```
+```text
 
 ---
 
@@ -939,22 +939,22 @@ If database takes >80% of budget, optimize queries first
 
 **Investigation:**
 
-```
+```text
 Traces showed database queries taking 700ms
 Database analysis: Full table scans on product filters
 Root cause: Missing index on product_category column
-```
+```text
 
 **Solution:**
 
-```
+```text
 CREATE INDEX idx_product_category ON tb_product(category);
 
 Result:
   Before: 800ms (p95)
   After:  120ms (p95)
   Improvement: 6.7x faster
-```
+```text
 
 ### 13.2 Case Study: Multi-Tenant SaaS
 
@@ -962,22 +962,22 @@ Result:
 
 **Investigation:**
 
-```
+```text
 Problem: Each customer queries different data
 Cache key included user_id
 As customer base grew, each user's queries unique
 Cache hit rate = (repeated_queries / total_queries)
 Declining as customer base grew
-```
+```text
 
 **Solution:**
 
-```
+```text
 Identified most popular queries across all customers
 Pre-warm cache with these queries
 Added customer education on query patterns
 Result: Hit rate improved to 75% (acceptable for use case)
-```
+```text
 
 ---
 

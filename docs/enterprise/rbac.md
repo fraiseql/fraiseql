@@ -36,7 +36,7 @@ async def app_startup(db_pool):
 
     # Create permission resolver
     resolver = PermissionResolver(db_pool)
-```
+```text
 
 ### Using in GraphQL
 
@@ -49,7 +49,7 @@ schema = strawberry.Schema(
     mutation=Mutation,
     extensions=[create_rbac_middleware(permission_resolver=resolver)]
 )
-```
+```text
 
 ### Field-Level Authorization
 
@@ -71,7 +71,7 @@ class User:
     def salary(self) -> float:
         """Only admins can see salary"""
         return self.salary_value
-```
+```text
 
 ---
 
@@ -81,7 +81,7 @@ class User:
 
 FraiseQL supports hierarchical role inheritance where roles can inherit from parent roles.
 
-```
+```text
 ┌─────────────┐
 │   System    │  (root role)
 └──────┬──────┘
@@ -95,7 +95,7 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 ┌──▼─────┐
 │Manager  │
 └─────────┘
-```
+```text
 
 **Key Concepts**:
 
@@ -122,7 +122,7 @@ FraiseQL supports hierarchical role inheritance where roles can inherit from par
 
 **Cache Invalidation**:
 
-```
+```text
 User modifies permission
        ↓
 domain_version incremented
@@ -130,7 +130,7 @@ domain_version incremented
 All cached permissions with old version invalidated
        ↓
 Next request checks version, refreshes if needed
-```
+```text
 
 ### Domain Versioning
 
@@ -149,7 +149,7 @@ WHERE domain = 'role';
 SELECT * FROM permission_cache
 WHERE user_id = ?
   AND version = (SELECT version FROM domain_versions WHERE domain = 'role');
-```
+```text
 
 ---
 
@@ -170,7 +170,7 @@ class Role:
     tenant_id: strawberry.ID | None  # Multi-tenancy support
     created_at: datetime
     updated_at: datetime
-```
+```text
 
 **System Roles** (predefined):
 
@@ -195,15 +195,15 @@ class Permission:
     action: str    # e.g., "create", "read", "update", "delete"
     description: str | None
     constraints: dict | None  # Optional JSONB constraints
-```
+```text
 
 **Standard Permissions**:
 
-```
+```text
 user.create, user.read, user.update, user.delete
 product.create, product.read, product.update, product.delete
 order.create, order.read, order.update, order.delete
-```
+```text
 
 **Constraints** (optional JSONB):
 
@@ -214,7 +214,7 @@ order.create, order.read, order.update, order.delete
   "time_restricted": "9-17",
   "department_only": "engineering"
 }
-```
+```text
 
 ### User Roles
 
@@ -230,7 +230,7 @@ class UserRole:
     expires_at: datetime | None
     granted_by: strawberry.ID  # Who granted this role
     created_at: datetime
-```
+```text
 
 ---
 
@@ -238,7 +238,7 @@ class UserRole:
 
 ### How Permissions Are Resolved
 
-```
+```text
 User Request
     ↓
 Check request-level cache
@@ -254,7 +254,7 @@ Check request-level cache
 
 Total uncached: 2-15ms (depends on hierarchy depth)
 Total cached: < 0.5ms
-```
+```text
 
 ### API Methods
 
@@ -292,7 +292,7 @@ perms = await resolver.get_role_permissions(
     role_id="role-789",
     include_inherited=True
 )
-```
+```text
 
 ---
 
@@ -322,11 +322,11 @@ mutation CreateRoles {
     id
   }
 }
-```
+```text
 
 **Inheritance Chain**:
 
-```
+```text
 admin (system role)
   ↑
 user (system role)
@@ -336,7 +336,7 @@ sales_team
 sales_manager
   ↑
 sales_director
-```
+```text
 
 A `sales_director` inherits all permissions from:
 
@@ -368,7 +368,7 @@ mutation AssignRole {
     expiresAt
   }
 }
-```
+```text
 
 **Expiration**: Optional time-based role revocation.
 
@@ -402,7 +402,7 @@ query GetRoleHierarchy {
     }
   }
 }
-```
+```text
 
 ---
 
@@ -429,7 +429,7 @@ class User:
     def salary(self) -> float:
         """Only accessible to users with user:read_salary permission"""
         return self.salary_value
-```
+```text
 
 **Behavior**:
 
@@ -454,7 +454,7 @@ class Product:
     def margin(self) -> float:
         """Only sales managers can see margin"""
         return (self.price - self.cost) / self.price
-```
+```text
 
 **Behavior**:
 
@@ -475,7 +475,7 @@ query {
     salary    # ✗ HIDDEN - user lacks "user:read_salary"
   }
 }
-```
+```text
 
 **Response**:
 
@@ -494,7 +494,7 @@ query {
     "path": ["user", "email"]
   }]
 }
-```
+```text
 
 ---
 
@@ -519,7 +519,7 @@ schema = strawberry.Schema(
     mutation=Mutation,
     extensions=[create_rbac_middleware(row_constraint_resolver=row_resolver)]
 )
-```
+```text
 
 ### Row Constraints
 
@@ -539,7 +539,7 @@ constraint = RowConstraint(
     table_name="employees",
     where_clause="department_id = (SELECT department_id FROM users WHERE id = current_user_id)"
 )
-```
+```text
 
 ### Performance
 
@@ -559,7 +559,7 @@ query {
     salary  # Only included if has permission
   }
 }
-```
+```text
 
 **Behind the scenes**:
 
@@ -567,7 +567,7 @@ query {
 SELECT id, name, salary
 FROM users
 WHERE department_id = ? -- Automatically added by Rust resolver
-```
+```text
 
 ---
 
@@ -593,7 +593,7 @@ role = {
     "tenant_id": "tenant-123",
     "permissions": [...]
 }
-```
+```text
 
 ### Permission Resolution with Tenants
 
@@ -611,7 +611,7 @@ await resolver.check_permission(
     action="read",
     tenant_id="tenant-456"  # Tenant isolation
 )
-```
+```text
 
 **Isolation**:
 
@@ -638,7 +638,7 @@ mutation {
     parentRole { id name }
   }
 }
-```
+```text
 
 ### Assigning Permissions
 
@@ -654,7 +654,7 @@ mutation {
     permission { resource action }
   }
 }
-```
+```text
 
 ### Managing User Roles
 
@@ -682,7 +682,7 @@ mutation {
     success
   }
 }
-```
+```text
 
 ---
 
@@ -733,7 +733,7 @@ has_update = "resource:update" in user_permissions
 has_create = await resolver.has_permission(user_id, "resource", "create")
 has_read = await resolver.has_permission(user_id, "resource", "read")
 has_update = await resolver.has_permission(user_id, "resource", "update")
-```
+```text
 
 ### 2. Use Domain Versioning
 
@@ -750,7 +750,7 @@ mutation {
 
 # BAD - Manual cache management
 cache.invalidate_all()  # Throws away valid data
-```
+```text
 
 ### 3. Prefer Inheritance Over Duplication
 
@@ -763,7 +763,7 @@ user → team_lead → team_manager → director
 # BAD - Duplication
 user (has all permissions copied)
 team_lead (has all same permissions again)
-```
+```text
 
 ### 4. Set Expiration Dates
 
@@ -779,7 +779,7 @@ mutation {
     id
   }
 }
-```
+```text
 
 ### 5. Audit Role Changes
 
@@ -789,7 +789,7 @@ Log who made what changes:
 # Automatically captured in audit logging
 granted_by: "admin-user-456"  # Who granted the role
 created_at: "2025-01-11T10:30:00Z"
-```
+```text
 
 ---
 
@@ -809,7 +809,7 @@ created_at: "2025-01-11T10:30:00Z"
        }
      }
    }
-   ```
+   ```text
 
 2. Verify permission assignment:
 
@@ -819,13 +819,13 @@ created_at: "2025-01-11T10:30:00Z"
        permissions { resource action }
      }
    }
-   ```
+   ```text
 
 3. Check cache version:
 
    ```sql
    SELECT * FROM domain_versions WHERE domain = 'role';
-   ```
+   ```text
 
 ### High Latency on Permission Checks
 
@@ -833,21 +833,21 @@ created_at: "2025-01-11T10:30:00Z"
 
    ```sql
    SELECT * FROM permission_cache_stats;
-   ```
+   ```text
 
 2. Verify domain versioning is working:
 
    ```sql
    SELECT version FROM domain_versions WHERE domain = 'role';
    -- Should be same across requests unless roles changed
-   ```
+   ```text
 
 3. Monitor role hierarchy depth:
 
    ```sql
    SELECT role_id, max_depth FROM role_hierarchy_depths;
    -- Limit to <10 for optimal performance
-   ```
+   ```text
 
 ---
 

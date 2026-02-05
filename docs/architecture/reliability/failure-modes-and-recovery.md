@@ -57,11 +57,11 @@ When FraiseQL encounters failure, it:
 
 **Client Impact:**
 
-```
+```text
 Immediate: All in-flight requests fail
 Response: Connection reset / 502 Bad Gateway
 Error: E_INTERNAL_UNKNOWN_ERROR_703
-```
+```text
 
 **Detection:** Load balancer health check fails (TCP connection refused)
 
@@ -73,13 +73,13 @@ Error: E_INTERNAL_UNKNOWN_ERROR_703
 
 **During Recovery:**
 
-```
+```text
 T0: Process dies
 T1-2s: Load balancer detects unhealthy
 T3-5s: Requests rerouted to healthy instances
 T5-30s: New instance starts up
 T30s+: Instance healthy, accepts traffic
-```
+```text
 
 #### 2.1.2 Memory Exhaustion (OOM)
 
@@ -87,11 +87,11 @@ T30s+: Instance healthy, accepts traffic
 
 **Client Impact:**
 
-```
+```text
 Gradual: Queries become slower
 Then: Connection timeouts / 503 Service Unavailable
 Error: E_EXEC_LIMIT_EXCEEDED_405 or E_INTERNAL_PANIC_701
-```
+```text
 
 **Detection:**
 
@@ -111,11 +111,11 @@ Error: E_EXEC_LIMIT_EXCEEDED_405 or E_INTERNAL_PANIC_701
 
 **Client Impact:**
 
-```
+```text
 Gradual: Query latency increases (p99 > 30s)
 Then: Query timeouts / slow client requests
 Error: E_DB_POSTGRES_QUERY_TIMEOUT_302
-```
+```text
 
 **Detection:**
 
@@ -135,10 +135,10 @@ Error: E_DB_POSTGRES_QUERY_TIMEOUT_302
 
 **Client Impact:**
 
-```
+```text
 Slow: Memory gradually increases over hours/days
 Then: OOM crash (see 2.1.2)
-```
+```text
 
 **Detection:**
 
@@ -161,12 +161,12 @@ Then: OOM crash (see 2.1.2)
 
 **Client Impact:**
 
-```
+```text
 Immediate: Query returns error
 Response: HTTP 504 Gateway Timeout (after 5s wait)
 Error: E_DB_POSTGRES_CONNECTION_FAILED_300
 Retryable: YES
-```
+```text
 
 **Detection:**
 
@@ -181,12 +181,12 @@ Retryable: YES
 
 **Connection Pool State:**
 
-```
+```text
 Before: 10/20 connections in use
 Error: Connection attempt fails
 After: Connection returned to pool marked stale
 Next query: Reconnection attempted
-```
+```text
 
 #### 2.2.2 Connection Pool Exhaustion
 
@@ -194,13 +194,13 @@ Next query: Reconnection attempted
 
 **Client Impact:**
 
-```
+```text
 Immediate: Connection request blocks
 After 5s: Query times out
 Response: HTTP 504 Gateway Timeout
 Error: E_DB_CONNECTION_POOL_EXHAUSTED_301
 Retryable: YES (with backoff)
-```
+```text
 
 **Detection:**
 
@@ -216,14 +216,14 @@ Retryable: YES (with backoff)
 
 **Pool Configuration:**
 
-```
+```text
 min_connections: 5
 max_connections: 20
 queue_timeout: 5000ms  // How long to wait
 
 If 20 queries active + 5 queued:
   Query 26 waits 5s then times out
-```
+```text
 
 #### 2.2.3 Connection Closed by Database
 
@@ -231,13 +231,13 @@ If 20 queries active + 5 queued:
 
 **Client Impact:**
 
-```
+```text
 Request: Executing query
 Error: Connection closed mid-query
 Response: Partial/stale data or error
 Error: E_DB_POSTGRES_CONNECTION_FAILED_300
 Retryable: YES (connection reopened)
-```
+```text
 
 **Detection:**
 
@@ -257,13 +257,13 @@ Retryable: YES (connection reopened)
 
 **Client Impact:**
 
-```
+```text
 During restart: All connections fail
 Error: E_DB_POSTGRES_CONNECTION_FAILED_300
 Duration: 10 seconds (pg restart) to 5 minutes (recovery)
 Requests: Queued and retry
 Queries: Some fail, some succeed after restart
-```
+```text
 
 **Detection:**
 
@@ -279,7 +279,7 @@ Queries: Some fail, some succeed after restart
 
 **During Database Restart:**
 
-```
+```text
 T0: Database starts shutdown
 T1-5s: In-flight queries error
 T5s: All connections fail
@@ -287,7 +287,7 @@ T5-20s: Database restart process
 T20s: Database comes online
 T20-30s: Connections re-established
 T30s+: Queries succeed again
-```
+```text
 
 ---
 
@@ -299,13 +299,13 @@ T30s+: Queries succeed again
 
 **Client Impact:**
 
-```
+```text
 Waiting: Client waits for result (up to 30s default)
 Timeout: Query killed by database
 Response: HTTP 504 Gateway Timeout
 Error: E_DB_POSTGRES_QUERY_TIMEOUT_302
 Retryable: YES (with better query)
-```
+```text
 
 **Detection:**
 
@@ -326,13 +326,13 @@ Retryable: YES (with better query)
 
 **Client Impact:**
 
-```
+```text
 Execution: Queries start conflicting
 Deadlock detected: One query victim selected
 Response: HTTP 502 Bad Gateway
 Error: E_DB_POSTGRES_DEADLOCK_303
 Retryable: YES (automatic on retry)
-```
+```text
 
 **Detection:**
 
@@ -348,7 +348,7 @@ Retryable: YES (automatic on retry)
 
 **Deadlock Scenario:**
 
-```
+```text
 Client A: UPDATE users SET balance -= 100 WHERE id = 1
          UPDATE orders SET total += 100 WHERE user_id = 1
 
@@ -358,7 +358,7 @@ Client B: UPDATE orders SET total -= 50 WHERE user_id = 1
 Database: Detects circular dependency
          Kills Client B's transaction
          Client B retries and succeeds
-```
+```text
 
 #### 2.3.3 Constraint Violation
 
@@ -366,12 +366,12 @@ Database: Detects circular dependency
 
 **Client Impact:**
 
-```
+```text
 Execution: Constraint violation during INSERT/UPDATE
 Response: HTTP 400 Bad Request
 Error: E_DB_MYSQL_CONSTRAINT_VIOLATION_304
 Retryable: NO
-```
+```text
 
 **Detection:**
 
@@ -386,12 +386,12 @@ Retryable: NO
 
 **No Recovery Needed:**
 
-```
+```text
 Mutation { createUser(email: "taken@example.com") { id } }
 → Error: Unique constraint violation on email
 → User should: Use different email
 → Automatic retry: Will fail identically
-```
+```text
 
 #### 2.3.4 Out of Memory (Database)
 
@@ -399,12 +399,12 @@ Mutation { createUser(email: "taken@example.com") { id } }
 
 **Client Impact:**
 
-```
+```text
 Execution: Query consumes too much memory
 Response: HTTP 503 Service Unavailable
 Error: E_DB_SQLSERVER_OUT_OF_MEMORY_307
 Retryable: YES (reduce query size)
-```
+```text
 
 **Detection:**
 
@@ -424,12 +424,12 @@ Retryable: YES (reduce query size)
 
 **Client Impact:**
 
-```
+```text
 Execution: Database cannot allocate space
 Response: HTTP 503 Service Unavailable
 Error: E_DB_MYSQL_DISK_FULL_308
 Retryable: YES (after manual intervention)
-```
+```text
 
 **Detection:**
 
@@ -453,12 +453,12 @@ Retryable: YES (after manual intervention)
 
 **Client Impact:**
 
-```
+```text
 Query: Cache miss (server unavailable)
 Result: Query executes against database
 Latency: Slower than cached (depends on query)
 Error: None (graceful degradation)
-```
+```text
 
 **Detection:**
 
@@ -474,7 +474,7 @@ Error: None (graceful degradation)
 
 **Graceful Degradation:**
 
-```
+```text
 Before cache failure:
   Query: 50ms (cache hit)
 
@@ -483,7 +483,7 @@ During cache failure:
 
 After cache recovery:
   Query: 50ms again (cache warming in progress)
-```
+```text
 
 #### 2.4.2 Cache Corruption
 
@@ -491,11 +491,11 @@ After cache recovery:
 
 **Client Impact:**
 
-```
+```text
 Query: Cache returns invalid data
 Result: Inconsistent response to client
 Monitoring: Data inconsistency detected
-```
+```text
 
 **Detection:**
 
@@ -515,12 +515,12 @@ Monitoring: Data inconsistency detected
 
 **Client Impact:**
 
-```
+```text
 Write: Cannot add new entries to cache
 Behavior: Entries evicted (LRU policy)
 Result: More cache misses, slower queries
 Error: None (automatic eviction)
-```
+```text
 
 **Detection:**
 
@@ -543,11 +543,11 @@ Error: None (automatic eviction)
 
 **Client Impact:**
 
-```
+```text
 Request: No valid token
 Recovery: Request uses cached/local auth
 Behavior: Depends on auth provider type
-```
+```text
 
 **Detection:**
 
@@ -558,22 +558,22 @@ Behavior: Depends on auth provider type
 
 **Scenario A: JWT Token (self-contained)**
 
-```
+```text
 Token validation: Cached public key used
 Auth provider unreachable: Token still validated locally
 Impact: NONE (JWT self-contained)
 RTO: 0 (no recovery needed)
-```
+```text
 
 **Scenario B: OAuth2 Token (external validation)**
 
-```
+```text
 Token validation: HTTP request to provider fails
 Behavior: Option 1: Cache last 5min, allow
          Option 2: Deny all access
 Impact: Depends on policy (typically DENY)
 RTO: Until provider recovers (5-30 min)
-```
+```text
 
 **Recommended:** Use JWT tokens for resilience.
 
@@ -583,12 +583,12 @@ RTO: Until provider recovers (5-30 min)
 
 **Client Impact:**
 
-```
+```text
 Auth check: Passed (token valid at start)
 Execution: Query runs normally
 Result: Query completes successfully
 Token expiry: Ignored (already authenticated)
-```
+```text
 
 **Detection:** Not detected (query already authorized)
 
@@ -604,13 +604,13 @@ Token expiry: Ignored (already authenticated)
 
 **Client Impact:**
 
-```
+```text
 Query: Needs federated entity
 Attempt: HTTP request to subgraph fails
 Response: HTTP 504 Gateway Timeout (after 5s wait)
 Error: E_FED_SUBGRAPH_UNAVAILABLE_502
 Retryable: YES
-```
+```text
 
 **Detection:**
 
@@ -627,7 +627,7 @@ Retryable: YES
 
 **During Subgraph Outage:**
 
-```
+```text
 Request 1 (T0): Subgraph unavailable
   → Retry 1 (T1s): Still unavailable
   → Retry 2 (T3s): Still unavailable
@@ -636,7 +636,7 @@ Request 1 (T0): Subgraph unavailable
 Request 2 (T0): Parallel requests
   → Same retry loop
   → Shared cache prevents redundant retries
-```
+```text
 
 #### 2.6.2 Entity Resolution Timeout
 
@@ -644,13 +644,13 @@ Request 2 (T0): Parallel requests
 
 **Client Impact:**
 
-```
+```text
 Query: Needs federated entity
 Wait: 5s timeout
 Response: HTTP 504 Gateway Timeout
 Error: E_FED_SUBGRAPH_TIMEOUT_503
 Retryable: YES
-```
+```text
 
 **Detection:**
 
@@ -670,14 +670,14 @@ Retryable: YES
 
 **Client Impact:**
 
-```
+```text
 Query: Expects User { name, email }
 Subgraph: Returns { name, org_id } (wrong shape)
 Error: Type validation fails
 Response: HTTP 500 Internal Server Error
 Error: E_FED_TYPE_MISMATCH_504
 Retryable: NO
-```
+```text
 
 **Detection:**
 
@@ -700,14 +700,14 @@ Retryable: NO
 
 **Client Impact:**
 
-```
+```text
 Subscription: Active WebSocket
 Event: Network failure
 Connection: Closed
 Response: Close frame sent to client (code 1006)
 Error: E_SUB_CONNECTION_CLOSED_604
 Retryable: YES (reconnect)
-```
+```text
 
 **Detection:**
 
@@ -723,12 +723,12 @@ Retryable: YES (reconnect)
 
 **Recovery Sequence:**
 
-```
+```text
 T0: Connection lost
 T1-5s: Client detects and reconnects
 T5s: New subscription established
 T5+: Resume receiving events from buffer
-```
+```text
 
 #### 2.7.2 Event Buffer Overflow
 
@@ -736,13 +736,13 @@ T5+: Resume receiving events from buffer
 
 **Client Impact:**
 
-```
+```text
 Events: Accumulating faster than delivery
 Buffer: Fills up (default: 1000 events)
 Response: Error sent to subscriber
 Error: E_SUB_BUFFER_OVERFLOW_603
 Retryable: YES (reconnect and replay from sequence)
-```
+```text
 
 **Detection:**
 
@@ -762,13 +762,13 @@ Retryable: YES (reconnect and replay from sequence)
 
 **Client Impact:**
 
-```
+```text
 Event: Needs delivery to webhook
 Request: HTTP POST to endpoint
 Response: 500 error or timeout
 Behavior: Automatic retry with backoff
 Attempts: Up to 5 retries over 10 minutes
-```
+```text
 
 **Detection:**
 
@@ -796,13 +796,13 @@ Attempts: Up to 5 retries over 10 minutes
 
 **Client Impact:**
 
-```
+```text
 Request: Includes invalid token
 Auth: Validation fails
 Response: HTTP 401 Unauthorized
 Error: E_AUTH_INVALID_TOKEN_201
 Retryable: NO (user must re-authenticate)
-```
+```text
 
 **Detection:**
 
@@ -820,12 +820,12 @@ Retryable: NO (user must re-authenticate)
 
 **Client Impact:**
 
-```
+```text
 Request: Token valid but permissions changed
 Authorization: Evaluated against stale role
 Result: May allow/deny incorrectly
 Probability: Low (permissions don't change frequently)
-```
+```text
 
 **Detection:**
 
@@ -844,13 +844,13 @@ Probability: Low (permissions don't change frequently)
 
 **Client Impact:**
 
-```
+```text
 Query: Attempts cross-tenant access
 RLS: Policy prevents unauthorized access
 Response: Query returns empty or error
 Error: E_AUTH_ROW_LEVEL_SECURITY_DENIED_204 (if explicit)
 Retryable: NO (user doesn't have permission)
-```
+```text
 
 **Detection:**
 
@@ -869,45 +869,45 @@ Retryable: NO (user doesn't have permission)
 
 ### 3.1 Database Down → Everything Down
 
-```
+```text
 T0: Primary database becomes unavailable
 T1: All queries start failing
 T2: Cache still works (if recently populated)
 T3: Subscriptions: Events not captured
 T4: Federation: Dependent services affected
 T5-30min: RTO depends on failover setup
-```
+```text
 
 ### 3.2 Cache Down → Database Load Spikes
 
-```
+```text
 T0: Cache server fails
 T1: All queries bypass cache
 T2: Database CPU/memory spike
 T3: Database becomes slow
 T4: Queries timeout
 T5+: Potential database failure if resources exhausted
-```
+```text
 
 ### 3.3 Authentication Provider Down → All Writes Blocked
 
-```
+```text
 T0: Auth provider unreachable
 T1: New token validation fails (OAuth2 tokens)
 T2: New user requests return 401
 T3: Existing queries continue (token already valid)
 T4: Eventually: All tokens expire, all users blocked
-```
+```text
 
 ### 3.4 Subscription Event Buffer Full → All Events Dropped
 
-```
+```text
 T0: Event throughput increases
 T1: Buffer fills to capacity
 T2: New events cannot be stored
 T3: Subscribers miss events
 T4: Clients must replay from last sequence_number
-```
+```text
 
 ---
 
@@ -917,7 +917,7 @@ T4: Clients must replay from last sequence_number
 
 **Automatic (no human intervention):**
 
-```
+```text
 
 1. Instance crashes
 2. Kubernetes detects unhealthy pod (10-30s)
@@ -929,7 +929,7 @@ T4: Clients must replay from last sequence_number
 Total time: 30-60 seconds
 Human intervention: None
 Data loss: None
-```
+```text
 
 **Manual verification:**
 
@@ -940,13 +940,13 @@ kubectl logs pod-name
 # If OOM: Increase memory limits
 # If out of disk: Clean up logs/cache
 # If panic: File bug report
-```
+```text
 
 ### 4.2 Database Connection Lost
 
 **Automatic:**
 
-```
+```text
 
 1. Query fails with connection error
 2. Runtime closes stale connection
@@ -957,13 +957,13 @@ kubectl logs pod-name
 Total time: 2-10 seconds
 Human intervention: None (check database logs)
 Data loss: None
-```
+```text
 
 ### 4.3 Database Unavailable (Recovery)
 
 **Steps:**
 
-```
+```text
 
 1. Monitor: Detect database not responding (< 5 seconds)
 2. Alert: Page on-call DBA
@@ -978,13 +978,13 @@ Data loss: None
 Total time: 5-30 minutes (depends on issue)
 Human intervention: Required
 Data loss: None (if durability persisted)
-```
+```text
 
 ### 4.4 Complete Data Center Failure
 
 **Steps (assume multi-datacenter setup):**
 
-```
+```text
 
 1. Monitor: Detect all instances/database in region down
 2. Alert: Page incident commander
@@ -1002,7 +1002,7 @@ Data loss: None (if durability persisted)
 Total time: 2-5 minutes (automatic DNS) + manual investigation
 Human intervention: Required
 Data loss: Depends on replication lag (typically < 1 second)
-```
+```text
 
 ---
 
@@ -1012,7 +1012,7 @@ Data loss: Depends on replication lag (typically < 1 second)
 
 Used for subgraph/external service calls:
 
-```
+```text
 State 1: CLOSED (normal)
   - Requests pass through
   - If error rate > threshold: transition to OPEN
@@ -1034,13 +1034,13 @@ Example:
   → Requests fail immediately
   → 30s later: Try 1 request (HALF_OPEN)
   → Succeeds: Transition to CLOSED, resume normal
-```
+```text
 
 ### 5.2 Bulkhead Pattern
 
 Isolate resources to prevent cascading failure:
 
-```
+```text
 Pool 1: Queries (max 100 concurrent)
 Pool 2: Mutations (max 50 concurrent)
 Pool 3: Subscriptions (max 1000 concurrent)
@@ -1051,13 +1051,13 @@ If Pool 1 exhausted:
   - Subscriptions: Still work (own pool)
 
 Prevents: One type of query from starving others
-```
+```text
 
 ### 5.3 Retry with Exponential Backoff
 
 For transient failures:
 
-```
+```text
 Attempt 1: Immediate
 Attempt 2: Wait 1s + random(0-100ms)
 Attempt 3: Wait 2s + random(0-100ms)
@@ -1070,13 +1070,13 @@ Benefits:
   - Gives system time to recover
   - Client waits reasonably (15s)
   - Success rate increases 90% → 99%+
-```
+```text
 
 ### 5.4 Graceful Degradation
 
 Accept reduced functionality under load:
 
-```
+```text
 Normal load:
   - All features: queries, mutations, subscriptions
   - Latency: < 500ms p99
@@ -1097,7 +1097,7 @@ Extreme load (>99% capacity):
   - Return: 503 Service Unavailable for others
 
 Benefit: Service remains available, not crashed
-```
+```text
 
 ---
 
@@ -1107,7 +1107,7 @@ Benefit: Service remains available, not crashed
 
 Use to test resilience:
 
-```
+```text
 # Kill 1 instance (of 3)
 chaos kill -pod 1
 
@@ -1143,13 +1143,13 @@ Expected:
   - Retry logic engages
   - Eventually succeed (after retries)
   - End-to-end latency increases
-```
+```text
 
 ### 6.2 Failure Acceptance Criteria
 
 After injected failure:
 
-```
+```text
 ✅ PASS if:
   - No data corruption
   - No data loss (for writes)
@@ -1165,7 +1165,7 @@ After injected failure:
   - Cascading failure
   - No alerts triggered
   - Recovery time > RTO target
-```
+```text
 
 ---
 
@@ -1173,7 +1173,7 @@ After injected failure:
 
 ### 7.1 Availability SLO
 
-```
+```text
 Target: 99.9% availability (three nines)
 Definition: Successfully responding to queries
 Time unit: Calendar month
@@ -1188,11 +1188,11 @@ Within budget:
 Over budget:
   - 50 minutes unplanned outage ❌
   - Budget exhausted, any additional downtime violates SLO
-```
+```text
 
 ### 7.2 Error Budget Usage
 
-```
+```text
 Month: January (31 days, 44,640 minutes)
 Budget: 43.2 minutes (99.9% SLO)
 
@@ -1205,7 +1205,7 @@ If Week 4 has additional 2 min outage:
   - Error budget exhausted (10.2 > 8.2)
   - SLO violated for January
   - Requires incident review, not just bug fix
-```
+```text
 
 ---
 

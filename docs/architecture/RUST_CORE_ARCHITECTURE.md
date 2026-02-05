@@ -67,7 +67,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
   "posts": [...] // filtered to requested nested fields
   // password_hash removed (field-level auth)
 }
-```
+```text
 
 **This fundamentally simplifies the architecture:**
 
@@ -82,7 +82,7 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
 
 ### Proposed Directory Layout
 
-```
+```text
 crates/fraiseql-core/src/
 ├── lib.rs
 ├── error.rs                ✅ Complete
@@ -143,11 +143,11 @@ crates/fraiseql-core/src/
     ├── casing.rs
     ├── operators.rs
     └── vector.rs
-```
+```text
 
 ### Module Dependencies
 
-```
+```text
 ┌─────────────┐
 │ runtime/    │ ← High-level execution
 └──────┬──────┘
@@ -171,7 +171,7 @@ crates/fraiseql-core/src/
 ┌─────────────┐
 │ error       │ ← Error types
 └─────────────┘
-```
+```text
 
 **Design Principle:** Dependencies flow downward only. No circular dependencies.
 
@@ -244,7 +244,7 @@ pub struct PoolMetrics {
     pub active_connections: u32,
     pub waiting_requests: u32,
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -296,7 +296,7 @@ pub enum QueryParameter {
     Null,
     Json(serde_json::Value),
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -348,7 +348,7 @@ pub trait JsonbProjector {
             .collect()
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -401,7 +401,7 @@ pub struct CacheStats {
     pub entries: u64,
     pub memory_bytes: u64,
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -535,7 +535,7 @@ impl WhereOperator {
         )
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -567,7 +567,7 @@ let where_clause = WhereClause::And(vec![
         value: json!(100),
     },
 ]);
-```
+```text
 
 ---
 
@@ -628,7 +628,7 @@ impl SelectionSet {
         self.fields.iter().map(|f| f.name.as_str()).collect()
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -666,7 +666,7 @@ let selection = SelectionSet {
         },
     ],
 };
-```
+```text
 
 ---
 
@@ -756,7 +756,7 @@ impl UserContext {
         self.permissions.iter().any(|p| p == permission)
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -798,7 +798,7 @@ WhereClause::And(vec![
         QueryParameter::String("%GraphQL%"),
     ]
 )
-```
+```text
 
 ### PostgreSQL WHERE Generator
 
@@ -994,7 +994,7 @@ impl QueryParameter {
         }
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -1046,7 +1046,7 @@ roles = ["viewer"]
     {"title": "Post 2"}
   ]
 }
-```
+```text
 
 ### DefaultJsonbProjector Implementation
 
@@ -1128,7 +1128,7 @@ impl JsonbProjector for DefaultJsonbProjector {
         Ok(serde_json::Value::Object(result))
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -1151,7 +1151,7 @@ pub fn project_borrowed<'a>(
     // Return Cow::Owned when projection required
     todo!("Implement zero-copy projection")
 }
-```
+```text
 
 ---
 
@@ -1190,7 +1190,7 @@ pub fn project_borrowed<'a>(
     }
   }
 }
-```
+```text
 
 ### AuthMask Generation
 
@@ -1239,7 +1239,7 @@ impl AuthMask {
         true
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -1300,7 +1300,7 @@ pub fn create_postgres_pool(database_url: &str, max_size: usize) -> Result<Postg
         .build()
         .map_err(|e| FraiseQLError::database(format!("Failed to create pool: {e}")))
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -1382,7 +1382,7 @@ impl CacheBackend for MemoryCache {
         Ok(self.stats.read().await.clone())
     }
 }
-```
+```text
 
 **Design Decisions:**
 
@@ -1411,7 +1411,7 @@ pub fn generate_cache_key(
     let hash = hasher.finalize();
     CacheKey(format!("query:{:x}", hash))
 }
-```
+```text
 
 ---
 
@@ -1439,7 +1439,7 @@ impl From<deadpool::managed::PoolError<tokio_postgres::Error>> for FraiseQLError
         }
     }
 }
-```
+```text
 
 ---
 
@@ -1484,7 +1484,7 @@ mod tests {
         assert!(sql.contains("jsonb_array_elements"));
     }
 }
-```
+```text
 
 **2. JSONB Projection Tests:**
 
@@ -1521,7 +1521,7 @@ fn test_simple_projection() {
     assert_eq!(result["email"], "alice@example.com");
     assert!(result.get("password_hash").is_none()); // Not requested
 }
-```
+```text
 
 ### Integration Tests
 
@@ -1552,7 +1552,7 @@ async fn test_end_to_end_query() {
 
     assert_eq!(results.len(), 3);
 }
-```
+```text
 
 ---
 

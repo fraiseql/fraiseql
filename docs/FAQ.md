@@ -75,7 +75,7 @@ class User:
     id: int
     name: str
     email: str
-```
+```text
 
 This maps to your existing `users` table.
 
@@ -101,7 +101,7 @@ See [federation sagas](integrations/federation/sagas.md) for FraiseQL implementa
 
 A: Entity resolution maps keys from the gateway to actual database rows in each service:
 
-```
+```text
 Gateway Query: { user(id: "123") { name orders { total } } }
                                               ↓
 User Service:   SELECT * FROM users WHERE id = '123'
@@ -109,7 +109,7 @@ User Service:   SELECT * FROM users WHERE id = '123'
                                               ↓
 Orders Service: SELECT * FROM orders WHERE user_id = '123'
                 Returns: [{ id: "1", user_id: "123", total: 100 }]
-```
+```text
 
 Performance: <5ms local, <20ms direct DB, <200ms HTTP.
 
@@ -130,7 +130,7 @@ type Order @key(fields: "id") {
   id: ID!
   userId: ID! @provides(fields: "User.id")  # Provides User reference
 }
-```
+```text
 
 See [runtime directive enforcement](integrations/federation/sagas.md#runtime-directive-enforcement).
 
@@ -153,7 +153,7 @@ services:
     volumes:
       - ./supergraph.graphql:/etc/router/supergraph.graphql
     ports: ["4000:4000"]
-```
+```text
 
 See [saga-basic example](../examples/federation/saga-basic/).
 
@@ -165,7 +165,7 @@ See [saga-basic example](../examples/federation/saga-basic/).
 
 A: Sagas are distributed transactions that coordinate operations across multiple services. They handle failure by automatically reversing (compensating) completed steps.
 
-```
+```text
 Step 1: Verify User ✓
 Step 2: Charge Payment ✓
 Step 3: Reserve Inventory ✗ Out of stock
@@ -173,7 +173,7 @@ Step 3: Reserve Inventory ✗ Out of stock
 Step 2 Reverse: Refund ✓
 Step 1 Reverse: N/A (verify only)
 Result: No order, payment refunded
-```
+```text
 
 See [federation guide](integrations/federation/guide.md).
 
@@ -206,7 +206,7 @@ SagaStep {
     compensation: Some(Mutation { operation: "refundCharge" })
 }
 // Compensation runs automatically if later step fails
-```
+```text
 
 **Manual Compensation**: Logic-driven reversal
 
@@ -220,7 +220,7 @@ match coordinator.execute(steps).await {
         }
     }
 }
-```
+```text
 
 See [compensation strategies](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
@@ -230,7 +230,7 @@ See [compensation strategies](integrations/federation/sagas.md#best-practices-fo
 
 A: Sagas have built-in failure handling:
 
-```
+```text
 Transient Failures (network, timeouts):
   → Automatic retry with exponential backoff
   → Max 3 retries by default
@@ -243,7 +243,7 @@ Stuck Sagas (no progress >1 hour):
   → Automatic detection
   → Recovery manager attempts retry
   → Alert operations team
-```
+```text
 
 Configure with:
 
@@ -251,7 +251,7 @@ Configure with:
 export FRAISEQL_SAGA_MAX_RETRIES=3
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=30
 export FRAISEQL_SAGA_RECOVERY_ENABLED=true
-```
+```text
 
 ---
 
@@ -261,10 +261,10 @@ A: **Idempotency** means running an operation twice produces the same result as 
 
 **Example**: Transfer $100 twice with same `transactionId`
 
-```
+```text
 First attempt:  Account A: $1000 → $900, Account B: $500 → $600
 Second attempt: Returns cached result, no double charge ✓
-```
+```text
 
 Use `request_id` or `transactionId`:
 
@@ -275,7 +275,7 @@ SagaStep {
         ..
     }
 }
-```
+```text
 
 See [idempotency best practices](integrations/federation/sagas.md#best-practices-for-federation-sagas).
 
@@ -321,7 +321,7 @@ coordinator.execute_parallel(
     vec![create_account, init_payment, setup_shipping],
     ParallelConfig { max_concurrent: 3, fail_fast: true }
 ).await
-```
+```text
 
 See [saga-complex example](../examples/federation/saga-complex/).
 
@@ -336,7 +336,7 @@ Increase if needed:
 ```bash
 export FRAISEQL_SAGA_TIMEOUT_SECONDS=600  # 10 minutes
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=60  # 1 minute per step
-```
+```text
 
 Or programmatically:
 
@@ -344,7 +344,7 @@ Or programmatically:
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_timeout(Duration::from_secs(600))
     .with_step_timeout(Duration::from_secs(60));
-```
+```text
 
 ---
 
@@ -358,7 +358,7 @@ A: **Docker + Docker Compose** (recommended):
 cd examples/federation/saga-basic
 docker-compose up -d
 docker-compose ps  # Verify all services healthy
-```
+```text
 
 **Kubernetes**:
 
@@ -366,7 +366,7 @@ docker-compose ps  # Verify all services healthy
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 kubectl get pods  # Verify running
-```
+```text
 
 **Manual** (advanced):
 
@@ -390,14 +390,14 @@ ORDER BY created_at DESC;
 -- Check stuck sagas
 SELECT * FROM sagas
 WHERE status = 'EXECUTING' AND created_at < NOW() - INTERVAL '1 hour';
-```
+```text
 
 Or use metrics:
 
 ```bash
 # Prometheus metrics available
 curl http://localhost:9090/metrics | grep saga
-```
+```text
 
 ---
 
@@ -414,7 +414,7 @@ mysqldump -u root -p fraiseql > orders_backup.sql
 
 # All application data
 docker-compose exec postgres pg_dump -U fraiseql fraiseql > backup.sql
-```
+```text
 
 See [deployment guide](deployment/guide.md) for production-deployment steps.
 
@@ -436,19 +436,19 @@ fraiseql-server-2:
 load-balancer:
   image: nginx:latest
   ports: ["80:80"]
-```
+```text
 
 1. **Increase connection pool**:
 
 ```bash
 export DATABASE_POOL_SIZE=50  # From 20
-```
+```text
 
 1. **Cache results**:
 
 ```bash
 export CACHE_TTL_SECONDS=300  # 5 minutes
-```
+```text
 
 ---
 
@@ -467,7 +467,7 @@ type User {
 
 # Database query must include phone
 SELECT id, email, phone FROM users WHERE id = $1
-```
+```text
 
 See [entity resolution troubleshooting](TROUBLESHOOTING.md#problem-entity-resolution-fails).
 
@@ -480,13 +480,13 @@ A: Check subgraph health:
 ```bash
 curl http://orders-service:4000/graphql -d '{"query":"query{__typename}"}'
 docker-compose restart orders-service
-```
+```text
 
 Then force recovery:
 
 ```rust
 recovery_manager.recover_saga(&stuck_saga).await?;
-```
+```text
 
 See [saga troubleshooting](TROUBLESHOOTING.md#problem-saga-stuck-in-executing).
 
@@ -503,7 +503,7 @@ extend type User @key(fields: "id") { ... }  // orders-service
 
 # ❌ Wrong
 extend type User @key(fields: "userId") { ... }  // Different key!
-```
+```text
 
 See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-supergraph).
 
@@ -516,14 +516,14 @@ A: Set log level:
 ```bash
 export RUST_LOG=fraiseql=debug,tracing=trace
 RUST_LOG=debug cargo run --bin fraiseql-server
-```
+```text
 
 Watch for logs like:
 
-```
+```text
 [DEBUG fraiseql_core::federation::entity_resolver] Resolving entity User:123
 [TRACE fraiseql_core::database::query_executor] Executing: SELECT * FROM users
-```
+```text
 
 ---
 

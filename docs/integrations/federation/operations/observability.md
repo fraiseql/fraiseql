@@ -52,7 +52,7 @@ pub struct FederationTraceContext {
 // Automatic W3C header generation
 pub fn to_traceparent(&self) -> String
 // Expected: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-```
+```text
 
 ---
 
@@ -116,7 +116,7 @@ pub fn to_traceparent(&self) -> String
 metrics.record_entity_resolution(32_100);  // 32.1ms
 metrics.record_subgraph_request(25_300);   // 25.3ms
 metrics.record_cache_hit();
-```
+```text
 
 ---
 
@@ -151,11 +151,11 @@ pub struct FederationLogContext {
     pub trace_id: Option<String>,                 // Distributed trace ID
     pub request_id: Option<String>,               // Request correlation ID
 }
-```
+```text
 
 **Example Log Emission**:
 
-```
+```text
 {
   "timestamp": "2026-01-28T15:23:45.123Z",
   "level": "info",
@@ -171,7 +171,7 @@ pub struct FederationLogContext {
     "resolved_count": 2
   }
 }
-```
+```text
 
 ---
 
@@ -277,7 +277,7 @@ pub struct FederationLogContext {
   annotations:
     summary: "Entity resolution latency exceeds SLO (100ms p99)"
     runbook: https://wiki.internal/federation/entity-resolution-latency
-```
+```text
 
 ---
 
@@ -383,11 +383,11 @@ pub struct FederationLogContext {
 
 **Escalation Flowchart**:
 
-```
+```text
 Alert → Severity Check → Follow Runbook → Issue Resolved in 15m?
                                                ├─ YES: Close
                                                └─ NO: Escalate
-```
+```text
 
 ---
 
@@ -395,7 +395,7 @@ Alert → Severity Check → Follow Runbook → Issue Resolved in 15m?
 
 ### End-to-End Observability Flow
 
-```
+```text
 ┌─────────────────────────────┐
 │   GraphQL Query Request     │
 │   (with traceparent header) │
@@ -438,7 +438,7 @@ Res.        Request    Exec.
     ▼          ▼          ▼
   Jaeger    Prometheus    ELK
   (Traces)  (Metrics)   (Logs)
-```
+```text
 
 ### Metrics Cardinality Optimization
 
@@ -629,7 +629,7 @@ Why faster? Observability metrics collection is concurrent with query execution:
 
 ### Test Results
 
-```
+```text
 === PHASE 7 INTEGRATION TEST RESULTS ===
 
 federation_observability_integration.rs:
@@ -643,7 +643,7 @@ federation_observability_integration.rs:
 Test Results: 6/6 passing
 Success Rate: 100%
 Execution Time: 80ms (total)
-```
+```text
 
 ### Phase Completion
 

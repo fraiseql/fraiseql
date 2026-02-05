@@ -46,7 +46,7 @@ fraiseql lint schema.json  # <100ms for typical schema
 for schema in schemas/*.json; do
   fraiseql lint "$schema" --json | jq '.data.overall_score'
 done
-```
+```text
 
 ### For API Server
 
@@ -57,7 +57,7 @@ POST /api/v1/design/cost-audit          # ~20ms
 POST /api/v1/design/cache-audit         # ~10ms
 POST /api/v1/design/auth-audit          # ~15ms
 POST /api/v1/design/audit               # ~50ms (all categories)
-```
+```text
 
 ### For Large Schemas
 
@@ -78,7 +78,7 @@ Example:
 fraiseql lint huge-schema.json --federation --json | jq '.data'
 fraiseql lint huge-schema.json --cost --json | jq '.data'
 fraiseql lint huge-schema.json --cache --json | jq '.data'
-```
+```text
 
 ## Benchmarking & Profiling
 
@@ -89,7 +89,7 @@ fraiseql lint huge-schema.json --cache --json | jq '.data'
 cargo bench -p fraiseql-core --bench design_analysis
 
 # Output: Detailed latency distributions for each schema size
-```
+```text
 
 ### Profile Memory Usage
 
@@ -100,7 +100,7 @@ ms_print massif.out.<pid>  # View results
 
 # Using Instruments (macOS)
 time fraiseql lint schema.json  # Shows memory usage
-```
+```text
 
 ### Monitor Performance
 
@@ -113,7 +113,7 @@ curl -w "@format.txt" -o /dev/null -s \
   -X POST http://localhost:8080/api/v1/design/audit \
   -H "Content-Type: application/json" \
   -d @schema.json
-```
+```text
 
 ## Performance Regression Testing
 
@@ -131,30 +131,30 @@ cargo bench -p fraiseql-core --bench design_analysis -- --save-baseline phase4
 
 # Later: Compare against baseline
 cargo bench -p fraiseql-core --bench design_analysis -- --baseline phase4
-```
+```text
 
 ## Scalability
 
 ### Scaling with Schema Size
 
-```
+```text
 Schema Size | Analysis Time | Memory
 1 type      | <5ms         | <1MB
 10 types    | <15ms        | <2MB
 100 types   | <40ms        | <10MB
 1000 types  | <150ms       | <80MB
-```
+```text
 
 Linear time complexity: O(n) where n = number of types + relationships
 
 ### Scaling with Federation Depth
 
-```
+```text
 Subgraph Depth | Federation Audit | Complexity
 1-2 levels     | <20ms           | O(subgraphs × entities)
 3-5 levels     | <30ms           | Circular detection enabled
 6+ levels      | <50ms           | Optimization active
-```
+```text
 
 ## Deployment Recommendations
 
@@ -211,7 +211,7 @@ fraiseql lint /tmp/schema.json  # Faster than network drive
 
 # Use filtered audit
 fraiseql lint schema.json --federation  # Faster than complete
-```
+```text
 
 ### Issue: API audit endpoints timing out
 
@@ -224,7 +224,7 @@ curl --max-time 5 http://localhost:8080/api/v1/design/audit
 
 # Use rate limiting
 # Configure in fraiseql-server config
-```
+```text
 
 ### Issue: Memory usage exceeds 100MB
 
@@ -237,7 +237,7 @@ split -l 100 schema.json schema_part_
 for part in schema_part_*; do
   fraiseql lint "$part" --json | jq '.data.overall_score'
 done
-```
+```text
 
 ## References
 

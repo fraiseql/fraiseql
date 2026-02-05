@@ -298,7 +298,7 @@ query GetPostsWithAuthors {
     }
   }
 }
-```
+```text
 
 ### Challenge: Large Result Sets
 
@@ -322,7 +322,7 @@ query GetPostsPaginated($first: Int!, $after: String) {
     }
   }
 }
-```
+```text
 
 ### Challenge: Complex Authorization Rules
 
@@ -330,11 +330,11 @@ query GetPostsPaginated($first: Int!, $after: String) {
 
 **Solution:** Use row-level security in database + custom claims in JWT
 
-```
+```text
 JWT Claims: { userId: "123", role: "admin", tenantId: "tenant_456" }
               ↓
 Database RLS Policy: WHERE tenant_id = JWT.tenantId AND (is_public OR owner_id = JWT.userId)
-```
+```text
 
 ### Challenge: Real-Time Updates
 
@@ -350,7 +350,7 @@ subscription OnUserOnline {
     lastSeen
   }
 }
-```
+```text
 
 ---
 

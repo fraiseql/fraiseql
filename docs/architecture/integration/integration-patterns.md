@@ -24,7 +24,7 @@ Each pattern provides different trade-offs between consistency, latency, and com
 
 Standard Apollo Federation v2 with HTTP subgraph communication:
 
-```
+```text
 ┌─────────────────┐
 │  Apollo Router  │
 │  (Gateway)      │
@@ -38,7 +38,7 @@ Standard Apollo Federation v2 with HTTP subgraph communication:
 └────────┘  └───────┘
 
 HTTP `_entities` calls for federation
-```
+```text
 
 **Implementation:**
 
@@ -57,22 +57,22 @@ class User:
 class User:
     id: ID! = fraiseql.external()
     orders: [Order] = fraiseql.requires(fields=["id"])
-```
+```text
 
 **Latency characteristics:**
 
-```
+```text
 Single entity resolution: 50-200ms (HTTP roundtrip)
 Federation 1 level deep: 50-200ms
 Federation 2 levels deep: 100-400ms (cascading calls)
 Federation 3+ levels: Unacceptable (avoid)
-```
+```text
 
 ### 1.2 Database-Linked Federation (PostgreSQL FDW)
 
 Optimization for same-database FraiseQL-to-FraiseQL federation:
 
-```
+```text
 ┌──────────────────────────────────────┐
 │ PostgreSQL (Primary Cluster)         │
 ├──────────────────────────────────────┤
@@ -86,7 +86,7 @@ Optimization for same-database FraiseQL-to-FraiseQL federation:
 └──────────────────────────────────────┘
 
 Both subgraphs accessible via database-level join
-```
+```text
 
 **Setup FDW:**
 
@@ -108,7 +108,7 @@ CREATE FOREIGN TABLE orders_schema_v_order (
     data JSONB
 ) SERVER orders_fdw
   OPTIONS (schema_name 'orders_schema', table_name 'v_order');
-```
+```text
 
 **Entity resolution with FDW:**
 
@@ -129,28 +129,28 @@ CREATE FUNCTION resolve_user_with_orders(keys UUID[]) RETURNS JSONB[] AS $$
     GROUP BY user_id
   ) o ON o.user_id = u.id
 $$ LANGUAGE sql STABLE;
-```
+```text
 
 **Latency characteristics:**
 
-```
+```text
 Single entity resolution: 5-15ms (database join, no network)
 Federation 1 level deep: 5-15ms (10x faster than HTTP)
 Federation 2 levels deep: 10-30ms (same database, all FDW)
-```
+```text
 
 ### 1.3 Hybrid Federation (Mixed HTTP and FDW)
 
 Combine HTTP and database-level federation:
 
-```
+```text
 ┌────────────────────────────────────┐
 │ Users (FraiseQL on PostgreSQL)     │
 ├────────────────────────────────────┤
 │ ├─ Orders via FDW (same DB): 10ms  │
 │ ├─ Products via HTTP (Apollo): 100ms
 │ └─ Inventory via FDW (same DB): 10ms
-```
+```text
 
 **Strategy selection (auto-detect):**
 
@@ -160,7 +160,7 @@ if target_subgraph.is_fraiseql and target_db_type == source_db_type:
     resolution_strategy = "database_linking"  # FDW
 else:
     resolution_strategy = "http"  # Standard federation
-```
+```text
 
 **Example:**
 
@@ -177,7 +177,7 @@ class Product:
     # This comes from Inventory subgraph (Apollo Server)
     @fraiseql.requires(fields=["id"])
     inventory: Inventory  # Will use HTTP (standard)
-```
+```text
 
 ---
 
@@ -187,7 +187,7 @@ class Product:
 
 Push events to external HTTP endpoints:
 
-```
+```text
 FraiseQL Event
     ↓
 Webhook Dispatcher
@@ -203,7 +203,7 @@ External System
     └─ Return 200 OK
 
 FraiseQL marks delivered
-```
+```text
 
 ### 2.2 Webhook Configuration
 
@@ -226,7 +226,7 @@ fraiseql.webhooks.register(
     webhook_url="https://external.com/webhooks/order_created",
     secret="webhook_secret_key_123"
 )
-```
+```text
 
 ### 2.3 Webhook Payload Format
 
@@ -250,7 +250,7 @@ Standard webhook format:
   },
   "signature": "sha256=abcdef123..."
 }
-```
+```text
 
 ### 2.4 Webhook Retry Logic
 
@@ -270,7 +270,7 @@ After 5 failed attempts:
   ├─ Mark webhook delivery as failed
   ├─ Alert operations team
   ├─ Can manually retry via dashboard
-```
+```text
 
 ### 2.5 Webhook Signature Verification
 
@@ -308,7 +308,7 @@ expected_signature = hmac.new(
 
 if not hmac.compare_digest(received_signature, f"sha256={expected_signature}"):
     raise ValueError("Invalid signature")
-```
+```text
 
 ### 2.6 Webhook Idempotency
 
@@ -332,7 +332,7 @@ recipient_side_dedup:
 
     # Mark as processed
     db.mark_event_processed("evt-abc123")
-```
+```text
 
 ---
 
@@ -360,7 +360,7 @@ fraiseql.messaging.configure({
         "compression": "snappy"
     }
 })
-```
+```text
 
 **Kafka message format:**
 
@@ -376,7 +376,7 @@ fraiseql.messaging.configure({
     "user_id": "user-456"
   }
 }
-```
+```text
 
 ### 3.2 RabbitMQ Integration
 
@@ -401,13 +401,13 @@ fraiseql.messaging.configure({
         "durable": True
     }
 })
-```
+```text
 
 ### 3.3 Consumer Groups (Kafka)
 
 Multiple consumers process events:
 
-```
+```text
 Kafka topic: fraiseql.events
 ├─ Consumer Group 1 (notifications)
 │  ├─ Consumer 1A: Partition 0
@@ -426,13 +426,13 @@ Kafka topic: fraiseql.events
 
 Each consumer group gets all events
 Multiple consumers in same group share partitions
-```
+```text
 
 ### 3.4 Event Stream Ordering
 
 Guarantee ordering with message brokers:
 
-```
+```text
 Option 1: Topic-level (global order)
   ├─ All events go to single topic
   ├─ Consumers receive in order
@@ -446,7 +446,7 @@ Option 2: Event-type topics (per-entity order)
   └─ Performance: Parallelized
 
 FraiseQL choice: Option 2 (per-entity order)
-```
+```text
 
 ---
 
@@ -456,7 +456,7 @@ FraiseQL choice: Option 2 (per-entity order)
 
 When using webhooks or message brokers:
 
-```
+```text
 FraiseQL Event (T0)
   ├─ Immediately available to queries (database updated)
   ├─ Webhook sent (may take 100-500ms)
@@ -472,13 +472,13 @@ External system query:
   ├─ At T0 + 800ms: Sees change (processed)
 
 Model: Eventual consistency (typically <1 second)
-```
+```text
 
 ### 4.2 Request-Response Consistency (Federation)
 
 When using federation (HTTP or FDW):
 
-```
+```text
 Query: Get User with Orders
 
 FraiseQL (HTTP federation):
@@ -488,7 +488,7 @@ FraiseQL (HTTP federation):
   ├─ Consistent snapshot
 
 Consistency: Strong (synchronous)
-```
+```text
 
 ### 4.3 Idempotent Event Processing
 
@@ -515,7 +515,7 @@ async def process_order_created(event):
 
     # Mark as processed
     db.insert("processed_events", {"event_id": event.id, "processed_at": now()})
-```
+```text
 
 ---
 
@@ -525,7 +525,7 @@ async def process_order_created(event):
 
 One central FraiseQL service connects to many external systems:
 
-```
+```text
         ┌─────────────┐
         │ FraiseQL    │
         │ (Central)   │
@@ -538,13 +538,13 @@ One central FraiseQL service connects to many external systems:
 
 Pros: Centralized control, single GraphQL API
 Cons: Single point of failure, scalability limits
-```
+```text
 
 ### 5.2 Federated Topology (Distributed)
 
 Multiple FraiseQL services with federation:
 
-```
+```text
 ┌──────────────────┐     ┌──────────────────┐
 │ FraiseQL Users   │◄────►│ FraiseQL Orders  │
 │ (Subgraph A)     │     │ (Subgraph B)     │
@@ -562,13 +562,13 @@ Multiple FraiseQL services with federation:
 
 Pros: Distributed, scalable, isolated
 Cons: More complex deployment, eventual consistency
-```
+```text
 
 ### 5.3 Hub-and-Spoke Topology (Hybrid)
 
 Mix of federation and direct integrations:
 
-```
+```text
         ┌─────────────┐
         │ FraiseQL    │
         │ (Hub)       │
@@ -584,7 +584,7 @@ Mix of federation and direct integrations:
 
 Pros: Flexible, balanced, controlled complexity
 Cons: Moderate complexity, requires good design
-```
+```text
 
 ---
 
@@ -604,7 +604,7 @@ def create_order(order):
 # Order in FraiseQL but not in external system
 # If Write 1 fails but Write 2 succeeds, reverse problem
 # No atomicity across systems
-```
+```text
 
 ### 6.2 Primary Database with CDC
 
@@ -621,7 +621,7 @@ def create_order(order):
 
 # Inconsistency window: Order in FraiseQL, not yet in external
 # But convergence guaranteed (eventual consistency)
-```
+```text
 
 ---
 
@@ -629,7 +629,7 @@ def create_order(order):
 
 ### 7.1 Metrics to Track
 
-```
+```text
 Federation:
   ├─ Subgraph latency: p50, p95, p99
   ├─ Entity resolution success rate
@@ -646,11 +646,11 @@ Messaging:
   ├─ Consumer lag (target: <1 minute)
   ├─ Message loss (target: 0)
   └─ Throughput (MB/sec)
-```
+```text
 
 ### 7.2 Alert Rules
 
-```
+```text
 Alert: Subgraph down
   ├─ Condition: Federation call fails 5+ times in 1 minute
   ├─ Action: Page on-call
@@ -665,7 +665,7 @@ Alert: Consumer lag increasing
   ├─ Condition: Kafka lag >10 minutes
   ├─ Action: Scale consumers or investigate slowness
   └─ Impact: Analytics delayed
-```
+```text
 
 ---
 

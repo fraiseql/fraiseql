@@ -50,7 +50,7 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 
 **Current ASCII:**
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  Authoring (Python/TypeScript)      │
 └────────────┬────────────────────────┘
@@ -66,7 +66,7 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 ┌────────────▼────────────────────────┐
 │  Runtime Server (query execution)   │
 └─────────────────────────────────────┘
-```
+```text
 
 **Future D2 Version:**
 
@@ -87,7 +87,7 @@ Runtime: {
 Authoring -> Schema JSON: generates
 Schema JSON -> Compiled Schema: compiles
 Compiled Schema -> Runtime: loads
-```
+```text
 
 ### D2 Diagrams to Implement
 
@@ -205,7 +205,7 @@ classes: {
   stroke: #666
   stroke-width: 2
 }
-```
+```text
 
 ---
 

@@ -62,7 +62,7 @@ openssl req -new -x509 -key /etc/fraiseql/key.pem -out /etc/fraiseql/cert.pem \
 # Set proper permissions
 chmod 600 /etc/fraiseql/key.pem
 chmod 644 /etc/fraiseql/cert.pem
-```
+```text
 
 ### 2. Configure fraiseql.toml
 
@@ -87,7 +87,7 @@ clickhouse_https = true               # Use HTTPS
 elasticsearch_https = true            # Use HTTPS
 verify_certificates = true            # Verify server certificates
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"  # Optional: CA bundle for verification
-```
+```text
 
 ### 3. Start Server with TLS
 
@@ -96,7 +96,7 @@ FRAISEQL_TLS_ENABLED=true \
   FRAISEQL_TLS_CERT_PATH=/etc/fraiseql/cert.pem \
   FRAISEQL_TLS_KEY_PATH=/etc/fraiseql/key.pem \
   fraiseql-server --config fraiseql.toml
-```
+```text
 
 ## Configuration Options
 
@@ -137,7 +137,7 @@ redis_ssl = false
 clickhouse_https = false
 elasticsearch_https = false
 verify_certificates = false
-```
+```text
 
 ### Example 2: Staging (Standard)
 
@@ -157,7 +157,7 @@ clickhouse_https = true
 elasticsearch_https = true
 verify_certificates = true
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"
-```
+```text
 
 ### Example 3: Production (Strict mTLS)
 
@@ -178,7 +178,7 @@ clickhouse_https = true
 elasticsearch_https = true
 verify_certificates = true
 ca_bundle_path = "/etc/ssl/certs/ca-bundle.crt"
-```
+```text
 
 ## TLS Enforcement Levels
 
@@ -191,7 +191,7 @@ TlsEnforcer::permissive()
 // - TLS optional for HTTP connections
 // - Client certificates optional
 // - TLS 1.2 minimum (if used)
-```
+```text
 
 **Usage**: Local development, testing
 
@@ -202,7 +202,7 @@ TlsEnforcer::standard()
 // - TLS required (HTTPS only)
 // - Client certificates optional
 // - TLS 1.2 minimum
-```
+```text
 
 **Usage**: Default production setup
 
@@ -213,7 +213,7 @@ TlsEnforcer::strict()
 // - TLS required (HTTPS only)
 // - Client certificates required (mTLS)
 // - TLS 1.3 minimum
-```
+```text
 
 **Usage**: PCI-DSS, HIPAA, SOC 2 compliance
 
@@ -236,7 +236,7 @@ FraiseQL supports all PostgreSQL SSL modes:
 
 ### PostgreSQL
 
-```
+```text
 # Without TLS
 postgresql://user:pass@localhost:5432/fraiseql
 
@@ -245,38 +245,38 @@ postgresql://user:pass@localhost:5432/fraiseql?sslmode=require
 
 # With TLS (verify-full mode)
 postgresql://user:pass@localhost:5432/fraiseql?sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca.pem
-```
+```text
 
 ### Redis
 
-```
+```text
 # Without TLS
 redis://localhost:6379
 
 # With TLS (automatic with rediss:// protocol)
 rediss://localhost:6379
 rediss://:password@localhost:6379
-```
+```text
 
 ### ClickHouse
 
-```
+```text
 # Without TLS
 http://localhost:8123
 
 # With TLS (HTTPS)
 https://localhost:8123
-```
+```text
 
 ### Elasticsearch
 
-```
+```text
 # Without TLS
 http://localhost:9200
 
 # With TLS (HTTPS)
 https://localhost:9200
-```
+```text
 
 ## At-Rest Encryption Configuration
 
@@ -296,7 +296,7 @@ PARTITION BY org_id
 ORDER BY (org_id, timestamp)
 WITH SETTINGS
     storage_disk_name = 'encrypted';
-```
+```text
 
 **Note**: Requires ClickHouse 21.10+ and disk encryption configured
 
@@ -331,7 +331,7 @@ To enable encryption at rest with ILM policy:
     }
   }
 }
-```
+```text
 
 **Note**: Requires Elasticsearch 7.9+ and subscription-level features
 
@@ -348,7 +348,7 @@ openssl genrsa -out ca-key.pem 4096
 # CA certificate
 openssl req -new -x509 -days 3650 -key ca-key.pem -out ca-cert.pem \
   -subj "/CN=fraiseql-ca/O=YourOrg/C=US"
-```
+```text
 
 ### 2. Generate Client Certificate
 
@@ -364,7 +364,7 @@ openssl req -new -key client-key.pem -out client.csr \
 openssl x509 -req -days 365 -in client.csr \
   -CA ca-cert.pem -CAkey ca-key.pem -CAcreateserial \
   -out client-cert.pem
-```
+```text
 
 ### 3. Configure in fraiseql.toml
 
@@ -376,7 +376,7 @@ key_path = "/etc/fraiseql/server-key.pem"
 require_client_cert = true
 client_ca_path = "/etc/fraiseql/ca-cert.pem"
 min_version = "1.3"
-```
+```text
 
 ## Docker Compose Example
 
@@ -417,7 +417,7 @@ services:
     volumes:
       - ./certs/redis-cert.pem:/etc/redis/cert.pem:ro
       - ./certs/redis-key.pem:/etc/redis/key.pem:ro
-```
+```text
 
 ## Kubernetes TLS Configuration
 
@@ -428,7 +428,7 @@ services:
 kubectl create secret tls fraiseql-tls \
   --cert=./certs/cert.pem \
   --key=./certs/key.pem
-```
+```text
 
 ### Deployment Configuration
 
@@ -458,7 +458,7 @@ spec:
       - name: tls-certs
         secret:
           secretName: fraiseql-tls
-```
+```text
 
 ## Verification and Testing
 
@@ -477,7 +477,7 @@ curl \
   --cert /etc/fraiseql/client-cert.pem \
   --key /etc/fraiseql/client-key.pem \
   https://localhost:8443/health
-```
+```text
 
 ### 2. Test TLS Version
 
@@ -487,7 +487,7 @@ openssl s_client -connect localhost:8443 -tls1_2 < /dev/null
 
 # Verify minimum version enforcement
 openssl s_client -connect localhost:8443 -tls1_1 < /dev/null  # Should fail
-```
+```text
 
 ### 3. Test Database Connections
 
@@ -503,7 +503,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:8123/ping
 
 # Elasticsearch
 curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
-```
+```text
 
 ## Security Best Practices
 
@@ -520,7 +520,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 
    ```bash
    openssl x509 -enddate -noout -in /etc/fraiseql/cert.pem
-   ```
+   ```text
 
 8. **Use different keys per environment** (dev, staging, production)
 9. **Store private keys in secrets management** (HashiCorp Vault, AWS Secrets Manager)
@@ -530,33 +530,33 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
 
 ### TLS Certificate Not Found
 
-```
+```text
 error: TLS enabled but certificate file not found: /etc/fraiseql/cert.pem
-```
+```text
 
 **Solution**: Verify certificate path exists and is readable by the FraiseQL process
 
 ### TLS Version Too Old
 
-```
+```text
 error: Connection TLS version (1.2) is less than minimum required (1.3)
-```
+```text
 
 **Solution**: Update client TLS version or lower `min_version` in config
 
 ### Client Certificate Required
 
-```
+```text
 error: Client certificate required, but none provided
-```
+```text
 
 **Solution**: Provide client certificate if using mTLS, or disable with `require_client_cert = false`
 
 ### Database Connection SSL Error
 
-```
+```text
 error: FATAL: no pg_hba.conf entry for replication connection
-```
+```text
 
 **Solution**: Ensure database SSL is properly configured and using correct `sslmode`
 

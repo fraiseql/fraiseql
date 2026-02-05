@@ -12,7 +12,7 @@ Complete guide to building a production-grade multi-tenant SaaS application usin
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                   Web/Mobile Clients                     │
 │          (React, Vue, Flutter, React Native)             │
@@ -34,7 +34,7 @@ Complete guide to building a production-grade multi-tenant SaaS application usin
 │  - Data isolation at database level                      │
 │  - Prevents data leakage even if app is compromised      │
 └─────────────────────────────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -169,7 +169,7 @@ CREATE TABLE usage_metrics (
   INDEX idx_tenant_id (tenant_id),
   INDEX idx_period (period_start, period_end)
 );
-```
+```text
 
 ---
 
@@ -184,7 +184,7 @@ ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_metrics ENABLE ROW LEVEL SECURITY;
-```
+```text
 
 ### Tenant Context Function
 
@@ -203,7 +203,7 @@ $$ LANGUAGE SQL STABLE;
 CREATE OR REPLACE FUNCTION current_user_role() RETURNS TEXT AS $$
   SELECT (current_setting('app.user_role', true))::TEXT;
 $$ LANGUAGE SQL STABLE;
-```
+```text
 
 ### RLS Policies - Users Table
 
@@ -230,7 +230,7 @@ CREATE POLICY users_delete ON users
 CREATE POLICY users_insert ON users
   FOR INSERT
   WITH CHECK (true); -- Allow insertion, FraiseQL handles tenant assignment
-```
+```text
 
 ### RLS Policies - Projects Table
 
@@ -267,7 +267,7 @@ CREATE POLICY projects_delete ON projects
 CREATE POLICY projects_insert ON projects
   FOR INSERT
   WITH CHECK (tenant_id = current_tenant_id());
-```
+```text
 
 ### RLS Policies - Tasks Table
 
@@ -305,7 +305,7 @@ CREATE POLICY tasks_delete ON tasks
     ) OR
     current_user_role() IN ('owner', 'admin')
   );
-```
+```text
 
 ### RLS Policies - Audit Logs
 
@@ -322,7 +322,7 @@ CREATE POLICY audit_logs_visibility ON audit_logs
 CREATE POLICY audit_logs_immutable ON audit_logs
   FOR UPDATE, DELETE
   USING (false);
-```
+```text
 
 ---
 
@@ -467,7 +467,7 @@ class Mutation:
     def upgrade_plan(self, plan: str, stripe_token: str) -> Subscription:
         """Upgrade subscription plan"""
         pass
-```
+```text
 
 ---
 
@@ -485,7 +485,7 @@ class Mutation:
   "iat": 1640000000,
   "exp": 1640086400
 }
-```
+```text
 
 ### Setting Tenant Context in FraiseQL Server
 
@@ -510,7 +510,7 @@ async fn set_tenant_context(token: &Claims) -> Result<()> {
 
     Ok(())
 }
-```
+```text
 
 ---
 
@@ -547,7 +547,7 @@ export function useCurrentUser() {
     error,
   };
 }
-```
+```text
 
 ### List Projects Query
 
@@ -585,7 +585,7 @@ export function ProjectList() {
     </ul>
   );
 }
-```
+```text
 
 ### Create Project Mutation
 
@@ -628,7 +628,7 @@ export function CreateProjectForm() {
     </form>
   );
 }
-```
+```text
 
 ---
 
@@ -656,7 +656,7 @@ BEGIN
   DO UPDATE SET metric_value = metric_value + EXCLUDED.metric_value;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 ### Check Usage Limits
 
@@ -688,7 +688,7 @@ BEGIN
   RETURN v_current_usage < v_limit;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 ---
 
@@ -706,7 +706,7 @@ function validateToken(token: string): Claims | null {
     return null;
   }
 }
-```
+```text
 
 ### 2. Prevent Tenant ID Forgery
 
@@ -718,7 +718,7 @@ const getTenantIdFromToken = (token: Claims): string => {
   }
   return token.tenant_id;
 };
-```
+```text
 
 ### 3. Audit All Changes
 
@@ -756,7 +756,7 @@ FOR EACH ROW EXECUTE FUNCTION audit_trigger();
 
 CREATE TRIGGER tasks_audit AFTER INSERT OR UPDATE OR DELETE ON tasks
 FOR EACH ROW EXECUTE FUNCTION audit_trigger();
-```
+```text
 
 ---
 
@@ -782,14 +782,14 @@ FOR EACH ROW EXECUTE FUNCTION audit_trigger();
 
 ### Multi-Region Deployment
 
-```
+```text
 Region 1 (US-East)           Region 2 (EU)
     ↓                             ↓
 FraiseQL Server ----------- Replication -------- FraiseQL Server
     ↓                             ↓
 PostgreSQL Primary ---------- Streaming -------- PostgreSQL Replica
 (tenant_a, tenant_b)         (standby)         (for reads)
-```
+```text
 
 ---
 
@@ -820,7 +820,7 @@ describe('Multi-Tenant Isolation', () => {
     expect(result.data.projects.every(p => p.tenant_id === 'a')).toBe(true);
   });
 });
-```
+```text
 
 ---
 

@@ -19,7 +19,7 @@ FraiseQL supports two distinct **data planes** for different use cases:
 
 ## The Two Data Planes
 
-```
+```text
 Client Request
         ↓
 Is this a transaction or analytics query?
@@ -30,13 +30,13 @@ JSON Plane   Arrow Plane
 (OLTP)       (OLAP)
     ↓        ↓
   Result   Result
-```
+```text
 
 ---
 
 ## Plane Selection Decision Tree
 
-```
+```text
 Query Type?
 ├─ Point query (get one user by ID)
 │  └─ Use JSON Plane
@@ -58,7 +58,7 @@ Query Type?
 │
 └─ Time-series analysis (analyze sales by hour)
    └─ Use Arrow Plane
-```
+```text
 
 ---
 
@@ -92,11 +92,11 @@ query GetUser($userId: Int!) {
     createdAt
   }
 }
-```
+```text
 
 **Execution (JSON Plane):**
 
-```
+```text
 Request
   ↓
 Look up template
@@ -112,7 +112,7 @@ Format as JSON
 Stream to client (HTTP response or WebSocket message)
   ↓
 Response (complete, single payload)
-```
+```text
 
 **Response:**
 
@@ -126,13 +126,13 @@ Response (complete, single payload)
     }
   }
 }
-```
+```text
 
 ### Performance Characteristics
 
 **Latency Breakdown (10-50ms typical):**
 
-```
+```text
 Query lookup:        0.1ms
 Parameter binding:   0.5ms
 Authorization:       1.0ms
@@ -141,11 +141,11 @@ JSON serialization:  2.0ms
 Network/streaming:   5.0ms
 ─────────────────────────────
 Total:             ~28.6ms
-```
+```text
 
 **Throughput:**
 
-```
+```text
 Single server (4 CPUs, 8GB RAM):
 
 - Simple queries: 1000-2000 QPS
@@ -157,7 +157,7 @@ Limiting factors:
 - Database connection pool size
 - Database capacity
 - Network bandwidth
-```
+```text
 
 ### Best Practices for JSON Plane
 
@@ -192,7 +192,7 @@ query {
     }
   }
 }
-```
+```text
 
 **2. Use Pagination for Lists**
 
@@ -212,7 +212,7 @@ query GetOrders($userId: Int!, $limit: Int = 10, $offset: Int = 0) {
     total
   }
 }
-```
+```text
 
 **3. Add Filters to Reduce Result Size**
 
@@ -234,7 +234,7 @@ query GetRecentOrders($userId: Int!, $days: Int = 7) {
     createdAt
   }
 }
-```
+```text
 
 ---
 
@@ -271,11 +271,11 @@ query ExportSalesData($startDate: Date!, $endDate: Date!) {
     createdAt
   }
 }
-```
+```text
 
 **Execution (Arrow Plane):**
 
-```
+```text
 Request (Arrow Flight protocol)
   ↓
 Look up template
@@ -291,11 +291,11 @@ Convert results to Arrow columnar format
 Stream Arrow batches to client
   ↓
 Client receives stream of Arrow batches (not complete in one payload)
-```
+```text
 
 **Response (Arrow Flight Streaming):**
 
-```
+```text
 Batch 1: 65,536 rows in Arrow format (binary, compressed)
   ↓
 Batch 2: 65,536 rows in Arrow format
@@ -307,7 +307,7 @@ Batch 3: 65,536 rows in Arrow format
 Batch N: Remaining rows
   ↓
 Stream complete
-```
+```text
 
 ### Arrow vs JSON Format
 
@@ -321,11 +321,11 @@ Stream complete
 ]
 
 Size: ~450 bytes for 3 rows
-```
+```text
 
 **Arrow Format (OLAP):**
 
-```
+```text
 Columnar layout:
 ┌──────────────────────────────────────────────────┐
 │ saleId:      [1, 2, 3, ...]                      │
@@ -338,13 +338,13 @@ Columnar layout:
 
 Size: ~120 bytes for 3 rows (binary + compression)
 Compression ratio: 73% smaller than JSON
-```
+```text
 
 ### Performance Characteristics
 
 **Latency (for 100K row export):**
 
-```
+```text
 Initial query (setup):  500ms
 Streaming results:      2-4s
 ─────────────────────────────
@@ -357,11 +357,11 @@ Factors:
 - Network bandwidth
 - Compression overhead
 - Client processing speed
-```
+```text
 
 **Throughput:**
 
-```
+```text
 Single server (4 CPUs, 8GB RAM):
 
 - Small exports (1K-10K rows): 50-100 QPS
@@ -373,13 +373,13 @@ Limiting factors:
 - Network bandwidth (Arrow streams are fast but still network-bound)
 - CPU (columnar encoding/compression)
 - Client processing speed
-```
+```text
 
 ### Arrow Flight Protocol
 
 Arrow Flight is an RPC framework built on Arrow columnar format:
 
-```
+```text
 Client                           Server
   │                               │
   ├─ GetFlightInfo (query) ───────>│
@@ -394,7 +394,7 @@ Client                           Server
   │<─ ... ─────────────────────────┤
   │<─ End of stream ───────────────┤
   │                                 │
-```
+```text
 
 ### FraiseQL Arrow Flight Tickets
 
@@ -408,7 +408,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
   "query": "query ExportSalesData($startDate: Date!) { sales(dateRange: {start: $startDate}) { saleId, productId, quantity } }",
   "variables": {"startDate": "2026-01-01"}
 }
-```
+```text
 
 **Ticket 2: OptimizedView**
 
@@ -419,7 +419,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
   "filters": {"startDate": "2026-01-01"},
   "projection": ["saleId", "productId", "quantity"]
 }
-```
+```text
 
 **Ticket 3: BulkExport**
 
@@ -430,7 +430,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
   "dateRange": {"start": "2026-01-01", "end": "2026-01-31"},
   "compression": "snappy"
 }
-```
+```text
 
 ### Best Practices for Arrow Plane
 
@@ -448,7 +448,7 @@ query ExportAllSales {
   }
 }
 # Arrow Flight will stream results in batches
-```
+```text
 
 **2. Use Materialized Views for Analytics**
 
@@ -472,7 +472,7 @@ query GetSalesSummary($startDate: Date!) {
     totalRevenue
   }
 }
-```
+```text
 
 **3. Use Fact Tables for Denormalized Analytics**
 
@@ -491,7 +491,7 @@ CREATE TABLE ta_sales_fact (
 );
 
 -- Arrow can efficiently scan this without joins
-```
+```text
 
 **4. Stream in Batches**
 
@@ -502,7 +502,7 @@ for batch in arrow_stream:
     df = batch.to_pandas()  # Convert to Pandas
     # Process or aggregate
     print(f"Processed {len(df)} rows")
-```
+```text
 
 ---
 
@@ -531,18 +531,18 @@ for batch in arrow_stream:
 
 **JSON Plane:**
 
-```
+```text
 Query execution: 2000ms
 JSON serialization: 5000ms
 Network transfer (30MB JSON): 15000ms (on 20 Mbps connection)
 Client processing: 2000ms
 ─────────────────────────────
 Total: ~24 seconds
-```
+```text
 
 **Arrow Plane:**
 
-```
+```text
 Query execution: 2000ms
 Arrow serialization: 500ms
 Arrow compression: 1000ms
@@ -550,7 +550,7 @@ Network transfer (8MB Arrow, compressed): 3000ms (on 20 Mbps connection)
 Client streaming: Concurrent with network
 ─────────────────────────────
 Total: ~5-6 seconds
-```
+```text
 
 **Result:** Arrow is **4-5x faster** for bulk exports
 
@@ -558,23 +558,23 @@ Total: ~5-6 seconds
 
 **JSON Plane:**
 
-```
+```text
 Query execution: 20ms
 JSON serialization: 1ms
 Network transfer: 1ms
 ─────────────────────────
 Total: ~22ms
-```
+```text
 
 **Arrow Plane:**
 
-```
+```text
 Query execution: 20ms
 Arrow setup: 50ms (overhead not worth it for small result)
 Network transfer: 2ms
 ─────────────────────────
 Total: ~72ms
-```
+```text
 
 **Result:** JSON is **3x faster** for small results (Arrow overhead not worth it)
 
@@ -607,7 +607,7 @@ query GetDashboard($userId: Int!) {
 # JSON Response (~2KB)
 # Latency: ~30ms
 # Perfect for real-time UI updates
-```
+```text
 
 ### Example 2: Monthly Sales Analysis (Arrow Plane)
 
@@ -633,7 +633,7 @@ query ExportMonthlySales($month: Int!, $year: Int!) {
 # Streaming in batches (65,536 rows per batch)
 # Latency: ~5 seconds for full export
 # Perfect for data science & analytics
-```
+```text
 
 ### Example 3: Real-Time Subscription (JSON Plane)
 
@@ -651,7 +651,7 @@ subscription OnOrderCreated($userId: Int!) {
 # Latency: ~100ms (for each update)
 # Payload: ~500 bytes per update
 # Perfect for live notifications
-```
+```text
 
 ### Example 4: Data Warehouse Sync (Arrow Plane)
 
@@ -675,7 +675,7 @@ query ExportAllProductMetrics($date: Date!) {
 # Processed in streaming batches
 # Latency: ~30-60 seconds for full sync
 # Perfect for bulk data warehouse operations
-```
+```text
 
 ---
 
@@ -683,7 +683,7 @@ query ExportAllProductMetrics($date: Date!) {
 
 ### JSON Plane in System Architecture
 
-```
+```text
 Web Browser
      ↓ (HTTP/WebSocket)
 FraiseQL Server (JSON Plane)
@@ -699,11 +699,11 @@ PostgreSQL
 Response (JSON)
      ↓
 Browser renders
-```
+```text
 
 ### Arrow Plane in System Architecture
 
-```
+```text
 Data Science App
      ↓ (Arrow Flight protocol)
 FraiseQL Server (Arrow Plane)
@@ -720,7 +720,7 @@ Arrow Flight Stream (batches)
      ↓
 Data Science App processes batches
      (5s-1m latency, streaming)
-```
+```text
 
 ---
 

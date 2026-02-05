@@ -32,7 +32,7 @@ All GraphQL queries now automatically project only requested fields at the datab
 ```toml
 [dependencies]
 fraiseql-core = "2.0.0-a1"  # From any previous version
-```
+```text
 
 ### 2. Deploy
 
@@ -42,7 +42,7 @@ Simply deploy the new version. No code changes needed.
 cargo build --release
 docker build .
 docker push myregistry/myapp
-```
+```text
 
 ### 3. Monitor
 
@@ -53,7 +53,7 @@ Queries automatically get 42-55% faster. Monitor these metrics:
 p50_latency_ms: 42 → 25 (60% improvement)
 p95_latency_ms: 50 → 28 (44% improvement)
 p99_latency_ms: 75 → 35 (53% improvement)
-```
+```text
 
 ## Testing & Validation
 
@@ -63,13 +63,13 @@ Check logs for projection SQL:
 
 ```bash
 RUST_LOG=fraiseql_core::runtime=debug cargo run
-```
+```text
 
 Look for messages like:
 
-```
+```text
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
-```
+```text
 
 ### Performance Regression Test
 
@@ -83,7 +83,7 @@ wrk -t4 -c100 -d30s -s test.lua http://old-server/graphql
 wrk -t4 -c100 -d30s -s test.lua http://new-server/graphql
 
 # Results should show ~40-55% improvement
-```
+```text
 
 ### Functional Testing
 
@@ -94,7 +94,7 @@ cargo test
 
 # All tests should pass with identical behavior
 # Just faster execution time
-```
+```text
 
 ## Rollback
 
@@ -104,7 +104,7 @@ If you need to rollback projection (for debugging):
 
 ```bash
 FRAISEQL_DISABLE_PROJECTION=true cargo run
-```
+```text
 
 ### Option 2: Downgrade to Earlier v2 Version
 
@@ -115,7 +115,7 @@ fraiseql-core = "2.0.0-alpha.0"  # or earlier v2 version
 
 cargo build --release
 # Re-deploy to previous v2 version
-```
+```text
 
 ## Database-Specific Considerations
 
@@ -170,34 +170,34 @@ cargo build --release
 
 After upgrade, you should see:
 
-```
+```text
 Query Latency (50th percentile):    40-55% reduction
 Query Latency (95th percentile):    40-55% reduction
 Query Latency (99th percentile):    40-55% reduction
 Database Load:                      Proportional reduction
 Network Bandwidth:                  40-55% reduction
 Memory Usage:                       Slight reduction
-```
+```text
 
 ### Measurement Example
 
 **Before upgrade** (typical 10K row query):
 
-```
+```text
 p50: 26ms
 p95: 30ms
 p99: 35ms
 Throughput: 230 Kelem/s
-```
+```text
 
 **After upgrade** (same query):
 
-```
+```text
 p50: 12ms  (54% improvement ⚡)
 p95: 14ms  (53% improvement ⚡)
 p99: 16ms  (54% improvement ⚡)
 Throughput: 274 Kelem/s (19% improvement ⚡)
-```
+```text
 
 ## Known Issues & Limitations
 
@@ -233,12 +233,12 @@ Throughput: 274 Kelem/s (19% improvement ⚡)
 
 Different query types benefit differently:
 
-```
+```text
 SELECT a, b, c FROM large_table          → 42% improvement
 SELECT a, b FROM large_table             → 35% improvement
 SELECT * FROM small_table                → 5% improvement
 SELECT a, b, c WHERE ... JOIN ... GROUP  → 20% improvement
-```
+```text
 
 **Key insight**: Improvement scales with % of unused fields
 
@@ -262,7 +262,7 @@ rate(postgres_queries_total[5m])
 
 # Network throughput - expect to drop
 rate(network_bytes_out_total[5m])
-```
+```text
 
 ### Alert Thresholds
 
@@ -273,7 +273,7 @@ Set alerts if:
   condition: |
     (p95_latency_after - p95_latency_before) / p95_latency_before > 0.05
   action: Investigate / Rollback
-```
+```text
 
 ## FAQ
 

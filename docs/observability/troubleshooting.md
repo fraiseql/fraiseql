@@ -34,7 +34,7 @@ psql $METRICS_DATABASE_URL -c "
 psql $METRICS_DATABASE_URL -c "
   SELECT COUNT(*) FROM fraiseql_metrics.query_executions
 "
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -52,7 +52,7 @@ export FRAISEQL_OBSERVABILITY_ENABLED=true
 # Or in fraiseql.toml:
 [observability]
 enabled = true
-```
+```text
 
 #### Cause 2: Database Connection Failed
 
@@ -63,7 +63,7 @@ psql $FRAISEQL_METRICS_DATABASE_URL -c "SELECT 1"
 
 # Solution: Check connection string
 export FRAISEQL_METRICS_DATABASE_URL=postgres://user:pass@correct-host:5432/db
-```
+```text
 
 #### Cause 3: Sample Rate Too Low
 
@@ -74,7 +74,7 @@ echo $FRAISEQL_OBSERVABILITY_SAMPLE_RATE
 
 # Solution: Increase sample rate
 export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=0.1  # 10%
-```
+```text
 
 #### Cause 4: Schema Not Created
 
@@ -98,7 +98,7 @@ CREATE INDEX idx_query_executions_name_time
     ON fraiseql_metrics.query_executions (query_name, executed_at DESC);
 
 -- (repeat for other tables - see configuration.md)
-```
+```text
 
 ---
 
@@ -116,7 +116,7 @@ CREATE INDEX idx_query_executions_name_time
 SELECT MAX(executed_at) FROM fraiseql_metrics.query_executions;
 -- Expected: < 1 minute ago
 -- Actual: 10 minutes ago
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -129,7 +129,7 @@ grep "metrics write timeout" app.log
 
 # Solution: Increase timeout
 export FRAISEQL_METRICS_DB_TIMEOUT_SECS=60
-```
+```text
 
 #### Cause 2: Database Connection Pool Exhausted
 
@@ -140,7 +140,7 @@ echo $FRAISEQL_METRICS_DB_POOL_SIZE
 
 # Solution: Increase pool size
 export FRAISEQL_METRICS_DB_POOL_SIZE=20
-```
+```text
 
 #### Cause 3: Flush Interval Too Long
 
@@ -151,7 +151,7 @@ echo $FRAISEQL_METRICS_FLUSH_INTERVAL_SECS
 
 # Solution: Flush more frequently
 export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
-```
+```text
 
 ---
 
@@ -168,7 +168,7 @@ export FRAISEQL_METRICS_FLUSH_INTERVAL_SECS=60
 # Check application memory
 docker stats fraiseql-api
 # MEM USAGE: 4.2 GB / 4 GB (near limit!)
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -181,7 +181,7 @@ echo $FRAISEQL_METRICS_BUFFER_SIZE
 
 # Solution: Reduce buffer size
 export FRAISEQL_METRICS_BUFFER_SIZE=100
-```
+```text
 
 #### Cause 2: Not Flushing to Database
 
@@ -198,7 +198,7 @@ GROUP BY minute
 ORDER BY minute DESC;
 
 -- If all rows have same minute → metrics being batched but not flushed
-```
+```text
 
 **Solution**: Force flush or restart application.
 
@@ -222,7 +222,7 @@ psql $METRICS_DATABASE_URL -c "
   WHERE executed_at > NOW() - INTERVAL '7 days'
 "
 # Output: 0 (no data!)
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -236,7 +236,7 @@ psql $METRICS_DATABASE_URL -c "
 # Output: 2026-01-12 10:00:00 (only 2 hours ago)
 
 # Solution: Wait for 24-48 hours of data collection
-```
+```text
 
 #### Cause 2: Thresholds Too High
 
@@ -247,7 +247,7 @@ fraiseql-cli analyze \
   --min-frequency 10 \      # Default: 1000
   --min-speedup 2.0 \       # Default: 5.0
   --format text
-```
+```text
 
 #### Cause 3: No JSON Usage Detected
 
@@ -255,7 +255,7 @@ fraiseql-cli analyze \
 -- Check if any JSON paths were tracked
 SELECT COUNT(*) FROM fraiseql_metrics.jsonb_accesses;
 -- Output: 0 (no JSON usage)
-```
+```text
 
 **Explanation**: Observability focuses on JSON/JSONB optimization. If your schema doesn't use JSON columns, suggestions will be limited to index recommendations.
 
@@ -269,7 +269,7 @@ WHERE table_name = 'tf_sales'
 AND column_name LIKE '%_id';
 
 -- Output: region_id, category_id (already denormalized!)
-```
+```text
 
 **Solution**: This is good! Re-run analysis after schema changes or new traffic patterns emerge.
 
@@ -290,7 +290,7 @@ SELECT
     pg_size_pretty(pg_total_relation_size('fraiseql_metrics.query_executions'))
     AS size;
 -- Output: 45 GB (very large!)
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -309,7 +309,7 @@ CREATE INDEX IF NOT EXISTS idx_jsonb_accesses_table_path
 
 ANALYZE fraiseql_metrics.query_executions;
 ANALYZE fraiseql_metrics.jsonb_accesses;
-```
+```text
 
 ```sql
 -- SQL Server: Add missing indexes
@@ -324,7 +324,7 @@ CREATE NONCLUSTERED INDEX idx_json_accesses_table_path
 
 UPDATE STATISTICS fraiseql_metrics.query_executions WITH FULLSCAN;
 UPDATE STATISTICS fraiseql_metrics.json_accesses WITH FULLSCAN;
-```
+```text
 
 #### Cause 2: Analyzing Too Much Data
 
@@ -333,7 +333,7 @@ UPDATE STATISTICS fraiseql_metrics.json_accesses WITH FULLSCAN;
 fraiseql-cli analyze \
   --database postgres://... \
   --window 1d  # Instead of 30d
-```
+```text
 
 #### Cause 3: Large Aggregations
 
@@ -349,7 +349,7 @@ WHERE executed_at > NOW() - INTERVAL '7 days'
 GROUP BY query_name;
 
 -- Look for "Seq Scan" (bad) instead of "Index Scan" (good)
-```
+```text
 
 **Solution**: Add indexes (see Cause 1).
 
@@ -392,10 +392,10 @@ Speedup estimates are **theoretical** based on:
 
 **Symptoms**:
 
-```
+```text
 ERROR: canceling statement due to lock timeout
 CONTEXT: while adding column to table "tf_sales"
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -411,14 +411,14 @@ SELECT
 FROM pg_stat_activity
 WHERE state != 'idle'
 ORDER BY duration DESC;
-```
+```text
 
 **Solution**: Wait for queries to complete or terminate them:
 
 ```sql
 -- Terminate blocking query
 SELECT pg_terminate_backend(12345);  -- Replace with actual PID
-```
+```text
 
 #### Cause 2: Not Using CONCURRENTLY
 
@@ -428,7 +428,7 @@ CREATE INDEX idx_name ON table (column);
 
 -- ✅ Good: Non-blocking
 CREATE INDEX CONCURRENTLY idx_name ON table (column);
-```
+```text
 
 ---
 
@@ -436,10 +436,10 @@ CREATE INDEX CONCURRENTLY idx_name ON table (column);
 
 **Error**:
 
-```
+```text
 ERROR: could not create unique index "idx_name"
 DETAIL: Key (region_id)=(NULL) is duplicated.
-```
+```text
 
 **Cause**: NULL values or duplicates in column
 
@@ -457,7 +457,7 @@ UPDATE tf_sales SET region_id = 'UNKNOWN' WHERE region_id IS NULL;
 CREATE INDEX idx_tf_sales_region
     ON tf_sales (region_id)
     WHERE region_id IS NOT NULL;
-```
+```text
 
 ---
 
@@ -499,7 +499,7 @@ BEGIN
         RAISE NOTICE 'Updated batch of % rows', rows_updated;
     END LOOP;
 END $$;
-```
+```text
 
 ---
 
@@ -525,7 +525,7 @@ FROM pg_stat_statements
 WHERE query LIKE '%tf_sales%'
 ORDER BY mean_exec_time DESC
 LIMIT 10;
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -540,7 +540,7 @@ SELECT * FROM tf_sales WHERE region_id = 'US';
 
 -- ✅ "Index Scan using idx_tf_sales_region" (good)
 -- ❌ "Seq Scan on tf_sales" (bad - index not used)
-```
+```text
 
 **Solution 1: Update statistics**
 
@@ -550,7 +550,7 @@ ANALYZE tf_sales;
 
 -- SQL Server
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
-```
+```text
 
 **Solution 2: Force index usage** (temporary debugging)
 
@@ -559,7 +559,7 @@ UPDATE STATISTICS tf_sales WITH FULLSCAN;
 SET enable_seqscan = off;
 EXPLAIN ANALYZE SELECT * FROM tf_sales WHERE region_id = 'US';
 SET enable_seqscan = on;
-```
+```text
 
 #### Cause 2: Wrong Index Type
 
@@ -573,7 +573,7 @@ CREATE INDEX idx_dimensions_gin ON tf_sales USING GIN (dimensions);
 
 -- PostgreSQL: Use GiST index for full-text search
 CREATE INDEX idx_name_gist ON users USING GiST (name gist_trgm_ops);
-```
+```text
 
 ---
 
@@ -592,7 +592,7 @@ SELECT COUNT(*)
 FROM pg_indexes
 WHERE tablename = 'tf_sales';
 -- Output: 15 indexes (too many!)
-```
+```text
 
 **Explanation**: Every index must be updated on write operations.
 
@@ -612,7 +612,7 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 
 -- Drop unused indexes
 DROP INDEX IF EXISTS idx_unused;
-```
+```text
 
 ---
 
@@ -636,7 +636,7 @@ SELECT
     EXTRACT(EPOCH FROM (NOW() - replay_timestamp)) AS lag_seconds
 FROM pg_stat_replication;
 -- Output: lag_seconds = 45 (too high!)
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -666,7 +666,7 @@ BEGIN
         PERFORM pg_sleep(0.5);  -- 500ms pause
     END LOOP;
 END $$;
-```
+```text
 
 #### Cause 2: Index Creation Generating WAL
 
@@ -679,7 +679,7 @@ psql primary -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 # 2. Wait for replication to catch up
 # 3. Manually create index on replica (optional optimization)
 psql replica -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
-```
+```text
 
 ---
 
@@ -689,9 +689,9 @@ psql replica -c "CREATE INDEX CONCURRENTLY idx_name ON table (column)"
 
 **Symptoms**:
 
-```
+```text
 Error: connection refused
-```
+```text
 
 **Diagnosis**:
 
@@ -699,7 +699,7 @@ Error: connection refused
 # Test connection
 psql $DATABASE_URL -c "SELECT 1"
 # Error: could not connect to server
-```
+```text
 
 **Common Causes & Solutions**:
 
@@ -713,7 +713,7 @@ echo $DATABASE_URL
 # Solution: Verify host/port
 nslookup db-host.example.com
 telnet db-host.example.com 5432
-```
+```text
 
 #### Cause 2: Firewall Blocking Connection
 
@@ -724,7 +724,7 @@ nc -zv db-host.example.com 5432
 
 # Solution: Open firewall port
 # (depends on your infrastructure)
-```
+```text
 
 #### Cause 3: Database Not Running
 
@@ -735,7 +735,7 @@ sudo systemctl status postgresql
 
 # Solution: Start database
 sudo systemctl start postgresql
-```
+```text
 
 ---
 
@@ -757,7 +757,7 @@ SELECT
     COUNT(*)::FLOAT AS selectivity
 FROM tf_sales;
 -- Output: 0.92 (92% selectivity - very low!)
-```
+```text
 
 **Cause**: Metrics estimated selectivity incorrectly.
 
@@ -769,7 +769,7 @@ export FRAISEQL_OBSERVABILITY_SAMPLE_RATE=1.0  # 100% sampling
 
 # Wait 24 hours, then re-analyze
 fraiseql-cli analyze --database postgres://... --window 1d
-```
+```text
 
 ---
 
@@ -785,7 +785,7 @@ export RUST_LOG=fraiseql=debug
 
 # Run analysis with debug output
 fraiseql-cli analyze --database postgres://... 2>&1 | tee debug.log
-```
+```text
 
 ### Health Check Script
 
@@ -832,7 +832,7 @@ else
 fi
 
 echo -e "\n=== Health Check Complete ==="
-```
+```text
 
 ---
 

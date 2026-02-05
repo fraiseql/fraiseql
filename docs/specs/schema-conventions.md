@@ -108,7 +108,7 @@ CREATE TABLE tb_post (
     fk_user INTEGER NOT NULL REFERENCES tb_user(pk_user),
     ...
 );
-```
+```text
 
 **Rules:**
 
@@ -147,7 +147,7 @@ WHERE deleted_at IS NULL;
 
 -- Index the foreign key column for fast filtering
 CREATE INDEX idx_v_post_user_id ON v_post(user_id);
-```
+```text
 
 **Rules:**
 
@@ -194,7 +194,7 @@ LEFT JOIN LATERAL (
 -- Index each path column
 CREATE INDEX idx_v_order_items__product__category_id
   ON v_order USING GIN(items__product__category_id);
-```
+```text
 
 **Rules:**
 
@@ -231,7 +231,7 @@ CREATE TRIGGER trigger_tb_user_updated_at
 BEFORE UPDATE ON tb_user
 FOR EACH ROW
 EXECUTE FUNCTION update_timestamp();
-```
+```text
 
 **Rules:**
 
@@ -269,7 +269,7 @@ SELECT
     ) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Rules:**
 
@@ -290,7 +290,7 @@ WHERE deleted_at IS NULL;
 
 These columns are reserved by FraiseQL and MUST NOT be used elsewhere:
 
-```
+```text
 pk_*         — Primary key (internal only)
 fk_*         — Foreign key (internal only)
 id           — Public identifier (UUID)
@@ -304,7 +304,7 @@ updated_at   — Audit column
 updated_by   — Audit column
 deleted_at   — Audit column (soft delete)
 deleted_by   — Audit column
-```
+```text
 
 ---
 
@@ -327,7 +327,7 @@ SELECT
     ) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;                 -- Soft delete
-```
+```text
 
 **Must include:**
 
@@ -359,7 +359,7 @@ WHERE deleted_at IS NULL;
 
 -- Index the FK column for filtering
 CREATE INDEX idx_v_post_user_id ON v_post(user_id);
-```
+```text
 
 **Must include:**
 
@@ -389,7 +389,7 @@ SELECT
     ) AS data
 FROM v_user u
 LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
-```
+```text
 
 **Rules:**
 
@@ -464,7 +464,7 @@ CREATE TABLE td_products (
 
 -- ETL process denormalizes td_products into tf_sales.dimensions
 -- Example: dimensions->>'product_name', dimensions->>'product_category'
-```
+```text
 
 **Key architectural principle**: FraiseQL does NOT support joins. All dimensional data must be denormalized into the `dimensions` JSONB column at ETL time. The DBA/data team manages ETL pipelines; FraiseQL provides the GraphQL query interface.
 
@@ -497,7 +497,7 @@ SELECT
     created_at
 FROM tb_post
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Rules:**
 
@@ -564,7 +564,7 @@ All stored procedures (mutations) MUST return a standardized JSON response match
     "input_payload": { ... }
   }
 }
-```
+```text
 
 **Response fields (all required):**
 
@@ -691,7 +691,7 @@ EXCEPTION WHEN OTHERS THEN
     RETURN v_response::TEXT;
 END;
 $$;
-```
+```text
 
 **Rules:**
 
@@ -804,7 +804,7 @@ EXCEPTION WHEN OTHERS THEN
     )::TEXT;
 END;
 $$;
-```
+```text
 
 **Rules:**
 
@@ -899,7 +899,7 @@ EXCEPTION WHEN OTHERS THEN
     )::TEXT;
 END;
 $$;
-```
+```text
 
 **Rules:**
 
@@ -963,7 +963,7 @@ CREATE TABLE core.tb_entity_change_log (
 CREATE INDEX idx_entity_log_object ON core.tb_entity_change_log (object_type, object_id);
 CREATE INDEX idx_entity_log_org ON core.tb_entity_change_log (fk_customer_org, created_at);
 CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
-```
+```text
 
 **Purpose:**
 
@@ -998,7 +998,7 @@ The `object_data` JSONB column contains a **Debezium-style change envelope** for
     "ts_ms": 1704067200000
   }
 }
-```
+```text
 
 **Operation Codes:**
 
@@ -1054,7 +1054,7 @@ BEGIN
     ...
 END;
 $$;
-```
+```text
 
 **build_mutation_response()** — Constructs mutation response without logging
 
@@ -1088,7 +1088,7 @@ BEGIN
     )::app.mutation_response;
 END;
 $$;
-```
+```text
 
 **log_and_return_mutation()** — Combined helper (logs + returns response)
 
@@ -1139,7 +1139,7 @@ BEGIN
     );
 END;
 $$;
-```
+```text
 
 ### 6.5 Usage Patterns
 
@@ -1191,7 +1191,7 @@ BEGIN
     );
 END;
 $$;
-```
+```text
 
 **Custom error response:**
 
@@ -1223,7 +1223,7 @@ IF EXISTS (SELECT 1 FROM tb_user WHERE email = input_email) THEN
         jsonb_build_object('trigger', 'api_create', 'conflict_reason', 'duplicate_email')
     );
 END IF;
-```
+```text
 
 ### 6.6 Separation of Concerns Pattern
 
@@ -1254,7 +1254,7 @@ CREATE TABLE tb_user_role (
     assigned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(fk_user, fk_role)
 );
-```
+```text
 
 ### 7.2 View for Array Aggregation
 
@@ -1285,7 +1285,7 @@ SELECT
 FROM tb_user u
 LEFT JOIN v_user_role_ids_by_user ur ON ur.fk_user = u.pk_user
 WHERE u.deleted_at IS NULL;
-```
+```text
 
 **Rules:**
 
@@ -1323,7 +1323,7 @@ CREATE INDEX idx_v_user_role_ids
   ON v_user USING GIN(role_ids);
 CREATE INDEX idx_v_post_data_gin
   ON v_post USING GIN(data);
-```
+```text
 
 **Rules:**
 
@@ -1362,7 +1362,7 @@ CREATE INDEX idx_mv_user_stats_fk_user ON mv_user_stats(fk_user);
 
 -- Refresh manually or on schedule
 REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_stats;
-```
+```text
 
 **Rules:**
 

@@ -22,7 +22,7 @@ FraiseQL state management spans three concerns:
 
 ### 1.1 Cache Layers
 
-```
+```text
                 Application
                     ↓
     ┌───────────────────────────────┐
@@ -42,7 +42,7 @@ FraiseQL state management spans three concerns:
     │ • PostgreSQL views            │ • Permanent
     │ • Materialized views          │ • Slowest
     └───────────────────────────────┘
-```
+```text
 
 ### 1.2 Cache Key Generation
 
@@ -63,13 +63,13 @@ cache_key_string = hash(cache_key)
 
 # Search in L1/L2 cache
 cached_result = cache.get(cache_key_string)
-```
+```text
 
 ### 1.3 Cache TTL (Time To Live)
 
 Different TTL per operation type:
 
-```
+```text
 Static data (Product catalog):
   ├─ TTL: 1 hour
   ├─ Reason: Changes infrequently
@@ -89,13 +89,13 @@ Personalized (User feed):
   ├─ TTL: 30 seconds
   ├─ Reason: User + algorithm dependent
   └─ Miss cost: <500ms
-```
+```text
 
 ### 1.4 Cache Invalidation
 
 Invalidation cascade on mutation:
 
-```
+```text
 Mutation: UpdatePost (post_id=789)
     ↓
 1. Query database (write completes)
@@ -110,7 +110,7 @@ Mutation: UpdatePost (post_id=789)
     ├─ GetPost(id=789) → Cache miss → Query DB
     ├─ GetPostsByAuthor(author_id=456) → Cache miss → Query DB
     └─ Both re-cached for TTL period
-```
+```text
 
 ### 1.5 Cache Warming
 
@@ -132,7 +132,7 @@ Result:
   ├─ But 95%+ hit rate from moment 1
   ├─ Smoother user experience (no initial delays)
   └─ Reduced database load at launch
-```
+```text
 
 ---
 
@@ -140,7 +140,7 @@ Result:
 
 ### 2.1 CDC Architecture
 
-```
+```text
 Database (PostgreSQL)
     ├─ Trigger on INSERT/UPDATE/DELETE
     ├─ Publishes to LISTEN channel (pg_notify)
@@ -158,7 +158,7 @@ Subscribers & Caches
     ├─ Webhooks (HTTP)
     ├─ Message queues (Kafka)
     ├─ Cache invalidation
-```
+```text
 
 ### 2.2 CDC Events
 
@@ -199,13 +199,13 @@ Event {
    ├─ POST https://external.com/webhooks/post_created
 4. Event stream (Kafka, etc.)
    ├─ Published to post_created topic
-```
+```text
 
 ### 2.3 CDC Event Ordering
 
 **Per-entity ordering guarantee:**
 
-```
+```text
 Post #123 events (guaranteed ordered):
     1. post_created (T0)
     2. post_updated (T0 + 1s)
@@ -229,13 +229,13 @@ Different entity events (may reorder):
     ├─ Post #123 created
     ├─ User #456 updated
     ├─ Post #123 updated (still ordered per entity)
-```
+```text
 
 ### 2.4 CDC Event Deduplication
 
 Events may be delivered multiple times (at-least-once):
 
-```
+```text
 Event: post_created (id: post-789)
 
 Delivery 1: Client A receives
@@ -252,7 +252,7 @@ async def handle_post_created(event):
 
     # Process event
     await process_event(event)
-```
+```text
 
 ---
 
@@ -262,7 +262,7 @@ async def handle_post_created(event):
 
 FraiseQL chooses **consistency and partition tolerance** (CP):
 
-```
+```text
 CAP: Choose 2 of 3
 ├─ Consistency (all nodes same data)
 ├─ Availability (always respond)
@@ -277,13 +277,13 @@ In practice:
   ├─ Same database: Full CP
   ├─ With replicas: Eventually consistent across replicas
   ├─ Causal consistency for federation
-```
+```text
 
 ### 3.2 Consistency Guarantees
 
 **Single database (SERIALIZABLE isolation):**
 
-```
+```text
 Query 1: SELECT * FROM users
   ├─ Sees: User A, User B, User C
   └─ Time: T0
@@ -297,11 +297,11 @@ Query 2: SELECT * FROM users
   └─ Time: T0 + 10ms
 
 Guarantee: Every query sees consistent, up-to-date state
-```
+```text
 
 **With read replicas (eventual consistency):**
 
-```
+```text
 Primary database: Write all mutations
 Read replicas (3 copies): Read-only
 
@@ -318,13 +318,13 @@ Query from replica 3 at T0 + 15ms:
   ├─ Doesn't see new user ✗ (not yet replicated)
 
 Result: Eventual consistency (typically <1 second)
-```
+```text
 
 ### 3.3 Cache + Live Data Consistency
 
 Challenge: Cache can be stale
 
-```
+```text
 Timeline:
 T0:     GetPost(id=789) → Cache miss → Query DB
         ├─ Result: { title: "Original" }
@@ -339,11 +339,11 @@ T0+2s:  GetPost(id=789) → Cache miss → Query DB
         └─ Cached for 5 minutes
 
 Result: Cache always consistent (invalidated on write)
-```
+```text
 
 **Edge case: Network partition**
 
-```
+```text
 Normal:
   Mutation → Update database → Invalidate cache
   Next query: Sees new data
@@ -360,7 +360,7 @@ Recovery:
   ├─ Run: cache.invalidate_all() (flush cache)
   ├─ Or: Wait for TTL expiration (5 minutes)
   ├─ Next query sees fresh data
-```
+```text
 
 ---
 
@@ -389,13 +389,13 @@ async def createPost(input):
 # Cache miss (just invalidated)
 # Query database (sees their new post)
 # ✓ User A sees their own writes
-```
+```text
 
 ### 4.2 Causal Consistency (for federation)
 
 Events propagate in order:
 
-```
+```text
 User A: Create Post #1 (T0)
     ├─ Primary database: Post created
     ├─ Event published: post_created
@@ -411,13 +411,13 @@ User C (on different subgraph): Query posts
     ├─ Doesn't see Post #1 (not replicated yet)
     ├─ Re-queries at T0 + 25ms
     ├─ Sees Post #1 ✓
-```
+```text
 
 ### 4.3 Eventual Consistency (multi-database)
 
 Different databases eventually consistent:
 
-```
+```text
 Database A (Primary for users): User created
 Database B (Replica): Gets replicated
 Database C (Replica): Gets replicated
@@ -432,7 +432,7 @@ Queries during replication:
   T0+15ms from DB C: Sees user (replicated)
 
 Consistency model: Eventual (typically <1s)
-```
+```text
 
 ---
 
@@ -464,7 +464,7 @@ async def get_user_posts(user_id):
     await cache_l2.set(key, result, ttl=1*60*60)
 
     return result
-```
+```text
 
 ### 5.2 Write-Through Caching
 
@@ -489,7 +489,7 @@ async def create_post(input):
     cache.set(key, cached_posts, ttl=5*60)
 
     return post
-```
+```text
 
 ### 5.3 Write-Behind Caching
 
@@ -509,7 +509,7 @@ async def update_user_profile(user_id, data):
 
 # Client sees update immediately (from cache)
 # Database eventually consistent (async write)
-```
+```text
 
 ---
 
@@ -538,7 +538,7 @@ async def on_post_updated(event):
 async def on_post_deleted(event):
     # Similar invalidation
     ...
-```
+```text
 
 ### 6.2 Event Sourcing
 
@@ -556,7 +556,7 @@ tb_post_events: [
 ]
 
 Current state = Apply events from T0 to Tn
-```
+```text
 
 ---
 
@@ -564,7 +564,7 @@ Current state = Apply events from T0 to Tn
 
 ### 7.1 Metrics
 
-```
+```text
 Cache metrics:
   ├─ Hit rate: Target >80%
   ├─ Invalidation rate: Monitor trends
@@ -580,11 +580,11 @@ CDC metrics:
   ├─ Event latency: Target <100ms
   ├─ Event ordering: Verify per-entity
   ├─ Delivery reliability: Target 99.99%
-```
+```text
 
 ### 7.2 Health Checks
 
-```
+```text
 Cache health:
   ├─ Redis connectivity: UP/DOWN
   ├─ Memcached connectivity: UP/DOWN
@@ -599,7 +599,7 @@ CDC health:
   ├─ LISTEN channels: Connected?
   ├─ Event backlog: <100?
   └─ Trigger functions: Enabled?
-```
+```text
 
 ---
 
@@ -630,7 +630,7 @@ fraiseql.state.configure({
         "delay_ms": 10
     }
 })
-```
+```text
 
 ### 8.2 CDC Configuration
 
@@ -652,7 +652,7 @@ fraiseql.state.configure({
         "lag_threshold_ms": 1000
     }
 })
-```
+```text
 
 ---
 

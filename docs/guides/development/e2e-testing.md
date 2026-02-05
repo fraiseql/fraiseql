@@ -46,7 +46,7 @@ End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schem
 
 ## Architecture
 
-```
+```text
 ┌────────────────────────────────────────────────────┐
 │             E2E Test Orchestrator                   │
 │                  (Makefile)                         │
@@ -66,7 +66,7 @@ End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schem
         │  Databases     │
         │  (test)        │
         └────────────────┘
-```
+```text
 
 ## Quick Start
 
@@ -74,7 +74,7 @@ End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schem
 
 ```bash
 make e2e-all
-```
+```text
 
 This runs sequential tests for Python, TypeScript, and Go.
 
@@ -84,30 +84,30 @@ This runs sequential tests for Python, TypeScript, and Go.
 make e2e-python     # Python tests
 make e2e-typescript # TypeScript tests
 make e2e-go        # Go tests
-```
+```text
 
 ### Check Infrastructure Status
 
 ```bash
 make e2e-status
-```
+```text
 
 Output shows which languages are available:
 
-```
+```text
 Languages ready:
   ✅ Python
   ✅ TypeScript/Node
   ✅ Go
   ❌ Java
   ❌ PHP
-```
+```text
 
 ### Setup E2E Infrastructure
 
 ```bash
 make e2e-setup
-```
+```text
 
 This starts Docker containers for:
 
@@ -119,7 +119,7 @@ This starts Docker containers for:
 
 ```bash
 make e2e-clean
-```
+```text
 
 Stops containers and removes temporary files.
 
@@ -142,7 +142,7 @@ def users() -> list[User]:
     pass
 
 fraiseql_schema.export_schema("schema.json")
-```
+```text
 
 **TypeScript**:
 
@@ -157,7 +157,7 @@ class User {
 users(): User[] { return []; }
 
 ExportSchema("schema.json");
-```
+```text
 
 **Go**:
 
@@ -168,7 +168,7 @@ type User struct {
 }
 
 fraiseql.ExportSchema("schema.json")
-```
+```text
 
 ### JSON Validation
 
@@ -183,7 +183,7 @@ Verify schema JSON structure:
 
 ```bash
 fraiseql-cli compile schema.json -o schema.compiled.json
-```
+```text
 
 Produces optimized execution plan with:
 
@@ -198,7 +198,7 @@ Start server with compiled schema:
 
 ```bash
 fraiseql-server --schema schema.compiled.json --port 4000
-```
+```text
 
 ## Test Structure
 
@@ -230,7 +230,7 @@ def test_python_e2e_basic_schema():
         capture_output=True
     )
     assert result.returncode == 0
-```
+```text
 
 ### Running Directly
 
@@ -238,7 +238,7 @@ def test_python_e2e_basic_schema():
 cd fraiseql-python
 source .venv/bin/activate
 python tests/e2e/python_e2e_test.py
-```
+```text
 
 ## Makefile Targets
 
@@ -252,7 +252,7 @@ Starts Docker test databases:
 
 ```bash
 make e2e-setup
-```
+```text
 
 ### e2e-velocitybench
 
@@ -260,7 +260,7 @@ Runs E2E test against the VelocityBench blogging application:
 
 ```bash
 make e2e-velocitybench
-```
+```text
 
 This is a real-world integration test that:
 
@@ -277,7 +277,7 @@ Runs sequential tests for all languages plus VelocityBench integration:
 
 ```bash
 make e2e-all
-```
+```text
 
 Equivalent to: `e2e-python → e2e-typescript → e2e-go → e2e-velocitybench`
 
@@ -289,11 +289,11 @@ Runs E2E test for specific language:
 
 ```bash
 make e2e-python
-```
+```text
 
 Output:
 
-```
+```text
 ========== PYTHON E2E TEST ==========
 ✅ Python environment ready
 
@@ -302,7 +302,7 @@ Running E2E tests...
 ✅ test_python_e2e_analytics_schema passed
 
 ✅ Python E2E tests passed
-```
+```text
 
 ### e2e-clean
 
@@ -310,7 +310,7 @@ Stops Docker containers and removes temp files:
 
 ```bash
 make e2e-clean
-```
+```text
 
 ### e2e-status
 
@@ -318,7 +318,7 @@ Checks infrastructure readiness:
 
 ```bash
 make e2e-status
-```
+```text
 
 Output shows available languages and Docker status.
 
@@ -344,7 +344,7 @@ jobs:
         run: make e2e-all
       - name: Cleanup
         run: make e2e-clean
-```
+```text
 
 ## Test Coverage
 
@@ -365,15 +365,15 @@ If Docker isn't installed:
 ```bash
 # Tests still run, but without database
 make e2e-python
-```
+```text
 
 CLI compilation is tested regardless of Docker availability.
 
 ### Python Environment Not Activated
 
-```
+```text
 Error: No module named 'fraiseql'
-```
+```text
 
 Solution:
 
@@ -382,13 +382,13 @@ cd fraiseql-python
 source .venv/bin/activate
 cd ..
 make e2e-python
-```
+```text
 
 ### TypeScript Tests Failing
 
-```
+```text
 Error: Cannot find module 'jest'
-```
+```text
 
 Solution:
 
@@ -397,13 +397,13 @@ cd fraiseql-typescript
 npm install
 cd ..
 make e2e-typescript
-```
+```text
 
 ### CLI Not Found
 
-```
+```text
 fraiseql-cli: command not found
-```
+```text
 
 Solution:
 
@@ -411,14 +411,14 @@ Solution:
 cargo build --release -p fraiseql-cli
 export PATH="$(pwd)/target/release:$PATH"
 make e2e-all
-```
+```text
 
 ### Schema Compilation Warnings
 
-```
+```text
 ⚠️  Warnings (2):
    Query 'posts' returns a list but has no sql_source
-```
+```text
 
 This is expected during development. Warnings don't block compilation. Use `sql_source` for production queries.
 
@@ -474,7 +474,7 @@ All tests run sequentially, so total time is the sum of individual times.
 
 ```bash
 make e2e-python  # Already shows detailed output
-```
+```text
 
 ### Step-by-Step Execution
 
@@ -491,7 +491,7 @@ npm test
 # Go
 cd fraiseql-go
 go test ./fraiseql/... -v
-```
+```text
 
 ### Check Generated Schemas
 
@@ -500,13 +500,13 @@ go test ./fraiseql/... -v
 python -c "from fraiseql import schema; schema.export_schema('/tmp/py_test.json')"
 ls -la /tmp/py_test.json
 cat /tmp/py_test.json | python -m json.tool
-```
+```text
 
 ### Inspect CLI Output
 
 ```bash
 fraiseql-cli compile /tmp/py_test.json --verbose
-```
+```text
 
 ## Best Practices
 
@@ -514,7 +514,7 @@ fraiseql-cli compile /tmp/py_test.json --verbose
 
 ```bash
 make e2e-all && git commit
-```
+```text
 
 ### 2. Isolate Test Output
 
@@ -522,7 +522,7 @@ Tests create temporary files in `/tmp/`. Clean up after:
 
 ```bash
 make e2e-clean
-```
+```text
 
 ### 3. Test in Isolation
 
@@ -531,7 +531,7 @@ Run individual language tests to isolate issues:
 ```bash
 make e2e-python  # If this fails, focus on Python
 make e2e-typescript  # If this fails, focus on TypeScript
-```
+```text
 
 ### 4. Verify CLI First
 
@@ -541,7 +541,7 @@ Before running full E2E tests:
 cargo build --release -p fraiseql-cli
 export PATH="$(pwd)/target/release:$PATH"
 fraiseql-cli --version
-```
+```text
 
 ### 5. Check Infrastructure Status
 
@@ -549,7 +549,7 @@ Before running tests:
 
 ```bash
 make e2e-status
-```
+```text
 
 ## Integration with CI/CD
 
@@ -560,7 +560,7 @@ make e2e-status
 make e2e-all
 git add .
 git commit -m "feat: Add new feature"
-```
+```text
 
 ### GitHub Actions
 

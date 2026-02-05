@@ -23,10 +23,10 @@ In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeS
 
 **Architecture:**
 
-```
+```text
 TypeScript Schema        → schema.json        → schema.compiled.json → FraiseQL Server
 (@Type, @Query, @Mutation)  (decorators)      (fraiseql-cli)        (GraphQL API)
-```
+```text
 
 ---
 
@@ -75,7 +75,7 @@ CREATE INDEX idx_posts_author_id ON posts(author_id);
 CREATE INDEX idx_posts_published ON posts(published_at DESC);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_author_id ON comments(author_id);
-```
+```text
 
 ### 1.2 Database Views (for GraphQL Queries)
 
@@ -127,7 +127,7 @@ SELECT
     u.name AS author_name
 FROM comments c
 JOIN users u ON c.author_id = u.id;
-```
+```text
 
 ### 1.3 Database Procedures (for Mutations)
 
@@ -192,7 +192,7 @@ SET
 WHERE id = p_id
 RETURNING *;
 $$ LANGUAGE SQL;
-```
+```text
 
 ---
 
@@ -210,7 +210,7 @@ npm install fraiseql
 
 # Create src directory
 mkdir src
-```
+```text
 
 ### 2.2 TypeScript Configuration
 
@@ -238,7 +238,7 @@ Create `tsconfig.json`:
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
-```
+```text
 
 **Key settings:**
 
@@ -271,7 +271,7 @@ Create `package.json` scripts:
     "ts-node": "^10.9.0"
   }
 }
-```
+```text
 
 ---
 
@@ -801,7 +801,7 @@ if (require.main === module) {
 }
 
 export { User, Post, Comment };
-```
+```text
 
 ### 3.2 Understanding the Decorators
 
@@ -817,7 +817,7 @@ class User {
   id: number;
   name: string;
 }
-```
+```text
 
 **What it does:**
 
@@ -843,7 +843,7 @@ fraiseql.registerTypeFields("User", [
     nullable: false
   }
 ]);
-```
+```text
 
 **Scalar types:**
 
@@ -883,7 +883,7 @@ fraiseql.registerQuery(
   "Get all users with pagination",
   { sqlSource: "v_user" }  // View or table name
 );
-```
+```text
 
 **Parameters:**
 
@@ -917,7 +917,7 @@ fraiseql.registerMutation(
     operation: "CREATE"              // CREATE, UPDATE, DELETE, or CUSTOM
   }
 );
-```
+```text
 
 ### 3.3 TypeScript Type System
 
@@ -932,7 +932,7 @@ name: string | null   // String       (optional)
 // Arrays
 posts: Post[]         // [Post!]!     (non-null array of non-null items)
 posts?: Post[]        // [Post!]      (non-null array, but field optional)
-```
+```text
 
 **Relationships:**
 
@@ -975,7 +975,7 @@ fraiseql.registerQuery(
   "Get posts by author",
   { sqlSource: "v_post" }
 );
-```
+```text
 
 ---
 
@@ -985,17 +985,17 @@ fraiseql.registerQuery(
 
 ```bash
 npm run export
-```
+```text
 
 **Output:**
 
-```
+```text
 ✅ Schema exported successfully!
    Output: schema.json
    Types: 3 (User, Post, Comment)
    Queries: 6
    Mutations: 4
-```
+```text
 
 This generates `schema.json`:
 
@@ -1059,7 +1059,7 @@ This generates `schema.json`:
     }
   ]
 }
-```
+```text
 
 ### 4.2 Understanding the Generated JSON
 
@@ -1103,7 +1103,7 @@ This generates `schema.json`:
 
 ```bash
 npx tsc --noEmit
-```
+```text
 
 ---
 
@@ -1140,7 +1140,7 @@ enable_mutations = true
 bind = "0.0.0.0"
 port = 4000
 cors_origins = ["*"]
-```
+```text
 
 ### 5.2 Environment Variable Overrides
 
@@ -1151,7 +1151,7 @@ export FRAISEQL_DB_HOST=prod-db.example.com
 export FRAISEQL_DB_NAME=blog_prod
 export FRAISEQL_DB_USERNAME=blog_prod_user
 export FRAISEQL_DB_PASSWORD=<secure-password>
-```
+```text
 
 ---
 
@@ -1163,7 +1163,7 @@ Once you have `schema.json` and `fraiseql.toml`, compile:
 
 ```bash
 fraiseql compile fraiseql.toml --types schema.json
-```
+```text
 
 **What it does:**
 
@@ -1175,7 +1175,7 @@ fraiseql compile fraiseql.toml --types schema.json
 
 **Output:**
 
-```
+```text
 Compiling Blog API v1.0.0...
 ✅ Database connection successful
 ✅ Validated 3 types (User, Post, Comment)
@@ -1183,7 +1183,7 @@ Compiling Blog API v1.0.0...
 ✅ Validated 4 mutations
 ✅ Generated SQL templates
 ✅ Compiled schema saved: schema.compiled.json
-```
+```text
 
 ### 6.2 Understanding schema.compiled.json
 
@@ -1207,7 +1207,7 @@ The compiled schema includes:
     "procedures": ["fn_create_user", "fn_create_post", "fn_create_comment", "fn_update_user"]
   }
 }
-```
+```text
 
 ### 6.3 Troubleshooting Compilation Errors
 
@@ -1241,7 +1241,7 @@ SELECT * FROM v_user LIMIT 1;
 
 # Check function signature
 \df fn_create_user;
-```
+```text
 
 ---
 
@@ -1251,16 +1251,16 @@ SELECT * FROM v_user LIMIT 1;
 
 ```bash
 npm run dev
-```
+```text
 
 **Output:**
 
-```
+```text
 Starting FraiseQL server...
 ✅ Loaded schema.compiled.json
 ✅ Connected to PostgreSQL (localhost:5432)
 ✅ Server running at http://localhost:4000/graphql
-```
+```text
 
 ### 7.2 Testing with GraphQL IDE
 
@@ -1278,7 +1278,7 @@ query GetAllUsers {
     createdAt
   }
 }
-```
+```text
 
 **Expected Response:**
 
@@ -1303,7 +1303,7 @@ query GetAllUsers {
     ]
   }
 }
-```
+```text
 
 ### 7.3 Example Mutations
 
@@ -1321,7 +1321,7 @@ mutation {
     name
   }
 }
-```
+```text
 
 **Create Post:**
 
@@ -1338,7 +1338,7 @@ mutation {
     createdAt
   }
 }
-```
+```text
 
 **Create Comment:**
 
@@ -1354,7 +1354,7 @@ mutation {
     createdAt
   }
 }
-```
+```text
 
 ---
 
@@ -1376,7 +1376,7 @@ curl -X POST http://localhost:4000/graphql \
   -d '{
     "query": "mutation { createUser(email: \"test@example.com\" name: \"Test\") { id } }"
   }'
-```
+```text
 
 ### 8.2 Using Postman
 
@@ -1388,7 +1388,7 @@ curl -X POST http://localhost:4000/graphql \
 {
   "query": "{ users(limit: 10) { id email name } }"
 }
-```
+```text
 
 ### 8.3 TypeScript Integration Tests
 
@@ -1462,7 +1462,7 @@ async function runTests() {
 if (require.main === module) {
   runTests().catch(console.error);
 }
-```
+```text
 
 ---
 
@@ -1485,7 +1485,7 @@ fraiseql.registerQuery(
   "Get posts with pagination",
   { sqlSource: "v_post" }
 );
-```
+```text
 
 **Usage:**
 
@@ -1497,7 +1497,7 @@ query {
     createdAt
   }
 }
-```
+```text
 
 ### 9.2 Filtering
 
@@ -1528,7 +1528,7 @@ fraiseql.registerQuery(
   "Get comments on a post",
   { sqlSource: "v_comment" }
 );
-```
+```text
 
 ### 9.3 Sorting
 
@@ -1539,7 +1539,7 @@ Include sort parameter as enum:
 // [queries.posts]
 // sortBy = ["created_at", "title"]
 // sortOrder = ["ASC", "DESC"]
-```
+```text
 
 ### 9.4 Optional Fields
 
@@ -1559,7 +1559,7 @@ fraiseql.registerMutation(
   "Update user profile",
   { sqlSource: "fn_update_user" }
 );
-```
+```text
 
 ### 9.5 Computed Fields
 
@@ -1579,7 +1579,7 @@ FROM users u
 LEFT JOIN posts p ON u.id = p.author_id
 LEFT JOIN comments c ON u.id = c.author_id
 GROUP BY u.id;
-```
+```text
 
 Then register these fields:
 
@@ -1589,7 +1589,7 @@ fraiseql.registerTypeFields("User", [
   { name: "postCount", type: "Int", nullable: false },       // Computed in view
   { name: "commentCount", type: "Int", nullable: false }     // Computed in view
 ]);
-```
+```text
 
 ---
 
@@ -1620,7 +1620,7 @@ CMD ["fraiseql-server", \
      "--config", "fraiseql.toml", \
      "--schema", "schema.compiled.json", \
      "--port", "4000"]
-```
+```text
 
 Create `docker-compose.yml`:
 
@@ -1654,7 +1654,7 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 **Deploy:**
 
@@ -1668,7 +1668,7 @@ docker-compose logs -f fraiseql
 # Test
 curl http://localhost:4000/graphql -H "Content-Type: application/json" \
   -d '{"query": "{ users(limit: 1) { id } }"}'
-```
+```text
 
 ### 10.2 Health Checks
 
@@ -1685,7 +1685,7 @@ curl http://localhost:4000/health
   "database": "connected",
   "uptime_seconds": 125
 }
-```
+```text
 
 ### 10.3 Environment Configuration
 
@@ -1699,7 +1699,7 @@ FRAISEQL_DB_USERNAME=blog_prod_user
 FRAISEQL_DB_PASSWORD=<from-vault>
 FRAISEQL_ENABLE_INTROSPECTION=false
 FRAISEQL_LOG_LEVEL=info
-```
+```text
 
 ---
 
@@ -1713,7 +1713,7 @@ Solution:
 
 ```bash
 npm install fraiseql --save
-```
+```text
 
 **Issue: "Experimental decorators must be set to true"**
 
@@ -1726,7 +1726,7 @@ Solution: Verify `tsconfig.json` has:
     "emitDecoratorMetadata": true
   }
 }
-```
+```text
 
 **Issue: "Query executes but returns empty results"**
 
@@ -1766,7 +1766,7 @@ npm run dev
 
 # Check logs
 docker-compose logs -f fraiseql
-```
+```text
 
 ---
 
@@ -1911,7 +1911,7 @@ SET
 WHERE id = p_id
 RETURNING *;
 $$ LANGUAGE SQL;
-```
+```text
 
 ### package.json
 
@@ -1939,7 +1939,7 @@ $$ LANGUAGE SQL;
     "node-fetch": "^2.6.0"
   }
 }
-```
+```text
 
 ### fraiseql.toml
 
@@ -1965,7 +1965,7 @@ cors_origins = ["*"]
 [fraiseql.security]
 enable_introspection = true
 enable_mutations = true
-```
+```text
 
 ---
 
@@ -2016,7 +2016,7 @@ export function PostList() {
     </div>
   );
 }
-```
+```text
 
 ---
 

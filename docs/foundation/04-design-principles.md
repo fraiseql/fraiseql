@@ -25,7 +25,7 @@ FraiseQL is built on five core design principles that guide every architectural 
 
 In FraiseQL, you don't build a GraphQL schema and then map it to a database. Instead, you design your **database schema first**, then derive your GraphQL API from it.
 
-```
+```text
 Traditional Approach:
 ┌──────────────────┐
 │  GraphQL Schema  │  (source of truth)
@@ -45,7 +45,7 @@ FraiseQL Approach:
 ┌────────▼─────────┐
 │  GraphQL Schema  │  (API interface)
 └──────────────────┘
-```
+```text
 
 ### Why This Matters
 
@@ -58,7 +58,7 @@ CREATE TABLE tb_users (
   email VARCHAR(255) NOT NULL UNIQUE,  -- Constraint at database level
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-```
+```text
 
 When you define `NOT NULL` in the database, FraiseQL's GraphQL schema will correctly reflect that the field is non-nullable. You don't need to specify it twice.
 
@@ -67,7 +67,7 @@ When you define `NOT NULL` in the database, FraiseQL's GraphQL schema will corre
 ```sql
 -- Adding a database index
 CREATE INDEX idx_users_email ON tb_users(email);
-```
+```text
 
 This index doesn't require code changes to your FraiseQL schema. The GraphQL API automatically gets faster because the underlying SQL queries execute faster.
 
@@ -93,13 +93,13 @@ A good database schema—with clear relationships, appropriate denormalization, 
 
 FraiseQL has three distinct phases:
 
-```
+```text
 Authoring (Developer writes code)
     ↓
 Compilation (fraiseql-cli processes schema)
     ↓
 Runtime (Server executes queries)
-```
+```text
 
 Each phase should be optimized separately:
 
@@ -113,7 +113,7 @@ class User:
     user_id: int
     email: str
     created_at: datetime
-```
+```text
 
 **Compilation:** Expensive but one-time (comprehensive validation and optimization)
 
@@ -121,7 +121,7 @@ class User:
 fraiseql-cli compile schema.json
 # Validates relationships, optimizes joins, generates SQL templates
 # Takes seconds, but only runs once at build time
-```
+```text
 
 **Runtime:** Fast and deterministic (execute pre-compiled templates)
 
@@ -133,7 +133,7 @@ query GetUser($id: Int!) {
   }
 }
 # Executes pre-compiled SQL template: no parsing, no validation, no interpretation
-```
+```text
 
 ### Why This Matters
 
@@ -178,7 +178,7 @@ In FraiseQL, type safety is enforced at multiple levels:
      price NUMERIC(10, 2) NOT NULL,   -- Numeric type
      is_active BOOLEAN NOT NULL       -- Boolean type
    );
-   ```
+   ```text
 
 2. **GraphQL schema enforcement**
 
@@ -189,7 +189,7 @@ In FraiseQL, type safety is enforced at multiple levels:
      price: Float!
      isActive: Boolean!
    }
-   ```
+   ```text
 
 3. **Authorization enforcement**
 
@@ -197,7 +197,7 @@ In FraiseQL, type safety is enforced at multiple levels:
    @schema.permission("user_role = 'admin'")
    def delete_user(user_id: int) -> None:
        pass
-   ```
+   ```text
 
 ### Why This Matters
 
@@ -227,7 +227,7 @@ class User:
 class User:
     user_id: int  # ✅ Correct: matches INT column
     email: str
-```
+```text
 
 ### Implications
 
@@ -269,7 +269,7 @@ query GetUserOrders {
 }
 # Compile time: Plan the optimal SQL query structure
 # Runtime: Execute single optimized query (or pre-batched queries)
-```
+```text
 
 ### Why This Matters
 
@@ -303,7 +303,7 @@ If a query suddenly becomes slow, you know something changed in the database (ne
 
 FraiseQL is designed with a core assumption: **Your primary data is in a relational database.** If that's true, everything else becomes simpler.
 
-```
+```text
 If your data is in a single relational database:
   - No need to write custom resolvers
   - No need to orchestrate data from multiple sources
@@ -311,7 +311,7 @@ If your data is in a single relational database:
   - No need to handle relationship resolution
 
 Result: A GraphQL API with minimal code
-```
+```text
 
 ### Examples of This Principle
 
@@ -326,7 +326,7 @@ class User:
     # No custom resolver logic needed
     # No data fetching from external APIs
     # No caching management
-```
+```text
 
 **Relationships are explicit**
 
@@ -335,7 +335,7 @@ class User:
 ALTER TABLE tb_orders
   ADD CONSTRAINT fk_orders_user
   FOREIGN KEY (fk_user_id) REFERENCES tb_users(pk_user_id);
-```
+```text
 
 FraiseQL uses these foreign keys to automatically enable GraphQL relationships. No custom resolver needed.
 
@@ -349,7 +349,7 @@ FraiseQL uses these foreign keys to automatically enable GraphQL relationships. 
 @schema.source("mysql", db_url="mysql://...")
 class Schema:
     pass
-```
+```text
 
 Each database is a separate source of truth for its own domain.
 
@@ -382,7 +382,7 @@ Without flexibility overhead, you get better performance for the common case (si
 
 The five principles form a coherent design philosophy:
 
-```
+```text
 Database-Centric Design (Principle 1)
     ↓
     Means: Database schema is your API contract
@@ -402,7 +402,7 @@ Performance Through Determinism (Principle 4)
 Simplicity Over Flexibility (Principle 5)
     ↓
     Means: Single data source, minimal code
-```
+```text
 
 ### Real-World Consequence: Auditing
 
@@ -415,18 +415,18 @@ These principles together enable a powerful property: **complete query auditabil
 -- Compiled schema.json contains all SQL templates
 -- So you can audit what data each API endpoint accesses
 -- And verify authorization rules are correct
-```
+```text
 
 ### Real-World Consequence: Performance Optimization
 
-```
+```text
 
 1. Add database index (Simplicity: you're working with the database)
 2. Recompile schema (Compile-time: detect optimization opportunity)
 3. API automatically uses new index (Determinism: no code changes needed)
 4. Performance improves (Database-centric: optimization at source)
 5. Type safety maintained throughout (Type safety: no errors introduced)
-```
+```text
 
 ---
 

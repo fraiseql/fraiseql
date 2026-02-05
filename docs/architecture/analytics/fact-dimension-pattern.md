@@ -569,4 +569,4 @@ CREATE INDEX idx_sales_category
 
 ---
 
-*End of Fact-Dimension Pattern Specification*
+

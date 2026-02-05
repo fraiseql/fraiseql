@@ -142,7 +142,7 @@ def users(limit: int = 10) -> list[User]:
     pass
 
 fraiseql.export_schema("schema.json")
-```
+```text
 
 → [Full Python Reference](./python-reference.md)
 
@@ -163,7 +163,7 @@ function users(limit: number = 10): User[] {
 }
 
 fraiseql.exportSchema('schema.json');
-```
+```text
 
 → [Full TypeScript Reference](./typescript-reference.md)
 
@@ -184,7 +184,7 @@ func Users(limit int) ([]User, error) {
 }
 
 fraiseql.ExportSchema("schema.json")
-```
+```text
 
 → [Full Go Reference](./go-reference.md)
 
@@ -208,7 +208,7 @@ FraiseQL.query("users")
     .register();
 
 FraiseQL.exportSchema("schema.json");
-```
+```text
 
 → [Full Java Reference](./java-reference.md)
 
@@ -233,7 +233,7 @@ await client.connect();
 const result = await client.query('users', { limit: 10 });
 console.log(result.data);
 await client.disconnect();
-```
+```text
 
 → [Full Node.js Reference](./nodejs-reference.md)
 
@@ -276,7 +276,7 @@ go run cmd/export/main.go schema.json
 
 # Java
 java -cp fraiseql.jar com.fraiseql.CLI export schema.json
-```
+```text
 
 **Step 4: Compile & Deploy**
 
@@ -285,7 +285,7 @@ Compile the schema once:
 ```bash
 fraiseql-cli compile schema.json fraiseql.toml
 # Outputs: schema.compiled.json
-```
+```text
 
 Deploy `schema.compiled.json` with your FraiseQL server.
 
@@ -300,7 +300,7 @@ const client = new FraiseQLClient({
   schemaPath: './schema.compiled.json',
   database: { /* ... */ },
 });
-```
+```text
 
 **Step 2: Execute Queries**
 
@@ -308,13 +308,13 @@ Run queries, mutations, and subscriptions at runtime:
 
 ```javascript
 const result = await client.query('users', { limit: 10 });
-```
+```text
 
 See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
 
 ## Schema Compilation Workflow
 
-```
+```text
 ┌─────────────────────┐
 │ Language SDK        │
 │ (Python/TS/Go/...)  │
@@ -343,7 +343,7 @@ See [Node.js SDK Reference](./nodejs-reference.md) for complete runtime API.
 │ fraiseql-server                │
 │ (REST/GraphQL API)             │
 └────────────────────────────────┘
-```
+```text
 
 ## Language-Specific Paradigms
 

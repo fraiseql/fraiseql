@@ -15,7 +15,7 @@ Use this decision tree to quickly identify which troubleshooting guide applies t
 
 **Select the one that best describes your situation:**
 
-```
+```text
 Does your problem involve...
 
 1. Starting the server or deployment?
@@ -47,7 +47,7 @@ Does your problem involve...
 
 10. Multi-service or federation problems?
     → Go to: FEDERATION ISSUES
-```
+```text
 
 ---
 
@@ -86,7 +86,7 @@ Does your problem involve...
 
 **Error type:**
 
-```
+```text
 Is the error about...
 
 a) "Field X doesn't exist"?
@@ -106,7 +106,7 @@ d) "Query timeout"?
 
 e) Something else?
    → Go to: ERROR CODE LOOKUP
-```
+```text
 
 **Query returns null when expecting data:**
 
@@ -135,7 +135,7 @@ e) Something else?
 
 **Error type:**
 
-```
+```text
 Is the error about...
 
 a) "Constraint violation" (duplicate key, foreign key)?
@@ -156,7 +156,7 @@ d) Database error?
 
 e) Something else?
    → Go to: ERROR CODE LOOKUP
-```
+```text
 
 **Mutation succeeds but data looks wrong:**
 
@@ -344,7 +344,7 @@ e) Something else?
 
 **Have an error code?** (Format: E_XXXXX_NNN)
 
-```
+```text
 Error Category:
 - E_PARSE_* → GraphQL parsing errors
 - E_BINDING_* → Schema binding/type errors
@@ -358,7 +358,7 @@ To find your error:
 1. Copy error code: "E_BINDING_UNKNOWN_FIELD_202"
 2. Search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
 3. Refer to [Main Troubleshooting Guide](../TROUBLESHOOTING.md)
-```
+```text
 
 **Don't see your error?**
 

@@ -28,7 +28,7 @@ FraiseQL's observability system enables **runtime-informed schema optimization**
 
 ### High-Level Components
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     RUNTIME LAYER (Rust)                         │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐  │
@@ -102,7 +102,7 @@ FraiseQL's observability system enables **runtime-informed schema optimization**
 │  │ - Rollback scripts                                         │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -143,7 +143,7 @@ pub trait DatabaseStatistics: Send + Sync {
     fn generate_migration(&self, suggestion: &DenormalizationSuggestion)
         -> Vec<String>;
 }
-```
+```text
 
 **Implementation Strategy**: Each database has its own implementation with identical interface.
 
@@ -181,7 +181,7 @@ pub struct MetricsCollector {
     /// Configuration (sampling rate, retention)
     config: ObservabilityConfig,
 }
-```
+```text
 
 **Sampling Strategy**:
 
@@ -221,7 +221,7 @@ impl MetricsCollector {
         Ok(())
     }
 }
-```
+```text
 
 **Integration Points**:
 
@@ -264,7 +264,7 @@ pub async fn execute_query(&self, query: &str, variables: Variables)
 
     Ok(result)
 }
-```
+```text
 
 ---
 
@@ -306,7 +306,7 @@ pub enum JsonAccessType {
 pub trait JsonPathParser: Send + Sync {
     fn extract_paths(&self, sql: &str) -> Vec<JsonAccessPattern>;
 }
-```
+```text
 
 **PostgreSQL Implementation**:
 
@@ -342,7 +342,7 @@ impl JsonPathParser for PostgresJsonPathParser {
         patterns
     }
 }
-```
+```text
 
 **SQL Server Implementation**:
 
@@ -389,7 +389,7 @@ impl JsonPathParser for SqlServerJsonPathParser {
         patterns
     }
 }
-```
+```text
 
 **Access Type Inference**:
 
@@ -412,7 +412,7 @@ fn infer_access_type(sql: &str, json_expr: &str) -> JsonAccessType {
         JsonAccessType::Project
     }
 }
-```
+```text
 
 ---
 
@@ -458,7 +458,7 @@ pub struct IndexStatistics {
     pub size_bytes: u64,
     pub is_unique: bool,
 }
-```
+```text
 
 ---
 
@@ -566,7 +566,7 @@ impl DatabaseStatistics for PostgresStatistics {
         }).collect())
     }
 }
-```
+```text
 
 ---
 
@@ -688,7 +688,7 @@ impl DatabaseStatistics for SqlServerStatistics {
         }).collect())
     }
 }
-```
+```text
 
 **Key Differences**:
 
@@ -737,7 +737,7 @@ pub enum DatabaseType {
     MySQL,
     SQLite,
 }
-```
+```text
 
 **Core Analysis Algorithm**:
 
@@ -849,7 +849,7 @@ pub fn analyze_denormalization_opportunities(
 
     Ok(suggestions)
 }
-```
+```text
 
 **Suggestion Types**:
 
@@ -892,7 +892,7 @@ pub enum IndexType {
     Nonclustered,    // SQL Server nonclustered
     Clustered,       // SQL Server clustered
 }
-```
+```text
 
 ---
 
@@ -950,7 +950,7 @@ pub fn estimate_filter_speedup(
     // Return speedup factor
     (json_cost / column_cost.max(0.001)).min(100.0)  // Cap at 100x
 }
-```
+```text
 
 **Sort Speedup Estimation**:
 
@@ -974,7 +974,7 @@ pub fn estimate_sort_speedup(
 
     (json_sort_cost / column_sort_cost.max(0.001)).min(100.0)
 }
-```
+```text
 
 **Aggregate Speedup Estimation**:
 
@@ -1007,7 +1007,7 @@ pub fn estimate_aggregate_speedup(
 
     (json_agg_cost / column_agg_cost.max(0.001)).min(50.0)
 }
-```
+```text
 
 **Storage Overhead Estimation**:
 
@@ -1041,7 +1041,7 @@ pub fn estimate_storage_overhead(
     // Total in MB
     (column_storage + index_storage) / 1_048_576.0
 }
-```
+```text
 
 ---
 
@@ -1070,7 +1070,7 @@ pub trait MigrationGenerator: Send + Sync {
         suggestion: &OptimizationSuggestion,
     ) -> Vec<String>;
 }
-```
+```text
 
 ---
 
@@ -1153,7 +1153,7 @@ impl MigrationGenerator for PostgresMigrationGenerator {
         }
     }
 }
-```
+```text
 
 ---
 
@@ -1236,7 +1236,7 @@ fn map_to_sqlserver_type(generic_type: &str) -> &str {
         _ => generic_type,
     }
 }
-```
+```text
 
 **Key SQL Server Differences**:
 
@@ -1326,13 +1326,13 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
         _ => anyhow::bail!("Unknown database URL format"),
     }
 }
-```
+```text
 
 **Output Formats**:
 
 1. **Text Format** (human-readable):
 
-```
+```text
 📊 Observability Analysis Report
 
 🚀 High-Impact Optimizations (3):
@@ -1350,7 +1350,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
      • Storage cost: +15 MB
 
      Reason: Frequently filtered with high selectivity (8%)
-```
+```text
 
 1. **JSON Format** (for CI/CD):
 
@@ -1376,7 +1376,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
     }
   ]
 }
-```
+```text
 
 1. **SQL Format** (ready to apply):
 
@@ -1398,7 +1398,7 @@ CREATE NONCLUSTERED INDEX idx_tf_sales_region_id
 
 -- Step 4: Update statistics
 UPDATE STATISTICS tf_sales WITH FULLSCAN;
-```
+```text
 
 ---
 
@@ -1418,7 +1418,7 @@ cargo bench --bench query_execution -- --baseline off
 cargo bench --bench query_execution -- --baseline on
 
 // Compare results
-```
+```text
 
 **Expected Overhead**:
 
@@ -1452,7 +1452,7 @@ export FRAISEQL_OBSERVABILITY_ENABLED=true
 # Or in fraiseql.toml
 [observability]
 enabled = true
-```
+```text
 
 ---
 
@@ -1552,7 +1552,7 @@ mod tests {
         assert_eq!(patterns[1].access_type, JsonAccessType::Filter);
     }
 }
-```
+```text
 
 ### Integration Tests
 
@@ -1600,7 +1600,7 @@ async fn test_end_to_end_analysis_sqlserver() {
         panic!("Expected denormalization suggestion");
     }
 }
-```
+```text
 
 ---
 

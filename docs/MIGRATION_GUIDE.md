@@ -6,14 +6,14 @@ This guide walks you through migrating from a monolithic `schema.json` to domain
 
 **Before**:
 
-```
+```text
 schema.json (all types, queries, mutations in one file)
 fraiseql.toml
-```
+```text
 
 **After**:
 
-```
+```text
 schema/
 ├── {domain1}/
 │   └── types.json
@@ -22,7 +22,7 @@ schema/
 └── {domain3}/
     └── types.json
 fraiseql.toml (updated with domain discovery)
-```
+```text
 
 ## Step-by-Step Migration
 
@@ -40,7 +40,7 @@ Examples:
 
 ```bash
 mkdir -p schema/{auth,products,orders}
-```
+```text
 
 ### Step 3: Split Types.json Into Domains
 
@@ -58,14 +58,14 @@ Replace includes with domain discovery:
 [domain_discovery]
 enabled = true
 root_dir = "schema"
-```
+```text
 
 ### Step 5: Compile and Validate
 
 ```bash
 fraiseql compile fraiseql.toml
 fraiseql compile fraiseql.toml --check
-```
+```text
 
 ### Step 6: Compare Output
 
@@ -76,7 +76,7 @@ Verify type/query counts match original schema.
 ```bash
 git add schema/ fraiseql.toml
 git commit -m "refactor: migrate to domain-based organization"
-```
+```text
 
 ## Validation
 
@@ -88,7 +88,7 @@ jq '.types | length' schema.compiled.json
 jq '.queries[] | .return_type' schema.compiled.json | sort | uniq > query_types.txt
 jq '.types[] | .name' schema.compiled.json | sort | uniq > defined_types.txt
 comm -23 query_types.txt defined_types.txt  # Should be empty
-```
+```text
 
 ## Rollback
 
@@ -96,7 +96,7 @@ comm -23 query_types.txt defined_types.txt  # Should be empty
 cp schema.json.bak schema.json
 cp fraiseql.toml.bak fraiseql.toml
 fraiseql compile fraiseql.toml
-```
+```text
 
 ## Estimated Time
 

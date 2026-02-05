@@ -28,7 +28,7 @@ class SalesMetrics:
     profit: float
     quantity: int
     dimensions: dict  # {tenant_id, region, category, product_id, date, customer_tier}
-```
+```text
 
 ### Problem Queries
 
@@ -46,11 +46,11 @@ Dashboard has 5 main views, all slow:
 
 ```bash
 fraiseql-cli analyze --database postgres://... --format text
-```
+```text
 
 **Output**:
 
-```
+```text
 🚀 High-Impact Optimizations (5):
 
 1. Denormalize dimensions->>'region' (8,500 queries/day, 12.5x speedup)
@@ -58,7 +58,7 @@ fraiseql-cli analyze --database postgres://... --format text
 3. Denormalize dimensions->>'customer_tier' (3,100 queries/day, 8.5x speedup)
 4. Add index on recorded_at (used in time-series queries)
 5. Denormalize dimensions->>'tenant_id' (multi-tenant isolation)
-```
+```text
 
 ---
 
@@ -88,7 +88,7 @@ CREATE INDEX CONCURRENTLY idx_tf_sales_tier ON tf_sales (customer_tier);
 CREATE INDEX CONCURRENTLY idx_tf_sales_tenant_region ON tf_sales (tenant_id, region_id);
 
 ANALYZE tf_sales;
-```
+```text
 
 ---
 

@@ -1,6 +1,6 @@
 # FraiseQL Linting Rules Reference
 
-**Comprehensive guide to FraiseQL's design quality rules**
+### Comprehensive guide to FraiseQL's design quality rules
 
 Each rule detects patterns that conflict with FraiseQL's compilation model. Violations don't prevent compilation—they reduce design quality scores and flag potential issues.
 
@@ -38,7 +38,7 @@ type User @key(fields: "id") { id: ID!, postCount: Int! }
 
 # comments-service
 type User @key(fields: "id") { id: ID!, commentCount: Int! }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -66,7 +66,7 @@ type Post @key(fields: "id") {
   id: ID!
   author: User!  # Reference only
 }
-```
+```text
 
 **Real-World Example**:
 A 3-subgraph platform (users, content, analytics) had User in all three. Solution: User owns profile + identity, content owns content stats separately.
@@ -81,10 +81,10 @@ A 3-subgraph platform (users, content, analytics) had User in all three. Solutio
 
 **What It Detects**:
 
-```
+```text
 users-service → posts-service → comments-service → users-service
 A → B → A (simplest case)
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -107,7 +107,7 @@ type User @key(fields: "id") {
 type Organization @key(fields: "id") {
   members: [User!]!  # Reference back to users-service (CYCLE!)
 }
-```
+```text
 
 1. Break the cycle by using IDs instead of references:
 
@@ -124,7 +124,7 @@ type User @key(fields: "id") {
   id: ID!
   organizationIds: [ID!]!  # IDs only
 }
-```
+```text
 
 Or consolidate the relationship in one service:
 
@@ -139,7 +139,7 @@ type User {
   # No reference back to organizations
   organizationId: ID!  # Just metadata
 }
-```
+```text
 
 **Real-World Example**:
 A platform had User ↔ Organization ↔ Team circular references. Solution: org-service owns relationships, users-service only stores IDs.
@@ -162,7 +162,7 @@ type User @key(fields: "id") { ... }
 type Post {
   author: User!  # User referenced but has no @key in posts-service
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -183,7 +183,7 @@ type User @key(fields: "id") {
 type Post {
   author: User!
 }
-```
+```text
 
 1. Or, only define in one subgraph:
 
@@ -192,7 +192,7 @@ type Post {
 type Post {
   author: User!  # Defined in users-service, just referenced here
 }
-```
+```text
 
 ---
 
@@ -210,7 +210,7 @@ type Post @key(fields: "id") {
   author: User!  # Must resolve User
   authorId: ID!  # Also stores ID
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -228,7 +228,7 @@ type Post {
   authorId: ID!
   author: User  # Optional: expensive to resolve
 }
-```
+```text
 
 **Pattern B**: Store reference, derive ID when needed
 
@@ -237,7 +237,7 @@ type Post {
   author: User!
   # authorId can be extracted from User.id in resolvers
 }
-```
+```text
 
 ---
 
@@ -262,7 +262,7 @@ type User @key(fields: "id") {
 type Post @key(fields: "id") {
   comments: [Comment!]!  # Unbounded
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -289,7 +289,7 @@ type PageInfo {
   hasNextPage: Boolean!
   endCursor: String!
 }
-```
+```text
 
 1. Or limit with maxItems:
 
@@ -298,7 +298,7 @@ type User {
   topPosts(limit: 10): [Post!]!  # Hard limit
   recentComments(days: 7): [Comment!]!
 }
-```
+```text
 
 ---
 
@@ -326,7 +326,7 @@ type Post {
 type Comment {
   author: User!  # × 1 (batched) = 1M
 }
-```
+```text
 
 Query: `{ users { posts { comments { author { posts { comments } } } } } }`
 
@@ -354,7 +354,7 @@ type Post {
 type Comment {
   author: User! @complexity(value: 1)
 }
-```
+```text
 
 1. Reduce pagination limits:
 
@@ -370,7 +370,7 @@ type User {
 type Post {
   comments(first: 10): [Comment!]!  # Reduced from 100
 }
-```
+```text
 
 1. Disable nesting on expensive fields:
 
@@ -381,7 +381,7 @@ type Post {
   # Don't allow this:
   # { posts { comments { author { posts { ... } } } } }
 }
-```
+```text
 
 ---
 
@@ -401,7 +401,7 @@ type User {
   recommendations: [User!]!  # Expensive aggregation
   sentiment: SentimentScore!  # External API call
 }
-```
+```text
 
 **Why It Matters**:
 
@@ -419,7 +419,7 @@ type User {
   recommendations: [User!]! @complexity(value: 50)  # Expensive aggregation
   sentiment: SentimentScore! @complexity(value: 100)  # External API
 }
-```
+```text
 
 ---
 
@@ -447,7 +447,7 @@ type User @cache(maxAge: 3600) {  # 1 hour (INCONSISTENT!)
   id: ID!
   postCount: Int!
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -466,7 +466,7 @@ type User @cache(maxAge: 300) {
   email: String!
   postCount: Int!  # Even cross-service refs
 }
-```
+```text
 
 1. Use cache groups for related entities:
 
@@ -481,7 +481,7 @@ type User @cacheGroup(group: "user_profile") {
 type Post @cache(maxAge: 300) {  # Same as user_profile group
   author: User!
 }
-```
+```text
 
 1. Or separate by mutability:
 
@@ -495,7 +495,7 @@ type User {
   email: String! @cache(maxAge: 300)
   lastLogin: DateTime! @cache(maxAge: 60)
 }
-```
+```text
 
 ---
 
@@ -515,7 +515,7 @@ type User {
   friends: [User!]!  # Expensive calculation, no @cache!
   recommendations: [User!]!  # Very expensive, no @cache!
 }
-```
+```text
 
 **Why It Matters**:
 
@@ -534,7 +534,7 @@ type User {
   friends: [User!]! @cache(maxAge: 300)  # Cache 5 min
   recommendations: [User!]! @cache(maxAge: 3600)  # Cache 1 hour
 }
-```
+```text
 
 ---
 
@@ -553,7 +553,7 @@ type Order {
   status: OrderStatus! @cache(maxAge: 3600)  # Changes frequently
   createdAt: DateTime! @cache(maxAge: 3600)  # Never changes
 }
-```
+```text
 
 **Why It Matters**:
 
@@ -571,7 +571,7 @@ type Order {
   items: [OrderItem!]! @cache(maxAge: 3600)  # Cache 1 hour
   status: OrderStatus! @cache(maxAge: 60)  # Cache 1 minute
 }
-```
+```text
 
 ---
 
@@ -601,7 +601,7 @@ type User @key(fields: "id") {
 type Post {
   author: User!  # Full User exposed
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -633,7 +633,7 @@ type User @key(fields: "id") {
 type Post {
   author: PublicUserProfile!  # Safe, public data only
 }
-```
+```text
 
 1. Or use scopes:
 
@@ -645,7 +645,7 @@ type User {
   password: String! @auth(scopes: ["user:password_reset"])
   # Only exposed if caller has scope
 }
-```
+```text
 
 ---
 
@@ -668,7 +668,7 @@ type Mutation {
   # Admin operations without guard
   grantRole(userId: ID!, role: String!): Boolean!
 }
-```
+```text
 
 **Why It Matters**:
 
@@ -693,7 +693,7 @@ type Mutation {
   grantRole(userId: ID!, role: String!): Boolean!
     @auth(requires: "admin", scopes: ["admin:grant_role"])
 }
-```
+```text
 
 1. Add ownership validation in resolver:
 
@@ -703,7 +703,7 @@ type Mutation {
     @auth(requires: "authenticated")
     # Resolver must verify id == currentUser.id
 }
-```
+```text
 
 ---
 
@@ -727,7 +727,7 @@ type Post @key(fields: "id") {
   id: ID!
   author: User!  # Unauthenticated service can fetch User
 }
-```
+```text
 
 Scenario: Anonymous user queries posts-service → sees User.email
 
@@ -751,7 +751,7 @@ type User {
 type Post {
   author: PublicUserProfile!  # Not sensitive
 }
-```
+```text
 
 1. Or enforce auth in post-service too:
 
@@ -760,7 +760,7 @@ type Post {
 type Post @auth(requires: "authenticated") {
   author: User!
 }
-```
+```text
 
 ---
 
@@ -784,7 +784,7 @@ type Author {
 type Book {
   author: Author!
 }
-```
+```text
 
 **Why It Matters for FraiseQL**:
 
@@ -807,7 +807,7 @@ type Book {
   authorId: ID!
   author: Author  # Optional, resolved separately
 }
-```
+```text
 
 1. Or use separate query:
 
@@ -820,7 +820,7 @@ type Author {
 type Query {
   books(ids: [ID!]!): [Book!]!
 }
-```
+```text
 
 ---
 
@@ -837,7 +837,7 @@ type User @key(fields: "id") {  # @key present
   name: String!
   # But missing actual 'id' field!
 }
-```
+```text
 
 **Why It Matters**:
 
@@ -854,7 +854,7 @@ type User @key(fields: "id") {
   id: ID!  # Must be declared
   name: String!
 }
-```
+```text
 
 1. Or change @key to use existing field:
 
@@ -863,7 +863,7 @@ type User @key(fields: "email") {
   email: String!  # Use email as key
   name: String!
 }
-```
+```text
 
 ---
 
@@ -881,7 +881,7 @@ type Post {
 }
 
 # No hint about expected cardinality
-```
+```text
 
 **Why It Matters**:
 
@@ -898,7 +898,7 @@ type Post {
   author: User! @cardinality(estimate: "one")
   tags: [String!]! @cardinality(estimate: "few")
 }
-```
+```text
 
 ---
 
@@ -939,7 +939,7 @@ Minor issues, doesn't prevent compilation. Nice to fix.
 
 ### Example 1: E-Commerce Platform
 
-```
+```text
 Base: 100
 - Unbounded `User.posts`: -8
 - Missing `Post.comments` complexity: -3
@@ -947,11 +947,11 @@ Base: 100
 - Inconsistent TTL (5min vs 1hr): -6
 
 = 81/100 (Good)
-```
+```text
 
 ### Example 2: Social Media
 
-```
+```text
 Base: 100
 - User exposed across 3 subgraphs: -10
 - Circular User ↔ Organization: -15
@@ -960,11 +960,11 @@ Base: 100
 - Missing complexity hints: -5
 
 = 42/100 (Poor)
-```
+```text
 
 ### Example 3: Well-Designed
 
-```
+```text
 Base: 100
 - Proper pagination: 0
 - Consolidated entities: 0
@@ -973,7 +973,7 @@ Base: 100
 - Complexity hints present: 0
 
 = 100/100 (Excellent)
-```
+```text
 
 ---
 

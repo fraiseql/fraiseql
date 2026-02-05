@@ -7,7 +7,7 @@
 
 ## Quick Decision
 
-```
+```text
 PostgreSQL    → Default choice, recommended for most use cases
 ├─ Why: Best feature support, mature, JSONB, full-text search
 │
@@ -19,7 +19,7 @@ SQLite        → Local development & testing only
 │
 SQL Server    → Enterprise deployments with license
 └─ Why: Enterprise support, compatibility with existing infrastructure
-```
+```text
 
 ---
 
@@ -67,17 +67,17 @@ SQL Server    → Enterprise deployments with license
 
 ### Question 1: Environment?
 
-```
+```text
 Local Development?
 ├─ YES → SQLite ✅
 │        (Zero setup, perfect for prototyping)
 │
 └─ NO → Production? (Next question)
-```
+```text
 
 ### Question 2: Team Expertise?
 
-```
+```text
 Team knows PostgreSQL?
 ├─ YES → PostgreSQL ✅
 │        (Best overall choice)
@@ -94,11 +94,11 @@ Team knows PostgreSQL?
    │        (Existing infrastructure)
    │
    └─ NO → PostgreSQL or MySQL
-```
+```text
 
 ### Question 3: Specific Needs?
 
-```
+```text
 Full-text search critical?
 ├─ YES → PostgreSQL ✅
 │        (tsvector built-in)
@@ -126,7 +126,7 @@ Greenfield project?
 Existing database?
 └─ YES → Use that one ✅
          (Don't change unnecessarily)
-```
+```text
 
 ---
 
@@ -169,7 +169,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 volumes:
   postgres_data:
-```
+```text
 
 ---
 
@@ -229,7 +229,7 @@ sqlite3 test.db ".schema"
 
 # Or use in-memory SQLite
 export DATABASE_URL="sqlite:///:memory:"
-```
+```text
 
 ---
 
@@ -277,7 +277,7 @@ fraiseql test
 
 # 5. Cutover
 # Route connections to PostgreSQL
-```
+```text
 
 **Risk:** Low if you test thoroughly
 
@@ -305,7 +305,7 @@ fraiseql test
 # 6. Cutover
 # Update DATABASE_URL environment variable
 # Restart application
-```
+```text
 
 **Risk:** Very low for dev→prod migration
 
@@ -337,7 +337,7 @@ SET max_parallel_workers_per_gather = 4;
 
 -- Connection pooling
 -- Use PgBouncer for connection management
-```
+```text
 
 ### MySQL 8.0+ Optimization
 
@@ -353,7 +353,7 @@ EXPLAIN SELECT ...
 
 -- Increase buffer pool for workload
 SET GLOBAL innodb_buffer_pool_size = 4GB;
-```
+```text
 
 ### Performance Expectations
 
@@ -397,7 +397,7 @@ Week 1: Set up PostgreSQL/MySQL
 Week 2: Create schema, test
 Week 3: Mirror data, validate
 Week 4: Cutover and monitor
-```
+```text
 
 ### "We're uncertain between PostgreSQL and MySQL"
 

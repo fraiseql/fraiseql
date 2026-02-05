@@ -407,4 +407,4 @@ input SalesHavingInput {
 
 ---
 
-*End of Analytical Schema Conventions*
+

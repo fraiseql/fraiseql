@@ -12,7 +12,7 @@ This example demonstrates deploying observability in a **high-traffic production
 
 ## Production Architecture
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │  Load Balancer (10,000 qps)                              │
 └────────────────┬─────────────────────────────────────────┘
@@ -36,7 +36,7 @@ This example demonstrates deploying observability in a **high-traffic production
 │  Metrics DB (Separate Instance)  │
 │  Time-series optimized           │
 └──────────────────────────────────┘
-```
+```text
 
 ---
 
@@ -64,7 +64,7 @@ timeout_secs = 10  # Fail fast
 [observability.analysis]
 min_frequency = 10000  # Only high-traffic patterns
 min_speedup = 10.0     # Only major wins
-```
+```text
 
 ---
 
@@ -89,7 +89,7 @@ min_speedup = 10.0     # Only major wins
   expr: fraiseql_analysis_suggestions_high_priority > 0
   annotations:
     summary: "New high-priority optimizations available"
-```
+```text
 
 ### Dashboards
 
@@ -133,7 +133,7 @@ if [ $HIGH_PRIORITY -gt 0 ]; then
   # Attach report
   slack-upload $REPORT_DIR/analysis-$(date +%Y%m%d).json --channel=#database-ops
 fi
-```
+```text
 
 ---
 
@@ -227,7 +227,7 @@ GRANT SELECT ON fraiseql_metrics.* TO fraiseql_analyst;
 
 -- No access to application database from metrics service
 REVOKE ALL ON public.* FROM fraiseql_collector;
-```
+```text
 
 ### Network Isolation
 
@@ -251,7 +251,7 @@ spec:
     ports:
     - protocol: TCP
       port: 5432
-```
+```text
 
 ---
 

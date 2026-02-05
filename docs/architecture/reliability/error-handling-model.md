@@ -36,7 +36,7 @@ FraiseQL's error handling model is **deterministic, predictable, and classifiabl
 
 #### 2.1.1 Schema Validation Errors
 
-```
+```text
 Category: SCHEMA_INVALID
 Code: E_SCHEMA_<subtype>_<number>
 
@@ -46,7 +46,7 @@ Examples:
   E_SCHEMA_BINDING_MISSING_003
   E_SCHEMA_OPERATOR_UNSUPPORTED_004
   E_SCHEMA_AUTHORIZATION_INVALID_005
-```
+```text
 
 **Causes:**
 
@@ -58,7 +58,7 @@ Examples:
 
 **Example:**
 
-```
+```text
 Error: Schema compilation failed
   Type: Type closure violation
   Code: E_SCHEMA_TYPE_NOT_DEFINED_001
@@ -66,11 +66,11 @@ Error: Schema compilation failed
   Type 'User' is not defined
   Suggestion: Add @fraiseql.type class User or check spelling
   File: schema.py, line 42
-```
+```text
 
 #### 2.1.2 Database Binding Errors
 
-```
+```text
 Category: BINDING_INVALID
 Code: E_BINDING_<subtype>_<number>
 
@@ -79,7 +79,7 @@ Examples:
   E_BINDING_COLUMN_NOT_FOUND_011
   E_BINDING_TYPE_MISMATCH_012
   E_BINDING_PROCEDURE_SIGNATURE_MISMATCH_013
-```
+```text
 
 **Causes:**
 
@@ -90,7 +90,7 @@ Examples:
 
 **Example:**
 
-```
+```text
 Error: Database binding failed
   Type: View not found
   Code: E_BINDING_VIEW_NOT_FOUND_010
@@ -98,11 +98,11 @@ Error: Database binding failed
   Database: postgresql (localhost:5432/mydb)
   Suggestion: Create view v_user or fix binding to existing view
   Available views: v_user, v_user_archived, v_user_deleted
-```
+```text
 
 #### 2.1.3 Capability Errors
 
-```
+```text
 Category: DATABASE_CAPABILITY_UNSUPPORTED
 Code: E_CAPABILITY_<database>_<operator>
 
@@ -110,7 +110,7 @@ Examples:
   E_CAPABILITY_SQLITE_REGEX_001
   E_CAPABILITY_MYSQL_COSINE_DISTANCE_002
   E_CAPABILITY_SQLSERVER_JSONB_CONTAINS_003
-```
+```text
 
 **Causes:**
 
@@ -119,7 +119,7 @@ Examples:
 
 **Example:**
 
-```
+```text
 Error: Operator not supported by database
   Type: Database capability mismatch
   Code: E_CAPABILITY_SQLITE_REGEX_001
@@ -127,11 +127,11 @@ Error: Operator not supported by database
   Target database: sqlite
   Field: User.email
   Suggestion: Use _like operator instead, or target postgresql
-```
+```text
 
 #### 2.1.4 Authorization Configuration Errors
 
-```
+```text
 Category: AUTHORIZATION_INVALID
 Code: E_AUTH_<subtype>_<number>
 
@@ -139,7 +139,7 @@ Examples:
   E_AUTH_CONTEXT_FIELD_NOT_FOUND_020
   E_AUTH_ROLE_UNDEFINED_021
   E_AUTH_RULE_CIRCULAR_DEPENDENCY_022
-```
+```text
 
 **Causes:**
 
@@ -158,7 +158,7 @@ Examples:
 
 #### 2.2.1 Validation Errors
 
-```
+```text
 GraphQL error
 Category: VALIDATION_FAILED
 Code: E_VALIDATION_<subtype>
@@ -178,7 +178,7 @@ Structure:
     }
   }]
 }
-```
+```text
 
 **Error Types:**
 
@@ -210,17 +210,17 @@ Structure:
     }
   }]
 }
-```
+```text
 
 #### 2.2.2 Authorization Errors
 
-```
+```text
 GraphQL error
 Category: AUTHORIZATION_DENIED
 Code: E_AUTH_<subtype>
 
 Structure: Same as validation errors above
-```
+```text
 
 **Error Types:**
 
@@ -251,17 +251,17 @@ Structure: Same as validation errors above
     }
   }]
 }
-```
+```text
 
 #### 2.2.3 Database Execution Errors
 
-```
+```text
 GraphQL error
 Category: DATABASE_ERROR
 Code: E_DB_<database>_<error_class>
 
 Structure: Same as others
-```
+```text
 
 **Error Types:**
 
@@ -298,7 +298,7 @@ Structure: Same as others
     }
   }]
 }
-```
+```text
 
 **Example (Non-Retryable):**
 
@@ -320,17 +320,17 @@ Structure: Same as others
     }
   }]
 }
-```
+```text
 
 #### 2.2.4 Execution Logic Errors
 
-```
+```text
 GraphQL error
 Category: EXECUTION_ERROR
 Code: E_EXEC_<subtype>
 
 Structure: Same as others
-```
+```text
 
 **Error Types:**
 
@@ -361,17 +361,17 @@ Structure: Same as others
     }
   }]
 }
-```
+```text
 
 #### 2.2.5 Federation Errors
 
-```
+```text
 GraphQL error
 Category: FEDERATION_ERROR
 Code: E_FED_<subtype>
 
 Structure: Same as others
-```
+```text
 
 **Error Types:**
 
@@ -402,17 +402,17 @@ Structure: Same as others
     }
   }]
 }
-```
+```text
 
 #### 2.2.6 Subscription/Event Errors
 
-```
+```text
 GraphQL error
 Category: SUBSCRIPTION_ERROR
 Code: E_SUB_<subtype>
 
 Structure: Same as others (sent to client over WebSocket)
-```
+```text
 
 **Error Types:**
 
@@ -446,17 +446,17 @@ Structure: Same as others (sent to client over WebSocket)
     }]
   }
 }
-```
+```text
 
 #### 2.2.7 Internal Errors
 
-```
+```text
 GraphQL error
 Category: INTERNAL_ERROR
 Code: E_INTERNAL_<subtype>
 
 Structure: Same as others
-```
+```text
 
 **Error Types:**
 
@@ -485,7 +485,7 @@ Structure: Same as others
     }
   }]
 }
-```
+```text
 
 ---
 
@@ -524,7 +524,7 @@ All runtime errors follow the GraphQL spec with FraiseQL extensions:
   ],
   "data": null
 }
-```
+```text
 
 ### 3.2 Error Context Fields
 
@@ -641,7 +641,7 @@ Examples:
 
 When an error occurs during query execution, FraiseQL follows this strategy:
 
-```
+```text
 Query: { user { id name } posts { id title } }
 
 Execution:
@@ -663,7 +663,7 @@ Result:
     }
   }
 }
-```
+```text
 
 **Rule:** Field with error is set to `null` in partial response. Parent queries continue executing. This allows clients to use partial data.
 
@@ -671,7 +671,7 @@ Result:
 
 Mutations are **atomic**: if ANY part fails, the entire mutation fails with no partial data.
 
-```
+```text
 Mutation: mutation {
   createUser(name: "Bob", email: "bob@example.com") { id }
   createPost(title: "Hello", userId: "123") { id }
@@ -690,7 +690,7 @@ Result:
   }],
   "data": null  // ENTIRE mutation fails, no partial data
 }
-```
+```text
 
 **Rule:** Mutations provide all-or-nothing semantics. If any part fails, all changes roll back (database transaction semantics).
 
@@ -698,7 +698,7 @@ Result:
 
 Subscription errors are **per-event**. One event's error doesn't stop subscription.
 
-```
+```text
 Subscription: subscription {
   orderCreated { id amount }
 }
@@ -736,7 +736,7 @@ Event 3: Success (continues after error)
     }
   }
 }
-```
+```text
 
 **Rule:** Subscription continues after error. One error event doesn't close subscription (unless close_code indicates connection close).
 
@@ -753,7 +753,7 @@ response = await client.execute(query)
 if response.get("errors"):
     # Handle errors
     pass
-```
+```text
 
 **Step 2: Classify errors by category**
 
@@ -774,7 +774,7 @@ for error in response["errors"]:
     elif category == "INTERNAL_ERROR":
         # Log and notify support
         pass
-```
+```text
 
 **Step 3: Implement retry logic**
 
@@ -802,7 +802,7 @@ async def retry_query(query, max_attempts=3, backoff_base=1000):
             await asyncio.sleep(wait_ms / 1000)
         else:
             return response  # Max attempts reached
-```
+```text
 
 ### 6.2 Error Display to End-Users
 
@@ -829,7 +829,7 @@ async def retry_query(query, max_attempts=3, backoff_base=1000):
 
 Every error includes a `trace_id` for correlation:
 
-```
+```text
 Client sees:
 {
   "errors": [{
@@ -843,7 +843,7 @@ Client sees:
 Server logs:
 [2026-01-11 15:35:00] TRACE req_550e8400: query { users { id } }
 [2026-01-11 15:35:01] ERROR req_550e8400: connection timeout after 5s
-```
+```text
 
 **Use trace_id to:**
 
@@ -855,7 +855,7 @@ Server logs:
 
 FraiseQL can enable debug mode to include additional error context:
 
-```
+```text
 # Enable debug mode (dev environments only!)
 FRAISEQL_DEBUG=true
 
@@ -876,7 +876,7 @@ Response with debug mode:
     }
   }]
 }
-```
+```text
 
 ### 7.3 Error Context Logging
 
@@ -898,7 +898,7 @@ Enable structured logging to capture error context:
   "duration_ms": 5234,
   "retryable": true
 }
-```
+```text
 
 ---
 
@@ -952,7 +952,7 @@ When an error becomes obsolete, it's marked deprecated:
     }
   }]
 }
-```
+```text
 
 ---
 

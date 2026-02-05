@@ -49,7 +49,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 
 ### Database-Specific Notes
 
-**PostgreSQL (Recommended for operators)**
+#### PostgreSQL (Recommended for operators)
 
 - ✅ All operators fully supported
 - ✅ JSONB operators optimized with GIN indexes
@@ -57,7 +57,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ✅ PostGIS for geometric queries
 - ✅ Range types with native operators
 
-**MySQL**
+### MySQL
 
 - ✅ Standard SQL operators all work
 - ⚠️ JSON operators available but slower than PostgreSQL
@@ -65,7 +65,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ⚠️ No array types; use JSON workaround
 - ⚠️ No range types; use comparison operators
 
-**SQLite**
+### SQLite
 
 - ✅ Standard SQL operators work
 - ⚠️ Minimal JSON support (JSON1 extension required)
@@ -73,7 +73,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ❌ No array, range, or geometric types
 - ⚠️ Case-insensitive searches with `COLLATE NOCASE`
 
-**SQL Server**
+### SQL Server
 
 - ✅ Standard SQL operators work
 - ⚠️ JSON operators available (JSON_VALUE, JSON_QUERY)

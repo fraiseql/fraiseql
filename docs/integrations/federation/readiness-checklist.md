@@ -9,7 +9,7 @@
 
 ## Prerequisites
 
-**Required Knowledge:**
+### Required Knowledge:
 
 - FraiseQL federation architecture concepts
 - Apollo Federation v2 specification
@@ -19,12 +19,12 @@
 - Mutation semantics in federation
 - Test coverage evaluation and testing strategies
 
-**Required Software:**
+### Required Software:
 
 - No specific software required (assessment and planning document)
 - Optional: FraiseQL v2.0.0-alpha.1 for hands-on exploration
 
-**Required Infrastructure:**
+### Required Infrastructure:
 
 - None (assessment document)
 
@@ -597,7 +597,7 @@ mutation {
 
 ### Overall Verdict
 
-**Readiness Score: 75-80%**
+#### Readiness Score: 75-80%
 
 **Suitable For**:
 
@@ -646,7 +646,7 @@ mutation {
 
 ### "Our use case isn't covered by readiness checklist"
 
-**Solution:**
+#### Solution:
 
 1. Review sections 1-11 to find closest match
 2. If not covered, reach out to FraiseQL team
@@ -654,7 +654,7 @@ mutation {
 
 ### "We need @requires/@provides but checklist says 'Not Yet'"
 
-**Options:**
+#### Options:
 
 1. **Workaround**: Implement validation at application layer
 2. **Wait**: Phase 2 (8-12 weeks) will add this
@@ -662,7 +662,7 @@ mutation {
 
 ### "Our deployment is more complex than any pattern here"
 
-**Recommendations:**
+#### Recommendations:
 
 1. Break into simpler subgraphs if possible
 2. Document custom patterns for knowledge base
@@ -670,7 +670,7 @@ mutation {
 
 ### "Readiness assessment conflicts with our timeline"
 
-**Discussion:**
+#### Discussion:
 
 - Checklist gives honest assessment of what's production-ready
 - If limitations aren't acceptable: Recommend waiting for Phase 2
@@ -679,7 +679,7 @@ mutation {
 
 ### "We failed some readiness criteria - can we proceed?"
 
-**Assessment:**
+#### Assessment:
 
 | Criteria | Consequence | Recommendation |
 |----------|-----------|-----------------|

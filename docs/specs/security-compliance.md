@@ -76,7 +76,7 @@ config = FraiseQLConfig(
     security_profile=profile,
     database_url="postgresql://localhost/fraiseql_db",
 )
-```
+```text
 
 **Settings**:
 
@@ -117,7 +117,7 @@ config = FraiseQLConfig(
     security_profile=profile,
     database_url="postgresql://localhost/fraiseql_db",
 )
-```
+```text
 
 **Settings**:
 
@@ -159,7 +159,7 @@ export FRAISEQL_TLS_MIN_VERSION=1.2
 export FRAISEQL_INTROSPECTION_POLICY=disabled
 export FRAISEQL_AUDIT_LEVEL=enhanced
 export FRAISEQL_AUDIT_FIELD_ACCESS=true
-```
+```text
 
 ### RESTRICTED Profile
 
@@ -173,7 +173,7 @@ config = FraiseQLConfig(
     security_profile=profile,
     database_url="postgresql://localhost/fraiseql_db",
 )
-```
+```text
 
 **Settings**:
 
@@ -218,7 +218,7 @@ client_config = {
     "ca_cert_path": "/etc/tls/ca.crt",           # CA certificate for verification
     "verify_server_cert": True,                   # Always verify server
 }
-```
+```text
 
 **Production Deployment**:
 
@@ -234,7 +234,7 @@ export FRAISEQL_AUDIT_LEVEL=verbose
 export FRAISEQL_AUDIT_FIELD_ACCESS=true
 export FRAISEQL_QUERY_COMPLEXITY_MAX=500
 export FRAISEQL_RATE_LIMIT_PER_MIN=10
-```
+```text
 
 ### Profile Enforcement
 
@@ -254,7 +254,7 @@ Security profiles are automatically enforced via middleware. Each request is val
 # 10. CSRF token validation
 # 11. Security header injection
 # 12. Audit event logging
-```
+```text
 
 **Error Handling**:
 
@@ -273,7 +273,7 @@ HTTP/1.1 403 Forbidden
     }
   }]
 }
-```
+```text
 
 ---
 
@@ -350,7 +350,7 @@ FraiseQL generates SBOMs in **CycloneDX 1.5** format (OWASP standard):
     // ... more components ...
   ]
 }
-```
+```text
 
 ### SBOM Generation
 
@@ -366,7 +366,7 @@ FraiseQL automatically generates and cryptographically signs SBOMs with each rel
 # - sbom.xml (CycloneDX XML)
 # - sbom.json.sig (Cosign signature)
 # - sbom.json.sha256 (SHA-256 checksum)
-```
+```text
 
 **Manual Generation**:
 
@@ -383,7 +383,7 @@ cosign verify-blob \
   --signature sbom.json.sig \
   --certificate sbom.json.cert \
   sbom.json
-```
+```text
 
 **Programmatic Generation**:
 
@@ -407,7 +407,7 @@ with open("sbom.json", "w") as f:
 validation = generator.validate_sbom_completeness(sbom_dict)
 if not validation.is_complete:
     print(f"Missing components: {validation.missing_components}")
-```
+```text
 
 ### SBOM Security: Cryptographic Signing
 
@@ -427,7 +427,7 @@ cosign verify-blob \
 
 # Verify SHA-256 integrity:
 sha256sum -c sbom.json.sha256
-```
+```text
 
 **Security Properties**:
 
@@ -459,7 +459,7 @@ SBOMs include all components in dependency tree:
 - sniffio 1.3.0
 
 # Total: 150+ dependencies in typical deployment
-```
+```text
 
 **Component Fields**:
 
@@ -490,7 +490,7 @@ Each component in SBOM includes:
     "url": "https://www.psycopg.org/"
   }]
 }
-```
+```text
 
 ### License Compliance
 
@@ -513,7 +513,7 @@ Each component includes SPDX license identifier(s):
 - GPL-3.0-only
 - AGPL-3.0-only (network copyleft)
 - LGPL-2.1-or-later
-```
+```text
 
 **Copyleft Detection**:
 
@@ -527,7 +527,7 @@ fraiseql sbom generate --copyleft-check
 #   - package-name (v1.2.3): GPL-3.0-only
 #     Note: GPL-3.0 requires source code distribution of modifications
 #     Action: Review license compatibility with your project's license
-```
+```text
 
 **FraiseQL Core License**:
 
@@ -598,9 +598,9 @@ Restricts what content the browser can load from external sources.
 
 **Strict Configuration** (production):
 
-```
+```text
 Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
-```
+```text
 
 **Key Directives**:
 
@@ -613,9 +613,9 @@ Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'
 
 **Development Configuration** (permissive):
 
-```
+```text
 Content-Security-Policy: default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'
-```
+```text
 
 **CSP Violation Reporting**:
 
@@ -625,7 +625,7 @@ config = FraiseQLConfig(
     csp_report_uri="https://security.example.com/csp-violations",
     csp_report_only=False,  # True = report only, False = enforce
 )
-```
+```text
 
 #### HTTP Strict-Transport-Security (HSTS)
 
@@ -633,9 +633,9 @@ Forces browser to use HTTPS for all future connections.
 
 **Header**:
 
-```
+```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-```
+```text
 
 **Directives**:
 
@@ -647,9 +647,9 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
 Prevents MIME type sniffing (browser guessing content type).
 
-```
+```text
 X-Content-Type-Options: nosniff
-```
+```text
 
 Ensures `Content-Type: application/json` is respected and not misinterpreted.
 
@@ -657,9 +657,9 @@ Ensures `Content-Type: application/json` is respected and not misinterpreted.
 
 Prevents clickjacking attacks by controlling iframe embedding.
 
-```
+```text
 X-Frame-Options: DENY
-```
+```text
 
 **Options**:
 
@@ -671,17 +671,17 @@ X-Frame-Options: DENY
 
 Legacy header for older browser XSS protection (modern browsers use CSP).
 
-```
+```text
 X-XSS-Protection: 1; mode=block
-```
+```text
 
 #### Referrer-Policy
 
 Controls how much referrer information to send to external sites.
 
-```
+```text
 Referrer-Policy: strict-origin-when-cross-origin
-```
+```text
 
 **Policies**:
 
@@ -693,7 +693,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 
 Restricts browser features and APIs.
 
-```
+```text
 Permissions-Policy:
   geolocation=(),
   microphone=(),
@@ -703,17 +703,17 @@ Permissions-Policy:
   magnetometer=(),
   gyroscope=(),
   accelerometer=()
-```
+```text
 
 #### Cross-Origin Policies
 
 Control cross-origin requests and embedding.
 
-```
+```text
 Cross-Origin-Embedder-Policy: require-corp
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Resource-Policy: same-site
-```
+```text
 
 ### Security Header Configuration
 
@@ -747,7 +747,7 @@ config = FraiseQLConfig(security_profile=get_profile("restricted"))
 # - HSTS (enforced + preload)
 # - X-Frame-Options: DENY
 # - All feature-policy restrictions enabled
-```
+```text
 
 **Custom Configuration**:
 
@@ -776,7 +776,7 @@ headers_config = SecurityHeadersConfig(
 config = FraiseQLConfig(
     security_headers_config=headers_config,
 )
-```
+```text
 
 ---
 
@@ -795,10 +795,10 @@ FraiseQL provides comprehensive Cross-Site Request Forgery (CSRF) protection wit
 
 **Token Example**:
 
-```
+```text
 Token: NrVy3e5K_J2x8aB9cDmQpRsT1uVwXyZa
 HMAC: e4c7e8f5a1b2c3d4e5f6a7b8c9d0e1f2
-```
+```text
 
 ### Storage Methods
 
@@ -813,7 +813,7 @@ config = FraiseQLConfig(
     csrf_cookie_domain=".example.com",
     csrf_cookie_path="/graphql",
 )
-```
+```text
 
 **Session-Based** (server-side storage):
 
@@ -822,7 +822,7 @@ config = FraiseQLConfig(
     csrf_token_storage="session",
     # Requires session middleware
 )
-```
+```text
 
 **Header-Based** (custom header):
 
@@ -831,7 +831,7 @@ config = FraiseQLConfig(
     csrf_token_storage="header",
     csrf_header_name="X-CSRF-Token",
 )
-```
+```text
 
 ### CSRF Validation
 
@@ -848,7 +848,7 @@ X-CSRF-Token: NrVy3e5K_J2x8aB9cDmQpRsT1uVwXyZa
 {
   "query": "mutation { createUser(name: \"Alice\") { id } }"
 }
-```
+```text
 
 **Validation Checks**:
 
@@ -873,7 +873,7 @@ HTTP/1.1 403 Forbidden
     }
   }]
 }
-```
+```text
 
 ### Exemptions
 
@@ -887,7 +887,7 @@ POST /graphql HTTP/1.1
   "query": "query { users { id name } }"
 }
 // No X-CSRF-Token header needed
-```
+```text
 
 **Path Exemptions**:
 
@@ -896,7 +896,7 @@ csrf_config = CSRFConfig(
     exempt_paths=["/health", "/metrics", "/docs"],
     exempt_methods=["GET", "HEAD", "OPTIONS"],  # Default
 )
-```
+```text
 
 **Mutation Exemption** (advanced):
 
@@ -905,7 +905,7 @@ csrf_config = CSRFConfig(
 csrf_config = CSRFConfig(
     exempt_operations=["IntrospectionQuery"],  # If using persisted queries
 )
-```
+```text
 
 ### CSRF in SPAs
 
@@ -927,7 +927,7 @@ fetch('/graphql', {
   },
   body: JSON.stringify({ query: mutation }),
 })
-```
+```text
 
 **Production Configuration**:
 
@@ -945,7 +945,7 @@ csrf_config = CSRFConfig(
     ],
     token_expiry=3600,            # 1 hour
 )
-```
+```text
 
 ---
 
@@ -970,7 +970,7 @@ await service.revoke_token(
     jti="token-id-from-claims",
     reason="User logout"
 )
-```
+```text
 
 **All User Tokens** (force logout all sessions):
 
@@ -980,7 +980,7 @@ await service.revoke_all_user_tokens(
     user_id="user-123",
     reason="Security incident detected"
 )
-```
+```text
 
 **Revocation Store Implementations**:
 
@@ -1009,7 +1009,7 @@ CREATE TABLE token_revocation (
 
 CREATE INDEX idx_token_revocation_user ON token_revocation(user_id);
 CREATE INDEX idx_token_revocation_expires ON token_revocation(expires_at);
-```
+```text
 
 ### Logout Flow
 
@@ -1022,7 +1022,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```
+```text
 
 **Processing**:
 
@@ -1041,7 +1041,7 @@ HTTP/1.1 200 OK
   "message": "Logged out successfully",
   "revoked_at": "2025-01-11T10:30:45Z"
 }
-```
+```text
 
 ### Token Validation on Requests
 
@@ -1055,7 +1055,7 @@ HTTP/1.1 200 OK
 # 4. Check revocation store: is jti revoked?
 # 5. If revoked: reject request (401 Unauthorized)
 # 6. If not revoked: proceed with request
-```
+```text
 
 **Performance**:
 
@@ -1114,7 +1114,7 @@ rate_limit_config = RateLimitConfig(
         },
     }
 )
-```
+```text
 
 ### Complexity-Based Rate Limiting
 
@@ -1146,19 +1146,19 @@ rate_limit_config = RateLimitConfig(
         },
     }
 )
-```
+```text
 
 ### Response Headers
 
 FraiseQL includes rate limit information in response headers:
 
-```
+```text
 HTTP/1.1 200 OK
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 87
 X-RateLimit-Window: 60
 X-RateLimit-Reset: 1631384400
-```
+```text
 
 **Rate Limit Exceeded** (HTTP 429):
 
@@ -1176,7 +1176,7 @@ Retry-After: 45
     }
   }]
 }
-```
+```text
 
 ### Store Implementations
 
@@ -1187,7 +1187,7 @@ RateLimitConfig(
     store="memory",  # No external dependencies
     cleanup_interval=300,  # Cleanup every 5 minutes
 )
-```
+```text
 
 **Redis Store** (production):
 
@@ -1198,7 +1198,7 @@ RateLimitConfig(
     key_prefix="rate_limit:",
     ttl=3600,  # Automatic cleanup after 1 hour
 )
-```
+```text
 
 ---
 
@@ -1228,7 +1228,7 @@ class User:
         error_message="Only admins can view salary information"
     )
     salary: float | None = None
-```
+```text
 
 ### Permission Check Patterns
 
@@ -1240,7 +1240,7 @@ class User:
 )
 def email(self) -> str:
     return self._email
-```
+```text
 
 **Role Check**:
 
@@ -1250,7 +1250,7 @@ def email(self) -> str:
 )
 def sensitive_data(self) -> str:
     return self._sensitive_data
-```
+```text
 
 **Combined Permissions**:
 
@@ -1270,7 +1270,7 @@ def audit_log(self) -> str: ...
 # Any can pass (OR)
 @authorize_field(any_permission(is_owner, is_admin))
 def admin_notes(self) -> str: ...
-```
+```text
 
 ### Async Permission Checks
 
@@ -1284,7 +1284,7 @@ async def check_user_permission(info) -> bool:
 @authorize_field(check_user_permission)
 def email(self) -> str:
     return self._email
-```
+```text
 
 ### Error Handling
 
@@ -1307,7 +1307,7 @@ When field authorization fails:
     }
   }]
 }
-```
+```text
 
 ---
 
@@ -1323,7 +1323,7 @@ FraiseQL provides three introspection policies to balance schema transparency wi
 FraiseQLConfig(
     introspection_policy="enabled"
 )
-```
+```text
 
 - Anyone can introspect the schema
 - ✅ Developer-friendly
@@ -1335,7 +1335,7 @@ FraiseQLConfig(
 FraiseQLConfig(
     introspection_policy="authenticated"
 )
-```
+```text
 
 - Only authenticated users can introspect
 - ✅ Balances usability and security
@@ -1348,7 +1348,7 @@ FraiseQLConfig(
 FraiseQLConfig(
     introspection_policy="disabled"
 )
-```
+```text
 
 - Introspection queries completely blocked
 - ✅ Maximum security
@@ -1370,7 +1370,7 @@ Introspection queries like `{ __schema { ... } }` are blocked according to polic
     }
   }]
 }
-```
+```text
 
 ### Introspection Query Examples
 
@@ -1385,7 +1385,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Type Information**:
 
@@ -1397,7 +1397,7 @@ query {
     interfaces { name }
   }
 }
-```
+```text
 
 ---
 
@@ -1418,7 +1418,7 @@ config = FraiseQLConfig(
         "profile": "default",  # Optional AWS profile
     }
 )
-```
+```text
 
 **HashiCorp Vault**:
 
@@ -1431,7 +1431,7 @@ config = FraiseQLConfig(
         "mount_path": "secret",
     }
 )
-```
+```text
 
 **Google Cloud KMS**:
 
@@ -1445,7 +1445,7 @@ config = FraiseQLConfig(
         "key": "my-key",
     }
 )
-```
+```text
 
 **Local KMS** (development):
 
@@ -1456,7 +1456,7 @@ config = FraiseQLConfig(
         "key_path": "./local_key.bin"  # Optional
     }
 )
-```
+```text
 
 ### Encryption/Decryption
 
@@ -1476,7 +1476,7 @@ encrypted = await key_manager.encrypt(
 
 # Store encrypted_data.ciphertext in database
 # Discard plaintext
-```
+```text
 
 **Decrypting Data**:
 
@@ -1491,7 +1491,7 @@ plaintext = await key_manager.decrypt(
 )
 
 # Use plaintext
-```
+```text
 
 ### Key Rotation
 
@@ -1505,7 +1505,7 @@ await key_manager.rotate_key(
         "rotation_period_days": 90,
     }
 )
-```
+```text
 
 **Envelope Encryption** (recommended):
 
@@ -1521,7 +1521,7 @@ ciphertext = await key_manager.encrypt_with_key(plaintext, data_key)
 # 1. Generate new data key
 # 2. Re-encrypt all data with new key
 # 3. Destroy old key
-```
+```text
 
 ---
 
@@ -1587,7 +1587,7 @@ event = SecurityEvent(
         "failure_count": 3,
     }
 )
-```
+```text
 
 ### Logging Configuration
 
@@ -1603,7 +1603,7 @@ logger = SecurityLogger(
 # Enable global security logging
 import fraiseql.audit.security_logger
 fraiseql.audit.security_logger.set_global_logger(logger)
-```
+```text
 
 ### Log Output
 
@@ -1628,7 +1628,7 @@ fraiseql.audit.security_logger.set_global_logger(logger)
     "failure_count": 3
   }
 }
-```
+```text
 
 ### Compliance Integration
 

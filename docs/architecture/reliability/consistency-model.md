@@ -57,7 +57,7 @@ mutation {
 
 # After mutation
 SELECT COUNT(*) FROM users  # Still 100 (no partial insert)
-```
+```text
 
 #### 2.1.2 Consistency (Logical)
 
@@ -80,7 +80,7 @@ mutation {
 }
 
 # After error, database state is unchanged
-```
+```text
 
 #### 2.1.3 Isolation
 
@@ -111,7 +111,7 @@ mutation {
 
 # Result: One succeeds, one fails (conflict detected)
 # Never: Both succeed with mixed updates
-```
+```text
 
 #### 2.1.4 Durability
 
@@ -139,7 +139,7 @@ mutation {
 query {
   user(id: 123) { name }  # Returns "Bob"
 }
-```
+```text
 
 **Non-guarantee:**
 
@@ -152,7 +152,7 @@ mutation {
 
 # Server crashes
 # Database restart: Change was never applied (not durable)
-```
+```text
 
 ---
 
@@ -175,7 +175,7 @@ mutation {
 query {
   user(id: 1) { name }  # Returns "Alice"
 }
-```
+```text
 
 **Strong guarantee:** Applies at all times, for all clients.
 
@@ -195,7 +195,7 @@ mutation {
 query {
   me { name }  # Returns "NewName"
 }
-```
+```text
 
 **Implementation:** Achieved via:
 
@@ -219,7 +219,7 @@ query { user(id: 1) { posts { count } } }
 # Read 2: User still sees 5 posts (at worst)
 query { user(id: 1) { posts { count } } }
 # Returns: >= 5 (5 or 6, never less than 5)
-```
+```text
 
 **Strong guarantee:** FraiseQL never shows older versions of data.
 
@@ -240,7 +240,7 @@ mutation { updateOrder(id: 100, status: "shipped") { status } }
 query { order(id: 100) { status } }
 # Never sees: order doesn't exist yet (would be out-of-order)
 # Always sees: order with status = "shipped" (or not created yet)
-```
+```text
 
 ---
 
@@ -262,7 +262,7 @@ query { order(id: 100) { status } }
 # Result: One succeeds first, second uses updated value
 # Possible: A succeeds (900), B succeeds (850) ✅
 # Never: Both use original (900 and 950) ❌
-```
+```text
 
 ### 4.2 Transaction Isolation for Multi-Statement
 
@@ -282,7 +282,7 @@ mutation {
   # All succeed or all fail together
   # No partial state visible
 }
-```
+```text
 
 ### 4.3 Write Conflicts
 
@@ -296,7 +296,7 @@ mutation {
 
 # Both use same version (5)
 # Result: A succeeds (version → 6), B fails with conflict error
-```
+```text
 
 ---
 
@@ -331,26 +331,26 @@ query {
 # - Client always sees order_123 in the user's orders
 # - Never sees state before order was created
 # - Even if databases are replicas with lag
-```
+```text
 
 ### 5.2 Consistency Across Databases
 
 **Single-Database Query (Strict Serializable):**
 
-```
+```text
 Database: PostgreSQL
 Consistency: Serializable ACID
 Latency: <10ms
-```
+```text
 
 **Federated Query (Causal Consistent):**
 
-```
+```text
 Database 1: PostgreSQL (Users)
 Database 2: MySQL (Orders)
 Consistency: Causal
 Latency: <100ms (slower due to coordination)
-```
+```text
 
 **Trade-off:** Federation sacrifices strict serializability for scalability.
 
@@ -371,7 +371,7 @@ mutation {
 # Instead: Client should handle failure
 if not mutation_succeeded:
   client should retry both or roll back manually
-```
+```text
 
 ### 5.4 Federation via Database Linking (Optimized)
 
@@ -385,7 +385,7 @@ Consistency: Serializable ACID (via FDW)
 # vs HTTP federation
 # Any databases, via HTTP
 Consistency: Causal
-```
+```text
 
 ---
 
@@ -406,7 +406,7 @@ Event 3: status = "delivered" (timestamp: T3)
 
 # Client always sees events in this order
 # Never: Event 3 before Event 1
-```
+```text
 
 ### 6.2 Event Delivery Consistency
 
@@ -428,7 +428,7 @@ Event 3: status = "delivered" (timestamp: T3)
 }
 
 # Client should check event_id and skip duplicates
-```
+```text
 
 ### 6.3 No Cross-Entity Ordering
 
@@ -446,7 +446,7 @@ T3: Order 200 updated → Event C
 Event B, Event C, Event A  # Out of original order!
 
 # Why: Events are per-entity ordered, not globally ordered
-```
+```text
 
 ---
 
@@ -473,7 +473,7 @@ mutation { updateUser(id: 1, name: "Bob") { name } }
 # Next query (cache miss, fresh from database)
 query { user(id: 1) { name } }
 # Cache hit: name="Bob"
-```
+```text
 
 ### 7.2 Cache TTL (Time-to-Live)
 
@@ -487,7 +487,7 @@ query @cacheControl(maxAge: 60) {
 
 # Fresh if: query < 60s old
 # Stale if: query > 60s old, re-fetch from database
-```
+```text
 
 ### 7.3 Cache Coherence
 
@@ -509,7 +509,7 @@ query @cacheControl(maxAge: 60) {
 query { user(id: 1) { name } }
 # Database is down
 # Returns: ERROR, data: null
-```
+```text
 
 **Mutation:** Returns error, no changes applied
 
@@ -518,7 +518,7 @@ mutation { updateUser(id: 1, name: "Bob") { name } }
 # Database is down
 # Returns: ERROR, data: null
 # Database unchanged
-```
+```text
 
 ### 8.2 Connection Lost Mid-Query
 
@@ -543,7 +543,7 @@ mutation { updateUser(id: 1, name: "Alice") }
 query { user(id: 1) { name } }  # Sees "Alice" immediately
 
 # FraiseQL always returns immediately-consistent results
-```
+```text
 
 **If you need eventual consistency:** Use event-driven architecture with subscriptions + external systems.
 
@@ -575,7 +575,7 @@ query @consistency(level: "serializable") {
 # - "serializable" (default): Strongest consistency
 # - "causal" (federation): Weaker but faster
 # - "eventual" (future): Weakest but fastest
-```
+```text
 
 ### 11.2 Per-Mutation Consistency Control
 
@@ -587,7 +587,7 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 # Options:
 # - timeout: Max time to wait for lock (ms)
 # - retry: Auto-retry on conflict (true/false)
-```
+```text
 
 ---
 
@@ -599,12 +599,12 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Mechanism:** Serializable Snapshot Isolation (SSI)
 **Guarantee:**
 
-```
+```text
 ✅ Serializable isolation
 ✅ MVCC (Multi-Version Concurrency Control)
 ✅ Write-ahead logging (durability)
 ✅ Atomic transactions
-```
+```text
 
 ### 12.2 MySQL (InnoDB)
 
@@ -612,12 +612,12 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Mechanism:** MVCC + Gap locks
 **Guarantee:**
 
-```
+```text
 ✅ Serializable isolation (with locks)
 ✅ MVCC
 ✅ Binary logging (durability)
 ✅ Atomic transactions
-```
+```text
 
 ### 12.3 SQL Server
 
@@ -625,12 +625,12 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Mechanism:** Snapshot isolation + row versioning
 **Guarantee:**
 
-```
+```text
 ✅ Serializable isolation
 ✅ Snapshot isolation available
 ✅ Write-ahead logging (durability)
 ✅ Atomic transactions
-```
+```text
 
 ### 12.4 SQLite
 
@@ -638,12 +638,12 @@ mutation @consistency(level: "serializable", timeout: 30000) {
 **Mechanism:** Write-ahead logging + locking
 **Guarantee:**
 
-```
+```text
 ⚠️ Limited MVCC (single file)
 ✅ Atomic transactions
 ✅ Durability
 ❌ Limited concurrency (file-level locking)
-```
+```text
 
 ---
 
@@ -661,7 +661,7 @@ result = query { user(id: 1) { name } }
 # Assuming result might be stale
 
 # Result: Always sees "Alice" immediately
-```
+```text
 
 **✅ RIGHT:**
 
@@ -669,7 +669,7 @@ result = query { user(id: 1) { name } }
 mutation { updateUser(id: 1, name: "Alice") }
 # Result: Always consistent immediately, no need to wait
 result = query { user(id: 1) { name } }  # Sees "Alice"
-```
+```text
 
 ### 13.2 Assuming Cross-Database Transactions
 
@@ -683,7 +683,7 @@ mutation {
 
 # Assuming both succeed or both fail
 # Actually: May partially succeed
-```
+```text
 
 **✅ RIGHT:**
 
@@ -696,7 +696,7 @@ try {
   # May have created user but not order
   # Client should rollback/compensate
 }
-```
+```text
 
 ### 13.3 Assuming Global Event Ordering
 
@@ -710,7 +710,7 @@ subscription {
 
 # Assuming events are globally ordered by timestamp
 # Actually: Only per-entity ordered
-```
+```text
 
 **✅ RIGHT:**
 
@@ -721,7 +721,7 @@ subscription {
 
 # Use timestamp to order events in client
 events.sort(key=lambda e: e["timestamp"])
-```
+```text
 
 ---
 

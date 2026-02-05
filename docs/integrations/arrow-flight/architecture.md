@@ -16,7 +16,7 @@ Both dataplanes consume the same source data (NATS JetStream) and serve differen
 
 ## Complete Data Flow
 
-```
+```text
 DATABASE WRITES
     ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -55,13 +55,13 @@ DATABASE WRITES
     │  Analytics pipeline  │   │  Streaming events │
     │  ML feature eng      │   │  Real-time agg    │
     └──────────────────────┘   └───────────────────┘
-```
+```text
 
 ## GraphQL Queries (Dual Transport)
 
 Same GraphQL query, different transports:
 
-```
+```text
 ┌──────────────────────────────────────────────────────┐
 │  Client Request: "{ users { id name email } }"       │
 └──────────────────────────────────────────────────────┘
@@ -97,13 +97,13 @@ Same GraphQL query, different transports:
     └──────────────────┘    │ Time: 2s          │
     (Web clients)           └───────────────────┘
                             (Analytics clients)
-```
+```text
 
 ## Observer Events (Dual Sink)
 
 Events flow through NATS to both dataplanes:
 
-```
+```text
 DATABASE MUTATION
     ↓
 PostgreSQL NOTIFY (trigger-based)
@@ -138,7 +138,7 @@ NATS JetStream (durable, at-least-once semantics)
          ├─ Index: fraiseql-events-YYYY.MM
          ├─ Document: JSONB serialized
          └─ ILM policy: hot → warm → delete (90d)
-```
+```text
 
 ## Component Responsibilities
 
@@ -169,7 +169,7 @@ NATS JetStream (durable, at-least-once semantics)
 
 **Optimized for**: Aggregations, time-series, ML pipelines
 
-```
+```text
 Use Cases:
 
 - "How many orders per hour?" → Materialized views
@@ -184,13 +184,13 @@ Characteristics:
 - Performance: 1M+ events/sec ingestion
 - Retention: 90 days (TTL in ClickHouse)
 - Clients: Python, R, Java (via Arrow libraries)
-```
+```text
 
 ### Operational Dataplane (HTTP/JSON + Elasticsearch)
 
 **Optimized for**: Full-text search, flexible filtering
 
-```
+```text
 Use Cases:
 
 - "Find all failed orders with error_code PAYMENT_DECLINED"
@@ -205,7 +205,7 @@ Characteristics:
 - Performance: <100ms search queries
 - Retention: 90 days (ILM policy)
 - Clients: Kibana, web dashboards, support tools
-```
+```text
 
 ## Example: Choose the Right Dataplane
 
@@ -222,11 +222,11 @@ Characteristics:
 
 ### Topology 1: HTTP-Only (Simple)
 
-```
+```text
 fraiseql-server (HTTP:8080)
     ↓
 PostgreSQL
-```
+```text
 
 - **Best for**: Simple web applications
 - **Trade-offs**: No Arrow Flight, no analytics benefits
@@ -235,7 +235,7 @@ PostgreSQL
 
 ### Topology 2: Dual Transport + Analytics (Recommended for Production)
 
-```
+```text
 fraiseql-server (HTTP:8080 + Arrow:50051)
     ↓
 PostgreSQL
@@ -243,7 +243,7 @@ PostgreSQL
 NATS JetStream
     ├─→ ClickHouse (analytics)
     └─→ Elasticsearch (operational)
-```
+```text
 
 - **Best for**: Production applications with analytics needs
 - **Trade-offs**: More infrastructure (but purpose-built)
@@ -253,11 +253,11 @@ NATS JetStream
 
 ### Topology 3: Arrow-Only (Future)
 
-```
+```text
 fraiseql-server (Arrow:50051)
     ↓
 PostgreSQL
-```
+```text
 
 - **Best for**: Pure analytics workloads
 - **Trade-offs**: No web client support

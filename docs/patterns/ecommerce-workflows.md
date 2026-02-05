@@ -72,7 +72,7 @@ CREATE TABLE stock_movements (
   INDEX idx_variant_id (variant_id),
   INDEX idx_movement_type (movement_type)
 );
-```
+```text
 
 ### Orders & Fulfillment
 
@@ -166,7 +166,7 @@ CREATE TABLE return_items (
 
   INDEX idx_return_id (return_id)
 );
-```
+```text
 
 ### Payments & Discounts
 
@@ -209,7 +209,7 @@ CREATE TABLE order_discounts (
 
   UNIQUE(order_id, discount_id)
 );
-```
+```text
 
 ---
 
@@ -370,7 +370,7 @@ class Mutation:
     def process_payment(self, order_id: str) -> 'Payment':
         """Process order payment"""
         pass
-```
+```text
 
 ---
 
@@ -378,7 +378,7 @@ class Mutation:
 
 ### State Machine
 
-```
+```text
 pending
     ↓
 confirmed (payment received)
@@ -388,7 +388,7 @@ processing (preparing for shipment)
 shipped (in transit)
     ↓
 delivered (final destination)
-```
+```text
 
 ### State Transitions
 
@@ -418,7 +418,7 @@ BEFORE UPDATE ON orders
 FOR EACH ROW
 WHEN (OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION validate_order_transition();
-```
+```text
 
 ---
 
@@ -448,7 +448,7 @@ CREATE TRIGGER order_item_reserve
 BEFORE INSERT ON order_items
 FOR EACH ROW
 EXECUTE FUNCTION reserve_inventory();
-```
+```text
 
 ### Release on Cancellation
 
@@ -471,7 +471,7 @@ BEFORE UPDATE ON orders
 FOR EACH ROW
 WHEN (OLD.status != 'cancelled' AND NEW.status = 'cancelled')
 EXECUTE FUNCTION release_inventory();
-```
+```text
 
 ---
 
@@ -529,7 +529,7 @@ export async function processOrderPayment(
     throw error;
   }
 }
-```
+```text
 
 ---
 
@@ -576,7 +576,7 @@ export function RevenueReport() {
     </div>
   );
 }
-```
+```text
 
 ---
 
@@ -622,7 +622,7 @@ describe('Order Management', () => {
     expect(updatedInventory.quantityReserved).toBe(reserved - 10);
   });
 });
-```
+```text
 
 ---
 

@@ -27,7 +27,7 @@ npm install @fraiseql/client
 
 # Go:
 go get github.com/fraiseql/fraiseql-go/v2
-```
+```text
 
 ### Create Your First Schema
 
@@ -49,7 +49,7 @@ class Post:
     title: str
     content: str
     user: User
-```
+```text
 
 ### Configure Database
 
@@ -58,7 +58,7 @@ class Post:
 [database]
 url = "postgresql://localhost/myapp"
 pool_size = 10
-```
+```text
 
 ### Compile and Run
 
@@ -81,7 +81,7 @@ curl -X POST http://localhost:5000/graphql \
       }
     }"
   }'
-```
+```text
 
 ### Query from Your App
 
@@ -104,7 +104,7 @@ async def main():
             print(f"{user['name']} ({user['email']})")
 
 asyncio.run(main())
-```
+```text
 
 ### Next Steps
 
@@ -121,7 +121,7 @@ asyncio.run(main())
 
 ### Step 1: Map Your Domain
 
-```
+```text
 Users Service (Service 1)
 ├─ Table: users
 ├─ Fields: id, name, email, created_at
@@ -134,7 +134,7 @@ Orders Service (Service 2)
 ├─ Primary Key: id
 ├─ Foreign Key: user_id → users.id (federation)
 └─ Relationships: 1:M → Items
-```
+```text
 
 ### Step 2: Define Federated Types
 
@@ -169,7 +169,7 @@ class Order:
     status: OrderStatus
     created_at: str
     user: User  # Reference back to user
-```
+```text
 
 ### Step 3: Add Authorization
 
@@ -188,7 +188,7 @@ class User:
         authorize={Roles.SELF, Roles.ADMIN}
     )
     orders: List[Order]
-```
+```text
 
 ### Step 4: Optimize with Views
 
@@ -201,7 +201,7 @@ class UserStats:
     total_spent: Decimal
     avg_order_value: Decimal
     updated_at: str
-```
+```text
 
 ### Step 5: Configure Deployment
 
@@ -220,7 +220,7 @@ database_url = "${ORDERS_DATABASE_URL}"
 name = "Users"
 strategy = "http"
 url = "http://users-service:5000/graphql"
-```
+```text
 
 ### Validation Checklist
 
@@ -256,7 +256,7 @@ COPY --from=builder /app/target/release/fraiseql /usr/local/bin/
 COPY fraiseql.toml /etc/fraiseql/
 EXPOSE 5000
 ENTRYPOINT ["fraiseql", "serve"]
-```
+```text
 
 ### Step 2: Configuration Management
 
@@ -280,7 +280,7 @@ auth_required = true
 [monitoring]
 metrics_enabled = true
 tracing_enabled = true
-```
+```text
 
 ### Step 3: Kubernetes Deployment
 
@@ -330,7 +330,7 @@ spec:
             port: 5000
           initialDelaySeconds: 5
           periodSeconds: 5
-```
+```text
 
 ### Step 4: Monitoring & Logging
 
@@ -354,7 +354,7 @@ groups:
   - alert: SlowQueries
     expr: fraiseql_query_latency_p95 > 1000  # ms
     for: 5m
-```
+```text
 
 ### Step 5: Secrets Management
 
@@ -366,7 +366,7 @@ kubectl create secret generic fraiseql-secrets \
 
 # Verify
 kubectl get secrets
-```
+```text
 
 ### Deployment Checklist
 
@@ -412,7 +412,7 @@ class CustomerSegmentation:
     ltv: Decimal  # Lifetime value
     days_active: int
     purchase_frequency: float
-```
+```text
 
 ### Step 2: Enable Arrow Flight
 
@@ -422,7 +422,7 @@ class CustomerSegmentation:
 enabled = true
 port = 30000
 tls_enabled = false  # Enable in production!
-```
+```text
 
 ### Step 3: Connect BI Tool
 
@@ -441,7 +441,7 @@ result = conn.execute("""
     GROUP BY date
     ORDER BY date DESC
 """).fetchall()
-```
+```text
 
 **Tableau (native Arrow Flight connector):**
 
@@ -467,7 +467,7 @@ print(df.groupby('region')['revenue'].sum())
 # Or convert to Polars for performance
 import polars as pl
 pl_df = pl.from_arrow(reader.read_all())
-```
+```text
 
 ### Step 4: Schedule Exports
 
@@ -490,7 +490,7 @@ df = reader.read_pandas()
 engine = create_engine("postgresql://warehouse/analytics")
 df.to_sql('sales_analytics', engine, if_exists='append', index=False)
 EOF
-```
+```text
 
 ### Next Steps
 
@@ -546,7 +546,7 @@ class Project:
     data: JSON  # Flexible project data
     owner_id: str
     created_at: str
-```
+```text
 
 ### Step 2: Configure Authentication
 
@@ -562,7 +562,7 @@ redirect_url = "https://app.example.com/auth/callback"
 algorithm = "RS256"
 issuer = "https://auth.example.com"
 audience = "https://api.example.com"
-```
+```text
 
 ### Step 3: Add Rate Limiting
 
@@ -577,7 +577,7 @@ window_seconds = 60  # 10 requests/minute
 [rate_limiting.graphql]
 max_requests = 100
 window_seconds = 60  # 100 requests/minute per user
-```
+```text
 
 ### Step 4: Deploy to Production
 
@@ -603,7 +603,7 @@ docker-compose up -d
 
 # 6. Test API
 curl https://api.example.com/health
-```
+```text
 
 ### Step 5: Set Up Webhooks
 
@@ -620,7 +620,7 @@ class SendWelcomeEmail:
             variables={"org_name": event.context.org_name}
         )
     ]
-```
+```text
 
 ### Launch Checklist
 

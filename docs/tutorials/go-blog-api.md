@@ -32,7 +32,7 @@ In this hands-on tutorial, you'll build a complete Blog API GraphQL schema using
 
 FraiseQL's authoring workflow in Go:
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │ 1. Go Schema Definition                             │
 │    - Struct tags with fraiseql metadata             │
@@ -63,7 +63,7 @@ FraiseQL's authoring workflow in Go:
 │    - No Go dependencies at runtime                  │
 │    - Pure Rust execution                            │
 └─────────────────────────────────────────────────────┘
-```
+```text
 
 **Key Point:** Go is used for **authoring only**. The runtime is pure Rust with zero language bindings.
 
@@ -77,13 +77,13 @@ FraiseQL's authoring workflow in Go:
 mkdir fraiseql-blog-api && cd fraiseql-blog-api
 go mod init fraiseql-blog-api
 go get github.com/fraiseql/fraiseql-go
-```
+```text
 
 ### Directory structure
 
 Create the following structure:
 
-```
+```text
 fraiseql-blog-api/
 ├── go.mod
 ├── go.sum
@@ -99,7 +99,7 @@ fraiseql-blog-api/
 ├── schema.json                  # Generated (exported by export tool)
 ├── schema.compiled.json         # Generated (compiled by fraiseql-cli)
 └── Makefile                     # Build automation
-```
+```text
 
 ### go.mod file
 
@@ -109,7 +109,7 @@ module fraiseql-blog-api
 go 1.22
 
 require github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
-```
+```text
 
 Run `go mod tidy` to download dependencies.
 
@@ -228,7 +228,7 @@ BEGIN
               comments.content, comments.created_at;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 Run this SQL against your PostgreSQL database to create the schema.
 
@@ -271,7 +271,7 @@ type Comment struct {
  Content   string `fraiseql:"content,type=String"`
  CreatedAt string `fraiseql:"createdAt,type=String"`
 }
-```
+```text
 
 #### Understanding Struct Tags
 
@@ -279,7 +279,7 @@ The `fraiseql` tag format is:
 
 ```go
 `fraiseql:"<graphql_field_name>,type=<graphql_type>[,nullable=<true|false>]"`
-```
+```text
 
 - **graphql_field_name**: Name in the GraphQL schema (usually camelCase, unlike Go's PascalCase)
 - **type**: GraphQL type (Int, String, Boolean, Float, etc.)
@@ -403,7 +403,7 @@ func InitQueries() {
   Description("Get a single comment by its ID").
   Register()
 }
-```
+```text
 
 #### Understanding the Query Builder
 
@@ -420,7 +420,7 @@ fraiseql.NewQuery("operationName").
     Arg("argName", "GraphQLType", defaultValue, nullable...).
     Description("Human-readable description").
     Register()
-```
+```text
 
 **Key methods:**
 
@@ -501,7 +501,7 @@ func InitMutations() {
   Description("Create a comment on a blog post").
   Register()
 }
-```
+```text
 
 #### Understanding Mutations
 
@@ -555,13 +555,13 @@ func main() {
  log.Println("✅ Schema exported to schema.json")
  log.Println("Run: fraiseql-cli compile schema.json -o schema.compiled.json")
 }
-```
+```text
 
 ### Generate the schema
 
 ```bash
 go run cmd/export/main.go
-```
+```text
 
 This produces `schema.json` containing:
 
@@ -647,7 +647,7 @@ This produces `schema.json` containing:
     }
   ]
 }
-```
+```text
 
 ### Error Handling
 
@@ -668,7 +668,7 @@ The CLI validates your schema and generates an optimized compiled version:
 
 ```bash
 fraiseql-cli compile schema.json -o schema.compiled.json
-```
+```text
 
 This produces `schema.compiled.json` containing:
 
@@ -681,7 +681,7 @@ This produces `schema.compiled.json` containing:
 
 ```bash
 fraiseql-cli validate schema.json
-```
+```text
 
 ### Troubleshoot compilation errors
 
@@ -694,7 +694,7 @@ fraiseql-cli describe schema.json --query users
 
 # Validate SQL sources
 fraiseql-cli validate schema.json --check-sql
-```
+```text
 
 ---
 
@@ -763,7 +763,7 @@ func TestCommentType(t *testing.T) {
   t.Errorf("Expected post ID 42, got %d", comment.PostID)
  }
 }
-```
+```text
 
 ### Integration Tests for Schema Export
 
@@ -848,13 +848,13 @@ func TestSchemaExport(t *testing.T) {
   t.Errorf("Expected at least 4 mutations, got %d", len(mutations))
  }
 }
-```
+```text
 
 ### Run tests
 
 ```bash
 go test ./...
-```
+```text
 
 ---
 
@@ -868,7 +868,7 @@ fraiseql-cli compile schema.json -o schema.compiled.json
 
 # Start FraiseQL server
 fraiseql-server --schema schema.compiled.json --port 8000
-```
+```text
 
 ### Docker Deployment
 
@@ -892,7 +892,7 @@ FROM fraiseql/fraiseql-server:v2
 COPY --from=compiler /app/schema.compiled.json /etc/fraiseql/schema.compiled.json
 EXPOSE 8000
 CMD ["fraiseql-server", "--schema", "/etc/fraiseql/schema.compiled.json", "--port", "8000"]
-```
+```text
 
 ### Docker Compose
 
@@ -924,13 +924,13 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 Deploy:
 
 ```bash
 docker-compose up -d
-```
+```text
 
 ### Health Checks
 
@@ -951,7 +951,7 @@ curl -X POST http://localhost:8000/graphql \
   -d '{
     "query": "mutation { createUser(name: \"Bob\", email: \"bob@example.com\") { id name email } }"
   }'
-```
+```text
 
 ---
 
@@ -972,7 +972,7 @@ fraiseql.NewQuery("users").
     Register()
 
 // Usage: query { users(limit: 10, offset: 20) { id name } }
-```
+```text
 
 ### Pattern 2: Filtering
 
@@ -993,7 +993,7 @@ fraiseql.NewQuery("posts").
     Register()
 
 // Usage: query { posts(authorId: 1, published: true, limit: 10) { id title } }
-```
+```text
 
 ### Pattern 3: Sorting
 
@@ -1012,7 +1012,7 @@ fraiseql.NewQuery("posts").
     Register()
 
 // Usage: query { posts(orderBy: "createdAt DESC", limit: 10) { id title createdAt } }
-```
+```text
 
 ### Pattern 4: Relationships (Foreign Keys)
 
@@ -1033,7 +1033,7 @@ fraiseql.NewQuery("posts").
         "sql_source": "v_post",
     }).
     Register()
-```
+```text
 
 ### Pattern 5: Nullable Fields
 
@@ -1050,7 +1050,7 @@ type Post struct {
     Title     string `fraiseql:"title,type=String"`
     UpdatedAt string `fraiseql:"updatedAt,type=String"`
 }
-```
+```text
 
 ### Pattern 6: Optional Mutation Arguments
 
@@ -1067,7 +1067,7 @@ fraiseql.NewMutation("updateUser").
     Register()
 
 // Usage: mutation { updateUser(id: 1, name: "Alice Updated") { id name bio } }
-```
+```text
 
 ### Pattern 7: Analytics with Aggregates
 
@@ -1089,7 +1089,7 @@ fraiseql.NewAggregateQueryConfig("salesByRegion").
     AutoAggregates(true).
     Description("Sales aggregated by region").
     Register()
-```
+```text
 
 ---
 
@@ -1118,7 +1118,7 @@ func New() *gin.Engine {
 
  return router
 }
-```
+```text
 
 ### Client Implementation
 
@@ -1128,7 +1128,7 @@ Generate a GraphQL client for type-safe queries:
 # Using Gqlgen
 go run github.com/99designs/gqlgen init
 go run github.com/99designs/gqlgen generate
-```
+```text
 
 ### Performance Tuning
 
@@ -1142,7 +1142,7 @@ fraiseql-cli compile schema.json \
 fraiseql-server --schema schema.compiled.json \
   --enable-metrics \
   --metrics-port 9090
-```
+```text
 
 ---
 
@@ -1152,9 +1152,9 @@ fraiseql-server --schema schema.compiled.json \
 
 **Problem:**
 
-```
+```text
 Error: invalid fraiseql tag format: "idtype=Int"
-```
+```text
 
 **Solution:**
 Struct tags must have exact format: `fraiseql:"fieldName,type=GraphQLType"`
@@ -1169,15 +1169,15 @@ type User struct {
 type User struct {
     ID int `fraiseql:"id,type=Int"`
 }
-```
+```text
 
 ### Issue: "Type not registered"
 
 **Problem:**
 
-```
+```text
 Error: type User used in query but not registered
-```
+```text
 
 **Solution:**
 All types must be registered in `RegisterTypes()`:
@@ -1191,15 +1191,15 @@ if err := fraiseql.RegisterTypes(User{}, Post{}, Comment{}); err != nil {
 if err := fraiseql.ExportSchema("schema.json"); err != nil {
     log.Fatal(err)
 }
-```
+```text
 
 ### Issue: "Query builder not registered"
 
 **Problem:**
 
-```
+```text
 schema.json is empty or missing queries
-```
+```text
 
 **Solution:**
 Ensure `init()` functions are called:
@@ -1218,15 +1218,15 @@ func main() {
     mutations.InitMutations()
     // ...
 }
-```
+```text
 
 ### Issue: "Type mismatch in mutation"
 
 **Problem:**
 
-```
+```text
 Error: argument 'id' type Int does not match parameter type String
-```
+```text
 
 **Solution:**
 GraphQL types must match database parameter types:
@@ -1237,15 +1237,15 @@ fraiseql.NewMutation("createPost").
     Arg("authorId", "Int", nil).      // Matches INT
     Arg("title", "String", nil).      // Matches VARCHAR
     Register()
-```
+```text
 
 ### Issue: "Compilation fails with SQL source error"
 
 **Problem:**
 
-```
+```text
 Error: SQL source 'v_user' not found in database
-```
+```text
 
 **Solution:**
 Ensure PostgreSQL views/functions exist:
@@ -1257,7 +1257,7 @@ psql -U postgres -d blog_api -c "\df fn_create_user"
 
 # If missing, run DDL setup script
 psql -U postgres -d blog_api -f schema.sql
-```
+```text
 
 ---
 
@@ -1265,7 +1265,7 @@ psql -U postgres -d blog_api -f schema.sql
 
 ### Full Directory Structure
 
-```
+```text
 fraiseql-blog-api/
 ├── cmd/
 │   └── export/
@@ -1285,7 +1285,7 @@ fraiseql-blog-api/
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
-```
+```text
 
 ### Makefile
 
@@ -1327,7 +1327,7 @@ docker-down:
 clean:
  rm -f export schema.json schema.compiled.json
  go clean -testcache
-```
+```text
 
 ### go.mod
 
@@ -1337,7 +1337,7 @@ module fraiseql-blog-api
 go 1.22
 
 require github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
-```
+```text
 
 ---
 

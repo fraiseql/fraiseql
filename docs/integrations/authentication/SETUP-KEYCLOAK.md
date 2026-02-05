@@ -95,13 +95,13 @@ services:
 
 volumes:
   postgres_data:
-```
+```text
 
 Start it:
 
 ```bash
 docker-compose up -d
-```
+```text
 
 Access Keycloak at `http://localhost:8080`
 
@@ -176,7 +176,7 @@ JWT_ALGORITHM=RS256
 
 # Database Configuration
 DATABASE_URL=postgres://user:password@localhost/fraiseql
-```
+```text
 
 ## Configure FraiseQL Server
 
@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
     // Register auth endpoints...
     Ok(())
 }
-```
+```text
 
 ## Testing the Flow
 
@@ -216,7 +216,7 @@ async fn main() -> Result<()> {
 curl -X POST http://localhost:8000/auth/start \
   -H "Content-Type: application/json" \
   -d '{"provider": "keycloak"}'
-```
+```text
 
 ### 2. Complete Authentication
 
@@ -229,7 +229,7 @@ curl -X POST http://localhost:8000/graphql \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ user { id } }"}'
-```
+```text
 
 ## Advanced: User Federation
 
@@ -272,7 +272,7 @@ let user = auth::AuthenticatedUser { /* ... */ };
 if user.has_role("api-admin") {
     // Admin access
 }
-```
+```text
 
 ## Troubleshooting
 
@@ -320,7 +320,7 @@ docker-compose restart keycloak
 # Recreate if needed
 docker-compose down
 docker-compose up -d
-```
+```text
 
 ## Production Deployment
 
@@ -348,7 +348,7 @@ JWT_ISSUER=https://keycloak.example.com/realms/production
 JWT_ALGORITHM=RS256
 
 DATABASE_URL=postgres://user:strong-pass@db.internal/fraiseql
-```
+```text
 
 ## Using with Docker Compose in Production
 
@@ -389,18 +389,18 @@ services:
     ports:
       - "8000:8000"
     restart: always
-```
+```text
 
 ## Multi-Realm Setup
 
 For different environments, create separate realms:
 
-```
+```text
 Keycloak
 ├── development (uses test users)
 ├── staging (mirrors production)
 └── production (uses enterprise LDAP)
-```
+```text
 
 Each realm has:
 

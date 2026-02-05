@@ -24,7 +24,7 @@ docker-compose ps
 
 # Wait for full startup (PostgreSQL especially)
 sleep 10
-```
+```text
 
 **Verify Arrow Flight is accessible**:
 
@@ -32,13 +32,13 @@ sleep 10
 # Check if port 50051 is listening
 netstat -tuln | grep 50051
 # Expected: tcp    0    0 0.0.0.0:50051    0.0.0.0:*    LISTEN
-```
+```text
 
 ## Step 2: Install Python Libraries (1 minute)
 
 ```bash
 pip install pyarrow>=15.0.0 polars>=0.20.0
-```
+```text
 
 ## Step 3: Write Your First Arrow Flight Query (2 minutes)
 
@@ -97,17 +97,17 @@ print(f"\n📊 Performance:")
 print(f"  Rows: {len(df)}")
 print(f"  Columns: {len(df.columns)}")
 print(f"  Memory: ~{table.nbytes / 1024 / 1024:.1f} MB")
-```
+```text
 
 Run it:
 
 ```bash
 python my_first_query.py
-```
+```text
 
 **Expected output**:
 
-```
+```text
 Connecting to FraiseQL Arrow Flight server...
 ✅ Connected!
 
@@ -140,7 +140,7 @@ shape: (5, 3)
   Rows: 100
   Columns: 3
   Memory: ~2.1 KB
-```
+```text
 
 ## Step 4: Stream Observer Events (1 minute)
 
@@ -186,13 +186,13 @@ for batch in reader:
 print(f"✅ Streaming complete!")
 print(f"  Total batches: {batch_count}")
 print(f"  Total events: {total_rows}")
-```
+```text
 
 Run it:
 
 ```bash
 python stream_events.py
-```
+```text
 
 ## Congratulations! 🎉
 
@@ -218,25 +218,25 @@ Arrow Flight supports Python, R, Rust, Java, and other languages. See the [archi
 
 ### "Connection refused"
 
-```
+```text
 Error: Error connecting to grpc://localhost:50051
-```
+```text
 
 **Solution**: Ensure FraiseQL is running (`docker-compose ps`) and Arrow Flight is enabled.
 
 ### "No data returned"
 
-```
+```text
 ✅ Success! Fetched 0 rows
-```
+```text
 
 **Solution**: Check your GraphQL query is valid. Try a simple query without filters first.
 
 ### "Module not found: pyarrow"
 
-```
+```text
 ModuleNotFoundError: No module named 'pyarrow'
-```
+```text
 
 **Solution**: Install dependencies: `pip install pyarrow polars`
 
@@ -253,7 +253,7 @@ ticket = flight.Ticket(b'''{
     "type": "GraphQLQuery",
     "query": "{ users { id name email } }"
 }''')
-```
+```text
 
 ### Stream orders from last 30 days
 
@@ -264,7 +264,7 @@ ticket = flight.Ticket(b'''{
     "start_date": "2025-12-26",
     "limit": 100000
 }''')
-```
+```text
 
 ### Process events with aggregation
 
@@ -279,7 +279,7 @@ summary = df.groupby("entity_type").agg([
     pl.col("*").count().alias("count")
 ])
 print(summary)
-```
+```text
 
 ## Performance Tips
 
@@ -291,7 +291,7 @@ print(summary)
 
 # Bad: no limit on production data!
 # Can transfer GBs of data
-```
+```text
 
 ### 2. Stream Large Datasets
 
@@ -304,7 +304,7 @@ df = pl.from_arrow(table)
 for batch in reader:
     df = pl.from_arrow(batch)
     # Process and discard
-```
+```text
 
 ### 3. Use Polars for Heavy Lifting
 
@@ -317,7 +317,7 @@ result = df.groupby("category").agg(
     pl.col("price").sum().alias("total"),
     pl.col("price").mean().alias("avg")
 )
-```
+```text
 
 ## Time Comparison
 
@@ -339,7 +339,7 @@ print(f"Arrow Flight: {arrow_time:.2f}s")  # 2-3 seconds
 
 # HTTP/JSON would be ~30 seconds (not running here)
 # But you get the idea!
-```
+```text
 
 ---
 

@@ -14,14 +14,14 @@ kubectl scale deployment fraiseql --replicas=5
 # Or edit deployment
 kubectl edit deployment fraiseql
 # Set replicas: 5
-```
+```text
 
 Verify:
 
 ```bash
 kubectl get deployment fraiseql
 kubectl get pods -l app=fraiseql
-```
+```text
 
 ### Scale Down
 
@@ -34,7 +34,7 @@ kubectl patch deployment fraiseql -p \
 
 # Scale down
 kubectl scale deployment fraiseql --replicas=2
-```
+```text
 
 ## Updates & Upgrades
 
@@ -50,7 +50,7 @@ kubectl rollout status deployment/fraiseql
 
 # Verify
 kubectl get pods -l app=fraiseql -o wide
-```
+```text
 
 ### Using Helm
 
@@ -62,7 +62,7 @@ helm upgrade fraiseql ./deploy/kubernetes/helm/fraiseql \
 # Check status
 helm status fraiseql
 kubectl rollout status deployment/fraiseql
-```
+```text
 
 ## Maintenance Operations
 
@@ -77,7 +77,7 @@ kubectl run backup --image=postgres --restart=Never -- \
 # Verify backup
 ls -lh backup-*.sql
 gzip backup-*.sql
-```
+```text
 
 ### Database Upgrade
 
@@ -97,7 +97,7 @@ kubectl scale deployment fraiseql --replicas=3
 
 # Verify
 kubectl get pods
-```
+```text
 
 ### Cache Invalidation
 
@@ -112,7 +112,7 @@ redis-cli
 FLUSHDB
 # or specific keys
 DEL fraiseql:*
-```
+```text
 
 ## Troubleshooting Runbooks
 
@@ -122,20 +122,20 @@ DEL fraiseql:*
 
    ```bash
    kubectl top pods -l app=fraiseql
-   ```
+   ```text
 
 2. Identify heavy queries:
 
    ```bash
    # In Prometheus: fraiseql_query_duration_ms
    # High values = slow queries
-   ```
+   ```text
 
 3. Scale horizontally:
 
    ```bash
    kubectl scale deployment fraiseql --replicas=10
-   ```
+   ```text
 
 4. Optimize hot queries:
    - Add database indexes
@@ -147,21 +147,21 @@ DEL fraiseql:*
 
    ```bash
    kubectl top pods -l app=fraiseql
-   ```
+   ```text
 
 2. Reduce cache TTL:
 
    ```bash
    kubectl set env deployment/fraiseql \
      CACHE_TTL_SECS=300  # 5 minutes instead of 10
-   ```
+   ```text
 
 3. Reduce connection pool:
 
    ```bash
    kubectl set env deployment/fraiseql \
      DB_POOL_MAX=10  # from 20
-   ```
+   ```text
 
 4. Check for memory leaks:
    - Review recent logs
@@ -173,14 +173,14 @@ DEL fraiseql:*
 
    ```bash
    kubectl logs deployment/fraiseql | grep "connections"
-   ```
+   ```text
 
 2. Increase pool size:
 
    ```bash
    kubectl set env deployment/fraiseql \
      DB_POOL_MAX=30  # from 20
-   ```
+   ```text
 
 3. Check for connection leaks:
    - Review code for missing close()
@@ -192,26 +192,26 @@ DEL fraiseql:*
 
    ```bash
    kubectl get pod -l app=postgres
-   ```
+   ```text
 
 2. Test connectivity:
 
    ```bash
    kubectl run -it --rm debug --image=postgres --restart=Never -- \
      psql -h postgres -U fraiseql -d fraiseql -c "SELECT 1"
-   ```
+   ```text
 
 3. Check environment variables:
 
    ```bash
    kubectl get pod <fraiseql-pod> -o yaml | grep DATABASE_URL
-   ```
+   ```text
 
 4. Restart pod if needed:
 
    ```bash
    kubectl delete pod <fraiseql-pod>
-   ```
+   ```text
 
 ## Disaster Recovery
 
@@ -230,7 +230,7 @@ Pods are rescheduled (handled by Kubernetes):
 # Monitor
 kubectl get pods -o wide
 # Pods should move to healthy nodes
-```
+```text
 
 ### Complete Cluster Failure
 
@@ -239,7 +239,7 @@ kubectl get pods -o wide
    ```bash
    # Verify recent backup exists and is valid
    ls -lh backup-*.sql.gz
-   ```
+   ```text
 
 2. Restore from backup:
 
@@ -251,7 +251,7 @@ kubectl get pods -o wide
    
    # Deploy FraiseQL
    kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
-   ```
+   ```text
 
 ## Performance Tuning
 
@@ -267,16 +267,16 @@ kubectl logs deployment/fraiseql | grep "duration" | sort -r | head -20
 
 # Add indexes to PostgreSQL
 psql $DATABASE_URL -c "CREATE INDEX idx_user_email ON users(email);"
-```
+```text
 
 ### Connection Pool Tuning
 
 Optimal pool size = (connections per db * max queries per connection) / 2
 
-```
+```text
 Min: 5-10
 Max: 20-50 (depending on workload)
-```
+```text
 
 ### Caching Strategy
 
@@ -288,13 +288,13 @@ Max: 20-50 (depending on workload)
 
 ### Key Metrics to Watch
 
-```
+```text
 1. Error rate < 0.1%
 2. p95 latency < 1000ms
 3. CPU usage < 70%
 4. Memory usage < 80%
 5. Connection pool usage < 80%
-```
+```text
 
 ### Setting up Alerts
 
@@ -308,7 +308,7 @@ for: 5m
 alert: HighLatency
 expr: fraiseql_query_duration_ms{quantile="0.95"} > 1000
 for: 5m
-```
+```text
 
 ## On-Call Procedures
 

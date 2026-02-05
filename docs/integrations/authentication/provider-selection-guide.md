@@ -7,7 +7,7 @@
 
 ## Quick Decision
 
-```
+```text
 Internal Team Only?
 ├─ YES → Keycloak (self-hosted) or SCRAM
 │
@@ -20,7 +20,7 @@ Need Specific IDP?
 ├─ Okta → Configure as OIDC provider
 ├─ GitHub (developers) → GitHub OAuth
 └─ SAML requirement? → Keycloak + SAML bridge
-```
+```text
 
 ---
 
@@ -70,7 +70,7 @@ Need Specific IDP?
 
 ### Question 1: Scale & Control
 
-```
+```text
 Need complete control over authentication?
 ├─ YES → Keycloak (self-hosted) ✅
 │        (Full ownership, highest complexity)
@@ -87,11 +87,11 @@ Need complete control over authentication?
    ├─ AWS → AWS Cognito ✅
    ├─ Azure → Azure AD ✅
    └─ Other → Use OIDC-compliant provider
-```
+```text
 
 ### Question 2: User Base
 
-```
+```text
 Public internet users?
 ├─ YES → Google OAuth ✅
 │        (Easiest, familiar to users)
@@ -109,11 +109,11 @@ Public internet users?
    │        (Multiple providers, easy setup)
    │
    └─ NO → Any provider fine
-```
+```text
 
 ### Question 3: Features
 
-```
+```text
 Need MFA/2FA?
 ├─ YES → Auth0, Keycloak, Cognito ✅
 │
@@ -131,7 +131,7 @@ Need custom attributes?
 │
 Simple auth only?
 └─ YES → Google, SCRAM ✅
-```
+```text
 
 ---
 
@@ -163,7 +163,7 @@ Simple auth only?
 # 4. Copy to fraiseql.toml
 GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxxxx
-```
+```text
 
 **Time to production:** 30 minutes
 **Cost:** Free
@@ -205,7 +205,7 @@ GOOGLE_CLIENT_SECRET=xxxxx
 AUTH0_DOMAIN=your-domain.auth0.com
 AUTH0_CLIENT_ID=xxxxx
 AUTH0_CLIENT_SECRET=xxxxx
-```
+```text
 
 **Time to production:** 1-2 hours
 **Cost:** Free tier available, $13-$2,500/mo for paid
@@ -253,7 +253,7 @@ docker run -d \
 KEYCLOAK_URL=http://keycloak:8080
 KEYCLOAK_REALM=production
 KEYCLOAK_CLIENT_ID=fraiseql
-```
+```text
 
 **Time to production:** 4-8 hours (includes setup)
 **Cost:** Free (self-hosted) + infrastructure costs
@@ -293,7 +293,7 @@ KEYCLOAK_CLIENT_ID=fraiseql
 enabled = true
 scheme = "scram"
 database_url = "postgresql://..."
-```
+```text
 
 **Time to production:** 10 minutes
 **Cost:** Free
@@ -407,7 +407,7 @@ database_url = "postgresql://..."
 # - During update: Brief outage (users log out)
 # - After update: Users re-authenticate once
 # - No data loss
-```
+```text
 
 ### Scenario: Self-Host Keycloak for Enterprise
 
@@ -428,7 +428,7 @@ database_url = "postgresql://..."
 # - Testing: 1-2 hours
 # - Cutover: 1 hour
 # - Monitoring: Ongoing
-```
+```text
 
 ---
 
@@ -464,13 +464,13 @@ database_url = "postgresql://..."
 
 **Bridge Pattern:**
 
-```
+```text
 Client → New OAuth Provider (Auth0, Keycloak)
            ↓
          Bridge Service
            ↓
          Legacy LDAP/AD/Custom
-```
+```text
 
 Use an OAuth provider as a bridge to your legacy system.
 

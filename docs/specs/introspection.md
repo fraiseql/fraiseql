@@ -35,13 +35,13 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     introspection_policy=IntrospectionPolicy.DISABLED,
 )
-```
+```text
 
 **Environment Variable**:
 
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=disabled
-```
+```text
 
 **Behavior**:
 
@@ -63,7 +63,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Server Response**:
 
@@ -76,7 +76,7 @@ query {
     }
   }]
 }
-```
+```text
 
 **Use Cases**:
 
@@ -102,13 +102,13 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     introspection_policy=IntrospectionPolicy.AUTHENTICATED,
 )
-```
+```text
 
 **Environment Variable**:
 
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=authenticated
-```
+```text
 
 **Behavior**:
 
@@ -127,7 +127,7 @@ query {
     fields { name }
   }
 }
-```
+```text
 
 **Server Response** (unauthenticated):
 
@@ -141,7 +141,7 @@ query {
     }
   }]
 }
-```
+```text
 
 **Client Request** (authenticated):
 
@@ -157,7 +157,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Server Response** (authenticated - success):
 
@@ -174,7 +174,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Use Cases**:
 
@@ -201,13 +201,13 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     introspection_policy=IntrospectionPolicy.PUBLIC,
 )
-```
+```text
 
 **Environment Variable**:
 
 ```bash
 export FRAISEQL_INTROSPECTION_POLICY=public
-```
+```text
 
 **Behavior**:
 
@@ -229,7 +229,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Server Response** (success):
 
@@ -258,7 +258,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Use Cases**:
 
@@ -298,7 +298,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
     environment="production",   # Auto: IntrospectionPolicy.DISABLED
 )
-```
+```text
 
 **Environment Variables**:
 
@@ -308,7 +308,7 @@ export FRAISEQL_ENVIRONMENT=production  # Auto-sets: INTROSPECTION_POLICY=disabl
 
 # Manual override (takes precedence)
 export FRAISEQL_INTROSPECTION_POLICY=disabled
-```
+```text
 
 **Default Behavior**:
 
@@ -376,7 +376,7 @@ config = FraiseQLConfig(
     database_url="postgresql://localhost/fraiseql_db",
 )
 # Automatic: introspection_policy=DISABLED
-```
+```text
 
 ---
 
@@ -394,7 +394,7 @@ FraiseQL blocks queries containing any of these patterns:
   query {
     __schema { types { name } }
   }
-  ```
+  ```text
 
 - **`__type`** - Specific type inspection
 
@@ -402,7 +402,7 @@ FraiseQL blocks queries containing any of these patterns:
   query {
     __type(name: "User") { name fields { name } }
   }
-  ```
+  ```text
 
 - **`__typename`** - Type name of objects
 
@@ -414,7 +414,7 @@ FraiseQL blocks queries containing any of these patterns:
       name
     }
   }
-  ```
+  ```text
 
 - **`__directive`** - Directive inspection
 
@@ -424,7 +424,7 @@ FraiseQL blocks queries containing any of these patterns:
       directives { name args { name } }
     }
   }
-  ```
+  ```text
 
 ### Detection Behavior
 
@@ -435,7 +435,7 @@ FraiseQL blocks queries containing any of these patterns:
 query { __schema { ... } }
 query { __SCHEMA { ... } }
 query { __Schema { ... } }
-```
+```text
 
 **Mixed Queries**: Introspection combined with regular queries is blocked
 
@@ -445,7 +445,7 @@ query {
   users { id name }
   __type(name: "User") { name }
 }
-```
+```text
 
 **Implementation Detail**: Pattern matching is performed with case-lowering before comparison, as a pragmatic security measure.
 
@@ -467,7 +467,7 @@ When introspection is blocked, FraiseQL returns standardized error responses.
     }
   }]
 }
-```
+```text
 
 ### AUTHENTICATED Policy Error (Unauthenticated)
 
@@ -481,7 +481,7 @@ When introspection is blocked, FraiseQL returns standardized error responses.
     }
   }]
 }
-```
+```text
 
 ### AUTHENTICATED Policy Error (Invalid Token)
 
@@ -495,7 +495,7 @@ When introspection is blocked, FraiseQL returns standardized error responses.
     }
   }]
 }
-```
+```text
 
 ### Generic Responses in Production
 
@@ -510,7 +510,7 @@ In production environments, error messages are intentionally generic to avoid le
     }
   }]
 }
-```
+```text
 
 ---
 
@@ -540,7 +540,7 @@ for view in views:
     print(f"View: {view.name}")
     for column in view.columns:
         print(f"  {column.name}: {column.pg_type} (nullable: {column.nullable})")
-```
+```text
 
 **Pattern Matching**:
 
@@ -559,7 +559,7 @@ views = introspector.discover_views(
     pattern="%",
     schemas=["public", "staging"]  # Only these schemas
 )
-```
+```text
 
 **Metadata Extraction**:
 
@@ -579,7 +579,7 @@ for col in view.columns:
     print(f"    Nullable: {col.nullable}")
     print(f"    Default: {col.default_value}")
     print(f"    Comment: {col.comment}")
-```
+```text
 
 ### Type Generation from Database
 
@@ -603,7 +603,7 @@ User = generator.generate_type_from_view(
 @fraiseql.query
 async def get_user(id: ID) -> User | None:
     # ... resolver implementation ...
-```
+```text
 
 ### Type Introspection API
 
@@ -637,7 +637,7 @@ description = describe_type(User)
 # Access field information
 for field_name, field_info in description["fields"].items():
     print(f"{field_name}: {field_info['type']} (required: {field_info['required']})")
-```
+```text
 
 ---
 
@@ -670,7 +670,7 @@ When introspection is disabled, clients need alternative ways to discover the sc
 ```bash
 # Export schema at build time
 fraiseql schema export --format graphql --output schema.graphql
-```
+```text
 
 **3. API Documentation Site**
 
@@ -683,7 +683,7 @@ fraiseql schema export --format graphql --output schema.graphql
 ```bash
 # Generate TypeScript types from schema (during build)
 graphql-codegen --config codegen.yml
-```
+```text
 
 ### Monitoring Introspection Attempts
 
@@ -698,7 +698,7 @@ logger = SecurityLogger(
     log_file="/var/log/fraiseql-security.log",
     log_stdout=True,
 )
-```
+```text
 
 **Log Example**:
 
@@ -715,7 +715,7 @@ logger = SecurityLogger(
     "policy": "disabled"
   }
 }
-```
+```text
 
 **WAF Integration** (CrowdSec):
 
@@ -729,7 +729,7 @@ filter: |
   (evt.Parsed.request contains '__schema' ||
    evt.Parsed.request contains '__type')
 blackhole: 1h
-```
+```text
 
 ### Rate Limiting Introspection
 
@@ -750,7 +750,7 @@ rate_limit_config = RateLimitConfig(
         },
     }
 )
-```
+```text
 
 ---
 
@@ -777,7 +777,7 @@ async def test_introspection_disabled_blocks_schema_query():
 
     assert result.errors
     assert any("introspection" in str(e).lower() for e in result.errors)
-```
+```text
 
 **AUTHENTICATED Policy - Auth Required**:
 
@@ -808,7 +808,7 @@ async def test_introspection_authenticated_succeeds_with_auth():
 
     assert not result.errors
     assert result.data["__type"]["name"] == "User"
-```
+```text
 
 **PUBLIC Policy - All Allowed**:
 
@@ -824,7 +824,7 @@ async def test_introspection_public_allows_all():
 
     assert not result.errors
     assert result.data["__schema"]["types"]
-```
+```text
 
 ### Integration Tests
 
@@ -846,7 +846,7 @@ async def test_introspection_mixed_query_rejected():
 
     assert result.errors
     assert "introspection" in str(result.errors[0]).lower()
-```
+```text
 
 ---
 
@@ -866,14 +866,14 @@ config = FraiseQLConfig(
     # OR:
     # security_profile=get_profile("standard"),  # Auto: AUTHENTICATED
 )
-```
+```text
 
 **Environment Variables**:
 
 ```bash
 FRAISEQL_ENVIRONMENT=development
 FRAISEQL_INTROSPECTION_POLICY=public
-```
+```text
 
 ### Staging Environment
 
@@ -886,14 +886,14 @@ config = FraiseQLConfig(
     # OR:
     # security_profile=get_profile("regulated"),  # Auto: DISABLED + enhanced audit
 )
-```
+```text
 
 **Environment Variables**:
 
 ```bash
 FRAISEQL_ENVIRONMENT=staging
 FRAISEQL_INTROSPECTION_POLICY=authenticated
-```
+```text
 
 ### Production Environment
 
@@ -910,7 +910,7 @@ config = FraiseQLConfig(
     # OR explicit:
     # introspection_policy=IntrospectionPolicy.DISABLED,
 )
-```
+```text
 
 **Environment Variables**:
 
@@ -918,7 +918,7 @@ config = FraiseQLConfig(
 FRAISEQL_ENVIRONMENT=production
 FRAISEQL_INTROSPECTION_POLICY=disabled
 FRAISEQL_SECURITY_PROFILE=restricted
-```
+```text
 
 ---
 
@@ -936,7 +936,7 @@ fraiseql schema export \
 
 # Upload to documentation site
 # Schema version matches app version
-```
+```text
 
 ### 2. OpenAPI/Swagger Documentation
 
@@ -945,7 +945,7 @@ fraiseql schema export \
 graphql-to-openapi \
   --input schema.graphql \
   --output api-docs.json
-```
+```text
 
 ### 3. Apollo Studio
 
@@ -960,7 +960,7 @@ app = create_fraiseql_app(
     # Apollo Sandbox available even with introspection disabled
     sandbox_enabled=True,  # Requires static schema upload
 )
-```
+```text
 
 ### 4. Markdown Documentation
 
@@ -988,9 +988,9 @@ query {
     email
   }
 }
-```
+```text
 
-```
+```text
 
 ---
 

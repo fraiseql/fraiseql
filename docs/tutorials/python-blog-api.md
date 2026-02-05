@@ -80,7 +80,7 @@ CREATE INDEX idx_posts_author_id ON posts(author_id);
 CREATE INDEX idx_posts_published ON posts(published);
 CREATE INDEX idx_comments_post_id ON comments(post_id);
 CREATE INDEX idx_comments_user_id ON comments(user_id);
-```
+```text
 
 ### Creating SQL Views for Queries
 
@@ -157,7 +157,7 @@ SELECT
     created_at,
     updated_at
 FROM users;
-```
+```text
 
 ### Creating SQL Functions for Mutations
 
@@ -303,7 +303,7 @@ BEGIN
     RETURNING comments.id, comments.post_id, comments.user_id, comments.content, comments.created_at, comments.updated_at;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 ---
 
@@ -327,7 +327,7 @@ pip install fraiseql
 
 # Verify installation
 python -c "import fraiseql; print(fraiseql.__version__)"
-```
+```text
 
 ### Step 1: Create `schema.py`
 
@@ -825,7 +825,7 @@ if __name__ == "__main__":
     print("   1. Review schema.json for correctness")
     print("   2. Compile: fraiseql-cli compile schema.json fraiseql.toml")
     print("   3. Start server: fraiseql-server --schema schema.compiled.json")
-```
+```text
 
 ### Understanding the Decorators
 
@@ -839,7 +839,7 @@ class User:
     id: int              # GraphQL ID field (non-null by default)
     name: str            # GraphQL String field
     email: str | None    # GraphQL String field that can be null
-```
+```text
 
 **Key points:**
 
@@ -864,7 +864,7 @@ Defines a GraphQL query (read-only operation):
 )
 def posts(limit: int = 10) -> list[Post]:
     pass
-```
+```text
 
 **Parameters:**
 
@@ -886,7 +886,7 @@ Defines a GraphQL mutation (write operation):
 )
 def create_user(name: str, email: str) -> User:
     pass
-```
+```text
 
 **Operation types:**
 
@@ -904,11 +904,11 @@ The Python schema is a blueprint. FraiseQL converts it to JSON for compilation.
 
 ```bash
 python schema.py
-```
+```text
 
 **Output:**
 
-```
+```text
 ✅ Schema exported successfully!
    Generated: schema.json
 
@@ -916,7 +916,7 @@ python schema.py
    1. Review schema.json for correctness
    2. Compile: fraiseql-cli compile schema.json fraiseql.toml
    3. Start server: fraiseql-server --schema schema.compiled.json
-```
+```text
 
 ### Examine `schema.json`
 
@@ -1095,7 +1095,7 @@ The exported file should look like:
     }
   ]
 }
-```
+```text
 
 ### Validate the Schema
 
@@ -1107,14 +1107,14 @@ python -m json.tool schema.json > /dev/null && echo "✅ schema.json is valid JS
 
 # Count definitions
 python -c "import json; s = json.load(open('schema.json')); print(f'Types: {len(s.get(\"types\", []))}, Queries: {len(s.get(\"queries\", []))}, Mutations: {len(s.get(\"mutations\", []))}')"
-```
+```text
 
 **Expected output:**
 
-```
+```text
 ✅ schema.json is valid JSON
 Types: 3, Queries: 6, Mutations: 5
-```
+```text
 
 ---
 
@@ -1152,17 +1152,17 @@ max_query_depth = 5
 
 # Error handling
 sanitize_errors = true  # Hide implementation details in errors
-```
+```text
 
 ### Compile the Schema
 
 ```bash
 fraiseql-cli compile schema.json fraiseql.toml
-```
+```text
 
 **Output:**
 
-```
+```text
 ✅ Compilation successful!
    Generated: schema.compiled.json
 
@@ -1174,7 +1174,7 @@ fraiseql-cli compile schema.json fraiseql.toml
    - Database views: 5
 
    File size: 45 KB
-```
+```text
 
 ### Examine the Compiled Schema
 
@@ -1190,7 +1190,7 @@ with open('schema.compiled.json') as f:
     if query:
         print(json.dumps(query, indent=2))
 "
-```
+```text
 
 ---
 
@@ -1220,7 +1220,7 @@ INSERT INTO comments (post_id, user_id, content) VALUES
 (1, 3, 'This helped me understand the basics.'),
 (2, 3, 'Performance tips are really useful.'),
 (3, 1, 'Thanks for the Python advice.');
-```
+```text
 
 ### Testing Queries
 
@@ -1238,7 +1238,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 **Expected response:**
 
@@ -1263,7 +1263,7 @@ query {
         ]
     }
 }
-```
+```text
 
 #### Query: Get a Single Post by ID
 
@@ -1278,7 +1278,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 **Expected response:**
 
@@ -1295,7 +1295,7 @@ query {
         }
     }
 }
-```
+```text
 
 #### Query: Get User's Posts with Filtering
 
@@ -1308,7 +1308,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 #### Query: Get Comments on a Post
 
@@ -1321,7 +1321,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 ### Testing Mutations
 
@@ -1340,7 +1340,7 @@ mutation {
         created_at
     }
 }
-```
+```text
 
 **Expected response:**
 
@@ -1355,7 +1355,7 @@ mutation {
         }
     }
 }
-```
+```text
 
 #### Mutation: Create a New Post
 
@@ -1373,7 +1373,7 @@ mutation {
         created_at
     }
 }
-```
+```text
 
 #### Mutation: Update a Post
 
@@ -1389,7 +1389,7 @@ mutation {
         updated_at
     }
 }
-```
+```text
 
 #### Mutation: Delete a Post
 
@@ -1397,7 +1397,7 @@ mutation {
 mutation {
     delete_post(id: 4)
 }
-```
+```text
 
 #### Mutation: Create a Comment
 
@@ -1415,7 +1415,7 @@ mutation {
         created_at
     }
 }
-```
+```text
 
 ### Testing Error Cases
 
@@ -1429,7 +1429,7 @@ mutation {
     }
 }
 # This will fail: bio is optional but field may not exist
-```
+```text
 
 #### Invalid Type
 
@@ -1440,7 +1440,7 @@ query {
         title
     }
 }
-```
+```text
 
 **Expected error:**
 
@@ -1452,7 +1452,7 @@ query {
         }
     ]
 }
-```
+```text
 
 ---
 
@@ -1471,13 +1471,13 @@ fraiseql-server \
 
 # Server starts on http://localhost:8000
 # GraphQL endpoint: http://localhost:8000/graphql
-```
+```text
 
 ### Health Check
 
 ```bash
 curl http://localhost:8000/health
-```
+```text
 
 **Response:**
 
@@ -1487,7 +1487,7 @@ curl http://localhost:8000/health
     "version": "2.0.0",
     "uptime_secs": 42
 }
-```
+```text
 
 ### GraphQL Introspection
 
@@ -1497,7 +1497,7 @@ The server exposes GraphQL introspection by default:
 curl -X POST http://localhost:8000/graphql \
     -H "Content-Type: application/json" \
     -d '{"query": "{__schema { types { name } }}"}'
-```
+```text
 
 This returns all available types in your schema.
 
@@ -1517,7 +1517,7 @@ The `auto_params` feature makes pagination automatic:
 def posts(limit: int = 10, offset: int = 0) -> list[Post]:
     """Paginated posts query."""
     pass
-```
+```text
 
 GraphQL usage:
 
@@ -1528,7 +1528,7 @@ query {
         title
     }
 }
-```
+```text
 
 ### Pattern 2: Adding Filtering
 
@@ -1542,7 +1542,7 @@ Use `auto_params={"where": True}` to enable filters:
 def posts(published: bool | None = None) -> list[Post]:
     """Filtered posts query."""
     pass
-```
+```text
 
 GraphQL usage:
 
@@ -1554,7 +1554,7 @@ query {
         published
     }
 }
-```
+```text
 
 ### Pattern 3: Adding Sorting
 
@@ -1568,7 +1568,7 @@ Use `auto_params={"order_by": True}`:
 def posts() -> list[Post]:
     """Sortable posts query."""
     pass
-```
+```text
 
 GraphQL usage:
 
@@ -1580,7 +1580,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 ### Pattern 4: Author Relationships
 
@@ -1598,7 +1598,7 @@ SELECT
     u.email AS author_email
 FROM posts p
 JOIN users u ON p.author_id = u.id;
-```
+```text
 
 Python schema:
 
@@ -1616,7 +1616,7 @@ class PostWithAuthor:
 def posts() -> list[PostWithAuthor]:
     """Posts with inline author info."""
     pass
-```
+```text
 
 ### Pattern 5: Filtering Comments by Post
 
@@ -1631,7 +1631,7 @@ def post_comments(
 ) -> list[Comment]:
     """Get comments filtered by post."""
     pass
-```
+```text
 
 GraphQL usage:
 
@@ -1648,7 +1648,7 @@ query {
         created_at
     }
 }
-```
+```text
 
 ---
 
@@ -1662,14 +1662,14 @@ query {
 from typing import Optional
 def user(id: int) -> Optional[User]:
     pass
-```
+```text
 
 ✅ **Correct:**
 
 ```python
 def user(id: int) -> User | None:
     pass
-```
+```text
 
 ### Mistake 2: Forgetting `sql_source`
 
@@ -1679,7 +1679,7 @@ def user(id: int) -> User | None:
 @fraiseql.query()
 def users() -> list[User]:
     pass
-```
+```text
 
 ✅ **Correct:**
 
@@ -1687,7 +1687,7 @@ def users() -> list[User]:
 @fraiseql.query(sql_source="v_users")
 def users() -> list[User]:
     pass
-```
+```text
 
 ### Mistake 3: Inconsistent Field Names
 
@@ -1699,7 +1699,7 @@ If your database column is `created_at`, your Python field must also be `created
 @fraiseql.type
 class Post:
     createdAt: str  # Doesn't match database
-```
+```text
 
 ✅ **Correct:**
 
@@ -1707,7 +1707,7 @@ class Post:
 @fraiseql.type
 class Post:
     created_at: str  # Matches database
-```
+```text
 
 ### Mistake 4: Missing Null Annotations
 
@@ -1719,7 +1719,7 @@ If a database field can be NULL, mark it as nullable:
 @fraiseql.type
 class User:
     bio: str  # But bio can be NULL in database
-```
+```text
 
 ✅ **Correct:**
 
@@ -1727,7 +1727,7 @@ class User:
 @fraiseql.type
 class User:
     bio: str | None  # Nullable
-```
+```text
 
 ### Mistake 5: Using Non-Existent SQL Functions
 
@@ -1736,7 +1736,7 @@ Ensure all `sql_source` values exist in your database:
 ```bash
 # Check if function exists
 psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
-```
+```text
 
 ---
 
@@ -1768,7 +1768,7 @@ psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 
 ```bash
 pip install fraiseql
-```
+```text
 
 #### Error: `Module has no attribute 'type'`
 
@@ -1777,7 +1777,7 @@ pip install fraiseql
 ```python
 import fraiseql
 # Then use @fraiseql.type, not @fraiseql_type
-```
+```text
 
 ### Compilation Errors
 
@@ -1787,7 +1787,7 @@ import fraiseql
 
 ```sql
 SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
-```
+```text
 
 #### Error: `Type mismatch: expected String, got Integer`
 
@@ -1798,7 +1798,7 @@ SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
 @fraiseql.type
 class Post:
     title: str  # Correct
-```
+```text
 
 ### Deployment Errors
 
@@ -1808,7 +1808,7 @@ class Post:
 
 ```bash
 psql postgresql://user:password@localhost/blog_db -c "SELECT 1"
-```
+```text
 
 ---
 
@@ -1840,7 +1840,7 @@ rate_limit_mutations = 100
 rate_limit_window_secs = 60
 max_query_depth = 5
 sanitize_errors = true
-```
+```text
 
 ---
 

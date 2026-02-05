@@ -24,15 +24,15 @@
 
 Execute steps one after another. Each step depends on the previous one's success.
 
-**When to Use:**
+#### When to Use:
 
 - Steps must execute in order
 - Later steps need data from earlier ones
 - Rollback is straightforward
 
-**Example: Order Processing**
+#### Example: Order Processing
 
-```
+```text
 Step 1: Validate order       ✓
          ↓
 Step 2: Charge payment      ✓
@@ -40,19 +40,19 @@ Step 2: Charge payment      ✓
 Step 3: Reserve inventory   ✓
          ↓
 Step 4: Ship items          ✓
-```
+```text
 
-**If Step 3 fails:**
+#### If Step 3 fails:
 
-```
+```text
 Step 4: Undo reservation    ✓
          ↑
 Step 3: Undo charge         ✓
          ↑
 (Step 2 validation passes)   ✓
-```
+```text
 
-**Code Example:**
+#### Code Example:
 
 ```rust
 async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
@@ -65,21 +65,21 @@ async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
 
     coordinator.execute(steps).await
 }
-```
+```text
 
 ### Pattern 2: Parallel Saga
 
 Execute independent steps concurrently.
 
-**When to Use:**
+#### When to Use:
 
 - Steps are independent (no data dependencies)
 - You need better performance
 - Coordination complexity is acceptable
 
-**Example: Customer Onboarding**
+#### Example: Customer Onboarding
 
-```
+```text
 Parallel:
 ├── Create user account
 ├── Initialize payment method
@@ -87,9 +87,9 @@ Parallel:
 └── Subscribe to newsletter
 
 (All 4 can run simultaneously)
-```
+```text
 
-**Code Example:**
+#### Code Example:
 
 ```rust
 async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
@@ -109,30 +109,30 @@ async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
         }
     ).await
 }
-```
+```text
 
 ### Pattern 3: Branching Saga
 
 Execute different paths based on conditions.
 
-**When to Use:**
+#### When to Use:
 
 - Different paths for different customer types
 - Premium vs standard workflows
 - Region-specific business logic
 
-**Example: Payment Processing**
+#### Example: Payment Processing
 
-```
+```text
 If amount < $100:
   └── Use payment service A (fast)
 Else if amount < $1000:
   └── Use payment service B (requires verification)
 Else:
   └── Use payment service C (manual approval)
-```
+```text
 
-**Code Example:**
+#### Code Example:
 
 ```rust
 async fn conditional_payment_saga(
@@ -164,21 +164,21 @@ async fn conditional_payment_saga(
 
     coordinator.execute(steps).await
 }
-```
+```text
 
 ### Pattern 4: Nested Saga
 
 A saga that calls other sagas (composition).
 
-**When to Use:**
+#### When to Use:
 
 - Reusing saga logic across different processes
 - Complex business processes need breaking down
 - Testing individual sub-sagas
 
-**Example: Enterprise Order Processing**
+#### Example: Enterprise Order Processing
 
-```
+```text
 Main Saga: Process Order
 ├── Sub-Saga: Process Payment
 │   ├── Check fraud detection
@@ -192,9 +192,9 @@ Main Saga: Process Order
     ├── Record transaction
     ├── Update customer stats
     └── Trigger recommendations
-```
+```text
 
-**Code Example:**
+#### Code Example:
 
 ```rust
 async fn process_order_saga(order: Order) -> Result<SagaResult> {
@@ -218,7 +218,7 @@ async fn process_order_saga(order: Order) -> Result<SagaResult> {
 
     Ok(SagaResult::success())
 }
-```
+```text
 
 ---
 
@@ -228,18 +228,18 @@ async fn process_order_saga(order: Order) -> Result<SagaResult> {
 
 The coordinator automatically runs compensation for failed steps.
 
-**Pros:**
+#### Pros:
 
 - Minimal code
 - Predictable
 - Easy to test
 
-**Cons:**
+### Cons:
 
 - Less control
 - May not fit complex business logic
 
-**Example:**
+#### Example:
 
 ```rust
 SagaStep {
@@ -252,25 +252,25 @@ SagaStep {
         ...
     },
 }
-```
+```text
 
 ### Strategy 2: Manual Compensation
 
 Application explicitly triggers compensation based on business logic.
 
-**Pros:**
+#### Pros:
 
 - Full control
 - Can implement custom logic
 - Better for complex scenarios
 
-**Cons:**
+### Cons:
 
 - More code
 - Risk of forgetting steps
 - Harder to test
 
-**Example:**
+#### Example:
 
 ```rust
 async fn process_with_manual_compensation(order: Order) -> Result<()> {
@@ -295,24 +295,24 @@ async fn process_with_manual_compensation(order: Order) -> Result<()> {
         }
     }
 }
-```
+```text
 
 ### Strategy 3: Saga Compensator Service
 
 A dedicated service handles all compensations.
 
-**Pros:**
+#### Pros:
 
 - Separation of concerns
 - Reusable compensation logic
 - Easier to maintain
 
-**Cons:**
+### Cons:
 
 - Additional service to deploy
 - Network calls for compensation
 
-**Example:**
+#### Example:
 
 ```rust
 // Dedicated compensator service
@@ -341,7 +341,7 @@ impl SagaCompensator {
         Ok(())
     }
 }
-```
+```text
 
 ---
 
@@ -351,7 +351,7 @@ impl SagaCompensator {
 
 The system automatically retries failed sagas.
 
-**Configuration:**
+#### Configuration:
 
 ```rust
 let recovery_manager = RecoveryManager::new(config)
@@ -360,9 +360,9 @@ let recovery_manager = RecoveryManager::new(config)
     .with_exponential_backoff(2.0);
 
 recovery_manager.start_recovery_loop().await?;
-```
+```text
 
-**Behavior:**
+### Behavior:
 
 1. Detects failed sagas in store
 2. Retries from the point of failure
@@ -373,13 +373,13 @@ recovery_manager.start_recovery_loop().await?;
 
 Operators manually trigger recovery for specific sagas.
 
-**Use When:**
+#### Use When:
 
 - Automatic recovery failed
 - Saga is in inconsistent state
 - Manual intervention required
 
-**Example:**
+#### Example:
 
 ```rust
 // Get failed saga
@@ -391,13 +391,13 @@ recovery_manager.recover_saga(&saga).await?;
 // Check recovery result
 let updated_saga = store.get_saga("saga-123").await?;
 println!("Status: {:?}", updated_saga.status);
-```
+```text
 
 ### Pattern 3: Crash Recovery
 
 Recovery after system restart.
 
-**How It Works:**
+#### How It Works:
 
 1. System boots
 2. Recovery manager starts
@@ -405,13 +405,13 @@ Recovery after system restart.
 4. Resumes from last completed step
 5. Reruns compensation or forward steps as needed
 
-**Key Points:**
+### Key Points:
 
 - Idempotency is critical (same step runs twice safely)
 - Request IDs prevent duplicate side effects
 - Last known state is restored
 
-**Configuration:**
+### Configuration:
 
 ```rust
 // Automatic crash recovery on startup
@@ -419,7 +419,7 @@ let recovery = RecoveryManager::new(store)
     .with_crash_recovery()
     .start()
     .await?;
-```
+```text
 
 ---
 
@@ -440,11 +440,11 @@ let step = SagaStep {
     },
     ...
 };
-```
+```text
 
 ### Implementing Idempotency
 
-**In Payment Service:**
+#### In Payment Service:
 
 ```rust
 async fn charge_card(
@@ -464,11 +464,11 @@ async fn charge_card(
 
     Ok(result)
 }
-```
+```text
 
 ### Avoiding Idempotency Issues
 
-**Bad:**
+#### Bad:
 
 ```rust
 // Not idempotent - running twice doubles the charge
@@ -477,9 +477,9 @@ async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
     db.set_balance(user_id, current_balance + amount).await?;
     Ok(())
 }
-```
+```text
 
-**Good:**
+### Good:
 
 ```rust
 // Idempotent - running twice has same effect
@@ -498,7 +498,7 @@ async fn set_credit(
     db.record_transaction(transaction_id).await?;
     Ok(())
 }
-```
+```text
 
 ---
 
@@ -508,7 +508,7 @@ Sagas progress through well-defined states.
 
 ### Saga States
 
-```
+```text
 Start
   ↓
 Executing (→ Forward Step 1, Step 2, ...)
@@ -526,7 +526,7 @@ Step States:
 ├─ Failed (returned error)
 ├─ Retrying (being retried)
 └─ Compensating (being undone)
-```
+```text
 
 ### Querying State
 
@@ -547,7 +547,7 @@ match saga.status {
         println!("Saga failed - manual intervention needed");
     },
 }
-```
+```text
 
 ---
 
@@ -583,7 +583,7 @@ impl RetryPolicy {
         Duration::from_millis(delay_ms.min(self.max_delay.as_millis() as u64))
     }
 }
-```
+```text
 
 ### Error Recovery
 
@@ -607,7 +607,7 @@ async fn execute_with_error_recovery(
         }
     }
 }
-```
+```text
 
 ---
 
@@ -634,7 +634,7 @@ async fn execute_with_cache(
 
     Ok(result)
 }
-```
+```text
 
 ### Optimization 2: Timeout Configuration
 
@@ -644,7 +644,7 @@ Prevent sagas from hanging.
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_step_timeout(Duration::from_secs(30))
     .with_saga_timeout(Duration::from_secs(300));
-```
+```text
 
 ### Optimization 3: Connection Pooling
 
@@ -658,7 +658,7 @@ let pool = PgPoolOptions::new()
     .await?;
 
 let store = PostgresSagaStore::with_pool(pool);
-```
+```text
 
 ### Optimization 4: Batch Operations
 
@@ -668,7 +668,7 @@ Process multiple sagas together.
 // Instead of: coordinator.execute(saga1), coordinator.execute(saga2), ...
 // Use:
 let results = coordinator.execute_batch(vec![saga1, saga2, saga3]).await?;
-```
+```text
 
 ---
 

@@ -127,7 +127,7 @@ FRAISEQL_METRICS_ENABLED=true
 FRAISEQL_TRACING_ENABLED=true
 FRAISEQL_TRACING_SAMPLE_RATE=0.1
 FRAISEQL_SLOW_QUERY_THRESHOLD_MS=100
-```
+```text
 
 ### Kubernetes ConfigMap
 
@@ -146,7 +146,7 @@ data:
   FRAISEQL_APQ_STORAGE_BACKEND: "postgresql"
   FRAISEQL_METRICS_ENABLED: "true"
   FRAISEQL_TRACING_SAMPLE_RATE: "0.1"
-```
+```text
 
 ### Kubernetes Secret
 
@@ -161,7 +161,7 @@ stringData:
   DATABASE_URL: "postgresql://user:pass@db:5432/fraiseql"
   AUTH0_DOMAIN: "your-tenant.auth0.com"
   AUTH0_API_IDENTIFIER: "https://api.example.com"
-```
+```text
 
 ---
 
@@ -192,7 +192,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["gunicorn", "app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
-```
+```text
 
 #### Building & Pushing
 
@@ -207,7 +207,7 @@ docker push myregistry/fraiseql:latest
 
 # Scan for vulnerabilities
 trivy image myregistry/fraiseql:1.0.0
-```
+```text
 
 #### Hardened Image (Government-Grade)
 
@@ -221,7 +221,7 @@ FraiseQL provides a hardened Dockerfile with:
 
 ```bash
 docker build -f Dockerfile.hardened -t myregistry/fraiseql:hardened .
-```
+```text
 
 ---
 
@@ -352,7 +352,7 @@ spec:
               topologyKey: kubernetes.io/hostname
 
       terminationGracePeriodSeconds: 30
-```
+```text
 
 ### Service
 
@@ -374,7 +374,7 @@ spec:
     targetPort: http
     protocol: TCP
   sessionAffinity: None  # Round-robin, no sticky sessions
-```
+```text
 
 ### Horizontal Pod Autoscaler
 
@@ -431,7 +431,7 @@ spec:
         value: 4
         periodSeconds: 15
       selectPolicy: Max
-```
+```text
 
 ### Pod Disruption Budget
 
@@ -446,7 +446,7 @@ spec:
   selector:
     matchLabels:
       app: fraiseql
-```
+```text
 
 ### Network Policies (Zero Trust)
 
@@ -501,7 +501,7 @@ spec:
     ports:
     - protocol: TCP
       port: 443
-```
+```text
 
 ### Ingress
 
@@ -538,7 +538,7 @@ spec:
             name: fraiseql
             port:
               number: 8000
-```
+```text
 
 ---
 
@@ -567,7 +567,7 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO fraiseql_app;
 -- Set default privileges for future objects
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fraiseql_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fraiseql_app;
-```
+```text
 
 ### Connection Pool Configuration
 
@@ -588,7 +588,7 @@ pool_config = {
     "ssl": "require",        # Require SSL/TLS
     "ssl_certificate": "/etc/ssl/certs/ca-bundle.crt"
 }
-```
+```text
 
 ### Indexing Strategy
 
@@ -611,7 +611,7 @@ CREATE INDEX idx_products_content ON products USING gin(to_tsvector('english', n
 
 -- Soft delete queries
 CREATE INDEX idx_active_records ON (table_name) WHERE deleted_at IS NULL;
-```
+```text
 
 ---
 
@@ -624,7 +624,7 @@ CREATE INDEX idx_active_records ON (table_name) WHERE deleted_at IS NULL;
 config = FraiseQLConfig(
     introspection_policy=IntrospectionPolicy.DISABLED
 )
-```
+```text
 
 **Introspection Policies**:
 
@@ -644,7 +644,7 @@ config = FraiseQLConfig(
     rate_limit_whitelist=["internal.ips"],
     rate_limit_blacklist=["malicious.ips"]
 )
-```
+```text
 
 ### Query Complexity Limits
 
@@ -661,7 +661,7 @@ config = FraiseQLConfig(
         "reports": 15
     }
 )
-```
+```text
 
 ### TLS/mTLS Configuration
 
@@ -695,7 +695,7 @@ volumes:
 - name: tls-keys
   secret:
     secretName: fraiseql-tls-keys
-```
+```text
 
 ### Security Headers
 
@@ -709,7 +709,7 @@ annotations:
     more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
     more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
     more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
-```
+```text
 
 ### CORS Configuration
 
@@ -725,7 +725,7 @@ cors_methods=["GET", "POST"]
 cors_headers=["Content-Type", "Authorization"]
 cors_allow_credentials=True
 cors_max_age=3600
-```
+```text
 
 ---
 
@@ -742,7 +742,7 @@ config = FraiseQLConfig(
     apq_cache_responses=True,             # Cache responses
     apq_response_cache_ttl=600            # 10 minutes
 )
-```
+```text
 
 **Register queries at deploy time**:
 
@@ -751,7 +751,7 @@ config = FraiseQLConfig(
 FRAISEQL_APQ_QUERIES_DIR=/app/graphql/queries
 
 # Queries in /app/graphql/queries/*.graphql are auto-registered
-```
+```text
 
 **Expected performance**:
 
@@ -769,7 +769,7 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=600,              # 10 minutes
     turbo_router_cache_size=1000             # Route caching
 )
-```
+```text
 
 **Expected hit rates**:
 
@@ -788,7 +788,7 @@ pool = DatabasePool(
     max_idle_time=60,      # Recycle idle connections
     max_lifetime=1800      # Renew connections every 30 min
 )
-```
+```text
 
 ---
 
@@ -804,7 +804,7 @@ setup_metrics(app, MetricsConfig(
     namespace="myapp",
     metrics_path="/metrics"
 ))
-```
+```text
 
 ### OpenTelemetry Tracing
 
@@ -818,7 +818,7 @@ setup_tracing(app, TracingConfig(
     export_endpoint="jaeger:4317",
     sample_rate=0.1  # 10% sampling in production
 ))
-```
+```text
 
 ### Health Checks
 
@@ -826,7 +826,7 @@ setup_tracing(app, TracingConfig(
 from fraiseql.health import setup_health_endpoints
 
 setup_health_endpoints(app)
-```
+```text
 
 **Available endpoints**:
 
@@ -861,7 +861,7 @@ gh pr create
 
 # 5. PR merged to main
 # 6. ArgoCD syncs changes to production
-```
+```text
 
 ### Helm Chart Deployment
 
@@ -878,7 +878,7 @@ helm upgrade fraiseql ./helm-chart \
 
 # Rollback
 helm rollback fraiseql 1
-```
+```text
 
 ---
 
@@ -895,7 +895,7 @@ pg_dump -Fc fraiseql > /backups/fraiseql_$(date +%Y%m%d).dump
 
 -- With parallel jobs
 pg_dump -Fd -j 4 fraiseql > /backups/fraiseql_$(date +%Y%m%d)_parallel/
-```
+```text
 
 ### Restore Procedure
 
@@ -909,7 +909,7 @@ pg_restore -d fraiseql /backups/fraiseql_20250111.dump
 -- Verify
 SELECT COUNT(*) FROM users;
 SELECT MAX(created_at) FROM audit_events;
-```
+```text
 
 ### Database Replication
 
@@ -923,7 +923,7 @@ CREATE SUBSCRIPTION fraiseql CONNECTION 'postgresql://primary:5432/fraiseql' PUB
 
 -- Monitor replication lag
 SELECT now() - pg_last_wal_receive_lsn()::text::pg_lsn / 1000000 AS replication_lag_seconds;
-```
+```text
 
 ---
 
@@ -931,11 +931,11 @@ SELECT now() - pg_last_wal_receive_lsn()::text::pg_lsn / 1000000 AS replication_
 
 ### Single-Region (Recommended Starting Point)
 
-```
+```text
 3 FraiseQL pods (minimum)
 1 PostgreSQL instance (managed)
 Prometheus (1 instance)
-```
+```text
 
 **Capacity**:
 
@@ -945,11 +945,11 @@ Prometheus (1 instance)
 
 ### Multi-Region
 
-```
+```text
 3 FraiseQL pods per region (3+ regions)
 PostgreSQL primary + replicas
 Cross-region failover
-```
+```text
 
 **Capacity**:
 

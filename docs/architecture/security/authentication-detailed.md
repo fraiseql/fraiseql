@@ -71,7 +71,7 @@ FraiseQL authentication follows these principles:
 
 ### 1.2 Authentication Flow Overview
 
-```
+```text
 Client Request
     ↓
 ┌─────────────────────────────────────────┐
@@ -106,7 +106,7 @@ Client Request
 Authorize Request
     ↓
 Execute Query/Mutation
-```
+```text
 
 ### 1.3 Supported Authentication Schemes
 
@@ -131,7 +131,7 @@ Used for web applications where users log in through a browser.
 
 #### Flow Sequence
 
-```
+```text
 User's Browser               FraiseQL App              OAuth2 Provider
       │                           │                           │
       │ (1) Click "Login"         │                           │
@@ -161,7 +161,7 @@ User's Browser               FraiseQL App              OAuth2 Provider
       │ (7) Logged in             │                           │
       │◄──────────────────────────┤                           │
       │   (set session/token)     │                           │
-```
+```text
 
 #### Implementation Details
 
@@ -256,7 +256,7 @@ class OAuth2AuthorizationCodeFlow:
                 token_type=data.get("token_type", "Bearer"),
                 id_token=data.get("id_token"),  # OpenID Connect
             )
-```
+```text
 
 #### Security Considerations
 
@@ -290,7 +290,7 @@ class OAuth2AuthorizationCodeFlow:
        ).decode().rstrip("=")
 
        return code_verifier, challenge
-   ```
+   ```text
 
 3. **Token Storage**
    - Never store tokens in localStorage (XSS vulnerability)
@@ -350,7 +350,7 @@ class OAuth2ClientCredentialsFlow:
                 expires_in=data.get("expires_in", 3600),
                 token_type=data.get("token_type", "Bearer"),
             )
-```
+```text
 
 **Use Cases:**
 
@@ -418,11 +418,11 @@ class OAuth2RefreshTokenFlow:
                 expires_in=data.get("expires_in", 3600),
                 token_type=data.get("token_type", "Bearer"),
             )
-```
+```text
 
 **Token Rotation Strategy:**
 
-```
+```text
 Initial Login:
   access_token (short-lived, 15min) → Set cookie httpOnly, Secure, SameSite=Strict
   refresh_token (long-lived, 7 days) → Set cookie httpOnly, Secure, SameSite=Strict
@@ -436,7 +436,7 @@ After 14 minutes (before expiry):
 If refresh_token expires:
   Require full re-authentication (redirect to login)
   Display grace period message (optional)
-```
+```text
 
 ---
 
@@ -446,7 +446,7 @@ If refresh_token expires:
 
 SAML (Security Assertion Markup Language) is XML-based protocol for enterprise SSO.
 
-```
+```text
 User's Browser          FraiseQL App           Identity Provider (IdP)
       │                      │                       │
       │ (1) Click "Login"    │                       │
@@ -475,7 +475,7 @@ User's Browser          FraiseQL App           Identity Provider (IdP)
       │ (7) Create session   │                       │
       │◄─────────────────────┤                       │
       │   (set auth cookie)  │                       │
-```
+```text
 
 ### 3.2 SAML Assertion Validation
 
@@ -718,7 +718,7 @@ class SAMLAssertionValidator:
             "name": attributes.get("urn:oid:2.5.4.3", user_id),
             "attributes": attributes,
         }
-```
+```text
 
 ### 3.3 SAML Attribute Mapping
 
@@ -770,7 +770,7 @@ class SAMLAttributeMapper:
                     mapped[fraiseql_field] = value
 
         return mapped
-```
+```text
 
 ---
 
@@ -780,11 +780,11 @@ class SAMLAttributeMapper:
 
 JWT consists of three base64url-encoded parts separated by dots:
 
-```
+```text
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.
 eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
 SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-```
+```text
 
 **Header** (JWT metadata):
 
@@ -794,7 +794,7 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
   "typ": "JWT",       // Token type
   "kid": "key-id-123" // Key ID (for key rotation)
 }
-```
+```text
 
 **Payload** (Claims):
 
@@ -810,13 +810,13 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
   "roles": ["admin", "user"],    // Custom claim: roles
   "permissions": ["read:posts", "write:posts"]  // Custom claim: permissions
 }
-```
+```text
 
 **Signature**:
 
-```
+```text
 HMAC-SHA256 or RSA-SHA256 of (header + payload) using secret key
-```
+```text
 
 ### 4.2 JWT Generation
 
@@ -942,7 +942,7 @@ class JWTTokenGenerator:
         )
 
         return token
-```
+```text
 
 ### 4.3 JWT Validation
 
@@ -1049,7 +1049,7 @@ class JWTTokenValidator:
             return payload.get("tenant_id")
         except (jwt.DecodeError, jwt.InvalidSignatureError):
             return None
-```
+```text
 
 ---
 
@@ -1188,7 +1188,7 @@ class LDAPAuthenticationProvider(AuthenticationProvider):
         """Extract roles from LDAP attributes"""
         # Implementation specific to your LDAP schema
         pass
-```
+```text
 
 Register custom provider:
 
@@ -1210,7 +1210,7 @@ class User:
     id: ID
     email: str
     roles: list[str]
-```
+```text
 
 ---
 
@@ -1372,7 +1372,7 @@ class HybridSessionManager:
         if session_record:
             session_record.revoked = True
             await self.session_store.save(session_record)
-```
+```text
 
 ---
 
@@ -1428,7 +1428,7 @@ class TokenRevocationStore:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         key = f"revoked_token:{token_hash}"
         return await self.redis.exists(key)
-```
+```text
 
 ### 7.2 Revocation Reasons
 
@@ -1458,7 +1458,7 @@ class RevocationReason(Enum):
     SESSION_TIMEOUT = "session_timeout"            # Inactivity timeout
     DEVICE_LOST = "device_lost"                    # Device marked as lost
     LOGOUT_ALL_DEVICES = "logout_all_devices"      # Log out all sessions
-```
+```text
 
 ---
 
@@ -1491,7 +1491,7 @@ class TenantContext:
         Exception: Platform admins (system administrators).
         """
         return self.tenant_id == target_tenant_id or "platform_admin" in self.roles
-```
+```text
 
 ### 8.2 Tenant-Scoped Authorization
 
@@ -1509,7 +1509,7 @@ class Post:
 @fraiseql.authorization_rule(name="owned_by_tenant")
 def rule_owned_by_tenant(resource, user_context):
     return resource.tenant_id == user_context.tenant_id
-```
+```text
 
 ### 8.3 Multi-Tenant Database Strategy
 
@@ -1530,7 +1530,7 @@ class MultiTenantDatabaseManager:
         3. Separate server per tenant
         """
         return self.tenant_pools.get(tenant_id, self.default_pool)
-```
+```text
 
 ---
 
@@ -1559,7 +1559,7 @@ response.set_cookie(
     domain="api.example.com",
     path="/graphql"
 )
-```
+```text
 
 ### 9.2 CSRF Protection
 
@@ -1580,7 +1580,7 @@ async def validate_csrf(request):
     session_csrf = request.session.get("csrf_token")
     if csrf_token != session_csrf:
         raise FraiseSQLError("CSRF_VALIDATION_FAILED", "CSRF token mismatch")
-```
+```text
 
 ### 9.3 Rate Limiting & Brute Force Protection
 
@@ -1617,7 +1617,7 @@ class AuthenticationRateLimiter:
         """Get remaining lockout time in seconds"""
         key = f"auth_attempts:{identifier}"
         return await self.redis.ttl(key)
-```
+```text
 
 ### 9.4 Credential Validation
 
@@ -1654,7 +1654,7 @@ class CredentialValidator:
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(pattern, email):
             raise ValidationError("Invalid email format")
-```
+```text
 
 ---
 
@@ -1706,7 +1706,7 @@ class AuthenticationAuditLog:
                 status, ip_address, user_agent, details
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         """, event.values())
-```
+```text
 
 ### 10.2 Compliance Requirements
 
@@ -1775,7 +1775,7 @@ class CachedJWTValidator:
         }
 
         return payload
-```
+```text
 
 ### 11.2 Parallel Authentication
 
@@ -1798,7 +1798,7 @@ async def authenticate_with_fallback(
             except AuthenticationError:
                 raise e  # Raise original error
         raise
-```
+```text
 
 ---
 
@@ -1836,7 +1836,7 @@ class UnauthorizedError(FraiseSQLError):
     """User not authenticated"""
     code = "E_AUTH_UNAUTHORIZED"
     http_status = 401
-```
+```text
 
 ---
 

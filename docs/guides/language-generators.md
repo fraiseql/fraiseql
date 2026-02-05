@@ -51,7 +51,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                  Language Generators                         │
 ├──────────────────┬──────────────────┬──────────────────┬────┤
@@ -74,7 +74,7 @@ FraiseQL v2 supports schema authoring in **5 programming languages**, all produc
                       │ schema.compiled.json   │
                       │ (optimized execution)  │
                       └────────────────────────┘
-```
+```text
 
 ## Status Summary
 
@@ -95,7 +95,7 @@ cd fraiseql-python
 pip install -e .
 # or with uv:
 uv sync
-```
+```text
 
 ### Basic Usage
 
@@ -148,7 +148,7 @@ def createUser(name: str, email: str) -> User:
 
 # Export schema
 fraiseql_schema.export_schema("schema.json")
-```
+```text
 
 ### Analytics Support
 
@@ -175,7 +175,7 @@ class SalesFactTable:
 def salesByCategory(category: str) -> dict:
     """Sales aggregated by category."""
     pass
-```
+```text
 
 ### Features
 
@@ -194,7 +194,7 @@ python -m pytest tests/ -v
 
 # E2E test
 python -m pytest tests/e2e/python_e2e_test.py -v
-```
+```text
 
 ## TypeScript Generator
 
@@ -205,7 +205,7 @@ cd fraiseql-typescript
 npm install
 # or
 npm ci
-```
+```text
 
 ### Basic Usage
 
@@ -255,7 +255,7 @@ createUser(name: string, email: string): User {
 
 // Export schema
 ExportSchema("schema.json");
-```
+```text
 
 ### Analytics Support
 
@@ -276,7 +276,7 @@ class SalesFactTable {
 salesByCategory(category: string): Record<string, any> {
   return {};
 }
-```
+```text
 
 ### Configuration
 
@@ -290,7 +290,7 @@ Enable experimental decorators in `tsconfig.json`:
     "target": "ES2022"
   }
 }
-```
+```text
 
 ### Features
 
@@ -310,7 +310,7 @@ npm test
 # E2E test
 npm run example:basic
 npm run example:analytics
-```
+```text
 
 ## Go Generator
 
@@ -319,7 +319,7 @@ npm run example:analytics
 ```bash
 cd fraiseql-go
 go mod download
-```
+```text
 
 ### Basic Usage
 
@@ -355,7 +355,7 @@ type Schema struct {
 func main() {
     fraiseql.ExportSchema("schema.json")
 }
-```
+```text
 
 ### Features
 
@@ -374,7 +374,7 @@ go test ./fraiseql/... -v
 
 # Run example
 go run examples/basic_schema.go
-```
+```text
 
 ## Java Generator
 
@@ -383,7 +383,7 @@ go run examples/basic_schema.go
 ```bash
 cd fraiseql-java
 mvn clean install
-```
+```text
 
 ### Basic Usage
 
@@ -430,7 +430,7 @@ public class Schema {
         return null;
     }
 }
-```
+```text
 
 ### Features
 
@@ -445,7 +445,7 @@ public class Schema {
 ```bash
 cd fraiseql-java
 mvn test
-```
+```text
 
 ## PHP Generator
 
@@ -454,7 +454,7 @@ mvn test
 ```bash
 cd fraiseql-php
 composer install
-```
+```text
 
 ### Basic Usage
 
@@ -503,7 +503,7 @@ class Schema {
 // Export schema
 (new SchemaExporter())->export('schema.json');
 ?>
-```
+```text
 
 ### Features
 
@@ -518,7 +518,7 @@ class Schema {
 ```bash
 cd fraiseql-php
 vendor/bin/phpunit tests/
-```
+```text
 
 ## Schema Generation Workflow
 
@@ -532,13 +532,13 @@ All generators export to `schema.json`:
 
 ```python
 fraiseql_schema.export_schema("schema.json")
-```
+```text
 
 ### Step 3: Compile with CLI
 
 ```bash
 fraiseql-cli compile schema.json
-```
+```text
 
 This produces `schema.compiled.json` with:
 
@@ -552,7 +552,7 @@ Use compiled schema with runtime:
 
 ```bash
 fraiseql-server --schema schema.compiled.json
-```
+```text
 
 ## Feature Comparison
 
@@ -584,7 +584,7 @@ class UserProfile:
 class U:
     uid: int
     nm: str
-```
+```text
 
 ### 2. Leverage Type Safety
 
@@ -600,7 +600,7 @@ users(limit: number, offset: number): User[] {
 users(limit: any, offset: any): any[] {
   return [];
 }
-```
+```text
 
 ### 3. Document Complex Schemas
 
@@ -618,7 +618,7 @@ type SalesData struct {
     Rev int
     D string
 }
-```
+```text
 
 ### 4. Test Before Compilation
 
@@ -629,7 +629,7 @@ npm test --prefix fraiseql-typescript
 
 # Then compile
 fraiseql-cli compile schema.json
-```
+```text
 
 ## Performance Considerations
 

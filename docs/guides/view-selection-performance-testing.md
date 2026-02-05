@@ -46,20 +46,20 @@ psql -c "ANALYZE;" && echo "Statistics updated"
 psql -c "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename))
          FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
          ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC LIMIT 10;"
-```
+```text
 
 ### Environment Specifications
 
 **Document before testing:**
 
-```
+```text
 Environment: staging | prod | dev
 Database version: _________
 CPU cores: _________
 RAM: _________ GB
 Storage type: SSD | HDD | NVMe
 Other processes running: _________ (should be minimal)
-```
+```text
 
 ---
 
@@ -84,7 +84,7 @@ SELECT DATE(created_at), COUNT(*), SUM(total)
 FROM va_orders
 WHERE created_at >= $1 AND created_at < $2
 GROUP BY DATE(created_at);
-```
+```text
 
 **Document**:
 
@@ -103,7 +103,7 @@ TRUNCATE pg_stat_statements;
 -- Run query with timing
 EXPLAIN (ANALYZE, BUFFERS, TIMING, VERBOSE)
 SELECT * FROM v_user_full WHERE id = '550e8400-e29b-41d4-a716-446655440000';
-```
+```text
 
 **Record Metrics**:
 
@@ -152,7 +152,7 @@ max_time = max(times)
 p95_time = sorted(times)[int(len(times) * 0.95)]
 
 print(f"Average: {avg_time:.2f}ms, Min: {min_time:.2f}ms, Max: {max_time:.2f}ms, P95: {p95_time:.2f}ms")
-```
+```text
 
 **Record**:
 
@@ -220,7 +220,7 @@ print(f"Throughput: {len(all_times) / total_time:.0f} queries/sec")
 print(f"Avg response: {mean(all_times):.2f}ms")
 print(f"P95 response: {sorted(all_times)[int(len(all_times) * 0.95)]:.2f}ms")
 print(f"P99 response: {sorted(all_times)[int(len(all_times) * 0.99)]:.2f}ms")
-```
+```text
 
 **Record** (Logical View Baseline):
 
@@ -250,7 +250,7 @@ psql -c "SELECT refresh_tv_user_profile();"
 
 # Verify
 psql -c "SELECT COUNT(*) FROM tv_user_profile;"
-```
+```text
 
 - [ ] Table created: ☐ Yes
 - [ ] Initial population: ______ rows
@@ -266,7 +266,7 @@ psql -c "SELECT COUNT(*) FROM tv_user_profile;"
 -- Same query, different table
 EXPLAIN (ANALYZE, BUFFERS, TIMING, VERBOSE)
 SELECT * FROM tv_user_profile WHERE id = '550e8400-e29b-41d4-a716-446655440000';
-```
+```text
 
 **Record Metrics**:
 
@@ -292,7 +292,7 @@ times_tv = [...]  # Results from table-backed view
 
 print(f"Table-backed avg: {mean(times_tv):.2f}ms vs Logical avg: {mean(times_v):.2f}ms")
 print(f"Speedup: {mean(times_v) / mean(times_tv):.1f}x")
-```
+```text
 
 **Record**:
 
@@ -308,7 +308,7 @@ print(f"Speedup: {mean(times_v) / mean(times_tv):.1f}x")
 print(f"Logical view P95: {logical_p95:.2f}ms")
 print(f"Table-backed P95: {table_backed_p95:.2f}ms")
 print(f"Improvement: {logical_p95 / table_backed_p95:.1f}x")
-```
+```text
 
 **Record** (Table-Backed View):
 
@@ -356,7 +356,7 @@ while True:
         break
 
 print(f"Refresh latency: {latency:.0f}ms")
-```
+```text
 
 **Record**:
 
@@ -375,7 +375,7 @@ Benchmark the refresh function performance:
 SELECT * FROM refresh_tv_user_profile();
 
 -- Expected: <100ms for small updates, <5s for full refresh
-```
+```text
 
 **Record**:
 
@@ -406,7 +406,7 @@ SELECT
 SELECT
     (SELECT COUNT(*) FROM v_user_full WHERE created_at > NOW() - INTERVAL '30 days') logical_30d,
     (SELECT COUNT(*) FROM tv_user_profile WHERE created_at > NOW() - INTERVAL '30 days') table_backed_30d;
-```
+```text
 
 **Verify**: ☐ Identical results | ☐ Discrepancies found (investigate)
 
@@ -425,7 +425,7 @@ UNION ALL
 SELECT
     'Source table',
     pg_size_pretty(pg_total_relation_size('tb_user'));
-```
+```text
 
 **Record**:
 
@@ -467,7 +467,7 @@ Fill out this matrix to decide if migration is justified:
 
 **Decision**:
 
-```
+```text
 ☐ PROCEED with migration
   Justification: ________________________
 
@@ -476,7 +476,7 @@ Fill out this matrix to decide if migration is justified:
 
 ☐ REJECT - not worth it
   Reason: ________________________
-```
+```text
 
 **Sign-off**: _________________ Date: _______
 
@@ -484,7 +484,7 @@ Fill out this matrix to decide if migration is justified:
 
 ## Performance Testing Report Template
 
-```
+```text
 # Performance Testing Report: [View Name]
 
 ## Executive Summary
@@ -529,7 +529,7 @@ Fill out this matrix to decide if migration is justified:
 - Tester: _________________ Date: _______
 - DBA: _________________ Date: _______
 - Architect: _________________ Date: _______
-```
+```text
 
 ---
 
@@ -546,7 +546,7 @@ queries_per_thread = 1000
 
 # Run load test
 # Compare against logical view baseline
-```
+```text
 
 **Document**: Peak load handling: ☐ Acceptable | ☐ Degraded
 
@@ -562,7 +562,7 @@ Test refresh performance while queries are running:
 SELECT refresh_tv_user_profile();
 
 -- Measure impact on query latency
-```
+```text
 
 **Document**: Query latency during refresh: ______ ms (vs normal: ______ ms)
 
@@ -578,7 +578,7 @@ sync && echo 3 > /proc/sys/vm/drop_caches
 EXPLAIN (ANALYZE) SELECT * FROM tv_user_profile WHERE id = ?;
 
 # vs warm cache from previous test
-```
+```text
 
 **Document**: Cold cache vs warm cache: ______ x slower
 
@@ -594,7 +594,7 @@ SELECT refresh_tv_user_profile();  -- Transaction 3
 
 -- Measure lock contention
 SELECT * FROM pg_locks WHERE relation::regclass::text LIKE 'tv_%';
-```
+```text
 
 **Document**: Lock contention: ☐ None | ☐ Minor | ☐ Significant
 
@@ -624,7 +624,7 @@ EXPLAIN (VERBOSE) SELECT * FROM tv_user_profile WHERE id = ?;
 -- Verify you're querying the right table
 SELECT COUNT(*) FROM tv_user_profile;
 SELECT COUNT(*) FROM v_user_profile;  -- Different?
-```
+```text
 
 ### Problem: High Storage Overhead
 
@@ -649,7 +649,7 @@ WHERE tablename = 'tv_user_profile';
 
 -- Consider dropping unnecessary indexes
 -- Or simplify JSONB composition
-```
+```text
 
 ### Problem: Refresh Latency Unacceptable
 

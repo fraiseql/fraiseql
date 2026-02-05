@@ -17,7 +17,7 @@ Get your first Arrow Flight analytics query working in 5 minutes.
 ```bash
 # Install PyArrow
 pip install pyarrow
-```
+```text
 
 ## Step 1: Enable Arrow Flight on Server (1 minute)
 
@@ -28,7 +28,7 @@ fraiseql run --port 8000 --arrow-flight
 # Arrow Flight listens on port 50051 by default
 # Verify it's listening:
 curl http://localhost:50051  # Should fail gracefully (gRPC, not HTTP)
-```
+```text
 
 ---
 
@@ -46,7 +46,7 @@ info = client.get_flight_info(
     flight.FlightDescriptor.for_command("SELECT 1")
 )
 print(f"Connected to {info.descriptor.command}")
-```
+```text
 
 ---
 
@@ -88,7 +88,7 @@ print(table.to_pandas().head())
 # 0 2024-01-30       food           234  12450.50
 # 1 2024-01-30    clothes           156   8920.00
 # 2 2024-01-29       food           198  10234.75
-```
+```text
 
 ---
 
@@ -115,7 +115,7 @@ for batch in reader:
     df_chunk = batch.to_pandas()
     print(f"Processing {len(df_chunk)} rows...")
     # Process each chunk
-```
+```text
 
 ---
 
@@ -125,11 +125,11 @@ You're now querying FraiseQL with Arrow Flight! 🎯
 
 ### Performance Comparison
 
-```
+```text
 JSON Query (1M rows):   ~5000ms, 500MB transfer
 Arrow Query (1M rows):  ~500ms, 50MB transfer
 Speedup: 10x faster + 90% smaller
-```
+```text
 
 See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSON.
 
@@ -162,7 +162,7 @@ See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSO
 reader = client.do_get(descriptor)
 for batch in reader:
     process_chunk(batch.to_pandas())
-```
+```text
 
 **"Arrow schema doesn't match my data"**
 → Regenerate schema: Delete `.arrow.cache` and restart server

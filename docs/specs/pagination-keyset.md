@@ -40,7 +40,7 @@ LIMIT 100 OFFSET 10000000;
 -- 2. Skip first 10M rows
 -- 3. Return next 100 rows
 -- Cost: O(n + offset) = O(20M) operations
-```
+```text
 
 **Result:** 2-5 second latency at high offsets. Unusable for analytics.
 
@@ -60,7 +60,7 @@ LIMIT 100;
 -- 2. Read next 100 rows
 -- 3. Return
 -- Cost: O(limit) = O(100) operations
-```
+```text
 
 **Result:** <50ms latency regardless of position. Scales linearly.
 
@@ -95,7 +95,7 @@ cursor = base64(encode({
     'created_at': '2025-01-11T15:30:00Z',
     'id': 'user_12345'
 }))
-```
+```text
 
 ### Self-Describing Format
 
@@ -115,7 +115,7 @@ Cursors are **self-describing** to support future evolution:
 
 // Encoded as base64
 eyJ2ZXJzaW9uIjogMSwgInByb2plY3Rpb24iOiAidXNlcl9hbmFseXRpY3NfdjEiLCAia2V5c2V0IjogeyJjcmVhdGVkX2F0IjogIjIwMjUtMDEtMTFUMTU6MzA6MDBaIiwgImlkIjogInVzZXJfMTIzNDUifSwgImRpcmVjdGlvbiI6ICJmb3J3YXJkIn0=
-```
+```text
 
 ### Encoding Rules
 
@@ -149,7 +149,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### GraphQL Response
 
@@ -184,7 +184,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Compiled SQL
 
@@ -200,7 +200,7 @@ ORDER BY id
 LIMIT 101;                       -- ← Fetch N+1 to detect endOfList
 
 -- Parameters: [$1 = 'user_1000' (decoded from cursor)]
-```
+```text
 
 ### Backward Pagination
 
@@ -213,7 +213,7 @@ query {
     pageInfo { hasPreviousPage startCursor }
   }
 }
-```
+```text
 
 **Compiled SQL:**
 
@@ -224,7 +224,7 @@ WHERE id < $1
 ORDER BY id DESC
 LIMIT 101;
 -- Then reverse results to return in original order
-```
+```text
 
 **Note:** Backward pagination requires **secondary index** on the keyset columns in reverse order.
 
@@ -253,7 +253,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Arrow Response
 
@@ -281,7 +281,7 @@ query {
     }
   }
 }
-```
+```text
 
 ### Arrow via Binary Protocol
 
@@ -294,13 +294,13 @@ GET /graphql \
   -d '{"query": "{ userAnalytics(first: 10000, after: \"...\") }"}'
 
 # Response: Arrow IPC stream with metadata
-```
+```text
 
 **Arrow Stream Structure:**
 
-```
+```text
 [Schema Metadata] [Batch 1: users] [Batch 2: orders] [Footer with endCursor]
-```
+```text
 
 The `endCursor` is transmitted as Arrow metadata, not JSON.
 
@@ -318,14 +318,14 @@ Most queries use the **primary key** as the single keyset column:
 class User:
     id: ID  # ← Keyset column (primary key)
     name: str
-```
+```text
 
 **Compiled keyset:**
 
 ```python
 ORDER BY id
 LIMIT 100
-```
+```text
 
 **Pros:**
 
@@ -349,7 +349,7 @@ For deterministic, stable ordering, use **composite keysets**:
 )
 class UserAnalytics:
     users: Arrow.Batch([...])
-```
+```text
 
 **Compiled keyset:**
 
@@ -357,7 +357,7 @@ class UserAnalytics:
 WHERE (created_at, id) > (?, ?)
 ORDER BY created_at, id
 LIMIT 100
-```
+```text
 
 **Keyset Stability:**
 
@@ -380,7 +380,7 @@ Advanced use cases can define **custom keyset expressions**:
     "direction": "desc"  # High-value orders first
   }
 )
-```
+```text
 
 **Keyset complexity:**
 
@@ -401,7 +401,7 @@ Cursors are validated at **compile time and runtime**:
 ```python
 # ❌ Error: Cursor references non-existent field
 query = users(after: cursor)  # cursor built for old schema
-```
+```text
 
 **Runtime:**
 
@@ -411,7 +411,7 @@ cursor = base64_decode("eyJ...")
 assert cursor.version == 1
 assert cursor.projection == "user_analytics_v1"
 assert set(cursor.keyset.keys()) == {"created_at", "id"}
-```
+```text
 
 ### Cursor Tampering
 
@@ -425,7 +425,7 @@ Cursors are **signed** to prevent tampering:
   "keyset": {"created_at": "...", "id": "user_1001"},
   "hmac": "sha256(secret, json_dump)"  # ← Signature
 }
-```
+```text
 
 **Validation:**
 
@@ -433,7 +433,7 @@ Cursors are **signed** to prevent tampering:
 # Verify HMAC before using cursor
 if compute_hmac(cursor_data, secret) != cursor.hmac:
     raise CursorTamperedError()
-```
+```text
 
 ### Cursor Expiration (Optional)
 
@@ -445,7 +445,7 @@ class SensitiveData:
     ... cursor_ttl = 300  # Seconds
 
 # If cursor older than 5 minutes, client must restart
-```
+```text
 
 ---
 
@@ -453,7 +453,7 @@ class SensitiveData:
 
 ### Problem: Rows Move During Pagination
 
-```
+```text
 Initial state:
 users: [id=1, id=2, id=3, id=4, id=5]
 
@@ -463,7 +463,7 @@ User deletes id=1 (rows shift):
 users: [id=2, id=3, id=4, id=5]
 
 Query 2: after="id=2"  →  Should be [id=3, id=4]
-```
+```text
 
 ### Keyset Solution: Cursor "Holes"
 
@@ -476,7 +476,7 @@ ORDER BY id
 LIMIT 100
 
 -- Results: [id=3, id=4, ...] ← Correct! Skipped deleted row.
-```
+```text
 
 **Why this works:**
 
@@ -496,7 +496,7 @@ if rows_modified_since_cursor:
         "type": "pagination_stale",
         "suggestion": "Restart pagination from beginning"
     })
-```
+```text
 
 ---
 
@@ -515,7 +515,7 @@ CREATE INDEX idx_user_created_id ON tb_user(created_at, id);
 
 -- For reverse pagination (backward keyset)
 CREATE INDEX idx_user_created_id_desc ON tb_user(created_at DESC, id DESC);
-```
+```text
 
 **Index Planning:**
 
@@ -536,7 +536,7 @@ LIMIT 100
 -- Best index: (status, created_at, id)
 CREATE INDEX idx_user_status_created_id
 ON tb_user(status, created_at, id);
-```
+```text
 
 ---
 
@@ -556,12 +556,12 @@ ON tb_user(status, created_at, id);
 
 ### Throughput
 
-```
+```text
 Sequential pagination through 1M rows:
 
 - Keyset pagination: 1,000 pages × 5ms = 5 seconds ✅
 - OFFSET/LIMIT: 1,000 pages × (2ms + offset) = 500+ seconds ❌
-```
+```text
 
 ---
 
@@ -585,7 +585,7 @@ SELECT ... FROM table
 WHERE primary_key > ?
 ORDER BY primary_key
 LIMIT ?
-```
+```text
 
 ### Composite Keyset (v2.2)
 
@@ -605,7 +605,7 @@ SELECT ... FROM table
 WHERE (col1, col2) > (?, ?)
 ORDER BY col1, col2
 LIMIT ?
-```
+```text
 
 ### Optimization (v2.3)
 
@@ -626,12 +626,12 @@ LIMIT ?
 
 **v2.1-v2.2:** OFFSET/LIMIT still works, but emits warnings
 
-```
+```text
 WARNING: Large OFFSET (100000) detected.
 Keyset pagination is faster. See: docs/pagination-keyset.md
 Current: SELECT ... LIMIT 100 OFFSET 100000;
 Better:  SELECT ... WHERE id > ? LIMIT 100;
-```
+```text
 
 **v2.3+:** OFFSET/LIMIT available but not recommended for large offsets
 
@@ -645,7 +645,7 @@ query { users(skip: 1000, take: 100) { ... } }
 
 # New (keyset-based)
 query { users(first: 100, after: cursor) { ... } }
-```
+```text
 
 **Step 2: Update cursor handling**
 
@@ -661,7 +661,7 @@ while (true) {
   cursor = response.pageInfo.endCursor;
   if (!response.pageInfo.hasNextPage) break;
 }
-```
+```text
 
 **Step 3: Remove pagination loops**
 
@@ -680,7 +680,7 @@ while (true) {
   if (!page.pageInfo.hasNextPage) break;
   cursor = page.pageInfo.endCursor;
 }
-```
+```text
 
 ---
 
@@ -704,7 +704,7 @@ FROM users
 GROUP BY status
 ORDER BY status
 LIMIT 100
-```
+```text
 
 **Q: How do I paginate through items with the same keyset value?**
 
@@ -713,7 +713,7 @@ A: Use a composite keyset with a tiebreaker:
 ```sql
 -- All 10 "John" users have same created_at
 WHERE (created_at, name, id) > (?, ?, ?)
-```
+```text
 
 **Q: What about cursor expiration?**
 

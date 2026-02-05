@@ -66,7 +66,7 @@ def create_user(email: str, name: str) -> User:
 
 # Export CompiledSchema
 compiled = schema.compile()
-```
+```text
 
 ### 2.2 YAML (Human-friendly)
 
@@ -135,7 +135,7 @@ mutations:
     returns: User!
     binding:
       procedure: fn_create_user
-```
+```text
 
 ### 2.3 GraphQL SDL (Text-based)
 
@@ -170,7 +170,7 @@ input UserWhereInput {
   _or: [UserWhereInput!]
   _not: UserWhereInput
 }
-```
+```text
 
 ---
 
@@ -194,7 +194,7 @@ class User:
         """Computed field (not allowed in FraiseQL)."""
         # ❌ This will fail at compile time
         pass
-```
+```text
 
 **YAML:**
 
@@ -214,7 +214,7 @@ types:
         description: User's posts
       createdAt:
         type: DateTime!
-```
+```text
 
 **Rules:**
 
@@ -235,7 +235,7 @@ Input types are generated automatically from available columns:
 # - UserOrderByInput (from sortable columns)
 # - CreateUserInput (from fn_create_user parameters)
 # - UpdateUserInput (from fn_update_user parameters)
-```
+```text
 
 **Manual input declaration (rare):**
 
@@ -245,7 +245,7 @@ class CreateUserInput:
     email: str
     name: str
     password: str  # hashed server-side
-```
+```text
 
 ### 3.3 Scalar Types
 
@@ -262,7 +262,7 @@ active: bool        # Boolean
 created: datetime   # DateTime
 birth_date: date    # Date
 metadata: dict      # JSON
-```
+```text
 
 Custom scalars:
 
@@ -275,7 +275,7 @@ Custom scalars:
 class Email:
     """Valid email address."""
     pattern = "^[^@]+@[^@]+\\.[^@]+$"
-```
+```text
 
 ### 3.4 Enums
 
@@ -286,7 +286,7 @@ class UserRole:
     ADMIN = "admin"
     USER = "user"
     GUEST = "guest"
-```
+```text
 
 ---
 
@@ -306,7 +306,7 @@ def users(
 ) -> list[User]:
     """Query implementation (ignored at compile time)."""
     pass
-```
+```text
 
 **Rules:**
 
@@ -333,7 +333,7 @@ schema.bind(
     view="v_user",
     data_column="data"
 )
-```
+```text
 
 Or inline (if language supports):
 
@@ -341,7 +341,7 @@ Or inline (if language supports):
 @schema.query(binding={"view": "v_user", "data_column": "data"})
 def users() -> list[User]:
     pass
-```
+```text
 
 ### 4.3 Single-Entity Queries
 
@@ -353,14 +353,14 @@ def user_by_id(id: ID) -> User:
 @schema.query
 def user_by_email(email: str) -> User:
     pass
-```
+```text
 
 **Binding:**
 
 ```python
 schema.bind("user_by_id", "view", "v_user", where_column="id")
 schema.bind("user_by_email", "view", "v_user", where_column="email")
-```
+```text
 
 ---
 
@@ -385,7 +385,7 @@ def update_user(id: ID, name: str) -> User:
 def delete_user(id: ID) -> DeleteUserResult:
     """Delete a user (soft delete)."""
     pass
-```
+```text
 
 **Rules:**
 
@@ -410,7 +410,7 @@ schema.bind(
         "email": "created_email"
     }
 )
-```
+```text
 
 **Input mapping:** GraphQL arg → function parameter
 **Output mapping:** function output → GraphQL field
@@ -429,7 +429,7 @@ class DeleteUserResult:
 @schema.mutation
 def delete_user(id: ID) -> DeleteUserResult:
     pass
-```
+```text
 
 ---
 
@@ -445,7 +445,7 @@ class AuthContext:
     roles: list[str]      # Assigned roles
     tenant_id: str        # Multi-tenant isolation
     email: str            # Email address
-```
+```text
 
 ### 6.2 Auth Rules
 
@@ -483,7 +483,7 @@ class User:
 
     @auth.requires_role("admin")
     password_hash: str
-```
+```text
 
 ---
 
@@ -507,7 +507,7 @@ schema.compile(
         }
     }
 )
-```
+```text
 
 **Compiler checks:**
 
@@ -526,18 +526,18 @@ The compiler must validate:
 
 ### 8.1 Type Closure
 
-```
+```text
 All referenced types must be defined.
 
 ❌ INVALID:
 @schema.query
 def user() -> UndefinedType:  # Error: UndefinedType not defined
     pass
-```
+```text
 
 ### 8.2 Binding Existence
 
-```
+```text
 All types with queries/mutations must have bindings.
 
 ❌ INVALID:
@@ -548,11 +548,11 @@ def users() -> list[User]:
 
 ✓ VALID:
 schema.bind("users", "view", "v_user")
-```
+```text
 
 ### 8.3 View Column Validation
 
-```
+```text
 All fields must exist as columns or JSONB paths.
 
 ❌ INVALID:
@@ -568,11 +568,11 @@ class User:
     id: ID
     email: str
     # Must exist as: tb_user.email or v_user.data->>'email'
-```
+```text
 
 ### 8.4 Operator Support
 
-```
+```text
 Used filters must be in capability manifest.
 
 ❌ INVALID (on SQLite):
@@ -583,11 +583,11 @@ where: {
 ✓ VALID:
 where: {
     email: { _like: "test%" }   # OK: all DBs support LIKE
-```
+```text
 
 ### 8.5 Authorization Validity
 
-```
+```text
 Auth rules must reference valid auth context fields.
 
 ❌ INVALID:
@@ -595,7 +595,7 @@ Auth rules must reference valid auth context fields.
 
 ✓ VALID:
 @auth.requires_claim("tenant_id")      # OK: in AuthContext
-```
+```text
 
 ---
 
@@ -615,7 +615,7 @@ $ fraiseql compile schema.py
 └── validation-report.txt
     ℹ Column 'v_user.email' not indexed
     ⚠ View 'v_user_stats' is materialized, may be stale
-```
+```text
 
 ---
 
@@ -677,7 +677,7 @@ type User {
   embeddingVector: Vector
   signature: Signature
 }
-```
+```text
 
 Each scalar type is validated at:
 
@@ -795,7 +795,7 @@ schema.bind("me", "view", "v_user", where_column="id")
 if __name__ == "__main__":
     compiled = schema.compile()
     print("Schema compiled successfully!")
-```
+```text
 
 ---
 
@@ -803,7 +803,7 @@ if __name__ == "__main__":
 
 **Compilation errors should be clear:**
 
-```
+```text
 Error: Type closure violation
   Query 'users' returns 'list[User]'
   Type 'User' not defined
@@ -827,7 +827,7 @@ Error: Auth context mismatch
   Rule requires claim 'invalid_field'
   → Field not in AuthContext
   → Add field to @schema.auth_context
-```
+```text
 
 ---
 

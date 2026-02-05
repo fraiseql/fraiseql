@@ -46,7 +46,7 @@ class UserContext:
     authenticated_at: datetime       # When user was authenticated
     token_expires_at: datetime       # When token expires
     metadata: dict                   # Custom metadata {"department": "engineering"}
-```
+```text
 
 ### 1.2 Context Binding
 
@@ -76,7 +76,7 @@ request.user_context = user_context;
 
 // Pass to query/mutation execution
 execute_query(&query, &user_context).await?
-```
+```text
 
 ### 1.3 Context Immutability
 
@@ -92,7 +92,7 @@ request.user_context = authenticate(&token)?;
 
 // Attempting to modify context raises error
 // E_AUTH_CONTEXT_TAMPER_501
-```
+```text
 
 ---
 
@@ -123,7 +123,7 @@ class Product:
     id: ID
     name: str
     price: float
-```
+```text
 
 **Compile-time validation:**
 
@@ -133,7 +133,7 @@ class Product:
 # 2. Validate authorization rule is defined
 # 3. Validate rule has SQL WHERE clause equivalent
 # 4. Validate all fields inherit type authorization
-```
+```text
 
 **Runtime effect:**
 
@@ -154,7 +154,7 @@ query {
   }],
   "data": null
 }
-```
+```text
 
 ### 2.2 Field-Level Authorization
 
@@ -182,7 +182,7 @@ class Post:
 
     @fraiseql.authorize(rule="published_or_author")
     content: str                    # Published posts or author
-```
+```text
 
 **Compile-time validation:**
 
@@ -192,7 +192,7 @@ class Post:
 # 2. Validate rule references valid user context
 # 3. Validate rule SQL clause is safe
 # 4. Check for conflicting rules on same field
-```
+```text
 
 **Runtime effect:**
 
@@ -231,7 +231,7 @@ query GetUser($id: ID!) {
     }
   }
 }
-```
+```text
 
 ### 2.3 Mutation-Level Authorization
 
@@ -255,11 +255,11 @@ def update_post(id: ID!, input: UpdatePostInput) -> Post:
 def delete_post(id: ID!) -> Boolean:
     """Delete a post"""
     pass
-```
+```text
 
 **Authorization evaluation:**
 
-```
+```text
 
 1. Create post: Check if user is authenticated
    → If yes, allow
@@ -272,7 +272,7 @@ def delete_post(id: ID!) -> Boolean:
 3. Delete post: Check if user is admin
    → If yes, allow
    → If no, deny (E_AUTH_PERMISSION_401)
-```
+```text
 
 ---
 
@@ -310,7 +310,7 @@ class User:
 class PublicProduct:
     id: ID
     name: str
-```
+```text
 
 ### 3.2 RLS Rule Definition
 
@@ -343,7 +343,7 @@ RLS_RULE_TEAM_ACCESS = """
     )
   )
 """
-```
+```text
 
 ### 3.3 RLS at Query Time
 
@@ -356,7 +356,7 @@ query GetPosts {
     title
   }
 }
-```
+```text
 
 **Compiled to SQL with RLS:**
 
@@ -367,7 +367,7 @@ WHERE
   -- RLS rule automatically added
   organization_id = $current_user_organization_id
 ORDER BY created_at DESC
-```
+```text
 
 **Result:**
 
@@ -381,13 +381,13 @@ ORDER BY created_at DESC
     ]
   }
 }
-```
+```text
 
 ### 3.4 RLS Enforcement Points
 
 RLS is enforced at multiple points:
 
-```
+```text
 Query Compilation
   ↓
 Add RLS WHERE clause
@@ -399,7 +399,7 @@ Database executes filtered query
 Results returned to user
   ↓
 Response transformation (field masking applied)
-```
+```text
 
 **If query attempts to bypass RLS:**
 
@@ -417,7 +417,7 @@ WHERE
   organization_id = $current_user_organization_id  # RLS enforced
   AND organization_id = 'other-org'                 # User's filter
   # Cannot satisfy both conditions if user in different org
-```
+```text
 
 ---
 
@@ -451,13 +451,13 @@ class User:
         masked_value="[REDACTED]"             # Show redacted marker
     )
     password_hash: str
-```
+```text
 
 ### 4.2 Masking at Response Time
 
 Masking is applied **after** authorization check:
 
-```
+```text
 
 1. Authorization check: Can user access field?
    ├─ If no → Return null error
@@ -470,7 +470,7 @@ Masking is applied **after** authorization check:
    └─ If yes → Return masked_value
 
 4. Return to client
-```
+```text
 
 **Example:**
 
@@ -483,7 +483,7 @@ query GetUser($id: ID!) {
     ssn            # @mask(show_to=["owner"])
   }
 }
-```
+```text
 
 **Response for user who is NOT owner and NOT admin:**
 
@@ -498,7 +498,7 @@ query GetUser($id: ID!) {
     }
   }
 }
-```
+```text
 
 **Response for user who IS owner:**
 
@@ -513,7 +513,7 @@ query GetUser($id: ID!) {
     }
   }
 }
-```
+```text
 
 **Response for user who IS admin:**
 
@@ -528,7 +528,7 @@ query GetUser($id: ID!) {
     }
   }
 }
-```
+```text
 
 ### 4.3 Masking Strategies
 
@@ -559,7 +559,7 @@ class Customer:
         masked_value_generator=lambda: random.random() * 100
     )
     approximate_balance: float
-```
+```text
 
 ---
 
@@ -587,7 +587,7 @@ def get_all_users() -> [User!]!:
 def get_organization_users(org_id: ID!) -> [User!]!:
     """Members of organization can list users in organization"""
     pass
-```
+```text
 
 ### 5.2 Authorization Rules Evaluation
 
@@ -603,7 +603,7 @@ if "admin" not in user_context.roles:
 # Rule: "organization_member"
 if args.org_id not in user_context.organizations:
     raise AuthorizationError("E_AUTH_PERMISSION_401")
-```
+```text
 
 ---
 
@@ -636,7 +636,7 @@ FraiseQL includes built-in authorization rules:
 # Public rules
 "public"                # Anyone can access
 "none"                  # No authorization (deny all)
-```
+```text
 
 ### 6.2 Custom Rules
 
@@ -672,7 +672,7 @@ class Post:
 class Project:
     @fraiseql.authorize(rule="my_department")
     budget: float
-```
+```text
 
 ---
 
@@ -699,7 +699,7 @@ class AuditEvent:
     ip_address: str                 # Client IP
     user_agent: str                 # Client user agent
     trace_id: str                   # Link to request trace
-```
+```text
 
 ### 7.2 Audit Log Format
 
@@ -726,7 +726,7 @@ class AuditEvent:
     "trace_id": "trace-abc123"
   }
 }
-```
+```text
 
 **Audit log for denied access:**
 
@@ -754,7 +754,7 @@ class AuditEvent:
     "trace_id": "trace-def456"
   }
 }
-```
+```text
 
 ### 7.3 Audit Log Persistence
 
@@ -787,7 +787,7 @@ CREATE TABLE tb_audit_log (
 -- Index for common queries
 CREATE INDEX idx_audit_user_time ON tb_audit_log(user_id, timestamp DESC);
 CREATE INDEX idx_audit_resource ON tb_audit_log(resource_type, resource_id);
-```
+```text
 
 ### 7.4 Audit Queries
 
@@ -814,7 +814,7 @@ ORDER BY timestamp DESC;
 SELECT * FROM tb_audit_log
 WHERE fields_accessed @> '["ssn", "credit_card"]'
 ORDER BY timestamp DESC;
-```
+```text
 
 ---
 
@@ -846,7 +846,7 @@ def request_data_deletion(user_id: ID!) -> Boolean:
 def export_user_data(user_id: ID!) -> JSON:
     """Export all user data"""
     pass
-```
+```text
 
 ### 8.2 HIPAA Compliance
 
@@ -876,7 +876,7 @@ class PatientRecord:
 def get_anonymized_statistics() -> Statistics:
     """Return de-identified statistics"""
     pass
-```
+```text
 
 ### 8.3 PCI-DSS Compliance
 
@@ -903,7 +903,7 @@ class PaymentMethod:
 
 # Tokenization
 # Store tokenized references, not card data
-```
+```text
 
 ---
 
@@ -1009,7 +1009,7 @@ fraiseql.security.configure({
         "strict_mode": True,  # Deny if no RLS rule
     },
 })
-```
+```text
 
 ### 10.2 Environment Variables
 
@@ -1029,7 +1029,7 @@ FRAISEQL_AUDIT_EXPORT_URL=https://splunk.example.com
 
 # Security headers
 FRAISEQL_SECURITY_HEADERS_ENABLED=true
-```
+```text
 
 ---
 
@@ -1039,7 +1039,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
 
 **Investigation steps:**
 
-```
+```text
 
 1. Check if user is authenticated
    → Query: SELECT authenticated_at FROM tb_user WHERE id = 'user-456'
@@ -1063,13 +1063,13 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
       WHERE user_id = 'user-456'
       AND authorization_allowed = false
       AND resource_id = 'post-789'
-```
+```text
 
 ### 11.2 User Seeing Data They Shouldn't See
 
 **Investigation steps:**
 
-```
+```text
 
 1. Check RLS rule on type
    → Query: SELECT rls_rule FROM tb_schema_types WHERE name = 'Post'
@@ -1086,13 +1086,13 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
 5. Verify user's organization context
    → SELECT organization_id FROM tb_user WHERE id = 'user-456'
    → Does query filter match this org?
-```
+```text
 
 ---
 
 ## 12. Summary: Security Architecture
 
-```
+```text
 ┌──────────────────────────────────────────┐
 │ User Request (with JWT token)            │
 └────────────┬─────────────────────────────┘
@@ -1130,7 +1130,7 @@ FRAISEQL_SECURITY_HEADERS_ENABLED=true
       ┌──────▼──────────────┐
       │ Response            │ Return to client
       └─────────────────────┘
-```
+```text
 
 ---
 

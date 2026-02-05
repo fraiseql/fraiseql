@@ -63,7 +63,7 @@ FraiseQL makes a deliberate architectural choice based on the CAP theorem:
 
 When a network partition occurs between services:
 
-```
+```text
 ┌─────────────────┐
 │   Service A     │
 │  (DB primary)   │
@@ -75,7 +75,7 @@ When a network partition occurs between services:
 │   Service B     │
 │  (DB replica)   │
 └─────────────────┘
-```
+```text
 
 You must choose between:
 
@@ -103,7 +103,7 @@ If Service B's database can't confirm consistency with Service A, FraiseQL retur
 
 ### How Mutations Work
 
-```
+```text
 Client sends mutation
          │
          ▼
@@ -122,7 +122,7 @@ FraiseQL Server receives
             (success or error, never "maybe")
 
          ⏱️ Client waits 100-500ms (blocking)
-```
+```text
 
 **Key point**: The client blocks until the mutation completes. There's no "queued, we'll process later" response.
 
@@ -136,7 +136,7 @@ mutation CreateOrder($input: CreateOrderInput!) {
     items { id, quantity }
   }
 }
-```
+```text
 
 **What happens**:
 
@@ -156,7 +156,7 @@ mutation CreateOrder($input: CreateOrderInput!) {
 
 FraiseQL uses NATS JetStream for **side effects**, not **core mutations**:
 
-```
+```text
 Mutation (synchronous, blocking)
     ├─ Database: updateUser(...) ✅ completes
     └─ Returns to client immediately
@@ -166,7 +166,7 @@ Side Effects (asynchronous, via NATS)
     ├─ Cache: Invalidate user cache → queued
     ├─ Events: Publish user.updated → published
     └─ Background jobs: process in Redis queue
-```
+```text
 
 **The mutation completes synchronously.**
 
@@ -190,7 +190,7 @@ mutation DeleteUser($id: ID!) {
     deletedAt
   }
 }
-```
+```text
 
 **Timeline**:
 
@@ -210,7 +210,7 @@ If the webhook fails, it retries. If it permanently fails, it goes to Dead Lette
 
 When mutations span multiple services:
 
-```
+```text
 Mutation on Service A and Service B
          │
          ├─ Acquire locks on both databases
@@ -225,7 +225,7 @@ Mutation on Service A and Service B
             ├─ Undo Service B change (if it succeeded)
             ├─ Undo Service A change
             └─ Return error to client
-```
+```text
 
 ### Example: Multi-Service Mutation
 
@@ -247,7 +247,7 @@ mutation TransferInventory(
     toBalance
   }
 }
-```
+```text
 
 **Step-by-step execution**:
 
@@ -308,7 +308,7 @@ BEGIN ISOLATION LEVEL SERIALIZABLE;
 UPDATE users SET name = 'Alice' WHERE id = 1;
 SELECT * FROM users WHERE id = 1;  -- Sees 'Alice'
 COMMIT;
-```
+```text
 
 **Guarantee**: No dirty reads, no phantom reads, no lost updates.
 
@@ -316,7 +316,7 @@ COMMIT;
 
 **Isolation Level**: Causal consistency (not strict serializability)
 
-```
+```text
 Service A executes mutation
     ↓
 Service B waits for result
@@ -324,17 +324,17 @@ Service B waits for result
 Service B can see the effects of Service A's mutation
     ↓
 But Service A can't retroactively see what Service B did
-```
+```text
 
 **Guarantee**: Ordered causality, not global ordering.
 
 **Example**: You can't have this scenario:
 
-```
+```text
 Time T1: Service A changes User.name → "Alice"
 Time T2: Service B reads User.name → gets "Bob" (stale)
 Time T3: Service B returns response to client
-```
+```text
 
 Because SAGA ensures T1's effects are visible in T2.
 
@@ -354,7 +354,7 @@ query users(tenantId: ID!) {
     name
   }
 }
-```
+```text
 
 **Guarantee**: No query can accidentally leak Tenant A's data to Tenant B.
 
@@ -375,7 +375,7 @@ mutation UpdateUser($id: ID!, $name: String!) {
     status  # "accepted" or "queued"
   }
 }
-```
+```text
 
 And then:
 
@@ -387,7 +387,7 @@ subscription onUserUpdate($id: ID!) {
     status  # "completed"
   }
 }
-```
+```text
 
 **Why not?** Because:
 
@@ -415,7 +415,7 @@ Or implement it yourself:
 
 ### Latency Tradeoff
 
-```
+```text
 FraiseQL (CP)         100-500ms per mutation
   ├─ Validation: 5ms
   ├─ SAGA execution: 50-400ms (database dependent)
@@ -425,7 +425,7 @@ Eventual Consistency  <10ms mutation response
   ├─ ACK: 1-2ms
   ├─ Actual processing: later
   └─ Client waits for subscription
-```
+```text
 
 **FraiseQL is slower for individual mutations.**
 
@@ -446,7 +446,7 @@ Eventual Consistency  <10ms mutation response
 
 ## Decision Tree: Is FraiseQL Right for Me?
 
-```
+```text
 
 1. Do mutations need to complete before returning to client?
    YES → Continue
@@ -467,7 +467,7 @@ Eventual Consistency  <10ms mutation response
 5. Can you tolerate 100-500ms mutation latency?
    YES → FraiseQL is perfect
    NO → Use eventual consistency system
-```
+```text
 
 **If you answer YES to questions 1-5, use FraiseQL.**
 

@@ -12,7 +12,7 @@ Complete guide to building a scalable IoT platform for collecting and querying s
 
 ## Architecture Overview
 
-```
+```text
 ┌──────────────┬──────────────┬──────────────┐
 │   Devices    │   Devices    │   Devices    │
 │  (millions)  │  (millions)  │  (millions)  │
@@ -41,7 +41,7 @@ Complete guide to building a scalable IoT platform for collecting and querying s
          │  FraiseQL GraphQL      │
          │  (Query Layer)         │
          └────────────────────────┘
-```
+```text
 
 ---
 
@@ -96,7 +96,7 @@ CREATE TABLE sensors (
   UNIQUE(device_id, sensor_name),
   INDEX idx_device_id (device_id)
 );
-```
+```text
 
 ### Time-Series Data
 
@@ -124,7 +124,7 @@ SELECT add_retention_policy('sensor_readings', INTERVAL '1 year');
 -- Indexes for common queries
 CREATE INDEX idx_device_time ON sensor_readings (device_id, time DESC);
 CREATE INDEX idx_sensor_time ON sensor_readings (sensor_name, time DESC);
-```
+```text
 
 ### Aggregated Data (Pre-Computed)
 
@@ -170,7 +170,7 @@ SELECT
 FROM sensor_readings
 WHERE time >= NOW() - INTERVAL '1 year'
 GROUP BY time_bucket('1 day', time), device_id, sensor_name;
-```
+```text
 
 ### Alerts & Events
 
@@ -192,7 +192,7 @@ CREATE TABLE device_alerts (
   INDEX idx_acknowledged (acknowledged),
   INDEX idx_created_at (created_at)
 );
-```
+```text
 
 ---
 
@@ -334,7 +334,7 @@ class Subscription:
     def metrics(self, device_id: str) -> SensorMetric:
         """Real-time metric updates"""
         pass
-```
+```text
 
 ---
 
@@ -430,7 +430,7 @@ class MQTTIngestionService:
                 (device_id, alert_type, severity, value, threshold)
                 VALUES ($1, 'threshold_exceeded', 'warning', $2, $3)
             """, (device_id, value, sensor_threshold['max']))
-```
+```text
 
 ---
 
@@ -458,7 +458,7 @@ query DeviceDashboard($deviceId: ID!) {
     }
   }
 }
-```
+```text
 
 ### Time-Series Analysis
 
@@ -481,7 +481,7 @@ query TemperatureTrend(
     max_value
   }
 }
-```
+```text
 
 ---
 
@@ -495,7 +495,7 @@ SELECT set_integer_now_func('sensor_readings', 'pg_catalog.extract_epoch(now()):
 
 -- Chunks are automatically created
 SELECT show_chunks('sensor_readings');
-```
+```text
 
 ### Data Retention
 
@@ -510,7 +510,7 @@ WHERE time < NOW() - INTERVAL '1 year';
 
 DELETE FROM sensor_readings
 WHERE time < NOW() - INTERVAL '1 year';
-```
+```text
 
 ### Downsampling
 
@@ -527,7 +527,7 @@ SELECT
 FROM sensor_readings
 WHERE time < NOW() - INTERVAL '90 days'
 GROUP BY DATE(time), device_id, sensor_name;
-```
+```text
 
 ---
 
@@ -574,7 +574,7 @@ async def evaluate_alert_rules():
                 severity=rule['severity'],
                 message=rule['message']
             )
-```
+```text
 
 ---
 
@@ -639,7 +639,7 @@ describe('IoT Platform', () => {
     expect(metrics[0].max_value).toBe(24);
   });
 });
-```
+```text
 
 ---
 
@@ -657,7 +657,7 @@ query ClusterHealth {
     readings_per_second
   }
 }
-```
+```text
 
 ---
 

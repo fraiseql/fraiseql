@@ -48,7 +48,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
   "cascade": { ... },
   "metadata": { ... }
 }
-```
+```text
 
 ### 2.2 Event Metadata
 
@@ -92,7 +92,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
     "schema": "public"
   }
 }
-```
+```text
 
 ### 3.2 Transaction ID
 
@@ -103,7 +103,7 @@ The `transaction_id` uniquely identifies the database transaction:
 # MySQL: @@global.gtid_executed
 # SQL Server: @@TRANCOUNT
 # SQLite: Not available (use timestamp)
-```
+```text
 
 Used for idempotency — multiple events from same transaction share same ID.
 
@@ -115,7 +115,7 @@ Optional session identifier for correlation:
 {
   "session_id": "sess_550e8400-e29b-41d4-a716-446655440000"
 }
-```
+```text
 
 Can trace all mutations from single client session.
 
@@ -136,7 +136,7 @@ Can trace all mutations from single client session.
     "is_soft_deleted": false
   }
 }
-```
+```text
 
 ### 4.2 Entity Fields
 
@@ -159,7 +159,7 @@ For multi-tenant systems, always include tenant:
     "tenant_id": "tenant-123"
   }
 }
-```
+```text
 
 Used for:
 
@@ -194,7 +194,7 @@ When entity is inserted:
     ]
   }
 }
-```
+```text
 
 ### 5.2 UPDATE Operation
 
@@ -236,7 +236,7 @@ When entity is modified:
     }
   }
 }
-```
+```text
 
 ### 5.3 DELETE Operation
 
@@ -261,7 +261,7 @@ When entity is deleted:
     ]
   }
 }
-```
+```text
 
 ### 5.4 Soft Delete
 
@@ -279,7 +279,7 @@ For soft deletes (deleted_at):
     "changed_fields": ["deleted_at"]
   }
 }
-```
+```text
 
 ### 5.5 Operation Triggers
 
@@ -333,7 +333,7 @@ The `cascade` field describes related entity changes:
     ]
   }
 }
-```
+```text
 
 ### 6.2 Cascade Entry Types
 
@@ -352,7 +352,7 @@ Related entities that were updated as side effect:
     }
   ]
 }
-```
+```text
 
 #### 6.2.2 Deleted
 
@@ -368,7 +368,7 @@ Related entities that were deleted as side effect:
     }
   ]
 }
-```
+```text
 
 #### 6.2.3 Invalidations
 
@@ -384,7 +384,7 @@ Queries/lists that should be cache-invalidated:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -407,7 +407,7 @@ Queries/lists that should be cache-invalidated:
     }
   }
 }
-```
+```text
 
 ### 7.2 Metadata Fields
 
@@ -478,7 +478,7 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
 
 ### 8.2 User Updated
 
@@ -549,7 +549,7 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
 
 ### 8.3 User Deleted (Cascade)
 
@@ -624,7 +624,7 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
 
 ---
 
@@ -641,7 +641,7 @@ CREATE TRIGGER user_cdc_trigger
 AFTER INSERT OR UPDATE OR DELETE ON tb_user
 FOR EACH ROW
 EXECUTE FUNCTION emit_cdc_event();
-```
+```text
 
 **Option 2: Logical Replication** (WAL)
 
@@ -654,7 +654,7 @@ EXECUTE FUNCTION emit_cdc_event();
 ```sql
 INSERT INTO audit_log (event_type, entity_type, entity_id, operation)
 VALUES ('entity:updated', 'User', NEW.id, row_to_json(NEW));
-```
+```text
 
 ### 9.2 SQLite Implementation
 
@@ -671,7 +671,7 @@ def sqlite_cdc_hook(action: str, db: str, table: str, rowid: int):
         event_type = "entity:deleted"
 
     emit_cdc_event(event_type, table, rowid)
-```
+```text
 
 ### 9.3 SQL Server Implementation
 
@@ -683,7 +683,7 @@ EXEC sys.sp_cdc_enable_table
   @source_schema = 'dbo',
   @source_name = 'tb_user',
   @role_name = NULL
-```
+```text
 
 ---
 
@@ -716,7 +716,7 @@ for event in event_stream:
 
     process_event(event)
     processed_event_ids.add(event.event_id)
-```
+```text
 
 ### 10.3 Ordering Guarantees
 
@@ -729,7 +729,7 @@ events_sorted = sorted(events, key=lambda e: e.sequence_number)
 # Process in order
 for event in events_sorted:
     process_event(event)
-```
+```text
 
 ---
 
@@ -740,21 +740,21 @@ for event in events_sorted:
 ```python
 # Only receive User events
 events = subscribe(event_type="entity:*", entity_type="User")
-```
+```text
 
 ### 11.2 Tenant Filter
 
 ```python
 # Only receive tenant-123 events
 events = subscribe(tenant_id="tenant-123")
-```
+```text
 
 ### 11.3 Trigger Filter
 
 ```python
 # Only API mutations (not admin/migration)
 events = subscribe(trigger="api_*")
-```
+```text
 
 ### 11.4 Changed Field Filter
 
@@ -764,7 +764,7 @@ events = subscribe(
     entity_type="User",
     changed_fields=["status"]
 )
-```
+```text
 
 ---
 
@@ -779,7 +779,7 @@ All changes from a single mutation are in one event:
 # CDC emits 1 event with:
 # - entity_type: User
 # - cascade.deleted: [Post, Post, Post]
-```
+```text
 
 ### 12.2 Ordering
 
@@ -788,7 +788,7 @@ Events are monotonically ordered by `sequence_number`:
 ```python
 # Event 4520, 4521, 4522, ... guaranteed order
 # No gaps (unless CDC temporarily disabled)
-```
+```text
 
 ### 12.3 Completeness
 
@@ -798,13 +798,13 @@ Every mutation produces exactly one event:
 # If mutation succeeds, CDC event emitted
 # If mutation fails, no CDC event
 # If mutation partially succeeds, one event with error metadata
-```
+```text
 
 ### 12.4 Durability
 
 Events are persisted before acknowledging to client:
 
-```
+```text
 Client mutation request
     ↓
 Execute in database
@@ -812,7 +812,7 @@ Execute in database
 Emit CDC event to queue/log
     ↓
 Return success to client
-```
+```text
 
 ---
 
@@ -831,7 +831,7 @@ In CompiledSchema:
     "batch_size": 100
   }
 }
-```
+```text
 
 ### 13.2 Selective Entities
 
@@ -844,7 +844,7 @@ Only emit CDC for certain entities:
     "exclude_entities": ["AuditLog"]
   }
 }
-```
+```text
 
 ### 13.3 Selective Operations
 
@@ -857,7 +857,7 @@ Only emit CDC for certain operations:
     "exclude_operations": ["CREATE"]
   }
 }
-```
+```text
 
 ---
 

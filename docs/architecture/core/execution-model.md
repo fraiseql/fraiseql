@@ -31,7 +31,7 @@ All three patterns compile to deterministic execution plans; only the delivery m
 
 ### 2.1 High-Level Flow
 
-```
+```text
 GraphQL Query (from client)
     ↓
 Rust Runtime receives request
@@ -68,7 +68,7 @@ Rust Runtime receives request
  Cache Invalidation Emission
   - Emit cache invalidation events
   - Return response to client
-```
+```text
 
 ---
 
@@ -105,7 +105,7 @@ def check_cache(
             return cached_result.data  # Cache hit!
 
     return None  # Cache miss, continue to validation
-```
+```text
 
 **Cache Layers Supported:**
 
@@ -140,7 +140,7 @@ def resolve_apq(
         }
 
     return query  # Return full query for processing
-```
+```text
 
 **APQ Security Modes:**
 
@@ -179,7 +179,7 @@ async def resolve_phase_0(request) -> dict | None:
 
     # Cache miss or caching disabled — continue to Phase 1
     return None
-```
+```text
 
 **Performance Impact:**
 
@@ -235,7 +235,7 @@ def validate_graphql_query(query_ast: QueryAST, schema: CompiledSchema):
     validate_fields(query_ast.selection_set, query_def.return_type, schema, errors)
 
     return errors
-```
+```text
 
 ### 3.3 Error Handling
 
@@ -251,7 +251,7 @@ If validation fails, return GraphQL error response:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -285,7 +285,7 @@ All authorization is **declarative metadata** in the CompiledSchema:
     }
   }
 }
-```
+```text
 
 ### 4.2 Auth Context Extraction
 
@@ -298,7 +298,7 @@ class AuthContext:
     tenant_id: str         # Multi-tenant isolation
     email: str
     # ... custom fields
-```
+```text
 
 **Extraction happens externally** (middleware layer):
 
@@ -312,7 +312,7 @@ def extract_auth_context(request) -> AuthContext:
         tenant_id=token.tenant_id,
         email=token.email
     )
-```
+```text
 
 ### 4.3 Authorization Decision Algorithm
 
@@ -343,7 +343,7 @@ def authorize_query(
             return False  # Required claim missing
 
     return True
-```
+```text
 
 ### 4.4 Field-Level Authorization
 
@@ -363,7 +363,7 @@ if "admin" not in auth_context.roles:
 
 # Return to client
 return user_data  # {"id": "123", "email": "user@example.com"}
-```
+```text
 
 ### 4.5 Authorization Failure Response
 
@@ -382,7 +382,7 @@ If authorization fails:
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -469,7 +469,7 @@ For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
   "order_by": [{"column": "revenue_sum", "direction": "DESC"}],
   "limit": 100
 }
-```
+```text
 
 This plan is passed to Phase 3 (Query Planning) which converts it to database-specific SQL in Phase 4.
 
@@ -510,7 +510,7 @@ Every query/mutation has a **pre-compiled execution plan** stored in the Compile
     }
   ]
 }
-```
+```text
 
 ### 5.2 Plan Types
 
@@ -526,7 +526,7 @@ class ViewQueryPlan:
     limit_column: str | None
     offset_column: str | None
     projection: dict[str, str]       # field_name → source
-```
+```text
 
 **SQL generated:**
 
@@ -536,7 +536,7 @@ FROM v_user
 WHERE (WHERE conditions applied by filter_mapping)
 ORDER BY created_at
 LIMIT $1 OFFSET $2
-```
+```text
 
 #### 5.2.2 Stored Procedure Call
 
@@ -547,7 +547,7 @@ class ProcedureCallPlan:
     input_mapping: dict[str, str]   # GraphQL arg → param
     output_mapping: dict[str, str]  # response field → GraphQL field
     return_type: str                 # "json" or "jsonb"
-```
+```text
 
 **SQL generated:**
 
@@ -556,7 +556,7 @@ SELECT fn_create_user(
     email_param := $1,
     name_param := $2
 )
-```
+```text
 
 #### 5.2.3 Federation Query
 
@@ -566,7 +566,7 @@ class FederationQueryPlan:
     subgraph_name: str
     query_name: str
     # ... cross-subgraph fields
-```
+```text
 
 ### 5.3 WHERE Clause Compilation
 
@@ -586,7 +586,7 @@ query {
     email
   }
 }
-```
+```text
 
 **Compiles to:**
 
@@ -596,7 +596,7 @@ FROM v_user
 WHERE email LIKE '%@example.com'
   AND created_at >= '2026-01-01T00:00:00Z'
   AND name = 'Alice'
-```
+```text
 
 ### 5.4 Plan Resolution
 
@@ -619,7 +619,7 @@ def resolve_execution_plan(
     plan.offset = query_ast.arguments.get("offset")
 
     return plan
-```
+```text
 
 ---
 
@@ -639,7 +639,7 @@ def translate_to_sql(plan: ExecutionPlan) -> str:
         return translate_procedure_call(plan)
     else:
         raise ValueError(f"Unknown plan type: {type(plan)}")
-```
+```text
 
 ### 6.2 Database-Specific Translation
 
@@ -711,7 +711,7 @@ def translate_view_query_sqlite(plan: ViewQueryPlan) -> str:
 def translate_view_query_sqlserver(plan: ViewQueryPlan) -> str:
     # SQL Server uses TOP/OFFSET FETCH instead of LIMIT
     ...
-```
+```text
 
 ### 6.3 Query Execution
 
@@ -736,7 +736,7 @@ async def execute_query(
                 }
             ]
         }
-```
+```text
 
 ### 6.4 Result Streaming (Optional)
 
@@ -757,7 +757,7 @@ async def execute_query_streaming(
         if not rows:
             break
         yield rows
-```
+```text
 
 ---
 
@@ -785,7 +785,7 @@ def project_result(row: dict, projection_plan: dict) -> dict:
             result[field_name] = extract_jsonb(row["data"], jsonb_path)
 
     return result
-```
+```text
 
 ### 7.2 Nested Type Projection
 
@@ -813,7 +813,7 @@ For nested types (like `User.posts`), extract from JSONB:
         {"id": "p2", "title": "Second Post"}
     ]
 }
-```
+```text
 
 ### 7.3 Recursive Projection
 
@@ -847,7 +847,7 @@ def project_recursive(
             result[field_name] = value
 
     return result
-```
+```text
 
 ### 7.3 Field-Level Authorization Filtering
 
@@ -883,7 +883,7 @@ def project_result_with_auth(
         result[field_name] = value
 
     return result
-```
+```text
 
 **Authorization Examples:**
 
@@ -898,7 +898,7 @@ class User:
 # If user has "user" role (not "admin"):
 # password_hash and admin_notes are automatically removed
 # Result: {"id": "123", "email": "user@example.com"}
-```
+```text
 
 **Performance:**
 
@@ -943,7 +943,7 @@ def apply_pagination(
             "limit": limit
         }
     }
-```
+```text
 
 ---
 
@@ -953,7 +953,7 @@ def apply_pagination(
 
 Mutations follow the same pipeline, but call stored procedures:
 
-```
+```text
 GraphQL Mutation
     ↓
 Validation
@@ -971,7 +971,7 @@ Extract Entity and Cascade
 Emit Cache Invalidation Events
     ↓
 Return to Client
-```
+```text
 
 ### 8.2 Procedure Call Execution
 
@@ -1037,7 +1037,7 @@ async def execute_mutation(
                 }
             ]
         }
-```
+```text
 
 ---
 
@@ -1093,7 +1093,7 @@ def emit_cache_events(
             tenant_id=auth_context.tenant_id
         )
         emit_to_cache_layer(event)
-```
+```text
 
 ### 9.2 Cache Event Format
 
@@ -1107,7 +1107,7 @@ def emit_cache_events(
   "query_name": "users",
   "reason": "user_created"
 }
-```
+```text
 
 ### 9.3 Integration with CDC Event Streaming
 
@@ -1141,7 +1141,7 @@ Errors at any phase result in GraphQL error response:
   ],
   "data": null
 }
-```
+```text
 
 ### 10.2 Partial Results
 
@@ -1163,7 +1163,7 @@ For multi-field queries, return partial results if allowed:
     }
   }
 }
-```
+```text
 
 ---
 
@@ -1180,7 +1180,7 @@ plan = compile_query("users", schema)
 # Runtime: Reuse plan for every request
 for request in requests:
     result = execute_plan(plan, request.variables)
-```
+```text
 
 ### 11.2 Connection Pooling
 
@@ -1196,19 +1196,19 @@ pool = await create_pool(
 # Reuse connections
 async with pool.acquire() as conn:
     result = await execute_query(sql, conn)
-```
+```text
 
 ### 11.3 Result Caching
 
 Cache execution results at multiple layers:
 
-```
+```text
 HTTP Layer Cache (if request is identical)
     ↓
 Query Result Cache (same query + variables)
     ↓
 Database Query Cache (database-specific)
-```
+```text
 
 ---
 
@@ -1234,7 +1234,7 @@ async def detect_database_dialect(db_connection) -> str:
         return "sqlserver"
     else:
         raise ValueError(f"Unsupported database: {result}")
-```
+```text
 
 ### 12.2 Dialect-Specific Optimizations
 
@@ -1259,7 +1259,7 @@ def execute_sqlserver(plan: ViewQueryPlan, db_connection):
     sql = f"SELECT * FROM {plan.view}"
     # SQL Server has JSON_VALUE and JSON_QUERY functions
     return await db_connection.fetch(sql)
-```
+```text
 
 ---
 
@@ -1271,7 +1271,7 @@ While queries and mutations are **request-response** patterns (client asks, serv
 
 FraiseQL subscriptions operate outside the 6-phase query execution pipeline. Instead, they use the **event backbone**:
 
-```
+```text
 Database Transaction Commits
     ↓
 Change Detection (LISTEN/NOTIFY or CDC)
@@ -1283,7 +1283,7 @@ Subscription Matching (compiled WHERE filters)
 Transport Adapter Dispatch (graphql-ws, webhook, Kafka, gRPC)
     ↓
 Client Delivery
-```
+```text
 
 **Key difference from queries:**
 
@@ -1313,13 +1313,13 @@ class OrderCreated:
     "projection": ["id", "amount", "created_at"],
     "auth_required": True
 }
-```
+```text
 
 ### 13.3 Event Processing Pipeline
 
 When a database change occurs:
 
-```
+```text
 
 1. Event Capture
    - PostgreSQL: LISTEN/NOTIFY triggers
@@ -1345,13 +1345,13 @@ When a database change occurs:
    - Queue to appropriate transport adapter
    - Handle backpressure (slow subscribers)
    - Implement retry logic (webhooks)
-```
+```text
 
 ### 13.4 Multi-Transport Event Delivery
 
 Same event stream serves multiple consumers:
 
-```
+```text
 Order Created Event
     ├─→ graphql-ws adapter
     │   └─→ Browser client (real-time dashboard) [<10ms]
@@ -1361,7 +1361,7 @@ Order Created Event
     │
     └─→ Kafka adapter
         └─→ Data warehouse [async, offset-tracked]
-```
+```text
 
 **Each adapter independently:**
 

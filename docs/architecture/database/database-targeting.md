@@ -30,7 +30,7 @@ config = CompilerConfig(
 )
 
 compiled = compiler.compile(config)
-```
+```text
 
 This single configuration choice determines:
 
@@ -118,7 +118,7 @@ The **capability manifest** declares what each database can do:
     ]
   }
 }
-```
+```text
 
 **This manifest is:**
 
@@ -157,7 +157,7 @@ def generate_where_type(
         where_fields[col_name] = filter_type
 
     return InputType(name=f"{type_name}WhereInput", fields=where_fields)
-```
+```text
 
 **Result:** The generated GraphQL schema is different for each database target.
 
@@ -216,7 +216,7 @@ mod sqlite {
         }
     }
 }
-```
+```text
 
 ---
 
@@ -241,13 +241,13 @@ def users(where: "UserWhereInput" = None):
     pass
 
 schema.bind("users", "view", "v_user")
-```
+```text
 
 ### Compilation: PostgreSQL Target
 
 ```bash
 fraiseql compile schema.py --database postgresql
-```
+```text
 
 Generated GraphQL schema includes:
 
@@ -276,13 +276,13 @@ input StringFilter {
   _regex: String              # ✅ PostgreSQL only
   _starts_with: String
 }
-```
+```text
 
 ### Compilation: MySQL Target
 
 ```bash
 fraiseql compile schema.py --database mysql
-```
+```text
 
 Generated GraphQL schema includes:
 
@@ -309,13 +309,13 @@ input StringFilter {
   # ❌ No _ilike
   # ❌ No _regex
 }
-```
+```text
 
 ### Compilation: SQLite Target
 
 ```bash
 fraiseql compile schema.py --database sqlite
-```
+```text
 
 Generated GraphQL schema includes:
 
@@ -339,7 +339,7 @@ input StringFilter {
   _neq: String
   _like: String
 }
-```
+```text
 
 ---
 
@@ -357,7 +357,7 @@ query {
     id email
   }
 }
-```
+```text
 
 Lowering → SQL:
 
@@ -365,7 +365,7 @@ Lowering → SQL:
 SELECT id, email FROM v_user
 WHERE email ~ $1
 PARAMETERS: ["^admin@"]
-```
+```text
 
 ### MySQL (Regex NOT Available)
 
@@ -373,7 +373,7 @@ The same query **cannot be issued** because `_regex` doesn't exist in the GraphQ
 
 **Compile error if you try to reuse the PostgreSQL schema with MySQL:**
 
-```
+```text
 Error: Field '_regex' is not available in MySQL-targeted schema.
 The following operators are available for String fields:
   - _eq
@@ -383,7 +383,7 @@ The following operators are available for String fields:
 Consider:
   - Using _like instead: WHERE email LIKE ?
   - Recompiling schema for MySQL to update available operators
-```
+```text
 
 This error happens **at compile time**, not at runtime.
 
@@ -439,7 +439,7 @@ input LTreeFilter {
   _descendant: LTree
   _matches: String
 }
-```
+```text
 
 All 60+ PostgreSQL operators are available because they're all in the capability manifest.
 
@@ -463,7 +463,7 @@ To support a new database (e.g., DuckDB), you implement:
     ]
   }
 }
-```
+```text
 
 ### Step 2: Add Backend Lowering Module
 
@@ -477,7 +477,7 @@ pub fn lower_filter(filter: &Filter, args: &mut Vec<Value>) -> String {
         // ... etc
     }
 }
-```
+```text
 
 ### Step 3: No Changes to Schema
 
@@ -514,7 +514,7 @@ impl DbAdapter for SqliteAdapter {
         self.execute(format!("WHERE {} GLOB {}", col, pattern)).await
     }
 }
-```
+```text
 
 **Problems:**
 
@@ -543,7 +543,7 @@ impl DbAdapter for SqliteAdapter {
 # Client using MySQL gets compile error if they try _regex
 # No runtime surprises
 # No fake abstractions
-```
+```text
 
 **Advantages:**
 
@@ -556,7 +556,7 @@ impl DbAdapter for SqliteAdapter {
 
 ## 8. Database-Target-Driven Compilation Flow
 
-```
+```text
 ┌──────────────────────────────────┐
 │ Compiler Configuration          │
 │ database_target = "postgresql"  │ ← Single decision point
@@ -582,7 +582,7 @@ impl DbAdapter for SqliteAdapter {
         │ + schema.graphql       │
         │ (database-specific!)   │
         └───────────────────────┘
-```
+```text
 
 ---
 
@@ -594,7 +594,7 @@ impl DbAdapter for SqliteAdapter {
 # PostgreSQL with all features
 fraiseql compile schema.py --database postgresql
 # → Gets 60+ WHERE operators, JSONB, vectors, LTree, etc.
-```
+```text
 
 ### Production (Customer A: PostgreSQL)
 
@@ -602,7 +602,7 @@ fraiseql compile schema.py --database postgresql
 # Deploy with PostgreSQL schema
 fraiseql compile schema.py --database postgresql
 # Clients see full operator set
-```
+```text
 
 ### Production (Customer B: MySQL)
 
@@ -611,7 +611,7 @@ fraiseql compile schema.py --database postgresql
 fraiseql compile schema.py --database mysql
 # Clients see only MySQL-compatible operators
 # Same schema.py file, different compiled output
-```
+```text
 
 ### Production (Customer C: SQLite)
 
@@ -620,7 +620,7 @@ fraiseql compile schema.py --database mysql
 fraiseql compile schema.py --database sqlite
 # Clients see only basic operators
 # Same schema.py file, different compiled output
-```
+```text
 
 ---
 

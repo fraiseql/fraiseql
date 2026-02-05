@@ -46,7 +46,7 @@
 
 **Logical view (v_user_full)** - Real-time composition:
 
-```
+```text
 
 1. Fetch user (1ms)
 2. Fetch posts (2-3s via JOIN)
@@ -56,15 +56,15 @@
 6. Fetch likes per comment (1-2s)
 7. Build final JSONB (200-300ms)
 Total: 5-10 seconds
-```
+```text
 
 **Table-backed view (tv_user_profile)** - Pre-computed:
 
-```
+```text
 
 1. Fetch pre-composed JSONB (100-200ms)
 Total: 100-200ms
-```
+```text
 
 ## DDL Pattern
 
@@ -88,7 +88,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile
     AFTER INSERT OR UPDATE OR DELETE ON tb_user
     FOR EACH ROW
     EXECUTE FUNCTION refresh_tv_user_profile_trigger();
-```
+```text
 
 ### JSONB Composition Pattern
 
@@ -146,7 +146,7 @@ LEFT JOIN v_user_posts_composed p ON p.fk_user = u.pk_user
 ON CONFLICT (id) DO UPDATE SET
     data = EXCLUDED.data,
     updated_at = NOW();
-```
+```text
 
 ## Refresh Strategies
 
@@ -203,7 +203,7 @@ CREATE TRIGGER trg_refresh_tv_user_profile_on_comment
     AFTER INSERT OR UPDATE OR DELETE ON tb_comment
     FOR EACH ROW
     EXECUTE FUNCTION refresh_tv_user_profile_trigger();
-```
+```text
 
 ### Option 2: Scheduled Batch (Low Overhead)
 
@@ -260,7 +260,7 @@ BEGIN
     RETURN QUERY SELECT v_inserted, v_updated;
 END;
 $$ LANGUAGE plpgsql;
-```
+```text
 
 ### Option 3: Command-Based Explicit Refresh
 
@@ -313,7 +313,7 @@ SELECT * FROM refresh_tv_user_profile('550e8400-e29b-41d4-a716-446655440000'::UU
 
 -- Usage: Refresh all profiles
 SELECT * FROM refresh_tv_user_profile();
-```
+```text
 
 ## Refresh Strategy Decision Matrix
 
@@ -334,13 +334,13 @@ Create helper views for composition logic (reusable across tv_*, REST APIs, etc.
 ```bash
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/v_user_posts_composed.sql
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/v_user_profile_composed.sql
-```
+```text
 
 ### Step 2: Create tv_* Table
 
 ```bash
 psql -h localhost -U postgres fraiseql_dev < examples/sql/postgres/tv_user_profile.sql
-```
+```text
 
 ### Step 3: Initial Population
 
@@ -353,7 +353,7 @@ SELECT COUNT(*) as tv_profile_count FROM tv_user_profile;
 SELECT COUNT(*) as v_user_count FROM v_user;
 
 -- They should be equal
-```
+```text
 
 ### Step 4: Update GraphQL Schema
 
@@ -373,7 +373,7 @@ class User:
     id: str
     name: str
     posts: list[Post]
-```
+```text
 
 ### Step 5: Monitor Performance
 
@@ -391,7 +391,7 @@ SELECT
     (SELECT COUNT(*) FROM tv_user_profile) as profiles,
     (SELECT COUNT(*) FROM v_user) as users,
     (SELECT COUNT(*) FROM tv_user_profile) = (SELECT COUNT(*) FROM v_user) as counts_match;
-```
+```text
 
 ## Limitations and Considerations
 
@@ -447,7 +447,7 @@ SELECT
 
 ```sql
 SELECT * FROM refresh_tv_user_profile();
-```
+```text
 
 ### Issue: tv_* data stale after writes
 
@@ -461,7 +461,7 @@ WHERE trigger_name LIKE 'trg_refresh_tv%';
 
 -- Manually refresh
 SELECT * FROM refresh_tv_user_profile();
-```
+```text
 
 ### Issue: High CPU from cascading triggers
 
@@ -476,7 +476,7 @@ DROP TRIGGER IF EXISTS trg_refresh_tv_user_profile_on_comment ON tb_comment;
 
 -- Schedule batch refresh instead
 SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');
-```
+```text
 
 ### Issue: JSONB composition mismatch with GraphQL schema
 

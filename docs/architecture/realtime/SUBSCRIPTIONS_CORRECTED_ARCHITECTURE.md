@@ -9,7 +9,7 @@
 
 ### 2.1 High-Level Event Flow (CORRECT)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ Application (GraphQL Mutation / Direct SQL)                │
 │ Executes: mutation CreateOrder($user_id, $amount)          │
@@ -65,7 +65,7 @@
 │ └─ Search Index   │  │                  │  │                  │
 └───────────────────┘  └──────────────────┘  └──────────────────┘
      (automation)        (real-time UI)        (event streaming)
-```
+```text
 
 ---
 
@@ -95,7 +95,7 @@
   );
   CREATE INDEX idx_entity_change_log_created ON tb_entity_change_log(created_at);
   CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
-  ```
+  ```text
 
 **ChangeLogListener** ✅ *Fully implemented*
 
@@ -153,7 +153,7 @@ Events flow through the system in Debezium envelope format:
   "extra_metadata": {},
   "created_at": "2026-01-30T10:00:00.123456Z"
 }
-```
+```text
 
 **Conversion to SubscriptionEvent:**
 
@@ -180,7 +180,7 @@ for entry in entries {
         sub_manager.publish_event(subscription_event).await?;
     }
 }
-```
+```text
 
 ---
 
@@ -199,9 +199,9 @@ for entry in entries {
 
 The previous documentation described this flow:
 
-```
+```text
 Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
-```
+```text
 
 **Problems:**
 
@@ -225,7 +225,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
          "INSERT",
          serde_json::to_value(&order)?
      ).execute(&pool).await?;
-     ```
+     ```text
 
 2. **SubscriptionManager Not Wired to ObserverRuntime** - Integration pending (Phase A revised)
 

@@ -22,7 +22,7 @@ Arrow Flight is purpose-built for high-throughput data transport. Choose based o
 ```bash
 # Arrow Flight runs alongside HTTP on port 50051
 docker-compose up -d
-```
+```text
 
 ### 2. Execute a GraphQL Query via Arrow Flight (Python)
 
@@ -45,7 +45,7 @@ df = pl.from_arrow(reader.read_all())
 
 print(f"Fetched {len(df)} users")
 print(df.head())
-```
+```text
 
 **Performance**: 100,000 rows in **2 seconds** vs 30 seconds with HTTP/JSON
 
@@ -66,13 +66,13 @@ for batch in reader:
     df = pl.from_arrow(batch)
     # Process batch: aggregations, ML features, etc.
     print(f"Processing batch of {len(df)} events")
-```
+```text
 
 ## Architecture Overview
 
 FraiseQL now provides **two complementary dataplanes** for different workloads:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │     Analytics Dataplane (Arrow Flight + ClickHouse)         │
 │  • High-throughput analytics (1M+ events/sec)               │
@@ -91,7 +91,7 @@ FraiseQL now provides **two complementary dataplanes** for different workloads:
 
 Key Principle: Both run in parallel, no redundant storage.
 Choose transport based on your use case.
-```
+```text
 
 ## Real-World Performance (100,000 row query)
 
@@ -120,7 +120,7 @@ df = pl.from_arrow(client.do_get(ticket).read_all())
 # vs HTTP/JSON
 response = requests.post(...)  # Network + JSON parsing + conversion
 df = pd.DataFrame(response.json())
-```
+```text
 
 ### ✅ Streaming Architecture
 
@@ -131,7 +131,7 @@ Process unlimited data with constant memory usage (batches of 10k rows).
 for batch in client.do_get(ticket):
     process(batch)  # Process batch, discard, repeat
     # Memory: constant (one batch)
-```
+```text
 
 ### ✅ Dual Dataplane
 
@@ -143,7 +143,7 @@ analytics_df = pl.from_arrow(...)  # 1M+ rows in seconds
 
 # For debugging: use HTTP/JSON to Elasticsearch
 results = es.search(index="fraiseql-events-*", body={...})
-```
+```text
 
 ### ✅ 100% Backwards Compatible
 
@@ -153,7 +153,7 @@ Existing HTTP/JSON clients continue to work unchanged. No breaking changes.
 # Both endpoints available simultaneously
 curl http://localhost:8080/graphql ...     # HTTP/JSON still works
 grpcurl localhost:50051 fraiseql.Flight ...  # Arrow Flight (new)
-```
+```text
 
 ## Performance Comparison
 
@@ -173,7 +173,7 @@ grpcurl localhost:50051 fraiseql.Flight ...  # Arrow Flight (new)
 
 ```bash
 docker-compose up -d  # Arrow Flight on port 50051
-```
+```text
 
 ### Production Deployment
 

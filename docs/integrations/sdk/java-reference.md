@@ -176,11 +176,11 @@ public class Order {
 }
 ```
 
-**Attributes:**
+### Attributes:
 
 - None (annotation applies to class level only)
 
-**Best Practices:**
+### Best Practices:
 
 - Use immutable records when possible (Java 16+)
 - Keep types flat (no nested `@GraphQLType` annotations)
@@ -208,14 +208,14 @@ public String userId;
 public List<String> getTags() { return tags; }
 ```
 
-**Attributes:**
+### Attributes:
 
 - `nullable` (boolean, default: `false`) - Whether field can be null
 - `name` (String) - Custom field name in schema (defaults to Java name)
 - `type` (String) - Custom GraphQL type (auto-detected if omitted)
 - `description` (String) - Field documentation for schema
 
-**Type Detection Rules:**
+### Type Detection Rules:
 
 | Java Type | GraphQL Type | Nullable | Example |
 |-----------|--------------|----------|---------|
@@ -316,7 +316,7 @@ FraiseQL.query("userCount")
     .register();
 ```
 
-**QueryBuilder Methods:**
+### QueryBuilder Methods:
 
 - `returnType(Class<?>)` - Set return type (required)
 - `returnsArray(boolean)` - Whether result is array (default: false)
@@ -362,7 +362,7 @@ FraiseQL.mutation("bulkDeleteUsers")
     .register();
 ```
 
-**MutationBuilder Methods:**
+### MutationBuilder Methods:
 
 Identical to QueryBuilder interface.
 
@@ -1235,7 +1235,7 @@ FraiseQLServer server = FraiseQLServer.fromCompiled("schema.compiled.json");
 
 #### Large Heap Size
 
-**Issue**: Application uses >1GB memory**
+#### Issue**: Application uses >1GB memory
 
 **Profile with jmap**:
 
@@ -1264,7 +1264,7 @@ server.close();  // Or use try-with-resources
 
 #### GC Pressure
 
-**Issue**: Frequent garbage collection pauses**
+#### Issue**: Frequent garbage collection pauses
 
 **Enable GC logging**:
 
@@ -1281,7 +1281,7 @@ java -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:gc.log MyApp
 
 #### Build Time Issues
 
-**Issue**: Maven build takes >2 minutes**
+#### Issue**: Maven build takes >2 minutes
 
 **Parallel compilation**:
 
@@ -1351,7 +1351,7 @@ public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
 javap -c -private com.example.User
 ```
 
-**Or use javap UI in IDE**
+### Or use javap UI in IDE
 
 #### Network Debugging
 

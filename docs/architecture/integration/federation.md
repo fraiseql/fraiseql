@@ -91,7 +91,7 @@ SELECT
   id,                              -- Primary key, used for federation lookups
   jsonb_build_object(...)  AS data -- Complete entity payload as JSON/JSONB
 FROM ...;
-```
+```text
 
 **Columns:**
 
@@ -112,7 +112,7 @@ SELECT
   jsonb_build_object('id', id, 'email', email, 'name', name) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
 
 **SQL Server (manual):**
 
@@ -123,7 +123,7 @@ SELECT
   (SELECT * FROM tb_user WHERE id = tb_user.id FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
 
 **Go/Python service (manual query):**
 
@@ -139,7 +139,7 @@ async def get_user_view(user_id):
             "name": user.name
         })
     }
-```
+```text
 
 ### Why This Contract?
 
@@ -160,7 +160,7 @@ async def get_user_view(user_id):
 
 ### High-Level Topology
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │ Apollo Router (Query Planning & Composition)│
 │ Sends standard GraphQL federation queries   │
@@ -178,7 +178,7 @@ async def get_user_view(user_id):
    ↓         ↓         ↓      ↓
    Direct DB Direct DB Direct DB HTTP
    Connection Connection Connection Post
-```
+```text
 
 ### Entity Resolution: Three Transport Strategies
 
@@ -186,7 +186,7 @@ async def get_user_view(user_id):
 
 Entity owned and resolved by current subgraph:
 
-```
+```text
 Apollo Router requests User(id: "123")
     ↓
 FraiseQL receives _entities query
@@ -195,7 +195,7 @@ Execute local database query
     ↓
 Return User entity via HTTP response
     ↓ <5ms total
-```
+```text
 
 **Latency:** <5ms (direct database query, no network overhead)
 
@@ -203,7 +203,7 @@ Return User entity via HTTP response
 
 Entity in any external subgraph (GraphQL-based):
 
-```
+```text
 Apollo Router needs Product data
     ↓
 FraiseQL receives _entities query with Product representations
@@ -214,7 +214,7 @@ Products subgraph queries its database
     ↓
 Response returned via HTTP
     ↓ 50-200ms total
-```
+```text
 
 **Latency:** 50-200ms (network round-trip + remote query)
 
@@ -228,7 +228,7 @@ Response returned via HTTP
 
 Entity in database-backed subgraph implementing view contract:
 
-```
+```text
 Apollo Router needs Order data
     ↓
 Subgraph receives _entities query
@@ -237,7 +237,7 @@ Subgraph executes query against v_order view
     ↓
 View returns entity with JSONB data payload
     ↓ <10-20ms total
-```
+```text
 
 **Latency:** <10-20ms (single database query, no HTTP round-trip)
 
@@ -258,14 +258,14 @@ View returns entity with JSONB data payload
 
 The compiler automatically selects the optimal strategy:
 
-```
+```text
 For each federation link (e.g., User → Order):
   1. Is target subgraph FraiseQL?
      NO → Use HTTP
   2. Can Rust runtime connect to target database?
      NO → Use HTTP (fallback)
   3. YES → Use Direct DB Connection
-```
+```text
 
 **Result: Zero configuration needed** — Compiler detects subgraph types and configures connections.
 
@@ -273,37 +273,37 @@ For each federation link (e.g., User → Order):
 
 #### Same Database (PostgreSQL ↔ PostgreSQL)
 
-```
+```text
 Apollo Router: _entities query (User by id)
     ↓ HTTP (10ms network)
 Rust runtime: Direct DB connection, SELECT FROM v_user (1ms)
     ↓ HTTP response (10ms network)
 Total: ~21ms (but bulk batching reduces per-entity cost to ~0.2ms each)
-```
+```text
 
 **For 100 entities:** ~3ms (batched in single query)
 
 #### Cross Database (PostgreSQL ↔ SQL Server)
 
-```
+```text
 Apollo Router: _entities query
     ↓ HTTP (50-200ms total)
 FraiseQL: HTTP request to SQL Server subgraph
     ↓ HTTP request (50-200ms)
 Total: 50-200ms per batch
-```
+```text
 
 **For 100 entities:** 50-200ms (single HTTP batch request)
 
 #### External (FraiseQL ↔ Apollo Server)
 
-```
+```text
 Apollo Router: _entities query
     ↓ HTTP (50-200ms total)
 FraiseQL: HTTP request to Apollo Server
     ↓ HTTP request (50-200ms)
 Total: 50-200ms per batch
-```
+```text
 
 **For 100 entities:** 50-200ms (same as cross-database)
 
@@ -327,7 +327,7 @@ Returns the subgraph's schema as GraphQL SDL (Schema Definition Language).
     sdl
   }
 }
-```
+```text
 
 **Response:**
 
@@ -339,7 +339,7 @@ Returns the subgraph's schema as GraphQL SDL (Schema Definition Language).
     }
   }
 }
-```
+```text
 
 **Implementation in FraiseQL:**
 
@@ -366,7 +366,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Response:**
 
@@ -379,7 +379,7 @@ query {
     ]
   }
 }
-```
+```text
 
 **Implementation in FraiseQL:**
 
@@ -399,7 +399,7 @@ Auto-generated union of all entity types (types with `@key` directive).
 union _Entity = User | Order | Product
 
 directive @federation__service(sdl: String!) on SCHEMA
-```
+```text
 
 ### The `_Any` Scalar
 
@@ -414,7 +414,7 @@ Represents entity representations (opaque JSON objects with `__typename`).
   "email": "alice@example.com",
   ... other key fields ...
 }
-```
+```text
 
 **Parsing in FraiseQL:**
 
@@ -428,7 +428,7 @@ Represents entity representations (opaque JSON objects with `__typename`).
 
 **SDL Generation** (compile-time):
 
-```
+```text
 CompiledSchema
   ↓
 Extract all types with @key directive
@@ -436,11 +436,11 @@ Extract all types with @key directive
 Generate SDL with federation directives
   ↓
 Embed in CompiledSchema.federation.sdl
-```
+```text
 
 **Entity Resolution** (runtime):
 
-```
+```text
 HTTP Request: _entities(representations: [_Any!]!)
   ↓
 Parse representations
@@ -452,7 +452,7 @@ Execute queries (Local, HTTP, or DatabaseLink)
 Return results in original order
   ↓
 HTTP Response: _entities
-```
+```text
 
 ### Federation Compliance
 
@@ -506,7 +506,7 @@ class User:
 class User:
     id: ID = fraiseql.external()
     orders: list[Order] = fraiseql.requires(fields=["email"])
-```
+```text
 
 **Compiler extracts:**
 
@@ -532,26 +532,26 @@ Collect all types with `@key` directive:
 
 1. **Key fields must exist in type:**
 
-   ```
+   ```text
    @fraiseql.type
    @fraiseql.key(fields=["user_id"])  # ❌ ERROR: user_id not a field
    class User:
        id: ID
-   ```
+   ```text
 
 2. **Key fields must be selectable:**
 
-   ```
+   ```text
    @fraiseql.type
    @fraiseql.key(fields=["id"])  # ✅ OK
    class User:
        id: ID
        _internal: str = fraiseql.internal()  # ✅ OK, internal fields excluded
-   ```
+   ```text
 
 3. **@external only on extended types:**
 
-   ```
+   ```text
    @fraiseql.type(extend=True)
    class User:
        id: ID = fraiseql.external()  # ✅ OK, extended type
@@ -559,26 +559,26 @@ Collect all types with `@key` directive:
    @fraiseql.type
    class User:
        id: ID = fraiseql.external()  # ❌ ERROR: not extended
-   ```
+   ```text
 
 4. **@requires must reference valid fields:**
 
-   ```
+   ```text
    orders: list[Order] = fraiseql.requires(fields=["email"])  # ✅ OK, email exists
    orders: list[Order] = fraiseql.requires(fields=["nonexistent"])  # ❌ ERROR
-   ```
+   ```text
 
 5. **No duplicate key definitions:**
 
-   ```
+   ```text
    @fraiseql.key(fields=["id"])
    @fraiseql.key(fields=["id"])  # ❌ ERROR: duplicate
    class User: ...
-   ```
+   ```text
 
 6. **Database views must expose key columns:**
 
-   ```
+   ```text
    -- ✅ GOOD: key columns are native
    CREATE VIEW v_user AS
    SELECT pk_user, id, email, data FROM tb_user;
@@ -586,7 +586,7 @@ Collect all types with `@key` directive:
    -- ❌ BAD: key only in JSONB
    CREATE VIEW v_user AS
    SELECT pk_user, jsonb_build_object('id', id) AS data FROM tb_user;
-   ```
+   ```text
 
 ### Phase 5b: Entity Resolution SQL Generation
 
@@ -616,7 +616,7 @@ CREATE FUNCTION resolve_user_by_email(keys TEXT[]) RETURNS JSONB[] AS $$
   FROM unnest(keys) WITH ORDINALITY AS t(key, idx)
   JOIN v_user ON v_user.email = t.key
 $$ LANGUAGE sql STABLE PARALLEL SAFE;
-```
+```text
 
 **SQL Server Example:**
 
@@ -630,7 +630,7 @@ RETURN
   FROM [dbo].[v_user]
   WHERE [id] IN (SELECT JSON_VALUE(value, '$') FROM OPENJSON(@keys))
 GO
-```
+```text
 
 **MySQL Example:**
 
@@ -657,7 +657,7 @@ BEGIN
   );
 END//
 DELIMITER ;
-```
+```text
 
 **Why so simple?**
 
@@ -684,13 +684,13 @@ The compiler generates configuration for Rust runtime to connect to remote datab
 
 **Example detected subgraph:**
 
-```
+```text
 Typename: Order
 DatabaseType: sqlserver
 DatabaseURL: sqlserver://orders-db.internal/orders_db
 SchemaName: dbo
 ViewName: v_order
-```
+```text
 
 No database-specific SQL generation needed. Rust drivers handle connections transparently.
 
@@ -756,7 +756,7 @@ No database-specific SQL generation needed. Rust drivers handle connections tran
     }
   }
 }
-```
+```text
 
 ---
 
@@ -777,7 +777,7 @@ class User:
     id: ID
     email: str
     name: str
-```
+```text
 
 **Multiple Keys Example:**
 
@@ -789,7 +789,7 @@ class Product:
     upc: String  # Unique Product Code
     sku: String  # Stock Keeping Unit
     name: String
-```
+```text
 
 **Compiler Behavior:**
 
@@ -810,7 +810,7 @@ class User:
     id: ID = fraiseql.external()
     email: str = fraiseql.external()
     orders: list[Order]  # Local field
-```
+```text
 
 **Compiler Behavior:**
 
@@ -826,7 +826,7 @@ Defines dependencies for federation field resolution.
 
 ```python
 orders: list[Order] = fraiseql.requires(fields=["email"])
-```
+```text
 
 **Meaning:** "To resolve orders, I need the user's email field from the source subgraph."
 
@@ -846,7 +846,7 @@ class User:
     email: str = fraiseql.external()
     orders: list[Order] = fraiseql.requires(fields=["email"])
     # Orders are joined by email in Orders subgraph
-```
+```text
 
 #### 5.4 @fraiseql.provides()
 
@@ -860,7 +860,7 @@ class Product:
     upc: String = fraiseql.external()
     vendor: Vendor = fraiseql.provides(fields=["vendor.id"])
     # We provide vendor.id without external query
-```
+```text
 
 **Compiler Behavior:**
 
@@ -888,7 +888,7 @@ export class User {
   @Federation.Requires("email")
   orders: Order[];
 }
-```
+```text
 
 **YAML (future):**
 
@@ -904,7 +904,7 @@ types:
       orders:
         type: "[Order]"
         requires: [email]
-```
+```text
 
 ### Compiler Validation Rules
 
@@ -946,7 +946,7 @@ Federation works with any database combination using the same principles:
 
 **Architecture:**
 
-```
+```text
 PostgreSQL Cluster
 ├── users_schema (Subgraph A)
 │   ├── tb_user, v_user
@@ -954,7 +954,7 @@ PostgreSQL Cluster
 └── orders_schema (Subgraph B)
     ├── tb_order, v_order
     └── Rust runtime connects here
-```
+```text
 
 **Database Setup (Minimal):**
 
@@ -984,7 +984,7 @@ CREATE TABLE orders_schema.tb_order (
 CREATE VIEW orders_schema.v_order AS
 SELECT id, user_id, jsonb_build_object('id', id, 'user_id', user_id, 'total', total) AS data
 FROM orders_schema.tb_order;
-```
+```text
 
 **Runtime Configuration:**
 
@@ -1004,7 +1004,7 @@ database_type = "postgresql"
 database_url = "postgresql://user:pass@pg.internal/shared_db"
 schema_name = "orders_schema"
 view_name = "v_order"
-```
+```text
 
 **Entity Resolution (Rust):**
 
@@ -1019,13 +1019,13 @@ let orders = local_pool.query(
     "SELECT data FROM orders_schema.v_order WHERE user_id = $1",
     &[&user_id]
 ).await?;
-```
+```text
 
 #### SQL Server to SQL Server: Direct Connection
 
 **Architecture:**
 
-```
+```text
 SQL Server Instance
 ├── users_db (Subgraph A)
 │   ├── [dbo].[tb_user]
@@ -1033,7 +1033,7 @@ SQL Server Instance
 └── orders_db (Subgraph B)
     ├── [dbo].[tb_order]
     └── [dbo].[v_order]
-```
+```text
 
 **Database Setup:**
 
@@ -1054,7 +1054,7 @@ SELECT
   [user_id],
   (SELECT * FROM [dbo].[tb_order] WHERE [id] = [tb_order].[id] FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [data]
 FROM [dbo].[tb_order];
-```
+```text
 
 **Runtime Configuration:**
 
@@ -1074,7 +1074,7 @@ database_type = "sqlserver"
 database_url = "sqlserver://user:pass@mssql.internal/orders_db"
 schema_name = "dbo"
 view_name = "v_order"
-```
+```text
 
 **Entity Resolution (Rust):**
 
@@ -1089,7 +1089,7 @@ let orders = remote_pool.query(
     "SELECT [data] FROM [dbo].[v_order] WHERE [user_id] = @user_id",
     &[&user_id]
 ).await?;
-```
+```text
 
 ---
 
@@ -1097,7 +1097,7 @@ let orders = remote_pool.query(
 
 **Architecture:**
 
-```
+```text
 MySQL Instance
 ├── users_db (Subgraph A)
 │   ├── tb_user
@@ -1105,7 +1105,7 @@ MySQL Instance
 └── orders_db (Subgraph B)
     ├── tb_order
     └── v_order
-```
+```text
 
 **Database Setup:**
 
@@ -1126,7 +1126,7 @@ SELECT
   user_id,
   JSON_OBJECT('id', id, 'user_id', user_id, 'total', total) AS data
 FROM tb_order;
-```
+```text
 
 **Runtime Configuration:**
 
@@ -1144,7 +1144,7 @@ database_type = "mysql"
 database_url = "mysql://user:pass@mysql.internal/orders_db"
 schema_name = "public"
 view_name = "v_order"
-```
+```text
 
 **Entity Resolution (Rust):**
 
@@ -1159,7 +1159,7 @@ let orders = remote_pool.query(
     "SELECT data FROM v_order WHERE user_id = ?",
     &[&user_id]
 ).await?;
-```
+```text
 
 ---
 
@@ -1167,12 +1167,12 @@ let orders = remote_pool.query(
 
 When source and target databases are different types:
 
-```
+```text
 PostgreSQL Users → SQL Server Inventory: HTTP
 PostgreSQL Users → Apollo Server Products: HTTP
 SQL Server Orders → MySQL Logs: HTTP
 SQLite Cache → Any: HTTP
-```
+```text
 
 **No special configuration needed** — Compiler automatically routes to HTTP.
 
@@ -1211,7 +1211,7 @@ type Order @external {
   id: ID! @external
   user_email: String! @external
 }
-```
+```text
 
 **Implementation:**
 
@@ -1222,7 +1222,7 @@ pub async fn handle_service_request(schema: &CompiledSchema) -> ServiceResponse 
         sdl: schema.federation.sdl.clone(),  // Embedded during compilation
     }
 }
-```
+```text
 
 **Compile-Time Generation:**
 The compiler generates SDL from the schema and embeds it in CompiledSchema:
@@ -1236,7 +1236,7 @@ compiled_schema.federation = {
         "Order": {...}
     }
 }
-```
+```text
 
 #### 2. Entity Resolution: `POST /_entities`
 
@@ -1257,7 +1257,7 @@ Content-Type: application/json
     ]
   }
 }
-```
+```text
 
 **Response format:**
 
@@ -1270,7 +1270,7 @@ Content-Type: application/json
     ]
   }
 }
-```
+```text
 
 **Rust Implementation:**
 
@@ -1324,7 +1324,7 @@ pub async fn resolve_entities(
     // 3. Return in original representation order
     reorder_results(results, &representations)
 }
-```
+```text
 
 ### Local Entity Resolution
 
@@ -1353,7 +1353,7 @@ async fn resolve_local(
     // Parse and return entities
     Ok(parse_entity_response(result))
 }
-```
+```text
 
 ### HTTP Entity Resolution
 
@@ -1385,7 +1385,7 @@ async fn resolve_via_http(
     let body: GraphQLResponse = response.json().await?;
     Ok(parse_entities_response(body))
 }
-```
+```text
 
 **Features:**
 
@@ -1415,7 +1415,7 @@ async fn resolve_via_database(
     // Parse and return entities
     Ok(parse_entity_response(result))
 }
-```
+```text
 
 **Key advantages:**
 
@@ -1439,7 +1439,7 @@ type Order @key(fields: "id") {
   # This field requires user email from Users subgraph
   user: User @requires(fields: "email")
 }
-```
+```text
 
 **How @requires Works:**
 
@@ -1478,7 +1478,7 @@ async fn resolve_requires_field(
 
     Ok(user_entity[0].clone())
 }
-```
+```text
 
 ### @provides: Optimizing Field Resolution
 
@@ -1492,7 +1492,7 @@ type Product {
   # This field provides vendor data (no need to call Vendor subgraph)
   vendor: Vendor @provides(fields: "id name")
 }
-```
+```text
 
 **How @provides Works:**
 
@@ -1520,7 +1520,7 @@ SELECT
 FROM tb_product p
 JOIN tb_vendor v ON p.fk_vendor = v.pk_vendor
 WHERE p.deleted_at IS NULL;
-```
+```text
 
 **Compiler Recognition:**
 
@@ -1530,7 +1530,7 @@ WHERE p.deleted_at IS NULL;
 field_provides = {
     "vendor": ["id", "name"]  # These fields are already in the view
 }
-```
+```text
 
 ### Complex @requires: Chained Resolution
 
@@ -1546,7 +1546,7 @@ type Order @key(fields: "id") {
   # But User.company requires data from Company subgraph
   # This is automatically handled: Order → User → Company chain
 }
-```
+```text
 
 **Execution:**
 
@@ -1563,7 +1563,7 @@ type Order @key(fields: "id") {
 
 ### Request Flow
 
-```
+```text
 Apollo Router (_entities query)
     ↓
 FraiseQL Subgraph (HTTP POST /graphql)
@@ -1595,7 +1595,7 @@ For DirectDB resolution:
 4. Merge all strategies' results
 5. Reorder to match input representation order
 6. Return as GraphQL response
-```
+```text
 
 ### Error Handling
 
@@ -1624,7 +1624,7 @@ async fn resolve_entities(
 
     Ok(results)
 }
-```
+```text
 
 **Response with errors:**
 
@@ -1638,7 +1638,7 @@ async fn resolve_entities(
     ]
   }
 }
-```
+```text
 
 ### Performance Optimization: Batching
 
@@ -1654,7 +1654,7 @@ for rep in representations {
 // ✅ EFFICIENT: Single batched query
 let entities = resolve_batch(&representations).await?;
 results.extend(entities);
-```
+```text
 
 **Batching strategies:**
 
@@ -1679,7 +1679,7 @@ if representations.len() <= BATCH_SIZE {
         sub_batches.map(|batch| resolve_batch(batch))
     ).await
 }
-```
+```text
 
 ### Strategy Selection at Runtime
 
@@ -1709,7 +1709,7 @@ fn select_resolution_strategy(
         subgraph_url: entity_meta.subgraph_url.clone()
     }
 }
-```
+```text
 
 ### Caching Federation Results
 
@@ -1728,7 +1728,7 @@ if schema.federation.cache_enabled {
     cache.set(&cache_key, entity.clone()).await?;
     return entity;
 }
-```
+```text
 
 **Cache invalidation:**
 
@@ -1746,7 +1746,7 @@ FraiseQL federation doesn't need FDW, Linked Servers, or FEDERATED because:
 
 **Each FraiseQL subgraph is independently compiled for its database:**
 
-```
+```text
 Users Subgraph (PostgreSQL):
 ├── Compiled schema with PostgreSQL WHERE operators
 ├── v_user view with JSONB data
@@ -1761,11 +1761,11 @@ Products Subgraph (MySQL):
 ├── Compiled schema with MySQL WHERE operators
 ├── v_product view with JSONB data
 └── Rust runtime with MySQL driver
-```
+```text
 
 **Federation via direct database connections:**
 
-```
+```text
 Apollo Router
     ↓ HTTP
 ┌───────────────────────────────────────┐
@@ -1778,7 +1778,7 @@ Apollo Router
     ↓ PostgreSQL driver queries Users DB
     ↓ SQL Server driver queries Orders DB
     ↓ MySQL driver queries Products DB
-```
+```text
 
 ### Three Resolution Strategies (Simplified)
 
@@ -1798,7 +1798,7 @@ async fn resolve_local(
     let result = db.query(query, &[&keys]).await?;
     Ok(parse_entities(result))
 }
-```
+```text
 
 **Latency:** <5ms (local query)
 
@@ -1822,7 +1822,7 @@ async fn resolve_via_direct_db(
     let result = remote_db.query(query, &[&keys]).await?;
     Ok(parse_entities(result))
 }
-```
+```text
 
 **Latency:** <10ms (direct DB query, no HTTP overhead)
 
@@ -1855,7 +1855,7 @@ async fn resolve_via_http(
 
     Ok(parse_entities_from_response(response).await?)
 }
-```
+```text
 
 **Latency:** 50-200ms (HTTP round-trip + remote query)
 
@@ -1882,7 +1882,7 @@ for extended_type in schema.extended_types:
                 field.resolution_strategy = ResolutionStrategy.HTTP(
                     subgraph_url=target_subgraph.url
                 )
-```
+```text
 
 **Example detection:**
 
@@ -1905,7 +1905,7 @@ def discover_subgraph(typename: str, federation_config: FederationConfig):
         is_fraiseql=False,
         http_url=subgraph.graphql_url
     )
-```
+```text
 
 ### Database-Specific WHERE Operators
 
@@ -1924,11 +1924,11 @@ query {
     }
   }
 }
-```
+```text
 
 **Execution:**
 
-```
+```text
 
 1. Users subgraph (PostgreSQL):
    - WHERE_operators = [_eq, _ne, _like, _ilike, _regex, _jsonb_has_key, ...]
@@ -1942,7 +1942,7 @@ query {
    - Compiles to: WHERE created_at > '2025-01-01'
    - Queries SQL Server v_order directly from Users subgraph ✅
    - (No HTTP call needed!)
-```
+```text
 
 **Each database executes in its native dialect:**
 
@@ -1952,7 +1952,7 @@ query {
 
 ### Multi-Database Federation Example
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │ Apollo Router                           │
 └─────────────────────────────────────────┘
@@ -1975,11 +1975,11 @@ Database Layer:
 ├─ PostgreSQL: v_user view with JSONB data
 ├─ SQL Server: v_order view with JSONB data
 └─ MySQL: v_product view with JSONB data
-```
+```text
 
 **Query execution:**
 
-```
+```text
 Router: Get users with their orders and products
 
 Users subgraph (_entities for User):
@@ -1991,7 +1991,7 @@ Users subgraph (_entities for User):
 
 Result: User entity with nested Orders and Products
 Response sent via HTTP to Router
-```
+```text
 
 **Performance characteristics:**
 
@@ -2040,7 +2040,7 @@ view_name = "v_product"
 typename = "Review"  # Non-FraiseQL: use HTTP
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
-```
+```text
 
 ### Compile-Time Validation
 
@@ -2069,7 +2069,7 @@ def validate_federation_config(authoring_schema, federation_config):
             # Validate view has expected JSONB structure
             schema = inspect_view(subgraph.database_url, subgraph.view_name)
             validate_jsonb_structure(schema, extended_type)
-```
+```text
 
 ### Runtime Connection Management
 
@@ -2105,7 +2105,7 @@ impl FederationRuntime {
         })
     }
 }
-```
+```text
 
 ### Environment-Specific Configuration
 
@@ -2113,19 +2113,19 @@ Different environments have different database URLs:
 
 **`.env.local` (development):**
 
-```
+```text
 FRAISEQL_DATABASE_URL=postgresql://dev:pass@localhost/users_db
 FRAISEQL_FEDERATION_ORDERS_URL=sqlserver://dev:pass@localhost/orders_db
 FRAISEQL_FEDERATION_PRODUCTS_URL=mysql://dev:pass@localhost/products_db
-```
+```text
 
 **`.env.production` (production):**
 
-```
+```text
 FRAISEQL_DATABASE_URL=postgresql://prod:${SECRET_PG_PASS}@pg.prod.internal/users_db
 FRAISEQL_FEDERATION_ORDERS_URL=sqlserver://prod:${SECRET_MSSQL_PASS}@mssql.prod.internal/orders_db
 FRAISEQL_FEDERATION_PRODUCTS_URL=mysql://prod:${SECRET_MYSQL_PASS}@mysql.prod.internal/products_db
-```
+```text
 
 ### Health Checks
 
@@ -2158,7 +2158,7 @@ pub async fn health_check(runtime: &FederationRuntime) -> HealthStatus {
 
     status
 }
-```
+```text
 
 ---
 
@@ -2194,7 +2194,7 @@ CREATE TABLE orders_schema.tb_order (
 CREATE VIEW orders_schema.v_order AS
 SELECT id, user_id, jsonb_build_object('id', id, 'user_id', user_id, 'total', total) AS data
 FROM orders_schema.tb_order;
-```
+```text
 
 **Subgraph config (Users):**
 
@@ -2211,7 +2211,7 @@ database_type = "postgresql"
 database_url = "postgresql://user:pass@localhost/shared_db"
 schema_name = "orders_schema"
 view_name = "v_order"
-```
+```text
 
 **Federation resolution (Rust):**
 
@@ -2227,7 +2227,7 @@ let order_entity = local_pool.query(
     "SELECT data FROM orders_schema.v_order WHERE user_id = $1",
     &[&user_id]
 ).await?;
-```
+```text
 
 **Latency:** <5ms (both queries single connection pool)
 
@@ -2239,13 +2239,13 @@ Three subgraphs on different database types:
 
 **Topology:**
 
-```
+```text
 Users (PostgreSQL)
     ↓ Direct DB connection
 Orders (SQL Server)
     ↓ Direct DB connection
 Products (MySQL)
-```
+```text
 
 **Users subgraph config:**
 
@@ -2270,7 +2270,7 @@ database_type = "mysql"
 database_url = "mysql://user:pass@mysql.internal/products_db"
 schema_name = "products"
 view_name = "v_product"
-```
+```text
 
 **Runtime connection pools:**
 
@@ -2288,11 +2288,11 @@ federation_runtime = FederationRuntime {
 // When resolving Order from Users:
 // Rust executes: SELECT data FROM v_order WHERE user_id = ?
 // Via SQL Server driver (not HTTP)
-```
+```text
 
 **Query execution:**
 
-```
+```text
 Router: users { orders { products } }
 
 Users subgraph:
@@ -2302,7 +2302,7 @@ Users subgraph:
   4. Detect Product federation
   5. Query MySQL v_product directly → get product entities
   6. Return complete result to router
-```
+```text
 
 **Latency:**
 
@@ -2335,7 +2335,7 @@ view_name = "v_order"
 typename = "Review"  # Apollo Server, not FraiseQL
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
-```
+```text
 
 **Runtime decision:**
 
@@ -2353,7 +2353,7 @@ let review = http_resolve_entities(
     "https://reviews-api.example.com/graphql",
     &[representation]
 ).await?;
-```
+```text
 
 ---
 
@@ -2377,7 +2377,7 @@ match remote_pools.get("Order").query(...).await {
         ).await;
     }
 }
-```
+```text
 
 **Availability:**
 
@@ -2393,15 +2393,15 @@ match remote_pools.get("Order").query(...).await {
 
 **Local entity resolution:**
 
-```
+```text
 Query: users(id: [1,2,3])
 PostgreSQL: SELECT data FROM v_user WHERE id = ANY($1)
 Latency: <5ms (direct database query)
-```
+```text
 
 **Direct DB entity resolution (same database type):**
 
-```
+```text
 Query: users(id: [1,2,3]) { orders { id } }
 
 Users subgraph (PostgreSQL):
@@ -2409,11 +2409,11 @@ Users subgraph (PostgreSQL):
   2. Direct SQL Server connection: Query v_order: 5ms
   3. Return result: 1ms
 Total: ~8ms (no HTTP overhead)
-```
+```text
 
 **Direct DB entity resolution (different database type):**
 
-```
+```text
 Users (PostgreSQL) → Orders (SQL Server) → Products (MySQL)
 
   1. PostgreSQL query: 2ms
@@ -2421,11 +2421,11 @@ Users (PostgreSQL) → Orders (SQL Server) → Products (MySQL)
   3. MySQL query via direct connection: 5ms
   4. Network latency between databases: 3-5ms
 Total: ~15-20ms
-```
+```text
 
 **HTTP entity resolution:**
 
-```
+```text
 Query: users { reviews { rating } }  (Review is Apollo Server)
 
 Users subgraph:
@@ -2435,7 +2435,7 @@ Users subgraph:
      - Remote query execution: 10-50ms
   3. Parse response: 1ms
 Total: 103-152ms (10x slower than direct DB)
-```
+```text
 
 **Comparison table:**
 
@@ -2460,7 +2460,7 @@ for id in [1,2,3,...,100] {
 
 // Batch into single query
 let orders = query_batch_orders(&[1,2,3,...,100]).await?;
-```
+```text
 
 **Performance impact:**
 
@@ -2529,11 +2529,11 @@ let orders = query_batch_orders(&[1,2,3,...,100]).await?;
 
 **Example:**
 
-```
+```text
 User mutation creates Order in Users subgraph
 → Orders subgraph must be updated separately
 → Not in same transaction
-```
+```text
 
 #### ✅ Federation Debugging
 
@@ -2552,7 +2552,7 @@ query {
     }
   }
 }
-```
+```text
 
 **Enable federation tracing:**
 
@@ -2571,31 +2571,31 @@ if config.federation_tracing_enabled {
     trace!("  Strategy: HTTP (fallback)");
     trace!("  Latency: 120ms");
 }
-```
+```text
 
 ### Migration Path: HTTP → Direct DB
 
 **Phase 1: HTTP-only federation**
 
-```
+```text
 All subgraphs communicate via HTTP
-```
+```text
 
 **Phase 2: Add direct DB to same-instance subgraph**
 
-```
+```text
 PostgreSQL (Users) ↔ PostgreSQL (Orders)
 ├─ Try direct DB: Queries v_order directly
 └─ Fallback: HTTP if unavailable
-```
+```text
 
 **Phase 3: Multi-database optimization**
 
-```
+```text
 PostgreSQL (Users) ↔ SQL Server (Orders) ↔ MySQL (Products)
 ├─ Direct DB: Each connection optimized for database type
 └─ HTTP: Fallback for external subgraphs
-```
+```text
 
 **No code changes required** — Compiler auto-detects capabilities and selects strategy.
 

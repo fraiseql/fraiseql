@@ -32,7 +32,7 @@ dev_dependencies:
   build_runner: ^2.4.0
   json_serializable: ^6.7.0
   riverpod_generator: ^2.3.0  # Optional: State management
-```
+```text
 
 Then install dependencies:
 
@@ -40,7 +40,7 @@ Then install dependencies:
 flutter pub get
 # or
 dart pub get
-```
+```text
 
 **Requirements**:
 
@@ -110,7 +110,7 @@ class User {
   // JSON serialization
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
-```
+```text
 
 **Null Safety Patterns**:
 
@@ -164,7 +164,7 @@ class Company {
       _$CompanyFromJson(json);
   Map<String, dynamic> toJson() => _$CompanyToJson(this);
 }
-```
+```text
 
 ### 3. Using Late Initialization
 
@@ -188,7 +188,7 @@ class UserCache {
 
   String _computeHash(String input) => 'hash_$input';
 }
-```
+```text
 
 ## Operations: Queries, Mutations, Subscriptions
 
@@ -236,7 +236,7 @@ class UserRepository {
     return await client.query.searchUsers(name);
   }
 }
-```
+```text
 
 ### 2. Mutation Definitions
 
@@ -300,7 +300,7 @@ class UserService {
     return await client.mutation.deleteUser(id);
   }
 }
-```
+```text
 
 ### 3. Subscription Definitions (Real-Time)
 
@@ -373,7 +373,7 @@ class _UserListPageState extends State<UserListPage> {
     );
   }
 }
-```
+```text
 
 ## Advanced Features
 
@@ -453,7 +453,7 @@ class CohortAnalysis {
       _$CohortAnalysisFromJson(json);
   Map<String, dynamic> toJson() => _$CohortAnalysisToJson(this);
 }
-```
+```text
 
 ### 2. Role-Based Access Control (RBAC)
 
@@ -518,7 +518,7 @@ class AuthService {
     return await client.query.getCurrentUser();
   }
 }
-```
+```text
 
 ### 3. Field Metadata and Validation
 
@@ -557,7 +557,7 @@ class CreateUserRequest {
       _$CreateUserRequestFromJson(json);
   Map<String, dynamic> toJson() => _$CreateUserRequestToJson(this);
 }
-```
+```text
 
 ## Scalar Types
 
@@ -613,7 +613,7 @@ class GeoPoint {
       _$GeoPointFromJson(json);
   Map<String, dynamic> toJson() => _$GeoPointToJson(this);
 }
-```
+```text
 
 ## Schema Export Workflow
 
@@ -628,7 +628,7 @@ dart pub run build_runner build
 # This generates:
 # - lib/models/user.g.dart (json_serializable)
 # - schema.json (FraiseQL schema)
-```
+```text
 
 ### 2. Compile Schema for Deployment
 
@@ -637,11 +637,11 @@ dart pub run build_runner build
 fraiseql-cli compile schema.json fraiseql.toml
 
 # Output: schema.compiled.json (ready for runtime)
-```
+```text
 
 ### 3. Integration with Package Structure
 
-```
+```text
 my_fraiseql_app/
 ├── lib/
 │   ├── models/
@@ -659,7 +659,7 @@ my_fraiseql_app/
 ├── pubspec.yaml
 ├── schema.json                 # Generated (git-ignored)
 └── build.yaml                  # build_runner config
-```
+```text
 
 ## Common Patterns with Flutter Integration
 
@@ -731,7 +731,7 @@ class UserListWidget extends ConsumerWidget {
     );
   }
 }
-```
+```text
 
 ### 2. Pagination Pattern
 
@@ -797,7 +797,7 @@ class PaginatedUserList extends ConsumerWidget {
     );
   }
 }
-```
+```text
 
 ### 3. Search with Debounce
 
@@ -854,7 +854,7 @@ class SearchUserWidget extends ConsumerWidget {
     );
   }
 }
-```
+```text
 
 ## Error Handling
 
@@ -962,7 +962,7 @@ class _UserFormState extends State<UserForm> {
     );
   }
 }
-```
+```text
 
 ## Testing Patterns
 
@@ -1021,7 +1021,7 @@ void main() {
     });
   });
 }
-```
+```text
 
 ### Integration Testing with Mock Server
 
@@ -1074,7 +1074,7 @@ void main() {
     });
   });
 }
-```
+```text
 
 ## See Also
 
@@ -1104,12 +1104,12 @@ void main() {
 # pubspec.yaml
 dependencies:
   fraiseql: ^2.0.0
-```
+```text
 
 ```bash
 pub get
 pub upgrade
-```
+```text
 
 #### Null Safety Issues
 
@@ -1121,7 +1121,7 @@ pub upgrade
 # pubspec.yaml
 environment:
   sdk: '>=3.0.0 <4.0.0'
-```
+```text
 
 **Use correct nullability**:
 
@@ -1133,7 +1133,7 @@ String? middleName;
 // ✅ Non-null
 User user;
 String email;
-```
+```text
 
 #### Async/Await Issues
 
@@ -1147,7 +1147,7 @@ var result = server.execute(query);
 
 // ✅ Correct
 var result = await server.execute(query);
-```
+```text
 
 #### Build Runner Issues
 
@@ -1158,7 +1158,7 @@ var result = await server.execute(query);
 ```bash
 pub run build_runner build
 pub run build_runner watch
-```
+```text
 
 ---
 
@@ -1181,7 +1181,7 @@ final result = await server.execute(
   query: query,
   variables: variables
 );
-```
+```text
 
 #### Null Safety Issues
 
@@ -1197,7 +1197,7 @@ if (user != null) {
 
 // ✅ Or use optional chaining
 print(user?.email ?? 'Unknown');
-```
+```text
 
 #### Generic Type Issues
 
@@ -1215,7 +1215,7 @@ class Box<T> {
 class UserBox {
   User value;
 }
-```
+```text
 
 ---
 
@@ -1231,7 +1231,7 @@ class UserBox {
 // Add connectivity_plus
 const http = 'http://localhost:8080/graphql';
 final result = await http.post(Uri.parse(http));
-```
+```text
 
 #### JSON Deserialization Issues
 
@@ -1256,7 +1256,7 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) =>
       _$UserFromJson(json);
 }
-```
+```text
 
 #### Future Issues
 
@@ -1274,7 +1274,7 @@ Future<User>? getUser() {
 Future<User> getUser() {
   return server.execute(query);
 }
-```
+```text
 
 ---
 
@@ -1290,7 +1290,7 @@ Future<User> getUser() {
 flutter clean
 flutter pub get
 flutter build
-```
+```text
 
 #### Memory Usage
 
@@ -1300,7 +1300,7 @@ flutter build
 
 ```bash
 flutter run --profile
-```
+```text
 
 **Optimize**:
 
@@ -1320,7 +1320,7 @@ final response = await client.post(
   Uri.parse('http://localhost:8080/graphql'),
   body: queryJson,
 ).timeout(Duration(seconds: 60));
-```
+```text
 
 ---
 
@@ -1331,7 +1331,7 @@ final response = await client.post(
 ```dart
 debugPrint('Query: $query');
 debugPrint('Result: $result');
-```
+```text
 
 #### DevTools
 
@@ -1339,7 +1339,7 @@ debugPrint('Result: $result');
 flutter pub global activate devtools
 devtools
 # Opens browser at http://localhost:9100
-```
+```text
 
 #### Logging
 
@@ -1351,7 +1351,7 @@ final logger = Logger();
 logger.d('Debug message');
 logger.i('Info message');
 logger.e('Error', error: exception);
-```
+```text
 
 ---
 

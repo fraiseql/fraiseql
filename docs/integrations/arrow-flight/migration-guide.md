@@ -56,16 +56,16 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 
 Arrow Flight runs alongside your existing HTTP/JSON API. Both endpoints available simultaneously:
 
-```
+```text
 HTTP/JSON API:    http://localhost:8080/graphql
 Arrow Flight API: grpc://localhost:50051
-```
+```text
 
 Choose the transport based on use case, not requirements.
 
 ## Migration Strategy: 4 Phases
 
-```
+```text
  (Week 1)          Phase 2 (Weeks 2-3)      Phase 3 (Week 4)         Phase 4 (Week 5)
 ┌──────────────────┐      ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Enable Arrow     │      │ Migrate Analytics│    │ Enable Analytics │    │ Add Debugging    │
@@ -76,7 +76,7 @@ Choose the transport based on use case, not requirements.
 │ • No downtime    │      │ • 15-50x faster  │    │ • Real-time agg  │    │ • Full-text      │
 │ • 30 minutes     │      │ • 1-2 weeks      │    │ • 1 week         │    │ • 1 week         │
 └──────────────────┘      └──────────────────┘    └──────────────────┘    └──────────────────┘
-```
+```text
 
 ## Phase 1: Enable Arrow Flight Server (Week 1, 30 minutes)
 
@@ -90,7 +90,7 @@ services:
       - "50051:50051" # NEW: Arrow Flight
     environment:
       ARROW_FLIGHT_ENABLED: "true"  # Enable Arrow Flight
-```
+```text
 
 ### Step 2: Deploy
 
@@ -111,7 +111,7 @@ import pyarrow.flight as flight
 client = flight.connect("grpc://localhost:50051")
 print("✅ Arrow Flight works!")
 EOF
-```
+```text
 
 ### ✅ Phase 1 Complete
 
@@ -171,7 +171,7 @@ df = pd.DataFrame(response.json()['data']['orders'])
 
 # 30 seconds, 250 MB memory
 print(f"Loaded {len(df)} orders")
-```
+```text
 
 **After** (Arrow Flight, 2 seconds):
 
@@ -198,7 +198,7 @@ df = pl.from_arrow(client.do_get(ticket).read_all())
 
 # 2 seconds, 50 MB memory (15x faster!)
 print(f"Loaded {len(df)} orders")
-```
+```text
 
 ### Migration Steps
 
@@ -213,7 +213,7 @@ For each analytics script:
    # Add
    import pyarrow.flight as flight
    import polars as pl  # or pandas
-   ```
+   ```text
 
 2. **Replace query execution**:
 
@@ -229,7 +229,7 @@ For each analytics script:
    client = flight.connect("grpc://localhost:50051")
    ticket = flight.Ticket(b'{"type": "GraphQLQuery", "query": "..."}')
    df = pl.from_arrow(client.do_get(ticket).read_all())
-   ```
+   ```text
 
 3. **Update DataFrame operations** (optional):
 
@@ -237,7 +237,7 @@ For each analytics script:
    # If using Polars instead of Pandas
    # Many operations are identical, some have different names
    # See: https://docs.pola.rs
-   ```
+   ```text
 
 4. **Test**:
 
@@ -246,7 +246,7 @@ For each analytics script:
    python script.py
 
    # Verify results match previous version
-   ```
+   ```text
 
 5. **Benchmark**:
 
@@ -258,7 +258,7 @@ For each analytics script:
    elapsed = time.time() - start
 
    print(f"⚡ Loaded {len(df)} rows in {elapsed:.2f}s")
-   ```
+   ```text
 
 ### Tool Support
 
@@ -266,14 +266,14 @@ For each analytics script:
 
 ```bash
 pip install pyarrow>=15.0.0 polars>=0.20.0
-```
+```text
 
 **R**: Migrate jsonlite → arrow
 
 ```r
 install.packages("arrow")
 library(arrow)
-```
+```text
 
 ### ✅ Phase 2 Complete
 
@@ -306,7 +306,7 @@ services:
       CLICKHOUSE_DB: default
     volumes:
       - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
-```
+```text
 
 ### Step 2: Apply Migrations
 
@@ -320,7 +320,7 @@ docker-compose up clickhouse
 # Verify tables created
 docker exec fraiseql-clickhouse clickhouse-client \
   --query "SELECT name FROM system.tables WHERE database='default'"
-```
+```text
 
 ### Step 3: Configure Observer Events → ClickHouse
 
@@ -332,7 +332,7 @@ clickhouse_url = "http://localhost:8123"
 clickhouse_database = "default"
 clickhouse_table = "fraiseql_events"
 clickhouse_batch_size = 10000
-```
+```text
 
 ### Step 4: Start Ingestion
 
@@ -343,7 +343,7 @@ docker-compose restart fraiseql
 # Verify events flowing
 docker exec fraiseql-clickhouse clickhouse-client \
   --query "SELECT COUNT(*) FROM fraiseql_events"
-```
+```text
 
 ### Step 5: Create Real-Time Dashboards
 
@@ -360,7 +360,7 @@ WHERE event_type = 'Order.Created'
 GROUP BY day
 ORDER BY day DESC
 LIMIT 30;
-```
+```text
 
 ### ✅ Phase 3 Complete
 
@@ -395,7 +395,7 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     volumes:
       - es-data:/usr/share/elasticsearch/data
-```
+```text
 
 ### Step 2: Apply Index Templates & ILM
 
@@ -409,7 +409,7 @@ curl -X PUT "localhost:9200/_index_template/fraiseql-events" \
 curl -X PUT "localhost:9200/_ilm/policy/fraiseql-events" \
   -H 'Content-Type: application/json' \
   -d @./migrations/elasticsearch/ilm_policy.json
-```
+```text
 
 ### Step 3: Configure Observer Events → Elasticsearch
 
@@ -420,7 +420,7 @@ elasticsearch_enabled = true
 elasticsearch_url = "http://localhost:9200"
 elasticsearch_index_prefix = "fraiseql-events"
 elasticsearch_bulk_size = 1000
-```
+```text
 
 ### Step 4: Start Indexing
 
@@ -431,7 +431,7 @@ docker-compose restart fraiseql
 # Verify indexing
 curl "localhost:9200/fraiseql-events-*/_count"
 # Returns: {"count": 12345}
-```
+```text
 
 ### Step 5: Create Incident Response Runbooks
 
@@ -455,7 +455,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search" \
     "size": 100,
     "sort": [{"timestamp": "desc"}]
   }'
-```
+```text
 
 **Team**: Train support team on search queries
 
@@ -468,7 +468,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search" \
     "sort": [{"timestamp": "desc"}],
     "size": 1000
   }'
-```
+```text
 
 ### ✅ Phase 4 Complete
 
@@ -504,7 +504,7 @@ docker-compose down fraiseql-arrow-flight
 
 # HTTP/JSON continues working
 curl http://localhost:8080/graphql ...
-```
+```text
 
 No data loss, no breaking changes.
 

@@ -27,14 +27,14 @@ brew install fraiseql
 
 # Or download binary directly
 # https://github.com/fraiseql/fraiseql-cli/releases
-```
+```text
 
 ### Verify Installation
 
 ```bash
 fraiseql-query --version
 # fraiseql-query 2.0.0
-```
+```text
 
 ---
 
@@ -46,7 +46,7 @@ fraiseql-query --version
 fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }"
-```
+```text
 
 Output:
 
@@ -59,7 +59,7 @@ Output:
     ]
   }
 }
-```
+```text
 
 ### Query with Variables
 
@@ -68,7 +68,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "query GetUser(\$id: ID!) { user(id: \$id) { id name email } }" \
   --variables '{"id": "1"}'
-```
+```text
 
 ### Pretty-Print Output
 
@@ -77,7 +77,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format pretty
-```
+```text
 
 ---
 
@@ -95,7 +95,7 @@ query GetUsers {
     createdAt
   }
 }
-```
+```text
 
 ### Execute from File
 
@@ -103,7 +103,7 @@ query GetUsers {
 fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
-```
+```text
 
 ### Variables in File
 
@@ -120,7 +120,7 @@ query GetUserById($id: ID!) {
     }
   }
 }
-```
+```text
 
 ```bash
 # Create variables file
@@ -135,7 +135,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_user_by_id.graphql \
   --variables-file variables.json
-```
+```text
 
 ---
 
@@ -154,7 +154,7 @@ fraiseql-query \
     }
   }" \
   --variables '{"title": "My First Post", "content": "Hello World"}'
-```
+```text
 
 ### Mutation File
 
@@ -168,14 +168,14 @@ mutation CreatePost($title: String!, $content: String!) {
     createdAt
   }
 }
-```
+```text
 
 ```bash
 fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --file mutations/create_post.graphql \
   --variables '{"title": "Test", "content": "Content"}'
-```
+```text
 
 ---
 
@@ -188,7 +188,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format json
-```
+```text
 
 ### CSV Output
 
@@ -197,15 +197,15 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format csv
-```
+```text
 
 Output:
 
-```
+```text
 id,name,email
 1,Alice,alice@example.com
 2,Bob,bob@example.com
-```
+```text
 
 ### Table Output
 
@@ -214,18 +214,18 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name email } }" \
   --format table
-```
+```text
 
 Output:
 
-```
+```text
 ┌────┬───────┬───────────────────┐
 │ id │ name  │ email             │
 ├────┼───────┼───────────────────┤
 │ 1  │ Alice │ alice@example.com │
 │ 2  │ Bob   │ bob@example.com   │
 └────┴───────┴───────────────────┘
-```
+```text
 
 ### YAML Output
 
@@ -234,7 +234,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --format yaml
-```
+```text
 
 ---
 
@@ -259,14 +259,14 @@ fraiseql-query \
   --file queries/get_user.graphql \
   --variables "{\"id\": \"$USER_ID\"}" \
   --format pretty
-```
+```text
 
 Run:
 
 ```bash
 chmod +x fetch_user_data.sh
 ./fetch_user_data.sh 1
-```
+```text
 
 ### Batch Operations
 
@@ -290,7 +290,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r title content; do
     --variables "{\"title\": \"$title\", \"content\": \"$content\"}" \
     --format json | jq '.data.createPost.id'
 done
-```
+```text
 
 ### Parallel Execution
 
@@ -313,7 +313,7 @@ wait
 
 # Combine results
 jq -s '.' user_*.json > all_users.json
-```
+```text
 
 ---
 
@@ -326,7 +326,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --auth "Bearer token_here"
-```
+```text
 
 ### Custom Headers
 
@@ -336,7 +336,7 @@ fraiseql-query \
   --query "{ me { id name } }" \
   --header "Authorization: Bearer token_here" \
   --header "X-Custom-Header: value"
-```
+```text
 
 ### Environment Variable
 
@@ -347,7 +347,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ me { id name } }" \
   --auth "Bearer $FRAISEQL_TOKEN"
-```
+```text
 
 ---
 
@@ -369,7 +369,7 @@ auth = "Bearer ${FRAISEQL_PROD_TOKEN}"
 [staging]
 endpoint = "https://staging-api.example.com/graphql"
 auth = "Bearer ${FRAISEQL_STAGING_TOKEN}"
-```
+```text
 
 ### Use Config Profile
 
@@ -377,7 +377,7 @@ auth = "Bearer ${FRAISEQL_STAGING_TOKEN}"
 fraiseql-query \
   --config production \
   --file queries/get_users.graphql
-```
+```text
 
 ### Override Config
 
@@ -386,7 +386,7 @@ fraiseql-query \
   --config production \
   --endpoint http://localhost:5000/graphql \
   --file queries/get_users.graphql
-```
+```text
 
 ---
 
@@ -399,7 +399,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --show-timing
-```
+```text
 
 Output:
 
@@ -413,7 +413,7 @@ Output:
     "compileTime": 10
   }
 }
-```
+```text
 
 ### Enable Debug Output
 
@@ -422,7 +422,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --debug
-```
+```text
 
 ### Verbose Logging
 
@@ -431,7 +431,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --verbose
-```
+```text
 
 ---
 
@@ -465,7 +465,7 @@ fi
 
 # Process successful response
 echo "$result" | jq '.data.users'
-```
+```text
 
 ### Retry Logic
 
@@ -496,7 +496,7 @@ done
 
 echo "Query failed after $MAX_RETRIES attempts"
 exit 1
-```
+```text
 
 ---
 
@@ -523,7 +523,7 @@ gzip "$OUTPUT_DIR/users_$DATE.csv"
 
 # Upload to S3
 aws s3 cp "$OUTPUT_DIR/users_$DATE.csv.gz" s3://my-bucket/exports/
-```
+```text
 
 ### GitHub Actions Workflow
 
@@ -558,7 +558,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
+```text
 
 ---
 
@@ -573,7 +573,7 @@ fraiseql-query \
   --file queries/all_users.graphql \
   --format csv \
   --stream > large_export.csv
-```
+```text
 
 ### GraphQL Introspection
 
@@ -582,7 +582,7 @@ fraiseql-query \
 fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --introspect > schema.json
-```
+```text
 
 ### Validate Query
 
@@ -592,7 +592,7 @@ fraiseql-query \
   --endpoint http://localhost:5000/graphql \
   --query "{ users { id name } }" \
   --validate
-```
+```text
 
 ---
 

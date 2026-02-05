@@ -81,7 +81,7 @@ setup_metrics(app, MetricsConfig(enabled=True))
 
 # Enable health check endpoints
 setup_health_endpoints(app)
-```
+```text
 
 **Available Endpoints**:
 
@@ -126,7 +126,7 @@ tracker = init_error_tracker(
     release_version="1.0.0",
     enable_notifications=True
 )
-```
+```text
 
 ---
 
@@ -222,9 +222,9 @@ FraiseQL exports 15+ metrics covering all operational aspects:
 
 Default buckets (customizable):
 
-```
+```text
 [0.005s, 0.01s, 0.025s, 0.05s, 0.1s, 0.25s, 0.5s, 1s, 2.5s, 5s, 10s]
-```
+```text
 
 Buckets correspond to:
 
@@ -262,7 +262,7 @@ config = MetricsConfig(
 )
 
 setup_metrics(app, config)
-```
+```text
 
 ### Environment Variables
 
@@ -278,7 +278,7 @@ FRAISEQL_METRICS_PATH=/internal/metrics
 
 # Histogram buckets (comma-separated)
 FRAISEQL_METRICS_BUCKETS=0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10
-```
+```text
 
 ### Prometheus Configuration
 
@@ -292,7 +292,7 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
-```
+```text
 
 ### Alerting Rules
 
@@ -330,7 +330,7 @@ groups:
         for: 10m
         annotations:
           summary: "Cache hit rate < 50%"
-```
+```text
 
 ---
 
@@ -368,7 +368,7 @@ config = TracingConfig(
 )
 
 setup_tracing(app, config)
-```
+```text
 
 #### Jaeger
 
@@ -382,7 +382,7 @@ config = TracingConfig(
 )
 
 setup_tracing(app, config)
-```
+```text
 
 #### Zipkin
 
@@ -396,7 +396,7 @@ config = TracingConfig(
 )
 
 setup_tracing(app, config)
-```
+```text
 
 ### Configuration
 
@@ -420,7 +420,7 @@ class TracingConfig:
         "/openapi.json"
     }
     attributes: dict[str, Any] = {}       # Custom attributes
-```
+```text
 
 ### Span Types
 
@@ -445,7 +445,7 @@ FRAISEQL_TRACING_SAMPLE_RATE=1.0
 FRAISEQL_TRACING_EXPORT_FORMAT=otlp
 FRAISEQL_TRACING_EXPORT_ENDPOINT=localhost:4317
 FRAISEQL_TRACING_EXPORT_TIMEOUT_MS=30000
-```
+```text
 
 ---
 
@@ -467,7 +467,7 @@ livenessProbe:
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 10
-```
+```text
 
 #### **Readiness Probe** (`/health/ready`)
 
@@ -480,7 +480,7 @@ readinessProbe:
     port: 8000
   initialDelaySeconds: 5
   periodSeconds: 5
-```
+```text
 
 #### **Full Health** (`/health`)
 
@@ -488,7 +488,7 @@ Complete health status with detailed information.
 
 ```bash
 GET /health
-```
+```text
 
 Response:
 
@@ -523,7 +523,7 @@ Response:
     }
   }
 }
-```
+```text
 
 ### Specialized Health Checks
 
@@ -539,7 +539,7 @@ GET /health/graphql
 
 # Tracing only
 GET /health/tracing
-```
+```text
 
 ### Health Assessment Rules
 
@@ -579,7 +579,7 @@ config = HealthConfig(
 )
 
 setup_health_endpoints(app, config)
-```
+```text
 
 ---
 
@@ -597,7 +597,7 @@ Interactive HTML dashboard with charts and statistics.
 
 ```bash
 GET /admin/apq/dashboard
-```
+```text
 
 Features:
 
@@ -613,7 +613,7 @@ Comprehensive JSON statistics.
 
 ```bash
 GET /admin/apq/stats
-```
+```text
 
 Response:
 
@@ -646,7 +646,7 @@ Response:
     "assessment": "Good hit rate"
   }
 }
-```
+```text
 
 #### Top Queries (`/admin/apq/top-queries`)
 
@@ -654,7 +654,7 @@ Most frequently accessed queries.
 
 ```bash
 GET /admin/apq/top-queries?limit=10
-```
+```text
 
 Response:
 
@@ -672,7 +672,7 @@ Response:
     }
   ]
 }
-```
+```text
 
 #### Health (`/admin/apq/health`)
 
@@ -680,7 +680,7 @@ APQ system health status.
 
 ```bash
 GET /admin/apq/health
-```
+```text
 
 ### Metrics Collected
 
@@ -740,7 +740,7 @@ print(f"Complexity score: {score.total_score}")
 print(f"Field count: {score.field_count}")
 print(f"Max depth: {score.max_depth}")
 print(f"Cache weight: {score.cache_weight}")
-```
+```text
 
 ### Complexity Score Breakdown
 
@@ -754,7 +754,7 @@ class ComplexityScore:
     fragment_count: int           # Reusable fragments
     total_score: float            # Composite metric
     cache_weight: float           # 0.1-10.0 (>3.0 avoid caching)
-```
+```text
 
 ### Decision Making
 
@@ -767,7 +767,7 @@ if should_cache_query(query, threshold=200):
 else:
     # Too complex, don't cache
     pass
-```
+```text
 
 ---
 
@@ -794,7 +794,7 @@ await monitor.record_query(QueryMetrics(
     rows_affected=100,
     is_slow=False
 ))
-```
+```text
 
 ### Query Statistics
 
@@ -807,7 +807,7 @@ print(f"Success rate: {stats.success_rate}%")
 print(f"Average duration: {stats.avg_duration_ms}ms")
 print(f"P95 duration: {stats.p95_duration_ms}ms")
 print(f"Slow queries: {stats.slow_count}")
-```
+```text
 
 ### Slow Query Detection
 
@@ -817,7 +817,7 @@ Find queries exceeding threshold.
 slow_queries = await monitor.get_slow_queries(limit=50)
 for query in slow_queries:
     print(f"{query.query_type} on {query.table}: {query.duration_ms}ms")
-```
+```text
 
 ### Performance Reports
 
@@ -832,7 +832,7 @@ start = end - timedelta(hours=1)
 report = await monitor.get_performance_report(start, end)
 print(f"Queries/min: {report.queries_per_minute}")
 print(f"Slow queries: {report.slow_percentage}%")
-```
+```text
 
 ### Connection Pool Monitoring
 
@@ -841,7 +841,7 @@ pool_stats = monitor.get_pool_stats()
 print(f"Active: {pool_stats.active_connections}")
 print(f"Idle: {pool_stats.idle_connections}")
 print(f"Utilization: {pool_stats.utilization * 100:.1f}%")
-```
+```text
 
 ---
 
@@ -868,7 +868,7 @@ tracker = init_error_tracker(
         }
     }
 )
-```
+```text
 
 ### Capturing Errors
 
@@ -884,15 +884,15 @@ except Exception as e:
         },
         tags=["critical", "graphql"]
     )
-```
+```text
 
 ### Error Grouping
 
 Errors are automatically grouped by fingerprint:
 
-```
+```text
 SHA256({error_type}:{filename}:{line_number}:{function_name})
-```
+```text
 
 Same errors from different requests are grouped together.
 
@@ -927,7 +927,7 @@ Same errors from different requests are grouped together.
   "occurrence_count": 47,
   "status": "unresolved"
 }
-```
+```text
 
 ### Error Management
 
@@ -950,7 +950,7 @@ unresolved = await tracker.get_unresolved_errors(limit=50)
 
 # Get error statistics
 stats = await tracker.get_error_stats(hours=24)
-```
+```text
 
 ---
 
@@ -970,7 +970,7 @@ QUERY_COMPLEXITY_EXCEEDED
 DATA_ACCESS_DENIED
 CONFIG_CHANGED
 SYSTEM_INTRUSION_ATTEMPT
-```
+```text
 
 ### Audit Event Structure
 
@@ -992,7 +992,7 @@ SYSTEM_INTRUSION_ATTEMPT
     "attempt_count": 3
   }
 }
-```
+```text
 
 ### Accessing Audit Logs
 
@@ -1008,7 +1008,7 @@ events = await logger.get_events(
 
 for event in events:
     print(f"{event.timestamp} {event.event_type}: {event.reason}")
-```
+```text
 
 ---
 
@@ -1058,7 +1058,7 @@ Example Grafana JSON configuration:
     ]
   }
 }
-```
+```text
 
 ### Key Dashboards
 
@@ -1080,21 +1080,21 @@ Example Grafana JSON configuration:
 ```python
 TracingConfig(sample_rate=1.0)  # 100%
 MetricsConfig(enabled=True)      # All metrics
-```
+```text
 
 **Staging**:
 
 ```python
 TracingConfig(sample_rate=0.5)   # 50%
 MetricsConfig(enabled=True)      # All metrics
-```
+```text
 
 **Production**:
 
 ```python
 TracingConfig(sample_rate=0.1)   # 10% (adjust based on volume)
 MetricsConfig(enabled=True)      # All metrics
-```
+```text
 
 ### Alert Thresholds
 

@@ -46,7 +46,7 @@ The answer depends on:
 
 #### What Apollo Server Excels At
 
-**Flexibility**
+#### Flexibility
 
 ```graphql
 type Query {
@@ -55,7 +55,7 @@ type Query {
   searchUsers(query: String!): [User!]!
   recommendations(userId: Int!): [Recommendation!]!
 }
-```
+```text
 
 Each field can resolve from different sources:
 
@@ -65,7 +65,7 @@ Each field can resolve from different sources:
 - Computed value
 - File system
 
-**Multi-Source Integration**
+### Multi-Source Integration
 
 ```typescript
 // Apollo: Combine data from multiple sources
@@ -79,9 +79,9 @@ const resolvers = {
     }
   }
 };
-```
+```text
 
-**Ecosystem & Plugins**
+### Ecosystem & Plugins
 
 - Apollo Server Extensions (authentication, logging, monitoring)
 - Data loader (N+1 prevention)
@@ -90,7 +90,7 @@ const resolvers = {
 
 #### Where Apollo Server Struggles
 
-**Resolver Complexity**
+#### Resolver Complexity
 
 ```typescript
 // Apollo: Every field needs a resolver
@@ -109,9 +109,9 @@ const resolvers = {
     items: (order, _, context) => context.db.findItems(order.id),  // Another N+1?
   }
 };
-```
+```text
 
-**Manual Optimization**
+### Manual Optimization
 
 ```typescript
 // Apollo: You must implement optimization patterns
@@ -120,24 +120,24 @@ const dataLoaders = {
     return context.db.query('SELECT * FROM users WHERE id = ANY(?)', [userIds]);
   }),
 };
-```
+```text
 
-**Performance Unpredictability**
+### Performance Unpredictability
 
 - Query performance depends on resolver implementation
 - N+1 problems can hide until production
 - No compile-time visibility into query costs
 - Hard to debug performance issues
 
-**Synchronizing Schemas**
+### Synchronizing Schemas
 
-```
+```text
 TypeScript type definitions
        ↔️ (must match)
 GraphQL schema
        ↔️ (must match)
 Database schema
-```
+```text
 
 If you change the database, you must update two more places.
 
@@ -161,17 +161,17 @@ If you change the database, you must update two more places.
 
 #### What Hasura Excels At
 
-**Fast Time to API**
+#### Fast Time to API
 
 ```bash
 # Hasura: Point at database, get GraphQL API instantly
 docker run hasura/graphql-engine:latest \
   --database-url postgresql://user:pass@db:5432/mydb
-```
+```text
 
 Result: Complete GraphQL API with CRUD operations, relationships, and filtering—without writing a line of code.
 
-**Database-First Approach**
+### Database-First Approach
 
 ```sql
 CREATE TABLE users (
@@ -185,7 +185,7 @@ CREATE TABLE orders (
   user_id INTEGER REFERENCES users(id),
   total DECIMAL(10, 2)
 );
-```
+```text
 
 Hasura immediately exposes:
 
@@ -202,9 +202,9 @@ type Order {
   user: User!
   total: Float!
 }
-```
+```text
 
-**Permission Rules**
+### Permission Rules
 
 ```yaml
 # Hasura: Row-level security via rules
@@ -215,9 +215,9 @@ Users:
       - email
     filter:
       id: { _eq: X-Hasura-User-Id }
-```
+```text
 
-**Simplicity for Standard CRUD**
+### Simplicity for Standard CRUD
 
 ```graphql
 query {
@@ -231,11 +231,11 @@ query {
   }
 }
 # Hasura handles the SQL automatically
-```
+```text
 
 #### Where Hasura Struggles
 
-**Fixed Query Patterns**
+#### Fixed Query Patterns
 
 ```graphql
 # Hasura: No custom computed fields without Actions
@@ -253,9 +253,9 @@ query {
     orderCount       # ❌ Requires custom Action (REST API call)
   }
 }
-```
+```text
 
-**Action-Based Extensions**
+### Action-Based Extensions
 
 ```yaml
 # Hasura: Must implement custom logic via Actions
@@ -267,22 +267,22 @@ actions:
         query: string!
       output_type: SearchResult
       handler: https://api.example.com/search
-```
+```text
 
 This converts back to the multi-source problem (like Apollo).
 
-**Runtime Performance**
+### Runtime Performance
 
 - No compile-time query analysis
 - Permission checks at runtime
 - No optimization of permission rules
 - Can cause N+1 queries if permissions are complex
 
-**Schema Coupling**
+### Schema Coupling
 
-```
+```text
 PostgreSQL schema ←→ GraphQL schema (1:1 mapping)
-```
+```text
 
 Change the database table name, and the GraphQL API changes. This can break clients.
 
@@ -307,7 +307,7 @@ Change the database table name, and the GraphQL API changes. This can break clie
 
 #### What WunderGraph Excels At
 
-**Configuration-First Development**
+#### Configuration-First Development
 
 ```yaml
 # WunderGraph: Configure data sources and relationships
@@ -318,16 +318,16 @@ dataSources:
   - name: external_api
     kind: graphql
     url: https://api.example.com/graphql
-```
+```text
 
-**Flexible Data Source Support**
+### Flexible Data Source Support
 
 - Relational databases (PostgreSQL, MySQL, MongoDB)
 - GraphQL APIs
 - REST APIs
 - Custom operations
 
-**Built-in Authentication**
+### Built-in Authentication
 
 ```yaml
 # WunderGraph: Auth integrated
@@ -336,9 +336,9 @@ authentication:
     - github
     - auth0
     - custom_webhook
-```
+```text
 
-**Federation Support**
+### Federation Support
 
 ```typescript
 // WunderGraph: Compose multiple GraphQL APIs
@@ -356,11 +356,11 @@ export default {
     }),
   ],
 };
-```
+```text
 
 #### Where WunderGraph Struggles
 
-**Still Manual for Complex Queries**
+#### Still Manual for Complex Queries
 
 ```typescript
 // WunderGraph: You write resolvers for complex operations
@@ -373,16 +373,16 @@ export default async function GetUserRecommendations(
   // Still writing custom code
   return recommendations;
 }
-```
+```text
 
-**Middle-Ground Positioning**
+### Middle-Ground Positioning
 
 - Not as fast as Hasura (requires more code)
 - Not as predictable as FraiseQL (runtime interpretation)
 - Not as flexible as Apollo (no custom middleware)
 - Good at everything, expert at nothing
 
-**Performance Still Variable**
+### Performance Still Variable
 
 ```typescript
 // WunderGraph: You're still responsible for optimization
@@ -397,7 +397,7 @@ export default async function GetUserWithOrders(
   // You have to handle this manually
   return { user, orders };
 }
-```
+```text
 
 #### FraiseQL vs. WunderGraph: Decision
 
@@ -418,22 +418,22 @@ Before GraphQL was popular, teams built custom REST APIs. This is still the base
 
 #### What Custom REST Excels At
 
-**Simplicity for Simple Services**
+#### Simplicity for Simple Services
 
 ```python
 # REST: Simple to understand
 @app.get("/users/{user_id}")
 def get_user(user_id: int):
     return db.query("SELECT * FROM users WHERE id = ?", [user_id])
-```
+```text
 
-**Familiarity**
+### Familiarity
 
 - Every developer knows REST
 - No GraphQL learning curve
 - Mature tooling and libraries
 
-**Fine-Grained Control**
+### Fine-Grained Control
 
 ```python
 # REST: You control exactly what goes into each endpoint
@@ -444,23 +444,23 @@ def get_recommendations(user_id: int, limit: int = 10):
         "SELECT * FROM recommendations WHERE user_id = ? LIMIT ?",
         [user_id, limit]
     )
-```
+```text
 
 #### Where Custom REST Struggles
 
-**Versioning Chaos**
+#### Versioning Chaos
 
-```
+```text
 /api/v1/users/{id}
 /api/v2/users/{id}
 /api/v3/users/{id}
-```
+```text
 
 Each API version requires separate endpoints and testing.
 
-**Over-fetching & Under-fetching**
+### Over-fetching & Under-fetching
 
-```
+```text
 REST API returns:
 GET /api/users/1
 {
@@ -472,18 +472,18 @@ GET /api/users/1
 }
 
 Returned 500 bytes, needed 200 bytes
-```
+```text
 
 Or:
 
-```
+```text
 You need user + orders + order items
 3 separate requests: GET /users/1, GET /users/1/orders, GET /orders/123/items
-```
+```text
 
-**No Standard Query Language**
+### No Standard Query Language
 
-```
+```text
 Custom filtering:
 GET /api/users?filter=email:contains:@example.com&sort=-created_at&limit=10
 
@@ -491,11 +491,11 @@ Different service:
 GET /api/products?q=coffee&sort=price&page=1&per_page=20
 
 Inconsistent APIs everywhere
-```
+```text
 
-**Documentation Burden**
+### Documentation Burden
 
-```
+```text
 Each endpoint needs separate documentation:
 
 - GET /users/{id}
@@ -507,7 +507,7 @@ Each endpoint needs separate documentation:
 - GET /users?search=...&limit=...&offset=...
 
 And that's just for users. Multiply by 20 resources = 100s of endpoints
-```
+```text
 
 #### FraiseQL vs. REST: Decision
 
@@ -526,64 +526,64 @@ And that's just for users. Multiply by 20 resources = 100s of endpoints
 
 ### What FraiseQL Brings
 
-**1. Compile-Time Guarantees**
+#### 1. Compile-Time Guarantees
 
-```
+```text
 Query performance, authorization, and schema correctness all verified at build time,
 not discovered in production.
-```
+```text
 
-**2. Database Expertise as API Design**
+### 2. Database Expertise as API Design
 
-```
+```text
 Your database team's work (indexes, views, optimization) directly
 improves API performance. No resolver code to optimize.
-```
+```text
 
-**3. Deterministic Behavior**
+### 3. Deterministic Behavior
 
-```
+```text
 Every query's performance is predictable and reproducible.
 No "sometimes slow" queries. No hidden N+1 problems.
-```
+```text
 
-**4. Minimal Code**
+### 4. Minimal Code
 
-```
+```text
 No custom resolvers. No data loaders. No optimization patterns.
 Just schema definitions and SQL automatically generated.
-```
+```text
 
 ### What FraiseQL Trades Off
 
-**Single Data Source**
+#### Single Data Source
 
-```
+```text
 Cannot easily aggregate data from multiple external APIs.
 Best for monolithic database-centric services.
-```
+```text
 
-**No Custom Resolver Logic**
+### No Custom Resolver Logic
 
-```
+```text
 Complex business logic must happen in the database (functions/views)
 or in separate services.
 Cannot add computed fields easily without database changes.
-```
+```text
 
-**Build-Time Schema**
+### Build-Time Schema
 
-```
+```text
 All queries must be known at compile time.
 Dynamic queries require recompilation.
-```
+```text
 
-**PostgreSQL-First**
+### PostgreSQL-First
 
-```
+```text
 Primary focus on PostgreSQL. MySQL/SQLite/SQL Server support,
 but PostgreSQL gets features first.
-```
+```text
 
 ---
 
@@ -628,14 +628,14 @@ but PostgreSQL gets features first.
 
 ### Example 1: E-Commerce Platform
 
-**Requirements:**
+#### Requirements:
 
 - Product catalog with search, filtering, recommendations
 - Orders with items and order history
 - User profiles and permissions
 - Shopping cart state
 
-**Best Choice: FraiseQL**
+### Best Choice: FraiseQL
 
 Why:
 
@@ -645,7 +645,7 @@ Why:
 - Clear data relationships
 - Database team can optimize indexes independently
 
-**API would include:**
+### API would include:
 
 ```python
 @schema.type(table="v_products")
@@ -662,18 +662,18 @@ def product_search(query: str, limit: int = 10) -> List[Product]:
 @schema.query()
 def user_recommendations(user_id: int) -> List[Product]:
     pass
-```
+```text
 
 ### Example 2: Multi-Tenant SaaS Dashboard
 
-**Requirements:**
+#### Requirements:
 
 - Multiple data sources (main DB, analytics DB, external services)
 - Complex permission rules (tenant isolation, role-based)
 - Custom computed fields (user's total spend, team metrics)
 - Real-time updates via WebSocket
 
-**Best Choice: Apollo Server**
+### Best Choice: Apollo Server
 
 Why:
 
@@ -684,14 +684,14 @@ Why:
 
 ### Example 3: Rapid Internal Tool
 
-**Requirements:**
+#### Requirements:
 
 - Quick GraphQL API over existing PostgreSQL database
 - Standard CRUD operations
 - Simple permission rules
 - Time to launch: 1 week
 
-**Best Choice: Hasura**
+### Best Choice: Hasura
 
 Why:
 
@@ -702,14 +702,14 @@ Why:
 
 ### Example 4: Mobile App Backend
 
-**Requirements:**
+#### Requirements:
 
 - Minimize bandwidth (mobile networks)
 - Fetch exactly the fields needed
 - Consistent schema across multiple client versions
 - Performance matters (cellular networks)
 
-**Best Choice: FraiseQL or Apollo Server**
+### Best Choice: FraiseQL or Apollo Server
 
 Why:
 

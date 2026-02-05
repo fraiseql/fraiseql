@@ -53,12 +53,12 @@ How should FraiseQL implement federation for composing multiple subgraphs into a
 
 **Example latency:**
 
-```
+```text
 User → Order federation:
   1. HTTP POST to Orders subgraph: 100-150ms
   2. Network round-trip: 50-100ms
   3. Remote database query: 10-50ms
-```
+```text
 
 ---
 
@@ -105,28 +105,28 @@ User → Order federation:
 
 1. **Local Resolution** (<5ms)
 
-   ```
+   ```text
    User subgraph resolving User entity
    → Query local PostgreSQL database
    → SELECT data FROM v_user WHERE id = ?
-   ```
+   ```text
 
 2. **Direct DB Federation** (<10-20ms)
 
-   ```
+   ```text
    User subgraph resolving Order entity (from Orders subgraph on SQL Server)
    → Rust runtime has SQL Server connection pool
    → Query remote SQL Server directly
    → SELECT data FROM v_order WHERE user_id = ?
-   ```
+   ```text
 
 3. **HTTP Fallback** (50-200ms)
 
-   ```
+   ```text
    User subgraph resolving Review entity (from Apollo Server)
    → HTTP POST to reviews-api.example.com/graphql
    → _entities query with representation
-   ```
+   ```text
 
 **Advantages:**
 
@@ -213,7 +213,7 @@ for extended_type in schema.extended_types:
         field.resolution_strategy = ResolutionStrategy.HTTP(
             subgraph_url=target_subgraph.graphql_url
         )
-```
+```text
 
 ### Runtime
 
@@ -235,7 +235,7 @@ for subgraph in &config.subgraphs {
         );
     }
 }
-```
+```text
 
 **Entity Resolution:**
 
@@ -249,7 +249,7 @@ pub async fn resolve_entities(representations: Vec<_Any>) -> Result<Vec<Entity>>
         }
     }
 }
-```
+```text
 
 ---
 
@@ -274,7 +274,7 @@ database_url = "sqlserver://user:pass@orders-db/orders_db"
 typename = "Review"
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
-```
+```text
 
 ### Health Checks
 

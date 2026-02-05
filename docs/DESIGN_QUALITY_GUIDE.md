@@ -80,31 +80,31 @@ Design scores range from 0-100:
 
 Each category is scored separately:
 
-**Federation (JSONB Batching)**
+#### Federation (JSONB Batching)
 
 - Detects over-federation (entities in 3+ subgraphs)
 - Identifies circular dependencies
 - Flags fragmented entity resolution
 
-**Cost (Compilation Determinism)**
+### Cost (Compilation Determinism)
 
 - Analyzes worst-case query complexity
 - Detects unbounded pagination
 - Identifies multiplier patterns (lists in lists)
 
-**Cache (JSONB Coherency)**
+### Cache (JSONB Coherency)
 
 - Checks TTL consistency across subgraphs
 - Validates cache directives on expensive fields
 - Verifies coherency strategies
 
-**Authorization (Security Boundaries)**
+### Authorization (Security Boundaries)
 
 - Detects auth boundary leaks
 - Checks for unprotected mutations
 - Verifies scope consistency
 
-**Compilation (Type Suitability)**
+### Compilation (Type Suitability)
 
 - Validates schema structure for compilation
 - Checks for circular type references
@@ -491,16 +491,16 @@ fraiseql --version
 
 ## FAQ
 
-**Q: Can I disable specific rules?**
+### Q: Can I disable specific rules?
 A: Not in the core, but design audit APIs return structured results so agents can implement custom policies.
 
-**Q: Is design audit required for production?**
+### Q: Is design audit required for production?
 A: No, it's optional. Use it for development and CI/CD gates if desired.
 
-**Q: How often should I run design audit?**
+### Q: How often should I run design audit?
 A: On every schema change (integrate with CI/CD).
 
-**Q: Can I compare scores over time?**
+### Q: Can I compare scores over time?
 A: Yes, save audit results and track trends.
 
 ## References

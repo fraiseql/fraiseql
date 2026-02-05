@@ -39,7 +39,7 @@ query GetUsers {
     }
   }
 }
-```
+```text
 
 Result: 101 queries (1 for users + 100 for individual user's posts)
 
@@ -56,7 +56,7 @@ query GetUsers {
     }
   }
 }
-```
+```text
 
 Result: 1-2 queries total
 
@@ -72,7 +72,7 @@ query AllPosts {
     content
   }
 }
-```
+```text
 
 ✅ **Good: Paginate with limit/offset or cursor**
 
@@ -89,7 +89,7 @@ query PostsPaginated($first: Int!, $after: String) {
     }
   }
 }
-```
+```text
 
 ### 3. Request Only Needed Fields
 
@@ -108,7 +108,7 @@ query GetUser {
     all_reviews { id rating text }
   }
 }
-```
+```text
 
 ✅ **Good: Specific fields**
 
@@ -124,7 +124,7 @@ query GetUser {
     }
   }
 }
-```
+```text
 
 ### 4. Use Database Indexes
 
@@ -139,7 +139,7 @@ CREATE INDEX idx_orders_user_date ON orders(user_id, created_at);
 
 -- For full-text search:
 CREATE INDEX idx_content_search ON documents USING GIN(to_tsvector('english', content));
-```
+```text
 
 **Index Selection:**
 
@@ -164,7 +164,7 @@ ORDER BY u.email;
 -- - Rows filtered
 -- - Actual runtime
 -- - Inefficiencies (full table scans, etc.)
-```
+```text
 
 ---
 
@@ -181,7 +181,7 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(900);
 // For 100 concurrent users:
 // Pool size = 10-20 (not 100!)
 // Each connection can handle multiple queries sequentially
-```
+```text
 
 ### 2. Query Result Caching
 
@@ -201,7 +201,7 @@ def create_user(self, email: str) -> User:
     @invalidate_cache(paths=['getUsers'])  # Clear users list
     """
     pass
-```
+```text
 
 ### 3. Materialized Views for Aggregations
 
@@ -223,7 +223,7 @@ SELECT cron.schedule('refresh_user_stats', '0 * * * *',
 
 -- Query materialized view (fast)
 SELECT * FROM user_stats WHERE user_id = $1;
-```
+```text
 
 ### 4. Partitioning Large Tables
 
@@ -248,7 +248,7 @@ CREATE TABLE events_2024_02 PARTITION OF events
 SELECT * FROM events
 WHERE event_date BETWEEN '2024-01-15' AND '2024-01-20';
 -- Only queries events_2024_01 partition
-```
+```text
 
 ### 5. Denormalization When Needed
 
@@ -269,7 +269,7 @@ CREATE TRIGGER order_update_stats
 AFTER INSERT OR UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_user_stats(NEW.user_id);
-```
+```text
 
 ---
 
@@ -277,7 +277,7 @@ EXECUTE FUNCTION update_user_stats(NEW.user_id);
 
 ### 1. Cache Layers
 
-```
+```text
 ┌─────────────────┐
 │   Client Cache  │  (Browser local storage, Redux)
 └────────┬────────┘
@@ -293,7 +293,7 @@ EXECUTE FUNCTION update_user_stats(NEW.user_id);
 ┌─────────────────┐
 │   Database      │  (Slowest)
 └─────────────────┘
-```
+```text
 
 ### 2. Cache-First vs Cache-And-Network
 
@@ -312,7 +312,7 @@ const { data } = useQuery(GET_POSTS, {
 const { data } = useQuery(GET_STOCK_PRICE, {
   fetchPolicy: 'network-only'  // Always fresh
 });
-```
+```text
 
 ### 3. Redis for Shared Cache
 
@@ -347,7 +347,7 @@ async def get_user_stats(user_id: str):
 async def create_order(user_id: str, ...):
     await db.execute('INSERT INTO orders ...')
     cache.delete(f'user_stats:{user_id}')  # Invalidate
-```
+```text
 
 ---
 
@@ -363,18 +363,18 @@ connection_timeout = 10000  # ms
 idle_timeout = 900000       # ms (15 min)
 max_lifetime = 1800000      # ms (30 min)
 test_on_checkout = true     # Verify connection health
-```
+```text
 
 ### Tuning
 
-```
+```text
 Pool Size Formula:
   = ((core_count × 2) + effective_spindle_count)
   = ((8 cores × 2) + 1) = 17 connections
 
 Concurrency = Pool Size × Average Query Time
   = 20 connections × 50ms = 1000 concurrent requests
-```
+```text
 
 ### Monitoring
 
@@ -388,7 +388,7 @@ SELECT pid, usename, state, query, query_start
 FROM pg_stat_activity
 WHERE state = 'idle'
   AND query_start < NOW() - INTERVAL '15 minutes';
-```
+```text
 
 ---
 
@@ -409,7 +409,7 @@ def get_posts(self, limit: int = 50) -> list[Post]:
     log_metric('query.duration', duration, tags={'query': 'getPosts'})
 
     return results
-```
+```text
 
 ### Slow Query Log
 
@@ -422,7 +422,7 @@ SELECT pg_reload_conf();
 SELECT * FROM pg_stat_statements
 ORDER BY mean_exec_time DESC
 LIMIT 20;
-```
+```text
 
 ### APM Integration (DataDog/New Relic)
 
@@ -442,7 +442,7 @@ metrics_api.submit_metrics(
         ]
     )
 )
-```
+```text
 
 ---
 
@@ -458,7 +458,7 @@ metrics_api.submit_metrics(
 
 ### Horizontal Scaling (Multiple Servers)
 
-```
+```text
 ┌──────────────────────────────────────┐
 │        Load Balancer (nginx)         │
 └──────────────┬───────────────────────┘
@@ -476,7 +476,7 @@ metrics_api.submit_metrics(
         │ PostgreSQL   │
         │ (Shared DB)  │
         └──────────────┘
-```
+```text
 
 ### Read Replicas
 
@@ -487,7 +487,7 @@ PRIMARY (writes)
 REPLICA 1 (reads)
 REPLICA 2 (reads)
 REPLICA 3 (reads)
-```
+```text
 
 ```python
 # Route queries to replica
@@ -498,7 +498,7 @@ REPLICA 3 (reads)
 def get_users(self) -> list[User]:
     """Queries use replica, mutations use primary"""
     pass
-```
+```text
 
 ### Citus for Sharding
 
@@ -509,7 +509,7 @@ SELECT create_distributed_table('orders', 'user_id');
 -- Queries automatically sharded
 SELECT * FROM orders WHERE user_id = $1;  -- Single shard
 SELECT * FROM orders;  -- All shards (parallel)
-```
+```text
 
 ---
 
@@ -550,7 +550,7 @@ suite
     console.log('Fastest is ' + this.filter('fastest').map('name'));
   })
   .run({ async: true });
-```
+```text
 
 ### Load Testing
 
@@ -562,7 +562,7 @@ ab -n 10000 -c 100 http://localhost:5000/graphql
 # Requests per second: 500
 # 95th percentile latency: 200ms
 # Max latency: 1000ms
-```
+```text
 
 ---
 

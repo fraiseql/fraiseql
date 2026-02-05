@@ -29,7 +29,7 @@ FraiseQL adopts a **fail-secure** approach to security configuration, prioritizi
 [auth]
 issuer = "https://tenant.auth0.com/"
 audience = "https://api.example.com"  # Required for OIDC
-```
+```text
 
 **Migration Steps**:
 
@@ -39,10 +39,10 @@ audience = "https://api.example.com"  # Required for OIDC
 
 **Error you might see**:
 
-```
+```text
 OIDC audience is REQUIRED for security. Set 'audience' in auth config
 to your API identifier. This prevents token confusion attacks...
-```
+```text
 
 ### Admin Endpoints Configuration
 
@@ -62,21 +62,21 @@ If you need admin endpoints:
 [server]
 admin_api_enabled = true
 admin_token = "your-secure-token-32-characters-minimum!!"
-```
+```text
 
 Or via environment variables:
 
 ```bash
 FRAISEQL_ADMIN_API_ENABLED=true
 FRAISEQL_ADMIN_TOKEN="your-secure-token-32-characters-minimum!!"
-```
+```text
 
 Then authenticate requests:
 
 ```bash
 curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
      http://localhost:8000/api/v1/admin/config
-```
+```text
 
 ### Introspection Configuration
 
@@ -94,7 +94,7 @@ curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
 [server]
 introspection_enabled = true
 introspection_require_auth = false  # Schema public (dev only!)
-```
+```text
 
 **For Production** (enable with auth):
 
@@ -102,14 +102,14 @@ introspection_require_auth = false  # Schema public (dev only!)
 [server]
 introspection_enabled = true
 introspection_require_auth = true   # Requires OIDC auth
-```
+```text
 
 Environment variables:
 
 ```bash
 FRAISEQL_INTROSPECTION_ENABLED=true
 FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
-```
+```text
 
 **Note**: Schema export endpoints (`/api/v1/schema.graphql`, `/api/v1/schema.json`) follow the same configuration as introspection.
 
@@ -124,13 +124,13 @@ FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
 ```toml
 [server]
 playground_enabled = true
-```
+```text
 
 Or environment variable:
 
 ```bash
 FRAISEQL_PLAYGROUND_ENABLED=true
-```
+```text
 
 **Migration**: If you're using playground, explicitly enable it in your dev configs.
 
@@ -147,7 +147,7 @@ FRAISEQL_PLAYGROUND_ENABLED=true
 [server]
 cors_enabled = true
 cors_origins = ["https://app.example.com", "https://api.example.com"]
-```
+```text
 
 **Important**: In production mode, you must explicitly set allowed origins. Empty origins would allow requests from ANY origin, which is a security risk.
 
@@ -166,7 +166,7 @@ Design audit endpoints (`/api/v1/design/*`) support optional authentication.
 ```toml
 [server]
 design_api_require_auth = true  # Requires OIDC authentication
-```
+```text
 
 The endpoints remain public unless you explicitly enable authentication.
 
@@ -220,7 +220,7 @@ cors_origins = ["http://localhost:3000", "http://localhost:5173"]
 [auth]
 issuer = "https://your-tenant.auth0.com/"
 audience = "localhost"  # Use "localhost" for local dev
-```
+```text
 
 Or set environment variables:
 
@@ -228,7 +228,7 @@ Or set environment variables:
 export FRAISEQL_ENV=development
 export FRAISEQL_PLAYGROUND_ENABLED=true
 export FRAISEQL_INTROSPECTION_ENABLED=true
-```
+```text
 
 ### Production Environment
 
@@ -248,7 +248,7 @@ cors_origins = ["https://app.example.com", "https://another-app.example.com"]
 [auth]
 issuer = "https://your-tenant.auth0.com/"
 audience = "https://api.example.com"  # Your API identifier
-```
+```text
 
 Or set environment variables:
 
@@ -256,7 +256,7 @@ Or set environment variables:
 export FRAISEQL_ENV=production  # Or don't set (production is default)
 export FRAISEQL_ADMIN_TOKEN="your-secure-32+-char-token"
 export FRAISEQL_ADMIN_API_ENABLED=true
-```
+```text
 
 ## Troubleshooting
 
@@ -267,7 +267,7 @@ export FRAISEQL_ADMIN_API_ENABLED=true
 ```toml
 [auth]
 audience = "your-api-identifier"
-```
+```text
 
 ### "playground_enabled is true in production mode"
 
@@ -279,7 +279,7 @@ playground_enabled = false
 
 # Option 2: Development mode
 export FRAISEQL_ENV=development
-```
+```text
 
 ### "cors_origins is empty in production mode"
 
@@ -288,7 +288,7 @@ export FRAISEQL_ENV=development
 ```toml
 [server]
 cors_origins = ["https://app.example.com"]
-```
+```text
 
 ### Admin endpoints return 404
 
@@ -298,7 +298,7 @@ cors_origins = ["https://app.example.com"]
 [server]
 admin_api_enabled = true
 admin_token = "your-secure-token-32-char-minimum!!"
-```
+```text
 
 ### Introspection endpoint returns 404
 
@@ -308,7 +308,7 @@ admin_token = "your-secure-token-32-char-minimum!!"
 [server]
 introspection_enabled = true
 introspection_require_auth = false  # For dev; true for production
-```
+```text
 
 ## Rate Limiting
 
@@ -336,7 +336,7 @@ rps_per_ip = 100         # Adjust per your traffic patterns
 rps_per_user = 1000      # Higher limit for authenticated users
 burst_size = 500         # Allow temporary traffic spikes
 cleanup_interval_secs = 300  # Cleanup stale entries every 5 minutes
-```
+```text
 
 **Via environment variables**:
 
@@ -348,17 +348,17 @@ export FRAISEQL_RATE_LIMITING_ENABLED=true
 export FRAISEQL_RATE_LIMIT_RPS_PER_IP=100
 export FRAISEQL_RATE_LIMIT_RPS_PER_USER=1000
 export FRAISEQL_RATE_LIMIT_BURST_SIZE=500
-```
+```text
 
 ### Response Headers
 
 When rate limiting is active, responses include:
 
-```
+```text
 X-RateLimit-Limit: 100        # Max requests allowed per second
 X-RateLimit-Remaining: 42     # Requests remaining in current window
 Retry-After: 60               # Seconds to wait before retrying (on 429)
-```
+```text
 
 ### 429 Too Many Requests Response
 
@@ -372,7 +372,7 @@ When rate limit is exceeded, the server responds with HTTP 429:
     }
   ]
 }
-```
+```text
 
 ### Best Practices
 
@@ -391,7 +391,7 @@ When rate limit is exceeded, the server responds with HTTP 429:
 enabled = false  # Or set very high limits
 rps_per_ip = 10000
 rps_per_user = 50000
-```
+```text
 
 **Production (Standard)**:
 
@@ -400,7 +400,7 @@ rps_per_user = 50000
 enabled = true
 rps_per_ip = 100     # Reasonable limit for public endpoints
 rps_per_user = 1000  # Higher for authenticated users
-```
+```text
 
 **Production (High Traffic)**:
 
@@ -410,7 +410,7 @@ enabled = true
 rps_per_ip = 500     # Increase for high-traffic services
 rps_per_user = 5000
 burst_size = 2000
-```
+```text
 
 ### Disabling Rate Limiting
 
@@ -418,14 +418,14 @@ To disable (only recommended for internal/trusted environments):
 
 ```bash
 export FRAISEQL_RATE_LIMITING_ENABLED=false
-```
+```text
 
 Or in config:
 
 ```toml
 [rate_limiting]
 enabled = false
-```
+```text
 
 ### Separate from Auth Rate Limiting
 

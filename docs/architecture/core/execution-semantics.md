@@ -36,7 +36,7 @@ FraiseQL execution semantics define the precise runtime behavior of queries, mut
 
 Every query follows a deterministic five-phase execution model:
 
-```
+```text
  Request Parsing & Validation
     ↓
  Authorization & Context Binding
@@ -46,7 +46,7 @@ Every query follows a deterministic five-phase execution model:
  Database Execution
     ↓
  Response Transformation & Streaming
-```
+```text
 
 ### 1.2 Phase 1: Request Parsing & Validation
 
@@ -63,7 +63,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
     }
   }
 }
-```
+```text
 
 **Parsing tasks:**
 
@@ -106,7 +106,7 @@ query GetUserPosts($userId: ID!, $limit: Int) {
   ],
   "data": null
 }
-```
+```text
 
 ### 1.3 Phase 2: Authorization & Context Binding
 
@@ -129,7 +129,7 @@ query {
     admin_notes     # @authorize(rule="admin_only") - check binding
   }
 }
-```
+```text
 
 **Authorization evaluation (compile-time generated SQL WHERE clauses):**
 
@@ -139,7 +139,7 @@ query {
 --   (authorization rules)
 --   AND current_user_id = 'user-456'  (user context)
 --   AND current_user_role IN ('admin', 'user')  (role context)
-```
+```text
 
 **If authorization fails:**
 
@@ -159,7 +159,7 @@ query {
   ],
   "data": null
 }
-```
+```text
 
 **If authorization succeeds:**
 
@@ -178,7 +178,7 @@ query {
    ```rust
    let sql_plan = compiled_schema.queries.get("GetUserPosts")?;
    // Already optimized from compilation phase
-   ```
+   ```text
 
 2. **Bind variables to SQL parameters:**
 
@@ -188,7 +188,7 @@ query {
    params.push(sql_param("limit", variables.get("limit").unwrap_or(20)));
    params.push(sql_param("current_user_id", user_context.id));
    // Bind all authorization context
-   ```
+   ```text
 
 3. **Resolve dynamic values:**
 
@@ -196,7 +196,7 @@ query {
    // Some fields may have runtime defaults:
    // @field(default=NOW()) → Bind current timestamp
    // @field(default=current_user_id) → Bind from context
-   ```
+   ```text
 
 4. **Type coercion:**
 
@@ -205,7 +205,7 @@ query {
    // ID → UUID or String (depending on database)
    // DateTime → TIMESTAMP (depending on database)
    // JSON → JSONB (PostgreSQL) or JSON (MySQL)
-   ```
+   ```text
 
 5. **Prepared statement execution:**
 
@@ -213,7 +213,7 @@ query {
    // Use prepared statement for safety and performance:
    let prepared = db.prepare(sql_plan.query)?;
    prepared.query(params)?
-   ```
+   ```text
 
 **If parameter binding fails:**
 
@@ -232,7 +232,7 @@ query {
   ],
   "data": null
 }
-```
+```text
 
 ### 1.5 Phase 4: Database Execution
 
@@ -267,7 +267,7 @@ async fn execute_query(
         }
     }
 }
-```
+```text
 
 **Query execution guarantees:**
 
@@ -289,7 +289,7 @@ match pg_error.code {
     "CONNECTION_FAILURE" => E_DB_CONNECTION_FAILED_301,
     _ => E_DB_UNKNOWN_ERROR_399
 }
-```
+```text
 
 **If database execution fails:**
 
@@ -309,7 +309,7 @@ match pg_error.code {
   ],
   "data": null
 }
-```
+```text
 
 ### 1.6 Phase 5: Response Transformation & Streaming
 
@@ -323,7 +323,7 @@ match pg_error.code {
    // JSONB → Rust struct
    // TIMESTAMP → DateTime
    // UUID → String
-   ```
+   ```text
 
 2. **Apply field-level masking:**
 
@@ -336,7 +336,7 @@ match pg_error.code {
            field.value = null;
        }
    }
-   ```
+   ```text
 
 3. **Transform to GraphQL response format:**
 
@@ -344,7 +344,7 @@ match pg_error.code {
    // Rust struct → JSON (GraphQL response)
    // Rename fields (database column names → GraphQL field names)
    // Nest objects (flatten JSONB into nested objects)
-   ```
+   ```text
 
 4. **Stream response (if large):**
 
@@ -353,7 +353,7 @@ match pg_error.code {
    // Chunk data into 64KB packets
    // Send chunks as soon as available
    // Allow client to start processing while query still executing
-   ```
+   ```text
 
 5. **Include execution metadata:**
 
@@ -370,7 +370,7 @@ match pg_error.code {
        }
      }
    }
-   ```
+   ```text
 
 **Example response transformation:**
 
@@ -406,7 +406,7 @@ Row {
         }
     }
 }
-```
+```text
 
 ### 1.7 Query Execution Error Handling
 
@@ -435,7 +435,7 @@ query GetUsers {
     ssn       # ⚠️ Error (field doesn't exist)
   }
 }
-```
+```text
 
 **Response with field errors:**
 
@@ -464,7 +464,7 @@ query GetUsers {
     }
   ]
 }
-```
+```text
 
 ### 1.8 Query Caching
 
@@ -499,7 +499,7 @@ async fn execute_query_with_cache(
 
     Ok(response)
 }
-```
+```text
 
 **Cache invalidation:**
 
@@ -518,7 +518,7 @@ Query cache is invalidated when:
 
 Mutations follow a stricter five-phase model with atomic guarantees:
 
-```
+```text
  Request Validation
     ↓
  Input Validation & Transformation
@@ -528,7 +528,7 @@ Mutations follow a stricter five-phase model with atomic guarantees:
  Atomic Transaction Execution
     ↓
  Post-mutation Response & Events
-```
+```text
 
 ### 2.2 Phase 1: Request Validation
 
@@ -544,7 +544,7 @@ mutation CreatePost($title: String!, $content: String!) {
     title
   }
 }
-```
+```text
 
 **Validation checks:**
 
@@ -574,7 +574,7 @@ if input.title.len() > 256 {
 if input.content.len() > 100_000 {
     return Err(E_VALIDATION_CONTENT_TOO_LARGE_106);
 }
-```
+```text
 
 **Custom validators:**
 
@@ -593,7 +593,7 @@ def create_post(input: CreatePostInput) -> Post:
     def normalize_title(title: str) -> str:
         # Transform input (e.g., strip whitespace, normalize unicode)
         return title.strip().casefold()
-```
+```text
 
 **If validation fails:**
 
@@ -611,7 +611,7 @@ def create_post(input: CreatePostInput) -> Post:
   ],
   "data": null
 }
-```
+```text
 
 ### 2.4 Phase 3: Pre-mutation Authorization
 
@@ -625,7 +625,7 @@ def create_post(input: CreatePostInput) -> Post:
 // - Can user create posts? (role-based)
 // - Can user create posts in this project? (resource-based)
 // - Does user have write permission on Post type?
-```
+```text
 
 **Authorization evaluation:**
 
@@ -637,7 +637,7 @@ WHERE user_id = $current_user_id
   AND action = 'create'
   AND resource_type = 'Post'
 LIMIT 1
-```
+```text
 
 **If authorization fails:**
 
@@ -656,7 +656,7 @@ LIMIT 1
   ],
   "data": null
 }
-```
+```text
 
 ### 2.5 Phase 4: Atomic Transaction Execution
 
@@ -688,7 +688,7 @@ async fn execute_mutation(
         }
     }
 }
-```
+```text
 
 **All-or-nothing semantics:**
 
@@ -701,7 +701,7 @@ mutation CreatePostAndComment {
     id
   }
 }
-```
+```text
 
 **Result:**
 
@@ -711,7 +711,7 @@ mutation CreatePostAndComment {
 
 **Example mutation execution:**
 
-```
+```text
 
 1. BEGIN TRANSACTION
 2. Validate input ✅
@@ -723,7 +723,7 @@ mutation CreatePostAndComment {
 6. PUBLISH change event (NOTIFY post_created) ✅
 7. COMMIT TRANSACTION ✅
 8. Return response {id: post-456, title: "New Post"}
-```
+```text
 
 **Deadlock handling:**
 
@@ -740,7 +740,7 @@ for attempt in 1..=3 {
         Err(err) => return Err(err),
     }
 }
-```
+```text
 
 **Constraint violation handling:**
 
@@ -759,7 +759,7 @@ match db.execute(INSERT_STATEMENT).await {
         return Err(E_VALIDATION_INVALID_REFERENCE_108);
     }
 }
-```
+```text
 
 ### 2.6 Phase 5: Post-mutation Response & Events
 
@@ -780,7 +780,7 @@ match db.execute(INSERT_STATEMENT).await {
            "content": "Content"
        }
    });
-   ```
+   ```text
 
 2. **Side effects (webhooks, notifications):**
 
@@ -790,7 +790,7 @@ match db.execute(INSERT_STATEMENT).await {
    trigger_webhooks("post.created", post);
    send_notification(post.author_id, "Your post was created");
    invalidate_caches("posts");
-   ```
+   ```text
 
 3. **Response transformation:**
 
@@ -811,7 +811,7 @@ match db.execute(INSERT_STATEMENT).await {
            }
        }
    }
-   ```
+   ```text
 
 ### 2.7 Mutation Error Handling
 
@@ -830,7 +830,7 @@ If mutation errors mid-transaction:
   ],
   "data": null
 }
-```
+```text
 
 **Result: Nothing is persisted. Entire transaction rolled back.**
 
@@ -856,7 +856,7 @@ mutation CreatePost($title: String!) {
 
 # Call twice with same input → Create two posts
 # Two different IDs returned
-```
+```text
 
 **Idempotent mutations (with idempotency key):**
 
@@ -876,7 +876,7 @@ mutation CreatePostIdempotent(
 # Call twice with same input and idempotency_key
 # Returns same ID both times (request deduplication)
 # Database checks: If idempotency_key exists, return existing result
-```
+```text
 
 **Idempotency implementation:**
 
@@ -898,7 +898,7 @@ async fn execute_idempotent_mutation(
 
     Ok(response)
 }
-```
+```text
 
 ---
 
@@ -908,7 +908,7 @@ async fn execute_idempotent_mutation(
 
 Subscriptions are **event-driven, long-lived connections** that push updates to clients:
 
-```
+```text
 Client establishes connection
     ↓
 Client sends subscription request
@@ -925,7 +925,7 @@ When event occurs:
 Client closes connection
     ↓
 Server cleans up listener
-```
+```text
 
 ### 3.2 Phase 1: Subscription Establishment
 
@@ -941,7 +941,7 @@ subscription OnPostCreated {
     }
   }
 }
-```
+```text
 
 **Server validation (same as query validation):**
 
@@ -960,7 +960,7 @@ subscription OnPostCreated {
     }
   ]
 }
-```
+```text
 
 ### 3.3 Phase 2: Event Listener Registration
 
@@ -987,7 +987,7 @@ let listener = SubscriptionListener {
 };
 
 event_manager.register(listener).await?;
-```
+```text
 
 **Connection setup:**
 
@@ -1011,7 +1011,7 @@ send_to_client({
         "listening": true
     }
 });
-```
+```text
 
 ### 3.4 Phase 3: Event Capture & Filtering
 
@@ -1024,7 +1024,7 @@ NOTIFY post_created, '{
   "author_id": "user-123",
   "title": "New Post"
 }'
-```
+```text
 
 **Event filtering (early):**
 
@@ -1043,7 +1043,7 @@ if let Some(filter) = listener.filter {
 }
 
 // Event passed filter, continue to authorization
-```
+```text
 
 **Per-entity event ordering guarantee:**
 
@@ -1061,7 +1061,7 @@ if let Some(filter) = listener.filter {
 // - Post #123 subscriber: Event 1 → Event 3 (ordered)
 // - Post #456 subscriber: Event 2 (isolated)
 // - All posts subscriber: Event 1 → Event 2 → Event 3 (global order maintained)
-```
+```text
 
 ### 3.5 Phase 4: Authorization & Masking
 
@@ -1081,7 +1081,7 @@ for field in response_fields {
         field.masked = true;
     }
 }
-```
+```text
 
 **Example authorization:**
 
@@ -1097,7 +1097,7 @@ subscription OnPostCreated {
     }
   }
 }
-```
+```text
 
 **Authorization result:**
 
@@ -1119,7 +1119,7 @@ subscription OnPostCreated {
     }
   }
 }
-```
+```text
 
 ### 3.6 Phase 5: Entity Resolution & Response
 
@@ -1141,7 +1141,7 @@ async fn resolve_event_entity(
 
     Ok(entity)
 }
-```
+```text
 
 **Why full resolution?**
 
@@ -1162,7 +1162,7 @@ let response = SubscriptionMessage {
 };
 
 send_to_client(response).await?;
-```
+```text
 
 **Example subscription response:**
 
@@ -1190,7 +1190,7 @@ send_to_client(response).await?;
     }
   }
 }
-```
+```text
 
 ### 3.7 Connection Lifecycle
 
@@ -1207,7 +1207,7 @@ tokio::spawn(async move {
         }
     }
 });
-```
+```text
 
 **Client heartbeat:**
 
@@ -1217,7 +1217,7 @@ tokio::spawn(async move {
 
 # Server responds
 {"type": "pong"}
-```
+```text
 
 **Connection cleanup:**
 
@@ -1235,7 +1235,7 @@ send_to_client({
 if ws_connection.subscriptions.is_empty() {
     ws_connection.close().await?;
 }
-```
+```text
 
 ### 3.8 Subscription Error Handling
 
@@ -1269,7 +1269,7 @@ if buffer.len() > max_size {
     // Close subscription
     event_manager.terminate(&listener).await?;
 }
-```
+```text
 
 **Network error during event delivery:**
 
@@ -1294,7 +1294,7 @@ match send_to_client(event).await {
         event_manager.terminate(&listener).await?;
     }
 }
-```
+```text
 
 ### 3.9 Multi-subscription Handling
 
@@ -1308,7 +1308,7 @@ subscription OnPostCreated {
 subscription OnCommentCreated {
   commentCreated { id content }
 }
-```
+```text
 
 **Implementation:**
 
@@ -1326,7 +1326,7 @@ for (sub_id, listener) in connection.subscriptions {
         // Send to this subscription
     }
 }
-```
+```text
 
 **Resource limits per connection:**
 
@@ -1400,15 +1400,15 @@ async fn stream_large_query(
     // Send 64KB chunks every 100ms
     // Allow client to start processing before query completes
 }
-```
+```text
 
 **Streaming response format:**
 
-```
+```text
 Frame 1: {"data": {"users": [user1, user2, ...]}}
 Frame 2: [user3, user4, ...]
 Frame 3: [user5, user6, ...]
-```
+```text
 
 ### 5.2 Pagination Strategies
 
@@ -1421,7 +1421,7 @@ query GetPosts($offset: Int!, $limit: Int!) {
     title
   }
 }
-```
+```text
 
 **Keyset pagination (recommended for scale):**
 
@@ -1433,7 +1433,7 @@ query GetPosts($after: String, $first: Int!) {
     cursor  # For next page
   }
 }
-```
+```text
 
 **Keyset cursor implementation:**
 
@@ -1447,13 +1447,13 @@ let cursor = base64_encode(format!("{}:{}", created_at, post_id));
 // Decode for next query
 let (sort_key, result_id) = base64_decode(cursor)?;
 // Query: SELECT * FROM posts WHERE created_at < $sort_key ORDER BY created_at DESC LIMIT 20
-```
+```text
 
 ---
 
 ## 6. Summary: Execution Flow Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ Client Request (Query/Mutation/Subscription)                │
 └────────────────┬────────────────────────────────────────────┘
@@ -1507,7 +1507,7 @@ let (sort_key, result_id) = base64_decode(cursor)?;
         ┌────────▼────────────────┐
         │ Client Processes Result │
         └─────────────────────────┘
-```
+```text
 
 ---
 
