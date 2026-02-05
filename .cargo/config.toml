@@ -1,0 +1,52 @@
+# Cargo configuration for FraiseQL v2
+# https://doc.rust-lang.org/cargo/reference/config.html
+
+# Alias commands
+[alias]
+audit-fix = "audit fix"
+b = "build"
+bench-quick = "bench --no-fail-fast -- --quick"
+bloat = "bloat --release --crates"
+br = "build --release"
+c = "check"
+check-all = "check --all-targets --all-features"
+clippy-all = "clippy --all-targets --all-features -- -D warnings"
+cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
+doc-open = "doc --all-features --no-deps --open"
+expand = "expand"
+f = "fmt"
+nextest = "nextest run --all-features"
+outdated-all = "outdated --root-deps-only"
+r = "run"
+t = "test"
+tr = "test --release"
+tree = "tree --depth 3"
+watch-check = "watch -x 'check --all-features'"
+watch-test = "watch -x 'test --all-features'"
+
+[build]
+# Use all CPU cores for compilation
+jobs = -1
+
+[profile.dev.build-override]
+# Optimize build scripts
+opt-level = 2
+
+# Profile optimizations
+[profile.dev.package."*"]
+# Optimize dependencies in dev builds for faster testing
+opt-level = 2
+
+[registries.crates-io]
+protocol = "sparse"
+
+# Use mold linker on Linux (faster linking - 3-5x speedup)
+# CI installs mold via apt-get, local dev should install: sudo pacman -S mold (Arch) or apt install mold
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[term]
+# Colored output
+color = "always"
+verbose = false

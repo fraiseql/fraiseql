@@ -1,715 +1,476 @@
-# FraiseQL Development Guide
+# FraiseQL v2 Development Guide
 
-**Last Updated**: December 16, 2025
-**Framework**: Modern 2025 Python GraphQL with Rust pipeline
+## Vision
+
+**FraiseQL v2 is a compiled GraphQL execution engine** that transforms schema definitions into optimized SQL at build time, eliminating runtime overhead for deterministic, high-performance query execution.
+
+## Core Architecture Principle
+
+```
+Authoring               Compilation              Runtime
+(Python/TS)            (Rust)                   (Rust)
+    ↓                      ↓                        ↓
+schema.json    +    fraiseql.toml      →    schema.compiled.json    →    GraphQL Server
+(types)                 (config)           (types + config + SQL)        (initialized from config)
+```
+
+**Key Point**: Python/TypeScript are **authoring languages only**. No runtime FFI, no language bindings needed.
+
+**Configuration Management**: Security and operational configuration flows from TOML through the compiler to the runtime, with environment variable overrides for production.
 
 ---
 
-## 🎯 Quick Overview
+## Project Standards
 
-FraiseQL is a high-performance GraphQL framework with:
-- **Exclusive Rust pipeline** for JSON transformation (7-10x faster)
-- **Type-safe Python API layer** with comprehensive validation
-- **PostgreSQL integration** with native JSONB views
-- **Enterprise features**: Security, monitoring, caching, authentication
+### Technology Stack
 
----
+| Component | Technology | Why |
+|-----------|-----------|-----|
+| **Core engine** | Rust | Zero-cost abstractions, memory safety |
+| **Schema authoring** | Python/TypeScript | Developer ergonomics |
+| **Database drivers** | PostgreSQL (primary), MySQL, SQLite, SQL Server | Native Rust drivers only |
+| **Testing** | cargo-nextest | 2-3x faster than cargo test |
+| **Linting** | Clippy (pedantic + deny) | Strict code quality |
 
-## 📦 Release & Version Management
+**NOT SUPPORTED**: Oracle (no Rust drivers)
 
-### One-Command Releases
+### Code Quality
 
-FraiseQL uses an **automated 5-phase release workflow** adapted from PrintOptim:
-
-```bash
-# Create feature branch
-git checkout -b chore/prepare-vX.Y.Z-release
-
-# One command does everything (automated!)
-make pr-ship
-
-# Releases automatically when CI passes
+```toml
+# All warnings are errors
+clippy::all = "deny"
+clippy::pedantic = "deny"
+clippy::cargo = "deny"
+unsafe_code = "forbid"
 ```
-
-### How It Works
-
-**5 Phases** (fully automated):
-1. **Phase 0** - Sync with `origin/dev`
-2. **Phase 1** - Run full test suite (5991+ tests must pass)
-3. **Phase 2** - Bump version (8 files atomically)
-4. **Phase 3** - Create commit and git tag
-5. **Phase 4** - Push to GitHub
-6. **Phase 5** - Create PR with auto-merge enabled
-
-### Version Files Managed
-
-All updates atomic in single commit:
-- `src/fraiseql/__init__.py` - Python package version
-- `pyproject.toml` - Package metadata
-- `Cargo.toml` - Rust workspace
-- `fraiseql_rs/Cargo.toml` - Rust extension
-- `README.md` - Version references
-- `docs/strategic/version-status.md` - Documentation
-- `CHANGELOG.md` - Release notes
-
-### Make Commands
-
-**Version Management:**
-```bash
-make version-show              # Display current version
-make version-patch             # Bump patch (1.8.3 → 1.8.4)
-make version-minor             # Bump minor (1.8.3 → 1.9.0)
-make version-major             # Bump major (1.8.3 → 2.0.0)
-make version-dry-run           # Preview all version bumps
-```
-
-**PR Shipping:**
-```bash
-make pr-ship                   # Default patch release
-make pr-ship-patch             # Explicit patch
-make pr-ship-minor             # Minor version
-make pr-ship-major             # Major version (use with caution!)
-make pr-status                 # Check current PR status
-```
-
-**Release Workflows (test + ship):**
-```bash
-make release-patch             # Full patch release workflow
-make release-minor             # Full minor release workflow
-make release-major             # Full major release workflow
-```
-
-### Documentation
-
-Complete guide: **`docs/RELEASE_WORKFLOW.md`** (350+ lines)
-
-Covers:
-- Quick start
-- Workflow overview
-- Manual commands
-- Safety features
-- Troubleshooting
-- FAQ
-- Performance expectations
-- CI/CD integration
-
----
-
-## 🏗️ Architecture
-
-### Unified Rust Pipeline
-
-All queries execute through the **exclusive Rust pipeline** (`fraiseql_rs/`) for optimal performance:
-
-```
-PostgreSQL
-    ↓
-Rust Pipeline (fraiseql_rs)
-    ↓
-Python Framework (validation, type-safety)
-    ↓
-HTTP Response
-```
-
-**Key Components:**
-- **Rust Pipeline**: Exclusive JSON transformation (7-10x faster than Python)
-- **Python Framework**: Type-safe GraphQL API, validation, caching
-- **PostgreSQL**: Native JSONB views, advanced functions
-- **Enterprise**: Security, monitoring, observability
-
-### Directory Structure
-
-```
-fraiseql/
-├── src/fraiseql/              # Python framework
-│   ├── __init__.py            # Version string
-│   ├── db.py                  # Database connectivity
-│   ├── where_normalization.py # WHERE clause processing
-│   └── gql/                   # GraphQL builders
-├── fraiseql_rs/               # Rust pipeline extension
-│   ├── src/                   # Rust source
-│   └── Cargo.toml             # Rust version
-├── scripts/                   # Development utilities
-│   ├── version_manager.py     # Atomic version bumping
-│   └── pr_ship.py             # Automated release workflow
-├── docs/                      # Documentation
-│   └── RELEASE_WORKFLOW.md    # Complete release guide
-├── tests/                     # Comprehensive test suite (5991+ tests)
-└── Makefile                   # Development commands
-```
-
----
-
-## 🧪 Testing
-
-### Test Suite
-
-**Total**: 5991+ tests
-- **Unit Tests**: Core functionality
-- **Integration Tests**: End-to-end workflows
-- **Regression Tests**: Specific issue fixes
-- **WHERE Clause Tests**: 20+ tests (Issue #124 fix verification)
-
-### Running Tests
-
-```bash
-# Full test suite
-make test
-
-# Fast subset
-make test-fast
-
-# Specific test file
-make test-one TEST=tests/test_where_clause.py
-
-# With verbose output
-make test-verbose
-
-# Show test collection
-make test-collect
-```
-
-### Test Quality
-
-- ✅ 5991+ tests pass (100% success rate)
-- ✅ Zero regressions
-- ✅ Fast execution (~5 minutes)
-- ✅ Comprehensive coverage
-- ✅ Issue #124 specific regression tests
-
----
-
-## 🐛 Bug Fixes & Issue Resolution
-
-### Issue #124: WHERE Clause Filtering on Hybrid Tables
-
-**Status**: ✅ Fixed in v1.8.3
-
-**Problem**: WHERE clause filters silently ignored on hybrid tables (tables with both SQL columns and JSONB data)
-
-**Root Causes**:
-1. Type re-registration cleared `table_columns` metadata
-2. FK detection used truthiness check (failed on empty sets)
-
-**Solution** (3 files, 44 LOC):
-- `src/fraiseql/db.py` - Added metadata fallback
-- `src/fraiseql/gql/builders/registry.py` - Preserve metadata during re-registration
-- `src/fraiseql/where_normalization.py` - Fixed empty set checks
-
-**Testing**:
-- ✅ 4/4 regression tests pass
-- ✅ 20+ WHERE clause tests pass
-- ✅ 5991+ full test suite passes
-- ✅ Zero regressions
-
----
-
-## 🚀 Pre-commit with prek (Rust)
-
-FraiseQL uses **prek** - a Rust-based replacement for pre-commit that's **7-10x faster** with zero Python dependencies.
-
-### Installation
-
-```bash
-# macOS (via Homebrew)
-brew install j178/tap/prek
-
-# Linux/macOS (via Rust)
-cargo install prek
-
-# Verify installation
-prek --version
-```
-
-### Setup
-
-```bash
-# Install git hooks
-prek install
-
-# Run hooks on all files
-prek run --all
-
-# Run hooks on staged files (default)
-prek run
-```
-
-### Why prek?
-
-✅ **7-10x faster** than pre-commit (Rust vs Python)
-✅ **Single binary** - no Python dependencies
-✅ **Drop-in compatible** - same `.pre-commit-config.yaml` format
-✅ **Built-in hooks** in Rust (faster than Python equivalents)
-✅ **Monorepo support** - multiple `.pre-commit-config.yaml` files
-
-### Available Hooks
-
-FraiseQL's prek configuration includes:
-- **File checks**: trailing whitespace, file endings, YAML/JSON/TOML validation
-- **Large files**: prevents committing large binaries
-- **Merge conflicts**: detects unresolved merge conflicts
-- **Debug statements**: finds leftover print() and debugging code
-- **Linting**: ruff check with auto-fix
-- **Formatting**: ruff format for consistent code style
-- **Kubernetes validation**: yamllint for K8s manifests
-- **Custom hooks**: pre-push pytest validation
-
-### Commands
-
-```bash
-# Run all prek hooks
-prek run --all
-
-# Run specific hook
-prek run ruff
-
-# Update hook versions
-prek update
-
-# Get hook list
-prek list
-```
-
-### Integration with Development
-
-```bash
-# Format + lint code
-make format && make lint
-
-# Or use prek directly
-prek run --all
-
-# The Makefile automatically uses prek for all quality checks
-```
-
----
-
-## 📝 Code Standards
-
-### Python
-
-**Version**: Python 3.13+ (required for Rust pipeline and advanced features)
 
 ### Type Annotations
 
-FraiseQL has **different type annotation requirements** for user code vs framework code:
-
-#### User Code (Your GraphQL Types)
-
-**✅ Use Python 3.13 modern syntax:**
+Use modern Python 3.10+ style:
 
 ```python
-@fraiseql.type
-class User:
-    """A user in the system.
-
-    Fields:
-        id: Unique identifier
-        name: User's full name
-        email: Optional email address
-        roles: List of assigned roles
-    """
-    id: ID
-    name: str
-    email: str | None = None  # ✅ Modern syntax
-    roles: list[str] = []      # ✅ Modern syntax
-    metadata: dict[str, Any] = {}  # ✅ Modern syntax
+def get_user(user_id: int) -> User | None:  # ✅ Good
+def get_user(user_id: int) -> Optional[User]:  # ❌ Old style
 ```
 
-**Advantages:**
-- ✅ Clean, readable code
-- ✅ Standard Python 3.13 syntax
-- ✅ Less verbose than old-style typing
+---
 
-#### FraiseQL Framework Code (Internal Implementation)
+## Development Workflow
 
-**⚠️ Uses `typing` module for runtime introspection:**
+### Implementation Status
 
-```python
-from typing import Optional, List, Dict, Union
+FraiseQL v2 is production-ready with a layered optionality architecture:
 
-# FraiseQL internal code uses old-style for introspection
-def convert_type(field_type: Optional[type]) -> Union[str, None]:
-    """Framework needs to introspect these at runtime."""
-    ...
-```
+- **Core**: GraphQL compilation and execution (`fraiseql-core`)
+- **Server**: Generic HTTP server (`Server<DatabaseAdapter>`)
+- **Extensions**: Optional features via Cargo flags (`fraiseql-observers`, `fraiseql-arrow`, etc.)
 
-**Why the difference?**
-- FraiseQL's core inspects type hints at runtime using `get_origin()` and `get_args()`
-- `Optional[T]` and `Union[T, None]` have predictable runtime representations
-- `T | None` (new-style) uses `types.UnionType` which requires different handling
-- Framework code needs consistent, introspectable types
+See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for detailed architecture documentation.
 
-**Important:** When contributing to FraiseQL itself, use old-style typing in framework code, but user-facing examples should use modern syntax.
-
-#### Quick Reference
-
-| Context | Style | Example |
-|---------|-------|---------|
-| **User types** (`@fraiseql.type`) | Modern (3.13+) | `email: str \| None` |
-| **User types** (`@fraiseql.type`) | Modern (3.13+) | `roles: list[str]` |
-| **FraiseQL internals** | `typing` module | `Optional[str]` |
-| **FraiseQL internals** | `typing` module | `List[str]` |
-| **Documentation examples** | Modern (3.13+) | `str \| None` |
-
-### Tools
-
-- **Package Manager**: `uv` (fast, modern)
-- **Linter**: `ruff` with strict mode
-- **Formatter**: `ruff format`
-- **Type Checking**: Built-in `ruff` checker
-
-### Quality Checks
+### Workflow Pattern
 
 ```bash
-# Format code
-make format
+# 1. Create feature branch
+git checkout -b feature/description
 
-# Lint checks
-make lint
+# 2. Implement changes
+# Follow .claude/IMPLEMENTATION_ROADMAP.md
 
-# Run all checks
-make check
+# 3. Verify build
+cargo check
+cargo clippy --all-targets --all-features
+cargo test
 
-# Full QA pipeline
-make qa
+# 4. Commit with descriptive message
+git commit -m "feat(scope): Clear description of work
+
+## Changes
+
+- Change 1
+- Change 2
+
+## Verification
+✅ cargo check passes
+✅ cargo clippy passes
+✅ tests pass
+"
+
+# 5. Push and create PR
+git push -u origin feature/description
 ```
 
-### Git Conventions
-
-**Commit Messages**:
-- `fix: WHERE clause filtering (Issue #124)` - Bug fix
-- `chore(release): bump version to v1.8.3` - Release
-- `feat: add new feature` - New feature
-- `refactor: improve performance` - Code improvement
-
-**Branch Naming**:
-- Feature: `feature/description`
-- Bugfix: `fix/issue-number`
-- Release: `chore/prepare-vX.Y.Z-release`
-
----
-
-## 🚀 Development Workflow
-
-### For Feature Development
-
-1. **Create feature branch**:
-   ```bash
-   git checkout -b feature/your-feature
-   ```
-
-2. **Make changes** with tests
-
-3. **Run quality checks**:
-   ```bash
-   make qa    # Tests + linting + formatting
-   ```
-
-4. **Commit with descriptive message**:
-   ```bash
-   git add .
-   git commit -m "feat: description of feature"
-   ```
-
-5. **Push and create PR**:
-   ```bash
-   git push -u origin feature/your-feature
-   gh pr create --base dev
-   ```
-
-### For Bug Fixes
-
-Same as features, but:
-- Branch name: `fix/issue-number`
-- Commit message: `fix: description (Issue #XXX)`
-- Include regression tests
-
-### For Releases
-
-**One command release** (fully automated):
-```bash
-git checkout -b chore/prepare-vX.Y.Z-release
-make pr-ship    # Everything automated!
-```
-
----
-
-## 🔒 Safety Features
-
-### Protected Branches
-
-✅ **Cannot ship from**: `dev`, `main`, `staging`, `production`
-
-Forces use of feature branches.
-
-### Quality Gates
-
-✅ **Full test suite (5991+)** runs before version bump
-
-Release stops if tests fail.
-
-### Atomic Operations
-
-✅ All version files updated together
-✅ Single commit contains all changes
-✅ Easy rollback: `git revert <commit>`
-
-### Git Tags
-
-✅ Automatic tag creation
-✅ Tags pushed for traceability
-✅ Enables PyPI releases
-
-### Auto-Merge
-
-✅ Requires CI checks to pass
-✅ Prevents premature merge
-✅ Squash merge (single clean commit)
-
----
-
-## 📚 Project-Specific Documentation
-
-### Release Workflow
-See: **`docs/RELEASE_WORKFLOW.md`** (350+ lines)
-
-Comprehensive guide covering:
-- Quick start
-- Complete 5-phase workflow
-- Manual commands
-- Safety features
-- Troubleshooting
-- FAQ
-
-### Version Status
-See: **`docs/strategic/version-status.md`**
-
-Current stable version and roadmap.
-
-### Getting Started
-See: **`docs/getting-started/`**
-
-Installation, quickstart, and tutorials.
-
----
-
-## 🔧 Common Tasks
-
-### Update Code
+### Fast Development Cycle
 
 ```bash
-# Edit files, run tests
-make test
+# Watch for changes and auto-check
+cargo watch -x check
 
-# Format code
-make format
+# Run specific tests
+cargo nextest run test_name
 
-# Lint checks
-make lint
-
-# Commit
-git add .
-git commit -m "fix: description"
+# Check with strict linting
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-### Check Versions
+---
+
+## Architecture Guidelines
+
+See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for comprehensive architectural documentation.
+
+### 1. Authoring vs Runtime Separation
+
+**Authoring Layer:**
+
+- Python/TypeScript decorators
+- Generate `schema.json`
+- NO runtime Rust calls
+- Pure JSON output
+
+**Compilation Layer:**
+
+- `fraiseql-cli compile schema.json`
+- Validate schema structure
+- Generate optimized SQL templates
+- Output `schema.compiled.json`
+
+**Runtime Layer:**
+
+- Load `schema.compiled.json`
+- Execute GraphQL queries via `Server<DatabaseAdapter>`
+- Pure Rust, zero Python dependencies
+
+**Key Point**: The server is generic over `DatabaseAdapter` trait, enabling type-safe database swapping and easy testing with mocks.
+
+### 2. Schema Compilation and Configuration Flow
+
+```
+┌─────────────────────────┐
+│ Developer Setup         │
+├─────────────────────────┤
+│ 1. Python Code          │
+│    @fraiseql.type       │
+│    class User:          │
+│      id: int            │
+│                         │
+│ 2. fraiseql.toml        │
+│    [fraiseql.security]  │
+│    rate_limiting = {...}│
+└────────┬────────────────┘
+         │
+         ↓ (generates)
+┌──────────────────────────┐
+│ schema.json +            │
+│ fraiseql.toml config     │
+└────────┬─────────────────┘
+         │
+         ↓ (fraiseql-cli compile)
+┌────────────────────────────────┐
+│ schema.compiled.json           │
+│ {                              │
+│   "types": [...],              │
+│   "queries": [...],            │
+│   "security": {                │
+│     "rateLimiting": {...},     │
+│     "auditLogging": {...},     │
+│     "errorSanitization": {...},│
+│     "stateEncryption": {...}   │
+│   }                            │
+│ }                              │
+└────────┬─────────────────────┘
+         │
+         ↓ (loaded by)
+┌──────────────────────────────┐
+│ fraiseql-server              │
+├──────────────────────────────┤
+│ 1. Load schema.compiled.json │
+│ 2. Extract "security"        │
+│ 3. Apply env var overrides   │
+│ 4. Validate configuration    │
+│ 5. Initialize subsystems     │
+│ 6. Execute queries           │
+└──────────────────────────────┘
+```
+
+**Configuration is embedded in the compiled schema**, flowing from developer configuration through the compiler to runtime initialization. Environment variables can override compiled settings in production.
+
+### 3. Database Abstraction
+
+FraiseQL supports multiple databases via **runtime SQL generation**, not ORMs:
+
+- PostgreSQL (primary, most features)
+- MySQL (secondary)
+- SQLite (local dev, testing)
+- SQL Server (enterprise)
+
+**Pattern**: Write database-agnostic traits, implement per-database SQL generation.
+
+### 4. Error Handling
+
+Use `FraiseQLError` enum for all errors:
+
+```rust
+pub enum FraiseQLError {
+    Parse { message: String, location: Option<String> },
+    Validation { message: String, path: Option<String> },
+    Database { message: String, code: Option<String> },
+    // ... see error.rs for full hierarchy
+}
+
+pub type Result<T> = std::result::Result<T, FraiseQLError>;
+```
+
+### 5. Security Configuration
+
+**Configuration Management**: Security and operational settings are declared in `fraiseql.toml` and compiled into `schema.compiled.json`:
+
+```toml
+# fraiseql.toml
+[fraiseql.security.rate_limiting]
+enabled = true
+auth_start_max_requests = 100
+auth_start_window_secs = 60
+
+[fraiseql.security.audit_logging]
+enabled = true
+log_level = "info"
+```
+
+**Runtime Loading**:
+
+- Configuration is embedded in compiled schema as JSON
+- Server loads configuration at startup
+- Environment variables override compiled settings for production
+
+**Pattern**: Configuration flows from developer (TOML) → compiler (validation) → runtime (application)
+
+### 6. Testing Strategy
+
+**Unit tests**: Per-module in `mod.rs` or `tests.rs`
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feature() {
+        // ...
+    }
+}
+```
+
+**Integration tests**: `tests/` directory with database setup
+
+```rust
+// tests/integration/schema_test.rs
+#[tokio::test]
+async fn test_query_execution() {
+    let pool = setup_test_db().await;
+    // ...
+}
+```
+
+**Benchmarks**: Criterion benchmarks for performance analysis
+
+### 7. Security Features
+
+**Enterprise Security Features:**
+
+1. **Audit Logging** - Track all secret access for compliance
+2. **Error Sanitization** - Hide implementation details in error messages
+3. **Constant-Time Comparison** - Prevent timing attacks on token validation
+4. **PKCE State Encryption** - Protect OAuth state parameters from inspection
+5. **Rate Limiting** - Brute-force protection on auth endpoints
+6. **Field-Level Encryption** - Encrypt sensitive database columns at rest
+7. **Credential Rotation** - Automatic credential refresh with monitoring
+8. **Secrets Management** - HashiCorp Vault integration with multiple backends
+
+All configurable via `fraiseql.toml` and environment variables.
+
+---
+
+## Key Files & Directories
+
+```
+fraiseql/
+├── .claude/
+│   ├── CLAUDE.md                    # This file
+│   └── IMPLEMENTATION_ROADMAP.md    # Feature implementation status
+├── crates/
+│   ├── fraiseql-core/              # Core execution engine
+│   ├── fraiseql-server/            # HTTP server
+│   ├── fraiseql-cli/               # Compiler CLI
+│   └── fraiseql-wire/              # Wire protocol
+├── docs/                            # Architecture docs
+├── tools/                           # Dev tooling
+└── Cargo.toml                       # Workspace config
+```
+
+---
+
+## Common Tasks
+
+### Add a New Database Operation
+
+1. Define trait in `db/mod.rs`
+2. Implement for each database in `db/postgres.rs`, `db/mysql.rs`, etc.
+3. Add tests in `db/tests.rs`
+4. Update documentation
+
+### Add a New GraphQL Feature
+
+1. Update schema types in `schema/compiled.rs`
+2. Update compiler logic to generate SQL for the new feature
+3. Update runtime execution to handle the new feature
+4. Add end-to-end test
+5. Update documentation
+
+### Fix a Bug
+
+1. Write failing test first (TDD)
+2. Fix the bug
+3. Verify test passes
+4. Check no regressions: `cargo test`
+5. Commit with `fix(scope):` prefix
+
+---
+
+## Performance Guidelines
+
+### Compilation Speed
+
+- Use `mold` linker on Linux: `sudo pacman -S mold`
+- Enable in `.cargo/config.toml` (currently commented out)
+- Expected speedup: 3-5x faster linking
+
+### Runtime Performance
+
+- Zero-cost abstractions (prefer `impl Trait` over `Box<dyn Trait>`)
+- Compile-time schema optimization
+- Connection pooling for database connections
+- Query result caching with automatic invalidation
+- Automatic Persisted Queries (APQ) for repeated queries
+
+### Testing Performance
+
+- Use `cargo nextest` (2-3x faster)
+- Parallel test execution: `cargo nextest run --test-threads 8`
+
+---
+
+## Documentation Standards
+
+### Code Documentation
+
+```rust
+/// Brief one-line summary.
+///
+/// Longer description with examples:
+///
+/// ```
+/// let schema = CompiledSchema::from_file("schema.json")?;
+/// ```
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Parse` if JSON is invalid.
+pub fn from_file(path: &str) -> Result<Self> {
+    // ...
+}
+```
+
+### Commit Messages
+
+```
+<type>(<scope>): <description>
+
+## Changes
+
+- Specific change 1
+- Specific change 2
+
+## Verification
+✅ Tests pass
+✅ Clippy clean
+```
+
+**Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+---
+
+## Troubleshooting
+
+### Compilation Errors
 
 ```bash
-# Show current version
-make version-show
+# Clean build
+cargo clean && cargo check
 
-# Preview version bump
-make version-dry-run
+# Check specific crate
+cargo check -p fraiseql-core
+
+# Verbose output
+cargo check --verbose
 ```
 
-### Create Release
+### Clippy Warnings
 
 ```bash
-# Create feature branch
-git checkout -b chore/prepare-vX.Y.Z-release
+# Auto-fix where possible
+cargo clippy --fix --allow-dirty
 
-# One command (fully automated!)
-make pr-ship
-
-# Or specify version type:
-make pr-ship-minor    # 1.8.3 → 1.9.0
-make pr-ship-major    # 1.8.3 → 2.0.0
+# Show all warnings
+cargo clippy --all-targets --all-features
 ```
 
-### Check PR Status
+### Test Failures
 
 ```bash
-# Current branch's PR
-make pr-status
+# Run single test with output
+cargo test test_name -- --nocapture
 
-# Detailed PR info
-gh pr view
+# Run tests in specific file
+cargo nextest run --test integration_test
+
+# Run with logging
+RUST_LOG=debug cargo test
 ```
 
 ---
 
-## 📊 Performance
+## Next Steps
 
-### Test Suite
-- **Total Tests**: 5991+
-- **Execution Time**: ~5 minutes
-- **Success Rate**: 100%
-- **Regressions**: 0
+See `.claude/IMPLEMENTATION_ROADMAP.md` for detailed feature implementation status and priority order. Current focus areas:
 
-### Release Workflow
-- **Total Time**: ~5 minutes 13 seconds
-  - Phase 0 (Sync): ~5 sec
-  - Phase 1 (Tests): ~5 min
-  - Phases 2-5: ~8 sec
-
-### Development Speed
-- **Build**: < 2 seconds
-- **Format**: < 10 seconds
-- **Lint**: < 10 seconds
-- **Type Check**: < 5 seconds
+- Performance optimization and benchmarking
+- Additional database backend support
+- Enhanced schema validation
+- Improved error handling and observability
 
 ---
 
-## 🎯 Key Files
-
-| File | Purpose | Last Updated |
-|------|---------|--------------|
-| `scripts/version_manager.py` | Atomic version bumping | 2025-12-16 |
-| `scripts/pr_ship.py` | 5-phase release workflow | 2025-12-16 |
-| `Makefile` | Development commands | 2025-12-16 |
-| `docs/RELEASE_WORKFLOW.md` | Complete release guide | 2025-12-16 |
-| `src/fraiseql/__init__.py` | Package version | 2025-12-16 |
-| `pyproject.toml` | Python metadata | 2025-12-16 |
-| `Cargo.toml` | Rust workspace | 2025-12-16 |
-
----
-
-## 🚨 Troubleshooting
-
-### Tests Failing
+## Quick Reference
 
 ```bash
-# Run tests with verbose output
-make test-verbose
+# Development
+cargo watch -x check              # Auto-check on save
+cargo nextest run                 # Run tests (fast)
+cargo clippy --all-targets        # Lint code
 
-# Run specific test file
-make test-one TEST=tests/test_file.py
+# Build
+cargo build                       # Debug build
+cargo build --release             # Release build
 
-# Run test suite and see failures
-make test-fast
-```
+# Documentation
+cargo doc --open                  # Build and open docs
 
-### Cannot Ship from Branch
-
-```
-❌ Cannot ship from protected branch: dev
-💡 Create a feature branch first:
-   git checkout -b chore/prepare-vX.Y.Z-release
-```
-
-### Merge Conflicts During Release
-
-```bash
-# Resolve conflicts manually
-git merge origin/dev
-
-# Then retry shipping
-make pr-ship
-```
-
-### Version Bump Preview
-
-```bash
-# See what would change (no changes made)
-make version-dry-run
+# Aliases (from .cargo/config.toml)
+cargo c                           # cargo check
+cargo t                           # cargo test
+cargo br                          # cargo build --release
 ```
 
 ---
 
-## 📞 Getting Help
-
-### Documentation
-- **Release Guide**: `docs/RELEASE_WORKFLOW.md`
-- **Version Status**: `docs/strategic/version-status.md`
-- **Installation**: `docs/getting-started/installation.md`
-
-### Commands
-```bash
-# Show all available commands
-make help
-
-# Show command groups
-make help | grep -A 5 "VERSION MANAGEMENT"
-```
-
-### GitHub Issues
-Create issues for bugs or feature requests on GitHub.
-
----
-
-## 🔄 Workflow Summary
-
-```
-Feature Branch Created
-         ↓
-make test       (Verify changes)
-         ↓
-make format     (Format code)
-         ↓
-make lint       (Check code)
-         ↓
-git add . && git commit -m "feat: ..."
-         ↓
-git push -u origin feature/...
-         ↓
-gh pr create --base dev
-         ↓
-Code Review & CI Checks
-         ↓
-Merge to dev
-```
-
-**For Releases:**
-```
-git checkout -b chore/prepare-vX.Y.Z-release
-         ↓
-make pr-ship    (Fully Automated!)
-         ↓
-Auto-merge when CI passes
-         ↓
-Version released!
-```
-
----
-
-## 📋 Checklist for New Contributors
-
-- [ ] Read `docs/RELEASE_WORKFLOW.md`
-- [ ] Understand the 5-phase release workflow
-- [ ] Know how to run `make test`
-- [ ] Know how to run `make pr-ship`
-- [ ] Understand the 8 version files
-- [ ] Review this CLAUDE.md file
-- [ ] Set up pre-commit hooks: `pre-commit install`
-
----
-
-## 🎉 Summary
-
-FraiseQL uses a **modern, production-ready development workflow** with:
-
-✅ **Automated releases** (one command: `make pr-ship`)
-✅ **Comprehensive testing** (5991+ tests)
-✅ **Atomic version management** (8 files)
-✅ **GitHub native integration** (auto-merge)
-✅ **Safety features** (protected branches, quality gates)
-✅ **Excellent documentation** (350+ lines)
-
-**Ready to contribute!** Just run `make help` to see all commands.
-
----
-
-*Last Updated: December 16, 2025*
-*Framework: FraiseQL v1.8.3*
-*Release System: Modern 2025 GitHub-native auto-merge*
+**Remember**: Python/TypeScript are for authoring. Rust is for runtime. Keep them separated.

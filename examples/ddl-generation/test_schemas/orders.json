@@ -1,0 +1,59 @@
+{
+  "$schema": "https://fraiseql.dev/schema/v2.json",
+  "version": "2.0",
+  "types": [
+    {
+      "name": "Order",
+      "description": "An e-commerce order with line items.",
+      "fields": [
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "order_number", "type": "String", "nullable": false},
+        {"name": "customer_id", "type": "Int", "nullable": false},
+        {"name": "status", "type": "String", "nullable": false},
+        {"name": "total_amount", "type": "Int", "nullable": false},
+        {"name": "items", "type": "LineItem", "nullable": true},
+        {"name": "created_at", "type": "DateTime", "nullable": false},
+        {"name": "updated_at", "type": "DateTime", "nullable": false}
+      ]
+    },
+    {
+      "name": "LineItem",
+      "description": "A line item in an order.",
+      "fields": [
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "order_id", "type": "Int", "nullable": false},
+        {"name": "product_id", "type": "Int", "nullable": false},
+        {"name": "quantity", "type": "Int", "nullable": false},
+        {"name": "unit_price", "type": "Int", "nullable": false},
+        {"name": "order", "type": "Order", "nullable": true},
+        {"name": "created_at", "type": "DateTime", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "description": "Get all orders with line items.",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "status", "type": "String", "nullable": true},
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_orders"
+    },
+    {
+      "name": "order",
+      "description": "Get a specific order by ID.",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {"name": "id", "type": "Int", "nullable": false}
+      ],
+      "sql_source": "v_orders"
+    }
+  ],
+  "mutations": []
+}

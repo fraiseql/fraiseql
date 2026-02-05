@@ -1,17 +1,22 @@
-# ============================================================================
-# CLIPPY CONFIGURATION - Thresholds and Exceptions
-# ============================================================================
+# Clippy configuration for FraiseQL v2
+# https://rust-lang.github.io/rust-clippy/master/index.html#configuration
 
-# Function complexity thresholds
-too-many-arguments-threshold = 8
+# Cognitive complexity threshold
 cognitive-complexity-threshold = 30
+# Documentation
+doc-valid-idents = ["FraiseQL", "GraphQL", "PostgreSQL", "MySQL", "SQLite", "SQLServer", "JSON", "JSONB", "UUID", "CDC", "APQ", "RBAC", "JWT", "OAuth"]
+# Enum variant names
+enum-variant-name-threshold = 3
+max-fn-params-bools = 3
+# Maximum allowed struct fields
+max-struct-bools = 3
+# Single char bindings
+single-char-binding-names-threshold = 4
+# Too many arguments
+too-many-arguments-threshold = 7
+# Too many lines
+too-many-lines-threshold = 300
+# Type complexity
 type-complexity-threshold = 500
-excessive-nesting-threshold = 5
-
-# Exceptions for test code (only in tests/)
-allow-expect-in-tests = true
-allow-unwrap-in-tests = true
-allow-panic-in-tests = true
-
-# Allow some patterns that are intentional
-single-char-binding-names-threshold = 5  # Single-letter vars in closures
+# Verbose bit mask
+verbose-bit-mask-threshold = 1

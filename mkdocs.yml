@@ -1,167 +1,269 @@
 site_name: FraiseQL Documentation
-site_url: https://fraiseql.dev
-site_description: "PostgreSQL-Native GraphQL Framework for Python"
-site_author: Lionel Hamayon
-
-repo_name: fraiseql/fraiseql
+site_url: https://fraiseql.readthedocs.io
 repo_url: https://github.com/fraiseql/fraiseql
-edit_uri: edit/main/docs/
+repo_name: fraiseql/fraiseql
+edit_uri: edit/main/docs
 
 theme:
   name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
   features:
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.indexes
-    - navigation.top
-    - navigation.footer
     - search.suggest
     - search.highlight
-    - search.share
-    - content.tabs.link
-    - content.code.annotation
-    - content.code.copy
-    - content.action.edit
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
     - toc.follow
-  language: en
-  palette:
-    - scheme: default
-      primary: pink
-      accent: pink
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
-      primary: pink
-      accent: pink
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  icon:
-    repo: fontawesome/brands/github
+    - content.code.copy
+    - header.autohide
 
 plugins:
-  - search:
-      separator: '[\s\-\.]+'
-  - tags                                    # Simplified - no tags_file needed
-  - redirects:
-      redirect_maps:
-        'examples/dict-based-nested-filtering.md': 'guides/filtering.md'
-        'guides/nested-array-filtering.md': 'guides/filtering.md'
+  - search
 
 markdown_extensions:
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - abbr
   - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
   - pymdownx.arithmatex:
       generic: true
-  - footnotes
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
   - pymdownx.details
+  - pymdownx.emoji
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.mark
-  - attr_list
-  - md_in_html
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+        - name: d2
+          class: d2
   - pymdownx.tabbed:
       alternate_style: true
-  - toc:
-      permalink: true
-      toc_depth: 3
-  - tables
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
 
 nav:
   - Home: README.md
-  - Getting Started:
-    - getting-started/README.md
-    - 5-Minute Quickstart: getting-started/quickstart.md
-    - First Hour Guide: getting-started/first-hour.md
-    - Installation: getting-started/installation.md
-  - Tutorials:
-    - tutorials/beginner-path.md
-    - Blog API Tutorial: tutorials/blog-api.md
-    - Production Deployment: tutorials/production-deployment.md
-  - Examples:
-    - RAG with pgvector: ai-ml/rag-tutorial.md
-    - Advanced Filtering: examples/advanced-filtering.md
-    - Error Handling Patterns: guides/error-handling-patterns.md
-  - Features:
-    - Feature Matrix: features/index.md
-    - pgvector (Vector Search): features/pgvector.md
-    - GraphQL Cascade: features/graphql-cascade.md
-    - LangChain Integration: guides/langchain-integration.md
-    - LLM Integration: features/ai-native.md
-  - Core Concepts:
-    - Philosophy: core/fraiseql-philosophy.md
-    - Types & Schema: core/types-and-schema.md
-    - Queries & Mutations: core/queries-and-mutations.md
-    - Database API: core/database-api.md
-    - Configuration: core/configuration.md
-    - Concepts Glossary: core/concepts-glossary.md
-  - Guides:
-    - Filtering & Querying: guides/filtering.md
-    - Nested Filters: filtering/nested-filters.md
-    - Mutations & Data Changes: guides/mutation-sql-requirements.md
-    - Error Handling: guides/error-handling-patterns.md
-    - Cascade Best Practices: guides/cascade-best-practices.md
-    - Troubleshooting: guides/troubleshooting.md
-  - Advanced:
-    - Authentication: advanced/authentication.md
-    - Multi-Tenancy: advanced/multi-tenancy.md
-    - Bounded Contexts: advanced/bounded-contexts.md
-    - Event Sourcing: advanced/event-sourcing.md
-    - Database Patterns: advanced/database-patterns.md
-    - Advanced Patterns: advanced/advanced-patterns.md
-  - Performance:
-    - Overview: performance/index.md
-    - Rust Pipeline: performance/rust-pipeline-optimization.md
-    - APQ Optimization: performance/apq-optimization-guide.md
-    - Caching: performance/caching.md
-  - Production:
-    - Deployment: production/deployment.md
-    - Monitoring: production/monitoring.md
-    - Observability: production/observability.md
-    - Health Checks: production/health-checks.md
-    - Security: production/security.md
-  - Reference:
-    - API Reference:
-      - Database API: reference/database.md
-      - Decorators: reference/decorators.md
-      - CLI: reference/cli.md
-      - Configuration: reference/config.md
-    - Quick Reference: reference/quick-reference.md
-  - Migration:
-    - Migrating to Cascade: guides/migrating-to-cascade.md
+  - Reading Order: reading-order.md
+  - Getting Started: getting-started.md
+  - Foundation:
+    - What is FraiseQL?: foundation/01-what-is-fraiseql.md
+    - Core Concepts: foundation/02-core-concepts.md
+    - Database-Centric Architecture: foundation/03-database-centric-architecture.md
+    - Design Principles: foundation/04-design-principles.md
+    - Comparisons: foundation/05-comparisons.md
+    - Compilation Pipeline: foundation/06-compilation-pipeline.md
+    - Query Execution Model: foundation/07-query-execution-model.md
+    - Data Planes Architecture: foundation/08-data-planes-architecture.md
+    - Type System: foundation/09-type-system.md
+    - Error Handling & Validation: foundation/10-error-handling-validation.md
+    - Compiled Schema Structure: foundation/11-compiled-schema-structure.md
+    - Performance Characteristics: foundation/12-performance-characteristics.md
   - Architecture:
     - Overview: architecture/README.md
-    - Request Flow: architecture/request-flow.md
-    - Trinity Pattern: architecture/trinity-pattern.md
-    - Type System: architecture/type-system.md
-    - CQRS Design: architecture/cqrs-design.md
-    - Architecture Decisions: architecture/decisions/README.md
-
-extra_css:
-  - stylesheets/extra.css
+    - Core:
+      - Compilation Phases: architecture/core/compilation-phases.md
+      - Execution Model: architecture/core/execution-model.md
+      - Compilation Pipeline: architecture/core/compilation-pipeline.md
+      - Compilation vs Runtime: architecture/core/compilation-vs-runtime.md
+      - Execution Semantics: architecture/core/execution-semantics.md
+      - Authoring Languages: architecture/core/authoring-languages.md
+    - Database:
+      - View Selection Guide: architecture/database/view-selection-guide.md
+      - TV-Table Pattern: architecture/database/tv-table-pattern.md
+      - TA-Table Pattern: architecture/database/ta-table-pattern.md
+      - Database Targeting: architecture/database/database-targeting.md
+      - Arrow Plane: architecture/database/arrow-plane.md
+    - Security:
+      - Security Model: architecture/security/security-model.md
+      - Authentication: architecture/security/authentication-detailed.md
+    - Realtime:
+      - Subscriptions: architecture/realtime/subscriptions.md
+      - Subscriptions Architecture: architecture/realtime/subscriptions-corrected-architecture.md
+    - Federation:
+      - Federation: architecture/integration/federation.md
+    - Decisions:
+      - Anti-Patterns: architecture/decisions/anti-patterns.md
+      - Design Decisions: architecture/decisions/design-decisions.md
+      - State Management: architecture/decisions/state-management.md
+    - Integration:
+      - Integration Patterns: architecture/integration/integration-patterns.md
+      - Multiplane Interactions: architecture/integration/multiplane-interactions.md
+      - Extension Points: architecture/integration/extension-points.md
+    - Observability:
+      - Observability Model: architecture/observability/observability-model.md
+    - Performance:
+      - Performance Characteristics: architecture/performance/performance-characteristics.md
+      - Advanced Optimization: architecture/performance/advanced-optimization.md
+    - Reliability:
+      - Consistency Model: architecture/reliability/consistency-model.md
+      - Error Handling Model: architecture/reliability/error-handling-model.md
+      - Failure Modes & Recovery: architecture/reliability/failure-modes-and-recovery.md
+      - Versioning Strategy: architecture/reliability/versioning-strategy.md
+    - Analytics:
+      - Fact-Dimension Pattern: architecture/analytics/fact-dimension-pattern.md
+      - Calendar Dimensions: architecture/analytics/calendar-dimensions.md
+      - Aggregation Model: architecture/analytics/aggregation-model.md
+      - Window Functions: architecture/analytics/window-functions.md
+  - SDK References:
+    - All Languages: integrations/sdk/README.md
+    - Python: integrations/sdk/python-reference.md
+    - TypeScript: integrations/sdk/typescript-reference.md
+    - Go: integrations/sdk/go-reference.md
+    - Java: integrations/sdk/java-reference.md
+    - Kotlin: integrations/sdk/kotlin-reference.md
+    - Scala: integrations/sdk/scala-reference.md
+    - Clojure: integrations/sdk/clojure-reference.md
+    - Groovy: integrations/sdk/groovy-reference.md
+    - Rust: integrations/sdk/rust-reference.md
+    - C#: integrations/sdk/csharp-reference.md
+    - PHP: integrations/sdk/php-reference.md
+    - Ruby: integrations/sdk/ruby-reference.md
+    - Swift: integrations/sdk/swift-reference.md
+    - Dart: integrations/sdk/dart-reference.md
+    - Elixir: integrations/sdk/elixir-reference.md
+    - Node.js: integrations/sdk/nodejs-reference.md
+  - Guides:
+    - Overview: guides/README.md
+    - Getting Started Guides:
+      - Language & SDK Best Practices: guides/language-sdk-best-practices.md
+      - Role-Specific Quick Starts: guides/role-specific-quick-starts.md
+      - Choosing FraiseQL: guides/choosing-fraiseql.md
+    - Development Guides:
+      - Developer Guide: guides/development/developer-guide.md
+      - Schema Design Best Practices: guides/schema-design-best-practices.md
+      - Database Selection Guide: guides/database-selection-guide.md
+      - Language Generators: guides/language-generators.md
+    - Client Guides:
+      - React Apollo: guides/clients/react-apollo-guide.md
+      - Vue Apollo: guides/clients/vue-apollo-guide.md
+      - Flutter GraphQL: guides/clients/flutter-graphql-guide.md
+      - React Native Apollo: guides/clients/react-native-apollo-guide.md
+      - Node.js Runtime: guides/clients/nodejs-runtime-guide.md
+      - CLI Query: guides/clients/cli-query-guide.md
+    - Production Guides:
+      - Production Deployment: guides/production-deployment.md
+      - Production Security Checklist: guides/production-security-checklist.md
+      - Performance Optimization: guides/performance-optimization.md
+    - Advanced Guides:
+      - Federation Quick Start: guides/federation-quick-start.md
+      - Federation vs Monolith: guides/federation-vs-monolith-guide.md
+      - Analytics Patterns: guides/analytics-patterns.md
+      - Authorization Quick Start: guides/authorization-quick-start.md
+      - Observer Implementation: guides/observer-implementation-guide.md
+      - Testing Strategy: guides/testing-strategy.md
+      - Database Migration Guide: guides/database-migration-guide.md
+      - Arrow Flight Quick Start: guides/arrow-flight-quick-start.md
+      - Arrow vs JSON Guide: guides/arrow-vs-json-guide.md
+      - Consistency Model: guides/consistency-model.md
+      - View Selection: guides/view-selection-quick-reference.md
+      - Monitoring: guides/monitoring.md
+      - Observability: guides/observability.md
+      - Common Gotchas: guides/common-gotchas.md
+      - Troubleshooting Decision Tree: guides/troubleshooting-decision-tree.md
+  - Patterns:
+    - Overview: patterns/README.md
+    - SaaS & Multi-Tenancy: patterns/saas-multi-tenant.md
+    - Analytics OLAP Platform: patterns/analytics-olap-platform.md
+    - Real-Time Collaboration: patterns/realtime-collaboration.md
+    - E-Commerce Workflows: patterns/ecommerce-workflows.md
+    - Federation: patterns/federation-patterns.md
+    - IoT & Time-Series: patterns/iot-timeseries.md
+    - Saga Pattern:
+      - Overview: patterns/saga/quick-start.md
+      - Patterns: patterns/saga/patterns.md
+  - Examples:
+    - Overview: examples/README.md
+    - Full-Stack Examples:
+      - TypeScript + Vue: examples/fullstack-typescript-vue.md
+      - Go + Flutter: examples/fullstack-go-flutter.md
+      - Java + Next.js: examples/fullstack-java-nextjs.md
+    - Tutorials:
+      - Python Blog API: tutorials/python-blog-api.md
+      - TypeScript Blog API: tutorials/typescript-blog-api.md
+      - Go Blog API: tutorials/go-blog-api.md
+      - Java Blog API: tutorials/java-blog-api.md
+  - Reference:
+    - Overview: reference/README.md
+    - Naming Patterns: reference/naming-patterns.md
+    - Scalar Types: reference/scalars.md
+    - Where Operators: reference/where-operators.md
+    - Configuration: reference/cli-schema-format.md
+    - Saga API: reference/saga-api.md
+    - GraphQL API: reference/api/graphql-api.md
+    - HTTP Server: reference/api/http-server.md
+    - View Selection API: reference/view-selection-api.md
+  - Integrations:
+    - Overview: integrations/README.md
+    - Authentication:
+      - Overview: integrations/authentication/README.md
+      - Provider Selection: integrations/authentication/provider-selection-guide.md
+      - Setup Auth0: integrations/authentication/setup-auth0.md
+      - Setup Google OAuth: integrations/authentication/setup-google-oauth.md
+      - Setup Keycloak: integrations/authentication/setup-keycloak.md
+      - Security Checklist: integrations/authentication/security-checklist.md
+    - Federation:
+      - Overview: integrations/federation/README.md
+      - Guide: integrations/federation/guide.md
+      - Sagas: integrations/federation/sagas.md
+      - Readiness Checklist: integrations/federation/readiness-checklist.md
+    - Arrow Flight:
+      - Overview: integrations/arrow-flight/README.md
+      - Getting Started: integrations/arrow-flight/getting-started.md
+      - Architecture: integrations/arrow-flight/architecture.md
+      - Migration Guide: integrations/arrow-flight/migration-guide.md
+  - Operations:
+    - Overview: operations/README.md
+    - Observability: operations/observability.md
+    - Distributed Tracing: operations/distributed-tracing.md
+    - Configuration: operations/configuration.md
+    - Performance Tuning: operations/performance-tuning-runbook.md
+  - Enterprise:
+    - Overview: enterprise/README.md
+    - Audit Logging: enterprise/audit-logging.md
+    - Key Management System: enterprise/kms.md
+    - RBAC: enterprise/rbac.md
+  - Specifications:
+    - Overview: specs/README.md
+    - Schema Conventions: specs/schema-conventions.md
+    - Compiled Schema: specs/compiled-schema.md
+    - Aggregation Operators: specs/aggregation-operators.md
+  - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
+  - Glossary: glossary.md
+  - Alpha Testing: alpha-testing-guide.md
+  - Archive:
+    - Development Phases: archive/PHASES_ARCHIVE.md
 
 extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/fraiseql/fraiseql
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/fraiseql/
-  version:
-    provider: mike
 
-copyright: |
-  &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+copyright: Copyright &copy; 2024-2026 FraiseQL Contributors

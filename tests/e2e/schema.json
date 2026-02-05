@@ -1,0 +1,126 @@
+{
+  "$schema": "https://fraiseql.dev/schema/v2.json",
+  "version": "2.0",
+  "types": [
+    {
+      "name": "User",
+      "description": "A user in the system.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "age", "type": "Int", "nullable": true},
+        {"name": "active", "type": "Boolean", "nullable": true},
+        {"name": "role", "type": "String", "nullable": true},
+        {"name": "tags", "type": "String", "nullable": true},
+        {"name": "metadata", "type": "String", "nullable": true},
+        {"name": "created_at", "type": "String", "nullable": true},
+        {"name": "deleted_at", "type": "String", "nullable": true}
+      ]
+    },
+    {
+      "name": "PostAuthor",
+      "description": "Author information embedded in posts.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false}
+      ]
+    },
+    {
+      "name": "Post",
+      "description": "A blog post.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "title", "type": "String", "nullable": false},
+        {"name": "content", "type": "String", "nullable": true},
+        {"name": "author", "type": "PostAuthor", "nullable": true},
+        {"name": "published", "type": "Boolean", "nullable": true},
+        {"name": "views", "type": "Int", "nullable": true},
+        {"name": "tags", "type": "String", "nullable": true},
+        {"name": "created_at", "type": "String", "nullable": true}
+      ]
+    },
+    {
+      "name": "Product",
+      "description": "A product in the catalog.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "price", "type": "Float", "nullable": false},
+        {"name": "stock", "type": "Int", "nullable": true},
+        {"name": "category", "type": "String", "nullable": true},
+        {"name": "attributes", "type": "String", "nullable": true}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "description": "Get all users.",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_user"
+    },
+    {
+      "name": "user",
+      "description": "Get a user by ID.",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {"name": "id", "type": "String", "nullable": false}
+      ],
+      "sql_source": "v_user"
+    },
+    {
+      "name": "posts",
+      "description": "Get all posts.",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_post"
+    },
+    {
+      "name": "post",
+      "description": "Get a post by ID.",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {"name": "id", "type": "String", "nullable": false}
+      ],
+      "sql_source": "v_post"
+    },
+    {
+      "name": "products",
+      "description": "Get all products.",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_product"
+    },
+    {
+      "name": "product",
+      "description": "Get a product by ID.",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {"name": "id", "type": "String", "nullable": false}
+      ],
+      "sql_source": "v_product"
+    }
+  ],
+  "mutations": []
+}

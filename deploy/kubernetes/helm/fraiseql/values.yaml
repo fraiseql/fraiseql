@@ -2,309 +2,156 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-#########################################
-# Image Configuration
-#########################################
+# Image configuration
 image:
-  repository: fraiseql/fraiseql
+  repository: fraiseql
   pullPolicy: IfNotPresent
-  tag: ""  # Overrides the image tag whose default is the chart appVersion
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-#########################################
-# Replica and Scaling Configuration
-#########################################
+# Replica configuration
 replicaCount: 3
 
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
-  # Custom metrics (requires metrics server)
-  customMetrics:
-    enabled: false
-    requestsPerSecond: 100
-    p99LatencyMs: 100
+# Pod annotations for metrics, logging, etc.
+podAnnotations: {}
 
-#########################################
-# Service Configuration
-#########################################
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 65532
+
+# Service configuration
 service:
   type: ClusterIP
   port: 80
-  targetPort: 8000
-  metricsPort: 9090
+  targetPort: 8815
   annotations: {}
-  # AWS Load Balancer example:
-  # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
 
-#########################################
-# Ingress Configuration
-#########################################
+# Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/limit-rps: "100"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  annotations: {}
   hosts:
-    - host: api.yourdomain.com
+    - host: fraiseql.example.com
       paths:
-        - path: /graphql
+        - path: /
           pathType: Prefix
-        - path: /health
-          pathType: Exact
-        - path: /ready
-          pathType: Exact
-  tls:
-    - secretName: fraiseql-tls
-      hosts:
-        - api.yourdomain.com
+  tls: []
 
-#########################################
-# Resource Limits
-#########################################
+# Resource requests and limits
 resources:
-  requests:
-    cpu: 250m
-    memory: 512Mi
   limits:
     cpu: 1000m
     memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
 
-#########################################
-# Health Checks
-#########################################
-healthCheck:
-  liveness:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 10
-    periodSeconds: 30
-    timeoutSeconds: 5
-    failureThreshold: 3
-
-  readiness:
-    enabled: true
-    path: /ready
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 2
-
-  startup:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 0
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 30
-
-#########################################
-# Application Configuration
-#########################################
-config:
-  environment: "production"
-  logLevel: "INFO"
-
-  # GraphQL Settings
-  graphql:
-    path: "/graphql"
-    depthLimit: 10
-    complexityLimit: 1000
-    introspectionEnabled: false  # Disable in production
-
-  # APQ Configuration
-  apq:
-    enabled: true
-    backend: "postgresql"  # Options: memory, postgresql, redis
-    schema: "apq_cache"
-    ttl: 86400  # 24 hours
-
-  # Performance
-  performance:
-    jsonPassthroughEnabled: true
-    turboRouterEnabled: true
-    dataloaderBatchSize: 100
-
-  # Security
-  security:
-    corsEnabled: true
-    csrfEnabled: true
-    rateLimitEnabled: true
-    rateLimitRequests: 100
-    rateLimitWindow: 60
-
-  # Monitoring
-  monitoring:
-    metricsEnabled: true
-    metricsPath: "/metrics"
-    tracingEnabled: true
-    tracingSampleRate: 0.1  # 10% in production
-
-#########################################
-# Database Configuration
-#########################################
-database:
-  host: "postgresql.default.svc.cluster.local"
-  port: 5432
-  name: "fraiseql"
-  user: "fraiseql"
-  # Password should be set via existingSecret
-  pool:
-    minSize: 5
-    maxSize: 20
-    timeout: 30
-  statementTimeout: 30000
-
-  # Use existing secret for credentials
-  existingSecret: ""
-  existingSecretKeys:
-    username: "DB_USER"
-    password: "DB_PASSWORD"
-
-#########################################
-# External Secrets
-#########################################
-secrets:
-  # Create secrets from values (NOT recommended for production)
-  create: false
-
-  # Use existing secret (recommended)
-  existingSecret: "fraiseql-secrets"
-
-  # Or provide values here (will be base64 encoded)
-  # WARNING: Only use for development
-  values: {}
-    # jwtSecret: ""
-    # csrfSecret: ""
-    # sentryDsn: ""
-
-#########################################
-# Auth0 Configuration (Optional)
-#########################################
-auth0:
-  enabled: false
-  domain: ""
-  clientId: ""
-  clientSecret: ""  # Should use existingSecret
-
-#########################################
-# Sentry Error Tracking (Optional)
-#########################################
-sentry:
+# Autoscaling configuration
+autoscaling:
   enabled: true
-  dsn: ""  # Should use existingSecret
-  environment: "production"
-  traceSampleRate: 0.1
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
 
-#########################################
-# Redis Configuration (Optional, for APQ/Caching)
-#########################################
-redis:
-  enabled: false
-  host: "redis-master"
-  port: 6379
-  password: ""  # Should use existingSecret
-  db: 0
+# Health probes
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
 
-#########################################
-# OpenTelemetry Tracing (Optional)
-#########################################
-opentelemetry:
-  enabled: true
-  serviceName: "fraiseql"
-  exportEndpoint: "http://jaeger-collector:4317"
-  exportFormat: "otlp"  # Options: otlp, jaeger, zipkin
-  sampleRate: 0.1
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 2
 
-#########################################
-# Pod Configuration
-#########################################
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8000"
-  prometheus.io/path: "/metrics"
-
-podSecurityContext:
-  fsGroup: 1000
-  runAsNonRoot: true
-  runAsUser: 1000
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
-  capabilities:
-    drop:
-    - ALL
-
-#########################################
-# Service Account
-#########################################
-serviceAccount:
-  create: true
-  annotations: {}
-  name: ""
-
-#########################################
-# Node Selection
-#########################################
+# Node affinity and pod affinity
 nodeSelector: {}
+
+affinity: {}
 
 tolerations: []
 
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-    - weight: 100
-      podAffinityTerm:
-        labelSelector:
-          matchExpressions:
-          - key: app
-            operator: In
-            values:
-            - fraiseql
-        topologyKey: kubernetes.io/hostname
-
-#########################################
-# Pod Disruption Budget
-#########################################
+# Pod disruption budget
 podDisruptionBudget:
   enabled: true
-  minAvailable: 2
+  minAvailable: 1
 
-#########################################
-# Network Policy (Optional)
-#########################################
-networkPolicy:
+# Environment variables and config
+env:
+  RUST_LOG: info
+
+# Database configuration
+database:
+  host: postgres
+  port: 5432
+  name: fraiseql
+  pool:
+    min_size: 5
+    max_size: 20
+  timeout_seconds: 30
+
+# Application configuration
+application:
+  port: 8815
+  graphql:
+    path: /graphql
+    complexity_limit: 1000
+  admin:
+    path: /admin
+    enabled: true
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+  prometheus:
+    port: 9090
+    path: /metrics
+
+# Security configuration
+security:
+  rate_limiting:
+    enabled: true
+    auth_start_max_requests: 100
+    auth_start_window_secs: 60
+  audit_logging:
+    enabled: true
+    log_level: info
+
+# Persistence
+persistence:
   enabled: false
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-      - podSelector:
-          matchLabels:
-            app: nginx-ingress
-  egress:
-    - to:
-      - podSelector:
-          matchLabels:
-            app: postgresql
+  storageClassName: "standard"
+  accessMode: ReadWriteOnce
+  size: 10Gi
 
-#########################################
-# Priority Class
-#########################################
-priorityClassName: ""
-
-#########################################
-# Termination Grace Period
-#########################################
-terminationGracePeriodSeconds: 30
+# Service account configuration
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""

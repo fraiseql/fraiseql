@@ -1,0 +1,16 @@
+# FraiseQL v2 Multi-Tenant Example
+# Shared core types + tenant-specific domains
+
+[schema]
+name = "multitenant"
+version = "1.0.0"
+description = "Multi-tenant application with shared core and isolated tenant domains"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/multitenant"
+pool_size = 10
+
+[domain_discovery]
+enabled = true
+root_dir = "schema"

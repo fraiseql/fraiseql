@@ -1,0 +1,21 @@
+[federation]
+enabled = true
+version = "v2"
+
+# Order type is extended from orders subgraph (HTTP federation)
+[[federation.subgraphs]]
+name = "Order"
+strategy = "http"
+url = "${ORDERS_SUBGRAPH_URL:-http://orders-subgraph:4002/graphql}"
+
+# Product type is local to this subgraph
+[[federation.subgraphs]]
+name = "Product"
+strategy = "local"
+view_name = "v_product"
+key_columns = ["id"]
+
+[federation.http]
+timeout_ms = 5000
+max_retries = 3
+retry_delay_ms = 100

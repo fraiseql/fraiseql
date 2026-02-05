@@ -1,1074 +1,429 @@
-# FraiseQL
+# FraiseQL v2
 
-[![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
-[![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
-[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+**Version:** 2.0.0-alpha.1
+**Status:** Alpha release available
+**Date:** February 2026
 
-**v1.9.16** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+> 🎯 **ALPHA RELEASE**: Core features are production-ready for testing. API is stable, but changes may occur before v2.0.0 GA (Q2 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's coming next. Feedback welcome! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
 
-**Python**: 3.13+ | **PostgreSQL**: 13+
+FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
----
+This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
-## GraphQL for the LLM era. Simple. Powerful. Rust-fast.
-
-PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
-
-```python
-# Complete GraphQL API in 15 lines
-import fraiseql
-from fraiseql.fastapi import create_fraiseql_app
-
-@fraiseql.type(sql_source="v_user", jsonb_column="data")
-class User:
-    """A user in the system.
-
-    Fields:
-        id: Unique user identifier
-        name: User's full name
-        email: User's email address
-    """
-    id: int
-    name: str
-    email: str
-
-@fraiseql.query
-async def users(info) -> list[User]:
-    """Get all users."""
-    db = info.context["db"]
-    return await db.find("v_user")
-
-app = create_fraiseql_app(
-    database_url="postgresql://localhost/mydb",
-    types=[User],
-    queries=[users]
-)
-```
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
 
 ---
 
-## Why FraiseQL?
+## What This Is
 
-- ⚡ **Rust Pipeline** - 7-10x faster JSON transformation, zero Python overhead
-- 🔒 **Secure by Design** - Explicit field contracts prevent data leaks
-- 🤖 **AI-Native** - LLMs generate correct code on first try
-- 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
-- 🔄 **GraphQL Cascade** - Automatic cache updates and side effect tracking
-- ✨ **Auto-populated mutations** - status, message, errors handled automatically (50-60% less boilerplate)
-- 🎯 **Auto-wired query params** - `where`, `orderBy`, `limit`, `offset` added automatically to list queries
-- 📝 **Auto-documentation** - Attribute docstrings become GraphQL descriptions automatically
-- 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
-- 🧠 **Vector search** - pgvector integration for semantic search, RAG, recommendations (6 distance operators)
-- 📋 **GraphQL compliant** - 85-90% GraphQL spec compliance with advanced fragment support
+FraiseQL v2 handles GraphQL query execution for relational databases. It's built on a simple principle: resolve all GraphQL semantics at compile time, execute queries at runtime without interpretation.
 
----
+**Core approach:**
 
-## Is This For You?
+- Define your schema in Python, TypeScript, YAML, or GraphQL SDL
+- Run the compiler to produce a compiled schema
+- Start the server with the compiled schema and database connection
+- Execute GraphQL queries
 
-**✅ Perfect if you:**
-- Build high-performance APIs with PostgreSQL
-- Want 7-10x faster JSON processing
-- Need enterprise security & compliance
-- Prefer database-first architecture
-- Use LLMs for code generation
+**What's different from typical GraphQL servers:**
 
-**❌ Consider alternatives if:**
-- You need multi-database support (PostgreSQL-only)
-- Building your first GraphQL API (use simpler frameworks)
-- Don't use JSONB columns in PostgreSQL
+- No resolver chain execution (all logic is in the database via views and functions)
+- No N+1 query problems (joins are determined at compile time)
+- No runtime interpretation of schema semantics (they're resolved at build)
+- Authorization rules are metadata, not code
+
+**What's included in v2.0.0-alpha.1:**
+
+**Core GraphQL Engine:**
+
+- Core GraphQL execution (queries, mutations, types, interfaces, unions)
+- Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
+- Automatic WHERE type generation from GraphQL scalar types
+- Apollo Federation v2 with SAGA transaction support across services
+- Automatic Persisted Queries (APQ) with query allowlisting
+
+**Data & Integration:**
+
+- Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
+- Change Data Capture (CDC) at the database layer with full entity context
+- Event system with webhook dispatch, NATS JetStream messaging, and action routing
+- Multi-tenant isolation with per-tenant data scoping
+- Backup and disaster recovery (point-in-time restore, failover support)
+
+**Performance & Streaming:**
+
+- Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
+- Query result caching with automatic invalidation
+- Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
+
+**Enterprise Security Suite:**
+
+- Rate limiting on authentication endpoints (brute-force protection)
+- Audit logging for all mutations and admin operations (multiple backends: file, PostgreSQL, Syslog)
+- Constant-time token comparison (timing attack prevention)
+- Field-level authorization via GraphQL directives
+- Field-level encryption-at-rest for sensitive database columns
+- Credential rotation automation with refresh triggers and monitoring dashboard
+- Error sanitization (implementation details hidden from clients)
+- OAuth state encryption (PKCE protection against state inspection)
+
+**Secrets Management:**
+
+- HashiCorp Vault integration (dynamic secrets, transit encryption, lease management)
+- Environment variables backend with validation
+- File-based secrets backend for local development
+- Secret caching with automatic refresh
+- Database schema for secrets and key management
+
+**External Authentication:**
+
+- OAuth2/OIDC support with 7+ providers:
+  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
+- JWT token handling with rotation support
+- OIDC provider integration
+- Session management with database backend
+- PKCE flow support for secure token exchange
+
+**Quality & Testing:**
+
+- 2,400+ tests, all passing (unit, integration, E2E, chaos engineering)
+- Zero unsafe code (forbidden at compile time)
+- Strict type system (all critical Clippy warnings as errors)
+- Comprehensive test coverage across all components
 
 ---
 
 ## How It Works
 
-**Traditional GraphQL** (slow):
-```
-PostgreSQL → Rows → ORM deserialize → Python objects → GraphQL serialize → JSON → Response
-            ╰─── Unnecessary roundtrips (2 conversions) ───╯
+The workflow is straightforward:
+
 ```
 
-**FraiseQL** (fast):
-```
-PostgreSQL → JSONB → Rust field selection → HTTP Response
-           ╰─ Zero Python overhead (1 conversion) ─╯
+1. Define Schema                    2. Compile to SQL
+   (Python/TypeScript/YAML)            (fraiseql-cli compile)
+
+   Schema definition                CompiledSchema.json
+   + database views                 (with optimized SQL)
+   + config (TOML)                      │
+         │                              ▼
+         └──────────────────────────────┘
+                        │
+                        ▼
+                3. Run Server
+                (fraiseql-server)
+
+                Loads compiled schema
+                Connects to database
+                Listens on port 8080
+                        │
+                        ▼
+                4. Execute Queries
+                (curl / GraphQL client)
+
+                POST /graphql
+                { "query": "..." }
 ```
 
-### Why This Is Better
+The key insight: move optimization from runtime to compile time. Your schema is analyzed once at build, then queries are executed efficiently without interpretation.
 
-1. **No ORM Overhead** - Database returns final JSONB, Rust transforms it
-2. **No N+1 Queries** - PostgreSQL composes everything in one query
-3. **Security Built-In** - View defines exactly what's exposed (impossible to leak)
-4. **Recursion Safe** - View structure prevents depth attacks naturally
-5. **AI-Friendly** - SQL + Python are massively trained; no magic frameworks
+**Automatic WHERE type generation:** Instead of manually defining filter types (like `UserFilter`, `PostFilter`, etc.), FraiseQL generates them at compile time. For each scalar type in your schema (String, Int, DateTime, etc.), it checks your database's capabilities and generates only the operators that database actually supports. PostgreSQL gets regex, full-text search, array operators, and network operators; SQLite gets only basic comparison operators. Across all scalar types, FraiseQL supports 150+ operators total. The result: no fake abstractions, no "unsupported operator" errors at runtime. Your GraphQL schema truthfully reflects what your database can do.
 
 ---
 
-## Quick Start
+## Key Design Decisions
 
-```bash
-pip install fraiseql
-fraiseql init my-api
-cd my-api
-fraiseql dev
-```
+**No interpreters, no resolvers.** All GraphQL logic is resolved at build time. Queries bind to database views, mutations call stored procedures. The runtime simply validates, authorizes, and executes pre-compiled SQL.
 
-**Your GraphQL API is live at `http://localhost:8000/graphql`** 🎉
+**Database is the optimizer.** Joins, filters, aggregations all happen in SQL where they belong. FraiseQL doesn't try to optimize relational queries—it lets your database do that.
 
-**Next steps:**
-- [5-Minute Quickstart](docs/getting-started/quickstart.md)
-- [First Hour Guide](docs/getting-started/first-hour.md) - Build a complete blog API
-- [Understanding FraiseQL](docs/guides/understanding-fraiseql.md) - Architecture deep-dive
+**Deterministic execution.** Because all schema semantics are determined at compile time, queries execute the same way every time. No resolver chains, no runtime magic.
+
+**Authorization as metadata.** Auth rules are compiled into the schema as metadata, not runtime logic. This means they can't be bypassed by chaining resolvers differently.
+
+**Security by default.** All queries are parameterized. Column names and identifiers come only from the schema, never from user input. Built-in rate limiting, audit logging, constant-time token comparison.
 
 ---
 
-## Real Security, Not Theatre
+## Consistency Model
 
-### The Problem (ORM-based frameworks)
+FraiseQL prioritizes **strong consistency over distributed availability**. This is intentional and fundamental to the architecture.
+
+**The choice:** Consistency + Partition Tolerance (CP in CAP theorem)
+
+- ✅ Mutations block until completely committed
+- ✅ You see the result immediately (no stale data)
+- ✅ Distributed transactions via SAGA with automatic compensation
+- ❌ If a service is down, mutations fail rather than approximate
+
+**Good for:** Banking, inventory management, healthcare, enterprise SaaS
+**Not for:** Real-time analytics, social media, presence tracking
+
+FraiseQL refuses to serve approximately-correct data. If a partition occurs or a SAGA step fails, the client gets an error—not a "best guess" response.
+
+See [Consistency Model Guide](docs/guides/consistency-model.md) for complete explanation, including why we chose CP and when you should use a different system.
+
+---
+
+## Security
+
+FraiseQL prevents SQL injection through parameterized queries:
+
+- All filter values are passed as bind parameters, never interpolated
+- Column names and table names come only from the schema
+- JSON path expressions are escaped before inclusion in SQL
+- LIMIT/OFFSET values are typed (u32)
+- Identifiers validated at parse time
+
+Additional security features:
+
+- Audit logging for all mutations and admin operations
+- Rate limiting on authentication endpoints
+- Error messages sanitized (no implementation details to clients)
+- OAuth2/OIDC support (GitHub, Google, Auth0, + extensible provider system)
+- Field-level authorization via GraphQL directives
+- Configurable via TOML with environment variable overrides for production
+
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
+
+---
+
+## Getting Started
+
+> **Upgrading from v1?** FraiseQL v2 is a complete architectural redesign and is not backwards compatible with v1. A migration guide is in progress. For now, treat v2 as a fresh start. See [Alpha Limitations](docs/ALPHA_LIMITATIONS.md#breaking-changes-from-v1) for details.
+
+### 1. Define Schema
+
+Create `schema.py`:
 
 ```python
-class User(Base):  # SQLAlchemy
-    id = Column(Integer)
-    email = Column(String)
-    password_hash = Column(String)  # ← Sensitive!
-    api_key = Column(String)        # ← Sensitive!
+import fraiseql
+from fraiseql.scalars import ID, Email
 
-@strawberry.type
-class UserType:
-    id: int
-    email: str
-    # Forgot to exclude password_hash and api_key!
-```
-
-**Result:** One mistake = data leak.
-
-### The Solution (FraiseQL)
-
-```sql
--- PostgreSQL view defines what's exposed
-CREATE VIEW v_user AS
-SELECT id,
-  jsonb_build_object('id', id, 'email', email) as data
-FROM tb_user;
--- password_hash and api_key aren't in JSONB = impossible to leak
-```
-
-**Result:** Structure defines the contract. No way to accidentally expose fields.
-
----
-
-## Chaos Engineering & Resilience Testing
-
-FraiseQL separates testing into two workflows:
-
-| Aspect | Standard CI/CD | Chaos Engineering |
-|--------|---|---|
-| **Duration** | 15-20 min | 45-60 min |
-| **Purpose** | Correctness | Resilience |
-| **Trigger** | Every PR | Manual/Weekly |
-| **Tests** | Unit + Integration | 71 chaos scenarios |
-| **Blocks Merges** | Yes ✅ | No (informational) |
-| **Environment** | Lightweight | Real PostgreSQL + Docker |
-
-**Standard CI/CD:** Validates that features work correctly
-**Chaos Tests:** Validates that system recovers from failures
-
-[→ Learn about chaos engineering strategy](docs/archive/testing/chaos-engineering-strategy.md)
-
----
-
-## Advanced Features
-
-### Specialized Type System (50+ scalar types)
-
-```python
-from fraiseql.types import EmailAddress, PhoneNumber, IPv4, Money, LTree
-
-@fraiseql.type(sql_source="v_users")
+@fraiseql.type
 class User:
-    email: EmailAddress      # Validated emails
-    phone: PhoneNumber       # International phone numbers
-    ip: IPv4                 # IP addresses with subnet operations
-    balance: Money           # Currency with precision
-    location: LTree          # Hierarchical paths
-```
-
-### Trinity Identifiers
-
-Three ID types for different purposes:
-- **pk_user** (int): Internal DB key, not exposed
-- **id** (UUID): Public API, stable, never changes
-- **identifier** (str): Human-readable slug, SEO-friendly
-
-### GraphQL Cascade
-
-Automatic cache invalidation when mutations change related data:
-
-```graphql
-mutation {
-  createPost(input: {...}) {
-    post { id title }
-    cascade {
-      updated { __typename }     # What changed
-      invalidations { queryName } # Which queries to invalidate
-    }
-  }
-}
-```
-
----
-
-## Enterprise Security Features
-
-- **KMS Integration:** Vault, AWS KMS, GCP Cloud KMS
-- **Security Profiles:** STANDARD, REGULATED, RESTRICTED (government-grade)
-- **SBOM Generation:** Automated compliance (FedRAMP, NIS2, HIPAA, PCI-DSS)
-- **Audit Logging:** Cryptographic chain (SHA-256 + HMAC)
-- **Row-Level Security:** PostgreSQL RLS integration
-- **Rate Limiting:** Per-endpoint and per-GraphQL operation
-
-[🔐 Security Configuration](docs/production/security.md)
-
-### 🔍 Security Feature Implementation Status
-
-| Feature | Configured | Enforced | Tested | Production Ready | Notes |
-|---------|-----------|----------|--------|------------------|-------|
-| **Authentication** | ✅ | ✅ | ⚠️ Partial | ⚠️ Use with caution | Rust-based JWT validation via `PyAuthProvider` |
-| **RBAC Framework** | ✅ | ✅ | ⚠️ Framework only | ⚠️ Use with caution | Permission resolution complete, enforcement verification tests pending |
-| **Security Profiles** | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ Not production ready | TLS/rate limiting enforced; query limits/audit pending |
-| **Field Filtering (Mutations)** | ✅ | ✅ | ✅ | ✅ Production ready | Full implementation (v1.9.16+) |
-| **Field Filtering (APQ)** | ✅ | ✅ | ⚠️ Partial | ⚠️ Limited scope | APQ queries only |
-| **Field Filtering (Queries)** | ⚠️ | ⚠️ | ⚠️ | ⚠️ Verification needed | Non-APQ query filtering status unclear |
-| **Rate Limiting** | ✅ | ✅ | ✅ | ✅ Production ready | Per-endpoint and per-operation |
-| **CSRF Protection** | ✅ | ✅ | ✅ | ✅ Production ready | Automatic middleware |
-| **Security Headers** | ✅ | ✅ | ✅ | ✅ Production ready | Defense in depth |
-| **Body Size Limits** | ✅ | ✅ | ✅ | ✅ Production ready | Configurable per profile |
-| **TLS Enforcement** | ✅ | ✅ | ✅ | ✅ Production ready | Profile-based |
-| **Query Depth Limits** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Validator middleware needed |
-| **Query Complexity** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | AST analysis pending |
-| **Introspection Policy** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Control logic pending |
-| **Audit Logging** | ✅ Config | ❌ Pending | ❌ | ❌ Not ready | Middleware implementation needed |
-
-**Legend:**
-- ✅ Complete and verified
-- ⚠️ Partial implementation or limited scope
-- ❌ Not implemented or not production ready
-
-**Roadmap:**
-- **v1.9.16**: Complete security profile enforcement (Issue #225)
-- **v1.9.16**: Add RBAC enforcement verification tests
-- **v1.9.16**: Unified field filtering for all query types
-- **v1.9.16**: Full security audit and penetration testing
-
-> **Important**: This matrix reflects current implementation status (v1.9.16). Security features are under active development. Always verify features meet your requirements before production deployment. See [Issue #225](https://github.com/fraiseql/fraiseql/issues/225) for implementation progress.
-
----
-
-## Cost Savings: Replace 4 Services with 1 Database
-
-| Service | Cost | FraiseQL Approach | Savings |
-|---------|------|------------------|---------|
-| Redis (caching) | $50-500/mo | PostgreSQL UNLOGGED tables | $600-6,000/yr |
-| Sentry (error tracking) | $300-3,000/mo | PostgreSQL error logging | $3,600-36,000/yr |
-| APM Tool | $100-500/mo | PostgreSQL traces | $1,200-6,000/yr |
-| **Total** | **$450-4,000/mo** | **PostgreSQL only ($50/mo)** | **$5,400-48,000/yr** |
-
-### 📋 Software Bill of Materials (SBOM)
-- **Automated generation** via `fraiseql sbom generate`
-- **Global compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001
-- **CycloneDX 1.5 format** with cryptographic signing
-- **CI/CD integration** for continuous compliance
-
-### 🔑 Key Management Service (KMS)
-- **HashiCorp Vault**: Production-ready with transit engine
-- **AWS KMS**: Native integration with GenerateDataKey
-- **GCP Cloud KMS**: Envelope encryption support
-- **Local Provider**: Development-only with warnings
-
-### 🛡️ Security Profiles
-- `STANDARD`: Default protections for general applications
-- `REGULATED`: PCI-DSS/HIPAA/SOC 2 compliance
-- `RESTRICTED`: Government, defence, critical infrastructure
-  - 🇺🇸 FedRAMP, DoD, NIST 800-53
-  - 🇪🇺 NIS2 Essential Entities, EU CRA
-  - 🇨🇦 CPCSC (defence contractors)
-  - 🇦🇺 Essential Eight Level 3
-  - 🇸🇬 Singapore CII operators
-
-### 📊 Observability
-- OpenTelemetry tracing with sensitive data sanitization
-- Security event logging
-- Audit trail support
-
-### 🔒 Advanced Security Controls
-- **Rate limiting** for API endpoints and GraphQL operations
-- **CSRF protection** for mutations and forms
-- **Security headers** middleware for defense in depth
-- **Input validation** and sanitization
-- **Field-level authorization** with role inheritance
-- **Row-level security** via PostgreSQL RLS
-
-**[📋 KMS Architecture](https://github.com/fraiseql/fraiseql/blob/main/docs/architecture/decisions/0003-kms-architecture.md)**
-
----
-
-## Code Examples
-
-### Complete CRUD API
-
-```python
-@fraiseql.input
-class CreateUserInput:
-    email: str  # AI sees exact input structure
+    id: ID
     name: str
-
-@fraiseql.success
-class UserCreated:
-    user_id: str  # AI sees success response
-    # Note: @success auto-injects: status, message, updated_fields, id
-
-@fraiseql.error
-class ValidationError:
-    error: str    # AI sees failure cases
-    code: str = "VALIDATION_ERROR"
-
-@fraiseql.mutation(function="fn_create_user", schema="public")
-class CreateUser:
-    input: CreateUserInput
-    success: UserCreated
-    failure: ValidationError  # Note: Use 'failure' field, not '@failure' decorator
-
-# That's it! FraiseQL automatically:
-# 1. Calls public.fn_create_user(input) with input as dict
-# 2. Parses JSONB result into UserCreated or ValidationError
-```
-
-### Why AI Loves This
-
-- ✅ **SQL + Python** - Massively trained languages (no proprietary DSLs)
-- ✅ **JSONB everywhere** - Clear data structures, obvious contracts
-- ✅ **Database functions** - Complete context in one file
-- ✅ **Explicit logging** - AI can trace execution without debugging
-- ✅ **No abstraction layers** - What you see is what executes
-
-**Real Impact:** Claude Code, GitHub Copilot, and ChatGPT generate correct FraiseQL code on first try.
-
----
-
-## 📖 Core Concepts
-
-**New to FraiseQL?** Understanding these core concepts will help you make the most of the framework:
-
-**[📚 Concepts & Glossary](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)** - Essential terminology and mental models:
-
-- **CQRS Pattern** - Separate read models (views) from write models (functions)
-- **Trinity Identifiers** - Three-tier ID system (`pk_*`, `id`, `identifier`) for performance and UX
-- **JSONB Views** - PostgreSQL composes data once, eliminating N+1 queries
-- **Database-First Architecture** - Start with PostgreSQL, GraphQL follows
-- **Explicit Sync Pattern** - Table views (`tv_*`) for complex queries
-
-**Quick links:**
-
-- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md) - 10-minute architecture overview
-- [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
-- [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
-- [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
-
----
-
-## ✨ See How Simple It Is
-
-### Complete CRUD API in 20 Lines
-
-```python
-from uuid import UUID
-from fraiseql import type, query, mutation, input, success
-
-@fraiseql.type(sql_source="v_note", jsonb_column="data")
-class Note:
-    id: int
-    title: str
-    content: str | None
+    email: Email | None
 
 @fraiseql.query
-async def notes(info) -> list[Note]:
-    return await info.context["db"].find("v_note")
+def users(limit: int = 10) -> list[User]:
+    return fraiseql.config(sql_source="v_user", returns_list=True)
 
-@fraiseql.query
-async def note(info, id: UUID) -> Note | None:
-    """Get a note by ID."""
-    db = info.context["db"]
-    return await db.find_one("v_note", id=id)
-
-# Step 3: Define mutations
-@fraiseql.input
-class CreateNoteInput:
-    title: str
-    content: str | None = None
-
-@fraiseql.mutation
-class CreateNote:
-    input: CreateNoteInput
-    success: Note
-
-app = create_fraiseql_app(
-    database_url="postgresql://localhost/mydb",
-    types=[Note],
-    queries=[notes],
-    mutations=[CreateNote]
-)
+fraiseql.export_schema("schema.json")
 ```
 
-### Database-First Pattern
+Run: `python schema.py`
 
-```sql
--- PostgreSQL view (composable, no N+1)
-CREATE VIEW v_user AS
-SELECT id,
-  jsonb_build_object(
-    'id', id,
-    'name', name,
-    'email', email,
-    'posts', (
-      SELECT jsonb_agg(...)
-      FROM tb_post p
-      WHERE p.user_id = tb_user.id
-    )
-  ) as data
-FROM tb_user;
-```
-
-```python
-# Python type mirrors the view
-@fraiseql.type(sql_source="v_user", jsonb_column="data")
-class User:
-    id: int
-    name: str
-    email: str
-    posts: list[Post]  # Nested relations! No N+1 queries!
-
-# Step 3: Query it
-@fraiseql.query
-async def users(info) -> list[User]:
-    db = info.context["db"]
-    return await db.find("v_user")
-```
-
-**No ORM. No complex resolvers. PostgreSQL composes data, Rust transforms it.**
-
-### Mutations with Business Logic
-
-```sql
-CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id UUID) RETURNS JSONB AS $$
-DECLARE
-    v_post RECORD;
-BEGIN
-    -- Get post with user info (Trinity pattern: JOIN on pk_user)
-    SELECT p.*, u.email as user_email
-    INTO v_post
-    FROM tb_post p
-    JOIN tb_user u ON p.fk_user = u.pk_user  -- ✅ Trinity: INTEGER FK to pk_user
-    WHERE p.id = p_post_id;
-
-    -- Validate post exists
-    IF NOT FOUND THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Post not found');
-    END IF;
-
-    -- Validate not already published
-    IF v_post.published_at IS NOT NULL THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Post already published');
-    END IF;
-
-    -- Update post
-    UPDATE tb_post
-    SET published_at = NOW()
-    WHERE id = p_post_id;
-
-    -- Sync projection table
-    PERFORM fn_sync_tv_post(p_post_id);
-
-    -- Log event
-    INSERT INTO audit_log (action, details)
-    VALUES ('post_published', jsonb_build_object('post_id', p_post_id, 'user_email', v_post.user_email));
-
-    -- Return success
-    RETURN jsonb_build_object('success', true, 'post_id', p_post_id);
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Business logic, validation, logging - all in the database function. Crystal clear for humans and AI.**
-
-### Selective CASCADE Querying
-
-Request only the CASCADE data you need:
-
-```graphql
-mutation CreatePost($input: CreatePostInput!) {
-  createPost(input: $input) {
-    post { id title }
-
-    # Option 1: No CASCADE (smallest payload)
-    # Just omit the cascade field
-
-    # Option 2: Metadata only
-    cascade {
-      metadata { affectedCount }
-    }
-
-    # Option 3: Full CASCADE
-    cascade {
-      updated { __typename id entity }
-      deleted { __typename id }
-      invalidations { queryName }
-      metadata { affectedCount }
-    }
-  }
-}
-```
-
-Performance: Not requesting CASCADE reduces response size by 2-10x.
-
----
-
-## 💰 In PostgreSQL Everything
-
-Replace 4 services with 1 database.
-
-### Cost Savings Calculator
-
-| Traditional Stack | FraiseQL Stack | Annual Savings |
-|-------------------|----------------|----------------|
-| PostgreSQL: $50/mo | PostgreSQL: $50/mo | - |
-| **Redis Cloud:** $50-500/mo | ✅ **In PostgreSQL** | **$600-6,000/yr** |
-| **Sentry:** $300-3,000/mo | ✅ **In PostgreSQL** | **$3,600-36,000/yr** |
-| **APM Tool:** $100-500/mo | ✅ **In PostgreSQL** | **$1,200-6,000/yr** |
-| **Total: $500-4,050/mo** | **Total: $50/mo** | **$5,400-48,000/yr** |
-
-### How It Works
-
-**Caching (Replaces Redis)**
-
-```python
-from fraiseql.caching import PostgresCache
-
-cache = PostgresCache(db_pool)
-await cache.set("user:123", user_data, ttl=3600)
-
-# Uses PostgreSQL UNLOGGED tables
-# - No WAL overhead = fast writes
-# - Shared across instances
-# - TTL-based expiration
-# - Pattern-based deletion
-```
-
-**Error Tracking (Replaces Sentry)**
-
-```python
-from fraiseql.monitoring import init_error_tracker
-
-tracker = init_error_tracker(db_pool, environment="production")
-await tracker.capture_exception(error, context={...})
-
-# Features:
-# - Automatic error fingerprinting and grouping
-# - Full stack trace capture
-# - OpenTelemetry trace correlation
-# - Custom notifications (Email, Slack, Webhook)
-```
-
-**Observability (Replaces APM)**
-
-```sql
--- All traces and metrics stored in PostgreSQL
-SELECT * FROM monitoring.traces
-WHERE error_id = 'error-123'
-  AND trace_id = 'trace-xyz';
-```
-
-**Grafana Dashboards**
-Pre-built dashboards in `grafana/` query PostgreSQL directly:
-
-- Error monitoring dashboard
-- Performance metrics dashboard
-- OpenTelemetry traces dashboard
-
-### Operational Benefits
-
-- ✅ **70% fewer services** to deploy and monitor
-- ✅ **One database to backup** (not 4 separate systems)
-- ✅ **No Redis connection timeouts** or cluster issues
-- ✅ **No Sentry quota surprises** or rate limiting
-- ✅ **ACID guarantees** for everything (no eventual consistency)
-- ✅ **Self-hosted** - full control, no vendor lock-in
-
----
-
-## 🏗️ Architecture Deep Dive
-
-### Rust-First Execution
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   GraphQL       │ →  │   PostgreSQL     │ →  │   Rust          │
-│   Request       │    │   JSONB Query    │    │   Transform     │
-│                 │    │                  │    │   (7-10x faster)│
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         ↓
-                                                ┌─────────────────┐
-                                                │   FastAPI       │
-                                                │   HTTP Response │
-                                                └─────────────────┘
-```
-
-**Unified path for all queries:**
-
-1. **GraphQL query** arrives at FastAPI
-2. **Python resolver** calls PostgreSQL view/function
-3. **PostgreSQL** returns pre-composed JSONB
-4. **Rust pipeline** transforms JSONB based on GraphQL selection
-5. **FastAPI** returns bytes directly (zero Python serialization)
-
-### CQRS Pattern
-
-FraiseQL implements Command Query Responsibility Segregation:
-
-```
-┌─────────────────────────────────────┐
-│         GraphQL API                 │
-├──────────────────┬──────────────────┤
-│   QUERIES        │   MUTATIONS      │
-│   (Reads)        │   (Writes)       │
-├──────────────────┼──────────────────┤
-│  v_* views       │  fn_* functions  │
-│  tv_* tables     │  tb_* tables     │
-│  JSONB ready     │  Business logic  │
-└──────────────────┴──────────────────┘
-```
-
-**Queries use views:**
-
-- `v_*` - Real-time views with JSONB computation
-- `tv_*` - Denormalized tables with generated JSONB columns (for complex queries)
-
-**Mutations use functions:**
-
-- `fn_*` - Business logic, validation, side effects
-- `tb_*` - Base tables for data storage
-
-**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)**
-
-### Key Innovations
-
-**1. Exclusive Rust Pipeline**
-
-- PostgreSQL → Rust → HTTP (no Python JSON processing)
-- 7-10x faster JSON transformation vs Python
-- No GIL contention, compiled performance
-
-**2. JSONB Views**
-
-- Database composes data once
-- Rust selects fields based on GraphQL query
-- No N+1 query problems
-
-**3. Table Views (tv_*)**
-
-```sql
--- Denormalized JSONB table with explicit sync
-CREATE TABLE tv_user (
-    id INT PRIMARY KEY,
-    data JSONB NOT NULL,  -- Regular column, not generated
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Sync function populates tv_* from v_* view
-CREATE FUNCTION fn_sync_tv_user(p_user_id INT) RETURNS VOID AS $$
-BEGIN
-    INSERT INTO tv_user (id, data)
-    SELECT id, data FROM v_user WHERE id = p_user_id
-    ON CONFLICT (id) DO UPDATE SET
-        data = EXCLUDED.data,
-        updated_at = NOW();
-END;
-$$ LANGUAGE plpgsql;
-
--- Mutations call sync explicitly
-CREATE FUNCTION fn_create_user(p_name TEXT) RETURNS JSONB AS $$
-DECLARE v_user_id INT;
-BEGIN
-    INSERT INTO tb_user (name) VALUES (p_name) RETURNING id INTO v_user_id;
-    PERFORM fn_sync_tv_user(v_user_id);  -- ← Explicit sync call
-    RETURN (SELECT data FROM tv_user WHERE id = v_user_id);
-END;
-$$ LANGUAGE plpgsql;
-```
-
-Benefits: Instant lookups, embedded relations, explicitly synchronized
-
-**4. Zero-Copy Response**
-
-- Direct RustResponseBytes to FastAPI
-- No Python serialization overhead
-- Optimal for high-throughput APIs
-
----
-
-## 🎯 How FraiseQL Is Different
-
-### Execution Path Comparison
-
-| Framework | Data Flow | JSON Processing | Recursion Protection | Security Model |
-|-----------|-----------|-----------------|----------------------|----------------|
-| **FraiseQL** | PostgreSQL JSONB → Rust → HTTP | ✅ Rust (compiled) | ✅ View-enforced | ✅ Explicit contracts |
-| Strawberry + SQLAlchemy | PostgreSQL → ORM → Python dict → JSON | ❌ Python (2 steps) | ⚠️ Middleware required | ❌ ORM over-fetching risk |
-| Hasura | PostgreSQL → Haskell → JSON | ⚠️ Haskell | ⚠️ Middleware required | ⚠️ Complex permission system |
-| PostGraphile | PostgreSQL → Node.js → JSON | ⚠️ JavaScript | ⚠️ Middleware required | ⚠️ Plugin-based |
-
-### FraiseQL's Unique Advantages
-
-- ✅ **Database returns final structure** (JSONB views)
-- ✅ **Rust handles field selection** (compiled performance)
-- ✅ **No Python in hot path** (zero serialization overhead)
-- ✅ **No ORM abstraction** (SQL functions are business logic)
-- ✅ **Built-in recursion protection** (view defines max depth, no middleware needed)
-- ✅ **Secure by design** (explicit field contracts prevent data leaks)
-- ✅ **AI-readable** (clear contracts, full context visible)
-- ✅ **PostgreSQL-native** (caching, monitoring, APQ in one database)
-
----
-
-## 🎯 Advanced Features
-
-### Automatic Persisted Queries (APQ)
-
-Enterprise-grade APQ with pluggable storage backends:
-
-```python
-from fraiseql import FraiseQLConfig
-
-# Memory backend (zero configuration)
-config = FraiseQLConfig(apq_storage_backend="memory")
-
-# PostgreSQL backend (multi-instance coordination)
-config = FraiseQLConfig(
-    apq_storage_backend="postgresql",
-    apq_storage_schema="apq_cache"
-)
-```
-
-**How it works:**
-
-1. Client sends query hash instead of full query
-2. FraiseQL checks storage backend for cached query
-3. PostgreSQL → Rust → HTTP (same fast path)
-4. Bandwidth reduction with large queries
-
-**[⚡ APQ Details](https://github.com/fraiseql/fraiseql/blob/main/docs/diagrams/apq-cache-flow.md)**
-
-### Specialized Type System
-
-Advanced operators for network types, hierarchical data, ranges, and nested arrays:
-
-```graphql
-query {
-  servers(where: {
-    ipAddress: { eq: "192.168.1.1" }          # → ::inet casting
-    port: { gt: 1024 }                        # → ::integer casting
-    location: { ancestor_of: "US.CA" }        # → ltree operations
-    dateRange: { overlaps: "[2024-01-01,2024-12-31)" }
-
-    # Nested array filtering with logical operators
-    printServers(where: {
-      AND: [
-        { operatingSystem: { in: ["Linux", "Windows"] } }
-        { OR: [
-            { nTotalAllocations: { gte: 100 } }
-            { NOT: { ipAddress: { isnull: true } } }
-          ]
-        }
-      ]
-    }) {
-      hostname operatingSystem
-    }
-  }) {
-    id name ipAddress port
-  }
-}
-```
-
-**50+ Specialized Scalar Types:**
-
-**Financial & Trading:**
-- CUSIP, ISIN, SEDOL, MIC, LEI - Security identifiers
-- Money, Percentage, ExchangeRate - Financial values
-- CurrencyCode, StockSymbol - Trading symbols
-
-**Network & Infrastructure:**
-- IPv4, IPv6, CIDR, MACAddress - Network addresses with subnet operations
-- Hostname, DomainName, Port, EmailAddress - Internet identifiers
-- APIKey, HashSHA256 - Security tokens
-
-**Geospatial & Location:**
-- Coordinate, Latitude, Longitude - Geographic coordinates with distance calculations
-- PostalCode, Timezone - Location data
-
-**Business & Logistics:**
-- ContainerNumber, FlightNumber, TrackingNumber, VIN - Asset identifiers
-- IBAN, LicensePlate - Financial & vehicle identifiers
-- PhoneNumber, LocaleCode, LanguageCode - Contact & localization
-
-**Technical & Data:**
-- UUID, JSON, Date, DateTime, Time, DateRange - Standard types with validation
-- LTree - Hierarchical data with ancestor/descendant queries
-- SemanticVersion, Color, MIMEType, File, Image - Specialized formats
-- HTML, Markdown - Rich text content
-
-**Advanced Filtering:** Full-text search, JSONB queries, array operations, regex, vector similarity search on all types
-
-#### Scalar Type Usage Examples
-
-```python
-from fraiseql import type
-from fraiseql.types import (
-    EmailAddress, PhoneNumber, Money, Percentage,
-    CUSIP, ISIN, IPv4, MACAddress, LTree, DateRange
-)
-
-@fraiseql.type(sql_source="v_financial_data")
-class FinancialRecord:
-    id: int
-    email: EmailAddress           # Validated email addresses
-    phone: PhoneNumber           # International phone numbers
-    balance: Money               # Currency amounts with precision
-    margin: Percentage           # Percentages (0.00-100.00)
-    security_id: CUSIP | ISIN    # Financial instrument identifiers
-
-@fraiseql.type(sql_source="v_network_device")
-class NetworkDevice:
-    id: int
-    ip_address: IPv4             # IPv4 addresses with subnet operations
-    mac_address: MACAddress      # MAC addresses with validation
-    location: LTree              # Hierarchical location paths
-    maintenance_window: DateRange # Date ranges with overlap queries
-```
-
-```graphql
-# Advanced filtering with specialized types
-query {
-  financialRecords(where: {
-    balance: { gte: "1000.00" }           # Money comparison
-    margin: { between: ["5.0", "15.0"] }   # Percentage range
-    security_id: { eq: "037833100" }       # CUSIP validation
-  }) {
-    id balance margin security_id
-  }
-
-  networkDevices(where: {
-    ip_address: { inSubnet: "192.168.1.0/24" }  # CIDR operations
-    location: { ancestor_of: "US.CA.SF" }       # LTree hierarchy
-    maintenance_window: { overlaps: "[2024-01-01,2024-12-31)" }
-  }) {
-    id ip_address location
-  }
-}
-```
-
-**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/nested-array-filtering.md)**
-
-### Enterprise Security
-
-```python
-from fraiseql import authorized
-
-@fraiseql.authorized(roles=["admin", "editor"])
-@fraiseql.mutation
-class DeletePost:
-    """Only admins and editors can delete posts."""
-    input: DeletePostInput
-    success: DeleteSuccess
-    failure: PermissionDenied
-
-# Features:
-# - Field-level authorization with role inheritance
-# - Row-level security via PostgreSQL RLS
-# - Unified audit logging with cryptographic chain (SHA-256 + HMAC)
-# - Multi-tenant isolation
-# - Rate limiting and CSRF protection
-```
-
-### Trinity Identifiers
-
-Three types of identifiers per entity for different purposes:
-
-```python
-@fraiseql.type(sql_source="v_post")
-class Post(TrinityMixin):
-    """
-    Trinity Pattern:
-    - pk_post (int): Internal SERIAL key (NOT exposed, only in database)
-    - id (UUID): Public API key (exposed, stable)
-    - identifier (str): Human-readable slug (exposed, SEO-friendly)
-    """
-
-    # GraphQL exposed fields
-    id: UUID                  # Public API (stable, secure)
-    identifier: str | None    # Human-readable (SEO-friendly, slugs)
-    title: str
-    content: str
-    # ... other fields
-
-    # pk_post is NOT a field - accessed via TrinityMixin.get_internal_pk()
-```
-
-**Why three?**
-
-- **pk_\*:** Fast integer joins (PostgreSQL only, never in GraphQL schema)
-- **id:** Public API stability (UUID, exposed, never changes)
-- **identifier:** Human-friendly URLs (exposed, SEO, readability)
-
----
-
-## 🚀 Get Started in 5 Minutes
+### 2. Compile
 
 ```bash
-# Install
-pip install fraiseql
-
-# Create project
-fraiseql init my-api
-cd my-api
-
-# Setup database
-createdb my_api
-psql my_api < schema.sql
-
-# Start server
-fraiseql dev
+fraiseql-cli compile schema.json -o schema.compiled.json
 ```
 
-**Your GraphQL API is live at <http://localhost:8000/graphql>** 🎉
+### 3. Configure and Run
 
-### Next Steps
+Create `config.toml`:
+```toml
+[server]
+bind_addr = "0.0.0.0:8080"
+database_url = "postgresql://localhost/mydb"
+```
 
-- **📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** - Build a complete blog API (60 minutes, hands-on)
-- **🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/guides/understanding-fraiseql.md)** - Architecture deep dive (10 minute read)
-- **⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/quickstart.md)** - Copy, paste, run
-- **📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
+Run: `fraiseql-server -c config.toml --schema schema.compiled.json`
 
-### Prerequisites
-
-- **Python 3.13+** (required for Rust pipeline integration and advanced type features)
-- **PostgreSQL 13+**
-
-**[📖 Detailed Installation Guide](docs/getting-started/installation.md)** - Platform-specific instructions, troubleshooting
-
----
-
-## 🚦 Is FraiseQL Right for You?
-
-### ✅ Perfect For
-
-- **PostgreSQL-first teams** already using PostgreSQL extensively
-- **Performance-critical APIs** requiring efficient data access
-- **Multi-tenant SaaS** with per-tenant isolation needs
-- **Cost-conscious startups** ($5-48K annual savings vs traditional stack)
-- **AI-assisted development** teams using Claude/Copilot/ChatGPT
-- **Operational simplicity** - one database for everything
-- **Self-hosted infrastructure** - full control, no vendor lock-in
-
-### ❌ Consider Alternatives
-
-- **Multi-database support** - FraiseQL is PostgreSQL-specific
-- **Simple CRUD APIs** - Traditional REST may be simpler
-- **Non-PostgreSQL databases** - FraiseQL requires PostgreSQL
-- **Microservices** - Better for monolithic or database-per-service
-
----
-
-## 🛠️ CLI Commands
+### 4. Query
 
 ```bash
-# Project management
-fraiseql init <name>           # Create new project
-fraiseql dev                   # Development server with hot reload
-fraiseql check                 # Validate schema and configuration
-
-# Code generation
-fraiseql generate schema       # Export GraphQL schema
-fraiseql generate types        # Generate TypeScript definitions
-
-# Database utilities
-fraiseql sql analyze <query>   # Analyze query performance
-fraiseql sql explain <query>   # Show PostgreSQL execution plan
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ users(limit: 5) { id name email } }"}'
 ```
 
----
-
-## Learn More
-
-- **[Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Comprehensive guides
-- **[Architecture Decisions](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Why we built it this way
-- **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
-- **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications
+That's the basic flow. For more examples and language-specific guides, see the documentation.
 
 ---
 
-## Contributing
+## Language Support
 
-```bash
-git clone https://github.com/fraiseql/fraiseql
-cd fraiseql && make setup-dev
-prek install  # 7-10x faster than pre-commit
-```
+FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
-[→ Contributing Guide](CONTRIBUTING.md)
+**Supported (v2.0.0-alpha.1):**
 
----
+- Python ✅
+- TypeScript ✅
+- Go ✅
+- PHP ✅
+- Java ✅
+- Kotlin ✅
+- Ruby ✅
+- Scala ✅
+- Clojure ✅
+- Swift ✅
+- Dart ✅
+- C# ✅
+- Groovy ✅
+- Elixir ✅
+- Rust ✅
+- Node.js ✅
 
-## About
+**Configuration Languages:**
 
-FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)).
+- YAML (configuration-driven schemas)
+- GraphQL SDL (standard schema syntax)
 
-**The Idea:** What if PostgreSQL returned JSON directly instead of Python serializing it? No ORM. No N+1 queries. No Python overhead. Just Rust transforming JSONB to HTTP.
+All 16+ languages have full feature parity with identical compilation and execution behavior.
 
-**The Result:** A GraphQL framework that's 7-10x faster and designed for the LLM era.
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE)
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 📋 Project Navigation
-
-### Version Overview
-
-| Version | Location | Status | Purpose | For Users? |
-|---------|----------|--------|---------|------------|
-| **v1.9.16** | Root level | Stable | Entity field selection for mutations (GitHub #525) | ✅ Production Ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/README.md) | Integrated | Included in v1.9.16+ | ✅ Stable |
-
-**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/getting-started/first-hour.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
-
-**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/dev/audits/version-status.md)**
+See `docs/guides/language-generators.md` for examples in each supported language.
 
 ---
 
-**Ready to build the most efficient GraphQL API in Python?**
+## Documentation
 
-```bash
-pip install fraiseql && fraiseql init my-api
-```
+📖 **[Complete Documentation](https://fraiseql.readthedocs.io)** — Visit ReadTheDocs for comprehensive, searchable documentation.
 
-🚀 **PostgreSQL → Rust → Production**
+The project includes **251 markdown files with 70,000+ lines** of documentation:
+
+**Quick Links:**
+
+- 🚀 [Getting Started](https://fraiseql.readthedocs.io/getting-started/) — 5-minute quick start
+- 📚 [SDK References](https://fraiseql.readthedocs.io/integrations/sdk/) — 16 language SDKs
+- 🏗️ [Architecture Guides](https://fraiseql.readthedocs.io/architecture/) — System design and patterns
+- 🎯 [Examples](https://fraiseql.readthedocs.io/examples/) — 4 full-stack applications
+- 🔒 [Security Guide](https://fraiseql.readthedocs.io/guides/production-security-checklist/) — Production hardening
+- 🚨 [Troubleshooting](https://fraiseql.readthedocs.io/troubleshooting/) — Common issues and fixes
+
+**Local Documentation:**
+
+- `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
+- `docs/prd/PRD.md` — Product requirements and vision
+- `docs/alpha-testing-guide.md` — Alpha testing guide
+
+---
+
+## Database Schema Conventions
+
+FraiseQL enforces naming conventions to enable automatic compilation:
+
+| Prefix | Purpose | Example |
+|--------|---------|---------|
+| `tb_` | Write table (normalized) | `tb_user`, `tb_post` |
+| `v_` | Read view (JSON plane) | `v_user`, `v_post` |
+| `fn_` | Stored procedure (mutations) | `fn_create_user`, `fn_update_post` |
+| `pk_` | Primary key (internal) | `pk_user BIGINT` |
+| `fk_` | Foreign key (internal) | `fk_user BIGINT` |
+| `id` | Public identifier | `id UUID` |
+
+See `docs/specs/schema-conventions.md` for complete conventions.
+
+---
+
+## WHERE Operators
+
+FraiseQL automatically generates filter operators based on your GraphQL scalar types and database capabilities. PostgreSQL gets extensive operator support (string matching, full-text search, arrays, JSONB, vectors, networks, hierarchies); other databases get only what they support. No manual filter type definitions needed.
+
+**Standard operators (all databases):**
+- Comparison: `_eq`, `_neq`, `_lt`, `_lte`, `_gt`, `_gte`
+- Logical: `_and`, `_or`, `_not`
+
+**String operators (database-dependent):**
+- PostgreSQL: `_like`, `_ilike`, `_regex`, `_contains`, `_icontains`, `_startswith`, `_istartswith`, `_endswith`, `_matches` (full-text), etc.
+- SQLite/MySQL: `_like`, `_contains`
+
+**PostgreSQL-specific operators (compiled out for other databases):**
+- Arrays: `_array_contains`, `_array_contained_by`, `_array_overlaps`, `_len_eq`, `_len_gt`
+- JSONB: `_jsonb_contains`, `_jsonb_has_key`, `_jsonb_path_exists`
+- Vectors (pgvector): `_cosine_distance_lt`, `_l2_distance_lt`, `_inner_product_gt`, etc.
+- Networks (INET): `_is_ipv4`, `_in_subnet`, `_contains_subnet`, `_overlaps`
+- Hierarchies (LTree): `_ancestor_of`, `_descendant_of`, `_lca`, `_depth_eq`
+- Full-text search: `_matches`, `_plain_query`, `_phrase_query`, `_websearch_query`
+
+This approach means your GraphQL schema truthfully represents what your database can do—no feature faking, no runtime errors from unsupported operators.
+
+See `docs/reference/where-operators.md` for the complete list and SQL equivalents.
+
+---
+
+## Streaming Results
+
+FraiseQL provides two specialized ways to stream large result sets:
+
+**fraiseql-wire** — A PostgreSQL-specific driver optimized for streaming JSON results. Processes rows as they arrive from the database without buffering the entire result set. Implements the Postgres wire protocol from scratch, supporting TCP and Unix sockets. Supports WHERE filters and ORDER BY, with memory usage bounded by chunk size, not result size. Useful when you need to stream large datasets with bounded memory from PostgreSQL.
+
+**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Arrow payloads are typically 25-40% more compact than JSON, and columnar format is optimized for analytics tool integration without requiring client-side deserialization. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines. Real performance benchmarks comparing JSON vs Arrow serialization are in `crates/fraiseql-arrow/benches/arrow_vs_json_serialization.rs`.
+
+---
+
+## Performance & Reliability
+
+**Performance:** FraiseQL eliminates common GraphQL bottlenecks. No N+1 queries (joins determined at compile time), no resolver chain overhead, no runtime interpretation. Arrow Flight payloads are 25-40% more compact than JSON, with built-in columnar optimization for analytics tools that consume Arrow data without client deserialization overhead.
+
+**Reliability:** The codebase uses Rust's type system to prevent entire categories of bugs. No unsafe code (forbidden at compile time), all critical warnings treated as errors. Chaos engineering tests validate transaction consistency and recovery under failure scenarios. Field-level authorization is compiled as metadata, making it impossible to bypass via resolver tricks.
+
+**Maintainability:** Every feature has corresponding tests. The 2,400+ test suite covers unit tests, integration tests with real databases, E2E tests across all language SDKs, and chaos engineering scenarios. This means changes are validated end-to-end, not just at the unit level.
+
+---
+
+## Project Status
+
+Current release: **v2.0.0-alpha.1**
+
+**Core Features:**
+
+- ✅ Core GraphQL engine (schema parsing, type validation, query execution, mutation support)
+- ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server with database-specific optimizations)
+- ✅ Schema authoring in 16+ languages with compile-time verification
+- ✅ Automatic WHERE type generation from scalar types (150+ operators for PostgreSQL)
+- ✅ Compilation pipeline (6-phase build process with full validation)
+- ✅ Apollo Federation v2 with SAGA transactions across services
+- ✅ Streaming query results via fraiseql-wire
+- ✅ Apache Arrow Flight columnar data plane
+- ✅ Query result caching with automatic invalidation
+- ✅ Automatic Persisted Queries (APQ) with query allowlisting
+
+**Enterprise Features:**
+
+- ✅ OAuth2/OIDC with 7+ providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible)
+- ✅ Field-level authorization via GraphQL directives
+- ✅ Field-level encryption-at-rest for database columns
+- ✅ Audit logging for mutations and admin operations
+- ✅ Rate limiting on authentication endpoints
+- ✅ Constant-time token comparison (timing attack prevention)
+- ✅ Error sanitization (implementation details hidden)
+- ✅ Secrets management (HashiCorp Vault, environment, file backends)
+- ✅ Credential rotation automation with dashboard
+- ✅ Multi-tenant isolation with per-tenant data scoping
+- ✅ RBAC database schema and permission system
+
+**Data & Integration:**
+
+- ✅ CDC (Change Data Capture) with database-agnostic event format
+- ✅ Event system with webhooks (extensible provider architecture: Discord, Slack, GitHub, Stripe)
+- ✅ NATS JetStream messaging integration
+- ✅ Multi-tenant data scoping
+- ✅ Backup and disaster recovery support
+
+**Quality (Complete):**
+
+- ✅ Comprehensive test suite (2,400+ tests: unit, integration, E2E, chaos engineering)
+- ✅ Zero unsafe code (forbidden at compile time)
+- ✅ Strict type system (all critical Clippy warnings as errors)
+- ✅ Production deployment guides and monitoring setup
+- ✅ Performance benchmarks (Arrow vs JSON serialization)
+
+**Next Steps:**
+
+- Community testing and deployment feedback
+- Real-world production validation
+- Performance optimization based on usage patterns
+- Path to v2.0.0 GA (v2.1 planning includes Phases 13-15: Config wiring, Observability, Finalization)
+
+---
+
+## Contact & Contributions
+
+For bugs, features, or questions:
+
+- [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) — Report bugs and request features
+- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) — Ask questions and share ideas
+- [Contributing Guide](CONTRIBUTING.md) — How to contribute code and documentation
+- Email: lionel.hamayon@evolution-digitale.fr

@@ -1,74 +1,159 @@
-# FraiseQL Architecture Documentation
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Architecture
+description: Complete architectural documentation for FraiseQL v2.
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
 
-This directory contains architectural documentation for FraiseQL.
+# FraiseQL v2 Architecture
 
-## Key Documents
+Complete architectural documentation for FraiseQL v2.
 
-### Core Architecture
+---
 
-**[Request Flow](./request-flow.md)** - Complete end-to-end request processing pipeline with performance characteristics
-- HTTP → FastAPI → GraphQL Parser → Rust Pipeline → PostgreSQL
-- Query vs Mutation execution paths
-- Caching layers and monitoring points
-- 25-60x performance improvement over traditional frameworks
+## 🚀 Rust Core Implementation
 
-**[Trinity Pattern](./trinity-pattern.md)** - Three-identifier database design pattern
-- `pk_*` (INTEGER) - Fast internal joins
-- `id` (UUID) - Stable public API
-- `identifier` (TEXT) - Human-readable slugs
-- 7.7x faster joins with optimal storage
+### Complete Rust implementation for FraiseQL v2.0.0-alpha.1
 
-**[Type System](./type-system.md)** - Type mapping between Python, GraphQL, and PostgreSQL
-- Automatic type conversion
-- Nullability handling
-- Custom scalars and enums
-- Nested object patterns
+| Document | Description | Lines | Status |
+|----------|-------------|-------|--------|
+| **[rust-core-architecture.md](rust-core-architecture.md)** | Complete core runtime architecture | 1,500+ | ✅ Complete |
+| **[code-examples.md](code-examples.md)** | Runnable code examples | 800+ | ✅ Complete |
+| **[advanced-features-architecture.md](advanced-features-architecture.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Complete |
 
-**[CQRS Design](./cqrs-design.md)** - Command Query Responsibility Segregation pattern
-- View-based queries (read-optimized)
-- Function-based mutations (write-controlled)
-- Schema separation and security
-- Integration with Trinity Pattern
+### Core Features Designed
 
-### Implementation Details
+- ✅ Database abstraction layer (PostgreSQL, MySQL, SQLite, SQL Server)
+- ✅ WHERE clause generation (50+ operators, SQL injection proof)
+- ✅ JSONB projection (recursive, auth-aware)
+- ✅ Field-level authorization
+- ✅ Connection pooling (deadpool)
+- ✅ Caching (LRU + Redis)
 
-**[direct-path-implementation.md](./direct-path-implementation.md)** - Direct path pipeline that bypasses GraphQL resolvers
+### Advanced Features Designed
 
-**Status**: ✅ Implemented and working
-- GraphQL → SQL → Rust → HTTP pipeline
-- 3-4x performance improvement
-- Full WHERE clause support
-- Automatic fallback to traditional GraphQL
+- ✅ **Federation** - Apollo Federation v2 with view-based protocol
+- ✅ **RBAC** - Hierarchical roles with permission caching
+- ✅ **Subscriptions** - Database-driven event streams (LISTEN/NOTIFY)
+- ✅ **Observability** - Metrics, traces, logs via middleware
+- ✅ **Extension Points** - Custom auth rules, validators, hooks
 
-**[type-operator-architecture.md](./type-operator-architecture.md)** - Type system and operator strategies for WHERE clauses
+---
 
-### Architectural Decisions
-**[decisions/](./decisions/README.md)** - Records of key architectural decisions and their rationale
+## 📁 Directory Structure
 
-## Architectural Topics
+### Core Pipeline
 
-- **CQRS Pattern** - Command Query Responsibility Segregation
-- **View-Based Reads** - Query through database views (`v_{entity}`)
-- **Trinity Pattern** - Table (`tv_*`) + View (`v_*`) + Type (Python class)
-- **Hybrid Tables** - Tables with both relational columns and JSONB data
-- **Direct Path** - Bypass GraphQL resolvers for performance
+Fundamental compilation and execution architecture.
 
-## Quick Reference
+- [compilation-pipeline.md](core/compilation-pipeline.md) - 7-phase compilation process
+- [execution-model.md](core/execution-model.md) - 6-phase runtime execution
+- [compilation-phases.md](core/compilation-phases.md) - Deep dive into each compilation phase
+- [execution-semantics.md](core/execution-semantics.md) - Detailed execution semantics
+- [compilation-vs-runtime.md](core/compilation-vs-runtime.md) - Separation of concerns
+- [authoring-languages.md](core/authoring-languages.md) - Multi-language schema authoring
 
-### Direct Path Pipeline
-```
-GraphQL Query → Parser → SQL + WHERE → JSONB → Rust → HTTP
-              ↓
-   Bypass GraphQL Resolvers (3-4x faster)
-```
+---
 
-### Trinity Pattern
-- **Table**: `tv_{entity}` - Physical storage (id + JSONB)
-- **View**: `v_{entity}` - Query interface
-- **Type**: `{Entity}` - GraphQL schema
+### Database Integration
 
-## Related Documentation
+Multi-database support and data plane architecture.
 
-- [Advanced Patterns](../advanced/advanced-patterns.md)
-- [Enterprise Features](../advanced/advanced-patterns.md)
-- [Examples](../../examples/)
+- [database-targeting.md](database/database-targeting.md) - Compile-time database specialization
+- [arrow-plane.md](database/arrow-plane.md) - Columnar data processing with Apache Arrow
+
+---
+
+### Reliability
+
+Consistency, error handling, failure recovery, and versioning.
+
+- [consistency-model.md](reliability/consistency-model.md) - Transaction guarantees and consistency
+- [error-handling-model.md](reliability/error-handling-model.md) - Error propagation and recovery
+- [failure-modes-and-recovery.md](reliability/failure-modes-and-recovery.md) - Failure scenarios and recovery strategies
+- [versioning-strategy.md](reliability/versioning-strategy.md) - Schema evolution and version management
+
+---
+
+### Security
+
+Security architecture and authentication.
+
+- [security-model.md](security/security-model.md) - Overall security architecture
+- [authentication-detailed.md](security/authentication-detailed.md) - Authentication flows and providers
+
+---
+
+### Performance
+
+Performance optimization and tuning.
+
+- [performance-characteristics.md](performance/performance-characteristics.md) - Performance benchmarks and guarantees
+- [advanced-optimization.md](performance/advanced-optimization.md) - Database tuning and optimization strategies
+
+---
+
+### Integration
+
+Federation, multi-plane architecture, and extension points.
+
+- [federation.md](integration/federation.md) - GraphQL Federation v2 architecture
+- [multiplane-interactions.md](integration/multiplane-interactions.md) - Query/Command/Data plane coordination
+- [extension-points.md](integration/extension-points.md) - Plugin and extension architecture
+- [integration-patterns.md](integration/integration-patterns.md) - Common integration scenarios
+
+---
+
+### Real-time
+
+Subscriptions and event streaming.
+
+- [subscriptions.md](realtime/subscriptions.md) - Database-native event streams
+
+---
+
+### Design Decisions
+
+Architectural patterns and anti-patterns.
+
+- [design-decisions.md](decisions/design-decisions.md) - Key architectural decisions and rationale
+- [anti-patterns.md](decisions/anti-patterns.md) - Common mistakes and how to avoid them
+- [state-management.md](decisions/state-management.md) - State management patterns
+
+---
+
+### Observability
+
+Monitoring, logging, and instrumentation.
+
+- [observability-model.md](observability/observability-model.md) - Metrics, traces, logs architecture
+
+---
+
+## 🎯 Recommended Reading Order
+
+### For System Understanding
+
+1. Core: compilation-pipeline.md
+2. Core: execution-model.md
+3. Database: database-targeting.md
+4. Security: security-model.md
+
+### For Deep Dive
+
+1. Core: compilation-phases.md
+2. Core: execution-semantics.md
+3. Integration: federation.md
+4. Real-time: subscriptions.md
+
+### For Production
+
+1. Reliability: consistency-model.md
+2. Reliability: failure-modes-and-recovery.md
+3. Performance: advanced-optimization.md
+4. Observability: observability-model.md
+
+---
+
+**Back to:** [Documentation Home](../README.md) | [Reading Order Guide](../reading-order.md)

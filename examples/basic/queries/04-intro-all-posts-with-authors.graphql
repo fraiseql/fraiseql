@@ -1,0 +1,16 @@
+# Chapter 4: Nested Data & Complex Queries
+# Fetch all posts with author information (including relationships)
+
+query AllPostsWithAuthors {
+  posts(limit: 20) {
+    id
+    title
+    content
+    created_at
+    author {
+      id
+      name
+      email
+    }
+  }
+}
