@@ -2,6 +2,51 @@
 
 Production deployment guide for FraiseQL's authentication system.
 
+## Prerequisites
+
+**Required Knowledge:**
+- OAuth 2.0 and OIDC protocols
+- Kubernetes deployment and manifests
+- Docker and containerization
+- SSL/TLS certificate management
+- Database administration and backups
+- Linux system administration
+- Load balancing and reverse proxy configuration
+- Security best practices and compliance
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Docker 20.10+ and Docker Compose 1.29+
+- Kubernetes 1.24+ (kubectl configured)
+- Helm 3+ (optional, for Kubernetes deployments)
+- PostgreSQL 14+ database
+- OpenSSL or cert management tool
+- Nginx or reverse proxy (optional)
+- Git for configuration management
+
+**Required Infrastructure:**
+- Kubernetes cluster or Docker host (for deployment)
+- PostgreSQL 14+ database (primary + replica for HA)
+- OAuth provider (Google Cloud, Auth0, Keycloak, etc.)
+- Domain with DNS setup
+- SSL/TLS certificate (Let's Encrypt, commercial CA, or internal)
+- Load balancer or Ingress controller
+- Network security groups/security groups properly configured
+- Persistent storage for database
+- Backup storage system
+
+**Optional but Recommended:**
+- Kubernetes cert-manager for automatic certificate renewal
+- Helm charts for standardized deployments
+- Container registry (Docker Hub, ECR, GCR, etc.)
+- Secrets management system (HashiCorp Vault, AWS Secrets Manager)
+- Monitoring and alerting infrastructure
+- Log aggregation system
+- Disaster recovery and backup testing
+- Kubernetes autoscaling configuration
+
+**Time Estimate:** 2-4 hours for Kubernetes deployment, 1-2 hours for Docker Compose setup
+
 ## Pre-Deployment Checklist
 
 - [ ] OAuth provider credentials configured

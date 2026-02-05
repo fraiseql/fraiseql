@@ -4,6 +4,45 @@ Arrow Flight is **100% backwards compatible**. Your existing HTTP/JSON clients w
 
 This guide shows how to incrementally adopt Arrow Flight in your organization.
 
+## Prerequisites
+
+**Required Knowledge:**
+- Arrow Flight and gRPC fundamentals
+- Columnar data formats and Apache Arrow concepts
+- Analytics workload patterns and use cases
+- Python, R, or other analytical language familiarity
+- Network ports and firewall configuration
+- ClickHouse or analytics database setup (optional but recommended)
+- Elasticsearch for debugging support (Phase 4, optional)
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later (with Arrow Flight support)
+- Docker 20.10+ and Docker Compose 1.29+
+- Your analytical client SDK:
+  - Python: pyarrow 15+, polars 0.20+, pandas
+  - R: arrow package
+  - Node.js: apache-arrow package
+- Your analytics/BI tool (optional, e.g., Tableau, Superset, Looker)
+- PostgreSQL 14+ database
+
+**Required Infrastructure:**
+- FraiseQL server with Arrow Flight enabled (port 50051)
+- Network connectivity from clients to port 50051 (gRPC)
+- PostgreSQL database for JSON queries (unchanged)
+- Optional: ClickHouse for analytics workloads (Phase 3)
+- Optional: Elasticsearch for debugging (Phase 4)
+- Load balancer or Ingress controller for production routing
+
+**Optional but Recommended:**
+- ClickHouse instance for analytics optimizations
+- Elasticsearch instance for debugging
+- Analytics BI tool integration
+- Query performance monitoring
+- Columnar data visualization tools
+- API gateway supporting gRPC
+
+**Time Estimate:** 30 minutes for Phase 1, 1-2 weeks for complete multi-phase adoption, 2-4 hours for analytics workload optimization
+
 ## Key Principle: No Breaking Changes
 
 Arrow Flight runs alongside your existing HTTP/JSON API. Both endpoints available simultaneously:

@@ -6,6 +6,26 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- FraiseQL federation architecture concepts
+- Apollo Federation v2 specification
+- GraphQL composition and schema stitching
+- Multi-language SDK support (Python, TypeScript, Go, Java, PHP)
+- Entity resolution and `_entities` query patterns
+- Mutation semantics in federation
+- Test coverage evaluation and testing strategies
+
+**Required Software:**
+- No specific software required (assessment and planning document)
+- Optional: FraiseQL v2.0.0-alpha.1 for hands-on exploration
+
+**Required Infrastructure:**
+- None (assessment document)
+
+**Time Estimate:** 30-45 minutes to read assessment, 2-4 hours to plan federation deployment based on findings
+
 ## Executive Summary
 
 FraiseQL v2 is a well-architected, compilation-oriented GraphQL execution engine with **substantial federation support**. The project has achieved significant milestones:

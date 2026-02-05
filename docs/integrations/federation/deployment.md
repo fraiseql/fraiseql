@@ -2,6 +2,55 @@
 
 Production-ready deployment of FraiseQL federation across multiple clouds.
 
+## Prerequisites
+
+**Required Knowledge:**
+- FraiseQL federation concepts and architecture
+- Apollo Federation v2 and GraphQL composition
+- Multi-region deployment patterns
+- Cloud platform basics (AWS, GCP, Azure, or your provider)
+- Kubernetes and container orchestration
+- Networking and DNS configuration
+- Database replication and failover
+- API gateway and reverse proxy configuration
+- Monitoring and debugging distributed systems
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Docker 20.10+ and Docker Compose 1.29+
+- Kubernetes 1.24+ with kubectl
+- Helm 3+ (optional, for Kubernetes deployments)
+- Cloud CLI tools:
+  - AWS CLI v2 (for AWS deployments)
+  - Google Cloud SDK (for GCP deployments)
+  - Azure CLI (for Azure deployments)
+- PostgreSQL 14+, MySQL 8.0+, or Cloud-native databases
+- Apollo Router or compatible federation gateway
+
+**Required Infrastructure:**
+- 2+ FraiseQL instances (one per subgraph minimum)
+- Database instances for each subgraph (or shared with isolation)
+- Federation gateway (Apollo Router or compatible)
+- Kubernetes cluster (or Docker Swarm) for orchestration
+- Load balancer or Ingress controller
+- DNS with multiple A records or health checks
+- SSL/TLS certificates for all domains
+- Network security properly configured (firewalls, security groups)
+- Inter-service network connectivity (direct DB or HTTP)
+
+**Optional but Recommended:**
+- Multi-cloud setup (AWS + GCP + Azure for resilience)
+- Container registry (ECR, GCR, ACR, or Docker Hub)
+- Kubernetes Ingress controller (nginx, Istio, Envoy)
+- Service mesh (Istio, Linkerd) for observability
+- API rate limiting gateway (Kong, Tyk)
+- Secrets management system (Vault, cloud provider native)
+- Monitoring stack (Prometheus, Grafana)
+- Distributed tracing (Jaeger, Zipkin)
+- Database backups and point-in-time recovery
+
+**Time Estimate:** 4-8 hours for single-cloud setup, 8-16 hours for multi-cloud federation
+
 ## Table of Contents
 
 1. [Single Cloud Deployment](#single-cloud-deployment)

@@ -2,6 +2,43 @@
 
 FraiseQL's authentication system is designed to be extensible. This guide shows how to implement a custom `SessionStore` for your preferred storage backend.
 
+## Prerequisites
+
+**Required Knowledge:**
+- Rust language fundamentals (traits, async/await, error handling)
+- FraiseQL authentication architecture and SessionStore trait
+- Session management concepts and token storage
+- Async Rust and async-trait macro usage
+- Your chosen backend technology (Redis, DynamoDB, MongoDB, etc.)
+- Hash algorithms and token security practices
+- Error handling in Rust with Result/Error types
+
+**Required Software:**
+- Rust 1.75+ with full toolchain
+- Cargo (included with Rust)
+- Your backend SDK (redis-rs, aws-sdk-dynamodb, mongodb Rust driver, etc.)
+- A text editor or IDE with Rust support
+- Git for version control
+
+**Required Infrastructure:**
+- FraiseQL source code (for SessionStore trait definition)
+- Your chosen session storage backend:
+  - Redis: Redis 6+ server
+  - DynamoDB: AWS account with DynamoDB access
+  - MongoDB: MongoDB 4.0+ instance
+  - PostgreSQL: PostgreSQL 12+
+- Test database for validation
+- Build environment with internet access for dependencies
+
+**Optional but Recommended:**
+- Redis CLI or similar for testing backend connectivity
+- AWS CLI or cloud provider CLI tools
+- Docker for running test backends (redis, mongo, dynamodb-local)
+- Test framework (tokio test harness)
+- Example implementations in other languages for reference
+
+**Time Estimate:** 1-2 hours to implement basic SessionStore, 3-4 hours to add comprehensive error handling and testing
+
 ## Overview
 
 The `SessionStore` trait defines four core methods:
