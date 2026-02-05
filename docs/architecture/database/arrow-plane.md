@@ -1,8 +1,8 @@
 # Arrow Plane: Columnar Data Acceleration
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Planned (Specification Complete, Implementation Not Started)
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** ✅ Implemented in v2.0.0-alpha.1 (Feature-gated in cargo features)
 **Audience:** Analytics Engineers, Data Platform Architects, Performance-Sensitive Developers
 
 ---
@@ -2007,6 +2007,6 @@ duckdb.execute(f"""
 
 ---
 
-**Specification Status: Complete** — Arrow plane architecture, implementation phases, and examples defined. Ready for Phase 1 prototype development.
+**Specification Status: Complete** — Arrow plane architecture fully defined and validated through implementation.
 
-**Implementation Status: Not Started** — No Rust code or Arrow dependencies added yet. Planned for post-v2.0 release.
+**Implementation Status: ✅ Complete** — Fully implemented in v2.0.0-alpha.1 (`fraiseql-arrow` crate). Feature-gated via Cargo. Supports gRPC/Arrow Flight protocol with schema translation, streaming batches, and analytics queries.

@@ -38,6 +38,11 @@ Practical how-to guides for operators, developers, and DevOps teams.
 - **[Monitoring](monitoring.md)** — Prometheus metrics and OpenTelemetry tracing
 - **[Observability](observability.md)** — Logging, tracing, and metrics best practices
 
+## 🔔 Event-Driven Architecture
+
+- **[Observers & Webhooks](observers.md)** — Event-driven actions on database changes
+- **[DDL Generation Guide](ddl-generation-guide.md)** — Generate schema from existing databases
+
 ## 🔗 Integrations
 
 See [Integrations Guide](../integrations/) for:
@@ -47,10 +52,13 @@ See [Integrations Guide](../integrations/) for:
 - **Arrow Flight** — High-performance analytics integration
 - **Monitoring** — Grafana dashboards and alerting
 
-## 📚 Analytics
+## 📚 Analytics & View Selection
 
 - **[Analytics Patterns](analytics-patterns.md)** — Common analytical query patterns
 - **[Arrow Flight Integration](../integrations/arrow-flight/)** — High-performance analytics and BI tool integration
+- **[View Selection Quick Reference](view-selection-quick-reference.md)** — Quick guide to view patterns
+- **[View Selection Performance Testing](view-selection-performance-testing.md)** — Benchmark view selection strategies
+- **[View Selection Migration Checklist](view-selection-migration-checklist.md)** — Migrate existing views to FraiseQL patterns
 
 ---
 

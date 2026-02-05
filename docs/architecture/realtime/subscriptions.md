@@ -1,8 +1,8 @@
 # Subscriptions: Event Projections from the Database
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Accepted
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** ✅ Implemented in v2.0.0-alpha.1
 **Audience:** Runtime Developers, Integration Engineers, Database Architects
 
 ---
