@@ -1018,4 +1018,240 @@ class SchemaJunitTest {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Gradle Issues
+
+**Issue**: `Could not find com.fraiseql:fraiseql-groovy:2.0.0`
+
+**Solution**:
+```gradle
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.fraiseql:fraiseql-groovy:2.0.0'
+}
+```
+
+#### Groovy Compilation
+
+**Issue**: `Cannot find groovy-all jar`
+
+**Solution - Add Groovy dependency**:
+```gradle
+dependencies {
+    implementation 'org.apache.groovy:groovy-all:4.0.0'
+    implementation 'com.fraiseql:fraiseql-groovy:2.0.0'
+}
+```
+
+#### Java Interop Issues
+
+**Issue**: `Cannot find Java class in Groovy`
+
+**Solution - Set up classpath**:
+```gradle
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+        }
+        groovy {
+            srcDir 'src/main/groovy'
+        }
+    }
+}
+```
+
+#### Dynamic Method Issues
+
+**Issue**: `MissingMethodException`
+
+**Solution - Define methods properly**:
+```groovy
+// ✅ Correct
+class MyClass {
+    def execute(String query) {
+        return fraiseql.execute(query)
+    }
+}
+
+// ✅ Or with type
+String execute(String query) {
+    return fraiseql.execute(query)
+}
+```
+
+---
+
+### Type System Issues
+
+#### Closure Issues
+
+**Issue**: `Invalid variable reference`
+
+**Solution - Proper closure scope**:
+```groovy
+// ✅ Correct
+def process = { result ->
+    println result
+}
+
+fraiseql.execute(query).each(process)
+```
+
+#### Metaclass Issues
+
+**Issue**: `GroovyRuntimeException: Could not find matching method`
+
+**Solution - Check metaclass**:
+```groovy
+// ✅ Add method dynamically
+String.metaClass.queryify = { ->
+    "query { $delegate { id } }"
+}
+
+def query = 'user'.queryify()
+```
+
+#### Type Coercion Issues
+
+**Issue**: `ClassCastException` at runtime
+
+**Solution - Explicit casting**:
+```groovy
+// ✅ Explicit cast
+def id = (int) request.params.id
+def result = fraiseql.execute(query, [id: id])
+```
+
+---
+
+### Runtime Errors
+
+#### Dynamic Method Errors
+
+**Issue**: `MissingMethodException: No signature of method`
+
+**Solution - Define method first**:
+```groovy
+// ✅ Define before using
+fraiseql.metaClass.executeWithRetry = { String query ->
+    fraiseql.execute(query)
+}
+
+fraiseql.executeWithRetry(query)
+```
+
+#### Closure Context Issues
+
+**Issue**: `NullPointerException in closure`
+
+**Solution - Capture variables**:
+```groovy
+// ❌ Wrong
+def users = []
+queries.each { q ->
+    users << fraiseql.execute(q)  // Context lost
+}
+
+// ✅ Correct
+def users = []
+def f = fraiseql  // Capture reference
+queries.each { q ->
+    users << f.execute(q)
+}
+```
+
+#### Thread Issues in Groovy
+
+**Issue**: `ConcurrentModificationException`
+
+**Solution - Synchronize if needed**:
+```groovy
+def results = Collections.synchronizedList([])
+
+queries.each { q ->
+    results << fraiseql.execute(q)
+}
+```
+
+---
+
+### Performance Issues
+
+#### Build Time
+
+**Issue**: Build takes >60 seconds
+
+**Parallel compilation**:
+```gradle
+tasks.withType(JavaCompile).all { task ->
+    task.options.fork = true
+    task.options.forkOptions.memoryInitialSize = '512m'
+    task.options.forkOptions.memoryMaximumSize = '1g'
+}
+```
+
+#### Dynamic Dispatch Overhead
+
+**Issue**: Slow method calls due to dynamic dispatch
+
+**Use static type hints**:
+```groovy
+// ❌ Slower - dynamic
+def result = fraiseql.execute(query)
+
+// ✅ Faster - static
+FraiseQLResult result = fraiseql.execute(query)
+```
+
+---
+
+### Debugging Techniques
+
+#### Groovy Console
+
+```bash
+groovysh
+
+groovy> import com.fraiseql.*
+groovy> def server = Server.fromCompiled('schema.json')
+groovy> server.execute('{ user(id: 1) { id } }')
+```
+
+#### Print Debugging
+
+```groovy
+def result = fraiseql.execute(query)
+println "Result: ${result}"
+println "Result: ${result.dump()}"  // Detailed dump
+```
+
+#### Property Access
+
+```groovy
+// ✅ Check properties
+def user = result.data.user
+println user?.id  // Safe navigation
+println user.properties  // All properties
+```
+
+---
+
+### Getting Help
+
+Provide:
+1. Java version: `java -version`
+2. Groovy version: `groovy --version`
+3. Gradle version: `gradle --version`
+4. FraiseQL version
+5. Error message
+
+---
+
 **Status**: Production Ready ✅ | **Last Updated**: 2026-02-05 | **Maintained By**: FraiseQL Community

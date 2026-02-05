@@ -1051,4 +1051,449 @@ public class IntegrationTests : IAsyncLifetime
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### NuGet Package Issues
+
+**Issue**: `NU1101: Unable to find package FraiseQL`
+
+**Solution**:
+```xml
+<!-- .csproj -->
+<ItemGroup>
+  <PackageReference Include="FraiseQL" Version="2.0.0" />
+</ItemGroup>
+```
+
+```bash
+dotnet add package FraiseQL --version 2.0.0
+```
+
+#### Assembly Loading
+
+**Issue**: `FileLoadException: Could not load file or assembly`
+
+**Solution - Check version**:
+```bash
+dotnet list package --outdated
+dotnet restore
+dotnet clean && dotnet build
+```
+
+#### .NET Version Mismatch
+
+**Issue**: `This package requires .NET 6.0 or higher`
+
+**Check version** (6.0+ required):
+```bash
+dotnet --version
+```
+
+**Update .csproj**:
+```xml
+<TargetFramework>net8.0</TargetFramework>
+```
+
+#### Package Source Issues
+
+**Issue**: `The nuget source is unreachable`
+
+**Configure package source**:
+```bash
+dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org
+dotnet nuget list source
+```
+
+---
+
+### Type System Issues
+
+#### Nullable Reference Type Issues
+
+**Issue**: `CS8600: Converting null literal or possible null value to non-nullable reference type`
+
+**Enable nullable reference types**:
+```xml
+<PropertyGroup>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
+</PropertyGroup>
+```
+
+**Use correct nullability**:
+```csharp
+// ❌ Wrong - implicit non-null
+[FraiseQLType]
+public class User
+{
+    public string Email { get; set; }  // Implicitly required
+}
+
+// ✅ Correct - explicit nullability
+[FraiseQLType]
+public class User
+{
+    public string Email { get; set; }  // Non-null
+    public string? MiddleName { get; set; }  // Nullable
+}
+```
+
+#### Generic Type Issues
+
+**Issue**: `CS0311: The type 'T' cannot be used as type parameter`
+
+**Solution - Use concrete types**:
+```csharp
+// ❌ Won't work - generics
+[FraiseQLType]
+public class Box<T>
+{
+    public T Value { get; set; }
+}
+
+// ✅ Use concrete types
+[FraiseQLType]
+public class UserBox
+{
+    public User Value { get; set; }
+}
+```
+
+#### Dynamic Type Issues
+
+**Issue**: `Cannot cast dynamic to IGraphQLType`
+
+**Solution - Use static types**:
+```csharp
+// ❌ Don't use dynamic
+var result = (dynamic)fraiseql.Execute(query);
+
+// ✅ Use typed results
+var result = fraiseql.Execute<QueryResult>(query);
+
+// Or cast after
+var result = fraiseql.Execute(query) as QueryResult;
+```
+
+#### Attributes Issues
+
+**Issue**: `CS0246: The type or namespace name 'FraiseQLType' could not be found`
+
+**Verify using statements**:
+```csharp
+using FraiseQL;
+using FraiseQL.Attributes;
+
+[FraiseQLType]
+public class User { }
+```
+
+---
+
+### Runtime Errors
+
+#### Task/Async Issues
+
+**Issue**: `InvalidOperationException: 'await' requires async method`
+
+**Solution - Use async/await properly**:
+```csharp
+// ❌ Wrong - not async
+public QueryResult Execute(string query)
+{
+    var result = await fraiseql.ExecuteAsync(query);  // ERROR
+    return result;
+}
+
+// ✅ Correct
+public async Task<QueryResult> ExecuteAsync(string query)
+{
+    var result = await fraiseql.ExecuteAsync(query);
+    return result;
+}
+
+// In controllers
+[HttpPost("/graphql")]
+public async Task<IActionResult> GraphQL([FromBody] GraphQLRequest request)
+{
+    var result = await fraiseql.ExecuteAsync(request.Query);
+    return Ok(result);
+}
+```
+
+#### Reflection Issues
+
+**Issue**: `MissingMethodException: Method not found`
+
+**Solution - Use proper reflection**:
+```csharp
+// ✅ Get property correctly
+var propertyInfo = typeof(User).GetProperty("Email",
+    System.Reflection.BindingFlags.IgnoreCase |
+    System.Reflection.BindingFlags.Public |
+    System.Reflection.BindingFlags.Instance);
+
+if (propertyInfo != null)
+{
+    var value = propertyInfo.GetValue(user);
+}
+```
+
+#### Dependency Injection Issues
+
+**Issue**: `InvalidOperationException: Unable to resolve service for type`
+
+**Register dependencies**:
+```csharp
+// Startup.cs or Program.cs
+services.AddSingleton<IFraiseQLServer>(sp =>
+    FraiseQLServer.FromCompiled("schema.compiled.json")
+);
+
+services.AddScoped<IGraphQLService, GraphQLService>();
+```
+
+**Use in controller**:
+```csharp
+[ApiController]
+[Route("api")]
+public class GraphQLController : ControllerBase
+{
+    private readonly IFraiseQLServer _server;
+
+    public GraphQLController(IFraiseQLServer server)
+    {
+        _server = server;
+    }
+
+    [HttpPost("graphql")]
+    public async Task<IActionResult> Execute([FromBody] GraphQLRequest request)
+    {
+        var result = await _server.ExecuteAsync(request.Query);
+        return Ok(result);
+    }
+}
+```
+
+#### Entity Framework Issues
+
+**Issue**: `DbUpdateException: An error occurred while updating the entries`
+
+**Solution - Use SQL views/functions only, not EF**:
+```csharp
+// FraiseQL works with SQL views, not EF entities
+// Don't mix EF with FraiseQL schema
+
+// ✅ Correct - SQL views for FraiseQL
+CREATE VIEW v_users AS SELECT id, name, email FROM users;
+
+// Use in FraiseQL schema
+@fraiseql.query(sql_source = "v_users")
+public User[] GetUsers() { return new User[0]; }
+```
+
+---
+
+### Performance Issues
+
+#### Slow Startup
+
+**Issue**: Application takes >10 seconds to start**
+
+**Pre-compile schema**:
+```bash
+# Use fraiseql-cli
+fraiseql-cli compile schema.json fraiseql.toml
+
+# Load pre-compiled (faster)
+var server = FraiseQLServer.FromCompiled("schema.compiled.json");
+```
+
+#### Large Assembly Size
+
+**Issue**: DLL is >100MB
+
+**Enable trimming**:
+```xml
+<PropertyGroup>
+  <PublishTrimmed>true</PublishTrimmed>
+  <PublishReadyToRun>true</PublishReadyToRun>
+</PropertyGroup>
+```
+
+```bash
+dotnet publish -c Release
+```
+
+#### Connection Pool Exhaustion
+
+**Issue**: `InvalidOperationException: Timeout expired`
+
+**Increase pool size**:
+```csharp
+var options = new DbContextOptionsBuilder<MyDbContext>()
+    .UseSqlServer(
+        connectionString,
+        opts => opts.CommandTimeout(60)
+    )
+    .Build();
+
+// Or via connection string
+"Server=...;Max Pool Size=50;Min Pool Size=5;"
+```
+
+#### Memory Usage in Long-Running Services
+
+**Issue**: Memory grows over time
+
+**Implement cleanup**:
+```csharp
+public class GraphQLService : IDisposable
+{
+    private readonly IFraiseQLServer _server;
+    private readonly CancellationTokenSource _cts;
+
+    public GraphQLService(IFraiseQLServer server)
+    {
+        _server = server;
+        _cts = new CancellationTokenSource();
+    }
+
+    public async Task<QueryResult> ExecuteAsync(string query)
+    {
+        return await _server.ExecuteAsync(query, _cts.Token);
+    }
+
+    public void Dispose()
+    {
+        _cts?.Dispose();
+        _server?.Dispose();
+    }
+}
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Logging
+
+**Setup logging**:
+```csharp
+services.AddLogging(builder =>
+{
+    builder.AddConsole();
+    builder.AddDebug();
+    builder.SetMinimumLevel(LogLevel.Debug);
+});
+
+// Or in appsettings.json
+{
+  "Logging": {
+    "LogLevel": {
+      "FraiseQL": "Debug",
+      "Default": "Information"
+    }
+  }
+}
+```
+
+#### Debug Output
+
+```csharp
+System.Diagnostics.Debug.WriteLine($"Query: {query}");
+System.Diagnostics.Debug.WriteLine($"Result: {result}");
+```
+
+#### Visual Studio Debugger
+
+1. Set breakpoint (Ctrl+B)
+2. Debug → Debug (F5)
+3. Step over/into (F10/F11)
+4. Watch window (Ctrl+Alt+W)
+
+#### Unit Testing
+
+```csharp
+[TestClass]
+public class GraphQLTests
+{
+    private IFraiseQLServer _server;
+
+    [TestInitialize]
+    public void Setup()
+    {
+        _server = FraiseQLServer.FromCompiled("schema.compiled.json");
+    }
+
+    [TestMethod]
+    public async Task TestQuery()
+    {
+        var result = await _server.ExecuteAsync("{ user(id: 1) { id } }");
+        Assert.IsNotNull(result);
+        Assert.IsNotNull(result.Data);
+    }
+}
+```
+
+#### Profiling
+
+**Use Visual Studio Profiler**:
+1. Debug → Performance Profiler
+2. Select CPU Usage
+3. Run app
+4. Analyze results
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. .NET version: `dotnet --version`
+2. Visual Studio version (if applicable)
+3. FraiseQL version: `dotnet list package`
+4. Minimal reproducible example
+5. Full exception + stack trace
+
+**Template**:
+```markdown
+**Environment**:
+- .NET: 8.0
+- Visual Studio: 2022
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe]
+
+**Code**:
+[Minimal example]
+
+**Error**:
+[Full exception]
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Q&A
+- **Stack Overflow**: Tag with `csharp`, `fraiseql`, `graphql`
+- **Reddit**: r/dotnet
+
+---
+
+## See Also
+
+- **[Java SDK Reference](./java-reference.md)** - Java authoring interface
+- **[TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
+- **[Go SDK Reference](./go-reference.md)** - Go runtime and server integration
+- **[Rust Core](../../core/architecture.md)** - FraiseQL compiler and runtime
+- **[Security Configuration](../authentication/oauth2-oidc.md)** - RBAC and authentication
+- **[Deployment Guide](../../deployment/docker.md)** - Docker, Kubernetes, cloud platforms
+- **[Performance Tuning](../../performance/query-optimization.md)** - Benchmarking and optimization
+
+---
+
 **FraiseQL Community Edition** — Modern, compiled GraphQL execution for .NET

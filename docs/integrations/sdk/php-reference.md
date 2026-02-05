@@ -765,4 +765,259 @@ class UserQueriesTest extends SchemaTestCase
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Composer Issues
+
+**Issue**: `Could not find package fraiseql/fraiseql`
+
+**Solution**:
+```bash
+composer require fraiseql/fraiseql "^2.0"
+composer update
+composer dump-autoload
+```
+
+#### Autoloader Issues
+
+**Issue**: `Class 'FraiseQL\Server' not found`
+
+**Solution - Require autoloader**:
+```php
+<?php
+require 'vendor/autoload.php';
+
+use FraiseQL\Server;
+$server = Server::fromCompiled('schema.compiled.json');
+```
+
+#### PHP Version Issues
+
+**Issue**: `Parse error: syntax error, unexpected ...`
+
+**Check PHP version** (7.4+ required):
+```bash
+php --version
+```
+
+**Update PHP**:
+```bash
+php -v
+# Or use version manager
+phpenv versions
+phpenv global 8.2
+```
+
+#### Extension Issues
+
+**Issue**: `Warning: Module compiled for PHP 8.1.0 API ... but loaded into ...`
+
+**Solution - Rebuild extensions**:
+```bash
+pecl install fraiseql
+php -m | grep fraiseql
+```
+
+---
+
+### Type System Issues
+
+#### Type Declaration Errors
+
+**Issue**: `Uncaught TypeError: Return value must be of type array`
+
+**Solution - Use proper types**:
+```php
+// ✅ Declare return types
+public function getUsers(): array {
+    return $this->server->execute($query);
+}
+
+// ✅ Or nullable
+public function getUser(int $id): ?User {
+    return $this->server->execute($query);
+}
+```
+
+#### Attribute Issues
+
+**Issue**: `Error: Call to undefined method attribute()`
+
+**Solution - Use correct syntax**:
+```php
+// ✅ PHP 8 attributes
+#[FraiseQL\Type]
+class User {
+    public int $id;
+    public string $email;
+}
+
+// Or docblock for PHP 7.4
+/**
+ * @FraiseQL\Type
+ */
+class User {
+}
+```
+
+#### Class Type Issues
+
+**Issue**: `Undefined class FraiseQL\Type`
+
+**Solution - Import classes**:
+```php
+<?php
+use FraiseQL\Type;
+use FraiseQL\Query;
+
+#[Type]
+class User { }
+
+#[Query(sqlSource: 'v_users')]
+function getUsers(): array { }
+```
+
+---
+
+### Runtime Errors
+
+#### Connection Issues
+
+**Issue**: `PDOException: SQLSTATE[HY000]: General error`
+
+**Check environment**:
+```bash
+echo $DATABASE_URL
+```
+
+**Solution - Configure database**:
+```php
+$dotenv = \Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+
+$server = \FraiseQL\Server::fromCompiled(
+    'schema.compiled.json',
+    [
+        'database_url' => $_ENV['DATABASE_URL']
+    ]
+);
+```
+
+#### Session Issues
+
+**Issue**: `Cannot modify header information`
+
+**Solution - Set headers early**:
+```php
+<?php
+// Must be first
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+
+// Then your code
+$result = $server->execute($query);
+echo json_encode($result);
+```
+
+#### Variable Type Mismatch
+
+**Issue**: `Unexpected type for argument`
+
+**Solution - Cast properly**:
+```php
+// ✅ Correct types
+$result = $server->execute(
+    query: $query,
+    variables: ['id' => (int)$id]  // Must be int, not string
+);
+```
+
+---
+
+### Performance Issues
+
+#### Slow Execution
+
+**Issue**: Queries take >5 seconds
+
+**Enable caching**:
+```php
+$server = \FraiseQL\Server::fromCompiled(
+    'schema.compiled.json',
+    ['cache_ttl' => 300]  // 5 minutes
+);
+```
+
+#### Memory Issues
+
+**Issue**: `Fatal error: Allowed memory size of X bytes exhausted`
+
+**Increase memory limit**:
+```php
+ini_set('memory_limit', '512M');
+
+// Or in php.ini
+memory_limit = 512M
+```
+
+**Or check for leaks**:
+```php
+echo memory_get_usage() . " bytes\n";
+$result = $server->execute($query);
+echo memory_get_usage() . " bytes\n";
+```
+
+---
+
+### Debugging Techniques
+
+#### Error Reporting
+
+```php
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Or log errors
+ini_set('log_errors', 1);
+ini_set('error_log', '/var/log/php-error.log');
+```
+
+#### var_dump Debugging
+
+```php
+<?php
+$result = $server->execute($query);
+var_dump($result);
+
+// Or pretty print
+echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+```
+
+#### Xdebug Profiling
+
+```php
+<?php
+xdebug_start_code_coverage();
+
+$result = $server->execute($query);
+
+$coverage = xdebug_get_code_coverage();
+var_dump($coverage);
+```
+
+---
+
+### Getting Help
+
+Provide: 1. PHP version: `php -v`
+2. Composer version: `composer --version`
+3. FraiseQL version: `composer show fraiseql/fraiseql`
+4. Error message
+5. Minimal code example
+
+---
+
 **Last Reviewed**: February 2026 | **Version**: 2.0.0+ | **License**: Apache 2.0

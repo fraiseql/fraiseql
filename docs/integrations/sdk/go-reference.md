@@ -659,6 +659,450 @@ go func() {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Module Import Problems
+
+**Issue**: `no required module provides package "github.com/fraiseql/fraiseql-go"`
+
+**Solution**:
+```bash
+# Add module to go.mod
+go get github.com/fraiseql/fraiseql-go
+
+# Verify import
+go mod verify
+
+# Tidy dependencies
+go mod tidy
+```
+
+#### Compilation Errors
+
+**Issue**: `undefined: fraiseql.Type`
+
+**Cause**: Incorrect import or version mismatch
+
+**Solution**:
+```go
+// ✅ Correct import
+import "github.com/fraiseql/fraiseql-go"
+
+// ✅ Use proper package reference
+func init() {
+    fraiseql.Type("User", fraiseql.Fields{
+        "id":    fraiseql.Int,
+        "email": fraiseql.String,
+    })
+}
+```
+
+#### Version Compatibility
+
+**Issue**: Compiled code doesn't match runtime version
+
+**Check version**:
+```bash
+go list -m github.com/fraiseql/fraiseql-go
+```
+
+**Update to latest**:
+```bash
+go get -u github.com/fraiseql/fraiseql-go@latest
+go mod tidy
+```
+
+#### Build Tag Issues
+
+**Issue**: `undefined: someFunc` when using optional features
+
+**Solution - Use correct build tags**:
+```bash
+# Build with observer support
+go build -tags=observers
+
+# Build with arrow support
+go build -tags=arrow_flight
+```
+
+---
+
+### Type System Issues
+
+#### Type Mismatch Errors
+
+**Issue**: `cannot use "string" (string type) as "fraiseql.Email" type`
+
+**Cause**: Type assertion failure
+
+**Solution**:
+```go
+// ❌ Wrong - direct assignment
+user := User{Email: "test@example.com"}  // string, not Email
+
+// ✅ Correct - use conversion
+user := User{
+    Email: fraiseql.Email("test@example.com"),
+}
+```
+
+**Or use type definitions**:
+```go
+type Email string
+
+func (e Email) Validate() error {
+    // Email validation
+    return nil
+}
+```
+
+#### Null Handling
+
+**Issue**: `cannot use nil as type fraiseql.String`
+
+**Solution - Use pointers for optional fields**:
+```go
+// ❌ Wrong - can't be nil
+type User struct {
+    Email fraiseql.String
+}
+
+// ✅ Correct - pointer allows nil
+type User struct {
+    Email *fraiseql.String
+}
+
+// Or use explicit option
+type User struct {
+    Email fraiseql.Option[fraiseql.String]
+}
+
+// Check if present
+if user.Email.IsSome() {
+    fmt.Println(user.Email.Unwrap())
+}
+```
+
+#### Reflection Issues
+
+**Issue**: Type information lost at runtime
+
+**Cause**: Go's type system is compile-time only
+
+**Solution - Use struct tags**:
+```go
+type User struct {
+    ID    int    `fraiseql:"id,required"`
+    Email string `fraiseql:"email,type=Email"`
+}
+
+// Schema compiler reads tags
+schema, _ := fraiseql.ExportSchema("path/to/schema.json")
+```
+
+---
+
+### Runtime Errors
+
+#### Goroutine Panic
+
+**Issue**: `fatal error: concurrent map write`
+
+**Cause**: Unsafe concurrent access to schema
+
+**Solution - Use sync.Once**:
+```go
+var (
+    serverOnce sync.Once
+    server *fraiseql.Server
+)
+
+func getServer() *fraiseql.Server {
+    serverOnce.Do(func() {
+        server, _ = fraiseql.NewServer(fraiseql.Config{
+            CompiledSchemaPath: "schema.compiled.json",
+        })
+    })
+    return server
+}
+```
+
+#### Context Timeout
+
+**Issue**: `context deadline exceeded`
+
+**Solution - Set proper timeout**:
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+result, err := server.Execute(ctx, fraiseql.ExecuteRequest{
+    Query: query,
+})
+```
+
+#### Connection Pool Exhaustion
+
+**Issue**: `all connections busy` or `too many connections`
+
+**Check pool status**:
+```go
+stats := server.PoolStats()
+fmt.Printf("Open: %d, MaxOpen: %d\n", stats.OpenConnections, stats.MaxOpenConnections)
+```
+
+**Increase pool size**:
+```go
+server, _ := fraiseql.NewServer(fraiseql.Config{
+    PoolSize: 20,      // Max connections
+    PoolMinSize: 5,    // Min idle
+})
+```
+
+#### Variable Binding Issues
+
+**Issue**: `query variable binding failed`
+
+**Solution - Check variable types**:
+```go
+// Variables must match expected types
+variables := map[string]interface{}{
+    "id": 123,           // Must be int, not string "123"
+    "limit": 20,        // Must match Int type
+}
+
+result, _ := server.Execute(ctx, fraiseql.ExecuteRequest{
+    Query: query,
+    Variables: variables,
+})
+```
+
+---
+
+### Performance Issues
+
+#### Goroutine Leaks
+
+**Issue**: Application memory grows unbounded**
+
+**Debug with pprof**:
+```go
+import _ "net/http/pprof"
+
+go func() {
+    http.ListenAndServe("localhost:6060", nil)
+}()
+
+// Then visit http://localhost:6060/debug/pprof/goroutine
+```
+
+**Solution - Ensure cleanup**:
+```go
+defer server.Close()  // Releases resources
+
+// Or use context cancellation
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()  // Cancels all in-flight operations
+```
+
+#### Slow Queries
+
+**Issue**: Queries timeout or take >5 seconds
+
+**Enable query logging**:
+```go
+server, _ := fraiseql.NewServer(fraiseql.Config{
+    Debug: true,
+    LogLevel: "debug",
+})
+```
+
+**Optimize**:
+```go
+// Add pagination
+query := `
+    query($limit: Int!, $offset: Int!) {
+        users(limit: $limit, offset: $offset) { id }
+    }
+`
+
+// Use caching
+query := `query { trending(limit: 10) { id } }`
+// Request cached for 5 minutes
+```
+
+#### Memory Spikes
+
+**Issue**: Memory usage spikes during large queries
+
+**Profile with pprof**:
+```bash
+go test -memprofile=mem.prof -bench .
+go tool pprof mem.prof
+```
+
+**Solutions**:
+- Use pagination for large result sets
+- Stream results instead of buffering
+- Close unused connections promptly
+
+#### Compilation Performance
+
+**Issue**: Build takes too long
+
+**Parallel compilation**:
+```bash
+go build -p 4  # Use 4 cores
+```
+
+**Cache dependencies**:
+```bash
+go mod download  # Pre-fetch modules
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Debug Output
+
+**Set debug mode**:
+```go
+server, _ := fraiseql.NewServer(fraiseql.Config{
+    Debug: true,
+})
+
+// Or environment variable
+os.Setenv("FRAISEQL_DEBUG", "true")
+os.Setenv("RUST_LOG", "fraiseql=debug")
+```
+
+#### Use fmt.Printf for Debugging
+
+```go
+result, err := server.Execute(ctx, req)
+fmt.Printf("Result: %+v\n", result)
+fmt.Printf("Error: %v\n", err)
+```
+
+#### Structured Logging
+
+```go
+import "log/slog"
+
+logger := slog.Default()
+logger.Debug("Executing query", "query", query)
+
+result, err := server.Execute(ctx, req)
+if err != nil {
+    logger.Error("Query failed", "error", err)
+}
+```
+
+#### Network Traffic Inspection
+
+**Using tcpdump**:
+```bash
+tcpdump -i lo -A 'tcp port 5432'  # Monitor database traffic
+```
+
+**Using curl to test endpoint**:
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ user(id: 1) { id } }"}' \
+  -v
+```
+
+#### Type and Schema Inspection
+
+**Print schema**:
+```go
+schema, _ := fraiseql.ExportSchemaString()
+fmt.Println(schema)
+```
+
+**Validate schema**:
+```go
+valid, errors := fraiseql.ValidateSchema(schemaJSON)
+if !valid {
+    for _, err := range errors {
+        fmt.Println(err)
+    }
+}
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide when reporting:
+1. Go version: `go version`
+2. fraiseql-go version: `go list -m github.com/fraiseql/fraiseql-go`
+3. OS and architecture: `go env GOOS GOARCH`
+4. Minimal reproducible example
+5. Full error traceback
+6. Relevant environment variables
+
+**Issue template**:
+```markdown
+**Environment**:
+- Go: go1.21
+- fraiseql-go: v2.0.0
+- OS: Linux amd64
+
+**Issue**:
+[Describe problem]
+
+**Reproduce**:
+[Minimal code example]
+
+**Error**:
+[Full error message]
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Ask questions about usage
+- **Stack Overflow**: Tag with `fraiseql` and `go`
+- **Discord**: Real-time help from maintainers
+
+#### Performance Profiling
+
+**CPU profiling**:
+```go
+import "runtime/pprof"
+
+cpuFile, _ := os.Create("cpu.prof")
+defer cpuFile.Close()
+pprof.StartCPUProfile(cpuFile)
+defer pprof.StopCPUProfile()
+
+// Your code here
+```
+
+**Memory profiling**:
+```go
+import "runtime/pprof"
+
+memFile, _ := os.Create("mem.prof")
+defer memFile.Close()
+pprof.WriteHeapProfile(memFile)
+```
+
+**Analyze with go tool pprof**:
+```bash
+go tool pprof cpu.prof
+> top  # Show top functions
+> list functionName  # Show function code
+```
+
+---
+
 ## See Also
 
 - **Architecture Guide**: [FraiseQL Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md)

@@ -1236,4 +1236,372 @@ struct AdaptiveUserListView: View {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### SPM Package Issues
+
+**Issue**: `error: no such module or it has no products`
+
+**Solution**:
+```swift
+// Package.swift
+.package(url: "https://github.com/fraiseql/fraiseql-swift.git", .upToNextMajor(from: "2.0.0"))
+```
+
+```bash
+swift package update
+swift package resolve
+```
+
+#### Swift Version Issues
+
+**Issue**: `Unsupported Swift language version`
+
+**Check version** (5.7+ required):
+```bash
+swift --version
+```
+
+**Update Xcode**:
+```bash
+xcode-select --install
+softwareupdate -i -a
+```
+
+#### Build Issues
+
+**Issue**: `error: build system failure`
+
+**Solution - Clean and rebuild**:
+```bash
+swift package clean
+swift package update
+swift build
+```
+
+#### iOS/macOS Compatibility
+
+**Issue**: `Platform not supported`
+
+**Check minimum deployment**:
+```swift
+let minimumOS = "13.0"  // iOS
+let minimumMacOS = "10.15"
+```
+
+---
+
+### Type System Issues
+
+#### Codable Issues
+
+**Issue**: `error: type 'User' does not conform to protocol 'Decodable'`
+
+**Solution - Implement Codable**:
+```swift
+// ✅ Correct
+struct User: Codable {
+    let id: Int
+    let email: String
+    let middleName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, email
+        case middleName = "middle_name"
+    }
+}
+
+// ✅ Or use @Codable macro (Swift 5.10+)
+@Codable
+struct User {
+    let id: Int
+    let email: String
+}
+```
+
+#### Optional Issues
+
+**Issue**: `Cannot convert value of type 'String' to expected argument type 'String?'`
+
+**Solution - Handle optionals properly**:
+```swift
+// ✅ Explicit optionals
+struct User {
+    let email: String      // Non-optional
+    let middleName: String?  // Optional
+}
+
+// ✅ Safe unwrapping
+if let name = user.middleName {
+    print(name)
+}
+```
+
+#### Generic Type Issues
+
+**Issue**: `error: cannot specialize non-generic type`
+
+**Solution - Use concrete types**:
+```swift
+// ❌ Won't work - generics
+struct Box<T: Codable> {
+    let value: T
+}
+
+// ✅ Use concrete types
+struct UserBox {
+    let value: User
+}
+```
+
+#### Async/Await Issues
+
+**Issue**: `error: no 'async' modifier on 'func'`
+
+**Solution - Mark async**:
+```swift
+// ✅ Correct
+async func executeQuery(_ query: String) throws -> QueryResult {
+    let result = try await fraiseql.execute(query)
+    return result
+}
+```
+
+---
+
+### Runtime Errors
+
+#### URLSession Issues
+
+**Issue**: `error: The network connection was lost`
+
+**Solution - Handle network errors**:
+```swift
+// ✅ Handle errors
+do {
+    let result = try await fraiseql.execute(query)
+    return result
+} catch let error as URLError {
+    print("Network error: \(error.localizedDescription)")
+} catch {
+    print("Other error: \(error)")
+}
+```
+
+#### Decoding Errors
+
+**Issue**: `DecodingError.dataCorrupted`
+
+**Solution - Debug decoding**:
+```swift
+// ✅ Use custom decoder
+let decoder = JSONDecoder()
+decoder.dateDecodingStrategy = .iso8601
+
+do {
+    let result = try decoder.decode(QueryResult.self, from: data)
+} catch {
+    print("Decode error: \(error)")
+}
+```
+
+#### Thread Safety Issues
+
+**Issue**: `data races detected`
+
+**Solution - Use MainActor**:
+```swift
+// ✅ Main thread only
+@MainActor
+func updateUI(_ result: QueryResult) {
+    // Safe to update UI
+}
+
+// ✅ Or use nonisolated
+nonisolated func backgroundTask() {
+    // Not on main thread
+}
+```
+
+#### Memory Issues
+
+**Issue**: `EXC_BAD_ACCESS` or memory warnings
+
+**Solution - Manage resources**:
+```swift
+// ✅ Auto-cleanup
+class MyService {
+    var fraiseql: FraiseQLServer?
+
+    deinit {
+        fraiseql = nil  // Cleanup
+    }
+}
+
+// ✅ Or use weak references
+weak var server: FraiseQLServer?
+```
+
+---
+
+### Performance Issues
+
+#### Build Time
+
+**Issue**: Build takes >2 minutes
+
+**Parallel compilation**:
+```bash
+swift build -c release -Xswiftc -g0
+```
+
+**Incremental builds**:
+```bash
+swift build -v  # Verbose to see incremental changes
+```
+
+#### App Size
+
+**Issue**: Binary is >100MB
+
+**Optimize with -Onone for development**:
+```bash
+swift build -c release -Xswiftc -Onone
+```
+
+**Or full optimization**:
+```bash
+swift build -c release -Xswiftc -Osize
+```
+
+#### Memory Usage
+
+**Issue**: iOS app uses >200MB
+
+**Profile with Instruments**:
+1. Xcode → Product → Profile (Cmd+I)
+2. Select Memory profiler
+3. Run app and inspect
+
+**Optimize**:
+- Use lazy sequences
+- Release large objects
+- Implement custom Codable for efficiency
+
+#### Network Performance
+
+**Issue**: Queries timeout or are slow
+
+**Increase timeout**:
+```swift
+var request = URLRequest(url: graphqlURL, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 60)
+let session = URLSession(configuration: .default)
+let data = try await session.data(for: request)
+```
+
+---
+
+### Debugging Techniques
+
+#### Print Debugging
+
+```swift
+print("Query: \(query)")
+print("Result: \(result)")
+debugPrint("Detailed: \(result)")
+```
+
+#### Xcode Debugger
+
+1. Set breakpoint (Cmd+B on line)
+2. Run with debug (Cmd+R)
+3. Step through (F6)
+4. Inspect in Variables panel
+
+#### Logging
+
+```swift
+import os
+
+let logger = Logger()
+
+logger.debug("Query: \(query)")
+logger.info("Execution started")
+logger.error("Query failed: \(error)")
+```
+
+**View logs**:
+```bash
+log stream --predicate 'eventMessage contains "Query"'
+```
+
+#### Unit Tests
+
+```swift
+import XCTest
+
+class FraiseQLTests: XCTestCase {
+    func testQuery() async throws {
+        let server = try FraiseQLServer.fromCompiled("schema.compiled.json")
+        let result = try await server.execute("{ user(id: 1) { id } }")
+        XCTAssertNotNil(result)
+    }
+}
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Swift version: `swift --version`
+2. macOS/iOS version
+3. Xcode version
+4. FraiseQL version
+5. Minimal reproducible example
+6. Full error message
+
+**Template**:
+```markdown
+**Environment**:
+- Swift: 5.9
+- iOS: 16.0 / macOS: 13.0
+- Xcode: 15.0
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe]
+
+**Code**:
+[Minimal example]
+
+**Error**:
+[Full error message]
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Q&A
+- **Swift Forum**: https://forums.swift.org
+- **Stack Overflow**: Tag with `swift` and `fraiseql`
+
+#### Profiling Tools
+
+**Instruments** (in Xcode):
+1. Product → Profile (Cmd+I)
+2. Select Core Data / Memory / Network
+3. Run and analyze
+
+---
+
+## See Also
+
+- [FraiseQL Swift SDK on GitHub](https://github.com/fraiseql/fraiseql-swift)
+
+---
+
 **Remember:** Swift is for schema authoring only. The Rust compiler transforms your schema into optimized SQL. Build once, deploy to FraiseQL server, run zero-cost native operations across iOS, macOS, and server environments.

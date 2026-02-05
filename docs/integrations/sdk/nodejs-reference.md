@@ -675,6 +675,237 @@ const result = await client.query('tenantUsers', {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### npm Registry Issues
+
+**Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/fraiseql-nodejs`
+
+**Solution**:
+```bash
+npm install @fraiseql/nodejs@latest
+npm cache clean --force
+npm install
+```
+
+#### Module Not Found
+
+**Issue**: `Cannot find module '@fraiseql/nodejs'`
+
+**Solution**:
+```bash
+npm install @fraiseql/nodejs
+node -e "console.log(require('@fraiseql/nodejs'))"
+```
+
+#### Node Version Issues
+
+**Issue**: `Unexpected token` or similar parser error
+
+**Check Node.js version** (14+ required):
+```bash
+node --version
+```
+
+**Update Node.js**:
+```bash
+nvm install 18
+nvm use 18
+```
+
+#### ESM/CommonJS Issues
+
+**Issue**: `ERR_REQUIRE_ESM: require() of ES modules is not supported`
+
+**Solution - Use correct module system**:
+```json
+{
+  "type": "module"
+}
+```
+
+Or for CommonJS:
+```javascript
+// ✅ CommonJS
+const { Server } = require('@fraiseql/nodejs');
+
+const server = Server.fromCompiled('schema.compiled.json');
+```
+
+---
+
+### Runtime Errors
+
+#### Promise/Async Issues
+
+**Issue**: `UnhandledPromiseRejectionWarning`
+
+**Solution - Handle promises**:
+```javascript
+// ❌ Wrong - unhandled rejection
+server.execute(query);
+
+// ✅ Correct - handle rejection
+server.execute(query)
+  .catch(err => console.error('Error:', err));
+
+// Or with async/await
+try {
+  const result = await server.execute(query);
+} catch (error) {
+  console.error('Error:', error);
+}
+```
+
+#### Type Errors at Runtime
+
+**Issue**: `TypeError: Cannot read property 'id' of undefined`
+
+**Solution - Check types**:
+```javascript
+// ❌ Risky
+const userId = result.data.user.id;
+
+// ✅ Safe
+const userId = result?.data?.user?.id || null;
+```
+
+#### Connection Issues
+
+**Issue**: `Error: ECONNREFUSED - Connection refused`
+
+**Check environment**:
+```bash
+echo $DATABASE_URL
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+**Set URL**:
+```javascript
+process.env.DATABASE_URL = 'postgresql://...';
+const server = Server.fromCompiled('schema.compiled.json');
+```
+
+#### Timeout Issues
+
+**Issue**: `TimeoutError: Operation timed out after 30000ms`
+
+**Solution - Increase timeout**:
+```javascript
+const server = Server.fromCompiled('schema.compiled.json', {
+  timeout: 60000,  // 60 seconds
+});
+
+// Per-query
+await server.execute(query, { timeout: 30000 });
+```
+
+---
+
+### Performance Issues
+
+#### Memory Leaks
+
+**Issue**: `FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory`
+
+**Debug with clinic.js**:
+```bash
+npm install -g clinic
+clinic doctor -- node app.js
+```
+
+**Solutions**:
+- Paginate large result sets
+- Close connections properly
+- Use connection pooling
+
+#### Slow Queries
+
+**Issue**: Queries take >5 seconds
+
+**Enable caching**:
+```javascript
+const server = Server.fromCompiled('schema.compiled.json', {
+  cache: {
+    enabled: true,
+    ttl: 300  // 5 minutes
+  }
+});
+```
+
+#### Build Size
+
+**Issue**: Bundle is >5MB
+
+**Optimize**:
+```bash
+# Tree-shake
+import { Server } from '@fraiseql/nodejs';  // Only what needed
+
+# Check bundle
+npm ls
+```
+
+---
+
+### Debugging Techniques
+
+#### Logging
+
+```javascript
+const server = Server.fromCompiled('schema.compiled.json', {
+  debug: true,
+  logLevel: 'debug'
+});
+
+// Or use env
+process.env.FRAISEQL_DEBUG = 'true';
+process.env.RUST_LOG = 'fraiseql=debug';
+```
+
+#### Inspect Results
+
+```javascript
+const result = await server.execute(query);
+console.log(JSON.stringify(result, null, 2));
+```
+
+#### Network Debugging
+
+```bash
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ user(id: 1) { id } }"}' \
+  -v
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Node.js version: `node -v`
+2. npm version: `npm -v`
+3. FraiseQL version: `npm list @fraiseql/nodejs`
+4. Minimal code example
+5. Full error trace
+
+---
+
+## See Also
+
+- [TypeScript SDK Reference](./typescript-reference.md) - Schema authoring
+- [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns
+- [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables and aggregations
+- [Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
+- [Node.js SDK GitHub](https://github.com/fraiseql/fraiseql-nodejs)
+
+---
+
 **Remember:** The Node.js SDK is for runtime query execution only. Use the TypeScript SDK for schema authoring. Configuration flows from TypeScript decorators → compiled schema → Node.js client execution.
 
 **Last Updated**: 2026-02-05 | **Maintained By**: FraiseQL Community | **Status**: Production Ready ✅

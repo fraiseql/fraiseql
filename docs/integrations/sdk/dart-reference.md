@@ -1085,6 +1085,268 @@ void main() {
 
 ---
 
+---
+
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Pub Package Issues
+
+**Issue**: `Could not find package fraiseql`
+
+**Solution**:
+```yaml
+# pubspec.yaml
+dependencies:
+  fraiseql: ^2.0.0
+```
+
+```bash
+pub get
+pub upgrade
+```
+
+#### Null Safety Issues
+
+**Issue**: `The type 'User?' must be assignable to 'User'`
+
+**Enable null safety**:
+```yaml
+# pubspec.yaml
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+```
+
+**Use correct nullability**:
+```dart
+// ✅ Nullable
+User? user;
+String? middleName;
+
+// ✅ Non-null
+User user;
+String email;
+```
+
+#### Async/Await Issues
+
+**Issue**: `The expression here has a type of 'Future<..>'`
+
+**Solution - Use await**:
+```dart
+// ❌ Wrong - not awaiting
+var result = server.execute(query);
+
+// ✅ Correct
+var result = await server.execute(query);
+```
+
+#### Build Runner Issues
+
+**Issue**: `Unable to run build`
+
+**Solution**:
+```bash
+pub run build_runner build
+pub run build_runner watch
+```
+
+---
+
+### Type System Issues
+
+#### Type Conversion Issues
+
+**Issue**: `The argument type 'Map<String, dynamic>' can't be assigned to parameter type 'Map<String, Object>'`
+
+**Solution - Cast properly**:
+```dart
+// ✅ Correct cast
+final variables = <String, Object>{
+  'id': 123,
+  'name': 'Alice'
+};
+
+final result = await server.execute(
+  query: query,
+  variables: variables
+);
+```
+
+#### Null Safety Issues
+
+**Issue**: `null can't be assigned to non-null type`
+
+**Solution - Check null before use**:
+```dart
+// ✅ Check first
+if (user != null) {
+  print(user.email);  // Safe
+}
+
+// ✅ Or use optional chaining
+print(user?.email ?? 'Unknown');
+```
+
+#### Generic Type Issues
+
+**Issue**: `The type 'T' is not known to be a subtype`
+
+**Solution - Use concrete types**:
+```dart
+// ❌ Won't work
+class Box<T> {
+  T value;
+}
+
+// ✅ Use concrete types
+class UserBox {
+  User value;
+}
+```
+
+---
+
+### Runtime Errors
+
+#### Network Issues
+
+**Issue**: `SocketException: Failed to connect`
+
+**Check connectivity**:
+```dart
+// Add connectivity_plus
+const http = 'http://localhost:8080/graphql';
+final result = await http.post(Uri.parse(http));
+```
+
+#### JSON Deserialization Issues
+
+**Issue**: `type 'Null' is not a subtype of type 'String'`
+
+**Solution - Handle null safely**:
+```dart
+// ✅ Use generated json_serializable
+@JsonSerializable()
+class User {
+  final int id;
+  final String name;
+  final String? middleName;
+
+  User({
+    required this.id,
+    required this.name,
+    this.middleName,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) =>
+      _$UserFromJson(json);
+}
+```
+
+#### Future Issues
+
+**Issue**: `NoSuchMethodError: method 'then' called on null`
+
+**Solution - Always return Future**:
+```dart
+// ❌ Wrong
+Future<User>? getUser() {
+  return server.execute(query);  // Nullable Future
+}
+
+// ✅ Correct
+Future<User> getUser() {
+  return server.execute(query);
+}
+```
+
+---
+
+### Performance Issues
+
+#### Build Time
+
+**Issue**: Build takes >2 minutes
+
+**Clean and rebuild**:
+```bash
+flutter clean
+flutter pub get
+flutter build
+```
+
+#### Memory Usage
+
+**Issue**: App uses >200MB
+
+**Profile with DevTools**:
+```bash
+flutter run --profile
+```
+
+**Optimize**:
+- Paginate large lists
+- Use const constructors
+- Dispose controllers
+
+#### Network Timeouts
+
+**Issue**: `SocketException: Connection reset by peer`
+
+**Increase timeout**:
+```dart
+final client = http.Client();
+final response = await client.post(
+  Uri.parse('http://localhost:8080/graphql'),
+  body: queryJson,
+).timeout(Duration(seconds: 60));
+```
+
+---
+
+### Debugging Techniques
+
+#### Print Debugging
+
+```dart
+debugPrint('Query: $query');
+debugPrint('Result: $result');
+```
+
+#### DevTools
+
+```bash
+flutter pub global activate devtools
+devtools
+# Opens browser at http://localhost:9100
+```
+
+#### Logging
+
+```dart
+import 'package:logger/logger.dart';
+
+final logger = Logger();
+
+logger.d('Debug message');
+logger.i('Info message');
+logger.e('Error', error: exception);
+```
+
+---
+
+### Getting Help
+
+Provide: 1. Dart version: `dart --version`
+2. Flutter version: `flutter --version`
+3. FraiseQL version: `pub list fraiseql`
+4. Error message
+5. Minimal code example
+
+---
+
 **Last Updated**: 2026-02-05 | **Dart SDK Version**: 2.0.0+ | **Flutter**: 3.0+
 
 For issues, questions, or contributions, visit the [FraiseQL GitHub repository](https://github.com/fraiseql/fraiseql).

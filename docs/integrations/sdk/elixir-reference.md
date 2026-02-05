@@ -677,4 +677,255 @@ end
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Mix Dependency Issues
+
+**Issue**: `could not find dependency fraiseql`
+
+**Solution**:
+```elixir
+# mix.exs
+def deps do
+  [
+    {:fraiseql, "~> 2.0"},
+    {:httpoison, "~> 2.0"}
+  ]
+end
+```
+
+```bash
+mix deps.get
+mix deps.update fraiseql
+```
+
+#### Erlang Version Issues
+
+**Issue**: `Unsupported Erlang/OTP version`
+
+**Check version** (OTP 24+ required):
+```bash
+erl -version
+elixir --version
+```
+
+**Update**:
+```bash
+asdf install erlang 26.0
+asdf install elixir 1.15.0
+asdf local erlang 26.0
+asdf local elixir 1.15.0
+```
+
+#### Macro Issues
+
+**Issue**: `undefined function use/1`
+
+**Solution - Define module first**:
+```elixir
+defmodule MyApp.Schema do
+  use FraiseQL.Schema
+
+  type User do
+    field :id, :integer
+    field :email, :string
+  end
+end
+```
+
+#### Supervision Tree Issues
+
+**Issue**: `connection refused` when running server
+
+**Solution - Start properly**:
+```elixir
+# application.ex
+def start(_type, _args) do
+  children = [
+    {FraiseQL.Server, [
+      compiled_schema: "schema.compiled.json",
+      database_url: System.get_env("DATABASE_URL")
+    ]}
+  ]
+
+  opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+  Supervisor.start_link(children, opts)
+end
+```
+
+---
+
+### Type System Issues
+
+#### Pattern Match Issues
+
+**Issue**: `no function clause matching`
+
+**Solution - Handle all patterns**:
+```elixir
+# ❌ Incomplete
+def process({:ok, result}), do: result
+
+# ✅ Complete
+def process({:ok, result}), do: result
+def process({:error, reason}), do: {:error, reason}
+```
+
+#### Type Spec Issues
+
+**Issue**: `Type mismatch in spec: ...`
+
+**Solution - Define proper specs**:
+```elixir
+# ✅ With spec
+@spec execute(String.t(), map()) :: {:ok, map()} | {:error, String.t()}
+def execute(query, variables) do
+  # implementation
+end
+```
+
+#### Macro Expansion Issues
+
+**Issue**: `Macro undefined: type/1`
+
+**Solution - Use correct syntax**:
+```elixir
+# ✅ Inside schema block
+defmodule MyApp.Schema do
+  use FraiseQL.Schema
+
+  type User do
+    field :id, :integer
+  end
+end
+```
+
+---
+
+### Runtime Errors
+
+#### Supervision Tree Failures
+
+**Issue**: `GenServer ... terminating`
+
+**Debug with observer**:
+```elixir
+# In iex
+iex> :observer.start()
+```
+
+**Handle errors**:
+```elixir
+defmodule FraiseQLSupervisor do
+  def start_link(opts) do
+    Supervisor.start_link([
+      {FraiseQL.Server, opts}
+    ], strategy: :one_for_one)
+  end
+end
+```
+
+#### Async/Concurrency Issues
+
+**Issue**: `Process mailbox overflow`
+
+**Solution - Use flow control**:
+```elixir
+# Limit concurrency
+Task.async_stream(queries, fn q ->
+  FraiseQL.execute(q)
+end, max_concurrency: 10)
+```
+
+#### Database Connection Issues
+
+**Issue**: `no connections available`
+
+**Configure pool**:
+```elixir
+# config/config.exs
+config :fraiseql,
+  database_url: System.get_env("DATABASE_URL"),
+  pool_size: 20,
+  pool_overflow: 10
+```
+
+---
+
+### Performance Issues
+
+#### Compilation Time
+
+**Issue**: Compilation takes >30 seconds
+
+**Use caching**:
+```bash
+MIX_ENV=prod mix compile.app
+```
+
+#### Memory Usage
+
+**Issue**: Application memory grows over time
+
+**Monitor with observer**:
+```elixir
+iex> :observer.start()
+```
+
+**Clean up resources**:
+```elixir
+def cleanup do
+  # Close connections
+  FraiseQL.close()
+end
+```
+
+---
+
+### Debugging Techniques
+
+#### Logger Setup
+
+```elixir
+# config/config.exs
+config :logger,
+  level: :debug,
+  format: "\n$time $metadata[$level] $message\n"
+
+# In code
+require Logger
+Logger.debug("Query: #{query}")
+```
+
+#### IEx Debugging
+
+```bash
+iex -S mix
+
+iex> require Logger
+iex> Logger.level(:debug)
+iex> result = FraiseQL.execute(query)
+```
+
+#### Profiler
+
+```bash
+mix profile.fprof
+```
+
+---
+
+### Getting Help
+
+Provide:
+1. Erlang version: `erl -version`
+2. Elixir version: `elixir --version`
+3. FraiseQL version: `mix deps`
+4. Error message
+5. Stack trace
+
+---
+
 **Last Updated**: 2026-02-05 | **Maintained By**: FraiseQL Community | **Status**: Production Ready ✅

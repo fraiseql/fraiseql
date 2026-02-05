@@ -956,6 +956,444 @@ public void testWithMockAdapter() {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Dependency Resolution
+
+**Issue**: `Could not resolve dependency: fraiseql:fraiseql-java:2.0.0`
+
+**Solution - Check repository**:
+```xml
+<repository>
+  <id>central</id>
+  <url>https://repo.maven.apache.org/maven2</url>
+</repository>
+```
+
+Or Maven Central directly:
+```bash
+mvn clean install -U  # Update snapshots
+```
+
+#### Compilation Issues
+
+**Issue**: `Cannot find symbol class FraiseQLServer`
+
+**Verify dependency**:
+```xml
+<dependency>
+  <groupId>com.fraiseql</groupId>
+  <artifactId>fraiseql-java</artifactId>
+  <version>2.0.0</version>
+</dependency>
+```
+
+```bash
+mvn dependency:tree | grep fraiseql
+```
+
+#### Classpath Issues
+
+**Issue**: `ClassNotFoundException: com.fraiseql.FraiseQLServer`
+
+**Check classpath**:
+```bash
+# Maven - ensure correct target directory
+mvn clean compile
+
+# Gradle - check build output
+./gradlew build
+
+# Java - add to classpath explicitly
+java -cp ".:lib/*" MyApp
+```
+
+#### Java Version Mismatch
+
+**Issue**: `Unsupported major.minor version`
+
+**Check Java version** (11+ required):
+```bash
+java -version
+```
+
+**Set in build**:
+```xml
+<properties>
+  <maven.compiler.source>11</maven.compiler.source>
+  <maven.compiler.target>11</maven.compiler.target>
+</properties>
+```
+
+---
+
+### Type System Issues
+
+#### Annotation Processing Failures
+
+**Issue**: `No processor claimed annotation @FraiseQLType`
+
+**Solution - Enable annotation processing**:
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-compiler-plugin</artifactId>
+  <configuration>
+    <annotationProcessors>
+      <annotationProcessor>com.fraiseql.processor.FraiseQLProcessor</annotationProcessor>
+    </annotationProcessors>
+  </configuration>
+</plugin>
+```
+
+#### Type Mapping Errors
+
+**Issue**: `Cannot assign Integer to type String field`
+
+**Solution - Use correct types**:
+```java
+// ❌ Wrong - type mismatch
+@FraiseQLType
+public class User {
+    public String id;  // Should be int or UUID
+}
+
+// ✅ Correct
+@FraiseQLType
+public class User {
+    public int id;
+    public String email;
+}
+```
+
+#### Null Safety Issues
+
+**Issue**: `NullPointerException on User.email`
+
+**Solution - Use Optional**:
+```java
+// ❌ Can throw NPE
+@FraiseQLType
+public class User {
+    public String email;  // Could be null
+}
+
+// ✅ Explicit nullability
+@FraiseQLType
+public class User {
+    @Nullable
+    public String middleName;
+
+    @NonNull
+    public String email;
+}
+```
+
+#### Generics Issues
+
+**Issue**: `Type erasure prevents generic type resolution`
+
+**Solution - Use concrete types**:
+```java
+// ❌ Won't work - generics erased at runtime
+@FraiseQLType
+public class Box<T> {
+    public T value;
+}
+
+// ✅ Use concrete types
+@FraiseQLType
+public class UserBox {
+    public User value;
+}
+```
+
+---
+
+### Runtime Errors
+
+#### Thread Safety Issues
+
+**Issue**: `ConcurrentModificationException in schema execution`
+
+**Solution - Use thread-safe patterns**:
+```java
+// Ensure server instance is thread-safe
+private static final FraiseQLServer server = FraiseQLServer.fromCompiled(
+    "schema.compiled.json"
+);
+
+// Each request can reuse same server
+@PostMapping("/graphql")
+public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
+    // Server is thread-safe
+    QueryResult result = server.execute(request.getQuery());
+    return ResponseEntity.ok(result);
+}
+```
+
+#### Connection Pool Exhaustion
+
+**Issue**: `HikariPool - Connection is not available`
+
+**Check pool configuration**:
+```java
+HikariConfig config = new HikariConfig();
+config.setMaximumPoolSize(20);
+config.setMinimumIdle(5);
+config.setConnectionTimeout(30000);
+```
+
+**Or via properties**:
+```properties
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+```
+
+#### Reflection Issues
+
+**Issue**: `Cannot access field X: class does not have declared field`
+
+**Solution - Check field visibility and names**:
+```java
+// Ensure fields are accessible
+@FraiseQLType
+public class User {
+    public int id;      // public, not private
+    public String name;
+}
+
+// Use @JsonProperty for name mapping if needed
+@FraiseQLType
+public class User {
+    @JsonProperty("user_id")
+    public int userId;
+}
+```
+
+#### Async/CompletableFuture Issues
+
+**Issue**: `Future never completes`
+
+**Solution - Properly handle async**:
+```java
+// ❌ Wrong - not handling completion
+FraiseQLServer.fromCompiledAsync("schema.json").thenApply(server -> {
+    // Doesn't wait for this
+    return server;
+});
+
+// ✅ Correct - chain operations
+FraiseQLServer.fromCompiledAsync("schema.json")
+    .thenApply(server -> {
+        QueryResult result = server.execute(query);
+        return result;
+    })
+    .thenAccept(result -> {
+        // Handle result
+    })
+    .exceptionally(error -> {
+        error.printStackTrace();
+        return null;
+    });
+```
+
+---
+
+### Performance Issues
+
+#### Slow Query Compilation
+
+**Issue**: Schema compilation takes >10 seconds on startup
+
+**Pre-compile**:
+```bash
+# Use fraiseql-cli to pre-compile
+fraiseql-cli compile schema.json fraiseql.toml
+
+# Load pre-compiled schema (faster)
+FraiseQLServer server = FraiseQLServer.fromCompiled("schema.compiled.json");
+```
+
+#### Large Heap Size
+
+**Issue**: Application uses >1GB memory**
+
+**Profile with jmap**:
+```bash
+jmap -heap <pid>  # Check heap usage
+jmap -dump:live,format=b,file=heap.bin <pid>  # Dump heap
+jhat heap.bin  # Analyze dump
+```
+
+**Solutions**:
+```java
+// Paginate large result sets
+@Query(sql_source = "v_users")
+public List<User> users(
+    @GraphQLArgument(name = "limit", defaultValue = "20") int limit,
+    @GraphQLArgument(name = "offset", defaultValue = "0") int offset
+) {
+    // Limit results
+    return new ArrayList<>();
+}
+
+// Close resources explicitly
+server.close();  // Or use try-with-resources
+```
+
+#### GC Pressure
+
+**Issue**: Frequent garbage collection pauses**
+
+**Enable GC logging**:
+```bash
+java -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:gc.log MyApp
+```
+
+**Optimize**:
+- Use connection pooling
+- Cache compiled schema
+- Batch mutations
+- Use pagination
+
+#### Build Time Issues
+
+**Issue**: Maven build takes >2 minutes**
+
+**Parallel compilation**:
+```bash
+mvn clean compile -T 1C  # 1 thread per core
+```
+
+**Skip tests during development**:
+```bash
+mvn install -DskipTests
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Logging
+
+**Setup SLF4J/Logback**:
+```xml
+<dependency>
+  <groupId>org.slf4j</groupId>
+  <artifactId>slf4j-api</artifactId>
+  <version>2.0.0</version>
+</dependency>
+<dependency>
+  <groupId>ch.qos.logback</groupId>
+  <artifactId>logback-classic</artifactId>
+  <version>1.4.0</version>
+</dependency>
+```
+
+**In code**:
+```java
+private static final Logger logger = LoggerFactory.getLogger(GraphQLController.class);
+
+@PostMapping("/graphql")
+public ResponseEntity<?> graphql(@RequestBody GraphQLRequest request) {
+    logger.debug("Executing query: {}", request.getQuery());
+    try {
+        QueryResult result = server.execute(request.getQuery());
+        return ResponseEntity.ok(result);
+    } catch (Exception e) {
+        logger.error("Query failed", e);
+        throw e;
+    }
+}
+```
+
+#### Use IDE Debugger
+
+**IntelliJ IDEA**:
+1. Set breakpoint (click line number)
+2. Run in debug mode (Shift+F9)
+3. Step through code (F10)
+4. Inspect variables in Variables panel
+
+#### Inspect Generated Classes
+
+**Check bytecode**:
+```bash
+javap -c -private com.example.User
+```
+
+**Or use javap UI in IDE**
+
+#### Network Debugging
+
+**Monitor SQL traffic**:
+```bash
+# PostgreSQL slow query log
+ALTER SYSTEM SET log_min_duration_statement = 1000;  # Log slow queries >1s
+```
+
+**Monitor GraphQL traffic**:
+```bash
+curl -X POST http://localhost:8080/api/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ user(id: 1) { id } }"}' \
+  -v
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Java version: `java -version`
+2. Build tool: Maven/Gradle version
+3. FraiseQL version
+4. Minimal reproducible example
+5. Full stack trace
+6. Relevant logs
+
+**Issue template**:
+```markdown
+**Environment**:
+- Java: 11.0.15
+- Maven: 3.8.1
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe problem]
+
+**Reproduce**:
+[Minimal code]
+
+**Error**:
+[Full stack trace]
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Q&A
+- **Stack Overflow**: Tag with `fraiseql` and `java`
+- **Discord**: Real-time help
+
+#### Profiling Tools
+
+**JProfiler**:
+```bash
+jprofiletask -config=config.xml MyApp
+```
+
+**YourKit**:
+```bash
+java -agentpath:/path/to/libyjpagent.so MyApp
+```
+
+---
+
 ## See Also
 
 - [API Guide](../../../fraiseql-java/API_GUIDE.md) - Detailed API reference

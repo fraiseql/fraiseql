@@ -631,6 +631,382 @@ property("User ID should always be positive") = forAll {
 - **[Java Reference](./java-reference.md)** — Java authoring with annotations
 - **[TypeScript Reference](./typescript-reference.md)** — TypeScript authoring with decorators
 - **[RBAC Guide](../../enterprise/rbac.md)** — Role-based access control patterns
+---
+
+## Troubleshooting
+
+### Common Setup Issues
+
+#### SBT Dependency Issues
+
+**Issue**: `not found: SbtModule: fraiseql`
+
+**Solution**:
+```scala
+// build.sbt
+libraryDependencies += "com.fraiseql" %% "fraiseql-scala" % "2.0.0"
+
+// Or with additional options
+libraryDependencies ++= Seq(
+  "com.fraiseql" %% "fraiseql-scala" % "2.0.0",
+  "org.scala-lang" % "scala-library" % scalaVersion.value
+)
+```
+
+```bash
+sbt clean update
+```
+
+#### Compilation Errors
+
+**Issue**: `[error] could not find implicit value for parameter`
+
+**Cause**: Missing implicits
+
+**Solution**:
+```scala
+// Import required implicits
+import com.fraiseql._
+import com.fraiseql.Implicits._
+
+// Or in object
+object MyApp {
+  import com.fraiseql._
+
+  def main(args: Array[String]): Unit = {
+    // Now implicits available
+  }
+}
+```
+
+#### Type Inference Issues
+
+**Issue**: `type mismatch; found: String, required: FraiseQL.String`
+
+**Solution - Use correct types**:
+```scala
+// ✅ Correct
+@fraiseql.type
+case class User(
+  id: Int,
+  email: String
+)
+
+// Or use type aliases
+type Email = String
+@fraiseql.type
+case class User(email: Email)
+```
+
+#### Scala Version Mismatch
+
+**Issue**: `java.lang.NoClassDefFoundError`
+
+**Check version** (2.13+ required):
+```bash
+scala -version
+```
+
+**Set in build.sbt**:
+```scala
+scalaVersion := "2.13.11"
+scalacOptions ++= Seq("-feature", "-deprecation")
+```
+
+---
+
+### Type System Issues
+
+#### Pattern Matching Issues
+
+**Issue**: `non-exhaustive pattern match`
+
+**Solution - Complete patterns**:
+```scala
+// ❌ Incomplete
+val user = getUserOption()
+val name = user match {
+  case Some(u) => u.name
+  // case None missing!
+}
+
+// ✅ Complete
+val name = user match {
+  case Some(u) => u.name
+  case None => "Unknown"
+}
+```
+
+#### Implicit Resolution
+
+**Issue**: `could not find implicit value for parameter`
+
+**Solution - Define implicits**:
+```scala
+implicit val config: FraiseQLConfig = FraiseQLConfig.default
+
+// Or scope
+object FraiseQL {
+  implicit val config: FraiseQLConfig = FraiseQLConfig.default
+
+  def execute(query: String)(implicit c: FraiseQLConfig) = {
+    // Use c
+  }
+}
+```
+
+#### Type Class Issues
+
+**Issue**: `value json is not a member of MyType`
+
+**Solution - Implement typeclass**:
+```scala
+import com.fraiseql.Serializable
+
+implicit object MyTypeSerializable extends Serializable[MyType] {
+  def toJson(value: MyType): String = {
+    // Serialize to JSON
+    ""
+  }
+}
+```
+
+#### Higher-Kinded Type Errors
+
+**Issue**: `[error] FraiseQL[T] is not a type constructor with expected kind [error]`
+
+**Solution - Use correct kind**:
+```scala
+// ❌ Wrong - treating as type
+val result: FraiseQL[User] = query()
+
+// ✅ Correct - use concrete type
+val result: FraiseQL.Result[User] = query()
+```
+
+---
+
+### Runtime Errors
+
+#### Match Error
+
+**Issue**: `scala.MatchError: ...`
+
+**Solution - Handle all cases**:
+```scala
+val result = server.execute(query)
+
+result match {
+  case r: QueryResult => r.data
+  case e: ExecutionError => e.message
+  case _ => "Unknown result"
+}
+```
+
+#### Null Pointer Exception
+
+**Issue**: `NullPointerException`
+
+**Solution - Use Option**:
+```scala
+// ❌ Can NPE
+val user = getUser()
+println(user.name)  // NPE if null
+
+// ✅ Safe with Option
+val user = getUser()
+user.foreach(u => println(u.name))
+
+// Or match
+user match {
+  case Some(u) => println(u.name)
+  case None => println("Not found")
+}
+```
+
+#### Future/Promise Issues
+
+**Issue**: `NoSuchElementException: Future.get on failed Future`
+
+**Solution - Handle Future correctly**:
+```scala
+import scala.concurrent._
+import scala.util.{Success, Failure}
+
+val future = server.executeAsync(query)
+
+future.onComplete {
+  case Success(result) => println(result)
+  case Failure(error) => println(s"Error: $error")
+}
+
+// Or use map/flatMap
+future.map(result => process(result))
+      .recover { case e => handleError(e) }
+```
+
+#### Actor Timeout
+
+**Issue**: `AskTimeoutException`
+
+**Solution - Increase timeout**:
+```scala
+import scala.concurrent.duration._
+
+implicit val timeout: Timeout = Timeout(30.seconds)
+
+val result = server.ask(ExecuteQuery(query))
+```
+
+---
+
+### Performance Issues
+
+#### Compilation Slowdown
+
+**Issue**: Build takes >60 seconds
+
+**Enable incremental compilation**:
+```scala
+// build.sbt
+incOptions := incOptions.value.withRecompileOnMacroDef(false)
+```
+
+**Parallel execution**:
+```bash
+sbt -J-Xmx2g -J-XX:+UseG1GC
+sbt parallelExecution in Test := true
+```
+
+#### Memory Issues
+
+**Issue**: `OutOfMemoryError: Java heap space`
+
+**Increase heap**:
+```bash
+sbt -J-Xmx4g -J-Xms2g
+```
+
+**Or in build.sbt**:
+```scala
+javaOptions ++= Seq("-Xmx4g", "-Xms2g")
+```
+
+#### Lazy Evaluation Issues
+
+**Issue**: `StackOverflowError` with recursive lazy values
+
+**Solution - Use streams carefully**:
+```scala
+// ❌ Can overflow
+lazy val infinite: Stream[Int] = 1 #:: infinite.map(_ + 1)
+
+// ✅ Use Iterator or LazyList
+lazy val lazy_list = LazyList.from(1)
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Logging
+
+**Setup logging**:
+```scala
+import org.slf4j.LoggerFactory
+
+val logger = LoggerFactory.getLogger(getClass)
+
+logger.debug("Executing query: {}", query)
+val result = server.execute(query)
+logger.info("Result: {}", result)
+```
+
+**Set log level**:
+```bash
+RUST_LOG=fraiseql=debug sbt run
+```
+
+#### REPL Debugging
+
+**Use Scala REPL**:
+```bash
+sbt console
+```
+
+```scala
+scala> import com.fraiseql._
+scala> val server = Server.fromCompiled("schema.json")
+scala> server.execute("{ user(id: 1) { id } }")
+```
+
+#### Pattern Match Debugging
+
+```scala
+val result = server.execute(query)
+
+result match {
+  case r @ QueryResult(data, _) =>
+    println(s"Data: $data")
+  case e @ ExecutionError(msg, _) =>
+    println(s"Error: $msg")
+  case other =>
+    println(s"Unexpected: $other")
+}
+```
+
+#### Property Testing
+
+```scala
+import org.scalacheck.Properties
+
+object QueryProperties extends Properties("Query") {
+  property("result is non-empty") = forAll { (query: String) =>
+    server.execute(query).data.nonEmpty
+  }
+}
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Scala version: `scala -version`
+2. Java version: `java -version`
+3. SBT version: `sbt sbtVersion`
+4. FraiseQL version
+5. Minimal reproducible example
+
+**Template**:
+```markdown
+**Environment**:
+- Scala: 2.13.11
+- Java: 11
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe]
+
+**Code**:
+[Minimal example]
+
+**Error**:
+[Full stack trace]
+```
+
+#### Community Channels
+
+- **Scala Community**: https://contributors.scala-lang.org/
+- **Stack Overflow**: Tag with `scala` and `fraiseql`
+- **GitHub Discussions**: Q&A
+
+---
+
+## See Also
+
 - **[Fact Tables Guide](../../architecture/analytics/fact-dimension-pattern.md)** — Analytics dimension modeling
 - **[Schema Validation](../../guides/schema-validation.md)** — Compile-time schema validation
 - **[CLI Reference](../../reference/cli.md)** — `fraiseql-cli` commands and options

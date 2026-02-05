@@ -911,4 +911,335 @@ class SchemaValidationTest {
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Gradle Dependency Resolution
+
+**Issue**: `Could not find com.fraiseql:fraiseql-kotlin:2.0.0`
+
+**Solution**:
+```gradle
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.fraiseql:fraiseql-kotlin:2.0.0'
+}
+```
+
+```bash
+./gradlew clean build --refresh-dependencies
+```
+
+#### Kotlin Compiler Issues
+
+**Issue**: `Unresolved reference: fraiseql`
+
+**Check Kotlin version** (1.8+ required):
+```gradle
+plugins {
+    kotlin("jvm") version "1.9.0"
+}
+```
+
+#### Interop Issues
+
+**Issue**: `Cannot find Java class in Kotlin`
+
+**Solution - Configure interop**:
+```gradle
+kotlin {
+    jvmTarget = "11"
+}
+
+sourceSets {
+    main.kotlin.srcDirs += 'src/main/java'
+}
+```
+
+#### Coroutine Setup
+
+**Issue**: `Unresolved reference: async` or `launch`
+
+**Add coroutines dependency**:
+```gradle
+dependencies {
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.0'
+}
+```
+
+---
+
+### Type System Issues
+
+#### Nullable Type Issues
+
+**Issue**: `Type mismatch: inferred type is User? but User was expected`
+
+**Solution - Handle nullability explicitly**:
+```kotlin
+// ❌ Wrong - nullable but treated as non-null
+@FraiseQLType
+data class User(val name: String)  // Should be String?
+
+// ✅ Correct
+@FraiseQLType
+data class User(val name: String?)  // Nullable
+
+// Or non-null with init check
+@FraiseQLType
+data class User(val name: String) {
+    init {
+        require(name.isNotBlank()) { "Name required" }
+    }
+}
+```
+
+#### Data Class Limitations
+
+**Issue**: `Cannot use type with parameter`
+
+**Solution - Use concrete data classes**:
+```kotlin
+// ❌ Won't work - generics
+@FraiseQLType
+data class Box<T>(val value: T)
+
+// ✅ Use concrete types
+@FraiseQLType
+data class UserBox(val value: User)
+```
+
+#### Property Delegation Issues
+
+**Issue**: `No primary constructor found`
+
+**Solution - Use simple data classes**:
+```kotlin
+// ✅ Simple properties work
+@FraiseQLType
+data class User(
+    val id: Int,
+    val email: String,
+    val middleName: String? = null
+)
+```
+
+#### Sealed Class Issues
+
+**Issue**: `Cannot instantiate sealed class`
+
+**Solution - Use regular classes or objects**:
+```kotlin
+// ✅ Use normal inheritance or composition
+@FraiseQLType
+data class User(val id: Int, val status: String)
+
+// For union types
+@FraiseQLType
+data class Result(
+    val user: User? = null,
+    val error: String? = null
+)
+```
+
+---
+
+### Runtime Errors
+
+#### Coroutine Context Issues
+
+**Issue**: `Exception in thread "main" java.lang.IllegalStateException: No CoroutineScope`
+
+**Solution - Provide scope**:
+```kotlin
+// ❌ Wrong - no scope
+val result = fraiseql.execute(query)
+
+// ✅ With scope
+runBlocking {
+    val result = fraiseql.executeAsync(query)
+}
+
+// Or in controller
+@PostMapping("/graphql")
+suspend fun graphql(@RequestBody request: GraphQLRequest): QueryResult {
+    return fraiseql.executeAsync(request.query)
+}
+```
+
+#### Java Interop Issues
+
+**Issue**: `NullPointerException in Java code called from Kotlin`
+
+**Solution - Null safety**:
+```kotlin
+// ✅ Use let or !! carefully
+val result = javaMethod()?.let { process(it) }
+
+// Or assert non-null
+val result = javaMethod()!!  // Only if sure it's not null
+```
+
+#### Extension Function Issues
+
+**Issue**: `Cannot extend FraiseQL classes`
+
+**Solution - Create extension functions instead**:
+```kotlin
+// ✅ Add functionality via extension
+fun Server.executeWithTimeout(query: String, timeoutMs: Long = 30000): QueryResult {
+    return withTimeoutOrNull(timeoutMs) {
+        this.execute(query)
+    } ?: throw TimeoutException()
+}
+
+// Usage
+server.executeWithTimeout(query)
+```
+
+#### Scope Function Misuse
+
+**Issue**: `Returned value is lost`
+
+**Solution - Use correct scope function**:
+```kotlin
+// ✅ let for transforming result
+val ids = users.let { it.map { u -> u.id } }
+
+// ✅ apply for configuration
+val server = Server.from_compiled("schema.json").apply {
+    logger.level = Level.DEBUG
+}
+
+// ✅ run for executing in context
+server.run {
+    execute(query)
+}
+```
+
+---
+
+### Performance Issues
+
+#### Build Time
+
+**Issue**: Build takes >30 seconds**
+
+**Parallel compilation**:
+```gradle
+org.gradle.parallel=true
+org.gradle.workers.max=4
+```
+
+**Or command line**:
+```bash
+./gradlew build --parallel --max-workers=4
+```
+
+#### Coroutine Overhead
+
+**Issue**: Many coroutines slow down execution**
+
+**Limit concurrency**:
+```kotlin
+val dispatcher = Dispatchers.Default.limitedParallelism(4)
+
+launch(dispatcher) {
+    server.executeAsync(query)
+}
+```
+
+#### Memory Usage
+
+**Issue**: Application uses >500MB**
+
+**Profile with Kotlin**:
+```kotlin
+val runtime = Runtime.getRuntime()
+val memory = runtime.totalMemory() - runtime.freeMemory()
+println("Memory: ${memory / 1024 / 1024}MB")
+```
+
+---
+
+### Debugging Techniques
+
+#### Logging Setup
+
+**Add logging**:
+```gradle
+dependencies {
+    implementation 'io.github.microutils:kotlin-logging:3.0.0'
+    implementation 'ch.qos.logback:logback-classic:1.4.0'
+}
+```
+
+```kotlin
+import mu.KotlinLogging
+
+val logger = KotlinLogging.logger {}
+
+fun main() {
+    logger.debug { "Starting" }
+    server.execute(query)
+}
+```
+
+**Run with debug**:
+```bash
+java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -jar app.jar
+```
+
+#### IDE Debugging
+
+**IntelliJ IDEA**:
+1. Set breakpoint
+2. Debug Run (Shift+F9)
+3. Step through (F10)
+4. Inspect with Alt+Q
+
+#### Testing
+
+```kotlin
+@Test
+fun testQuery() {
+    val server = Server.from_compiled("schema.json")
+    val result = server.execute("{ user(id: 1) { id } }")
+    assertEquals(1, (result["data"]["user"]["id"] as Int))
+}
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Kotlin version: `kotlinc -version`
+2. Java version: `java -version`
+3. FraiseQL version
+4. Minimal reproducible example
+5. Full error trace
+
+**Environment**:
+```markdown
+- Kotlin: 1.9.0
+- Java: 11
+- FraiseQL: 2.0.0
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Q&A
+- **Kotlin Slack**: Kotlin community
+- **Stack Overflow**: Tag with `kotlin` and `fraiseql`
+
+---
+
 **Status**: Production Ready ✅ | **Last Updated**: 2026-02-05 | **Maintained By**: FraiseQL Community

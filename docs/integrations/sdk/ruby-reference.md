@@ -728,4 +728,521 @@ end
 
 **Legend**: ✅ = Supported | 🔶 = Partial | ❌ = Not Supported
 
+---
+
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Gem Installation Problems
+
+**Issue**: `Could not find gem 'fraiseql' in any of the gem sources`
+
+**Solution**:
+```bash
+# Update gem source
+gem sources -a https://rubygems.org
+
+# Install fraiseql
+gem install fraiseql
+
+# Or in Gemfile
+gem 'fraiseql', '~> 2.0.0'
+bundle install
+```
+
+#### Require/Load Issues
+
+**Issue**: `cannot load such file -- fraiseql`
+
+**Solution - Check load path**:
+```ruby
+# Add to Gemfile
+gem 'fraiseql'
+
+# Then run
+bundle install
+
+# Verify installation
+ruby -e "require 'fraiseql'; puts FraiseQL::VERSION"
+```
+
+**Manual load**:
+```ruby
+$LOAD_PATH.unshift('/path/to/fraiseql/lib')
+require 'fraiseql'
+```
+
+#### Version Compatibility
+
+**Issue**: Installed version incompatible
+
+**Check Ruby version** (2.7+ required):
+```bash
+ruby --version
+```
+
+**Check installed gem**:
+```bash
+gem list fraiseql
+gem uninstall fraiseql -v <old_version>
+gem install fraiseql -v 2.0.0
+```
+
+#### Bundler Issues
+
+**Issue**: `bundle exec` fails with fraiseql
+
+**Solution**:
+```bash
+# Update Gemfile
+bundle update fraiseql
+
+# Clear bundle cache
+bundle clean --force
+
+# Reinstall
+bundle install
+```
+
+---
+
+### Type System Issues
+
+#### Type Definition Errors
+
+**Issue**: `NameError: undefined method 'type' for FraiseQL`
+
+**Cause**: Not requiring fraiseql correctly
+
+**Solution**:
+```ruby
+# ✅ Correct
+require 'fraiseql'
+
+class User
+  include FraiseQL::Type
+
+  field :id, :Int
+  field :email, :String
+end
+
+# ❌ Wrong
+class User
+  type(:User) do  # Wrong syntax
+    field :id, :Int
+  end
+end
+```
+
+#### Nullability Issues
+
+**Issue**: `TypeError: expected nil, got String`
+
+**Solution - Use optional explicitly**:
+```ruby
+# ❌ Can be nil but not declared
+class User
+  include FraiseQL::Type
+  field :email, :String
+end
+
+# ✅ Explicitly optional
+class User
+  include FraiseQL::Type
+  field :email, :String, null: true
+  field :name, :String, null: false  # Required
+end
+```
+
+#### Field Type Issues
+
+**Issue**: `UnknownTypeError: unknown type :CustomType`
+
+**Cause**: Custom type not defined
+
+**Solution - Define all types first**:
+```ruby
+# ✅ Define in order
+class Address
+  include FraiseQL::Type
+  field :street, :String
+  field :city, :String
+end
+
+class User
+  include FraiseQL::Type
+  field :id, :Int
+  field :address, Address  # Now Address is defined
+end
+```
+
+#### Dynamic Definition Issues
+
+**Issue**: `RuntimeError: Type already defined`
+
+**Solution - Define types once at startup**:
+```ruby
+# ✅ Define in initializer
+# config/initializers/fraiseql.rb
+FraiseQL.reset!  # Clear if redefining
+
+class User
+  include FraiseQL::Type
+  field :id, :Int
+end
+
+# ❌ Don't define in request handlers
+# app/controllers/users_controller.rb
+def show
+  class User  # BAD! Redefining every request
+    include FraiseQL::Type
+  end
+end
+```
+
+---
+
+### Runtime Errors
+
+#### Connection Issues
+
+**Issue**: `PG::ConnectionBad: could not connect to server`
+
+**Check environment**:
+```bash
+echo $DATABASE_URL
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+**Solution - Set connection string**:
+```ruby
+ENV['DATABASE_URL'] = 'postgresql://user:pass@localhost/db'
+
+server = FraiseQL::Server.from_compiled('schema.compiled.json')
+```
+
+#### Thread Safety Issues
+
+**Issue**: Race condition or `FrozenError` in multi-threaded context
+
+**Solution - Make thread-safe**:
+```ruby
+# ❌ Not thread-safe
+$fraiseql_server = FraiseQL::Server.from_compiled('schema.json')
+
+# ✅ Thread-safe with mutex
+require 'thread'
+FraiseQL::Server.instance_eval do
+  def self.server
+    @server ||= FraiseQL::Server.from_compiled('schema.json')
+  end
+
+  def self.server=(srv)
+    @server = srv
+  end
+end
+
+# Or use Singleton pattern
+class FraiseQLServer
+  include Singleton
+
+  def initialize
+    @server = FraiseQL::Server.from_compiled('schema.json')
+  end
+
+  def execute(query, variables = {})
+    @server.execute(query, variables)
+  end
+end
+
+# Usage
+FraiseQLServer.instance.execute(query)
+```
+
+#### Encoding Issues
+
+**Issue**: `Encoding::InvalidByteSequenceError`
+
+**Solution - Force UTF-8**:
+```ruby
+# In config/environment.rb
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
+
+# Or in schema file
+# -*- encoding: utf-8 -*-
+require 'fraiseql'
+```
+
+#### Timeout Issues
+
+**Issue**: `Timeout::Error: execution timeout`
+
+**Solution - Increase timeout**:
+```ruby
+server = FraiseQL::Server.from_compiled(
+  'schema.compiled.json',
+  timeout: 60  # seconds
+)
+
+result = server.execute(query, timeout: 30)
+```
+
+---
+
+### Performance Issues
+
+#### Memory Leaks
+
+**Issue**: Memory usage grows unbounded**
+
+**Debug with memory_profiler**:
+```ruby
+gem 'memory_profiler'
+
+require 'memory_profiler'
+
+report = MemoryProfiler.report do
+  # Run queries
+  server.execute(query)
+end
+report.pretty_print
+```
+
+**Solutions**:
+```ruby
+# Paginate large result sets
+query = """
+  query {
+    users(limit: 20, offset: 0) { id }
+  }
+"""
+
+# Cache results
+server = FraiseQL::Server.from_compiled(
+  'schema.compiled.json',
+  cache_ttl: 300  # 5 minutes
+)
+```
+
+#### Database Connection Issues
+
+**Issue**: `ActiveRecord::ConnectionNotEstablished`
+
+**Solution - Configure connection pool**:
+```yaml
+# config/database.yml
+development:
+  adapter: postgresql
+  pool: 5
+  timeout: 5000
+```
+
+**Or explicitly**:
+```ruby
+ActiveRecord::Base.establish_connection(
+  adapter: 'postgresql',
+  host: 'localhost',
+  database: 'myapp_dev',
+  pool: 10,
+  timeout: 5000
+)
+```
+
+#### Slow Queries
+
+**Issue**: Queries take >5 seconds**
+
+**Enable query logging**:
+```ruby
+FraiseQL.logger.level = Logger::DEBUG
+
+# Or use Rails logger
+Rails.logger.level = :debug
+```
+
+**Optimize**:
+```ruby
+# Add pagination
+query = """
+  query($limit: Int!, $offset: Int!) {
+    users(limit: $limit, offset: $offset) { id }
+  }
+"""
+variables = { limit: 20, offset: 0 }
+
+# Cache if appropriate
+server.cache_query(query, ttl: 300)
+```
+
+#### Bundle Size Issues
+
+**Issue**: Gemfile.lock is >100MB**
+
+**Clean unnecessary gems**:
+```bash
+bundle clean --force
+bundle install
+```
+
+**Or audit**:
+```bash
+bundler-audit check
+bundle outdated
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Logging
+
+**Setup logging**:
+```ruby
+# config/initializers/fraiseql.rb
+FraiseQL.logger = Logger.new($stdout)
+FraiseQL.logger.level = Logger::DEBUG
+
+# Or with Rails
+Rails.logger.level = :debug
+```
+
+**Environment variable**:
+```bash
+FRAISEQL_DEBUG=true RUST_LOG=fraiseql=debug rails s
+```
+
+#### Use Ruby Debugger
+
+**With byebug**:
+```ruby
+gem 'byebug', groups: [:development, :test]
+
+# In code
+def execute_query(query)
+  byebug  # Pauses here
+  server.execute(query)
+end
+
+# Then run
+rails s
+# Send request, debugger pauses in byebug console
+```
+
+#### Inspect Schema
+
+**Print schema**:
+```ruby
+schema = File.read('schema.compiled.json')
+require 'json'
+puts JSON.pretty_generate(JSON.parse(schema))
+```
+
+**Validate**:
+```ruby
+require 'fraiseql'
+FraiseQL.validate_schema('schema.compiled.json')
+```
+
+#### Network Debugging
+
+**Spy on database**:
+```ruby
+# For Rails/ActiveRecord
+ActiveRecord::Base.connection.execute "SET log_statement = 'all'"
+
+# Or with Sequel
+DB.loggers << Logger.new($stdout)
+```
+
+**Monitor HTTP requests**:
+```bash
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ user(id: 1) { id } }"}' \
+  -v
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Ruby version: `ruby --version`
+2. FraiseQL version: `gem list fraiseql`
+3. Rails version (if applicable)
+4. Minimal reproducible example
+5. Full stack trace
+6. Relevant logs
+
+**Issue template**:
+```markdown
+**Environment**:
+- Ruby: 3.2.0
+- FraiseQL: 2.0.0
+- Rails: 7.0.4
+
+**Issue**:
+[Describe problem]
+
+**Reproduce**:
+[Minimal code example]
+
+**Error**:
+[Full error message]
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Ask questions
+- **Stack Overflow**: Tag with `fraiseql` and `ruby`
+- **Discord**: Real-time help
+- **Ruby Forum**: Ruby community discussions
+
+#### Profiling Tools
+
+**Use ruby-prof**:
+```ruby
+gem 'ruby-prof'
+
+require 'ruby-prof'
+
+RubyProf.start
+
+# Your code here
+server.execute(query)
+
+result = RubyProf.stop
+printer = RubyProf::FlatPrinter.new(result)
+printer.print($stdout)
+```
+
+**Or with stackprof**:
+```ruby
+gem 'stackprof'
+
+require 'stackprof'
+
+StackProf.run(mode: :cpu, out: 'tmp/stackprof.dump') do
+  server.execute(query)
+end
+
+# Analyze
+StackProf.results('tmp/stackprof.dump').print_text
+```
+
+---
+
+## See Also
+
+- [Security Best Practices](../../security/)
+- [GraphQL Schema Design Patterns](../schema-design.md)
+- [RBAC Implementation Guide](../rbac.md)
+- [Performance Tuning](../../performance/)
+
+---
+
 **Questions?** See [FAQ](../../faq.md) or open an issue on [GitHub](https://github.com/fraiseql/fraiseql).

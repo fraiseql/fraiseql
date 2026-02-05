@@ -1317,6 +1317,481 @@ FraiseQL Rust SDK performance characteristics:
 
 ---
 
+---
+
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Cargo Dependency Issues
+
+**Issue**: `error: failed to resolve: use of undeclared type or module 'fraiseql'`
+
+**Solution**:
+```toml
+# Cargo.toml
+[dependencies]
+fraiseql = "2.0"
+```
+
+```bash
+cargo update
+cargo build
+```
+
+#### Compilation Errors
+
+**Issue**: `cannot find crate 'fraiseql'`
+
+**Verify dependency**:
+```bash
+cargo tree | grep fraiseql
+```
+
+**Check Cargo.toml**:
+```toml
+[dependencies]
+fraiseql = { git = "https://github.com/fraiseql/fraiseql", branch = "main" }
+```
+
+#### Linking Errors
+
+**Issue**: `error: linking with 'cc' failed: exit status: 1`
+
+**Solution - Update compiler**:
+```bash
+rustup update
+rustup default stable
+```
+
+**Or specify version**:
+```toml
+[package]
+rust-version = "1.70"
+
+[[bin]]
+name = "my_app"
+path = "src/main.rs"
+```
+
+#### Feature Flag Issues
+
+**Issue**: `feature 'observers' not found`
+
+**Enable features**:
+```toml
+[dependencies]
+fraiseql = { version = "2.0", features = ["observers", "arrow-flight"] }
+```
+
+**Build with features**:
+```bash
+cargo build --features "observers,arrow-flight"
+```
+
+---
+
+### Type System Issues
+
+#### Borrowing/Lifetime Errors
+
+**Issue**: `` `borrowed` does not live long enough``
+
+**Solution - Use references correctly**:
+```rust
+// ❌ Wrong - dangling reference
+let server = create_server();
+let result = server.execute(&query);  // server dropped here
+
+// ✅ Correct
+let server = create_server();
+let result = server.execute(&query);
+drop(server);  // Explicit drop
+```
+
+#### Type Inference Issues
+
+**Issue**: `type annotations needed`
+
+**Solution - Be explicit**:
+```rust
+// ❌ Compiler can't infer
+let result = server.execute(query);
+
+// ✅ Explicit types
+let result: ExecuteResult = server.execute(&query);
+
+// Or use turbofish
+let result = server.execute::<ExecuteResult>(&query);
+```
+
+#### Trait Bound Issues
+
+**Issue**: `the trait bound 'T: Sync' is not satisfied`
+
+**Cause**: Type doesn't implement required trait
+
+**Solution**:
+```rust
+// ✅ Implement required traits
+#[derive(Clone, Debug)]
+struct MyContext {
+    user_id: String,
+}
+
+// Or use generic with bounds
+fn execute_query<C: Send + Sync>(server: &Server, ctx: C) -> Result<()> {
+    // C must be Send + Sync
+    Ok(())
+}
+```
+
+#### Macro Expansion Issues
+
+**Issue**: `could not compile because of unresolved macros`
+
+**Solution - Enable macro support**:
+```rust
+#![allow(unused_macros)]
+
+use fraiseql::*;
+
+// Define query macro
+query! {
+    query GetUser($id: Int!) {
+        user(id: $id) { id name }
+    }
+}
+```
+
+---
+
+### Runtime Errors
+
+#### Panic at Runtime
+
+**Issue**: `thread 'main' panicked at ...`
+
+**Solution - Use Result instead of unwrap**:
+```rust
+// ❌ Panics if error
+let result = server.execute(&query).unwrap();
+
+// ✅ Handle error gracefully
+match server.execute(&query) {
+    Ok(result) => println!("{:?}", result),
+    Err(e) => eprintln!("Error: {}", e),
+}
+
+// ✅ Or use ? operator
+fn run() -> Result<()> {
+    let result = server.execute(&query)?;
+    Ok(())
+}
+```
+
+#### Async/Await Issues
+
+**Issue**: `Future is not Send` or `function is not awaitable`
+
+**Solution - Use proper async runtime**:
+```rust
+// ✅ With tokio
+#[tokio::main]
+async fn main() {
+    let server = Server::from_compiled("schema.json").await;
+    let result = server.execute_async(&query).await;
+}
+
+// ✅ In tests
+#[tokio::test]
+async fn test_query() {
+    // test code
+}
+```
+
+**Ensure Send + Sync**:
+```rust
+// Make sure your context implements Send + Sync
+#[derive(Clone)]
+struct Context {
+    user_id: String,
+}
+
+// Verify
+#[test]
+fn test_context_is_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<Context>();
+}
+```
+
+#### Connection Pool Issues
+
+**Issue**: `all connections are busy` or `connection timeout`
+
+**Increase pool size**:
+```rust
+let server = Server::from_compiled_with_config(
+    "schema.json",
+    Config {
+        pool_size: 20,
+        pool_min_size: 5,
+        ..Default::default()
+    },
+)?;
+```
+
+#### Variable Type Mismatch
+
+**Issue**: `variables: Variables, expected: Variables`
+
+**Solution - Match types exactly**:
+```rust
+// ❌ Wrong types
+let variables: serde_json::Value = json!({ "id": "123" });
+server.execute(query, &variables)?;  // Should be i32, not string
+
+// ✅ Correct types
+let variables = json!({ "id": 123 });  // i32, not string
+server.execute(query, &variables)?;
+```
+
+---
+
+### Performance Issues
+
+#### Slow Compilation
+
+**Issue**: Build takes >2 minutes
+
+**Enable incremental compilation**:
+```toml
+# .cargo/config.toml
+[build]
+incremental = true
+```
+
+**Use mold linker**:
+```bash
+# Linux
+cargo install mold
+# Then configure in .cargo/config.toml
+[build]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+```
+
+**Parallel compilation**:
+```bash
+cargo build -j 4  # Use 4 cores
+```
+
+#### Bloat Size
+
+**Issue**: Binary is >50MB
+
+**Strip debug info**:
+```bash
+cargo build --release
+strip target/release/myapp
+```
+
+**Use cargo-strip**:
+```bash
+cargo install cargo-strip
+cargo strip --release
+```
+
+**Or in Cargo.toml**:
+```toml
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+```
+
+#### Runtime Performance
+
+**Issue**: Queries execute slowly
+
+**Enable caching**:
+```rust
+let server = Server::from_compiled_with_config(
+    "schema.json",
+    Config {
+        cache_ttl: 300,  // 5 minutes
+        ..Default::default()
+    },
+)?;
+```
+
+**Profile with perf**:
+```bash
+cargo build --release
+perf record -g target/release/myapp
+perf report
+```
+
+#### Memory Usage
+
+**Issue**: Memory usage grows over time
+
+**Check for leaks**:
+```bash
+valgrind --leak-check=full ./target/release/myapp
+```
+
+**Use proper cleanup**:
+```rust
+{
+    let server = Server::from_compiled("schema.json")?;
+    // Use server
+}  // server dropped here, cleanup happens
+```
+
+---
+
+### Debugging Techniques
+
+#### Enable Logging
+
+**Setup env_logger**:
+```toml
+[dependencies]
+env_logger = "0.11"
+log = "0.4"
+```
+
+```rust
+fn main() {
+    env_logger::init();
+
+    log::debug!("Starting server");
+    // rest of code
+}
+```
+
+**Run with logging**:
+```bash
+RUST_LOG=fraiseql=debug cargo run
+RUST_LOG=debug cargo test -- --nocapture
+```
+
+#### Use Rust Debugger
+
+**GDB debugging**:
+```bash
+rust-gdb ./target/debug/myapp
+(gdb) break main
+(gdb) run
+(gdb) next
+```
+
+**LLDB debugging** (macOS):
+```bash
+lldb ./target/debug/myapp
+(lldb) breakpoint set --name main
+(lldb) run
+```
+
+#### Print Debugging
+
+```rust
+// Use dbg! macro
+let result = dbg!(server.execute(&query))?;
+
+// Or custom logging
+eprintln!("Query: {}", query);
+eprintln!("Result: {:?}", result);
+```
+
+#### Inspect Generated Code
+
+**Check macro expansion**:
+```bash
+cargo install cargo-expand
+cargo expand --lib fraiseql
+```
+
+#### Unit Tests
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_query() {
+        let server = Server::from_compiled("schema.json").unwrap();
+        let result = server.execute("{ user(id: 1) { id } }").unwrap();
+        assert!(result.is_ok());
+    }
+}
+```
+
+---
+
+### Getting Help
+
+#### GitHub Issues
+
+Provide:
+1. Rust version: `rustc --version`
+2. Cargo version: `cargo --version`
+3. FraiseQL version
+4. Minimal reproducible example
+5. Full error message with backtrace
+6. Relevant Cargo.toml
+
+**Issue template**:
+```markdown
+**Environment**:
+- Rust: 1.75.0
+- Cargo: 1.75.0
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe problem]
+
+**Reproduce**:
+[Minimal code example]
+
+**Error**:
+[Full error output]
+```
+
+**Enable backtrace**:
+```bash
+RUST_BACKTRACE=1 cargo build
+RUST_BACKTRACE=full cargo test
+```
+
+#### Community Channels
+
+- **GitHub Discussions**: Ask questions
+- **Rust Forum**: General Rust discussions
+- **Discord**: Real-time help
+- **Stack Overflow**: Tag with `fraiseql` and `rust`
+
+#### Advanced Debugging
+
+**Use cargo-watch for development**:
+```bash
+cargo install cargo-watch
+cargo watch -x check -x test
+```
+
+**Benchmarking**:
+```rust
+#[bench]
+fn bench_execute(b: &mut Bencher) {
+    let server = Server::from_compiled("schema.json").unwrap();
+    b.iter(|| server.execute("{ user(id: 1) { id } }"))
+}
+```
+
+---
+
 **Status**: ✅ Production Ready
 **Last Updated**: 2026-02-05
 **Maintained By**: FraiseQL Community

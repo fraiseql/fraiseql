@@ -574,4 +574,267 @@ Use `clojure.test` with immutable data structures:
 
 ---
 
+## Troubleshooting
+
+### Common Setup Issues
+
+#### Leiningen Dependency Issues
+
+**Issue**: `Could not find artifact fraiseql:fraiseql-clojure`
+
+**Solution**:
+```clojure
+; project.clj
+(defproject myapp "0.1.0"
+  :dependencies [[org.clojure/clojure "1.11.0"]
+                 [fraiseql/fraiseql-clojure "2.0.0"]])
+```
+
+```bash
+lein deps
+```
+
+#### Java Version Issues
+
+**Issue**: `Unsupported Java version`
+
+**Check version** (11+ required):
+```bash
+java -version
+```
+
+**Set in project.clj**:
+```clojure
+:java-source-paths ["src/java"]
+:source-paths ["src/clj"]
+:target-path "target/%s"
+```
+
+#### Macro Compilation Issues
+
+**Issue**: `No such var: fraiseql/type`
+
+**Solution - Require properly**:
+```clojure
+(ns myapp.schema
+  (:require [fraiseql.core :as fq]))
+
+(fq/deftype User
+  {:id :int
+   :email :string})
+```
+
+#### REPL Issues
+
+**Issue**: `CompilerException`
+
+**Solution - Refresh in REPL**:
+```clojure
+(require :reload 'fraiseql.core)
+```
+
+---
+
+### Type System Issues
+
+#### Map Spec Issues
+
+**Issue**: `ExceptionInfo: Invalid schema structure`
+
+**Solution - Proper schema**:
+```clojure
+; ✅ Correct
+(fq/deftype User
+  {:id int?
+   :email string?
+   :created-at inst?})
+
+; ✅ With optional
+(fq/deftype User
+  {:id int?
+   :email string?
+   :bio (nilable? string?)})
+```
+
+#### Spec Validation Issues
+
+**Issue**: `ExceptionInfo: failed: ...`
+
+**Solution - Use s/explain**:
+```clojure
+(require '[clojure.spec.alpha :as s])
+
+(s/explain ::user-spec user-data)
+(s/valid? ::user-spec user-data)
+```
+
+#### Transducer Issues
+
+**Issue**: `ClassCastException: Transducer expected`
+
+**Solution - Use proper transducers**:
+```clojure
+; ✅ Correct
+(transduce
+  (comp (map process-row)
+        (filter valid?))
+  conj
+  results)
+```
+
+---
+
+### Runtime Errors
+
+#### Lazy Sequence Issues
+
+**Issue**: `OutOfMemoryError` with large sequences
+
+**Solution - Force realization carefully**:
+```clojure
+; ✅ With doall
+(doall (map fraiseql/execute queries))
+
+; ✅ Or use reduce
+(reduce fraiseql/execute-accumulated [] queries)
+```
+
+#### Thread Pool Issues
+
+**Issue**: `RejectedExecutionException`
+
+**Solution - Limit concurrency**:
+```clojure
+(require '[clojure.core.async :as async])
+
+(let [chan (async/chan 10)]
+  ; Max 10 concurrent tasks
+  (async/go-loop []
+    (when-let [query (async/<! chan)]
+      (fraiseql/execute query)
+      (recur))))
+```
+
+#### Map/Vector Issues
+
+**Issue**: `No such namespace: fraiseql`
+
+**Solution - Require namespace**:
+```clojure
+(ns myapp.core
+  (:require [fraiseql.core :as fq]))
+
+(fq/execute query variables)
+```
+
+---
+
+### Performance Issues
+
+#### Compilation Slowdown
+
+**Issue**: Compile takes >30 seconds
+
+**Use AOT selectively**:
+```clojure
+; project.clj
+:aot [myapp.core]  ; Only what needed
+```
+
+#### Lazy Sequence Memory Issues
+
+**Issue**: Memory grows with lazy sequences
+
+**Realize in chunks**:
+```clojure
+; ✅ Process in batches
+(->> (fq/query-stream query)
+     (partition 100)
+     (map process-batch))
+```
+
+#### Database Pool Issues
+
+**Issue**: `SQLException: Cannot get a connection`
+
+**Configure pool**:
+```clojure
+(require '[hikari-cp.core :as hikari])
+
+(def datasource
+  (hikari/make-datasource
+    {:jdbc-url "postgresql://..."
+     :maximum-pool-size 20
+     :minimum-idle-size 5}))
+```
+
+---
+
+### Debugging Techniques
+
+#### REPL Debugging
+
+```clojure
+user> (require 'fraiseql.core)
+user> (def server (fraiseql.core/from-compiled "schema.json"))
+user> (fraiseql.core/execute server "{ user(id: 1) { id } }")
+```
+
+#### Tap Debugging
+
+```clojure
+; Modern Clojure (1.10.0+)
+(tap> result)  ; Send to tap
+
+; In terminal
+(add-tap println)
+```
+
+#### Print Debugging
+
+```clojure
+(let [result (fraiseql/execute query)]
+  (prn "Result:" result)
+  result)
+```
+
+#### Spec Explain
+
+```clojure
+(require '[clojure.spec.alpha :as s])
+
+(s/explain ::user-schema user-data)
+(clojure.spec.alpha/spec-explain ::user-schema user-data)
+```
+
+---
+
+### Getting Help
+
+Provide:
+1. Clojure version: `clojure --version`
+2. Java version: `java -version`
+3. FraiseQL version: `lein deps :tree`
+4. Error message
+5. Stack trace
+
+**Template**:
+```markdown
+**Environment**:
+- Clojure: 1.11.0
+- Java: 11
+- FraiseQL: 2.0.0
+
+**Issue**:
+[Describe]
+
+**Code**:
+[Minimal example]
+
+**Error**:
+[Full stack trace]
+```
+
+---
+
 **Remember**: Clojure emphasizes data as code (homoiconicity), immutability by default, and functional composition. Leverage persistent data structures, macros for abstraction, and transducers for efficient data transformation. FraiseQL's Clojure SDK makes schema definitions data-driven and composable—schema is code, and code can generate code.
