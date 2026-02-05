@@ -64,8 +64,8 @@ impl MultiFileLoader {
         let mut json_files = Vec::new();
         for entry in WalkDir::new(dir_path)
             .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map(|ext| ext == "json").unwrap_or(false))
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         {
             json_files.push(entry.path().to_path_buf());
         }
@@ -89,10 +89,7 @@ impl MultiFileLoader {
                         let type_key = format!("type:{name}");
                         if let Some(existing) = name_to_file.get(&type_key) {
                             bail!(
-                                "Duplicate type '{}' found in:\n  - {}\n  - {}",
-                                name,
-                                existing,
-                                file_path_str
+                                "Duplicate type '{name}' found in:\n  - {existing}\n  - {file_path_str}"
                             );
                         }
                         name_to_file.insert(type_key, file_path_str.clone());
@@ -108,10 +105,7 @@ impl MultiFileLoader {
                         let query_key = format!("query:{name}");
                         if let Some(existing) = name_to_file.get(&query_key) {
                             bail!(
-                                "Duplicate query '{}' found in:\n  - {}\n  - {}",
-                                name,
-                                existing,
-                                file_path_str
+                                "Duplicate query '{name}' found in:\n  - {existing}\n  - {file_path_str}"
                             );
                         }
                         name_to_file.insert(query_key, file_path_str.clone());
@@ -127,10 +121,7 @@ impl MultiFileLoader {
                         let mutation_key = format!("mutation:{name}");
                         if let Some(existing) = name_to_file.get(&mutation_key) {
                             bail!(
-                                "Duplicate mutation '{}' found in:\n  - {}\n  - {}",
-                                name,
-                                existing,
-                                file_path_str
+                                "Duplicate mutation '{name}' found in:\n  - {existing}\n  - {file_path_str}"
                             );
                         }
                         name_to_file.insert(mutation_key, file_path_str.clone());

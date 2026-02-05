@@ -397,10 +397,8 @@ impl SchemaMerger {
         }
 
         // Process queries (similar array-based approach)
-        if let Some(queries_obj) = types_value.get("queries") {
-            if let Value::Array(queries_list) = queries_obj {
-                queries_array = queries_list.clone();
-            }
+        if let Some(Value::Array(queries_list)) = types_value.get("queries") {
+            queries_array.clone_from(queries_list);
         }
 
         // Add queries from TOML
@@ -422,10 +420,8 @@ impl SchemaMerger {
         }
 
         // Process mutations (similar array-based approach)
-        if let Some(mutations_obj) = types_value.get("mutations") {
-            if let Value::Array(mutations_list) = mutations_obj {
-                mutations_array = mutations_list.clone();
-            }
+        if let Some(Value::Array(mutations_list)) = types_value.get("mutations") {
+            mutations_array.clone_from(mutations_list);
         }
 
         // Add mutations from TOML
