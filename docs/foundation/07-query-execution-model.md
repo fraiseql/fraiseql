@@ -16,25 +16,63 @@ While Topic 2.1 explained how FraiseQL **compiles** schemas at build time, this 
 
 ## The Query Execution Model
 
-```text
-Client Request (GraphQL Query)
-         ↓
-Parse Request
-         ↓
-Look Up Pre-Compiled Template
-         ↓
-Validate & Bind Parameters
-         ↓
-Check Authorization Rules
-         ↓
-Execute SQL Template
-         ↓
-Fetch Results from Database
-         ↓
-Format Response
-         ↓
-Return to Client
-```text
+```d2
+direction: down
+
+Request: "Client Request\n(GraphQL Query)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Parse: "Parse Request" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+Lookup: "Look Up Pre-Compiled\nTemplate" {
+  shape: box
+  style.fill: "#ede7f6"
+}
+
+Validate: "Validate & Bind\nParameters" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+AuthCheck: "Check Authorization\nRules" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+Execute: "Execute SQL\nTemplate" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Fetch: "Fetch Results from\nDatabase" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Format: "Format Response" {
+  shape: box
+  style.fill: "#f8bbd0"
+}
+
+Return: "Return to Client" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Request -> Parse
+Parse -> Lookup: "JSON"
+Lookup -> Validate: "template + schema"
+Validate -> AuthCheck: "parameters"
+AuthCheck -> Execute: "approved"
+Execute -> Fetch: "SQL query"
+Fetch -> Format: "raw data"
+Format -> Return: "JSON response"
+```
 
 ---
 

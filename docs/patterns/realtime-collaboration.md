@@ -12,30 +12,60 @@ Complete guide to building collaborative tools (like Google Docs, Figma, Notion)
 
 ## Architecture Overview
 
-```text
-User A (Editor)          User B (Editor)          User C (Viewer)
-    │                         │                         │
-    └─────────────────────────┼─────────────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    │ WebSocket Server  │
-                    │ (FraiseQL Rust)   │
-                    └─────────┬─────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-         Mutations       Subscriptions   Presence
-         (operations)    (live updates)  (who's online)
-              │               │               │
-              └───────────────┼───────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    │   PostgreSQL      │
-                    │  - Documents      │
-                    │  - Operations     │
-                    │  - Changes log    │
-                    └───────────────────┘
-```text
+```d2
+direction: down
+
+Users: "Collaborators" {
+  shape: box
+  style.fill: "#e3f2fd"
+  children: [
+    UserA: "👤 User A\n(Editor)"
+    UserB: "👤 User B\n(Editor)"
+    UserC: "👤 User C\n(Viewer)"
+  ]
+}
+
+Server: "WebSocket Server\n(FraiseQL Rust)" {
+  shape: box
+  style.fill: "#f3e5f5"
+  style.border: "2px solid #7b1fa2"
+}
+
+Operations: "Mutations\n(operations)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+Subscriptions: "Subscriptions\n(live updates)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+Presence: "Presence\n(who's online)" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Database: "PostgreSQL" {
+  shape: box
+  style.fill: "#c8e6c9"
+  children: [
+    Docs: "📄 Documents"
+    Ops: "📝 Operations log"
+    Changes: "📋 Changes (CRDT)"
+  ]
+}
+
+Users -> Server: "WebSocket"
+Server -> Operations
+Server -> Subscriptions
+Server -> Presence
+Operations -> Database: "Write operations"
+Subscriptions -> Database: "Subscribe to changes"
+Presence -> Database: "Update presence"
+Database -> Server: "Broadcast updates"
+Server -> Users: "Real-time sync"
+```
 
 ---
 

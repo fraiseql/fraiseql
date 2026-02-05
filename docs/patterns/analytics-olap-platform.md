@@ -12,39 +12,110 @@ Complete guide to building a scalable analytics and business intelligence platfo
 
 ## Architecture Overview
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│                 Data Sources                              │
-│  (Application databases, APIs, third-party services)     │
-└──────────────────────┬─────────────────────────────────┘
-                       │
-                       ↓ (ETL/ELT pipeline)
-┌──────────────────────────────────────────────────────────┐
-│            Data Warehouse (PostgreSQL)                    │
-│  ┌──────────────┐    ┌──────────────┐  ┌──────────────┐ │
-│  │ Fact Tables  │    │ Dimension    │  │ Aggregate    │ │
-│  │ (Events)     │    │ Tables       │  │ Tables       │ │
-│  │ (billions)   │    │ (slow-change)│  │ (pre-computed)│ │
-│  └──────────────┘    └──────────────┘  └──────────────┘ │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ↓ (GraphQL OLAP queries)
-┌──────────────────────────────────────────────────────────┐
-│              FraiseQL Server (OLAP mode)                  │
-│  - Executes analytical queries                            │
-│  - Handles aggregations at scale                          │
-│  - Supports arrow-flight for bulk exports                │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-            ┌──────────┼──────────┬──────────┐
-            ↓          ↓          ↓          ↓
-        Dashboard   Reports   Exports   Real-time
-        (React)     (PDF)      (Excel)   (WebSocket)
-```text
+```d2
+direction: down
+
+Sources: "Data Sources" {
+  shape: box
+  style.fill: "#e3f2fd"
+  children: [
+    AppDB: "Application\nDatabases"
+    APIs: "APIs"
+    ThirdParty: "Third-Party\nServices"
+  ]
+}
+
+Warehouse: "Data Warehouse (PostgreSQL)" {
+  shape: box
+  style.fill: "#f3e5f5"
+  children: [
+    Fact: "Fact Tables\n(Events - billions of rows)"
+    Dim: "Dimension Tables\n(Reference data)"
+    Agg: "Aggregate Tables\n(Pre-computed)"
+  ]
+}
+
+Server: "FraiseQL Server (OLAP Mode)" {
+  shape: box
+  style.fill: "#fff3e0"
+  children: [
+    Exec: "Executes analytical queries"
+    Scale: "Handles aggregations at scale"
+    Export: "Supports Arrow Flight for bulk exports"
+  ]
+}
+
+Consumers: "Data Consumers" {
+  shape: box
+  style.fill: "#c8e6c9"
+  children: [
+    Dashboard: "📊 Dashboards\n(React)"
+    Reports: "📄 Reports\n(PDF)"
+    Exports: "📥 Exports\n(Excel)"
+    RealTime: "🔴 Real-time\n(WebSocket)"
+  ]
+}
+
+Sources -> Warehouse: "ETL/ELT"
+Warehouse -> Server: "GraphQL OLAP queries"
+Server -> Consumers: "Results"
+```
 
 ---
 
 ## Schema Design: Star Schema
+
+The star schema has a central fact table connected to multiple dimension tables:
+
+```d2
+direction: right
+
+Events: "Events\n(Fact Table)" {
+  shape: box
+  style.fill: "#fff59d"
+  style.border: "3px solid #f57f17"
+}
+
+Users: "Users\n(Dimension)" {
+  shape: box
+  style.fill: "#b3e5fc"
+}
+
+Products: "Products\n(Dimension)" {
+  shape: box
+  style.fill: "#b3e5fc"
+}
+
+DateDim: "Date\n(Dimension)" {
+  shape: box
+  style.fill: "#b3e5fc"
+}
+
+TimeDim: "Time\n(Dimension)" {
+  shape: box
+  style.fill: "#b3e5fc"
+}
+
+Geo: "Geography\n(Dimension)" {
+  shape: box
+  style.fill: "#b3e5fc"
+}
+
+Events -> Users: "user_id"
+Events -> Products: "product_id"
+Events -> DateDim: "event_date"
+Events -> TimeDim: "event_time"
+Events -> Geo: "country"
+```
+
+**Key characteristics:**
+
+- **Fact table** (center): Contains transactional events with billions of rows, indexed for fast queries
+- **Dimension tables** (around): Reference data for filtering and grouping (users, products, dates, time, geography)
+- **Foreign keys**: Fact table references all dimensions for efficient joins
+- **Pre-computed aggregates**: Optional materialized views for common aggregations
+
+---
 
 ### Fact Tables (Events)
 

@@ -26,6 +26,61 @@ FraiseQL security operates on five pillars:
 - ✅ **Deterministic** — Same inputs always produce same authorization result
 - ✅ **Auditable** — All access attempts logged
 
+### Security Pipeline
+
+```d2
+direction: right
+
+Request: "GraphQL Request\n(with JWT token)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Authn: "1. Authentication\n(Verify identity)" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+QueryAuth: "2. Query Authorization\n(Check operation allowed)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+RLS: "3. Row-Level Security\n(Filter database results)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+FieldAuth: "4. Field Masking\n(Hide sensitive fields)" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Audit: "5. Audit Logging\n(Record access)" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Response: "Response\n(Authorized data)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Denied: "❌ Access Denied" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+Request -> Authn
+Authn -> QueryAuth: "User context"
+Authn -> Denied: "Token invalid"
+QueryAuth -> RLS: "Operation allowed"
+QueryAuth -> Denied: "Operation denied"
+RLS -> FieldAuth: "Row-filtered data"
+FieldAuth -> Audit: "Masked fields"
+Audit -> Response: "Log recorded"
+```
+
 ---
 
 ## 1. Authentication Context
@@ -259,20 +314,81 @@ def delete_post(id: ID!) -> Boolean:
 
 **Authorization evaluation:**
 
-```text
+```d2
+direction: down
 
-1. Create post: Check if user is authenticated
-   → If yes, allow
-   → If no, deny (E_AUTH_PERMISSION_401)
+CreateReq: "Create Post Request" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
 
-2. Update post: Check if user owns post
-   → If yes, allow
-   → If no, deny (E_AUTH_PERMISSION_401)
+CreateCheck: "Is user\nauthenticated?" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
 
-3. Delete post: Check if user is admin
-   → If yes, allow
-   → If no, deny (E_AUTH_PERMISSION_401)
-```text
+CreateAllow: "✅ Allow\n(Create new post)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+CreateDeny: "❌ Deny\n(E_AUTH_PERMISSION_401)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+UpdateReq: "Update Post Request" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+UpdateCheck: "Does user\nown post?" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
+
+UpdateAllow: "✅ Allow\n(Update own post)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+UpdateDeny: "❌ Deny\n(E_AUTH_PERMISSION_401)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+DeleteReq: "Delete Post Request" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+DeleteCheck: "Is user\nadmin?" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
+
+DeleteAllow: "✅ Allow\n(Delete post)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+DeleteDeny: "❌ Deny\n(E_AUTH_PERMISSION_401)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+CreateReq -> CreateCheck
+CreateCheck -> CreateAllow: "Yes"
+CreateCheck -> CreateDeny: "No"
+
+UpdateReq -> UpdateCheck
+UpdateCheck -> UpdateAllow: "Yes"
+UpdateCheck -> UpdateDeny: "No"
+
+DeleteReq -> DeleteCheck
+DeleteCheck -> DeleteAllow: "Yes"
+DeleteCheck -> DeleteDeny: "No"
+```
 
 ---
 

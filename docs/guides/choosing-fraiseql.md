@@ -49,11 +49,48 @@ Answer these questions honestly:
 - [ ] Do you have **relational data** (not primarily document-oriented)?
 - [ ] Do you need **ACID compliance** or regulated industry support?
 
-### 4+ YES → FraiseQL is likely a good fit
+```d2
+direction: down
 
-### 2-3 YES → Evaluate carefully
+Count: "Count your YES answers" {
+  shape: box
+  style.fill: "#fff9c4"
+}
 
-### 0-1 YES → Probably choose something else
+Four: "✅ 4-5 YES" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+FourResult: "FraiseQL is likely\na good fit!" {
+  shape: box
+  style.fill: "#a5d6a7"
+}
+
+Two: "⚠️ 2-3 YES" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+TwoResult: "Evaluate carefully\nwith alternatives" {
+  shape: box
+  style.fill: "#ffcc80"
+}
+
+Zero: "❌ 0-1 YES" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+ZeroResult: "Probably choose\nsomething else" {
+  shape: box
+  style.fill: "#ff8a65"
+}
+
+Count -> Four
+Count -> Two
+Count -> Zero
+Four -> FourResult
+Two -> TwoResult
+Zero -> ZeroResult
+```
 
 ---
 

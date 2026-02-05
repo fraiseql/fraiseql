@@ -30,6 +30,57 @@ Understanding this boundary is critical because:
 - Deterministic execution enables predictable caching and invalidation
 - No user code means no runtime surprises
 
+### Timeline of Decisions
+
+```d2
+direction: right
+
+AuthorTime: "Authoring Time\n(Python/TS)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+CompileTime: "Compile Time\n(Rust CLI)" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+RuntimeRequest: "Runtime\n(Per Request)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+Deployment: "Deployment Time\n(Environment)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+AuthDecisions: "✅ Schema types\n✅ Fields\n✅ Type definitions\n✅ Relationships" {
+  shape: box
+  style.fill: "#e1f5fe"
+}
+
+CompileDecisions: "✅ Validation rules\n✅ Query plans\n✅ SQL templates\n✅ Auth rules\n✅ Operator mappings" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+RuntimeDecisions: "✅ Parameter values\n✅ AuthContext\n✅ Field masking\n✅ Row filtering\n✅ Cache invalidation" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+DeployDecisions: "✅ Credentials\n✅ Database URLs\n✅ Config overrides\n✅ Feature flags" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+AuthTime -> AuthDecisions
+CompileTime -> CompileDecisions
+RuntimeRequest -> RuntimeDecisions
+Deployment -> DeployDecisions
+```
+
 ---
 
 ## Decision Authority Matrix

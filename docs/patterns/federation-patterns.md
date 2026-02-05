@@ -12,23 +12,45 @@ Complete guide to federating queries across multiple databases (PostgreSQL, MySQ
 
 ## Architecture Overview
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│                  FraiseQL Server                          │
-│          (Single GraphQL endpoint)                        │
-└──────────────┬─────────────┬──────────────┬──────────────┘
-               │             │              │
-      ┌────────┘       ┌─────┘        ┌────┘
-      ↓                ↓               ↓
-┌────────────┐  ┌────────────┐  ┌────────────┐
-│ PostgreSQL │  │   MySQL    │  │  SQLite    │
-│ (Primary)  │  │(Historical)│  │(Cache/Sync)│
-└────────────┘  └────────────┘  └────────────┘
+```d2
+direction: down
 
-All queries federated to appropriate database
-Cross-database joins handled in FraiseQL Rust layer
-Results merged and returned as single GraphQL response
-```text
+GraphQL: "FraiseQL Server\n(Single GraphQL endpoint)" {
+  shape: box
+  style.fill: "#e3f2fd"
+  style.border: "3px solid #1976d2"
+}
+
+Postgres: "PostgreSQL\n(Primary)" {
+  shape: box
+  style.fill: "#c8e6c9"
+  style.border: "2px solid #388e3c"
+}
+
+MySQL: "MySQL\n(Historical Data)" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "2px solid #1976d2"
+}
+
+SQLite: "SQLite\n(Cache/Sync)" {
+  shape: box
+  style.fill: "#f8bbd0"
+  style.border: "2px solid #c2185b"
+}
+
+Details: "All queries federated to appropriate database\nCross-database joins in FraiseQL Rust layer\nResults merged and returned as single GraphQL response" {
+  shape: box
+  style.fill: "#fffde7"
+}
+
+GraphQL -> Postgres
+GraphQL -> MySQL
+GraphQL -> SQLite
+Postgres -> Details
+MySQL -> Details
+SQLite -> Details
+```
 
 ---
 

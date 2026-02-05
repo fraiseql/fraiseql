@@ -12,29 +12,48 @@ Complete guide to building a production-grade multi-tenant SaaS application usin
 
 ## Architecture Overview
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                   Web/Mobile Clients                     │
-│          (React, Vue, Flutter, React Native)             │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ↓ (GraphQL queries with JWT)
-┌─────────────────────────────────────────────────────────┐
-│              FraiseQL Server (Rust)                      │
-│  - Extracts tenant_id from JWT                          │
-│  - Injects tenant_id into all queries                   │
-│  - Handles authentication/authorization                 │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────┐
-│          PostgreSQL Database with RLS                    │
-│  Row-Level Security Policies:                            │
-│  - WHERE tenant_id = user.tenant_id                      │
-│  - Data isolation at database level                      │
-│  - Prevents data leakage even if app is compromised      │
-└─────────────────────────────────────────────────────────┘
-```text
+```d2
+direction: down
+
+Clients: "Web/Mobile Clients" {
+  shape: box
+  style.fill: "#e3f2fd"
+  style.border: "2px solid #1976d2"
+  children: [
+    React: "React"
+    Vue: "Vue"
+    Flutter: "Flutter"
+    RN: "React Native"
+  ]
+}
+
+Server: "FraiseQL Server (Rust)" {
+  shape: box
+  style.fill: "#f3e5f5"
+  style.border: "2px solid #7b1fa2"
+  children: [
+    Extract: "Extract tenant_id from JWT"
+    Inject: "Inject tenant_id into queries"
+    AuthHandle: "Handle authentication/authorization"
+  ]
+}
+
+Database: "PostgreSQL Database with RLS" {
+  shape: box
+  style.fill: "#f1f8e9"
+  style.border: "2px solid #388e3c"
+  children: [
+    RLS: "Row-Level Security Policies"
+    Isolation: "WHERE tenant_id = user.tenant_id"
+    Safety: "Data isolation at database level"
+  ]
+}
+
+Clients -> Server: "GraphQL queries + JWT"
+Server -> Database: "SQL queries (with RLS)"
+Database -> Server: "Row-filtered results"
+Server -> Clients: "JSON response"
+```
 
 ---
 

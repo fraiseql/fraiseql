@@ -19,46 +19,146 @@ FraiseQL supports two distinct **data planes** for different use cases:
 
 ## The Two Data Planes
 
-```text
-Client Request
-        ↓
-Is this a transaction or analytics query?
-        ↓
-    ┌───┴────┐
-    ↓        ↓
-JSON Plane   Arrow Plane
-(OLTP)       (OLAP)
-    ↓        ↓
-  Result   Result
-```text
+```d2
+direction: down
+
+Request: "Client Request" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Decision: "Query Type?" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
+
+JSON: "JSON Plane\n(OLTP)" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "3px solid #1976d2"
+}
+
+Arrow: "Arrow Plane\n(OLAP)" {
+  shape: box
+  style.fill: "#c8e6c9"
+  style.border: "3px solid #388e3c"
+}
+
+JSONResult: "Transaction\nResult" {
+  shape: box
+  style.fill: "#e1f5fe"
+}
+
+ArrowResult: "Analytics\nResult" {
+  shape: box
+  style.fill: "#e8f5e9"
+}
+
+Request -> Decision
+Decision -> JSON: "Point query,\nMutation,\nSmall result"
+Decision -> Arrow: "Bulk export,\nAggregation,\nTime-series"
+JSON -> JSONResult
+Arrow -> ArrowResult
+```
 
 ---
 
 ## Plane Selection Decision Tree
 
-```text
-Query Type?
-├─ Point query (get one user by ID)
-│  └─ Use JSON Plane
-│
-├─ Small list (get 10 orders)
-│  └─ Use JSON Plane
-│
-├─ Transactional mutation (update order)
-│  └─ Use JSON Plane
-│
-├─ Bulk export (export 100K users)
-│  └─ Use Arrow Plane
-│
-├─ Aggregation (total sales per category)
-│  └─ Use Arrow Plane
-│
-├─ Real-time streaming (subscribe to updates)
-│  └─ Use JSON Plane
-│
-└─ Time-series analysis (analyze sales by hour)
-   └─ Use Arrow Plane
-```text
+```d2
+direction: down
+
+QueryType: "Query Type?" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
+
+Point: "Point query\n(get one user by ID)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+PointResult: "JSON Plane" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "2px solid #1976d2"
+}
+
+SmallList: "Small list\n(get 10 orders)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+SmallResult: "JSON Plane" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "2px solid #1976d2"
+}
+
+Mutation: "Transactional mutation\n(update order)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+MutationResult: "JSON Plane" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "2px solid #1976d2"
+}
+
+Streaming: "Real-time streaming\n(subscribe to updates)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+StreamResult: "JSON Plane" {
+  shape: box
+  style.fill: "#bbdefb"
+  style.border: "2px solid #1976d2"
+}
+
+BulkExport: "Bulk export\n(export 100K users)" {
+  shape: box
+  style.fill: "#e8f5e9"
+}
+BulkResult: "Arrow Plane" {
+  shape: box
+  style.fill: "#c8e6c9"
+  style.border: "2px solid #388e3c"
+}
+
+Aggregation: "Aggregation\n(total sales per category)" {
+  shape: box
+  style.fill: "#e8f5e9"
+}
+AggResult: "Arrow Plane" {
+  shape: box
+  style.fill: "#c8e6c9"
+  style.border: "2px solid #388e3c"
+}
+
+TimeSeries: "Time-series analysis\n(analyze sales by hour)" {
+  shape: box
+  style.fill: "#e8f5e9"
+}
+TimeResult: "Arrow Plane" {
+  shape: box
+  style.fill: "#c8e6c9"
+  style.border: "2px solid #388e3c"
+}
+
+QueryType -> Point
+QueryType -> SmallList
+QueryType -> Mutation
+QueryType -> BulkExport
+QueryType -> Aggregation
+QueryType -> Streaming
+QueryType -> TimeSeries
+
+Point -> PointResult
+SmallList -> SmallResult
+Mutation -> MutationResult
+BulkExport -> BulkResult
+Aggregation -> AggResult
+Streaming -> StreamResult
+TimeSeries -> TimeResult
+```
 
 ---
 

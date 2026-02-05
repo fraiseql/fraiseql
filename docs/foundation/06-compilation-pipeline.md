@@ -16,23 +16,57 @@ FraiseQL's core strength is its **build-time compilation**. This topic explains 
 
 ## The Seven-Phase Compilation Pipeline
 
-```text
- Parse Schema Definitions
-         ↓ (Python/TypeScript files)
- Extract Type Information
-         ↓ (build schema.json)
- Validate Relationships
-         ↓ (check foreign keys, types)
- Analyze Query Patterns
-         ↓ (compute query costs, N+1 detection)
- Optimize SQL Templates
-         ↓ (generate efficient queries)
- Generate Authorization Rules
-         ↓ (compile permission checks)
- Output Compiled Schema
-         ↓ (schema.compiled.json)
-Production-Ready Server
-```text
+```d2
+direction: down
+
+Parse: "Parse Schema Definitions\n(Python/TypeScript files)" {
+  shape: box
+  style.fill: "#e1f5ff"
+}
+
+Extract: "Extract Type Information\n(build schema.json)" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+Validate: "Validate Relationships\n(foreign keys, types)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+Analyze: "Analyze Query Patterns\n(query costs, N+1 detection)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+Optimize: "Optimize SQL Templates\n(efficient queries)" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Authorize: "Generate Authorization Rules\n(permission checks)" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Output: "Output Compiled Schema\n(schema.compiled.json)" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Server: "Production-Ready Server" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Parse -> Extract: "Python/TypeScript"
+Extract -> Validate: "schema.json"
+Validate -> Analyze: "Type graph"
+Analyze -> Optimize: "Cost metrics"
+Optimize -> Authorize: "SQL templates"
+Authorize -> Output: "Auth rules"
+Output -> Server: "Compiled schema"
+```
 
 ---
 
