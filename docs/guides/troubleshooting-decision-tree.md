@@ -293,13 +293,13 @@ e) Something else?
 - Verify environment variables override: Variables take precedence
 - Check file permissions: Can FraiseQL read config file?
 - Restart server after config change
-- → [Configuration Reference](../reference/TOML_SCHEMA_COMPLETE.md)
+- → [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 **Environment variables not recognized:**
 - Check variable name: `FRAISEQL_*` prefix required
 - Verify case sensitivity: `FRAISEQL_RATE_LIMIT_ENABLED` (not camelCase)
 - Check for typos: List all set variables: `env | grep FRAISEQL`
-- → [Configuration Reference](../reference/TOML_SCHEMA_COMPLETE.md)
+- → [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 **TOML parsing error:**
 - Use TOML validator: https://www.toml-lint.com/
@@ -325,8 +325,8 @@ Error Category:
 
 To find your error:
 1. Copy error code: "E_BINDING_UNKNOWN_FIELD_202"
-2. Search in: [Error Reference](../reference/error-codes.md)
-3. Or search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
+2. Search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
+3. Refer to [Main Troubleshooting Guide](../TROUBLESHOOTING.md)
 ```
 
 **Don't see your error?**
@@ -361,8 +361,8 @@ To find your error:
 **If you can't find your problem:**
 
 1. **Check if you have an error code:**
-   - Search: [Error Code Reference](../reference/error-codes.md)
    - Search: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
+   - Refer to: [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 2. **Review comprehensive guides:**
    - **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)** — All FAQs and common issues

@@ -176,4 +176,4 @@ See [Arrow Flight Guide](../integrations/arrow-flight/migration-guide.md) for co
 - **[Arrow Flight Architecture](../integrations/arrow-flight/architecture.md)** - Technical details
 - **[Arrow Flight Migration](../integrations/arrow-flight/migration-guide.md)** - Adoption guide
 - **[Analytics Patterns](./analytics-patterns.md)** - Common analytics use cases
-- **[Performance Tuning](../architecture/performance/)** - Optimize queries
+- **[Performance Tuning](../operations/performance-tuning-runbook.md)** - Optimize queries

@@ -458,10 +458,6 @@ fraiseql_webhook_latency_seconds{provider="slack", quantile="p95"}
 **Related Guides:**
 - **[Common Patterns](./PATTERNS.md)** — Observer patterns in real applications
 - **[Subscriptions Architecture](../architecture/realtime/subscriptions.md)** — Real-time alternatives to observers
-- **[Change Data Capture](../integrations/cdc/README.md)** — CDC event source for observers
-
-**Integration Guides:**
-- **[Webhook Providers](../integrations/webhooks/README.md)** — Complete webhook provider reference
 - **[Integration Patterns](../integrations/README.md)** — Integration architecture
 
 **Operations:**

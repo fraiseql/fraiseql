@@ -544,17 +544,10 @@ async def get_data():
 
 ## See Also
 
-**Language-Specific Docs:**
-- **[Python SDK Reference](../integrations/sdk/python-reference.md)**
-- **[TypeScript SDK Reference](../integrations/sdk/typescript-reference.md)**
-- **[Go SDK Reference](../integrations/sdk/go-reference.md)**
-- **[Java SDK Reference](../integrations/sdk/java-reference.md)**
-
 **Related Guides:**
 - **[Common Gotchas](./common-gotchas.md)** — Language-agnostic pitfalls
 - **[Testing Strategy](./testing-strategy.md)** — Testing across languages
 - **[Production Deployment](./production-deployment.md)** — Deploying polyglot apps
-- **[Error Code Reference](../reference/error-codes.md)** — All error codes
 
 ---
 

@@ -175,7 +175,7 @@ You now have role-based field-level authorization! 🔐
 **"Authorization too slow"**
 → Increase `cache_ttl_seconds` from 300 to 3600. Or use JWT claims directly instead of external provider calls.
 
-See [Troubleshooting](../operations/TROUBLESHOOTING.md) for complete troubleshooting guide.
+See [Troubleshooting](../../TROUBLESHOOTING.md) for complete troubleshooting guide.
 
 ---
 
