@@ -181,12 +181,23 @@ cargo test -- --ignored --nocapture
 - Health checks
 - Connection pooling
 
-### End-to-End Tests (Future: Phase 6+)
+### End-to-End Tests
 
 ```bash
 # Run E2E tests (HTTP server + database)
 cargo test --test e2e -- --ignored
+
+# Run E2E tests with output
+cargo test --test e2e -- --ignored --nocapture
 ```
+
+**What's tested:**
+
+- Complete GraphQL query execution flows
+- HTTP request/response handling
+- Authentication and authorization
+- Error handling and edge cases
+- Multi-database scenarios
 
 ---
 
@@ -368,32 +379,44 @@ docker compose -f docker-compose.test.yml down
 
 ---
 
-## Performance Benchmarks (Future: Phase 10)
+## Performance Benchmarks
+
+Use Criterion for performance testing:
 
 ```bash
-# Run benchmarks
+# Run all benchmarks
 cargo bench
 
 # Run specific benchmark
 cargo bench --bench where_generation
+
+# View results
+# Open target/criterion/report/index.html
 ```
+
+**What's benchmarked:**
+
+- WHERE clause generation performance
+- Query execution latency
+- Schema compilation time
+- Connection pool operations
 
 ---
 
 ## Test Coverage
 
 ```bash
-# Install tarpaulin (once)
-cargo install cargo-tarpaulin
-
 # Generate coverage report
-cargo tarpaulin --out Html --output-dir coverage
+make coverage
 
-# Open report
+# Or manually with llvm-cov
+cargo llvm-cov --html --output-dir coverage
+
+# View report
 xdg-open coverage/index.html
 ```
 
-**Target:** 90%+ test coverage for Phase 2
+**Target:** 85%+ line coverage across all modules
 
 ---
 
@@ -418,8 +441,9 @@ docker network prune
 |-----------|---------|-------------------|
 | Unit tests | `cargo test --lib` | ❌ No |
 | Integration tests | `cargo test -- --ignored` | ✅ Yes (Docker) |
+| End-to-end tests | `cargo test --test e2e -- --ignored` | ✅ Yes (Docker) |
 | Benchmarks | `cargo bench` | ❌ No |
-| Coverage | `cargo tarpaulin` | ❌ No |
+| Coverage | `make coverage` or `cargo llvm-cov --html` | ❌ No |
 
 **Quick Reference:**
 
