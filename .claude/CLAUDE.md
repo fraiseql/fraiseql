@@ -275,13 +275,16 @@ async fn test_query_execution() {
 
 ### 7. Security Features
 
-**Phase 7 Enterprise Security** (v2.1.0) adds:
+**Enterprise Security Features:**
 
 1. **Audit Logging** - Track all secret access for compliance
 2. **Error Sanitization** - Hide implementation details in error messages
 3. **Constant-Time Comparison** - Prevent timing attacks on token validation
 4. **PKCE State Encryption** - Protect OAuth state parameters from inspection
 5. **Rate Limiting** - Brute-force protection on auth endpoints
+6. **Field-Level Encryption** - Encrypt sensitive database columns at rest
+7. **Credential Rotation** - Automatic credential refresh with monitoring
+8. **Secrets Management** - HashiCorp Vault integration with multiple backends
 
 All configurable via `fraiseql.toml` and environment variables.
 
@@ -318,10 +321,10 @@ fraiseql/
 ### Add a New GraphQL Feature
 
 1. Update schema types in `schema/compiled.rs`
-2. Update compiler in `compiler/` (Phase 4)
-3. Update runtime in `runtime/` (Phase 5)
+2. Update compiler logic to generate SQL for the new feature
+3. Update runtime execution to handle the new feature
 4. Add end-to-end test
-5. Update docs
+5. Update documentation
 
 ### Fix a Bug
 
@@ -344,10 +347,10 @@ fraiseql/
 ### Runtime Performance
 
 - Zero-cost abstractions (prefer `impl Trait` over `Box<dyn Trait>`)
-- Compile-time schema optimization (Phase 4)
-- Connection pooling (Phase 2)
-- Query result caching with coherency (Phase 2)
-- APQ for repeated queries (Phase 1 ✅)
+- Compile-time schema optimization
+- Connection pooling for database connections
+- Query result caching with automatic invalidation
+- Automatic Persisted Queries (APQ) for repeated queries
 
 ### Testing Performance
 
