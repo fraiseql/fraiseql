@@ -20,6 +20,12 @@ ignore = [
   "RUSTSEC-2025-0134",  # rustls-pemfile: unmaintained
 ]
 
+[unsound]
+# Unsound crates with known issues but no alternatives
+ignore = [
+  "RUSTSEC-2026-0002",  # lru: IterMut violates Stacked Borrows (transitive from aws-sdk-s3)
+]
+
 [yanked]
 # Warn about yanked versions but don't fail
 ignore = [
