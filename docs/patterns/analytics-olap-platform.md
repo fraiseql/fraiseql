@@ -211,7 +211,7 @@ CREATE TABLE agg_cohorts (
   revenue DECIMAL(12, 2),
   PRIMARY KEY (cohort_date, days_since_signup)
 );
-```text
+```
 
 ---
 
@@ -264,6 +264,7 @@ class Event:
 - `dimensions` dict (JSONB column `data`) → **Dimensions** (flexible, no joins needed)
 - `user_id`, `occurred_at` → **Filters** (indexed for WHERE performance)
 
+```python
 @types.object
 class MetricResult:
     """Metric aggregation result"""
@@ -362,7 +363,7 @@ class Query:
     ) -> dict:
         """Deep-dive into single product performance"""
         pass
-```text
+```
 
 ---
 
@@ -567,7 +568,7 @@ CREATE TABLE events (
 
 -- Compress old data automatically
 SELECT add_compression_policy('events', INTERVAL '7 days');
-```text
+```
 
 ---
 
@@ -749,7 +750,7 @@ describe('Analytical Queries', () => {
     }
   });
 });
-```text
+```
 
 ---
 
