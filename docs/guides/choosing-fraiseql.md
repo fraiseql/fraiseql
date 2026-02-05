@@ -4,6 +4,32 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- GraphQL concepts and use cases
+- Database architecture and query patterns
+- ACID vs eventual consistency trade-offs
+- API design and performance requirements
+- Your project's data model and access patterns
+- Alternative GraphQL engines and ORMs
+- Latency and throughput requirements
+- Data consistency requirements
+
+**Required Software:**
+- None (this is a decision-making guide, not hands-on implementation)
+- Optional: Documentation from your existing system/architecture
+
+**Required Infrastructure:**
+- None (decision guide only)
+
+**Optional but Recommended:**
+- Performance baseline data from current system (if migrating)
+- Team technical expertise assessment
+- Architecture documentation
+
+**Time Estimate:** 15-30 minutes for initial evaluation, 1-2 hours for comprehensive comparison with alternatives
+
 ## Quick Checklist
 
 Answer these questions honestly:

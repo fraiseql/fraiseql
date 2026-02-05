@@ -5,6 +5,41 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- SQL fundamentals (SELECT, JOIN, WHERE clauses)
+- View concepts (database views, materialized views)
+- FraiseQL schema definition and view selection
+- Performance implications of different view strategies
+- Index design and query optimization basics
+- Database schema design patterns
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- FraiseQL CLI (for DDL generation commands)
+- PostgreSQL 14+, MySQL 8.0+, SQLite 3.x, or SQL Server 2019+
+- SQL client tool (psql, mysql, sqlite3, sqlcmd)
+- Python 3.10+ or TypeScript 4.5+ (optional, for SDK-based generation)
+- A text editor for SQL scripts
+
+**Required Infrastructure:**
+- Access to your target database (PostgreSQL, MySQL, SQLite, SQL Server)
+- Database user with DDL creation permissions (CREATE TABLE, CREATE VIEW)
+- Schema already deployed or accessible
+- FraiseQL schema.json file for your application
+- Sufficient disk space for materialized views (if applicable)
+
+**Optional but Recommended:**
+- View Selection Guide documentation for decision making
+- Database performance monitoring tools
+- Version control for tracking DDL changes
+- Migration tools (Flyway, Liquibase)
+- Schema visualization tools
+- Query performance analysis tools (EXPLAIN ANALYZE)
+
+**Time Estimate:** 15-30 minutes for DDL generation, 30-60 minutes for view validation and testing
+
 ## Overview
 
 This guide explains how to use FraiseQL's DDL generation tools to create SQL for table-backed views (`tv_*` and `ta_*`).

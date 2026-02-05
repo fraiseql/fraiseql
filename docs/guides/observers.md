@@ -4,6 +4,44 @@
 **Status**: Production Ready
 **Last Updated**: 2026-01-23
 
+## Prerequisites
+
+**Required Knowledge:**
+- Event-driven architecture concepts
+- Webhook fundamentals and HTTP POST callbacks
+- Change Data Capture (CDC) principles
+- Conditional logic and DSL syntax
+- Retry strategies and exponential backoff
+- GraphQL mutations and subscriptions
+- JSON schema and data transformation
+- Notification systems (Slack, email, webhooks)
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Your chosen SDK language (Python, TypeScript, Go, Java, etc.)
+- PostgreSQL 14+, MySQL 8.0+, SQLite, or SQL Server 2019+
+- A test HTTP endpoint (for webhook testing) - webhook.site or Postman mock server
+- Curl or Postman (for testing webhooks)
+- A code editor for defining observers in schema
+
+**Required Infrastructure:**
+- FraiseQL server with Observer runtime enabled
+- PostgreSQL database with `tb_entity_change_log` table
+- Network connectivity from FraiseQL to webhook endpoints
+- Slack workspace/API token (if using Slack notifications)
+- Email service credentials (if using email actions)
+- Publicly accessible URL for FraiseQL server (for webhook ingestion)
+
+**Optional but Recommended:**
+- Slack bot setup and permissions configuration
+- Email service provider (SendGrid, AWS SES, etc.)
+- Webhook endpoint hosting (AWS Lambda, Vercel, etc.)
+- Message queue (for high-volume observers)
+- Monitoring/alerting for observer failures
+- Distributed tracing for observer execution
+
+**Time Estimate:** 20-30 minutes for basic webhook observer, 1-2 hours for complex conditional logic with multiple actions
+
 ## Overview
 
 The FraiseQL Observer System enables event-driven architectures by triggering actions (webhooks, notifications, emails) when database changes occur. Observers listen for INSERT, UPDATE, or DELETE events on specific entity types and execute configured actions automatically.

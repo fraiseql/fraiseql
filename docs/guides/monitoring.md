@@ -6,6 +6,45 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- Prometheus metrics format and scrape configuration
+- OpenTelemetry (OTLP) protocol and exporters
+- Grafana dashboard design and queries
+- Kubernetes health probe concepts (liveness, readiness)
+- Query complexity analysis and cost calculation
+- Error grouping and fingerprinting techniques
+- HTTP/REST health check conventions
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later (with observability features)
+- Prometheus 2.40+ (for metrics scraping and storage)
+- Grafana 9.0+ (for visualization and dashboards)
+- Jaeger or Zipkin (for distributed tracing)
+- A text editor for configuration files
+- curl or Postman (for health check testing)
+- Optional: Python/Go/Node for custom exporters
+
+**Required Infrastructure:**
+- FraiseQL server instance with metrics endpoint exposed
+- PostgreSQL 14+ database (for APQ cache and error tracking)
+- Prometheus server with storage
+- Grafana server for dashboarding
+- Jaeger collector or Zipkin server (for tracing)
+- Network connectivity between all monitoring components
+- 5-10GB storage for metrics time-series data
+
+**Optional but Recommended:**
+- AlertManager for alert routing and deduplication
+- Custom Grafana datasources (DataDog, New Relic, Splunk)
+- Kubernetes monitoring stack (Prometheus Operator)
+- Webhook integration for custom alerting
+- Custom exporters for third-party systems
+- Performance baseline tracking tools
+
+**Time Estimate:** 30-60 minutes for basic Prometheus setup, 2-4 hours for production dashboards and alerts
+
 ## Overview
 
 FraiseQL provides comprehensive monitoring and observability features for production deployments:

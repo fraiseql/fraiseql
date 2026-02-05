@@ -1,5 +1,39 @@
 # Consistency Model: CAP Theorem in FraiseQL
 
+## Prerequisites
+
+**Required Knowledge:**
+- CAP theorem fundamentals (Consistency, Availability, Partition Tolerance)
+- Distributed systems concepts
+- ACID properties and transactions
+- Eventual vs strong consistency
+- Network partition failure modes
+- Database replication and synchronization
+- Multi-region deployment patterns
+- FraiseQL federation architecture
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later (for federation scenarios)
+- Your chosen SDK language
+- PostgreSQL, MySQL, SQLite, or SQL Server (with appropriate replication tools)
+- Monitoring tools to detect network partitions
+- Logging infrastructure for debugging consistency issues
+
+**Required Infrastructure:**
+- Multiple FraiseQL instances (for federation scenario discussion)
+- Primary database + replica/standby setup
+- Network monitoring tools
+- Load balancer or DNS for failover
+- Optional: multi-region deployment infrastructure
+
+**Optional but Recommended:**
+- Database replication tools (Postgres replication, MySQL binlog)
+- Network failure simulation tools (chaos engineering)
+- Distributed transaction coordinator (if needed)
+- Consistency verification tools
+
+**Time Estimate:** 30-45 minutes to understand model, 1-2 hours for production implementation planning
+
 ## The Choice: CP (Consistency + Partition Tolerance)
 
 FraiseQL makes a deliberate architectural choice based on the CAP theorem:

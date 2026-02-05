@@ -2,7 +2,44 @@
 
 **Duration**: 2-4 hours
 **Outcome**: Implement common patterns in your FraiseQL application
-**Prerequisites**: Basic understanding of FraiseQL (see [GETTING_STARTED.md](../GETTING_STARTED.md))
+
+## Prerequisites
+
+**Required Knowledge:**
+- GraphQL fundamentals (types, fields, queries, mutations)
+- FraiseQL schema definition and configuration (see [GETTING_STARTED.md](../GETTING_STARTED.md))
+- Authentication and authorization concepts
+- Multi-tenancy and data isolation patterns
+- Caching strategies and trade-offs
+- Pagination and filtering techniques
+- Error handling best practices
+- Database relationships and foreign keys
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Your chosen SDK language:
+  - Python 3.10+
+  - TypeScript/Node.js 18+
+  - Go 1.21+
+  - Java 11+
+  - Or any of the other 16 supported languages
+- A code editor or IDE
+- curl or Postman (for API testing)
+- Git (optional, for version control)
+
+**Required Infrastructure:**
+- FraiseQL server running with your schema
+- PostgreSQL, MySQL, SQLite, or SQL Server database
+- Network connectivity to FraiseQL server
+- Example data loaded in database (for testing patterns)
+
+**Optional but Recommended:**
+- Test database with sample data
+- GraphQL IDE (GraphQL Playground, Apollo Sandbox, Postman)
+- API monitoring tools
+- Logging and debugging tools
+
+**Time Estimate per Pattern:** 20-60 minutes depending on complexity
 
 ---
 

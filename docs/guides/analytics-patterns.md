@@ -7,6 +7,44 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- SQL aggregation functions (SUM, AVG, COUNT, GROUP BY, HAVING)
+- Fact tables and dimension tables (star schema/data warehouse concepts)
+- JSONB/JSON data types and querying
+- Window functions (ROW_NUMBER, RANK, LAG, LEAD)
+- Time-series analysis and bucketing
+- Filtering and WHERE clause optimization
+- Query performance considerations
+- GraphQL query syntax and execution
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later with Arrow Flight support (for columnar queries)
+- Your chosen SDK language (Python, TypeScript, Go, Java, etc.)
+- PostgreSQL 14+, MySQL 8.0+, or ClickHouse (analytics-optimized)
+- SQL client for schema inspection (psql, mysql, etc.)
+- A code editor for defining GraphQL queries
+- Optional: BI tool (Tableau, Looker, Metabase, Apache Superset)
+
+**Required Infrastructure:**
+- FraiseQL server with analytics schema deployed
+- Fact tables with measures (numeric columns) and dimensions (JSONB)
+- PostgreSQL/MySQL database with analytical indexes
+- Optional: Analytics database (ClickHouse) for large-scale analytics
+- Optional: Arrow Flight endpoint for columnar data export
+- Sample data loaded in analytics tables
+
+**Optional but Recommended:**
+- Data warehouse ETL tool (dbt, Airflow)
+- BI platform for visualization and dashboarding
+- Query performance profiling tools
+- Data modeling documentation
+- Arrow/Parquet export infrastructure for external analysis
+- Caching layer (Redis) for repeated aggregations
+
+**Time Estimate:** 20-40 minutes per pattern example, 2-4 hours to adapt patterns to your schema
+
 ## Overview
 
 This guide provides practical examples of common analytical query patterns in FraiseQL v2, showing GraphQL queries and their corresponding SQL execution.

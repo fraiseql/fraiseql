@@ -5,6 +5,24 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- FraiseQL view naming conventions (v_*, va_*, tv_*, ta_*)
+- GraphQL query complexity concepts
+- JSON vs Arrow data plane differences
+- Query performance expectations and latency targets
+- Table-backed vs logical view trade-offs
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- No specific software required (reference guide)
+
+**Required Infrastructure:**
+- None (quick reference only - no implementation needed)
+
+**Time Estimate:** 1-5 minutes to find the right view type for your use case
+
 ## TL;DR: Which View Should I Use?
 
 ### JSON Plane (GraphQL)

@@ -6,6 +6,46 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- Observability fundamentals (logs, metrics, traces - the three pillars)
+- Structured logging and JSON formats
+- Time-series metrics and Prometheus concepts
+- Distributed tracing and span concepts
+- Change Data Capture (CDC) principles
+- Audit logging and compliance requirements
+- Multi-tenancy data isolation patterns
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- PostgreSQL 14+ (for change log tables)
+- Prometheus (for metrics collection)
+- Grafana (for visualization) or alternative dashboarding tool
+- Jaeger or Zipkin (for distributed tracing)
+- Log aggregation tool (ELK, Splunk, DataDog, New Relic, or similar)
+- curl or API client for testing
+
+**Required Infrastructure:**
+- FraiseQL server instance
+- PostgreSQL database with CDC support
+- Prometheus scrape-compatible endpoint
+- Log collection infrastructure (syslog, vector, fluentd, etc.)
+- Trace backend (Jaeger collector, Zipkin server)
+- Metrics storage (Prometheus or similar time-series database)
+- Grafana or visualization tool
+- Network connectivity between all components
+
+**Optional but Recommended:**
+- Kubernetes monitoring (Prometheus Operator)
+- Alert manager for anomaly detection
+- Custom grafana dashboards/templates
+- Distributed tracing sampling strategies
+- Log retention and archival policies
+- Metrics correlation tools
+
+**Time Estimate:** 1-3 hours for basic setup, 4-8 hours for production configuration with alerting
+
 ## 1. Overview
 
 Observability in FraiseQL means understanding **what's happening** in your system through three pillars:

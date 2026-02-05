@@ -1,5 +1,41 @@
 # FraiseQL Language Generators
 
+## Prerequisites
+
+**Required Knowledge:**
+- GraphQL fundamentals (types, fields, queries, mutations, resolvers)
+- At least one programming language (Python, TypeScript, Java, or Go)
+- Decorator/annotation syntax in your target language
+- JSON schema structure and validation
+- Type systems and generic types
+- CLI tool usage and file I/O operations
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Your chosen language runtime:
+  - Python 3.10+ (for Python generator)
+  - Node.js 18+ (for TypeScript generator)
+  - Java 11+ with Maven (for Java generator)
+  - Go 1.21+ (for Go generator)
+- A code editor or IDE for your chosen language
+- Git for version control
+- Bash or equivalent shell
+
+**Required Infrastructure:**
+- FraiseQL CLI tooling (fraiseql compile command)
+- PostgreSQL 14+ database (for compilation validation)
+- File system with write permissions for schema.json output
+- Network connectivity for downloading language SDKs
+
+**Optional but Recommended:**
+- IDE extensions for your language (IntelliSense, syntax highlighting)
+- Language package managers (pip, npm, Maven, go modules)
+- Type checkers (mypy for Python, tsc for TypeScript, etc.)
+- Code formatters for consistent style
+- Schema visualization tools
+
+**Time Estimate:** 20-40 minutes to create first schema, 1-2 hours to understand all language features
+
 ## Overview
 
 FraiseQL v2 supports schema authoring in **5 programming languages**, all producing compatible JSON schemas that compile to the same optimized execution engine. This document describes each language generator, their features, and how to use them.

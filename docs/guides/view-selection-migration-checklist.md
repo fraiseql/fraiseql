@@ -8,6 +8,45 @@
 
 ---
 
+## Prerequisites
+
+**Required Knowledge:**
+- SQL query fundamentals and JOIN optimization
+- Database views (logical vs materialized)
+- Query performance analysis (EXPLAIN ANALYZE)
+- Index design and usage
+- View naming conventions in FraiseQL (v_*, va_*, tv_*, ta_*)
+- Schema compilation and deployment workflows
+- Backup and recovery procedures
+- Schema version control and migration tracking
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- SQL client for your database (psql, mysql, sqlcmd, sqlite3)
+- Schema migration tool (Flyway, Liquibase, or custom scripts)
+- Git for version control
+- Performance profiling tool (pg_stat_statements, EXPLAIN)
+- DDL generation tool (fraiseql-cli or SDK)
+
+**Required Infrastructure:**
+- Production and staging database environments
+- Backup system for database snapshots
+- Query performance monitoring
+- Capacity planning (disk space for table-backed views)
+- Test database for schema validation
+- Network connectivity to all database environments
+- Deployment pipeline or manual change management process
+
+**Optional but Recommended:**
+- Query performance baseline metrics
+- Automated performance regression testing
+- Blue-green or canary deployment strategy
+- Database replication for zero-downtime migration
+- Load testing tools for post-migration validation
+- Monitoring and alerting on query latency
+
+**Time Estimate:** 1-3 hours for complete migration (evaluation + planning + execution + testing)
+
 ## Pre-Migration: Evaluation Phase
 
 ### 1. Identify the Problem
