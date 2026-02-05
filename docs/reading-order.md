@@ -1,24 +1,32 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL v2 Reading Order Guide
+description: This document provides **reading paths** tailored to different roles and use cases. Each path includes:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL v2 Reading Order Guide
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Complete
-**Purpose:** Role-based navigation paths through FraiseQL v2 documentation
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** Updated for v2.0.0-alpha.1
+**Purpose:** Role-based navigation paths through FraiseQL v2.0.0-alpha.1 documentation
 
 ---
 
 ## How to Use This Guide
 
 This document provides **reading paths** tailored to different roles and use cases. Each path includes:
+
 - **Documents to read** in recommended order
 - **Estimated time** to complete each document
 - **Key takeaways** from each document
 - **What you'll be able to do** after completing the path
 
 **Choose your path:**
-1. [New to FraiseQL? Start Here](#new-to-frais
 
-eql-start-here)
+1. [New to FraiseQL? Start Here](#new-to-FraiseQL-start-here)
 2. [For Architects](#for-architects)
 3. [For Compiler Developers](#for-compiler-developers)
 4. [For Runtime Developers](#for-runtime-developers)
@@ -43,12 +51,12 @@ eql-start-here)
    - Feature list
    - **Key Takeaway:** FraiseQL is a compiled database execution layer, not a GraphQL server
 
-2. **`docs/prd/PRD.md`** — Read Sections 1-2 only (20 minutes)
+2. **`docs/prd/prd.md`** — Read Sections 1-2 only (20 minutes)
    - Vision and philosophy
    - System architecture
    - **Key Takeaway:** Compilation over interpretation, database as source of truth
 
-3. **`docs/GLOSSARY.md`** — Skim, bookmark for reference (10 minutes)
+3. **`docs/glossary.md`** — Skim, bookmark for reference (10 minutes)
    - Key terminology
    - **Key Takeaway:** AuthoringIR, CompiledSchema, database targeting
 
@@ -57,12 +65,14 @@ eql-start-here)
    - **Key Takeaway:** Same schema source, different compiled outputs per database
 
 **After this path, you'll understand:**
+
 - What FraiseQL is and isn't
 - Core architectural principles
 - How multi-database support works
 - Key terminology
 
 **Next Steps:**
+
 - Choose a role-specific path below based on your work
 - Or continue to "Complete Documentation Path" for comprehensive coverage
 
@@ -74,53 +84,56 @@ eql-start-here)
 
 **Total Time:** ~3.5 hours
 
-### Phase 1: Foundation (1 hour)
+### Foundation (1 hour)
 
 1. **`README.md`** (5 min)
-2. **`docs/prd/PRD.md`** (30 min)
+2. **`docs/prd/prd.md`** (30 min)
    - All sections
    - **Key Takeaway:** Design principles, architectural boundaries
-3. **`docs/GLOSSARY.md`** (10 min)
+3. **`docs/glossary.md`** (10 min)
 4. **`docs/architecture/database/database-targeting.md`** (15 min)
    - **Key Takeaway:** Compile-time schema specialization
 
-### Phase 2: Core Architecture (1.5 hours)
+### Core Architecture (1.5 hours)
 
-5. **`docs/architecture/core/authoring-languages.md`** (20 min)
+1. **`docs/architecture/core/authoring-languages.md`** (20 min)
    - Language-agnostic compilation via AuthoringIR
    - **Key Takeaway:** One canonical language per org, translation paths for migration
 
-6. **`docs/architecture/core/compilation-pipeline.md`** (30 min)
+2. **`docs/architecture/core/compilation-pipeline.md`** (30 min)
    - 7 phases from authoring → CompiledSchema
    - **Key Takeaway:** Deterministic, static analysis at compile time
 
-7. **`docs/architecture/core/execution-model.md`** (40 min)
+3. **`docs/architecture/core/execution-model.md`** (40 min)
    - 6 runtime phases
    - **Key Takeaway:** Runtime is deterministic, executes compiled plans
 
-8. **`docs/architecture/integration/federation.md`** (40 min)
+4. **`docs/architecture/integration/federation.md`** (40 min)
    - Federation v2 architecture and implementation
    - Direct DB federation for multi-database scenarios
    - **Key Takeaway:** Subgraph composition via direct database connections + HTTP fallback
 
-### Phase 3: Specifications (1 hour)
+### Specifications (1 hour)
 
-9. **`docs/specs/compiled-schema.md`** (25 min)
+1. **`docs/specs/compiled-schema.md`** (25 min)
    - CompiledSchema JSON structure
    - **Key Takeaway:** Immutable artifact, database-target-specific
 
-10. **`docs/specs/schema-conventions.md`** (35 min)
-   - Database patterns (tb_*, v_*, fn_*)
-   - **Key Takeaway:** Conventions enable automatic CQRS, efficient composition
+2. **`docs/specs/schema-conventions.md`** (35 min)
+
+- Database patterns (tb_*, v_*, fn_*)
+- **Key Takeaway:** Conventions enable automatic CQRS, efficient composition
 
 **After this path, you'll be able to:**
+
 - Explain FraiseQL's architecture to stakeholders
 - Understand compile-time vs runtime responsibilities
 - Evaluate FraiseQL for your use case
 - Design schema conventions for your domain
 
 **Recommended Next:**
-- `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
+
+- `docs/adrs/adr-009-federation-architecture.md` — Federation design decisions
 - `docs/architecture/realtime/subscriptions.md` — Real-time events and event streaming
 - `docs/architecture/performance/advanced-optimization.md` — Advanced performance optimization
 - `docs/architecture/decisions/design-decisions.md` — Core design rationale
@@ -134,7 +147,7 @@ eql-start-here)
 
 **Total Time:** ~4 hours
 
-### Phase 1: Authoring System (1.5 hours)
+### Authoring System (1.5 hours)
 
 1. **`docs/specs/authoring-contract.md`** (40 min)
    - Type declarations, decorators, validation rules
@@ -144,36 +157,38 @@ eql-start-here)
    - Language-agnostic compilation
    - **Key Takeaway:** All languages → AuthoringIR
 
-3. **`docs/GLOSSARY.md`** — Reference as needed (25 min)
+3. **`docs/glossary.md`** — Reference as needed (25 min)
    - Focus on: AuthoringIR, CompiledSchema, Binding, Projection
 
-### Phase 2: Compilation Pipeline (1.5 hours)
+### Compilation Pipeline (1.5 hours)
 
-4. **`docs/architecture/core/compilation-pipeline.md`** (50 min)
+1. **`docs/architecture/core/compilation-pipeline.md`** (50 min)
    - Complete 7-phase pipeline
    - **Key Takeaway:** Phase 4 (WHERE type generation) is database-specific
 
-5. **`docs/architecture/database/database-targeting.md`** (40 min)
+2. **`docs/architecture/database/database-targeting.md`** (40 min)
    - Capability manifest, operator filtering
    - **Key Takeaway:** Compile-time specialization, not runtime translation
 
-### Phase 3: Output (1 hour)
+### Output (1 hour)
 
-6. **`docs/specs/compiled-schema.md`** (35 min)
+1. **`docs/specs/compiled-schema.md`** (35 min)
    - JSON structure, validation rules
    - **Key Takeaway:** This is what compiler produces
 
-7. **`docs/specs/schema-conventions.md`** (25 min)
+2. **`docs/specs/schema-conventions.md`** (25 min)
    - Binding validation (types → database views)
    - **Key Takeaway:** Compiler validates bindings against database schema
 
 **After this path, you'll be able to:**
+
 - Implement a new authoring language (e.g., Rust, Go)
 - Extend the compiler with new phases
 - Add database target support (new capability manifest)
 - Debug compilation errors
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — Complete operator catalog
 - `docs/reference/scalars.md` — Scalar type library
 - `docs/architecture/core/compilation-phases.md` — Deep dive into each compilation phase
@@ -187,40 +202,41 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: CompiledSchema (45 min)
+### CompiledSchema (45 min)
 
 1. **`docs/specs/compiled-schema.md`** (30 min)
    - JSON structure, all fields
    - **Key Takeaway:** This is runtime's input
 
-2. **`docs/GLOSSARY.md`** (15 min)
+2. **`docs/glossary.md`** (15 min)
    - Focus on: Backend Lowering, Projection, Authorization
 
-### Phase 2: Execution Pipeline (1.5 hours)
+### Execution Pipeline (1.5 hours)
 
-3. **`docs/architecture/core/execution-model.md`** (60 min)
+1. **`docs/architecture/core/execution-model.md`** (60 min)
    - 6 runtime phases in detail
    - **Key Takeaway:** Deterministic execution of compiled plans
 
-4. **`docs/architecture/database/database-targeting.md`** (30 min)
+2. **`docs/architecture/database/database-targeting.md`** (30 min)
    - Backend lowering (SQL generation)
    - **Key Takeaway:** Runtime translates SDL predicates to database-specific SQL
 
-### Phase 3: Performance & Operations (1.5 hours)
+### Performance & Operations (1.5 hours)
 
-5. **`docs/specs/caching.md`** (20 min)
+1. **`docs/specs/caching.md`** (20 min)
    - Query result caching, cache invalidation
    - **Key Takeaway:** Phase 0 of execution
 
-6. **`docs/specs/persisted-queries.md`** (25 min)
+2. **`docs/specs/persisted-queries.md`** (25 min)
    - APQ protocol, 3 security modes
    - **Key Takeaway:** Phase 0 APQ resolution before parsing
 
-7. **`docs/architecture/realtime/subscriptions.md`** (50 min)
+3. **`docs/architecture/realtime/subscriptions.md`** (50 min)
    - Database-native event streams, transport adapters
    - **Key Takeaway:** Subscriptions are compiled event projections, not GraphQL resolvers
 
 **After this path, you'll be able to:**
+
 - Implement a new backend lowering module (e.g., DuckDB, ClickHouse)
 - Extend the runtime with new execution phases
 - Add performance optimizations
@@ -228,8 +244,9 @@ eql-start-here)
 - Build subscription transport adapters (graphql-ws, webhooks, Kafka)
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — SQL generation for each operator
-- `docs/enterprise/rbac.md` — Authorization enforcement
+- `docs/enterpri../../guides/authorization-quick-start.md` — Authorization enforcement
 - `docs/guides/monitoring.md` — Instrumentation
 - `docs/specs/cdc-format.md` — Event format for subscriptions
 - `docs/architecture/core/execution-semantics.md` — Detailed execution semantics
@@ -244,9 +261,9 @@ eql-start-here)
 
 **Total Time:** ~2.5 hours
 
-### Phase 1: Conventions (1 hour)
+### Conventions (1 hour)
 
-1. **`docs/prd/PRD.md`** — Section 3.2 only (15 min)
+1. **`docs/prd/prd.md`** — Section 3.2 only (15 min)
    - Schema conventions overview
    - **Key Takeaway:** Opinionated patterns required
 
@@ -254,33 +271,126 @@ eql-start-here)
    - Complete conventions reference
    - **Key Takeaway:** tb_*, v_*, fn_* patterns; dual-key strategy; JSONB composition
 
-### Phase 2: Read Model (1 hour)
+### Read Model (1 hour)
 
-3. **`docs/prd/PRD.md`** — Section 3.1.1 and 3.1.5 (20 min)
+1. **`docs/prd/prd.md`** — Section 3.1.1 and 3.1.5 (20 min)
    - Read model, JSONB composition
    - **Key Takeaway:** Pre-aggregated views enable O(1) composition
 
-4. **`docs/specs/cdc-format.md`** (40 min)
+2. **`docs/specs/cdc-format.md`** (40 min)
    - CDC event format
    - **Key Takeaway:** Debezium-compatible, audit trail
 
-### Phase 3: Enterprise Features (30 min)
+### Enterprise Features (30 min)
 
-5. **`docs/enterprise/audit-logging.md`** — Sections 1-3 only (30 min)
+1. **`docs/enterprise/audit-logging.md`** — Sections 1-3 only (30 min)
    - Audit columns, cryptographic chain
    - **Key Takeaway:** Audit columns required for CDC
 
 **After this path, you'll be able to:**
+
 - Design FraiseQL-compatible database schemas
 - Create efficient read views with JSONB projections
 - Set up pre-aggregated views for relationships
 - Implement audit logging and soft deletes
 
 **Recommended Next:**
+
 - `docs/reference/where-operators.md` — Understanding filterable paths
 - `docs/guides/production-deployment.md` — Index strategies
 - `docs/architecture/database/arrow-plane.md` — Arrow-based data plane for analytics
 - `docs/specs/pagination-keyset.md` — Keyset pagination patterns
+
+---
+
+## For Analytics Engineers
+
+**Goal:** Build analytical systems with FraiseQL's fact table patterns and aggregations.
+
+**Total Time:** ~3-4 hours
+
+### Core Concepts (1 hour)
+
+1. **`docs/architecture/core/compilation-vs-runtime.md`** (20 min)
+   - Understand compile-time vs runtime separation
+   - **Key Takeaway:** Python/TS authoring → Rust compilation → Rust runtime
+
+2. **`docs/architecture/core/execution-model.md`** (30 min)
+   - GraphQL query execution phases
+   - Phase 2.5: Aggregation Resolution
+   - **Key Takeaway:** How GROUP BY and aggregates are compiled
+
+3. **`docs/prd/prd.md`** — Section 3.5 only (10 min)
+   - Analytical Execution Semantics overview
+   - **Key Takeaway:** No joins principle, fact table patterns
+
+### Analytics Architecture (1.5 hours)
+
+1. **`docs/architecture/analytics/fact-dimension-pattern.md`** ⭐ **START HERE** (40 min)
+   - Fact table structure (measures, dimensions, filters)
+   - No joins principle
+   - Aggregate tables = fact tables with different granularity
+   - **Key Takeaway:** All analytical tables use same pattern: SQL columns (measures) + JSONB (dimensions)
+
+2. **`docs/architecture/analytics/aggregation-model.md`** (30 min)
+   - GROUP BY compilation strategy
+   - Aggregate function selection
+   - Temporal bucketing (DATE_TRUNC, DATE_FORMAT, strftime, DATEPART)
+   - HAVING clause validation
+   - **Key Takeaway:** Compile-time schema analysis → optimized SQL
+
+3. **`docs/specs/analytical-schema-conventions.md`** (20 min)
+   - Naming conventions: tf_(fact tables, any granularity), td_ (dimension)
+   - Column patterns: measures, dimensions, denormalized filters
+   - Index recommendations
+   - **Key Takeaway:** Conventions required by FraiseQL compiler
+
+### Database-Specific Implementation (1 hour)
+
+1. **`docs/specs/aggregation-operators.md`** (30 min)
+   - PostgreSQL: Full support (STDDEV, VARIANCE, FILTER)
+   - MySQL: Basic support (no statistical functions)
+   - SQLite: Minimal support
+   - SQL Server: Enterprise support (STDEV, VAR, JSON_VALUE)
+   - **Key Takeaway:** Database capability manifest determines available functions
+
+2. **`docs/architecture/database/database-targeting.md`** (15 min)
+   - Compile-time database specialization
+   - **Key Takeaway:** GraphQL schema matches database capabilities
+
+3. **`docs/specs/capability-manifest.md`** — Section 3.4 only (15 min)
+   - Aggregation operators in capability manifest
+   - **Key Takeaway:** How compiler knows which aggregates to generate
+
+### Practical Application (30 min)
+
+1. **`docs/guides/analytics-patterns.md`** ⭐ **PRACTICAL EXAMPLES** (30 min)
+    - 10 common query patterns with SQL execution
+    - Simple aggregation, GROUP BY, temporal bucketing, HAVING
+    - Performance optimization tips
+    - Database-specific notes
+    - **Key Takeaway:** Copy-paste patterns for real analytics queries
+
+**After this path, you'll be able to:**
+
+- Design fact tables with measures + dimensions
+- Write GraphQL aggregate queries (GROUP BY, HAVING, temporal bucketing)
+- Understand performance characteristics (SQL columns 10-100x faster than JSONB)
+- Use pre-aggregated fact tables (e.g., `tf_sales_daily`) for common rollups
+- Leverage database-specific aggregate functions
+
+**Recommended Next:**
+
+- `docs/architecture/database/arrow-plane.md` — Section 5.5 for BI tool integration
+- `docs/architecture/analytics/window-functions.md` — Window functions (ROW_NUMBER, LAG/LEAD)
+- `docs/specs/window-operators.md` — Window function reference
+- `docs/specs/schema-conventions.md` — Section 4.3.1 for analytical fact tables
+
+**Important Notes:**
+
+- FraiseQL does **NOT** support joins; all dimensions must be denormalized at ETL time
+- ETL is managed by DBA/data team; FraiseQL provides GraphQL query interface only
+- Pre-aggregated fact tables use same structure, just different granularity (e.g., `tf_sales_daily` vs `tf_sales`)
 
 ---
 
@@ -290,7 +400,7 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: Deployment (1.5 hours)
+### Deployment (1.5 hours)
 
 1. **`docs/guides/production-deployment.md`** (60 min)
    - Kubernetes deployment, HPA, Pod Security
@@ -300,30 +410,32 @@ eql-start-here)
    - Security profiles (STANDARD, REGULATED, RESTRICTED)
    - **Key Takeaway:** Choose profile based on compliance needs
 
-### Phase 2: Monitoring (1 hour)
+### Monitoring (1 hour)
 
-3. **`docs/guides/monitoring.md`** (60 min)
+1. **`docs/guides/monitoring.md`** (60 min)
    - Prometheus metrics, OpenTelemetry, health checks
    - **Key Takeaway:** Complete observability setup
 
-### Phase 3: Performance (30 min)
+### Performance (30 min)
 
-4. **`docs/specs/caching.md`** (15 min)
+1. **`docs/specs/caching.md`** (15 min)
    - Query result caching backends
    - **Key Takeaway:** Memory vs Database backends
 
-5. **`docs/specs/persisted-queries.md`** — Sections 1-3 only (15 min)
+2. **`docs/specs/persisted-queries.md`** — Sections 1-3 only (15 min)
    - APQ deployment patterns
    - **Key Takeaway:** 3 security modes for different environments
 
 **After this path, you'll be able to:**
+
 - Deploy FraiseQL to Kubernetes
 - Configure monitoring and alerting
 - Tune performance (caching, connection pooling)
 - Implement security best practices
 
 **Recommended Next:**
-- `docs/enterprise/rbac.md` — Role-based access control setup
+
+- `docs/enterpri../../guides/authorization-quick-start.md` — Role-based access control setup
 - `docs/enterprise/kms.md` — Key management integration
 - `docs/guides/observability.md` — Observability best practices
 - `docs/architecture/observability/observability-model.md` — Observability architecture
@@ -336,9 +448,9 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: Security Model (1 hour)
+### Security Model (1 hour)
 
-1. **`docs/prd/PRD.md`** — Section 4 only (30 min)
+1. **`docs/prd/prd.md`** — Section 4 only (30 min)
    - Authentication (external), authorization (declarative)
    - **Key Takeaway:** No user code execution, deterministic enforcement
 
@@ -346,33 +458,35 @@ eql-start-here)
    - Security profiles, SBOM, NIS2 compliance
    - **Key Takeaway:** REGULATED profile for production
 
-### Phase 2: Authorization (1.5 hours)
+### Authorization (1.5 hours)
 
-3. **`docs/enterprise/rbac.md`** (60 min)
+1. **`docs/enterpri../../guides/authorization-quick-start.md`** (60 min)
    - Hierarchical roles, field-level auth
    - **Key Takeaway:** 3 enforcement layers
 
-4. **`docs/enterprise/audit-logging.md`** (30 min)
+2. **`docs/enterprise/audit-logging.md`** (30 min)
    - Cryptographic chain, HMAC signatures
    - **Key Takeaway:** Tamper-evident audit trails
 
-### Phase 3: Operations (30 min)
+### Operations (30 min)
 
-5. **`docs/specs/introspection.md`** (15 min)
+1. **`docs/specs/introspection.md`** (15 min)
    - Introspection policies
    - **Key Takeaway:** Disable in production
 
-6. **`docs/guides/production-deployment.md`** — Section 6 only (15 min)
+2. **`docs/guides/production-deployment.md`** — Section 6 only (15 min)
    - Security hardening checklist
    - **Key Takeaway:** Pod Security Standards, network policies
 
 **After this path, you'll be able to:**
+
 - Configure authentication providers
 - Design authorization rules
 - Set up audit logging
 - Harden production deployments
 
 **Recommended Next:**
+
 - `docs/enterprise/kms.md` — Field encryption with KMS
 - `docs/architecture/security/security-model.md` — Security architecture deep dive
 - `docs/architecture/security/authentication-detailed.md` — Authentication implementation details
@@ -387,41 +501,43 @@ eql-start-here)
 
 **Total Time:** ~1.5 hours
 
-### Phase 1: GraphQL API (45 min)
+### GraphQL API (45 min)
 
 1. **`README.md`** (5 min)
-2. **`docs/prd/PRD.md`** — Sections 1, 3.1, 5 only (30 min)
+2. **`docs/prd/prd.md`** — Sections 1, 3.1, 5 only (30 min)
    - What FraiseQL provides
    - Read model
    - GraphQL semantics
    - **Key Takeaway:** Deterministic, type-safe API
 
-3. **`docs/GLOSSARY.md`** — WHERE Operators, APQ, Cache Invalidation (10 min)
+3. **`docs/glossary.md`** — WHERE Operators, APQ, Cache Invalidation (10 min)
 
-### Phase 2: Performance (30 min)
+### Performance (30 min)
 
-4. **`docs/specs/caching.md`** — Sections 1-4 (15 min)
+1. **`docs/specs/caching.md`** — Sections 1-4 (15 min)
    - Query result caching
    - Cache invalidation with graphql-cascade
    - **Key Takeaway:** Client-side cache invalidation patterns
 
-5. **`docs/specs/persisted-queries.md`** — Sections 1-3 (15 min)
+2. **`docs/specs/persisted-queries.md`** — Sections 1-3 (15 min)
    - APQ protocol
    - **Key Takeaway:** Register queries at build time for security + performance
 
-### Phase 3: Filtering (15 min)
+### Filtering (15 min)
 
-6. **`docs/reference/where-operators.md`** — Skim (15 min)
+1. **`docs/reference/where-operators.md`** — Skim (15 min)
    - WHERE operator catalog
    - **Key Takeaway:** Database-specific operators available
 
 **After this path, you'll be able to:**
+
 - Write efficient GraphQL queries
 - Implement client-side caching with cache invalidation
 - Use APQ for security and performance
 - Filter queries with database-specific operators
 
 **Recommended Next:**
+
 - `docs/specs/introspection.md` — Schema introspection
 - `docs/reference/scalars.md` — Custom scalar types
 - `docs/specs/pagination-keyset.md` — Advanced pagination techniques
@@ -440,9 +556,10 @@ eql-start-here)
 ### Week 1: Foundation (4-5 hours)
 
 **Day 1:**
+
 1. README.md (5 min)
-2. PRD.md (60 min)
-3. GLOSSARY.md (30 min)
+2. prd.md (60 min)
+3. glossary.md (30 min)
 
 **Day 2:**
 4. architecture/database/database-targeting.md (30 min)
@@ -474,7 +591,7 @@ eql-start-here)
 ### Week 3: Enterprise & Operations (3-4 hours)
 
 **Day 7:**
-19. enterprise/rbac.md (60 min)
+19. enterpri../../guides/authorization-quick-start.md (60 min)
 20. enterprise/audit-logging.md (60 min)
 
 **Day 8:**
@@ -523,12 +640,12 @@ eql-start-here)
 
 **Day 17:**
 45. architecture/observability/observability-model.md (50 min)
-46. adrs/ADR-009-federation-architecture.md (40 min)
+46. adrs/adr-009-federation-architecture.md (40 min)
 
 ### Week 5: Reference (As Needed)
 
-47. reference/scalars.md (reference)
-48. reference/where-operators.md (reference)
+1. reference/scalars.md (reference)
+2. reference/where-operators.md (reference)
 
 ---
 
@@ -538,10 +655,10 @@ eql-start-here)
 |----------|-------|-----------|-------|
 | **Meta** |
 | README.md | 1,000+ | 5 min | Overview |
-| GLOSSARY.md | 800+ | 30 min | Reference |
+| glossary.md | 800+ | 30 min | Reference |
 | reading-order.md (this) | 731 | 15 min | Navigation |
 | **PRD** |
-| prd/PRD.md | 1,100+ | 60 min | High-level |
+| prd/prd.md | 1,100+ | 60 min | High-level |
 | **Architecture: Core** |
 | architecture/core/compilation-pipeline.md | 1,024 | 60 min | Deep |
 | architecture/core/compilation-phases.md | 1,597 | 50 min | Deep |
@@ -589,7 +706,7 @@ eql-start-here)
 | specs/security-compliance.md | 750+ | 40 min | Medium |
 | specs/introspection.md | 400+ | 25 min | Light |
 | **Enterprise** |
-| enterprise/rbac.md | 1,200+ | 60 min | Deep |
+| enterpri../../guides/authorization-quick-start.md | 1,200+ | 60 min | Deep |
 | enterprise/audit-logging.md | 1,200+ | 60 min | Deep |
 | enterprise/kms.md | 1,100+ | 50 min | Medium |
 | **Guides** |
@@ -598,7 +715,7 @@ eql-start-here)
 | guides/production-deployment.md | 958 | 60 min | Medium |
 | guides/testing-strategy.md | 2,454 | 80 min | Deep |
 | **ADRs** |
-| adrs/ADR-009-federation-architecture.md | 800+ | 40 min | Deep |
+| adrs/adr-009-federation-architecture.md | 800+ | 40 min | Deep |
 | **Reference** |
 | reference/scalars.md | 900+ | Reference | Reference |
 | reference/where-operators.md | 1,200+ | Reference | Reference |
@@ -608,21 +725,27 @@ eql-start-here)
 ## Tips for Effective Reading
 
 ### 1. Start with Your Role Path
+
 Don't try to read everything at once. Follow the path for your role first.
 
-### 2. Keep GLOSSARY.md Open
+### 2. Keep glossary.md Open
+
 Reference terminology as you read. Most confusion comes from undefined terms.
 
 ### 3. Skim First, Deep Dive Later
+
 Read document headers and summaries first. Deep dive only when needed.
 
 ### 4. Follow Cross-References
+
 Specs link to related specs. Follow links when concepts aren't clear.
 
 ### 5. Use Real Examples
+
 Try building a simple schema as you read. Learning by doing reinforces concepts.
 
 ### 6. Ask Questions
+
 If documentation is unclear, file an issue. Documentation improves through feedback.
 
 ---
@@ -631,10 +754,11 @@ If documentation is unclear, file an issue. Documentation improves through feedb
 
 **Reading order matters** for some documents. Here's the dependency graph:
 
-```
+```text
+<!-- Code example in TEXT -->
 README.md
     ↓
-prd/PRD.md
+prd/prd.md
     ↓
     ├─→ architecture/database/database-targeting.md
     │       ↓
@@ -662,7 +786,7 @@ prd/PRD.md
                                     ↓
                                     └─→ architecture/performance/advanced-optimization.md
 
-prd/PRD.md
+prd/prd.md
     ↓
 specs/schema-conventions.md
     ↓
@@ -680,7 +804,7 @@ specs/security-compliance.md
     ├─→ architecture/security/security-model.md
     │       ↓
     │       └─→ architecture/security/authentication-detailed.md
-    ├─→ enterprise/rbac.md
+    ├─→ enterpri../../guides/authorization-quick-start.md
     ├─→ enterprise/audit-logging.md
     └─→ enterprise/kms.md
 
@@ -702,7 +826,7 @@ architecture/integration/federation.md
     ├─→ architecture/integration/multiplane-interactions.md
     ├─→ architecture/integration/extension-points.md
     ├─→ architecture/integration/integration-patterns.md
-    └─→ adrs/ADR-009-federation-architecture.md
+    └─→ adrs/adr-009-federation-architecture.md
 
 architecture/decisions/design-decisions.md
     ↓
@@ -710,7 +834,8 @@ architecture/decisions/design-decisions.md
     └─→ architecture/decisions/state-management.md
 
 architecture/reliability/versioning-strategy.md (standalone, recommended after reliability docs)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Key insight:** Start with README → PRD → GLOSSARY, then choose your path based on dependencies.
 
@@ -719,6 +844,7 @@ architecture/reliability/versioning-strategy.md (standalone, recommended after r
 ## Feedback
 
 This reading order guide is a living document. If you find:
+
 - A path doesn't make sense for your role
 - A document should be read earlier/later
 - Time estimates are inaccurate

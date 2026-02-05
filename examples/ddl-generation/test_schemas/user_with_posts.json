@@ -1,0 +1,54 @@
+{
+  "$schema": "https://fraiseql.dev/schema/v2.json",
+  "version": "2.0",
+  "types": [
+    {
+      "name": "User",
+      "description": "A user with related blog posts.",
+      "fields": [
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false},
+        {"name": "posts", "type": "Post", "nullable": true},
+        {"name": "created_at", "type": "DateTime", "nullable": false}
+      ]
+    },
+    {
+      "name": "Post",
+      "description": "A blog post written by a user.",
+      "fields": [
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "title", "type": "String", "nullable": false},
+        {"name": "content", "type": "String", "nullable": false},
+        {"name": "author_id", "type": "Int", "nullable": false},
+        {"name": "author", "type": "User", "nullable": true},
+        {"name": "created_at", "type": "DateTime", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "description": "Get all users with their posts.",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_users"
+    },
+    {
+      "name": "posts",
+      "description": "Get all posts with author information.",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
+      ],
+      "sql_source": "v_posts"
+    }
+  ],
+  "mutations": []
+}

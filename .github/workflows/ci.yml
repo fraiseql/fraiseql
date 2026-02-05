@@ -18,13 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust nightly (for rustfmt)
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: cargo +nightly fmt --all -- --check
 
   # Lint with Clippy
   clippy:
@@ -32,6 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -70,6 +75,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -102,18 +113,24 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: fraiseql_test
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 5433:5432
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -127,10 +144,31 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
       - name: Run integration tests
         run: cargo test --test '*' --all-features -- --test-threads=1
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fraiseql_test
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run database adapter and introspector tests (ignored)
+        run: cargo test --lib -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run fraiseql-core integration tests (fact_table, aggregation)
+        run: |
+          cargo test -p fraiseql-core --test fact_table_integration -- --ignored --test-threads=1
+          cargo test -p fraiseql-core --test aggregation_integration -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
   # Integration tests with MySQL
@@ -140,20 +178,27 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.3
         env:
-          MYSQL_ROOT_PASSWORD: rootpass
-          MYSQL_DATABASE: fraiseql_test
+          MYSQL_ROOT_PASSWORD: fraiseql_test_root
+          MYSQL_DATABASE: test_fraiseql
+          MYSQL_USER: fraiseql_test
+          MYSQL_PASSWORD: fraiseql_test_password
         options: >-
-          --health-cmd "mysqladmin ping"
+          --health-cmd "mysqladmin ping -h localhost -u fraiseql_test -pfraiseql_test_password"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 3306:3306
+          - 3307:3306
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -167,10 +212,91 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-mysql-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run integration tests
-        run: cargo test --test '*' --all-features -- --test-threads=1
+      - name: Initialize MySQL test database schema
+        run: |
+          mysql -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/init.sql
+
+      - name: Run MySQL integration tests
+        run: cargo test -p fraiseql-core --features "mysql" --test multi_database_integration mysql -- --ignored --test-threads=1
         env:
-          DATABASE_URL: mysql://root:rootpass@localhost:3306/fraiseql_test
+          MYSQL_URL: mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql
+          RUST_LOG: debug
+
+  # Integration tests with SQLite (no external service needed)
+  integration-sqlite:
+    name: Integration Tests (SQLite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-sqlite-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run SQLite integration tests
+        run: cargo test -p fraiseql-core --features "sqlite" --test multi_database_integration sqlite
+        env:
+          RUST_LOG: debug
+
+  # Integration tests with SQL Server
+  integration-sqlserver:
+    name: Integration Tests (SQL Server)
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "FraiseQL_Test123!"
+          MSSQL_PID: "Developer"
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'FraiseQL_Test123!' -C -Q 'SELECT 1' -b || exit 1"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
+        ports:
+          - 1434:1433
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-sqlserver-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run SQL Server integration tests
+        run: cargo test -p fraiseql-core --features "sqlserver" --test multi_database_integration sqlserver -- --ignored --test-threads=1
+        env:
+          SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test123!;TrustServerCertificate=true"
           RUST_LOG: debug
 
   # Code coverage
@@ -182,18 +308,24 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: fraiseql_test
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 5433:5432
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -212,10 +344,17 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Generate coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fraiseql_test
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Generate coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -242,6 +381,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -271,6 +415,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -295,7 +444,7 @@ jobs:
   # All checks passed
   ci-success:
     name: CI Success
-    needs: [fmt, clippy, test, integration-postgres, integration-mysql, coverage, security, docs]
+    needs: [fmt, clippy, test, integration-postgres, integration-mysql, integration-sqlite, integration-sqlserver, coverage, security, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Mark CI as successful

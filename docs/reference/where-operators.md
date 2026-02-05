@@ -1,7 +1,15 @@
+<!-- Skip to main content -->
+---
+title: WHERE Clause Operators Reference
+description: FraiseQL provides 150+ WHERE clause operators for filtering, searching, and comparing data across all supported column types. These operators enable:
+keywords: ["directives", "types", "scalars", "schema", "api"]
+tags: ["documentation", "reference"]
+---
+
 # WHERE Clause Operators Reference
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Status:** ✅ Production Ready
+**Version:** FraiseQL v2.0.0-alpha.1+
 **Total Operators**: 150+
 **Categories**: 15 operator categories
 
@@ -17,6 +25,69 @@ FraiseQL provides 150+ WHERE clause operators for filtering, searching, and comp
 - **Specialized operations**: Geographic distance, vector similarity, hierarchical paths, full-text search
 
 All operators are type-aware and only work with compatible column types. Invalid operator/type combinations return GraphQL errors at query time.
+
+---
+
+## Database Support Matrix
+
+**Quick Reference**: Operators supported per database
+
+| Operator Category | PostgreSQL | MySQL | SQLite | SQL Server | Notes |
+|---|:---:|:---:|:---:|:---:|---|
+| **Basic Comparison** (eq, neq, gt, gte, lt, lte) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal, always available |
+| **String Operators** (contains, startswith, icontains) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All databases support LIKE/ILIKE equivalents |
+| **Array Operators** (@>, @<, ? ANY, IN) | ✅ Full | ⚠️ Limited | ❌ None | ⚠️ Workaround | PostgreSQL native arrays optimal; MySQL needs workaround |
+| **JSON/JSONB Operators** (->>, @>, @?) | ✅ Full | ⚠️ Limited | ⚠️ Limited | ⚠️ Limited | PostgreSQL JSONB best; others use JSON operators |
+| **Full-Text Search** (fts, plainto_tsquery) | ✅ Full | ✅ Full | ⚠️ Limited | ⚠️ Limited | PostgreSQL FTS most complete; MySQL/SQL Server partial |
+| **Geometric** (ST_Distance, <@) | ✅ Full | ⚠️ Limited | ❌ None | ⚠️ Limited | Requires PostGIS or equivalent; PostgreSQL best support |
+| **Range Operators** (contained_by, overlaps) | ✅ Full | ❌ None | ❌ None | ❌ None | PostgreSQL range types only |
+| **UUID Operations** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All support UUID as string/binary |
+| **Date/Time Operators** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | All support standard date/time functions |
+| **Case-Insensitive** (ilike, icontains) | ✅ Native | ✅ Native | ✅ Full | ✅ Full | All support case-insensitive comparisons |
+| **NULL Handling** (is_null, is_not_null) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal |
+| **Bitwise** (& bitwise AND, \| bitwise OR) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal for numeric types |
+
+**Legend**:
+
+- ✅ **Full** = Fully supported, optimal performance
+- ⚠️ **Limited** = Supported with workarounds or reduced functionality
+- ❌ **None** = Not supported; no direct equivalent
+
+---
+
+### Database-Specific Notes
+
+#### PostgreSQL (Recommended for operators)
+
+- ✅ All operators fully supported
+- ✅ JSONB operators optimized with GIN indexes
+- ✅ Full-text search with tsvector
+- ✅ PostGIS for geometric queries
+- ✅ Range types with native operators
+
+### MySQL
+
+- ✅ Standard SQL operators all work
+- ⚠️ JSON operators available but slower than PostgreSQL
+- ⚠️ Full-text search available (MATCH AGAINST) but less powerful than PostgreSQL
+- ⚠️ No array types; use JSON workaround
+- ⚠️ No range types; use comparison operators
+
+### SQLite
+
+- ✅ Standard SQL operators work
+- ⚠️ Minimal JSON support (JSON1 extension required)
+- ⚠️ Limited full-text search (FTS5 extension needed)
+- ❌ No array, range, or geometric types
+- ⚠️ Case-insensitive searches with `COLLATE NOCASE`
+
+### SQL Server
+
+- ✅ Standard SQL operators work
+- ⚠️ JSON operators available (JSON_VALUE, JSON_QUERY)
+- ⚠️ Full-text search available but different syntax
+- ❌ No array or range types
+- ✅ Case-insensitive by default (collation)
 
 ---
 
@@ -36,7 +107,9 @@ Basic comparison operators work with all comparable types (numeric, string, date
 **Supported Types**: All types (strings, numbers, dates, UUIDs, etc.)
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Numeric
 {age: {eq: 25}}
 {price: {eq: 99.99}}
@@ -53,7 +126,8 @@ Basic comparison operators work with all comparable types (numeric, string, date
 
 # Boolean
 {isActive: {eq: true}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Comparison Operators**
 
@@ -67,7 +141,9 @@ Basic comparison operators work with all comparable types (numeric, string, date
 **Supported Types**: Numeric (int, float, decimal), Date, DateTime, String (lexical comparison)
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Numeric ranges
 {age: {gte: 18, lte: 65}}
 {price: {gt: 100, lt: 500}}
@@ -78,7 +154,8 @@ Basic comparison operators work with all comparable types (numeric, string, date
 
 # String lexical comparison
 {name: {gte: "A", lt: "B"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -100,7 +177,9 @@ String operators provide flexible text searching with case-sensitivity control a
 **Supported Types**: String, Text, Slug, domains, URLs
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Case-sensitive
 {email: {contains: "@example.com"}}
 {title: {startswith: "The"}}
@@ -113,7 +192,8 @@ String operators provide flexible text searching with case-sensitivity control a
 # Combined
 {email: {contains: "@"}}
 {url: {startswith: "https://"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Pattern Operators**
 
@@ -123,12 +203,15 @@ String operators provide flexible text searching with case-sensitivity control a
 | `ilike` | `ILIKE` | Case-insensitive pattern | SQL wildcards | `{name: {ilike: "%SMITH%"}}` |
 
 **Wildcard Rules**:
+
 - `%` = Any characters (0 or more)
 - `_` = Exactly one character
 - Escape with backslash: `\%` for literal percent
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find names with pattern
 {name: {like: "John%"}}        # Starts with John
 {name: {like: "%Smith"}}       # Ends with Smith
@@ -137,7 +220,8 @@ String operators provide flexible text searching with case-sensitivity control a
 
 # Case-insensitive
 {email: {ilike: "%@example.com"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Regular Expression Operators**
 
@@ -148,6 +232,7 @@ String operators provide flexible text searching with case-sensitivity control a
 | `not_matches` | `!~` | Negated regex match | `{email: {not_matches: ".*@spam\\.com$"}}` |
 
 **PostgreSQL POSIX Regular Expressions**:
+
 - `.` = Any character
 - `*` = Zero or more
 - `+` = One or more
@@ -159,7 +244,9 @@ String operators provide flexible text searching with case-sensitivity control a
 - `|` = OR
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Email validation pattern
 {email: {matches: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"}}
 
@@ -174,7 +261,8 @@ String operators provide flexible text searching with case-sensitivity control a
 
 # URL protocol check
 {url: {matches: "^https?://"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -192,7 +280,9 @@ List operators check if values are in a provided list.
 **Supported Types**: All types (numeric, string, UUID, date, etc.)
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # String values
 {status: {in: ["active", "pending", "approved"]}}
 {country: {nin: ["XX", "YY"]}}
@@ -209,7 +299,8 @@ List operators check if values are in a provided list.
 
 # Mixed with other operators
 {status: {in: ["active", "pending"]}, age: {gte: 18}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -224,7 +315,9 @@ List operators check if values are in a provided list.
 **Supported Types**: All types
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Records with NULL values
 {deletedAt: {isnull: true}}
 {middleName: {isnull: true}}
@@ -235,7 +328,8 @@ List operators check if values are in a provided list.
 
 # Soft delete pattern
 {AND: [{isnull: false}, {deletedAt: {isnull: true}}]}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -251,10 +345,13 @@ Array operators work with JSONB array columns (columns storing JSON arrays).
 | `neq` / `array_neq` | `!=` | Array inequality | `{tags: {neq: ["x"]}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 {tags: {eq: ["important", "review"]}}
 {items: {neq: []}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Array Containment**
 
@@ -265,12 +362,15 @@ Array operators work with JSONB array columns (columns storing JSON arrays).
 | `overlaps` / `array_overlaps` | `&&` | Arrays have common elements | `{tags: {overlaps: ["urgent", "review"]}}` |
 
 **Containment vs Overlaps**:
+
 - `contains`: Subject array must have ALL elements of provided array
 - `overlaps`: Subject array must have AT LEAST ONE element of provided array
 - `contained_by`: Subject array must be subset of provided array
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Must have ALL these tags
 {tags: {contains: ["important", "urgent"]}}
 
@@ -279,7 +379,8 @@ Array operators work with JSONB array columns (columns storing JSON arrays).
 
 # Must be subset of allowed tags
 {tags: {contained_by: ["dev", "qa", "prod", "staging"]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Array Length**
 
@@ -293,13 +394,16 @@ Array operators work with JSONB array columns (columns storing JSON arrays).
 | `len_lte` / `array_length_lte` | `array_length(,1) <=` | Length <= | `{items: {len_lte: 20}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Array length checks
 {items: {len_eq: 5}}           # Exactly 5 items
 {tags: {len_gte: 1}}           # At least 1 tag
 {attachments: {len_lt: 100}}   # Fewer than 100
 {reviews: {len_neq: 0}}        # Non-empty reviews
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Array Element Matching**
 
@@ -309,13 +413,16 @@ Array operators work with JSONB array columns (columns storing JSON arrays).
 | `all_eq` / `array_all_eq` | `= ALL(array)` | All elements equal | `{items: {all_eq: "same"}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Any element matches
 {items: {any_eq: "completed"}}
 
 # All elements match (rarely useful, for uniform arrays)
 {statuses: {all_eq: "active"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -333,7 +440,9 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 | `nin` / `notin` | `NOT IN (...)` | IP not in list | `{ip: {nin: ["10.0.0.0/8"]}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Exact IP match
 {ip: {eq: "192.168.1.100"}}
 
@@ -345,7 +454,8 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 
 # Exclude ranges
 {ip: {nin: ["10.0.0.0/8", "172.16.0.0/12"]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **IP Address Classification**
 
@@ -357,6 +467,7 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 | `isipv6` / `isIPv6` | `family() = 6` | Is IPv6 address | `{ip: {isipv6: true}}` |
 
 **Private IP Ranges (RFC 1918)**:
+
 - `10.0.0.0/8` (10.0.0.0 to 10.255.255.255)
 - `172.16.0.0/12` (172.16.0.0 to 172.31.255.255)
 - `192.168.0.0/16` (192.168.0.0 to 192.168.255.255)
@@ -365,7 +476,9 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 - Etc.
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find public IPs (security audits)
 {ip: {ispublic: true}}
 
@@ -378,7 +491,8 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 
 # Combined filtering
 {AND: [{ip: {isipv4: true}}, {ip: {isprivate: true}}]}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Network Range Operators**
 
@@ -391,7 +505,9 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 | `strictright` | `>>` | Network strictly right of | `{network: {strictright: "192.167.0.0/16"}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Check if IP is in corporate network
 {ip: {insubnet: "203.0.113.0/24"}}
 
@@ -403,7 +519,8 @@ Network operators work with INET and CIDR PostgreSQL types (IPv4 and IPv6 addres
 
 # Ordering checks
 {network: {strictleft: "192.170.0.0/16"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -422,7 +539,9 @@ MAC address operators work with `macaddr` PostgreSQL type.
 **Format**: Colon-separated hexadecimal octets
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Device identification
 {mac: {eq: "a0:1d:48:12:34:56"}}
 
@@ -434,7 +553,8 @@ MAC address operators work with `macaddr` PostgreSQL type.
 
 # Exclude DHCP
 {mac: {isnull: false}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -452,19 +572,23 @@ Date range operators work with PostgreSQL `daterange` type.
 | `nin` / `notin` | `NOT IN (...)` | Range not in list | `{period: {nin: ["[2023-01-01, 2023-12-31]"]}}` |
 
 **Range Notation**:
+
 - `[start, end]` = Inclusive on both sides
 - `(start, end)` = Exclusive on both sides
 - `[start, end)` = Inclusive start, exclusive end
 - `(start, end]` = Exclusive start, inclusive end
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Year 2024 (inclusive)
 {period: {eq: "[2024-01-01, 2024-12-31]"}}
 
 # Excluding year 2023
 {period: {nin: ["[2023-01-01, 2023-12-31]"]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Date Range Containment**
 
@@ -479,7 +603,9 @@ Date range operators work with PostgreSQL `daterange` type.
 | `not_right` | `&<` | Range does not extend right | `{period: {not_right: "[2023-01-01, 2024-06-30]"}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Events during 2024
 {period: {contains_date: "2024-06-15"}}
 
@@ -491,7 +617,8 @@ Date range operators work with PostgreSQL `daterange` type.
 
 # Before date
 {period: {strictly_left: "[2024-01-01, 2025-01-01]"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -509,10 +636,13 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `nin` / `notin` | `NOT IN (...)` | Path not in list | `{path: {nin: ["Deleted"]}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 {path: {eq: "Organization.Engineering.Backend"}}
 {path: {in: ["Products.Electronics", "Products.Software"]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Path Hierarchy**
 
@@ -522,11 +652,14 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `descendant_of` | `<@` | Is descendant of path | `{path: {descendant_of: "Top.Sciences"}}` |
 
 **Hierarchy Rules**:
+
 - `ancestor_of`: Current path is parent/ancestor of provided path
 - `descendant_of`: Current path is child/descendant of provided path
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find all ancestor categories
 {path: {ancestor_of: "Top.Sciences.Physics.Quantum.Superposition"}}
 # Matches: "Top", "Top.Sciences", "Top.Sciences.Physics", etc.
@@ -538,7 +671,8 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 # Organization hierarchy
 {path: {ancestor_of: "Company.Engineering.Backend.Database.Migration"}}
 # Matches all parent org units
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Path Pattern Matching**
 
@@ -549,6 +683,7 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `matches_any_lquery` | Array of patterns | Matches any lquery pattern | `{path: {matches_any_lquery: ["Top.*", "Other.*"]}}` |
 
 **lquery Pattern Syntax** (SQL wildcards):
+
 - `*` = Any level (single label)
 - `*{n}` = Exactly n levels
 - `*{n,}` = n or more levels
@@ -558,13 +693,16 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 - `!` = Prefix match (case-insensitive alternative)
 
 **ltxtquery Syntax** (Boolean):
+
 - `&` = AND
 - `|` = OR
 - `!` = NOT
 - `(...)` = Grouping
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find all paths with 3 levels starting with Top
 {path: {matches_lquery: "Top.*.*"}}
 
@@ -576,7 +714,8 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 
 # Match any pattern
 {path: {matches_any_lquery: ["Products.*", "Services.*", "Other"]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Path Depth/Navigation**
 
@@ -590,12 +729,15 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `depth_lte` | `nlevel() <=` | Depth <= | `{path: {depth_lte: 4}}` |
 
 **Depth Calculation**:
+
 - `"Top"` = depth 1
 - `"Top.Sciences"` = depth 2
 - `"Top.Sciences.Physics"` = depth 3
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Top-level categories only
 {path: {depth_eq: 1}}
 
@@ -607,7 +749,8 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 
 # Deep hierarchies (3+ levels)
 {path: {depth_gte: 3}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Path Concatenation**
 
@@ -616,10 +759,13 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `concat` | `\|\|` | Concatenate paths | `{path: {concat: "Astronomy"}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Append label to path
 {path: {concat: "NewSubcategory"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Lowest Common Ancestor**
 
@@ -628,11 +774,14 @@ LTree operators work with PostgreSQL `ltree` type for hierarchical data (categor
 | `lca` | `lca()` | Lowest common ancestor | `{path: {lca: ["Top.Sciences.Astronomy", "Top.Sciences.Physics"]}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find common ancestor
 {path: {lca: ["Org.Engineering.Backend", "Org.Engineering.Frontend"]}}
 # Returns: "Org.Engineering"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -653,6 +802,7 @@ Vector operators work with pgvector extension for semantic search and similarity
 **Distance Methods Explained**:
 
 **Cosine Distance** (recommended for embeddings):
+
 - Measures angle between vectors (0 = identical, 1 = perpendicular, 2 = opposite)
 - Dimension-invariant (works with any embedding size)
 - Best for: Text embeddings, image embeddings, semantic search
@@ -660,28 +810,34 @@ Vector operators work with pgvector extension for semantic search and similarity
 - Lower = more similar
 
 **Euclidean Distance** (L2):
+
 - Straight-line distance in multi-dimensional space
 - Depends on vector magnitude and dimension
 - Best for: Spatial data, clustering, RMS error
 - Formula: sqrt(sum((a-b)²))
 
 **Manhattan Distance** (L1):
+
 - Sum of absolute differences
 - Useful in high-dimensional spaces (curse of dimensionality)
 - Best for: Categorical data with grid structure
 - Formula: sum(|a-b|)
 
 **Hamming Distance** (binary vectors):
+
 - Count differing bits
 - Best for: Binary vectors, bit flags
 - Range: [0, n] where n = vector length
 
 **Jaccard Distance** (binary vectors):
+
 - Set overlap similarity
 - Best for: Set membership, presence/absence
 
 **Query Format**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 {
   vector_field: {
     distance_operator: {
@@ -691,10 +847,13 @@ Vector operators work with pgvector extension for semantic search and similarity
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Semantic search (find similar embeddings)
 {
   embedding: {
@@ -727,7 +886,8 @@ Vector operators work with pgvector extension for semantic search and similarity
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -745,6 +905,7 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
 | `websearch_query` | `websearch_to_tsquery` | Web search syntax (Google-like) | `{content: {websearch_query: '"exact phrase" -exclude'}}` |
 
 **Boolean Query Syntax** (`matches`):
+
 - `&` = AND (both must match)
 - `|` = OR (either must match)
 - `!` = NOT (negation)
@@ -752,13 +913,16 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
 - `:*` = Prefix match
 
 **Websearch Syntax** (`websearch_query`):
+
 - `"phrase"` = Exact phrase
 - `-word` = Exclude word
 - `word1 word2` = AND (both required)
 - `word1 | word2` = OR
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Boolean query (AND)
 {content: {matches: "database & search"}}
 
@@ -785,7 +949,8 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
 
 # Web search OR
 {content: {websearch_query: 'python | java'}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Full-Text Ranking**
 
@@ -797,6 +962,7 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
 | `rank_cd_lt` | `ts_rank_cd() <` | Cover density rank < | `{content: {rank_cd_lt: "search:0.1"}}` |
 
 **Ranking Types**:
+
 - `ts_rank()`: Standard ranking (0-1 scale)
   - Uses position and frequency
   - Faster, suitable for most cases
@@ -806,13 +972,16 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
   - Slower but more accurate for phrases
 
 **Score Interpretation**:
+
 - 0 = No relevance
 - 0-0.3 = Low relevance
 - 0.3-0.7 = Medium relevance
 - 0.7-1.0 = High relevance
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Only highly relevant results
 {content: {rank_gt: {query: "machine learning", threshold: 0.7}}}
 
@@ -821,7 +990,8 @@ Full-text search operators work with PostgreSQL `tsvector` type for advanced tex
 
 # Cover density ranking (better for phrases)
 {content: {rank_cd_gt: "artificial intelligence:0.5"}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -837,17 +1007,21 @@ JSONB operators work with PostgreSQL `jsonb` columns for flexible, semi-structur
 | `strictly_contains` | `@>` AND `!=` | Contains but not equal | `{metadata: {strictly_contains: {"key": "value"}}}` |
 
 **Overlap Rules**:
+
 - Objects: Share at least one key-value pair
 - Arrays: Share at least one element
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Check if metadata contains required field
 {metadata: {strictly_contains: {"environment": "production"}}}
 
 # Check overlap between JSONB fields
 {config: {overlaps: {"debug": true}}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -867,7 +1041,9 @@ Geographic operators work with PostgreSQL `point` type for coordinate-based filt
 **Format**: `(latitude, longitude)` tuples
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # New York
 {location: {eq: (40.7128, -74.0060)}}
 
@@ -876,7 +1052,8 @@ Geographic operators work with PostgreSQL `point` type for coordinate-based filt
 
 # Exclude null island
 {location: {notin: [(0, 0)]}}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### **Distance-Based Queries**
 
@@ -893,6 +1070,7 @@ Geographic operators work with PostgreSQL `point` type for coordinate-based filt
 | **Earthdistance** | PostgreSQL native | Requires extension | Earth distances only |
 
 **Distance Units**:
+
 - **Haversine**: Kilometers by default (R = 6,371 km)
 - **PostGIS**: Depends on SRID (usually meters)
 - **Earthdistance**: Earth radii
@@ -900,7 +1078,9 @@ Geographic operators work with PostgreSQL `point` type for coordinate-based filt
 **Format**: `((latitude, longitude), distance)`
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Find locations within 5 km of NYC
 {location: {distance_within: ((40.7128, -74.0060), 5000)}}
 
@@ -909,7 +1089,8 @@ Geographic operators work with PostgreSQL `point` type for coordinate-based filt
 
 # Cities within 50 km of reference point
 {location: {distance_within: ((48.8566, 2.3522), 50000)}}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -926,11 +1107,14 @@ Logical operators combine multiple conditions.
 | `NOT` | `NOT` | Negate condition | `{NOT: {status: {eq: "deleted"}}}` |
 
 **Default Behavior**:
+
 - Multiple conditions at same level are ANDed by default
 - Explicit AND/OR for clarity and complex logic
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Implicit AND (default)
 {
   status: {eq: "active"},
@@ -979,7 +1163,8 @@ Logical operators combine multiple conditions.
     {NOT: {status: {eq: "active"}}}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -994,7 +1179,9 @@ Boolean operators work with boolean columns.
 | `isnull` | Check if NULL | `{isActive: {isnull: false}}` |
 
 **Examples**:
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Active users
 {isActive: {eq: true}}
 
@@ -1006,7 +1193,8 @@ Boolean operators work with boolean columns.
 
 # Inactive AND unverified
 {AND: [{isActive: {eq: false}}, {isVerified: {eq: false}}]}
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1017,6 +1205,7 @@ Operators can be combined in complex queries:
 ### Complex Query Examples
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Users aged 18-65, active, from specific countries
 {
   AND: [
@@ -1071,7 +1260,8 @@ Operators can be combined in complex queries:
     {NOT: {archived: {eq: true}}}
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1108,6 +1298,7 @@ Operators can be combined in complex queries:
 Invalid operator/type combinations return GraphQL errors:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Error: `matches` not supported for numeric fields
 {age: {matches: "^2[0-9]$"}}
 # GraphQL Error: "Operator 'matches' not supported for type 'integer'"
@@ -1119,7 +1310,8 @@ Invalid operator/type combinations return GraphQL errors:
 # Error: `array_contains` for non-array field
 {name: {contains: ["a", "b"]}}
 # GraphQL Error: "Operator 'array_contains' not supported for type 'string'"
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

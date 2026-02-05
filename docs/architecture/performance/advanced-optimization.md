@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Advanced Optimization
+description: This specification covers advanced optimization techniques for FraiseQL deployments, beyond baseline performance characteristics. It addresses:
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Advanced Optimization
 
 **Version**: 2.0.0
@@ -27,6 +35,7 @@ This specification covers advanced optimization techniques for FraiseQL deployme
 FraiseQL generates deterministic execution plans at compile time, enabling offline optimization.
 
 ```python
+<!-- Code example in Python -->
 class ExecutionPlan:
     """Internal representation of query execution strategy"""
 
@@ -63,13 +72,15 @@ class FilterPushdown:
         self.can_use_index = can_use_index
         self.selectivity = selectivity
         self.estimated_reduction = 1.0 - selectivity  # 1.0 = 100% of rows filtered
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Predicate Pushdown
 
 Push filters to database where they can use indexes:
 
 ```python
+<!-- Code example in Python -->
 class QueryOptimizer:
     """Optimize execution plans with predicate pushdown"""
 
@@ -131,13 +142,15 @@ class QueryOptimizer:
                     step.additional_filters.append(filter_step.predicate)
                     plan.steps.remove(filter_step)  # Remove later filter
                     break
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Join Order Optimization
 
 Reorder joins to minimize intermediate result sizes:
 
 ```python
+<!-- Code example in Python -->
 class JoinOrderOptimizer:
     """Optimize join order to minimize cost"""
 
@@ -209,13 +222,15 @@ class JoinOrderOptimizer:
 
         # Reconstruct optimal join order
         return self._reconstruct_join_order(all_tables_mask, parent)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.4 Adaptive Query Execution
 
 Adjust execution plans based on runtime statistics:
 
 ```python
+<!-- Code example in Python -->
 class AdaptiveQueryExecutor:
     """Modify execution plan based on runtime feedback"""
 
@@ -269,7 +284,8 @@ class AdaptiveQueryExecutor:
             )
 
         return adapted
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -278,6 +294,7 @@ class AdaptiveQueryExecutor:
 ### 2.1 Index Design Strategy
 
 ```python
+<!-- Code example in Python -->
 class IndexDesignGuide:
     """Guidelines for optimal index design"""
 
@@ -313,7 +330,7 @@ class IndexDesignGuide:
 
 
 # Example: Comprehensive index strategy for users table
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     email: str
@@ -404,11 +421,13 @@ CREATE INDEX idx_user_tenant_email_covering ON tb_user (tenant_id, email)
 INCLUDE (id, status)
 WHERE deleted_at IS NULL;
 """
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Materialized Views for Complex Queries
 
 ```python
+<!-- Code example in Python -->
 class MaterializedViewStrategy:
     """Use materialized views to pre-compute expensive aggregations"""
 
@@ -460,11 +479,13 @@ class MaterializedViewStrategy:
             "use_for": "critical aggregations"
         }
     }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Partitioning Strategy
 
 ```python
+<!-- Code example in Python -->
 class PartitioningStrategy:
     """Partition large tables for performance and maintenance"""
 
@@ -516,11 +537,13 @@ class PartitioningStrategy:
     -- - Faster VACUUM (partition-level)
     -- - Parallel sequential scans across partitions
     """
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.4 Query Statistics
 
 ```python
+<!-- Code example in Python -->
 class QueryStatisticsManager:
     """Maintain statistics for query optimization"""
 
@@ -567,7 +590,8 @@ class QueryStatisticsManager:
         "vacuum_full": "Weekly for heavily-updated tables",
         "reindex": "Monthly for index fragmentation",
     }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -578,6 +602,7 @@ class QueryStatisticsManager:
 When a single cache key receives massive traffic:
 
 ```python
+<!-- Code example in Python -->
 class HotKeyDetector:
     """Detect and handle hot keys (single keys with extreme traffic)"""
 
@@ -671,13 +696,15 @@ class LocalCacheForHotKeys:
             key=lambda k: self.cache[k][1]
         )
         del self.cache[oldest_key]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Thundering Herd Problem
 
 When cache expires and many requests try to refresh simultaneously:
 
 ```python
+<!-- Code example in Python -->
 class ThunderingHerdMitigation:
     """Prevent cache stampede when popular key expires"""
 
@@ -764,11 +791,13 @@ class ProbabilisticEarlyRefresh:
             await self.redis.set(key, value, ex=ttl)
         except Exception as e:
             logger.exception(f"Background refresh failed for {key}: {e}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Cache Eviction Policies
 
 ```python
+<!-- Code example in Python -->
 class CacheEvictionPolicy(Enum):
     """Cache eviction strategies when full"""
 
@@ -824,7 +853,8 @@ class EvictionPolicySelector:
         else:
             # Default: Simple and effective
             return CacheEvictionPolicy.LRU
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -833,6 +863,7 @@ class EvictionPolicySelector:
 ### 4.1 Consistency Across Replicas
 
 ```python
+<!-- Code example in Python -->
 class MultiInstanceConsistencyManager:
     """Ensure consistency when running multiple instances"""
 
@@ -914,11 +945,13 @@ class ReadConsistencyLevel(Enum):
     # Read from replica, fall back to primary on miss
     # Use: Hybrid approach, best for most cases
     HYBRID = "hybrid"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Session Affinity
 
 ```python
+<!-- Code example in Python -->
 class SessionAffinityManager:
     """Route requests to same instance for connection locality"""
 
@@ -953,11 +986,13 @@ class SessionAffinityManager:
         # Ketama algorithm
         hash_value = self._compute_hash(key)
         return hash_value % replicas
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Load Balancing Strategies
 
 ```python
+<!-- Code example in Python -->
 class LoadBalancingStrategy(Enum):
     """Different load balancing approaches"""
 
@@ -1012,7 +1047,8 @@ class LoadBalancer:
 
         else:
             return self.instances[0]  # Default
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1021,6 +1057,7 @@ class LoadBalancer:
 ### 5.1 Memory Management
 
 ```python
+<!-- Code example in Python -->
 class MemoryOptimizer:
     """Optimize memory usage in FraiseQL runtime"""
 
@@ -1067,11 +1104,13 @@ class MemoryOptimizer:
             thresholds["threshold1"],
             thresholds["threshold2"]
         )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Connection Pooling
 
 ```python
+<!-- Code example in Python -->
 class ConnectionPoolOptimizer:
     """Configure optimal connection pool parameters"""
 
@@ -1116,7 +1155,8 @@ class ConnectionPoolOptimizer:
             "avg_wait_time_ms": pool.avg_checkout_time_ms,
             "pool_exhaustion_events": pool.exhaustion_count,
         }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1125,6 +1165,7 @@ class ConnectionPoolOptimizer:
 ### 6.1 Query Profiling
 
 ```python
+<!-- Code example in Python -->
 class QueryProfiler:
     """Profile query execution for optimization"""
 
@@ -1192,11 +1233,13 @@ class QueryProfile:
             step.name: "Index" in step.name
             for step in self.steps
         }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Distributed Tracing for Performance
 
 ```python
+<!-- Code example in Python -->
 class QueryTracer:
     """Trace query execution across services"""
 
@@ -1234,7 +1277,8 @@ class QueryTracer:
         """Create tracing span"""
         # Implementation: OpenTelemetry or similar
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1243,6 +1287,7 @@ class QueryTracer:
 ### 7.1 Circuit Breaker Pattern
 
 ```python
+<!-- Code example in Python -->
 class CircuitBreaker:
     """Prevent cascading failures with circuit breaker"""
 
@@ -1300,11 +1345,13 @@ class CircuitBreaker:
             self.last_failure_time and
             time.time() - self.last_failure_time > self.recovery_timeout
         )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Graceful Degradation
 
 ```python
+<!-- Code example in Python -->
 class GracefulDegradation:
     """Degrade service gracefully under load"""
 
@@ -1344,11 +1391,13 @@ class GracefulDegradation:
         # Cache policy: Keep responses for 30 seconds
         key = f"cached_response:{query}:{context.user_id}"
         return await self.cache.get(key)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Backpressure Handling
 
 ```python
+<!-- Code example in Python -->
 class BackpressureManager:
     """Handle traffic surge with graceful backpressure"""
 
@@ -1378,13 +1427,15 @@ class BackpressureManager:
         """Process single request"""
         # Implementation
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 8. Performance Optimization Checklist
 
 ### Database Layer
+
 - [ ] Indexes on all WHERE/JOIN/ORDER BY columns
 - [ ] Composite indexes for common filter combinations
 - [ ] Partial indexes for soft-deleted rows (WHERE deleted_at IS NULL)
@@ -1396,6 +1447,7 @@ class BackpressureManager:
 - [ ] Slow query log enabled and monitored
 
 ### Query Layer
+
 - [ ] Query execution plans analyzed
 - [ ] Predicates pushed to database
 - [ ] Join order optimized
@@ -1407,6 +1459,7 @@ class BackpressureManager:
 - [ ] Query timeout configured
 
 ### Caching Layer
+
 - [ ] L1 in-memory cache for hot data
 - [ ] L2 Redis cache for distributed caching
 - [ ] Cache invalidation strategy defined
@@ -1417,6 +1470,7 @@ class BackpressureManager:
 - [ ] Eviction policy appropriate for workload
 
 ### Infrastructure
+
 - [ ] Connection pool sized for CPU cores
 - [ ] Garbage collection tuned
 - [ ] Memory usage monitored
@@ -1427,6 +1481,7 @@ class BackpressureManager:
 - [ ] Graceful degradation implemented
 
 ### Monitoring
+
 - [ ] Query latency percentiles (p50, p95, p99)
 - [ ] Cache hit/miss rates
 - [ ] Database connection pool status
@@ -1443,36 +1498,42 @@ class BackpressureManager:
 FraiseQL advanced optimization covers:
 
 ✅ **Query Optimization**
+
 - Execution plan analysis and adaptation
 - Predicate pushdown to database
 - Join order optimization
 - Index effectiveness
 
 ✅ **Database Tuning**
+
 - Index design strategy (B-tree, GIN, GIST)
 - Materialized views for aggregations
 - Partitioning for large tables
 - Statistics and query planning
 
 ✅ **Caching Edge Cases**
+
 - Hot key detection and mitigation
 - Thundering herd prevention
 - Eviction policy selection
 - Cache consistency
 
 ✅ **Multi-Instance Scaling**
+
 - Replica consistency management
 - Session affinity routing
 - Load balancing strategies
 - Connection locality
 
 ✅ **Resource Optimization**
+
 - Memory profiling and GC tuning
 - Connection pool configuration
 - Query profiling
 - Distributed tracing
 
 ✅ **Emergency Procedures**
+
 - Circuit breaker pattern
 - Graceful degradation under load
 - Backpressure handling

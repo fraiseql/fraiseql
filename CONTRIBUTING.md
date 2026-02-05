@@ -25,11 +25,14 @@ Be respectful, professional, and collaborative. We're building something great t
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork**:
+
    ```bash
    git clone git@github.com:YOUR_USERNAME/fraiseql.git
    cd fraiseql
    ```
+
 3. **Add upstream remote**:
+
    ```bash
    git remote add upstream git@github.com:fraiseql/fraiseql.git
    ```
@@ -127,6 +130,7 @@ git commit -m "feat(scope): description
 ```
 
 **Commit Message Format:**
+
 ```
 <type>(<scope>): <subject>
 
@@ -136,6 +140,7 @@ git commit -m "feat(scope): description
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -162,6 +167,7 @@ Then create a Pull Request on GitHub targeting `v2-development`.
 We follow the official [Rust Style Guide](https://doc.rust-lang.org/nightly/style-guide/).
 
 **Key points:**
+
 - **Line width**: 100 characters
 - **Indentation**: 4 spaces
 - **Imports**: Organized with `cargo fmt`
@@ -208,6 +214,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ### Test Levels
 
 1. **Unit Tests**: Test individual functions/modules
+
    ```rust
    #[cfg(test)]
    mod tests {
@@ -221,6 +228,7 @@ cargo clippy --all-targets --all-features -- -D warnings
    ```
 
 2. **Integration Tests**: Test module interactions
+
    ```rust
    // tests/integration/test_schema.rs
    #[test]
@@ -231,6 +239,7 @@ cargo clippy --all-targets --all-features -- -D warnings
    ```
 
 3. **End-to-End Tests**: Test complete flows
+
    ```rust
    // tests/e2e/test_query_execution.rs
    #[tokio::test]
@@ -246,14 +255,20 @@ cargo clippy --all-targets --all-features -- -D warnings
 Integration tests require PostgreSQL:
 
 ```bash
-# Create test database
-make db-setup
+# Create test database (local setup)
+make db-setup-local
+
+# Or use Docker containers
+make db-up
 
 # Run integration tests
 make test-integration
 
-# Clean up
-make db-teardown
+# Clean up (local)
+make db-teardown-local
+
+# Or stop Docker containers
+make db-down
 ```
 
 ### Coverage
@@ -314,25 +329,25 @@ FraiseQL v2 is a **compiled GraphQL execution engine**. Key principles:
 
 ### 1. Separation of Concerns
 
-- **Compiler**: Schema → SQL (compile-time)
-- **Runtime**: Query → Execution (runtime)
-- **Database**: Data storage and retrieval
+- **Compilation Layer**: Schema definition → SQL compilation (build-time via fraiseql-cli)
+- **Runtime Layer**: Query execution → Result streaming (runtime via fraiseql-server)
+- **Database Layer**: Data storage and retrieval (multi-database support)
 
-### 2. Code Reuse from v1
+See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation.
 
-See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
-- **100% Reuse**: Schema, Error, Config, APQ
-- **90% Reuse**: Database, Security, Cache
-- **Refactor**: Query utilities, GraphQL parsing
-- **Rewrite**: Compiler, Runtime
+### 2. Layered Optionality
+
+- **Core**: Minimal build includes GraphQL execution engine only
+- **Extensions**: Optional features via Cargo features (Arrow, Observers, Wire)
+- **Configuration**: All behavior controlled via fraiseql.toml or environment variables
 
 ### 3. World-Class Engineering
 
-- **No `unsafe` code** (except in rare, documented cases)
-- **Comprehensive error handling** with `Result`
+- **No `unsafe` code** (forbidden at compile time via Cargo.toml lints)
+- **Comprehensive error handling** with Result types and context
 - **Extensive documentation** for all public APIs
-- **Thorough testing** (85%+ coverage)
-- **Performance-conscious** design
+- **Thorough testing** (2,400+ tests: unit, integration, E2E, chaos)
+- **Performance-conscious** design with zero-copy patterns and compile-time optimization
 
 ---
 
@@ -340,7 +355,7 @@ See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
 
 - **Questions**: Open a GitHub Discussion
 - **Bugs**: File a GitHub Issue
-- **Security**: Email security@fraiseql.dev
+- **Security**: Email <security@fraiseql.dev>
 
 ---
 

@@ -1,0 +1,243 @@
+groups:
+  - name: federation_entity_resolution
+    interval: 30s
+    rules:
+      # Entity resolution latency exceeds SLO
+      - alert: EntityResolutionLatencySLOBreach
+        expr: |
+          histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000 > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: federation
+          component: entity-resolution
+        annotations:
+          summary: "Entity resolution latency exceeds SLO (100ms p99)"
+          description: |
+            Entity resolution p99 latency is {{ $value | humanizeDuration }}, exceeds SLO of 100ms.
+            This may indicate database performance issues or increased load.
+            Runbook: https://wiki.internal/federation/entity-resolution-latency
+
+      # Entity resolution error rate spike
+      - alert: EntityResolutionErrorRateHigh
+        expr: |
+          rate(federation_entity_resolutions_errors[5m]) / rate(federation_entity_resolutions_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: entity-resolution
+        annotations:
+          summary: "Entity resolution error rate exceeds 1%"
+          description: |
+            Entity resolution error rate is {{ $value | humanizePercentage }}, exceeds threshold of 1%.
+            This indicates failures in entity resolution pipeline.
+            Runbook: https://wiki.internal/federation/entity-resolution-errors
+
+      # Entity resolution completely failing
+      - alert: EntityResolutionComplete Failure
+        expr: |
+          rate(federation_entity_resolutions_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: federation
+          component: entity-resolution
+        annotations:
+          summary: "Entity resolution is not processing any queries"
+          description: |
+            Entity resolution has stopped processing queries entirely (0 req/sec).
+            This indicates a critical failure in the entity resolution system.
+            Runbook: https://wiki.internal/federation/entity-resolution-down
+
+      # Cache hit rate degradation
+      - alert: EntityCacheHitRateLow
+        expr: |
+          (federation_entity_cache_hits / (federation_entity_cache_hits + federation_entity_cache_misses)) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: federation
+          component: caching
+        annotations:
+          summary: "Entity cache hit rate below 70%"
+          description: |
+            Entity cache hit rate is {{ $value | humanizePercentage }}, below threshold of 70%.
+            Low cache hit rate may indicate cache invalidation issues or changed query patterns.
+            Runbook: https://wiki.internal/federation/cache-hit-rate-low
+
+  - name: federation_subgraph_communication
+    interval: 30s
+    rules:
+      # Subgraph request latency exceeds SLO
+      - alert: SubgraphRequestLatencySLOBreach
+        expr: |
+          histogram_quantile(0.99, federation_subgraph_request_duration_us) / 1000 > 500
+        for: 5m
+        labels:
+          severity: warning
+          service: federation
+          component: subgraph-communication
+        annotations:
+          summary: "Subgraph request latency exceeds SLO (500ms p99)"
+          description: |
+            Subgraph request p99 latency is {{ $value | humanizeDuration }}, exceeds SLO of 500ms.
+            One or more subgraphs may be experiencing performance issues.
+            Runbook: https://wiki.internal/federation/subgraph-latency
+
+      # Subgraph request error rate spike
+      - alert: SubgraphRequestErrorRateHigh
+        expr: |
+          rate(federation_subgraph_requests_errors[5m]) / rate(federation_subgraph_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: subgraph-communication
+        annotations:
+          summary: "Subgraph request error rate exceeds 5%"
+          description: |
+            Subgraph request error rate is {{ $value | humanizePercentage }}, exceeds threshold of 5%.
+            One or more subgraphs may be unavailable or returning errors.
+            Runbook: https://wiki.internal/federation/subgraph-request-errors
+
+      # Subgraph availability below SLO
+      - alert: SubgraphAvailabilityBelowSLO
+        expr: |
+          (1 - (rate(federation_subgraph_requests_errors[5m]) / rate(federation_subgraph_requests_total[5m]))) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: subgraph-communication
+        annotations:
+          summary: "Subgraph availability below SLO (99.9%)"
+          description: |
+            Subgraph availability is {{ $value | humanizePercentage }}, below SLO of 99.9%.
+            Subgraph uptime is degraded and may be affecting federation queries.
+            Runbook: https://wiki.internal/federation/subgraph-availability-slo
+
+      # Complete subgraph outage
+      - alert: SubgraphNoRequests
+        expr: |
+          rate(federation_subgraph_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: federation
+          component: subgraph-communication
+        annotations:
+          summary: "No subgraph requests being made (potential system failure)"
+          description: |
+            No subgraph requests are being made (0 req/sec for 2+ minutes).
+            This indicates either all subgraphs are down or the federation system is broken.
+            Runbook: https://wiki.internal/federation/subgraph-complete-failure
+
+  - name: federation_mutations
+    interval: 30s
+    rules:
+      # Mutation error rate spike
+      - alert: MutationErrorRateHigh
+        expr: |
+          rate(federation_mutations_errors[5m]) / rate(federation_mutations_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: mutations
+        annotations:
+          summary: "Federation mutation error rate exceeds 1%"
+          description: |
+            Federation mutation error rate is {{ $value | humanizePercentage }}, exceeds threshold of 1%.
+            Mutations may be failing due to subgraph issues or validation errors.
+            Runbook: https://wiki.internal/federation/mutation-errors
+
+      # Mutation latency exceeds SLO
+      - alert: MutationLatencySLOBreach
+        expr: |
+          histogram_quantile(0.99, federation_mutation_duration_us) / 1000 > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: federation
+          component: mutations
+        annotations:
+          summary: "Federation mutation latency exceeds SLO (1000ms p99)"
+          description: |
+            Federation mutation p99 latency is {{ $value | humanizeDuration }}, exceeds SLO of 1000ms.
+            Mutations may be slow due to transaction overhead or subgraph latency.
+            Runbook: https://wiki.internal/federation/mutation-latency
+
+      # No mutations being processed
+      - alert: MutationNoRequests
+        expr: |
+          rate(federation_mutations_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: info
+          service: federation
+          component: mutations
+        annotations:
+          summary: "No federation mutations processed in last 5 minutes"
+          description: |
+            No federation mutations have been processed in the last 5 minutes (0 mutations/sec).
+            This may be normal during periods of low write activity, or could indicate a problem.
+            Runbook: https://wiki.internal/federation/no-mutations
+
+  - name: federation_aggregate
+    interval: 30s
+    rules:
+      # Overall federation error rate spike
+      - alert: FederationErrorRateHigh
+        expr: |
+          rate(federation_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: overall
+        annotations:
+          summary: "Federation error rate exceeds 10/sec"
+          description: |
+            Federation error rate is {{ $value | humanize }}/sec, exceeds threshold of 10/sec.
+            Errors are occurring across multiple federation components.
+            Runbook: https://wiki.internal/federation/overall-error-rate
+
+      # Federation system degradation
+      - alert: FederationSystemDegraded
+        expr: |
+          (
+            rate(federation_entity_resolutions_total[5m]) +
+            rate(federation_subgraph_requests_total[5m]) +
+            rate(federation_mutations_total[5m])
+          ) < 1
+        for: 5m
+        labels:
+          severity: critical
+          service: federation
+          component: overall
+        annotations:
+          summary: "Federation system severely degraded (< 1 operation/sec)"
+          description: |
+            Federation operations are severely degraded (< 1 operation/sec total).
+            This indicates the system may be hung, overloaded, or experiencing widespread failure.
+            Runbook: https://wiki.internal/federation/system-degradation
+
+      # Deduplication effectiveness degradation
+      - alert: DeduplicationEffectivenessLow
+        expr: |
+          federation_deduplication_ratio < 0.5
+        for: 15m
+        labels:
+          severity: info
+          service: federation
+          component: caching
+        annotations:
+          summary: "Deduplication effectiveness below 50%"
+          description: |
+            Deduplication effectiveness is {{ $value | humanizePercentage }}, below target of 50%.
+            Few duplicate entities are being removed before resolution, indicating:
+            - Low cardinality in entity references, or
+            - Changed query patterns with more unique entities
+            This is informational and does not require action unless combined with other issues.
+            Runbook: https://wiki.internal/federation/deduplication-effectiveness

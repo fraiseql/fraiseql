@@ -1,0 +1,27 @@
+server:
+  listen: 0.0.0.0:4000
+  graphql_path: /graphql
+  health_check_path: /health
+
+supergraph:
+  path: ./supergraph.yaml
+
+# Logging configuration
+logging:
+  level: info
+
+# Request/response middleware
+traffic_policy:
+  router:
+    - actions:
+        - name: log
+          on_graphql_request:
+            log: "GraphQL request: @request.body.query"
+
+# Introspection allowed for testing
+introspection:
+  enabled: true
+
+# Enable experimental federation composition
+experimental_apollo_operation_signature_generation:
+  enabled: true

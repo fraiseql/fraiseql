@@ -1,0 +1,135 @@
+# Multi-Database Bridge Configuration
+# ======================================
+#
+# This deployment runs the PostgreSQL → NATS bridge:
+# - Reads from PostgreSQL change log (tb_entity_change_log)
+# - Publishes events to NATS JetStream
+# - Tracks checkpoint for crash recovery
+# - No observer execution (bridge only)
+#
+# Best for:
+# - Multiple PostgreSQL databases (each runs one bridge)
+# - Centralized event bus (NATS)
+# - Workers subscribe to NATS (see 03-nats-distributed.toml)
+#
+# Architecture:
+#   Database 1 → Bridge → NATS
+#   Database 2 → Bridge → NATS  → Workers (separate config)
+#   Database 3 → Bridge → NATS
+#
+# Deployment:
+# - One bridge process per database
+# - Multiple worker processes consuming from NATS
+# - Workers can be added/removed without affecting bridges
+
+# Transport configuration
+[transport]
+transport = "nats"          # Use NATS transport
+run_bridge = true           # ✅ Run bridge (PostgreSQL → NATS)
+run_executors = false       # ❌ Do NOT run observers (bridge only)
+
+# NATS transport settings
+[transport.nats]
+url = "nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222"
+subject_prefix = "fraiseql.mutation"
+consumer_name = "fraiseql_bridge_db1"  # Unique per bridge
+stream_name = "fraiseql_events"
+
+# JetStream configuration (same across all bridges)
+[transport.nats.jetstream]
+dedup_window_minutes = 5
+max_age_days = 7
+max_msgs = 10_000_000
+max_bytes = 10_737_418_240
+ack_wait_secs = 30
+max_deliver = 3
+
+# Bridge configuration (PostgreSQL → NATS)
+[transport.bridge]
+transport_name = "pg_to_nats_db1"  # Unique per database
+batch_size = 100                    # Events per batch
+poll_interval_secs = 1              # Poll frequency when idle
+notify_channel = "fraiseql_events"  # PostgreSQL NOTIFY channel
+
+# No Redis (bridge doesn't need dedup/cache)
+# redis = ...
+
+# No performance config (bridge doesn't execute actions)
+# performance = ...
+
+# Runtime settings (minimal for bridge)
+channel_capacity = 1000
+max_concurrency = 10        # Not used (no observers)
+overflow_policy = "drop"
+backlog_alert_threshold = 500
+shutdown_timeout = "30s"
+
+# No observers defined (bridge only publishes to NATS)
+# observers = []
+
+# ---
+
+# Environment Variable Overrides (for Kubernetes/Docker)
+# ========================================================
+#
+# FRAISEQL_OBSERVER_TRANSPORT=nats
+# FRAISEQL_NATS_ENABLE_BRIDGE=true
+# FRAISEQL_NATS_RUN_EXECUTORS=false
+# FRAISEQL_NATS_URL=nats://nats-cluster:4222
+# FRAISEQL_BRIDGE_TRANSPORT_NAME=pg_to_nats_${DATABASE_NAME}
+#
+# Usage:
+# docker run \
+#   -e FRAISEQL_OBSERVER_TRANSPORT=nats \
+#   -e FRAISEQL_NATS_ENABLE_BRIDGE=true \
+#   -e FRAISEQL_NATS_RUN_EXECUTORS=false \
+#   -e FRAISEQL_NATS_URL=nats://nats:4222 \
+#   -e FRAISEQL_BRIDGE_TRANSPORT_NAME=pg_to_nats_db1 \
+#   -e DATABASE_URL=postgresql://user:pass@db1:5432/production \
+#   fraiseql-observers:latest
+
+# Kubernetes Example
+# ===================
+#
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: fraiseql-bridge-db1
+# spec:
+#   replicas: 1  # Only one bridge per database
+#   selector:
+#     matchLabels:
+#       app: fraiseql-bridge
+#       database: db1
+#   template:
+#     metadata:
+#       labels:
+#         app: fraiseql-bridge
+#         database: db1
+#     spec:
+#       containers:
+#       - name: bridge
+#         image: fraiseql-observers:latest
+#         env:
+#         - name: FRAISEQL_OBSERVER_TRANSPORT
+#           value: "nats"
+#         - name: FRAISEQL_NATS_ENABLE_BRIDGE
+#           value: "true"
+#         - name: FRAISEQL_NATS_RUN_EXECUTORS
+#           value: "false"
+#         - name: FRAISEQL_NATS_URL
+#           value: "nats://nats-cluster:4222"
+#         - name: FRAISEQL_BRIDGE_TRANSPORT_NAME
+#           value: "pg_to_nats_db1"
+#         - name: DATABASE_URL
+#           valueFrom:
+#             secretKeyRef:
+#               name: db1-credentials
+#               key: connection-string
+#         resources:
+#           requests:
+#             memory: "256Mi"
+#             cpu: "100m"
+#           limits:
+#             memory: "512Mi"
+#             cpu: "500m"

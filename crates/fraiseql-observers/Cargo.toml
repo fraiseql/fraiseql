@@ -1,0 +1,99 @@
+[package]
+name = "fraiseql-observers"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+tokio = { version = "1.45", features = ["full"] }
+async-trait = "0.1"
+# sqlx with multiple database backends (features enabled conditionally)
+sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "chrono"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+regex = "1.10"
+reqwest = { version = "0.12", features = ["json"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+dashmap = "5.5"
+
+# Phase 8 Dependencies
+futures = "0.3"
+redis = { version = "0.25", features = ["aio", "connection-manager", "tokio-comp"], optional = true }
+prometheus = { version = "0.14", optional = true }
+http = "1.1"
+clap = { version = "4.5", features = ["derive"] }
+colored = "2.1"
+tabwriter = "1.4"
+
+# Phase 9.2.B Dependencies
+fraiseql-observers-macros = { path = "../fraiseql-observers-macros", optional = true }
+
+# Phase 2 NATS Dependencies
+async-nats = { version = "0.40", optional = true }
+
+# Phase 9.3 Arrow Flight Dependencies
+fraiseql-arrow = { path = "../fraiseql-arrow", optional = true }
+arrow = { version = "53", optional = true }
+
+# Phase 3 SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
+tiberius = { version = "0.12", default-features = false, features = ["rustls", "chrono"], optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+bb8 = { version = "0.8", optional = true }
+bb8-tiberius = { version = "0.15", optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[features]
+# Default features (PostgreSQL for backward compatibility)
+default = ["postgres"]
+
+testing = []
+
+# Database backends (enable sqlx features)
+postgres = ["sqlx/postgres"]
+mysql = ["sqlx/mysql"]
+sqlite = ["sqlx/sqlite"]
+# SQL Server uses tiberius crate (sqlx doesn't support MSSQL in v0.8)
+mssql = ["tiberius", "tokio-util", "bb8", "bb8-tiberius"]
+
+# Phase 8 Features (all optional for composability)
+checkpoint = []
+dedup = ["redis"]
+caching = ["redis"]
+queue = ["redis"]
+search = []
+metrics = ["prometheus"]
+phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
+
+# Phase 9.2 Features
+macros = ["fraiseql-observers-macros"]
+
+# Phase 9.3 Features
+arrow = ["fraiseql-arrow", "dep:arrow"]
+
+phase9 = ["macros", "arrow"]
+
+# Phase 2 NATS Features
+nats = ["async-nats"]
+
+# Phase 3 Multi-Database Features
+multi-db = ["postgres", "mysql"]
+all-db = ["postgres", "mysql", "mssql"]
+
+[lints]
+workspace = true

@@ -1,9 +1,28 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Testing Strategy: Comprehensive Guide to Testing Compiled GraphQL Systems
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "graphql", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Testing Strategy: Comprehensive Guide to Testing Compiled GraphQL Systems
 
-**Version:** 1.0
-**Status:** Complete
-**Date:** January 11, 2026
-**Audience:** All developers, QA engineers, DevOps engineers, framework contributors
+**Status:** ✅ Production Ready
+**Audience:** Developers, QA Engineers, DevOps
+**Reading Time:** 20-30 minutes
+**Last Updated:** 2026-02-05
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Unit Testing Strategy](#1-unit-testing-strategy)
+3. [Integration Testing Strategy](#2-integration-testing-strategy)
+4. [End-to-End Testing Strategy](#3-end-to-end-e2e-testing-strategy)
+5. [Test Data Management](#4-test-data-management)
+6. [CI/CD Testing Pipeline](#5-cicd-testing-pipeline)
+7. [Testing Best Practices](#6-testing-best-practices)
+8. [Continuous Testing](#7-continuous-testing)
 
 ---
 
@@ -20,7 +39,8 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 
 **Testing pyramid:**
 
-```
+```text
+<!-- Code example in TEXT -->
                     ▲
                    / \
                   /   \
@@ -31,9 +51,11 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
              /    Unit     \      60% — Unit tests (1000-2000 tests)
             /───────────────\
            ───────────────────
-```
+```text
+<!-- Code example in TEXT -->
 
 **Target metrics:**
+
 - **Coverage:** 95%+ line coverage, 90%+ branch coverage
 - **Speed:** Unit tests <1s total, integration tests <30s total, E2E tests <5min total
 - **Reliability:** 0% flaky tests (deterministic execution = deterministic tests)
@@ -54,20 +76,21 @@ FraiseQL's testing strategy is **layered and deterministic**, mirroring its comp
 Test IR generation from authoring languages:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_schema_parsing.py
 import pytest
-from fraiseql.compiler.parser import parse_schema
-from fraiseql.compiler.ir import SchemaIR, TypeDef, QueryDef
+from FraiseQL.compiler.parser import parse_schema
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, QueryDef
 
 def test_parse_simple_type():
-    """Test parsing a simple @fraiseql.type decorated class."""
+    """Test parsing a simple @FraiseQL.type decorated class."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     """A user account."""
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     '''
@@ -83,11 +106,11 @@ class User:
 
 
 def test_parse_query_with_arguments():
-    """Test parsing @fraiseql.query with arguments."""
+    """Test parsing @FraiseQL.query with arguments."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     """Get user by ID."""
     pass
@@ -104,17 +127,17 @@ def user(id: str) -> User:
 
 
 def test_parse_mutation_with_input():
-    """Test parsing @fraiseql.mutation with input type."""
+    """Test parsing @FraiseQL.mutation with input type."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass
@@ -132,17 +155,17 @@ def create_user(input: CreateUserInput) -> User:
 @pytest.mark.parametrize("invalid_source,expected_error", [
     (
         # Missing return type
-        "@fraiseql.query\ndef users():\n    pass",
+        "@FraiseQL.query\ndef users():\n    pass",
         "E_SCHEMA_QUERY_NO_RETURN_TYPE_001"
     ),
     (
         # Invalid type hint
-        "@fraiseql.type\nclass User:\n    id: NotAType",
+        "@FraiseQL.type\nclass User:\n    id: NotAType",
         "E_SCHEMA_TYPE_UNDEFINED_002"
     ),
     (
         # Duplicate type name
-        "@fraiseql.type\nclass User:\n    pass\n@fraiseql.type\nclass User:\n    pass",
+        "@FraiseQL.type\nclass User:\n    pass\n@FraiseQL.type\nclass User:\n    pass",
         "E_SCHEMA_DUPLICATE_TYPE_003"
     ),
 ])
@@ -152,17 +175,19 @@ def test_parse_invalid_schema(invalid_source, expected_error):
         parse_schema(invalid_source, language="python")
 
     assert exc_info.value.code == expected_error
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.1.2 Database Introspection Tests
 
 Test introspection against mock database metadata:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_introspection.py
 import pytest
-from fraiseql.compiler.introspection import DatabaseIntrospector
-from fraiseql.compiler.capabilities import CapabilityManifest
+from FraiseQL.compiler.introspection import DatabaseIntrospector
+from FraiseQL.compiler.capabilities import CapabilityManifest
 
 @pytest.fixture
 def mock_db_metadata():
@@ -242,17 +267,19 @@ def test_generate_capability_manifest(mock_db_metadata):
     jsonb_ops = manifest.column_types["jsonb"].operators
     assert "contains" in jsonb_ops
     assert "has_key" in jsonb_ops
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.1.3 Type Binding Tests
 
 Test GraphQL type → database view binding:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_type_binding.py
 import pytest
-from fraiseql.compiler.binder import TypeBinder
-from fraiseql.compiler.ir import SchemaIR, TypeDef, FieldDef, BindingDef
+from FraiseQL.compiler.binder import TypeBinder
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, FieldDef, BindingDef
 
 def test_bind_type_to_view():
     """Test binding a GraphQL type to a database view."""
@@ -379,17 +406,19 @@ def test_bind_nested_type():
     posts_field = user_type.fields["posts"]
     assert posts_field.binding.view_name == "v_posts_by_user"
     assert posts_field.binding.parent_key == "user_id"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.1.4 WHERE Type Generation Tests
 
 Test auto-generation of WHERE input types from database capabilities:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_where_generation.py
 import pytest
-from fraiseql.compiler.where_gen import WhereTypeGenerator
-from fraiseql.compiler.capabilities import CapabilityManifest, ColumnType, Operator
+from FraiseQL.compiler.where_gen import WhereTypeGenerator
+from FraiseQL.compiler.capabilities import CapabilityManifest, ColumnType, Operator
 
 def test_generate_where_type_for_string_column():
     """Test WHERE type generation for string columns."""
@@ -478,17 +507,19 @@ def test_generate_where_type_for_uuid_column():
     # No gt/lt operators for UUID
     assert "gt" not in where_type.fields
     assert "lt" not in where_type.fields
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.1.5 Validation Tests
 
 Test schema validation rules:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_validation.py
 import pytest
-from fraiseql.compiler.validator import SchemaValidator
-from fraiseql.compiler.ir import SchemaIR, TypeDef, QueryDef, BindingDef
+from FraiseQL.compiler.validator import SchemaValidator
+from FraiseQL.compiler.ir import SchemaIR, TypeDef, QueryDef, BindingDef
 
 def test_validate_type_closure():
     """Test type closure validation (all referenced types are defined)."""
@@ -562,41 +593,43 @@ def test_validate_authorization_context():
 
     assert exc_info.value.code == "E_SCHEMA_AUTHORIZATION_INVALID_005"
     assert "department" in str(exc_info.value)
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.1.6 Compilation Tests
 
 Test full compilation pipeline:
 
 ```python
+<!-- Code example in Python -->
 # tests/unit/compiler/test_compilation.py
 import pytest
-from fraiseql.compiler import compile_schema
-from fraiseql.compiler.ir import CompiledSchema
+from FraiseQL.compiler import compile_schema
+from FraiseQL.compiler.ir import CompiledSchema
 
 def test_compile_simple_schema(db_connection):
     """Test compiling a simple schema end-to-end."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     """Get user by ID."""
     pass
 
-@fraiseql.query
+@FraiseQL.query
 def users(where: UserWhereInput | None = None) -> list[User]:
     """List users with optional filtering."""
     pass
 
-@fraiseql.binding("user", view="v_user", where_column="id")
-@fraiseql.binding("users", view="v_user")
+@FraiseQL.binding("user", view="v_user", where_column="id")
+@FraiseQL.binding("users", view="v_user")
 class UserBindings:
     pass
     '''
@@ -627,20 +660,20 @@ class UserBindings:
 def test_compile_schema_with_mutations(db_connection):
     """Test compiling schema with mutations."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     """Create a new user."""
     pass
 
-@fraiseql.binding("create_user", procedure="fn_create_user")
+@FraiseQL.binding("create_user", procedure="fn_create_user")
 class Bindings:
     pass
     '''
@@ -656,7 +689,8 @@ class Bindings:
     mutation = compiled.mutations["create_user"]
     assert mutation.binding.procedure_name == "fn_create_user"
     assert "input" in mutation.arguments
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Runtime Unit Tests (Rust)
 
@@ -667,6 +701,7 @@ class Bindings:
 #### 1.2.1 Query Parsing Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_query_parsing.rs
 use fraiseql_runtime::parser::parse_graphql_query;
 use fraiseql_runtime::query::Query;
@@ -749,11 +784,13 @@ fn test_parse_invalid_query() {
     let err = result.unwrap_err();
     assert_eq!(err.code, "E_RUNTIME_QUERY_PARSE_ERROR_100");
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.2.2 Authorization Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_authorization.rs
 use fraiseql_runtime::auth::{AuthContext, AuthRule, enforce_authorization};
 
@@ -857,11 +894,13 @@ fn test_enforce_requires_claim() {
     let result = enforce_authorization(&auth_rule, &non_matching_context);
     assert!(result.is_err());
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.2.3 Query Planning Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_query_planning.rs
 use fraiseql_runtime::planner::{QueryPlanner, ExecutionPlan};
 use fraiseql_runtime::schema::CompiledSchema;
@@ -937,11 +976,13 @@ fn test_plan_query_with_where_filter() {
     assert!(plan.steps[0].where_clause.as_ref().unwrap().contains("username LIKE"));
     assert_eq!(plan.steps[0].parameters, vec![Value::String("john%".to_string())]);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 1.2.4 Result Projection Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/unit/runtime/test_projection.rs
 use fraiseql_runtime::projection::project_result;
 use serde_json::json;
@@ -1017,7 +1058,8 @@ fn test_project_with_field_masking() {
     assert_eq!(projected["email"], "alice@example.com");
     assert!(projected["ssn"].is_null());  // Masked field returns null
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1032,10 +1074,11 @@ fn test_project_with_field_masking() {
 #### 2.1.1 End-to-End Compilation Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/compiler/test_compilation_e2e.py
 import pytest
-from fraiseql.compiler import compile_schema
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.compiler import compile_schema
+from FraiseQL.testing import DatabaseFixture
 
 @pytest.fixture
 def test_db():
@@ -1086,37 +1129,37 @@ def test_db():
 def test_compile_schema_against_real_database(test_db):
     """Test compiling schema against real PostgreSQL database."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class User:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     username: str
     email: str
     created_at: str
     updated_at: str
 
-@fraiseql.query
+@FraiseQL.query
 def user(id: str) -> User:
     pass
 
-@fraiseql.query
+@FraiseQL.query
 def users() -> list[User]:
     pass
 
-@fraiseql.input
+@FraiseQL.input
 class CreateUserInput:
     username: str
     email: str
     password: str
 
-@fraiseql.mutation
+@FraiseQL.mutation
 def create_user(input: CreateUserInput) -> User:
     pass
 
-@fraiseql.binding("user", view="v_user", where_column="id")
-@fraiseql.binding("users", view="v_user")
-@fraiseql.binding("create_user", procedure="fn_create_user",
+@FraiseQL.binding("user", view="v_user", where_column="id")
+@FraiseQL.binding("users", view="v_user")
+@FraiseQL.binding("create_user", procedure="fn_create_user",
                   input_mapping={"password": "password_hash"})
 class Bindings:
     pass
@@ -1160,18 +1203,18 @@ class Bindings:
 def test_compile_schema_with_missing_view(test_db):
     """Test compilation fails gracefully when view doesn't exist."""
     schema_source = '''
-import fraiseql
+import FraiseQL
 
-@fraiseql.type
+@FraiseQL.type
 class Product:
-    id: str
+    id: UUID  # UUID v4 for GraphQL ID
     name: str
 
-@fraiseql.query
+@FraiseQL.query
 def products() -> list[Product]:
     pass
 
-@fraiseql.binding("products", view="v_product_missing")
+@FraiseQL.binding("products", view="v_product_missing")
 class Bindings:
     pass
     '''
@@ -1189,7 +1232,8 @@ class Bindings:
 
     # Error should suggest available views
     assert "v_user" in str(exc_info.value)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Runtime Integration Tests
 
@@ -1200,6 +1244,7 @@ class Bindings:
 #### 2.2.1 Query Execution Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/integration/runtime/test_query_execution.rs
 use fraiseql_runtime::Runtime;
 use fraiseql_testing::{TestDatabase, load_compiled_schema};
@@ -1324,11 +1369,13 @@ async fn test_execute_query_with_authorization() {
     let result = runtime.execute(query, None, Some(admin_auth)).await.unwrap();
     assert!(result.errors.is_none());
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 2.2.2 Mutation Execution Tests
 
 ```rust
+<!-- Code example in RUST -->
 // tests/integration/runtime/test_mutation_execution.rs
 use fraiseql_runtime::Runtime;
 use fraiseql_testing::{TestDatabase, load_compiled_schema};
@@ -1437,7 +1484,8 @@ async fn test_mutation_rollback_on_error() {
     let verify_result = runtime.execute(verify_query, None, None).await.unwrap();
     assert_eq!(verify_result.data["users"].as_array().unwrap().len(), 0);
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Database Integration Tests
 
@@ -1448,9 +1496,10 @@ async fn test_mutation_rollback_on_error() {
 #### 2.3.1 View Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/database/test_views.py
 import pytest
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.testing import DatabaseFixture
 
 @pytest.fixture
 def db():
@@ -1543,14 +1592,16 @@ def test_v_posts_by_user_aggregation(db):
     assert len(result["data"]) == 2
     assert result["data"][0]["title"] == "Second post"  # Ordered by created_at DESC
     assert result["data"][1]["title"] == "First post"
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 2.3.2 Stored Procedure Tests
 
 ```python
+<!-- Code example in Python -->
 # tests/integration/database/test_procedures.py
 import pytest
-from fraiseql.testing import DatabaseFixture
+from FraiseQL.testing import DatabaseFixture
 
 def test_fn_create_user_procedure(db):
     """Test stored procedure returns correct JSONB structure."""
@@ -1643,7 +1694,8 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
         db.query_one("SELECT fn_update_user('00000000-0000-0000-0000-000000000001', 'alice3', 1) AS result")
 
     assert "optimistic_lock_failed" in str(exc_info.value)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1658,8 +1710,9 @@ def test_fn_update_user_procedure_with_optimistic_locking(db):
 #### 3.1.1 E2E Query Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/test_user_workflows.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 describe('User Workflows', () => {
@@ -1856,7 +1909,8 @@ describe('Authorization Workflows', () => {
     expect(result.data.adminUsers).toBeInstanceOf(Array);
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Performance Tests
 
@@ -1867,8 +1921,9 @@ describe('Authorization Workflows', () => {
 #### 3.2.1 Query Latency Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/performance/test_latency.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 describe('Query Latency', () => {
   it('should complete simple query in <50ms (p50)', async () => {
@@ -1930,13 +1985,15 @@ describe('Query Latency', () => {
     expect(p95).toBeLessThan(200);
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 3.2.2 Throughput Tests
 
 ```typescript
+<!-- Code example in TypeScript -->
 // tests/e2e/performance/test_throughput.ts
-import { FraiseQLClient } from '@fraiseql/client';
+import { FraiseQLClient } from '@FraiseQL/client';
 
 describe('Query Throughput', () => {
   it('should handle 10,000+ queries/second', async () => {
@@ -1967,7 +2024,8 @@ describe('Query Throughput', () => {
     expect(qps).toBeGreaterThan(10_000);
   });
 });
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1980,6 +2038,7 @@ describe('Query Throughput', () => {
 #### 4.1.1 SQL Fixtures
 
 ```sql
+<!-- Code example in SQL -->
 -- tests/fixtures/users.sql
 INSERT INTO tb_user (id, username, email, password_hash) VALUES
   ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@example.com', 'hash1'),
@@ -1990,11 +2049,13 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
   ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Alice Post 1', 'Content'),
   ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Alice Post 2', 'Content'),
   ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000002', 'Bob Post 1', 'Content');
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 4.1.2 Compiled Schema Fixtures
 
 ```json
+<!-- Code example in JSON -->
 // tests/fixtures/simple_schema.json
 {
   "version": "1.0",
@@ -2027,11 +2088,13 @@ INSERT INTO tb_post (id, user_id, title, content) VALUES
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Test Database Management
 
 ```python
+<!-- Code example in Python -->
 # tests/utils/database.py
 import psycopg
 from contextlib import contextmanager
@@ -2077,7 +2140,8 @@ class DatabaseFixture:
         with psycopg.connect("dbname=postgres") as conn:
             conn.autocommit = True
             conn.execute(f"DROP DATABASE IF EXISTS {self.database_name}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2086,6 +2150,7 @@ class DatabaseFixture:
 ### 5.1 GitHub Actions Workflow
 
 ```yaml
+<!-- Code example in YAML -->
 # .github/workflows/test.yml
 name: Test Suite
 
@@ -2113,7 +2178,7 @@ jobs:
 
       - name: Run compiler unit tests
         run: |
-          pytest tests/unit/compiler/ -v --cov=fraiseql.compiler --cov-report=xml
+          pytest tests/unit/compiler/ -v --cov=FraiseQL.compiler --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
@@ -2198,7 +2263,7 @@ jobs:
 
       - name: Start FraiseQL server
         run: |
-          ./target/release/fraiseql-server \
+          ./target/release/FraiseQL-server \
             --schema tests/fixtures/e2e_schema.json \
             --database postgresql://postgres:postgres@localhost:5432/postgres &
           sleep 5
@@ -2217,18 +2282,20 @@ jobs:
       - name: Run performance benchmarks
         run: |
           cargo build --release
-          ./target/release/fraiseql-bench
+          ./target/release/FraiseQL-bench
 
       - name: Upload benchmark results
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'cargo'
           output-file-path: benchmark_results.json
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Test Coverage Requirements
 
 ```toml
+<!-- Code example in TOML -->
 # pyproject.toml
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -2241,15 +2308,17 @@ fail_under = 95  # Fail if coverage < 95%
 
 [tool.coverage.run]
 branch = true
-source = ["fraiseql"]
+source = ["FraiseQL"]
 
 [tool.coverage.report]
 precision = 2
 show_missing = true
 skip_covered = false
-```
+```text
+<!-- Code example in TEXT -->
 
 ```toml
+<!-- Code example in TOML -->
 # Cargo.toml
 [dev-dependencies]
 criterion = "0.5"
@@ -2258,7 +2327,8 @@ proptest = "1.0"
 [[bench]]
 name = "query_execution"
 harness = false
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2266,7 +2336,8 @@ harness = false
 
 ### 6.1 Test Organization
 
-```
+```text
+<!-- Code example in TEXT -->
 tests/
 ├── unit/                   # Fast, isolated tests
 │   ├── compiler/
@@ -2303,14 +2374,16 @@ tests/
 └── utils/                  # Test utilities
     ├── database.py
     └── client.ts
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Naming Conventions
 
 ```python
+<!-- Code example in Python -->
 # Good test names (describe what, when, and expected)
 def test_parse_simple_type():
-    """Test parsing a simple @fraiseql.type decorated class."""
+    """Test parsing a simple @FraiseQL.type decorated class."""
 
 def test_bind_type_missing_view():
     """Test binding fails when view doesn't exist."""
@@ -2322,11 +2395,13 @@ def test_execute_query_with_authorization():
 def test_parser():           # What about parser?
 def test_binding_error():    # Which error?
 def test_query():            # Test what about query?
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Test Independence
 
 ```python
+<!-- Code example in Python -->
 # Good: Each test is independent
 def test_create_user(db):
     user_id = create_user(db, "alice")
@@ -2349,11 +2424,13 @@ def test_create_user(db):
 def test_update_user(db):
     global user_id
     update_user(db, user_id, email="newemail@example.com")  # Depends on previous test
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.4 Deterministic Tests
 
 ```python
+<!-- Code example in Python -->
 # Good: Deterministic (always same result)
 def test_query_users_by_username():
     db.seed_fixture("users.sql")  # Known data
@@ -2365,11 +2442,13 @@ def test_query_users_by_username():
 def test_query_recent_users():
     users = query_users(where={"created_at": {"gt": "now() - interval '1 day'"}})
     assert len(users) > 0  # May fail if no recent users
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.5 Test Documentation
 
 ```python
+<!-- Code example in Python -->
 def test_compile_schema_with_nested_types(db):
     """
     Test compiling schema with nested types (User.posts).
@@ -2390,7 +2469,8 @@ def test_compile_schema_with_nested_types(db):
     schema_source = '''...'''
     compiled = compile_schema(source=schema_source, database=db)
     # ... assertions ...
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2399,6 +2479,7 @@ def test_compile_schema_with_nested_types(db):
 ### 7.1 Pre-commit Hooks
 
 ```yaml
+<!-- Code example in YAML -->
 # .pre-commit-config.yaml
 repos:
   - repo: local
@@ -2416,17 +2497,20 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Watch Mode (Development)
 
 ```bash
+<!-- Code example in BASH -->
 # Python: Auto-run tests on file change
 $ ptw tests/unit/compiler/ --runner "pytest -x"
 
 # Rust: Auto-run tests on file change
 $ cargo watch -x test
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2441,6 +2525,7 @@ FraiseQL's testing strategy is **comprehensive, deterministic, and fast**:
 - **Continuous testing** (CI/CD pipeline + pre-commit hooks)
 
 **Test pyramid distribution:**
+
 - 60% unit tests (1000-2000 tests) — Fast, isolated
 - 30% integration tests (500-800 tests) — Database-dependent
 - 10% E2E tests (100-200 tests) — Full workflows
@@ -2452,3 +2537,157 @@ FraiseQL's testing strategy is **comprehensive, deterministic, and fast**:
 **Status: COMPLETE** ✅
 
 All testing strategies documented and ready for implementation.
+
+---
+
+## Troubleshooting
+
+### "Test database connection fails: 'Connection refused'"
+
+**Cause:** PostgreSQL container not started or port not accessible.
+
+**Diagnosis:**
+
+1. Check if container is running: `docker ps | grep postgres`
+2. Verify port is listening: `netstat -tuln | grep 5432`
+3. Test connectivity: `psql postgresql://user:pass@localhost:5432/test_db`
+
+**Solutions:**
+
+- Start database: `docker-compose up -d` in test directory
+- Verify DATABASE_URL is correct
+- Check firewall rules allowing localhost:5432
+- Wait for database startup (may take 10-20 seconds)
+
+### "Flaky tests that pass sometimes, fail other times"
+
+**Cause:** Race conditions in database state or test isolation issues.
+
+**Diagnosis:**
+
+1. Run failing test 10 times: `cargo test test_name -- --test-threads=1 --nocapture`
+2. Look for non-deterministic behavior (random data, timestamps)
+3. Check test fixture cleanup: does previous test affect next test?
+
+**Solutions:**
+
+- Use test fixtures with unique IDs per test (UUIDs)
+- Add test isolation: truncate tables before each test
+- Avoid real time dependencies: use mock time or fixed dates
+- Run tests sequentially: `cargo test -- --test-threads=1` (slower but more reliable)
+- Use database transactions that rollback after each test
+
+### "E2E test hangs waiting for response"
+
+**Cause:** Server not responding or database query blocking.
+
+**Diagnosis:**
+
+1. Check if FraiseQL server is running: `curl http://localhost:8000/health`
+2. Check database: `docker exec postgres psql -U test -d test_db -c 'SELECT 1;'`
+3. Look for slow query: enable query logging in database
+
+**Solutions:**
+
+- Increase test timeout: `#[tokio::test(timeout = 60000ms)]`
+- Verify database has test data loaded
+- Check for deadlocks: `SELECT * FROM pg_locks;`
+- Simplify query to identify bottleneck
+- Ensure indexes exist on frequently queried columns
+
+### "Test coverage report shows <90% coverage"
+
+**Cause:** Some code paths not exercised by tests.
+
+**Diagnosis:**
+
+1. Generate coverage report: `cargo tarpaulin --out Html`
+2. Open `tarpaulin-report.html` and find uncovered lines
+3. Identify if untested code is: error paths, edge cases, or dead code
+
+**Solutions:**
+
+- Add error case tests: test both happy path and all error conditions
+- Add edge case tests: empty lists, NULL values, boundary conditions
+- For unreachable code: either delete it or mark `#[allow(dead_code)]` with comment
+- Ensure all error branches have tests
+
+### "Integration test fails with 'Foreign key constraint violation'"
+
+**Cause:** Test inserts data in wrong order or doesn't respect dependencies.
+
+**Diagnosis:**
+
+1. Check test fixture order: which table is inserted first?
+2. Verify foreign key relationships: `SELECT constraint_name FROM information_schema.key_column_usage;`
+3. Look at error - it will show which FK constraint failed
+
+**Solutions:**
+
+- Insert parent records before children
+- Use fixtures that auto-setup dependencies
+- Disable FK checks during setup if safe: `SET CONSTRAINTS ALL DEFERRED;`
+- Clean up in reverse order (children before parents)
+
+### "Test database grows too large (test_db.db > 1GB)"
+
+**Cause:** Test data not cleaned up between test runs or transaction not rolling back.
+
+**Diagnosis:**
+
+1. Check file size: `du -h test_db.db`
+2. List tables: `SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(...)) FROM pg_tables;`
+3. Find bloated table: `SELECT * FROM pg_stat_user_tables ORDER BY n_live_tup DESC;`
+
+**Solutions:**
+
+- Clean up database between test suites: truncate all tables
+- Use `TRUNCATE TABLE ... CASCADE;` to reset identity columns
+- Use transaction rollback instead of delete (faster cleanup)
+- For SQLite: use `VACUUM;` to reclaim space
+- Reduce test data size (generate minimal records)
+
+### "Test compilation slow (>5 minutes)"
+
+**Cause:** Large number of tests or heavy dependencies.
+
+**Diagnosis:**
+
+1. Check test count: `cargo test --lib -- --list | wc -l`
+2. Profile compilation: `cargo build -p FraiseQL-core --release --timings`
+3. Look for slow dependencies in output
+
+**Solutions:**
+
+- Use `cargo nextest` for faster test execution (2-3x speedup)
+- Compile tests in release mode for CI (slower compile, faster tests)
+- Split tests into multiple binaries (compile in parallel)
+- Use `#[cfg(test)] mod test_helpers;` to avoid recompiling test code
+
+### "Test requires fresh database state but previous test left data"
+
+**Cause:** Lack of test isolation - tests run in same transaction or database.
+
+**Diagnosis:**
+
+1. Run tests in different order: `cargo test -- --test-threads=1`
+2. Check if ordering affects results
+3. Look for hardcoded IDs in tests (sign of shared state)
+
+**Solutions:**
+
+- Use `#[test]` with explicit setup/teardown for each test
+- Create unique data per test (use test name or counter)
+- Use `tokio::test` with database transactions that rollback
+- Ensure CI drops and recreates test database before each run
+
+---
+
+## See Also
+
+- **[E2E Testing Guide](./development/e2e-testing.md)** - End-to-end testing infrastructure and execution
+- **[Benchmarking Guide](./development/benchmarking.md)** - Performance benchmarking and profiling
+- **[Profiling Guide](./development/profiling-guide.md)** - Performance profiling and optimization
+- **[Developer Guide](./development/developer-guide.md)** - Development setup and workflow
+- **[linting.md](./development/linting.md)** - Code quality and Clippy linting standards
+- **[CI/CD Integration](../ci-cd-integration.md)** - Continuous integration and automated testing

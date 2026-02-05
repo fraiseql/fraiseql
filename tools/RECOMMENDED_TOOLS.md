@@ -301,6 +301,7 @@ echo "  macOS:  brew install michaeleisel/zld/zld"
 ```
 
 Make it executable:
+
 ```bash
 chmod +x tools/install_tools.sh
 ./tools/install_tools.sh
@@ -568,6 +569,7 @@ mdbook serve --open
 ## Current Setup Status
 
 ✅ **Already Configured:**
+
 - rust-analyzer (VSCode)
 - rustfmt
 - clippy (pedantic + deny)
@@ -578,6 +580,7 @@ mdbook serve --open
 - Benchmark infrastructure
 
 📦 **Recommended to Install:**
+
 ```bash
 # Essential (do this now)
 cargo install cargo-watch cargo-nextest cargo-edit
@@ -591,11 +594,11 @@ cargo install cargo-deny cargo-machete
 
 ## Resources
 
-- **Rust Performance Book**: https://nnethercote.github.io/perf-book/
-- **Rust API Guidelines**: https://rust-lang.github.io/api-guidelines/
-- **Clippy Lints**: https://rust-lang.github.io/rust-clippy/
-- **Cargo Book**: https://doc.rust-lang.org/cargo/
-- **This Week in Rust**: https://this-week-in-rust.org/
+- **Rust Performance Book**: <https://nnethercote.github.io/perf-book/>
+- **Rust API Guidelines**: <https://rust-lang.github.io/api-guidelines/>
+- **Clippy Lints**: <https://rust-lang.github.io/rust-clippy/>
+- **Cargo Book**: <https://doc.rust-lang.org/cargo/>
+- **This Week in Rust**: <https://this-week-in-rust.org/>
 
 ---
 

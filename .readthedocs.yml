@@ -1,0 +1,59 @@
+# Read the Docs configuration file
+# See documentation: https://docs.readthedocs.io/en/stable/config-file/v2/
+
+version: 2
+
+# Build documentation in the docs/ directory with mkdocs
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.11"
+
+mkdocs:
+  configuration: mkdocs.yml
+
+# Required: specify version of submodules
+# submodules:
+#   include: all
+
+# Specify which version of Python and what packages to install
+python:
+  version: "3.11"
+  install:
+    - requirements: docs/requirements.txt
+
+# Specify version of mkdocs to use
+# mkdocs:
+#   version: "1.5"
+
+# Build documentation on every branch, not just main
+# build:
+#   os: ubuntu-22.04
+#   tools:
+#     python: "3.11"
+
+# The name of Pygments (syntax highlighting) style to use
+pygments_style: monokai
+
+# Set the version of Python and explicitly list the requirements
+# formats: all
+
+# Enable search functionality
+search:
+  enabled: true
+
+# Additional environment variables
+env:
+  - DOCS_BUILD=true
+
+# Webhook events to trigger builds
+# Defaults to push and pull_request
+
+# Notify on build status
+notifications:
+  slack:
+    enabled: false
+  # webhooks:
+  #   - url: https://example.com/webhook
+  #     on_success: true
+  #     on_failure: true

@@ -1,7 +1,15 @@
+<!-- Skip to main content -->
+---
+title: Enterprise Audit Logging Documentation
+description: FraiseQL's Enterprise Audit Logging system provides:
+keywords: []
+tags: ["documentation", "reference"]
+---
+
 # Enterprise Audit Logging Documentation
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Status:** ✅ Production Ready
+**Version:** FraiseQL v2.0.0-alpha.1+
 **Topic**: Audit Event Logging & Chain Verification
 **Performance**: ~1ms per event (Rust FFI), ~5-10ms (Python fallback)
 
@@ -26,7 +34,8 @@ FraiseQL's Enterprise Audit Logging system provides:
 ### Basic Setup
 
 ```python
-from fraiseql.enterprise.audit import AuditEventLogger
+<!-- Code example in Python -->
+from FraiseQL.enterprise.audit import AuditEventLogger
 
 # Initialize at application startup
 audit_logger = AuditEventLogger(
@@ -34,11 +43,13 @@ audit_logger = AuditEventLogger(
     connection_string="postgresql://user:pass@host/db",
     use_rust=True  # Prefer Rust FFI (faster)
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Logging Events
 
 ```python
+<!-- Code example in Python -->
 # Log a mutation completion
 event_id = await audit_logger.log_event(
     tenant_id="tenant-123",
@@ -57,12 +68,14 @@ event_id = await audit_logger.log_event(
     event_type="auth.login",
     ip_address="203.0.113.1"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Querying Audit Events
 
 ```python
-from fraiseql.enterprise.audit import AuditEventFilter
+<!-- Code example in Python -->
+from FraiseQL.enterprise.audit import AuditEventFilter
 
 # Get recent events
 events, total = await audit_logger.get_events(
@@ -76,11 +89,13 @@ events, total = await audit_logger.get_events(
 
 for event in events:
     print(f"{event.created_at} {event.event_type}: {event.user_id}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Verifying Chain Integrity
 
 ```python
+<!-- Code example in Python -->
 # Verify cryptographic chain
 result = await audit_logger.verify_chain(
     tenant_id="tenant-123"
@@ -91,7 +106,8 @@ if result.is_valid:
 else:
     print(f"Chain broken at event {result.broken_at_index}")
     print(f"Error: {result.error_message}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -102,6 +118,7 @@ else:
 Each audit event captures comprehensive change information:
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class AuditEvent:
     # Identity
@@ -137,13 +154,15 @@ class AuditEvent:
 
     # Metadata
     created_at: datetime      # Immutable timestamp
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Debezium-Compatible Format
 
 FraiseQL audit events follow Debezium CDC format:
 
 ```python
+<!-- Code example in Python -->
 @strawberry.type
 class DebeziumEvent:
     """
@@ -156,10 +175,13 @@ class DebeziumEvent:
     source: dict           # Source metadata
     op: str                # Operation: c/r/u/d
     ts_ms: int             # Timestamp in milliseconds
-```
+```text
+<!-- Code example in TEXT -->
 
 **Example**:
+
 ```json
+<!-- Code example in JSON -->
 {
   "before": {
     "id": "user-123",
@@ -174,19 +196,21 @@ class DebeziumEvent:
   "source": {
     "table": "users",
     "schema": "public",
-    "database": "fraiseql",
+    "database": "FraiseQL",
     "ts_ms": 1705000000000
   },
   "op": "u",
   "ts_ms": 1705000000000
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cryptographic Chain
 
 FraiseQL maintains an immutable cryptographic chain:
 
-```
+```text
+<!-- Code example in TEXT -->
 Event 1
 ├─ event_hash: SHA256(event_data)
 ├─ previous_hash: NULL (first event)
@@ -201,9 +225,11 @@ Event 3
 ├─ event_hash: SHA256(event_data)
 ├─ previous_hash: Event2.event_hash
 └─ signature: HMAC(event_hash, secret_key)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Chain Verification**:
+
 1. Compute hash of each event's data
 2. Verify hash matches stored `event_hash`
 3. Verify each event's `previous_hash` matches prior event
@@ -275,6 +301,7 @@ FraiseQL supports 40+ event types across all operations:
 ### Log Events
 
 ```python
+<!-- Code example in Python -->
 # Basic event
 event_id = await audit_logger.log_event(
     tenant_id="tenant-123",
@@ -294,7 +321,7 @@ event_id = await audit_logger.log_event(
     source={
         "table": "posts",
         "schema": "public",
-        "database": "fraiseql"
+        "database": "FraiseQL"
     },
     extra_metadata={"tags": ["blog", "featured"]},
     ip_address="203.0.113.1",
@@ -305,11 +332,13 @@ event_id = await audit_logger.log_event(
     duration_ms=78.5,
     result_size_bytes=2048
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Events
 
 ```python
+<!-- Code example in Python -->
 # Get recent events for a tenant
 events, total = await audit_logger.get_events(
     tenant_id="tenant-123"
@@ -342,11 +371,13 @@ events, total = await audit_logger.get_events(
         start_time=datetime.now() - timedelta(days=7)
     )
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Verify Chain Integrity
 
 ```python
+<!-- Code example in Python -->
 # Verify cryptographic chain
 result = await audit_logger.verify_chain(
     tenant_id="tenant-123"
@@ -359,7 +390,8 @@ print(f"Verified events: {result.verified_events}")
 if not result.is_valid:
     print(f"Break at event {result.broken_at_index}")
     print(f"Error: {result.error_message}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -368,6 +400,7 @@ if not result.is_valid:
 ### QueryEventData
 
 ```python
+<!-- Code example in Python -->
 @strawberry.input
 class QueryEventData:
     query_hash: str
@@ -376,11 +409,13 @@ class QueryEventData:
     query_depth: int
     query_complexity: int
     query_fields_count: int
-```
+```text
+<!-- Code example in TEXT -->
 
 ### MutationEventData
 
 ```python
+<!-- Code example in Python -->
 @strawberry.input
 class MutationEventData:
     mutation_hash: str
@@ -388,11 +423,13 @@ class MutationEventData:
     variables: dict | None
     changes_count: int
     affected_tables: list[str]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### QueryCompletionEventData
 
 ```python
+<!-- Code example in Python -->
 @strawberry.input
 class QueryCompletionEventData:
     query_hash: str
@@ -400,11 +437,13 @@ class QueryCompletionEventData:
     field_count: int
     cache_hit: bool
     result_size_bytes: int
-```
+```text
+<!-- Code example in TEXT -->
 
 ### AuthenticationEventData
 
 ```python
+<!-- Code example in Python -->
 @strawberry.input
 class AuthenticationEventData:
     auth_method: str  # "oauth", "jwt", "session", "mfa"
@@ -413,11 +452,13 @@ class AuthenticationEventData:
     user_agent: str | None
     success: bool
     failure_reason: str | None
-```
+```text
+<!-- Code example in TEXT -->
 
 ### SecurityViolationEventData
 
 ```python
+<!-- Code example in Python -->
 @strawberry.input
 class SecurityViolationEventData:
     violation_type: str  # "injection", "xss", "csrfblocked"
@@ -425,7 +466,8 @@ class SecurityViolationEventData:
     ip_address: str
     user_id: str | None
     details: dict
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -434,7 +476,8 @@ class SecurityViolationEventData:
 ### Automatic Event Logging Middleware
 
 ```python
-from fraiseql.enterprise.audit.middleware import create_audit_middleware
+<!-- Code example in Python -->
+from FraiseQL.enterprise.audit.middleware import create_audit_middleware
 
 # Add audit logging middleware
 schema = strawberry.Schema(
@@ -442,9 +485,11 @@ schema = strawberry.Schema(
     mutation=Mutation,
     extensions=[create_audit_middleware(audit_logger=audit_logger)]
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Automatically logs**:
+
 - All mutations (create, update, delete)
 - Failed queries with error details
 - Authentication events
@@ -454,6 +499,7 @@ schema = strawberry.Schema(
 ### Manual Event Logging
 
 ```python
+<!-- Code example in Python -->
 import strawberry
 
 @strawberry.mutation
@@ -476,7 +522,8 @@ async def publish_post(
     )
 
     return post
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -485,13 +532,16 @@ async def publish_post(
 ### Immutability Guarantees
 
 Audit events are **immutable**:
+
 - `created_at` timestamp set once
 - All fields are read-only in database
 - No UPDATE or DELETE operations allowed
 - Only append-only INSERT
 
 **Database enforcement**:
+
 ```sql
+<!-- Code example in SQL -->
 -- Audit table is append-only
 CREATE TABLE audit_events (
     id UUID PRIMARY KEY,
@@ -506,11 +556,13 @@ CREATE TRIGGER audit_immutable
 BEFORE UPDATE OR DELETE ON audit_events
 FOR EACH ROW
 RAISE EXCEPTION 'Audit events are immutable';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Retention Policies
 
 ```python
+<!-- Code example in Python -->
 # Configure retention
 config = AuditConfig(
     retention_days=90,           # Keep 90 days of events
@@ -524,11 +576,13 @@ archived = await audit_logger.archive_events(
     before_date=datetime.now() - timedelta(days=90),
     destination="s3://archive-bucket/audit/"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Compliance Reporting
 
 ```python
+<!-- Code example in Python -->
 # Generate compliance report
 report = await audit_logger.generate_compliance_report(
     tenant_id="tenant-123",
@@ -542,7 +596,8 @@ print(f"Mutations: {report.mutation_count}")
 print(f"Auth events: {report.auth_count}")
 print(f"Security violations: {report.violation_count}")
 print(f"Chain valid: {report.chain_verification.is_valid}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -553,6 +608,7 @@ print(f"Chain valid: {report.chain_verification.is_valid}")
 Log query and mutation performance:
 
 ```python
+<!-- Code example in Python -->
 event_id = await audit_logger.log_event(
     tenant_id="tenant-123",
     user_id="user-456",
@@ -564,13 +620,15 @@ event_id = await audit_logger.log_event(
     duration_ms=45.3,
     result_size_bytes=4096
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance Analytics
 
 ```python
+<!-- Code example in Python -->
 # Get slow queries
-from fraiseql.enterprise.audit import AuditEventFilter
+from FraiseQL.enterprise.audit import AuditEventFilter
 
 slow_queries = await audit_logger.get_events(
     tenant_id="tenant-123",
@@ -585,11 +643,13 @@ for event in slow_queries:
     print(f"Query: {event.query_hash}")
     print(f"Duration: {event.duration_ms}ms")
     print(f"Complexity: {event.query_complexity}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Query Complexity Distribution
 
 ```python
+<!-- Code example in Python -->
 # Analyze query complexity
 report = await audit_logger.get_complexity_report(
     tenant_id="tenant-123",
@@ -599,7 +659,8 @@ report = await audit_logger.get_complexity_report(
 print(f"Avg complexity: {report.avg_complexity}")
 print(f"Max complexity: {report.max_complexity}")
 print(f"Queries > 100: {report.high_complexity_count}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -608,6 +669,7 @@ print(f"Queries > 100: {report.high_complexity_count}")
 ### User Activity Audit
 
 ```python
+<!-- Code example in Python -->
 # Get all activities for a specific user
 events, total = await audit_logger.get_events(
     tenant_id="tenant-123",
@@ -619,11 +681,13 @@ events, total = await audit_logger.get_events(
 
 for event in events:
     print(f"{event.created_at} {event.event_type}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Failed Authentication Detection
 
 ```python
+<!-- Code example in Python -->
 # Find suspicious failed login patterns
 failed_logins = await audit_logger.get_events(
     tenant_id="tenant-123",
@@ -639,11 +703,13 @@ ips = Counter(e.ip_address for e in failed_logins)
 for ip, count in ips.most_common(10):
     if count > 5:
         print(f"Alert: {count} failed logins from {ip}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Data Access Audit
 
 ```python
+<!-- Code example in Python -->
 # Track who accessed sensitive data
 sensitive_queries = await audit_logger.get_events(
     tenant_id="tenant-123",
@@ -656,11 +722,13 @@ sensitive_queries = await audit_logger.get_events(
 for event in sensitive_queries:
     print(f"User {event.user_id} accessed sensitive data at {event.created_at}")
     print(f"From IP: {event.ip_address}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Configuration Change Tracking
 
 ```python
+<!-- Code example in Python -->
 # Find all configuration changes
 config_changes = await audit_logger.get_events(
     tenant_id="tenant-123",
@@ -674,7 +742,8 @@ for event in config_changes:
     print(f"Changed by: {event.user_id}")
     print(f"Before: {event.before_data}")
     print(f"After: {event.after_data}")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -685,6 +754,7 @@ for event in config_changes:
 Run chain verification periodically (e.g., daily):
 
 ```python
+<!-- Code example in Python -->
 # Daily verification task
 async def verify_audit_chain_daily():
     tenants = await get_all_tenants()
@@ -705,7 +775,8 @@ async def verify_audit_chain_daily():
                 verified_count=result.verified_events,
                 total_count=result.total_events
             )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Chain Repair
 
@@ -753,6 +824,7 @@ If tampering is detected:
 Always include full context:
 
 ```python
+<!-- Code example in Python -->
 # GOOD - Full context
 await audit_logger.log_event(
     tenant_id=tenant_id,
@@ -770,13 +842,15 @@ await audit_logger.log_event(
     tenant_id=tenant_id,
     event_type="mutation.completed"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2. Use Rust FFI Mode
 
 Prefer Rust FFI for better performance:
 
 ```python
+<!-- Code example in Python -->
 # GOOD
 audit_logger = AuditEventLogger(
     repo=repo,
@@ -785,26 +859,30 @@ audit_logger = AuditEventLogger(
 )
 
 # Falls back to Python if Rust unavailable
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3. Run Regular Verification
 
 Set up periodic chain verification:
 
 ```python
+<!-- Code example in Python -->
 # Daily verification
 scheduler.add_job(
     verify_audit_chain_daily,
     trigger="cron",
     hour=2  # 2 AM daily
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4. Archive Old Events
 
 Archive events older than retention period:
 
 ```python
+<!-- Code example in Python -->
 # Monthly archive task
 scheduler.add_job(
     archive_old_events,
@@ -812,20 +890,23 @@ scheduler.add_job(
     day=1,  # First day of month
     hour=3
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5. Monitor Chain Health
 
 Alert on chain breaks:
 
 ```python
+<!-- Code example in Python -->
 # Set up alert
 if not verification_result.is_valid:
     send_critical_alert(
         f"Audit chain integrity violation detected "
         f"at event {verification_result.broken_at_index}"
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -834,40 +915,55 @@ if not verification_result.is_valid:
 ### Chain Verification Fails
 
 1. Check event counts:
+
    ```sql
+<!-- Code example in SQL -->
    SELECT COUNT(*) FROM audit_events WHERE tenant_id = ?;
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 2. Inspect event at break point:
+
    ```sql
+<!-- Code example in SQL -->
    SELECT id, event_hash, previous_hash FROM audit_events
    WHERE tenant_id = ? AND created_at > ?
    ORDER BY created_at LIMIT 10;
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 3. Verify signatures:
+
    ```sql
+<!-- Code example in SQL -->
    SELECT id, signature FROM audit_events WHERE tenant_id = ?
    ORDER BY created_at DESC LIMIT 100;
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 ### High Event Logging Latency
 
 1. Check database:
+
    ```sql
+<!-- Code example in SQL -->
    EXPLAIN ANALYZE INSERT INTO audit_events (...);
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 2. Monitor Rust FFI:
    - Check if Rust library is loaded: `audit_logger.use_rust`
    - Check fallback to Python if slow
 
 3. Consider batching:
+
    ```python
+<!-- Code example in Python -->
    # Batch multiple events
    events = [...]
    await audit_logger.batch_log_events(events)
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 ---
 

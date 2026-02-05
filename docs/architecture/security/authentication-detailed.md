@@ -1,8 +1,32 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Authentication Details
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Authentication Details
 
-**Version**: 2.0.0
-**Status**: Specification
-**Last Updated**: January 2026
+**Version**: 2.0.0-alpha.1
+**Status**: ✅ Implemented
+**Last Updated**: February 5, 2026
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Authentication Architecture](#1-authentication-architecture)
+3. [OAuth2 Implementation](#2-oauth2-implementation)
+4. [SAML 2.0 Integration](#3-saml-20-integration)
+5. [JWT Token Specification](#4-jwt-token-specification)
+6. [Custom Authentication Provider Pattern](#5-custom-authentication-provider-pattern)
+7. [Session Management](#6-session-management)
+8. [Token Revocation](#7-token-revocation)
+9. [Multi-Tenant Authentication](#8-multi-tenant-authentication)
+10. [Security Best Practices](#9-security-best-practices)
+11. [Audit & Compliance](#10-audit--compliance)
+12. [Performance Optimization](#11-performance-optimization)
+13. [Error Handling](#12-error-handling)
 
 ---
 
@@ -55,7 +79,8 @@ FraiseQL authentication follows these principles:
 
 ### 1.2 Authentication Flow Overview
 
-```
+```text
+<!-- Code example in TEXT -->
 Client Request
     ↓
 ┌─────────────────────────────────────────┐
@@ -90,7 +115,8 @@ Client Request
 Authorize Request
     ↓
 Execute Query/Mutation
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Supported Authentication Schemes
 
@@ -115,7 +141,8 @@ Used for web applications where users log in through a browser.
 
 #### Flow Sequence
 
-```
+```text
+<!-- Code example in TEXT -->
 User's Browser               FraiseQL App              OAuth2 Provider
       │                           │                           │
       │ (1) Click "Login"         │                           │
@@ -145,12 +172,14 @@ User's Browser               FraiseQL App              OAuth2 Provider
       │ (7) Logged in             │                           │
       │◄──────────────────────────┤                           │
       │   (set session/token)     │                           │
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Implementation Details
 
 ```python
-from fraiseql.auth import OAuth2Provider, TokenRequest
+<!-- Code example in Python -->
+from FraiseQL.auth import OAuth2Provider, TokenRequest
 
 class OAuth2AuthorizationCodeFlow:
     """OAuth2 Authorization Code flow implementation"""
@@ -240,7 +269,8 @@ class OAuth2AuthorizationCodeFlow:
                 token_type=data.get("token_type", "Bearer"),
                 id_token=data.get("id_token"),  # OpenID Connect
             )
-```
+```text
+<!-- Code example in TEXT -->
 
 #### Security Considerations
 
@@ -255,6 +285,7 @@ class OAuth2AuthorizationCodeFlow:
    - Prevents authorization code interception
 
    ```python
+<!-- Code example in Python -->
    import secrets
    import hashlib
    import base64
@@ -274,7 +305,8 @@ class OAuth2AuthorizationCodeFlow:
        ).decode().rstrip("=")
 
        return code_verifier, challenge
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 3. **Token Storage**
    - Never store tokens in localStorage (XSS vulnerability)
@@ -291,6 +323,7 @@ class OAuth2AuthorizationCodeFlow:
 Used for service-to-service authentication without user involvement.
 
 ```python
+<!-- Code example in Python -->
 class OAuth2ClientCredentialsFlow:
     """OAuth2 Client Credentials flow for machine-to-machine auth"""
 
@@ -334,15 +367,18 @@ class OAuth2ClientCredentialsFlow:
                 expires_in=data.get("expires_in", 3600),
                 token_type=data.get("token_type", "Bearer"),
             )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Use Cases:**
+
 - Service-to-service API calls
 - Microservices authentication
 - Scheduled batch jobs
 - Integration with external systems
 
 **Security Considerations:**
+
 - Store client_secret securely (environment variables, secret management)
 - Rotate client_secret regularly
 - Use in backend only (never expose to frontend)
@@ -353,6 +389,7 @@ class OAuth2ClientCredentialsFlow:
 Refresh tokens extend session lifetime without requiring re-authentication.
 
 ```python
+<!-- Code example in Python -->
 class OAuth2RefreshTokenFlow:
     """OAuth2 Refresh Token flow for token renewal"""
 
@@ -400,11 +437,13 @@ class OAuth2RefreshTokenFlow:
                 expires_in=data.get("expires_in", 3600),
                 token_type=data.get("token_type", "Bearer"),
             )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Token Rotation Strategy:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Initial Login:
   access_token (short-lived, 15min) → Set cookie httpOnly, Secure, SameSite=Strict
   refresh_token (long-lived, 7 days) → Set cookie httpOnly, Secure, SameSite=Strict
@@ -418,7 +457,8 @@ After 14 minutes (before expiry):
 If refresh_token expires:
   Require full re-authentication (redirect to login)
   Display grace period message (optional)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -428,7 +468,8 @@ If refresh_token expires:
 
 SAML (Security Assertion Markup Language) is XML-based protocol for enterprise SSO.
 
-```
+```text
+<!-- Code example in TEXT -->
 User's Browser          FraiseQL App           Identity Provider (IdP)
       │                      │                       │
       │ (1) Click "Login"    │                       │
@@ -457,11 +498,13 @@ User's Browser          FraiseQL App           Identity Provider (IdP)
       │ (7) Create session   │                       │
       │◄─────────────────────┤                       │
       │   (set auth cookie)  │                       │
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 SAML Assertion Validation
 
 ```python
+<!-- Code example in Python -->
 from lxml import etree
 from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.utils import OneLogin_Saml2_Utils
@@ -700,13 +743,15 @@ class SAMLAssertionValidator:
             "name": attributes.get("urn:oid:2.5.4.3", user_id),
             "attributes": attributes,
         }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 SAML Attribute Mapping
 
 Map SAML attributes to FraiseQL user model:
 
 ```python
+<!-- Code example in Python -->
 class SAMLAttributeMapper:
     """Map SAML attributes to FraiseQL user properties"""
 
@@ -729,7 +774,7 @@ class SAMLAttributeMapper:
     def map_attributes(
         self,
         saml_attributes: dict[str, str],
-        user_id: str
+        user_id: UUID  # UUID v4 for GraphQL ID
     ) -> dict[str, Any]:
         """Map SAML attributes to user object
 
@@ -752,7 +797,8 @@ class SAMLAttributeMapper:
                     mapped[fraiseql_field] = value
 
         return mapped
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -762,23 +808,30 @@ class SAMLAttributeMapper:
 
 JWT consists of three base64url-encoded parts separated by dots:
 
-```
+```text
+<!-- Code example in TEXT -->
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.
 eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
 SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-```
+```text
+<!-- Code example in TEXT -->
 
 **Header** (JWT metadata):
+
 ```json
+<!-- Code example in JSON -->
 {
   "alg": "RS256",     // Signing algorithm
   "typ": "JWT",       // Token type
   "kid": "key-id-123" // Key ID (for key rotation)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Payload** (Claims):
+
 ```json
+<!-- Code example in JSON -->
 {
   "sub": "user:12345",           // Subject (user ID)
   "aud": "api.example.com",       // Audience (intended recipient)
@@ -790,16 +843,21 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
   "roles": ["admin", "user"],    // Custom claim: roles
   "permissions": ["read:posts", "write:posts"]  // Custom claim: permissions
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Signature**:
-```
+
+```text
+<!-- Code example in TEXT -->
 HMAC-SHA256 or RSA-SHA256 of (header + payload) using secret key
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 JWT Generation
 
 ```python
+<!-- Code example in Python -->
 from datetime import datetime, timedelta
 import jwt
 from cryptography.hazmat.primitives import serialization
@@ -921,11 +979,13 @@ class JWTTokenGenerator:
         )
 
         return token
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.3 JWT Validation
 
 ```python
+<!-- Code example in Python -->
 class JWTTokenValidator:
     """Validate and extract claims from JWT tokens"""
 
@@ -1028,7 +1088,8 @@ class JWTTokenValidator:
             return payload.get("tenant_id")
         except (jwt.DecodeError, jwt.InvalidSignatureError):
             return None
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1037,6 +1098,7 @@ class JWTTokenValidator:
 FraiseQL supports pluggable authentication providers for custom requirements.
 
 ```python
+<!-- Code example in Python -->
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -1167,13 +1229,15 @@ class LDAPAuthenticationProvider(AuthenticationProvider):
         """Extract roles from LDAP attributes"""
         # Implementation specific to your LDAP schema
         pass
-```
+```text
+<!-- Code example in TEXT -->
 
 Register custom provider:
 
 ```python
+<!-- Code example in Python -->
 # In app initialization
-from fraiseql.auth import register_authentication_provider
+from FraiseQL.auth import register_authentication_provider
 
 ldap_provider = LDAPAuthenticationProvider(
     ldap_server="ldap://directory.example.com",
@@ -1183,13 +1247,14 @@ ldap_provider = LDAPAuthenticationProvider(
 register_authentication_provider("ldap", ldap_provider)
 
 # In schema
-@fraiseql.type
-@fraiseql.authenticate(provider="ldap")
+@FraiseQL.type
+@FraiseQL.authenticate(provider="ldap")
 class User:
     id: ID
     email: str
     roles: list[str]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1198,12 +1263,14 @@ class User:
 ### 6.1 Stateless Sessions (JWT)
 
 **Advantages:**
+
 - Scalable (no server-side storage)
 - Distributed-friendly (each server can validate)
 - Mobile-friendly
 - CDN/edge-cacheable
 
 **Disadvantages:**
+
 - Cannot revoke immediately (token stays valid until expiry)
 - Token contains claims (privacy consideration)
 - Size overhead (increases request/response size)
@@ -1211,12 +1278,14 @@ class User:
 ### 6.2 Stateful Sessions (Cookies)
 
 **Advantages:**
+
 - Can revoke immediately
 - Smaller tokens (just session ID)
 - Traditional web browser support
 - CSRF protection easier
 
 **Disadvantages:**
+
 - Requires server-side state (session store)
 - Not as scalable
 - Requires sticky sessions or shared store
@@ -1226,6 +1295,7 @@ class User:
 Combine stateless and stateful for best of both:
 
 ```python
+<!-- Code example in Python -->
 class HybridSessionManager:
     """Combine JWT (stateless) and session store (stateful)"""
 
@@ -1347,7 +1417,8 @@ class HybridSessionManager:
         if session_record:
             session_record.revoked = True
             await self.session_store.save(session_record)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1358,6 +1429,7 @@ class HybridSessionManager:
 For tokens that need immediate revocation (password change, logout, compromise):
 
 ```python
+<!-- Code example in Python -->
 class TokenRevocationStore:
     """Store revoked tokens for immediate invalidation"""
 
@@ -1403,11 +1475,13 @@ class TokenRevocationStore:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         key = f"revoked_token:{token_hash}"
         return await self.redis.exists(key)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Revocation Reasons
 
 ```python
+<!-- Code example in Python -->
 class RevocationReason(Enum):
     """Reasons for token revocation"""
 
@@ -1433,7 +1507,8 @@ class RevocationReason(Enum):
     SESSION_TIMEOUT = "session_timeout"            # Inactivity timeout
     DEVICE_LOST = "device_lost"                    # Device marked as lost
     LOGOUT_ALL_DEVICES = "logout_all_devices"      # Log out all sessions
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1444,6 +1519,7 @@ class RevocationReason(Enum):
 Every request includes tenant context for isolation:
 
 ```python
+<!-- Code example in Python -->
 class TenantContext:
     """User's tenant context for authorization and data isolation"""
 
@@ -1466,13 +1542,15 @@ class TenantContext:
         Exception: Platform admins (system administrators).
         """
         return self.tenant_id == target_tenant_id or "platform_admin" in self.roles
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Tenant-Scoped Authorization
 
 ```python
-@fraiseql.type
-@fraiseql.authorize(rule="owned_by_tenant")
+<!-- Code example in Python -->
+@FraiseQL.type
+@FraiseQL.authorize(rule="owned_by_tenant")
 class Post:
     """Posts are scoped to owning tenant"""
     id: ID
@@ -1481,14 +1559,16 @@ class Post:
     tenant_id: ID
 
 # Authorization rule: User can only access posts from their tenant
-@fraiseql.authorization_rule(name="owned_by_tenant")
+@FraiseQL.authorization_rule(name="owned_by_tenant")
 def rule_owned_by_tenant(resource, user_context):
     return resource.tenant_id == user_context.tenant_id
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Multi-Tenant Database Strategy
 
 ```python
+<!-- Code example in Python -->
 class MultiTenantDatabaseManager:
     """Manage database connections per tenant"""
 
@@ -1505,7 +1585,8 @@ class MultiTenantDatabaseManager:
         3. Separate server per tenant
         """
         return self.tenant_pools.get(tenant_id, self.default_pool)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1524,6 +1605,7 @@ class MultiTenantDatabaseManager:
 **Recommended:** Secure httpOnly cookie with SameSite=Strict
 
 ```python
+<!-- Code example in Python -->
 response.set_cookie(
     key="access_token",
     value=token,
@@ -1534,14 +1616,16 @@ response.set_cookie(
     domain="api.example.com",
     path="/graphql"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 CSRF Protection
 
 Protect against Cross-Site Request Forgery:
 
 ```python
-@fraiseql.hook(event="request.before_authorization")
+<!-- Code example in Python -->
+@FraiseQL.hook(event="request.before_authorization")
 async def validate_csrf(request):
     """Validate CSRF token for state-changing operations"""
 
@@ -1555,11 +1639,13 @@ async def validate_csrf(request):
     session_csrf = request.session.get("csrf_token")
     if csrf_token != session_csrf:
         raise FraiseSQLError("CSRF_VALIDATION_FAILED", "CSRF token mismatch")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.3 Rate Limiting & Brute Force Protection
 
 ```python
+<!-- Code example in Python -->
 class AuthenticationRateLimiter:
     """Prevent brute force attacks on authentication endpoints"""
 
@@ -1592,11 +1678,13 @@ class AuthenticationRateLimiter:
         """Get remaining lockout time in seconds"""
         key = f"auth_attempts:{identifier}"
         return await self.redis.ttl(key)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.4 Credential Validation
 
 ```python
+<!-- Code example in Python -->
 class CredentialValidator:
     """Validate credentials before authentication attempt"""
 
@@ -1629,7 +1717,8 @@ class CredentialValidator:
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(pattern, email):
             raise ValidationError("Invalid email format")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1638,6 +1727,7 @@ class CredentialValidator:
 ### 10.1 Authentication Event Logging
 
 ```python
+<!-- Code example in Python -->
 class AuthenticationAuditLog:
     """Log authentication events for compliance and investigation"""
 
@@ -1681,23 +1771,27 @@ class AuthenticationAuditLog:
                 status, ip_address, user_agent, details
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         """, event.values())
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.2 Compliance Requirements
 
 **SOC 2 Type II:**
+
 - Audit trail for all authentication events
 - Secure token storage and transmission
 - Rate limiting on authentication endpoints
 - Monitoring for suspicious patterns
 
 **GDPR:**
+
 - User consent for data processing
 - Right to deletion (archive authentication logs)
 - Audit trail retention policies
 - Data minimization (collect only necessary claims)
 
 **HIPAA:**
+
 - Secure token transmission (HTTPS only)
 - Encryption at rest and in transit
 - Access control and audit logging
@@ -1712,6 +1806,7 @@ class AuthenticationAuditLog:
 Cache JWT validation results to avoid repeated cryptographic operations:
 
 ```python
+<!-- Code example in Python -->
 class CachedJWTValidator:
     """Cache JWT validation for performance"""
 
@@ -1747,11 +1842,13 @@ class CachedJWTValidator:
         }
 
         return payload
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Parallel Authentication
 
 ```python
+<!-- Code example in Python -->
 async def authenticate_with_fallback(
     credentials: dict[str, Any],
     primary_provider: AuthenticationProvider,
@@ -1770,13 +1867,15 @@ async def authenticate_with_fallback(
             except AuthenticationError:
                 raise e  # Raise original error
         raise
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 12. Error Handling
 
 ```python
+<!-- Code example in Python -->
 class AuthenticationError(FraiseSQLError):
     """Base authentication error"""
     code = "E_AUTH_FAILED"
@@ -1808,7 +1907,8 @@ class UnauthorizedError(FraiseSQLError):
     """User not authenticated"""
     code = "E_AUTH_UNAUTHORIZED"
     http_status = 401
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1817,6 +1917,7 @@ class UnauthorizedError(FraiseSQLError):
 FraiseQL authentication specification provides:
 
 ✅ **Multiple Authentication Schemes**
+
 - OAuth2 (Authorization Code, Client Credentials, Refresh Token)
 - SAML 2.0 (Enterprise SSO)
 - JWT (Stateless tokens)
@@ -1824,12 +1925,14 @@ FraiseQL authentication specification provides:
 - Custom providers (Extensible)
 
 ✅ **Complete Token Lifecycle**
+
 - Generation and signing
 - Validation and claims extraction
 - Refresh and rotation
 - Revocation and expiration
 
 ✅ **Enterprise Security**
+
 - Multi-tenant isolation
 - CSRF protection
 - Rate limiting
@@ -1837,12 +1940,14 @@ FraiseQL authentication specification provides:
 - Compliance support (SOC 2, GDPR, HIPAA)
 
 ✅ **Performance**
+
 - Token caching
 - Parallel authentication
 - Efficient key rotation
 - Minimal crypto overhead
 
 ✅ **User Experience**
+
 - Seamless token refresh
 - Cross-domain SSO support
 - Mobile and SPA support

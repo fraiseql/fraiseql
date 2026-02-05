@@ -1,10 +1,63 @@
+<!-- Skip to main content -->
+---
+title: Observability Guide for FraiseQL
+description: - Observability fundamentals (logs, metrics, traces - the three pillars)
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Observability Guide for FraiseQL
 
-**Version:** 1.0
-**Status:** Draft
-**Audience:** Operations engineers, DevOps, system architects, schema authors
+**Status:** ✅ Production Ready
+**Audience:** DevOps, SREs, Architects
+**Reading Time:** 15-20 minutes
+**Last Updated:** 2026-02-05
 
 ---
+
+## Prerequisites
+
+### Required Knowledge
+
+- Observability fundamentals (logs, metrics, traces - the three pillars)
+- Structured logging and JSON formats
+- Time-series metrics and Prometheus concepts
+- Distributed tracing and span concepts
+- Change Data Capture (CDC) principles
+- Audit logging and compliance requirements
+- Multi-tenancy data isolation patterns
+
+### Required Software
+
+- FraiseQL v2.0.0-alpha.1 or later
+- PostgreSQL 14+ (for change log tables)
+- Prometheus (for metrics collection)
+- Grafana (for visualization) or alternative dashboarding tool
+- Jaeger or Zipkin (for distributed tracing)
+- Log aggregation tool (ELK, Splunk, DataDog, New Relic, or similar)
+- curl or API client for testing
+
+### Required Infrastructure
+
+- FraiseQL server instance
+- PostgreSQL database with CDC support
+- Prometheus scrape-compatible endpoint
+- Log collection infrastructure (syslog, vector, fluentd, etc.)
+- Trace backend (Jaeger collector, Zipkin server)
+- Metrics storage (Prometheus or similar time-series database)
+- Grafana or visualization tool
+- Network connectivity between all components
+
+#### Optional but Recommended
+
+- Kubernetes monitoring (Prometheus Operator)
+- Alert manager for anomaly detection
+- Custom grafana dashboards/templates
+- Distributed tracing sampling strategies
+- Log retention and archival policies
+- Metrics correlation tools
+
+**Time Estimate:** 1-3 hours for basic setup, 4-8 hours for production configuration with alerting
 
 ## 1. Overview
 
@@ -29,11 +82,13 @@ FraiseQL's observability is **database-first**: The database is the source of tr
 ### 2.1 Entity Change Log — Source of Truth
 
 The **`tb_entity_change_log` table** (see **docs/specs/schema-conventions.md section 6**) is the centralized audit log for all entity writes. This table provides:
+
 - **Debezium envelope format** for CDC compatibility (see schema-conventions.md section 6.2)
 - **Helper functions** for logging and response building (see schema-conventions.md section 6.4)
 - **Status taxonomy** for machine-readable outcome tracking (see schema-conventions.md section 6.3)
 
 ```sql
+<!-- Code example in SQL -->
 -- Query recent mutations for a user
 SELECT
     created_at,
@@ -47,9 +102,11 @@ FROM core.tb_entity_change_log
 WHERE fk_customer_org = $tenant_id
   AND created_at > NOW() - INTERVAL '1 hour'
 ORDER BY created_at DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**What's recorded:**
+### What's recorded
+
 - **Before/After state** — Full entity snapshots (Debezium envelope)
 - **Operation type** — INSERT, UPDATE, DELETE, or NOOP
 - **Status** — Success, error, conflict, validation, noop, blocked
@@ -60,9 +117,10 @@ ORDER BY created_at DESC;
 
 ### 2.2 Mutation Metrics
 
-**Success/Failure Rates:**
+#### Success/Failure Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutation success rate by entity type (last 24 hours)
 SELECT
     object_type,
@@ -77,11 +135,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY object_type, is_success
 ORDER BY object_type;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Status Distribution:**
+### Status Distribution
 
 ```sql
+<!-- Code example in SQL -->
 -- Distribution of mutation outcomes (last 24 hours)
 SELECT
     object_type,
@@ -92,18 +152,21 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY object_type, change_status
 ORDER BY object_type, count DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Common statuses:**
+### Common statuses
+
 - `new`, `updated`, `deleted`, `success` — Success
 - `failed:*`, `not_found`, `forbidden` — Errors
 - `conflict:*`, `duplicate:*` — Conflicts
 - `validation:*` — Validation errors
 - `noop:*`, `blocked:*` — No-ops
 
-**Mutation Latency:**
+### Mutation Latency
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutations taking longer than 1 second (slow mutation detection)
 SELECT
     created_at,
@@ -116,11 +179,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '1 hour'
   AND CAST(extra_metadata->>'duration_ms' AS INTEGER) > 1000
 ORDER BY created_at DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Cascade Operation Counts:**
+### Cascade Operation Counts
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutations that triggered cascade operations
 SELECT
     object_type,
@@ -132,13 +197,15 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
   AND extra_metadata->>'cascade_count' IS NOT NULL
 GROUP BY object_type, change_status;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Mutation Tracing
 
-**Correlation IDs Link Requests:**
+#### Correlation IDs Link Requests
 
 ```sql
+<!-- Code example in SQL -->
 -- All mutations from a single API request
 SELECT
     created_at,
@@ -149,11 +216,13 @@ SELECT
 FROM core.tb_entity_change_log
 WHERE extra_metadata->>'request_id' = $request_id
 ORDER BY created_at ASC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Trace Cascade Operations:**
+### Trace Cascade Operations
 
 ```sql
+<!-- Code example in SQL -->
 -- Follow cascade chain from parent deletion
 WITH RECURSIVE cascade_chain AS (
     -- Base: find the original mutation
@@ -187,7 +256,8 @@ WITH RECURSIVE cascade_chain AS (
     WHERE cc.depth < 5  -- Prevent infinite loops
 )
 SELECT * FROM cascade_chain ORDER BY created_at, depth;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -195,9 +265,10 @@ SELECT * FROM cascade_chain ORDER BY created_at, depth;
 
 ### 3.1 Query Performance Monitoring
 
-**Slow Query Detection:**
+#### Slow Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Log slow queries in your application
 -- INSERT INTO monitoring.slow_query_log
 -- (request_id, query_name, execution_time_ms, where_complexity, row_count)
@@ -215,24 +286,29 @@ WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 HAVING AVG(execution_time_ms) > 50  -- Threshold
 ORDER BY avg_ms DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Query Execution Plans (PostgreSQL):**
+### Query Execution Plans (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Analyze query performance with EXPLAIN
 -- EXPLAIN (ANALYZE, BUFFERS)
 -- SELECT * FROM v_user WHERE email = $email;
 
 -- Look for:
+
 -- - Sequential scans (should be index scans)
 -- - High costs (optimization opportunity)
 -- - Buffer hits (cache effectiveness)
-```
+```text
+<!-- Code example in TEXT -->
 
-**N+1 Query Detection:**
+### N+1 Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Count queries by type/entity (in application logs)
 -- If you see many separate queries for same entity type,
 -- likely N+1 pattern. Solution: use view composition
@@ -246,13 +322,15 @@ FROM monitoring.query_log
 WHERE request_id = $request_id
 GROUP BY query_type
 ORDER BY execution_count DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Query Metrics
 
-**Query Execution Counts:**
+#### Query Execution Counts
 
 ```sql
+<!-- Code example in SQL -->
 -- Top queries by frequency (last 24 hours)
 SELECT
     query_name,
@@ -266,11 +344,13 @@ WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY executions DESC
 LIMIT 20;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Cache Hit/Miss Rates:**
+### Cache Hit/Miss Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Track cache effectiveness
 SELECT
     query_name,
@@ -284,11 +364,13 @@ FROM monitoring.query_cache_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY hit_rate_pct ASC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**WHERE Clause Complexity:**
+### WHERE Clause Complexity
 
 ```sql
+<!-- Code example in SQL -->
 -- Track filter complexity
 SELECT
     query_name,
@@ -299,13 +381,15 @@ FROM monitoring.query_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY avg_conditions DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Query Tracing
 
-**Execution Phase Timing:**
+#### Execution Phase Timing
 
 ```sql
+<!-- Code example in SQL -->
 -- Track time spent in each execution phase
 SELECT
     query_name,
@@ -318,11 +402,13 @@ FROM monitoring.query_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY query_name
 ORDER BY execution_ms DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Authorization Decision Logging:**
+### Authorization Decision Logging
 
 ```sql
+<!-- Code example in SQL -->
 -- Track authorization checks
 SELECT
     rule_name,
@@ -336,7 +422,8 @@ FROM monitoring.auth_log
 WHERE logged_at > NOW() - INTERVAL '24 hours'
 GROUP BY rule_name
 ORDER BY denial_rate_pct DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -345,12 +432,14 @@ ORDER BY denial_rate_pct DESC;
 ### 4.1 Correlation IDs
 
 Every request should have a **request ID** that traces through:
+
 1. GraphQL request entry
 2. SQL query execution
 3. CDC event emission
 4. Mutation logging
 
 ```json
+<!-- Code example in JSON -->
 // GraphQL request
 {
   "request_id": "req_550e8400-e29b-41d4-a716-446655440000",
@@ -373,11 +462,13 @@ Every request should have a **request ID** that traces through:
     "organization": "uuid"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
-**Propagate correlation IDs:**
+### Propagate correlation IDs
 
 ```sql
+<!-- Code example in SQL -->
 -- Stored procedure receives correlation ID
 CREATE OR REPLACE FUNCTION fn_create_user(
     input_request_id UUID,
@@ -397,7 +488,8 @@ BEGIN
     );
 END;
 $$;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Trace Context
 
@@ -419,6 +511,7 @@ Store in every log entry:
 ### 5.1 Database Metrics (PostgreSQL)
 
 ```sql
+<!-- Code example in SQL -->
 -- Connection pool utilization
 SELECT
     state,
@@ -447,13 +540,15 @@ SELECT
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Runtime Metrics
 
-**Request Throughput:**
+#### Request Throughput
 
 ```sql
+<!-- Code example in SQL -->
 -- Requests per second over time
 SELECT
     DATE_TRUNC('minute', created_at) AS minute,
@@ -463,11 +558,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY minute
 ORDER BY minute DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Response Time Distribution:**
+### Response Time Distribution
 
 ```sql
+<!-- Code example in SQL -->
 -- Percentiles of response latency
 SELECT
     PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_ms) AS p50_ms,
@@ -476,11 +573,13 @@ SELECT
     PERCENTILE_CONT(0.999) WITHIN GROUP (ORDER BY duration_ms) AS p999_ms
 FROM monitoring.mutation_log
 WHERE logged_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
-**Error Rates:**
+#### Error Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- Mutation failure rate
 SELECT
     ROUND(
@@ -490,13 +589,15 @@ SELECT
     ) AS error_rate_pct
 FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Business Metrics
 
-**Entity Creation Rates:**
+#### Entity Creation Rates
 
 ```sql
+<!-- Code example in SQL -->
 -- New entities per day
 SELECT
     DATE(created_at) AS date,
@@ -506,11 +607,13 @@ FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '30 days'
 GROUP BY DATE(created_at), object_type
 ORDER BY date DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Entity Update Frequency:**
+### Entity Update Frequency
 
 ```sql
+<!-- Code example in SQL -->
 -- How often entities are updated
 SELECT
     object_type,
@@ -526,7 +629,8 @@ FROM (
     GROUP BY object_type, object_id
 ) stats
 GROUP BY object_type;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -537,11 +641,12 @@ GROUP BY object_type;
 All logs should be structured JSON for easy parsing:
 
 ```json
+<!-- Code example in JSON -->
 {
   "timestamp": "2026-01-11T15:00:00.123456Z",
   "level": "INFO",
   "message": "User created successfully",
-  "service": "fraiseql",
+  "service": "FraiseQL",
   "component": "mutation",
   "request_id": "req_550e8400-e29b-41d4-a716-446655440000",
   "user_id": "user_550e8400-e29b-41d4-a716-446655440001",
@@ -553,7 +658,8 @@ All logs should be structured JSON for easy parsing:
   "query_count": 2,
   "cascade_count": 0
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Log Levels
 
@@ -569,13 +675,15 @@ All logs should be structured JSON for easy parsing:
 Use `tb_entity_change_log` as source of truth:
 
 ```sql
+<!-- Code example in SQL -->
 -- Query logs by various filters
 WHERE fk_customer_org = $tenant_id              -- Single tenant
   AND created_at > NOW() - INTERVAL '1 hour'   -- Time range
   AND change_status LIKE 'failed:%'             -- Filter by status
   AND object_type = 'User'                      -- Filter by entity type
   AND extra_metadata->>'request_id' = $req_id   -- Correlate requests
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -593,9 +701,10 @@ WHERE fk_customer_org = $tenant_id              -- Single tenant
 
 ### 7.2 Alert Patterns
 
-**Spike in Failed Mutations:**
+#### Spike in Failed Mutations
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if error rate increases suddenly
 WITH rates AS (
     SELECT
@@ -614,28 +723,33 @@ WITH rates AS (
 SELECT * FROM rates
 WHERE error_rate > 10.0  -- Alert if > 10%
   AND error_rate > (SELECT error_rate FROM rates OFFSET 1 LIMIT 1) * 1.5;
-```
+```text
+<!-- Code example in TEXT -->
 
-**Slow Query Detection:**
+### Slow Query Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert on slow queries
 SELECT *
 FROM monitoring.query_log
 WHERE execution_time_ms > 1000  -- > 1 second
   AND logged_at > NOW() - INTERVAL '5 minutes';
-```
+```text
+<!-- Code example in TEXT -->
 
-**Cascade Operation Anomaly:**
+### Cascade Operation Anomaly
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if cascade counts spike
 SELECT object_type
 FROM core.tb_entity_change_log
 WHERE created_at > NOW() - INTERVAL '1 hour'
 GROUP BY object_type
 HAVING AVG(CAST(extra_metadata->>'cascade_count' AS INTEGER)) > 10;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -643,7 +757,7 @@ HAVING AVG(CAST(extra_metadata->>'cascade_count' AS INTEGER)) > 10;
 
 ### 8.1 Debugging Failed Mutations
 
-**Workflow:**
+#### Workflow
 
 1. Find the mutation in `tb_entity_change_log`
 2. Check `change_status` for error category
@@ -651,6 +765,7 @@ HAVING AVG(CAST(extra_metadata->>'cascade_count' AS INTEGER)) > 10;
 4. Check `extra_metadata` for context
 
 ```sql
+<!-- Code example in SQL -->
 -- Find failed mutation
 SELECT
     *,
@@ -667,11 +782,12 @@ LIMIT 1;
 -- - validation:* → Invalid data
 -- - failed:* → Operation error
 -- - Check extra_metadata for details
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Debugging Slow Queries
 
-**Workflow:**
+#### Workflow
 
 1. Identify slow queries from monitoring
 2. Check execution plan with EXPLAIN ANALYZE
@@ -679,24 +795,28 @@ LIMIT 1;
 4. Check for N+1 patterns
 
 ```sql
+<!-- Code example in SQL -->
 -- EXPLAIN ANALYZE shows:
+
 -- - Sequential scans → Need index
 -- - High costs → Optimization opportunity
 -- - Buffer hits → Good cache performance
 
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user WHERE email = $email;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Debugging Authorization Failures
 
-**Workflow:**
+#### Workflow
 
 1. Check auth context (user_id, roles, tenant_id)
 2. Verify CompiledSchema auth rules
 3. Check field-level auth for partial results
 
 ```sql
+<!-- Code example in SQL -->
 -- Verify auth context was passed
 SELECT
     extra_metadata->>'user_id' AS user_id,
@@ -708,7 +828,8 @@ WHERE pk_entity_change_log = $log_id;
 WHERE change_status LIKE 'blocked:%'
   OR change_status = 'forbidden'
   OR change_status = 'unauthorized';
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -718,12 +839,14 @@ WHERE change_status LIKE 'blocked:%'
 
 The `tb_entity_change_log` is the source for CDC events (see **docs/specs/cdc-format.md** for complete event structure and **docs/architecture/core/execution-model.md section 9.3** for execution model integration):
 
-**Key References:**
+#### Key References
+
 - **docs/specs/cdc-format.md section 2** — Complete CDC event structure with all fields
 - **docs/specs/schema-conventions.md section 6.2** — Debezium envelope format stored in change log's `object_data` column
 - **docs/architecture/core/execution-model.md section 9** — Mutation execution pipeline and cache invalidation
 
 ```json
+<!-- Code example in JSON -->
 // tb_entity_change_log row becomes CDC event
 {
   "version": "1.0",
@@ -742,11 +865,13 @@ The `tb_entity_change_log` is the source for CDC events (see **docs/specs/cdc-fo
   "cascade": { ... },    // Cascade information
   "metadata": { ... }    // From extra_metadata
 }
-```
+```text
+<!-- Code example in TEXT -->
 
-**Stream mutations to monitoring:**
+### Stream mutations to monitoring
 
 ```sql
+<!-- Code example in SQL -->
 -- Consume change log and emit CDC events
 -- Typically via PostgreSQL LISTEN/NOTIFY or trigger:
 
@@ -771,13 +896,15 @@ CREATE TRIGGER cdc_trigger
 AFTER INSERT ON core.tb_entity_change_log
 FOR EACH ROW
 EXECUTE FUNCTION emit_cdc_event();
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 Real-Time Observability
 
-**Stream mutations to dashboards:**
+#### Stream mutations to dashboards
 
 ```python
+<!-- Code example in Python -->
 # Python example: consume CDC events
 import psycopg
 import json
@@ -799,7 +926,8 @@ with conn.cursor() as cur:
 
         # Trigger anomaly detection
         check_anomalies(event)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -808,6 +936,7 @@ with conn.cursor() as cur:
 ### 10.1 PostgreSQL
 
 ```sql
+<!-- Code example in SQL -->
 -- pg_stat_statements: Most expensive queries
 SELECT
     calls,
@@ -832,11 +961,13 @@ SELECT
     idx_tup_fetch
 FROM pg_stat_user_tables
 ORDER BY seq_scan DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.2 SQLite
 
 ```sql
+<!-- Code example in SQL -->
 -- SQLite query analysis
 EXPLAIN QUERY PLAN
 SELECT * FROM v_user WHERE email = $email;
@@ -849,7 +980,8 @@ SELECT COUNT(*), query, total_time_us
 FROM sqlite_stat_execution
 GROUP BY query
 ORDER BY total_time_us DESC;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.3 MySQL / SQL Server
 
@@ -865,6 +997,7 @@ ORDER BY total_time_us DESC;
 ### 11.1 Change Log Archival
 
 ```sql
+<!-- Code example in SQL -->
 -- Archive old logs (older than 90 days)
 CREATE TABLE core.tb_entity_change_log_archive
     (LIKE core.tb_entity_change_log);
@@ -880,47 +1013,55 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 -- Partition by created_at for faster queries
 CREATE TABLE core.tb_entity_change_log_2026_01 PARTITION OF core.tb_entity_change_log
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Performance Considerations
 
-**Async Logging:**
+#### Async Logging
 
 ```sql
+<!-- Code example in SQL -->
 -- Use PERFORM (fire and forget) for logging
 PERFORM log_mutation_event(...)  -- Non-blocking
 
 -- vs
 
 INSERT INTO audit_log ...         -- Blocking, slower
-```
+```text
+<!-- Code example in TEXT -->
 
-**Batch CDC Emission:**
+### Batch CDC Emission
 
 ```sql
+<!-- Code example in SQL -->
 -- Emit CDC events in batches (PostgreSQL)
 -- Instead of one trigger per row, batch events:
 
 INSERT INTO cdc_queue (event_payload)
 SELECT json_agg(...) FROM change_log WHERE NOT emitted
 GROUP BY created_at::DATE;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.3 Multi-Tenant Observability
 
-**Per-Tenant Dashboards:**
+#### Per-Tenant Dashboards
 
 ```sql
+<!-- Code example in SQL -->
 -- Dashboard filtered by tenant
 SELECT ...
 FROM core.tb_entity_change_log
 WHERE fk_customer_org = $tenant_id  -- Always filter by tenant
   AND created_at > NOW() - INTERVAL '24 hours';
-```
+```text
+<!-- Code example in TEXT -->
 
-**Cross-Tenant Anomaly Detection:**
+### Cross-Tenant Anomaly Detection
 
 ```sql
+<!-- Code example in SQL -->
 -- Alert if one tenant has unusual activity
 SELECT
     fk_customer_org,
@@ -938,13 +1079,14 @@ HAVING COUNT(*) > (
         GROUP BY fk_customer_org
     ) stats
 ) * 2;  -- Alert if 2x average
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Summary
 
-**Observability in FraiseQL is:**
+### Observability in FraiseQL is
 
 1. **Database-first** — `tb_entity_change_log` is source of truth
 2. **Multi-tenant aware** — All logs scoped by tenant
@@ -954,7 +1096,7 @@ HAVING COUNT(*) > (
 6. **Real-time capable** — Stream mutations via CDC
 7. **Audit-ready** — Complete history for compliance
 
-**Key files:**
+### Key files
 
 - `tb_entity_change_log` — Mutation audit trail (schema-conventions.md section 6)
 - `CDC events` — Real-time stream (cdc-format.md)
@@ -963,4 +1105,141 @@ HAVING COUNT(*) > (
 
 ---
 
-*End of Observability Guide*
+---
+
+## Troubleshooting
+
+### "Entity change log table missing or not populated"
+
+**Cause:** CDC not enabled or table not created.
+
+#### Diagnosis
+
+1. Check if table exists: `SELECT * FROM information_schema.tables WHERE table_name = 'tb_entity_change_log';`
+2. Query table: `SELECT COUNT(*) FROM tb_entity_change_log;`
+3. Check FraiseQL config: Is CDC enabled?
+
+#### Solutions
+
+- Run migrations: `FraiseQL migrate --target latest`
+- Verify table was created by migration: Check database logs
+- Enable CDC in FraiseQL.toml: `[cdc] enabled = true`
+- Check application logs for migration errors
+
+### "Change log has data but CDC consumers aren't receiving events"
+
+**Cause:** Consumer not connected or subscription has lag.
+
+#### Diagnosis
+
+1. Check consumer status: `SELECT * FROM tb_cdc_consumer_offset WHERE consumer_id = 'X';`
+2. Verify connection: `SELECT COUNT(*) FROM tb_entity_change_log WHERE id > last_offset;`
+3. Check for errors in consumer logs
+
+#### Solutions
+
+- Restart consumer service
+- Reset consumer offset to catch up: `UPDATE tb_cdc_consumer_offset SET offset = 0 WHERE consumer_id = 'X';`
+- Verify network connectivity to CDC source
+- Check authentication credentials for consumer
+- Monitor lag: Alert if lag > 1000 events
+
+### "Query logs missing recent mutations"
+
+**Cause:** Logging not enabled or query log table full.
+
+#### Diagnosis
+
+1. Check logging level: `grep RUST_LOG FraiseQL.toml`
+2. Check query log table size: `SELECT pg_size_pretty(pg_total_relation_size('tb_query_log'));`
+3. Verify queries are actually running: `SELECT COUNT(*) FROM tb_query_log WHERE created_at > NOW() - INTERVAL '1 hour';`
+
+#### Solutions
+
+- Enable query logging: `RUST_LOG=info,FraiseQL::query_log=debug`
+- Implement log rotation: Clean up old logs older than 30 days
+- Increase retention window: `VACUUM ANALYZE tb_query_log;`
+- Stream logs to external system (Splunk, DataDog) instead of storing in database
+
+### "Correlation IDs not present in logs"
+
+**Cause:** Client not sending X-Correlation-ID header or application not passing through.
+
+#### Diagnosis
+
+1. Check request headers: Add `X-Correlation-ID` to all requests
+2. Verify logs include correlation ID: `grep -i correlation application.log`
+3. Check FraiseQL version supports correlation IDs
+
+#### Solutions
+
+- Always send correlation ID from client: `curl -H "X-Correlation-ID: abc-123" ...`
+- Propagate correlation ID to subgraph calls
+- Verify logging configuration includes correlation ID
+- Use `X-Request-ID` as fallback if correlation ID missing
+
+### "Audit trail doesn't show who made a change"
+
+**Cause:** User/tenant context not captured or not included in log.
+
+#### Diagnosis
+
+1. Check for user_id in change log: `SELECT DISTINCT user_id FROM tb_entity_change_log;`
+2. Verify token contains user info
+3. Check if middleware extracts user from JWT
+
+#### Solutions
+
+- Ensure all mutations include user context (from JWT or session)
+- Middleware should extract user_id and inject into query context
+- Store user_id in change log: `INSERT INTO tb_entity_change_log (..., user_id) VALUES (..., current_user_id);`
+- For compliance: Store full user record snapshot in audit log
+
+### "Performance degradation after enabling detailed observability"
+
+**Cause:** Logging and CDC adds overhead - database I/O or CPU bound.
+
+#### Diagnosis
+
+1. Compare before/after: Measure query latency with/without logging
+2. Check database CPU: `SELECT * FROM pg_stat_statements ORDER BY mean_exec_time DESC;`
+3. Monitor disk I/O: May be bottleneck if log table very large
+
+#### Solutions
+
+- Use log sampling: Log 1 in 100 queries to reduce I/O
+- Async logging: Queue logs to background writer (don't block mutations)
+- Archival: Move old logs to separate table/schema
+- Use external log aggregation (Splunk, DataDog) instead of database
+- Disable debug-level logging in production (use info level)
+
+### "Tenant data leaked in observability logs"
+
+**Cause:** Sensitive data logged or not scoped correctly.
+
+#### Diagnosis
+
+- Audit logs to find if PII/sensitive data present
+- Check log filtering: Does it respect data isolation?
+- Review who has access to observability systems
+
+#### Solutions
+
+- Sanitize logs: Hash or mask PII before logging
+- Scope all observations by tenant: Use tenant_id in WHERE clauses
+- Implement access controls on observability data
+- Regular audit of log contents for compliance
+- Implement field-level encryption for sensitive fields
+
+---
+
+## See Also
+
+- **[Monitoring & Observability Guide](./monitoring.md)** - Prometheus, OpenTelemetry, health checks setup
+- **[Observability Architecture](../architecture/observability/observability-model.md)** - Technical architecture and design
+- **[Production Deployment](./production-deployment.md)** - Observability in production environments
+- **[Database Fundamentals](../architecture/database/database-targeting.md)** - Understanding database-centric logging
+- **[CDC Format Specification](../specs/cdc-format.md)** - Change data capture event structure
+- **[Troubleshooting Guide](../observability/troubleshooting.md)** - Using observability data for debugging
+
+

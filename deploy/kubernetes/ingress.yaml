@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fraiseql
+  namespace: default
+  labels:
+    app: fraiseql
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: fraiseql.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fraiseql
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - fraiseql.example.com
+    secretName: fraiseql-tls

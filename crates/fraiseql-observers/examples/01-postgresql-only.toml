@@ -1,0 +1,58 @@
+# PostgreSQL-Only Observer Configuration
+# ==========================================
+#
+# This is the simplest deployment:
+# - PostgreSQL LISTEN/NOTIFY for event sourcing (default)
+# - No Redis (no deduplication, no caching)
+# - No NATS (single-database only)
+#
+# Best for:
+# - Single PostgreSQL database
+# - Low event volume (<1000 events/sec)
+# - Simple deployment (no additional infrastructure)
+
+# Transport configuration
+[transport]
+# Use PostgreSQL LISTEN/NOTIFY (default)
+transport = "postgres"
+run_bridge = false      # No NATS bridge
+run_executors = true    # Run observers in-process
+
+# No Redis configuration (dedup + caching disabled)
+# redis = ...
+
+# Performance features (all disabled without Redis)
+[performance]
+enable_dedup = false        # No deduplication (at-most-once delivery)
+enable_caching = false      # No action result caching
+enable_concurrent = true    # Still use concurrent action execution
+max_concurrent_actions = 10
+concurrent_timeout_ms = 30000
+
+# Runtime settings
+channel_capacity = 1000
+max_concurrency = 50
+overflow_policy = "drop"
+backlog_alert_threshold = 500
+shutdown_timeout = "30s"
+
+# Example observer: Send email when order is shipped
+[[observers]]
+event_type = "UPDATE"
+entity = "Order"
+condition = "data.status == 'shipped'"
+
+[[observers.actions]]
+type = "email"
+to_template = "{{ data.customer_email }}"
+subject = "Your order has shipped!"
+body_template = "Order #{{ data.id }} is on its way."
+
+[observers.retry]
+max_attempts = 3
+initial_delay_ms = 100
+max_delay_ms = 30000
+backoff_strategy = "exponential"
+
+[observers.on_failure]
+# Log errors (no DLQ without Redis)

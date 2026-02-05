@@ -1,0 +1,34 @@
+# FraiseQL v2 SaaS Platform Example
+# Multi-tenant organization with domain-driven architecture
+
+[schema]
+name = "saas"
+version = "1.0.0"
+description = "SaaS platform with account management, billing, teams, and integrations"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/saas"
+pool_size = 10
+ssl_mode = "prefer"
+timeout_seconds = 30
+
+# Auto-discover domains
+[domain_discovery]
+enabled = true
+root_dir = "schema"
+
+[security]
+default_policy = "authenticated"
+
+[[security.rules]]
+name = "allow_account_owners"
+rule = "mutation * Account"
+description = "Only account owners can modify account settings"
+cacheable = false
+
+[[security.rules]]
+name = "allow_billing_admin"
+rule = "mutation * Subscription"
+description = "Only billing admins can manage subscriptions"
+cacheable = false

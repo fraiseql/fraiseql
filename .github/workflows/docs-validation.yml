@@ -1,0 +1,221 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [v2-development, feature/*, main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.vale.ini'
+      - '.vale/**'
+      - '.github/workflows/docs-validation.yml'
+      - 'tools/validate-docs-links.py'
+  pull_request:
+    branches: [v2-development, dev, main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.vale.ini'
+      - '.vale/**'
+      - '.github/workflows/docs-validation.yml'
+      - 'tools/validate-docs-links.py'
+
+jobs:
+  # Validate all documentation links
+  link-validation:
+    name: Documentation Links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Validate Documentation Links
+        run: |
+          python3 tools/validate-docs-links.py docs/ --verbose
+        continue-on-error: false
+
+  # Check markdown formatting and structure
+  markdown-lint:
+    name: Markdown Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+
+      - name: Run markdownlint on docs
+        run: |
+          markdownlint 'docs/**/*.md' || true
+
+  # Check prose quality and consistency
+  prose-lint:
+    name: Prose Linting (Vale)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vale
+        run: |
+          curl -sL https://github.com/errata-ai/vale/releases/download/v3.13.0/vale_3.13.0_Linux_64-bit.tar.gz | tar -xz -C /usr/local/bin
+          vale --version
+
+      - name: Run Vale on docs
+        run: |
+          vale docs/ || true
+
+  # Check for unresolved references and broken anchors
+  doc-structure:
+    name: Documentation Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Check for orphaned files
+        run: |
+          echo "Checking for markdown files with no references..."
+          python3 << 'EOF'
+          import os
+          import re
+          from pathlib import Path
+
+          docs_dir = Path('docs')
+          all_files = set(docs_dir.glob('**/*.md'))
+          referenced_files = set()
+
+          for md_file in all_files:
+              with open(md_file, 'r', encoding='utf-8') as f:
+                  content = f.read()
+                  # Find all links
+                  links = re.findall(r'\[([^\]]*)\]\(([^)]+)\)', content)
+                  for _, link in links:
+                      # Resolve relative links
+                      link_path = link.split('#')[0].split('?')[0]
+                      if not link_path or link_path.startswith('http'):
+                          continue
+
+                      if link_path.startswith('/'):
+                          resolved = docs_dir / link_path[1:]
+                      else:
+                          resolved = (md_file.parent / link_path).resolve()
+
+                      # Check if file or directory
+                      if resolved.with_suffix('.md').exists():
+                          referenced_files.add(resolved.with_suffix('.md'))
+                      elif (resolved / 'README.md').exists():
+                          referenced_files.add(resolved / 'README.md')
+                      elif resolved.exists():
+                          referenced_files.add(resolved)
+
+          # Find orphaned files (excluding archive, patterns, etc.)
+          orphaned = all_files - referenced_files
+
+          # Filter out intentionally standalone files
+          standalone = {
+              docs_dir / 'README.md',
+              docs_dir / 'GETTING_STARTED.md',
+              docs_dir / 'GLOSSARY.md',
+              docs_dir / 'reading-order.md',
+              docs_dir / 'FAQ.md',
+              docs_dir / 'TROUBLESHOOTING.md',
+              docs_dir / 'KNOWN_LIMITATIONS.md',
+          }
+
+          orphaned = orphaned - standalone
+
+          if orphaned:
+              print("⚠️  Potentially orphaned files (may be intentional):")
+              for f in sorted(orphaned):
+                  print(f"  - {f.relative_to(docs_dir)}")
+          else:
+              print("✓ No orphaned files found")
+          EOF
+
+      - name: Check for TODO comments in docs
+        run: |
+          echo "Checking for TODO/FIXME comments in documentation..."
+          grep -r "TODO\|FIXME\|XXX\|HACK" docs/ --include="*.md" || echo "✓ No TODOs found"
+
+  # Verify no broken anchors within files
+  anchor-check:
+    name: Anchor References
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Check anchor references
+        run: |
+          python3 << 'EOF'
+          import re
+          from pathlib import Path
+
+          docs_dir = Path('docs')
+          broken_anchors = []
+
+          for md_file in docs_dir.glob('**/*.md'):
+              with open(md_file, 'r', encoding='utf-8') as f:
+                  content = f.read()
+
+              # Extract all headings (anchors)
+              headings = re.findall(r'^#+\s+(.+)$', content, re.MULTILINE)
+              anchor_ids = set()
+              for heading in headings:
+                  # Convert to anchor ID (lowercase, spaces to dashes)
+                  anchor_id = heading.lower().replace(' ', '-').replace('/', '')
+                  anchor_ids.add(anchor_id)
+
+              # Find anchor references in same file
+              anchor_refs = re.findall(r'\]\(#([^)]+)\)', content)
+              for anchor_ref in anchor_refs:
+                  if anchor_ref not in anchor_ids:
+                      broken_anchors.append(f"{md_file.relative_to(docs_dir)}: #{anchor_ref}")
+
+          if broken_anchors:
+              print("⚠️  Broken anchor references:")
+              for ref in broken_anchors:
+                  print(f"  - {ref}")
+          else:
+              print("✓ All anchor references valid")
+          EOF
+
+  # Final status check
+  docs-validation-success:
+    name: Docs Validation Success
+    needs: [link-validation, markdown-lint, prose-lint, doc-structure, anchor-check]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check job status
+        run: |
+          if [ "${{ needs.link-validation.result }}" == "failure" ] || \
+             [ "${{ needs.markdown-lint.result }}" == "failure" ] || \
+             [ "${{ needs.prose-lint.result }}" == "failure" ] || \
+             [ "${{ needs.doc-structure.result }}" == "failure" ] || \
+             [ "${{ needs.anchor-check.result }}" == "failure" ]; then
+            echo "❌ Documentation validation failed"
+            exit 1
+          fi
+          echo "✓ Documentation validation passed"

@@ -1,0 +1,157 @@
+# Default values for fraiseql Helm chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Image configuration
+image:
+  repository: fraiseql
+  pullPolicy: IfNotPresent
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Replica configuration
+replicaCount: 3
+
+# Pod annotations for metrics, logging, etc.
+podAnnotations: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 65532
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8815
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: fraiseql.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource requests and limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Health probes
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 2
+
+# Node affinity and pod affinity
+nodeSelector: {}
+
+affinity: {}
+
+tolerations: []
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Environment variables and config
+env:
+  RUST_LOG: info
+
+# Database configuration
+database:
+  host: postgres
+  port: 5432
+  name: fraiseql
+  pool:
+    min_size: 5
+    max_size: 20
+  timeout_seconds: 30
+
+# Application configuration
+application:
+  port: 8815
+  graphql:
+    path: /graphql
+    complexity_limit: 1000
+  admin:
+    path: /admin
+    enabled: true
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+  prometheus:
+    port: 9090
+    path: /metrics
+
+# Security configuration
+security:
+  rate_limiting:
+    enabled: true
+    auth_start_max_requests: 100
+    auth_start_window_secs: 60
+  audit_logging:
+    enabled: true
+    log_level: info
+
+# Persistence
+persistence:
+  enabled: false
+  storageClassName: "standard"
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+# Service account configuration
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""

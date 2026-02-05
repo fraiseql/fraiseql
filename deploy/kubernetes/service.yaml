@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraiseql
+  namespace: default
+  labels:
+    app: fraiseql
+spec:
+  type: ClusterIP
+  selector:
+    app: fraiseql
+  ports:
+  - port: 80
+    targetPort: 8815
+    protocol: TCP
+    name: http

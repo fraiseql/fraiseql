@@ -1,0 +1,20 @@
+services:
+  postgres-tls:
+    image: postgres:17-alpine
+    container_name: fraiseql-postgres-tls
+    environment:
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql_test
+      POSTGRES_DB: fraiseql_tls_test
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflict with local PostgreSQL
+    volumes:
+      - ./certs:/certs:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql -d fraiseql_tls_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

@@ -1,784 +1,429 @@
-# FraiseQL v2 — Complete Architecture & Specification
+# FraiseQL v2
 
-**Version:** 1.0 (Draft)
-**Status:** ✅ Ready for Implementation
-**Date:** January 11, 2026
+**Version:** 2.0.0-alpha.1
+**Status:** Alpha release available
+**Date:** February 2026
 
----
+> 🎯 **ALPHA RELEASE**: Core features are production-ready for testing. API is stable, but changes may occur before v2.0.0 GA (Q2 2026). See [Known Limitations](docs/ALPHA_LIMITATIONS.md) for what's coming next. Feedback welcome! Report issues on [GitHub](https://github.com/fraiseql/fraiseql/issues).
 
-## What is FraiseQL v2?
+FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
-FraiseQL v2 is a **compiled GraphQL execution engine** designed for deterministic behavior, maximum performance, and long-term evolution.
+This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
-**Core Concept:** Treat GraphQL as a **declarative interface over a transactional state machine**, not as an application runtime.
-
-**Key Properties:**
-- ✅ **Compiled, not interpreted** — All GraphQL semantics resolved at build time
-- ✅ **Deterministic execution** — No resolvers, hooks, or dynamic logic
-- ✅ **Database-centric** — All joins, filters, and derivations belong in the database
-- ✅ **Multi-database support** — PostgreSQL, MySQL, SQL Server, SQLite
-- ✅ **Declarative authorization** — Auth rules as metadata, not runtime logic
-- ✅ **Real-time ready** — First-class CDC (Change Data Capture) support
-- ✅ **High performance** — Rust runtime
-- ✅ **Portable** — Works on any modern database with standard SQL
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
 
 ---
 
-## Architecture Overview
+## What This Is
+
+FraiseQL v2 handles GraphQL query execution for relational databases. It's built on a simple principle: resolve all GraphQL semantics at compile time, execute queries at runtime without interpretation.
+
+**Core approach:**
+
+- Define your schema in Python, TypeScript, YAML, or GraphQL SDL
+- Run the compiler to produce a compiled schema
+- Start the server with the compiled schema and database connection
+- Execute GraphQL queries
+
+**What's different from typical GraphQL servers:**
+
+- No resolver chain execution (all logic is in the database via views and functions)
+- No N+1 query problems (joins are determined at compile time)
+- No runtime interpretation of schema semantics (they're resolved at build)
+- Authorization rules are metadata, not code
+
+**What's included in v2.0.0-alpha.1:**
+
+**Core GraphQL Engine:**
+
+- Core GraphQL execution (queries, mutations, types, interfaces, unions)
+- Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
+- Automatic WHERE type generation from GraphQL scalar types
+- Apollo Federation v2 with SAGA transaction support across services
+- Automatic Persisted Queries (APQ) with query allowlisting
+
+**Data & Integration:**
+
+- Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
+- Change Data Capture (CDC) at the database layer with full entity context
+- Event system with webhook dispatch, NATS JetStream messaging, and action routing
+- Multi-tenant isolation with per-tenant data scoping
+- Backup and disaster recovery (point-in-time restore, failover support)
+
+**Performance & Streaming:**
+
+- Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
+- Query result caching with automatic invalidation
+- Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
+
+**Enterprise Security Suite:**
+
+- Rate limiting on authentication endpoints (brute-force protection)
+- Audit logging for all mutations and admin operations (multiple backends: file, PostgreSQL, Syslog)
+- Constant-time token comparison (timing attack prevention)
+- Field-level authorization via GraphQL directives
+- Field-level encryption-at-rest for sensitive database columns
+- Credential rotation automation with refresh triggers and monitoring dashboard
+- Error sanitization (implementation details hidden from clients)
+- OAuth state encryption (PKCE protection against state inspection)
+
+**Secrets Management:**
+
+- HashiCorp Vault integration (dynamic secrets, transit encryption, lease management)
+- Environment variables backend with validation
+- File-based secrets backend for local development
+- Secret caching with automatic refresh
+- Database schema for secrets and key management
+
+**External Authentication:**
+
+- OAuth2/OIDC support with 7+ providers:
+  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
+- JWT token handling with rotation support
+- OIDC provider integration
+- Session management with database backend
+- PKCE flow support for secure token exchange
+
+**Quality & Testing:**
+
+- 2,400+ tests, all passing (unit, integration, E2E, chaos engineering)
+- Zero unsafe code (forbidden at compile time)
+- Strict type system (all critical Clippy warnings as errors)
+- Comprehensive test coverage across all components
+
+---
+
+## How It Works
+
+The workflow is straightforward:
 
 ```
-┌─────────────────────────────────────┐
-│   Schema Authoring (Any Language)   │
-│  Python / TypeScript / YAML / CLI   │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│   Compilation Pipeline (6 Phases)   │
-│ Parse → Introspect → Bind →         │
-│ WHERE Gen → Validate → Emit         │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│        CompiledSchema.json          │
-│  (Database-agnostic artifact)       │
-│  • Type system                      │
-│  • Query & mutation definitions     │
-│  • Database bindings                │
-│  • Authorization rules              │
-│  • Capability manifest              │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│    FraiseQL Rust Runtime            │
-│ Validate → Authorize → Plan →       │
-│ Execute → Project → Invalidate      │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│     Database Adapter Layer          │
-│ PostgreSQL, MySQL, SQL Server,      │
-│ SQLite                              │
-└──────────────────┬──────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────┐
-│  Transactional Database (State)     │
-│  • Tables (tb_*)                    │
-│  • Views (v_*)                      │
-│  • Procedures (fn_*)                │
-│  • CDC Events                       │
-└─────────────────────────────────────┘
+
+1. Define Schema                    2. Compile to SQL
+   (Python/TypeScript/YAML)            (fraiseql-cli compile)
+
+   Schema definition                CompiledSchema.json
+   + database views                 (with optimized SQL)
+   + config (TOML)                      │
+         │                              ▼
+         └──────────────────────────────┘
+                        │
+                        ▼
+                3. Run Server
+                (fraiseql-server)
+
+                Loads compiled schema
+                Connects to database
+                Listens on port 8080
+                        │
+                        ▼
+                4. Execute Queries
+                (curl / GraphQL client)
+
+                POST /graphql
+                { "query": "..." }
 ```
 
----
+The key insight: move optimization from runtime to compile time. Your schema is analyzed once at build, then queries are executed efficiently without interpretation.
 
-## Complete Specification Set
-
-### Core Principle 1: Database-Targeting Architecture ✅
-
-**See:** `docs/architecture/database-targeting.md`
-
-FraiseQL achieves **true multi-database support** through compile-time schema specialization, not runtime abstraction:
-
-- **Single configuration point:** `database_target` in compiler configuration
-- **Database-specific schema generation:** WHERE types include only operators the target database supports
-- **No fake abstractions:** GraphQL schema truth matches database reality
-- **Full PostgreSQL power retained:** 60+ operators available for PostgreSQL deployments
-- **Portability:** Same schema definition, different compiled outputs per database target
-
-### Core Principle 2: Language-Agnostic Compilation ✅
-
-**See:** `docs/architecture/authoring-languages.md`
-
-FraiseQL separates **authoring syntax** from **schema semantics** through a unified intermediate representation:
-
-- **Python decorators:** `@schema.type`, `@schema.query` with type hints
-- **TypeScript interfaces:** Native TypeScript with decorator support
-- **YAML:** Language-agnostic structured schemas (best for generated/config-driven)
-- **GraphQL SDL:** Standard GraphQL schema definition language
-- **CLI:** Interactive schema generation and management
-
-All languages compile to the same **AuthoringIR** (Intermediate Representation) → same **CompiledSchema** → same **execution**.
-
-**Real-world usage:**
-
-- Pick one canonical language for your organization (e.g., TypeScript)
-- Other languages available for migration paths or ecosystem projections
-- Easy to convert between languages (Python ↔ YAML ↔ GraphQL SDL)
-- Change authoring language without changing runtime behavior
-- Generated schemas (from database introspection) in YAML, hand-written schemas in preferred language
-
-This enables **organization-scale language choice** without fragmenting the schema or runtime.
-
-Together with database targeting, these principles create **compile-time specialization** for deployment (database)
-and development (authoring language).
+**Automatic WHERE type generation:** Instead of manually defining filter types (like `UserFilter`, `PostFilter`, etc.), FraiseQL generates them at compile time. For each scalar type in your schema (String, Int, DateTime, etc.), it checks your database's capabilities and generates only the operators that database actually supports. PostgreSQL gets regex, full-text search, array operators, and network operators; SQLite gets only basic comparison operators. Across all scalar types, FraiseQL supports 150+ operators total. The result: no fake abstractions, no "unsupported operator" errors at runtime. Your GraphQL schema truthfully reflects what your database can do.
 
 ---
 
-### Phase 1: Foundation
+## Key Design Decisions
 
-#### 1. **Product Requirements Document** `docs/prd/PRD.md`
+**No interpreters, no resolvers.** All GraphQL logic is resolved at build time. Queries bind to database views, mutations call stored procedures. The runtime simply validates, authorizes, and executes pre-compiled SQL.
 
-- Vision and philosophy
-- Core design principles (8 non-negotiable rules)
-- System architecture overview
-- Execution semantics
-- Database contract
-- Schema conventions
-- GraphQL semantics
-- Security model
-- Storage vs projection separation
-- Projection composition patterns
+**Database is the optimizer.** Joins, filters, aggregations all happen in SQL where they belong. FraiseQL doesn't try to optimize relational queries—it lets your database do that.
 
-#### 2. **CompiledSchema Specification** `docs/specs/compiled-schema.md`
+**Deterministic execution.** Because all schema semantics are determined at compile time, queries execute the same way every time. No resolver chains, no runtime magic.
 
-- JSON structure consumed by Rust runtime
-- Type definitions and kinds
-- Scalar, object, input, enum, union, interface types
-- Query and mutation definitions
-- Bindings (view bindings, procedure bindings)
-- Authorization metadata
-- Capability manifest
-- Runtime guarantees
-- Validation rules
+**Authorization as metadata.** Auth rules are compiled into the schema as metadata, not runtime logic. This means they can't be bypassed by chaining resolvers differently.
 
-**Quality:** ✅ Good | **Lines:** 500+ | **Completeness:** 90%
-
-#### 3. **Schema Conventions** `docs/specs/schema-conventions.md`
-
-- Naming conventions (tables, views, functions, constraints)
-- Column conventions (pk_*, fk_*, id, identifier, data)
-- Filterable foreign keys in views
-- Deep path filter columns (items__product__category_id)
-- Audit columns (created_at, created_by, updated_at, updated_by, deleted_at)
-- Stored procedure response contract
-- CDC format (universal JSON response structure)
-- PostgreSQL implementation examples
-- Database-agnostic response structure
-
-**Quality:** ✅ Excellent | **Lines:** 850+ | **Completeness:** 95%
-
-#### 4. **Authoring Contract** `docs/specs/authoring-contract.md`
-
-- Language-agnostic schema authoring interface
-- Type declaration (objects, inputs, scalars, enums)
-- Query and mutation declaration
-- Binding definition
-- Authorization rules
-- Database introspection requirements
-- Comprehensive validation rules
-- Error and validation messages
-- Complete Python example
-
-**Quality:** ✅ Good | **Lines:** 400+ | **Completeness:** 90%
-
-#### 5. **Compilation Pipeline Architecture** `docs/architecture/compilation-pipeline.md`
-
-- 6-phase compilation process
-- Schema parsing from multiple input formats
-- Database introspection (views, columns, procedures)
-- Type binding to database views
-- WHERE type auto-generation based on capability manifest
-- Comprehensive validation engine (type closure, binding existence, view existence, column existence, procedure signature, operator support, auth validity)
-- Artifact emission (CompiledSchema, schema.graphql, validation report)
-- Validation output and error handling
-- Multi-database support framework
-
-**Quality:** ✅ Good | **Lines:** 650+ | **Completeness:** 85%
-
-#### 6. **Execution Model Architecture** `docs/architecture/execution-model.md`
-- 6-phase query execution pipeline
-- GraphQL validation
-- Authorization enforcement (context extraction, decision algorithm, field-level auth)
-- Query planning (execution plan types, WHERE clause compilation)
-- Database execution (SQL translation, dialect-specific optimization)
-- Result projection (JSONB extraction, nested type projection)
-- Mutation execution via stored procedures
-- Cache invalidation emission
-- Error handling and partial results
-- Multi-database execution strategies
-
-**Quality:** ✅ Good | **Lines:** 650+ | **Completeness:** 90%
-
-#### 7. **CDC Format Specification** `docs/specs/cdc-format.md`
-
-- Change Data Capture event structure
-- Event metadata (version, event_id, timestamp, sequence_number)
-- Source information (database, instance, transaction_id, session_id)
-- Entity information (entity_type, entity_id, tenant_id)
-- Operation details (CREATE, UPDATE, DELETE)
-- Cascade information (updated, deleted, invalidations)
-- Custom metadata (request_id, user_id, roles)
-- Complete event examples
-- Database implementations (PostgreSQL, MySQL, SQL Server, SQLite)
-- Event delivery protocols
-- Idempotency and ordering guarantees
-
-**Quality:** ✅ Excellent | **Lines:** 650+ | **Completeness:** 95%
+**Security by default.** All queries are parameterized. Column names and identifiers come only from the schema, never from user input. Built-in rate limiting, audit logging, constant-time token comparison.
 
 ---
 
-### Phase 2: Production Features & Operations (✅ Complete)
+## Consistency Model
 
-#### 8. **Caching Specification** `docs/specs/caching.md`
-- Query result caching architecture (memory, database, custom backends)
-- Cache key generation with tenant isolation
-- Cache invalidation strategies via graphql-cascade
-- Multi-tenant cache considerations
-- Performance characteristics
-- Configuration and best practices
+FraiseQL prioritizes **strong consistency over distributed availability**. This is intentional and fundamental to the architecture.
 
-**Quality:** ✅ Excellent | **Lines:** 450+ | **Completeness:** 95%
+**The choice:** Consistency + Partition Tolerance (CP in CAP theorem)
 
-#### 9. **Automatic Persisted Queries (APQ)** `docs/specs/persisted-queries.md`
-- APQ implementation overview
-- Query hash generation (SHA-256)
-- 3 security modes (OPTIONAL, REQUIRED, DISABLED)
-- Database storage backends (memory, database)
-- Query registration workflow
-- Response caching integration with query result caching
-- Field selection optimization
-- APQ metrics and monitoring
-- Production deployment patterns
+- ✅ Mutations block until completely committed
+- ✅ You see the result immediately (no stale data)
+- ✅ Distributed transactions via SAGA with automatic compensation
+- ❌ If a service is down, mutations fail rather than approximate
 
-**Quality:** ✅ Excellent | **Lines:** 1,100+ | **Completeness:** 95%
+**Good for:** Banking, inventory management, healthcare, enterprise SaaS
+**Not for:** Real-time analytics, social media, presence tracking
 
-#### 10. **Security & Compliance** `docs/specs/security-compliance.md`
-- Security profiles (STANDARD, REGULATED, RESTRICTED)
-- SBOM generation (CycloneDX format)
-- NIS2 compliance features
-- Supply chain security
-- Security headers (CSP, HSTS, X-Frame-Options, etc.)
-- CSRF protection
-- Token revocation
-- Rate limiting configuration
-- Field-level authorization patterns
+FraiseQL refuses to serve approximately-correct data. If a partition occurs or a SAGA step fails, the client gets an error—not a "best guess" response.
 
-**Quality:** ✅ Excellent | **Lines:** 750+ | **Completeness:** 95%
-
-#### 11. **Introspection Control** `docs/specs/introspection.md`
-- Introspection policies (DISABLED, AUTHENTICATED, PUBLIC)
-- Security considerations for schema disclosure
-- Production best practices
-- Schema reflection tools
-- Configuration enforcement
-- PostgreSQL introspection patterns
-
-**Quality:** ✅ Excellent | **Lines:** 400+ | **Completeness:** 95%
-
-#### 12. **Scalars Reference** `docs/reference/scalars.md`
-- Complete library of 56 custom scalar types
-- 18 domain-specific categories (temporal, geographic, network, financial, vectors, content, identifiers, enterprise, etc.)
-- Type definitions and validation rules
-- GraphQL representation (strings and JSON)
-- Example values for each scalar
-- SQL column type mappings
-- Performance characteristics
-- Use cases and best practices
-
-**Quality:** ✅ Excellent | **Lines:** 900+ | **Completeness:** 95%
-
-#### 13. **WHERE Operators Reference** `docs/reference/where-operators.md`
-- Complete reference for 150+ WHERE clause operators
-- 15 operator categories (basic comparison, string/text, arrays, JSONB, date/time, network, geographic, vector distance, LTree, full-text search, numeric, UUID, enum, boolean, logical)
-- SQL equivalents and performance characteristics
-- Indexing recommendations
-- Database compatibility matrix
-- Example queries for each operator
-- Performance benchmarks
-
-**Quality:** ✅ Excellent | **Lines:** 1,200+ | **Completeness:** 95%
-
-#### 14. **Monitoring & Observability Guide** `docs/guides/monitoring.md`
-- Prometheus metrics (15+ metric types for queries, mutations, cache, database, errors)
-- OpenTelemetry tracing (OTLP, Jaeger, Zipkin exporters)
-- Kubernetes health checks (/health/live, /health/ready)
-- APQ metrics and dashboard endpoints
-- Query analytics (complexity, depth, cost)
-- Security audit logging
-- Error tracking and pattern analysis
-- Performance profiling strategies
-
-**Quality:** ✅ Excellent | **Lines:** 1,100+ | **Completeness:** 95%
-
-#### 15. **Production Deployment Guide** `docs/guides/production-deployment.md`
-
-- Kubernetes Deployment configuration with HPA (3-20 replicas)
-- Pod Security Standards and Network Policies
-- Pod Disruption Budget
-- Database configuration and indexing strategy
-- Security hardening checklist
-- Introspection control
-- Rate limiting deployment
-- TLS/mTLS configuration
-- Graceful shutdown patterns
-- Health probe configuration
-
-**Quality:** ✅ Excellent | **Lines:** 1,100+ | **Completeness:** 95%
-
-#### 16. **Enterprise RBAC** `docs/enterprise/rbac.md`
-
-- Role-Based Access Control overview
-- Hierarchical role inheritance (up to 10 levels)
-- 2-layer permission caching (request-level + PostgreSQL UNLOGGED tables)
-- Cache performance (< 0.3 ms cached)
-- Domain versioning for automatic invalidation
-- Field-level authorization with GraphQL directives
-- Row-level security integration
-- Multi-tenant RBAC patterns
-- Implementation examples
-
-**Quality:** ✅ Excellent | **Lines:** 1,200+ | **Completeness:** 95%
-
-#### 17. **Enterprise Audit Logging** `docs/enterprise/audit-logging.md`
-
-- Debezium-compatible audit events (40+ event types)
-- Cryptographic chain verification (SHA-256 + HMAC-SHA256)
-- Per-tenant audit chains with immutable append-only logs
-- Query performance tracking (complexity, depth, duration)
-- Result size monitoring
-- Rust FFI mode (1ms/event) vs Python fallback (5-10ms/event)
-- Compliance patterns
-- Event schema and format
-
-**Quality:** ✅ Excellent | **Lines:** 1,200+ | **Completeness:** 95%
-
-#### 18. **Enterprise KMS** `docs/enterprise/kms.md`
-
-- Key Management Service integration
-- Multiple KMS providers (Vault, AWS KMS, GCP Cloud KMS, Local)
-- Envelope encryption (AES-256-GCM)
-- Startup-time initialization vs per-request patterns
-- Field encryption convenience methods
-- Key rotation with backward compatibility
-- Production deployment examples
-- Security best practices
-
-**Quality:** ✅ Excellent | **Lines:** 1,100+ | **Completeness:** 95%
+See [Consistency Model Guide](docs/guides/consistency-model.md) for complete explanation, including why we chose CP and when you should use a different system.
 
 ---
 
-#### **Total Phase 2 Documentation:** 11 new specifications, ~10,000 lines
+## Security
 
-**Coverage:**
-- ✅ Caching and query optimization
-- ✅ Security and compliance (SBOM, NIS2, introspection control)
-- ✅ Complete scalar type library (56 types)
-- ✅ Complete WHERE operators reference (150+ operators)
-- ✅ Production deployment and monitoring
-- ✅ Enterprise features (RBAC, audit logging, KMS)
+FraiseQL prevents SQL injection through parameterized queries:
 
----
+- All filter values are passed as bind parameters, never interpolated
+- Column names and table names come only from the schema
+- JSON path expressions are escaped before inclusion in SQL
+- LIMIT/OFFSET values are typed (u32)
+- Identifiers validated at parse time
 
-## Quality Assessment
+Additional security features:
 
-### Overall Architecture
+- Audit logging for all mutations and admin operations
+- Rate limiting on authentication endpoints
+- Error messages sanitized (no implementation details to clients)
+- OAuth2/OIDC support (GitHub, Google, Auth0, + extensible provider system)
+- Field-level authorization via GraphQL directives
+- Configurable via TOML with environment variable overrides for production
 
-| Aspect | Rating | Comments |
-|--------|--------|----------|
-| **Coherence** | ✅ Excellent | Clear separation of concerns, consistent patterns |
-| **Completeness** | ✅ Excellent | All core concepts covered |
-| **Clarity** | ✅ Good | Well-written with examples, some ambiguities noted |
-| **Consistency** | ⚠️ Good | Minor terminology inconsistencies (easily fixed) |
-| **Feasibility** | ✅ Excellent | Architecture is implementable |
-| **Scalability** | ✅ Excellent | Designed for production scale |
-| **Portability** | ✅ Excellent | Multi-database from day one |
-| **Security** | ✅ Excellent | Deterministic auth, no bypass opportunities |
-
-### Specification Coverage
-
-| Specification | Completeness | Clarity | Usefulness |
-|---------------|--------------|---------|-----------|
-| PRD | ✅ 95% | ✅ Excellent | ✅ High |
-| CompiledSchema | ✅ 90% | ✅ Good | ✅ High |
-| Schema Conventions | ✅ 95% | ✅ Excellent | ✅ High |
-| Authoring Contract | ✅ 90% | ✅ Good | ✅ High |
-| Compilation Pipeline | ✅ 85% | ✅ Good | ✅ High |
-| Execution Model | ✅ 90% | ✅ Good | ✅ High |
-| CDC Format | ✅ 95% | ✅ Excellent | ✅ High |
-
-**Overall:** ✅ **High Quality** — Suitable for immediate implementation
+See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
 
 ---
 
-## Key Architectural Decisions
+## Getting Started
 
-### 1. Compilation Over Interpretation
+> **Upgrading from v1?** FraiseQL v2 is a complete architectural redesign and is not backwards compatible with v1. A migration guide is in progress. For now, treat v2 as a fresh start. See [Alpha Limitations](docs/ALPHA_LIMITATIONS.md#breaking-changes-from-v1) for details.
 
-All GraphQL semantics are resolved at **compile time**. Runtime is a pure executor with zero interpretation logic.
+### 1. Define Schema
 
-**Benefit:** Deterministic, predictable behavior; easy to debug and optimize
+Create `schema.py`:
 
-### 2. Database as Source of Truth
+```python
+import fraiseql
+from fraiseql.scalars import ID, Email
 
-All joins, filters, and derivations belong in the **database**. GraphQL runtime never interprets relational logic.
+@fraiseql.type
+class User:
+    id: ID
+    name: str
+    email: Email | None
 
-**Benefit:** Leverages database query optimizer; eliminates N+1 queries; enables complex data shaping
+@fraiseql.query
+def users(limit: int = 10) -> list[User]:
+    return fraiseql.config(sql_source="v_user", returns_list=True)
 
-### 3. Storage vs Projection Separation
-
-DBA owns normalized **storage** (`tb_*` tables). API designer owns denormalized **projections** (`v_*` views + GraphQL types).
-
-**Benefit:** Independent evolution; multiple API shapes; clear ownership boundaries
-
-### 4. Database-Agnostic Contract
-
-Universal **response format** (JSON object with status, entity, cascade); database-specific optimizations are optional.
-
-**Benefit:** Works on any database; PostgreSQL can optimize without breaking portability
-
-### 5. Authorization as Metadata
-
-Auth rules are **compiled metadata**, not runtime logic. Impossible to bypass.
-
-**Benefit:** Deterministic, auditable, secure; no resolver-based auth tricks possible
-
-### 6. WHERE Types Auto-Generated
-
-WHERE input types are **automatically generated** based on database columns and capability manifest.
-
-**Benefit:** No manual WHERE type definition; operators match database capabilities; impossible to use unsupported operators
-
-### 7. Real-Time via CDC
-
-Change data is captured at the **database layer** and emitted as structured events.
-
-**Benefit:** Reliable; ordered; includes full change history; works with all databases
-
----
-
-## Known Gaps & Recommendations
-
-### Phase 2: Complete! ✅
-
-The following Phase 2 documentation is now complete:
-
-✅ **Caching** — Query result caching, cache invalidation, graphql-cascade integration
-✅ **APQ (Automatic Persisted Queries)** — All 3 security modes (OPTIONAL, REQUIRED, DISABLED)
-✅ **Security & Compliance** — SBOM generation, NIS2 compliance, security headers, CSRF, token revocation
-✅ **Introspection Control** — Schema introspection policies, security best practices
-✅ **Scalar Types** — Complete reference of 56 custom scalars across 18 categories
-✅ **WHERE Operators** — Complete reference of 150+ operators across 15 categories
-✅ **Monitoring & Observability** — Prometheus metrics, OpenTelemetry tracing, health checks
-✅ **Production Deployment** — Kubernetes configuration, security hardening, performance tuning
-✅ **Enterprise RBAC** — Hierarchical roles, permission caching, field-level authorization
-✅ **Enterprise Audit Logging** — Debezium-compatible events, cryptographic chains, compliance
-✅ **Enterprise KMS** — Multi-provider key management, envelope encryption, key rotation
-
-### Remaining Gaps (Future Phases)
-
-⚠️ **Federation Semantics** — Cross-schema composition details
-⚠️ **Subscriptions Model** — Real-time updates, event filtering
-⚠️ **Versioning & Backward Compatibility** — How schemas evolve safely (Phase 2 deep-dive)
-⚠️ **Multi-Tenant Isolation Patterns** — Tenant scoping, isolation enforcement (Phase 2 deep-dive)
-⚠️ **Error Recovery Strategies** — Partial failure handling, idempotency, retries (Phase 2 deep-dive)
-⚠️ **Advanced Performance** — Complex view composition strategies (Phase 2 deep-dive)
-
-### Minor Issues (To Be Fixed Before Implementation)
-
-1. **Terminology Inconsistency** — camelCase vs snake_case in JSON (easy fix)
-2. **Clarifying Examples** — Add end-to-end examples to key specs
-3. **Specification Index** — Create quick reference guide linking all specs
-
-**Impact:** Low — None block implementation
-
----
-
-## Implementation Timeline
-
-### Phase 1: Foundation (8-10 weeks)
-
-**What:** Build the core system
-
-- ✅ Python SDK + Compiler (2-3 weeks)
-- ✅ Rust Runtime (4-5 weeks)
-- ✅ Database Adapters (1 week each)
-- ✅ CDC Implementation (2-3 weeks)
-- ✅ Comprehensive Testing (ongoing)
-
-**Deliverables:**
-- Working Python SDK with all decorators
-- Compiler producing valid CompiledSchema
-- Rust runtime executing all query types
-- All database adapters functional
-- CDC events working end-to-end
-- 95%+ test coverage
-- Complete documentation
-
-**Success Criteria:**
-- Compile a complex real-world schema
-- Execute queries and mutations
-- Pass test suite
-- Performance benchmarks met
-
----
-
-### Phase 2: Operations (4-6 weeks after Phase 1)
-
-**What:** Build production readiness
-
-- ⚠️ Create operational specifications
-- ⚠️ Develop schema versioning tools
-- ⚠️ Build performance analyzer
-- ⚠️ Implement observability
-- ⚠️ Create testing framework
-- ⚠️ Document deployment procedures
-
-**Deliverables:**
-- All Phase 2 specifications complete
-- Versioning system tested
-- Performance guidelines validated
-- Observability dashboard
-- Testing framework
-- Deployment guide
-
----
-
-### Phase 3: Advanced Features (Future)
-
-**What:** Extend capabilities
-
-- ❓ Federation (if prioritized)
-- ❓ Subscriptions (if prioritized)
-- ❓ Arrow plane (if prioritized)
-
----
-
-## How to Use This Documentation
-
-### For Architects/Decision Makers
-
-1. Read this README first
-2. Read `ARCHITECTURE_REVIEW.md` for quality assessment and gaps
-3. Review `NEXT_STEPS.md` for implementation plan
-
-### For Implementers
-
-1. Read this README for context
-2. Read the relevant specification for your component:
-   - **Python SDK/Compiler Team:** `docs/specs/authoring-contract.md` + `docs/architecture/compilation-pipeline.md`
-   - **Rust Runtime Team:** `docs/architecture/execution-model.md` + `docs/specs/compiled-schema.md`
-   - **Database Team:** `docs/specs/schema-conventions.md` + `docs/architecture/execution-model.md`
-   - **CDC Team:** `docs/specs/cdc-format.md`
-3. Refer to `docs/prd/PRD.md` when design questions arise
-4. Use `NEXT_STEPS.md` for detailed implementation timeline
-
-### For DBAs/Database Architects
-
-1. Read `docs/specs/schema-conventions.md` (database patterns)
-2. Review `docs/prd/PRD.md` sections 3.1-3.2 (database contract)
-3. Understand projection composition patterns in schema-conventions section 3.1.5
-
-### For API Designers
-
-1. Read `docs/specs/authoring-contract.md` (how to declare schemas)
-2. Read `docs/specs/compiled-schema.md` (what gets generated)
-3. Review `docs/prd/PRD.md` sections 3.2 and beyond (API semantics)
-
----
-
-## File Structure
-
-```
-fraiseql_v2/
-├── README.md (this file)
-├── ARCHITECTURE_REVIEW.md (quality assessment)
-├── NEXT_STEPS.md (implementation plan)
-│
-├── docs/
-│   ├── prd/
-│   │   └── PRD.md (vision & requirements)
-│   │
-│   ├── specs/
-│   │   ├── compiled-schema.md (runtime contract)
-│   │   ├── schema-conventions.md (database patterns)
-│   │   ├── authoring-contract.md (input languages)
-│   │   ├── cdc-format.md (event structure)
-│   │   ├── caching.md (query result caching)
-│   │   ├── persisted-queries.md (APQ implementation)
-│   │   ├── security-compliance.md (SBOM, NIS2, headers)
-│   │   └── introspection.md (schema introspection control)
-│   │
-│   ├── reference/
-│   │   ├── scalars.md (56 custom scalar types)
-│   │   └── where-operators.md (150+ WHERE operators)
-│   │
-│   ├── guides/
-│   │   ├── monitoring.md (Prometheus, OpenTelemetry, health checks)
-│   │   └── production-deployment.md (Kubernetes, hardening, performance)
-│   │
-│   ├── enterprise/
-│   │   ├── rbac.md (Role-Based Access Control)
-│   │   ├── audit-logging.md (Audit events, cryptographic chains)
-│   │   └── kms.md (Key Management Service)
-│   │
-│   └── architecture/
-│       ├── database-targeting.md (multi-database support, compile-time schema specialization)
-│       ├── authoring-languages.md (multiple language support, AuthoringIR, polyglot teams)
-│       ├── compilation-pipeline.md (build process)
-│       └── execution-model.md (query execution)
+fraiseql.export_schema("schema.json")
 ```
 
----
+Run: `python schema.py`
 
-## Quick Reference
+### 2. Compile
 
-### Core Concepts
+```bash
+fraiseql-cli compile schema.json -o schema.compiled.json
+```
 
-| Concept | Definition | Learn More |
-|---------|-----------|-----------|
-| **CompiledSchema** | Executable GraphQL artifact (JSON) | compiled-schema.md |
-| **Authoring Layer** | Schema definition in Python/YAML/GraphQL | authoring-contract.md |
-| **Compilation** | Transform schema → CompiledSchema | compilation-pipeline.md |
-| **Execution** | Query execution via Rust runtime | execution-model.md |
-| **Binding** | Connects GraphQL type to database view | schema-conventions.md |
-| **WHERE Type** | Auto-generated filter input based on DB | compilation-pipeline.md |
-| **Projection** | API shape over database view | schema-conventions.md |
-| **CDC Event** | Change notification with full context | cdc-format.md |
+### 3. Configure and Run
 
-### Implementation Order
+Create `config.toml`:
+```toml
+[server]
+bind_addr = "0.0.0.0:8080"
+database_url = "postgresql://localhost/mydb"
+```
 
-1. **Start Here:** `docs/prd/PRD.md` (understand vision)
-2. **Schema Definition:** `docs/specs/authoring-contract.md` (author schemas)
-3. **Compilation:** `docs/architecture/compilation-pipeline.md` (build process)
-4. **Execution:** `docs/architecture/execution-model.md` (run queries)
-5. **Database Patterns:** `docs/specs/schema-conventions.md` (optimize data)
-6. **Real-Time:** `docs/specs/cdc-format.md` (subscribe to changes)
-7. **Runtime Contract:** `docs/specs/compiled-schema.md` (deep dive)
+Run: `fraiseql-server -c config.toml --schema schema.compiled.json`
 
----
+### 4. Query
 
-## Next Actions
+```bash
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ users(limit: 5) { id name email } }"}'
+```
 
-✅ **Phase 1: Review** (Complete)
-- Architecture designed ✅
-- Specifications written ✅
-- Quality assessed ✅
-- Gaps identified ✅
-
-🟡 **Phase 2: Preparation** (This Week)
-- [ ] Fix terminology inconsistencies
-- [ ] Add clarifying examples
-- [ ] Create specification index
-- [ ] Schedule kickoff meeting
-- [ ] Set up repositories
-
-🟢 **Phase 3: Implementation** (Next Week)
-- [ ] Kickoff with team
-- [ ] Begin Python SDK
-- [ ] Begin Rust runtime
-- [ ] Begin database adapters
-- [ ] Begin CDC implementation
+That's the basic flow. For more examples and language-specific guides, see the documentation.
 
 ---
 
-## Questions & Feedback
+## Language Support
 
-**Architecture Questions:**
-- See `ARCHITECTURE_REVIEW.md` for known gaps
-- Schedule sync with architecture team
+FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
-**Specification Clarifications:**
-- See relevant specification document
-- Check `docs/prd/PRD.md` for context
-- Ask in weekly sync
+**Supported (v2.0.0-alpha.1):**
 
-**Implementation Help:**
-- See `NEXT_STEPS.md` for detailed tasks
-- Review examples in relevant specs
-- Refer to existing FraiseQL v1 patterns
+- Python ✅
+- TypeScript ✅
+- Go ✅
+- PHP ✅
+- Java ✅
+- Kotlin ✅
+- Ruby ✅
+- Scala ✅
+- Clojure ✅
+- Swift ✅
+- Dart ✅
+- C# ✅
+- Groovy ✅
+- Elixir ✅
+- Rust ✅
+- Node.js ✅
 
----
+**Configuration Languages:**
 
-## Success Metrics
+- YAML (configuration-driven schemas)
+- GraphQL SDL (standard schema syntax)
 
-### Phase 1 (8-10 weeks)
-✅ Python SDK + Compiler functional
-✅ Rust runtime executes queries
-✅ All database adapters working
-✅ CDC end-to-end
-✅ 95%+ test coverage
-✅ Performance goals met
+All 16+ languages have full feature parity with identical compilation and execution behavior.
 
-### Phase 2 (4-6 weeks)
-✅ Operational specifications complete
-✅ Versioning system validated
-✅ Observability implemented
-✅ Production-ready documentation
-
-### Beyond (Future)
-❓ Federation (if prioritized)
-❓ Subscriptions (if prioritized)
-❓ Arrow plane (if prioritized)
+See `docs/guides/language-generators.md` for examples in each supported language.
 
 ---
 
-## Document Versions
+## Documentation
 
-### Phase 1: Foundation Specifications
+📖 **[Complete Documentation](https://fraiseql.readthedocs.io)** — Visit ReadTheDocs for comprehensive, searchable documentation.
 
-| Document | Version | Date | Status |
-|----------|---------|------|--------|
-| README | 1.0 | 2026-01-11 | ✅ Draft |
-| PRD | 1.0 | 2026-01-11 | ✅ Draft |
-| CompiledSchema | 1.0 | 2026-01-11 | ✅ Draft |
-| Schema Conventions | 1.0 | 2026-01-11 | ✅ Draft |
-| Authoring Contract | 1.0 | 2026-01-11 | ✅ Draft |
-| Compilation Pipeline | 1.0 | 2026-01-11 | ✅ Draft |
-| Execution Model | 1.0 | 2026-01-11 | ✅ Draft |
-| CDC Format | 1.0 | 2026-01-11 | ✅ Draft |
+The project includes **251 markdown files with 70,000+ lines** of documentation:
 
-### Phase 2: Production Features & Operations (NEW!)
+**Quick Links:**
 
-| Document | Version | Date | Status |
-|----------|---------|------|--------|
-| Caching | 1.0 | 2026-01-11 | ✅ Complete |
-| Persisted Queries (APQ) | 1.0 | 2026-01-11 | ✅ Complete |
-| Security & Compliance | 1.0 | 2026-01-11 | ✅ Complete |
-| Introspection Control | 1.0 | 2026-01-11 | ✅ Complete |
-| Scalars Reference | 1.0 | 2026-01-11 | ✅ Complete |
-| WHERE Operators Reference | 1.0 | 2026-01-11 | ✅ Complete |
-| Monitoring & Observability | 1.0 | 2026-01-11 | ✅ Complete |
-| Production Deployment | 1.0 | 2026-01-11 | ✅ Complete |
-| Enterprise RBAC | 1.0 | 2026-01-11 | ✅ Complete |
-| Enterprise Audit Logging | 1.0 | 2026-01-11 | ✅ Complete |
-| Enterprise KMS | 1.0 | 2026-01-11 | ✅ Complete |
+- 🚀 [Getting Started](https://fraiseql.readthedocs.io/getting-started/) — 5-minute quick start
+- 📚 [SDK References](https://fraiseql.readthedocs.io/integrations/sdk/) — 16 language SDKs
+- 🏗️ [Architecture Guides](https://fraiseql.readthedocs.io/architecture/) — System design and patterns
+- 🎯 [Examples](https://fraiseql.readthedocs.io/examples/) — 4 full-stack applications
+- 🔒 [Security Guide](https://fraiseql.readthedocs.io/guides/production-security-checklist/) — Production hardening
+- 🚨 [Troubleshooting](https://fraiseql.readthedocs.io/troubleshooting/) — Common issues and fixes
 
-### Meta Documents
+**Local Documentation:**
 
-| Document | Version | Date | Status |
-|----------|---------|------|--------|
-| Architecture Review | 1.0 | 2026-01-11 | ✅ Updated |
-| Next Steps | 1.0 | 2026-01-11 | ✅ Updated |
+- `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
+- `docs/prd/PRD.md` — Product requirements and vision
+- `docs/alpha-testing-guide.md` — Alpha testing guide
 
 ---
 
-## Credits
+## Database Schema Conventions
 
-**Specification Authors:**
-- Architecture & Authoring Contract: Claude Code (AI)
-- Compilation Pipeline & Execution Model: Claude Code (AI)
-- CDC Format & Schema Conventions: Claude Code (AI)
+FraiseQL enforces naming conventions to enable automatic compilation:
 
-**Reviewed By:**
-- Architecture Team (TBD)
+| Prefix | Purpose | Example |
+|--------|---------|---------|
+| `tb_` | Write table (normalized) | `tb_user`, `tb_post` |
+| `v_` | Read view (JSON plane) | `v_user`, `v_post` |
+| `fn_` | Stored procedure (mutations) | `fn_create_user`, `fn_update_post` |
+| `pk_` | Primary key (internal) | `pk_user BIGINT` |
+| `fk_` | Foreign key (internal) | `fk_user BIGINT` |
+| `id` | Public identifier | `id UUID` |
 
----
-
-## License & IP
-
-All specifications are internal to FraiseQL project.
-
----
-
-*FraiseQL v2 — Compiled GraphQL for Deterministic Performance*
-
-**Ready for implementation** ✅
+See `docs/specs/schema-conventions.md` for complete conventions.
 
 ---
 
-**Questions?** Review [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) for gaps, or [NEXT_STEPS.md](NEXT_STEPS.md) for timeline.
+## WHERE Operators
+
+FraiseQL automatically generates filter operators based on your GraphQL scalar types and database capabilities. PostgreSQL gets extensive operator support (string matching, full-text search, arrays, JSONB, vectors, networks, hierarchies); other databases get only what they support. No manual filter type definitions needed.
+
+**Standard operators (all databases):**
+- Comparison: `_eq`, `_neq`, `_lt`, `_lte`, `_gt`, `_gte`
+- Logical: `_and`, `_or`, `_not`
+
+**String operators (database-dependent):**
+- PostgreSQL: `_like`, `_ilike`, `_regex`, `_contains`, `_icontains`, `_startswith`, `_istartswith`, `_endswith`, `_matches` (full-text), etc.
+- SQLite/MySQL: `_like`, `_contains`
+
+**PostgreSQL-specific operators (compiled out for other databases):**
+- Arrays: `_array_contains`, `_array_contained_by`, `_array_overlaps`, `_len_eq`, `_len_gt`
+- JSONB: `_jsonb_contains`, `_jsonb_has_key`, `_jsonb_path_exists`
+- Vectors (pgvector): `_cosine_distance_lt`, `_l2_distance_lt`, `_inner_product_gt`, etc.
+- Networks (INET): `_is_ipv4`, `_in_subnet`, `_contains_subnet`, `_overlaps`
+- Hierarchies (LTree): `_ancestor_of`, `_descendant_of`, `_lca`, `_depth_eq`
+- Full-text search: `_matches`, `_plain_query`, `_phrase_query`, `_websearch_query`
+
+This approach means your GraphQL schema truthfully represents what your database can do—no feature faking, no runtime errors from unsupported operators.
+
+See `docs/reference/where-operators.md` for the complete list and SQL equivalents.
+
+---
+
+## Streaming Results
+
+FraiseQL provides two specialized ways to stream large result sets:
+
+**fraiseql-wire** — A PostgreSQL-specific driver optimized for streaming JSON results. Processes rows as they arrive from the database without buffering the entire result set. Implements the Postgres wire protocol from scratch, supporting TCP and Unix sockets. Supports WHERE filters and ORDER BY, with memory usage bounded by chunk size, not result size. Useful when you need to stream large datasets with bounded memory from PostgreSQL.
+
+**Apache Arrow Flight** — Database-agnostic columnar streaming. Converts query results to Arrow RecordBatches and streams them via the Flight protocol. Works with PostgreSQL, MySQL, SQLite, SQL Server, and other databases supported by FraiseQL. Arrow payloads are typically 25-40% more compact than JSON, and columnar format is optimized for analytics tool integration without requiring client-side deserialization. Use this for large datasets you're loading into analytics tools, data warehouses (ClickHouse, Snowflake), or ML pipelines. Real performance benchmarks comparing JSON vs Arrow serialization are in `crates/fraiseql-arrow/benches/arrow_vs_json_serialization.rs`.
+
+---
+
+## Performance & Reliability
+
+**Performance:** FraiseQL eliminates common GraphQL bottlenecks. No N+1 queries (joins determined at compile time), no resolver chain overhead, no runtime interpretation. Arrow Flight payloads are 25-40% more compact than JSON, with built-in columnar optimization for analytics tools that consume Arrow data without client deserialization overhead.
+
+**Reliability:** The codebase uses Rust's type system to prevent entire categories of bugs. No unsafe code (forbidden at compile time), all critical warnings treated as errors. Chaos engineering tests validate transaction consistency and recovery under failure scenarios. Field-level authorization is compiled as metadata, making it impossible to bypass via resolver tricks.
+
+**Maintainability:** Every feature has corresponding tests. The 2,400+ test suite covers unit tests, integration tests with real databases, E2E tests across all language SDKs, and chaos engineering scenarios. This means changes are validated end-to-end, not just at the unit level.
+
+---
+
+## Project Status
+
+Current release: **v2.0.0-alpha.1**
+
+**Core Features:**
+
+- ✅ Core GraphQL engine (schema parsing, type validation, query execution, mutation support)
+- ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server with database-specific optimizations)
+- ✅ Schema authoring in 16+ languages with compile-time verification
+- ✅ Automatic WHERE type generation from scalar types (150+ operators for PostgreSQL)
+- ✅ Compilation pipeline (6-phase build process with full validation)
+- ✅ Apollo Federation v2 with SAGA transactions across services
+- ✅ Streaming query results via fraiseql-wire
+- ✅ Apache Arrow Flight columnar data plane
+- ✅ Query result caching with automatic invalidation
+- ✅ Automatic Persisted Queries (APQ) with query allowlisting
+
+**Enterprise Features:**
+
+- ✅ OAuth2/OIDC with 7+ providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible)
+- ✅ Field-level authorization via GraphQL directives
+- ✅ Field-level encryption-at-rest for database columns
+- ✅ Audit logging for mutations and admin operations
+- ✅ Rate limiting on authentication endpoints
+- ✅ Constant-time token comparison (timing attack prevention)
+- ✅ Error sanitization (implementation details hidden)
+- ✅ Secrets management (HashiCorp Vault, environment, file backends)
+- ✅ Credential rotation automation with dashboard
+- ✅ Multi-tenant isolation with per-tenant data scoping
+- ✅ RBAC database schema and permission system
+
+**Data & Integration:**
+
+- ✅ CDC (Change Data Capture) with database-agnostic event format
+- ✅ Event system with webhooks (extensible provider architecture: Discord, Slack, GitHub, Stripe)
+- ✅ NATS JetStream messaging integration
+- ✅ Multi-tenant data scoping
+- ✅ Backup and disaster recovery support
+
+**Quality (Complete):**
+
+- ✅ Comprehensive test suite (2,400+ tests: unit, integration, E2E, chaos engineering)
+- ✅ Zero unsafe code (forbidden at compile time)
+- ✅ Strict type system (all critical Clippy warnings as errors)
+- ✅ Production deployment guides and monitoring setup
+- ✅ Performance benchmarks (Arrow vs JSON serialization)
+
+**Next Steps:**
+
+- Community testing and deployment feedback
+- Real-world production validation
+- Performance optimization based on usage patterns
+- Path to v2.0.0 GA (v2.1 planning includes Phases 13-15: Config wiring, Observability, Finalization)
+
+---
+
+## Contact & Contributions
+
+For bugs, features, or questions:
+
+- [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) — Report bugs and request features
+- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) — Ask questions and share ideas
+- [Contributing Guide](CONTRIBUTING.md) — How to contribute code and documentation
+- Email: lionel.hamayon@evolution-digitale.fr

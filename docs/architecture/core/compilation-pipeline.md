@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Compilation Pipeline Architecture
+description: The **compilation pipeline** transforms an authoring-layer schema (Python, TypeScript, YAML, etc.) into a **CompiledSchema** — a database-agnostic JSON artifact
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Compilation Pipeline Architecture
 
 **Version:** 1.0
@@ -11,6 +19,7 @@
 The **compilation pipeline** transforms an authoring-layer schema (Python, TypeScript, YAML, etc.) into a **CompiledSchema** — a database-agnostic JSON artifact that the Rust runtime executes.
 
 **Key phases:**
+
 1. **Schema Parsing** — Parse authoring language syntax (queries, mutations, **subscriptions**)
 2. **Database Introspection** — Discover views, columns, procedures, constraints, CDC capabilities
 3. **Type Binding** — Map GraphQL types to database views/JSONB paths
@@ -39,6 +48,7 @@ All converge to the same **intermediate representation (IR)** before proceeding 
 ### 2.2 Intermediate Representation (IR)
 
 ```python
+<!-- Code example in Python -->
 class SchemaIR:
     """Language-agnostic intermediate representation."""
     name: str
@@ -52,11 +62,13 @@ class SchemaIR:
     auth_context: AuthContextDef
     bindings: dict[str, BindingDef]        # query/mutation/subscription name -> BindingDef
     auth_rules: list[AuthRule]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Type Definition IR
 
 ```python
+<!-- Code example in Python -->
 class TypeDef:
     """Represents a GraphQL type."""
     name: str                              # PascalCase
@@ -71,11 +83,13 @@ class FieldDef:
     graphql_type: str                      # e.g., "String!", "[User!]!"
     description: str
     directives: list[str]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.4 Binding Definition IR
 
 ```python
+<!-- Code example in Python -->
 class BindingDef:
     """Defines how a query/mutation/subscription binds to a database resource."""
     query_or_mutation_or_subscription_name: str
@@ -95,11 +109,13 @@ class BindingDef:
     subscription_filters: list[WhereClause]  # Compile-time filters
     event_types: list[str]                # "INSERT" | "UPDATE" | "DELETE"
     authorization: AuthRule               # Enforced at event capture time
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.5 Subscription Definition IR (v2.0+)
 
 ```python
+<!-- Code example in Python -->
 class SubscriptionDef:
     """Defines a GraphQL subscription."""
     name: str
@@ -115,7 +131,8 @@ class SubscriptionBindingDef:
     entity_types: list[str]               # Which entities trigger events
     where_filters: list[WhereClause]      # Compile-time filters for events
     authorization: AuthRule               # Row-level filtering per subscriber
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -124,6 +141,7 @@ class SubscriptionBindingDef:
 ### 3.1 Purpose
 
 Introspection discovers what the database provides:
+
 - View columns and JSONB paths
 - Stored procedure signatures
 - Column indexing and types
@@ -135,6 +153,7 @@ Introspection discovers what the database provides:
 The compiler **introspects only declared bindings**, not the entire database:
 
 ```python
+<!-- Code example in Python -->
 # Compiler will introspect:
 # - v_user (because binding references it)
 # - fn_create_user (because mutation binding references it)
@@ -143,13 +162,15 @@ The compiler **introspects only declared bindings**, not the entire database:
 # - Internal tables like tb_posts_audit
 # - Unused views
 # - Helper functions
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 View Column Discovery
 
 For each bound view, introspect:
 
 ```sql
+<!-- Code example in SQL -->
 -- For v_user, discover:
 SELECT
     column_name,
@@ -161,23 +182,28 @@ FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'v_user'
 ORDER BY ordinal_position;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Discovered columns:**
-```
+
+```text
+<!-- Code example in TEXT -->
 id          → UUID
 email       → TEXT (nullable: false)
 name        → TEXT
 posts       → JSONB (array of posts)
 created_at  → TIMESTAMP
 items__product__category_id  → UUID (nullable: true)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.4 JSONB Path Discovery
 
 For JSONB columns, introspect paths:
 
 ```python
+<!-- Code example in Python -->
 # For posts (JSONB array), discover available paths:
 # posts[0].id
 # posts[0].title
@@ -185,13 +211,15 @@ For JSONB columns, introspect paths:
 # etc.
 
 # These become available for filtering in WHERE types
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.5 Stored Procedure Discovery
 
 For each bound procedure, introspect signature:
 
 ```sql
+<!-- Code example in SQL -->
 -- For fn_create_user, discover:
 SELECT
     proname,
@@ -202,25 +230,31 @@ SELECT
     prorettype
 FROM pg_proc
 WHERE proname = 'fn_create_user';
-```
+```text
+<!-- Code example in TEXT -->
 
 **Discovered signature:**
-```
+
+```text
+<!-- Code example in TEXT -->
 fn_create_user(
     email_param: TEXT,
     name_param: TEXT
 ) → JSON
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.6 Column Indexing Analysis
 
 Analyze indexing for performance warnings:
 
 ```python
+<!-- Code example in Python -->
 # Introspect: Is column indexed?
 # If not indexed and used in WHERE types, emit warning:
 # ⚠ Column 'v_user.email' used in WHERE but not indexed
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -231,8 +265,9 @@ Analyze indexing for performance warnings:
 For each GraphQL type, bind to a database view:
 
 ```python
+<!-- Code example in Python -->
 # GraphQL
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     email: str
@@ -245,45 +280,54 @@ schema.bind("User", view="v_user", data_column="data")
 # ✓ View v_user exists
 # ✓ Column 'data' (JSONB) exists in v_user
 # ✓ All fields (id, email, posts) discoverable in view or JSONB
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Field-to-Column Mapping
 
 Each GraphQL field maps to either a **SQL column** or a **JSONB path**:
 
 ```python
+<!-- Code example in Python -->
 User.id        → v_user.id (SQL column)
 User.email     → v_user.email (SQL column)
 User.posts     → v_user.data->>'posts' (JSONB path)
 User.createdAt → v_user.created_at (SQL column)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Discovery algorithm:**
-```
+
+```text
+<!-- Code example in TEXT -->
 for each field in GraphQL type:
     1. Check if column exists with same name
     2. If not, check JSONB paths in data column
     3. If found, record mapping
     4. If not found, error: field not discoverable
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Foreign Key Inference
 
 The compiler infers foreign key relationships from type references:
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class User:
     id: ID
     posts: list[Post]  # Inferred FK: User → Post
 
-@fraiseql.type
+@FraiseQL.type
 class Post:
     id: ID
     author: User       # Inferred FK: Post → User
-```
+```text
+<!-- Code example in TEXT -->
 
 **Verification:**
+
 - If view declares `user_id` column, FK is explicit
 - If JSONB nesting available, FK is implicit
 - Compiler warns if both explicit and implicit conflict
@@ -295,6 +339,7 @@ class Post:
 ### 5.1 Purpose
 
 Automatically generate WHERE input types based on:
+
 - Available database columns
 - Column types
 - **Database target** (from compiler configuration)
@@ -309,6 +354,7 @@ See **`docs/architecture/database/database-targeting.md`** for comprehensive exp
 ### 5.2 Column Introspection for WHERE Generation
 
 ```python
+<!-- Code example in Python -->
 # For User type bound to v_user, introspect columns:
 
 # SQL columns (always filterable):
@@ -324,13 +370,15 @@ posts[0].author.id → IDFilter
 
 # Flattened foreign key columns (if exist):
 items__product__category_id  → IDFilter  # For efficient filtering
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Capability Manifest Application
 
 The database capability manifest defines which operators are available:
 
 ```json
+<!-- Code example in JSON -->
 {
   "capabilities": {
     "postgresql": {
@@ -349,11 +397,13 @@ The database capability manifest defines which operators are available:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.4 WHERE Type Generation Algorithm
 
 ```python
+<!-- Code example in Python -->
 def generate_where_type(type_name: str, bound_view: str, capabilities: dict):
     """Generate WHERE input type for a GraphQL type."""
 
@@ -381,13 +431,15 @@ def generate_where_type(type_name: str, bound_view: str, capabilities: dict):
         name=f"{type_name}WhereInput",
         fields=where_fields
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.5 Generated WHERE Type Example
 
 For `User` bound to `v_user` with PostgreSQL capabilities:
 
 ```graphql
+<!-- Code example in GraphQL -->
 input UserWhereInput {
   id: IDFilter
   email: StringFilter
@@ -413,13 +465,15 @@ input IDFilter {
   _neq: ID
   _in: [ID!]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.6 Capability-Driven Operator Inclusion
 
 If targeting SQLite (no regex support):
 
 ```json
+<!-- Code example in JSON -->
 {
   "capabilities": {
     "sqlite": {
@@ -432,7 +486,8 @@ If targeting SQLite (no regex support):
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 The generated `StringFilter` for SQLite would **omit** `_regex` and `_ilike`.
 
@@ -441,6 +496,7 @@ The generated `StringFilter` for SQLite would **omit** `_regex` and `_ilike`.
 FraiseQL supports **150+ WHERE clause operators** across 15 categories, automatically applied based on column types and database capabilities:
 
 **Operator Categories:**
+
 1. **Basic Comparison** (all types)
    - `_eq`, `_neq`, `_gt`, `_gte`, `_lt`, `_lte`, `_in`, `_nin`
 
@@ -487,7 +543,8 @@ FraiseQL supports **150+ WHERE clause operators** across 15 categories, automati
     - `_and`, `_or`, `_not`
 
 **Complete Reference:**
-See [`docs/reference/where-operators.md`](../reference/where-operators.md) for:
+See [`reference/where-operators.md`](../../reference/where-operators.md) for:
+
 - Full operator specifications by category
 - SQL equivalents for each operator
 - Performance characteristics and indexing recommendations
@@ -495,7 +552,9 @@ See [`docs/reference/where-operators.md`](../reference/where-operators.md) for:
 - Database compatibility matrix
 
 **Example: Complex WHERE Using Multiple Operators**
+
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(where: {
     # String operators
@@ -524,10 +583,12 @@ query {
     email
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Capability Detection:**
 At compilation time, the compiler:
+
 1. Introspects column types from database view
 2. Maps column types to available operators (from capability manifest)
 3. Generates WHERE input types only for supported operators
@@ -543,10 +604,11 @@ Subscriptions compile through the same pipeline as queries and mutations, with i
 
 ### 6.1 Subscription Parsing
 
-Parse `@fraiseql.subscription` declarations from all authoring languages:
+Parse `@FraiseQL.subscription` declarations from all authoring languages:
 
 ```python
-@fraiseql.subscription
+<!-- Code example in Python -->
+@FraiseQL.subscription
 class OrderCreated:
     """Event fired when order is created."""
     id: ID
@@ -556,21 +618,25 @@ class OrderCreated:
 
     # Compile-time filter
     where: WhereClause = WhereClause(user_id=current_user_id)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Subscription Binding
 
 Bind each subscription to database event streams:
 
 ```python
+<!-- Code example in Python -->
 schema.bind("OrderCreated",
     event_source="LISTEN_NOTIFY",  # PostgreSQL
     entity_types=["Order"],
     operation_types=["INSERT"]
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Binding validates:**
+
 - Event source is supported by database target
 - Entity types exist in schema
 - Operation types are valid (`INSERT`, `UPDATE`, `DELETE`)
@@ -581,22 +647,25 @@ schema.bind("OrderCreated",
 Subscription WHERE clauses compile to SQL predicates evaluated at event capture:
 
 ```sql
+<!-- Code example in SQL -->
 -- For: subscription OrderCreated where user_id = current_user_id
 -- Compiles to:
 SELECT * FROM tb_entity_change_log
 WHERE entity_type = 'Order'
   AND operation = 'INSERT'
   AND (data->>'user_id')::UUID = $1  -- Runtime-bound user_id
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.4 Authorization Binding
 
 Row-level authorization rules applied at event capture:
 
 ```python
+<!-- Code example in Python -->
 # If schema defines:
-@fraiseql.subscription
-@fraiseql.auth(requires_role="user")
+@FraiseQL.subscription
+@FraiseQL.auth(requires_role="user")
 class OrderCreated:
     ...
 
@@ -604,13 +673,15 @@ class OrderCreated:
 # - RLS policy enforcement at event capture
 # - subscription_matchers per authenticated user
 # - Auth context binding for runtime variable resolution
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.5 Subscription Dispatch Table Generation
 
 The compiler generates a dispatch table for runtime:
 
 ```json
+<!-- Code example in JSON -->
 {
   "subscriptions": {
     "OrderCreated": {
@@ -628,21 +699,25 @@ The compiler generates a dispatch table for runtime:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.6 Subscription Schema Validation
 
 Validate subscription schema consistency:
 
 **Subscription Return Type Check:**
+
 - Subscription fields must be projectable from event data
 - Same field resolution as queries (SQL columns + JSONB paths)
 
 **Event Type Coverage:**
+
 - Subscription fields must exist in all operation types
 - Example: `ORDER_CANCELLED` event cannot project `ORDER_SHIPPED` fields
 
 **Authorization Validity:**
+
 - Rules must be decidable at compile time
 - Dynamic fields disallowed (use only static roles and entity attributes)
 
@@ -659,80 +734,101 @@ The compiler enforces these invariants:
 Every referenced type must be defined:
 
 ```python
-@fraiseql.query
-def users() -> list[User]:  # User must be @fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.query
+def users() -> list[User]:  # User must be @FraiseQL.type
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Type closure violation
   Query 'users' returns 'list[User]'
   Type 'User' not defined
-  → Define @fraiseql.type class User
-```
+  → Define @FraiseQL.type class User
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.2 Binding Existence
 
 Every type returned by queries/mutations must have a binding:
 
 ```python
-@fraiseql.query
+<!-- Code example in Python -->
+@FraiseQL.query
 def users() -> list[User]:
     pass
 
 # Must have:
 schema.bind("users", view="v_user")
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Missing binding
   Query 'users' returns 'list[User]'
   → schema.bind("users", "view", "v_user")
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.3 View Existence
 
 Bound views must exist in database:
 
 ```python
+<!-- Code example in Python -->
 schema.bind("users", view="v_user_missing")  # ❌ Doesn't exist
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: View not found
   Binding 'users' references 'v_user_missing'
   → View does not exist in database
   → Check with: \dv v_user*
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.4 Column Existence
 
 All GraphQL fields must map to discoverable columns:
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class User:
     id: ID
     undefined_field: str  # ❌ Not in v_user
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Column not found
   Type 'User' field 'undefinedField'
   → Not found in view 'v_user' or JSONB paths
   → Check view schema: \d v_user
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.5 Procedure Signature Match
 
 Mutation input must match procedure parameters:
 
 ```python
-@fraiseql.mutation
+<!-- Code example in Python -->
+@FraiseQL.mutation
 def create_user(email: str, name: str) -> User:
     pass
 
@@ -742,59 +838,74 @@ schema.bind("create_user", procedure="fn_create_user")
 # ✓ fn_create_user exists
 # ✓ Has parameters matching: email, name
 # ✓ Returns JSON
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Procedure signature mismatch
   Mutation 'createUser' declares inputs: email, name
   Procedure 'fn_create_user' has params: email_param, name_param
   → Use input_mapping: {"email": "email_param", ...}
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.6 Operator Support
 
 All used filters must be in capability manifest:
 
 ```python
+<!-- Code example in Python -->
 # If query uses _regex filter on SQLite:
 where: {
   email: { _regex: "^test" }  # ❌ SQLite doesn't support regex
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Operator not supported
   Filter uses '_regex' on 'email' field
   → Database 'sqlite' does not support regex operator
   → Use '_like' instead or target 'postgresql'
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.7 Authorization Validity
 
 Auth rules must reference valid auth context fields:
 
 ```python
-@fraiseql.query
+<!-- Code example in Python -->
+@FraiseQL.query
 @auth.requires_claim("invalid_field")  # ❌ Not in AuthContext
 def secure_query() -> User:
     pass
-```
+```text
+<!-- Code example in TEXT -->
 
 **Error if violated:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Error: Auth context mismatch
   Rule requires claim 'invalidField'
   → Field not in AuthContext
-  → Add field to @fraiseql.auth_context
-```
+  → Add field to @FraiseQL.auth_context
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Validation Output
 
 After validation, compiler emits a **validation report**:
 
-```
+```text
+<!-- Code example in TEXT -->
 ✓ Compilation successful (2026-01-11T15:35:00Z)
 
 Schema: acme-api v2.1.0
@@ -819,7 +930,8 @@ Generated Artifacts:
   ✓ CompiledSchema.json (24 KB)
   ✓ schema.graphql (12 KB)
   ✓ capability-manifest.json (8 KB)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -834,6 +946,7 @@ The compiler produces three files:
 The executable schema consumed by Rust runtime:
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "metadata": { ... },
@@ -844,7 +957,8 @@ The executable schema consumed by Rust runtime:
   "authorization": { ... },
   "capabilities": { ... }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 See: `specs/compiled-schema.md` for full structure.
 
@@ -853,6 +967,7 @@ See: `specs/compiled-schema.md` for full structure.
 Standard GraphQL SDL for client tooling:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type User {
   id: ID!
   email: String!
@@ -864,13 +979,15 @@ type Query {
   users(where: UserWhereInput, limit: Int = 100): [User!]!
   userByEmail(email: String!): User!
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 7.1.3 capability-manifest.json
 
 Database-specific capabilities applied during compilation:
 
 ```json
+<!-- Code example in JSON -->
 {
   "databaseTarget": "postgresql",
   "capabilities": {
@@ -886,11 +1003,13 @@ Database-specific capabilities applied during compilation:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 File Organization
 
-```
+```text
+<!-- Code example in TEXT -->
 my-api/
 ├── schema.py           # Authoring input
 ├── build/
@@ -898,7 +1017,8 @@ my-api/
 │   ├── schema.graphql
 │   ├── capability-manifest.json
 │   └── validation-report.txt
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -907,29 +1027,35 @@ my-api/
 ### 8.1 Python Compiler
 
 ```bash
+<!-- Code example in BASH -->
 # Compile schema
-fraiseql compile schema.py \
+FraiseQL compile schema.py \
   --database-url postgresql://... \
   --output build/
 
 # Or with environment variable
 export DATABASE_URL=postgresql://...
-fraiseql compile schema.py
-```
+FraiseQL compile schema.py
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Validation-Only Mode
 
 ```bash
+<!-- Code example in BASH -->
 # Validate without database connection (use cached schema)
-fraiseql compile schema.py --validate-only
-```
+FraiseQL compile schema.py --validate-only
+```text
+<!-- Code example in TEXT -->
 
 ### 8.3 Dry-Run Mode
 
 ```bash
+<!-- Code example in BASH -->
 # Show what would be compiled, no changes
-fraiseql compile schema.py --dry-run
-```
+FraiseQL compile schema.py --dry-run
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -952,7 +1078,8 @@ All errors include:
 2. **Location** — File, line, field involved
 3. **Suggestion** — How to fix
 
-```
+```text
+<!-- Code example in TEXT -->
 Error: View not found
   File: schema.py, line 35
   Binding 'users' references 'v_user_missing'
@@ -963,7 +1090,8 @@ Error: View not found
     → Check view exists: \dv v_user*
     → Use correct view name in binding
     → Or create view in database
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -986,12 +1114,14 @@ Error: View not found
 For fast iteration, cache database introspection:
 
 ```bash
+<!-- Code example in BASH -->
 # First compile: full introspection
-fraiseql compile schema.py --database-url postgresql://...
+FraiseQL compile schema.py --database-url postgresql://...
 
 # Subsequent compiles: use cache
-fraiseql compile schema.py  # Skips DB queries if schema unchanged
-```
+FraiseQL compile schema.py  # Skips DB queries if schema unchanged
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1000,12 +1130,15 @@ fraiseql compile schema.py  # Skips DB queries if schema unchanged
 ### 11.1 Multi-Database Compilation
 
 ```bash
+<!-- Code example in BASH -->
 # Compile for multiple targets
-fraiseql compile schema.py \
+FraiseQL compile schema.py \
   --targets postgresql,sqlite,mysql
-```
+```text
+<!-- Code example in TEXT -->
 
 Each target produces:
+
 - `CompiledSchema-postgresql.json`
 - `CompiledSchema-sqlite.json`
 - `CompiledSchema-mysql.json`
@@ -1013,9 +1146,11 @@ Each target produces:
 ### 11.2 Schema Versioning
 
 ```bash
+<!-- Code example in BASH -->
 # Generate migration metadata
-fraiseql compile schema.py --version 2.1.0 --prev-version 2.0.0
-```
+FraiseQL compile schema.py --version 2.1.0 --prev-version 2.0.0
+```text
+<!-- Code example in TEXT -->
 
 Produces schema diff for documentation and client versioning.
 

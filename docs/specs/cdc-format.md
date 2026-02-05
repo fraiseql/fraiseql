@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Change Data Capture (CDC) Format Specification
+description: The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are captured and emitted as events for real-time subscriptions, audit logging, and ex
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Change Data Capture (CDC) Format Specification
 
 **Version:** 1.0
@@ -11,6 +19,7 @@
 The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are captured and emitted as events for real-time subscriptions, audit logging, and external system synchronization.
 
 **Key characteristics:**
+
 - **Universal format** — all databases produce same event structure
 - **Deterministic** — every mutation generates exactly one CDC event
 - **Rich** — includes before/after state, changed fields, cascade information
@@ -24,6 +33,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
 ### 2.1 Top-Level Event
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
@@ -47,7 +57,8 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
   "cascade": { ... },
   "metadata": { ... }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Event Metadata
 
@@ -67,6 +78,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
 | `metadata` | object | ✓ | Custom metadata |
 
 **Related Specifications:**
+
 - **docs/specs/schema-conventions.md section 6.2** — Debezium envelope format used in `tb_entity_change_log` matches the `operation` structure here
 - **docs/guides/observability.md section 9** — CDC event streaming patterns and consumption strategies
 
@@ -77,6 +89,7 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
 ### 3.1 Source Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "source": {
     "database": "postgresql|sqlite|mysql|sqlserver",
@@ -90,18 +103,21 @@ The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are c
     "schema": "public"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 Transaction ID
 
 The `transaction_id` uniquely identifies the database transaction:
 
 ```python
+<!-- Code example in Python -->
 # PostgreSQL: txid_current()
 # MySQL: @@global.gtid_executed
 # SQL Server: @@TRANCOUNT
 # SQLite: Not available (use timestamp)
-```
+```text
+<!-- Code example in TEXT -->
 
 Used for idempotency — multiple events from same transaction share same ID.
 
@@ -110,10 +126,12 @@ Used for idempotency — multiple events from same transaction share same ID.
 Optional session identifier for correlation:
 
 ```json
+<!-- Code example in JSON -->
 {
   "session_id": "sess_550e8400-e29b-41d4-a716-446655440000"
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Can trace all mutations from single client session.
 
@@ -124,6 +142,7 @@ Can trace all mutations from single client session.
 ### 4.1 Entity Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "entity": {
     "entity_type": "User",
@@ -134,7 +153,8 @@ Can trace all mutations from single client session.
     "is_soft_deleted": false
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Entity Fields
 
@@ -152,14 +172,17 @@ Can trace all mutations from single client session.
 For multi-tenant systems, always include tenant:
 
 ```json
+<!-- Code example in JSON -->
 {
   "entity": {
     "tenant_id": "tenant-123"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 Used for:
+
 - Event filtering in multi-tenant systems
 - Audit log partitioning
 - Cache invalidation scoping
@@ -173,6 +196,7 @@ Used for:
 When entity is inserted:
 
 ```json
+<!-- Code example in JSON -->
 {
   "operation": {
     "type": "CREATE",
@@ -191,13 +215,15 @@ When entity is inserted:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 UPDATE Operation
 
 When entity is modified:
 
 ```json
+<!-- Code example in JSON -->
 {
   "operation": {
     "type": "UPDATE",
@@ -233,13 +259,15 @@ When entity is modified:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 DELETE Operation
 
 When entity is deleted:
 
 ```json
+<!-- Code example in JSON -->
 {
   "operation": {
     "type": "DELETE",
@@ -258,13 +286,15 @@ When entity is deleted:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.4 Soft Delete
 
 For soft deletes (deleted_at):
 
 ```json
+<!-- Code example in JSON -->
 {
   "operation": {
     "type": "UPDATE",  // Soft delete is UPDATE operation
@@ -276,7 +306,8 @@ For soft deletes (deleted_at):
     "changed_fields": ["deleted_at"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.5 Operation Triggers
 
@@ -301,6 +332,7 @@ The `trigger` field indicates what caused the mutation:
 The `cascade` field describes related entity changes:
 
 ```json
+<!-- Code example in JSON -->
 {
   "cascade": {
     "updated": [
@@ -330,7 +362,8 @@ The `cascade` field describes related entity changes:
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Cascade Entry Types
 
@@ -339,6 +372,7 @@ The `cascade` field describes related entity changes:
 Related entities that were updated as side effect:
 
 ```json
+<!-- Code example in JSON -->
 {
   "updated": [
     {
@@ -349,13 +383,15 @@ Related entities that were updated as side effect:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 6.2.2 Deleted
 
 Related entities that were deleted as side effect:
 
 ```json
+<!-- Code example in JSON -->
 {
   "deleted": [
     {
@@ -365,13 +401,15 @@ Related entities that were deleted as side effect:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 6.2.3 Invalidations
 
 Queries/lists that should be cache-invalidated:
 
 ```json
+<!-- Code example in JSON -->
 {
   "invalidations": [
     {
@@ -381,7 +419,8 @@ Queries/lists that should be cache-invalidated:
     }
   ]
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -390,6 +429,7 @@ Queries/lists that should be cache-invalidated:
 ### 7.1 Metadata Structure
 
 ```json
+<!-- Code example in JSON -->
 {
   "metadata": {
     "request_id": "req_550e8400-e29b-41d4-a716-446655440000",
@@ -404,7 +444,8 @@ Queries/lists that should be cache-invalidated:
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Metadata Fields
 
@@ -425,6 +466,7 @@ Queries/lists that should be cache-invalidated:
 ### 8.1 User Created
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "event_id": "evt_550e8400-e29b-41d4-a716-446655440000",
@@ -475,11 +517,13 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 User Updated
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "event_id": "evt_660e8400-e29b-41d4-a716-446655440000",
@@ -546,11 +590,13 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.3 User Deleted (Cascade)
 
 ```json
+<!-- Code example in JSON -->
 {
   "version": "1.0",
   "event_id": "evt_770e8400-e29b-41d4-a716-446655440000",
@@ -621,7 +667,8 @@ Queries/lists that should be cache-invalidated:
     "api_version": "2.1.0"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -632,29 +679,37 @@ Queries/lists that should be cache-invalidated:
 PostgreSQL can emit CDC events via:
 
 **Option 1: Triggers**
+
 ```sql
+<!-- Code example in SQL -->
 CREATE TRIGGER user_cdc_trigger
 AFTER INSERT OR UPDATE OR DELETE ON tb_user
 FOR EACH ROW
 EXECUTE FUNCTION emit_cdc_event();
-```
+```text
+<!-- Code example in TEXT -->
 
 **Option 2: Logical Replication** (WAL)
+
 - Use pg_logical_decode
 - Consume events from replication slot
 - Transform to CDC format
 
 **Option 3: Event Table**
+
 ```sql
+<!-- Code example in SQL -->
 INSERT INTO audit_log (event_type, entity_type, entity_id, operation)
 VALUES ('entity:updated', 'User', NEW.id, row_to_json(NEW));
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.2 SQLite Implementation
 
 SQLite CDC via update hooks:
 
 ```python
+<!-- Code example in Python -->
 def sqlite_cdc_hook(action: str, db: str, table: str, rowid: int):
     """SQLite update hook for CDC."""
     if action == sqlite3.INSERT:
@@ -665,19 +720,22 @@ def sqlite_cdc_hook(action: str, db: str, table: str, rowid: int):
         event_type = "entity:deleted"
 
     emit_cdc_event(event_type, table, rowid)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 9.3 SQL Server Implementation
 
 SQL Server CDC via CDC feature:
 
 ```sql
+<!-- Code example in SQL -->
 EXEC sys.sp_cdc_enable_db
 EXEC sys.sp_cdc_enable_table
   @source_schema = 'dbo',
   @source_name = 'tb_user',
   @role_name = NULL
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -701,6 +759,7 @@ CDC events can be delivered via:
 To ensure exactly-once delivery:
 
 ```python
+<!-- Code example in Python -->
 # Use event_id for deduplication
 processed_event_ids = set()
 
@@ -710,20 +769,23 @@ for event in event_stream:
 
     process_event(event)
     processed_event_ids.add(event.event_id)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 10.3 Ordering Guarantees
 
 Events within a transaction are ordered by `sequence_number`:
 
 ```python
+<!-- Code example in Python -->
 # Sort events before processing
 events_sorted = sorted(events, key=lambda e: e.sequence_number)
 
 # Process in order
 for event in events_sorted:
     process_event(event)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -732,33 +794,41 @@ for event in events_sorted:
 ### 11.1 Entity Type Filter
 
 ```python
+<!-- Code example in Python -->
 # Only receive User events
 events = subscribe(event_type="entity:*", entity_type="User")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.2 Tenant Filter
 
 ```python
+<!-- Code example in Python -->
 # Only receive tenant-123 events
 events = subscribe(tenant_id="tenant-123")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.3 Trigger Filter
 
 ```python
+<!-- Code example in Python -->
 # Only API mutations (not admin/migration)
 events = subscribe(trigger="api_*")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 11.4 Changed Field Filter
 
 ```python
+<!-- Code example in Python -->
 # Only if status field changed
 events = subscribe(
     entity_type="User",
     changed_fields=["status"]
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -769,36 +839,43 @@ events = subscribe(
 All changes from a single mutation are in one event:
 
 ```python
+<!-- Code example in Python -->
 # Mutation deletes user + 3 posts
 # CDC emits 1 event with:
 # - entity_type: User
 # - cascade.deleted: [Post, Post, Post]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 12.2 Ordering
 
 Events are monotonically ordered by `sequence_number`:
 
 ```python
+<!-- Code example in Python -->
 # Event 4520, 4521, 4522, ... guaranteed order
 # No gaps (unless CDC temporarily disabled)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 12.3 Completeness
 
 Every mutation produces exactly one event:
 
 ```python
+<!-- Code example in Python -->
 # If mutation succeeds, CDC event emitted
 # If mutation fails, no CDC event
 # If mutation partially succeeds, one event with error metadata
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 12.4 Durability
 
 Events are persisted before acknowledging to client:
 
-```
+```text
+<!-- Code example in TEXT -->
 Client mutation request
     ↓
 Execute in database
@@ -806,7 +883,8 @@ Execute in database
 Emit CDC event to queue/log
     ↓
 Return success to client
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -817,6 +895,7 @@ Return success to client
 In CompiledSchema:
 
 ```json
+<!-- Code example in JSON -->
 {
   "cdc": {
     "enabled": true,
@@ -825,33 +904,38 @@ In CompiledSchema:
     "batch_size": 100
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 13.2 Selective Entities
 
 Only emit CDC for certain entities:
 
 ```json
+<!-- Code example in JSON -->
 {
   "cdc": {
     "entities": ["User", "Post"],
     "exclude_entities": ["AuditLog"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 13.3 Selective Operations
 
 Only emit CDC for certain operations:
 
 ```json
+<!-- Code example in JSON -->
 {
   "cdc": {
     "operations": ["UPDATE", "DELETE"],
     "exclude_operations": ["CREATE"]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

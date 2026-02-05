@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Version control
+.hg
+.svn
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+target/
+dist/
+build/
+*.o
+*.a
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+vendor/
+
+# Documentation
+docs/
+*.md
+
+# Tests
+tests/
+**/*_test.rs
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
+
+# Development
+.phases/
+*.log
+.env.local

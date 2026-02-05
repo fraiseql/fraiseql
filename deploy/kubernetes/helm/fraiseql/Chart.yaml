@@ -1,0 +1,14 @@
+apiVersion: v2
+name: fraiseql
+description: FraiseQL GraphQL execution engine
+type: application
+version: 2.1.0
+appVersion: "2.1.0"
+keywords:
+  - graphql
+  - database
+  - execution
+  - sql
+home: https://github.com/fraiseql/fraiseql
+sources:
+  - https://github.com/fraiseql/fraiseql

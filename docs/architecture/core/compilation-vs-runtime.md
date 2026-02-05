@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Compilation vs Runtime: Decision Authority Matrix
+description: This document establishes **when decisions are made** in FraiseQL: compile-time (static) vs runtime (dynamic).
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Compilation vs Runtime: Decision Authority Matrix
 
 **Version:** 1.0
@@ -12,6 +20,7 @@
 This document establishes **when decisions are made** in FraiseQL: compile-time (static) vs runtime (dynamic).
 
 Understanding this boundary is critical because:
+
 - **Compile-time decisions** are fixed and cannot change during execution
 - **Runtime decisions** are dynamic and determined per request
 - **Incorrect placement** leads to architectural violations
@@ -23,10 +32,66 @@ Understanding this boundary is critical because:
 > **FraiseQL maximizes compile-time decisions to enable deterministic runtime behavior.**
 
 **Why?**
+
 - Compile-time errors are better than runtime errors
 - Static analysis enables optimization
 - Deterministic execution enables predictable caching and invalidation
 - No user code means no runtime surprises
+
+### Timeline of Decisions
+
+**Diagram: Compilation Pipeline** - 7-phase process from source code to optimized schema
+
+```d2
+<!-- Code example in D2 Diagram -->
+direction: right
+
+AuthorTime: "Authoring Time\n(Python/TS)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+CompileTime: "Compile Time\n(Rust CLI)" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+RuntimeRequest: "Runtime\n(Per Request)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+Deployment: "Deployment Time\n(Environment)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+AuthDecisions: "✅ Schema types\n✅ Fields\n✅ Type definitions\n✅ Relationships" {
+  shape: box
+  style.fill: "#e1f5fe"
+}
+
+CompileDecisions: "✅ Validation rules\n✅ Query plans\n✅ SQL templates\n✅ Auth rules\n✅ Operator mappings" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+RuntimeDecisions: "✅ Parameter values\n✅ AuthContext\n✅ Field masking\n✅ Row filtering\n✅ Cache invalidation" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+DeployDecisions: "✅ Credentials\n✅ Database URLs\n✅ Config overrides\n✅ Feature flags" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+AuthTime -> AuthDecisions
+CompileTime -> CompileDecisions
+RuntimeRequest -> RuntimeDecisions
+Deployment -> DeployDecisions
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -68,9 +133,9 @@ Understanding this boundary is critical because:
 | Custom scalar value validation | Runtime | Rust runtime | `scalars.md` | ✅ Yes (per value) |
 | **AUTHORIZATION** |
 | Authorization rule syntax | Compile-time | Schema validator | `authoring-contract.md` Section 5 | ❌ No |
-| What auth context fields are required | Compile-time | Auth context schema declaration | `PRD.md` Section 4.2 | ❌ No |
-| Whether user is authenticated | Runtime | External auth provider | `PRD.md` Section 4.2 | ✅ Yes (per request) |
-| AuthContext structure | Runtime | Auth provider produces | `PRD.md` Section 4.2 | ✅ Yes (per user) |
+| What auth context fields are required | Compile-time | Auth context schema declaration | `prd.md` Section 4.2 | ❌ No |
+| Whether user is authenticated | Runtime | External auth provider | `prd.md` Section 4.2 | ✅ Yes (per request) |
+| AuthContext structure | Runtime | Auth provider produces | `prd.md` Section 4.2 | ✅ Yes (per user) |
 | Whether user is authorized for query | Runtime | Compiled auth metadata + AuthContext | `execution-model.md` Phase 2 | ✅ Yes (per request) |
 | Whether user can see specific field | Runtime | Compiled field-level auth + AuthContext | `execution-model.md` Phase 5 | ✅ Yes (per field) |
 | Role hierarchy rules | Compile-time | RBAC schema declaration | `rbac.md` | ❌ No |
@@ -112,6 +177,7 @@ Understanding this boundary is critical because:
 ### Pattern 1: Schema Structure is Compile-Time
 
 **Everything about the GraphQL schema** is determined at compile time:
+
 - What types exist
 - What fields each type has
 - What arguments queries accept
@@ -120,9 +186,11 @@ Understanding this boundary is critical because:
 **Why?** Schema is the contract. Changing it at runtime breaks that contract.
 
 **Example:**
+
 ```python
+<!-- Code example in Python -->
 # Compile-time: Define schema
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
     name: str
@@ -131,7 +199,8 @@ class User:
 # Runtime: Can't add fields or change types
 # This is impossible:
 # user.add_field("age", Int)  # ❌ NOT ALLOWED
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -141,7 +210,9 @@ class User:
 **The values of data** are runtime.
 
 **Example:**
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Compile-time: Query structure
 query {
   users(where: { name: { _eq: $name } }) {  # Structure fixed
@@ -153,7 +224,8 @@ query {
 # Runtime: Variable values change per request
 { "name": "Alice" }  # ✅ Value is runtime
 { "name": "Bob" }    # ✅ Different value, same structure
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -163,16 +235,19 @@ query {
 **Authorization enforcement** (whether user meets requirements) happens at runtime.
 
 **Example:**
+
 ```python
+<!-- Code example in Python -->
 # Compile-time: Declare rule
-@fraiseql.query
+@FraiseQL.query
 @requires_role("admin")  # Rule declared
 def users():
     pass
 
 # Runtime: Check if user has "admin" role
 # AuthContext.roles includes "admin"? ✅ Allow : ❌ Deny
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -182,7 +257,9 @@ def users():
 **Behavior** (how features execute) is runtime.
 
 **Example:**
+
 ```python
+<!-- Code example in Python -->
 # Compile-time: Enable caching
 config = CompilerConfig(
     caching_enabled=True,         # Compile-time decision
@@ -192,7 +269,8 @@ config = CompilerConfig(
 
 # Runtime: Cache lookup and storage
 # Is result in cache? ✅ Return cached : ❌ Execute query
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -205,6 +283,7 @@ config = CompilerConfig(
 **Why?** The user's identity (AuthContext) isn't known until runtime.
 
 **Correct understanding:**
+
 - **Compile-time:** Validate authorization rule syntax, check auth context schema
 - **Runtime:** Check if user's AuthContext satisfies authorization rules
 
@@ -217,6 +296,7 @@ config = CompilerConfig(
 **Why?** Schema is known at compile time. Specific query text comes from client at runtime.
 
 **Correct understanding:**
+
 - **Compile-time:** Schema defines valid fields, types, arguments
 - **Runtime:** Request validates that client selected fields that exist in schema
 
@@ -229,6 +309,7 @@ config = CompilerConfig(
 **Why?** Compiler reads capability manifest and generates WHERE types. Can't change at runtime.
 
 **Correct understanding:**
+
 - **Compile-time:** Capability manifest + database target → WHERE types generated
 - **Runtime:** Runtime only executes operators that exist in compiled schema
 
@@ -241,6 +322,7 @@ config = CompilerConfig(
 **Why?** Runtime executes compiled plans. Changing CompiledSchema would invalidate all execution logic.
 
 **Correct understanding:**
+
 - **Compile-time:** Produce immutable CompiledSchema artifact
 - **Runtime:** Load CompiledSchema once at startup, never modify
 
@@ -251,12 +333,15 @@ config = CompilerConfig(
 ### ❌ Anti-Pattern 1: Runtime Schema Modification
 
 **Wrong:**
+
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to add field to type
 fn add_field_to_user(schema: &mut CompiledSchema, field_name: &str) {
     schema.types["User"].fields.insert(field_name, ...);  // ❌ FORBIDDEN
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Schema is compile-time contract. Runtime modification breaks determinism.
 
@@ -267,13 +352,16 @@ fn add_field_to_user(schema: &mut CompiledSchema, field_name: &str) {
 ### ❌ Anti-Pattern 2: Dynamic Operator Translation
 
 **Wrong:**
+
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to emulate unavailable operator
 fn execute_regex_on_mysql(col: &str, pattern: &str) -> String {
     // Fake regex with LIKE + stored procedures
     format!("CALL emulate_regex({}, {})", col, pattern)  // ❌ FORBIDDEN
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** GraphQL schema lies about operator availability. Clients get runtime surprises.
 
@@ -284,32 +372,40 @@ fn execute_regex_on_mysql(col: &str, pattern: &str) -> String {
 ### ❌ Anti-Pattern 3: Runtime Authorization Logic
 
 **Wrong:**
+
 ```python
+<!-- Code example in Python -->
 # Runtime resolver executes auth logic
 def resolve_user_email(user, context):
     if context.user.role == "admin":  # ❌ Runtime logic
         return user.email
     else:
         return None
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Authorization should be declarative (compile-time), not imperative (runtime).
 
 **Correct:** Declare field-level auth at compile time:
+
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class User:
     id: ID
     name: str
-    email: str = fraiseql.field(requires_role="admin")  # ✅ Compile-time
-```
+    email: str = FraiseQL.field(requires_role="admin")  # ✅ Compile-time
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ### ❌ Anti-Pattern 4: Runtime Query Planning
 
 **Wrong:**
+
 ```rust
+<!-- Code example in RUST -->
 // Runtime tries to change execution plan
 fn execute_query(query: &Query) {
     if query.is_complex() {
@@ -319,7 +415,8 @@ fn execute_query(query: &Query) {
         execute_normally(query);
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why wrong?** Execution should be deterministic. Same query always uses same plan.
 
@@ -364,7 +461,8 @@ When implementing runtime features, ensure:
 
 Use this decision tree when unclear about timing:
 
-```
+```text
+<!-- Code example in TEXT -->
 Does the decision depend on request-specific data?
 ├─ YES → Runtime
 │   Examples: AuthContext, cache hit/miss, SQL parameter values
@@ -375,13 +473,14 @@ Does the decision depend on request-specific data?
     │   Examples: database target, caching enabled, security profile
     └─ NO → Compile-time (schema structure)
         Examples: types, fields, operators available
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## Related Specifications
 
-- **`docs/prd/PRD.md` Section 2.3-2.4** — Compile-time vs runtime responsibilities
+- **`docs/prd/prd.md` Section 2.3-2.4** — Compile-time vs runtime responsibilities
 - **`docs/architecture/core/compilation-pipeline.md`** — What compiler does (compile-time)
 - **`docs/architecture/core/execution-model.md`** — What runtime does (runtime)
 - **`docs/architecture/database/database-targeting.md`** — Database target (compile-time decision)
@@ -413,6 +512,7 @@ Does the decision depend on request-specific data?
 > **If you need request data to determine it, it's runtime.**
 
 **Examples:**
+
 - "What fields does User have?" — Compile-time (no request needed)
 - "What is the user's email?" — Runtime (need to execute query)
 - "Can this field use _regex?" — Compile-time (capability manifest + database target)

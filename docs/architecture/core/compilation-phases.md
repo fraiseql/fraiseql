@@ -1,8 +1,32 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Compilation Phases: Detailed Specifications
+description: 1. [Executive Summary](#executive-summary)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Compilation Phases: Detailed Specifications
 
 **Date:** January 2026
 **Status:** Complete System Specification
 **Audience:** Compiler engineers, schema designers, framework architects
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Phase 1: Schema Parsing & Validation](#1-phase-1-schema-parsing--validation)
+3. [Phase 2: Type Resolution & Linking](#2-phase-2-type-resolution--linking)
+4. [Phase 3: Field Binding & Authorization](#3-phase-3-field-binding--authorization)
+5. [Phase 4: Federation Analysis & Validation](#4-phase-4-federation-analysis--validation)
+6. [Phase 5: Query/Mutation/Subscription Compilation](#5-phase-5-querymutationsubscription-compilation)
+7. [Phase 6: Code Generation & Optimization](#6-phase-6-code-generation--optimization)
+8. [Validation & Error Reporting](#7-validation--error-reporting)
+9. [Compilation Examples](#8-compilation-examples)
+10. [Performance Characteristics](#9-performance-characteristics)
+11. [Summary & Checklist](#10-summary--checklist)
 
 ---
 
@@ -13,7 +37,9 @@ FraiseQL's compiler transforms user-defined schemas into deterministic, database
 **Core principle**: Compile-time certainty. Everything that can be determined at compile time is determined; nothing is left to runtime interpretation.
 
 **Compilation flow**:
-```
+
+```text
+<!-- Code example in TEXT -->
 User Schema (Python/YAML)
     ↓ Phase 1: Schema Parsing & Validation
 SchemaAST (Abstract Syntax Tree)
@@ -29,7 +55,8 @@ OperationPlan (executable query/mutation/subscription plans)
 CompiledSchema (final executable IR)
     ↓
 Runtime executes CompiledSchema
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -44,20 +71,21 @@ Runtime executes CompiledSchema
 ### 1.2 Input Format: Python
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class User:
     """A user in the system"""
     id: ID
     name: str
     email: str | None = None
 
-    @fraiseql.field
+    @FraiseQL.field
     def profile(self) -> 'UserProfile':
         """User's extended profile"""
         pass
 
-@fraiseql.type
-@fraiseql.key(fields=["id"])  # Federation key
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])  # Federation key
 class Post:
     """A blog post"""
     id: ID
@@ -67,22 +95,24 @@ class Post:
     author: User  # Relationship
     created_at: datetime
 
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     def delete(self) -> bool:
         """Delete this post (owner only)"""
         pass
 
-@fraiseql.enum
+@FraiseQL.enum
 class Role:
     """User roles"""
     ADMIN = "admin"
     USER = "user"
     GUEST = "guest"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Input Format: YAML
 
 ```yaml
+<!-- Code example in YAML -->
 types:
   User:
     description: "A user in the system"
@@ -123,11 +153,13 @@ enums:
     ADMIN: "admin"
     USER: "user"
     GUEST: "guest"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.4 Input Format: SDL (GraphQL Schema Definition Language)
 
 ```graphql
+<!-- Code example in GraphQL -->
 """A user in the system"""
 type User {
   id: ID!
@@ -150,57 +182,66 @@ enum Role {
   USER
   GUEST
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.5 Parsing Rules
 
 **Type definitions:**
-- Extract all `@fraiseql.type` decorated classes
-- Extract all `@fraiseql.enum` enums
-- Extract all `@fraiseql.interface` interfaces
-- Extract all `@fraiseql.scalar` custom scalars
-- Extract all `@fraiseql.union` union types
+
+- Extract all `@FraiseQL.type` decorated classes
+- Extract all `@FraiseQL.enum` enums
+- Extract all `@FraiseQL.interface` interfaces
+- Extract all `@FraiseQL.scalar` custom scalars
+- Extract all `@FraiseQL.union` union types
 
 **Field extraction:**
+
 - From each type, extract all public fields (not starting with `_`)
 - Determine field type (scalar, enum, object, list, union)
 - Identify field modifiers (required `!`, list `[]`, nullable)
 - Extract field decorators (`@field`, `@authorize`, `@cache`, etc.)
 
 **Relationship detection:**
+
 - When field type is another defined type, mark as relationship
 - Identify foreign key relationships (e.g., `author_id` → `author: User`)
 - Mark one-to-one, one-to-many, many-to-many relationships
 
 **Decorator extraction:**
-- Extract all decorators: `@fraiseql.type`, `@fraiseql.key`, `@fraiseql.authorize`, `@fraiseql.cache`, `@fraiseql.requires`, etc.
+
+- Extract all decorators: `@FraiseQL.type`, `@FraiseQL.key`, `@FraiseQL.authorize`, `@FraiseQL.cache`, `@FraiseQL.requires`, etc.
 - Preserve decorator arguments for later phases
 
 ### 1.6 Validation Rules
 
 **Type naming:**
+
 - ✅ Type names must be PascalCase (User, UserProfile, Post)
 - ✅ Enum names must be PascalCase (Role, Status, Priority)
 - ✅ Field names must be snake_case (user_id, created_at, author_email)
-- ❌ Reserved type names: Query, Mutation, Subscription, _Any, _Entity
+- ❌ Reserved type names: Query, Mutation, Subscription, _Any,_Entity
 
 **Field definitions:**
+
 - ✅ Must have a type annotation
 - ✅ Field type must be defined or scalar
 - ❌ Circular non-nullable relationships (User.best_friend: User! creates infinite depth)
 - ❌ Self-referential without proper nesting control
 
 **Decorator usage:**
-- ✅ `@fraiseql.key(fields=[...])` only on types marked for federation
-- ✅ `@fraiseql.external()` only on `@fraiseql.type(extend=True)` types
-- ✅ `@fraiseql.authorize(rule=...)` on queries, mutations, subscriptions, or individual fields
-- ❌ Multiple `@fraiseql.type` decorators on same class
+
+- ✅ `@FraiseQL.key(fields=[...])` only on types marked for federation
+- ✅ `@FraiseQL.external()` only on `@FraiseQL.type(extend=True)` types
+- ✅ `@FraiseQL.authorize(rule=...)` on queries, mutations, subscriptions, or individual fields
+- ❌ Multiple `@FraiseQL.type` decorators on same class
 
 ### 1.7 SchemaAST Structure
 
 Output SchemaAST:
 
 ```python
+<!-- Code example in Python -->
 class SchemaAST:
     types: dict[str, TypeDef]          # All type definitions
     enums: dict[str, EnumDef]          # All enum definitions
@@ -227,7 +268,8 @@ class FieldDef:
     decorators: dict[str, Any]  # e.g., {"authorize": "owner_only"}
     default_value: Any | None
     source_location: SourceLocation
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -244,6 +286,7 @@ class FieldDef:
 **Step 1: Build type registry**
 
 ```python
+<!-- Code example in Python -->
 type_registry = {
     "User": TypeDef(...),
     "Post": TypeDef(...),
@@ -258,13 +301,15 @@ type_registry = {
     "JSON": SCALAR_JSON,
     "UUID": SCALAR_UUID,
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Resolve all type references**
 
 For each field with type reference:
 
 ```python
+<!-- Code example in Python -->
 # Field definition: author: User
 field.type = TypeReference("User")  # Unresolved
 
@@ -276,11 +321,13 @@ raise CompilationError(
     f"Type 'User' not defined. Line {field.source_location.line}",
     code="E_SCHEMA_UNKNOWN_TYPE_101"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Resolve list and nullable modifiers**
 
 ```python
+<!-- Code example in Python -->
 # Field: tags: [String!]!
 # Breakdown:
 #   - List of: String!
@@ -290,11 +337,13 @@ raise CompilationError(
 field.list = True
 field.element_required = True
 field.required = True
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 4: Handle forward references**
 
 ```python
+<!-- Code example in Python -->
 # Field: posts: [Post]  (defined before Post type)
 # In Python: class User -> field posts: [Post] (string forward reference)
 # In Phase 2: Resolve "Post" string to actual Post type
@@ -303,13 +352,15 @@ field.required = True
 field.type = TypeReference("Post")  # String reference
 # To:
 field.type_def = type_registry["Post"]  # Resolved
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Dependency Analysis
 
 Build type dependency graph:
 
-```
+```text
+<!-- Code example in TEXT -->
 User
 ├─ depends on: UserProfile, Role
 └─ no dependencies on Post
@@ -321,41 +372,48 @@ Post
 Comment
 ├─ depends on: Post, User, DateTime
 └─ depends on: Post (circular with Post.comments)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Circular dependency detection:**
 
 ```python
+<!-- Code example in Python -->
 # Circular but safe:
 User.posts: [Post]  # One-to-many
 Post.author: User   # Many-to-one
 
 # Circular but problem (infinite nesting):
 User.best_friend: User!  # Can be nested infinitely
-# Solution: Mark with depth limit @fraiseql.depth(max=2)
+# Solution: Mark with depth limit @FraiseQL.depth(max=2)
 
 # Circular but allowed if nullable:
 User.profile: UserProfile
 UserProfile.user: User | None  # Nullable, can be null at leaf
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.4 Validation Rules
 
 **Type existence:**
+
 - ✅ All field types must be defined or built-in scalar
 - ❌ Reference to undefined type (e.g., `author: User` but User not defined)
 
 **Forward references:**
+
 - ✅ Can reference types defined later in schema
 - ✅ Can use string forward references in Python (e.g., `'User'`)
 
 **Circular dependencies:**
+
 - ✅ Allowed (User → Post → User)
 - ✅ If all cycles are through nullable fields
 - ✅ If marked with depth limit
 - ❌ If creates infinite non-nullable cycle (Post.self: Post!)
 
 **Generic types:**
+
 - ✅ List types (e.g., `[Post]`)
 - ✅ Nullable types (e.g., `Post | None`)
 - ✅ Non-nullable types (e.g., `Post!`)
@@ -364,6 +422,7 @@ UserProfile.user: User | None  # Nullable, can be null at leaf
 ### 2.5 ResolvedSchema Structure
 
 ```python
+<!-- Code example in Python -->
 class ResolvedSchema:
     types: dict[str, ResolvedTypeDef]
     dependency_graph: Dict[str, Set[str]]  # Type -> dependencies
@@ -379,7 +438,8 @@ class ResolvedFieldDef:
     required: bool
     list: bool
     decorators: dict[str, Any]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -396,6 +456,7 @@ class ResolvedFieldDef:
 **Step 1: Identify database mapping**
 
 ```python
+<!-- Code example in Python -->
 # GraphQL type: User
 # Database table: tb_user
 # Database view: v_user
@@ -406,29 +467,33 @@ User.email → tb_user.email (column)
 User.name → tb_user.name (column)
 User.created_at → tb_user.created_at (column)
 User.profile → v_user_profile (via join or subquery)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Resolve database column names**
 
 ```python
+<!-- Code example in Python -->
 # User.email → lookup in tb_user columns
 # If column not found:
 raise CompilationError(
     f"Field 'email' has no database mapping. "
-    f"Define mapping: @fraiseql.column('user_email')",
+    f"Define mapping: @FraiseQL.column('user_email')",
     code="E_BINDING_NO_COLUMN_201"
 )
 
 # If explicit mapping exists:
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.column("email_address")  # Maps to column 'email_address'
+    @FraiseQL.column("email_address")  # Maps to column 'email_address'
     email: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Handle relationships**
 
 ```python
+<!-- Code example in Python -->
 # Post.author: User
 # Resolve to: JOIN tb_user ON tb_post.author_id = tb_user.pk_user
 
@@ -438,64 +503,70 @@ class User:
 
 Post.author_id: ID  # Foreign key (scalar)
 Post.author: User   # Relationship (object)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 4: Apply field-level authorization**
 
 ```python
+<!-- Code example in Python -->
 # Field with authorization:
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.authorize(rule="owner_or_admin")
+    @FraiseQL.authorize(rule="owner_or_admin")
     ssn: str
 
 # Authorization binding:
 # User.ssn → apply "owner_or_admin" rule at query time
 # Rule means: Only owner of user or admin can access ssn
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Authorization Rule Compilation
 
 **Rule types:**
 
 ```python
+<!-- Code example in Python -->
 # 1. Public (no rule, accessible to everyone)
-@fraiseql.type
+@FraiseQL.type
 class Post:
     title: str  # No @authorize, public
 
 # 2. Owner-only
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     email: str
 
 # 3. Role-based
-@fraiseql.type
+@FraiseQL.type
 class AdminPanel:
-    @fraiseql.authorize(rule="role:admin")
+    @FraiseQL.authorize(rule="role:admin")
     api_keys: [str]
 
 # 4. Custom rule
-@fraiseql.type
+@FraiseQL.type
 class Post:
-    @fraiseql.authorize(rule="is_published_or_author")
+    @FraiseQL.authorize(rule="is_published_or_author")
     content: str
 
 # 5. Field-level masking
-@fraiseql.type
+@FraiseQL.type
 class User:
-    @fraiseql.mask(
+    @FraiseQL.mask(
         show_to=["owner", "admin"],
         hide_from=["public"],
         masked_value=None
     )
     ssn: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rule resolution:**
 
 ```python
+<!-- Code example in Python -->
 # "owner_only" →
 # Built-in rule: Check if current_user.id == resource.id
 
@@ -504,13 +575,15 @@ class User:
 
 # "is_published_or_author" →
 # Custom rule: Compile from rule definition in schema
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Masking & Filtering
 
 **Field-level masking:**
 
 ```python
+<!-- Code example in Python -->
 # Rule: "owner_or_admin" on User.ssn
 # Current user: Guest
 # Result: Field returns NULL
@@ -524,22 +597,26 @@ class User:
 
 # If field is required and user unauthorized:
 # Result: GraphQL null error (cannot return null for non-null field)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Row-level security (applied in Phase 5):**
 
 ```python
+<!-- Code example in Python -->
 # Query: users { id email }
 # RLS rule: "current_user.department == user.department"
 # Result: Only return users in same department
 
 # RLS rule: "current_user.id == user.id OR current_user.role == 'admin'"
 # Result: Only return own user + admin can see all
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.5 BoundSchema Structure
 
 ```python
+<!-- Code example in Python -->
 class BoundSchema:
     types: dict[str, BoundTypeDef]
     authorization_rules: dict[str, AuthorizationRule]
@@ -566,7 +643,8 @@ class MaskingRule:
     show_to: list[str]  # Roles/users who can see
     hide_from: list[str]  # Roles/users who cannot see
     masked_value: Any  # What to show if masked (None, 0, "", etc.)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -583,18 +661,21 @@ class MaskingRule:
 **Step 1: Extract federation decorators**
 
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["id"])  # Primary key
-@fraiseql.key(fields=["email"])  # Alternative key
+<!-- Code example in Python -->
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])  # Primary key
+@FraiseQL.key(fields=["email"])  # Alternative key
 class User:
     id: ID
     email: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Validate key fields**
 
 ```python
+<!-- Code example in Python -->
 # Validate key field exists:
 # @key(fields=["id"]) → field "id" must exist ✅
 # @key(fields=["nonexistent"]) → Error ❌
@@ -604,21 +685,25 @@ class User:
 
 # Validate key field is indexed:
 # Fields should have database index for performance
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Validate extended types**
 
 ```python
-@fraiseql.type(extend=True)  # This type extends another subgraph's type
-@fraiseql.key(fields=["id"])  # Must have same key as original
+<!-- Code example in Python -->
+@FraiseQL.type(extend=True)  # This type extends another subgraph's type
+@FraiseQL.key(fields=["id"])  # Must have same key as original
 class Post:
-    id: ID = fraiseql.external()  # Mark external field
+    id: ID = FraiseQL.external()  # Mark external field
 
     # New field owned by this subgraph:
     comments: [Comment]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Validation rules:**
+
 - ✅ Extended types must have `@key` matching original type's `@key`
 - ✅ `@external()` fields must be in original type
 - ✅ New fields must not conflict with original type
@@ -632,6 +717,7 @@ class Post:
 For each `@key` on each type:
 
 ```python
+<!-- Code example in Python -->
 # User @key(fields=["id"])
 # Generate SQL function:
 CREATE FUNCTION resolve_user_by_id(keys UUID[]) RETURNS JSONB[] AS $$
@@ -647,11 +733,13 @@ CREATE FUNCTION resolve_user_by_email(keys TEXT[]) RETURNS JSONB[] AS $$
   FROM unnest(keys) WITH ORDINALITY AS t(key, idx)
   JOIN v_user ON v_user.email = t.key
 $$ LANGUAGE sql STABLE;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Generate dispatch metadata**
 
 ```python
+<!-- Code example in Python -->
 federation_metadata = {
     "entities": {
         "User": {
@@ -670,33 +758,37 @@ federation_metadata = {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.4 Database Linking Configuration (PostgreSQL FDW)
 
 **Step 1: Detect federation targets**
 
 ```python
+<!-- Code example in Python -->
 # FraiseQL schema references external types:
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class Product:  # Extended from Products subgraph
-    id: ID = fraiseql.external()
-    vendor: Vendor = fraiseql.requires(fields=["id"])  # Requires external field
-```
+    id: ID = FraiseQL.external()
+    vendor: Vendor = FraiseQL.requires(fields=["id"])  # Requires external field
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Generate foreign table definitions**
 
 If Products subgraph is also FraiseQL on PostgreSQL:
 
 ```sql
+<!-- Code example in SQL -->
 -- Create FDW server (one per external subgraph)
 CREATE SERVER products_fdw FOREIGN DATA WRAPPER postgres_fdw
   OPTIONS (host 'products-db', dbname 'products', port '5432');
 
 -- Create foreign table (schema mapped from FraiseQL view)
 CREATE FOREIGN TABLE products_schema_v_product (
-    pk_product INTEGER,
+    pk_product BIGINTEGER,
     id UUID,
     vendor_id UUID,
     data JSONB
@@ -705,11 +797,13 @@ CREATE FOREIGN TABLE products_schema_v_product (
 -- Create user mapping
 CREATE USER MAPPING FOR current_user SERVER products_fdw
   OPTIONS (user 'fdw_user', password 'secret');
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Generate entity resolution with FDW joins**
 
 ```sql
+<!-- Code example in SQL -->
 -- Entity resolution for Product with vendor relationship
 CREATE FUNCTION resolve_product_with_vendor(keys UUID[]) RETURNS JSONB[] AS $$
   SELECT array_agg(
@@ -721,11 +815,13 @@ CREATE FUNCTION resolve_product_with_vendor(keys UUID[]) RETURNS JSONB[] AS $$
   JOIN products_schema_v_product p ON p.id = t.key
   LEFT JOIN vendors_schema_v_vendor v ON v.id = p.vendor_id
 $$ LANGUAGE sql STABLE;
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.5 FederationSchema Structure
 
 ```python
+<!-- Code example in Python -->
 class FederationSchema:
     entities: dict[str, EntityDefinition]
     federation_functions: dict[str, FunctionDefinition]
@@ -747,7 +843,8 @@ class DatabaseLink:
     db_type: str  # "postgresql", "sqlserver", "mysql"
     connection_string: str
     foreign_tables: dict[str, ForeignTableDef]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -764,6 +861,7 @@ class DatabaseLink:
 **Step 1: Parse query structure**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPosts($published: Boolean) {
   posts(where: { published: $published }, first: 20) {
     id
@@ -778,11 +876,13 @@ query GetPosts($published: Boolean) {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Build execution plan**
 
-```
+```text
+<!-- Code example in TEXT -->
 QueryPlan:
   ├─ Resolve root: posts
   │  └─ Database query: SELECT * FROM v_post WHERE published = $1 LIMIT 20
@@ -808,11 +908,13 @@ QueryPlan:
   │
   └─ Resolve field: comments.id, comments.content
      └─ Already available from comment join
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Optimize and generate SQL**
 
 ```sql
+<!-- Code example in SQL -->
 -- Compiled SQL plan:
 SELECT
   p.id AS "id",
@@ -833,11 +935,13 @@ FROM v_post p
 JOIN v_user u ON p.author_id = u.id
 WHERE p.published = true
 LIMIT 20
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 4: Apply authorization**
 
 ```sql
+<!-- Code example in SQL -->
 -- Add row-level security WHERE clause:
 SELECT ...
 FROM v_post p
@@ -848,13 +952,15 @@ WHERE p.published = true
     p.author_id = $current_user_id OR p.published = true
   )
 LIMIT 20
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Mutation Compilation
 
 **Step 1: Parse mutation structure**
 
 ```graphql
+<!-- Code example in GraphQL -->
 mutation CreatePost($title: String!, $content: String!) {
   createPost(input: {
     title: $title,
@@ -864,11 +970,13 @@ mutation CreatePost($title: String!, $content: String!) {
     title
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Build execution plan**
 
-```
+```text
+<!-- Code example in TEXT -->
 MutationPlan:
   ├─ Validate input: title required, content required
   ├─ Apply authorization: Check if user can create posts
@@ -876,11 +984,13 @@ MutationPlan:
   ├─ Execute: INSERT INTO tb_post (title, content, author_id) VALUES (...)
   ├─ Return: SELECT * FROM v_post WHERE id = ...
   └─ Apply authorization: Check if user can read created post
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Compile to SQL**
 
 ```sql
+<!-- Code example in SQL -->
 -- Insert + return in single operation (RETURNING clause):
 INSERT INTO tb_post (title, content, author_id, created_at)
 VALUES ($1, $2, $current_user_id, NOW())
@@ -890,13 +1000,15 @@ RETURNING (
     'title', title
   ) FROM v_post WHERE tb_post.id = v_post.id
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.4 Subscription Compilation
 
 **Step 1: Parse subscription structure**
 
 ```graphql
+<!-- Code example in GraphQL -->
 subscription OnPostCreated {
   postCreated {
     id
@@ -906,11 +1018,13 @@ subscription OnPostCreated {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Build event subscription plan**
 
-```
+```text
+<!-- Code example in TEXT -->
 SubscriptionPlan:
   ├─ Event trigger: PostgreSQL LISTEN "post_created"
   ├─ Event handler: PostgreSQL NOTIFY with entity ID
@@ -918,11 +1032,13 @@ SubscriptionPlan:
   ├─ Apply authorization: Only notify if user can see post
   ├─ Transform: Convert entity to subscription response format
   └─ Transport: Send via WebSocket/webhook/message queue
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Generate event trigger SQL**
 
 ```sql
+<!-- Code example in SQL -->
 -- Trigger function:
 CREATE FUNCTION notify_post_created() RETURNS trigger AS $$
 BEGIN
@@ -942,11 +1058,13 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER post_created_trigger
 AFTER INSERT ON tb_post
 FOR EACH ROW EXECUTE FUNCTION notify_post_created();
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 4: Runtime subscription handler**
 
 ```rust
+<!-- Code example in RUST -->
 // At runtime, when subscription created:
 // 1. LISTEN "post_created"
 // 2. On NOTIFY event:
@@ -954,13 +1072,15 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_created();
 //    - Check user authorization
 //    - Query entity (same SQL as query resolution)
 //    - Send to client
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.5 Field Resolution Strategies
 
 **Strategy 1: Inline (no join needed)**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Field value is in current row
 query {
   post(id: "1") {
@@ -968,11 +1088,13 @@ query {
     title   # Already have from query
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Strategy 2: Join (direct relationship)**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Field requires join to related table
 query {
   post(id: "1") {
@@ -982,11 +1104,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Strategy 3: Subquery (filtered relationship)**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Field requires filtered subquery
 query {
   post(id: "1") {
@@ -996,11 +1120,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Strategy 4: Federation (external type)**
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Field requires federation resolution
 query {
   post(id: "1") {
@@ -1010,11 +1136,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.6 OperationPlan Structure
 
 ```python
+<!-- Code example in Python -->
 class OperationPlan:
     operation_type: str  # "query", "mutation", "subscription"
     root_field: str
@@ -1034,7 +1162,8 @@ class AuthorizationPlan:
     rules: list[AuthorizationRule]
     sql_where_clause: str  # SQL WHERE for row-level security
     field_masks: dict[str, MaskingRule]
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1051,17 +1180,20 @@ class AuthorizationPlan:
 **Step 1: Generate optimal SQL**
 
 ```python
+<!-- Code example in Python -->
 # From OperationPlan, generate SQL that:
 # 1. Minimizes joins (use JSONB aggregation where possible)
 # 2. Pushes authorization down to WHERE clause
 # 3. Limits result sets early (push LIMIT down)
 # 4. Uses prepared statements (parameterized queries)
 # 5. Enables query plan caching
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Query optimization techniques**
 
 ```sql
+<!-- Code example in SQL -->
 -- Technique 1: JSONB aggregation (avoids JOIN overhead)
 SELECT
   jsonb_build_object(
@@ -1097,43 +1229,51 @@ LEFT JOIN LATERAL (
   WHERE post_id = p.id
   LIMIT 5
 ) a ON true
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.3 Prepared Statement Generation
 
 **Step 1: Identify parameters**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPosts($published: Boolean!, $limit: Int) {
   posts(where: { published: $published }, first: $limit) {
     id
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Generate prepared statement**
 
 ```sql
+<!-- Code example in SQL -->
 PREPARE get_posts (BOOLEAN, INTEGER) AS
   SELECT jsonb_build_object('id', id)
   FROM v_post
   WHERE published = $1
   LIMIT COALESCE($2, 20);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Parameter binding at runtime**
 
 ```rust
+<!-- Code example in RUST -->
 // At runtime:
 let params = (published_value, limit_value);
 db.execute_prepared("get_posts", params).await?
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.4 Caching Metadata Generation
 
 **Step 1: Identify cacheable operations**
 
 ```python
+<!-- Code example in Python -->
 # Queries that can be cached:
 # 1. Side-effect free (SELECT only)
 # 2. Deterministic (same input = same output)
@@ -1147,11 +1287,13 @@ CacheMetadata {
     cache_key: "GetPosts:$published:$limit",
     ttl_seconds: 300  # Cache 5 minutes
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Authorization-aware cache keys**
 
 ```python
+<!-- Code example in Python -->
 # Different users see different results (row-level security)
 # Cache key must include user context:
 
@@ -1160,24 +1302,28 @@ cache_key = f"GetPosts:$published:$limit:user_{user_id}"
 # - User 1 sees User 1's posts
 # - User 2 sees User 2's posts
 # - Cache keeps both separate
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.5 Error Handling Code Generation
 
 **Step 1: Generate error cases**
 
 ```rust
+<!-- Code example in RUST -->
 // From compilation, generate error handling:
 // 1. Parse errors (query syntax invalid)
 // 2. Binding errors (field not found)
 // 3. Authorization errors (user not allowed)
 // 4. Database errors (query timeout, deadlock)
 // 5. Type errors (wrong argument type)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Error code mapping**
 
 ```python
+<!-- Code example in Python -->
 error_cases = {
     "unknown_field": "E_BINDING_UNKNOWN_FIELD_202",
     "missing_argument": "E_VALIDATION_MISSING_ARGUMENT_102",
@@ -1185,13 +1331,15 @@ error_cases = {
     "unauthorized": "E_AUTH_PERMISSION_401",
     "query_timeout": "E_DB_QUERY_TIMEOUT_302",
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.6 CompiledSchema Structure
 
 **Final output:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "framework_version": "2.0.0",
   "compiled_schema_version": 1,
@@ -1250,31 +1398,38 @@ error_cases = {
     ...
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.7 Optimization Techniques
 
 **1. Dead code elimination:**
+
 - Remove unreachable fields
 - Remove unused joins
 
 **2. Query plan merging:**
+
 - Combine multiple subqueries when possible
 - Flatten nested queries
 
 **3. Join order optimization:**
+
 - Order joins by selectivity (most filtering first)
 - Use statistics to determine best join order
 
 **4. Index utilization:**
+
 - Identify WHERE clauses that can use indexes
 - Prefer indexed columns in filters
 
 **5. Memory optimization:**
+
 - Avoid loading large JSONB objects unnecessarily
 - Use streaming for large result sets
 
 **6. Parallelization hints:**
+
 - Mark queries that can execute in parallel
 - Identify independent subqueries
 
@@ -1284,60 +1439,73 @@ error_cases = {
 
 ### 7.1 Compilation Error Categories
 
-**Syntax Errors (Phase 1):**
+**Syntax Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_SCHEMA_SYNTAX_ERROR_001: Invalid schema syntax
 E_SCHEMA_DUPLICATE_TYPE_002: Type defined twice
 E_SCHEMA_INVALID_NAME_003: Invalid type/field name
-```
+```text
+<!-- Code example in TEXT -->
 
-**Resolution Errors (Phase 2):**
+**Resolution Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_SCHEMA_UNKNOWN_TYPE_101: Type reference not found
 E_SCHEMA_CIRCULAR_DEPENDENCY_102: Circular non-nullable reference
 E_SCHEMA_INVALID_MODIFIER_103: Invalid type modifier
-```
+```text
+<!-- Code example in TEXT -->
 
-**Binding Errors (Phase 3):**
+**Binding Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_BINDING_NO_COLUMN_201: Field has no database mapping
 E_BINDING_UNKNOWN_FIELD_202: Field not found in type
 E_BINDING_AMBIGUOUS_MAPPING_203: Multiple possible mappings
 E_BINDING_NO_RELATIONSHIP_204: Cannot resolve relationship
-```
+```text
+<!-- Code example in TEXT -->
 
-**Federation Errors (Phase 4):**
+**Federation Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_FED_NO_KEY_301: Extended type missing @key
 E_FED_KEY_MISMATCH_302: @key doesn't match original type
 E_FED_EXTERNAL_NOT_FOUND_303: External field not in original type
 E_FED_INVALID_REQUIRES_304: @requires field not found
-```
+```text
+<!-- Code example in TEXT -->
 
-**Query Errors (Phase 5):**
+**Query Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_QUERY_UNKNOWN_FIELD_401: Field doesn't exist in type
 E_QUERY_INVALID_ARGUMENT_402: Argument doesn't exist or wrong type
 E_QUERY_AUTHORIZATION_DENIED_403: Query not allowed by authorization rules
 E_QUERY_AMBIGUOUS_FRAGMENT_404: Fragment definition ambiguous
-```
+```text
+<!-- Code example in TEXT -->
 
-**Code Generation Errors (Phase 6):**
+**Code Generation Errors:**
 
-```
+```text
+<!-- Code example in TEXT -->
 E_CODEGEN_INVALID_SQL_501: Generated SQL is invalid
 E_CODEGEN_OPTIMIZATION_FAILED_502: Optimization produced wrong result
 E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Error Reporting Format
 
 ```json
+<!-- Code example in JSON -->
 {
   "error": {
     "message": "Type 'User' not defined",
@@ -1354,13 +1522,14 @@ E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
       "field": "author"
     },
     "suggestions": [
-      "Define type User: @fraiseql.type class User: ...",
+      "Define type User: @FraiseQL.type class User: ...",
       "Import User from another module",
       "Check spelling: Did you mean 'UserProfile'?"
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.3 Validation Rules Matrix
 
@@ -1382,16 +1551,19 @@ E_CODEGEN_MEMORY_LIMIT_503: Generated code too large
 **Input:**
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class User:
     id: ID
     name: str
     email: str | None = None
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 1 (Parsing):**
 
 ```python
+<!-- Code example in Python -->
 SchemaAST {
     types: {
         "User": TypeDef {
@@ -1404,11 +1576,13 @@ SchemaAST {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 2 (Resolution):**
 
 ```python
+<!-- Code example in Python -->
 ResolvedSchema {
     types: {
         "User": ResolvedTypeDef {
@@ -1418,11 +1592,13 @@ ResolvedSchema {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 3 (Binding):**
 
 ```python
+<!-- Code example in Python -->
 BoundSchema {
     types: {
         "User": BoundTypeDef {
@@ -1435,11 +1611,13 @@ BoundSchema {
         }
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 6 (Final):**
 
 ```json
+<!-- Code example in JSON -->
 {
   "types": {
     "User": {
@@ -1451,39 +1629,45 @@ BoundSchema {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 8.2 Query Compilation with Authorization
 
 **Input schema:**
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class Post:
     id: ID
     title: str
 
-    @fraiseql.authorize(rule="published_or_author")
+    @FraiseQL.authorize(rule="published_or_author")
     content: str
 
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID
 
-    @fraiseql.authorize(rule="owner_only")
+    @FraiseQL.authorize(rule="owner_only")
     email: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 3 (Authorization binding):**
 
 ```python
+<!-- Code example in Python -->
 # content field: Apply "published_or_author" rule
 # email field: Apply "owner_only" rule
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 5 (Query compilation):**
 
 ```graphql
+<!-- Code example in GraphQL -->
 query GetPost($id: ID!) {
   post(id: $id) {
     id
@@ -1495,11 +1679,13 @@ query GetPost($id: ID!) {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 6 (SQL generation):**
 
 ```sql
+<!-- Code example in SQL -->
 SELECT
   p.id,
   p.title,
@@ -1521,7 +1707,8 @@ SELECT
 FROM v_post p
 JOIN v_user u ON p.author_id = u.id
 WHERE p.id = $1
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 

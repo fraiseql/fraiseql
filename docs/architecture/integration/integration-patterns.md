@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: FraiseQL Integration Patterns: Federation, Webhooks, and Messaging
+description: FraiseQL integrates with external systems through three primary patterns:
+keywords: ["workflow", "design", "scalability", "saas", "performance", "realtime", "patterns", "ecommerce"]
+tags: ["documentation", "reference"]
+---
+
 # FraiseQL Integration Patterns: Federation, Webhooks, and Messaging
 
 **Date:** January 2026
@@ -24,7 +32,8 @@ Each pattern provides different trade-offs between consistency, latency, and com
 
 Standard Apollo Federation v2 with HTTP subgraph communication:
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌─────────────────┐
 │  Apollo Router  │
 │  (Gateway)      │
@@ -38,41 +47,47 @@ Standard Apollo Federation v2 with HTTP subgraph communication:
 └────────┘  └───────┘
 
 HTTP `_entities` calls for federation
-```
+```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
 
 ```python
+<!-- Code example in Python -->
 # Users subgraph
-@fraiseql.type
-@fraiseql.key(fields=["id"])
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])
 class User:
     id: ID!
     name: str
     email: str
 
 # Orders subgraph (extended type)
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID! = fraiseql.external()
-    orders: [Order] = fraiseql.requires(fields=["id"])
-```
+    id: ID! = FraiseQL.external()
+    orders: [Order] = FraiseQL.requires(fields=["id"])
+```text
+<!-- Code example in TEXT -->
 
 **Latency characteristics:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Single entity resolution: 50-200ms (HTTP roundtrip)
 Federation 1 level deep: 50-200ms
 Federation 2 levels deep: 100-400ms (cascading calls)
 Federation 3+ levels: Unacceptable (avoid)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.2 Database-Linked Federation (PostgreSQL FDW)
 
 Optimization for same-database FraiseQL-to-FraiseQL federation:
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌──────────────────────────────────────┐
 │ PostgreSQL (Primary Cluster)         │
 ├──────────────────────────────────────┤
@@ -86,11 +101,13 @@ Optimization for same-database FraiseQL-to-FraiseQL federation:
 └──────────────────────────────────────┘
 
 Both subgraphs accessible via database-level join
-```
+```text
+<!-- Code example in TEXT -->
 
 **Setup FDW:**
 
 ```sql
+<!-- Code example in SQL -->
 -- In users database:
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
 
@@ -102,17 +119,19 @@ CREATE USER MAPPING FOR current_user SERVER orders_fdw
 
 -- Foreign table
 CREATE FOREIGN TABLE orders_schema_v_order (
-    pk_order INTEGER,
+    pk_order BIGINTEGER,
     id UUID,
     user_id UUID,
     data JSONB
 ) SERVER orders_fdw
   OPTIONS (schema_name 'orders_schema', table_name 'v_order');
-```
+```text
+<!-- Code example in TEXT -->
 
 **Entity resolution with FDW:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Resolve User with orders (FDW join)
 CREATE FUNCTION resolve_user_with_orders(keys UUID[]) RETURNS JSONB[] AS $$
   SELECT array_agg(
@@ -129,55 +148,64 @@ CREATE FUNCTION resolve_user_with_orders(keys UUID[]) RETURNS JSONB[] AS $$
     GROUP BY user_id
   ) o ON o.user_id = u.id
 $$ LANGUAGE sql STABLE;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency characteristics:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Single entity resolution: 5-15ms (database join, no network)
 Federation 1 level deep: 5-15ms (10x faster than HTTP)
 Federation 2 levels deep: 10-30ms (same database, all FDW)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 1.3 Hybrid Federation (Mixed HTTP and FDW)
 
 Combine HTTP and database-level federation:
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌────────────────────────────────────┐
 │ Users (FraiseQL on PostgreSQL)     │
 ├────────────────────────────────────┤
 │ ├─ Orders via FDW (same DB): 10ms  │
 │ ├─ Products via HTTP (Apollo): 100ms
 │ └─ Inventory via FDW (same DB): 10ms
-```
+```text
+<!-- Code example in TEXT -->
 
 **Strategy selection (auto-detect):**
 
 ```python
+<!-- Code example in Python -->
 # At compile time, detect federation targets:
 if target_subgraph.is_fraiseql and target_db_type == source_db_type:
     resolution_strategy = "database_linking"  # FDW
 else:
     resolution_strategy = "http"  # Standard federation
-```
+```text
+<!-- Code example in TEXT -->
 
 **Example:**
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class Product:
     id: ID!
     name: str
 
     # This comes from Orders subgraph (FraiseQL, same DB)
-    @fraiseql.requires(fields=["id"])
+    @FraiseQL.requires(fields=["id"])
     orders: [Order]  # Will use FDW (fast)
 
     # This comes from Inventory subgraph (Apollo Server)
-    @fraiseql.requires(fields=["id"])
+    @FraiseQL.requires(fields=["id"])
     inventory: Inventory  # Will use HTTP (standard)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -187,7 +215,8 @@ class Product:
 
 Push events to external HTTP endpoints:
 
-```
+```text
+<!-- Code example in TEXT -->
 FraiseQL Event
     ↓
 Webhook Dispatcher
@@ -203,14 +232,16 @@ External System
     └─ Return 200 OK
 
 FraiseQL marks delivered
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.2 Webhook Configuration
 
 Configure webhooks:
 
 ```python
-@fraiseql.webhook(
+<!-- Code example in Python -->
+@FraiseQL.webhook(
     name="order_created_webhook",
     url="https://external.com/webhooks/order_created",
     events=["order_created"],
@@ -221,18 +252,20 @@ def on_order_created(event):
     pass
 
 # Register webhook
-fraiseql.webhooks.register(
+FraiseQL.webhooks.register(
     event_type="order_created",
     webhook_url="https://external.com/webhooks/order_created",
     secret="webhook_secret_key_123"
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.3 Webhook Payload Format
 
 Standard webhook format:
 
 ```json
+<!-- Code example in JSON -->
 {
   "id": "evt-abc123",
   "type": "order_created",
@@ -250,13 +283,15 @@ Standard webhook format:
   },
   "signature": "sha256=abcdef123..."
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.4 Webhook Retry Logic
 
 Handle delivery failures:
 
 ```python
+<!-- Code example in Python -->
 # Retry strategy
 Attempt 1: Immediate
 Attempt 2: +5 seconds (exponential backoff)
@@ -270,13 +305,15 @@ After 5 failed attempts:
   ├─ Mark webhook delivery as failed
   ├─ Alert operations team
   ├─ Can manually retry via dashboard
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.5 Webhook Signature Verification
 
 Secure webhooks with HMAC:
 
 ```python
+<!-- Code example in Python -->
 import hmac
 import hashlib
 
@@ -308,13 +345,15 @@ expected_signature = hmac.new(
 
 if not hmac.compare_digest(received_signature, f"sha256={expected_signature}"):
     raise ValueError("Invalid signature")
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 2.6 Webhook Idempotency
 
 Handle duplicate deliveries:
 
 ```python
+<!-- Code example in Python -->
 # Webhook includes event ID
 event = {
     "id": "evt-abc123",  # Unique event identifier
@@ -332,7 +371,8 @@ recipient_side_dedup:
 
     # Mark as processed
     db.mark_event_processed("evt-abc123")
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -343,8 +383,9 @@ recipient_side_dedup:
 Publish events to Kafka topics:
 
 ```python
-@fraiseql.kafka_publisher(
-    topic="fraiseql.events",
+<!-- Code example in Python -->
+@FraiseQL.kafka_publisher(
+    topic="FraiseQL.events",
     broker="kafka://broker1:9092,broker2:9092"
 )
 async def publish_to_kafka(event):
@@ -352,63 +393,69 @@ async def publish_to_kafka(event):
     pass
 
 # Configuration
-fraiseql.messaging.configure({
+FraiseQL.messaging.configure({
     "kafka": {
         "enabled": True,
         "brokers": ["kafka1:9092", "kafka2:9092"],
-        "topic": "fraiseql.events",
+        "topic": "FraiseQL.events",
         "compression": "snappy"
     }
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 **Kafka message format:**
 
 ```json
+<!-- Code example in JSON -->
 {
   "event_id": "evt-abc123",
   "event_type": "order_created",
   "timestamp": "2026-01-15T10:30:45Z",
-  "source": "fraiseql",
+  "source": "FraiseQL",
   "version": "2.0.0",
   "data": {
     "order_id": "order-789",
     "user_id": "user-456"
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.2 RabbitMQ Integration
 
 Publish events to RabbitMQ exchanges:
 
 ```python
-@fraiseql.rabbitmq_publisher(
-    exchange="fraiseql.events",
-    routing_key="fraiseql.{event_type}"
+<!-- Code example in Python -->
+@FraiseQL.rabbitmq_publisher(
+    exchange="FraiseQL.events",
+    routing_key="FraiseQL.{event_type}"
 )
 async def publish_to_rabbitmq(event):
     """Publish FraiseQL events to RabbitMQ"""
     pass
 
 # Configuration
-fraiseql.messaging.configure({
+FraiseQL.messaging.configure({
     "rabbitmq": {
         "enabled": True,
         "url": "amqp://user:pass@localhost:5672/",
-        "exchange": "fraiseql.events",
+        "exchange": "FraiseQL.events",
         "exchange_type": "topic",
         "durable": True
     }
 })
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.3 Consumer Groups (Kafka)
 
 Multiple consumers process events:
 
-```
-Kafka topic: fraiseql.events
+```text
+<!-- Code example in TEXT -->
+Kafka topic: FraiseQL.events
 ├─ Consumer Group 1 (notifications)
 │  ├─ Consumer 1A: Partition 0
 │  ├─ Consumer 1B: Partition 1
@@ -426,27 +473,30 @@ Kafka topic: fraiseql.events
 
 Each consumer group gets all events
 Multiple consumers in same group share partitions
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 3.4 Event Stream Ordering
 
 Guarantee ordering with message brokers:
 
-```
+```text
+<!-- Code example in TEXT -->
 Option 1: Topic-level (global order)
   ├─ All events go to single topic
   ├─ Consumers receive in order
   └─ Performance: Limited by single partition
 
 Option 2: Event-type topics (per-entity order)
-  ├─ fraiseql.events.orders
-  ├─ fraiseql.events.users
+  ├─ FraiseQL.events.orders
+  ├─ FraiseQL.events.users
   ├─ Each topic ordered within type
   ├─ Different types may interleave
   └─ Performance: Parallelized
 
 FraiseQL choice: Option 2 (per-entity order)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -456,7 +506,8 @@ FraiseQL choice: Option 2 (per-entity order)
 
 When using webhooks or message brokers:
 
-```
+```text
+<!-- Code example in TEXT -->
 FraiseQL Event (T0)
   ├─ Immediately available to queries (database updated)
   ├─ Webhook sent (may take 100-500ms)
@@ -472,13 +523,15 @@ External system query:
   ├─ At T0 + 800ms: Sees change (processed)
 
 Model: Eventual consistency (typically <1 second)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.2 Request-Response Consistency (Federation)
 
 When using federation (HTTP or FDW):
 
-```
+```text
+<!-- Code example in TEXT -->
 Query: Get User with Orders
 
 FraiseQL (HTTP federation):
@@ -488,13 +541,15 @@ FraiseQL (HTTP federation):
   ├─ Consistent snapshot
 
 Consistency: Strong (synchronous)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 4.3 Idempotent Event Processing
 
 Ensure external systems handle duplicate events:
 
 ```python
+<!-- Code example in Python -->
 # External system receives events
 # Webhook/message could be delivered twice
 
@@ -515,7 +570,8 @@ async def process_order_created(event):
 
     # Mark as processed
     db.insert("processed_events", {"event_id": event.id, "processed_at": now()})
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -525,7 +581,8 @@ async def process_order_created(event):
 
 One central FraiseQL service connects to many external systems:
 
-```
+```text
+<!-- Code example in TEXT -->
         ┌─────────────┐
         │ FraiseQL    │
         │ (Central)   │
@@ -538,13 +595,15 @@ One central FraiseQL service connects to many external systems:
 
 Pros: Centralized control, single GraphQL API
 Cons: Single point of failure, scalability limits
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.2 Federated Topology (Distributed)
 
 Multiple FraiseQL services with federation:
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌──────────────────┐     ┌──────────────────┐
 │ FraiseQL Users   │◄────►│ FraiseQL Orders  │
 │ (Subgraph A)     │     │ (Subgraph B)     │
@@ -562,13 +621,15 @@ Multiple FraiseQL services with federation:
 
 Pros: Distributed, scalable, isolated
 Cons: More complex deployment, eventual consistency
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 5.3 Hub-and-Spoke Topology (Hybrid)
 
 Mix of federation and direct integrations:
 
-```
+```text
+<!-- Code example in TEXT -->
         ┌─────────────┐
         │ FraiseQL    │
         │ (Hub)       │
@@ -584,7 +645,8 @@ Mix of federation and direct integrations:
 
 Pros: Flexible, balanced, controlled complexity
 Cons: Moderate complexity, requires good design
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -595,6 +657,7 @@ Cons: Moderate complexity, requires good design
 Don't do this:
 
 ```python
+<!-- Code example in Python -->
 # ❌ WRONG: Write to both database and external system
 def create_order(order):
     db.insert("orders", order)  # Write 1
@@ -604,13 +667,15 @@ def create_order(order):
 # Order in FraiseQL but not in external system
 # If Write 1 fails but Write 2 succeeds, reverse problem
 # No atomicity across systems
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 6.2 Primary Database with CDC
 
 Correct pattern:
 
 ```python
+<!-- Code example in Python -->
 # ✅ CORRECT: Single write to database, events propagate
 def create_order(order):
     db.insert("orders", order)  # Single write (atomic)
@@ -621,7 +686,8 @@ def create_order(order):
 
 # Inconsistency window: Order in FraiseQL, not yet in external
 # But convergence guaranteed (eventual consistency)
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -629,7 +695,8 @@ def create_order(order):
 
 ### 7.1 Metrics to Track
 
-```
+```text
+<!-- Code example in TEXT -->
 Federation:
   ├─ Subgraph latency: p50, p95, p99
   ├─ Entity resolution success rate
@@ -646,11 +713,13 @@ Messaging:
   ├─ Consumer lag (target: <1 minute)
   ├─ Message loss (target: 0)
   └─ Throughput (MB/sec)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### 7.2 Alert Rules
 
-```
+```text
+<!-- Code example in TEXT -->
 Alert: Subgraph down
   ├─ Condition: Federation call fails 5+ times in 1 minute
   ├─ Action: Page on-call
@@ -665,7 +734,8 @@ Alert: Consumer lag increasing
   ├─ Condition: Kafka lag >10 minutes
   ├─ Action: Scale consumers or investigate slowness
   └─ Impact: Analytics delayed
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -674,6 +744,7 @@ Alert: Consumer lag increasing
 ### 8.1 Federation
 
 **DO:**
+
 - ✅ Use federation for loosely-coupled services
 - ✅ Use FDW for same-database services (10x faster)
 - ✅ Design shallow federation (max 2 levels)
@@ -681,6 +752,7 @@ Alert: Consumer lag increasing
 - ✅ Monitor subgraph latency
 
 **DON'T:**
+
 - ❌ Chain more than 2 levels of federation
 - ❌ Use federation for internal services (too slow)
 - ❌ Assume federation latency <100ms (plan for 100-200ms)
@@ -688,6 +760,7 @@ Alert: Consumer lag increasing
 ### 8.2 Webhooks
 
 **DO:**
+
 - ✅ Verify webhook signatures
 - ✅ Implement idempotent processing
 - ✅ Handle delivery failures gracefully
@@ -695,6 +768,7 @@ Alert: Consumer lag increasing
 - ✅ Provide webhook dashboard for debugging
 
 **DON'T:**
+
 - ❌ Trust webhook source without signature verification
 - ❌ Process duplicate events twice
 - ❌ Block webhook processing (use async)
@@ -703,6 +777,7 @@ Alert: Consumer lag increasing
 ### 8.3 Messaging
 
 **DO:**
+
 - ✅ Use message brokers for high-throughput events
 - ✅ Partition by entity for ordering
 - ✅ Monitor consumer lag
@@ -710,6 +785,7 @@ Alert: Consumer lag increasing
 - ✅ Version message format
 
 **DON'T:**
+
 - ❌ Expect global event ordering (not possible)
 - ❌ Use message broker for real-time (latency too high)
 - ❌ Ignore message loss

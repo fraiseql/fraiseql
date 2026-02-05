@@ -1,9 +1,33 @@
+<!-- Skip to main content -->
+---
+title: Federation: Hybrid HTTP + Database-Level Linking
+description: 1. [Introduction & Philosophy](#1-introduction--philosophy)
+keywords: ["design", "scalability", "performance", "patterns", "security"]
+tags: ["documentation", "reference"]
+---
+
 # Federation: Hybrid HTTP + Database-Level Linking
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Complete
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** ✅ Implemented in v2.0.0-alpha.1
 **Audience:** Architects, Integration Engineers, Runtime Developers
+
+## Table of Contents
+
+1. [Introduction & Philosophy](#1-introduction--philosophy)
+2. [View-Based Federation Contract](#2-view-based-federation-contract)
+3. [Federation Architecture](#3-federation-architecture)
+4. [Compile-Time Federation Pipeline](#4-compile-time-federation-pipeline)
+5. [Schema Authoring](#5-schema-authoring)
+6. [Database Setup & Connection Configuration](#6-database-setup--connection-configuration)
+7. [HTTP Federation Implementation](#7-http-federation-implementation)
+8. [@requires and @provides Support](#8-requires-and-provides-support)
+9. [Runtime Entity Resolution Architecture](#9-runtime-entity-resolution-architecture)
+10. [Multi-Database Federation Architecture](#10-multi-database-federation-architecture)
+11. [Deployment & Configuration](#11-deployment--configuration)
+12. [Federation Examples](#12-federation-examples)
+13. [Performance Characteristics & Limitations](#13-performance-characteristics--limitations)
 
 ---
 
@@ -37,6 +61,7 @@ FraiseQL's federation architecture is built on a **standardized protocol** that 
 **View-based transport alone** is fast but requires database access and shared contracts.
 
 **Both together** provides optimal flexibility:
+
 - ✅ Works everywhere (HTTP for any GraphQL service)
 - ✅ Optimizes where possible (view-based for database-backed systems)
 - ✅ Extensible (future: gRPC, message queues for other patterns)
@@ -62,18 +87,21 @@ FraiseQL's federation architecture is built on a **standardized protocol** that 
 For a database-backed system to participate in view-based federation, it must expose views matching this contract:
 
 **View naming:** `v_{entity_name}` (lowercase, singular)
+
 - Example: `v_user`, `v_order`, `v_product`
 
 **View structure:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Minimum contract (required)
 CREATE VIEW v_user AS
 SELECT
   id,                              -- Primary key, used for federation lookups
   jsonb_build_object(...)  AS data -- Complete entity payload as JSON/JSONB
 FROM ...;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Columns:**
 
@@ -86,27 +114,35 @@ FROM ...;
 **Example implementations:**
 
 **PostgreSQL (FraiseQL automatic):**
+
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_user AS
 SELECT
   id,
   jsonb_build_object('id', id, 'email', email, 'name', name) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQL Server (manual):**
+
 ```sql
+<!-- Code example in SQL -->
 CREATE VIEW v_user AS
 SELECT
   id,
   (SELECT * FROM tb_user WHERE id = tb_user.id FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS data
 FROM tb_user
 WHERE deleted_at IS NULL;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Go/Python service (manual query):**
+
 ```python
+<!-- Code example in Python -->
 # Instead of a database view, return same shape:
 async def get_user_view(user_id):
     user = await db.get_user(user_id)
@@ -118,7 +154,8 @@ async def get_user_view(user_id):
             "name": user.name
         })
     }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Why This Contract?
 
@@ -139,7 +176,8 @@ async def get_user_view(user_id):
 
 ### High-Level Topology
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────────┐
 │ Apollo Router (Query Planning & Composition)│
 │ Sends standard GraphQL federation queries   │
@@ -149,7 +187,7 @@ async def get_user_view(user_id):
     ↓      ↓      ↓      ↓        ↓
  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
  │FraiseQL│FraiseQL │FraiseQL│Apollo │
- │Postgres│SQL Srv  │MySQL   │Server │
+ │PostgreSQL│SQL Srv  │MySQL   │Server │
  │(Users) │(Orders) │(Prod)  │(Reviews)
  │─────── │─────── │─────── │────────
  │Rust RT │Rust RT │Rust RT │GraphQL
@@ -157,7 +195,8 @@ async def get_user_view(user_id):
    ↓         ↓         ↓      ↓
    Direct DB Direct DB Direct DB HTTP
    Connection Connection Connection Post
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Entity Resolution: Three Transport Strategies
 
@@ -165,7 +204,8 @@ async def get_user_view(user_id):
 
 Entity owned and resolved by current subgraph:
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router requests User(id: "123")
     ↓
 FraiseQL receives _entities query
@@ -174,7 +214,8 @@ Execute local database query
     ↓
 Return User entity via HTTP response
     ↓ <5ms total
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** <5ms (direct database query, no network overhead)
 
@@ -182,7 +223,8 @@ Return User entity via HTTP response
 
 Entity in any external subgraph (GraphQL-based):
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router needs Product data
     ↓
 FraiseQL receives _entities query with Product representations
@@ -193,11 +235,13 @@ Products subgraph queries its database
     ↓
 Response returned via HTTP
     ↓ 50-200ms total
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** 50-200ms (network round-trip + remote query)
 
 **Used when:**
+
 - Subgraph uses different database than source (PostgreSQL → SQL Server)
 - Subgraph is external (Apollo Server, Yoga, etc.)
 - SQLite is involved (no database linking available)
@@ -206,7 +250,8 @@ Response returned via HTTP
 
 Entity in database-backed subgraph implementing view contract:
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router needs Order data
     ↓
 Subgraph receives _entities query
@@ -215,17 +260,20 @@ Subgraph executes query against v_order view
     ↓
 View returns entity with JSONB data payload
     ↓ <10-20ms total
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** <10-20ms (single database query, no HTTP round-trip)
 
 **Used when:**
+
 - Target subgraph is database-backed (FraiseQL, Go service, data platform, etc.)
 - Target subgraph exposes `v_{entity}` view matching federation contract
 - Network path exists from caller's Rust runtime to target database
 - Target database credentials are securely configured
 
 **Implementations:**
+
 - **FraiseQL:** Automatic (compiler generates views)
 - **Other systems:** Manual SQL view implementation
 - **Any database type:** PostgreSQL, SQL Server, MySQL, SQLite, Snowflake, DuckDB, etc.
@@ -234,14 +282,16 @@ View returns entity with JSONB data payload
 
 The compiler automatically selects the optimal strategy:
 
-```
+```text
+<!-- Code example in TEXT -->
 For each federation link (e.g., User → Order):
   1. Is target subgraph FraiseQL?
      NO → Use HTTP
   2. Can Rust runtime connect to target database?
      NO → Use HTTP (fallback)
   3. YES → Use Direct DB Connection
-```
+```text
+<!-- Code example in TEXT -->
 
 **Result: Zero configuration needed** — Compiler detects subgraph types and configures connections.
 
@@ -249,37 +299,43 @@ For each federation link (e.g., User → Order):
 
 #### Same Database (PostgreSQL ↔ PostgreSQL)
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router: _entities query (User by id)
     ↓ HTTP (10ms network)
 Rust runtime: Direct DB connection, SELECT FROM v_user (1ms)
     ↓ HTTP response (10ms network)
 Total: ~21ms (but bulk batching reduces per-entity cost to ~0.2ms each)
-```
+```text
+<!-- Code example in TEXT -->
 
 **For 100 entities:** ~3ms (batched in single query)
 
 #### Cross Database (PostgreSQL ↔ SQL Server)
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router: _entities query
     ↓ HTTP (50-200ms total)
 FraiseQL: HTTP request to SQL Server subgraph
     ↓ HTTP request (50-200ms)
 Total: 50-200ms per batch
-```
+```text
+<!-- Code example in TEXT -->
 
 **For 100 entities:** 50-200ms (single HTTP batch request)
 
 #### External (FraiseQL ↔ Apollo Server)
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router: _entities query
     ↓ HTTP (50-200ms total)
 FraiseQL: HTTP request to Apollo Server
     ↓ HTTP request (50-200ms)
 Total: 50-200ms per batch
-```
+```text
+<!-- Code example in TEXT -->
 
 **For 100 entities:** 50-200ms (same as cross-database)
 
@@ -296,16 +352,21 @@ FraiseQL implements the standard Apollo Federation v2 contract. Every FraiseQL s
 Returns the subgraph's schema as GraphQL SDL (Schema Definition Language).
 
 **Query:**
+
 ```graphql
+<!-- Code example in GraphQL -->
 {
   _service {
     sdl
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Response:**
+
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "_service": {
@@ -313,9 +374,11 @@ Returns the subgraph's schema as GraphQL SDL (Schema Definition Language).
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Implementation in FraiseQL:**
+
 - SDL is embedded in `CompiledSchema` during compilation
 - Generated with all `@key`, `@external`, `@requires`, `@provides` directives
 - Includes all local types, queries, and extended types
@@ -325,7 +388,9 @@ Returns the subgraph's schema as GraphQL SDL (Schema Definition Language).
 Resolves entities by their representations (key values).
 
 **Query:**
+
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   _entities(representations: [
     { __typename: "User", id: "123" }
@@ -338,10 +403,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Response:**
+
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "_entities": [
@@ -350,9 +418,11 @@ query {
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Implementation in FraiseQL:**
+
 1. Accept `representations` array from Apollo Router
 2. Group by `__typename` and key fields
 3. For each group, determine strategy (Local, HTTP, or DatabaseLink)
@@ -364,27 +434,34 @@ query {
 Auto-generated union of all entity types (types with `@key` directive).
 
 **In SDL:**
+
 ```graphql
+<!-- Code example in GraphQL -->
 union _Entity = User | Order | Product
 
 directive @federation__service(sdl: String!) on SCHEMA
-```
+```text
+<!-- Code example in TEXT -->
 
 ### The `_Any` Scalar
 
 Represents entity representations (opaque JSON objects with `__typename`).
 
 **Structure:**
+
 ```json
+<!-- Code example in JSON -->
 {
   "__typename": "User",
   "id": "123",
   "email": "alice@example.com",
   ... other key fields ...
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Parsing in FraiseQL:**
+
 1. Parse JSON representation
 2. Extract `__typename`
 3. Extract key fields (defined in `@key` directive)
@@ -394,7 +471,9 @@ Represents entity representations (opaque JSON objects with `__typename`).
 ### Reference Implementation
 
 **SDL Generation** (compile-time):
-```
+
+```text
+<!-- Code example in TEXT -->
 CompiledSchema
   ↓
 Extract all types with @key directive
@@ -402,10 +481,13 @@ Extract all types with @key directive
 Generate SDL with federation directives
   ↓
 Embed in CompiledSchema.federation.sdl
-```
+```text
+<!-- Code example in TEXT -->
 
 **Entity Resolution** (runtime):
-```
+
+```text
+<!-- Code example in TEXT -->
 HTTP Request: _entities(representations: [_Any!]!)
   ↓
 Parse representations
@@ -417,17 +499,20 @@ Execute queries (Local, HTTP, or DatabaseLink)
 Return results in original order
   ↓
 HTTP Response: _entities
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Federation Compliance
 
 FraiseQL federation is fully compliant with:
+
 - **Apollo Federation Specification v2.0+**
 - **Apollo Router compatibility**
 - **Standard GraphQL federation queries**
 - **Federation SDL directives**: @key, @external, @requires, @provides
 
 Subgraphs can be composed with:
+
 - Other FraiseQL subgraphs (any database)
 - Apollo Server subgraphs
 - Yoga Server subgraphs
@@ -456,22 +541,25 @@ Federation adds three new phases to the FraiseQL compilation pipeline:
 Extract federation directives from schema:
 
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["id"])
-@fraiseql.key(fields=["email"])  # Multiple keys allowed
+<!-- Code example in Python -->
+@FraiseQL.type
+@FraiseQL.key(fields=["id"])
+@FraiseQL.key(fields=["email"])  # Multiple keys allowed
 class User:
     id: ID
     email: str
     name: str
 
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID = fraiseql.external()
-    orders: list[Order] = fraiseql.requires(fields=["email"])
-```
+    id: ID = FraiseQL.external()
+    orders: list[Order] = FraiseQL.requires(fields=["email"])
+```text
+<!-- Code example in TEXT -->
 
 **Compiler extracts:**
+
 - Entity types: `User`, `Order` (types with @key)
 - Key definitions: `id`, `email`
 - External fields: `User.id` (in extended types)
@@ -493,48 +581,65 @@ Collect all types with `@key` directive:
 **✅ Compile-Time Validations:**
 
 1. **Key fields must exist in type:**
-   ```
-   @fraiseql.type
-   @fraiseql.key(fields=["user_id"])  # ❌ ERROR: user_id not a field
+
+   ```text
+<!-- Code example in TEXT -->
+   @FraiseQL.type
+   @FraiseQL.key(fields=["user_id"])  # ❌ ERROR: user_id not a field
    class User:
        id: ID
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 2. **Key fields must be selectable:**
-   ```
-   @fraiseql.type
-   @fraiseql.key(fields=["id"])  # ✅ OK
+
+   ```text
+<!-- Code example in TEXT -->
+   @FraiseQL.type
+   @FraiseQL.key(fields=["id"])  # ✅ OK
    class User:
        id: ID
-       _internal: str = fraiseql.internal()  # ✅ OK, internal fields excluded
-   ```
+       _internal: str = FraiseQL.internal()  # ✅ OK, internal fields excluded
+   ```text
+<!-- Code example in TEXT -->
 
 3. **@external only on extended types:**
-   ```
-   @fraiseql.type(extend=True)
-   class User:
-       id: ID = fraiseql.external()  # ✅ OK, extended type
 
-   @fraiseql.type
+   ```text
+<!-- Code example in TEXT -->
+   @FraiseQL.type(extend=True)
    class User:
-       id: ID = fraiseql.external()  # ❌ ERROR: not extended
-   ```
+       id: ID = FraiseQL.external()  # ✅ OK, extended type
+
+   @FraiseQL.type
+   class User:
+       id: ID = FraiseQL.external()  # ❌ ERROR: not extended
+   ```text
+<!-- Code example in TEXT -->
 
 4. **@requires must reference valid fields:**
-   ```
-   orders: list[Order] = fraiseql.requires(fields=["email"])  # ✅ OK, email exists
-   orders: list[Order] = fraiseql.requires(fields=["nonexistent"])  # ❌ ERROR
-   ```
+
+   ```text
+<!-- Code example in TEXT -->
+   orders: list[Order] = FraiseQL.requires(fields=["email"])  # ✅ OK, email exists
+   orders: list[Order] = FraiseQL.requires(fields=["nonexistent"])  # ❌ ERROR
+   ```text
+<!-- Code example in TEXT -->
 
 5. **No duplicate key definitions:**
-   ```
-   @fraiseql.key(fields=["id"])
-   @fraiseql.key(fields=["id"])  # ❌ ERROR: duplicate
+
+   ```text
+<!-- Code example in TEXT -->
+   @FraiseQL.key(fields=["id"])
+   @FraiseQL.key(fields=["id"])  # ❌ ERROR: duplicate
    class User: ...
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 6. **Database views must expose key columns:**
-   ```
+
+   ```text
+<!-- Code example in TEXT -->
    -- ✅ GOOD: key columns are native
    CREATE VIEW v_user AS
    SELECT pk_user, id, email, data FROM tb_user;
@@ -542,7 +647,8 @@ Collect all types with `@key` directive:
    -- ❌ BAD: key only in JSONB
    CREATE VIEW v_user AS
    SELECT pk_user, jsonb_build_object('id', id) AS data FROM tb_user;
-   ```
+   ```text
+<!-- Code example in TEXT -->
 
 ### Phase 5b: Entity Resolution SQL Generation
 
@@ -559,6 +665,7 @@ For each entity type with `@key`, generate one simple database function per key 
 **PostgreSQL Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Single key resolution - trivial view query
 CREATE FUNCTION resolve_user_by_id(keys UUID[]) RETURNS JSONB[] AS $$
   SELECT array_agg(data ORDER BY idx)
@@ -572,11 +679,13 @@ CREATE FUNCTION resolve_user_by_email(keys TEXT[]) RETURNS JSONB[] AS $$
   FROM unnest(keys) WITH ORDINALITY AS t(key, idx)
   JOIN v_user ON v_user.email = t.key
 $$ LANGUAGE sql STABLE PARALLEL SAFE;
-```
+```text
+<!-- Code example in TEXT -->
 
 **SQL Server Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Entity resolution - trivial view query
 CREATE FUNCTION resolve_user_by_id (@keys NVARCHAR(MAX))
 RETURNS TABLE
@@ -586,11 +695,13 @@ RETURN
   FROM [dbo].[v_user]
   WHERE [id] IN (SELECT JSON_VALUE(value, '$') FROM OPENJSON(@keys))
 GO
-```
+```text
+<!-- Code example in TEXT -->
 
 **MySQL Example:**
 
 ```sql
+<!-- Code example in SQL -->
 -- Entity resolution - trivial view query
 DELIMITER //
 CREATE FUNCTION resolve_user_by_id(keys JSON)
@@ -613,9 +724,11 @@ BEGIN
   );
 END//
 DELIMITER ;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why so simple?**
+
 - ✅ View already contains all JSONB data
 - ✅ Just batch-fetch by key
 - ✅ Rust runtime handles:
@@ -630,6 +743,7 @@ DELIMITER ;
 The compiler generates configuration for Rust runtime to connect to remote databases:
 
 **For each FraiseQL subgraph detected:**
+
 - Database type (PostgreSQL, SQL Server, MySQL, SQLite)
 - Connection string (hostname, port, database name)
 - Schema name
@@ -637,17 +751,20 @@ The compiler generates configuration for Rust runtime to connect to remote datab
 - Entity type name
 
 **Example detected subgraph:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Typename: Order
 DatabaseType: sqlserver
 DatabaseURL: sqlserver://orders-db.internal/orders_db
 SchemaName: dbo
 ViewName: v_order
-```
+```text
+<!-- Code example in TEXT -->
 
 No database-specific SQL generation needed. Rust drivers handle connections transparently.
 
-### Phase 6: Federation Metadata Generation
+### Federation Metadata Generation
 
 **Input:** Entity resolution strategy decisions and subgraph configuration
 **Output:** Updated CompiledSchema with federation metadata
@@ -655,6 +772,7 @@ No database-specific SQL generation needed. Rust drivers handle connections tran
 #### 6.1 CompiledSchema Federation Section
 
 ```json
+<!-- Code example in JSON -->
 {
   "federation": {
     "enabled": true,
@@ -709,7 +827,8 @@ No database-specific SQL generation needed. Rust drivers handle connections tran
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -717,96 +836,118 @@ No database-specific SQL generation needed. Rust drivers handle connections tran
 
 ### Federation Decorators
 
-#### 5.1 @fraiseql.key()
+#### 5.1 @FraiseQL.key()
 
 Defines the primary key for federation entity resolution.
 
 **Syntax:**
+
 ```python
-@fraiseql.key(fields=["id"])
-@fraiseql.key(fields=["email"])  # Multiple keys allowed
+<!-- Code example in Python -->
+@FraiseQL.key(fields=["id"])
+@FraiseQL.key(fields=["email"])  # Multiple keys allowed
 class User:
     id: ID
     email: str
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Multiple Keys Example:**
+
 ```python
-@fraiseql.type
-@fraiseql.key(fields=["upc"])
-@fraiseql.key(fields=["sku"])
+<!-- Code example in Python -->
+@FraiseQL.type
+@FraiseQL.key(fields=["upc"])
+@FraiseQL.key(fields=["sku"])
 class Product:
     upc: String  # Unique Product Code
     sku: String  # Stock Keeping Unit
     name: String
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiler Behavior:**
+
 1. Generates entity resolution function for each key
 2. Adds `@key` directive to SDL
 3. Validates key fields exist in type
 
-#### 5.2 @fraiseql.external()
+#### 5.2 @FraiseQL.external()
 
 Marks field as external (defined in other subgraph).
 
 **Syntax:**
+
 ```python
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
+<!-- Code example in Python -->
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
 class User:
-    id: ID = fraiseql.external()
-    email: str = fraiseql.external()
+    id: ID = FraiseQL.external()
+    email: str = FraiseQL.external()
     orders: list[Order]  # Local field
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiler Behavior:**
+
 1. Adds `@external` directive to SDL
 2. Excludes external fields from local resolution
 3. Enables field composition from source subgraph
 
-#### 5.3 @fraiseql.requires()
+#### 5.3 @FraiseQL.requires()
 
 Defines dependencies for federation field resolution.
 
 **Syntax:**
+
 ```python
-orders: list[Order] = fraiseql.requires(fields=["email"])
-```
+<!-- Code example in Python -->
+orders: list[Order] = FraiseQL.requires(fields=["email"])
+```text
+<!-- Code example in TEXT -->
 
 **Meaning:** "To resolve orders, I need the user's email field from the source subgraph."
 
 **Compiler Behavior:**
+
 1. Adds `@requires` directive to SDL
 2. Includes required fields in entity selection
 3. Generates join logic for database linking
 
 **Example - Email Lookup:**
-```python
-@fraiseql.type(extend=True)
-@fraiseql.key(fields=["id"])
-class User:
-    id: ID = fraiseql.external()
-    email: str = fraiseql.external()
-    orders: list[Order] = fraiseql.requires(fields=["email"])
-    # Orders are joined by email in Orders subgraph
-```
 
-#### 5.4 @fraiseql.provides()
+```python
+<!-- Code example in Python -->
+@FraiseQL.type(extend=True)
+@FraiseQL.key(fields=["id"])
+class User:
+    id: ID = FraiseQL.external()
+    email: str = FraiseQL.external()
+    orders: list[Order] = FraiseQL.requires(fields=["email"])
+    # Orders are joined by email in Orders subgraph
+```text
+<!-- Code example in TEXT -->
+
+#### 5.4 @FraiseQL.provides()
 
 Documents optimization provided to other subgraphs.
 
 **Syntax:**
+
 ```python
-@fraiseql.type(extend=True)
+<!-- Code example in Python -->
+@FraiseQL.type(extend=True)
 class Product:
-    upc: String = fraiseql.external()
-    vendor: Vendor = fraiseql.provides(fields=["vendor.id"])
+    upc: String = FraiseQL.external()
+    vendor: Vendor = FraiseQL.provides(fields=["vendor.id"])
     # We provide vendor.id without external query
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiler Behavior:**
+
 1. Adds `@provides` directive to SDL
 2. Includes provided fields in view projection
 3. Optimizes field resolution (no additional queries needed)
@@ -814,7 +955,9 @@ class Product:
 ### TypeScript/YAML Equivalents
 
 **TypeScript (future):**
+
 ```typescript
+<!-- Code example in TypeScript -->
 @Key({ fields: ["id"] })
 @Key({ fields: ["email"] })
 export class User {
@@ -830,10 +973,13 @@ export class User {
   @Federation.Requires("email")
   orders: Order[];
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **YAML (future):**
+
 ```yaml
+<!-- Code example in YAML -->
 types:
   User:
     keys:
@@ -845,17 +991,20 @@ types:
       orders:
         type: "[Order]"
         requires: [email]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Compiler Validation Rules
 
 **During schema parsing:**
+
 1. ✅ Key fields must exist in type
 2. ✅ External fields only on extended types
 3. ✅ Requires/Provides fields must exist
 4. ✅ No circular extends (A extends B, B extends A)
 
 **During database analysis:**
+
 1. ✅ Key columns exist in database views
 2. ✅ Key columns are native SQL types (not just JSONB)
 3. ✅ Foreign tables accessible for database linking
@@ -884,7 +1033,9 @@ Federation works with any database combination using the same principles:
 #### PostgreSQL to PostgreSQL: Direct Connection
 
 **Architecture:**
-```
+
+```text
+<!-- Code example in TEXT -->
 PostgreSQL Cluster
 ├── users_schema (Subgraph A)
 │   ├── tb_user, v_user
@@ -892,13 +1043,15 @@ PostgreSQL Cluster
 └── orders_schema (Subgraph B)
     ├── tb_order, v_order
     └── Rust runtime connects here
-```
+```text
+<!-- Code example in TEXT -->
 
 **Database Setup (Minimal):**
 
 No special database configuration needed. Each subgraph has standard views:
 
 ```sql
+<!-- Code example in SQL -->
 -- Users subgraph schema
 CREATE SCHEMA users_schema;
 CREATE TABLE users_schema.tb_user (
@@ -922,14 +1075,16 @@ CREATE TABLE orders_schema.tb_order (
 CREATE VIEW orders_schema.v_order AS
 SELECT id, user_id, jsonb_build_object('id', id, 'user_id', user_id, 'total', total) AS data
 FROM orders_schema.tb_order;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime Configuration:**
 
 Rust runtime maintains single connection pool to PostgreSQL:
 
 ```toml
-# fraiseql.toml (Users subgraph)
+<!-- Code example in TOML -->
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@pg.internal/shared_db"
@@ -942,11 +1097,13 @@ database_type = "postgresql"
 database_url = "postgresql://user:pass@pg.internal/shared_db"
 schema_name = "orders_schema"
 view_name = "v_order"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Entity Resolution (Rust):**
 
 ```rust
+<!-- Code example in RUST -->
 // Both queries use single connection pool
 let user = local_pool.query(
     "SELECT data FROM users_schema.v_user WHERE id = $1",
@@ -957,12 +1114,15 @@ let orders = local_pool.query(
     "SELECT data FROM orders_schema.v_order WHERE user_id = $1",
     &[&user_id]
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 #### SQL Server to SQL Server: Direct Connection
 
 **Architecture:**
-```
+
+```text
+<!-- Code example in TEXT -->
 SQL Server Instance
 ├── users_db (Subgraph A)
 │   ├── [dbo].[tb_user]
@@ -970,13 +1130,15 @@ SQL Server Instance
 └── orders_db (Subgraph B)
     ├── [dbo].[tb_order]
     └── [dbo].[v_order]
-```
+```text
+<!-- Code example in TEXT -->
 
 **Database Setup:**
 
 No special server configuration. Each subgraph has standard views:
 
 ```sql
+<!-- Code example in SQL -->
 -- Users subgraph
 CREATE VIEW [dbo].[v_user] AS
 SELECT
@@ -991,14 +1153,16 @@ SELECT
   [user_id],
   (SELECT * FROM [dbo].[tb_order] WHERE [id] = [tb_order].[id] FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS [data]
 FROM [dbo].[tb_order];
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime Configuration:**
 
 Rust runtime maintains connection pool to SQL Server:
 
 ```toml
-# fraiseql.toml (Users subgraph)
+<!-- Code example in TOML -->
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "sqlserver"
 url = "sqlserver://user:pass@mssql.internal/users_db"
@@ -1011,11 +1175,13 @@ database_type = "sqlserver"
 database_url = "sqlserver://user:pass@mssql.internal/orders_db"
 schema_name = "dbo"
 view_name = "v_order"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Entity Resolution (Rust):**
 
 ```rust
+<!-- Code example in RUST -->
 // Queries against both databases use same SQL Server driver
 let user = local_pool.query(
     "SELECT [data] FROM [dbo].[v_user] WHERE [id] = @id",
@@ -1026,14 +1192,17 @@ let orders = remote_pool.query(
     "SELECT [data] FROM [dbo].[v_order] WHERE [user_id] = @user_id",
     &[&user_id]
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 #### MySQL to MySQL: Direct Connection
 
 **Architecture:**
-```
+
+```text
+<!-- Code example in TEXT -->
 MySQL Instance
 ├── users_db (Subgraph A)
 │   ├── tb_user
@@ -1041,13 +1210,15 @@ MySQL Instance
 └── orders_db (Subgraph B)
     ├── tb_order
     └── v_order
-```
+```text
+<!-- Code example in TEXT -->
 
 **Database Setup:**
 
 Standard views on each database:
 
 ```sql
+<!-- Code example in SQL -->
 -- Users subgraph
 CREATE VIEW v_user AS
 SELECT
@@ -1062,12 +1233,14 @@ SELECT
   user_id,
   JSON_OBJECT('id', id, 'user_id', user_id, 'total', total) AS data
 FROM tb_order;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime Configuration:**
 
 ```toml
-# fraiseql.toml (Users subgraph)
+<!-- Code example in TOML -->
+# FraiseQL.toml (Users subgraph)
 [database]
 type = "mysql"
 url = "mysql://user:pass@mysql.internal/users_db"
@@ -1080,11 +1253,13 @@ database_type = "mysql"
 database_url = "mysql://user:pass@mysql.internal/orders_db"
 schema_name = "public"
 view_name = "v_order"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Entity Resolution (Rust):**
 
 ```rust
+<!-- Code example in RUST -->
 // Both queries use MySQL driver
 let user = local_pool.query(
     "SELECT data FROM v_user WHERE id = ?",
@@ -1095,7 +1270,8 @@ let orders = remote_pool.query(
     "SELECT data FROM v_order WHERE user_id = ?",
     &[&user_id]
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -1103,16 +1279,19 @@ let orders = remote_pool.query(
 
 When source and target databases are different types:
 
-```
+```text
+<!-- Code example in TEXT -->
 PostgreSQL Users → SQL Server Inventory: HTTP
 PostgreSQL Users → Apollo Server Products: HTTP
 SQL Server Orders → MySQL Logs: HTTP
 SQLite Cache → Any: HTTP
-```
+```text
+<!-- Code example in TEXT -->
 
 **No special configuration needed** — Compiler automatically routes to HTTP.
 
 **Rationale:**
+
 - Database linking is not portable across database types
 - HTTP is universal and works for all combinations
 - Performance trade-off is acceptable for cross-database scenarios
@@ -1131,6 +1310,7 @@ FraiseQL exposes two standard Apollo Federation v2 endpoints:
 Returns the subgraph's GraphQL SDL with federation directives:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Query {
   user(id: ID!): User
 }
@@ -1146,22 +1326,27 @@ type Order @external {
   id: ID! @external
   user_email: String! @external
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Implementation:**
+
 ```rust
+<!-- Code example in RUST -->
 // Rust runtime: /src/runtime/federation.rs
 pub async fn handle_service_request(schema: &CompiledSchema) -> ServiceResponse {
     ServiceResponse {
         sdl: schema.federation.sdl.clone(),  // Embedded during compilation
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compile-Time Generation:**
 The compiler generates SDL from the schema and embeds it in CompiledSchema:
 
 ```python
+<!-- Code example in Python -->
 # Compiler phase 6: Update CompiledSchema
 compiled_schema.federation = {
     "sdl": generate_federation_sdl(authoring_schema),  # Includes @key, @external, @requires, @provides
@@ -1170,14 +1355,17 @@ compiled_schema.federation = {
         "Order": {...}
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 #### 2. Entity Resolution: `POST /_entities`
 
 Resolves entities by key for composition:
 
 **Request format:**
+
 ```json
+<!-- Code example in JSON -->
 POST /graphql
 Content-Type: application/json
 
@@ -1190,10 +1378,13 @@ Content-Type: application/json
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Response format:**
+
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "_entities": [
@@ -1202,10 +1393,13 @@ Content-Type: application/json
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Rust Implementation:**
+
 ```rust
+<!-- Code example in RUST -->
 // Rust runtime handles all complexity
 pub async fn resolve_entities(
     representations: Vec<_Any>,  // JSON-like representations
@@ -1255,13 +1449,15 @@ pub async fn resolve_entities(
     // 3. Return in original representation order
     reorder_results(results, &representations)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Local Entity Resolution
 
 For entities owned by the current subgraph, query the local database:
 
 ```rust
+<!-- Code example in RUST -->
 async fn resolve_local(
     typename: &str,
     representations: Vec<_Any>,
@@ -1284,13 +1480,15 @@ async fn resolve_local(
     // Parse and return entities
     Ok(parse_entity_response(result))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### HTTP Entity Resolution
 
 For entities in external subgraphs, call their `_entities` endpoint:
 
 ```rust
+<!-- Code example in RUST -->
 async fn resolve_via_http(
     subgraph_url: &str,
     typename: &str,
@@ -1316,9 +1514,11 @@ async fn resolve_via_http(
     let body: GraphQLResponse = response.json().await?;
     Ok(parse_entities_response(body))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Features:**
+
 - ✅ Batching: 100 entities in single HTTP request
 - ✅ Error handling: Null entities for missing data
 - ✅ Timeouts: Configurable per-subgraph
@@ -1330,6 +1530,7 @@ async fn resolve_via_http(
 For same-database FraiseQL subgraphs, use compiled database functions:
 
 ```rust
+<!-- Code example in RUST -->
 async fn resolve_via_database(
     db_function: &str,
     representations: Vec<_Any>,
@@ -1345,9 +1546,11 @@ async fn resolve_via_database(
     // Parse and return entities
     Ok(parse_entity_response(result))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Key advantages:**
+
 - ✅ No HTTP overhead (database join)
 - ✅ Single-round-trip performance (<5ms for small batches)
 - ✅ Transactional consistency if needed
@@ -1362,13 +1565,15 @@ async fn resolve_via_database(
 `@requires` declares that a field needs data from another subgraph:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order @key(fields: "id") {
   id: ID!
 
   # This field requires user email from Users subgraph
   user: User @requires(fields: "email")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **How @requires Works:**
 
@@ -1381,6 +1586,7 @@ type Order @key(fields: "id") {
 **Rust Implementation:**
 
 ```rust
+<!-- Code example in RUST -->
 // When resolving Order.user @requires(fields: "email")
 async fn resolve_requires_field(
     field_name: &str,              // "user"
@@ -1407,13 +1613,15 @@ async fn resolve_requires_field(
 
     Ok(user_entity[0].clone())
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### @provides: Optimizing Field Resolution
 
 `@provides` declares that this field already includes data from another subgraph:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Product {
   id: ID!
   name: String!
@@ -1421,7 +1629,8 @@ type Product {
   # This field provides vendor data (no need to call Vendor subgraph)
   vendor: Vendor @provides(fields: "id name")
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **How @provides Works:**
 
@@ -1435,6 +1644,7 @@ type Product {
 The view already includes the vendor data:
 
 ```sql
+<!-- Code example in SQL -->
 -- Products view includes vendor information
 CREATE VIEW v_product AS
 SELECT
@@ -1449,23 +1659,27 @@ SELECT
 FROM tb_product p
 JOIN tb_vendor v ON p.fk_vendor = v.pk_vendor
 WHERE p.deleted_at IS NULL;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiler Recognition:**
 
 ```python
+<!-- Code example in Python -->
 # Compiler detects that Product.vendor is already available
 # No HTTP call needed, router can use this data directly
 field_provides = {
     "vendor": ["id", "name"]  # These fields are already in the view
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Complex @requires: Chained Resolution
 
 When @requires depends on data from yet another subgraph:
 
 ```graphql
+<!-- Code example in GraphQL -->
 type Order @key(fields: "id") {
   id: ID!
 
@@ -1475,9 +1689,11 @@ type Order @key(fields: "id") {
   # But User.company requires data from Company subgraph
   # This is automatically handled: Order → User → Company chain
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Execution:**
+
 1. Router calls Order subgraph with Order ID
 2. Order subgraph needs User email (calls User subgraph via @requires)
 3. User subgraph might need Company data (calls Company subgraph)
@@ -1491,7 +1707,8 @@ type Order @key(fields: "id") {
 
 ### Request Flow
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router (_entities query)
     ↓
 FraiseQL Subgraph (HTTP POST /graphql)
@@ -1523,13 +1740,15 @@ For DirectDB resolution:
 4. Merge all strategies' results
 5. Reorder to match input representation order
 6. Return as GraphQL response
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Error Handling
 
 Federation allows null entities when resolution fails:
 
 ```rust
+<!-- Code example in RUST -->
 async fn resolve_entities(
     representations: Vec<_Any>,
     schema: &CompiledSchema,
@@ -1552,10 +1771,13 @@ async fn resolve_entities(
 
     Ok(results)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Response with errors:**
+
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "_entities": [
@@ -1565,13 +1787,15 @@ async fn resolve_entities(
     ]
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Performance Optimization: Batching
 
 Instead of resolving entities one-at-a-time, batch them:
 
 ```rust
+<!-- Code example in RUST -->
 // ❌ INEFFICIENT: 100 separate queries
 for rep in representations {
     let entity = resolve_single_entity(&rep).await?;
@@ -1581,7 +1805,8 @@ for rep in representations {
 // ✅ EFFICIENT: Single batched query
 let entities = resolve_batch(&representations).await?;
 results.extend(entities);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Batching strategies:**
 
@@ -1592,7 +1817,9 @@ results.extend(entities);
 | **Streaming** | 10k+ entities | Pipelined |
 
 **Rust implementation uses adaptive batching:**
+
 ```rust
+<!-- Code example in RUST -->
 const BATCH_SIZE: usize = 1000;  // Adjust based on payload size
 
 if representations.len() <= BATCH_SIZE {
@@ -1605,13 +1832,15 @@ if representations.len() <= BATCH_SIZE {
         sub_batches.map(|batch| resolve_batch(batch))
     ).await
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Strategy Selection at Runtime
 
 The dispatcher chooses the optimal strategy per request:
 
 ```rust
+<!-- Code example in RUST -->
 fn select_resolution_strategy(
     typename: &str,
     entity_meta: &EntityMetadata,
@@ -1635,13 +1864,15 @@ fn select_resolution_strategy(
         subgraph_url: entity_meta.subgraph_url.clone()
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Caching Federation Results
 
 Federation entity resolution results can be cached:
 
 ```rust
+<!-- Code example in RUST -->
 // Optional: Cache entity resolution results
 if schema.federation.cache_enabled {
     let cache_key = format!("{}_{}_{:?}", typename, hash_keys, strategy);
@@ -1654,9 +1885,11 @@ if schema.federation.cache_enabled {
     cache.set(&cache_key, entity.clone()).await?;
     return entity;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Cache invalidation:**
+
 - **Local entities**: Invalidate on mutations (automatic via CompiledSchema)
 - **HTTP entities**: Cache with TTL, relies on external subgraph
 - **Direct DB entities**: Cache with TTL or invalidation rules
@@ -1671,7 +1904,8 @@ FraiseQL federation doesn't need FDW, Linked Servers, or FEDERATED because:
 
 **Each FraiseQL subgraph is independently compiled for its database:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Users Subgraph (PostgreSQL):
 ├── Compiled schema with PostgreSQL WHERE operators
 ├── v_user view with JSONB data
@@ -1686,11 +1920,13 @@ Products Subgraph (MySQL):
 ├── Compiled schema with MySQL WHERE operators
 ├── v_product view with JSONB data
 └── Rust runtime with MySQL driver
-```
+```text
+<!-- Code example in TEXT -->
 
 **Federation via direct database connections:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Apollo Router
     ↓ HTTP
 ┌───────────────────────────────────────┐
@@ -1703,7 +1939,8 @@ Apollo Router
     ↓ PostgreSQL driver queries Users DB
     ↓ SQL Server driver queries Orders DB
     ↓ MySQL driver queries Products DB
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Three Resolution Strategies (Simplified)
 
@@ -1712,6 +1949,7 @@ Apollo Router
 Entity owned by current subgraph:
 
 ```rust
+<!-- Code example in RUST -->
 // Users subgraph resolving User by id
 async fn resolve_local(
     entity_type: &str,
@@ -1723,7 +1961,8 @@ async fn resolve_local(
     let result = db.query(query, &[&keys]).await?;
     Ok(parse_entities(result))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** <5ms (local query)
 
@@ -1732,6 +1971,7 @@ async fn resolve_local(
 Entity in another FraiseQL subgraph (accessible via direct DB connection):
 
 ```rust
+<!-- Code example in RUST -->
 // Users subgraph resolving Order from Orders subgraph
 async fn resolve_via_direct_db(
     subgraph_db_url: &str,      // "sqlserver://orders-db/orders_schema"
@@ -1747,11 +1987,13 @@ async fn resolve_via_direct_db(
     let result = remote_db.query(query, &[&keys]).await?;
     Ok(parse_entities(result))
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** <10ms (direct DB query, no HTTP overhead)
 
 **Databases supported:**
+
 - PostgreSQL → PostgreSQL, SQL Server, MySQL, SQLite
 - SQL Server → PostgreSQL, SQL Server, MySQL, SQLite
 - MySQL → PostgreSQL, SQL Server, MySQL, SQLite
@@ -1761,6 +2003,7 @@ async fn resolve_via_direct_db(
 Entity in non-FraiseQL subgraph or unreachable database:
 
 ```rust
+<!-- Code example in RUST -->
 // Users subgraph resolving Product from Apollo Server
 async fn resolve_via_http(
     subgraph_url: &str,
@@ -1779,7 +2022,8 @@ async fn resolve_via_http(
 
     Ok(parse_entities_from_response(response).await?)
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** 50-200ms (HTTP round-trip + remote query)
 
@@ -1788,6 +2032,7 @@ async fn resolve_via_http(
 The compiler automatically selects the optimal strategy:
 
 ```python
+<!-- Code example in Python -->
 # Compiler phase: Detect federation targets and select strategies
 for extended_type in schema.extended_types:
     for field in extended_type.fields:
@@ -1806,11 +2051,13 @@ for extended_type in schema.extended_types:
                 field.resolution_strategy = ResolutionStrategy.HTTP(
                     subgraph_url=target_subgraph.url
                 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Example detection:**
 
 ```python
+<!-- Code example in Python -->
 # Subgraph discovery
 def discover_subgraph(typename: str, federation_config: FederationConfig):
     for subgraph in federation_config.subgraphs:
@@ -1829,7 +2076,8 @@ def discover_subgraph(typename: str, federation_config: FederationConfig):
         is_fraiseql=False,
         http_url=subgraph.graphql_url
     )
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Database-Specific WHERE Operators
 
@@ -1838,6 +2086,7 @@ def discover_subgraph(typename: str, federation_config: FederationConfig):
 When User subgraph (PostgreSQL) federates with Orders subgraph (SQL Server):
 
 ```graphql
+<!-- Code example in GraphQL -->
 # Router's query (database-agnostic)
 query {
   users(where: { email: { _like: "%@example.com" } }) {
@@ -1848,11 +2097,14 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Execution:**
 
-```
+```text
+<!-- Code example in TEXT -->
+
 1. Users subgraph (PostgreSQL):
    - WHERE_operators = [_eq, _ne, _like, _ilike, _regex, _jsonb_has_key, ...]
    - Receives: email { _like: "%@example.com" }
@@ -1865,16 +2117,19 @@ query {
    - Compiles to: WHERE created_at > '2025-01-01'
    - Queries SQL Server v_order directly from Users subgraph ✅
    - (No HTTP call needed!)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Each database executes in its native dialect:**
+
 - PostgreSQL: `ILIKE`, `LIKE`, regex operators, array operators, JSONB operators
 - SQL Server: `LIKE`, collation handling, date functions
 - MySQL: `REGEXP`, JSON operators, string functions
 
 ### Multi-Database Federation Example
 
-```
+```text
+<!-- Code example in TEXT -->
 ┌─────────────────────────────────────────┐
 │ Apollo Router                           │
 └─────────────────────────────────────────┘
@@ -1897,11 +2152,13 @@ Database Layer:
 ├─ PostgreSQL: v_user view with JSONB data
 ├─ SQL Server: v_order view with JSONB data
 └─ MySQL: v_product view with JSONB data
-```
+```text
+<!-- Code example in TEXT -->
 
 **Query execution:**
 
-```
+```text
+<!-- Code example in TEXT -->
 Router: Get users with their orders and products
 
 Users subgraph (_entities for User):
@@ -1913,7 +2170,8 @@ Users subgraph (_entities for User):
 
 Result: User entity with nested Orders and Products
 Response sent via HTTP to Router
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance characteristics:**
 
@@ -1932,9 +2190,10 @@ Response sent via HTTP to Router
 
 Each FraiseQL subgraph declares which databases it can access:
 
-**`fraiseql.toml` (subgraph configuration):**
+**`FraiseQL.toml` (subgraph configuration):**
 
 ```toml
+<!-- Code example in TOML -->
 # Local database
 [database]
 type = "postgresql"
@@ -1962,13 +2221,15 @@ view_name = "v_product"
 typename = "Review"  # Non-FraiseQL: use HTTP
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Compile-Time Validation
 
 The compiler validates federation configuration:
 
 ```python
+<!-- Code example in Python -->
 # Compiler phase: Federation validation
 def validate_federation_config(authoring_schema, federation_config):
     for extended_type in authoring_schema.extended_types:
@@ -1991,13 +2252,15 @@ def validate_federation_config(authoring_schema, federation_config):
             # Validate view has expected JSONB structure
             schema = inspect_view(subgraph.database_url, subgraph.view_name)
             validate_jsonb_structure(schema, extended_type)
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Runtime Connection Management
 
 Rust runtime manages connection pools to all accessible databases:
 
 ```rust
+<!-- Code example in RUST -->
 // Rust runtime initialization
 pub struct FederationRuntime {
     local_pool: DatabasePool,           // PostgreSQL
@@ -2027,31 +2290,39 @@ impl FederationRuntime {
         })
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Environment-Specific Configuration
 
 Different environments have different database URLs:
 
 **`.env.local` (development):**
-```
+
+```text
+<!-- Code example in TEXT -->
 FRAISEQL_DATABASE_URL=postgresql://dev:pass@localhost/users_db
 FRAISEQL_FEDERATION_ORDERS_URL=sqlserver://dev:pass@localhost/orders_db
 FRAISEQL_FEDERATION_PRODUCTS_URL=mysql://dev:pass@localhost/products_db
-```
+```text
+<!-- Code example in TEXT -->
 
 **`.env.production` (production):**
-```
+
+```text
+<!-- Code example in TEXT -->
 FRAISEQL_DATABASE_URL=postgresql://prod:${SECRET_PG_PASS}@pg.prod.internal/users_db
 FRAISEQL_FEDERATION_ORDERS_URL=sqlserver://prod:${SECRET_MSSQL_PASS}@mssql.prod.internal/orders_db
 FRAISEQL_FEDERATION_PRODUCTS_URL=mysql://prod:${SECRET_MYSQL_PASS}@mysql.prod.internal/products_db
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Health Checks
 
 Runtime validates federation connections on startup:
 
 ```rust
+<!-- Code example in RUST -->
 pub async fn health_check(runtime: &FederationRuntime) -> HealthStatus {
     let mut status = HealthStatus::Healthy;
 
@@ -2078,7 +2349,8 @@ pub async fn health_check(runtime: &FederationRuntime) -> HealthStatus {
 
     status
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2089,7 +2361,9 @@ pub async fn health_check(runtime: &FederationRuntime) -> HealthStatus {
 Both subgraphs on same PostgreSQL instance, different schemas:
 
 **Setup:**
+
 ```sql
+<!-- Code example in SQL -->
 -- Users subgraph schema
 CREATE SCHEMA users_schema;
 CREATE TABLE users_schema.tb_user (
@@ -2113,10 +2387,13 @@ CREATE TABLE orders_schema.tb_order (
 CREATE VIEW orders_schema.v_order AS
 SELECT id, user_id, jsonb_build_object('id', id, 'user_id', user_id, 'total', total) AS data
 FROM orders_schema.tb_order;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Subgraph config (Users):**
+
 ```toml
+<!-- Code example in TOML -->
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@localhost/shared_db"
@@ -2129,10 +2406,13 @@ database_type = "postgresql"
 database_url = "postgresql://user:pass@localhost/shared_db"
 schema_name = "orders_schema"
 view_name = "v_order"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Federation resolution (Rust):**
+
 ```rust
+<!-- Code example in RUST -->
 // Same PostgreSQL instance, different schemas
 // Both views are accessed via single connection pool
 let user_entity = local_pool.query(
@@ -2144,7 +2424,8 @@ let order_entity = local_pool.query(
     "SELECT data FROM orders_schema.v_order WHERE user_id = $1",
     &[&user_id]
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:** <5ms (both queries single connection pool)
 
@@ -2155,16 +2436,21 @@ let order_entity = local_pool.query(
 Three subgraphs on different database types:
 
 **Topology:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Users (PostgreSQL)
     ↓ Direct DB connection
 Orders (SQL Server)
     ↓ Direct DB connection
 Products (MySQL)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Users subgraph config:**
+
 ```toml
+<!-- Code example in TOML -->
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@pg.internal/users_db"
@@ -2185,10 +2471,13 @@ database_type = "mysql"
 database_url = "mysql://user:pass@mysql.internal/products_db"
 schema_name = "products"
 view_name = "v_product"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime connection pools:**
+
 ```rust
+<!-- Code example in RUST -->
 // Users subgraph runtime maintains three pools
 federation_runtime = FederationRuntime {
     local_pool: PostgreSQLPool::new("postgresql://..."),
@@ -2202,10 +2491,13 @@ federation_runtime = FederationRuntime {
 // When resolving Order from Users:
 // Rust executes: SELECT data FROM v_order WHERE user_id = ?
 // Via SQL Server driver (not HTTP)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Query execution:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Router: users { orders { products } }
 
 Users subgraph:
@@ -2215,9 +2507,11 @@ Users subgraph:
   4. Detect Product federation
   5. Query MySQL v_product directly → get product entities
   6. Return complete result to router
-```
+```text
+<!-- Code example in TEXT -->
 
 **Latency:**
+
 - PostgreSQL query: <5ms
 - SQL Server direct DB query: <10ms
 - MySQL direct DB query: <10ms
@@ -2230,7 +2524,9 @@ Users subgraph:
 Fallback to HTTP for non-FraiseQL subgraphs:
 
 **Users subgraph config:**
+
 ```toml
+<!-- Code example in TOML -->
 [database]
 type = "postgresql"
 url = "postgresql://user:pass@localhost/users_db"
@@ -2246,10 +2542,13 @@ view_name = "v_order"
 typename = "Review"  # Apollo Server, not FraiseQL
 is_fraiseql = false
 graphql_url = "https://reviews-api.example.com/graphql"
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime decision:**
+
 ```rust
+<!-- Code example in RUST -->
 // Order: FraiseQL subgraph on same PostgreSQL
 // → Use direct DB connection (<10ms)
 let order = local_pool.query(
@@ -2263,7 +2562,8 @@ let review = http_resolve_entities(
     "https://reviews-api.example.com/graphql",
     &[representation]
 ).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -2272,6 +2572,7 @@ let review = http_resolve_entities(
 If database connection fails at runtime, automatically fall back to HTTP:
 
 ```rust
+<!-- Code example in RUST -->
 // Try direct DB connection first
 match remote_pools.get("Order").query(...).await {
     Ok(entities) => {
@@ -2287,9 +2588,11 @@ match remote_pools.get("Order").query(...).await {
         ).await;
     }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Availability:**
+
 - If database network is down but HTTP is up → Fall back to HTTP
 - If HTTP is up but database is down → Still works for other entities
 - Degrades gracefully instead of complete failure
@@ -2301,14 +2604,19 @@ match remote_pools.get("Order").query(...).await {
 ### Performance: Direct DB vs HTTP
 
 **Local entity resolution:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Query: users(id: [1,2,3])
 PostgreSQL: SELECT data FROM v_user WHERE id = ANY($1)
 Latency: <5ms (direct database query)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Direct DB entity resolution (same database type):**
-```
+
+```text
+<!-- Code example in TEXT -->
 Query: users(id: [1,2,3]) { orders { id } }
 
 Users subgraph (PostgreSQL):
@@ -2316,10 +2624,13 @@ Users subgraph (PostgreSQL):
   2. Direct SQL Server connection: Query v_order: 5ms
   3. Return result: 1ms
 Total: ~8ms (no HTTP overhead)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Direct DB entity resolution (different database type):**
-```
+
+```text
+<!-- Code example in TEXT -->
 Users (PostgreSQL) → Orders (SQL Server) → Products (MySQL)
 
   1. PostgreSQL query: 2ms
@@ -2327,10 +2638,13 @@ Users (PostgreSQL) → Orders (SQL Server) → Products (MySQL)
   3. MySQL query via direct connection: 5ms
   4. Network latency between databases: 3-5ms
 Total: ~15-20ms
-```
+```text
+<!-- Code example in TEXT -->
 
 **HTTP entity resolution:**
-```
+
+```text
+<!-- Code example in TEXT -->
 Query: users { reviews { rating } }  (Review is Apollo Server)
 
 Users subgraph:
@@ -2340,7 +2654,8 @@ Users subgraph:
      - Remote query execution: 10-50ms
   3. Parse response: 1ms
 Total: 103-152ms (10x slower than direct DB)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Comparison table:**
 
@@ -2358,6 +2673,7 @@ Total: 103-152ms (10x slower than direct DB)
 Federation automatically batches multiple entity lookups:
 
 ```rust
+<!-- Code example in RUST -->
 // Instead of 100 individual queries
 for id in [1,2,3,...,100] {
     let order = query_order(id).await?;
@@ -2365,9 +2681,11 @@ for id in [1,2,3,...,100] {
 
 // Batch into single query
 let orders = query_batch_orders(&[1,2,3,...,100]).await?;
-```
+```text
+<!-- Code example in TEXT -->
 
 **Performance impact:**
+
 - Single entity: ~5ms
 - 100 entities (batched): ~8ms (not 500ms!)
 - 1000 entities (sub-batched): ~50ms
@@ -2390,12 +2708,14 @@ let orders = query_batch_orders(&[1,2,3,...,100]).await?;
 #### ⚠️ Requires Network Access
 
 **Direct DB federation requires:**
+
 - Network connectivity from Rust runtime to all FraiseQL databases
 - Database credentials securely managed
 - Firewall rules allowing database connections
 - SSL/TLS for encrypted connections
 
 **If network access unavailable:**
+
 - Configure HTTP URL as fallback
 - Runtime automatically falls back to HTTP
 - Performance degrades to HTTP latency (50-200ms)
@@ -2403,6 +2723,7 @@ let orders = query_batch_orders(&[1,2,3,...,100]).await?;
 #### ⚠️ Database-Specific Configuration
 
 **Each database type has different setup:**
+
 - PostgreSQL: Standard TCP connection
 - SQL Server: TCP with authentication
 - MySQL: TCP with authentication
@@ -2413,6 +2734,7 @@ let orders = query_batch_orders(&[1,2,3,...,100]).await?;
 #### ⚠️ Connection Pool Management
 
 **Rust runtime manages pools:**
+
 - One pool per local database
 - One pool per remote FraiseQL database
 - Total connections = (local pool size) + (N × remote pool size)
@@ -2422,22 +2744,27 @@ let orders = query_batch_orders(&[1,2,3,...,100]).await?;
 #### ⚠️ Cross-Database Transaction Semantics
 
 **Direct DB federation:**
+
 - Each query executes independently (no ACID across databases)
 - Suitable for read-heavy federation
 - Mutations: Handle in application layer if multi-database consistency needed
 
 **Example:**
-```
+
+```text
+<!-- Code example in TEXT -->
 User mutation creates Order in Users subgraph
 → Orders subgraph must be updated separately
 → Not in same transaction
-```
+```text
+<!-- Code example in TEXT -->
 
 #### ✅ Federation Debugging
 
 Federation resolution is transparent to query:
 
 ```graphql
+<!-- Code example in GraphQL -->
 # This query automatically selects optimal resolution strategy
 query {
   users(id: 123) {
@@ -2450,10 +2777,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Enable federation tracing:**
+
 ```rust
+<!-- Code example in RUST -->
 // Rust runtime can emit traces for federation operations
 if config.federation_tracing_enabled {
     trace!("Entity resolution: User");
@@ -2468,28 +2798,38 @@ if config.federation_tracing_enabled {
     trace!("  Strategy: HTTP (fallback)");
     trace!("  Latency: 120ms");
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Migration Path: HTTP → Direct DB
 
 **Phase 1: HTTP-only federation**
-```
+
+```text
+<!-- Code example in TEXT -->
 All subgraphs communicate via HTTP
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 2: Add direct DB to same-instance subgraph**
-```
+
+```text
+<!-- Code example in TEXT -->
 PostgreSQL (Users) ↔ PostgreSQL (Orders)
 ├─ Try direct DB: Queries v_order directly
 └─ Fallback: HTTP if unavailable
-```
+```text
+<!-- Code example in TEXT -->
 
 **Phase 3: Multi-database optimization**
-```
+
+```text
+<!-- Code example in TEXT -->
 PostgreSQL (Users) ↔ SQL Server (Orders) ↔ MySQL (Products)
 ├─ Direct DB: Each connection optimized for database type
 └─ HTTP: Fallback for external subgraphs
-```
+```text
+<!-- Code example in TEXT -->
 
 **No code changes required** — Compiler auto-detects capabilities and selects strategy.
 
@@ -2500,33 +2840,39 @@ PostgreSQL (Users) ↔ SQL Server (Orders) ↔ MySQL (Products)
 **View-Based Federation: An Open Protocol with FraiseQL as Reference Implementation**
 
 **Federation Model:**
+
 - **View-based transport** for database-backed systems (v_* views)
 - **HTTP federation** for any GraphQL-compatible system
 - **Automatic strategy selection** at runtime
 
 **What FraiseQL Does:**
+
 - Automatically generates v_* views implementing the federation contract
 - Maintains connection pools to other database-backed subgraphs
 - Falls back to HTTP for external systems
 - Each subgraph compiled independently for its database
 
 **What Any System Can Do:**
+
 - Manually implement v_* views to opt into view-based federation
 - Gain 10x performance improvement (20ms vs 200ms)
 - Keep HTTP available as universal fallback
 - No lock-in to FraiseQL ecosystem
 
 **Performance:**
+
 - Local: <5ms
 - View-based (database-backed): <20ms
 - HTTP (any GraphQL): 50-200ms
 
 **Supported Databases:**
+
 - ✅ PostgreSQL, SQL Server, MySQL (with views)
 - ✅ Any database that supports JSON/JSONB columns
 - ✅ Any GraphQL service (via HTTP)
 
 **Key Design Principles:**
+
 - **Protocol over implementation** — v_* views are a standard contract, not FraiseQL-specific
 - **Opt-in optimization** — HTTP works everywhere; view-based is for those who want performance
 - **Database-agnostic** — Each database executes in its native dialect

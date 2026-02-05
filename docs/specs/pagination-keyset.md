@@ -1,3 +1,11 @@
+<!-- Skip to main content -->
+---
+title: Keyset Pagination Architecture (JSON + Arrow Planes)
+description: FraiseQL implements **keyset-based pagination** as the primary pagination strategy for both the JSON (GraphQL) and Arrow (analytics) planes. This avoids perform
+keywords: ["format", "compliance", "protocol", "specification", "standard"]
+tags: ["documentation", "reference"]
+---
+
 # Keyset Pagination Architecture (JSON + Arrow Planes)
 
 **Version:** 1.0
@@ -28,6 +36,7 @@ FraiseQL implements **keyset-based pagination** as the primary pagination strate
 ### Traditional Offset/Limit (Problem)
 
 ```sql
+<!-- Code example in SQL -->
 -- Query at OFFSET=10,000,000
 SELECT id, name, email
 FROM users
@@ -35,17 +44,20 @@ ORDER BY id
 LIMIT 100 OFFSET 10000000;
 
 -- Database must:
+
 -- 1. Sort 20M rows by id
 -- 2. Skip first 10M rows
 -- 3. Return next 100 rows
 -- Cost: O(n + offset) = O(20M) operations
-```
+```text
+<!-- Code example in TEXT -->
 
 **Result:** 2-5 second latency at high offsets. Unusable for analytics.
 
 ### Keyset Pagination (Solution)
 
 ```sql
+<!-- Code example in SQL -->
 -- Query with keyset cursor
 SELECT id, name, email
 FROM users
@@ -54,11 +66,13 @@ ORDER BY id
 LIMIT 100;
 
 -- Database must:
+
 -- 1. Use index on id to find starting point
 -- 2. Read next 100 rows
 -- 3. Return
 -- Cost: O(limit) = O(100) operations
-```
+```text
+<!-- Code example in TEXT -->
 
 **Result:** <50ms latency regardless of position. Scales linearly.
 
@@ -83,6 +97,7 @@ Keyset pagination replaces positional offsets with **value-based cursors**:
 A cursor encodes an **ordered key value** that uniquely identifies the last row returned:
 
 ```python
+<!-- Code example in Python -->
 # Phase 1: Simple keyset (single column)
 cursor = base64(encode({
     'id': 'user_12345'
@@ -93,13 +108,15 @@ cursor = base64(encode({
     'created_at': '2025-01-11T15:30:00Z',
     'id': 'user_12345'
 }))
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Self-Describing Format
 
 Cursors are **self-describing** to support future evolution:
 
 ```json
+<!-- Code example in JSON -->
 // Internal representation (not exposed to clients)
 {
   "version": 1,
@@ -113,7 +130,8 @@ Cursors are **self-describing** to support future evolution:
 
 // Encoded as base64
 eyJ2ZXJzaW9uIjogMSwgInByb2plY3Rpb24iOiAidXNlcl9hbmFseXRpY3NfdjEiLCAia2V5c2V0IjogeyJjcmVhdGVkX2F0IjogIjIwMjUtMDEtMTFUMTU6MzA6MDBaIiwgImlkIjogInVzZXJfMTIzNDUifSwgImRpcmVjdGlvbiI6ICJmb3J3YXJkIn0=
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Encoding Rules
 
@@ -129,6 +147,7 @@ eyJ2ZXJzaW9uIjogMSwgInByb2plY3Rpb24iOiAidXNlcl9hbmFseXRpY3NfdjEiLCAia2V5c2V0Ijog
 ### GraphQL Request (Relay Spec)
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(first: 100, after: "eyJpZCI6ICJ1c2VyXzEwMDAifQ==") {
     edges {
@@ -147,11 +166,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### GraphQL Response
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "users": {
@@ -182,11 +203,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Compiled SQL
 
 ```sql
+<!-- Code example in SQL -->
 -- FraiseQL compiles the GraphQL query to:
 SELECT
   pk_user, id, name, email,
@@ -198,30 +221,36 @@ ORDER BY id
 LIMIT 101;                       -- ← Fetch N+1 to detect endOfList
 
 -- Parameters: [$1 = 'user_1000' (decoded from cursor)]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Backward Pagination
 
 For backward pagination (`last`, `before`):
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   users(last: 100, before: "eyJpZCI6ICJ1c2VyXzEwMDAifQ==") {
     edges { node { id } cursor }
     pageInfo { hasPreviousPage startCursor }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiled SQL:**
+
 ```sql
+<!-- Code example in SQL -->
 -- Reverse keyset: find rows BEFORE cursor
 SELECT ... FROM v_user
 WHERE id < $1
 ORDER BY id DESC
 LIMIT 101;
 -- Then reverse results to return in original order
-```
+```text
+<!-- Code example in TEXT -->
 
 **Note:** Backward pagination requires **secondary index** on the keyset columns in reverse order.
 
@@ -234,6 +263,7 @@ LIMIT 101;
 Arrow projections use **identical keyset pagination** as JSON plane:
 
 ```graphql
+<!-- Code example in GraphQL -->
 query {
   userAnalytics(first: 10000, after: "eyJjcmVhdGVkX2F0IjogIjIwMjUtMDEtMTEiLCAiaWQiOiAidXNlcl8xMDAwIn0=") {
     edges {
@@ -250,11 +280,13 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Arrow Response
 
 ```json
+<!-- Code example in JSON -->
 {
   "data": {
     "userAnalytics": {
@@ -278,25 +310,31 @@ query {
     }
   }
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Arrow via Binary Protocol
 
 Arrow projections also support **direct binary pagination** (via HTTP Accept header):
 
 ```bash
+<!-- Code example in BASH -->
 # Request: Arrow IPC stream with cursor
 GET /graphql \
   -H "Accept: application/x-arrow" \
   -d '{"query": "{ userAnalytics(first: 10000, after: \"...\") }"}'
 
 # Response: Arrow IPC stream with metadata
-```
+```text
+<!-- Code example in TEXT -->
 
 **Arrow Stream Structure:**
-```
+
+```text
+<!-- Code example in TEXT -->
 [Schema Metadata] [Batch 1: users] [Batch 2: orders] [Footer with endCursor]
-```
+```text
+<!-- Code example in TEXT -->
 
 The `endCursor` is transmitted as Arrow metadata, not JSON.
 
@@ -304,52 +342,64 @@ The `endCursor` is transmitted as Arrow metadata, not JSON.
 
 ## 6. Keyset Ordering: Choosing Columns
 
-### Phase 1: Single-Column Keysets (v2.1)
+### Single-Column Keysets (v2.1)
 
 Most queries use the **primary key** as the single keyset column:
 
 ```python
+<!-- Code example in Python -->
 # Implicit keyset ordering
-@fraiseql.type
+@FraiseQL.type
 class User:
     id: ID  # ← Keyset column (primary key)
     name: str
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiled keyset:**
+
 ```python
+<!-- Code example in Python -->
 ORDER BY id
 LIMIT 100
-```
+```text
+<!-- Code example in TEXT -->
 
 **Pros:**
+
 - Simple, predictable
 - Every table has a primary key
 - Scales well
 
 **Cons:**
+
 - Order changes if primary key is UUID (non-monotonic)
 - Insertion order not stable (new users appear randomly)
 
-### Phase 2: Composite Keysets (v2.2+)
+### Composite Keysets (v2.2+)
 
 For deterministic, stable ordering, use **composite keysets**:
 
 ```python
-@fraiseql.arrow_projection(
+<!-- Code example in Python -->
+@FraiseQL.arrow_projection(
   name="user_analytics",
   keyset=["created_at", "id"]  # ← Composite keyset
 )
 class UserAnalytics:
     users: Arrow.Batch([...])
-```
+```text
+<!-- Code example in TEXT -->
 
 **Compiled keyset:**
+
 ```sql
+<!-- Code example in SQL -->
 WHERE (created_at, id) > (?, ?)
 ORDER BY created_at, id
 LIMIT 100
-```
+```text
+<!-- Code example in TEXT -->
 
 **Keyset Stability:**
 
@@ -360,21 +410,24 @@ LIMIT 100
 | **Primary key UUID** | Non-monotonic | Monotonic (creation time ordered) |
 | **Real-time dashboard** | Updates shift visible rows | Consistent, predictable |
 
-### Phase 3: Expression-Based Keysets (v2.3+)
+### Expression-Based Keysets (v2.3+)
 
 Advanced use cases can define **custom keyset expressions**:
 
 ```python
-@fraiseql.arrow_projection(
+<!-- Code example in Python -->
+@FraiseQL.arrow_projection(
   name="high_value_orders",
   keyset={
     "expression": "LEAST(total_amount, 1000) DESC, id",
     "direction": "desc"  # High-value orders first
   }
 )
-```
+```text
+<!-- Code example in TEXT -->
 
 **Keyset complexity:**
+
 - Simple columns: No overhead
 - Composite columns: Small overhead (<1% query time)
 - Expression-based: May require index hints
@@ -388,25 +441,32 @@ Advanced use cases can define **custom keyset expressions**:
 Cursors are validated at **compile time and runtime**:
 
 **Compile time:**
+
 ```python
+<!-- Code example in Python -->
 # ❌ Error: Cursor references non-existent field
 query = users(after: cursor)  # cursor built for old schema
-```
+```text
+<!-- Code example in TEXT -->
 
 **Runtime:**
+
 ```python
+<!-- Code example in Python -->
 # Cursor decoded and validated
 cursor = base64_decode("eyJ...")
 assert cursor.version == 1
 assert cursor.projection == "user_analytics_v1"
 assert set(cursor.keyset.keys()) == {"created_at", "id"}
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cursor Tampering
 
 Cursors are **signed** to prevent tampering:
 
 ```python
+<!-- Code example in Python -->
 # Cursor structure (actual storage)
 {
   "version": 1,
@@ -414,26 +474,32 @@ Cursors are **signed** to prevent tampering:
   "keyset": {"created_at": "...", "id": "user_1001"},
   "hmac": "sha256(secret, json_dump)"  # ← Signature
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Validation:**
+
 ```python
+<!-- Code example in Python -->
 # Verify HMAC before using cursor
 if compute_hmac(cursor_data, secret) != cursor.hmac:
     raise CursorTamperedError()
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Cursor Expiration (Optional)
 
 For sensitive queries, cursors can **expire**:
 
 ```python
-@fraiseql.type
+<!-- Code example in Python -->
+@FraiseQL.type
 class SensitiveData:
     ... cursor_ttl = 300  # Seconds
 
 # If cursor older than 5 minutes, client must restart
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -441,7 +507,8 @@ class SensitiveData:
 
 ### Problem: Rows Move During Pagination
 
-```
+```text
+<!-- Code example in TEXT -->
 Initial state:
 users: [id=1, id=2, id=3, id=4, id=5]
 
@@ -451,22 +518,26 @@ User deletes id=1 (rows shift):
 users: [id=2, id=3, id=4, id=5]
 
 Query 2: after="id=2"  →  Should be [id=3, id=4]
-```
+```text
+<!-- Code example in TEXT -->
 
 ### Keyset Solution: Cursor "Holes"
 
 Keyset pagination handles mutations gracefully:
 
 ```sql
+<!-- Code example in SQL -->
 -- Keyset query with deletion
 WHERE id > 2          -- Last cursor was id=2
 ORDER BY id
 LIMIT 100
 
 -- Results: [id=3, id=4, ...] ← Correct! Skipped deleted row.
-```
+```text
+<!-- Code example in TEXT -->
 
 **Why this works:**
+
 - Cursor value (id=2) is immutable
 - Query finds rows > that value
 - If id=2 deleted, id=3 is now next row
@@ -477,13 +548,15 @@ LIMIT 100
 For real-time dashboards, FraiseQL supports **event-driven cursor refresh**:
 
 ```python
+<!-- Code example in Python -->
 # If mutation detected during pagination, emit warning
 if rows_modified_since_cursor:
     emit_warning({
         "type": "pagination_stale",
         "suggestion": "Restart pagination from beginning"
     })
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -494,15 +567,17 @@ if rows_modified_since_cursor:
 Efficient keyset pagination requires **indexes on keyset columns**:
 
 ```sql
--- For single-column keyset (Phase 1)
+<!-- Code example in SQL -->
+-- For single-column keyset
 CREATE INDEX idx_user_id ON tb_user(id);
 
--- For composite keyset (Phase 2+)
+-- For composite keyset
 CREATE INDEX idx_user_created_id ON tb_user(created_at, id);
 
 -- For reverse pagination (backward keyset)
 CREATE INDEX idx_user_created_id_desc ON tb_user(created_at DESC, id DESC);
-```
+```text
+<!-- Code example in TEXT -->
 
 **Index Planning:**
 
@@ -512,6 +587,7 @@ CREATE INDEX idx_user_created_id_desc ON tb_user(created_at DESC, id DESC);
 **Example: With WHERE filter**
 
 ```sql
+<!-- Code example in SQL -->
 -- Query with both keyset and filter
 SELECT ... FROM tb_user
 WHERE
@@ -523,7 +599,8 @@ LIMIT 100
 -- Best index: (status, created_at, id)
 CREATE INDEX idx_user_status_created_id
 ON tb_user(status, created_at, id);
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -543,57 +620,69 @@ ON tb_user(status, created_at, id);
 
 ### Throughput
 
-```
+```text
+<!-- Code example in TEXT -->
 Sequential pagination through 1M rows:
+
 - Keyset pagination: 1,000 pages × 5ms = 5 seconds ✅
 - OFFSET/LIMIT: 1,000 pages × (2ms + offset) = 500+ seconds ❌
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
 ## 11. Implementation Phases
 
-### Phase 1: Basic Keyset (v2.1)
+### Basic Keyset (v2.1)
 
 **Timeline:** Weeks 1-2
 
 **Deliverables:**
+
 - Single-column keyset (primary key only)
 - Relay pagination format
 - Forward pagination only
 - OFFSET/LIMIT deprecated (warnings emitted)
 
 **SQL Pattern:**
+
 ```sql
+<!-- Code example in SQL -->
 SELECT ... FROM table
 WHERE primary_key > ?
 ORDER BY primary_key
 LIMIT ?
-```
+```text
+<!-- Code example in TEXT -->
 
-### Phase 2: Composite Keyset (v2.2)
+### Composite Keyset (v2.2)
 
 **Timeline:** Weeks 3-4
 
 **Deliverables:**
+
 - Multi-column composite keysets
 - Stable ordering (created_at + id)
 - Backward pagination support
 - Arrow plane integration
 
 **SQL Pattern:**
+
 ```sql
+<!-- Code example in SQL -->
 SELECT ... FROM table
 WHERE (col1, col2) > (?, ?)
 ORDER BY col1, col2
 LIMIT ?
-```
+```text
+<!-- Code example in TEXT -->
 
-### Phase 3: Optimization (v2.3)
+### Optimization (v2.3)
 
 **Timeline:** Weeks 5-6
 
 **Deliverables:**
+
 - Expression-based keysets
 - Query optimization hints
 - Index auto-suggestion
@@ -607,28 +696,35 @@ LIMIT ?
 
 **v2.1-v2.2:** OFFSET/LIMIT still works, but emits warnings
 
-```
+```text
+<!-- Code example in TEXT -->
 WARNING: Large OFFSET (100000) detected.
 Keyset pagination is faster. See: docs/pagination-keyset.md
 Current: SELECT ... LIMIT 100 OFFSET 100000;
 Better:  SELECT ... WHERE id > ? LIMIT 100;
-```
+```text
+<!-- Code example in TEXT -->
 
 **v2.3+:** OFFSET/LIMIT available but not recommended for large offsets
 
 ### Client Migration Path
 
 **Step 1: Adopt Relay pagination interface**
+
 ```graphql
+<!-- Code example in GraphQL -->
 # Old (offset-based)
 query { users(skip: 1000, take: 100) { ... } }
 
 # New (keyset-based)
 query { users(first: 100, after: cursor) { ... } }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 2: Update cursor handling**
+
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Old
 let offset = 1000;
 const response = await fetch(url, { skip: offset });
@@ -640,10 +736,13 @@ while (true) {
   cursor = response.pageInfo.endCursor;
   if (!response.pageInfo.hasNextPage) break;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 **Step 3: Remove pagination loops**
+
 ```javascript
+<!-- Code example in JAVASCRIPT -->
 // Old (manual offset increment)
 for (let offset = 0; offset < total; offset += 100) {
   const page = await fetch(url, { skip: offset, take: 100 });
@@ -658,7 +757,8 @@ while (true) {
   if (!page.pageInfo.hasNextPage) break;
   cursor = page.pageInfo.endCursor;
 }
-```
+```text
+<!-- Code example in TEXT -->
 
 ---
 
@@ -677,21 +777,25 @@ A: Use keyset pagination. If you must use OFFSET (for legacy systems), it's avai
 A: Yes, if you include the aggregation key in the keyset:
 
 ```sql
+<!-- Code example in SQL -->
 SELECT status, COUNT(*) as count
 FROM users
 GROUP BY status
 ORDER BY status
 LIMIT 100
-```
+```text
+<!-- Code example in TEXT -->
 
 **Q: How do I paginate through items with the same keyset value?**
 
 A: Use a composite keyset with a tiebreaker:
 
 ```sql
+<!-- Code example in SQL -->
 -- All 10 "John" users have same created_at
 WHERE (created_at, name, id) > (?, ?, ?)
-```
+```text
+<!-- Code example in TEXT -->
 
 **Q: What about cursor expiration?**
 
@@ -701,7 +805,7 @@ A: Optional. Cursors are stateless, so they don't expire by default. For securit
 
 ## 14. Related Documentation
 
-- `arrow-plane.md` — Arrow projection pagination (Phase 2)
+- `arrow-plane.md` — Arrow projection pagination
 - `compiled-schema.md` — Cursor type definitions
 - `database-targeting.md` — Index requirements per database
 

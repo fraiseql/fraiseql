@@ -1,0 +1,245 @@
+# Hardened FraiseQL Kubernetes Manifests
+# Security-first deployment with zero-trust principles
+
+---
+# Pod Security Policy (for K8s < 1.25)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: fraiseql-hardened
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  volumes:
+  - 'configMap'
+  - 'emptyDir'
+  - 'projected'
+  - 'secret'
+  - 'downwardAPI'
+  - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'MustRunAs'
+    seLinuxOptions:
+      level: "s0:c123,c456"
+  readOnlyRootFilesystem: false
+
+---
+# NetworkPolicy - Deny all by default, allow specific ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fraiseql-network-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: fraiseql
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: default
+    - podSelector:
+        matchLabels:
+          app: fraiseql
+    ports:
+    - protocol: TCP
+      port: 8815
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8815
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow traffic to PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow traffic to Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# Deployment - Hardened with security best practices
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraiseql
+  namespace: default
+  labels:
+    app: fraiseql
+    security-level: high
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fraiseql
+  template:
+    metadata:
+      labels:
+        app: fraiseql
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/fraiseql: runtime/default
+    spec:
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # Pod disruption budget
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+      
+      containers:
+      - name: fraiseql
+        image: fraiseql:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Container security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+            add: []
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        
+        ports:
+        - containerPort: 8815
+          name: http
+          protocol: TCP
+        
+        # Environment variables
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: fraiseql-db
+              key: url
+        
+        # Resource constraints
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        
+        # Probes
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 30
+      
+      # Pod affinity for distribution
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - fraiseql
+              topologyKey: kubernetes.io/hostname
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fraiseql-pdb
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: fraiseql
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraiseql
+  namespace: default
+  labels:
+    app: fraiseql
+spec:
+  type: ClusterIP
+  selector:
+    app: fraiseql
+  ports:
+  - port: 80
+    targetPort: 8815
+    protocol: TCP
+    name: http
