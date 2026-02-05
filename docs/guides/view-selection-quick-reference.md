@@ -434,6 +434,51 @@ Did query time improve >5x?
 
 ---
 
+## Troubleshooting Quick Reference
+
+### "I'm not sure which view to use"
+
+**Use the decision tree above.** Most common patterns:
+
+- **Simple query (<3 joins)**: Use v_* (logical view)
+- **Complex query (3+ joins)**: Use tv_* (materialized table)
+- **Analytics query**: Use ta_* (Arrow columnar)
+- **Query slow?**: Profile first (EXPLAIN ANALYZE), then consider tv_*
+
+### "Table-backed view not faster than logical view"
+
+**Diagnosis**: Run EXPLAIN on both and compare. Most likely cause: missing indexes.
+
+**Solution**: Add index to base table on JOIN columns
+```sql
+CREATE INDEX idx_base_col ON base_table(col);
+```
+
+### "Materialized view refresh is blocking queries"
+
+**Solution**: Use CONCURRENT refresh (PostgreSQL 9.5+) or schedule during low-traffic window
+
+### "Arrow (ta_*) query still slow"
+
+**Not ready for Arrow yet.** Prerequisites:
+- Data >1M rows ✅
+- Using ClickHouse backend ✅
+- Query doesn't have subqueries ✅
+
+If all true: Optimize query or increase ClickHouse resources.
+
+### "I don't know current query performance"
+
+**Measure first**: Run with v_* for one week, collect metrics
+```bash
+curl -X POST http://localhost:8000/graphql -d '{your_query}' \
+  | jq '.extensions.timing'
+```
+
+Then compare after migration to tv_*.
+
+---
+
 ## Related Guides
 
 **Detailed Documentation**:

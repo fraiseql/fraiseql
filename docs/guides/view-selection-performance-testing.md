@@ -663,6 +663,116 @@ WHERE tablename = 'tv_user_profile';
 
 ---
 
+## Troubleshooting Performance Testing
+
+### "Baseline measurements are inconsistent (high variance)"
+
+**Cause:** System not in stable state during testing.
+
+**Diagnosis:**
+1. Check CPU: Should be <30% idle for accurate measurement
+2. Check background processes: Other queries running?
+3. Check memory: Caching effects between runs
+
+**Solutions:**
+- Restart database to clear cache between tests
+- Run tests multiple times, use median (not average)
+- Ensure no other activity: Single-user test mode
+- Warm up cache first: Run query 5x before measuring
+
+### "Table-backed view faster but memory exploded"
+
+**Cause:** Materialized view consumes significant storage.
+
+**Diagnosis:**
+1. Check table size: `SELECT pg_size_pretty(pg_total_relation_size('tv_name'));`
+2. Compare to source view: How much larger?
+3. Check disk space: `df -h`
+
+**Solutions:**
+- Partition table by date: Keep only recent data
+- Remove unnecessary columns from view
+- Use compression: PostgreSQL has table compression
+- Consider if speedup worth the storage cost
+
+### "Performance improvement less than expected (2x instead of 10x)"
+
+**Cause:** Bottleneck elsewhere or view doesn't solve real problem.
+
+**Diagnosis:**
+1. Run EXPLAIN on slow query: Where is time spent?
+2. Check indexes: Are they being used in EXPLAIN plan?
+3. Verify table query plan is simpler
+
+**Solutions:**
+- Add appropriate index to base table
+- Bottleneck might be in WHERE clause, not JOIN
+- Consider if query needs optimization instead of migration
+- For Arrow: May need ClickHouse for big improvements
+
+### "Benchmark shows regression (new version slower)"
+
+**Cause:** Index missing, statistics stale, or regression in query plan.
+
+**Diagnosis:**
+1. Run ANALYZE on table: Statistics may be old
+2. Check EXPLAIN output: How did plan change?
+3. Verify test is fair: Same data, same conditions
+
+**Solutions:**
+- Run: `ANALYZE table_name;`
+- Rebuild indexes: `REINDEX TABLE tv_name;`
+- Compare query plans explicitly: `EXPLAIN ANALYZE` for both
+- Check if data distribution changed
+
+### "Test results don't match production (slower in production)"
+
+**Cause:** Production data volume or distribution different from test.
+
+**Diagnosis:**
+1. Check test data size vs production: Row counts
+2. Check selectivity: How many rows does WHERE clause match?
+3. Check concurrent load: Single query vs multiple queries
+
+**Solutions:**
+- Use production data dump for testing (if possible)
+- Simulate concurrency: Run multiple queries in parallel
+- Test with data size close to production
+- Account for other queries: Don't assume single-user environment
+- Consider worst-case distribution (heavily skewed data)
+
+### "Can't reproduce slow query in test environment"
+
+**Cause:** Production conditions not replicated (data volume, concurrency, hardware).
+
+**Diagnosis:**
+1. Confirm query is slow in production: Check slow query logs
+2. Try against production database: Same query, different hardware?
+3. Check concurrent activity during slow runs
+
+**Solutions:**
+- Capture query from production slow log
+- Test against production database directly (if allowed)
+- Replicate production data to test environment
+- Ensure test hardware specs match production
+- Run test during similar time-of-day as production issue
+
+### "Refresh performance degrades over time"
+
+**Cause:** Table bloat or accumulated dead rows from previous refreshes.
+
+**Diagnosis:**
+1. Check dead row percentage: `SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'tv_name';`
+2. Check table size: Is it growing unexpectedly?
+
+**Solutions:**
+- Run VACUUM: `VACUUM FULL tv_name;` (requires lock)
+- Run VACUUM regularly: `VACUUM ANALYZE tv_name;`
+- Consider autovacuum settings for more frequent cleanup
+- Monitor with: `SELECT * FROM pg_stat_user_tables WHERE relname = 'tv_name';`
+
+---
+
 ## Resources
 
 **Supplementary Guides** (part of this series):

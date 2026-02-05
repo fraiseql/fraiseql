@@ -492,6 +492,103 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ---
 
+## Troubleshooting Decision Process
+
+### "I'm unsure if FraiseQL is right for us"
+
+**Decision Framework:**
+
+1. **What's your primary concern?**
+   - Data consistency → FraiseQL ✅
+   - High availability → Other options ❌
+   - Real-time performance (<50ms) → Other options ❌
+   - Schema safety → FraiseQL ✅
+
+2. **What's your data model?**
+   - Highly relational (10+ tables, joins) → FraiseQL ✅
+   - Mostly document-oriented (JSON data) → Firebase/Datastore ✅
+   - Time-series focused → ClickHouse/Prometheus ✅
+   - Mixed relational + documents → FraiseQL can handle ✅
+
+3. **Do you have this requirement?**
+   - Field-level RBAC enforcement → FraiseQL ✅
+   - Audit logging compliance → FraiseQL ✅
+   - Multi-tenant isolation → FraiseQL ✅
+   - Low-latency real-time (<10ms p95) → Other options
+
+4. **What's your team's expertise?**
+   - GraphQL comfortable → FraiseQL ✅
+   - SQL comfortable → FraiseQL ✅
+   - REST API comfortable → No GraphQL learning ❌
+   - Needs ORM (no schema code) → Other options ✅
+
+**If 3+ checks passed: Strong FraiseQL fit**
+**If 1-2 checks passed: Evaluate carefully**
+**If 0 checks passed: Probably wrong tool**
+
+### "Our team is skeptical about consistency trade-offs"
+
+**Address Concerns:**
+
+| Concern | Counter-Point | Evidence |
+|---------|---------------|----------|
+| "100-500ms latency is too slow" | Most business logic already has this latency | Compare: API Gateway (20ms) + DB (50ms) + Network (30ms) = 100ms baseline |
+| "We need real-time updates" | FraiseQL supports WebSocket subscriptions | See [Real-time subscriptions](../architecture/realtime/subscriptions.md) |
+| "We'll need eventual consistency anyway" | Implement at application layer if truly needed | See [Async mutations pattern](../patterns/async-mutations.md) |
+| "Consistency not important for us" | Then FraiseQL isn't the right choice | Consider alternatives |
+
+### "We're between FraiseQL and [Alternative]"
+
+**Quick Comparison:**
+
+| Need | FraiseQL | Firebase | DynamoDB | GraphQL-Core |
+|------|----------|----------|----------|--------------|
+| Strong consistency | ✅ | ❌ | ❌ | ✅ |
+| Multi-database | ✅ | ❌ | ❌ | ✅ |
+| Schema as code | ✅ | ❌ | ❌ | ❌ |
+| Built-in RBAC | ✅ | ❌ | ❌ | ❌ |
+| Low-latency real-time | ❌ | ✅ | ✅ | ❌ |
+| Serverless | ❌ | ✅ | ✅ | ❌ |
+| Learning curve | Medium | Low | Low | High |
+
+**Recommendation:**
+- If you need consistency + schema safety → FraiseQL
+- If you need serverless + real-time → Firebase/DynamoDB
+- If you need maximum flexibility → GraphQL-core
+
+### "How do we pilot FraiseQL to prove it works?"
+
+**Phased Approach:**
+
+**Phase 1 (Week 1): POC on single feature**
+- Pick one GraphQL query with 2-3 tables
+- Define schema in Python/TypeScript
+- Compile and run local test
+- Time: 2-4 hours
+- Success metric: Query executes and returns data
+
+**Phase 2 (Week 2): Expand to one service**
+- Migrate one real service to FraiseQL
+- Run side-by-side with existing API for comparison
+- Load test: Compare performance profiles
+- Time: 2-3 days
+- Success metric: FraiseQL performance acceptable
+
+**Phase 3 (Weeks 3-4): Production trial**
+- Deploy to staging
+- Shadow traffic (duplicate requests to both)
+- Monitor error rates, latency, consistency
+- Time: 1-2 weeks
+- Success metric: All metrics within acceptable range
+
+**Phase 4 (Week 5+): Full migration**
+- Gradual cutover: 10% → 25% → 50% → 100%
+- Rollback plan ready
+- Time: 2-4 weeks depending on traffic
+- Success metric: Running in production with no issues
+
+---
+
 ## See Also
 
 - [Consistency Model Deep Dive](./consistency-model.md)
