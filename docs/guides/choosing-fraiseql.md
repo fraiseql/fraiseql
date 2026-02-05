@@ -11,7 +11,7 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 
 ## Prerequisites
 
-### Required Knowledge:
+### Required Knowledge
 
 - GraphQL concepts and use cases
 - Database architecture and query patterns
@@ -22,16 +22,16 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 - Latency and throughput requirements
 - Data consistency requirements
 
-### Required Software:
+### Required Software
 
 - None (this is a decision-making guide, not hands-on implementation)
 - Optional: Documentation from your existing system/architecture
 
-### Required Infrastructure:
+### Required Infrastructure
 
 - None (decision guide only)
 
-#### Optional but Recommended:
+#### Optional but Recommended
 
 - Performance baseline data from current system (if migrating)
 - Team technical expertise assessment
@@ -524,7 +524,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "I'm unsure if FraiseQL is right for us"
 
-#### Decision Framework:
+#### Decision Framework
 
 1. **What's your primary concern?**
    - Data consistency → FraiseQL ✅
@@ -556,7 +556,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "Our team is skeptical about consistency trade-offs"
 
-#### Address Concerns:
+#### Address Concerns
 
 | Concern | Counter-Point | Evidence |
 |---------|---------------|----------|
@@ -567,7 +567,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "We're between FraiseQL and [Alternative]"
 
-#### Quick Comparison:
+#### Quick Comparison
 
 | Need | FraiseQL | Firebase | DynamoDB | GraphQL-Core |
 |------|----------|----------|----------|--------------|
@@ -579,7 +579,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 | Serverless | ❌ | ✅ | ✅ | ❌ |
 | Learning curve | Medium | Low | Low | High |
 
-### Recommendation:
+### Recommendation
 
 - If you need consistency + schema safety → FraiseQL
 - If you need serverless + real-time → Firebase/DynamoDB
@@ -587,7 +587,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 ### "How do we pilot FraiseQL to prove it works?"
 
-#### Phased Approach:
+#### Phased Approach
 
 #### Phase 1 (Week 1): POC on single feature
 

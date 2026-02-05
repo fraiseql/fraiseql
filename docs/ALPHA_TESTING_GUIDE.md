@@ -62,14 +62,14 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 
 ### Feature Limitations
 
-#### Not Included in Alpha:
+#### Not Included in Alpha
 
 - Subscriptions/real-time queries (planned for v2.1)
 - GraphQL directives beyond `@auth` and `@cache` (others planned for v2.1)
 - Advanced performance optimizations (deferred to v2.1)
 - Oracle database support (no Rust driver available)
 
-### Partially Supported:
+### Partially Supported
 
 - Language SDKs: Only Python, TypeScript, Go, PHP ready for alpha. Other languages coming in beta/GA.
 - Integration providers: 11 webhook providers included; more planned for v2.1

@@ -24,7 +24,7 @@
 
 Execute steps one after another. Each step depends on the previous one's success.
 
-#### When to Use:
+#### When to Use
 
 - Steps must execute in order
 - Later steps need data from earlier ones
@@ -42,7 +42,7 @@ Step 3: Reserve inventory   ✓
 Step 4: Ship items          ✓
 ```text
 
-#### If Step 3 fails:
+#### If Step 3 fails
 
 ```text
 Step 4: Undo reservation    ✓
@@ -52,7 +52,7 @@ Step 3: Undo charge         ✓
 (Step 2 validation passes)   ✓
 ```text
 
-#### Code Example:
+#### Code Example
 
 ```rust
 async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
@@ -71,7 +71,7 @@ async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
 
 Execute independent steps concurrently.
 
-#### When to Use:
+#### When to Use
 
 - Steps are independent (no data dependencies)
 - You need better performance
@@ -89,7 +89,7 @@ Parallel:
 (All 4 can run simultaneously)
 ```text
 
-#### Code Example:
+#### Code Example
 
 ```rust
 async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
@@ -115,7 +115,7 @@ async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
 
 Execute different paths based on conditions.
 
-#### When to Use:
+#### When to Use
 
 - Different paths for different customer types
 - Premium vs standard workflows
@@ -132,7 +132,7 @@ Else:
   └── Use payment service C (manual approval)
 ```text
 
-#### Code Example:
+#### Code Example
 
 ```rust
 async fn conditional_payment_saga(
@@ -170,7 +170,7 @@ async fn conditional_payment_saga(
 
 A saga that calls other sagas (composition).
 
-#### When to Use:
+#### When to Use
 
 - Reusing saga logic across different processes
 - Complex business processes need breaking down
@@ -194,7 +194,7 @@ Main Saga: Process Order
     └── Trigger recommendations
 ```text
 
-#### Code Example:
+#### Code Example
 
 ```rust
 async fn process_order_saga(order: Order) -> Result<SagaResult> {
@@ -228,18 +228,18 @@ async fn process_order_saga(order: Order) -> Result<SagaResult> {
 
 The coordinator automatically runs compensation for failed steps.
 
-#### Pros:
+#### Pros
 
 - Minimal code
 - Predictable
 - Easy to test
 
-### Cons:
+### Cons
 
 - Less control
 - May not fit complex business logic
 
-#### Example:
+#### Example
 
 ```rust
 SagaStep {
@@ -258,19 +258,19 @@ SagaStep {
 
 Application explicitly triggers compensation based on business logic.
 
-#### Pros:
+#### Pros
 
 - Full control
 - Can implement custom logic
 - Better for complex scenarios
 
-### Cons:
+### Cons
 
 - More code
 - Risk of forgetting steps
 - Harder to test
 
-#### Example:
+#### Example
 
 ```rust
 async fn process_with_manual_compensation(order: Order) -> Result<()> {
@@ -301,18 +301,18 @@ async fn process_with_manual_compensation(order: Order) -> Result<()> {
 
 A dedicated service handles all compensations.
 
-#### Pros:
+#### Pros
 
 - Separation of concerns
 - Reusable compensation logic
 - Easier to maintain
 
-### Cons:
+### Cons
 
 - Additional service to deploy
 - Network calls for compensation
 
-#### Example:
+#### Example
 
 ```rust
 // Dedicated compensator service
@@ -351,7 +351,7 @@ impl SagaCompensator {
 
 The system automatically retries failed sagas.
 
-#### Configuration:
+#### Configuration
 
 ```rust
 let recovery_manager = RecoveryManager::new(config)
@@ -362,7 +362,7 @@ let recovery_manager = RecoveryManager::new(config)
 recovery_manager.start_recovery_loop().await?;
 ```text
 
-### Behavior:
+### Behavior
 
 1. Detects failed sagas in store
 2. Retries from the point of failure
@@ -373,13 +373,13 @@ recovery_manager.start_recovery_loop().await?;
 
 Operators manually trigger recovery for specific sagas.
 
-#### Use When:
+#### Use When
 
 - Automatic recovery failed
 - Saga is in inconsistent state
 - Manual intervention required
 
-#### Example:
+#### Example
 
 ```rust
 // Get failed saga
@@ -397,7 +397,7 @@ println!("Status: {:?}", updated_saga.status);
 
 Recovery after system restart.
 
-#### How It Works:
+#### How It Works
 
 1. System boots
 2. Recovery manager starts
@@ -405,13 +405,13 @@ Recovery after system restart.
 4. Resumes from last completed step
 5. Reruns compensation or forward steps as needed
 
-### Key Points:
+### Key Points
 
 - Idempotency is critical (same step runs twice safely)
 - Request IDs prevent duplicate side effects
 - Last known state is restored
 
-### Configuration:
+### Configuration
 
 ```rust
 // Automatic crash recovery on startup
@@ -444,7 +444,7 @@ let step = SagaStep {
 
 ### Implementing Idempotency
 
-#### In Payment Service:
+#### In Payment Service
 
 ```rust
 async fn charge_card(
@@ -468,7 +468,7 @@ async fn charge_card(
 
 ### Avoiding Idempotency Issues
 
-#### Bad:
+#### Bad
 
 ```rust
 // Not idempotent - running twice doubles the charge
@@ -479,7 +479,7 @@ async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
 }
 ```text
 
-### Good:
+### Good
 
 ```rust
 // Idempotent - running twice has same effect

@@ -11,7 +11,7 @@
 
 ## Prerequisites
 
-### Required Knowledge:
+### Required Knowledge
 
 - SQL query fundamentals and JOIN optimization
 - Database views (logical vs materialized)
@@ -22,7 +22,7 @@
 - Backup and recovery procedures
 - Schema version control and migration tracking
 
-### Required Software:
+### Required Software
 
 - FraiseQL v2.0.0-alpha.1 or later
 - SQL client for your database (psql, mysql, sqlcmd, sqlite3)
@@ -31,7 +31,7 @@
 - Performance profiling tool (pg_stat_statements, EXPLAIN)
 - DDL generation tool (FraiseQL-cli or SDK)
 
-### Required Infrastructure:
+### Required Infrastructure
 
 - Production and staging database environments
 - Backup system for database snapshots
@@ -41,7 +41,7 @@
 - Network connectivity to all database environments
 - Deployment pipeline or manual change management process
 
-#### Optional but Recommended:
+#### Optional but Recommended
 
 - Query performance baseline metrics
 - Automated performance regression testing
@@ -113,7 +113,7 @@ EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE created_at > ? AND status = ?;
 
 ### 4. Design Composition View (if applicable)
 
-#### For tv_* (JSON):
+#### For tv_* (JSON)
 
 - [ ] Identified all related entities (User → Posts → Comments → Likes)
 - [ ] Documented JSONB structure needed
@@ -148,7 +148,7 @@ GROUP BY fk_post;
 - Composition depth: _____ levels
 - Intermediate views created: ___________________
 
-### For ta_* (Arrow):
+### For ta_* (Arrow)
 
 - [ ] Identified columns to extract from complex joins
 - [ ] Decided on denormalization strategy (time-series columns, aggregates)
@@ -179,7 +179,7 @@ CREATE TABLE ta_orders (
 
 ### 5. Choose Refresh Strategy
 
-#### For tv_* (JSON):
+#### For tv_* (JSON)
 
 - [ ] Trigger-based (real-time, <100ms)
   - [ ] Write volume < 1K/min
@@ -194,7 +194,7 @@ CREATE TABLE ta_orders (
 
 **Document**: Chosen strategy: ☐ Trigger | ☐ Scheduled | ☐ Manual
 
-### For ta_* (Arrow):
+### For ta_* (Arrow)
 
 - [ ] Trigger-based + BRIN (real-time for time-series)
   - [ ] BRIN index on timestamp columns
@@ -295,7 +295,7 @@ SELECT pg_size_pretty(pg_total_relation_size('tv_user_profile'));
 
 ### 9. Set Up Refresh Mechanism
 
-#### For trigger-based:
+#### For trigger-based
 
 - [ ] Refresh trigger function created
 - [ ] Trigger attached to source table(s)
@@ -323,7 +323,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 - Test write executed: ☐ Yes
 - Auto-refresh verified: ☐ Yes | Time: ______ ms
 
-### For scheduled batch:
+### For scheduled batch
 
 - [ ] Refresh function created
 - [ ] pg_cron schedule added
@@ -511,14 +511,14 @@ SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
 
 ### 15. Post-Deployment Monitoring (24 hours)
 
-#### Every 15 minutes:
+#### Every 15 minutes
 
 - [ ] Query error rates normal
 - [ ] Staleness within acceptable range
 - [ ] No spike in database load
 - [ ] Application response times improved
 
-### Hourly:
+### Hourly
 
 - [ ] Check monitoring dashboard for anomalies
 - [ ] Verify refresh function completing
@@ -548,7 +548,7 @@ WHERE tablename = 'tv_user_profile';
 
 ### 16. Rollback Decision
 
-#### If performance doesn't improve or issues occur:
+#### If performance doesn't improve or issues occur
 
 - [ ] Revert type binding to old view
 - [ ] Drop table-backed view (or keep for later use)
@@ -618,7 +618,7 @@ class UserProfile:
 
 ### 20. Success Metrics
 
-#### Document final results:
+#### Document final results
 
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
@@ -709,13 +709,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Table-backed view might not solve your bottleneck or indexes missing.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Re-run performance test: Compare v_*vs tv_* latencies
 2. Check table was actually created: `SELECT * FROM information_schema.tables WHERE table_name = 'tv_name';`
 3. Run EXPLAIN: Compare execution plans for both views
 
-#### Solutions:
+#### Solutions
 
 - Verify table has correct indexes: `SELECT * FROM pg_indexes WHERE tablename = 'tv_name';`
 - Check that query is actually using table (not original view)
@@ -727,13 +727,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Table-backed view doesn't cover all access patterns of original view.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check which queries use tv_*vs original v_*
 2. Find queries failing on tv_*: Review error logs
 3. Compare schemas: Does tv_*have all columns of v_*?
 
-#### Solutions:
+#### Solutions
 
 - Keep both views temporarily: v_*for queries, tv_* for new code
 - Migrate gradually: Update application references one at a time
@@ -744,13 +744,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Materialized view refresh locks table.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check refresh time: How long does REFRESH MATERIALIZED VIEW take?
 2. Check if indexes exist: Needed for refresh to be fast
 3. Monitor table size: Large tables = slower refresh
 
-#### Solutions:
+#### Solutions
 
 - Add indexes to base tables before refresh
 - For high-frequency tables: Consider different strategy
@@ -762,13 +762,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Table was created manually and doesn't match schema definition.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Compare schemas: `SELECT * FROM schema.json WHERE name = 'X'`
 2. Check table columns: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'tv_name';`
 3. Look for type mismatches: string vs int, timestamp vs date
 
-#### Solutions:
+#### Solutions
 
 - Re-generate table from schema.json: Drop and recreate
 - Use DDL generation tool to ensure consistency
@@ -779,13 +779,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Migration script interrupted or deployment killed.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check if table exists partially: `SELECT COUNT(*) FROM tv_name;`
 2. Check migration script status: Look for error logs
 3. Verify data consistency: Compare row counts with source view
 
-#### Solutions:
+#### Solutions
 
 - Complete the migration manually or rollback
 - Drop table and restart migration
@@ -796,13 +796,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Migration happened but some queries still use original view.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check query metrics: Which endpoints are slow?
 2. Verify which queries execute: Enable query logging
 3. Check application code: Are some components not updated?
 
-#### Solutions:
+#### Solutions
 
 - Identify which component/query uses old view
 - Update application to use table-backed view
@@ -813,13 +813,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Materialized views with large datasets can be very large.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check table size: `SELECT pg_size_pretty(pg_total_relation_size('tv_name'));`
 2. Compare to source view: How much larger?
 3. Check if table can be partitioned
 
-#### Solutions:
+#### Solutions
 
 - Consider partitioning by date: Store only recent data in table
 - Use archive strategy: Move old data to separate table
@@ -830,13 +830,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 **Cause:** Data not being ingested to ClickHouse or query going to PostgreSQL instead.
 
-#### Diagnosis:
+#### Diagnosis
 
 1. Check if ClickHouse table exists: `SELECT name FROM system.tables WHERE database = 'default';`
 2. Verify ingestion: `SELECT COUNT(*) FROM clickhouse_table;`
 3. Check routing: Which backend does Arrow query use?
 
-#### Solutions:
+#### Solutions
 
 - Verify CDC is configured to send to ClickHouse
 - Check network connectivity to ClickHouse
@@ -848,7 +848,7 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 ## Template Customization
 
-### Copy this section for your specific migration:
+### Copy this section for your specific migration
 
 ### Migration Details
 

@@ -176,11 +176,11 @@ public class Order {
 }
 ```
 
-### Attributes:
+### Attributes
 
 - None (annotation applies to class level only)
 
-### Best Practices:
+### Best Practices
 
 - Use immutable records when possible (Java 16+)
 - Keep types flat (no nested `@GraphQLType` annotations)
@@ -208,14 +208,14 @@ public String userId;
 public List<String> getTags() { return tags; }
 ```
 
-### Attributes:
+### Attributes
 
 - `nullable` (boolean, default: `false`) - Whether field can be null
 - `name` (String) - Custom field name in schema (defaults to Java name)
 - `type` (String) - Custom GraphQL type (auto-detected if omitted)
 - `description` (String) - Field documentation for schema
 
-### Type Detection Rules:
+### Type Detection Rules
 
 | Java Type | GraphQL Type | Nullable | Example |
 |-----------|--------------|----------|---------|
@@ -316,7 +316,7 @@ FraiseQL.query("userCount")
     .register();
 ```
 
-### QueryBuilder Methods:
+### QueryBuilder Methods
 
 - `returnType(Class<?>)` - Set return type (required)
 - `returnsArray(boolean)` - Whether result is array (default: false)
@@ -362,7 +362,7 @@ FraiseQL.mutation("bulkDeleteUsers")
     .register();
 ```
 
-### MutationBuilder Methods:
+### MutationBuilder Methods
 
 Identical to QueryBuilder interface.
 

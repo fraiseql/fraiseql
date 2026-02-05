@@ -32,14 +32,14 @@ FraiseQL schemas compile to optimized SQL at build time, enabling deterministic 
 
 #### **v_* (Logical Views)** — For Simple, Real-Time Data
 
-#### Use when:
+#### Use when
 
 - Simple computed fields (concatenation, math)
 - Data changes frequently
 - Storage overhead not acceptable
 - Real-time accuracy critical
 
-#### Example:
+#### Example
 
 ```python
 @FraiseQL.type
@@ -52,13 +52,13 @@ class UserProfile:
     age: int = field(computed="YEAR(NOW()) - YEAR(birth_date)")
 ```
 
-### Performance characteristics:
+### Performance characteristics
 
 - Query latency: 50-200ms (depends on computation)
 - Storage: None (computed in view)
 - Scalability: Degrades linearly with row count
 
-### When NOT to use:
+### When NOT to use
 
 - ❌ Aggregating millions of rows (GROUP BY on large table)
 - ❌ Complex joins (>3 tables)
@@ -67,14 +67,14 @@ class UserProfile:
 
 #### **tv_* (Table-Backed Views)** — For Complex, Pre-Computed Data
 
-#### Use when:
+#### Use when
 
 - Complex aggregations (GROUP BY, JOINs)
 - Computation expensive (complex math, ML)
 - Performance more important than freshness
 - Refresh cycle acceptable (hourly/daily)
 
-#### Example:
+#### Example
 
 ```python
 @FraiseQL.type
@@ -88,7 +88,7 @@ class UserStats:
     updated_at: DateTime
 ```
 
-### Materialization strategy:
+### Materialization strategy
 
 ```sql
 -- Materialization query (runs hourly)
@@ -107,14 +107,14 @@ LEFT JOIN likes l ON c.id = l.comment_id
 GROUP BY u.id;
 ```
 
-### Performance characteristics:
+### Performance characteristics
 
 - Query latency: 1-10ms (table lookup, indexed)
 - Storage: ~10-20% of source data
 - Scalability: Constant (O(1) lookup)
 - Refresh lag: 1 hour (configurable)
 
-### Refresh strategies:
+### Refresh strategies
 
 - **Full refresh**: Recompute entire table daily
 - **Incremental refresh**: Only update changed users
@@ -122,14 +122,14 @@ GROUP BY u.id;
 
 #### **va_* (Arrow Logical Views)** — For Analytics Queries
 
-#### Use when:
+#### Use when
 
 - Analytics/OLAP workloads (not OLTP)
 - Columnar data format preferred (Pandas, Polars, DuckDB)
 - Batch export needed
 - JSON format too verbose
 
-#### Example:
+#### Example
 
 ```python
 @FraiseQL.type
@@ -142,7 +142,7 @@ class ProductAnalytics:
     cost: Decimal
 ```
 
-### Query:
+### Query
 
 ```python
 import pyarrow.flight as flight
@@ -153,7 +153,7 @@ reader = client.do_get(flight.Ticket(b"ProductAnalytics"))
 df = reader.read_pandas()  # Zero-copy to pandas!
 ```
 
-### Performance characteristics:
+### Performance characteristics
 
 - Query latency: 50-500ms (batch scan)
 - Data transfer: 10-20x smaller than JSON
@@ -162,14 +162,14 @@ df = reader.read_pandas()  # Zero-copy to pandas!
 
 #### **ta_* (Arrow Table-Backed Views)** — For Pre-Materialized Analytics
 
-#### Use when:
+#### Use when
 
 - Analytics table very large (100M+ rows)
 - Batch queries common
 - Pre-materialization acceptable
 - Long-term data warehouse export
 
-#### Example:
+#### Example
 
 ```python
 @FraiseQL.type
@@ -201,7 +201,7 @@ class SalesDataWarehouse:
 
 ### Field Naming
 
-#### Conventions:
+#### Conventions
 
 ```python
 @FraiseQL.type
@@ -268,7 +268,7 @@ class OrderStatus(enum.Enum):
 | `Slug` | URL-safe names | "my-product", "my-post" | ✅ URLs |
 | `Url` | Web addresses | <https://example.com> | ✅ Links |
 
-### Anti-pattern:
+### Anti-pattern
 
 ```python
 # ❌ Wrong: String ID instead of UUID
@@ -287,7 +287,7 @@ id: UUID
 | `Decimal` | Money, accounting | price, balance | Arbitrary (use!) |
 | `BigInt` | Very large integers | transaction_id | 128-bit |
 
-### Anti-pattern:
+### Anti-pattern
 
 ```python
 # ❌ Wrong: Float for money (precision loss!)
@@ -305,7 +305,7 @@ account_balance: Decimal = Decimal("99.99")
 | `DateTime` | Date + time | 2026-02-05T10:30:00Z | Always UTC |
 | `Time` | Time only (no date) | 10:30:00 | None |
 
-### Best practice:
+### Best practice
 
 ```python
 @FraiseQL.type
@@ -339,7 +339,7 @@ class Post:
     content: str
 ```
 
-### Performance consideration:
+### Performance consideration
 
 - Eager-load related entities to avoid N+1
 - Use table-backed view if aggregation expensive
@@ -370,7 +370,7 @@ class Group:
 # );
 ```
 
-### Implementation with table-backed view:
+### Implementation with table-backed view
 
 ```sql
 CREATE TABLE tv_user_groups AS
@@ -416,7 +416,7 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 
 ### When to Add Indexes
 
-#### ADD indexes for:
+#### ADD indexes for
 
 - ✅ All foreign keys (`user_id`, `org_id`)
 - ✅ Fields in WHERE clauses (filters)
@@ -425,7 +425,7 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 - ✅ Unique fields (UNIQUE constraint is an index)
 - ✅ High cardinality fields (many distinct values)
 
-### AVOID indexing:
+### AVOID indexing
 
 - ❌ Very low cardinality fields (boolean, status with 3 values)
 - ❌ Fields that are never filtered
@@ -729,21 +729,21 @@ class UserStats:
 
 ## See Also
 
-### Related Guides:
+### Related Guides
 
 - **[Common Gotchas](./common-gotchas.md)** — Schema pitfalls to avoid
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing schema performance
 - **[View Selection Guide](./view-selection-performance-testing.md)** — Testing view performance
 - **[Common Patterns](./PATTERNS.md)** — Pattern implementations using best practices
 
-### Architecture & Specifications:
+### Architecture & Specifications
 
 - **[Schema Compilation Pipeline](../architecture/core/compilation-phases.md)** — How schemas compile to SQL
 - **[WHERE Type Generation](../architecture/database/database-targeting.md)** — Filter operator compilation
 - **[Scalar Types Reference](../reference/scalars.md)** — All available scalar types
 - **[Specs: Schema Conventions](../specs/schema-conventions.md)** — Naming conventions
 
-### Security:
+### Security
 
 - **[RBAC & Field Authorization](../enterpri../../guides/authorization-quick-start.md)** — Field-level access control
 - **[Production Security Checklist](./production-security-checklist.md)** — Security hardening

@@ -161,19 +161,19 @@ Each guide includes testing patterns for:
 
 ## See Also
 
-### SDK References:
+### SDK References
 
 - **[All 16 Language SDKs](../../integrations/sdk/)** — How to author schemas in your language
 - **[SDK Best Practices](../language-sdk-best-practices.md)** — Server-side SDK usage patterns
 
-#### Full-Stack Examples:
+#### Full-Stack Examples
 
 - **[Python + React Example](../../examples/fullstack-python-react.md)**
 - **[TypeScript + Vue Example](../../examples/fullstack-typescript-vue.md)**
 - **[Go + Flutter Example](../../examples/fullstack-go-flutter.md)**
 - **[Java + Next.js Example](../../examples/fullstack-java-nextjs.md)**
 
-### Related Guides:
+### Related Guides
 
 - **[Real-Time Patterns](../PATTERNS.md)** — Subscription patterns
 - **[Authentication & Authorization](../authorization-quick-start.md)** — Securing client access

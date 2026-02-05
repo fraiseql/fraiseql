@@ -48,7 +48,7 @@ FraiseQL shifts work from runtime to build time:
 
 ### 1. Performance & Predictability
 
-#### Traditional GraphQL Problem:
+#### Traditional GraphQL Problem
 
 ```python
 # Apollo Server - Query interpreted at runtime
@@ -68,7 +68,7 @@ query GetUserOrders {
 # Speed depends on resolver implementation and caching
 ```
 
-#### FraiseQL Solution:
+#### FraiseQL Solution
 
 ```python
 # FraiseQL - Query compiled to optimized SQL
@@ -227,7 +227,7 @@ def search_products(query: str, category: str) -> List[Product]:
     pass
 ```
 
-### Result:
+### Result
 
 - Compiled to single optimized SQL query (no N+1)
 - In-stock filter pushed to database
@@ -247,13 +247,13 @@ class Invoice:
     amount: Decimal
     created_at: datetime
 
-# At compile time, FraiseQL generates:
+# At compile time, FraiseQL generates
 # - Tenant isolation in every query (WHERE tenant_id = ?)
 # - Authorization checks (can user see this tenant's data?)
 # - Audit logging rules
 ```
 
-### Result:
+### Result
 
 - Zero tenant data leaks (verified at compile time)
 - Permission checks optimized into SQL
@@ -277,7 +277,7 @@ query GetUserAnalytics {
 # vs JSON plane: 10-20 MB/s row-by-row
 ```
 
-### Result:
+### Result
 
 - 5-10x throughput improvement
 - Lower memory usage
@@ -483,7 +483,7 @@ If you need something else:
 
 ---
 
-### Quick Reference:
+### Quick Reference
 
 - Problem: Traditional GraphQL interprets at runtime
 - Solution: FraiseQL compiles at build time
