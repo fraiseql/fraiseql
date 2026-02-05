@@ -51,8 +51,8 @@
 
 ### Features
 
-- **[TYPED_STREAMING_GUIDE.md](TYPED_STREAMING_GUIDE.md)** – Type-safe deserialization (Phase 8.2)
-- **[METRICS.md](METRICS.md)** – Metrics and tracing (Phase 8.3-8.4)
+- **[TYPED_STREAMING_GUIDE.md](TYPED_STREAMING_GUIDE.md)** – Type-safe deserialization
+- **[METRICS.md](METRICS.md)** – Metrics and tracing
 
 ### Project Info
 
@@ -95,7 +95,7 @@ This includes:
 ## Version Information
 
 **Current Version:** 0.1.0
-**Status:** Stable (Phase 9 Complete)
+**Status:** Stable
 **MSRV:** Rust 1.75+
 **API Stability:** Stable (unlikely breaking changes)
 

@@ -1,4 +1,4 @@
-//! File backend tests (Phase 11.3 Cycle 2 - RED)
+//! File backend tests
 //!
 //! Tests for JSON lines file-based audit logging
 

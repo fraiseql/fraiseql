@@ -7,7 +7,7 @@
 
 ## Overview
 
-Phase 9.2.A provides comprehensive Prometheus metrics for the FraiseQL Observer System, extending Phase 9.1 tracing with quantitative performance data. This guide covers metrics setup, integration, and usage.
+.2.A provides comprehensive Prometheus metrics for the FraiseQL Observer System, extending Phase 9.1 tracing with quantitative performance data. This guide covers metrics setup, integration, and usage.
 
 ---
 
@@ -738,7 +738,7 @@ metrics.events_processed_total.inc_by(batch_size as f64);
 
 ## Next Phase: Phase 9.2.B
 
-After metrics collection is working, Phase 9.2.B adds:
+After metrics collection is working.2.B adds:
 
 - Automatic span creation via macros
 - `#[traced]` macro for automatic instrumentation

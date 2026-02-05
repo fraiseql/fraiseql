@@ -114,12 +114,12 @@ async fn authenticate(&mut self, config: &ConnectionConfig) -> Result<()> {
    - Add to README: "For production deployment over untrusted networks, TLS is required"
    - Add to examples: Show how to enforce TLS when implemented
 
-2. **Implement TLS support** (Phase 8):
+2. **Implement TLS support**:
    - Use `rustls` or `tokio-native-tls`
    - Make TLS configurable (require vs optional)
    - Update README with TLS examples
 
-3. **Consider SCRAM** (Phase 8):
+3. **Consider SCRAM**:
    - Better than cleartext
    - Eliminates password transmission in plain text
    - Significantly improves security posture
@@ -281,12 +281,12 @@ Reasoning:
    **For untrusted input**, use `.where_rust()` instead.
    ```
 
-2. **Add validation examples** (Phase 7.2):
+2. **Add validation examples**:
    - Example code showing safe WHERE clause construction
    - Document the `where_sql()` vs `where_rust()` trade-offs
    - Add to SECURITY.md
 
-3. **Consider parameterized helper** (Phase 8):
+3. **Consider parameterized helper**:
    - Could add `where_json_eq(key, value)` style helpers
    - These would escape values automatically
    - Reduces SQL injection risk for common patterns
@@ -534,7 +534,7 @@ impl std::fmt::Debug for ConnectionConfig {
    - Add to README: "For production over untrusted networks, TLS is required"
    - Add to getting_started.md: "TLS support is on the Phase 8 roadmap"
 
-2. **Implement TLS** (Phase 8, high priority):
+2. **Implement TLS**:
    - Use `rustls` (Rust-native) or `tokio-native-tls` (system certs)
    - Make TLS configurable (required vs optional)
    - Support certificate validation and custom CAs
@@ -584,11 +584,11 @@ Code properly implements:
 3. **Query execution time** (Postgres enforces):
    - Postgres has statement_timeout setting
    - Client has no query timeout yet
-   - Could add timeout parameter (Phase 8)
+   - Could add timeout parameter
 
 **Recommendations**:
 
-1. **Add query timeout** (Phase 8):
+1. **Add query timeout**:
 
    ```rust
    client.query("entity")
@@ -635,7 +635,7 @@ Streaming implementation ensures:
 |-------|----------|----------|--------|
 | TLS not implemented | Overall | Medium | ⚠️ By design, roadmap Phase 8 |
 | SQL injection risk (by design) | Query builder | Medium | ⚠️ Documented, Rust predicates alternative |
-| No query timeout | Client API | Medium | ⚠️ Postgres enforces, Phase 8 roadmap |
+| No query timeout | Client API | Medium | ⚠️ Postgres enforces roadmap |
 
 ### Low Severity Issues
 
@@ -692,11 +692,11 @@ Streaming implementation ensures:
 
 1. ✅ **Maintain zero-unsafe-code policy**
 2. ✅ **Add cargo audit to CI/CD**
-3. ✅ **Implement TLS support** (Phase 8, high priority)
+3. ✅ **Implement TLS support**
 4. ✅ **Override Debug for sensitive types** (quick win)
 5. ✅ **Add SECURITY.md document** (user guidance)
 6. ✅ **Regular dependency audits** (monthly)
-7. ⚠️ **Consider SCRAM authentication** (Phase 8)
+7. ⚠️ **Consider SCRAM authentication**
 
 ---
 

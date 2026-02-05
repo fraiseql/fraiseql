@@ -122,7 +122,7 @@ Choose the deployment strategy that matches your risk tolerance:
 
 ## Step-by-Step Deployment
 
-### Phase 1: Pre-Deployment (Day 1)
+### Pre-Deployment (Day 1)
 
 #### 1.1 Verify Current System Health
 
@@ -176,7 +176,7 @@ cargo test --release
 cargo test --test stress_tests -- --ignored --nocapture
 ```
 
-### Phase 2: Staging Deployment (Day 1-2)
+### Staging Deployment (Day 1-2)
 
 #### 2.1 Deploy to Staging
 
@@ -238,7 +238,7 @@ fraiseql-observers metrics | grep observer_
 # - Metrics: incrementing normally
 ```
 
-### Phase 3: Production Canary (Week 1 if using gradual strategy)
+### Production Canary (Week 1 if using gradual strategy)
 
 #### 3.1 Deploy Canary (5% traffic)
 
@@ -284,7 +284,7 @@ If anomalies detected:
   ⚠️  Consider rollback
 ```
 
-### Phase 4: Production Expansion (Week 2-3 if using gradual strategy)
+### Production Expansion (Week 2-3 if using gradual strategy)
 
 #### 4.1 Expand to 25% Traffic
 
@@ -323,7 +323,7 @@ If issues detected:
   🔧 Restart expansion
 ```
 
-### Phase 5: Full Production Deployment (Week 4)
+### Full Production Deployment (Week 4)
 
 #### 5.1 Deploy to 100% Traffic
 
@@ -427,7 +427,7 @@ Monitor these metrics:
 
 ### Feature-Specific Verification
 
-#### Checkpoints (Phase 8.1)
+#### Checkpoints
 
 ```bash
 # Verify checkpoint saving
@@ -443,7 +443,7 @@ psql -d your_db -c "SELECT * FROM observer_checkpoints ORDER BY created_at DESC 
 # Expected: newer timestamp
 ```
 
-#### Concurrent Execution (Phase 8.2)
+#### Concurrent Execution
 
 ```bash
 # Check latency improvement
@@ -452,7 +452,7 @@ fraiseql-observers metrics | grep action_duration
 # Expected P99: < 100ms (5x improvement)
 ```
 
-#### Deduplication (Phase 8.3)
+#### Deduplication
 
 ```bash
 # Check dedup cache
@@ -462,7 +462,7 @@ redis-cli INFO stats | grep total_commands_processed
 fraiseql-observers cache-stats
 ```
 
-#### Caching (Phase 8.4)
+#### Caching
 
 ```bash
 # Check cache hit rate

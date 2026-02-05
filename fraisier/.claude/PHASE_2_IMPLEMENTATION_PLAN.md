@@ -2,7 +2,7 @@
 
 **Objective**: Extend Fraisier to support multiple deployment target providers
 
-**Status**: Starting (Phase 1 complete)
+**Status**: Starting
 
 **Timeline**: 2-3 weeks
 
@@ -445,7 +445,7 @@ def test_bare_metal_pre_flight_check(bare_metal_provider, mock_subprocess):
 
 ### Update fraises.yaml Format
 
-**Before** (Phase 1):
+**Before**:
 ```yaml
 fraises:
   my_api:
@@ -456,7 +456,7 @@ fraises:
         systemd_service: my_api.service
 ```
 
-**After** (Phase 2):
+**After**:
 ```yaml
 fraises:
   my_api:
@@ -614,7 +614,7 @@ CREATE TABLE tb_deployment_lock (
 
 ## Next Phase Dependency
 
-Phase 2 enables Phase 3 (Production Hardening):
+ enables Phase 3 (Production Hardening):
 
 - Monitoring and alerting
 - Multi-region deployments

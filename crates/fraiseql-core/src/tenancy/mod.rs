@@ -1,4 +1,4 @@
-//! Multi-tenancy support for FraiseQL (Phase 11.4)
+//! Multi-tenancy support for FraiseQL
 //!
 //! Provides tenant isolation, context extraction, and row-level security.
 //!

@@ -69,7 +69,7 @@ curl http://localhost:8000/metrics/json
 # }
 ```
 
-## OpenTelemetry Integration (Phase 5 Cycle 3)
+## OpenTelemetry Integration
 
 ### Initialization
 

@@ -27,15 +27,15 @@ FraiseQL execution semantics define the precise runtime behavior of queries, mut
 Every query follows a deterministic five-phase execution model:
 
 ```
-Phase 1: Request Parsing & Validation
+ Request Parsing & Validation
     ↓
-Phase 2: Authorization & Context Binding
+ Authorization & Context Binding
     ↓
-Phase 3: Parameter Binding & SQL Preparation
+ Parameter Binding & SQL Preparation
     ↓
-Phase 4: Database Execution
+ Database Execution
     ↓
-Phase 5: Response Transformation & Streaming
+ Response Transformation & Streaming
 ```
 
 ### 1.2 Phase 1: Request Parsing & Validation
@@ -509,15 +509,15 @@ Query cache is invalidated when:
 Mutations follow a stricter five-phase model with atomic guarantees:
 
 ```
-Phase 1: Request Validation
+ Request Validation
     ↓
-Phase 2: Input Validation & Transformation
+ Input Validation & Transformation
     ↓
-Phase 3: Pre-mutation Authorization
+ Pre-mutation Authorization
     ↓
-Phase 4: Atomic Transaction Execution
+ Atomic Transaction Execution
     ↓
-Phase 5: Post-mutation Response & Events
+ Post-mutation Response & Events
 ```
 
 ### 2.2 Phase 1: Request Validation

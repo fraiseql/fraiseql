@@ -43,7 +43,7 @@ let client = FraiseClient::connect("postgres:///mydb").await?;
    ssh -N -L 5432:localhost:5432 user@remote-host
    ```
 
-**Permanent Solution** (Phase 8):
+**Permanent Solution**:
 
 - TLS support will be added in future release
 - Watch ROADMAP.md for implementation status

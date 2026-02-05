@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Phase 9.1 introduces **OpenTelemetry (OTEL) integration** to enable distributed tracing across microservice architectures. This allows developers to trace individual event processing flows from entry to completion, understand latency bottlenecks, and debug issues across service boundaries.
+.1 introduces **OpenTelemetry (OTEL) integration** to enable distributed tracing across microservice architectures. This allows developers to trace individual event processing flows from entry to completion, understand latency bottlenecks, and debug issues across service boundaries.
 
 ### Key Objectives
 
@@ -253,7 +253,7 @@ pub async fn process_event(event: Event) -> Result<()> {
 }
 ```
 
-**Span Attributes** (Phase 9.1):
+**Span Attributes**:
 
 - `event_id`: Event identifier
 - `entity_type`: Type of entity
@@ -751,7 +751,7 @@ tracing:
 
 ## Next Phase (9.2) Dependencies
 
-Phase 9.2 (Event Replay) will depend on:
+.2 (Event Replay) will depend on:
 
 - ✅ Phase 9.1 tracing context (completed)
 - ✅ Event replay mechanism (new in 9.2)

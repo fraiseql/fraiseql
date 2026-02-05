@@ -1,4 +1,4 @@
-//! Audit logging infrastructure (Phase 11.3)
+//! Audit logging infrastructure
 //!
 //! Provides audit event structures and backend trait for multi-backend audit logging.
 //!

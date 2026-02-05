@@ -17,19 +17,19 @@ FraiseQL's core strength is its **build-time compilation**. This topic explains 
 ## The Seven-Phase Compilation Pipeline
 
 ```
-Phase 1: Parse Schema Definitions
+ Parse Schema Definitions
          ↓ (Python/TypeScript files)
-Phase 2: Extract Type Information
+ Extract Type Information
          ↓ (build schema.json)
-Phase 3: Validate Relationships
+ Validate Relationships
          ↓ (check foreign keys, types)
-Phase 4: Analyze Query Patterns
+ Analyze Query Patterns
          ↓ (compute query costs, N+1 detection)
-Phase 5: Optimize SQL Templates
+ Optimize SQL Templates
          ↓ (generate efficient queries)
-Phase 6: Generate Authorization Rules
+ Generate Authorization Rules
          ↓ (compile permission checks)
-Phase 7: Output Compiled Schema
+ Output Compiled Schema
          ↓ (schema.compiled.json)
 Production-Ready Server
 ```
@@ -612,7 +612,7 @@ query {
 
 ### 1. Early Error Detection
 ```
-❌ Error caught at compile time (Phase 3):
+❌ Error caught at compile time:
    Column 'users_id' not found in tb_users
 
 ✅ Not discovered in production
@@ -620,15 +620,15 @@ query {
 
 ### 2. Performance Optimization
 ```
-Phase 4 detects missing index:
+ detects missing index:
 → Recommendation: Add index on tb_orders(fk_user_id)
 → DBA adds index before deployment
-→ Queries automatically use it (Phase 5 already generated optimal SQL)
+→ Queries automatically use it
 ```
 
 ### 3. Security Verification
 ```
-Phase 6 compiles authorization:
+ compiles authorization:
 → All permission rules checked for logic errors
 → Impossible conditions detected
 → Authorization always evaluated consistently

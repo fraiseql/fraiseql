@@ -14,7 +14,7 @@ The new operator system is purely additive - you can:
 
 ## What Changed
 
-### Phase 0: Field Source Support
+### Field Source Support
 
 **Before**:
 
@@ -27,7 +27,7 @@ The new operator system is purely additive - you can:
 - Automatic type casting for JSONB text extraction
 - Mixed filtering support in single WHERE clause
 
-### Phase 1: Query Modifiers
+### Query Modifiers
 
 **Before**:
 

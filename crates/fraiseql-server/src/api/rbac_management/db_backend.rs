@@ -1,4 +1,4 @@
-//! RBAC Database Backend (Phase 11.5 Cycle 2 - GREEN)
+//! RBAC Database Backend
 //!
 //! Database operations for role and permission management
 

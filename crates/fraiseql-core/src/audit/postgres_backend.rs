@@ -1,4 +1,4 @@
-//! PostgreSQL audit backend (Phase 11.3 Cycle 3 - GREEN)
+//! PostgreSQL audit backend
 //!
 //! Stores audit events in PostgreSQL with full-text search, JSONB storage,
 //! and performance-optimized indexes.

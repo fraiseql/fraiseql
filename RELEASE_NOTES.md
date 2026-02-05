@@ -2,7 +2,7 @@
 
 **Version**: 2.0.0-GA
 **Release Date**: 2026-01-29
-**Codename**: Apollo Federation v2 (Phase 16 Complete)
+**Codename**: Apollo Federation v2
 
 ---
 

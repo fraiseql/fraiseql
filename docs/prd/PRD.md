@@ -644,8 +644,8 @@ FraiseQL subscriptions are **compiled database event projections** delivered thr
 **Database support (PostgreSQL is reference implementation):**
 
 - PostgreSQL: LISTEN/NOTIFY + CDC (reference, full feature parity)
-- MySQL: Debezium CDC (Phase 2, may vary in maturity)
-- SQL Server: Native CDC (Phase 2, may vary in maturity)
+- MySQL: Debezium CDC
+- SQL Server: Native CDC
 - SQLite: Trigger-based (development-use only)
 
 **Constraints:**

@@ -1,4 +1,4 @@
-//! Tests for audit event structure (Phase 11.3 - GREEN)
+//! Tests for audit event structure
 
 use super::*;
 use serde_json::json;

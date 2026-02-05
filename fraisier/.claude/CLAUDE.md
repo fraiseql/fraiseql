@@ -18,7 +18,7 @@ This repository contains both:
 
 ```
 fraiseql/  (FraiseQL Framework)
-├── crates/              → Rust engine (Phase 7)
+├── crates/              → Rust engine
 ├── fraiseql-python/     → Python schema authoring
 ├── fraiseql-typescript/ → TypeScript schema authoring
 │

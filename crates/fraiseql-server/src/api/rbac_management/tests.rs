@@ -1,4 +1,4 @@
-//! RBAC Management API tests (Phase 11.5 Cycle 1 - RED)
+//! RBAC Management API tests
 //!
 //! Tests for role and permission management REST endpoints
 

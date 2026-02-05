@@ -678,7 +678,7 @@ ViewName: v_order
 
 No database-specific SQL generation needed. Rust drivers handle connections transparently.
 
-### Phase 6: Federation Metadata Generation
+### Federation Metadata Generation
 
 **Input:** Entity resolution strategy decisions and subgraph configuration
 **Output:** Updated CompiledSchema with federation metadata

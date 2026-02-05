@@ -80,7 +80,7 @@ This indicates a potential performance regression. Investigate by:
 3. Running benchmarks on a clean branch for comparison
 4. Using profiling tools (flamegraph, perf) to identify hot paths
 
-## Integration Benchmarks (Phase 7.1.2)
+## Integration Benchmarks
 
 Real-world performance benchmarks against Postgres 17:
 

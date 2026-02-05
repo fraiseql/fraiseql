@@ -903,7 +903,7 @@ User Schema (Python)
         id: ID
         posts: [Post]
 
-    ↓ Compile (Phase 1-3)
+    ↓ Compile
 
 Intermediate Schema (IR)
     {
@@ -912,7 +912,7 @@ Intermediate Schema (IR)
         "authorization": {...}
     }
 
-    ↓ Compile (Phase 4-6)
+    ↓ Compile
 
 Compiled Schema (executable)
     {

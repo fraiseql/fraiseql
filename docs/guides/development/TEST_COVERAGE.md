@@ -205,7 +205,7 @@ FraiseQL has comprehensive test coverage across all major components with **1,70
 | Entity Resolution | Benchmark | 10K-100K entities | ✅ Complete |
 | Saga Performance | Benchmark | 100-1K steps | ✅ Complete |
 
-**Results** (Phase 16):
+**Results**:
 
 - Entity resolution: <5ms (local), <20ms (direct DB), <200ms (HTTP)
 - Saga execution: 312ms (3-step), scales linearly

@@ -85,7 +85,7 @@ Stops containers and removes temporary files.
 
 ## Test Pipeline
 
-### Phase 1: Schema Authoring
+### Schema Authoring
 
 Each language generator creates a schema:
 
@@ -130,7 +130,7 @@ type User struct {
 fraiseql.ExportSchema("schema.json")
 ```
 
-### Phase 2: JSON Validation
+### JSON Validation
 
 Verify schema JSON structure:
 
@@ -139,7 +139,7 @@ Verify schema JSON structure:
 - ✅ Type references valid
 - ✅ No circular dependencies
 
-### Phase 3: CLI Compilation
+### CLI Compilation
 
 ```bash
 fraiseql-cli compile schema.json -o schema.compiled.json
@@ -152,7 +152,7 @@ Produces optimized execution plan with:
 - Query optimization
 - Database integration metadata
 
-### Phase 4: Runtime Execution
+### Runtime Execution
 
 Start server with compiled schema:
 

@@ -501,7 +501,7 @@ class MyGitProvider(GitProvider):
 
 ### 3. Custom Deployment Provider
 
-Future (Phase 2): Custom deployment target
+Future: Custom deployment target
 
 ```python
 class CustomProvider(DeploymentProvider):
@@ -514,7 +514,7 @@ class CustomProvider(DeploymentProvider):
 
 ## Error Handling
 
-### Current (Phase 1)
+### Current
 
 Basic exception handling:
 ```python
@@ -524,7 +524,7 @@ except subprocess.CalledProcessError as e:
     return DeploymentResult(success=False, error_message=str(e))
 ```
 
-### Planned (Phase 3)
+### Planned
 
 Custom exception hierarchy:
 ```python
@@ -574,8 +574,8 @@ class RollbackError(DeploymentError):
 
 ### Database
 
-- SQLite for simplicity (Phase 1)
-- PostgreSQL for production (Phase 2+)
+- SQLite for simplicity
+- PostgreSQL for production
 - Views indexed for fast reads
 - Cleanup old data periodically
 

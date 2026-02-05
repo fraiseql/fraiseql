@@ -87,7 +87,7 @@ For small result sets, the setup dominates (≈140ms setup + 100 rows ≈ 150ms 
 
 ## Optimization Plan: Phase-Based Approach
 
-### Phase 1: Fix Critical Buffer Cloning (Target: 5-8% gain)
+### Fix Critical Buffer Cloning (Target: 5-8% gain)
 
 **Objective**: Eliminate buffer clone in `decode_message()` loop
 
@@ -140,7 +140,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 
 ---
 
-### Phase 2: Optimize MPSC Channel Overhead (Target: 3-5% gain)
+### Optimize MPSC Channel Overhead (Target: 3-5% gain)
 
 **Objective**: Reduce lock contention and improve channel efficiency
 
@@ -234,7 +234,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 
 ---
 
-### Phase 3: Move Metrics Off Hot Path (Target: 2-3% gain)
+### Move Metrics Off Hot Path (Target: 2-3% gain)
 
 **Objective**: Make instrumentation optional and sampling-based
 
@@ -317,7 +317,7 @@ cargo bench --bench integration_benchmarks --no-default-features -- 100k_rows/wi
 
 ---
 
-### Phase 4: Optimize Chunk Processing (Target: 2-3% gain)
+### Optimize Chunk Processing (Target: 2-3% gain)
 
 **Objective**: Reduce per-chunk overhead and simplify state machine
 
@@ -384,7 +384,7 @@ cargo bench --bench integration_benchmarks -- 100k_rows/wire
 
 ---
 
-### Phase 5: Simplify State Synchronization (Target: 1-2% gain)
+### Simplify State Synchronization (Target: 1-2% gain)
 
 **Objective**: Reduce synchronization overhead on state machine
 

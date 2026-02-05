@@ -316,7 +316,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 
 #### 11.1 Entity Resolution Latency
 
-**Baseline Performance** (Phase 16):
+**Baseline Performance**:
 
 - Local (same database, indexed key): <5ms
 - Direct database (different service): <20ms
@@ -390,7 +390,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 
 ## Testing & Stability
 
-### What's Guaranteed Stable (Phase 16)
+### What's Guaranteed Stable
 
 ✅ **Stable APIs** (will not change):
 
@@ -407,7 +407,7 @@ This document outlines known limitations of FraiseQL Phase 16 and provides conte
 
 ---
 
-### What's Not Guaranteed Stable (Phase 16)
+### What's Not Guaranteed Stable
 
 ⚠️ **Internal APIs** (may change):
 

@@ -139,7 +139,7 @@ public int id;
 - **No FFI**: Pure JSON output, no Java-Rust bindings needed
 - **Builder Pattern**: Fluent API for defining queries and mutations
 - **Reflection-Based**: Automatic field extraction from annotated classes
-- **Analytics Ready**: Support for fact tables and OLAP workloads (Phase 5+)
+- **Analytics Ready**: Support for fact tables and OLAP workloads
 
 ## Examples
 
@@ -160,9 +160,9 @@ fraiseql-java/
 ├── src/
 │   ├── main/java/com/fraiseql/
 │   │   ├── core/                # Core type conversion and annotations
-│   │   ├── registry/            # Schema registry (Phase 3)
-│   │   ├── builders/            # Query/Mutation builders (Phase 3)
-│   │   └── analytics/           # Fact tables (Phase 5)
+│   │   ├── registry/            # Schema registry
+│   │   ├── builders/            # Query/Mutation builders
+│   │   └── analytics/           # Fact tables
 │   └── test/java/com/fraiseql/  # Unit tests
 ├── pom.xml                       # Maven configuration
 └── README.md                     # This file

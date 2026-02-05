@@ -724,7 +724,7 @@ After Phase 8 migration, verify:
 
 ## Conclusion
 
-Phase 8 migration is a methodical process that can be done safely with:
+ migration is a methodical process that can be done safely with:
 
 1. Gradual feature rollout
 2. Comprehensive testing at each stage

@@ -1303,7 +1303,7 @@ error_cases = {
 
 ### 7.1 Compilation Error Categories
 
-**Syntax Errors (Phase 1):**
+**Syntax Errors:**
 
 ```
 E_SCHEMA_SYNTAX_ERROR_001: Invalid schema syntax
@@ -1311,7 +1311,7 @@ E_SCHEMA_DUPLICATE_TYPE_002: Type defined twice
 E_SCHEMA_INVALID_NAME_003: Invalid type/field name
 ```
 
-**Resolution Errors (Phase 2):**
+**Resolution Errors:**
 
 ```
 E_SCHEMA_UNKNOWN_TYPE_101: Type reference not found
@@ -1319,7 +1319,7 @@ E_SCHEMA_CIRCULAR_DEPENDENCY_102: Circular non-nullable reference
 E_SCHEMA_INVALID_MODIFIER_103: Invalid type modifier
 ```
 
-**Binding Errors (Phase 3):**
+**Binding Errors:**
 
 ```
 E_BINDING_NO_COLUMN_201: Field has no database mapping
@@ -1328,7 +1328,7 @@ E_BINDING_AMBIGUOUS_MAPPING_203: Multiple possible mappings
 E_BINDING_NO_RELATIONSHIP_204: Cannot resolve relationship
 ```
 
-**Federation Errors (Phase 4):**
+**Federation Errors:**
 
 ```
 E_FED_NO_KEY_301: Extended type missing @key
@@ -1337,7 +1337,7 @@ E_FED_EXTERNAL_NOT_FOUND_303: External field not in original type
 E_FED_INVALID_REQUIRES_304: @requires field not found
 ```
 
-**Query Errors (Phase 5):**
+**Query Errors:**
 
 ```
 E_QUERY_UNKNOWN_FIELD_401: Field doesn't exist in type
@@ -1346,7 +1346,7 @@ E_QUERY_AUTHORIZATION_DENIED_403: Query not allowed by authorization rules
 E_QUERY_AMBIGUOUS_FRAGMENT_404: Fragment definition ambiguous
 ```
 
-**Code Generation Errors (Phase 6):**
+**Code Generation Errors:**
 
 ```
 E_CODEGEN_INVALID_SQL_501: Generated SQL is invalid

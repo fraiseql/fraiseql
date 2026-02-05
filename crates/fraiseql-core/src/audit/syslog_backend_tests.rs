@@ -1,4 +1,4 @@
-//! Syslog audit backend tests (Phase 11.3 Cycle 4 - RED)
+//! Syslog audit backend tests
 //!
 //! Tests for syslog-based audit logging
 

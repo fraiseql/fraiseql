@@ -1,4 +1,4 @@
-//! RBAC API Integration tests (Phase 11.5 Cycle 3 - RED)
+//! RBAC API Integration tests
 //!
 //! Tests for endpoint-to-database integration
 

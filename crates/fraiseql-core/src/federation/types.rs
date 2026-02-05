@@ -117,7 +117,7 @@ pub struct FederatedType {
     /// Fields that are shareable across subgraphs
     pub shareable_fields: Vec<String>,
 
-    /// Field-level federation directives (Phase 1: Field-Level Metadata)
+    /// Field-level federation directives
     pub field_directives: HashMap<String, FieldFederationDirectives>,
 }
 

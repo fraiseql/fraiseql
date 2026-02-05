@@ -551,7 +551,7 @@ Type name helps identify which struct failed deserialization.
 
 ## What's Next
 
-Phase 8.2.5 is complete with:
+.2.5 is complete with:
 
 - ✅ Comprehensive example program
 - ✅ Five real-world scenarios demonstrated

@@ -491,7 +491,7 @@ def test_db_operations(mock_connect):
 
 ### Target Coverage
 
-- **Overall**: 90%+ (Phase 1)
+- **Overall**: 90%+
 - **Critical paths**: 100%
   - `deployers/api.py` execute()
   - `deployers/etl.py` execute()

@@ -19,7 +19,7 @@
 ## Where Am I?
 
 ```
-fraiseql/                          ← FraiseQL Framework (Phase 7 - Rust)
+fraiseql/                          ← FraiseQL Framework
 ├── crates/                        ← Rust engine
 ├── fraisier-python/               ← Python schema authoring (future)
 │
@@ -84,21 +84,21 @@ In priority order:
 
 ## What's Been Done (This Session)
 
-### Deployers (Phase 1.1)
+### Deployers
 
 - ✅ **APIDeployer**: Complete with migrations, rollback, health checks
 - ✅ **ETLDeployer**: Complete with rollback via git
 - ✅ **ScheduledDeployer**: Complete with systemd timer management
 - ✅ **26 tests**: Full coverage for all deployer types
 
-### Database (Phase 1.2)
+### Database
 
 - ✅ **FraisierDB**: Trinity pattern implementation with UUID, business keys, audit trail
 - ✅ **Three views**: v_fraise_status, v_deployment_history, v_webhook_event_history
 - ✅ **24 tests**: All CRUD operations verified
 - ✅ **Multi-database support**: Prepared for SQLite + PostgreSQL reconciliation
 
-### Git Providers (Phase 1.3)
+### Git Providers
 
 - ✅ **4 Providers**: GitHub, GitLab, Gitea, Bitbucket
 - ✅ **22 tests**: Signature verification + event parsing

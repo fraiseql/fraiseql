@@ -187,7 +187,7 @@ SUM(revenue) OVER (
 
 ---
 
-## Compilation Strategy (Phase 4 + 5)
+## Compilation Strategy
 
 ### Compiler Tasks
 

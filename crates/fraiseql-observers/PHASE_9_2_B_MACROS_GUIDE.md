@@ -7,7 +7,7 @@
 
 ## Overview
 
-Phase 9.2.B provides procedural macros for automatic span creation and structured logging, eliminating boilerplate instrumentation code. Two macros are available:
+.2.B provides procedural macros for automatic span creation and structured logging, eliminating boilerplate instrumentation code. Two macros are available:
 
 - `#[traced]` - Automatic span creation with timing and error tracking
 - `#[instrument]` - Structured logging with function arguments
@@ -365,10 +365,10 @@ async fn process_event(event: Event) -> Result<()> {
 
 ### Exporting to Jaeger
 
-Spans created by macros automatically export to Jaeger (Phase 9.1):
+Spans created by macros automatically export to Jaeger:
 
 ```rust
-// Initialize Jaeger (Phase 9.1)
+// Initialize Jaeger
 let tracing_config = TracingConfig::from_env()?;
 init_tracing(tracing_config)?;
 
@@ -667,7 +667,7 @@ Before using macros in production:
 
 ### From Manual Instrumentation
 
-**Before** (Phase 9.1 manual):
+**Before**:
 ```rust
 async fn process_event(event: &Event) -> Result<()> {
     let tracer = ListenerTracer::new("processor");
@@ -682,7 +682,7 @@ async fn process_event(event: &Event) -> Result<()> {
 }
 ```
 
-**After** (Phase 9.2.B macros):
+**After**:
 ```rust
 #[traced(name = "process_event")]
 async fn process_event(event: &Event) -> Result<()> {
@@ -714,7 +714,7 @@ async fn hybrid_function() {
 
 ## Next Phase: Phase 9.2.C
 
-After macros work well, Phase 9.2.C adds:
+After macros work well.2.C adds:
 
 - Log correlation with trace IDs
 - Structured logging fields
@@ -792,7 +792,7 @@ async fn child_function() -> Result<()> {
 
 ## Summary
 
-Phase 9.2.B provides two powerful macros:
+.2.B provides two powerful macros:
 
 1. **`#[traced]`** - Automatic span creation with timing and error tracking
 2. **`#[instrument]`** - Structured argument logging

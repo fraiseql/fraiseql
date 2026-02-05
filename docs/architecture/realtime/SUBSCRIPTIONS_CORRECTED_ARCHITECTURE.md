@@ -253,7 +253,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 
 ## Migration Path
 
-### Phase 1: Wire SubscriptionManager to ObserverRuntime
+### Wire SubscriptionManager to ObserverRuntime
 
 **Status:** Pending
 
@@ -265,7 +265,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 
 **Estimated Effort:** ~30 minutes
 
-### Phase 2: Automatic Event Population
+### Automatic Event Population
 
 **Options:**
 

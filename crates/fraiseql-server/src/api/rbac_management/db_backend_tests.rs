@@ -1,4 +1,4 @@
-//! RBAC Database Backend tests (Phase 11.5 Cycle 2 - RED)
+//! RBAC Database Backend tests
 //!
 //! Tests for database-backed role and permission management
 

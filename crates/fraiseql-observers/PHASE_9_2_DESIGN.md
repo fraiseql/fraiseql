@@ -8,7 +8,7 @@
 
 ## Overview
 
-Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observability stack** combining traces, metrics, logs, and dashboards. This phase bridges the gap between raw tracing data and actionable insights.
+.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observability stack** combining traces, metrics, logs, and dashboards. This phase bridges the gap between raw tracing data and actionable insights.
 
 ### Phase 9.2 Objectives
 
@@ -25,7 +25,7 @@ Phase 9.2 extends Phase 9.1 (Distributed Tracing) to create a **complete observa
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│           Observability Stack (Phase 9.2)              │
+│           Observability Stack              │
 └─────────────────────────────────────────────────────────┘
             ↑           ↑           ↑           ↑
          Traces      Metrics       Logs      Events
@@ -266,7 +266,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 
 ## Implementation Timeline
 
-### Week 3 (Phase 9.2.A-B)
+### Week 3
 
 - **Mon-Tue**: Implement Prometheus metrics collection
 - **Wed**: Implement macro-based instrumentation
@@ -280,7 +280,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - 50+ tests
 - 2 guides
 
-### Week 4 (Phase 9.2.C-D)
+### Week 4
 
 - **Mon-Tue**: Implement log correlation
 - **Wed**: Implement gRPC exporter
@@ -294,7 +294,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - 50+ tests
 - 2 guides
 
-### Week 5 (Phase 9.2.E-F)
+### Week 5
 
 - **Mon-Tue**: Implement context propagation
 - **Wed**: Create dashboard templates
@@ -322,7 +322,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 - Simple and efficient
 - Minimal overhead
 
-**Tradeoff**: Cannot use OpenTelemetry metrics (Phase 9.3)
+**Tradeoff**: Cannot use OpenTelemetry metrics
 
 ### 2. Log Correlation Strategy
 
@@ -382,7 +382,7 @@ export JAEGER_EXPORT_TIMEOUT_MS=10000
 ### With Phase 9.1 (Tracing)
 
 ```
-Phase 9.1 Traces     Phase 9.2 Metrics
+.1 Traces     Phase 9.2 Metrics
     │                     │
     ├─ Jaeger HTTP   ─────┤
     ├─ Jaeger gRPC   ─────┤
@@ -551,21 +551,21 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 
 ## Rollout Plan
 
-### Phase 1: Metrics & Macros
+### Metrics & Macros
 
 - ✅ Implement Prometheus metrics
 - ✅ Add macro-based instrumentation
 - ✅ Test integration
 - ✅ Deploy to staging
 
-### Phase 2: Logging & gRPC
+### Logging & gRPC
 
 - ✅ Add log correlation
 - ✅ Implement gRPC exporter
 - ✅ Verify performance
 - ✅ Deploy to production
 
-### Phase 3: Context & Dashboards
+### Context & Dashboards
 
 - ✅ Implement baggage propagation
 - ✅ Create dashboard templates
@@ -574,11 +574,11 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 
 ---
 
-## Next Phase Preview (Phase 9.3)
+## Next Phase Preview
 
 ### Phase 9.3: Event Replay & Time-Travel Debugging
 
-After Phase 9.2 completes observability, Phase 9.3 will add:
+After Phase 9.2 completes observability.3 will add:
 
 - **Event Replay**: Re-execute historical events
 - **Time-Travel Debugging**: View state at any point in time

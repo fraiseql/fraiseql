@@ -38,7 +38,7 @@ This guide covers the **complete workflow** for safely applying observability-dr
 
 ## Complete Migration Workflow
 
-### Phase 1: Generate Migration SQL
+### Generate Migration SQL
 
 ```bash
 # Step 1: Analyze metrics
@@ -60,7 +60,7 @@ less migrations/optimize-20260112.sql
 
 ---
 
-### Phase 2: Pre-Migration Checklist
+### Pre-Migration Checklist
 
 Before applying to **any environment**:
 
@@ -177,7 +177,7 @@ Before applying to **any environment**:
 
 ---
 
-### Phase 3: Test in Staging
+### Test in Staging
 
 #### Apply Migration
 
@@ -326,7 +326,7 @@ psql $STAGING_DATABASE_URL -c "
 
 ---
 
-### Phase 4: Apply to Production
+### Apply to Production
 
 #### Choose Deployment Strategy
 
@@ -467,7 +467,7 @@ psql $PRODUCTION_DATABASE_URL -c "
 
 ---
 
-### Phase 5: Update Application
+### Update Application
 
 ```bash
 # 1. Update schema.json with denormalized columns
@@ -500,7 +500,7 @@ kubectl rollout restart deployment/fraiseql-api
 
 ---
 
-### Phase 6: Post-Migration Validation
+### Post-Migration Validation
 
 #### Immediate Validation (First 5 Minutes)
 

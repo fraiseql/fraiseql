@@ -1,4 +1,4 @@
-//! File-based audit backend (Phase 11.3 Cycle 2 - GREEN)
+//! File-based audit backend
 //!
 //! Stores audit events as JSON lines in a file.
 

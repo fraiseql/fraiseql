@@ -1,7 +1,7 @@
 # Window Operators Specification
 
 **Version:** 1.0
-**Status:** Planned (Phase 5)
+**Status:** Planned
 **Audience:** Compiler developers, SDK maintainers
 **Date:** January 12, 2026
 

@@ -1,4 +1,4 @@
-//! Tests for @require_permission directive (Phase 11.2 - RED)
+//! Tests for @require_permission directive
 //!
 //! RED cycle: Write failing tests for field-level RBAC directives
 //! Expected behavior:

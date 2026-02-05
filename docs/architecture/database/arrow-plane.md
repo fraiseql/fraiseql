@@ -1351,7 +1351,7 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 
 ## 9. Implementation Phases
 
-### Phase 1: Core Arrow Support (v2.1)
+### Core Arrow Support (v2.1)
 
 **Goals:**
 
@@ -1369,7 +1369,7 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 
 **Timeline:** 4-6 weeks
 
-### Phase 2: Advanced Features (v2.2)
+### Advanced Features (v2.2)
 
 **Goals:**
 
@@ -1387,7 +1387,7 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 
 **Timeline:** 4-6 weeks
 
-### Phase 3: Performance & Optimization (v2.3)
+### Performance & Optimization (v2.3)
 
 **Goals:**
 
@@ -1405,7 +1405,7 @@ CREATE CLUSTERED COLUMNSTORE INDEX idx_order_cs
 
 **Timeline:** 2-4 weeks
 
-### Phase 4: Ecosystem Integration (v2.4+)
+### Ecosystem Integration (v2.4+)
 
 **Goals:**
 
@@ -1783,7 +1783,7 @@ subscription {
 # Consumed by Delta Lake, Iceberg for incremental materialization
 ```
 
-**Event-driven federation (Phase 3+)**
+**Event-driven federation**
 
 ```graphql
 subscription {

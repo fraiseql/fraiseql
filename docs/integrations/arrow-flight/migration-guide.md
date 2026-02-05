@@ -18,7 +18,7 @@ Choose the transport based on use case, not requirements.
 ## Migration Strategy: 4 Phases
 
 ```
-Phase 1 (Week 1)          Phase 2 (Weeks 2-3)      Phase 3 (Week 4)         Phase 4 (Week 5)
+ (Week 1)          Phase 2 (Weeks 2-3)      Phase 3 (Week 4)         Phase 4 (Week 5)
 ┌──────────────────┐      ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │ Enable Arrow     │      │ Migrate Analytics│    │ Enable Analytics │    │ Add Debugging    │
 │ Flight Server    │      │ Workloads        │    │ (ClickHouse)     │    │ (Elasticsearch)  │

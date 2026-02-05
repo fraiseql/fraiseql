@@ -114,13 +114,13 @@ NATS JetStream (durable, at-least-once semantics)
     │    ├─ user_id: string (who triggered it)
     │    └─ org_id: string (which org)
     │
-    ├──► Arrow Bridge (Phase 9.3)
+    ├──► Arrow Bridge
     │    └─ Convert EntityEvent → Arrow RecordBatch
     │       ├─ 8-column schema
     │       ├─ Columnar format (efficient)
     │       └─ RecordBatch size: ~10k rows
     │
-    ├──► ClickHouse Sink (Phase 9.4)
+    ├──► ClickHouse Sink
     │    ├─ Batch events: 10k per insert
     │    ├─ Insert to fraiseql_events table
     │    └─ Materialized views update automatically
@@ -128,7 +128,7 @@ NATS JetStream (durable, at-least-once semantics)
     │       ├─ fraiseql_org_daily (org stats)
     │       └─ fraiseql_event_type_stats (distribution)
     │
-    └──► Elasticsearch Sink (Phase 9.5)
+    └──► Elasticsearch Sink
          ├─ Bulk index API (efficient)
          ├─ Index: fraiseql-events-YYYY.MM
          ├─ Document: JSONB serialized
@@ -316,15 +316,15 @@ PostgreSQL
 - **At Rest**: ClickHouse/Elasticsearch handle encryption
 - **Data**: No sensitive data in Arrow batches (just query results)
 
-## Known Limitations (Phase 9)
+## Known Limitations
 
 - ✅ Arrow Flight server available
 - ✅ GraphQL queries work
 - ✅ Observer events streaming works
-- ❌ Authentication: Not yet implemented (Phase 10)
-- ❌ Authorization: Not yet implemented (Phase 10)
-- ❌ TLS: Not yet implemented (Phase 10)
-- ❌ Rate limiting: Not yet implemented (Phase 10)
+- ❌ Authentication: Not yet implemented
+- ❌ Authorization: Not yet implemented
+- ❌ TLS: Not yet implemented
+- ❌ Rate limiting: Not yet implemented
 
 ## Phase Roadmap
 

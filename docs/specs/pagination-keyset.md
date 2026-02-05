@@ -308,7 +308,7 @@ The `endCursor` is transmitted as Arrow metadata, not JSON.
 
 ## 6. Keyset Ordering: Choosing Columns
 
-### Phase 1: Single-Column Keysets (v2.1)
+### Single-Column Keysets (v2.1)
 
 Most queries use the **primary key** as the single keyset column:
 
@@ -338,7 +338,7 @@ LIMIT 100
 - Order changes if primary key is UUID (non-monotonic)
 - Insertion order not stable (new users appear randomly)
 
-### Phase 2: Composite Keysets (v2.2+)
+### Composite Keysets (v2.2+)
 
 For deterministic, stable ordering, use **composite keysets**:
 
@@ -368,7 +368,7 @@ LIMIT 100
 | **Primary key UUID** | Non-monotonic | Monotonic (creation time ordered) |
 | **Real-time dashboard** | Updates shift visible rows | Consistent, predictable |
 
-### Phase 3: Expression-Based Keysets (v2.3+)
+### Expression-Based Keysets (v2.3+)
 
 Advanced use cases can define **custom keyset expressions**:
 
@@ -507,10 +507,10 @@ if rows_modified_since_cursor:
 Efficient keyset pagination requires **indexes on keyset columns**:
 
 ```sql
--- For single-column keyset (Phase 1)
+-- For single-column keyset
 CREATE INDEX idx_user_id ON tb_user(id);
 
--- For composite keyset (Phase 2+)
+-- For composite keyset
 CREATE INDEX idx_user_created_id ON tb_user(created_at, id);
 
 -- For reverse pagination (backward keyset)
@@ -567,7 +567,7 @@ Sequential pagination through 1M rows:
 
 ## 11. Implementation Phases
 
-### Phase 1: Basic Keyset (v2.1)
+### Basic Keyset (v2.1)
 
 **Timeline:** Weeks 1-2
 
@@ -587,7 +587,7 @@ ORDER BY primary_key
 LIMIT ?
 ```
 
-### Phase 2: Composite Keyset (v2.2)
+### Composite Keyset (v2.2)
 
 **Timeline:** Weeks 3-4
 
@@ -607,7 +607,7 @@ ORDER BY col1, col2
 LIMIT ?
 ```
 
-### Phase 3: Optimization (v2.3)
+### Optimization (v2.3)
 
 **Timeline:** Weeks 5-6
 
@@ -723,7 +723,7 @@ A: Optional. Cursors are stateless, so they don't expire by default. For securit
 
 ## 14. Related Documentation
 
-- `arrow-plane.md` — Arrow projection pagination (Phase 2)
+- `arrow-plane.md` — Arrow projection pagination
 - `compiled-schema.md` — Cursor type definitions
 - `database-targeting.md` — Index requirements per database
 

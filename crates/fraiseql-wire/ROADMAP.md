@@ -113,7 +113,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
   - ✅ Error messages safe
 
 - [x] Connection validation
-  - ✅ TLS can be added safely (Phase 8)
+  - ✅ TLS can be added safely
   - ✅ No connection hijacking issues
   - ✅ Cancellation mechanism safe (process_id + secret_key validation)
 
@@ -128,7 +128,7 @@ Key Finding: fraiseql-wire achieves 1000x-20000x memory savings for large result
 
 - SECURITY_AUDIT.md: Detailed technical audit (~500 lines)
 - SECURITY.md: User security guidance (~300 lines)
-- Key finding: Zero critical/high-severity issues; TLS required for production TCP (Phase 8)
+- Key finding: Zero critical/high-severity issues; TLS required for production TCP
 - Verdict: ✅ PASS - Ready for Phase 7.3
 
 #### 7.3 Real-World Testing ✅ COMPLETE
@@ -445,14 +445,14 @@ Define and meet these targets:
 - ✅ Documentation complete
 - ✅ Examples working
 
-### Stabilization (Phase 7)
+### Stabilization
 
 - Performance benchmarks established
 - Real-world testing completed
 - Zero critical issues
 - Security audit passed
 
-### v1.0.0 (Phase 9)
+### v1.0.0
 
 - API stable (no breaking changes in 6+ months)
 - 1000+ downloads on crates.io

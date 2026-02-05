@@ -1,4 +1,4 @@
-//! JWT tenant extraction tests (Phase 11.4 Cycle 2 - RED)
+//! JWT tenant extraction tests
 //!
 //! Tests for extracting tenant context from JWT claims
 

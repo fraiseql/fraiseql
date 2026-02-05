@@ -78,7 +78,7 @@ eql-start-here)
 
 **Total Time:** ~3.5 hours
 
-### Phase 1: Foundation (1 hour)
+### Foundation (1 hour)
 
 1. **`README.md`** (5 min)
 2. **`docs/prd/PRD.md`** (30 min)
@@ -88,7 +88,7 @@ eql-start-here)
 4. **`docs/architecture/database/database-targeting.md`** (15 min)
    - **Key Takeaway:** Compile-time schema specialization
 
-### Phase 2: Core Architecture (1.5 hours)
+### Core Architecture (1.5 hours)
 
 5. **`docs/architecture/core/authoring-languages.md`** (20 min)
    - Language-agnostic compilation via AuthoringIR
@@ -107,7 +107,7 @@ eql-start-here)
    - Direct DB federation for multi-database scenarios
    - **Key Takeaway:** Subgraph composition via direct database connections + HTTP fallback
 
-### Phase 3: Specifications (1 hour)
+### Specifications (1 hour)
 
 9. **`docs/specs/compiled-schema.md`** (25 min)
    - CompiledSchema JSON structure
@@ -141,7 +141,7 @@ eql-start-here)
 
 **Total Time:** ~4 hours
 
-### Phase 1: Authoring System (1.5 hours)
+### Authoring System (1.5 hours)
 
 1. **`docs/specs/authoring-contract.md`** (40 min)
    - Type declarations, decorators, validation rules
@@ -154,7 +154,7 @@ eql-start-here)
 3. **`docs/GLOSSARY.md`** — Reference as needed (25 min)
    - Focus on: AuthoringIR, CompiledSchema, Binding, Projection
 
-### Phase 2: Compilation Pipeline (1.5 hours)
+### Compilation Pipeline (1.5 hours)
 
 4. **`docs/architecture/core/compilation-pipeline.md`** (50 min)
    - Complete 7-phase pipeline
@@ -164,7 +164,7 @@ eql-start-here)
    - Capability manifest, operator filtering
    - **Key Takeaway:** Compile-time specialization, not runtime translation
 
-### Phase 3: Output (1 hour)
+### Output (1 hour)
 
 6. **`docs/specs/compiled-schema.md`** (35 min)
    - JSON structure, validation rules
@@ -196,7 +196,7 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: CompiledSchema (45 min)
+### CompiledSchema (45 min)
 
 1. **`docs/specs/compiled-schema.md`** (30 min)
    - JSON structure, all fields
@@ -205,7 +205,7 @@ eql-start-here)
 2. **`docs/GLOSSARY.md`** (15 min)
    - Focus on: Backend Lowering, Projection, Authorization
 
-### Phase 2: Execution Pipeline (1.5 hours)
+### Execution Pipeline (1.5 hours)
 
 3. **`docs/architecture/core/execution-model.md`** (60 min)
    - 6 runtime phases in detail
@@ -215,7 +215,7 @@ eql-start-here)
    - Backend lowering (SQL generation)
    - **Key Takeaway:** Runtime translates SDL predicates to database-specific SQL
 
-### Phase 3: Performance & Operations (1.5 hours)
+### Performance & Operations (1.5 hours)
 
 5. **`docs/specs/caching.md`** (20 min)
    - Query result caching, cache invalidation
@@ -255,7 +255,7 @@ eql-start-here)
 
 **Total Time:** ~2.5 hours
 
-### Phase 1: Conventions (1 hour)
+### Conventions (1 hour)
 
 1. **`docs/prd/PRD.md`** — Section 3.2 only (15 min)
    - Schema conventions overview
@@ -265,7 +265,7 @@ eql-start-here)
    - Complete conventions reference
    - **Key Takeaway:** tb_*, v_*, fn_* patterns; dual-key strategy; JSONB composition
 
-### Phase 2: Read Model (1 hour)
+### Read Model (1 hour)
 
 3. **`docs/prd/PRD.md`** — Section 3.1.1 and 3.1.5 (20 min)
    - Read model, JSONB composition
@@ -275,7 +275,7 @@ eql-start-here)
    - CDC event format
    - **Key Takeaway:** Debezium-compatible, audit trail
 
-### Phase 3: Enterprise Features (30 min)
+### Enterprise Features (30 min)
 
 5. **`docs/enterprise/audit-logging.md`** — Sections 1-3 only (30 min)
    - Audit columns, cryptographic chain
@@ -303,7 +303,7 @@ eql-start-here)
 
 **Total Time:** ~3-4 hours
 
-### Phase 1: Core Concepts (1 hour)
+### Core Concepts (1 hour)
 
 1. **`docs/architecture/core/compilation-vs-runtime.md`** (20 min)
    - Understand compile-time vs runtime separation
@@ -318,7 +318,7 @@ eql-start-here)
    - Analytical Execution Semantics overview
    - **Key Takeaway:** No joins principle, fact table patterns
 
-### Phase 2: Analytics Architecture (1.5 hours)
+### Analytics Architecture (1.5 hours)
 
 4. **`docs/architecture/analytics/fact-dimension-pattern.md`** ⭐ **START HERE** (40 min)
    - Fact table structure (measures, dimensions, filters)
@@ -339,7 +339,7 @@ eql-start-here)
    - Index recommendations
    - **Key Takeaway:** Conventions required by FraiseQL compiler
 
-### Phase 3: Database-Specific Implementation (1 hour)
+### Database-Specific Implementation (1 hour)
 
 7. **`docs/specs/aggregation-operators.md`** (30 min)
    - PostgreSQL: Full support (STDDEV, VARIANCE, FILTER)
@@ -356,7 +356,7 @@ eql-start-here)
    - Aggregation operators in capability manifest
    - **Key Takeaway:** How compiler knows which aggregates to generate
 
-### Phase 4: Practical Application (30 min)
+### Practical Application (30 min)
 
 10. **`docs/guides/analytics-patterns.md`** ⭐ **PRACTICAL EXAMPLES** (30 min)
     - 10 common query patterns with SQL execution
@@ -394,7 +394,7 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: Deployment (1.5 hours)
+### Deployment (1.5 hours)
 
 1. **`docs/guides/production-deployment.md`** (60 min)
    - Kubernetes deployment, HPA, Pod Security
@@ -404,13 +404,13 @@ eql-start-here)
    - Security profiles (STANDARD, REGULATED, RESTRICTED)
    - **Key Takeaway:** Choose profile based on compliance needs
 
-### Phase 2: Monitoring (1 hour)
+### Monitoring (1 hour)
 
 3. **`docs/guides/monitoring.md`** (60 min)
    - Prometheus metrics, OpenTelemetry, health checks
    - **Key Takeaway:** Complete observability setup
 
-### Phase 3: Performance (30 min)
+### Performance (30 min)
 
 4. **`docs/specs/caching.md`** (15 min)
    - Query result caching backends
@@ -442,7 +442,7 @@ eql-start-here)
 
 **Total Time:** ~3 hours
 
-### Phase 1: Security Model (1 hour)
+### Security Model (1 hour)
 
 1. **`docs/prd/PRD.md`** — Section 4 only (30 min)
    - Authentication (external), authorization (declarative)
@@ -452,7 +452,7 @@ eql-start-here)
    - Security profiles, SBOM, NIS2 compliance
    - **Key Takeaway:** REGULATED profile for production
 
-### Phase 2: Authorization (1.5 hours)
+### Authorization (1.5 hours)
 
 3. **`docs/enterprise/rbac.md`** (60 min)
    - Hierarchical roles, field-level auth
@@ -462,7 +462,7 @@ eql-start-here)
    - Cryptographic chain, HMAC signatures
    - **Key Takeaway:** Tamper-evident audit trails
 
-### Phase 3: Operations (30 min)
+### Operations (30 min)
 
 5. **`docs/specs/introspection.md`** (15 min)
    - Introspection policies
@@ -495,7 +495,7 @@ eql-start-here)
 
 **Total Time:** ~1.5 hours
 
-### Phase 1: GraphQL API (45 min)
+### GraphQL API (45 min)
 
 1. **`README.md`** (5 min)
 2. **`docs/prd/PRD.md`** — Sections 1, 3.1, 5 only (30 min)
@@ -506,7 +506,7 @@ eql-start-here)
 
 3. **`docs/GLOSSARY.md`** — WHERE Operators, APQ, Cache Invalidation (10 min)
 
-### Phase 2: Performance (30 min)
+### Performance (30 min)
 
 4. **`docs/specs/caching.md`** — Sections 1-4 (15 min)
    - Query result caching
@@ -517,7 +517,7 @@ eql-start-here)
    - APQ protocol
    - **Key Takeaway:** Register queries at build time for security + performance
 
-### Phase 3: Filtering (15 min)
+### Filtering (15 min)
 
 6. **`docs/reference/where-operators.md`** — Skim (15 min)
    - WHERE operator catalog

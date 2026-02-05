@@ -615,7 +615,7 @@ Runbook: See section 5.3
 - **Specified tracing backend**: Jaeger with OTLP HTTP
 - **Realistic effort estimates** based on detailed specs
 
-### Phase 1: Health Checks & Observability Foundation (Week 1)
+### Health Checks & Observability Foundation (Week 1)
 
 **Objective**: Establish subgraph health monitoring and basic infrastructure
 
@@ -692,7 +692,7 @@ fn test_metrics_updated_from_health_checks() {
 
 ---
 
-### Phase 2: Federation Tracing Integration (Week 1-2)
+### Federation Tracing Integration (Week 1-2)
 
 **Objective**: Add OpenTelemetry tracing to federation operations
 
@@ -779,7 +779,7 @@ async fn test_span_attributes_set_correctly() {
 
 ---
 
-### Phase 3: Federation Metrics Recording (Week 2)
+### Federation Metrics Recording (Week 2)
 
 **Objective**: Record federation-specific metrics throughout query execution
 
@@ -858,7 +858,7 @@ fn test_cache_metrics_recorded() {
 
 ---
 
-### Phase 4: Structured Logging (Week 2-3)
+### Structured Logging (Week 2-3)
 
 **Objective**: Add federation context to all structured logs
 
@@ -930,7 +930,7 @@ fn test_error_logs_include_error_message() {
 
 ---
 
-### Phase 5: Performance Testing & Overhead Validation (Week 3)
+### Performance Testing & Overhead Validation (Week 3)
 
 **Objective**: Verify observability has acceptable performance impact
 
@@ -999,7 +999,7 @@ fn test_memory_overhead_within_budget() {
 
 ---
 
-### Phase 6: Dashboards & Monitoring (Week 3)
+### Dashboards & Monitoring (Week 3)
 
 **Objective**: Create observability dashboards for operations team
 
@@ -1062,7 +1062,7 @@ fn test_alert_rules_valid() {
 
 ---
 
-### Phase 7: End-to-End Testing & Documentation (Week 3-4)
+### End-to-End Testing & Documentation (Week 3-4)
 
 **Objective**: Validate everything works together and document for operators
 

@@ -7,7 +7,7 @@
 
 ## Overview
 
-Phase 9.1.D implements tracing instrumentation for action execution (webhook, email, Slack). This guide shows how to integrate action tracing with your observer system.
+.1.D implements tracing instrumentation for action execution (webhook, email, Slack). This guide shows how to integrate action tracing with your observer system.
 
 ---
 

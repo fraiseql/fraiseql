@@ -1131,35 +1131,35 @@ cache_key_b = sha256(f"{query_hash}:{json.dumps(variables)}")
 
 ## Migration Guide: From Arbitrary Queries to APQ
 
-### Phase 1: Preparation (Week 1)
+### Preparation (Week 1)
 
 1. Enable APQ in `optional` mode (accept both)
 2. Deploy client-side APQ support
 3. Monitor metrics (should see 0% response cache hits initially)
 4. Create `graphql/` directory with `.graphql` files
 
-### Phase 2: Adoption (Week 2-3)
+### Adoption (Week 2-3)
 
 1. Deploy production build with APQ-enabled clients
 2. Monitor query registration (new hashes appearing)
 3. Verify response cache hit rate increases
 4. Pre-register high-frequency queries
 
-### Phase 3: Enforcement (Week 4)
+### Enforcement (Week 4)
 
 1. Switch to `required` mode on staging
 2. Test that only registered queries execute
 3. Verify client handles ARBITRARY_QUERY_NOT_ALLOWED
 4. Plan rollout schedule
 
-### Phase 4: Production Rollout (Week 5)
+### Production Rollout (Week 5)
 
 1. Switch to `required` mode in production
 2. Enable APQ in all client builds
 3. Monitor error rate (should be 0 if done correctly)
 4. Maintain `optional` mode for legacy clients temporarily
 
-### Phase 5: Optimization (Ongoing)
+### Optimization (Ongoing)
 
 1. Monitor response cache hit rate
 2. Adjust TTL based on usage patterns

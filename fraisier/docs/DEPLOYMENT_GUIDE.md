@@ -468,7 +468,7 @@ SELECT * FROM v_deployment_stats;
 
 ### Monitoring with Prometheus (Future)
 
-Fraisier will expose Prometheus metrics at `/metrics` (Phase 3).
+Fraisier will expose Prometheus metrics at `/metrics`.
 
 ---
 
@@ -693,7 +693,7 @@ sudo crontab -e
 
 ### Connection Pooling
 
-For PostgreSQL (Phase 2+):
+For PostgreSQL:
 ```bash
 # Use pgBouncer for connection pooling
 sudo apt-get install pgbouncer

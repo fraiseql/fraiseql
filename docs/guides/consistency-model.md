@@ -313,7 +313,7 @@ query users(tenantId: ID!) {
 
 **Guarantee**: No query can accidentally leak Tenant A's data to Tenant B.
 
-**How**: Field-level authorization (Phase 18 RBAC) + WHERE filter compilation.
+**How**: Field-level authorization + WHERE filter compilation.
 
 ---
 

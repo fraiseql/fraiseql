@@ -74,17 +74,17 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 
 ### Overview
 
-Phase 8 transforms the observer system from a functional baseline (Phases 1-7) into production-grade reliability, performance, and scalability.
+ transforms the observer system from a functional baseline (Phases 1-7) into production-grade reliability, performance, and scalability.
 
 ```
-Phase 1-7 (Foundation)
+-7 (Foundation)
 ├─ Event listening (LISTEN/NOTIFY)
 ├─ Condition evaluation
 ├─ Action execution (webhook, email, Slack, etc.)
 ├─ Retry logic & Dead Letter Queue
 └─ Basic error handling
 
-Phase 8 (Excellence)
+ (Excellence)
 ├─ 8.1: Persistent Checkpoints (zero-event-loss)
 ├─ 8.2: Concurrent Execution (5x latency improvement)
 ├─ 8.3: Event Deduplication (duplicate prevention)
@@ -168,8 +168,8 @@ For Production → All (recommended)
 **Issue**: Multiple performance bottlenecks
 
 **Solution**: Multi-step optimization
-1. Enable caching (Phase 8.4) for 100x cache hits
-2. Enable concurrent execution (Phase 8.2) for parallelism
+1. Enable caching for 100x cache hits
+2. Enable concurrent execution for parallelism
 3. Optimize configuration with [Performance Tuning](PERFORMANCE_TUNING.md)
 
 **Expected Result**: 10-100x overall improvement

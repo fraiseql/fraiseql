@@ -1,4 +1,4 @@
-//! Syslog audit backend (Phase 11.3 Cycle 4 - GREEN)
+//! Syslog audit backend
 //!
 //! Sends audit events to a syslog server for centralized logging.
 

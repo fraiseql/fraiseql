@@ -1,7 +1,7 @@
 # Aggregation Operators Specification
 
 **Version:** 1.0
-**Status:** Complete (Phase 1-3)
+**Status:** Complete
 **Audience:** Compiler developers, SDK maintainers
 **Date:** January 12, 2026
 
@@ -182,7 +182,7 @@ For a fact table `tf_sales` with measures `revenue`, `quantity`, compiler genera
 
 ```graphql
 type SalesAggregate {
-  # Basic aggregates (Phase 1-2)
+  # Basic aggregates
   count: Int!
   revenue_sum: Float
   revenue_avg: Float
@@ -564,7 +564,7 @@ fn temporal_bucket_sqlserver(field: &str, bucket: &str) -> String {
 - **Capability Manifest** (`capability-manifest.md`) - Database-specific operator availability
 - **Aggregation Model** (`../architecture/analytics/aggregation-model.md`) - Compilation and execution
 - **Database Targeting** (`../architecture/database/database-targeting.md`) - Multi-database support
-- **Window Operators** (`window-operators.md`) - Window function reference (Phase 5)
+- **Window Operators** (`window-operators.md`) - Window function reference
 
 ---
 

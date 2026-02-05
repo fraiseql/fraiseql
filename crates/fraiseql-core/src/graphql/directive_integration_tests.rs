@@ -1,4 +1,4 @@
-//! Integration tests for @require_permission directive in GraphQL execution (Phase 11.2 - Cycle 2)
+//! Integration tests for @require_permission directive in GraphQL execution
 //!
 //! RED cycle: Write failing tests for full directive integration with query execution
 

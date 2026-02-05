@@ -53,7 +53,7 @@
    - Test results and coverage
    - API reference
    - Known limitations
-   - Next phase preview (Phase 9.2)
+   - Next phase preview
 
 ---
 

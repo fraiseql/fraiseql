@@ -1060,7 +1060,7 @@ subscription OrderCreated {
 
 **PostgreSQL is the reference implementation for subscriptions.** Other databases follow the same architectural contract but may vary in maturity, feature completeness, and performance characteristics.
 
-### 7.1 PostgreSQL (Phase 1 — Reference Implementation)
+### 7.1 PostgreSQL
 
 **Event capture mechanism:** Database table polling (`tb_entity_change_log`)
 
@@ -1103,7 +1103,7 @@ VALUES ('Order', 'ord_123', 'INSERT', '{"id": "ord_123", "user_id": "usr_456", .
 - 100-200ms latency (polling interval)
 - Limited by PostgreSQL write throughput (single table)
 
-### 7.2 MySQL (Phase 2)
+### 7.2 MySQL
 
 **Event capture mechanism:** Database table polling (`tb_entity_change_log`)
 
@@ -1142,7 +1142,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 - 100-200ms latency (polling interval)
 - JSON type instead of JSONB (slightly less efficient)
 
-### 7.3 SQL Server (Phase 2)
+### 7.3 SQL Server
 
 **Event capture mechanism:** Database table polling (`tb_entity_change_log`)
 
@@ -1181,7 +1181,7 @@ CREATE INDEX idx_entity_change_log_type ON tb_entity_change_log(object_type);
 - 100-200ms latency (polling interval)
 - JSON stored as NVARCHAR(MAX) (less efficient than native JSON)
 
-### 7.4 SQLite (Phase 2)
+### 7.4 SQLite
 
 **Event capture mechanism:** Triggers on temporary in-memory event log
 

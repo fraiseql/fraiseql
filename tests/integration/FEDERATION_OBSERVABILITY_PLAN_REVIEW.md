@@ -301,7 +301,7 @@ The plan uses multiple terms for similar concepts:
 
 ### 12. Missing: Runbook Documentation
 
-Phase 5 says "Alert runbooks" should be created, but they're not in the plan. The reference file `FEDERATION_OBSERVABILITY_RUNBOOK.md` doesn't exist.
+ says "Alert runbooks" should be created, but they're not in the plan. The reference file `FEDERATION_OBSERVABILITY_RUNBOOK.md` doesn't exist.
 
 **Fix**: Include actual runbook format:
 ```
@@ -375,7 +375,7 @@ How do we add instrumentation without breaking existing code?
 
 ### 17. Performance Benchmarks
 
-Phase 6 mentions "performance benchmarks within threshold" but:
+ mentions "performance benchmarks within threshold" but:
 
 - No baseline defined
 - No acceptance criteria specified

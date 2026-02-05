@@ -313,7 +313,7 @@ Fraisier depends on these FraiseQL features:
 | Authentication | ✅ Phase 5 | API security |
 | Event listeners | ✅ Phase 7 | Real-time deployment updates |
 
-**All core FraiseQL features needed for Fraisier are already implemented (Phase 5-7).**
+**All core FraiseQL features needed for Fraisier are already implemented.**
 
 ---
 

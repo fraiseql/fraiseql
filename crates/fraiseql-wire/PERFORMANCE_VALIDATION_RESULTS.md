@@ -10,7 +10,7 @@ This document reports on the comprehensive performance optimization of fraiseql-
 
 ## Optimization Phases Completed
 
-### Phase 1: Protocol Decode Buffer Cloning (5-8% potential)
+### Protocol Decode Buffer Cloning (5-8% potential)
 
 **Status**: ✅ Completed
 **Commit**: 0a83aaa
@@ -44,7 +44,7 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
 
 ---
 
-### Phase 2: MPSC Channel Batching (3-5% potential)
+### MPSC Channel Batching (3-5% potential)
 
 **Status**: ✅ Completed
 **Commit**: fd59b30
@@ -84,7 +84,7 @@ for row_bytes in rows {
 
 ---
 
-### Phase 3: Metrics Sampling (2-3% potential)
+### Metrics Sampling (2-3% potential)
 
 **Status**: ✅ Completed
 **Commit**: 6edb0dd
@@ -121,7 +121,7 @@ if eval_idx % 1000 == 0 {  // Sample 1-in-1000 evaluations
 
 ---
 
-### Phase 4: Chunk Metrics Sampling (2-3% potential)
+### Chunk Metrics Sampling (2-3% potential)
 
 **Status**: ✅ Completed
 **Commit**: fc2c993
@@ -151,7 +151,7 @@ if chunk_idx % 10 == 0 {
 
 ---
 
-### Phase 5: Simplified State Machine (1-2% potential)
+### Simplified State Machine (1-2% potential)
 
 **Status**: ✅ Completed
 **Commit**: 5b7b634

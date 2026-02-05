@@ -36,36 +36,36 @@ GraphQL Query (from client)
     ↓
 Rust Runtime receives request
     ↓
-Phase 0: Query Result Cache & APQ Resolution
+ Query Result Cache & APQ Resolution
   - Check if query is in cache (if caching enabled)
   - Resolve persisted query (if APQ enabled)
   - Return cached result or proceed to validation
     ↓
-Phase 1: GraphQL Validation
+ GraphQL Validation
   - Check schema conformance
   - Check argument types
   - Compile authorization rules
     ↓
-Phase 2: Authorization Enforcement
+ Authorization Enforcement
   - Extract auth context (JWT, session)
   - Check requires_auth / requires_role / requires_claim
   - Determine if query is allowed
     ↓
-Phase 3: Query Planning
+ Query Planning
   - Look up pre-compiled execution plan (from CompiledSchema)
   - Determine database call(s) needed
   - Plan result projection
     ↓
-Phase 4: Database Execution
+ Database Execution
   - Execute SQL against database
   - Stream or collect results
     ↓
-Phase 5: Result Projection
+ Result Projection
   - Extract fields from JSONB response
   - Nest results according to type graph
   - Apply field-level auth masks
     ↓
-Phase 6: Cache Invalidation Emission
+ Cache Invalidation Emission
   - Emit cache invalidation events
   - Return response to client
 ```
@@ -388,7 +388,7 @@ If authorization fails:
 
 ## 4.5. Phase 2.5: Aggregation Resolution
 
-For queries targeting fact tables (tables with `tf_*` prefix), Phase 2.5 performs aggregation planning and validation before general query planning.
+For queries targeting fact tables (tables with `tf_*` prefix).5 performs aggregation planning and validation before general query planning.
 
 ### 4.5.1 Fact Table Detection
 
@@ -399,7 +399,7 @@ The compiler identifies fact tables during schema compilation by:
 3. Detecting dimension JSONB column (default: `data`)
 4. Mapping denormalized filter columns
 
-At runtime, when a query targets a fact table aggregate query (e.g., `sales_aggregate`), Phase 2.5 is triggered.
+At runtime, when a query targets a fact table aggregate query (e.g., `sales_aggregate`).5 is triggered.
 
 ### 4.5.2 GROUP BY Clause Generation
 
@@ -450,7 +450,7 @@ For temporal dimensions (e.g., `occurred_at_day`, `occurred_at_month`):
 
 ### 4.5.7 Execution Plan
 
-Phase 2.5 produces an AggregationExecutionPlan:
+.5 produces an AggregationExecutionPlan:
 
 ```json
 {

@@ -1,4 +1,4 @@
-//! Query filtering integration tests (Phase 11.4 Cycle 3 - RED)
+//! Query filtering integration tests
 //!
 //! Tests for applying tenant filters to query execution
 

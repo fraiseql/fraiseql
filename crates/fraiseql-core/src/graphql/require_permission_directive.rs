@@ -1,4 +1,4 @@
-//! @require_permission directive handler for field-level RBAC (Phase 11.2 - GREEN)
+//! @require_permission directive handler for field-level RBAC
 //!
 //! Implements field-level authorization via GraphQL directives.
 //! Users must have explicit permission to access protected fields.

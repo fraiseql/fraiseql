@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 8 features provide multiple performance optimization paths. This guide helps you identify bottlenecks and apply the right optimizations.
+ features provide multiple performance optimization paths. This guide helps you identify bottlenecks and apply the right optimizations.
 
 ## Performance Diagnosis
 
@@ -373,7 +373,7 @@ watch -n 1 'fraiseql-observers metrics | grep queue'
 
 ## Complete Optimization Pipeline
 
-### Phase 1: Low Hanging Fruit (Week 1)
+### Low Hanging Fruit (Week 1)
 
 ```rust
 // Step 1: Add concurrent execution
@@ -387,7 +387,7 @@ let executor = ConcurrentActionExecutor::new(
 // Risk: Low
 ```
 
-### Phase 2: Caching (Week 2)
+### Caching (Week 2)
 
 ```rust
 // Step 2: Add caching
@@ -401,7 +401,7 @@ let cache = RedisCacheBackend::new(
 // Risk: Low (configurable TTL)
 ```
 
-### Phase 3: Batch Writes (Week 3)
+### Batch Writes (Week 3)
 
 ```rust
 // Step 3: Optimize checkpoint batch size
@@ -412,7 +412,7 @@ checkpoint_batch_size: 100,  // Was 1
 // Risk: Acceptable event loss window during crash
 ```
 
-### Phase 4: Resource Tuning (Week 4)
+### Resource Tuning (Week 4)
 
 ```rust
 // Step 4: Tune resources

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 8 transforms the FraiseQL Observer System from a functional baseline (Phases 1-7) into a production-grade system with enterprise features for reliability, performance, and scalability.
+ transforms the FraiseQL Observer System from a functional baseline (Phases 1-7) into a production-grade system with enterprise features for reliability, performance, and scalability.
 
 ## Phase 8 Feature Stack
 
@@ -533,7 +533,7 @@ Deduplication check (8.3): <5ms
   ├─ Cache hit? Return cached result (1ms)
   └─ Cache miss? Continue...
   ↓ (5ms)
-Condition evaluation (Phase 1-7): 2ms
+Condition evaluation: 2ms
   ↓ (7ms)
 Concurrent action execution (8.2):
   Action 1 (webhook): 100ms

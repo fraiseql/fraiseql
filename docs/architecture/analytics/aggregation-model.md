@@ -1,7 +1,7 @@
 # Aggregation Model
 
 **Version:** 1.0
-**Status:** Complete (Phase 1-2)
+**Status:** Complete
 **Audience:** Compiler developers, runtime engineers, SDK users
 **Date:** January 12, 2026
 
@@ -19,7 +19,7 @@ FraiseQL v2 supports **database-native aggregations** through compile-time schem
 
 ### Supported Functions (All Databases)
 
-**Basic Aggregates** (Phase 1-2: ✅ Complete):
+**Basic Aggregates**:
 
 - `COUNT(*)` - Count all rows
 - `COUNT(field)` - Count non-null values in field

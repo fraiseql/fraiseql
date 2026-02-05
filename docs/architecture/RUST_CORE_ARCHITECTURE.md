@@ -85,14 +85,14 @@ SELECT data FROM v_user WHERE data->>'email' ILIKE '%example.com%';
 ```
 crates/fraiseql-core/src/
 ├── lib.rs
-├── error.rs                ✅ Complete (Phase 1)
-├── config/                 ✅ Complete (Phase 1)
-├── schema/                 ✅ Complete (Phase 1)
+├── error.rs                ✅ Complete
+├── config/                 ✅ Complete
+├── schema/                 ✅ Complete
 │   ├── compiled.rs
 │   ├── field_type.rs
 │   ├── mod.rs
 │   └── tests.rs
-├── apq/                    ✅ Complete (Phase 1)
+├── apq/                    ✅ Complete
 │   ├── hasher.rs
 │   ├── metrics.rs
 │   ├── mod.rs
@@ -1699,7 +1699,7 @@ GraphQL schemas typically have < 100 types with < 50 fields each. HashMap overhe
 
 ## Migration Plan
 
-### Phase 2: Database Layer + WHERE Generation (6 days)
+### Database Layer + WHERE Generation (6 days)
 
 **Day 1-2: Database Abstraction**
 
@@ -1730,7 +1730,7 @@ GraphQL schemas typically have < 100 types with < 50 fields each. HashMap overhe
 
 ---
 
-### Phase 3: Security Layer (2 days)
+### Security Layer (2 days)
 
 **Day 1: Field-Level Auth**
 
@@ -1752,13 +1752,13 @@ GraphQL schemas typically have < 100 types with < 50 fields each. HashMap overhe
 
 ---
 
-### Phase 4: Compiler Infrastructure (10-12 days)
+### Compiler Infrastructure (10-12 days)
 
 **Out of scope for this architecture document.** See separate compiler design.
 
 ---
 
-### Phase 5: Runtime Executor + JSONB Projection (12-15 days)
+### Runtime Executor + JSONB Projection (12-15 days)
 
 **Day 1-3: JSONB Projection**
 

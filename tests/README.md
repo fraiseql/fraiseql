@@ -174,11 +174,11 @@ Integration tests will be in `tests/integration/`:
 
 ```
 tests/
-├── integration/                  # Integration tests (Phase 2+)
+├── integration/                  # Integration tests
 │   ├── postgres_test.rs
 │   ├── mysql_test.rs
 │   └── sqlite_test.rs
-└── e2e/                          # End-to-end tests (Phase 6+)
+└── e2e/                          # End-to-end tests
     ├── http_server_test.rs
     └── graphql_query_test.rs
 ```

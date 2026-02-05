@@ -61,7 +61,7 @@ This alpha release includes all planned features implemented, fully tested, and 
 **Docstring Parsing** (Alpha ready):
 
 - Extracts docstrings → GraphQL descriptions (all languages)
-- Apollo federation docstring-to-directive conversion (in development, Phase 18)
+- Apollo federation docstring-to-directive conversion (in development)
 
 #### 4. Query Execution & Optimization ✅
 

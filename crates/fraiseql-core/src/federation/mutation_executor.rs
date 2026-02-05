@@ -125,7 +125,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// Execute a mutation on an extended (non-owned) entity.
     ///
     /// Extended mutations are propagated to the authoritative subgraph that owns the entity.
-    /// In Phase 6A, this returns a properly-structured response. Full implementation (Phase 6D)
+    /// In Phase 6A, this returns a properly-structured response. Full implementation
     /// will add HTTP client support for actual remote subgraph communication.
     ///
     /// # Arguments

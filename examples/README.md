@@ -2,7 +2,7 @@
 
 This directory contains example projects demonstrating FraiseQL usage patterns and best practices.
 
-## Docker Newcomer Onboarding Examples (Phase 1-4)
+## Docker Newcomer Onboarding Examples
 
 Complete, runnable reference applications for learning FraiseQL without local compilation:
 
@@ -87,7 +87,7 @@ See `.docker-phase4-status.md` for comprehensive Phase 4 documentation.
 
 ---
 
-## Arrow Flight Client Examples (Phase 9.6)
+## Arrow Flight Client Examples
 
 Production-ready clients demonstrating zero-copy columnar data delivery via Apache Arrow Flight:
 

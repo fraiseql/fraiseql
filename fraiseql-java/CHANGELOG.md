@@ -207,7 +207,7 @@ This release marks the completion of Phase 1-6 of the FraiseQL Java implementati
 
 ### Known Issues
 
-- Maven/Java not available in initial build environment (Phase 1)
+- Maven/Java not available in initial build environment
   - Workaround: Code is syntactically correct and verified through review
 
 ### Future Improvements

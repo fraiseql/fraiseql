@@ -610,7 +610,7 @@ pub async fn staging_config() -> ObserverRuntimeConfig {
 
 ## Migration Path
 
-### Phase 1: Deploy with Checkpoints Only
+### Deploy with Checkpoints Only
 ```toml
 [features]
 phase1 = ["checkpoint"]
@@ -620,7 +620,7 @@ phase1 = ["checkpoint"]
 - No external dependencies (except PostgreSQL)
 - Safe foundation
 
-### Phase 2: Add Caching
+### Add Caching
 ```toml
 [features]
 phase2 = ["checkpoint", "caching"]
@@ -630,7 +630,7 @@ phase2 = ["checkpoint", "caching"]
 - Improves latency
 - Adds Redis dependency
 
-### Phase 3: Add Deduplication
+### Add Deduplication
 ```toml
 [features]
 phase3 = ["checkpoint", "caching", "dedup"]
@@ -639,7 +639,7 @@ phase3 = ["checkpoint", "caching", "dedup"]
 - Prevents duplicate side effects
 - Uses existing Redis
 
-### Phase 4: Add Monitoring
+### Add Monitoring
 ```toml
 [features]
 phase4 = ["checkpoint", "caching", "dedup", "metrics"]
@@ -648,7 +648,7 @@ phase4 = ["checkpoint", "caching", "dedup", "metrics"]
 - Production observability
 - Enables alerting
 
-### Phase 5: Add Search
+### Add Search
 ```toml
 [features]
 final = ["checkpoint", "caching", "dedup", "metrics", "search"]

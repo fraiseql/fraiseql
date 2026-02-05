@@ -1,4 +1,4 @@
-//! Tests for multi-tenancy data model (Phase 11.4)
+//! Tests for multi-tenancy data model
 //!
 //! Tests for tenant isolation, filtering, and JWT extraction
 

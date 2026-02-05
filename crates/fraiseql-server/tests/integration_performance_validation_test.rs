@@ -1,10 +1,10 @@
 //! Integration Performance Validation Tests
 //!
 //! This test suite validates that all performance components work together correctly:
-//! - Cache (Phase 3, Cycle 1)
-//! - Connection Pooling (Phase 3, Cycle 2)
-//! - Query Optimization (Phase 3, Cycle 3)
-//! - Metrics & Monitoring (Phase 3, Cycle 4)
+//! - Cache
+//! - Connection Pooling
+//! - Query Optimization
+//! - Metrics & Monitoring
 //!
 //! **Documented Integration Targets:**
 //! - Complex cached queries: <50ms with cache hit (vs 200-500ms without)

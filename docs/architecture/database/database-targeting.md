@@ -127,7 +127,7 @@ The **capability manifest** declares what each database can do:
 - ✅ Extensible (add new databases easily)
 - ✅ Source of truth for compiler
 
-### Level 2: Compile-Time Schema Generation (Phase 4)
+### Level 2: Compile-Time Schema Generation
 
 When the compiler runs, it applies the capability manifest to generate database-specific WHERE types:
 

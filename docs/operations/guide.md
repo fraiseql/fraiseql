@@ -93,7 +93,7 @@ Target: 99.9% success rate (0.1% error rate)
 
 ## Part 2: Monitoring & Observability
 
-### Health Checks (Phase 5 Cycle 4)
+### Health Checks
 
 FraiseQL provides three health check endpoints following Kubernetes probe semantics:
 
@@ -261,7 +261,7 @@ spec:
         terminationGracePeriodSeconds: 30
 ```
 
-### Graceful Shutdown (Phase 5 Cycle 4)
+### Graceful Shutdown
 
 FraiseQL handles graceful shutdown with signal handling:
 
@@ -1172,7 +1172,7 @@ Every 6 hours:
 
 - Higher backup frequency: Every hour (more cost)
 - WAL archiving: Continuous log backup (best RTO/RPO)
-- Replication: Multi-region replication (Phase 16+)
+- Replication: Multi-region replication
 
 ---
 

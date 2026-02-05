@@ -1,4 +1,4 @@
-//! Role and Permission Management API (Phase 11.5 Cycle 1 - RED)
+//! Role and Permission Management API
 //!
 //! REST API endpoints for managing roles, permissions, and user-role associations.
 

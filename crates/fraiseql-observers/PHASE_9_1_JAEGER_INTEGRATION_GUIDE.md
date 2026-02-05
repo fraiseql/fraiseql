@@ -7,7 +7,7 @@
 
 ## Overview
 
-Phase 9.1.E completes the integration with Jaeger backend for trace storage, visualization, and analysis. This guide covers Jaeger setup, configuration, and usage patterns.
+.1.E completes the integration with Jaeger backend for trace storage, visualization, and analysis. This guide covers Jaeger setup, configuration, and usage patterns.
 
 ---
 

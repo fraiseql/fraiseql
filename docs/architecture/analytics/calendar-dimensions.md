@@ -1,7 +1,7 @@
 # Calendar Dimensions for High-Performance Analytics
 
 **Version:** 1.0
-**Status:** Complete (Phase 1-4)
+**Status:** Complete
 **Audience:** DBAs, data engineers, SDK users
 **Date:** January 13, 2026
 

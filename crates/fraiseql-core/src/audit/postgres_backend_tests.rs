@@ -1,4 +1,4 @@
-//! PostgreSQL audit backend tests (Phase 11.3 Cycle 3 - RED)
+//! PostgreSQL audit backend tests
 //!
 //! Tests for PostgreSQL-based audit logging
 

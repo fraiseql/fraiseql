@@ -7,12 +7,12 @@
 
 ## Overview
 
-Phase 9.2.C adds log correlation with trace IDs, linking logs to distributed traces for unified debugging. Trace IDs are automatically injected into structured logs, enabling filtering and correlation in log aggregation systems.
+.2.C adds log correlation with trace IDs, linking logs to distributed traces for unified debugging. Trace IDs are automatically injected into structured logs, enabling filtering and correlation in log aggregation systems.
 
 ### Core Concept
 
 ```
-Distributed Trace (Phase 9.1)     Structured Logs (Phase 9.2.C)
+Distributed Trace     Structured Logs
 ├─ Trace ID: abc123def456    →    trace_id=abc123def456
 ├─ Span 1: webhook_send       →    span_id=span001
 └─ Span 2: email_send         →    span_id=span002
@@ -639,7 +639,7 @@ TIMESTAMP [LEVEL] SERVICE EVENT trace_id=VALUE field=VALUE
 
 ## Next Phase: Phase 9.2.D
 
-After log correlation works well, Phase 9.2.D adds:
+After log correlation works well.2.D adds:
 
 - gRPC exporter for Jaeger (faster than HTTP)
 - Connection pooling
@@ -679,7 +679,7 @@ After log correlation works well, Phase 9.2.D adds:
 
 ## Summary
 
-Phase 9.2.C provides automatic trace ID correlation with structured logging, enabling:
+.2.C provides automatic trace ID correlation with structured logging, enabling:
 
 1. **Unified Debugging**: View logs and traces together with matching trace IDs
 2. **Request Tracing**: Follow a single request through entire system

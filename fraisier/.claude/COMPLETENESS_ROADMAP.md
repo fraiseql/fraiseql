@@ -249,7 +249,7 @@ async def init_database(adapter):
 
 ## What Makes Each Phase High-Value
 
-### 🏆 The "Must-Have" Core (Phase 3.10-B + Phase 4)
+### 🏆 The "Must-Have" Core
 
 If you had to pick, this combination is **non-negotiable**:
 
@@ -263,7 +263,7 @@ If you had to pick, this combination is **non-negotiable**:
 
 Together: ~15-19 hours = **working, observable deployments**
 
-### 🎁 The "Nice-to-Have" Premium (Phase 5-8)
+### 🎁 The "Nice-to-Have" Premium
 
 Adding these makes it truly production-grade:
 
@@ -294,7 +294,7 @@ Together: ~14-18 additional hours = **production-ready, well-documented**
 **Good for**: Internal use, MVP testing
 
 ```
-Phase 3.10-B (Observability) → Phase 4 (Providers) → Done
+.10-B (Observability) → Phase 4 (Providers) → Done
 3-4 hrs + 12-15 hrs = 15-19 hours
 ```
 
@@ -306,7 +306,7 @@ Phase 3.10-B (Observability) → Phase 4 (Providers) → Done
 **Good for**: Public release, enterprise use
 
 ```
-Phase 3.10-A (Migrations)
+.10-A (Migrations)
   → Phase 3.10-B (Observability)
     → Phase 4 (Providers)
       → Phase 5 (Patterns)

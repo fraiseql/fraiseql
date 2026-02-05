@@ -1,4 +1,4 @@
-//! Audit logging backend tests (Phase 11.3 - RED)
+//! Audit logging backend tests
 //!
 //! RED cycle: Write failing tests for audit event structure and backends
 

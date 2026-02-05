@@ -244,7 +244,7 @@ impl FraiseQLFlightService {
     ///
     /// The executor must be passed as `Arc<Executor<A>>` wrapped in Arc for shared ownership.
     ///
-    /// # Example (Phase 1.3)
+    /// # Example
     ///
     /// ```ignore
     /// use fraiseql_core::runtime::Executor;
@@ -1520,7 +1520,7 @@ mod tests {
     }
 
     /// Tests that fraiseql-core types are now accessible
-    /// (Phase 1.3: Verifies circular dependency is resolved)
+    ///
     #[test]
     fn test_fraiseql_core_types_accessible() {
         // Should be able to import and use fraiseql-core types

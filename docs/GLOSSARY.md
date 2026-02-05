@@ -456,7 +456,7 @@ config = CompilerConfig(
 
 **Impact:**
 
-- Drives WHERE operator availability (Phase 4 of compilation)
+- Drives WHERE operator availability
 - Affects SQL generation (backend lowering)
 - Determines scalar type support
 - Influences JSONB/vector/extension operators
@@ -581,7 +581,7 @@ Example: All users can see `User.name`, but only admins can see `User.email`.
 **Enforcement:**
 
 - Compile-time declaration in authoring schema
-- Runtime enforcement during projection (Phase 5)
+- Runtime enforcement during projection
 - Deterministic (field present or absent based on AuthContext)
 - Monotonic (only removes data, never adds)
 
@@ -1057,10 +1057,10 @@ FraiseQL subscriptions are NOT GraphQL resolver-based subscriptions. Instead:
 
 **Database support (PostgreSQL is reference implementation):**
 
-- PostgreSQL: LISTEN/NOTIFY + CDC (Phase 1, reference implementation)
-- MySQL: Debezium CDC (Phase 2, varies in maturity)
-- SQL Server: Native CDC (Phase 2, varies in maturity)
-- SQLite: Trigger-based (Phase 2, pull-only, development-use)
+- PostgreSQL: LISTEN/NOTIFY + CDC
+- MySQL: Debezium CDC
+- SQL Server: Native CDC
+- SQLite: Trigger-based
 
 **Related specs:**
 
