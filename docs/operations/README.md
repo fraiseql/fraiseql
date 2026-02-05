@@ -40,7 +40,7 @@ For multi-database federation operations, see [Federation Guide](../integrations
 ## Support
 
 - **Troubleshooting**: See [main troubleshooting guide](../TROUBLESHOOTING.md)
-- **Known Limitations**: See [known limitations](../KNOWN_LIMITATIONS.md)
+- **Known Limitations**: See [alpha limitations](../ALPHA_LIMITATIONS.md)
 
 ---
 

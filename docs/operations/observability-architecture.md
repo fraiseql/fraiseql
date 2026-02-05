@@ -1,5 +1,21 @@
 # Observability System Architecture
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [System Architecture](#system-architecture)
+3. [Multi-Database Support Strategy](#multi-database-support-strategy)
+4. [Component 1: Metrics Collection Layer](#component-1-metrics-collection-layer)
+5. [Component 2: Pattern Analysis Engine](#component-2-pattern-analysis-engine)
+6. [Component 3: CLI Integration](#component-3-cli-integration)
+7. [Performance Impact](#performance-impact)
+8. [Design Decisions](#design-decisions)
+9. [Testing Strategy](#testing-strategy)
+10. [Future Enhancements](#future-enhancements)
+11. [Summary](#summary)
+
+---
+
 ## Overview
 
 FraiseQL's observability system enables **runtime-informed schema optimization** by collecting query performance metrics, analyzing patterns, and suggesting database schema improvements.

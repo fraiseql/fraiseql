@@ -610,7 +610,7 @@ cargo tarpaulin --all-features --workspace
 
 ## Questions?
 
-- See [KNOWN_LIMITATIONS.md](../../KNOWN_LIMITATIONS.md) for feature limitations
+- See [ALPHA_LIMITATIONS.md](../../ALPHA_LIMITATIONS.md) for alpha limitations
 - See [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for common issues
 
 ---

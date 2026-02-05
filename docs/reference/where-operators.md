@@ -1,7 +1,7 @@
 # WHERE Clause Operators Reference
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Status:** ✅ Production Ready
+**Version:** FraiseQL v2.0.0-alpha.1+
 **Total Operators**: 150+
 **Categories**: 15 operator categories
 

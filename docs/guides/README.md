@@ -88,4 +88,39 @@ See [Integrations Guide](../integrations/) for:
 
 ---
 
+## 📋 Document Metadata Guide
+
+All guides in this directory follow a consistent metadata format for discoverability and context:
+
+```markdown
+| Metadata | Values | Example |
+|----------|--------|---------|
+| **Status** | ✅ Production Ready, ⚠️ Beta, 📝 Draft | ✅ Production Ready |
+| **Audience** | Developers, DevOps, DBAs, Architects, SREs | Developers, Architects |
+| **Reading Time** | Estimated minutes | 10-15 minutes |
+| **Last Updated** | YYYY-MM-DD | 2026-02-05 |
+```
+
+**What these mean:**
+
+- **Status**: Indicates feature stability and support level
+  - ✅ **Production Ready** - Fully tested, supported, recommended for production use
+  - ⚠️ **Beta** - Functional but may have breaking changes, use in staging first
+  - 📝 **Draft** - Under development, may be incomplete or unstable
+
+- **Audience**: Who should read this guide
+  - **Developers** - Application engineers building with FraiseQL
+  - **DevOps** - Infrastructure and deployment specialists
+  - **DBAs** - Database administrators
+  - **Architects** - System architects and technical leads
+  - **SREs** - Site reliability engineers
+
+- **Reading Time**: Estimated time to read the full guide
+  - Quick references (3-5 minutes)
+  - Quick starts (5-10 minutes)
+  - Detailed guides (15-30 minutes)
+  - Deep dives (30+ minutes)
+
+---
+
 **Back to:** [Documentation Home](../README.md)

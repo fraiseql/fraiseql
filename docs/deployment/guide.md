@@ -666,10 +666,11 @@ docker service rollback fraiseql-server
 
 ### Manual
 
-Keep previous image tags:
+Keep previous v2 image tags:
 
 ```bash
-docker run -p 8000:8000 fraiseql-server:v1.9  # Previous version
+docker run -p 8000:8000 fraiseql-server:v2.0.0-alpha.0  # Previous v2 version
+# Note: v1 versions are NOT compatible with v2 schemas
 ```
 
 ## Next Steps

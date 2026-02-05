@@ -4,6 +4,25 @@
 **Version**: 1.0
 **Last Updated**: 2026-01-11
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Security Profiles](#security-profiles)
+3. [Software Bill of Materials (SBOM) Generation](#software-bill-of-materials-sbom-generation)
+4. [Security Headers](#security-headers)
+5. [CSRF Protection](#csrf-protection)
+6. [Token Revocation](#token-revocation)
+7. [Rate Limiting](#rate-limiting)
+8. [Field-Level Authorization](#field-level-authorization)
+9. [Introspection Control](#introspection-control)
+10. [Key Management Service (KMS)](#key-management-service-kms)
+11. [Security Event Logging](#security-event-logging)
+12. [Regulatory Compliance Summary](#regulatory-compliance-summary)
+13. [Deployment Checklist](#deployment-checklist)
+14. [Conclusion](#conclusion)
+
+---
+
 ## Overview
 
 FraiseQL provides comprehensive enterprise-grade security and compliance features, including three pre-configured security profiles, Software Bill of Materials (SBOM) generation, cryptographic security controls, and full NIS2/PCI-DSS compliance support. These features work together to provide defense-in-depth security for production GraphQL deployments.

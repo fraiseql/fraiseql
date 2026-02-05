@@ -1,5 +1,10 @@
 # Consistency Model: CAP Theorem in FraiseQL
 
+**Status:** ✅ Production Ready
+**Audience:** Architects, Developers
+**Reading Time:** 12-15 minutes
+**Last Updated:** 2026-02-05
+
 ## Prerequisites
 
 **Required Knowledge:**
@@ -482,7 +487,7 @@ It's simpler and more reliable to execute synchronously.
 - Implement a separate job status endpoint
 - Use webhooks for notifications
 
-See [Pattern: Async Mutations](../patterns/async-mutations.md) for implementation guide.
+See [Federation Guide](../integrations/federation/guide.md) and [SAGA Transactions](../integrations/federation/sagas.md) for implementation patterns.
 
 ### Q: What happens if a SAGA step fails?
 
@@ -611,6 +616,6 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 ## Related Documentation
 
 - [Production Deployment](./production-deployment.md) - How to scale FraiseQL
-- [SAGA Pattern Details](../architecture/federation-saga.md) - Deep dive into transaction coordination
-- [Multi-Tenant Isolation](../enterprise/multi-tenancy.md) - How we guarantee tenant data separation
-- [Async Mutations Pattern](../patterns/async-mutations.md) - Implementing eventual-consistency-like features
+- [SAGA Pattern Details](../integrations/federation/sagas.md) - Deep dive into transaction coordination
+- [Federation Guide](../integrations/federation/guide.md) - Multi-database federation patterns
+- [Observability](./observability.md) - Monitoring consistency and transaction performance

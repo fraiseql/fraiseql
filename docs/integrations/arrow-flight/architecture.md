@@ -1,5 +1,10 @@
 # Arrow Flight Architecture
 
+**Status:** ✅ Production Ready
+**Audience:** Architects, Data Engineers, DevOps
+**Reading Time:** 15-20 minutes
+**Last Updated:** 2026-02-05
+
 ## Overview
 
 FraiseQL's Arrow Flight integration provides a **dual-dataplane architecture** optimized for different access patterns:

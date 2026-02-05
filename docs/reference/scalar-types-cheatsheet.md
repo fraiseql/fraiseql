@@ -1,5 +1,10 @@
 # Scalar Types Cheat Sheet
 
+**Status:** ✅ Production Ready
+**Audience:** Developers, DBAs
+**Reading Time:** 5-8 minutes
+**Last Updated:** 2026-02-05
+
 Quick reference for all FraiseQL scalar types, mappings, and examples.
 
 ## String Types

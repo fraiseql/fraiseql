@@ -1,5 +1,10 @@
 # CLI Commands Cheat Sheet
 
+**Status:** ✅ Production Ready
+**Audience:** Developers, DevOps
+**Reading Time:** 5-10 minutes
+**Last Updated:** 2026-02-05
+
 Quick reference for all `fraiseql` CLI commands and options.
 
 ## Basic Commands

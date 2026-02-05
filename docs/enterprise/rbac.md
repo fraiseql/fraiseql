@@ -1,7 +1,7 @@
 # Enterprise RBAC Documentation
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Status:** ✅ Production Ready
+**Version:** FraiseQL v2.0.0-alpha.1+
 **Topic**: Role-Based Access Control
 **Performance**: <0.5ms cached, <100ms uncached
 

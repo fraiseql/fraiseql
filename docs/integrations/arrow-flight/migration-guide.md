@@ -1,5 +1,10 @@
 # Migrating to Arrow Flight
 
+**Status:** ✅ Production Ready
+**Audience:** DevOps, Architects, Data Engineers
+**Reading Time:** 12-15 minutes
+**Last Updated:** 2026-02-05
+
 Arrow Flight is **100% backwards compatible**. Your existing HTTP/JSON clients will continue to work unchanged.
 
 This guide shows how to incrementally adopt Arrow Flight in your organization.

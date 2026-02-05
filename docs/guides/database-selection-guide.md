@@ -1,8 +1,9 @@
 # Database Selection Guide
 
-**Version:** 1.0
-**Status:** Complete
-**Last Updated:** February 5, 2026
+**Status:** ✅ Production Ready
+**Audience:** Architects, DevOps, DBAs
+**Reading Time:** 15-20 minutes
+**Last Updated:** 2026-02-05
 
 ## Quick Decision
 
@@ -214,8 +215,11 @@ volumes:
 
 **Example:**
 ```bash
-# Create test database
-fraiseql compile --database sqlite:///./test.db
+# Create test database (SQLite file)
+sqlite3 test.db ".schema"
+
+# Or use in-memory SQLite
+export DATABASE_URL="sqlite:///:memory:"
 ```
 
 ---
@@ -258,7 +262,7 @@ mysqldump --all-databases > backup.sql
 psql -U postgres < backup.sql
 
 # 4. Test thoroughly
-cargo test
+fraiseql test
 
 # 5. Cutover
 # Route connections to PostgreSQL
@@ -276,15 +280,16 @@ cargo test
 createdb fraiseql
 
 # 2. Export from SQLite
-sqlite3 local.db .dump > dump.sql
+sqlite3 local.db ".dump" > dump.sql
 
 # 3. Convert schema to PostgreSQL format
+# Use tool like pgloader or manual edits
 
 # 4. Import to PostgreSQL
 psql fraiseql < dump.sql
 
 # 5. Test
-cargo test
+fraiseql test
 
 # 6. Cutover
 # Update DATABASE_URL environment variable

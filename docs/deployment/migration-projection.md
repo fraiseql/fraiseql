@@ -105,14 +105,15 @@ If you need to rollback projection (for debugging):
 FRAISEQL_DISABLE_PROJECTION=true cargo run
 ```
 
-### Option 2: Version Rollback
+### Option 2: Downgrade to Earlier v2 Version
 
 ```bash
-# Use previous version temporarily
-fraiseql-core = "1.9.0"  # Or earlier
+# Downgrade to previous v2 version (if needed)
+# Note: v1.x is NOT compatible with v2 schemas
+fraiseql-core = "2.0.0-alpha.0"  # or earlier v2 version
 
 cargo build --release
-# Projection is not used in v1.9.0
+# Re-deploy to previous v2 version
 ```
 
 ## Database-Specific Considerations

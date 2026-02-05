@@ -1,7 +1,9 @@
 # Common Patterns - Real-World Solutions
 
-**Duration**: 2-4 hours
-**Outcome**: Implement common patterns in your FraiseQL application
+**Status:** ✅ Production Ready
+**Audience:** Developers, Architects
+**Reading Time:** 20-30 minutes
+**Last Updated:** 2026-02-05
 
 ## Prerequisites
 

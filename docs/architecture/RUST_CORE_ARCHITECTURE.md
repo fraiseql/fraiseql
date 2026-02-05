@@ -98,7 +98,7 @@ crates/fraiseql-core/src/
 │   ├── mod.rs
 │   └── storage.rs
 │
-├── db/                     🔧 Phase 2 (THIS DESIGN)
+├── db/                     // Database abstraction layer
 │   ├── mod.rs              // Database abstraction + exports
 │   ├── traits.rs           // DatabaseAdapter trait
 │   ├── pool.rs             // Connection pooling
@@ -118,14 +118,14 @@ crates/fraiseql-core/src/
 │   └── sqlserver/
 │       └── ...
 │
-├── runtime/                🔧 Phase 5 (THIS DESIGN)
+├── runtime/                // Query execution engine
 │   ├── mod.rs
 │   ├── executor.rs         // Query execution pipeline
 │   ├── projector.rs        // JSONB → GraphQL projection
 │   ├── selection.rs        // SelectionSet representation
 │   └── auth_mask.rs        // Field-level auth masking
 │
-├── cache/                  🔧 Phase 2 (THIS DESIGN)
+├── cache/                  // Query result caching
 │   ├── mod.rs
 │   ├── backend.rs          // CacheBackend trait
 │   ├── memory.rs           // In-memory cache
@@ -133,13 +133,13 @@ crates/fraiseql-core/src/
 │   ├── key_gen.rs          // Cache key generation
 │   └── invalidation.rs     // Invalidation cascades
 │
-├── security/               🔧 Phase 3 (THIS DESIGN)
+├── security/               // Security & authorization
 │   ├── mod.rs
 │   ├── auth_context.rs     // User roles, permissions
 │   ├── field_auth.rs       // Field-level auth rules
 │   └── query_auth.rs       // Query-level auth rules
 │
-└── utils/                  ⏳ Phase 7
+└── utils/                  // Utility functions
     ├── casing.rs
     ├── operators.rs
     └── vector.rs
@@ -1417,7 +1417,7 @@ pub fn generate_cache_key(
 
 ## Error Handling
 
-**Already complete** (from Phase 1). See `error.rs`.
+**Already implemented**. See `error.rs`.
 
 **Additional database error conversions:**
 
@@ -1823,7 +1823,7 @@ This architecture design provides:
 
 1. Review this architecture document
 2. Get approval/feedback
-3. Begin Phase 2 implementation
+3. Begin implementation of runtime execution layer
 4. Iterate based on real-world testing
 
 ---

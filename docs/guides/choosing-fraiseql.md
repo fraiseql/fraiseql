@@ -1,5 +1,10 @@
 # Choosing FraiseQL: Is It Right for Your Project?
 
+**Status:** ✅ Production Ready
+**Audience:** Architects, Technical Leads
+**Reading Time:** 10-15 minutes
+**Last Updated:** 2026-02-05
+
 FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a specific set of problems. This guide helps you decide if it's a good fit.
 
 ---
@@ -534,7 +539,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 |---------|---------------|----------|
 | "100-500ms latency is too slow" | Most business logic already has this latency | Compare: API Gateway (20ms) + DB (50ms) + Network (30ms) = 100ms baseline |
 | "We need real-time updates" | FraiseQL supports WebSocket subscriptions | See [Real-time subscriptions](../architecture/realtime/subscriptions.md) |
-| "We'll need eventual consistency anyway" | Implement at application layer if truly needed | See [Async mutations pattern](../patterns/async-mutations.md) |
+| "We'll need eventual consistency anyway" | Implement at application layer if truly needed | See [Federation Guide](../integrations/federation/guide.md) for patterns |
 | "Consistency not important for us" | Then FraiseQL isn't the right choice | Consider alternatives |
 
 ### "We're between FraiseQL and [Alternative]"
@@ -593,5 +598,5 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 - [Consistency Model Deep Dive](./consistency-model.md)
 - [Production Deployment](./production-deployment.md)
-- [Architecture Overview](../architecture/overview.md)
-- [Comparison with Other Systems](../reference/comparison-matrix.md)
+- [Foundation Concepts](../foundation/01-what-is-fraiseql.md)
+- [Core Architecture](../foundation/02-core-concepts.md)

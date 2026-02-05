@@ -6,6 +6,22 @@
 
 ---
 
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Phase 1: Schema Parsing & Validation](#1-phase-1-schema-parsing--validation)
+3. [Phase 2: Type Resolution & Linking](#2-phase-2-type-resolution--linking)
+4. [Phase 3: Field Binding & Authorization](#3-phase-3-field-binding--authorization)
+5. [Phase 4: Federation Analysis & Validation](#4-phase-4-federation-analysis--validation)
+6. [Phase 5: Query/Mutation/Subscription Compilation](#5-phase-5-querymutationsubscription-compilation)
+7. [Phase 6: Code Generation & Optimization](#6-phase-6-code-generation--optimization)
+8. [Validation & Error Reporting](#7-validation--error-reporting)
+9. [Compilation Examples](#8-compilation-examples)
+10. [Performance Characteristics](#9-performance-characteristics)
+11. [Summary & Checklist](#10-summary--checklist)
+
+---
+
 ## Executive Summary
 
 FraiseQL's compiler transforms user-defined schemas into deterministic, database-optimized execution plans through six sequential phases. Each phase builds on previous phases, with clearly defined inputs, outputs, and validation rules.

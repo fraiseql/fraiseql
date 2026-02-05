@@ -1,9 +1,20 @@
 # Custom Scalar Types Reference
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Status:** ✅ Production Ready
+**Version:** FraiseQL v2.0.0-alpha.1+
 **Categories**: 18 domain categories
 **Total Scalars**: 56 types
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Scalar Categories](#scalar-categories)
+3. [Database Mappings](#database-mappings)
+4. [Using Scalars in Type Definitions](#using-scalars-in-type-definitions)
+5. [Performance Considerations](#performance-considerations)
+6. [Best Practices](#best-practices)
+7. [Scalar Import Locations](#scalar-import-locations)
+8. [Summary](#summary)
 
 ---
 

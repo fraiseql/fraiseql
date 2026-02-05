@@ -11,7 +11,7 @@ This document outlines what's **not** included in the alpha release and when it'
 
 These features are **fully implemented and tested**:
 
-- ✅ Core GraphQL execution (queries, mutations, subscriptions prepared)
+- ✅ Core GraphQL execution (queries, mutations ready; subscriptions planned for v2.1)
 - ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - ✅ Schema compilation and validation
 - ✅ Apollo Federation v2 with SAGA transactions

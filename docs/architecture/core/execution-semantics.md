@@ -4,6 +4,16 @@
 **Status:** Complete System Specification
 **Audience:** Framework runtime engineers, SDK developers, optimization specialists
 
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Query Execution Semantics](#1-query-execution-semantics)
+3. [Mutation Execution Semantics](#2-mutation-execution-semantics)
+4. [Subscription Execution Semantics](#3-subscription-execution-semantics)
+5. [Execution Guarantees & Trade-offs](#4-execution-guarantees--trade-offs)
+6. [Streaming & Pagination](#5-streaming--pagination)
+7. [Summary: Execution Flow Diagram](#6-summary-execution-flow-diagram)
+
 ---
 
 ## Executive Summary

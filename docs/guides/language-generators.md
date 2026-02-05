@@ -1,5 +1,10 @@
 # FraiseQL Language Generators
 
+**Status:** ✅ Production Ready
+**Audience:** Developers
+**Reading Time:** 10-15 minutes
+**Last Updated:** 2026-02-05
+
 ## Prerequisites
 
 **Required Knowledge:**

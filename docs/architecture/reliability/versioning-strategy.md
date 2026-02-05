@@ -4,6 +4,28 @@
 **Status:** Complete System Specification
 **Audience:** Framework architects, platform engineers, enterprise operators, SDK maintainers
 
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Semantic Versioning (SemVer 2.0.0)](#1-semantic-versioning-semver-200)
+3. [Breaking Change Policy](#2-breaking-change-policy)
+4. [Deprecation Policy](#3-deprecation-policy)
+5. [Schema Versioning](#4-schema-versioning)
+6. [Query API Versioning](#5-query-api-versioning)
+7. [Error Code Versioning](#6-error-code-versioning)
+8. [Multi-Version Runtime Support](#7-multi-version-runtime-support)
+9. [MAJOR Version Upgrade Path](#8-major-version-upgrade-path)
+10. [Client Versioning & Compatibility](#9-client-versioning--compatibility)
+11. [Compiler Version Management](#10-compiler-version-management)
+12. [Ecosystem Versioning](#11-ecosystem-versioning)
+13. [Version Communication](#12-version-communication)
+14. [Support & Long-Term Maintenance](#13-support--long-term-maintenance)
+15. [Version Decision Tree](#14-version-decision-tree)
+16. [Versioning Best Practices](#15-versioning-best-practices)
+17. [Examples](#16-examples)
+18. [Summary & Quick Reference](#17-summary--quick-reference)
+19. [Appendix: Version Checking](#18-appendix-version-checking)
+
 ---
 
 ## Executive Summary

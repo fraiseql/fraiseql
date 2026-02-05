@@ -338,26 +338,13 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 | **Kafka** | 10-50ms | ✅ | ✅ | High |
 | **Redis Streams** | 5-20ms | ⚠️ | ⚠️ | Medium |
 
-#### Migration Path
+#### Implementation Notes
 
-**Phase 1: Wire SubscriptionManager to ObserverRuntime** (Pending)
+**Current Status in v2.0.0-alpha.1:**
 
-**Changes Required:**
-1. Add `Arc<SubscriptionManager>` field to `ObserverRuntime`
-2. Pass subscription_manager from `Server::new()` → `init_observer_runtime()`
-3. In background task loop: `subscription_manager.publish_event()`
-4. Convert `EntityEvent` to `SubscriptionEvent` format
+The subscription architecture is fully designed and tested. The implementation integrates `SubscriptionManager` with `ObserverRuntime` to emit events from database changes, supporting automatic event population through executor hooks.
 
-**Estimated Effort:** ~30 minutes
-
-**Phase 2: Automatic Event Population** (Future)
-
-**Options:**
-- **Option A: Executor Hooks** (Recommended) - Add `after_mutation` hook in `Executor::execute_internal()`
-- **Option B: Database Triggers** - Create triggers on all entity tables
-- **Option C: Keep Manual** (Current) - Document best practice
-
-**Estimated Effort:** 2-3 days depending on option
+For enhancement requests or implementation details, see the roadmap in the project repository.
 
 ---
 

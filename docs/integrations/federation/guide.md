@@ -1,5 +1,10 @@
 # FraiseQL Federation v2 Guide
 
+**Status:** ✅ Production Ready
+**Audience:** Architects, Developers, DevOps
+**Reading Time:** 20-30 minutes
+**Last Updated:** 2026-02-05
+
 FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL composition with sub-5ms latency for local entity resolution and sub-20ms for direct database federation.
 
 ## Prerequisites
@@ -782,5 +787,5 @@ let metadata = FederationMetadata {
 - **[Production Deployment](../../guides/production-deployment.md)** - Deploying federation in production
 - **[Federation Architecture](../../architecture/integration/federation.md)** - Technical architecture details
 - **[SAGA Pattern](./sagas.md)** - Distributed transaction coordination
-- **[Multi-Tenancy](../../enterprise/multi-tenancy.md)** - Tenant isolation in federation
+- **[Enterprise RBAC](../../enterprise/rbac.md)** - Row-level security and multi-tenant isolation
 

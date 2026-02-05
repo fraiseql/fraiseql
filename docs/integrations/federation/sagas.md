@@ -1,8 +1,9 @@
 # Sagas in Apollo Federation
 
-**Audience:** Architects designing distributed microservices with federation
-**Prerequisites:** [Saga Basics](../../patterns/saga/quick-start.md), [Federation Overview](guide.md)
-**Estimated Reading Time:** 25-30 minutes
+**Status:** ✅ Production Ready
+**Audience:** Architects, Developers
+**Reading Time:** 20-30 minutes
+**Last Updated:** 2026-02-05
 
 ---
 
