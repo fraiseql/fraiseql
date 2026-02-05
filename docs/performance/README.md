@@ -282,7 +282,7 @@ Concurrent Users:  500+
 A: No, projection is automatic. Your queries run faster without changes.
 
 **Q: What's the performance improvement?**
-A: 42-55% latency reduction automatically with v2.0.0-a1.
+A: 42-55% latency reduction automatically with v2.0.0-alpha.1.
 
 **Q: Is there any risk in upgrading?**
 A: No, it's fully backward compatible. No breaking changes.
