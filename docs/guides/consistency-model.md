@@ -61,26 +61,59 @@ FraiseQL makes a deliberate architectural choice based on the CAP theorem:
 
 ### The CAP Theorem Reality
 
-When a network partition occurs between services:
+When a network partition occurs between services, you must choose:
 
-```text
-┌─────────────────┐
-│   Service A     │
-│  (DB primary)   │
-└────────┬────────┘
-         │
-    🔴 NETWORK DOWN 🔴
-         │
-┌────────▼────────┐
-│   Service B     │
-│  (DB replica)   │
-└─────────────────┘
-```text
+```d2
+direction: down
 
-You must choose between:
+ServiceA: "Service A\n(DB primary)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
 
-1. **CP Mode**: Refuse to serve Service B until network recovers → Consistency, no lies
-2. **AP Mode**: Service B serves best-guess data → Available, but possibly wrong
+NetworkDown: "🔴 Network Partition" {
+  shape: box
+  style.fill: "#ffccbc"
+  style.border: "3px solid #d32f2f"
+}
+
+ServiceB: "Service B\n(DB replica)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+CPChoice: "CP Mode:\nRefuse Service" {
+  shape: box
+  style.fill: "#bbdefb"
+}
+
+APChoice: "AP Mode:\nServe Stale Data" {
+  shape: box
+  style.fill: "#fff9c4"
+}
+
+CPBenefit: "✅ Correct data\n❌ No availability" {
+  shape: box
+  style.fill: "#e1f5fe"
+}
+
+APBenefit: "✅ Available\n❌ Possibly wrong" {
+  shape: box
+  style.fill: "#fffde7"
+}
+
+ServiceA -> NetworkDown
+NetworkDown -> ServiceB
+ServiceB -> CPChoice
+ServiceB -> APChoice
+CPChoice -> CPBenefit
+APChoice -> APBenefit
+```
+
+**Your choice:**
+
+1. **CP Mode** (FraiseQL): Refuse to serve Service B until network recovers → Consistency guaranteed
+2. **AP Mode**: Service B serves best-guess data → Available but risky
 
 ### FraiseQL's Answer: CP
 
@@ -103,26 +136,79 @@ If Service B's database can't confirm consistency with Service A, FraiseQL retur
 
 ### How Mutations Work
 
-```text
-Client sends mutation
-         │
-         ▼
-FraiseQL Server receives
-         │
-         ├─ Validation (schema, authorization)
-         │
-         ├─ Acquire distributed locks (if federation)
-         │
-         ├─ Execute SAGA
-         │  ├─ Step 1: Local DB mutation
-         │  ├─ Step 2: Remote service mutation
-         │  └─ Compensation logic on failure
-         │
-         └─ Return result to client
-            (success or error, never "maybe")
+```d2
+direction: down
 
-         ⏱️ Client waits 100-500ms (blocking)
-```text
+Client: "Client sends mutation\n(blocking)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Receive: "FraiseQL Server\nreceives request" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+Validate: "Validation\n(schema, auth)" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+Lock: "Acquire distributed\nlocks (if federation)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+SAGA: "Execute SAGA" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Step1: "Step 1: Local DB\nmutation" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Step2: "Step 2: Remote\nservice mutation" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Compensation: "Compensation logic\non failure" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Success: "✅ Success\n(commit)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Failure: "❌ Error\n(rollback)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+Return: "Return result\nto client" {
+  shape: box
+  style.fill: "#e1f5fe"
+}
+
+Client -> Receive
+Receive -> Validate
+Validate -> Lock
+Lock -> SAGA
+SAGA -> Step1
+SAGA -> Step2
+SAGA -> Compensation: "If failure"
+Step1 -> Success
+Step2 -> Success
+Compensation -> Failure
+Success -> Return
+Failure -> Return
+
+note: "⏱️ Client waits 100-500ms\n(blocking until complete,\nnever queued/maybe)"
+```
 
 **Key point**: The client blocks until the mutation completes. There's no "queued, we'll process later" response.
 

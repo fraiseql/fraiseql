@@ -19,6 +19,67 @@ FraiseQL Observers react to database changes (mutations, CDC events) and trigger
 - Search indexing updates
 - External system integration
 
+### Observer Flow Diagram
+
+```d2
+direction: down
+
+Mutation: "GraphQL Mutation\n(Create, Update, Delete)" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Trigger: "Event Trigger\n(Observer checks event)" {
+  shape: box
+  style.fill: "#f3e5f5"
+}
+
+Filter: "Filter Match?\n(Optional conditions)" {
+  shape: diamond
+  style.fill: "#fff9c4"
+}
+
+FilterYes: "✅ Conditions met" {
+  shape: box
+  style.fill: "#f1f8e9"
+}
+
+FilterNo: "❌ Skip action" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+Action: "Execute Action\n(Webhook, Email, SMS)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+Webhook: "POST to external\nwebhook URL" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Retry: "Retry on failure\n(exponential backoff)" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Success: "✅ Action complete\n(Log & continue)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Mutation -> Trigger
+Trigger -> Filter
+Filter -> FilterYes: "Yes"
+Filter -> FilterNo: "No"
+FilterYes -> Action
+Action -> Webhook
+Webhook -> Retry: "Failed"
+Webhook -> Success: "Success"
+Retry -> Webhook
+```
+
 ---
 
 ## Quick Start: 5 Minute Setup
