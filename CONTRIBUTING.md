@@ -255,14 +255,20 @@ cargo clippy --all-targets --all-features -- -D warnings
 Integration tests require PostgreSQL:
 
 ```bash
-# Create test database
-make db-setup
+# Create test database (local setup)
+make db-setup-local
+
+# Or use Docker containers
+make db-up
 
 # Run integration tests
 make test-integration
 
-# Clean up
-make db-teardown
+# Clean up (local)
+make db-teardown-local
+
+# Or stop Docker containers
+make db-down
 ```
 
 ### Coverage
@@ -323,26 +329,25 @@ FraiseQL v2 is a **compiled GraphQL execution engine**. Key principles:
 
 ### 1. Separation of Concerns
 
-- **Compiler**: Schema → SQL (compile-time)
-- **Runtime**: Query → Execution (runtime)
-- **Database**: Data storage and retrieval
+- **Compilation Layer**: Schema definition → SQL compilation (build-time via fraiseql-cli)
+- **Runtime Layer**: Query execution → Result streaming (runtime via fraiseql-server)
+- **Database Layer**: Data storage and retrieval (multi-database support)
 
-### 2. Code Reuse from v1
+See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation.
 
-See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
+### 2. Layered Optionality
 
-- **100% Reuse**: Schema, Error, Config, APQ
-- **90% Reuse**: Database, Security, Cache
-- **Refactor**: Query utilities, GraphQL parsing
-- **Rewrite**: Compiler, Runtime
+- **Core**: Minimal build includes GraphQL execution engine only
+- **Extensions**: Optional features via Cargo features (Arrow, Observers, Wire)
+- **Configuration**: All behavior controlled via fraiseql.toml or environment variables
 
 ### 3. World-Class Engineering
 
-- **No `unsafe` code** (except in rare, documented cases)
-- **Comprehensive error handling** with `Result`
+- **No `unsafe` code** (forbidden at compile time via Cargo.toml lints)
+- **Comprehensive error handling** with Result types and context
 - **Extensive documentation** for all public APIs
-- **Thorough testing** (85%+ coverage)
-- **Performance-conscious** design
+- **Thorough testing** (2,400+ tests: unit, integration, E2E, chaos)
+- **Performance-conscious** design with zero-copy patterns and compile-time optimization
 
 ---
 
@@ -350,7 +355,7 @@ See `IMPLEMENTATION_ROADMAP.md` for guidance on reusing v1 code:
 
 - **Questions**: Open a GitHub Discussion
 - **Bugs**: File a GitHub Issue
-- **Security**: Email <security@fraiseql.dev>
+- **Security**: Email <security@fraiseql.io>
 
 ---
 
