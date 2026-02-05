@@ -999,3 +999,15 @@ FraiseQL production deployments include:
 ✅ **Disaster recovery** - Backup/restore procedures, replication
 
 Start with the standard Kubernetes deployment template and scale to multi-region as needed.
+
+---
+
+## See Also
+
+- **[Deployment Runbooks](../operations/guide.md)** - Day-2 operations and common runbooks
+- **[Monitoring & Observability Guide](./monitoring.md)** - Setting up Prometheus, Grafana, and OpenTelemetry
+- **[Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** - Pre-production security verification
+- **[Troubleshooting Guide](../observability/troubleshooting.md)** - Common production issues and solutions
+- **[Scaling Guide](./README.md#horizontal-scaling)** - Horizontal and vertical scaling strategies
+- **[Multi-Region Deployment](./README.md#multi-region)** - Geographic distribution and failover
+- **[Federation Deployment](../integrations/federation/deployment.md)** - Multi-subgraph federation setup

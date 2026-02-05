@@ -2465,3 +2465,14 @@ FraiseQL's testing strategy is **comprehensive, deterministic, and fast**:
 **Status: COMPLETE** ✅
 
 All testing strategies documented and ready for implementation.
+
+---
+
+## See Also
+
+- **[E2E Testing Guide](./development/e2e-testing.md)** - End-to-end testing infrastructure and execution
+- **[Benchmarking Guide](./development/benchmarking.md)** - Performance benchmarking and profiling
+- **[Profiling Guide](./development/PROFILING_GUIDE.md)** - Performance profiling and optimization
+- **[Developer Guide](./development/DEVELOPER_GUIDE.md)** - Development setup and workflow
+- **[LINTING.md](./development/LINTING.md)** - Code quality and Clippy linting standards
+- **[CI/CD Integration](../CI_CD_INTEGRATION.md)** - Continuous integration and automated testing
