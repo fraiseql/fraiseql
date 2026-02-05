@@ -670,9 +670,8 @@ url = "postgresql://localhost/test"
 
 [domain_discovery]
 enabled = true
-root_dir = "{}"
-"#,
-            schema_dir_str
+root_dir = "{schema_dir_str}"
+"#
         );
 
         let toml_path = temp_dir.path().join("fraiseql.toml");
@@ -709,7 +708,7 @@ root_dir = "{}"
                 "queries": [],
                 "mutations": []
             });
-            fs::write(schema_dir.join(format!("{}/types.json", domain)), types.to_string())?;
+            fs::write(schema_dir.join(format!("{domain}/types.json")), types.to_string())?;
         }
 
         let schema_dir_str = schema_dir.to_string_lossy().to_string();
@@ -725,9 +724,8 @@ url = "postgresql://localhost/test"
 
 [domain_discovery]
 enabled = true
-root_dir = "{}"
-"#,
-            schema_dir_str
+root_dir = "{schema_dir_str}"
+"#
         );
 
         let toml_path = temp_dir.path().join("fraiseql.toml");

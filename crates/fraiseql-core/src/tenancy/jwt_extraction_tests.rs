@@ -194,7 +194,7 @@ fn test_admin_multi_tenant_query() {
     // (implementation-specific, not part of basic isolation)
 
     let admin_tenant = "SYSTEM";
-    let query_tenants = vec!["tenant_a", "tenant_b", "tenant_c"];
+    let query_tenants = ["tenant_a", "tenant_b", "tenant_c"];
 
     assert_eq!(admin_tenant, "SYSTEM");
     assert_eq!(query_tenants.len(), 3);
