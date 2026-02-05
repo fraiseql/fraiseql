@@ -350,4 +350,4 @@ FraiseQL is open source under the Apache 2.0 License.
 
 ---
 
-*Last updated: 2026-01-12*
+*Last updated: 2026-02-05*

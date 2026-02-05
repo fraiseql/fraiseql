@@ -43,6 +43,38 @@ Complete API and operator references.
 
 ---
 
+### Authoring Tools
+
+| Document | Description |
+|----------|-------------|
+| [cli-schema-format.md](cli-schema-format.md) | FraiseQL CLI schema format reference |
+| [view-selection-api.md](view-selection-api.md) | View selection API for automatic schema generation |
+
+---
+
+### Distributed Transactions
+
+| Document | Description | Lines | Est. Time |
+|----------|-------------|-------|-----------|
+| [SAGA_API.md](SAGA_API.md) | SAGA API reference for distributed transactions | 800+ | Reference |
+
+**Topics Covered:**
+
+- SAGA pattern for multi-database transactions
+- Coordinator API
+- Participant API
+- Compensation strategies
+- Retry policies
+- Timeout handling
+
+---
+
+### REST API Reference
+
+- **[API Reference](api/)** — Complete HTTP API endpoint documentation
+
+---
+
 ## 🎯 Using These References
 
 **For Schema Authors:**
