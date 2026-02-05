@@ -192,13 +192,13 @@ pub struct SagaResult {
 /// Saga coordinator for distributed transaction orchestration
 pub struct SagaCoordinator {
     /// Saga persistence store
-    _store:   Arc<dyn std::any::Any>,
+    _store:      Arc<dyn std::any::Any>,
     /// Forward phase executor
-    executor: Arc<dyn std::any::Any>,
+    executor:    Arc<dyn std::any::Any>,
     /// Compensation phase executor
     compensator: Arc<dyn std::any::Any>,
     /// Compensation strategy
-    strategy: CompensationStrategy,
+    strategy:    CompensationStrategy,
 }
 
 impl SagaCoordinator {
@@ -551,8 +551,8 @@ mod tests {
     #[tokio::test]
     async fn test_coordinator_with_executor() {
         // Phase 9.1: Coordinator wiring - executor can be set
-        let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
-            .with_executor(Arc::new(()));
+        let coordinator =
+            SagaCoordinator::new(CompensationStrategy::Automatic).with_executor(Arc::new(()));
 
         assert_eq!(coordinator.strategy(), CompensationStrategy::Automatic);
     }
@@ -560,8 +560,8 @@ mod tests {
     #[tokio::test]
     async fn test_coordinator_with_compensator() {
         // Phase 9.1: Coordinator wiring - compensator can be set
-        let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
-            .with_compensator(Arc::new(()));
+        let coordinator =
+            SagaCoordinator::new(CompensationStrategy::Automatic).with_compensator(Arc::new(()));
 
         assert_eq!(coordinator.strategy(), CompensationStrategy::Automatic);
     }

@@ -3,8 +3,9 @@
 //! Stores audit events in PostgreSQL with full-text search, JSONB storage,
 //! and performance-optimized indexes.
 
-use super::*;
 use deadpool_postgres::Pool;
+
+use super::*;
 
 /// PostgreSQL audit backend for persistent, queryable audit logs.
 ///
@@ -116,17 +117,14 @@ impl AuditBackend for PostgresAuditBackend {
         // Validate event before logging
         event.validate()?;
 
-        let client = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| AuditError::DatabaseError(format!("Failed to get connection: {}", e)))?;
+        let client =
+            self.pool.get().await.map_err(|e| {
+                AuditError::DatabaseError(format!("Failed to get connection: {}", e))
+            })?;
 
         let event_id = Self::parse_uuid(&event.id)?;
         let timestamp = chrono::DateTime::parse_from_rfc3339(&event.timestamp)
-            .map_err(|e| {
-                AuditError::DatabaseError(format!("Invalid timestamp format: {}", e))
-            })?
+            .map_err(|e| AuditError::DatabaseError(format!("Invalid timestamp format: {}", e)))?
             .with_timezone(&chrono::Utc);
 
         let insert_sql = r#"
@@ -170,11 +168,10 @@ impl AuditBackend for PostgresAuditBackend {
 
     /// Query audit events from PostgreSQL with filters.
     async fn query_events(&self, filters: AuditQueryFilters) -> AuditResult<Vec<AuditEvent>> {
-        let client = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| AuditError::DatabaseError(format!("Failed to get connection: {}", e)))?;
+        let client =
+            self.pool.get().await.map_err(|e| {
+                AuditError::DatabaseError(format!("Failed to get connection: {}", e))
+            })?;
 
         // Start with base query
         let mut query = "SELECT id, timestamp, event_type, user_id, username, ip_address, \
@@ -245,8 +242,10 @@ impl AuditBackend for PostgresAuditBackend {
         }
 
         // Convert owned strings to references for query parameters
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            param_strs.iter().map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_strs
+            .iter()
+            .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
 
         let rows = client
             .query(query.as_str(), params.as_slice())

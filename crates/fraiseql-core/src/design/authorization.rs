@@ -5,8 +5,9 @@
 //! - Missing @auth directives on sensitive fields
 //! - Scope mismatches between subgraphs
 
-use super::{AuthIssue, DesignAudit, IssueSeverity};
 use serde_json::Value;
+
+use super::{AuthIssue, DesignAudit, IssueSeverity};
 
 /// Analyze authorization patterns in the schema
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
@@ -18,7 +19,8 @@ pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
 fn check_auth_boundary_leaks(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         // First, collect fields that require auth from each type
-        let mut auth_required_fields: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut auth_required_fields: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
 
         for subgraph in subgraphs {
             if let Some(entities) = subgraph.get("entities").and_then(|v| v.as_array()) {
@@ -39,7 +41,11 @@ fn check_auth_boundary_leaks(schema: &Value, audit: &mut DesignAudit) {
                                 .unwrap_or(false);
 
                             if requires_auth {
-                                let field_name = field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                                let field_name = field
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
                                 auth_required_fields
                                     .entry(entity_name.clone())
                                     .or_insert_with(Vec::new)
@@ -60,11 +66,10 @@ fn check_auth_boundary_leaks(schema: &Value, audit: &mut DesignAudit) {
                         .and_then(|v| v.as_str())
                         .or_else(|| reference.get("target_subgraph").and_then(|v| v.as_str()))
                         .unwrap_or("unknown");
-                    let accessed_fields = reference.get("accessed_fields").and_then(|v| v.as_array());
-                    let has_auth_check = reference
-                        .get("has_auth_check")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    let accessed_fields =
+                        reference.get("accessed_fields").and_then(|v| v.as_array());
+                    let has_auth_check =
+                        reference.get("has_auth_check").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     if !has_auth_check {
                         if let Some(target_auth_fields) = auth_required_fields.get(target_type) {
@@ -102,21 +107,21 @@ fn check_missing_auth_directives(schema: &Value, audit: &mut DesignAudit) {
             if type_name == "Mutation" || type_name == "Subscription" {
                 if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                     for field in fields {
-                        let requires_auth = field
-                            .get("requires_auth")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
+                        let requires_auth =
+                            field.get("requires_auth").and_then(|v| v.as_bool()).unwrap_or(false);
 
                         if !requires_auth {
-                            let field_name = field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let field_name =
+                                field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                             audit.auth_issues.push(AuthIssue {
-                                severity: IssueSeverity::Warning,
-                                message: format!(
+                                severity:       IssueSeverity::Warning,
+                                message:        format!(
                                     "{}.{} is not protected by auth directive",
                                     type_name, field_name
                                 ),
-                                suggestion: "Add @auth directive or authentication requirement".to_string(),
+                                suggestion:     "Add @auth directive or authentication requirement"
+                                    .to_string(),
                                 affected_field: Some(field_name.to_string()),
                             });
                         }

@@ -18,7 +18,8 @@ fn create_test_schema() -> String {
                 ]
             }
         ]
-    }"#.to_string()
+    }"#
+    .to_string()
 }
 
 // ============================================================================
@@ -42,9 +43,9 @@ fn test_detect_over_federation() {
 
     assert!(!federation_issues.is_empty(), "Should detect over-federation");
     assert!(
-        federation_issues.iter().any(|issue| {
-            issue.message.contains("User") && issue.message.contains("3")
-        }),
+        federation_issues
+            .iter()
+            .any(|issue| { issue.message.contains("User") && issue.message.contains("3") }),
         "Should identify User entity in 3 subgraphs"
     );
 }
@@ -70,14 +71,12 @@ fn test_detect_circular_dependencies() {
 
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
+    assert!(!audit.federation_issues.is_empty(), "Should detect circular dependency");
     assert!(
-        !audit.federation_issues.is_empty(),
-        "Should detect circular dependency"
-    );
-    assert!(
-        audit.federation_issues.iter().any(|issue| {
-            issue.message.contains("Circular") || issue.message.contains("cycle")
-        }),
+        audit
+            .federation_issues
+            .iter()
+            .any(|issue| { issue.message.contains("Circular") || issue.message.contains("cycle") }),
         "Should identify circular dependency"
     );
 }
@@ -104,12 +103,7 @@ fn test_no_federation_issues_for_well_designed_schema() {
     let critical_or_warning = audit
         .federation_issues
         .iter()
-        .filter(|issue| {
-            matches!(
-                issue.severity,
-                IssueSeverity::Critical | IssueSeverity::Warning
-            )
-        })
+        .filter(|issue| matches!(issue.severity, IssueSeverity::Critical | IssueSeverity::Warning))
         .collect::<Vec<_>>();
 
     assert!(
@@ -147,10 +141,7 @@ fn test_detect_worst_case_complexity() {
 
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
-    assert!(
-        !audit.cost_warnings.is_empty(),
-        "Should detect worst-case complexity"
-    );
+    assert!(!audit.cost_warnings.is_empty(), "Should detect worst-case complexity");
     assert!(
         audit.cost_warnings.iter().any(|warning| {
             if let Some(complexity) = warning.worst_case_complexity {
@@ -215,10 +206,7 @@ fn test_detect_field_multipliers() {
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
     // Should detect multiplier patterns
-    assert!(
-        !audit.cost_warnings.is_empty(),
-        "Should detect field multiplier patterns"
-    );
+    assert!(!audit.cost_warnings.is_empty(), "Should detect field multiplier patterns");
 }
 
 // ============================================================================
@@ -254,10 +242,7 @@ fn test_detect_cache_incoherence() {
 
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
-    assert!(
-        !audit.cache_issues.is_empty(),
-        "Should detect cache TTL incoherence"
-    );
+    assert!(!audit.cache_issues.is_empty(), "Should detect cache TTL incoherence");
     assert!(
         audit.cache_issues.iter().any(|issue| {
             issue.message.contains("TTL") || issue.message.contains("inconsistent")
@@ -335,13 +320,11 @@ fn test_detect_auth_boundary_leak() {
 
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
-    assert!(
-        !audit.auth_issues.is_empty(),
-        "Should detect auth boundary leaks"
-    );
+    assert!(!audit.auth_issues.is_empty(), "Should detect auth boundary leaks");
     assert!(
         audit.auth_issues.iter().any(|issue| {
-            issue.message.contains("auth") && (issue.message.contains("boundary") || issue.message.contains("leak"))
+            issue.message.contains("auth")
+                && (issue.message.contains("boundary") || issue.message.contains("leak"))
         }),
         "Should identify cross-subgraph auth violation"
     );
@@ -368,9 +351,10 @@ fn test_detect_missing_auth_directives() {
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
     assert!(
-        audit.auth_issues.iter().any(|issue| {
-            issue.message.contains("auth") || issue.message.contains("protected")
-        }),
+        audit
+            .auth_issues
+            .iter()
+            .any(|issue| { issue.message.contains("auth") || issue.message.contains("protected") }),
         "Should warn about unprotected mutations"
     );
 }
@@ -497,7 +481,9 @@ fn test_design_audit_with_suggestions() {
     let audit = DesignAudit::from_schema_json(schema).unwrap();
 
     // Federation issues should have suggestions
-    let fed_with_suggestions = audit.federation_issues.iter()
+    let fed_with_suggestions = audit
+        .federation_issues
+        .iter()
         .filter(|issue| !issue.suggestion.is_empty())
         .count();
 
@@ -520,10 +506,15 @@ fn test_federation_single_entity_single_subgraph_passes() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let user_issues = audit.federation_issues.iter()
+    let user_issues = audit
+        .federation_issues
+        .iter()
         .filter(|i| i.entity.as_deref() == Some("User"))
         .collect::<Vec<_>>();
-    assert!(user_issues.is_empty(), "Entity in 1 subgraph should not trigger federation warning");
+    assert!(
+        user_issues.is_empty(),
+        "Entity in 1 subgraph should not trigger federation warning"
+    );
 }
 
 #[test]
@@ -536,7 +527,9 @@ fn test_federation_entity_in_two_subgraphs_with_reference() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let critical_fed = audit.federation_issues.iter()
+    let critical_fed = audit
+        .federation_issues
+        .iter()
         .filter(|i| i.severity == IssueSeverity::Critical)
         .collect::<Vec<_>>();
     assert!(critical_fed.is_empty(), "References (not duplicates) should not be critical");
@@ -553,7 +546,10 @@ fn test_federation_entity_in_exactly_three_subgraphs_warns() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    assert!(!audit.federation_issues.is_empty(), "Entity in 3 subgraphs should trigger warning");
+    assert!(
+        !audit.federation_issues.is_empty(),
+        "Entity in 3 subgraphs should trigger warning"
+    );
 }
 
 #[test]
@@ -569,10 +565,12 @@ fn test_federation_entity_in_five_subgraphs_critical() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let critical = audit.federation_issues.iter()
+    let critical = audit
+        .federation_issues
+        .iter()
         .filter(|i| i.severity == IssueSeverity::Critical)
         .collect::<Vec<_>>();
-    let _check = !critical.is_empty();  // Entity in 5 may or may not be marked critical depending on implementation
+    let _check = !critical.is_empty(); // Entity in 5 may or may not be marked critical depending on implementation
 }
 
 #[test]
@@ -587,7 +585,10 @@ fn test_federation_multiple_entities_spread() {
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
     // Should detect issues for entities in multiple subgraphs
-    assert!(!audit.federation_issues.is_empty(), "Multiple over-federated entities should trigger issues");
+    assert!(
+        !audit.federation_issues.is_empty(),
+        "Multiple over-federated entities should trigger issues"
+    );
 }
 
 #[test]
@@ -615,7 +616,7 @@ fn test_federation_circular_three_way() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let _check = !audit.federation_issues.is_empty();  // Three-way chains handled
+    let _check = !audit.federation_issues.is_empty(); // Three-way chains handled
 }
 
 // ============================================================================
@@ -635,7 +636,9 @@ fn test_cost_linear_query_no_warning() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let cost_critical = audit.cost_warnings.iter()
+    let cost_critical = audit
+        .cost_warnings
+        .iter()
         .filter(|w| w.severity == IssueSeverity::Critical)
         .collect::<Vec<_>>();
     assert!(cost_critical.is_empty(), "Linear query should not have critical cost warning");
@@ -688,10 +691,12 @@ fn test_cost_ten_level_nesting_critical() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let critical = audit.cost_warnings.iter()
+    let critical = audit
+        .cost_warnings
+        .iter()
         .filter(|w| w.severity == IssueSeverity::Critical)
         .collect::<Vec<_>>();
-    let _check = !critical.is_empty();  // Deep nesting handled
+    let _check = !critical.is_empty(); // Deep nesting handled
 }
 
 #[test]
@@ -708,7 +713,10 @@ fn test_cost_field_with_high_multiplier() {
     let audit = DesignAudit::from_schema_json(schema).unwrap();
     // High multiplier should trigger warning
     let has_warning = !audit.cost_warnings.is_empty();
-    assert!(has_warning || audit.cost_warnings.is_empty(), "Field with high multiplier should warn or be clean");
+    assert!(
+        has_warning || audit.cost_warnings.is_empty(),
+        "Field with high multiplier should warn or be clean"
+    );
 }
 
 // ============================================================================
@@ -727,7 +735,9 @@ fn test_cache_consistent_ttl_across_subgraphs() {
         ]
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
-    let ttl_issues = audit.cache_issues.iter()
+    let ttl_issues = audit
+        .cache_issues
+        .iter()
         .filter(|i| i.message.contains("TTL") || i.message.contains("cache"))
         .collect::<Vec<_>>();
     assert!(ttl_issues.is_empty(), "Consistent TTL should not trigger cache issue");
@@ -806,5 +816,8 @@ fn test_federation_many_duplicates_handling() {
     }"#;
     let audit = DesignAudit::from_schema_json(schema).unwrap();
     // Should detect or handle many duplicates
-    assert!(!audit.federation_issues.is_empty(), "Entity in 5 subgraphs should have federation issues");
+    assert!(
+        !audit.federation_issues.is_empty(),
+        "Entity in 5 subgraphs should have federation issues"
+    );
 }

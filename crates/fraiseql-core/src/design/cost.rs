@@ -13,8 +13,9 @@
 //!
 //! Rules detect patterns that force runtime decisions or defy compile-time cost calculation
 
-use super::{CostWarning, DesignAudit, IssueSeverity};
 use serde_json::Value;
+
+use super::{CostWarning, DesignAudit, IssueSeverity};
 
 /// Analyze query cost patterns in the schema
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
@@ -27,19 +28,19 @@ pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
 fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
     if let Some(types) = schema.get("types").and_then(|v| v.as_array()) {
         // Calculate compound multipliers for nested types
-        let mut type_multipliers: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+        let mut type_multipliers: std::collections::HashMap<String, u32> =
+            std::collections::HashMap::new();
 
         // First pass: collect direct multipliers
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let type_name =
+                type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
-                    if let Some(multiplier) = field.get("complexity_multiplier").and_then(|v| v.as_u64()) {
+                    if let Some(multiplier) =
+                        field.get("complexity_multiplier").and_then(|v| v.as_u64())
+                    {
                         let current = type_multipliers.entry(type_name.clone()).or_insert(0);
                         *current = (u64::from(*current) + multiplier).min(10000) as u32;
                     }
@@ -49,10 +50,7 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
 
         // Second pass: detect nested multipliers (lists within lists)
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let type_name = type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
@@ -66,9 +64,18 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                                 .to_string();
 
                             // Calculate compound complexity
-                            let base_multiplier = field.get("complexity_multiplier").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                            let inner_multiplier = type_multipliers.get(&inner_type).copied().unwrap_or(0);
-                            let compound = u32::try_from((u64::from(base_multiplier) * u64::from(inner_multiplier)).min(10000)).unwrap_or(10000);
+                            let base_multiplier = field
+                                .get("complexity_multiplier")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0)
+                                as u32;
+                            let inner_multiplier =
+                                type_multipliers.get(&inner_type).copied().unwrap_or(0);
+                            let compound = u32::try_from(
+                                (u64::from(base_multiplier) * u64::from(inner_multiplier))
+                                    .min(10000),
+                            )
+                            .unwrap_or(10000);
 
                             if compound > 1000 || base_multiplier > 50 {
                                 let severity = if compound > 5000 {
@@ -109,13 +116,12 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
                         if field_type.contains("[") && field_type.contains("]") {
                             // Check if it has a non-null default limit
                             // The key is that we must have an explicit, non-null default_limit
-                            let has_default_limit = field
-                                .get("default_limit")
-                                .map(|v| !v.is_null())
-                                .unwrap_or(false);
+                            let has_default_limit =
+                                field.get("default_limit").map(|v| !v.is_null()).unwrap_or(false);
 
                             if !has_default_limit {
-                                let field_name = field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                let field_name =
+                                    field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                                 audit.cost_warnings.push(CostWarning {
                                     severity: IssueSeverity::Warning,
@@ -138,15 +144,13 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
 /// Detect field multiplier patterns (lists within lists)
 fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
     if let Some(types) = schema.get("types").and_then(|v| v.as_array()) {
-        let mut type_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut type_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
 
         // First pass: identify list fields
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let type_name =
+                type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
@@ -164,10 +168,7 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
 
         // Second pass: detect multipliers (list field pointing to type with list fields)
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let type_name = type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {

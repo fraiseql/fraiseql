@@ -4,14 +4,11 @@
 //! that implements the `QueryExecutor` trait for type erasure, allowing
 //! the executor to be used with FraiseQLFlightService.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use fraiseql_arrow::QueryExecutor;
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::Executor,
-    security::SecurityContext,
-};
-use std::sync::Arc;
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
 
 /// Wrapper that adapts `Executor<A>` to the `QueryExecutor` trait.
 ///

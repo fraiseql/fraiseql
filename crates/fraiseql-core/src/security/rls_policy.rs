@@ -59,8 +59,7 @@
 //! description = "Admins have full access"
 //! ```
 
-use std::sync::Arc;
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
 

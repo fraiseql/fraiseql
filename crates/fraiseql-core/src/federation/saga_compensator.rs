@@ -110,13 +110,14 @@
 //! }
 //! ```
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::federation::saga_store::{PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState};
+use crate::federation::saga_store::{
+    PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState,
+};
 
 /// Represents the result of a compensation step execution
 ///
@@ -356,13 +357,10 @@ impl SagaCompensator {
         }
 
         // 3. Transition saga to Compensating state
-        store
-            .update_saga_state(saga_id, &SagaState::Compensating)
-            .await
-            .map_err(|e| {
-                info!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Compensating");
-                e
-            })?;
+        store.update_saga_state(saga_id, &SagaState::Compensating).await.map_err(|e| {
+            info!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Compensating");
+            e
+        })?;
 
         info!(saga_id = %saga_id, "Saga transitioned to Compensating");
 
@@ -373,10 +371,8 @@ impl SagaCompensator {
         })?;
 
         // Filter to completed steps only
-        let completed_steps: Vec<_> = steps
-            .iter()
-            .filter(|s| s.state == StepState::Completed)
-            .collect();
+        let completed_steps: Vec<_> =
+            steps.iter().filter(|s| s.state == StepState::Completed).collect();
 
         let mut step_results = vec![];
         let mut failed_steps = vec![];
@@ -408,7 +404,7 @@ impl SagaCompensator {
                         "Step compensation succeeded"
                     );
                     step_results.push(comp_result);
-                }
+                },
                 Err(e) => {
                     // Compensation failed - record failure but continue (resilience)
                     info!(
@@ -423,13 +419,13 @@ impl SagaCompensator {
                     // Create failure result
                     let failure_result = CompensationStepResult {
                         step_number: step.order as u32,
-                        success: false,
-                        data: None,
-                        error: Some(format!("Compensation failed: {:?}", e)),
+                        success:     false,
+                        data:        None,
+                        error:       Some(format!("Compensation failed: {:?}", e)),
                         duration_ms: 0,
                     };
                     step_results.push(failure_result);
-                }
+                },
             }
         }
 
@@ -448,13 +444,10 @@ impl SagaCompensator {
             _ => SagaState::Failed, // Keep as Failed if compensation partially or fully failed
         };
 
-        store
-            .update_saga_state(saga_id, &final_saga_state)
-            .await
-            .map_err(|e| {
-                info!(saga_id = %saga_id, error = ?e, "Failed to update final saga state");
-                e
-            })?;
+        store.update_saga_state(saga_id, &final_saga_state).await.map_err(|e| {
+            info!(saga_id = %saga_id, error = ?e, "Failed to update final saga state");
+            e
+        })?;
 
         let total_duration_ms = start_time.elapsed().as_millis() as u64;
 
@@ -571,10 +564,8 @@ impl SagaCompensator {
             e
         })?;
 
-        let saga_step = steps
-            .iter()
-            .find(|s| s.order == step_number as usize)
-            .ok_or_else(|| {
+        let saga_step =
+            steps.iter().find(|s| s.order == step_number as usize).ok_or_else(|| {
                 let step_id = Uuid::new_v4();
                 crate::federation::saga_store::SagaStoreError::StepNotFound(step_id)
             })?;
@@ -583,7 +574,7 @@ impl SagaCompensator {
         if saga_step.state != StepState::Completed {
             return Err(crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
                 from: format!("{:?}", saga_step.state),
-                to: "Compensation".to_string(),
+                to:   "Compensation".to_string(),
             });
         }
 

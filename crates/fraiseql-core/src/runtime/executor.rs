@@ -1008,14 +1008,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                     fields.push("__typename".to_string());
                 }
                 crate::federation::FieldSelection::new(fields)
-            }
+            },
             _ => {
                 // Fallback to wildcard if parsing fails or no fields extracted
                 crate::federation::FieldSelection::new(vec![
                     "__typename".to_string(),
                     "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
                 ])
-            }
+            },
         };
 
         // Extract or create trace context for federation operations

@@ -5,8 +5,9 @@
 //! - Missing cache directives on expensive fields
 //! - Cache coherency violations
 
-use super::{CacheIssue, DesignAudit, IssueSeverity};
 use serde_json::Value;
+
+use super::{CacheIssue, DesignAudit, IssueSeverity};
 
 /// Analyze cache patterns in the schema
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
@@ -17,14 +18,12 @@ pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
 /// Detect TTL inconsistencies across subgraphs
 fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
-        let mut entity_ttls: std::collections::HashMap<String, Vec<(String, u32)>> = std::collections::HashMap::new();
+        let mut entity_ttls: std::collections::HashMap<String, Vec<(String, u32)>> =
+            std::collections::HashMap::new();
 
         for subgraph in subgraphs {
-            let subgraph_name = subgraph
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let subgraph_name =
+                subgraph.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
 
             if let Some(entities) = subgraph.get("entities").and_then(|v| v.as_array()) {
                 for entity in entities {
@@ -36,10 +35,8 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
                         continue;
                     };
 
-                    let ttl = entity
-                        .get("cache_ttl_seconds")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0) as u32;
+                    let ttl = entity.get("cache_ttl_seconds").and_then(|v| v.as_u64()).unwrap_or(0)
+                        as u32;
 
                     entity_ttls
                         .entry(entity_name)
@@ -63,13 +60,13 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
                     .join(", ");
 
                 audit.cache_issues.push(CacheIssue {
-                    severity: IssueSeverity::Warning,
-                    message: format!("TTL inconsistency for {}: {}", entity, ttl_list),
+                    severity:   IssueSeverity::Warning,
+                    message:    format!("TTL inconsistency for {}: {}", entity, ttl_list),
                     suggestion: format!(
                         "Synchronize cache TTL for {} across all subgraphs to prevent stale data",
                         entity
                     ),
-                    affected: Some(entity),
+                    affected:   Some(entity),
                 });
             }
         }
@@ -82,25 +79,27 @@ fn check_missing_cache_directives(schema: &Value, audit: &mut DesignAudit) {
         for type_def in types {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
-                    let is_expensive = field
-                        .get("is_expensive")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    let is_expensive =
+                        field.get("is_expensive").and_then(|v| v.as_bool()).unwrap_or(false);
 
-                    let has_cache = field.get("has_cache_directive").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let has_cache =
+                        field.get("has_cache_directive").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     if is_expensive && !has_cache {
-                        let field_name = field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
-                        let type_name = type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                        let field_name =
+                            field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                        let type_name =
+                            type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                         audit.cache_issues.push(CacheIssue {
-                            severity: IssueSeverity::Info,
-                            message: format!(
+                            severity:   IssueSeverity::Info,
+                            message:    format!(
                                 "Expensive field {}.{} has no cache directive",
                                 type_name, field_name
                             ),
-                            suggestion: "Add @cache directive to reduce repeated computation".to_string(),
-                            affected: Some(format!("{}.{}", type_name, field_name)),
+                            suggestion: "Add @cache directive to reduce repeated computation"
+                                .to_string(),
+                            affected:   Some(format!("{}.{}", type_name, field_name)),
                         });
                     }
                 }

@@ -5,8 +5,9 @@
 //! - Field design anti-patterns
 //! - Interface/union usage suggestions
 
-use super::DesignAudit;
 use serde_json::Value;
+
+use super::DesignAudit;
 
 /// Analyze schema patterns
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {

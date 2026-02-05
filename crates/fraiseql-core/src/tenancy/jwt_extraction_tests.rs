@@ -89,10 +89,7 @@ fn test_uuid_tenant_id_from_jwt() {
         "email": "user@example.com"
     });
 
-    let extracted = claims
-        .get("tenant_id")
-        .and_then(|v| v.as_str())
-        .unwrap();
+    let extracted = claims.get("tenant_id").and_then(|v| v.as_str()).unwrap();
 
     assert_eq!(extracted, uuid_tenant);
 }

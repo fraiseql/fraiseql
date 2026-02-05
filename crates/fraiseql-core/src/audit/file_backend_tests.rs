@@ -2,8 +2,9 @@
 //!
 //! Tests for JSON lines file-based audit logging
 
-use super::*;
 use tempfile::TempDir;
+
+use super::*;
 
 // ============================================================================
 // Test 1: File Backend Creation
@@ -39,9 +40,7 @@ async fn test_file_backend_log_event() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     let event = AuditEvent::new_user_action(
         "user123",
@@ -62,30 +61,16 @@ async fn test_file_backend_json_lines_format() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     // Log first event
-    let event1 = AuditEvent::new_user_action(
-        "user1",
-        "alice",
-        "192.168.1.1",
-        "users",
-        "create",
-        "success",
-    );
+    let event1 =
+        AuditEvent::new_user_action("user1", "alice", "192.168.1.1", "users", "create", "success");
     backend.log_event(event1).await.ok();
 
     // Log second event
-    let event2 = AuditEvent::new_user_action(
-        "user2",
-        "bob",
-        "192.168.1.2",
-        "posts",
-        "delete",
-        "success",
-    );
+    let event2 =
+        AuditEvent::new_user_action("user2", "bob", "192.168.1.2", "posts", "delete", "success");
     backend.log_event(event2).await.ok();
 
     // Read file and verify format
@@ -109,9 +94,7 @@ async fn test_file_backend_appends() {
 
     // Create backend and log first event
     {
-        let backend = FileAuditBackend::new(&file_path)
-            .await
-            .expect("Failed to create backend");
+        let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
         let event = AuditEvent::new_user_action(
             "user1",
@@ -126,9 +109,7 @@ async fn test_file_backend_appends() {
 
     // Create new backend on same file and log second event
     {
-        let backend = FileAuditBackend::new(&file_path)
-            .await
-            .expect("Failed to create backend");
+        let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
         let event = AuditEvent::new_user_action(
             "user2",
@@ -158,9 +139,7 @@ async fn test_file_backend_query_events() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     // Log multiple events
     for i in 0..5 {
@@ -190,29 +169,15 @@ async fn test_file_backend_query_by_user() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     // Log events for different users
-    let event1 = AuditEvent::new_user_action(
-        "alice",
-        "alice",
-        "192.168.1.1",
-        "users",
-        "create",
-        "success",
-    );
+    let event1 =
+        AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "users", "create", "success");
     backend.log_event(event1).await.ok();
 
-    let event2 = AuditEvent::new_user_action(
-        "bob",
-        "bob",
-        "192.168.1.2",
-        "posts",
-        "delete",
-        "success",
-    );
+    let event2 =
+        AuditEvent::new_user_action("bob", "bob", "192.168.1.2", "posts", "delete", "success");
     backend.log_event(event2).await.ok();
 
     // Query for alice's events
@@ -234,9 +199,7 @@ async fn test_file_backend_query_with_limit() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     // Log 10 events
     for i in 0..10 {
@@ -273,18 +236,10 @@ async fn test_file_backend_write_error_handling() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
-    let event = AuditEvent::new_user_action(
-        "user1",
-        "alice",
-        "192.168.1.1",
-        "users",
-        "create",
-        "success",
-    );
+    let event =
+        AuditEvent::new_user_action("user1", "alice", "192.168.1.1", "users", "create", "success");
 
     // First write should succeed
     let result = backend.log_event(event.clone()).await;
@@ -316,9 +271,7 @@ async fn test_file_backend_bulk_logging() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     // Log 100 events
     for i in 0..100 {
@@ -353,9 +306,7 @@ async fn test_file_backend_concurrent_writes() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = temp_dir.path().join("audit.log");
 
-    let backend = FileAuditBackend::new(&file_path)
-        .await
-        .expect("Failed to create backend");
+    let backend = FileAuditBackend::new(&file_path).await.expect("Failed to create backend");
 
     let backend = std::sync::Arc::new(backend);
 

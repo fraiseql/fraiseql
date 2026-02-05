@@ -5,7 +5,7 @@
 //! - Memory usage during analysis
 //! - Latency percentiles (p50, p95, p99)
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::design::DesignAudit;
 
 // ============================================================================
@@ -17,7 +17,8 @@ fn minimal_schema() -> String {
         "types": [
             {"name": "User", "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]}
         ]
-    }"#.to_string()
+    }"#
+    .to_string()
 }
 
 fn typical_schema() -> String {
@@ -55,11 +56,8 @@ fn large_schema() -> String {
             i
         ));
     }
-    
-    format!(
-        r#"{{"types": [{}]}}"#,
-        types.join(",")
-    )
+
+    format!(r#"{{"types": [{}]}}"#, types.join(","))
 }
 
 fn complex_schema() -> String {
@@ -101,7 +99,8 @@ fn complex_schema() -> String {
                 {"name": "id", "type": "ID", "isPrimaryKey": true}
             ]}
         ]
-    }"#.to_string()
+    }"#
+    .to_string()
 }
 
 // ============================================================================
@@ -146,7 +145,7 @@ fn design_analysis_complex(c: &mut Criterion) {
 
 fn design_analysis_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("design_analysis_suite");
-    
+
     for schema_type in ["minimal", "typical", "complex"].iter() {
         group.bench_with_input(
             BenchmarkId::from_parameter(schema_type),
@@ -164,7 +163,7 @@ fn design_analysis_suite(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 

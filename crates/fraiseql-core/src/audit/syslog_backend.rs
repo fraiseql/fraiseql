@@ -2,8 +2,9 @@
 //!
 //! Sends audit events to a syslog server for centralized logging.
 
-use super::*;
 use std::time::Duration;
+
+use super::*;
 
 /// Syslog facility (for priority calculation)
 /// Facility * 8 + severity = priority
@@ -31,21 +32,21 @@ pub enum SyslogFacility {
 #[derive(Debug, Clone, Copy)]
 pub enum SyslogSeverity {
     /// Emergency
-    Emergency = 0,
+    Emergency     = 0,
     /// Alert
-    Alert = 1,
+    Alert         = 1,
     /// Critical
-    Critical = 2,
+    Critical      = 2,
     /// Error
-    Error = 3,
+    Error         = 3,
     /// Warning
-    Warning = 4,
+    Warning       = 4,
     /// Notice
-    Notice = 5,
+    Notice        = 5,
     /// Informational
     Informational = 6,
     /// Debug
-    Debug = 7,
+    Debug         = 7,
 }
 
 impl SyslogSeverity {
@@ -67,10 +68,10 @@ impl SyslogSeverity {
 #[derive(Clone)]
 pub struct SyslogAuditBackend {
     /// Syslog server host
-    host: String,
+    host:     String,
     /// Syslog server port (default 514)
     #[allow(dead_code)]
-    port: u16,
+    port:     u16,
     /// Application hostname to report in syslog messages
     #[allow(dead_code)]
     hostname: String,
@@ -82,7 +83,7 @@ pub struct SyslogAuditBackend {
     facility: SyslogFacility,
     /// Timeout for socket operations
     #[allow(dead_code)]
-    timeout: Duration,
+    timeout:  Duration,
 }
 
 impl SyslogAuditBackend {
@@ -168,9 +169,7 @@ impl SyslogAuditBackend {
 
         // Validate that host and port are set
         if self.host.is_empty() {
-            return Err(AuditError::NetworkError(
-                "Syslog host not configured".to_string(),
-            ));
+            return Err(AuditError::NetworkError("Syslog host not configured".to_string()));
         }
 
         Ok(())

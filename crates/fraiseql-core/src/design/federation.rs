@@ -15,8 +15,9 @@
 //! - **Missing Metadata**: Missing type info prevents compile-time optimization
 //! - **Reference Direction Ambiguity**: Bidirectional references without clarity
 
-use super::{DesignAudit, FederationIssue, IssueSeverity};
 use serde_json::Value;
+
+use super::{DesignAudit, FederationIssue, IssueSeverity};
 
 /// Analyze federation patterns through lens of JSONB batching optimization
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
@@ -34,14 +35,13 @@ pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
 fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         // Count entity occurrences across subgraphs
-        let mut entity_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        let mut entity_subgraphs: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut entity_count: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        let mut entity_subgraphs: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
 
         for subgraph in subgraphs {
-            let subgraph_name = subgraph
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let subgraph_name = subgraph.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
             if let Some(entities) = subgraph.get("entities").and_then(|v| v.as_array()) {
                 for entity in entities {
@@ -65,10 +65,7 @@ fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
         // Report entities in 3+ subgraphs - one warning per extra occurrence
         for (entity, count) in entity_count.iter() {
             if *count >= 3 {
-                let subgraph_list = entity_subgraphs
-                    .get(entity)
-                    .cloned()
-                    .unwrap_or_default();
+                let subgraph_list = entity_subgraphs.get(entity).cloned().unwrap_or_default();
 
                 // Issue a warning for JSONB fragmentation
                 audit.federation_issues.push(FederationIssue {
@@ -105,23 +102,19 @@ fn check_jsonb_fragmentation(schema: &Value, audit: &mut DesignAudit) {
 fn check_circular_jsonb_chains(schema: &Value, audit: &mut DesignAudit) {
     if let Some(subgraphs) = schema.get("subgraphs").and_then(|v| v.as_array()) {
         // Build dependency graph
-        let mut graph: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut graph: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
 
         for subgraph in subgraphs {
-            let subgraph_name = subgraph
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let subgraph_name =
+                subgraph.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
 
             let mut deps = Vec::new();
 
             // Check direct references
             if let Some(references) = subgraph.get("references").and_then(|v| v.as_array()) {
                 for reference in references {
-                    if let Some(target) = reference
-                        .get("target_subgraph")
-                        .and_then(|v| v.as_str())
+                    if let Some(target) = reference.get("target_subgraph").and_then(|v| v.as_str())
                     {
                         deps.push(target.to_string());
                     }
@@ -158,14 +151,7 @@ fn find_cycles(graph: &std::collections::HashMap<String, Vec<String>>) -> Vec<Ve
 
     for node in graph.keys() {
         if !visited.contains(node) {
-            dfs_cycle_detection(
-                node,
-                graph,
-                &mut visited,
-                &mut rec_stack,
-                &mut path,
-                &mut cycles,
-            );
+            dfs_cycle_detection(node, graph, &mut visited, &mut rec_stack, &mut path, &mut cycles);
         }
     }
 
@@ -211,8 +197,8 @@ fn check_missing_compilation_metadata(schema: &Value, _audit: &mut DesignAudit) 
                 for entity in entities {
                     // Check if entity is a string (simple name) vs object with details
                     if let Some(_entity_str) = entity.as_str() {
-                        // Simple string format - check if there's a federation key defined elsewhere
-                        // For now, just note it exists
+                        // Simple string format - check if there's a federation key defined
+                        // elsewhere For now, just note it exists
                     } else if let Some(entity_obj) = entity.as_object() {
                         if let Some(_name) = entity_obj.get("name") {
                             // Check if federation key is present

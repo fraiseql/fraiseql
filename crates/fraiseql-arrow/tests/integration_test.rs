@@ -120,15 +120,15 @@ async fn test_do_get_returns_empty_stream() {
         .expect("Failed to connect to Flight server");
 
     // Phase 2.2b: Create a session token for authentication
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
     struct SessionTokenClaims {
-        sub: String,
-        exp: i64,
-        iat: i64,
-        scopes: Vec<String>,
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
         session_type: String,
     }
 
@@ -136,10 +136,10 @@ async fn test_do_get_returns_empty_stream() {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: "test-user".to_string(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: vec!["user".to_string()],
+        sub:          "test-user".to_string(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };
 
@@ -176,10 +176,7 @@ async fn test_do_get_returns_empty_stream() {
 
     // Should return at least the schema message
     let first_item = stream.message().await.expect("Stream error");
-    assert!(
-        first_item.is_some(),
-        "Stream should return schema and data messages"
-    );
+    assert!(first_item.is_some(), "Stream should return schema and data messages");
 }
 
 #[tokio::test]
@@ -191,15 +188,15 @@ async fn test_invalid_ticket_returns_error() {
         .expect("Failed to connect to Flight server");
 
     // Phase 2.2b: Create a session token for authentication
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
     struct SessionTokenClaims {
-        sub: String,
-        exp: i64,
-        iat: i64,
-        scopes: Vec<String>,
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
         session_type: String,
     }
 
@@ -207,10 +204,10 @@ async fn test_invalid_ticket_returns_error() {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: "test-user".to_string(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: vec!["user".to_string()],
+        sub:          "test-user".to_string(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };
 

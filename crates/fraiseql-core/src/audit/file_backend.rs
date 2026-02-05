@@ -2,12 +2,11 @@
 //!
 //! Stores audit events as JSON lines in a file.
 
+use std::{path::Path, sync::Arc};
+
+use tokio::{fs::OpenOptions, io::AsyncWriteExt, sync::Mutex};
+
 use super::*;
-use std::path::Path;
-use std::sync::Arc;
-use tokio::fs::OpenOptions;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
 
 /// File-based audit backend that stores events as JSON lines.
 ///
@@ -94,10 +93,7 @@ impl AuditBackend for FileAuditBackend {
     /// Query audit events from the file.
     ///
     /// Reads all events from the file and applies filters in memory.
-    async fn query_events(
-        &self,
-        filters: AuditQueryFilters,
-    ) -> AuditResult<Vec<AuditEvent>> {
+    async fn query_events(&self, filters: AuditQueryFilters) -> AuditResult<Vec<AuditEvent>> {
         // Read file content
         let content = tokio::fs::read_to_string(&self.file_path)
             .await
@@ -135,11 +131,7 @@ impl AuditBackend for FileAuditBackend {
         let offset = filters.offset.unwrap_or(0);
         let limit = filters.limit.unwrap_or(100);
 
-        let paginated = events
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .collect();
+        let paginated = events.into_iter().skip(offset).take(limit).collect();
 
         Ok(paginated)
     }

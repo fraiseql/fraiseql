@@ -2,8 +2,9 @@
 //!
 //! Tests for tenant isolation, filtering, and JWT extraction
 
-use crate::tenancy::TenantContext;
 use serde_json::json;
+
+use crate::tenancy::TenantContext;
 
 // ============================================================================
 // Test 1: Tenant Context Creation and Isolation
@@ -131,10 +132,7 @@ fn test_tenant_id_special_chars() {
 #[test]
 fn test_tenant_id_uuid() {
     let uuid_tenant = TenantContext::new("550e8400-e29b-41d4-a716-446655440000");
-    assert_eq!(
-        uuid_tenant.id(),
-        "550e8400-e29b-41d4-a716-446655440000"
-    );
+    assert_eq!(uuid_tenant.id(), "550e8400-e29b-41d4-a716-446655440000");
 }
 
 // ============================================================================

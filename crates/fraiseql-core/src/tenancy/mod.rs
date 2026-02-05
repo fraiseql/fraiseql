@@ -29,6 +29,7 @@
 //! ```
 
 use std::collections::HashMap;
+
 use chrono::Utc;
 use serde_json::Value as JsonValue;
 
@@ -65,9 +66,9 @@ impl TenantContext {
     #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
         Self {
-            id: id.into(),
+            id:         id.into(),
             created_at: Utc::now().to_rfc3339(),
-            metadata: HashMap::new(),
+            metadata:   HashMap::new(),
         }
     }
 
@@ -138,9 +139,7 @@ impl TenantContext {
         let tenant_id = claims
             .get("tenant_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                "Missing or invalid 'tenant_id' claim in JWT".to_string()
-            })?;
+            .ok_or_else(|| "Missing or invalid 'tenant_id' claim in JWT".to_string())?;
 
         Ok(Self::new(tenant_id))
     }

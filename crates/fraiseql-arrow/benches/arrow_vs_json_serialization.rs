@@ -21,16 +21,18 @@
 //! DATABASE_URL="postgresql://localhost/postgres" cargo bench --package fraiseql-arrow --bench arrow_vs_json_serialization
 //! ```
 
-use criterion::{criterion_group, criterion_main, Criterion};
-use fraiseql_core::db::DatabaseAdapter;
-use fraiseql_arrow::convert::{RowToArrowConverter, ConvertConfig};
-use fraiseql_arrow::db_convert::convert_db_rows_to_arrow;
+use std::{io::Cursor, sync::Arc};
+
 use arrow::{
     datatypes::{DataType, Field, Schema},
     ipc::writer::StreamWriter,
 };
-use std::sync::Arc;
-use std::io::Cursor;
+use criterion::{Criterion, criterion_group, criterion_main};
+use fraiseql_arrow::{
+    convert::{ConvertConfig, RowToArrowConverter},
+    db_convert::convert_db_rows_to_arrow,
+};
+use fraiseql_core::db::DatabaseAdapter;
 
 /// Benchmark comparing JSON plane (v_users view) vs Arrow plane (ta_users table)
 fn benchmark_query_planes(c: &mut Criterion) {
@@ -47,30 +49,25 @@ fn benchmark_query_planes(c: &mut Criterion) {
                 eprintln!("Warning: Could not setup test tables: {}", e);
                 eprintln!("Benchmark requires running PostgreSQL with test data");
                 None
-            }
+            },
         }
     });
 
     if setup_result.is_none() {
-        eprintln!("Skipping benchmarks - PostgreSQL not available or test tables could not be created");
+        eprintln!(
+            "Skipping benchmarks - PostgreSQL not available or test tables could not be created"
+        );
         return;
     }
 
     let db_url = setup_result.unwrap();
 
     // Measure payload sizes once before benchmarking
-    let json_size_100 = rt.block_on(query_json_plane(&db_url, "LIMIT 100"))
-        .ok()
-        .map(|b| b.len());
-    let arrow_size_100 = rt.block_on(query_arrow_plane(&db_url, "LIMIT 100"))
-        .ok()
-        .map(|b| b.len());
-    let json_size_1000 = rt.block_on(query_json_plane(&db_url, "LIMIT 1000"))
-        .ok()
-        .map(|b| b.len());
-    let arrow_size_1000 = rt.block_on(query_arrow_plane(&db_url, "LIMIT 1000"))
-        .ok()
-        .map(|b| b.len());
+    let json_size_100 = rt.block_on(query_json_plane(&db_url, "LIMIT 100")).ok().map(|b| b.len());
+    let arrow_size_100 = rt.block_on(query_arrow_plane(&db_url, "LIMIT 100")).ok().map(|b| b.len());
+    let json_size_1000 = rt.block_on(query_json_plane(&db_url, "LIMIT 1000")).ok().map(|b| b.len());
+    let arrow_size_1000 =
+        rt.block_on(query_arrow_plane(&db_url, "LIMIT 1000")).ok().map(|b| b.len());
 
     // Print payload sizes
     println!("\n=== Payload Sizes ===");
@@ -105,9 +102,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
     group.bench_function("json_plane_100_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
-            async move {
-                query_json_plane(&db_url, "LIMIT 100").await.unwrap_or_default()
-            }
+            async move { query_json_plane(&db_url, "LIMIT 100").await.unwrap_or_default() }
         });
     });
 
@@ -115,9 +110,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
     group.bench_function("arrow_plane_100_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
-            async move {
-                query_arrow_plane(&db_url, "LIMIT 100").await.unwrap_or_default()
-            }
+            async move { query_arrow_plane(&db_url, "LIMIT 100").await.unwrap_or_default() }
         });
     });
 
@@ -125,9 +118,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
     group.bench_function("json_plane_1000_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
-            async move {
-                query_json_plane(&db_url, "LIMIT 1000").await.unwrap_or_default()
-            }
+            async move { query_json_plane(&db_url, "LIMIT 1000").await.unwrap_or_default() }
         });
     });
 
@@ -135,9 +126,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
     group.bench_function("arrow_plane_1000_rows", |b| {
         b.to_async(&rt).iter(|| {
             let db_url = db_url.clone();
-            async move {
-                query_arrow_plane(&db_url, "LIMIT 1000").await.unwrap_or_default()
-            }
+            async move { query_arrow_plane(&db_url, "LIMIT 1000").await.unwrap_or_default() }
         });
     });
 
@@ -201,13 +190,9 @@ async fn query_arrow_plane(
     let mut writer = StreamWriter::try_new(&mut buffer, &batch.schema())
         .map_err(|e| format!("Failed to create writer: {}", e))?;
 
-    writer
-        .write(&batch)
-        .map_err(|e| format!("Failed to write batch: {}", e))?;
+    writer.write(&batch).map_err(|e| format!("Failed to write batch: {}", e))?;
 
-    writer
-        .finish()
-        .map_err(|e| format!("Failed to finish write: {}", e))?;
+    writer.finish().map_err(|e| format!("Failed to finish write: {}", e))?;
 
     Ok(buffer.into_inner())
 }
@@ -266,9 +251,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
     .await?;
 
     // Create Arrow analytics table (ta_users) - could have different structure/partitioning
-    sqlx::query("DROP TABLE IF EXISTS ta_users")
-        .execute(&pool)
-        .await?;
+    sqlx::query("DROP TABLE IF EXISTS ta_users").execute(&pool).await?;
 
     sqlx::query(
         r#"

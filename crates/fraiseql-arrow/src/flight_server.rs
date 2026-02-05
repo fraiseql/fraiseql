@@ -7,7 +7,8 @@
 //!
 //! **Authenticated Query Execution**:
 //! - `handshake()` validates JWT tokens and returns 5-minute HMAC-SHA256 session tokens
-//! - `do_get()`, `do_action()`, `do_put()`, `do_exchange()` require valid session tokens via "Authorization: Bearer" header
+//! - `do_get()`, `do_action()`, `do_put()`, `do_exchange()` require valid session tokens via
+//!   "Authorization: Bearer" header
 //! - Session tokens are validated using `validate_session_token()` helper
 //! - Extracted tokens come from `extract_session_token()` helper
 //! - `SecurityContext` created for each request to enable Row-Level Security (RLS) in future phases
@@ -25,15 +26,15 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     flight_service_server::{FlightService, FlightServiceServer},
 };
+use async_trait::async_trait;
+use chrono::Utc;
+use fraiseql_core::security::OidcValidator;
 #[allow(unused_imports)]
 use futures::{Stream, StreamExt}; // StreamExt required for .next() on Pin<Box<dyn Stream>>
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use serde::{Deserialize, Serialize};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
-use fraiseql_core::security::OidcValidator;
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
-use chrono::Utc;
-use async_trait::async_trait;
 
 use crate::{
     cache::QueryCache,
@@ -111,20 +112,20 @@ type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType
 /// ```
 pub struct FraiseQLFlightService {
     /// Schema registry for pre-compiled Arrow views
-    schema_registry: SchemaRegistry,
+    schema_registry:  SchemaRegistry,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    db_adapter:      Option<Arc<dyn DatabaseAdapter>>,
+    db_adapter:       Option<Arc<dyn DatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
     /// Uses trait object to abstract over generic Executor<A> type.
-    executor:        Option<Arc<dyn QueryExecutor>>,
+    executor:         Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
-    cache:           Option<Arc<QueryCache>>,
+    cache:            Option<Arc<QueryCache>>,
     /// Phase 2: Optional security context for authenticated requests
     /// Stores session information from successful handshake
     security_context: Option<SecurityContext>,
     /// OIDC validator for JWT authentication during handshake
-    oidc_validator: Option<Arc<OidcValidator>>,
+    oidc_validator:   Option<Arc<OidcValidator>>,
 }
 
 /// Phase 2: Security context for authenticated Flight requests
@@ -134,9 +135,9 @@ pub struct SecurityContext {
     /// Session token returned from handshake
     pub session_token: String,
     /// User ID extracted from JWT
-    pub user_id: String,
+    pub user_id:       String,
     /// Token expiration time
-    pub expiration: Option<u64>,
+    pub expiration:    Option<u64>,
 }
 
 impl FraiseQLFlightService {
@@ -373,7 +374,8 @@ impl FraiseQLFlightService {
     /// **Setup (in fraiseql-server)**:
     /// 1. Import `fraiseql_core::runtime::Executor`
     /// 2. Create `Executor::new(schema, adapter)` with database adapter
-    /// 3. Wrap executor in Arc and cast as trait object: `Arc::new(executor) as Arc<dyn QueryExecutor>`
+    /// 3. Wrap executor in Arc and cast as trait object: `Arc::new(executor) as Arc<dyn
+    ///    QueryExecutor>`
     /// 4. Call `flight_service.set_executor(executor_trait_object)`
     ///
     /// **Query Execution with RLS**:
@@ -412,7 +414,8 @@ impl FraiseQLFlightService {
                 .map_err(|e| Status::internal(format!("Failed to parse query result: {e}")))?;
 
             // Convert JSON to Arrow RecordBatches
-            let batches = self.convert_json_to_arrow_batches(&parsed)
+            let batches = self
+                .convert_json_to_arrow_batches(&parsed)
                 .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
 
             // Stream schema first, then batches
@@ -807,13 +810,13 @@ impl Default for FraiseQLFlightService {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionTokenClaims {
     /// Subject (user ID)
-    sub: String,
+    sub:          String,
     /// Expiration time (Unix timestamp)
-    exp: i64,
+    exp:          i64,
     /// Issued at (Unix timestamp)
-    iat: i64,
+    iat:          i64,
     /// Scopes from original token
-    scopes: Vec<String>,
+    scopes:       Vec<String>,
     /// Session type marker
     session_type: String,
 }
@@ -825,45 +828,45 @@ fn map_security_error_to_status(error: fraiseql_core::security::SecurityError) -
     match error {
         SecurityError::TokenExpired { expired_at } => {
             Status::unauthenticated(format!("Token expired at {expired_at}"))
-        }
+        },
         SecurityError::InvalidToken => Status::unauthenticated("Invalid token"),
         SecurityError::TokenMissingClaim { claim } => {
             Status::unauthenticated(format!("Token missing claim: {claim}"))
-        }
+        },
         SecurityError::InvalidTokenAlgorithm { algorithm } => {
             Status::unauthenticated(format!("Invalid token algorithm: {algorithm}"))
-        }
+        },
         SecurityError::AuthRequired => Status::unauthenticated("Authentication required"),
         _ => Status::unauthenticated(format!("Authentication failed: {error}")),
     }
 }
 
 /// Create a short-lived session token (5 minutes).
-fn create_session_token(user: &fraiseql_core::security::auth_middleware::AuthenticatedUser) -> std::result::Result<String, Status> {
+fn create_session_token(
+    user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
+) -> std::result::Result<String, Status> {
     let now = Utc::now();
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: user.user_id.clone(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: user.scopes.clone(),
+        sub:          user.user_id.clone(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
     };
 
     // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| {
-            warn!("FLIGHT_SESSION_SECRET not set, using default (insecure for production)");
-            "flight-session-default-secret".to_string()
-        });
+    let secret = std::env::var("FLIGHT_SESSION_SECRET").unwrap_or_else(|_| {
+        warn!("FLIGHT_SESSION_SECRET not set, using default (insecure for production)");
+        "flight-session-default-secret".to_string()
+    });
 
     let key = EncodingKey::from_secret(secret.as_bytes());
     let header = Header::new(Algorithm::HS256);
 
-    encode(&header, &claims, &key).map_err(|e| {
-        Status::internal(format!("Failed to create session token: {e}"))
-    })
+    encode(&header, &claims, &key)
+        .map_err(|e| Status::internal(format!("Failed to create session token: {e}")))
 }
 
 /// Validate session token from gRPC request.
@@ -879,7 +882,9 @@ fn create_session_token(user: &fraiseql_core::security::auth_middleware::Authent
 /// # Returns
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
 /// * `Err(Status)` - Invalid token, expired, or malformed
-fn validate_session_token(token: &str) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
+fn validate_session_token(
+    token: &str,
+) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
     // Get secret (same as create_session_token)
     let secret = std::env::var("FLIGHT_SESSION_SECRET")
         .unwrap_or_else(|_| "flight-session-default-secret".to_string());
@@ -889,19 +894,18 @@ fn validate_session_token(token: &str) -> std::result::Result<fraiseql_core::sec
     validation.validate_exp = true; // Check expiration
 
     // Decode and verify token
-    let token_data = decode::<SessionTokenClaims>(token, &key, &validation)
-        .map_err(|e| {
-            warn!(error = %e, "Session token validation failed");
-            match e.kind() {
-                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                    Status::unauthenticated("Session token expired - perform handshake again")
-                }
-                jsonwebtoken::errors::ErrorKind::InvalidSignature => {
-                    Status::unauthenticated("Invalid session token signature")
-                }
-                _ => Status::unauthenticated(format!("Invalid session token: {e}")),
-            }
-        })?;
+    let token_data = decode::<SessionTokenClaims>(token, &key, &validation).map_err(|e| {
+        warn!(error = %e, "Session token validation failed");
+        match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                Status::unauthenticated("Session token expired - perform handshake again")
+            },
+            jsonwebtoken::errors::ErrorKind::InvalidSignature => {
+                Status::unauthenticated("Invalid session token signature")
+            },
+            _ => Status::unauthenticated(format!("Invalid session token: {e}")),
+        }
+    })?;
 
     let claims = token_data.claims;
 
@@ -934,9 +938,9 @@ fn validate_session_token(token: &str) -> std::result::Result<fraiseql_core::sec
 fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<String, Status> {
     let metadata = request.metadata();
 
-    let auth_header = metadata
-        .get("authorization")
-        .ok_or_else(|| Status::unauthenticated("Missing authorization header - perform handshake first"))?;
+    let auth_header = metadata.get("authorization").ok_or_else(|| {
+        Status::unauthenticated("Missing authorization header - perform handshake first")
+    })?;
 
     let auth_str = auth_header
         .to_str()
@@ -944,7 +948,9 @@ fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<String,
 
     auth_str
         .strip_prefix("Bearer ")
-        .ok_or_else(|| Status::unauthenticated("Invalid authorization format, expected 'Bearer <token>'"))
+        .ok_or_else(|| {
+            Status::unauthenticated("Invalid authorization format, expected 'Bearer <token>'")
+        })
         .map(|s| s.to_string())
 }
 
@@ -993,11 +999,11 @@ impl FlightService for FraiseQLFlightService {
             Ok(None) => {
                 warn!("Handshake: No request message received");
                 return Err(Status::invalid_argument("No handshake request provided"));
-            }
+            },
             Err(e) => {
                 warn!("Handshake: Error reading request: {}", e);
                 return Err(Status::internal(format!("Error reading handshake: {}", e)));
-            }
+            },
         };
 
         // Extract JWT from payload
@@ -1009,7 +1015,7 @@ impl FlightService for FraiseQLFlightService {
             None => {
                 warn!("Handshake: Missing 'Bearer' prefix in authentication payload");
                 return Err(Status::unauthenticated("Invalid authentication format"));
-            }
+            },
         };
 
         // Validate JWT if OIDC validator is configured
@@ -1018,11 +1024,11 @@ impl FlightService for FraiseQLFlightService {
                 Ok(user) => {
                     info!(user_id = %user.user_id, "JWT validation successful");
                     user
-                }
+                },
                 Err(e) => {
                     warn!(error = %e, "JWT validation failed");
                     return Err(map_security_error_to_status(e));
-                }
+                },
             };
 
             // Create session token
@@ -1032,7 +1038,7 @@ impl FlightService for FraiseQLFlightService {
             // Create response with session token
             let response = HandshakeResponse {
                 protocol_version: 0,
-                payload: session_token.as_bytes().to_vec().into(),
+                payload:          session_token.as_bytes().to_vec().into(),
             };
 
             // Build stream response
@@ -1047,7 +1053,7 @@ impl FlightService for FraiseQLFlightService {
 
             let response = HandshakeResponse {
                 protocol_version: 0,
-                payload: session_token.as_bytes().to_vec().into(),
+                payload:          session_token.as_bytes().to_vec().into(),
             };
 
             let stream = futures::stream::once(async move { Ok(response) });
@@ -1075,8 +1081,8 @@ impl FlightService for FraiseQLFlightService {
                 // Create Flight descriptor for this view
                 let descriptor = FlightDescriptor {
                     r#type: 1, // PATH
-                    path: vec![view_name.to_string()],
-                    cmd: b"".to_vec().into(),
+                    path:   vec![view_name.to_string()],
+                    cmd:    b"".to_vec().into(),
                 };
 
                 // Create ticket for this view (for client retrieval via GetSchema/DoGet)
@@ -1092,17 +1098,19 @@ impl FlightService for FraiseQLFlightService {
                 let options = IpcWriteOptions::default();
                 let data_gen = IpcDataGenerator::default();
                 let mut dict_tracker = DictionaryTracker::new(false);
-                let schema_bytes = data_gen.schema_to_bytes_with_dictionary_tracker(&schema, &mut dict_tracker, &options)
-                    .ipc_message.into();
+                let schema_bytes = data_gen
+                    .schema_to_bytes_with_dictionary_tracker(&schema, &mut dict_tracker, &options)
+                    .ipc_message
+                    .into();
 
                 let flight_info = FlightInfo {
-                    schema: schema_bytes,
+                    schema:            schema_bytes,
                     flight_descriptor: Some(descriptor),
-                    endpoint: vec![],
-                    total_records: -1, // Unknown until executed
-                    total_bytes: -1,
-                    ordered: false,
-                    app_metadata: vec![].into(),
+                    endpoint:          vec![],
+                    total_records:     -1, // Unknown until executed
+                    total_bytes:       -1,
+                    ordered:           false,
+                    app_metadata:      vec![].into(),
                 };
 
                 flight_infos.push(Ok(flight_info));
@@ -1201,7 +1209,8 @@ impl FlightService for FraiseQLFlightService {
         match ticket {
             FlightTicket::GraphQLQuery { query, variables } => {
                 // Phase 2.3: Pass security_context to execute_graphql_query for RLS
-                let stream = self.execute_graphql_query(&query, variables, &security_context).await?;
+                let stream =
+                    self.execute_graphql_query(&query, variables, &security_context).await?;
                 Ok(Response::new(Box::pin(stream)))
             },
             FlightTicket::OptimizedView {
@@ -1213,7 +1222,14 @@ impl FlightService for FraiseQLFlightService {
             } => {
                 // Phase 2.3: Pass security_context to execute_optimized_view for RLS
                 let stream = self
-                    .execute_optimized_view(&view, filter, order_by, limit, offset, &security_context)
+                    .execute_optimized_view(
+                        &view,
+                        filter,
+                        order_by,
+                        limit,
+                        offset,
+                        &security_context,
+                    )
                     .await?;
                 Ok(Response::new(Box::pin(stream)))
             },
@@ -1261,7 +1277,8 @@ impl FlightService for FraiseQLFlightService {
     /// Supported actions:
     /// - `ClearCache`: Clear all cached query results (requires "admin" scope)
     /// - `RefreshSchemaRegistry`: Reload schema definitions (requires "admin" scope)
-    /// - `HealthCheck`: Return service health status (public, no auth required beyond session token)
+    /// - `HealthCheck`: Return service health status (public, no auth required beyond session
+    ///   token)
     async fn do_action(
         &self,
         request: Request<Action>,
@@ -1282,32 +1299,29 @@ impl FlightService for FraiseQLFlightService {
                 // Admin-only action - verify "admin" scope
                 if !authenticated_user.scopes.contains(&"admin".to_string()) {
                     return Err(Status::permission_denied(
-                        "Cache invalidation requires 'admin' scope"
+                        "Cache invalidation requires 'admin' scope",
                     ));
                 }
 
                 self.handle_clear_cache()
-            }
+            },
             "RefreshSchemaRegistry" => {
                 // Admin-only action - verify "admin" scope
                 if !authenticated_user.scopes.contains(&"admin".to_string()) {
                     return Err(Status::permission_denied(
-                        "Schema registry refresh requires 'admin' scope"
+                        "Schema registry refresh requires 'admin' scope",
                     ));
                 }
 
                 self.handle_refresh_schema_registry()
-            }
+            },
             "HealthCheck" => {
                 // Public action - no special authorization needed beyond authentication
                 self.handle_health_check()
-            }
+            },
             _ => {
-                return Err(Status::invalid_argument(format!(
-                    "Unknown action: {}",
-                    action.r#type
-                )));
-            }
+                return Err(Status::invalid_argument(format!("Unknown action: {}", action.r#type)));
+            },
         };
 
         Ok(Response::new(Box::pin(stream)))
@@ -1324,15 +1338,15 @@ impl FlightService for FraiseQLFlightService {
 
         let actions = vec![
             Ok(ActionType {
-                r#type: "ClearCache".to_string(),
+                r#type:      "ClearCache".to_string(),
                 description: "Clear all cached query results".to_string(),
             }),
             Ok(ActionType {
-                r#type: "RefreshSchemaRegistry".to_string(),
+                r#type:      "RefreshSchemaRegistry".to_string(),
                 description: "Reload schema definitions".to_string(),
             }),
             Ok(ActionType {
-                r#type: "HealthCheck".to_string(),
+                r#type:      "HealthCheck".to_string(),
                 description: "Return service health status".to_string(),
             }),
         ];
@@ -1417,27 +1431,27 @@ impl FlightService for FraiseQLFlightService {
             FlightTicket::GraphQLQuery { .. } => {
                 // GraphQL queries return schema of query result
                 graphql_result_schema()
-            }
+            },
             FlightTicket::ObserverEvents { .. } => {
                 // Observer events return event schema
                 observer_event_schema()
-            }
+            },
             FlightTicket::OptimizedView { view, .. } => {
                 // Optimized views return pre-compiled view schema
                 self.schema_registry.get(&view).map_err(|e| {
                     Status::not_found(format!("Schema not found for view {view}: {e}"))
                 })?
-            }
+            },
             FlightTicket::BulkExport { .. } => {
                 // Bulk export not implemented yet
                 return Err(Status::unimplemented("BulkExport not supported"));
-            }
+            },
             FlightTicket::BatchedQueries { .. } => {
                 // Batched queries have per-query schemas in the data stream
                 return Err(Status::unimplemented(
                     "GetFlightInfo for BatchedQueries uses per-query schemas in data stream",
                 ));
-            }
+            },
         };
 
         // Serialize schema to IPC format
@@ -1451,13 +1465,13 @@ impl FlightService for FraiseQLFlightService {
 
         // Build FlightInfo response
         let flight_info = FlightInfo {
-            schema: schema_bytes,
+            schema:            schema_bytes,
             flight_descriptor: Some(descriptor),
-            endpoint: vec![], // Data retrieved via DoGet with same descriptor
-            total_records: -1, // Unknown until executed
-            total_bytes: -1,   // Unknown until executed
-            ordered: false,
-            app_metadata: vec![].into(),
+            endpoint:          vec![], // Data retrieved via DoGet with same descriptor
+            total_records:     -1,     // Unknown until executed
+            total_bytes:       -1,     // Unknown until executed
+            ordered:           false,
+            app_metadata:      vec![].into(),
         };
 
         info!("GetFlightInfo returning schema for ticket");
@@ -1475,7 +1489,6 @@ impl FlightService for FraiseQLFlightService {
         info!("PollFlightInfo called");
         Err(Status::unimplemented("PollFlightInfo not implemented yet"))
     }
-
 }
 
 /// Convert RecordBatch to FlightData using Arrow IPC encoding.
@@ -1755,7 +1768,6 @@ mod tests {
     }
 
     /// Tests that fraiseql-core types are now accessible
-    ///
     #[test]
     fn test_fraiseql_core_types_accessible() {
         // Should be able to import and use fraiseql-core types
@@ -1821,8 +1833,8 @@ mod tests {
     fn test_security_context_creation() {
         let context = SecurityContext {
             session_token: "session-12345".to_string(),
-            user_id: "user-456".to_string(),
-            expiration: Some(9999999999),
+            user_id:       "user-456".to_string(),
+            expiration:    Some(9999999999),
         };
 
         assert_eq!(context.session_token, "session-12345");
@@ -1839,8 +1851,8 @@ mod tests {
         // In Phase 2.2b, set security context after successful handshake
         let _context = SecurityContext {
             session_token: "session-abc".to_string(),
-            user_id: "user-123".to_string(),
-            expiration: None,
+            user_id:       "user-123".to_string(),
+            expiration:    None,
         };
 
         // security_context can be set on service after handshake completes
@@ -1885,25 +1897,26 @@ mod tests {
     #[tokio::test]
     async fn test_get_flight_info_for_optimized_view() {
         use tonic::Request;
+
         use crate::ticket::FlightTicket;
 
         let service = FraiseQLFlightService::new();
 
         // Create a FlightTicket for an optimized view and encode it
         let ticket = FlightTicket::OptimizedView {
-            view: "va_orders".to_string(),
-            filter: None,
+            view:     "va_orders".to_string(),
+            filter:   None,
             order_by: None,
-            limit: None,
-            offset: None,
+            limit:    None,
+            offset:   None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
         // Create a FlightDescriptor with encoded ticket bytes
         let descriptor = FlightDescriptor {
             r#type: 1, // PATH
-            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-            cmd: Default::default(),
+            path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd:    Default::default(),
         };
 
         let request = Request::new(descriptor);
@@ -1922,25 +1935,26 @@ mod tests {
     #[tokio::test]
     async fn test_get_flight_info_invalid_view() {
         use tonic::Request;
+
         use crate::ticket::FlightTicket;
 
         let service = FraiseQLFlightService::new();
 
         // Create a FlightTicket for a non-existent view and encode it
         let ticket = FlightTicket::OptimizedView {
-            view: "nonexistent_view".to_string(),
-            filter: None,
+            view:     "nonexistent_view".to_string(),
+            filter:   None,
             order_by: None,
-            limit: None,
-            offset: None,
+            limit:    None,
+            offset:   None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
         // Create a FlightDescriptor with encoded ticket bytes
         let descriptor = FlightDescriptor {
             r#type: 1, // PATH
-            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-            cmd: Default::default(),
+            path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd:    Default::default(),
         };
 
         let request = Request::new(descriptor);
@@ -1953,8 +1967,8 @@ mod tests {
     /// Phase 3.2: Tests that list_actions returns available actions
     #[tokio::test]
     async fn test_list_actions_returns_action_types() {
-        use tonic::Request;
         use arrow_flight::flight_service_server::FlightService;
+        use tonic::Request;
 
         let service = FraiseQLFlightService::new();
         let request = Request::new(Empty {});
@@ -1971,39 +1985,29 @@ mod tests {
         }
 
         // Should have at least 3 actions
-        assert!(
-            actions.len() >= 3,
-            "Should have at least 3 actions, got {}",
-            actions.len()
-        );
+        assert!(actions.len() >= 3, "Should have at least 3 actions, got {}", actions.len());
 
         // Verify action names exist
         let action_names: Vec<_> = actions.iter().map(|a| a.r#type.as_str()).collect();
-        assert!(
-            action_names.contains(&"ClearCache"),
-            "Should have ClearCache action"
-        );
+        assert!(action_names.contains(&"ClearCache"), "Should have ClearCache action");
         assert!(
             action_names.contains(&"RefreshSchemaRegistry"),
             "Should have RefreshSchemaRegistry action"
         );
-        assert!(
-            action_names.contains(&"HealthCheck"),
-            "Should have HealthCheck action"
-        );
+        assert!(action_names.contains(&"HealthCheck"), "Should have HealthCheck action");
     }
 
     /// Phase 2.2b: Tests that do_action requires authentication
     /// Phase 3.2: Tests that do_action executes HealthCheck action with authentication
     #[tokio::test]
     async fn test_do_action_health_check() {
-        use tonic::Request;
         use arrow_flight::flight_service_server::FlightService;
+        use tonic::Request;
 
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "HealthCheck".to_string(),
-            body: vec![].into(),
+            body:   vec![].into(),
         };
 
         // Phase 2.2b: Must include authentication
@@ -2012,10 +2016,10 @@ mod tests {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub: "test-user".to_string(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
-            scopes: vec!["user".to_string()],
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -2052,13 +2056,13 @@ mod tests {
     /// Phase 3.2: Tests that do_action returns error for unknown action
     #[tokio::test]
     async fn test_do_action_unknown_action() {
-        use tonic::Request;
         use arrow_flight::flight_service_server::FlightService;
+        use tonic::Request;
 
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "UnknownAction".to_string(),
-            body: vec![].into(),
+            body:   vec![].into(),
         };
 
         // Phase 2.2b: Must include authentication
@@ -2066,10 +2070,10 @@ mod tests {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub: "test-user".to_string(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
-            scopes: vec!["user".to_string()],
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -2091,10 +2095,7 @@ mod tests {
 
         let result = service.do_action(request).await;
 
-        assert!(
-            result.is_err(),
-            "Unknown action should return error"
-        );
+        assert!(result.is_err(), "Unknown action should return error");
     }
 
     /// Phase 3.1: Documents do_action() for cache operations

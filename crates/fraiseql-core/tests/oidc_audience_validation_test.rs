@@ -17,10 +17,7 @@ fn test_oidc_config_without_audience_fails_validation() {
     };
 
     let result = config.validate();
-    assert!(
-        result.is_err(),
-        "OIDC configuration without audience should fail validation"
-    );
+    assert!(result.is_err(), "OIDC configuration without audience should fail validation");
 
     let error_message = format!("{:?}", result.unwrap_err());
     assert!(

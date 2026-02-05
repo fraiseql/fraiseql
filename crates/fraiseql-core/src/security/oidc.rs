@@ -78,8 +78,9 @@ pub struct OidcConfig {
 
     /// Expected audience claim (REQUIRED for security).
     ///
-    /// **SECURITY CRITICAL**: This field is mandatory. Tokens must have this value in their `aud` claim.
-    /// This prevents token confusion attacks where tokens from one service can be used in another.
+    /// **SECURITY CRITICAL**: This field is mandatory. Tokens must have this value in their `aud`
+    /// claim. This prevents token confusion attacks where tokens from one service can be used
+    /// in another.
     ///
     /// For Auth0, this is typically your API identifier (e.g., "https://api.example.com").
     /// For other providers, use a unique identifier that represents your application.

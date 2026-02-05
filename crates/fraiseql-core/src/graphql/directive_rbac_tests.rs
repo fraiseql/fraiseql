@@ -7,18 +7,17 @@
 //! - Authorized access is allowed
 //! - Field masking works based on permissions
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use serde_json::json;
 
 use crate::graphql::{
+    RequirePermissionDirective, // Re-export for creating handler
     directive_evaluator::{
         CustomDirectiveEvaluator, DirectiveHandler, DirectiveResult, EvaluationContext,
         OperationType,
     },
-    RequirePermissionDirective, // Re-export for creating handler
 };
-use std::sync::Arc;
 
 // ============================================================================
 // Test 1: Permission Directive Handler Registration
@@ -56,10 +55,7 @@ fn test_require_permission_directive_missing_permission() {
 
     // This should fail - permission argument is required
     let result = handler.validate_args(&args);
-    assert!(
-        result.is_err(),
-        "validate_args should fail when permission argument is missing"
-    );
+    assert!(result.is_err(), "validate_args should fail when permission argument is missing");
 }
 
 // ============================================================================
@@ -89,13 +85,10 @@ fn test_authorized_user_can_access_field() {
 
     // Evaluate directive
     let result = handler.evaluate(&args, &context);
-    assert!(
-        result.is_ok(),
-        "Authorized user should be able to access field"
-    );
+    assert!(result.is_ok(), "Authorized user should be able to access field");
 
     match result {
-        Ok(DirectiveResult::Include) => {} // Expected
+        Ok(DirectiveResult::Include) => {}, // Expected
         _ => panic!("Expected DirectiveResult::Include for authorized access"),
     }
 }
@@ -121,8 +114,8 @@ fn test_unauthorized_user_denied_access() {
     match result {
         Ok(DirectiveResult::Error(msg)) => {
             assert!(msg.to_lowercase().contains("permission"));
-        }
-        Ok(DirectiveResult::Skip) => {} // Also acceptable
+        },
+        Ok(DirectiveResult::Skip) => {}, // Also acceptable
         _ => panic!("Expected permission denied for unauthorized access"),
     }
 }
@@ -146,7 +139,7 @@ fn test_wildcard_permission_grants_access() {
     assert!(result.is_ok(), "Wildcard permission should grant access");
 
     match result {
-        Ok(DirectiveResult::Include) => {} // Expected
+        Ok(DirectiveResult::Include) => {}, // Expected
         _ => panic!("Expected DirectiveResult::Include for wildcard permission"),
     }
 }
@@ -168,10 +161,7 @@ fn test_partial_wildcard_permission() {
         .with_user_context("permissions", json!(["query:*"]));
 
     let result = handler.evaluate(&args, &context);
-    assert!(
-        result.is_ok(),
-        "Partial wildcard 'query:*' should match 'query:users:read'"
-    );
+    assert!(result.is_ok(), "Partial wildcard 'query:*' should match 'query:users:read'");
 }
 
 // ============================================================================
@@ -197,8 +187,8 @@ fn test_sensitive_field_masked_without_permission() {
     match result {
         Ok(DirectiveResult::Transform(masked_value)) => {
             assert_eq!(masked_value, json!("[REDACTED]"));
-        }
-        Ok(DirectiveResult::Error(_)) => {} // Also acceptable
+        },
+        Ok(DirectiveResult::Error(_)) => {}, // Also acceptable
         _ => panic!("Expected field masking for unauthorized access"),
     }
 }
@@ -264,13 +254,13 @@ fn test_user_with_no_permissions_denied() {
     args.insert("permission".to_string(), json!("query:users:read"));
 
     // User with empty permissions array
-    let context = EvaluationContext::new(HashMap::new())
-        .with_user_context("permissions", json!([]));
+    let context =
+        EvaluationContext::new(HashMap::new()).with_user_context("permissions", json!([]));
 
     let result = handler.evaluate(&args, &context);
     match result {
-        Ok(DirectiveResult::Error(_)) => {} // Expected
-        Ok(DirectiveResult::Skip) => {}       // Also acceptable
+        Ok(DirectiveResult::Error(_)) => {}, // Expected
+        Ok(DirectiveResult::Skip) => {},     // Also acceptable
         _ => panic!("Expected access denied for user with no permissions"),
     }
 }
@@ -280,10 +270,7 @@ fn test_user_with_no_permissions_denied() {
 fn test_deeply_nested_wildcard_permission() {
     let handler = create_require_permission_handler();
     let mut args = HashMap::new();
-    args.insert(
-        "permission".to_string(),
-        json!("query:users:read:detailed:metadata"),
-    );
+    args.insert("permission".to_string(), json!("query:users:read:detailed:metadata"));
 
     // User has matching nested wildcard
     let context = EvaluationContext::new(HashMap::new())
@@ -291,10 +278,7 @@ fn test_deeply_nested_wildcard_permission() {
         .with_user_context("permissions", json!(["query:users:read:*"]));
 
     let result = handler.evaluate(&args, &context);
-    assert!(
-        result.is_ok(),
-        "Nested wildcard should match detailed permission"
-    );
+    assert!(result.is_ok(), "Nested wildcard should match detailed permission");
 }
 
 /// Test that empty permission string is rejected
@@ -305,10 +289,7 @@ fn test_empty_permission_string_rejected() {
     args.insert("permission".to_string(), json!(""));
 
     let result = handler.validate_args(&args);
-    assert!(
-        result.is_err(),
-        "Empty permission string should be rejected"
-    );
+    assert!(result.is_err(), "Empty permission string should be rejected");
 }
 
 /// Test that maskValue can be a string
@@ -361,8 +342,8 @@ fn test_permission_matching_case_sensitive() {
     let result = handler.evaluate(&args, &context);
     // Should fail because permissions are case-sensitive
     match result {
-        Ok(DirectiveResult::Error(_)) => {} // Expected
-        Ok(DirectiveResult::Skip) => {}      // Also acceptable
+        Ok(DirectiveResult::Error(_)) => {}, // Expected
+        Ok(DirectiveResult::Skip) => {},     // Also acceptable
         _ => panic!("Permissions should be case-sensitive"),
     }
 }
@@ -394,8 +375,7 @@ fn test_register_with_custom_evaluator() {
 #[test]
 fn test_multiple_handlers_with_require_permission() {
     let permission_directive = Arc::new(RequirePermissionDirective::new());
-    let evaluator = CustomDirectiveEvaluator::new()
-        .with_handler(permission_directive);
+    let evaluator = CustomDirectiveEvaluator::new().with_handler(permission_directive);
 
     assert!(evaluator.has_handler("require_permission"));
     let handlers = evaluator.handler_names();

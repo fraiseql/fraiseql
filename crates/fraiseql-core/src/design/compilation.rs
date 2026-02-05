@@ -11,11 +11,13 @@
 //! Rules detect:
 //! - **Circular type definitions**: User { posts: [Post] }, Post { author: User { posts } }
 //! - **Missing primary keys**: Types without ID can't be compiled efficiently
-//! - **Missing cardinality hints**: Compiler can't generate optimal SQL without knowing relationships
+//! - **Missing cardinality hints**: Compiler can't generate optimal SQL without knowing
+//!   relationships
 //! - **Missing index recommendations**: JSONB batching needs FK indexes
 
-use super::{DesignAudit, SchemaIssue, IssueSeverity};
 use serde_json::Value;
+
+use super::{DesignAudit, IssueSeverity, SchemaIssue};
 
 /// Analyze compilation suitability of schema types
 pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
@@ -28,14 +30,12 @@ pub fn analyze(schema: &Value, audit: &mut DesignAudit) {
 fn check_type_circularity(schema: &Value, audit: &mut DesignAudit) {
     if let Some(types) = schema.get("types").and_then(|v| v.as_array()) {
         // Build type reference graph
-        let mut type_refs: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut type_refs: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
 
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let type_name =
+                type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
@@ -84,9 +84,7 @@ fn is_scalar_type(type_name: &str) -> bool {
 }
 
 /// Find cycles in type reference graph
-fn find_type_cycles(
-    graph: &std::collections::HashMap<String, Vec<String>>,
-) -> Vec<Vec<String>> {
+fn find_type_cycles(graph: &std::collections::HashMap<String, Vec<String>>) -> Vec<Vec<String>> {
     let mut cycles = Vec::new();
     let mut visited = std::collections::HashSet::new();
     let mut rec_stack = std::collections::HashSet::new();
@@ -94,14 +92,7 @@ fn find_type_cycles(
 
     for node in graph.keys() {
         if !visited.contains(node) {
-            dfs_find_type_cycle(
-                node,
-                graph,
-                &mut visited,
-                &mut rec_stack,
-                &mut path,
-                &mut cycles,
-            );
+            dfs_find_type_cycle(node, graph, &mut visited, &mut rec_stack, &mut path, &mut cycles);
         }
     }
 
@@ -124,22 +115,14 @@ fn dfs_find_type_cycle(
     if let Some(neighbors) = graph.get(node) {
         for neighbor in neighbors {
             if !visited.contains(neighbor) {
-                dfs_find_type_cycle(
-                    neighbor,
-                    graph,
-                    visited,
-                    rec_stack,
-                    path,
-                    cycles,
-                );
+                dfs_find_type_cycle(neighbor, graph, visited, rec_stack, path, cycles);
             } else if rec_stack.contains(neighbor) {
                 // Found a cycle
                 if let Some(pos) = path.iter().position(|n| n == neighbor) {
                     let cycle: Vec<String> = path[pos..].to_vec();
                     if !cycles.iter().any(|c| {
                         // Avoid reporting same cycle multiple times
-                        c.len() == cycle.len()
-                            && c.windows(1).any(|w| w[0] == cycle[0])
+                        c.len() == cycle.len() && c.windows(1).any(|w| w[0] == cycle[0])
                     }) {
                         cycles.push(cycle);
                     }
@@ -156,10 +139,7 @@ fn dfs_find_type_cycle(
 fn check_missing_primary_keys(schema: &Value, audit: &mut DesignAudit) {
     if let Some(types) = schema.get("types").and_then(|v| v.as_array()) {
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let type_name = type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
             // Skip Query, Mutation, Subscription
             if matches!(type_name, "Query" | "Mutation" | "Subscription") {
@@ -167,11 +147,9 @@ fn check_missing_primary_keys(schema: &Value, audit: &mut DesignAudit) {
             }
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
-                let has_pk = fields.iter().any(|f| {
-                    f.get("isPrimaryKey")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                });
+                let has_pk = fields
+                    .iter()
+                    .any(|f| f.get("isPrimaryKey").and_then(|v| v.as_bool()).unwrap_or(false));
 
                 if !has_pk {
                     audit.schema_issues.push(SchemaIssue {
@@ -195,10 +173,7 @@ fn check_missing_primary_keys(schema: &Value, audit: &mut DesignAudit) {
 fn check_missing_cardinality_hints(schema: &Value, audit: &mut DesignAudit) {
     if let Some(types) = schema.get("types").and_then(|v| v.as_array()) {
         for type_def in types {
-            let type_name = type_def
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+            let type_name = type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
@@ -206,16 +181,14 @@ fn check_missing_cardinality_hints(schema: &Value, audit: &mut DesignAudit) {
                         // Check if field references a custom type
                         if field_type.contains("[") && !field_type.contains("[") {
                             // Single object reference
-                            let inner_type = field_type
-                                .trim_matches('!')
-                                .to_string();
+                            let inner_type = field_type.trim_matches('!').to_string();
 
                             // Check if cardinality is marked
-                            let has_cardinality =
-                                field.get("cardinality").is_some();
+                            let has_cardinality = field.get("cardinality").is_some();
 
                             if !has_cardinality && !is_scalar_type(&inner_type) {
-                                let field_name = field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                let field_name =
+                                    field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                                 audit.schema_issues.push(SchemaIssue {
                                     severity: IssueSeverity::Info,

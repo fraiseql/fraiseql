@@ -259,10 +259,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         // SQL Server uses square brackets for identifiers and TOP for LIMIT
         // e.g., "JSON_QUERY((SELECT data FOR JSON PATH, WITHOUT_ARRAY_WRAPPER))"
         let mut sql = if let Some(lim) = limit {
-            format!(
-                "SELECT TOP {} {} FROM [{}]",
-                lim, projection.projection_template, view
-            )
+            format!("SELECT TOP {} {} FROM [{}]", lim, projection.projection_template, view)
         } else {
             format!("SELECT {} FROM [{}]", projection.projection_template, view)
         };

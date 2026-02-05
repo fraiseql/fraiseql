@@ -92,25 +92,17 @@ impl RequirePermissionDirective {
         context
             .get_user_context("permissions")
             .and_then(|v| v.as_array())
-            .map(|perms| {
-                perms
-                    .iter()
-                    .filter_map(|p| p.as_str().map(String::from))
-                    .collect()
-            })
+            .map(|perms| perms.iter().filter_map(|p| p.as_str().map(String::from)).collect())
             .unwrap_or_default()
     }
 
     /// Check if user has required permission.
     ///
     /// Returns true if any user permission matches the required permission.
-    fn user_has_permission(
-        required_permission: &str,
-        user_permissions: &[String],
-    ) -> bool {
-        user_permissions.iter().any(|perm| {
-            Self::permission_matches(perm, required_permission)
-        })
+    fn user_has_permission(required_permission: &str, user_permissions: &[String]) -> bool {
+        user_permissions
+            .iter()
+            .any(|perm| Self::permission_matches(perm, required_permission))
     }
 }
 
@@ -134,9 +126,7 @@ impl DirectiveHandler for RequirePermissionDirective {
         let required_permission = args
             .get("permission")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                DirectiveError::MissingDirectiveArgument("permission".to_string())
-            })?;
+            .ok_or_else(|| DirectiveError::MissingDirectiveArgument("permission".to_string()))?;
 
         // Get user permissions from context
         let user_permissions = Self::get_user_permissions(context);
@@ -162,9 +152,7 @@ impl DirectiveHandler for RequirePermissionDirective {
     fn validate_args(&self, args: &HashMap<String, JsonValue>) -> Result<(), DirectiveError> {
         // Check that permission argument is present and is a string
         if !args.contains_key("permission") {
-            return Err(DirectiveError::MissingDirectiveArgument(
-                "permission".to_string(),
-            ));
+            return Err(DirectiveError::MissingDirectiveArgument("permission".to_string()));
         }
 
         let permission = args
@@ -206,14 +194,8 @@ mod tests {
 
     #[test]
     fn test_permission_matches_wildcard() {
-        assert!(RequirePermissionDirective::permission_matches(
-            "*:*",
-            "query:users:read"
-        ));
-        assert!(RequirePermissionDirective::permission_matches(
-            "query:*",
-            "query:users:read"
-        ));
+        assert!(RequirePermissionDirective::permission_matches("*:*", "query:users:read"));
+        assert!(RequirePermissionDirective::permission_matches("query:*", "query:users:read"));
         assert!(!RequirePermissionDirective::permission_matches(
             "mutation:*",
             "query:users:read"

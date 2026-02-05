@@ -1,7 +1,8 @@
 //! Tests for audit event structure
 
-use super::*;
 use serde_json::json;
+
+use super::*;
 
 // ============================================================================
 // Test 1: Audit Event Creation
@@ -174,8 +175,7 @@ fn test_audit_event_deserialization() {
     );
 
     let json = serde_json::to_string(&event).expect("Should serialize");
-    let deserialized: AuditEvent =
-        serde_json::from_str(&json).expect("Should deserialize");
+    let deserialized: AuditEvent = serde_json::from_str(&json).expect("Should deserialize");
 
     assert_eq!(deserialized.user_id, event.user_id);
     assert_eq!(deserialized.username, event.username);
@@ -219,14 +219,8 @@ fn test_audit_query_filters_with_values() {
 /// Test audit event with optional fields
 #[test]
 fn test_audit_event_optional_fields() {
-    let event = AuditEvent::new_user_action(
-        "user123",
-        "alice",
-        "192.168.1.1",
-        "users",
-        "read",
-        "success",
-    );
+    let event =
+        AuditEvent::new_user_action("user123", "alice", "192.168.1.1", "users", "read", "success");
 
     assert_eq!(event.resource_id, None);
     assert_eq!(event.before_state, None);

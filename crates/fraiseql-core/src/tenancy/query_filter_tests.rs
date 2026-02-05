@@ -61,11 +61,8 @@ fn test_parameterized_query_postgresql() {
     let base_query = "SELECT id, name FROM users";
 
     // Use parameterized query for PostgreSQL
-    let filtered = format!(
-        "{} WHERE {} AND active = $2",
-        base_query,
-        tenant.where_clause_postgresql(1)
-    );
+    let filtered =
+        format!("{} WHERE {} AND active = $2", base_query, tenant.where_clause_postgresql(1));
 
     assert!(filtered.contains("$1"));
     assert!(filtered.contains("$2"));
@@ -79,11 +76,8 @@ fn test_parameterized_query_mysql() {
     let base_query = "SELECT id, name FROM users";
 
     // Use parameterized query for MySQL
-    let filtered = format!(
-        "{} WHERE {} AND active = ?",
-        base_query,
-        tenant.where_clause_parameterized()
-    );
+    let filtered =
+        format!("{} WHERE {} AND active = ?", base_query, tenant.where_clause_parameterized());
 
     assert!(filtered.contains("?"));
     assert_eq!(filtered.matches("?").count(), 2); // Two parameter placeholders

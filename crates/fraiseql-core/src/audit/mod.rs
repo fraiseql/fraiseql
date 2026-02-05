@@ -114,21 +114,25 @@ impl AuditEvent {
         let action_str = action.into();
 
         Self {
-            id: Uuid::new_v4().to_string(),
-            timestamp: Utc::now().to_rfc3339(),
-            event_type: format!("{}_{}", resource_type_str.to_lowercase(), action_str.to_lowercase()),
-            user_id: user_id.into(),
-            username: username.into(),
-            ip_address: ip_address.into(),
+            id:            Uuid::new_v4().to_string(),
+            timestamp:     Utc::now().to_rfc3339(),
+            event_type:    format!(
+                "{}_{}",
+                resource_type_str.to_lowercase(),
+                action_str.to_lowercase()
+            ),
+            user_id:       user_id.into(),
+            username:      username.into(),
+            ip_address:    ip_address.into(),
             resource_type: resource_type_str,
-            resource_id: None,
-            action: action_str,
-            before_state: None,
-            after_state: None,
-            status: status.into(),
+            resource_id:   None,
+            action:        action_str,
+            before_state:  None,
+            after_state:   None,
+            status:        status.into(),
             error_message: None,
-            tenant_id: None,
-            metadata: JsonValue::Object(serde_json::Map::new()),
+            tenant_id:     None,
+            metadata:      JsonValue::Object(serde_json::Map::new()),
         }
     }
 
@@ -180,20 +184,15 @@ impl AuditEvent {
     pub fn validate(&self) -> AuditResult<()> {
         // Validate required fields
         if self.user_id.is_empty() {
-            return Err(AuditError::ValidationError(
-                "user_id cannot be empty".to_string(),
-            ));
+            return Err(AuditError::ValidationError("user_id cannot be empty".to_string()));
         }
 
         // Validate status is one of allowed values
         match self.status.as_str() {
-            "success" | "failure" | "denied" => {}
+            "success" | "failure" | "denied" => {},
             _ => {
-                return Err(AuditError::ValidationError(format!(
-                    "Invalid status: {}",
-                    self.status
-                )))
-            }
+                return Err(AuditError::ValidationError(format!("Invalid status: {}", self.status)));
+            },
         }
 
         // Validate that status=failure has error_message
@@ -241,10 +240,7 @@ pub trait AuditBackend: Send + Sync {
     async fn log_event(&self, event: AuditEvent) -> AuditResult<()>;
 
     /// Query audit events from this backend.
-    async fn query_events(
-        &self,
-        filters: AuditQueryFilters,
-    ) -> AuditResult<Vec<AuditEvent>>;
+    async fn query_events(&self, filters: AuditQueryFilters) -> AuditResult<Vec<AuditEvent>>;
 }
 
 /// Filters for querying audit events
@@ -281,15 +277,15 @@ pub struct AuditQueryFilters {
 impl Default for AuditQueryFilters {
     fn default() -> Self {
         Self {
-            event_type: None,
-            user_id: None,
+            event_type:    None,
+            user_id:       None,
             resource_type: None,
-            status: None,
-            tenant_id: None,
-            start_time: None,
-            end_time: None,
-            limit: Some(100),
-            offset: None,
+            status:        None,
+            tenant_id:     None,
+            start_time:    None,
+            end_time:      None,
+            limit:         Some(100),
+            offset:        None,
         }
     }
 }

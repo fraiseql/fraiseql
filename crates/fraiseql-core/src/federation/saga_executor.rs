@@ -73,13 +73,12 @@
 //! }
 //! ```
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::federation::saga_store::{Result as SagaStoreResult, PostgresSagaStore, StepState};
+use crate::federation::saga_store::{PostgresSagaStore, Result as SagaStoreResult, StepState};
 
 /// Represents a step result from execution
 ///
@@ -245,19 +244,19 @@ impl SagaExecutor {
 
             // Find the step we're executing
             let step_id = Uuid::new_v4(); // Placeholder ID for error reporting
-            let saga_step = steps
-                .iter()
-                .find(|s| s.order == step_number as usize)
-                .ok_or_else(|| {
+            let saga_step =
+                steps.iter().find(|s| s.order == step_number as usize).ok_or_else(|| {
                     crate::federation::saga_store::SagaStoreError::StepNotFound(step_id)
                 })?;
 
             // 2. Check step state is Pending
             if saga_step.state != StepState::Pending {
-                return Err(crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
-                    from: format!("{:?}", saga_step.state),
-                    to: "Executing".to_string(),
-                });
+                return Err(
+                    crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
+                        from: format!("{:?}", saga_step.state),
+                        to:   "Executing".to_string(),
+                    },
+                );
             }
 
             // 3. Transition step to Executing
@@ -431,7 +430,7 @@ impl SagaExecutor {
                         "Step executed successfully"
                     );
                     results.push(step_result);
-                }
+                },
                 Err(e) => {
                     // Step failed - capture error and stop execution
                     warn!(
@@ -454,7 +453,7 @@ impl SagaExecutor {
 
                     saga_failed = true;
                     break;
-                }
+                },
             }
         }
 
@@ -462,10 +461,7 @@ impl SagaExecutor {
         if !saga_failed {
             // All steps succeeded - transition to Completed
             store
-                .update_saga_state(
-                    saga_id,
-                    &crate::federation::saga_store::SagaState::Completed,
-                )
+                .update_saga_state(saga_id, &crate::federation::saga_store::SagaState::Completed)
                 .await
                 .map_err(|e| {
                     warn!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Completed");
@@ -532,26 +528,22 @@ impl SagaExecutor {
                 let total = steps.len() as u32;
 
                 // Count completed steps
-                let completed = steps
-                    .iter()
-                    .filter(|s| s.state == StepState::Completed)
-                    .count() as u32;
+                let completed =
+                    steps.iter().filter(|s| s.state == StepState::Completed).count() as u32;
 
                 // Find first non-completed step as current_step
-                let current = steps
-                    .iter()
-                    .find(|s| s.state != StepState::Completed)
-                    .map(|s| s.order as u32);
+                let current =
+                    steps.iter().find(|s| s.state != StepState::Completed).map(|s| s.order as u32);
 
                 // Check if saga failed
                 let is_failed = saga_data.state == crate::federation::saga_store::SagaState::Failed;
 
                 (total, completed, is_failed, None, current)
-            }
+            },
             None => {
                 // Saga not found - return zero state
                 (0, 0, false, None, None)
-            }
+            },
         };
 
         let state = ExecutionState {
@@ -650,11 +642,11 @@ impl SagaExecutor {
                     entity.insert(key, value);
                 }
                 serde_json::Value::Object(entity)
-            }
+            },
             (entity, _) => {
                 // If entity is not an object, return as-is
                 entity
-            }
+            },
         }
     }
 }
@@ -735,13 +727,7 @@ mod tests {
         let executor = SagaExecutor::new();
         let saga_id = Uuid::new_v4();
         let result = executor
-            .execute_step(
-                saga_id,
-                1,
-                "testMutation",
-                &serde_json::json!({}),
-                "test-service",
-            )
+            .execute_step(saga_id, 1, "testMutation", &serde_json::json!({}), "test-service")
             .await;
 
         assert!(result.is_ok());
@@ -809,13 +795,7 @@ mod tests {
         let mut results = vec![];
         for step_num in 1..=3 {
             let result = executor
-                .execute_step(
-                    saga_id,
-                    step_num,
-                    "mutation",
-                    &serde_json::json!({}),
-                    "service",
-                )
+                .execute_step(saga_id, step_num, "mutation", &serde_json::json!({}), "service")
                 .await;
 
             if let Ok(step_result) = result {
@@ -853,13 +833,7 @@ mod tests {
         // Execute some steps
         for step_num in 1..=2 {
             let _ = executor
-                .execute_step(
-                    saga_id,
-                    step_num,
-                    "mutation",
-                    &serde_json::json!({}),
-                    "service",
-                )
+                .execute_step(saga_id, step_num, "mutation", &serde_json::json!({}), "service")
                 .await;
         }
 
@@ -875,13 +849,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
 
         let result = executor
-            .execute_step(
-                saga_id,
-                1,
-                "createOrder",
-                &serde_json::json!({}),
-                "orders-service",
-            )
+            .execute_step(saga_id, 1, "createOrder", &serde_json::json!({}), "orders-service")
             .await;
 
         assert!(result.is_ok());
@@ -901,13 +869,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
 
         let result = executor
-            .execute_step(
-                saga_id,
-                1,
-                "mutation",
-                &serde_json::json!({}),
-                "service",
-            )
+            .execute_step(saga_id, 1, "mutation", &serde_json::json!({}), "service")
             .await;
 
         assert!(result.is_ok());
@@ -921,13 +883,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
 
         let result = executor
-            .execute_step(
-                saga_id,
-                1,
-                "mutation",
-                &serde_json::json!({}),
-                "service",
-            )
+            .execute_step(saga_id, 1, "mutation", &serde_json::json!({}), "service")
             .await;
 
         assert!(result.is_ok());

@@ -13,15 +13,15 @@ use tonic::transport::Server;
 
 /// Create a session token for authenticated testing
 fn create_test_session_token() -> String {
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
     struct SessionTokenClaims {
-        sub: String,
-        exp: i64,
-        iat: i64,
-        scopes: Vec<String>,
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
         session_type: String,
     }
 
@@ -29,10 +29,10 @@ fn create_test_session_token() -> String {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: "test-user".to_string(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: vec!["user".to_string()],
+        sub:          "test-user".to_string(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };
 
@@ -182,10 +182,7 @@ async fn test_do_get_ta_orders_returns_data() {
             .expect("Failed to insert auth header"),
     );
 
-    let response = client
-        .do_get(request)
-        .await
-        .expect("DoGet failed for ta_orders");
+    let response = client.do_get(request).await.expect("DoGet failed for ta_orders");
 
     // Collect the stream - should have schema + batches
     let mut stream = response.into_inner();
@@ -245,10 +242,7 @@ async fn test_do_get_ta_users_returns_data() {
             .expect("Failed to insert auth header"),
     );
 
-    let response = client
-        .do_get(request)
-        .await
-        .expect("DoGet failed for ta_users");
+    let response = client.do_get(request).await.expect("DoGet failed for ta_users");
 
     // Collect the stream - should have schema + batches
     let mut stream = response.into_inner();
