@@ -693,10 +693,15 @@ impl FlightService for FraiseQLFlightService {
         // Phase 2.1b (GREEN): In full implementation, validate JWT here using JwtValidator
         // For now, accept any JWT format and generate session token
         // TODO: Validate _token using JwtValidator from fraiseql-server
+        // SECURITY WARNING: This accepts ANY JWT format without validation. This is a placeholder
+        // for development/testing only and MUST NOT be deployed to production without proper JWT validation.
+        #[allow(unused_variables)]
+        let _token_validation_skipped = &_token; // Mark intentional for security review
 
         // Generate session token (in Phase 2.2, this would include JWT claims)
         let session_token = format!("session-{}", uuid::Uuid::new_v4());
 
+        warn!("Handshake: JWT validation is DISABLED. Not suitable for production use.");
         info!("Handshake: JWT authentication succeeded, session: {}", session_token);
 
         // Create response with session token

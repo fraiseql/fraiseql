@@ -19,12 +19,14 @@ See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) f
 FraiseQL v2 handles GraphQL query execution for relational databases. It's built on a simple principle: resolve all GraphQL semantics at compile time, execute queries at runtime without interpretation.
 
 **Core approach:**
+
 - Define your schema in Python, TypeScript, YAML, or GraphQL SDL
 - Run the compiler to produce a compiled schema
 - Start the server with the compiled schema and database connection
 - Execute GraphQL queries
 
 **What's different from typical GraphQL servers:**
+
 - No resolver chain execution (all logic is in the database via views and functions)
 - No N+1 query problems (joins are determined at compile time)
 - No runtime interpretation of schema semantics (they're resolved at build)
@@ -33,6 +35,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 **What's included in v2.0.0-alpha.1:**
 
 **Core GraphQL Engine:**
+
 - Core GraphQL execution (queries, mutations, types, interfaces, unions)
 - Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - Automatic WHERE type generation from GraphQL scalar types
@@ -40,6 +43,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Automatic Persisted Queries (APQ) with query allowlisting
 
 **Data & Integration:**
+
 - Webhooks integration (extensible provider system: Discord, Slack, GitHub, Stripe, + more)
 - Change Data Capture (CDC) at the database layer with full entity context
 - Event system with webhook dispatch, NATS JetStream messaging, and action routing
@@ -47,11 +51,13 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Backup and disaster recovery (point-in-time restore, failover support)
 
 **Performance & Streaming:**
+
 - Streaming JSON results via fraiseql-wire (process rows as they arrive, bounded memory)
 - Query result caching with automatic invalidation
 - Apache Arrow Flight data plane (columnar format, 25-40% more compact than JSON)
 
 **Enterprise Security Suite:**
+
 - Rate limiting on authentication endpoints (brute-force protection)
 - Audit logging for all mutations and admin operations (multiple backends: file, PostgreSQL, Syslog)
 - Constant-time token comparison (timing attack prevention)
@@ -62,6 +68,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - OAuth state encryption (PKCE protection against state inspection)
 
 **Secrets Management:**
+
 - HashiCorp Vault integration (dynamic secrets, transit encryption, lease management)
 - Environment variables backend with validation
 - File-based secrets backend for local development
@@ -69,6 +76,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - Database schema for secrets and key management
 
 **External Authentication:**
+
 - OAuth2/OIDC support with 7+ providers:
   * GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
 - JWT token handling with rotation support
@@ -77,6 +85,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - PKCE flow support for secure token exchange
 
 **Quality & Testing:**
+
 - 2,400+ tests, all passing (unit, integration, E2E, chaos engineering)
 - Zero unsafe code (forbidden at compile time)
 - Strict type system (all critical Clippy warnings as errors)
@@ -93,10 +102,10 @@ The workflow is straightforward:
 1. Define Schema                    2. Compile to SQL
    (Python/TypeScript/YAML)            (fraiseql-cli compile)
 
-   Schema definition              CompiledSchema.json
-   + database views               (with optimized SQL)
-   + config (TOML)                    │
-         │                            ▼
+   Schema definition                CompiledSchema.json
+   + database views                 (with optimized SQL)
+   + config (TOML)                      │
+         │                              ▼
          └──────────────────────────────┘
                         │
                         ▼
@@ -239,6 +248,7 @@ That's the basic flow. For more examples and language-specific guides, see the d
 FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
 **Supported (v2.0.0-alpha.1):**
+
 - Python ✅
 - TypeScript ✅
 - Go ✅
@@ -257,6 +267,7 @@ FraiseQL v2 supports 16+ programming languages for schema authoring. All produce
 - Node.js ✅
 
 **Configuration Languages:**
+
 - YAML (configuration-driven schemas)
 - GraphQL SDL (standard schema syntax)
 
@@ -271,20 +282,24 @@ See `docs/guides/language-generators.md` for examples in each supported language
 The project includes comprehensive documentation:
 
 **Architecture & Design:**
+
 - `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
 - `docs/prd/PRD.md` — Product requirements and vision
 - `docs/architecture/` — Compilation pipeline, execution model, database targeting
 
 **Specifications:**
+
 - `docs/specs/` — Schema conventions, compiled schema format, CDC format
 - `docs/reference/` — Scalar types, WHERE operators, complete API reference
 
 **Operations:**
+
 - `docs/guides/production-deployment.md` — Kubernetes setup and hardening
 - `docs/guides/monitoring.md` — Prometheus metrics, OpenTelemetry tracing
 - `docs/enterprise/` — RBAC, audit logging, key management
 
 **Getting started:**
+
 - `docs/guides/language-generators.md` — Examples for each supported language
 - `docs/guides/development/e2e-testing.md` — Testing setup and CI/CD integration
 - `docs/ALPHA_TESTING_GUIDE.md` — Essential guide for alpha testers
@@ -300,8 +315,8 @@ FraiseQL enforces naming conventions to enable automatic compilation:
 | `tb_` | Write table (normalized) | `tb_user`, `tb_post` |
 | `v_` | Read view (JSON plane) | `v_user`, `v_post` |
 | `fn_` | Stored procedure (mutations) | `fn_create_user`, `fn_update_post` |
-| `pk_` | Primary key (internal) | `pk_user INTEGER` |
-| `fk_` | Foreign key (internal) | `fk_user INTEGER` |
+| `pk_` | Primary key (internal) | `pk_user BIGINT` |
+| `fk_` | Foreign key (internal) | `fk_user BIGINT` |
 | `id` | Public identifier | `id UUID` |
 
 See `docs/specs/schema-conventions.md` for complete conventions.
@@ -358,7 +373,8 @@ FraiseQL provides two specialized ways to stream large result sets:
 
 Current release: **v2.0.0-alpha.1**
 
-**Core Features (Complete):**
+**Core Features:**
+
 - ✅ Core GraphQL engine (schema parsing, type validation, query execution, mutation support)
 - ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server with database-specific optimizations)
 - ✅ Schema authoring in 16+ languages with compile-time verification
@@ -370,7 +386,8 @@ Current release: **v2.0.0-alpha.1**
 - ✅ Query result caching with automatic invalidation
 - ✅ Automatic Persisted Queries (APQ) with query allowlisting
 
-**Enterprise Features (Complete):**
+**Enterprise Features:**
+
 - ✅ OAuth2/OIDC with 7+ providers (GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible)
 - ✅ Field-level authorization via GraphQL directives
 - ✅ Field-level encryption-at-rest for database columns
@@ -383,7 +400,8 @@ Current release: **v2.0.0-alpha.1**
 - ✅ Multi-tenant isolation with per-tenant data scoping
 - ✅ RBAC database schema and permission system
 
-**Data & Integration (Complete):**
+**Data & Integration:**
+
 - ✅ CDC (Change Data Capture) with database-agnostic event format
 - ✅ Event system with webhooks (extensible provider architecture: Discord, Slack, GitHub, Stripe)
 - ✅ NATS JetStream messaging integration
@@ -391,6 +409,7 @@ Current release: **v2.0.0-alpha.1**
 - ✅ Backup and disaster recovery support
 
 **Quality (Complete):**
+
 - ✅ Comprehensive test suite (2,400+ tests: unit, integration, E2E, chaos engineering)
 - ✅ Zero unsafe code (forbidden at compile time)
 - ✅ Strict type system (all critical Clippy warnings as errors)
@@ -398,6 +417,7 @@ Current release: **v2.0.0-alpha.1**
 - ✅ Performance benchmarks (Arrow vs JSON serialization)
 
 **Next Steps:**
+
 - Community testing and deployment feedback
 - Real-world production validation
 - Performance optimization based on usage patterns

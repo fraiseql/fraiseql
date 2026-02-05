@@ -283,7 +283,7 @@ fn test_custom_scalar_mixed_in_where() {
                 WhereClause::Field { value, .. } => {
                     assert!(value.as_str().unwrap().contains("T"));
                 },
-                _ => panic!(),
+                _ => panic!("Expected Field variant in first clause"),
             }
 
             match &clauses[1] {
@@ -291,7 +291,7 @@ fn test_custom_scalar_mixed_in_where() {
                     let uuid = value.as_str().unwrap();
                     assert_eq!(uuid.len(), 36);
                 },
-                _ => panic!(),
+                _ => panic!("Expected Field variant in second clause"),
             }
 
             match &clauses[2] {
@@ -299,7 +299,7 @@ fn test_custom_scalar_mixed_in_where() {
                     let price = value.as_str().unwrap();
                     assert!(price.contains("."));
                 },
-                _ => panic!(),
+                _ => panic!("Expected Field variant in third clause"),
             }
         },
         _ => panic!("Should be And variant"),
