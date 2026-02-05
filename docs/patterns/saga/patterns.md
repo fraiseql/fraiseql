@@ -32,25 +32,63 @@ Execute steps one after another. Each step depends on the previous one's success
 
 #### Example: Order Processing
 
-```text
-Step 1: Validate order       ✓
-         ↓
-Step 2: Charge payment      ✓
-         ↓
-Step 3: Reserve inventory   ✓
-         ↓
-Step 4: Ship items          ✓
-```text
+```d2
+direction: down
 
-#### If Step 3 fails
+Validate: "Step 1: Validate order\n✓" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
 
-```text
-Step 4: Undo reservation    ✓
-         ↑
-Step 3: Undo charge         ✓
-         ↑
-(Step 2 validation passes)   ✓
-```text
+Charge: "Step 2: Charge payment\n✓" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Reserve: "Step 3: Reserve inventory\n✓" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Ship: "Step 4: Ship items\n✓" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Validate -> Charge
+Charge -> Reserve
+Reserve -> Ship
+```
+
+**If Step 3 fails:**
+
+```d2
+direction: up
+
+UndoReserve: "Compensation: Undo reservation\n✓" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+UndoCharge: "Compensation: Refund charge\n✓" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+ValidatePasses: "Step 1: Validation passes\n✓" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Error: "❌ Step 3 Failed\n(insufficient inventory)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+Error -> UndoReserve
+UndoReserve -> UndoCharge
+UndoCharge -> ValidatePasses
+```
 
 #### Code Example
 
@@ -79,15 +117,50 @@ Execute independent steps concurrently.
 
 #### Example: Customer Onboarding
 
-```text
-Parallel:
-├── Create user account
-├── Initialize payment method
-├── Send welcome email
-└── Subscribe to newsletter
+```d2
+direction: right
 
-(All 4 can run simultaneously)
-```text
+Start: "Customer\nOnboarding\nSaga" {
+  shape: box
+  style.fill: "#e3f2fd"
+}
+
+Account: "Create user\naccount" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Payment: "Initialize\npayment method" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Email: "Send welcome\nemail" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Newsletter: "Subscribe to\nnewsletter" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Complete: "All tasks\ncomplete\n✓" {
+  shape: box
+  style.fill: "#e8f5e9"
+}
+
+Start -> Account
+Start -> Payment
+Start -> Email
+Start -> Newsletter
+Account -> Complete
+Payment -> Complete
+Email -> Complete
+Newsletter -> Complete
+
+note: "(All 4 run simultaneously - independent steps)"
+```
 
 #### Code Example
 

@@ -378,17 +378,48 @@ class Mutation:
 
 ### State Machine
 
-```text
-pending
-    ↓
-confirmed (payment received)
-    ↓
-processing (preparing for shipment)
-    ↓
-shipped (in transit)
-    ↓
-delivered (final destination)
-```text
+```d2
+direction: down
+
+Pending: "pending\n(awaiting payment)" {
+  shape: box
+  style.fill: "#fff9c4"
+}
+
+Confirmed: "confirmed\n(payment received)" {
+  shape: box
+  style.fill: "#fff3e0"
+}
+
+Processing: "processing\n(preparing shipment)" {
+  shape: box
+  style.fill: "#ffe0b2"
+}
+
+Shipped: "shipped\n(in transit)" {
+  shape: box
+  style.fill: "#ffccbc"
+}
+
+Delivered: "delivered\n(final destination)" {
+  shape: box
+  style.fill: "#c8e6c9"
+}
+
+Cancelled: "cancelled\n(at any point)" {
+  shape: box
+  style.fill: "#ffebee"
+}
+
+Pending -> Confirmed
+Confirmed -> Processing
+Processing -> Shipped
+Shipped -> Delivered
+Pending -> Cancelled
+Confirmed -> Cancelled
+Processing -> Cancelled
+Shipped -> Cancelled
+```
 
 ### State Transitions
 
