@@ -20,12 +20,12 @@ use crate::{
 ///
 /// # Arguments
 ///
-/// * `rows` - Database rows as HashMap<column_name, json_value>
+/// * `rows` - Database rows as `HashMap<column_name, json_value>`
 /// * `schema` - Arrow schema defining expected column types and order
 ///
 /// # Returns
 ///
-/// Vec of rows, where each row is Vec<Option<Value>> matching schema field order
+/// `Vec` of rows, where each row is `Vec<Option<Value>>` matching schema field order
 ///
 /// # Errors
 ///

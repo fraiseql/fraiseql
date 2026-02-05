@@ -21,7 +21,7 @@ use crate::security::kms::{
 ///   4. Kubernetes auth method in K8s environments
 #[derive(Debug, Clone)]
 pub struct VaultConfig {
-    /// Vault server address (e.g., "https://vault.example.com")
+    /// Vault server address (e.g., `https://vault.example.com`)
     pub vault_addr: String,
     /// Vault authentication token
     pub token:      String,

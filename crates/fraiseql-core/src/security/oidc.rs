@@ -70,7 +70,7 @@ use crate::security::{
 /// token confusion attacks. See the `audience` field documentation for details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcConfig {
-    /// Issuer URL (e.g., "https://your-tenant.auth0.com/")
+    /// Issuer URL (e.g., `https://your-tenant.auth0.com/`)
     ///
     /// Must match the `iss` claim in tokens exactly.
     /// Should include trailing slash if provider expects it.
@@ -82,7 +82,7 @@ pub struct OidcConfig {
     /// claim. This prevents token confusion attacks where tokens from one service can be used
     /// in another.
     ///
-    /// For Auth0, this is typically your API identifier (e.g., "https://api.example.com").
+    /// For Auth0, this is typically your API identifier (e.g., `https://api.example.com`).
     /// For other providers, use a unique identifier that represents your application.
     ///
     /// Set at least one of:
@@ -199,7 +199,7 @@ impl OidcConfig {
     ///
     /// # Arguments
     ///
-    /// * `base_url` - Keycloak server URL (e.g., "https://keycloak.example.com")
+    /// * `base_url` - Keycloak server URL (e.g., `https://keycloak.example.com`)
     /// * `realm` - Realm name
     /// * `client_id` - Client ID (used as audience)
     #[must_use]

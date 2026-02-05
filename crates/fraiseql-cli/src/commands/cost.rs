@@ -1,6 +1,6 @@
 //! Cost command - lightweight complexity scoring for queries
 //!
-//! Usage: fraiseql cost <query> [--json]
+//! Usage: fraiseql cost `<query>` `[--json]`
 
 use anyhow::Result;
 // Suppress unused import warning

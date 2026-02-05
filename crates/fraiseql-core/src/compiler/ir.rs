@@ -130,7 +130,7 @@ pub struct IRField {
     /// Field name.
     pub name: String,
 
-    /// Field type (e.g., "String!", "Int", "[User]").
+    /// Field type (e.g., `"String!"`, `"Int"`, `"[User]"`).
     pub field_type: String,
 
     /// Is field nullable?

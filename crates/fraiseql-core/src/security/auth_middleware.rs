@@ -383,7 +383,7 @@ impl AuthRequest {
 
     /// Extract the bearer token from the Authorization header
     ///
-    /// Expected format: "Bearer <token>"
+    /// Expected format: `"Bearer <token>"`
     ///
     /// Returns Ok(token) if valid format, Err otherwise
     pub fn extract_bearer_token(&self) -> Result<String> {

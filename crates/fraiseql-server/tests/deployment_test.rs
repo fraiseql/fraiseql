@@ -400,14 +400,14 @@ fn test_prometheus_config_exists() {
 #[test]
 fn test_deployment_guide_exists() {
     let root = workspace_root();
-    assert!(root.join("docs/DEPLOYMENT.md").exists(), "Deployment guide must exist");
+    assert!(root.join("docs/deployment.md").exists(), "Deployment guide must exist");
 }
 
 #[test]
 fn test_deployment_security_guide_exists() {
     let root = workspace_root();
     assert!(
-        root.join("docs/DEPLOYMENT_SECURITY.md").exists(),
+        root.join("docs/deployment-security.md").exists(),
         "Deployment security guide must exist"
     );
 }
@@ -416,7 +416,7 @@ fn test_deployment_security_guide_exists() {
 fn test_deployment_checklist_exists() {
     let root = workspace_root();
     assert!(
-        root.join("docs/DEPLOYMENT_CHECKLIST.md").exists(),
+        root.join("docs/deployment-checklist.md").exists(),
         "Deployment checklist must exist"
     );
 }
@@ -425,7 +425,7 @@ fn test_deployment_checklist_exists() {
 fn test_deployment_runbooks_exist() {
     let root = workspace_root();
     assert!(
-        root.join("docs/DEPLOYMENT_RUNBOOKS.md").exists(),
+        root.join("docs/deployment-runbooks.md").exists(),
         "Deployment runbooks must exist"
     );
 }

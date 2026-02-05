@@ -9,7 +9,7 @@
 //! 3. **SQL-suitable field types** - No arbitrary JSON, no runtime polymorphism
 //!
 //! Rules detect:
-//! - **Circular type definitions**: User { posts: [Post] }, Post { author: User { posts } }
+//! - **Circular type definitions**: `User { posts: [Post] }`, `Post { author: User { posts } }`
 //! - **Missing primary keys**: Types without ID can't be compiled efficiently
 //! - **Missing cardinality hints**: Compiler can't generate optimal SQL without knowing
 //!   relationships

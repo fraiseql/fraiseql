@@ -783,11 +783,11 @@ impl FieldType {
     /// Parse a GraphQL type string into a `FieldType`.
     ///
     /// Supports formats like:
-    /// - "String", "Int", "Boolean", etc. (scalar types)
-    /// - "String!", "Int!" (non-null scalars - the `!` is ignored, nullability is separate)
-    /// - "[String]", "[User]" (list types)
-    /// - "[String!]!", "[User!]!" (non-null list of non-null items)
-    /// - "User", "Post" (object types - anything not a known scalar)
+    /// - `"String"`, `"Int"`, `"Boolean"`, etc. (scalar types)
+    /// - `"String!"`, `"Int!"` (non-null scalars - the `!` is ignored, nullability is separate)
+    /// - `"[String]"`, `"[User]"` (list types)
+    /// - `"[String!]!"`, `"[User!]!"` (non-null list of non-null items)
+    /// - `"User"`, `"Post"` (object types - anything not a known scalar)
     ///
     /// # Arguments
     ///

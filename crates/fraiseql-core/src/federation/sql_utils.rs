@@ -18,10 +18,10 @@ use crate::error::{FraiseQLError, Result};
 /// # Examples
 ///
 /// ```ignore
-/// value_to_sql_literal(&json!("test")) → "'test'"
-/// value_to_sql_literal(&json!("O'Brien")) → "'O''Brien'"
-/// value_to_sql_literal(&json!(123)) → "123"
-/// value_to_sql_literal(&json!(null)) → "NULL"
+/// value_to_sql_literal(&json!("test")) // produces "'test'"
+/// value_to_sql_literal(&json!("O'Brien")) // produces "'O''Brien'"
+/// value_to_sql_literal(&json!(123)) // produces "123"
+/// value_to_sql_literal(&json!(null)) // produces "NULL"
 /// ```
 pub fn value_to_sql_literal(value: &Value) -> Result<String> {
     match value {
@@ -46,8 +46,8 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
 /// # Examples
 ///
 /// ```ignore
-/// value_to_string(&json!("test")) → "test"
-/// value_to_string(&json!(123)) → "123"
+/// value_to_string(&json!("test")) // produces "test"
+/// value_to_string(&json!(123)) // produces "123"
 /// ```
 pub fn value_to_string(value: &Value) -> Result<String> {
     match value {

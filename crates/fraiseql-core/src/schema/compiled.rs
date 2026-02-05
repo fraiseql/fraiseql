@@ -982,7 +982,7 @@ pub struct InputFieldDefinition {
     /// Field name.
     pub name: String,
 
-    /// Field type (e.g., "String!", "[Int]", "UserFilter").
+    /// Field type (e.g., `"String!"`, `"[Int]"`, `"UserFilter"`).
     pub field_type: String,
 
     /// Description.

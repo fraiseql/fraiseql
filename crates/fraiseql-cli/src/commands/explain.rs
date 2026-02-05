@@ -1,6 +1,6 @@
 //! Explain command - show query execution plan and complexity analysis
 //!
-//! Usage: fraiseql explain <query> --schema <schema.compiled.json> [--json]
+//! Usage: fraiseql explain `<query>` --schema `<schema.compiled.json>` `[--json]`
 
 use anyhow::Result;
 use fraiseql_core::graphql::{complexity::ComplexityAnalyzer, parse_query};

@@ -258,7 +258,7 @@ pub struct IntermediateInputField {
     /// Field name
     pub name: String,
 
-    /// Field type name (e.g., "String!", "[Int]", "UserFilter")
+    /// Field type name (e.g., `"String!"`, `"[Int]"`, `"UserFilter"`)
     #[serde(rename = "type")]
     pub field_type: String,
 
