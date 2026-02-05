@@ -14,13 +14,23 @@ Complete API and operator references.
 
 ## 📚 Reference Documentation
 
-### Type System
+### Type System & Schema
 
 | Document | Description | Lines | Est. Time |
 |----------|-------------|-------|-----------|
+| [naming-patterns.md](naming-patterns.md) | FraiseQL naming conventions and patterns | 600+ | Reference |
 | [scalars.md](scalars.md) | Scalar type library and custom scalars | 1,492 | Reference |
 
-**Topics Covered:**
+**Naming Patterns Topics:**
+
+- `id: UUID v4` — GraphQL entity identifiers
+- `pk_`, `fk_` — Internal BIGINT database keys
+- `tb_{entity}` — Write-side normalized tables
+- `v_{entity}` — Read-side denormalized views
+- `tv_{entity}` — Materialized table-backed views
+- `tf_{entity}` — Analytics fact tables with JSONB
+
+**Scalar Topics:**
 
 - Built-in scalar types (String, Int, Float, Boolean, ID)
 - Extended scalars (Date, DateTime, Time, UUID, JSON, etc.)
