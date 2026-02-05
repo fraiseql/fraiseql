@@ -1,7 +1,7 @@
 # FraiseQL v2 Security Model
 
-**Last Updated:** January 26, 2026
-**Version:** 2.0.0-a1
+**Last Updated:** February 5, 2026
+**Version:** 2.0.0-alpha.1
 
 ---
 
@@ -448,7 +448,7 @@ Recommend retention:
 
 1. **Do not publicly disclose** the vulnerability
 2. **Report responsibly**:
-   - Email: security@fraiseql.io
+   - Email: security@fraiseql.dev
    - Include: description, reproduction steps, impact
 3. **Allow 90 days** for patch development
 4. **Coordinate disclosure** with FraiseQL team
@@ -555,7 +555,7 @@ For production deployments:
 
 **Security Documentation**: This file
 **Deployment Hardening**: See [DEPLOYMENT.md](DEPLOYMENT.md)
-**Incident Reporting**: security@fraiseql.io
+**Incident Reporting**: security@fraiseql.dev
 
 ---
 

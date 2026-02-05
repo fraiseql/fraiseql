@@ -915,7 +915,7 @@ introspection_enabled = true  # Only in development!
 - **Security Model**: See [SECURITY.md](SECURITY.md)
 - **Deployment Guide**: See [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Issues/Bugs**: Report at https://github.com/fraiseql/fraiseql/issues
-- **Security Issues**: Email security@fraiseql.io
+- **Security Issues**: Email security@fraiseql.dev
 
 ### Before Reporting Issues
 

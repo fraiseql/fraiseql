@@ -355,7 +355,7 @@ See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation
 
 - **Questions**: Open a GitHub Discussion
 - **Bugs**: File a GitHub Issue
-- **Security**: Email <security@fraiseql.io>
+- **Security**: Email <security@fraiseql.dev>
 
 ---
 
