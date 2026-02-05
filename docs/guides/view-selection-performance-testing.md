@@ -37,6 +37,7 @@ This guide provides the testing methodology.
 - [ ] Database statistics up to date
 
 **Pre-test Commands**:
+
 ```bash
 # Refresh statistics
 psql -c "ANALYZE;" && echo "Statistics updated"
@@ -611,6 +612,7 @@ SELECT * FROM pg_locks WHERE relation::regclass::text LIKE 'tv_%';
 4. Query not using the table (still hitting logical view)
 
 **Debugging**:
+
 ```sql
 -- Check indexes exist
 SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
@@ -633,6 +635,7 @@ SELECT COUNT(*) FROM v_user_profile;  -- Different?
 3. Historical data not cleaned up
 
 **Resolution**:
+
 ```sql
 -- Analyze storage breakdown
 SELECT
@@ -671,11 +674,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** System not in stable state during testing.
 
 **Diagnosis:**
+
 1. Check CPU: Should be <30% idle for accurate measurement
 2. Check background processes: Other queries running?
 3. Check memory: Caching effects between runs
 
 **Solutions:**
+
 - Restart database to clear cache between tests
 - Run tests multiple times, use median (not average)
 - Ensure no other activity: Single-user test mode
@@ -686,11 +691,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Materialized view consumes significant storage.
 
 **Diagnosis:**
+
 1. Check table size: `SELECT pg_size_pretty(pg_total_relation_size('tv_name'));`
 2. Compare to source view: How much larger?
 3. Check disk space: `df -h`
 
 **Solutions:**
+
 - Partition table by date: Keep only recent data
 - Remove unnecessary columns from view
 - Use compression: PostgreSQL has table compression
@@ -701,11 +708,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Bottleneck elsewhere or view doesn't solve real problem.
 
 **Diagnosis:**
+
 1. Run EXPLAIN on slow query: Where is time spent?
 2. Check indexes: Are they being used in EXPLAIN plan?
 3. Verify table query plan is simpler
 
 **Solutions:**
+
 - Add appropriate index to base table
 - Bottleneck might be in WHERE clause, not JOIN
 - Consider if query needs optimization instead of migration
@@ -716,11 +725,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Index missing, statistics stale, or regression in query plan.
 
 **Diagnosis:**
+
 1. Run ANALYZE on table: Statistics may be old
 2. Check EXPLAIN output: How did plan change?
 3. Verify test is fair: Same data, same conditions
 
 **Solutions:**
+
 - Run: `ANALYZE table_name;`
 - Rebuild indexes: `REINDEX TABLE tv_name;`
 - Compare query plans explicitly: `EXPLAIN ANALYZE` for both
@@ -731,11 +742,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Production data volume or distribution different from test.
 
 **Diagnosis:**
+
 1. Check test data size vs production: Row counts
 2. Check selectivity: How many rows does WHERE clause match?
 3. Check concurrent load: Single query vs multiple queries
 
 **Solutions:**
+
 - Use production data dump for testing (if possible)
 - Simulate concurrency: Run multiple queries in parallel
 - Test with data size close to production
@@ -747,11 +760,13 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Production conditions not replicated (data volume, concurrency, hardware).
 
 **Diagnosis:**
+
 1. Confirm query is slow in production: Check slow query logs
 2. Try against production database: Same query, different hardware?
 3. Check concurrent activity during slow runs
 
 **Solutions:**
+
 - Capture query from production slow log
 - Test against production database directly (if allowed)
 - Replicate production data to test environment
@@ -763,10 +778,12 @@ WHERE tablename = 'tv_user_profile';
 **Cause:** Table bloat or accumulated dead rows from previous refreshes.
 
 **Diagnosis:**
+
 1. Check dead row percentage: `SELECT n_dead_tup FROM pg_stat_user_tables WHERE relname = 'tv_name';`
 2. Check table size: Is it growing unexpectedly?
 
 **Solutions:**
+
 - Run VACUUM: `VACUUM FULL tv_name;` (requires lock)
 - Run VACUUM regularly: `VACUUM ANALYZE tv_name;`
 - Consider autovacuum settings for more frequent cleanup
@@ -798,4 +815,4 @@ WHERE tablename = 'tv_user_profile';
 1. Use Quick Reference to decide if migration is needed
 2. Use this guide to validate performance improvements
 3. Use Migration Checklist to plan and execute rollout
-4. Refer to specific pattern guides (tv_* or ta_*) for details
+4. Refer to specific pattern guides (tv_*or ta_*) for details

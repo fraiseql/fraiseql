@@ -455,11 +455,13 @@ open flamegraph.svg
 ### Creating a Pull Request
 
 1. **Ensure clean history**: Squash fixup commits
+
    ```bash
    git rebase -i main
    ```
 
 2. **Write clear commit messages**:
+
    ```
    feat(scope): Add feature description
 
@@ -473,6 +475,7 @@ open flamegraph.svg
 4. **Update documentation**: If public API changes
 
 5. **Run full checks**:
+
    ```bash
    cargo fmt
    cargo clippy --all-targets --all-features
@@ -560,10 +563,12 @@ Happy coding! 🚀
 **Cause:** C++ build tools not installed on system.
 
 **Diagnosis:**
+
 1. Check if `cc` available: `which cc` or `which gcc`
 2. Check Rust setup: `rustup show`
 
 **Solutions:**
+
 - Install build tools: `sudo apt-get install build-essential` (Linux)
 - Install Xcode Command Line Tools: `xcode-select --install` (macOS)
 - Use `rustup`: `rustup install stable`
@@ -573,11 +578,13 @@ Happy coding! 🚀
 **Cause:** Dependency not downloading or network issue.
 
 **Diagnosis:**
+
 1. Check internet connectivity
 2. Try clearing cache: `cargo clean`
 3. Check dependency in Cargo.toml spelling
 
 **Solutions:**
+
 - Verify Cargo.toml has correct dependency name/version
 - Update index: `cargo update`
 - Check for network issues: Try pinging crates.io
@@ -588,11 +595,13 @@ Happy coding! 🚀
 **Cause:** Large project or unoptimized linker.
 
 **Diagnosis:**
+
 1. Profile build: `cargo build --release --timings`
 2. Check for heavy dependencies in output
 3. Measure link time vs compile time
 
 **Solutions:**
+
 - Use `mold` linker: Uncomment in `.cargo/config.toml` (Linux only, 3-5x faster)
 - Use incremental compilation: `cargo build -j 4`
 - In CI, use `cargo check` first (faster than full build)
@@ -604,11 +613,13 @@ Happy coding! 🚀
 **Cause:** Test database not running or not accessible.
 
 **Diagnosis:**
+
 1. Check PostgreSQL running: `docker ps | grep postgres`
 2. Verify connection string: `echo $DATABASE_TEST_URL`
 3. Test manually: `psql $DATABASE_TEST_URL -c 'SELECT 1;'`
 
 **Solutions:**
+
 - Start test database: `docker-compose -f tests/docker-compose.yml up -d`
 - Wait for startup: Database may take 10-20 seconds
 - Create test database if missing: `createdb test_db`
@@ -619,11 +630,13 @@ Happy coding! 🚀
 **Cause:** Rust analyzer not working or not installed.
 
 **Diagnosis:**
+
 1. Check if rust-analyzer installed: `rustup component list | grep rust-analyzer`
 2. Restart IDE/editor
 3. Check if project is recognized: `cargo metadata`
 
 **Solutions:**
+
 - Install rust-analyzer: `rustup component add rust-analyzer`
 - Reload IDE window
 - Check .vscode/settings.json has rust-analyzer path
@@ -635,11 +648,13 @@ Happy coding! 🚀
 **Cause:** Clippy found issues in existing code or dependencies.
 
 **Diagnosis:**
+
 1. Identify source of warning: Look at file path in error
 2. Check if in test code or main code
 3. Filter by crate: `cargo clippy -p specific_crate`
 
 **Solutions:**
+
 - Fix warnings if in your code: `cargo clippy --fix --allow-dirty`
 - For dependency warnings: Ignore (not your code)
 - Add `#[allow(clippy::lint_name)]` if intentional
@@ -650,10 +665,12 @@ Happy coding! 🚀
 **Cause:** Project requires specific Rust version.
 
 **Diagnosis:**
+
 1. Check rust-toolchain.toml for version requirement
 2. Check current version: `rustc --version`
 
 **Solutions:**
+
 - Install correct version: `rustup install 1.XX.X`
 - Update stable: `rustup update stable`
 - Use specific version: `rustup override set 1.XX.X`
@@ -664,11 +681,13 @@ Happy coding! 🚀
 **Cause:** Code quality check failed before commit.
 
 **Diagnosis:**
+
 1. Rerun hook manually to see error
 2. Run same check: `cargo clippy --all-targets`
 3. Check what hook does: Look at `.git/hooks/pre-commit`
 
 **Solutions:**
+
 - Fix linting issues: `cargo clippy --fix`
 - Run formatter: `cargo fmt`
 - Skip hook temporarily: `git commit --no-verify` (not recommended)

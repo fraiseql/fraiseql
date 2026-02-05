@@ -741,11 +741,13 @@ const result = await client.query({
 ## See Also
 
 **Related Guides:**
+
 - **[CLI Query Tool](./cli-query-guide.md)** - Command-line queries
 - **[Real-Time Patterns](../PATTERNS.md)** - Subscription support
 - **[Production Deployment](../production-deployment.md)** - Running FraiseQL
 
 **Framework Guides:**
+
 - **[Express.js Documentation](https://expressjs.com/)**
 - **[Fastify Documentation](https://www.fastify.io/)**
 - **[Nest.js Documentation](https://docs.nestjs.com/)**

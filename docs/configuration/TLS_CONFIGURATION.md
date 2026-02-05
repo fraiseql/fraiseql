@@ -3,6 +3,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - SSL/TLS fundamentals (certificates, keys, handshakes)
 - X.509 certificate structure and standards
 - Public Key Infrastructure (PKI) concepts
@@ -11,6 +12,7 @@
 - Basic Linux/Unix system administration
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - OpenSSL 1.1.1+ (for certificate generation and verification)
 - curl or OpenSSL CLI (for testing HTTPS endpoints)
@@ -18,12 +20,14 @@
 - Bash or similar shell for scripting
 
 **Required Infrastructure:**
+
 - FraiseQL server instance (local or deployed)
 - TLS certificate and private key (self-signed or from CA)
 - Ports 8443 (HTTPS) and optionally 8444 (mTLS client cert)
 - Database with TLS support (PostgreSQL 10+, MySQL 5.7+, etc.)
 
 **Optional but Recommended:**
+
 - Certificate Authority (CA) certificate for client validation
 - Let's Encrypt or other automated certificate provisioning
 - HSM (Hardware Security Module) for key storage
@@ -513,6 +517,7 @@ curl --cacert /etc/ssl/certs/ca-cert.pem https://localhost:9200/_cluster/health
    - HashiCorp Consul for certificate management
    - Kubernetes cert-manager (if using K8s)
 7. **Monitor certificate expiration**:
+
    ```bash
    openssl x509 -enddate -noout -in /etc/fraiseql/cert.pem
    ```

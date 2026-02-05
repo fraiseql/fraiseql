@@ -8,6 +8,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Event-driven architecture concepts
 - Webhook fundamentals and HTTP POST callbacks
 - Change Data Capture (CDC) principles
@@ -18,6 +19,7 @@
 - Notification systems (Slack, email, webhooks)
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Your chosen SDK language (Python, TypeScript, Go, Java, etc.)
 - PostgreSQL 14+, MySQL 8.0+, SQLite, or SQL Server 2019+
@@ -26,6 +28,7 @@
 - A code editor for defining observers in schema
 
 **Required Infrastructure:**
+
 - FraiseQL server with Observer runtime enabled
 - PostgreSQL database with `tb_entity_change_log` table
 - Network connectivity from FraiseQL to webhook endpoints
@@ -34,6 +37,7 @@
 - Publicly accessible URL for FraiseQL server (for webhook ingestion)
 
 **Optional but Recommended:**
+
 - Slack bot setup and permissions configuration
 - Email service provider (SendGrid, AWS SES, etc.)
 - Webhook endpoint hosting (AWS Lambda, Vercel, etc.)
@@ -294,6 +298,7 @@ Webhook.create('https://api.example.com/webhook', body_template='''
 ```
 
 **Payload Format**:
+
 ```json
 {
     "event": "INSERT",
@@ -557,6 +562,7 @@ ObserverBuilder.create('onStandardVeryHighValueOrder')
 ### 3. Action Design
 
 **Group related actions**:
+
 ```python
 ObserverBuilder.create('onOrderShipped')
     .entity('Order')
@@ -569,6 +575,7 @@ ObserverBuilder.create('onOrderShipped')
 ```
 
 **Separate unrelated actions**:
+
 ```python
 # ❌ Bad - Mixing concerns
 ObserverBuilder.create('onOrderEvent')
@@ -604,6 +611,7 @@ ObserverBuilder.create('onOrderCancelled')
 ```
 
 **Set reasonable limits**:
+
 ```python
 # ✅ Good - Balanced
 .retry(max_attempts=3, initial_delay_ms=1000, max_delay_ms=60000)
@@ -618,6 +626,7 @@ ObserverBuilder.create('onOrderCancelled')
 ### 5. Security
 
 **Use environment variables for sensitive URLs**:
+
 ```python
 # ✅ Good
 Webhook.with_env('WEBHOOK_URL')
@@ -627,6 +636,7 @@ Webhook.create('https://api.example.com/webhook?token=secret123')
 ```
 
 **Validate webhook endpoints**:
+
 ```python
 # Add authentication headers
 Webhook.create('https://api.example.com/webhook', headers={
@@ -644,6 +654,7 @@ Webhook.create('https://api.example.com/webhook', headers={
 - > 10 observers per entity: ❌ Consider refactoring
 
 **Use specific conditions**:
+
 ```python
 # ✅ Good - Specific, fewer executions
 .condition('status == "shipped"')
@@ -653,6 +664,7 @@ Webhook.create('https://api.example.com/webhook', headers={
 ```
 
 **Optimize webhook payloads**:
+
 ```python
 # ✅ Good - Only necessary fields
 Webhook.create(..., body_template='{"id": "{{id}}", "status": "{{status}}"}')
@@ -703,6 +715,7 @@ ORDER BY last_attempted_at DESC;
 ```
 
 **Reprocess DLQ entries**:
+
 ```sql
 -- Mark for retry (picked up by runtime)
 UPDATE core.tb_observer_dlq
@@ -861,12 +874,14 @@ HAVING COUNT(*) FILTER (WHERE status = 'failed') > 50;
 ### Observer Not Triggering
 
 **Check 1**: Verify observer is loaded
+
 ```bash
 # Check compiled schema
 jq '.observers[] | select(.name == "onHighValueOrder")' schema.compiled.json
 ```
 
 **Check 2**: Verify condition evaluation
+
 ```sql
 -- Test condition with sample data
 SELECT
@@ -878,6 +893,7 @@ WHERE id = 'order-123';
 ```
 
 **Check 3**: Check change log
+
 ```sql
 -- Verify event was logged
 SELECT * FROM core.tb_entity_change_log
@@ -890,6 +906,7 @@ LIMIT 10;
 ### Webhook Failures
 
 **Check 1**: Verify endpoint is reachable
+
 ```bash
 curl -X POST https://api.example.com/webhook \
   -H "Content-Type: application/json" \
@@ -897,6 +914,7 @@ curl -X POST https://api.example.com/webhook \
 ```
 
 **Check 2**: Check observer logs
+
 ```sql
 SELECT error_message, attempt_count
 FROM core.tb_observer_log
@@ -907,6 +925,7 @@ LIMIT 10;
 ```
 
 **Check 3**: Review DLQ
+
 ```sql
 SELECT entity_id, error_message, event_data
 FROM core.tb_observer_dlq
@@ -918,6 +937,7 @@ WHERE observer_name = 'onHighValueOrder';
 **Symptom**: Observer succeeds but requires many retries
 
 **Diagnosis**:
+
 ```sql
 SELECT
     observer_name,
@@ -947,6 +967,7 @@ HAVING AVG(attempt_count) > 2;
 - Memory leak in action handler
 
 **Solutions**:
+
 ```python
 # 1. Reduce payload size
 Webhook.create(..., body_template='{"id": "{{id}}"}')  # Not {{_json}}

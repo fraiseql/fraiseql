@@ -89,6 +89,7 @@ When both TLS and SCRAM are enabled:
 ### SCRAM-SHA-256
 
 ✅ **Advantages:**
+
 - Password is never sent in plaintext
 - Uses SHA-256 hashing with salt
 - Each password is hashed with a unique salt
@@ -97,6 +98,7 @@ When both TLS and SCRAM are enabled:
 - Resistant to timing attacks
 
 ✅ **Protection Against:**
+
 - Plaintext password exposure
 - Rainbow tables
 - Dictionary attacks
@@ -108,6 +110,7 @@ When both TLS and SCRAM are enabled:
 Adds **channel binding** for additional security:
 
 ✅ **Additional Protection:**
+
 - Binds authentication to TLS certificate
 - Prevents MITM attacks on the authentication layer
 - Prevents key compromise attacks
@@ -225,12 +228,14 @@ RUST_LOG=fraiseql_wire::auth=debug fraiseql-server start
 ### "SCRAM authentication failed"
 
 **Possible causes:**
+
 1. Wrong password
 2. User doesn't exist in PostgreSQL
 3. PostgreSQL not configured for SCRAM
 4. Network connectivity issues
 
 **Solution:**
+
 ```bash
 # Test with psql first
 psql postgresql://fraiseql_user:password@localhost:5432/fraiseql_db
@@ -244,6 +249,7 @@ tail -f /var/log/postgresql/postgresql.log
 **Possible cause:** PostgreSQL still using MD5
 
 **Solution:**
+
 ```sql
 -- Check authentication method
 SHOW password_encryption;
@@ -257,11 +263,13 @@ ALTER USER fraiseql_user PASSWORD 'new_password';
 ### "Connection refused"
 
 **Possible causes:**
+
 1. PostgreSQL not running
 2. Firewall blocking port 5432
 3. PostgreSQL listening on different interface
 
 **Solution:**
+
 ```bash
 # Check if PostgreSQL is running
 systemctl status postgresql

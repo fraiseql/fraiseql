@@ -204,6 +204,7 @@ For future optimization:
 
 **Cause**: Large schema (500+ types) or slow disk I/O
 **Solution**:
+
 ```bash
 # Move schema to memory
 fraiseql lint /tmp/schema.json  # Faster than network drive
@@ -216,6 +217,7 @@ fraiseql lint schema.json --federation  # Faster than complete
 
 **Cause**: Concurrent requests exceeding server capacity
 **Solution**:
+
 ```bash
 # Increase timeouts
 curl --max-time 5 http://localhost:8080/api/v1/design/audit
@@ -228,6 +230,7 @@ curl --max-time 5 http://localhost:8080/api/v1/design/audit
 
 **Cause**: Processing extremely large schema (1000+ types)
 **Solution**:
+
 ```bash
 # Process in batches
 split -l 100 schema.json schema_part_

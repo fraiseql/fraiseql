@@ -199,6 +199,7 @@ Don't use sagas when:
 ### Q: What's the difference between automatic and manual compensation?
 
 A: **Automatic Compensation**: System-driven reversal
+
 ```rust
 SagaStep {
     forward: Mutation { operation: "chargeCard" },
@@ -208,6 +209,7 @@ SagaStep {
 ```
 
 **Manual Compensation**: Logic-driven reversal
+
 ```rust
 match coordinator.execute(steps).await {
     Ok(result) => { /* success */ },
@@ -244,6 +246,7 @@ Stuck Sagas (no progress >1 hour):
 ```
 
 Configure with:
+
 ```bash
 export FRAISEQL_SAGA_MAX_RETRIES=3
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=30
@@ -257,12 +260,14 @@ export FRAISEQL_SAGA_RECOVERY_ENABLED=true
 A: **Idempotency** means running an operation twice produces the same result as running it once.
 
 **Example**: Transfer $100 twice with same `transactionId`
+
 ```
 First attempt:  Account A: $1000 → $900, Account B: $500 → $600
 Second attempt: Returns cached result, no double charge ✓
 ```
 
 Use `request_id` or `transactionId`:
+
 ```rust
 SagaStep {
     forward: Mutation {
@@ -327,12 +332,14 @@ See [saga-complex example](../examples/federation/saga-complex/).
 A: **5 minutes** for entire saga, **30 seconds** per step.
 
 Increase if needed:
+
 ```bash
 export FRAISEQL_SAGA_TIMEOUT_SECONDS=600  # 10 minutes
 export FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS=60  # 1 minute per step
 ```
 
 Or programmatically:
+
 ```rust
 let coordinator = SagaCoordinator::new(metadata, store)
     .with_timeout(Duration::from_secs(600))
@@ -346,6 +353,7 @@ let coordinator = SagaCoordinator::new(metadata, store)
 ### Q: How do I deploy FraiseQL?
 
 A: **Docker + Docker Compose** (recommended):
+
 ```bash
 cd examples/federation/saga-basic
 docker-compose up -d
@@ -353,6 +361,7 @@ docker-compose ps  # Verify all services healthy
 ```
 
 **Kubernetes**:
+
 ```bash
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
@@ -370,6 +379,7 @@ kubectl get pods  # Verify running
 ### Q: How do I monitor sagas in production?
 
 A: Check saga state directly:
+
 ```sql
 -- PostgreSQL
 SELECT id, saga_type, status, created_at
@@ -383,6 +393,7 @@ WHERE status = 'EXECUTING' AND created_at < NOW() - INTERVAL '1 hour';
 ```
 
 Or use metrics:
+
 ```bash
 # Prometheus metrics available
 curl http://localhost:9090/metrics | grep saga
@@ -414,6 +425,7 @@ See [deployment guide](deployment/guide.md) for production-deployment steps.
 A: Scale horizontally:
 
 1. **Add more instances** (load balancer needed):
+
 ```yaml
 fraiseql-server-1:
   image: fraiseql:latest
@@ -426,12 +438,14 @@ load-balancer:
   ports: ["80:80"]
 ```
 
-2. **Increase connection pool**:
+1. **Increase connection pool**:
+
 ```bash
 export DATABASE_POOL_SIZE=50  # From 20
 ```
 
-3. **Cache results**:
+1. **Cache results**:
+
 ```bash
 export CACHE_TTL_SECONDS=300  # 5 minutes
 ```
@@ -469,6 +483,7 @@ docker-compose restart orders-service
 ```
 
 Then force recovery:
+
 ```rust
 recovery_manager.recover_saga(&stuck_saga).await?;
 ```
@@ -504,6 +519,7 @@ RUST_LOG=debug cargo run --bin fraiseql-server
 ```
 
 Watch for logs like:
+
 ```
 [DEBUG fraiseql_core::federation::entity_resolver] Resolving entity User:123
 [TRACE fraiseql_core::database::query_executor] Executing: SELECT * FROM users

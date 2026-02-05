@@ -330,6 +330,7 @@ Subscription Targets:
 ### Sample Collection
 
 **Criterion.rs Configuration**:
+
 ```rust
 Criterion::default()
     .sample_size(100)                    // 100 iterations

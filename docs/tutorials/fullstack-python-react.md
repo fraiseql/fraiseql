@@ -67,6 +67,7 @@ In this comprehensive full-stack tutorial, you'll build a complete Blog Applicat
 ### What You'll Build
 
 A **Full-Stack Blog Application** supporting:
+
 - **Users**: Create and manage blog authors
 - **Posts**: Create, update, delete blog posts with author relationships
 - **Comments**: Add comments to posts with user relationships
@@ -1065,6 +1066,7 @@ fraiseql-cli compile schema.json fraiseql.toml
 ```
 
 This generates `schema.compiled.json` containing:
+
 - All type definitions
 - Optimized GraphQL queries
 - Mapping to SQL views/functions
@@ -1756,10 +1758,10 @@ curl http://localhost:8000/graphql \
 
 ### 9.3 Workflow
 
-1. **User visits http://localhost:5173**
+1. **User visits <http://localhost:5173>**
 2. **React loads Apollo Client** with FraiseQL endpoint
 3. **React component runs GET_POSTS query**
-4. **Apollo sends GraphQL to http://localhost:8000/graphql**
+4. **Apollo sends GraphQL to <http://localhost:8000/graphql>**
 5. **FraiseQL server compiles query to SQL**
 6. **PostgreSQL executes query**
 7. **Results return through full chain to React**
@@ -1982,6 +1984,7 @@ time curl http://localhost:8000/graphql \
 **Cause:** FraiseQL server not running or wrong endpoint
 
 **Solution:**
+
 ```bash
 docker-compose ps  # Check if fraiseql-server is running
 curl http://localhost:8000/health  # Test connectivity
@@ -1992,6 +1995,7 @@ curl http://localhost:8000/health  # Test connectivity
 **Cause:** CORS not configured or server unreachable
 
 **Solution:**
+
 ```bash
 # Check CORS settings in fraiseql.toml
 # Ensure React app URL is in cors_origins
@@ -2003,6 +2007,7 @@ curl -H "Origin: http://localhost:5173" http://localhost:8000/health
 **Cause:** Database schema not initialized
 
 **Solution:**
+
 ```bash
 # Reload database schema
 docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-initdb.d/schema.sql
@@ -2013,6 +2018,7 @@ docker-compose exec postgres psql -U blog_user -d blog_db -f /docker-entrypoint-
 **Cause:** GraphQL query failing silently
 
 **Solution:**
+
 ```javascript
 // Add error handling to Apollo queries
 const { loading, error, data } = useQuery(GET_POSTS);
@@ -2135,7 +2141,7 @@ curl http://localhost:8000/health                  # Test health
 open http://localhost:5173                         # Open frontend
 ```
 
-**Your application is now running at http://localhost:5173!**
+**Your application is now running at <http://localhost:5173>!**
 
 ---
 

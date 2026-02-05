@@ -68,6 +68,7 @@ Events flowing from NATS → Arrow → ClickHouse/Elasticsearch:
 ### Size on Wire (1M rows × 3 columns: id, name, email)
 
 **HTTP/JSON**:
+
 ```
 ┌─────────────────────────┐
 │ JSON Array              │
@@ -82,6 +83,7 @@ Total: ~200MB
 ```
 
 **Arrow Flight**:
+
 ```
 ┌─────────────────────────┐
 │ Arrow RecordBatch       │
@@ -99,6 +101,7 @@ Total: ~100MB (0.5x JSON)
 ## End-to-End Latency (Query to Analytics)
 
 ### Traditional (JSON → Elasticsearch)
+
 ```
 User Query
   ↓ (5ms - HTTP)
@@ -114,6 +117,7 @@ TOTAL: ~355ms
 ```
 
 ### Arrow Flight → ClickHouse
+
 ```
 User Query
   ↓ (5ms - gRPC)
@@ -133,6 +137,7 @@ TOTAL: ~22ms (16x faster!)
 ### Use Case 1: Daily Sales Report (50k rows)
 
 **HTTP/JSON Approach**:
+
 ```
 Time: 5 seconds
 Memory: 100MB
@@ -145,6 +150,7 @@ Steps:
 ```
 
 **Arrow Flight Approach**:
+
 ```
 Time: 0.5 seconds (10x faster! ⚡)
 Memory: 10MB
@@ -160,6 +166,7 @@ Steps:
 ### Use Case 2: ML Feature Engineering (1M events)
 
 **HTTP/JSON Approach**:
+
 ```
 Time: 5 minutes
 Memory: 2.5GB
@@ -170,6 +177,7 @@ Process:
 ```
 
 **Arrow Flight Approach**:
+
 ```
 Time: 10 seconds (30x faster! ⚡⚡)
 Memory: 100MB (25x less!)
@@ -184,6 +192,7 @@ Process:
 ### Use Case 3: Real-Time Event Dashboard
 
 **HTTP/JSON Approach**:
+
 ```
 Polling every 10 seconds
 Time to update: ~3 seconds after event
@@ -191,6 +200,7 @@ Can't scale: JSON parsing becomes bottleneck
 ```
 
 **Arrow Flight + ClickHouse**:
+
 ```
 Streaming updates every 1 second
 Time to dashboard: <200ms after event
@@ -263,6 +273,7 @@ elif large_analytics:
 ## Scaling Characteristics
 
 ### Linear Growth (Good)
+
 ```
 Arrow Flight throughput scales linearly with hardware:
 
@@ -272,6 +283,7 @@ Arrow Flight throughput scales linearly with hardware:
 ```
 
 ### Exponential Growth (Bad)
+
 ```
 HTTP/JSON becomes exponentially more expensive:
 

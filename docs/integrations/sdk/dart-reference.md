@@ -43,11 +43,13 @@ dart pub get
 ```
 
 **Requirements**:
+
 - Dart SDK 3.0 or later (full null safety)
 - Flutter 3.0+ (for Flutter features)
 - Pub.dev package management
 
 **Supported Platforms**:
+
 - iOS (primary)
 - Android (primary)
 - Web (Dart with Flutter for Web)
@@ -111,6 +113,7 @@ class User {
 ```
 
 **Null Safety Patterns**:
+
 - `String` - non-nullable, always has a value
 - `String?` - nullable, can be null
 - `required this.field` - required named parameter
@@ -1096,6 +1099,7 @@ void main() {
 **Issue**: `Could not find package fraiseql`
 
 **Solution**:
+
 ```yaml
 # pubspec.yaml
 dependencies:
@@ -1112,6 +1116,7 @@ pub upgrade
 **Issue**: `The type 'User?' must be assignable to 'User'`
 
 **Enable null safety**:
+
 ```yaml
 # pubspec.yaml
 environment:
@@ -1119,6 +1124,7 @@ environment:
 ```
 
 **Use correct nullability**:
+
 ```dart
 // ✅ Nullable
 User? user;
@@ -1134,6 +1140,7 @@ String email;
 **Issue**: `The expression here has a type of 'Future<..>'`
 
 **Solution - Use await**:
+
 ```dart
 // ❌ Wrong - not awaiting
 var result = server.execute(query);
@@ -1147,6 +1154,7 @@ var result = await server.execute(query);
 **Issue**: `Unable to run build`
 
 **Solution**:
+
 ```bash
 pub run build_runner build
 pub run build_runner watch
@@ -1161,6 +1169,7 @@ pub run build_runner watch
 **Issue**: `The argument type 'Map<String, dynamic>' can't be assigned to parameter type 'Map<String, Object>'`
 
 **Solution - Cast properly**:
+
 ```dart
 // ✅ Correct cast
 final variables = <String, Object>{
@@ -1179,6 +1188,7 @@ final result = await server.execute(
 **Issue**: `null can't be assigned to non-null type`
 
 **Solution - Check null before use**:
+
 ```dart
 // ✅ Check first
 if (user != null) {
@@ -1194,6 +1204,7 @@ print(user?.email ?? 'Unknown');
 **Issue**: `The type 'T' is not known to be a subtype`
 
 **Solution - Use concrete types**:
+
 ```dart
 // ❌ Won't work
 class Box<T> {
@@ -1215,6 +1226,7 @@ class UserBox {
 **Issue**: `SocketException: Failed to connect`
 
 **Check connectivity**:
+
 ```dart
 // Add connectivity_plus
 const http = 'http://localhost:8080/graphql';
@@ -1226,6 +1238,7 @@ final result = await http.post(Uri.parse(http));
 **Issue**: `type 'Null' is not a subtype of type 'String'`
 
 **Solution - Handle null safely**:
+
 ```dart
 // ✅ Use generated json_serializable
 @JsonSerializable()
@@ -1250,6 +1263,7 @@ class User {
 **Issue**: `NoSuchMethodError: method 'then' called on null`
 
 **Solution - Always return Future**:
+
 ```dart
 // ❌ Wrong
 Future<User>? getUser() {
@@ -1271,6 +1285,7 @@ Future<User> getUser() {
 **Issue**: Build takes >2 minutes
 
 **Clean and rebuild**:
+
 ```bash
 flutter clean
 flutter pub get
@@ -1282,11 +1297,13 @@ flutter build
 **Issue**: App uses >200MB
 
 **Profile with DevTools**:
+
 ```bash
 flutter run --profile
 ```
 
 **Optimize**:
+
 - Paginate large lists
 - Use const constructors
 - Dispose controllers
@@ -1296,6 +1313,7 @@ flutter run --profile
 **Issue**: `SocketException: Connection reset by peer`
 
 **Increase timeout**:
+
 ```dart
 final client = http.Client();
 final response = await client.post(

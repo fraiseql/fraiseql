@@ -244,6 +244,7 @@ await client.disconnect();
 **Step 1: Define Types**
 
 Each authoring SDK provides a way to define GraphQL types using native language syntax:
+
 - **Python/TypeScript/Go/Rust**: Decorators or attributes
 - **Java/Kotlin**: Annotations
 - **Scala/Clojure**: Macros or functions
@@ -494,6 +495,7 @@ Best for: Real-time apps, distributed systems, Phoenix web apps
 Best for: REST/GraphQL APIs, Express servers, microservices, real-time apps
 
 Key capabilities:
+
 - Promise-based async query execution
 - Dynamic runtime type validation
 - Support for both CommonJS and ESM

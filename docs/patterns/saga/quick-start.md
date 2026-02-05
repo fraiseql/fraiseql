@@ -58,6 +58,7 @@ If step 3 fails (no delivery available), a saga automatically:
 - Expensive: Requires support from all involved systems
 
 **Sagas Solve This By:**
+
 - ✅ **Eventual Consistency**: Guarantees consistency across services
 - ✅ **No Distributed Locks**: Better performance and availability
 - ✅ **Automatic Recovery**: Handles failures gracefully
@@ -324,11 +325,13 @@ async fn test_saga_recovery_after_network_failure() {
 The saga waits for each step to complete before moving to the next.
 
 **Use When:**
+
 - You need immediate feedback to the user
 - Steps have dependencies on earlier results
 - Saga typically completes in seconds
 
 **Example:**
+
 ```
 User places order → Payment processed → Inventory reserved → Response sent
                     (wait)              (wait)
@@ -339,11 +342,13 @@ User places order → Payment processed → Inventory reserved → Response sent
 The saga coordinator returns immediately; steps execute in the background.
 
 **Use When:**
+
 - Steps are independent or loosely coupled
 - User can wait for async completion
 - Saga may take minutes/hours
 
 **Example:**
+
 ```rust
 let saga_id = coordinator.execute_async(steps).await?;
 // Return saga_id to user immediately
@@ -355,6 +360,7 @@ let saga_id = coordinator.execute_async(steps).await?;
 Services listen for events and trigger actions independently (no central coordinator).
 
 **Use When:**
+
 - Services are truly independent
 - You want to avoid a central point of failure
 - Compensation logic is simple
@@ -368,10 +374,12 @@ Services listen for events and trigger actions independently (no central coordin
 ### Problem: Saga Hangs
 
 **Symptoms:**
+
 - Saga never completes
 - Coordinator waits indefinitely
 
 **Solutions:**
+
 1. Set timeouts on forward and compensation mutations
 2. Check saga store connection
 3. Review service health (is the service responding?)
@@ -386,10 +394,12 @@ let coordinator = SagaCoordinator::new(metadata, store)
 ### Problem: Duplicate Mutations
 
 **Symptoms:**
+
 - Charge appears twice on customer credit card
 - Inventory count wrong
 
 **Solutions:**
+
 1. Ensure idempotent operations (safe to run multiple times)
 2. Add request IDs to track duplicate requests
 3. Check saga step retries
@@ -409,10 +419,12 @@ let step = SagaStep {
 ### Problem: Compensation Never Runs
 
 **Symptoms:**
+
 - Saga fails but forward side effects remain
 - Inventory not returned
 
 **Solutions:**
+
 1. Check compensation step syntax
 2. Verify compensation mutation targets correct service
 3. Review saga store for failed compensations
@@ -431,10 +443,12 @@ for log in logs {
 ### Problem: Recovery Not Working
 
 **Symptoms:**
+
 - Saga fails, manual restart required
 - No automatic retry happening
 
 **Solutions:**
+
 1. Check if saga store is properly configured
 2. Verify recovery manager is running
 3. Check database migration status

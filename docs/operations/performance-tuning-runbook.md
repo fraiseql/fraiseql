@@ -12,6 +12,7 @@ Operational procedures for diagnosing and optimizing FraiseQL query performance 
 ## Overview
 
 This runbook provides **diagnosis workflows** and **remediation steps** for common performance issues. Each section includes:
+
 - **Symptoms** (what users see)
 - **Diagnosis** (how to identify root cause)
 - **Solutions** (how to fix it)
@@ -60,6 +61,7 @@ tail -f /var/log/fraiseql.log | grep "QUERY"
 ```
 
 **Look for:**
+
 - Query execution time
 - SQL generation time
 - Database roundtrip time
@@ -83,6 +85,7 @@ SELECT ... FROM ... WHERE ...;
 ```
 
 **Interpret output:**
+
 - **Seq Scan** = Sequential scan (bad, table is too large)
 - **Index Scan** = Using index (good)
 - **Nested Loop** = Joining rows inefficiently (check indexes)
@@ -124,6 +127,7 @@ EXPLAIN SELECT * FROM users WHERE created_at >= '2026-01-01';
 ```
 
 **Syntax per database:**
+
 ```sql
 -- PostgreSQL: Concurrent index creation (doesn't lock table)
 CREATE INDEX CONCURRENTLY idx_users_created_at ON users(created_at);
@@ -229,6 +233,7 @@ pool_size = 50  # Was 10, increase to 50
 ```
 
 **Maximum safe values:**
+
 - PostgreSQL max_connections: Usually 200-1000 (depends on server)
 - MySQL max_connections: Usually 500-10000
 - SQLite: Not applicable (single connection)
@@ -508,6 +513,7 @@ export RUST_LOG=fraiseql_core=debug
 ```
 
 **Count queries:**
+
 ```bash
 grep -c "Executing SELECT" logs.txt
 # 101 queries → N+1 problem!
@@ -546,6 +552,7 @@ class UserWithPosts:
 **Solution 3: Flatten Query Structure**
 
 Instead of:
+
 ```graphql
 query {
   users { id posts { id comments { id } } }
@@ -553,6 +560,7 @@ query {
 ```
 
 Do separate queries:
+
 ```graphql
 query { users { id } }
 query { posts { id userId } }
@@ -802,12 +810,14 @@ class InventoryLevel:
 ## See Also
 
 **Related Guides:**
+
 - **[Schema Design Best Practices](../guides/schema-design-best-practices.md)** — Designing for performance
 - **[Common Gotchas](../guides/common-gotchas.md)** — Avoid performance pitfalls
 - **[Monitoring & Observability](../guides/monitoring.md)** — Setting up performance metrics
 - **[View Selection Guide](../guides/view-selection-performance-testing.md)** — Testing view performance
 
 **Architecture & Database:**
+
 - **[Database Targeting](../architecture/database/database-targeting.md)** — Database-specific optimization
 - **[Arrow Plane Architecture](../architecture/database/arrow-plane.md)** — Columnar query optimization
 - **[Observability Architecture](./observability-architecture.md)** — Runtime performance monitoring

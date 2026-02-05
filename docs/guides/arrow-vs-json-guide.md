@@ -151,6 +151,7 @@ API from web app?
 ### JSON (HTTP/GraphQL)
 
 **Best for:**
+
 - Web applications
 - Mobile applications
 - Real-time subscriptions
@@ -159,6 +160,7 @@ API from web app?
 - <10K rows typically
 
 **Performance Profile:**
+
 ```
 Result Size  │ Latency    │ Throughput
 ─────────────┼────────────┼───────────
@@ -170,6 +172,7 @@ Result Size  │ Latency    │ Throughput
 ```
 
 **Example:**
+
 ```graphql
 query {
   users(limit: 1000) {
@@ -185,6 +188,7 @@ query {
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -203,6 +207,7 @@ query {
 ```
 
 **Advantages:**
+
 - ✅ Familiar (standard GraphQL)
 - ✅ Real-time capable (WebSocket)
 - ✅ Web/mobile friendly
@@ -211,12 +216,14 @@ query {
 - ✅ Nested objects natural
 
 **Disadvantages:**
+
 - ❌ Slow with large result sets
 - ❌ Text-based (large payload)
 - ❌ Serialization overhead
 - ❌ Not ideal for analytics
 
 **When to use:**
+
 - Building user-facing features
 - Need real-time updates
 - Small-to-medium result sets
@@ -227,6 +234,7 @@ query {
 ### Arrow (gRPC/Flight)
 
 **Best for:**
+
 - Analytics workloads
 - Data export/ETL
 - BI dashboards
@@ -234,6 +242,7 @@ query {
 - >100K rows typically
 
 **Performance Profile:**
+
 ```
 Result Size  │ Latency     │ Throughput
 ─────────────┼─────────────┼─────────────
@@ -246,6 +255,7 @@ Result Size  │ Latency     │ Throughput
 ```
 
 **Example:**
+
 ```python
 import pyarrow.flight as flight
 from pyarrow import csv
@@ -269,6 +279,7 @@ csv.write_csv(table, "orders.parquet")
 **Response:** Binary Apache Arrow format (50-90% smaller than JSON)
 
 **Advantages:**
+
 - ✅ 10-100x faster for large datasets
 - ✅ Binary format (compact, efficient)
 - ✅ Columnar storage (analytics optimized)
@@ -277,6 +288,7 @@ csv.write_csv(table, "orders.parquet")
 - ✅ Perfect for data science
 
 **Disadvantages:**
+
 - ❌ Not for browsers (gRPC limitations)
 - ❌ No real-time updates yet
 - ❌ Requires Arrow client SDK
@@ -284,6 +296,7 @@ csv.write_csv(table, "orders.parquet")
 - ❌ Additional infrastructure (requires gRPC)
 
 **When to use:**
+
 - Analytics queries
 - Data export
 - BI dashboards
@@ -315,6 +328,7 @@ query {
 ```
 
 **Why JSON:**
+
 - Small result set (200 rows)
 - Frequent UI updates
 - HTTP standard in browser
@@ -357,6 +371,7 @@ table.to_pandas().to_csv("sales_trends.csv")
 ```
 
 **Why Arrow:**
+
 - Large intermediate result set (1M rows)
 - Columnar aggregation much faster
 - 50-90% smaller data transfer
@@ -391,6 +406,7 @@ query {
 ```
 
 **Why JSON:**
+
 - Real-time updates needed (WebSocket)
 - Mobile client (no gRPC support)
 - Small result set (50 rows)
@@ -471,6 +487,7 @@ query {
 ```
 
 **Optimization strategies:**
+
 - Limit result sets (pagination)
 - Denormalize to flatten queries
 - Use caching for repeated queries
@@ -495,6 +512,7 @@ query = """
 ```
 
 **Optimization strategies:**
+
 - Pre-aggregate in database
 - Use WHERE to limit data
 - Partition by date/region
@@ -520,11 +538,13 @@ time curl -X POST http://api/graphql -d '{ query }'
 ### "Arrow queries failing - schema mismatch"
 
 **Diagnosis:**
+
 1. Check schema in database: `SELECT * FROM table LIMIT 1;`
 2. Check Arrow schema: `client.get_flight_info(...)`
 3. Compare types: String vs Int, Timestamp vs Date
 
 **Solutions:**
+
 - Regenerate Arrow schema
 - Ensure all values match declared type
 - Use CAST in query if needed
@@ -534,6 +554,7 @@ time curl -X POST http://api/graphql -d '{ query }'
 **Expected.** Arrow uses gRPC, which needs proxy layer.
 
 **Solutions:**
+
 - Use gRPC-Web proxy (Envoy, grpcwebproxy)
 - Keep JSON API for browser clients
 - Use Arrow for backend/analytics only
@@ -541,11 +562,13 @@ time curl -X POST http://api/graphql -d '{ query }'
 ### "Arrow performance not better than JSON"
 
 **Possible causes:**
+
 - Result set too small (<10K rows)
 - Network bottleneck (both equally affected)
 - Query already optimized (not I/O bound)
 
 **Check:**
+
 - Is database query fast? `EXPLAIN ANALYZE`
 - Is network latency limiting? Test locally
 - Is result set actually large?

@@ -10,6 +10,7 @@ FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL co
 ## Prerequisites
 
 **Required Knowledge:**
+
 - GraphQL basics (types, fields, queries, mutations)
 - Apollo Federation v2 concepts (@key, @external, @extends)
 - Multi-database architecture understanding
@@ -17,6 +18,7 @@ FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL co
 - Basic networking and service communication
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Apollo Router or compatible gateway
 - Python 3.10+, TypeScript 4.5+, or other supported SDK
@@ -24,6 +26,7 @@ FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL co
 - Docker (for local testing)
 
 **Required Infrastructure:**
+
 - 2+ FraiseQL instances (one per subgraph)
 - Apollo Router instance or Apollo Gateway
 - Database instances (one per subgraph or shared)
@@ -31,6 +34,7 @@ FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL co
 - For local DB federation: direct database access between subgraphs
 
 **Optional but Recommended:**
+
 - Load balancer (for HA)
 - Service mesh (Istio, Linkerd for observability)
 - Distributed tracing (Jaeger, Zipkin)
@@ -162,6 +166,7 @@ class User:
 Declares the primary key for entity identification in federation.
 
 **Usage:**
+
 ```python
 @type
 @key("id")
@@ -176,6 +181,7 @@ class OrgUser:
 ```
 
 **Features:**
+
 - Single or composite keys
 - Multiple @key directives supported
 - Marks entity as resolvable in _entities query
@@ -189,6 +195,7 @@ class OrgUser:
 Marks a type as extending an entity from another subgraph.
 
 **Usage:**
+
 ```python
 @type
 @extends
@@ -200,6 +207,7 @@ class User:
 ```
 
 **When to use:**
+
 - Adding fields to entities owned elsewhere
 - Creating relationships from extended entities
 - Sharing computed fields
@@ -211,6 +219,7 @@ class User:
 Marks fields as owned by another subgraph.
 
 **Usage:**
+
 ```python
 @type
 @extends
@@ -236,6 +245,7 @@ Cannot be mutated in this subgraph.
 Marks fields that can be resolved by multiple subgraphs.
 
 **Usage:**
+
 ```python
 @type
 @shareable
@@ -256,6 +266,7 @@ class Product:
 **When:** Entity is owned by this subgraph
 
 **Query Pattern:**
+
 ```sql
 SELECT id, name, email FROM users WHERE id IN (?, ?, ...)
 ```
@@ -263,6 +274,7 @@ SELECT id, name, email FROM users WHERE id IN (?, ?, ...)
 **Performance:** ~5ms for 100 entities (local database)
 
 **Example:**
+
 ```python
 # Users Subgraph
 @type
@@ -287,6 +299,7 @@ Direct connection to remote database, same as local resolution
 **Performance:** ~20ms for 100 entities across networks
 
 **Setup:**
+
 ```toml
 # config.toml
 [federation.subgraphs]
@@ -296,6 +309,7 @@ database_url = "postgresql://orders-db:5432/orders"
 ```
 
 **Benefits:**
+
 - No HTTP overhead
 - Lower latency than HTTP federation
 - Works with same schema.compiled.json
@@ -307,6 +321,7 @@ database_url = "postgresql://orders-db:5432/orders"
 **When:** Entity is in external GraphQL service
 
 **Query Pattern:**
+
 ```graphql
 query($representations: [_Any!]!) {
   _entities(representations: $representations) {
@@ -319,6 +334,7 @@ query($representations: [_Any!]!) {
 **Performance:** ~200ms for typical subgraph
 
 **Setup:**
+
 ```toml
 # config.toml
 [federation.subgraphs]
@@ -328,6 +344,7 @@ url = "http://orders-service:4000/graphql"
 ```
 
 **Benefits:**
+
 - Works with any GraphQL service
 - Easy integration with Apollo Server
 - Good for multi-vendor setups
@@ -366,6 +383,7 @@ class Order:
 ```
 
 **Query:**
+
 ```graphql
 query {
   user(id: "user123") {
@@ -413,6 +431,7 @@ class OrgOrder:
 ```
 
 **Benefits:**
+
 - Complete data isolation by organization
 - Single schema definition
 - Same query pattern as simple case
@@ -460,6 +479,7 @@ class Product:
 ```
 
 **Query Resolution:**
+
 1. products-service queries local Product
 2. Fetches Order from orders-service
 3. orders-service fetches User from users-service
@@ -493,6 +513,7 @@ class Product:
 ```
 
 **Deployment:**
+
 ```bash
 # AWS us-east-1: Users
 fraiseql deploy users-subgraph \
@@ -514,6 +535,7 @@ fraiseql deploy products-subgraph \
 ```
 
 **Key Benefits:**
+
 - Single schema definition
 - Data locality (EU data stays in EU)
 - Cost transparency (pay cloud providers directly)
@@ -530,6 +552,7 @@ fraiseql deploy products-subgraph \
 **Cause:** Entity ownership mismatch
 
 **Solution:**
+
 1. Verify `@key` directives match across subgraphs
 2. Check database contains the requested entity
 3. Verify entity IDs are correctly passed
@@ -596,6 +619,7 @@ mutation {
 **Causes and Solutions:**
 
 1. **HTTP Overhead:** Switch to DirectDB strategy
+
    ```toml
    strategy = "direct-database"
    database_url = "postgresql://..."
@@ -607,6 +631,7 @@ mutation {
    - HTTP: <200ms expected
 
 3. **Database Slow:** Add indexes to key fields
+
    ```sql
    CREATE INDEX idx_user_id ON users(id);
    ```
@@ -630,6 +655,7 @@ CREATE INDEX idx_org_id_user_id ON users(organization_id, id);
 ```
 
 **Performance impact:**
+
 - Without index: 50-100ms per entity
 - With index: <5ms per entity
 
@@ -659,6 +685,7 @@ This is automatic; no configuration needed.
 | HTTP | <200ms | External services |
 
 **Recommendation:**
+
 - Use Local for entities you own
 - Use DirectDB for FraiseQL subgraphs
 - Use HTTP only for non-FraiseQL services
@@ -788,4 +815,3 @@ let metadata = FederationMetadata {
 - **[Federation Architecture](../../architecture/integration/federation.md)** - Technical architecture details
 - **[SAGA Pattern](./sagas.md)** - Distributed transaction coordination
 - **[Enterprise RBAC](../../enterprise/rbac.md)** - Row-level security and multi-tenant isolation
-

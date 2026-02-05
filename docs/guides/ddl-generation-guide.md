@@ -10,6 +10,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - SQL fundamentals (SELECT, JOIN, WHERE clauses)
 - View concepts (database views, materialized views)
 - FraiseQL schema definition and view selection
@@ -18,6 +19,7 @@
 - Database schema design patterns
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - FraiseQL CLI (for DDL generation commands)
 - PostgreSQL 14+, MySQL 8.0+, SQLite 3.x, or SQL Server 2019+
@@ -26,6 +28,7 @@
 - A text editor for SQL scripts
 
 **Required Infrastructure:**
+
 - Access to your target database (PostgreSQL, MySQL, SQLite, SQL Server)
 - Database user with DDL creation permissions (CREATE TABLE, CREATE VIEW)
 - Schema already deployed or accessible
@@ -33,6 +36,7 @@
 - Sufficient disk space for materialized views (if applicable)
 
 **Optional but Recommended:**
+
 - View Selection Guide documentation for decision making
 - Database performance monitoring tools
 - Version control for tracking DDL changes
@@ -127,12 +131,14 @@ fraiseql generate-views \
 ## When to Use This Guide
 
 **Use this guide when:**
+
 - ✅ You've read Phase 9.4 View Selection Guide
-- ✅ You've decided to use a table-backed view (tv_* or ta_*)
+- ✅ You've decided to use a table-backed view (tv_*or ta_*)
 - ✅ You want to generate the DDL automatically
 - ✅ You want to review the SQL before deploying
 
 **Skip this guide if:**
+
 - ❌ You haven't decided whether to use table-backed views yet (read Phase 9.4 first)
 - ❌ You want to write the SQL manually
 - ❌ You're still evaluating performance
@@ -634,6 +640,7 @@ ddl = generate_ta_ddl(
 **Symptom:** `Error: Could not load schema.json`
 
 **Solution:**
+
 - Verify path: `ls -la schema.json`
 - Use absolute path: `generate_tv_ddl(schema, ..., schema="/full/path/to/schema.json")`
 
@@ -642,6 +649,7 @@ ddl = generate_ta_ddl(
 **Symptom:** `Error: Entity "UserProfile" not found in schema`
 
 **Solution:**
+
 - Check entity names in schema: `grep '"name"' schema.json | grep -i user`
 - Match exact name (case-sensitive): `entity="User"` not `entity="user"`
 
@@ -650,6 +658,7 @@ ddl = generate_ta_ddl(
 **Symptom:** `Error: Invalid refresh_strategy "real-time"`
 
 **Solution:**
+
 - Use only: `"trigger-based"` or `"scheduled"`
 - See [Refresh Strategy](#refresh-strategy) section for details
 
@@ -658,6 +667,7 @@ ddl = generate_ta_ddl(
 **Symptom:** `SYNTAX ERROR: unexpected token`
 
 **Solution:**
+
 - Validate before deploying: `validate_generated_ddl(ddl)`
 - Check schema.json for invalid characters
 - Report issue: [GitHub Issues](https://github.com/anthropics/fraiseql/issues)
@@ -694,22 +704,26 @@ else:
 ### Trigger-Based Refresh
 
 **Best for:**
+
 - Small tables (< 100K rows)
 - High query volume (> 1000 req/sec)
 - Must have <1 second data freshness
 
 **Cost:**
+
 - ~10-50ms per source row change
 - Scales linearly with update rate
 
 ### Scheduled Refresh
 
 **Best for:**
+
 - Large tables (> 1M rows)
 - Batch processes
 - Can tolerate 1-60 minute staleness
 
 **Cost:**
+
 - ~100-500ms total (regardless of table size)
 - Fixed schedule (daily, hourly, etc.)
 

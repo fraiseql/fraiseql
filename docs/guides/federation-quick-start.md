@@ -105,6 +105,7 @@ curl -X POST http://localhost:4000/graphql \
 ```
 
 Expected response:
+
 ```json
 {
   "data": {
@@ -121,7 +122,7 @@ Expected response:
 
 ---
 
-## That's It!
+## That's It
 
 You now have a working federation! 🎉
 

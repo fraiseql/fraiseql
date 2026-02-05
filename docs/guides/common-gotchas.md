@@ -37,6 +37,7 @@ query {
 ```
 
 **What happens:**
+
 1. Query fetches 100 users → 1 database query
 2. For EACH user, fetches their posts → 100 more queries
 3. Total: 101 queries instead of 1
@@ -48,6 +49,7 @@ FraiseQL executes nested fields one level at a time. Without optimization, it fe
 ### How to Diagnose
 
 **Check database query count:**
+
 ```bash
 # Enable query logging
 FRAISEQL_LOG_LEVEL=debug cargo run
@@ -57,6 +59,7 @@ grep "SELECT" logs.txt | wc -l
 ```
 
 **Check profiling output:**
+
 ```graphql
 query {
   users {
@@ -104,6 +107,7 @@ class UserWithPosts:
 **Solution 3: Flatten queries temporarily**
 
 Instead of:
+
 ```graphql
 query {
   users { posts { comments { likes } } }
@@ -111,6 +115,7 @@ query {
 ```
 
 Do:
+
 ```graphql
 query {
   users { id posts { id } }
@@ -161,6 +166,7 @@ query {
 **Solutions:**
 
 **Use keyset pagination (RECOMMENDED):**
+
 ```graphql
 query {
   users(after: "user123", first: 100) {
@@ -171,11 +177,13 @@ query {
 ```
 
 **Keyset advantages:**
+
 - Constant performance regardless of offset
 - Works with sorting
 - Handles inserts/deletes during pagination
 
 **Or limit maximum offset:**
+
 ```toml
 [fraiseql.pagination]
 max_offset = 5000  # Disallow offset > 5000
@@ -188,6 +196,7 @@ max_offset = 5000  # Disallow offset > 5000
 **Why:** If data is inserted/deleted between pagination requests, result set changes.
 
 **Example:**
+
 ```
 Request 1: skip 0, take 10   → gets records 1-10
 [New record inserted]
@@ -198,6 +207,7 @@ Result: Skipped record 11!
 **Solutions:**
 
 **Use keyset pagination:**
+
 ```graphql
 query {
   users(after: "cursor_from_previous", first: 10) {
@@ -210,6 +220,7 @@ query {
 Keyset pagination uses the last record's ID as cursor, immune to inserts.
 
 **Or use snapshot isolation:**
+
 ```graphql
 query {
   users(snapshotAt: "2026-02-05T10:00:00Z", skip: 10, take: 10) {
@@ -227,6 +238,7 @@ query {
 **Solution:**
 
 **Handle expired cursor gracefully:**
+
 ```python
 try:
     result = await client.query(query, variables={"after": cursor})
@@ -246,6 +258,7 @@ except FraiseQLError as e:
 **Symptom:** Mutation succeeds, but query still returns old cached value.
 
 **Example:**
+
 ```graphql
 mutation {
   updateUser(id: "123", name: "Alice") {
@@ -266,6 +279,7 @@ query {
 ### Solutions
 
 **Solution 1: Explicit cache invalidation**
+
 ```graphql
 mutation {
   updateUser(id: "123", name: "Alice") @cache(invalidate: true) {
@@ -276,12 +290,14 @@ mutation {
 ```
 
 **Solution 2: TTL-based invalidation**
+
 ```toml
 [fraiseql.caching]
 ttl_seconds = 60  # All caches expire after 60 seconds
 ```
 
 **Solution 3: Dependency-based invalidation**
+
 ```python
 @fraiseql.mutation
 def update_user(id: str, name: str):
@@ -295,6 +311,7 @@ def update_user(id: str, name: str):
 **Symptom:** Critical data is cached but needs to be fresh for real-time operations.
 
 **Example:**
+
 ```graphql
 query {
   inventory(productId: "123") {
@@ -306,6 +323,7 @@ query {
 ### Solutions
 
 **Solution 1: Disable caching for critical fields**
+
 ```python
 @fraiseql.type
 class Inventory:
@@ -315,6 +333,7 @@ class Inventory:
 ```
 
 **Solution 2: Use subscriptions for real-time data**
+
 ```graphql
 subscription {
   inventoryChanged(productId: "123") {
@@ -325,6 +344,7 @@ subscription {
 ```
 
 **Solution 3: Add versioning to cache keys**
+
 ```graphql
 query {
   user(id: "123", version: "current") {  # Always gets latest
@@ -343,6 +363,7 @@ query {
 **Symptom:** Sensitive field is readable by unauthorized users.
 
 **Example:**
+
 ```python
 @fraiseql.type
 class User:
@@ -358,6 +379,7 @@ class User:
 ### Solution
 
 **Add authorization to every sensitive field:**
+
 ```python
 @fraiseql.type
 class User:
@@ -369,6 +391,7 @@ class User:
 ```
 
 **Or use row-level security:**
+
 ```python
 @fraiseql.type
 class User:
@@ -387,6 +410,7 @@ class User:
 **Symptom:** Filter doesn't match expected records, or returns error.
 
 **Example:**
+
 ```graphql
 query {
   products(where: { id: { eq: "123" } }) {  # String
@@ -396,6 +420,7 @@ query {
 ```
 
 **Database schema:**
+
 ```sql
 CREATE TABLE products (
   id INT PRIMARY KEY,  -- Number!
@@ -408,6 +433,7 @@ CREATE TABLE products (
 ### Solution
 
 **Ensure types match in schema:**
+
 ```python
 @fraiseql.type
 class Product:
@@ -421,6 +447,7 @@ class Product:
 **Symptom:** Filter with NULL doesn't work as expected.
 
 **Example:**
+
 ```graphql
 query {
   users(where: { middleName: { eq: null } }) {  # Finds users WITH middle names!
@@ -434,6 +461,7 @@ query {
 ### Solution
 
 **Use is_null operator:**
+
 ```graphql
 query {
   users(where: { middleName: { is_null: true } }) {  # Correct!
@@ -451,6 +479,7 @@ query {
 **Symptom:** Schema compilation fails with "circular dependency" error.
 
 **Example:**
+
 ```python
 # users-service
 @fraiseql.type
@@ -470,6 +499,7 @@ class User:
 ### Solution
 
 **Flatten the hierarchy:**
+
 ```python
 # Solution: Only users-service owns User, only orders-service owns Order
 # Don't create bidirectional extends
@@ -502,12 +532,14 @@ class Order:
 ### Solutions
 
 **Solution 1: Increase SAGA timeout**
+
 ```toml
 [fraiseql.federation.sagas]
 timeout_seconds = 300  # 5 minutes instead of default 30 seconds
 ```
 
 **Solution 2: Break into smaller steps**
+
 ```python
 @fraiseql.saga
 async def bulk_update_users(user_ids: List[str]):
@@ -523,6 +555,7 @@ async def bulk_update_users(user_ids: List[str]):
 
 **Solution 3: Use async tasks instead**
 For very long operations, use background tasks instead of SAGA:
+
 ```python
 @fraiseql.mutation
 async def bulk_update_users(user_ids: List[str]):
@@ -547,6 +580,7 @@ async def bulk_update_users(user_ids: List[str]):
 ### Solution
 
 **Switch to table-backed views (tv_*):**
+
 ```python
 # Replace v_user_summary (logical view):
 @fraiseql.type
@@ -565,6 +599,7 @@ class UserSummary:  # Now tv_user_summary_materialized
 ```
 
 **Table-backed views advantages:**
+
 - Pre-computed and stored (fast reads)
 - No recalculation per query
 - Trade-off: requires refresh strategy
@@ -578,6 +613,7 @@ class UserSummary:  # Now tv_user_summary_materialized
 **Symptom:** Date filter includes wrong records or excludes correct ones.
 
 **Example:**
+
 ```graphql
 query {
   orders(where: { createdAt: { gte: "2026-02-05" } }) {
@@ -591,6 +627,7 @@ query {
 ### Solutions
 
 **Solution 1: Use DateTime with timezone**
+
 ```graphql
 query {
   orders(where: {
@@ -604,6 +641,7 @@ query {
 ```
 
 **Solution 2: Use Date type for date-only fields**
+
 ```python
 @fraiseql.type
 class Order:
@@ -613,6 +651,7 @@ class Order:
 ```
 
 **Solution 3: Compare at database level**
+
 ```sql
 SELECT * FROM orders
 WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
@@ -631,6 +670,7 @@ WHERE DATE(created_at AT TIME ZONE 'UTC') = '2026-02-05'
 ### Solutions
 
 **Solution 1: Set subscription timeout**
+
 ```toml
 [fraiseql.subscriptions]
 timeout_seconds = 3600  # Close connection after 1 hour
@@ -638,6 +678,7 @@ idle_timeout_seconds = 300  # Close if idle for 5 minutes
 ```
 
 **Solution 2: Explicit subscription cleanup**
+
 ```python
 try:
     async for event in subscription:
@@ -647,6 +688,7 @@ finally:
 ```
 
 **Solution 3: Monitor active subscriptions**
+
 ```bash
 # Check for zombie subscriptions
 SELECT COUNT(*) FROM pg_stat_activity
@@ -666,12 +708,14 @@ WHERE state = 'active' AND query LIKE '%subscription%'
 ### Solution
 
 **Use strong consistency guarantees:**
+
 ```toml
 [fraiseql.federation]
 consistency_level = "strong"  # Wait for all replicas
 ```
 
 **Or use regional routing:**
+
 ```python
 # Route writes to primary region
 # Route reads to local region (accept eventual consistency)
@@ -690,6 +734,7 @@ async def get_user(id: str, region: str = "primary"):
 **Symptom:** Query returns unexpected fields or overwrites data.
 
 **Example:**
+
 ```graphql
 query {
   user: users(id: "123") {  # Alias "user" shadows field "users"
@@ -700,6 +745,7 @@ query {
 ```
 
 **Result:**
+
 ```json
 {
   "user": {
@@ -710,6 +756,7 @@ query {
 ```
 
 **Later:**
+
 ```graphql
 query {
   users(id: "123") {  # Different field name
@@ -723,6 +770,7 @@ query {
 ### Solution
 
 **Use aliases carefully and consistently:**
+
 ```graphql
 query {
   activeUsers: users(status: "active") {
@@ -737,6 +785,7 @@ query {
 ```
 
 **Document expected response structure:**
+
 ```python
 # Add comment to schema
 @fraiseql.query
@@ -762,6 +811,7 @@ def users(status: str = None):
 **Symptom:** Query with array operators fails on MySQL/SQLite.
 
 **Example:**
+
 ```graphql
 query {
   products(where: { tags: { contains: ["sale", "new"] } }) {  # Works on PostgreSQL, fails on MySQL!
@@ -773,12 +823,14 @@ query {
 ### Solution
 
 **Check database support:**
+
 ```toml
 [fraiseql.validation]
 array_operators_postgresql_only = true  # Warn if using array operators
 ```
 
 **Or store arrays as JSON:**
+
 ```python
 @fraiseql.type
 class Product:
@@ -799,18 +851,21 @@ class Product:
 ### Solutions
 
 **Solution 1: Set connection timeout**
+
 ```toml
 [fraiseql.database]
 connection_timeout_seconds = 10
 ```
 
 **Solution 2: Implement query timeout**
+
 ```toml
 [fraiseql.database]
 query_timeout_seconds = 30
 ```
 
 **Solution 3: Monitor connection pool**
+
 ```bash
 # Check active connections
 SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'
@@ -829,6 +884,7 @@ WHERE query_start < now() - interval '5 minutes'
 **Symptom:** Query hangs or times out.
 
 **Example:**
+
 ```graphql
 query {
   user(id: "1") {
@@ -847,12 +903,14 @@ query {
 ### Solution
 
 **Implement depth limits:**
+
 ```toml
 [fraiseql.validation]
 max_query_depth = 15  # Prevent deep nesting
 ```
 
 **Or use explicit iteration:**
+
 ```graphql
 query {
   user(id: "1") {
@@ -873,6 +931,7 @@ query {
 ## See Also
 
 **Related Guides:**
+
 - **[Common Patterns](./PATTERNS.md)** — Real-world solutions avoiding gotchas
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing query performance
 - **[Testing Strategy](./testing-strategy.md)** — Testing to catch gotchas early
@@ -880,11 +939,13 @@ query {
 - **[Consistency Model](./consistency-model.md)** — Understanding consistency guarantees
 
 **Architecture & Design:**
+
 - **[Execution Semantics](../architecture/core/execution-semantics.md)** — How queries execute
 - **[Schema Design Best Practices](./schema-design-best-practices.md)** — Designing to avoid issues
 - **[Federation Guide](../integrations/federation/guide.md)** — Federation pitfalls
 
 **Operations:**
+
 - **[Monitoring & Observability](./monitoring.md)** — Catching issues in production
 - **[Observability Architecture](../operations/observability-architecture.md)** — Observing patterns
 

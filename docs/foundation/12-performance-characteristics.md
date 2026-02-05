@@ -160,6 +160,7 @@ Example:
 ### Common Query Patterns and Performance
 
 **Pattern 1: Simple Single-Row Query**
+
 ```graphql
 query {
   user(id: 1) {
@@ -176,6 +177,7 @@ query {
 - Database queries: 1
 
 **Pattern 2: List with Pagination**
+
 ```graphql
 query {
   users(limit: 50, offset: 0) {
@@ -193,6 +195,7 @@ query {
 - Database queries: 1
 
 **Pattern 3: One-to-Many Relationship**
+
 ```graphql
 query {
   user(id: 1) {
@@ -213,6 +216,7 @@ query {
 - Database queries: 2
 
 **Pattern 4: Deeply Nested (Anti-pattern)**
+
 ```graphql
 query {
   user(id: 1) {
@@ -329,6 +333,7 @@ CREATE INDEX idx_post_user_date ON tb_post(fk_user_id, created_at DESC);
 ```
 
 **Performance impact:**
+
 - Sequential scan: 500-5000ms for filtered queries
 - Index scan: 5-50ms for filtered queries
 - Index overhead: ~1ms per INSERT (acceptable)
@@ -372,6 +377,7 @@ idle_timeout_ms = 300000  # 5 minutes
 ```
 
 **Guidelines:**
+
 - Light workload: min=5, max=20
 - Moderate workload: min=10, max=50
 - Heavy workload: min=20, max=100
@@ -530,6 +536,7 @@ query {
 ```
 
 **Fix**: Use query batching or joins
+
 ```sql
 -- Instead of N queries, use JOIN
 SELECT users.id, users.name, posts.id, posts.title
@@ -558,6 +565,7 @@ query {
 ```
 
 **Fix**: Request only needed fields
+
 ```graphql
 # ✅ GOOD: Requests only 2 fields
 query {
@@ -587,6 +595,7 @@ query {
 ```
 
 **Fix**: Enforce pagination limits
+
 ```graphql
 # ✅ GOOD: Maximum 100 items
 query {

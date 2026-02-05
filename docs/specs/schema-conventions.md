@@ -57,6 +57,7 @@ See [View Selection Guide](../architecture/database/view-selection-guide.md) for
 - `va_*` vs `ta_*`: Logical vs table-backed for Arrow/Analytics queries
 
 **Quick decision:**
+
 - Simple queries → `v_*` (JSON) or `va_*` (Arrow)
 - Complex queries with 3+ JOINs → `tv_*` (JSON)
 - Large datasets (>1M rows) → `ta_*` (Arrow)

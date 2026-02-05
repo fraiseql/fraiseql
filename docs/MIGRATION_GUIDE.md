@@ -5,12 +5,14 @@ This guide walks you through migrating from a monolithic `schema.json` to domain
 ## Overview
 
 **Before**:
+
 ```
 schema.json (all types, queries, mutations in one file)
 fraiseql.toml
 ```
 
 **After**:
+
 ```
 schema/
 ├── {domain1}/

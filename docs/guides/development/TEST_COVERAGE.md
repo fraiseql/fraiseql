@@ -502,11 +502,13 @@ cargo tarpaulin --all-features --workspace
 ### "Code coverage below 85% target"
 
 **Diagnosis:**
+
 1. Generate coverage report: `cargo tarpaulin --out Html`
 2. Open tarpaulin-report.html and find uncovered lines
 3. Identify pattern: Are certain modules consistently uncovered?
 
 **Solutions:**
+
 - For happy paths: Add tests for all code branches
 - For error paths: Test both success and failure scenarios
 - For edge cases: Add tests for boundary conditions (empty lists, NULL, etc.)
@@ -518,11 +520,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** Tests in different binary or coverage not collecting from that module.
 
 **Diagnosis:**
+
 1. Verify test exists: `grep -r "mod tests" src/module`
 2. Check if module is public: Does test have access?
 3. Verify tarpaulin includes crate: Check command line
 
 **Solutions:**
+
 - Move tests closer to code: Use `#[cfg(test)] mod tests;` in module
 - Make module public if needed: `pub mod name;`
 - Run tarpaulin with all features: `--all-features`
@@ -533,11 +537,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** SDK tests not being counted or separate test framework.
 
 **Diagnosis:**
+
 1. Check SDK test location: Usually `tests/` directory
 2. Verify language test runner: Python has pytest, TypeScript has Jest, etc.
 3. Check if coverage collected: Some languages don't auto-integrate
 
 **Solutions:**
+
 - For Python: Use pytest-cov plugin
 - For TypeScript: Use Jest coverage
 - For Go: Use Go test coverage tool
@@ -549,11 +555,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** Coverage measures lines, not logic paths or requirements.
 
 **Diagnosis:**
+
 1. Check mutation score: How would code behave if logic changed?
 2. Review test quality: Are assertions actually testing behavior?
 3. Look for stub tests: Tests that pass but don't verify anything
 
 **Solutions:**
+
 - Improve test quality: Add meaningful assertions
 - Add mutation testing: Verify tests catch code changes
 - Test behavior, not just lines: One test per behavior
@@ -564,11 +572,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** Test pyramid imbalance - unit tests don't cover integration scenarios.
 
 **Diagnosis:**
+
 1. Check unit vs integration split: Ratio should be ~70% unit, 30% integration
 2. Identify untested integrations: Which modules interact?
 3. Review integration test count: Are they comprehensive?
 
 **Solutions:**
+
 - Add more integration tests: Cover module interactions
 - Test real scenarios: How modules interact in production
 - Use database fixtures: Setup realistic data
@@ -579,11 +589,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** Too many slow tests or database setup overhead.
 
 **Diagnosis:**
+
 1. Profile test execution: `time cargo test`
 2. Check slow tests: `cargo test -- --nocapture | grep -i time`
 3. Verify database setup: Is it happening per-test or once?
 
 **Solutions:**
+
 - Use shared test database fixture (setup once, per-test transactions)
 - Parallelize tests: `cargo test -- --test-threads 8`
 - Move slow tests to separate suite: Run separately
@@ -595,11 +607,13 @@ cargo tarpaulin --all-features --workspace
 **Cause:** Large codebase or coverage tool overhead.
 
 **Diagnosis:**
+
 1. Check crate count: How many crates being analyzed?
 2. Check source lines: How much code?
 3. Verify instrumentation isn't too aggressive
 
 **Solutions:**
+
 - Run coverage on subset: `--p specific_crate` during development
 - Increase timeout: `--timeout 300` (seconds)
 - Use faster coverage tool: Consider llvm-cov instead of tarpaulin

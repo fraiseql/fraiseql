@@ -34,10 +34,10 @@ FraiseQL enforces the **fact table pattern** for analytical workloads:
 
 ### Optional Columns
 
-4. **Denormalized Filter Columns**: Indexed SQL columns for fast WHERE filtering
+1. **Denormalized Filter Columns**: Indexed SQL columns for fast WHERE filtering
    - UUIDs, VARCHAR, DATE, ENUM
    - Examples: `customer_id`, `product_id`, `occurred_at`, `status`
-5. **Timestamps**: `created_at`, `occurred_at`, etc.
+2. **Timestamps**: `created_at`, `occurred_at`, etc.
 
 ### Example: Sales Fact Table
 

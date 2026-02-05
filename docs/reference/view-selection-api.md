@@ -425,6 +425,7 @@ client.do_get(flight.Ticket(json.dumps({
 - Default: Infers from type name (e.g., `User` → `v_user`)
 
 **Usage**:
+
 ```python
 @fraiseql.type()                    # Uses v_user by default
 class User:
@@ -438,6 +439,7 @@ class User:
 ### Arrow Flight Ticket
 
 **Structure**:
+
 ```typescript
 interface FlightTicket {
   view: string;           // Required: view name

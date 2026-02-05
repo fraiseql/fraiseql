@@ -22,6 +22,7 @@ In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeS
 **What we're building:** A blog platform with users, posts, and comments.
 
 **Architecture:**
+
 ```
 TypeScript Schema        → schema.json        → schema.compiled.json → FraiseQL Server
 (@Type, @Query, @Mutation)  (decorators)      (fraiseql-cli)        (GraphQL API)
@@ -240,6 +241,7 @@ Create `tsconfig.json`:
 ```
 
 **Key settings:**
+
 - `experimentalDecorators: true` - Required for `@Type`, `@Query`, `@Mutation` decorators
 - `emitDecoratorMetadata: true` - Preserves metadata for reflection
 - `target: ES2020` - Modern JavaScript features
@@ -818,6 +820,7 @@ class User {
 ```
 
 **What it does:**
+
 - Registers the class name as a GraphQL type
 - Metadata is collected at decoration time
 - No runtime behavior
@@ -843,6 +846,7 @@ fraiseql.registerTypeFields("User", [
 ```
 
 **Scalar types:**
+
 - `ID` - Unique identifier
 - `String` - Text
 - `Int` - 32-bit integer
@@ -853,6 +857,7 @@ fraiseql.registerTypeFields("User", [
 - `JSON` - Arbitrary JSON object
 
 **Nullable rules:**
+
 - `nullable: false` → `ID!` in GraphQL (required)
 - `nullable: true` → `ID` in GraphQL (optional)
 - Lists never represent individual array elements, only return types
@@ -881,6 +886,7 @@ fraiseql.registerQuery(
 ```
 
 **Parameters:**
+
 1. `name` - Query name in GraphQL schema
 2. `returnType` - Type name (must exist)
 3. `returnsList` - Does this query return an array?
@@ -1058,12 +1064,14 @@ This generates `schema.json`:
 ### 4.2 Understanding the Generated JSON
 
 **Type Definition:**
+
 - `name` - Type name
 - `kind` - OBJECT, ENUM, INTERFACE, UNION, INPUT, SCALAR
 - `fields` - Array of field definitions
 - `description` - Type documentation
 
 **Query Definition:**
+
 - `name` - Query name
 - `return_type` - Type returned
 - `returns_list` - Is it an array?
@@ -1071,6 +1079,7 @@ This generates `schema.json`:
 - `sql_source` - View to query
 
 **Mutation Definition:**
+
 - `name` - Mutation name
 - `operation` - CREATE, UPDATE, DELETE, CUSTOM
 - `sql_source` - Stored procedure to call
@@ -1078,16 +1087,20 @@ This generates `schema.json`:
 ### 4.3 Troubleshooting Export Errors
 
 **Error: "Type 'User' not found"**
+
 - Ensure `registerTypeFields()` is called for every type before export
 - Check spelling matches between `registerTypeFields("User")` and type usage
 
 **Error: "Query 'users' references unknown return type 'User'"**
+
 - Call `registerTypeFields()` for User before `registerQuery()` for users
 
 **Error: "Field 'name' has type 'String' but no nullable option"**
+
 - Always specify `nullable: true` or `nullable: false` for each field
 
 **Solution: Check for TypeScript errors**
+
 ```bash
 npx tsc --noEmit
 ```
@@ -1153,6 +1166,7 @@ fraiseql compile fraiseql.toml --types schema.json
 ```
 
 **What it does:**
+
 1. Validates all types exist and are properly defined
 2. Validates all queries/mutations reference existing types
 3. Validates all views/procedures exist in the database
@@ -1198,19 +1212,23 @@ The compiled schema includes:
 ### 6.3 Troubleshooting Compilation Errors
 
 **Error: "View 'v_user' not found in database"**
+
 - Ensure the PostgreSQL view exists
 - Check database connection settings
 - Verify you're connected to the correct database
 
 **Error: "Column 'postCount' not found in view 'v_user'"**
+
 - Check the view definition (created in Part 1)
 - Verify view SELECT includes all required columns
 
 **Error: "Procedure 'fn_create_user' expects 2 arguments but got 3"**
+
 - Check the function signature in the database
 - Update `registerMutation()` to match parameter count
 
 **Solution: Debug with psql**
+
 ```bash
 # Connect to database
 psql -h localhost -U blog_user -d blog_db
@@ -1246,7 +1264,7 @@ Starting FraiseQL server...
 
 ### 7.2 Testing with GraphQL IDE
 
-Visit http://localhost:4000/graphql in your browser to open the GraphQL IDE (Apollo Sandbox or similar).
+Visit <http://localhost:4000/graphql> in your browser to open the GraphQL IDE (Apollo Sandbox or similar).
 
 **Example Query:**
 
@@ -1362,9 +1380,10 @@ curl -X POST http://localhost:4000/graphql \
 
 ### 8.2 Using Postman
 
-1. Create new POST request to http://localhost:4000/graphql
+1. Create new POST request to <http://localhost:4000/graphql>
 2. Set header: `Content-Type: application/json`
 3. Body (raw):
+
 ```json
 {
   "query": "{ users(limit: 10) { id email name } }"
@@ -1691,6 +1710,7 @@ FRAISEQL_LOG_LEVEL=info
 **Issue: "Cannot find module 'fraiseql'"**
 
 Solution:
+
 ```bash
 npm install fraiseql --save
 ```
@@ -1698,6 +1718,7 @@ npm install fraiseql --save
 **Issue: "Experimental decorators must be set to true"**
 
 Solution: Verify `tsconfig.json` has:
+
 ```json
 {
   "compilerOptions": {
@@ -1710,6 +1731,7 @@ Solution: Verify `tsconfig.json` has:
 **Issue: "Query executes but returns empty results"**
 
 Check:
+
 1. View exists in database: `\dv v_post`
 2. View has data: `SELECT COUNT(*) FROM v_post`
 3. Column names match schema definition
@@ -1718,6 +1740,7 @@ Check:
 **Issue: "Mutation returns error: function doesn't exist"**
 
 Check:
+
 1. Function exists: `\df fn_create_user`
 2. Function signature matches mutation args
 3. Function returns the correct type
@@ -1725,6 +1748,7 @@ Check:
 **Issue: "GraphQL IDE shows introspection error"**
 
 Check:
+
 1. Server is running: `curl http://localhost:4000/health`
 2. `enable_introspection = true` in fraiseql.toml
 3. Browser console for CORS errors

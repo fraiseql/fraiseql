@@ -364,6 +364,7 @@ Per month (assuming 1M requests/day):
 ```
 
 **Alerting Strategy**:
+
 ```promql
 # Burn rate alerts
 rate(graphql_errors_total[5m]) / rate(graphql_requests_total[5m]) > 0.001

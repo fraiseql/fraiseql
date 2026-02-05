@@ -18,12 +18,14 @@ pnpm add fraiseql-nodejs
 ```
 
 **Requirements:**
+
 - Node.js 18 or higher
 - `fraiseql-nodejs` (npm package)
 - Optional: TypeScript 5.0+ for type safety
 - Optional: `@types/node` for Node.js types
 
 **Module Systems:**
+
 - **CommonJS** (`.js`, `require()`): Fully supported
 - **ESM** (`.mjs`, `import`): Fully supported
 - **Dual package**: Auto-detects based on `package.json` `"type"` field
@@ -684,6 +686,7 @@ const result = await client.query('tenantUsers', {
 **Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/fraiseql-nodejs`
 
 **Solution**:
+
 ```bash
 npm install @fraiseql/nodejs@latest
 npm cache clean --force
@@ -695,6 +698,7 @@ npm install
 **Issue**: `Cannot find module '@fraiseql/nodejs'`
 
 **Solution**:
+
 ```bash
 npm install @fraiseql/nodejs
 node -e "console.log(require('@fraiseql/nodejs'))"
@@ -705,11 +709,13 @@ node -e "console.log(require('@fraiseql/nodejs'))"
 **Issue**: `Unexpected token` or similar parser error
 
 **Check Node.js version** (14+ required):
+
 ```bash
 node --version
 ```
 
 **Update Node.js**:
+
 ```bash
 nvm install 18
 nvm use 18
@@ -720,6 +726,7 @@ nvm use 18
 **Issue**: `ERR_REQUIRE_ESM: require() of ES modules is not supported`
 
 **Solution - Use correct module system**:
+
 ```json
 {
   "type": "module"
@@ -727,6 +734,7 @@ nvm use 18
 ```
 
 Or for CommonJS:
+
 ```javascript
 // ✅ CommonJS
 const { Server } = require('@fraiseql/nodejs');
@@ -743,6 +751,7 @@ const server = Server.fromCompiled('schema.compiled.json');
 **Issue**: `UnhandledPromiseRejectionWarning`
 
 **Solution - Handle promises**:
+
 ```javascript
 // ❌ Wrong - unhandled rejection
 server.execute(query);
@@ -764,6 +773,7 @@ try {
 **Issue**: `TypeError: Cannot read property 'id' of undefined`
 
 **Solution - Check types**:
+
 ```javascript
 // ❌ Risky
 const userId = result.data.user.id;
@@ -777,12 +787,14 @@ const userId = result?.data?.user?.id || null;
 **Issue**: `Error: ECONNREFUSED - Connection refused`
 
 **Check environment**:
+
 ```bash
 echo $DATABASE_URL
 psql $DATABASE_URL -c "SELECT 1"
 ```
 
 **Set URL**:
+
 ```javascript
 process.env.DATABASE_URL = 'postgresql://...';
 const server = Server.fromCompiled('schema.compiled.json');
@@ -793,6 +805,7 @@ const server = Server.fromCompiled('schema.compiled.json');
 **Issue**: `TimeoutError: Operation timed out after 30000ms`
 
 **Solution - Increase timeout**:
+
 ```javascript
 const server = Server.fromCompiled('schema.compiled.json', {
   timeout: 60000,  // 60 seconds
@@ -811,12 +824,14 @@ await server.execute(query, { timeout: 30000 });
 **Issue**: `FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory`
 
 **Debug with clinic.js**:
+
 ```bash
 npm install -g clinic
 clinic doctor -- node app.js
 ```
 
 **Solutions**:
+
 - Paginate large result sets
 - Close connections properly
 - Use connection pooling
@@ -826,6 +841,7 @@ clinic doctor -- node app.js
 **Issue**: Queries take >5 seconds
 
 **Enable caching**:
+
 ```javascript
 const server = Server.fromCompiled('schema.compiled.json', {
   cache: {
@@ -840,6 +856,7 @@ const server = Server.fromCompiled('schema.compiled.json', {
 **Issue**: Bundle is >5MB
 
 **Optimize**:
+
 ```bash
 # Tree-shake
 import { Server } from '@fraiseql/nodejs';  // Only what needed
@@ -888,6 +905,7 @@ curl -X POST http://localhost:3000/graphql \
 #### GitHub Issues
 
 Provide:
+
 1. Node.js version: `node -v`
 2. npm version: `npm -v`
 3. FraiseQL version: `npm list @fraiseql/nodejs`

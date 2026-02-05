@@ -15,6 +15,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 ### Web Clients
 
 **[React with Apollo Client](./react-apollo-guide.md)** — Web applications using React
+
 - Apollo Client setup and configuration
 - Query and mutation patterns with hooks
 - Cache management strategies
@@ -23,6 +24,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 - Performance optimization
 
 **[Vue 3 with Apollo Client](./vue-apollo-guide.md)** — Vue 3 Composition API integration
+
 - Apollo Client for Vue setup
 - Composition API query hooks
 - Reactive state management
@@ -33,6 +35,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 ### Mobile Clients
 
 **[Flutter with GraphQL Client](./flutter-graphql-guide.md)** — Flutter mobile applications
+
 - GraphQL package installation and configuration
 - Query and mutation patterns
 - Local caching with HiveDB
@@ -42,6 +45,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 - iOS and Android deployment
 
 **[React Native with Apollo Client](./react-native-apollo-guide.md)** — React Native mobile applications
+
 - Apollo Client setup for React Native
 - Query and mutation patterns
 - AsyncStorage for persistence
@@ -52,6 +56,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 ### Backend & CLI Clients
 
 **[Node.js Runtime Client](./nodejs-runtime-guide.md)** — Backend server-to-server queries
+
 - FraiseQL Node.js client library
 - Query execution from backend services
 - Batch query processing
@@ -60,6 +65,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 - Performance tuning
 
 **[CLI Query Tool](./cli-query-guide.md)** — Command-line querying
+
 - Using `fraiseql-query` CLI tool
 - Query files and variables
 - Scripting FraiseQL queries
@@ -80,6 +86,7 @@ FraiseQL is a GraphQL backend, so any GraphQL-compatible client library can quer
 ### Error Handling
 
 All clients should implement:
+
 - Authentication errors (401)
 - Authorization errors (403)
 - Validation errors (422)
@@ -133,16 +140,19 @@ All clients should implement:
 Each guide includes testing patterns for:
 
 **Unit Tests**
+
 - Query building and validation
 - Error handling
 - Cache state management
 
 **Integration Tests**
+
 - Mock FraiseQL server responses
 - Subscription lifecycle
 - Error scenarios
 
 **E2E Tests**
+
 - Full user workflows
 - Real backend connectivity
 - Performance under load
@@ -152,16 +162,19 @@ Each guide includes testing patterns for:
 ## See Also
 
 **SDK References:**
+
 - **[All 16 Language SDKs](../../integrations/sdk/)** — How to author schemas in your language
 - **[SDK Best Practices](../language-sdk-best-practices.md)** — Server-side SDK usage patterns
 
 **Full-Stack Examples:**
+
 - **[Python + React Example](../../examples/fullstack-python-react.md)**
 - **[TypeScript + Vue Example](../../examples/fullstack-typescript-vue.md)**
 - **[Go + Flutter Example](../../examples/fullstack-go-flutter.md)**
 - **[Java + Next.js Example](../../examples/fullstack-java-nextjs.md)**
 
 **Related Guides:**
+
 - **[Real-Time Patterns](../PATTERNS.md)** — Subscription patterns
 - **[Authentication & Authorization](../authorization-quick-start.md)** — Securing client access
 - **[Production Deployment](../production-deployment.md)** — Hosting considerations

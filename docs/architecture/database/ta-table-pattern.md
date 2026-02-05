@@ -304,7 +304,7 @@ WHERE tablename = 'ta_orders';
 
 ### Storage
 
-- **Data duplication**: ta_* tables duplicate data from tb_* tables
+- **Data duplication**: ta_*tables duplicate data from tb_* tables
 - **Storage overhead**: Typically 10-20% of source table size
 - **Index overhead**: BRIN indexes add ~1-2% overhead
 
@@ -351,6 +351,7 @@ WHERE tablename = 'ta_orders';
 **Cause**: Trigger only fires on future changes, not existing data.
 
 **Solution**: Run initial population:
+
 ```sql
 SELECT refresh_ta_orders();
 ```
@@ -360,6 +361,7 @@ SELECT refresh_ta_orders();
 **Cause**: Too many writes to source table with per-row trigger.
 
 **Solution**: Switch to batched refresh:
+
 ```sql
 DROP TRIGGER trg_refresh_ta_orders ON tb_order;
 
@@ -372,6 +374,7 @@ SELECT cron.schedule('refresh-ta-orders', '*/5 * * * *', 'SELECT refresh_ta_orde
 **Cause**: BRIN index not being used effectively.
 
 **Solution**: Verify index usage:
+
 ```sql
 EXPLAIN (ANALYZE) SELECT COUNT(*) FROM ta_orders
 WHERE created_at >= NOW() - INTERVAL '7 days';

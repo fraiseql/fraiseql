@@ -37,12 +37,14 @@ This guide explains FraiseQL's three-tier health check system for production dep
 **Purpose**: General health status monitoring. Returns quickly without dependency checks.
 
 **Request**:
+
 ```bash
 GET /health HTTP/1.1
 Host: localhost:8000
 ```
 
 **Response - Healthy** (HTTP 200):
+
 ```json
 {
   "status": "healthy",
@@ -71,12 +73,14 @@ Host: localhost:8000
 **Purpose**: Determines if the service can handle incoming requests. Checks critical dependencies.
 
 **Request**:
+
 ```bash
 GET /ready HTTP/1.1
 Host: localhost:8000
 ```
 
 **Response - Ready** (HTTP 200):
+
 ```json
 {
   "ready": true,
@@ -87,6 +91,7 @@ Host: localhost:8000
 ```
 
 **Response - Not Ready** (HTTP 503 Service Unavailable):
+
 ```json
 {
   "ready": false,
@@ -124,12 +129,14 @@ Host: localhost:8000
 **Purpose**: Lightweight check that process is responsive. Used to detect hung processes.
 
 **Request**:
+
 ```bash
 GET /live HTTP/1.1
 Host: localhost:8000
 ```
 
 **Response** (HTTP 200):
+
 ```json
 {
   "alive": true,
@@ -410,6 +417,7 @@ backend fraiseql_be
 - Health check returns 503
 
 **Diagnosis**:
+
 ```bash
 # Check logs for error message
 kubectl logs deployment/fraiseql -f
@@ -441,6 +449,7 @@ kubectl exec -it pod/fraiseql-xxx -- \
 - Liveness probe returns 5xx error
 
 **Diagnosis**:
+
 ```bash
 # Check pod restart count
 kubectl describe pod/fraiseql-xxx
@@ -468,6 +477,7 @@ kubectl describe pod/fraiseql-xxx
 - Liveness probe failing but `/live` works manually
 
 **Diagnosis**:
+
 ```bash
 # Test endpoint manually
 curl -v http://localhost:8000/live

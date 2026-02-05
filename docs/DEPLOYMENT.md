@@ -18,8 +18,9 @@ docker-compose down
 ```
 
 Services will be available at:
-- FraiseQL API: http://localhost:8815
-- Prometheus: http://localhost:9090
+
+- FraiseQL API: <http://localhost:8815>
+- Prometheus: <http://localhost:9090>
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
 
@@ -149,9 +150,10 @@ curl http://localhost:8815/ready
 
 ### Metrics
 
-Access Prometheus at http://localhost:9090
+Access Prometheus at <http://localhost:9090>
 
 Key metrics:
+
 - `fraiseql_query_duration_ms` - Query execution time
 - `fraiseql_cache_hits` - Cache hit rate
 - `fraiseql_errors_total` - Error count
@@ -160,6 +162,7 @@ Key metrics:
 ### Logs
 
 View logs:
+
 ```bash
 # Docker Compose
 docker-compose logs -f fraiseql
@@ -173,6 +176,7 @@ kubectl logs -f deployment/fraiseql
 ### Horizontal Scaling
 
 Kubernetes automatically scales based on CPU/memory:
+
 ```bash
 kubectl autoscale deployment fraiseql --min=3 --max=10
 ```

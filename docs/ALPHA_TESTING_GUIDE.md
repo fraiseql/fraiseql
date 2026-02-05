@@ -34,23 +34,23 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 
 ### Important Testing Areas (Medium Priority)
 
-5. **Federation** (if you have multiple services)
+1. **Federation** (if you have multiple services)
    - [ ] Setup Apollo Federation
    - [ ] Test entity resolution
    - [ ] Verify SAGA transactions work correctly
 
-6. **Streaming & Performance**
+2. **Streaming & Performance**
    - [ ] Test Arrow Flight data export (if using analytics)
    - [ ] Stream large result sets with fraiseql-wire
    - [ ] Monitor performance under load
    - [ ] Check memory usage patterns
 
-7. **Integration Features**
+3. **Integration Features**
    - [ ] Webhooks (Discord, Slack, custom)
    - [ ] Change Data Capture (CDC) events
    - [ ] Caching and query invalidation
 
-8. **Operations**
+4. **Operations**
    - [ ] Deploy to Docker and Kubernetes
    - [ ] Setup monitoring (Prometheus metrics)
    - [ ] Configure structured logging
@@ -63,12 +63,14 @@ Welcome to the FraiseQL v2 alpha release! This guide helps you effectively test 
 ### Feature Limitations
 
 **Not Included in Alpha:**
+
 - Subscriptions/real-time queries (planned for v2.1)
 - GraphQL directives beyond `@auth` and `@cache` (others planned for v2.1)
 - Advanced performance optimizations (deferred to v2.1)
 - Oracle database support (no Rust driver available)
 
 **Partially Supported:**
+
 - Language SDKs: Only Python, TypeScript, Go, PHP ready for alpha. Other languages coming in beta/GA.
 - Integration providers: 11 webhook providers included; more planned for v2.1
 
@@ -100,6 +102,7 @@ FraiseQL v2 is a complete redesign and **not backwards compatible** with v1:
 ### 1. Install FraiseQL
 
 **Option A: From source**
+
 ```bash
 git clone https://github.com/fraiseql/fraiseql.git
 cd fraiseql
@@ -108,6 +111,7 @@ cargo build --release
 ```
 
 **Option B: With Docker**
+
 ```bash
 docker build -t fraiseql:alpha .
 docker run fraiseql:alpha fraiseql-cli --version
@@ -116,6 +120,7 @@ docker run fraiseql:alpha fraiseql-cli --version
 ### 2. Define a Test Schema
 
 Create `schema.py`:
+
 ```python
 from fraiseql import type as fraiseql_type, query as fraiseql_query, schema
 
@@ -143,6 +148,7 @@ fraiseql-cli compile schema.json -o schema.compiled.json
 ### 4. Setup Database
 
 For PostgreSQL, create your views:
+
 ```sql
 CREATE VIEW v_users AS
 SELECT id, name, email FROM tb_user;
@@ -153,6 +159,7 @@ For other databases, see [Database Schema Conventions](docs/specs/schema-convent
 ### 5. Run Server
 
 Create `config.toml`:
+
 ```toml
 [server]
 bind_addr = "0.0.0.0:8080"
@@ -163,6 +170,7 @@ rate_limiting.enabled = true
 ```
 
 Start server:
+
 ```bash
 fraiseql-server -c config.toml --schema schema.compiled.json
 ```
@@ -191,6 +199,7 @@ curl -X POST http://localhost:8080/graphql \
 ### What to Include
 
 **For bugs:**
+
 ```
 ## Description
 Brief description of the issue
@@ -217,6 +226,7 @@ What actually happened
 ```
 
 **For feature requests:**
+
 ```
 ## Use Case
 Why do you need this?
@@ -330,18 +340,21 @@ Use this checklist to guide your testing:
 ## 💬 Sharing Feedback
 
 ### GitHub Discussions
+
 For non-urgent feedback, ideas, and questions:
 
 - [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - Create new discussion with category (Feedback, Questions, Ideas)
 
 ### Direct Communication
+
 For confidential feedback or security issues:
 
-- Email: team@fraiseql.dev
+- Email: <team@fraiseql.dev>
 - **For security issues**: Please don't open public issues. Email first.
 
 ### Community Discord
+
 Discord server coming soon for real-time chat with the team and community.
 
 ---
@@ -351,6 +364,7 @@ Discord server coming soon for real-time chat with the team and community.
 If you're interested in performance testing:
 
 ### Running Benchmarks
+
 ```bash
 # Arrow vs JSON serialization
 cargo bench -p fraiseql-arrow
@@ -393,7 +407,7 @@ See [Benchmarking Guide](guides/development/benchmarking.md) for detailed setup.
 
 ---
 
-## 🙏 Thank You!
+## 🙏 Thank You
 
 Thank you for testing FraiseQL v2! Your feedback is crucial for making this the best GraphQL execution engine for relational databases.
 

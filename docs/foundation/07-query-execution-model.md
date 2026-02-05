@@ -41,6 +41,7 @@ Return to Client
 ## Stage 1: Client Request
 
 ### Input
+
 A GraphQL query from a client:
 
 ```graphql
@@ -60,6 +61,7 @@ query GetUserProfile($userId: Int!) {
 ```
 
 ### What the Server Receives
+
 ```json
 {
   "query": "query GetUserProfile($userId: Int!) { user(userId: $userId) { ... } }",
@@ -80,6 +82,7 @@ query GetUserProfile($userId: Int!) {
 ## Stage 2: Look Up Pre-Compiled Template
 
 ### The Pre-Compiled Schema
+
 At compile time, FraiseQL created schema.compiled.json with all query templates:
 
 ```json
@@ -110,6 +113,7 @@ At compile time, FraiseQL created schema.compiled.json with all query templates:
 ```
 
 ### Runtime Lookup
+
 ```python
 # Server loads schema at startup
 schema = load_compiled_schema("schema.compiled.json")
@@ -130,6 +134,7 @@ query_template = schema.queries["GetUserProfile"]
 ## Stage 3: Validate & Bind Parameters
 
 ### Parameter Validation
+
 ```python
 # Request variables: { "userId": 123 }
 # Template expects: { "userId": Int }
@@ -153,6 +158,7 @@ for param in template.parameters:
 ```
 
 ### SQL Parameter Binding
+
 ```python
 # Template: "SELECT * FROM tb_users WHERE pk_user_id = $1"
 # Bindings: [123]
@@ -181,6 +187,7 @@ bindings = [request.variables["userId"]]
 ## Stage 4: Check Authorization Rules
 
 ### Permission Evaluation
+
 ```python
 # Compiled authorization rule for GetUserProfile:
 # "authenticated_user_id = userId"
@@ -200,6 +207,7 @@ if not evaluate_permission(auth_rule, context):
 ### Pre-Execution vs Post-Fetch Checks
 
 **Pre-Execution (Fast Path)**
+
 ```python
 # Rule evaluated before SQL execution
 # Example: "user_role = 'admin'"
@@ -212,6 +220,7 @@ execute_sql(sql, bindings)
 ```
 
 **Post-Fetch (Filter Results)**
+
 ```python
 # Rule evaluated after fetching results
 # Example: "user_id = authenticated_user_id OR user_role = 'admin'"
@@ -226,6 +235,7 @@ filtered_results = [
 ```
 
 ### Compiled Permissions
+
 From Topic 2.1 Phase 6, these are already compiled into efficient bytecode:
 
 ```
@@ -253,6 +263,7 @@ Permission Bytecode:
 ## Stage 5: Execute SQL Template
 
 ### Database Connection
+
 ```python
 # Connection pool (pre-established at server startup)
 db_pool = get_connection_pool()
@@ -286,6 +297,7 @@ LIMIT 1
 ```
 
 ### Nested Queries (Relationships)
+
 ```python
 # Initial query fetches user
 user_result = {
@@ -309,6 +321,7 @@ orders_results = [
 ```
 
 ### SQL Optimization Enabled by Compilation
+
 ```sql
 -- FraiseQL queries are optimized at compile time
 -- Database sees well-structured queries
@@ -331,6 +344,7 @@ ORDER BY created_at DESC
 ```
 
 **Performance:** Depends on data size
+
 - Simple lookup: 5-20ms
 - List query (100 items): 20-50ms
 - Complex join: 50-200ms
@@ -340,6 +354,7 @@ ORDER BY created_at DESC
 ## Stage 6: Format Response
 
 ### Fetch Results
+
 ```python
 # Raw database results
 rows = [
@@ -355,6 +370,7 @@ orders = [
 ```
 
 ### Transform to GraphQL Response
+
 ```python
 # Convert database column names to GraphQL field names
 # pk_user_id → userId
@@ -382,6 +398,7 @@ response = {
 ```
 
 ### Serialize to JSON
+
 ```python
 import json
 
@@ -399,6 +416,7 @@ json_response = json.dumps(response)
 ## Stage 7: Return to Client
 
 ### HTTP Response
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
@@ -426,6 +444,7 @@ Content-Length: 342
 ```
 
 ### Error Response (If Something Failed)
+
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
@@ -447,6 +466,7 @@ Content-Type: application/json
 ## Complete Execution Timeline
 
 ### Example Request
+
 ```graphql
 query GetUserProfile($userId: Int!) {
   user(userId: $userId) {
@@ -495,6 +515,7 @@ Breakdown:
 ## Error Handling During Execution
 
 ### Type Errors
+
 ```python
 # Request: { "userId": "not-a-number" }
 # Expected: Int
@@ -509,6 +530,7 @@ except ValueError:
 ```
 
 ### Missing Required Parameters
+
 ```python
 if "userId" not in request.variables:
     raise GraphQLError(
@@ -518,6 +540,7 @@ if "userId" not in request.variables:
 ```
 
 ### Authorization Failures
+
 ```python
 if not evaluate_permission(auth_rule, context):
     raise GraphQLError(
@@ -527,6 +550,7 @@ if not evaluate_permission(auth_rule, context):
 ```
 
 ### Database Errors
+
 ```python
 try:
     results = execute_sql(sql, bindings)
@@ -544,6 +568,7 @@ except DatabaseError as e:
 ```
 
 ### Error Response Format
+
 ```json
 {
   "errors": [
@@ -568,6 +593,7 @@ except DatabaseError as e:
 ## Key Characteristics of FraiseQL Execution
 
 ### 1. Deterministic Performance
+
 ```
 Every query has predictable performance:
 
@@ -581,6 +607,7 @@ Total: Predictable and reproducible
 ```
 
 ### 2. No Query Interpretation
+
 ```
 Traditional GraphQL:
 
@@ -598,6 +625,7 @@ Total: Fast and consistent
 ```
 
 ### 3. Automatic N+1 Prevention
+
 ```
 Compile-time query analysis detects potential N+1 patterns:
 ❌ Bad pattern (would cause N+1):
@@ -612,6 +640,7 @@ FraiseQL uses compiled templates that are already optimized.
 ```
 
 ### 4. Authorization Integrated
+
 ```
 Permission checks happen at two points:
 
@@ -628,6 +657,7 @@ All compiled and optimized at build time.
 ## Comparison: FraiseQL vs Traditional GraphQL
 
 ### Apollo Server
+
 ```
 Request → Parse (5ms) → Validate (3ms) →
 Resolve User (2ms) → Execute query (20ms) →
@@ -636,6 +666,7 @@ Format (3ms) → Total: ~50ms
 ```
 
 ### FraiseQL
+
 ```
 Request → Lookup template (0.1ms) →
 Validate params (0.5ms) → Check auth (<0.1ms) →
@@ -649,6 +680,7 @@ Execute SQL (35ms) → Format (1ms) → Total: ~37ms
 ## Real-World Example: E-Commerce Query
 
 ### Query
+
 ```graphql
 query GetProductReviews($productId: Int!, $limit: Int = 10) {
   product(productId: $productId) {
@@ -671,6 +703,7 @@ Variables: { "productId": 42, "limit": 5 }
 ```
 
 ### Execution
+
 ```python
 # 1. Look up template (pre-compiled)
 template = schema.queries["GetProductReviews"]
@@ -740,6 +773,7 @@ return {
 ## Performance Characteristics
 
 ### Query Latency
+
 ```
 Typical Query Performance:
 
@@ -770,6 +804,7 @@ Factors:
 ```
 
 ### Throughput
+
 ```
 Server Capacity (with connection pooling):
 
@@ -815,11 +850,13 @@ FraiseQL's query execution model is simple and deterministic because all the har
 **Result:** Predictable, fast, auditable query execution with built-in security.
 
 **Typical Performance:**
+
 - Simple query: 10-20ms
 - Average query: 30-50ms
 - Complex query: 100-200ms
 
 **Throughput:**
+
 - Simple queries: 1000-2000 QPS per server
 - Average queries: 500-1000 QPS per server
 - Complex queries: 100-500 QPS per server

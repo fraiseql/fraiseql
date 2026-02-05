@@ -686,6 +686,7 @@ end
 **Issue**: `could not find dependency fraiseql`
 
 **Solution**:
+
 ```elixir
 # mix.exs
 def deps do
@@ -706,12 +707,14 @@ mix deps.update fraiseql
 **Issue**: `Unsupported Erlang/OTP version`
 
 **Check version** (OTP 24+ required):
+
 ```bash
 erl -version
 elixir --version
 ```
 
 **Update**:
+
 ```bash
 asdf install erlang 26.0
 asdf install elixir 1.15.0
@@ -724,6 +727,7 @@ asdf local elixir 1.15.0
 **Issue**: `undefined function use/1`
 
 **Solution - Define module first**:
+
 ```elixir
 defmodule MyApp.Schema do
   use FraiseQL.Schema
@@ -740,6 +744,7 @@ end
 **Issue**: `connection refused` when running server
 
 **Solution - Start properly**:
+
 ```elixir
 # application.ex
 def start(_type, _args) do
@@ -764,6 +769,7 @@ end
 **Issue**: `no function clause matching`
 
 **Solution - Handle all patterns**:
+
 ```elixir
 # ❌ Incomplete
 def process({:ok, result}), do: result
@@ -778,6 +784,7 @@ def process({:error, reason}), do: {:error, reason}
 **Issue**: `Type mismatch in spec: ...`
 
 **Solution - Define proper specs**:
+
 ```elixir
 # ✅ With spec
 @spec execute(String.t(), map()) :: {:ok, map()} | {:error, String.t()}
@@ -791,6 +798,7 @@ end
 **Issue**: `Macro undefined: type/1`
 
 **Solution - Use correct syntax**:
+
 ```elixir
 # ✅ Inside schema block
 defmodule MyApp.Schema do
@@ -811,12 +819,14 @@ end
 **Issue**: `GenServer ... terminating`
 
 **Debug with observer**:
+
 ```elixir
 # In iex
 iex> :observer.start()
 ```
 
 **Handle errors**:
+
 ```elixir
 defmodule FraiseQLSupervisor do
   def start_link(opts) do
@@ -832,6 +842,7 @@ end
 **Issue**: `Process mailbox overflow`
 
 **Solution - Use flow control**:
+
 ```elixir
 # Limit concurrency
 Task.async_stream(queries, fn q ->
@@ -844,6 +855,7 @@ end, max_concurrency: 10)
 **Issue**: `no connections available`
 
 **Configure pool**:
+
 ```elixir
 # config/config.exs
 config :fraiseql,
@@ -861,6 +873,7 @@ config :fraiseql,
 **Issue**: Compilation takes >30 seconds
 
 **Use caching**:
+
 ```bash
 MIX_ENV=prod mix compile.app
 ```
@@ -870,11 +883,13 @@ MIX_ENV=prod mix compile.app
 **Issue**: Application memory grows over time
 
 **Monitor with observer**:
+
 ```elixir
 iex> :observer.start()
 ```
 
 **Clean up resources**:
+
 ```elixir
 def cleanup do
   # Close connections
@@ -920,6 +935,7 @@ mix profile.fprof
 ### Getting Help
 
 Provide:
+
 1. Erlang version: `erl -version`
 2. Elixir version: `elixir --version`
 3. FraiseQL version: `mix deps`

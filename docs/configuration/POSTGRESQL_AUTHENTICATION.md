@@ -5,6 +5,7 @@ FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechan
 ## Prerequisites
 
 **Required Knowledge:**
+
 - PostgreSQL user and role management
 - SCRAM authentication protocol basics
 - SSL/TLS certificate handling
@@ -13,6 +14,7 @@ FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechan
 - Linux/Unix command-line tools (psql, openssl)
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - PostgreSQL 10+ (for SCRAM-SHA-256 support)
 - psql command-line client (usually included with PostgreSQL)
@@ -20,6 +22,7 @@ FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechan
 - A text editor for configuration files
 
 **Required Infrastructure:**
+
 - PostgreSQL 10 or later instance (local or remote)
 - PostgreSQL superuser or admin account for user creation
 - FraiseQL server instance
@@ -27,6 +30,7 @@ FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechan
 - For TLS: PostgreSQL compiled with SSL support
 
 **Optional but Recommended:**
+
 - PostgreSQL HA solution (replication, failover)
 - Connection pooling (pgBouncer, PgPool)
 - Secrets management system (Vault, AWS Secrets Manager)
@@ -58,6 +62,7 @@ SCRAM-SHA-256 is a salted challenge-response authentication mechanism defined in
 - User password must be set using SCRAM-SHA-256
 
 **Configuration**:
+
 ```toml
 [database]
 url = "postgresql://username:password@localhost:5432/fraiseql"
@@ -82,6 +87,7 @@ SCRAM-SHA-256-PLUS adds channel binding to SCRAM-SHA-256, providing additional p
 - High-security compliance requirements (SOC2, ISO 27001)
 
 **Configuration**:
+
 ```toml
 [database]
 url = "postgresql://username:password@localhost:5432/fraiseql?sslmode=require"

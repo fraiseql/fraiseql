@@ -5,6 +5,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Rust language fundamentals (traits, async/await, error handling)
 - FraiseQL authentication architecture and SessionStore trait
 - Session management concepts and token storage
@@ -14,6 +15,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 - Error handling in Rust with Result/Error types
 
 **Required Software:**
+
 - Rust 1.75+ with full toolchain
 - Cargo (included with Rust)
 - Your backend SDK (redis-rs, aws-sdk-dynamodb, mongodb Rust driver, etc.)
@@ -21,6 +23,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 - Git for version control
 
 **Required Infrastructure:**
+
 - FraiseQL source code (for SessionStore trait definition)
 - Your chosen session storage backend:
   - Redis: Redis 6+ server
@@ -31,6 +34,7 @@ FraiseQL's authentication system is designed to be extensible. This guide shows 
 - Build environment with internet access for dependencies
 
 **Optional but Recommended:**
+
 - Redis CLI or similar for testing backend connectivity
 - AWS CLI or cloud provider CLI tools
 - Docker for running test backends (redis, mongo, dynamodb-local)

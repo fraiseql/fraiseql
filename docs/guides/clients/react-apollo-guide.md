@@ -24,6 +24,7 @@ npm install @apollo/client graphql subscriptions-transport-ws
 ```
 
 Or with Yarn:
+
 ```bash
 yarn add @apollo/client graphql subscriptions-transport-ws
 ```
@@ -773,12 +774,14 @@ describe('UserList Error Handling', () => {
 ## See Also
 
 **Related Guides:**
+
 - **[Full-Stack Python + React Example](../../examples/fullstack-python-react.md)**
 - **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 - **[Production Deployment](../production-deployment.md)** - React app hosting
 
 **Apollo Client Documentation:**
+
 - [Official Apollo Client Docs](https://www.apollographql.com/docs/react/)
 - [Apollo Client GitHub](https://github.com/apollographql/apollo-client)
 

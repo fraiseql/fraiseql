@@ -31,6 +31,7 @@ fraiseql compile --config ./fraiseql.toml
 ```
 
 **Flags:**
+
 - `--schema` - Schema file path (default: `schema.json`)
 - `--output` - Output path (default: `schema.compiled.json`)
 - `--config` - Configuration file path (default: `fraiseql.toml`)
@@ -65,6 +66,7 @@ fraiseql run --federation --port 4000
 ```
 
 **Flags:**
+
 - `--port` - HTTP port (default: 8000)
 - `--schema` - Compiled schema file (default: `schema.compiled.json`)
 - `--database` - Database URL override (overrides env var)
@@ -91,6 +93,7 @@ fraiseql validate --verbose
 ```
 
 **Flags:**
+
 - `--schema` - Schema file path
 - `--verbose` - Show all validation details
 - `--strict` - Fail on warnings (not just errors)
@@ -113,6 +116,7 @@ fraiseql introspect --verbose
 ```
 
 **Flags:**
+
 - `--database` - Database URL (required)
 - `--output` - Output schema file (default: stdout)
 - `--verbose` - Show detailed output
@@ -143,6 +147,7 @@ fraiseql migrate --rollback
 ```
 
 **Flags:**
+
 - `--target` - Database target (postgres, mysql, sqlite, sqlserver)
 - `--dry-run` - Show what would run, don't execute
 - `--to` - Migrate to specific version
@@ -164,6 +169,7 @@ fraiseql create-migration --name add_column --type alter
 ```
 
 **Flags:**
+
 - `--name` - Migration name (required)
 - `--type` - Migration type (create, alter, drop)
 
@@ -187,6 +193,7 @@ fraiseql federation-compose --validate
 ```
 
 **Flags:**
+
 - `--config` - Federation config file
 - `--gateway` - Gateway type (apollo, federation-core)
 - `--output` - Output composed schema
@@ -210,6 +217,7 @@ fraiseql subgraph-publish --registry apollo --token ABC123
 ```
 
 **Flags:**
+
 - `--token` - Authentication token
 - `--registry` - Registry URL or alias
 - `--subgraph` - Subgraph name (default: from config)
@@ -235,6 +243,7 @@ fraiseql dev --watch ./src
 ```
 
 **Flags:**
+
 - `--port` - Dev port (default: 8000)
 - `--watch` - Directories to watch
 - `--no-reload` - Disable hot reload
@@ -263,6 +272,7 @@ fraiseql test --verbose
 ```
 
 **Flags:**
+
 - `--file` - Specific test file
 - `--match` - Pattern to match test names
 - `--coverage` - Generate coverage report
@@ -290,6 +300,7 @@ fraiseql bench --baseline main
 ```
 
 **Flags:**
+
 - `--name` - Benchmark name to run
 - `--save-baseline` - Save results as baseline
 - `--baseline` - Compare to baseline
@@ -313,6 +324,7 @@ fraiseql lint --only performance,security
 ```
 
 **Flags:**
+
 - `--fix` - Auto-fix issues
 - `--only` - Lint specific rules
 - `--config` - Lint configuration file
@@ -337,6 +349,7 @@ fraiseql init --language python
 ```
 
 **Flags:**
+
 - `--template` - Project template (starter, enterprise, etc.)
 - `--language` - Primary language (python, typescript, go, java, etc.)
 - `--name` - Project name
@@ -359,6 +372,7 @@ fraiseql generate --output ./generated
 ```
 
 **Flags:**
+
 - `--language` - Target language (python, typescript, go, java, rust, etc.)
 - `--output` - Output directory
 - `--client` - Generate client code (default: true)
@@ -383,6 +397,7 @@ fraiseql format --check
 ```
 
 **Flags:**
+
 - `--write` - Write formatted output to file
 - `--check` - Check if formatting needed (exit code 1 if needed)
 
@@ -409,6 +424,7 @@ fraiseql config reset
 ```
 
 **Flags:**
+
 - `--file` - Config file path (default: fraiseql.toml)
 
 ---
@@ -454,6 +470,7 @@ fraiseql deploy --dry-run
 ```
 
 **Flags:**
+
 - `--environment` - Target environment (dev, staging, production)
 - `--service` - Specific service to deploy
 - `--dry-run` - Show what would happen
@@ -477,6 +494,7 @@ fraiseql health --verbose
 ```
 
 **Flags:**
+
 - `--service` - Check specific service
 - `--verbose` - Detailed status
 
@@ -500,6 +518,7 @@ fraiseql diagnose --component database
 ```
 
 **Flags:**
+
 - `--output` - Save to file
 - `--component` - Specific component to diagnose
 
@@ -524,6 +543,7 @@ fraiseql logs --tail 100
 ```
 
 **Flags:**
+
 - `--follow` - Follow log output (tail -f)
 - `--level` - Log level (error, warn, info, debug)
 - `--tail` - Number of lines to show

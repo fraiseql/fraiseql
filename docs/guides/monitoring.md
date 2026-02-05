@@ -10,6 +10,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Prometheus metrics format and scrape configuration
 - OpenTelemetry (OTLP) protocol and exporters
 - Grafana dashboard design and queries
@@ -19,6 +20,7 @@
 - HTTP/REST health check conventions
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later (with observability features)
 - Prometheus 2.40+ (for metrics scraping and storage)
 - Grafana 9.0+ (for visualization and dashboards)
@@ -28,6 +30,7 @@
 - Optional: Python/Go/Node for custom exporters
 
 **Required Infrastructure:**
+
 - FraiseQL server instance with metrics endpoint exposed
 - PostgreSQL 14+ database (for APQ cache and error tracking)
 - Prometheus server with storage
@@ -37,6 +40,7 @@
 - 5-10GB storage for metrics time-series data
 
 **Optional but Recommended:**
+
 - AlertManager for alert routing and deduplication
 - Custom Grafana datasources (DataDog, New Relic, Splunk)
 - Kubernetes monitoring stack (Prometheus Operator)

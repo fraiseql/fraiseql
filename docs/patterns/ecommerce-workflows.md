@@ -629,10 +629,12 @@ describe('Order Management', () => {
 ## See Also
 
 **Related Patterns:**
+
 - [Multi-Tenant SaaS](./saas-multi-tenant.md) - Multi-vendor marketplaces
 - [Analytics Platform](./analytics-olap-platform.md) - Sales reporting
 
 **Guides:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Schema Design Best Practices](../guides/schema-design-best-practices.md)
 

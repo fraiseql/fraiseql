@@ -5,6 +5,7 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 ## Prerequisites
 
 **Required Knowledge:**
+
 - OAuth 2.0 and OIDC fundamentals (authorization code flow, ID tokens, access tokens)
 - JWT token structure and claims
 - HTTP/REST APIs and callbacks
@@ -12,6 +13,7 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 - Google Cloud Console navigation and project management
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - curl or Postman (for testing endpoints)
 - A code editor for configuration files
@@ -19,6 +21,7 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 - Docker (optional, for testing with ngrok tunneling)
 
 **Required Infrastructure:**
+
 - Active Google Cloud account (free tier available)
 - Google Cloud Project (to be created in Step 1)
 - FraiseQL server instance (running locally or deployed)
@@ -26,6 +29,7 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 - PostgreSQL database for session storage (if using custom SessionStore)
 
 **Optional but Recommended:**
+
 - ngrok or similar tunneling service (for local testing without deployment)
 - HTTPS certificate for production (Let's Encrypt or your certificate authority)
 
@@ -52,8 +56,8 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 3. If prompted, configure the OAuth consent screen first:
    - User Type: **External**
    - App name: "FraiseQL"
-   - User support email: your-email@example.com
-   - Developer contact: your-email@example.com
+   - User support email: <your-email@example.com>
+   - Developer contact: <your-email@example.com>
    - Click "SAVE AND CONTINUE" through all screens
 4. Back to OAuth client ID creation:
    - Application type: **Web application**
@@ -159,6 +163,7 @@ curl -X POST http://localhost:8000/auth/start \
 ```
 
 Response:
+
 ```json
 {
   "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=..."
@@ -172,6 +177,7 @@ Open the URL in a browser. You'll see Google's login page.
 ### 3. Complete Login
 
 After authentication, Google will redirect to:
+
 ```
 http://localhost:8000/auth/callback?code=...&state=...
 ```
@@ -185,6 +191,7 @@ This endpoint will:
 - Return tokens
 
 Response:
+
 ```json
 {
   "access_token": "access_token_...",
@@ -315,6 +322,7 @@ For production:
 
 1. Update redirect URIs in Google Cloud Console to use `https://yourdomain.com`
 2. Set environment variables in your deployment:
+
    ```bash
    GOOGLE_CLIENT_ID=prod.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=<secret>

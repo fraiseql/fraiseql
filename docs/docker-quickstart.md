@@ -18,14 +18,14 @@ docker compose -f docker/docker-compose.demo.yml ps
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **GraphQL IDE** | http://localhost:3000 | Execute queries and explore schema |
-| **Tutorial** | http://localhost:3001 | Step-by-step interactive learning |
-| **Admin Dashboard** | http://localhost:3002 | System monitoring and debugging |
-| **FraiseQL Server** | http://localhost:8000 | GraphQL API endpoint |
+| **GraphQL IDE** | <http://localhost:3000> | Execute queries and explore schema |
+| **Tutorial** | <http://localhost:3001> | Step-by-step interactive learning |
+| **Admin Dashboard** | <http://localhost:3002> | System monitoring and debugging |
+| **FraiseQL Server** | <http://localhost:8000> | GraphQL API endpoint |
 
 ## Try Your First Query
 
-1. Open http://localhost:3000 (GraphQL IDE)
+1. Open <http://localhost:3000> (GraphQL IDE)
 2. Copy this query into the editor:
 
 ```graphql
@@ -39,8 +39,8 @@ query GetUsers {
 }
 ```
 
-3. Click the **Play** button
-4. See the results in the right panel!
+1. Click the **Play** button
+2. See the results in the right panel!
 
 ## What You're Running
 
@@ -133,6 +133,7 @@ docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
 ### Services Won't Start
 
 **Check if ports are in use:**
+
 ```bash
 lsof -i :8000  # Check port 8000
 lsof -i :3000  # Check port 3000
@@ -147,11 +148,13 @@ lsof -i :5432  # Check port 5432
 ### GraphQL Server Not Responding
 
 **Check if server is healthy:**
+
 ```bash
 curl http://localhost:8000/health
 ```
 
 **View server logs:**
+
 ```bash
 docker compose -f docker/docker-compose.demo.yml logs fraiseql-server
 ```
@@ -159,11 +162,13 @@ docker compose -f docker/docker-compose.demo.yml logs fraiseql-server
 ### Database Connection Failed
 
 **Verify PostgreSQL is running:**
+
 ```bash
 docker compose -f docker/docker-compose.demo.yml logs postgres-blog
 ```
 
 **Check database directly:**
+
 ```bash
 docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
   pg_isready -U fraiseql -d blog_fraiseql
@@ -201,13 +206,13 @@ FraiseQL is a **compiled GraphQL execution engine** that:
 4. **Works with existing databases**: PostgreSQL, MySQL, SQLite, SQL Server
 5. **Enterprise-ready**: Security, observability, federation built-in
 
-Learn more: https://github.com/anthropics/fraiseql
+Learn more: <https://github.com/anthropics/fraiseql>
 
 ## Getting Help
 
 - **Documentation**: `/docs/`
 - **Examples**: `/examples/`
-- **Issues**: https://github.com/anthropics/fraiseql/issues
+- **Issues**: <https://github.com/anthropics/fraiseql/issues>
 - **Community**: Discord/GitHub Discussions
 
 ## Docker Image Details

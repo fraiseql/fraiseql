@@ -574,14 +574,17 @@ print(result.meta.trace)
 ## See Also
 
 **Related Patterns:**
+
 - [Multi-Tenant SaaS](./saas-multi-tenant.md) - Single database per tenant federation
 - [Analytics Platform](./analytics-olap-platform.md) - Read-only historical data
 
 **Migration:**
+
 - [Database Migration Guide](../guides/database-migration-guide.md)
 - [Legacy System Integration](../guides/database-migration-guide.md)
 
 **Deployment:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Connection Pooling](../guides/production-deployment.md)
 

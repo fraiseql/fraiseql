@@ -40,6 +40,7 @@ The Federation Observability System is a comprehensive, production-ready impleme
 - `crates/fraiseql-core/src/federation/tracing.rs` (150 lines)
 
 **Key Features**:
+
 ```rust
 pub struct FederationTraceContext {
     pub trace_id: String,           // 128-bit unique trace ID
@@ -109,6 +110,7 @@ pub fn to_traceparent(&self) -> String
 13. `federation_mutation_duration_us` (Histogram)
 
 **Example Collection**:
+
 ```rust
 // Lock-free recording (Relaxed ordering, zero contention)
 metrics.record_entity_resolution(32_100);  // 32.1ms
@@ -133,6 +135,7 @@ metrics.record_cache_hit();
 - `crates/fraiseql-core/src/federation/logging.rs` (306 lines)
 
 **Log Context Fields**:
+
 ```rust
 pub struct FederationLogContext {
     pub operation_type: FederationOperationType,  // entity_resolution, resolve_db, resolve_http, etc.
@@ -151,6 +154,7 @@ pub struct FederationLogContext {
 ```
 
 **Example Log Emission**:
+
 ```
 {
   "timestamp": "2026-01-28T15:23:45.123Z",
@@ -234,6 +238,7 @@ pub struct FederationLogContext {
 - `docs/PHASE_6_DASHBOARDS_AND_MONITORING.md` (510 lines)
 
 **Dashboard 1: Federation Overview (7 Panels)**
+
 1. Federation Operation Throughput (entities/subgraphs/mutations per sec)
 2. Federation Query Latency (p50/p90/p99)
 3. Entity Cache Hit Rate (green >80%, yellow 70-80%, red <70%)
@@ -243,6 +248,7 @@ pub struct FederationLogContext {
 7. Error Trends (1-hour rate)
 
 **Dashboard 2: Entity Resolution Details (7 Panels)**
+
 1. Entity Resolution Rate (5m average)
 2. Duration Distribution (p50/p90/p99)
 3. Batch Size Distribution (histogram)
@@ -261,6 +267,7 @@ pub struct FederationLogContext {
 | System Aggregate | 4 | Error Rate, System Degraded, Dedup Effectiveness |
 
 **Example Alert**:
+
 ```yaml
 - alert: EntityResolutionLatencySLOBreach
   expr: histogram_quantile(0.99, federation_entity_resolution_duration_us) / 1000 > 100
@@ -329,7 +336,7 @@ pub struct FederationLogContext {
 
 **File**: `docs/FEDERATION_OBSERVABILITY_RUNBOOKS.md` (1500+ lines)
 
-### 7 Complete Runbooks:
+### 7 Complete Runbooks
 
 1. **Slow Query Investigation**
    - Step-by-step Jaeger trace analysis
@@ -375,6 +382,7 @@ pub struct FederationLogContext {
    - Documentation template
 
 **Escalation Flowchart**:
+
 ```
 Alert → Severity Check → Follow Runbook → Issue Resolved in 15m?
                                                ├─ YES: Close
@@ -452,6 +460,7 @@ Res.        Request    Exec.
 ### Unit Test Coverage
 
 **Phase 4 - Logging**: 5 tests
+
 - Logging context creation and builder pattern
 - Serialization to JSON
 - Status transitions
@@ -459,6 +468,7 @@ Res.        Request    Exec.
 - Edge cases (null values, long strings)
 
 **Phase 5 - Performance**: 5 tests
+
 - Baseline vs observability latency measurement
 - Metrics accuracy validation
 - Database adapter mock implementation
@@ -466,6 +476,7 @@ Res.        Request    Exec.
 - Test scenarios: 100 users, 75+50 types, 1000 users, etc.
 
 **Phase 6 - Dashboards**: 8+ tests
+
 - Dashboard JSON structure validation
 - Panel configuration verification
 - Prometheus query syntax validation
@@ -476,6 +487,7 @@ Res.        Request    Exec.
 ### Integration Test Coverage
 
 **Phase 7 - End-to-End**: 6 tests
+
 - 2-hop federation query with full observability
 - Mutation execution with distributed tracing
 - W3C traceparent format validation
@@ -653,30 +665,35 @@ Execution Time: 80ms (total)
 ### System Validation
 
 ✅ **Functionality**
+
 - All federation observability features implemented
 - Complete tracing, metrics, and logging pipeline
 - Multi-hop federation support verified
 - Mutation execution tracked end-to-end
 
 ✅ **Testing**
+
 - 24+ unit and integration tests, all passing
 - Performance validation against budgets
 - Dashboard configuration validated
 - Alert rules syntax verified
 
 ✅ **Performance**
+
 - Latency overhead: -8.1% (faster than baseline)
 - No contention in metrics collection (lock-free)
 - Scalable to 1000+ queries/second
 - Resource usage within acceptable bounds
 
 ✅ **Operational Readiness**
+
 - 7 comprehensive operational runbooks
 - Alert thresholds configured with SLO alignment
 - Escalation procedures documented
 - Baseline analysis methodology provided
 
 ✅ **Documentation**
+
 - Architecture diagrams and explanations
 - API documentation
 - Configuration examples
@@ -748,11 +765,13 @@ Execution Time: 80ms (total)
 **Cause:** Trace exporter not configured or collector unreachable.
 
 **Diagnosis:**
+
 1. Check trace exporter enabled: `grep "jaeger" fraiseql.toml`
 2. Verify collector reachable: `curl http://jaeger-collector:14250/api/traces`
 3. Check OTEL_EXPORTER_OTLP_ENDPOINT: Should point to Jaeger collector
 
 **Solutions:**
+
 - Verify Jaeger collector URL in configuration
 - Check network connectivity from FraiseQL to Jaeger
 - Verify Jaeger is running: `docker ps | grep jaeger`
@@ -763,11 +782,13 @@ Execution Time: 80ms (total)
 **Cause:** Metrics endpoint not exposed or scrape config incorrect.
 
 **Diagnosis:**
+
 1. Check metrics endpoint: `curl http://localhost:9090/metrics`
 2. Verify Prometheus scrape config: Look for FraiseQL job
-3. Check target health in Prometheus UI: http://localhost:9090/targets
+3. Check target health in Prometheus UI: <http://localhost:9090/targets>
 
 **Solutions:**
+
 - Expose metrics endpoint in fraiseql.toml: `[metrics] enabled = true`
 - Verify Prometheus scrape_interval (default 15s)
 - Check scrape timeout vs query duration
@@ -778,11 +799,13 @@ Execution Time: 80ms (total)
 **Cause:** Data not being scraped or metric queries wrong.
 
 **Diagnosis:**
-1. Check Prometheus datasource in Grafana: http://localhost:3000/datasources
+
+1. Check Prometheus datasource in Grafana: <http://localhost:3000/datasources>
 2. Test query: `rate(fraiseql_queries_total[1m])` in Prometheus UI
 3. Check metric labels: May be named differently
 
 **Solutions:**
+
 - Verify Prometheus datasource URL is correct
 - Check if metrics are being collected: Query in Prometheus UI first
 - Adjust time range: Last hour may not have data yet
@@ -793,11 +816,13 @@ Execution Time: 80ms (total)
 **Cause:** Alert rule misconfigured or notification channel not setup.
 
 **Diagnosis:**
+
 1. Check alert rule in Prometheus: Should show "Firing" in Alerts
 2. Verify notification channel configured: Email, Slack, PagerDuty
 3. Check alert expression: `prometheus_sd_scrape_failed_count > 5`
 
 **Solutions:**
+
 - Verify alert condition is correct: Threshold might be too high
 - Test notification channel: Send test message manually
 - Check alert_for duration: Rule fires after N minutes of threshold
@@ -808,11 +833,13 @@ Execution Time: 80ms (total)
 **Cause:** Sampling ratio too low.
 
 **Diagnosis:**
+
 1. Check sampling config: `otel_sampler_ratio = ?`
 2. Look at Jaeger UI: Very few traces appearing?
 3. For federation: May need higher sampling for cross-service calls
 
 **Solutions:**
+
 - For development: `otel_sampler_ratio = 1.0` (100% sampling)
 - For production: `otel_sampler_ratio = 0.1-0.5` (10-50% sampling)
 - Use AdaptiveSampler: Increase sampling for slow traces
@@ -823,11 +850,13 @@ Execution Time: 80ms (total)
 **Cause:** Trace generation or metrics collection overhead.
 
 **Diagnosis:**
+
 1. Compare latency before/after enabling observability
 2. Check trace exporter latency: May be synchronous
 3. Check metric cardinality: Too many label combinations?
 
 **Solutions:**
+
 - Use async trace export: Buffer traces and flush batches
 - Reduce sampling ratio: Lower observability overhead
 - Reduce metric cardinality: Remove unnecessary labels
@@ -838,11 +867,13 @@ Execution Time: 80ms (total)
 **Cause:** Correlation ID not propagated between subgraphs.
 
 **Diagnosis:**
+
 1. Query transaction logs: Look for X-Correlation-ID header
 2. Check subgraph logs: Do they have same correlation ID?
 3. Verify header is passed to federation calls
 
 **Solutions:**
+
 - Ensure X-Correlation-ID header sent in every request
 - Middleware must propagate to downstream calls
 - Add correlation ID to all subgraph requests
@@ -853,11 +884,13 @@ Execution Time: 80ms (total)
 **Cause:** Observability not capturing all relevant metrics.
 
 **Diagnosis:**
+
 1. Check trace flame graph: Which step is slowest?
 2. Review SAGA logs: How long did compensation take?
 3. Monitor database metrics: Slow query?
 
 **Solutions:**
+
 - Enable detailed tracing on slow steps
 - Add database query logging: `enable_query_log = true`
 - Monitor each subgraph separately: Identify bottleneck
@@ -880,4 +913,3 @@ Execution Time: 80ms (total)
 All 7 phases complete. System ready for production deployment.
 
 Status: 🟢 **PRODUCTION READY**
-

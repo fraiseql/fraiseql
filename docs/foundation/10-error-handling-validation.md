@@ -61,12 +61,14 @@ FraiseQL uses a unified error type that represents all possible failures. Errors
 ### Error Classification
 
 **Client Errors (4xx):**
+
 ```
 Parse, Validation, UnknownField, UnknownType,
 Authentication, Authorization, NotFound, Conflict
 ```
 
 User made a mistake. The same request will fail repeatedly. Example:
+
 ```graphql
 # Query has unknown field 'usernam' instead of 'username'
 query {
@@ -77,18 +79,21 @@ query {
 ```
 
 **Server Errors (5xx):**
+
 ```
 Database, ConnectionPool, Timeout, Cancelled,
 Configuration, Internal
 ```
 
 System failure outside user control. May succeed if retried. Example:
+
 ```
 Database { message: "connection refused" }  # ← 5xx error
 # May succeed if database recovers and request is retried
 ```
 
 **Retryable Errors (can be safely retried):**
+
 ```
 ConnectionPool, Timeout, Cancelled
 ```
@@ -130,6 +135,7 @@ class User:
 Errors caught by `fraiseql-cli compile schema.json`:
 
 **Schema Reference Validation:**
+
 ```python
 @type
 class Post:
@@ -146,6 +152,7 @@ class Post:
 ```
 
 **Relationship Validation:**
+
 ```sql
 -- ✅ VALID: Foreign key exists and matches type definition
 CREATE TABLE tb_post (
@@ -163,6 +170,7 @@ CREATE TABLE tb_post (
 ```
 
 **SQL Generation Validation:**
+
 ```python
 @type
 class Post:
@@ -180,6 +188,7 @@ class Post:
 Errors caught before query execution (parameter binding, authorization):
 
 **Parameter Type Validation:**
+
 ```graphql
 # Schema defines: user(id: Int!)
 query {
@@ -192,6 +201,7 @@ query {
 ```
 
 **Parameter Range Validation:**
+
 ```graphql
 # Schema defines: users(limit: Int, offset: Int)
 # Typical impl: limit [1, 10000], offset [0, ∞)
@@ -205,6 +215,7 @@ query {
 ```
 
 **Authorization Validation:**
+
 ```rust
 // Pre-execution: Check if user can execute mutation
 let auth_result = check_authorization(
@@ -230,6 +241,7 @@ match auth_result {
 Errors caught during or after SQL execution:
 
 **Conflict Detection:**
+
 ```sql
 -- ✅ Query succeeds
 INSERT INTO tb_user (username) VALUES ('alice');
@@ -244,6 +256,7 @@ INSERT INTO tb_user (username) VALUES ('alice');
 ```
 
 **Post-Fetch Authorization (visibility filtering):**
+
 ```rust
 // Execution succeeds, but post-fetch rules may remove rows:
 
@@ -264,6 +277,7 @@ INSERT INTO tb_user (username) VALUES ('alice');
 ```
 
 **Timeout Detection:**
+
 ```rust
 // Query execution exceeds configured timeout (default 30s)
 let result = tokio::time::timeout(
@@ -421,6 +435,7 @@ query {
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -475,11 +490,13 @@ result = await execute_with_retry(query)
 ```
 
 **Error types to retry:**
+
 - `ConnectionPool`: Wait for available connection
 - `Timeout`: May succeed with longer timeout or simpler query
 - `Cancelled`: Query was interrupted, user can retry
 
 **Error types NOT to retry:**
+
 - `Parse`, `Validation`: Same query will fail identically
 - `Database` (constraint violation): Data hasn't changed
 - `Authorization`: User permissions unchanged
@@ -607,6 +624,7 @@ query {
 ```
 
 **Implementation:**
+
 ```rust
 // Runtime parameter validation (before SQL execution)
 fn validate_parameters(params: &QueryParams) -> Result<()> {
@@ -716,6 +734,7 @@ class Post:
 ```
 
 **Runtime enforcement:**
+
 ```rust
 // When resolving 'secret' field
 match user.role {
@@ -744,6 +763,7 @@ class Post:
 ```
 
 **SQL with authorization:**
+
 ```sql
 -- Query: user_123 requests unpublished post_456
 -- Rule: owner_id == $1 OR is_published
@@ -802,6 +822,7 @@ query {
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -821,6 +842,7 @@ query {
 ```
 
 **Client recovery:**
+
 ```typescript
 try {
   const result = await client.query(query);
@@ -857,6 +879,7 @@ Client strategy: Retry with exponential backoff
 ```
 
 **Implementation:**
+
 ```rust
 pub async fn execute_with_connection_retry(
     query: &str,
@@ -898,6 +921,7 @@ Client strategy: Retry with reduced complexity
 ```
 
 **Implementation:**
+
 ```graphql
 # Original query (expensive analytics)
 query FullReport {
@@ -953,6 +977,7 @@ Client strategy: Show error, ask user for different username
 ```
 
 **Implementation:**
+
 ```typescript
 async function createUser(username: string, email: string) {
   try {
@@ -990,6 +1015,7 @@ query {
 ```
 
 **Validation order:**
+
 1. ✅ Parse GraphQL syntax
 2. ✅ Validate 'user' query exists
 3. ✅ Validate 'id' parameter is Int
@@ -1016,6 +1042,7 @@ mutation {
 ```
 
 **Validation order:**
+
 1. ✅ Parse GraphQL syntax
 2. ✅ Validate 'createPost' mutation exists
 3. ✅ Validate 'input' structure matches PostInput type:
@@ -1046,6 +1073,7 @@ query {
 ```
 
 **Validation order:**
+
 1. ✅ Parse GraphQL syntax
 2. ✅ Validate 'salesByRegion' query exists
 3. ✅ Validate parameters: limit (1-10000), year (1900-2100)
@@ -1178,6 +1206,7 @@ pub async fn create_order(
 **GraphQL response scenarios:**
 
 Success:
+
 ```json
 {
   "data": {
@@ -1191,6 +1220,7 @@ Success:
 ```
 
 Validation error:
+
 ```json
 {
   "errors": [{
@@ -1202,6 +1232,7 @@ Validation error:
 ```
 
 Authorization error:
+
 ```json
 {
   "errors": [{
@@ -1216,6 +1247,7 @@ Authorization error:
 ```
 
 Conflict error:
+
 ```json
 {
   "errors": [{
@@ -1226,6 +1258,7 @@ Conflict error:
 ```
 
 Database error (transient, should retry):
+
 ```json
 {
   "errors": [{

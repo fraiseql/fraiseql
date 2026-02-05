@@ -140,12 +140,14 @@ Simple auth only?
 ### Google OAuth (Best for Startups)
 
 **Best for:**
+
 - Public users (simplest)
 - Startups wanting quick launch
 - Teams with Google Workspace
 - No complex enterprise needs
 
 **Why it wins:**
+
 - 🟢 Super easy setup (15 minutes)
 - 🟢 Familiar to users
 - 🟢 Free
@@ -153,6 +155,7 @@ Simple auth only?
 - 🟡 Limited customization
 
 **Setup Example:**
+
 ```bash
 # 1. Create Google Cloud Project
 # 2. Enable Google+ API
@@ -167,6 +170,7 @@ GOOGLE_CLIENT_SECRET=xxxxx
 **Maintenance:** Minimal
 
 **Limitations:**
+
 - Can't customize login flow
 - Relies on Google's infrastructure
 - GDPR: Data in US
@@ -177,12 +181,14 @@ GOOGLE_CLIENT_SECRET=xxxxx
 ### Auth0 (Best for Growing Companies)
 
 **Best for:**
+
 - Feature-rich authentication needs
 - Enterprise customers
 - Multiple social login providers
 - Complex authorization requirements
 
 **Why it wins:**
+
 - ✅ Managed service (no ops)
 - ✅ SAML + OAuth 2.0
 - ✅ Social login (20+ providers)
@@ -191,6 +197,7 @@ GOOGLE_CLIENT_SECRET=xxxxx
 - 🟡 More expensive ($0-$2,500/mo)
 
 **Setup Example:**
+
 ```bash
 # 1. Create Auth0 account
 # 2. Create application
@@ -205,6 +212,7 @@ AUTH0_CLIENT_SECRET=xxxxx
 **Maintenance:** Minimal
 
 **Use when:**
+
 - Building SaaS (most customers want SSO/SAML)
 - Enterprise features important
 - Want managed service reliability
@@ -215,12 +223,14 @@ AUTH0_CLIENT_SECRET=xxxxx
 ### Keycloak (Best for Enterprise)
 
 **Best for:**
+
 - Complete control needed
 - Self-hosted infrastructure required
 - SAML + OIDC both needed
 - LDAP/Active Directory integration
 
 **Why it wins:**
+
 - ✅ Open source (full control)
 - ✅ Self-hosted (data stays on-prem)
 - ✅ SAML + OAuth 2.0 + OIDC
@@ -229,6 +239,7 @@ AUTH0_CLIENT_SECRET=xxxxx
 - 🔴 Complex setup (2-4 hours)
 
 **Setup Example:**
+
 ```bash
 # 1. Deploy Keycloak (Docker)
 docker run -d \
@@ -249,6 +260,7 @@ KEYCLOAK_CLIENT_ID=fraiseql
 **Maintenance:** Medium (monitoring, updates, backups)
 
 **Use when:**
+
 - Enterprise security requirements
 - Need to integrate LDAP/AD
 - Regulatory compliance (GDPR, HIPAA) critical
@@ -259,12 +271,14 @@ KEYCLOAK_CLIENT_ID=fraiseql
 ### SCRAM (Simplest Option)
 
 **Best for:**
+
 - Internal teams only
 - Minimal authentication needs
 - Just username/password (no social login)
 - Maximum simplicity
 
 **Why it wins:**
+
 - 🟢 Simplest possible setup
 - 🟢 No external dependencies
 - 🟢 Direct database storage
@@ -272,6 +286,7 @@ KEYCLOAK_CLIENT_ID=fraiseql
 - 🟡 No advanced features
 
 **Setup Example:**
+
 ```toml
 # fraiseql.toml
 [auth]
@@ -285,6 +300,7 @@ database_url = "postgresql://..."
 **Maintenance:** None (uses your database)
 
 **Use when:**
+
 - Internal team (5-50 people)
 - No social login needed
 - Want complete simplicity
@@ -295,24 +311,28 @@ database_url = "postgresql://..."
 ### AWS Cognito (Best for AWS Ecosystem)
 
 **Best for:**
+
 - Existing AWS infrastructure
 - Pay-per-authentication billing
 - Already using AWS services
 - HIPAA compliance needed
 
 **Pros:**
+
 - ✅ Integrated with AWS ecosystem
 - ✅ Integrated MFA
 - ✅ Simple setup
 - ✅ Pay-per-auth (low cost at startup)
 
 **Cons:**
+
 - ❌ Limited to AWS
 - ❌ No SAML
 - ❌ Vendor lock-in
 - 🟡 Limited customization
 
 **Use when:**
+
 - Already committed to AWS
 - Prefer pay-as-you-go
 - No need for on-prem
@@ -322,23 +342,27 @@ database_url = "postgresql://..."
 ### Azure AD (Best for Microsoft Ecosystem)
 
 **Best for:**
+
 - Existing Azure infrastructure
 - Microsoft 365 integration
 - Enterprise customers
 - On-prem Active Directory
 
 **Pros:**
+
 - ✅ SAML + OAuth 2.0 + OIDC
 - ✅ Direct AD/LDAP integration
 - ✅ Enterprise support
 - ✅ Compliance certifications
 
 **Cons:**
+
 - ❌ Limited to Azure
 - ❌ Higher complexity
 - ❌ Vendor lock-in
 
 **Use when:**
+
 - Enterprise Microsoft customer
 - Have Active Directory
 - SAML required
@@ -413,6 +437,7 @@ database_url = "postgresql://..."
 ### "We chose Google OAuth but need SAML"
 
 **Options:**
+
 1. Migrate to Auth0 or Keycloak (2-4 hours)
 2. Accept OAuth-only limitation
 3. Use Auth0 bridge (external service)
@@ -422,6 +447,7 @@ database_url = "postgresql://..."
 ### "Keycloak is too complex to operate"
 
 **Solutions:**
+
 1. Use managed Keycloak service (Kloudless, etc.)
 2. Simplify: Use only OAuth 2.0 subset
 3. Migrate to Auth0 (managed alternative)
@@ -429,6 +455,7 @@ database_url = "postgresql://..."
 ### "SCRAM doesn't have features we need"
 
 **Options:**
+
 1. Migrate to OAuth/OIDC provider (1-2 hours)
 2. Implement features in application layer
 3. Wait for future OAuth support
@@ -436,6 +463,7 @@ database_url = "postgresql://..."
 ### "We're stuck with legacy provider (old system)"
 
 **Bridge Pattern:**
+
 ```
 Client → New OAuth Provider (Auth0, Keycloak)
            ↓

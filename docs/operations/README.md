@@ -26,6 +26,7 @@ Complete guide for deploying, monitoring, and maintaining FraiseQL in production
 - **[Observability Architecture](observability-architecture.md)** — Deep dive into observability design
 - **[Configuration](configuration.md)** — Advanced observability configuration
 - **[Analysis Guide](analysis-guide.md)** — Analyzing observability data
+
 ## Running in Production
 
 1. **Deploy**: Follow [Deployment Guide](../deployment/guide.md)

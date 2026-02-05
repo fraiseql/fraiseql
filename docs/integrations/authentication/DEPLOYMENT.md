@@ -5,6 +5,7 @@ Production deployment guide for FraiseQL's authentication system.
 ## Prerequisites
 
 **Required Knowledge:**
+
 - OAuth 2.0 and OIDC protocols
 - Kubernetes deployment and manifests
 - Docker and containerization
@@ -15,6 +16,7 @@ Production deployment guide for FraiseQL's authentication system.
 - Security best practices and compliance
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Docker 20.10+ and Docker Compose 1.29+
 - Kubernetes 1.24+ (kubectl configured)
@@ -25,6 +27,7 @@ Production deployment guide for FraiseQL's authentication system.
 - Git for configuration management
 
 **Required Infrastructure:**
+
 - Kubernetes cluster or Docker host (for deployment)
 - PostgreSQL 14+ database (primary + replica for HA)
 - OAuth provider (Google Cloud, Auth0, Keycloak, etc.)
@@ -36,6 +39,7 @@ Production deployment guide for FraiseQL's authentication system.
 - Backup storage system
 
 **Optional but Recommended:**
+
 - Kubernetes cert-manager for automatic certificate renewal
 - Helm charts for standardized deployments
 - Container registry (Docker Hub, ECR, GCR, etc.)

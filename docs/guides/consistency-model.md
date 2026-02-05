@@ -8,6 +8,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - CAP theorem fundamentals (Consistency, Availability, Partition Tolerance)
 - Distributed systems concepts
 - ACID properties and transactions
@@ -18,6 +19,7 @@
 - FraiseQL federation architecture
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later (for federation scenarios)
 - Your chosen SDK language
 - PostgreSQL, MySQL, SQLite, or SQL Server (with appropriate replication tools)
@@ -25,6 +27,7 @@
 - Logging infrastructure for debugging consistency issues
 
 **Required Infrastructure:**
+
 - Multiple FraiseQL instances (for federation scenario discussion)
 - Primary database + replica/standby setup
 - Network monitoring tools
@@ -32,6 +35,7 @@
 - Optional: multi-region deployment infrastructure
 
 **Optional but Recommended:**
+
 - Database replication tools (Postgres replication, MySQL binlog)
 - Network failure simulation tools (chaos engineering)
 - Distributed transaction coordinator (if needed)
@@ -178,6 +182,7 @@ Side Effects (asynchronous, via NATS)
 | **Event ordering** | Per-entity ordered, not globally |
 
 **Example**:
+
 ```graphql
 mutation DeleteUser($id: ID!) {
   deleteUser(id: $id) {
@@ -260,7 +265,7 @@ mutation TransferInventory(
 
 ## When CP is Right ✅
 
-### Use FraiseQL if:
+### Use FraiseQL if
 
 | Domain | Why |
 |--------|-----|
@@ -276,7 +281,7 @@ mutation TransferInventory(
 
 ## When CP is Wrong ❌
 
-### Don't use FraiseQL if:
+### Don't use FraiseQL if
 
 | Domain | Why | Better Choice |
 |--------|-----|---|
@@ -324,6 +329,7 @@ But Service A can't retroactively see what Service B did
 **Guarantee**: Ordered causality, not global ordering.
 
 **Example**: You can't have this scenario:
+
 ```
 Time T1: Service A changes User.name → "Alice"
 Time T2: Service B reads User.name → gets "Bob" (stale)
@@ -526,11 +532,13 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **Cause:** Synchronous consistency requirement means mutations wait for database locks and replication.
 
 **Diagnosis:**
+
 1. Check database performance: `EXPLAIN ANALYZE` on mutation query
 2. Check network latency between services: `ping federation-subgraph`
 3. Monitor database locks: `SELECT * FROM pg_locks;`
 
 **Solutions:**
+
 - Add database indexes on frequently mutated columns
 - Scale database horizontally (more replicas for read distribution)
 - For federation, consider async job pattern (see pattern guide)
@@ -541,11 +549,13 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **Cause:** Strong consistency only within single primary. Replicas lag during network partitions.
 
 **Diagnosis:**
+
 1. Check replication lag: PostgreSQL `SELECT now() - pg_last_xact_replay_timestamp();`
 2. Monitor partition detection: Check FraiseQL logs for "partition detected"
 3. Verify replica freshness before routing queries
 
 **Solutions:**
+
 - Route all writes to primary, reads can use replicas with acceptable lag
 - Set up automatic replica promotion (e.g., Patroni, Pg-failover)
 - Monitor replication lag continuously (set alerts at >5s lag)
@@ -556,12 +566,14 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **Cause:** SAGA coordination timeout or subgraph unavailability.
 
 **Diagnosis:**
+
 1. Check SAGA logs for "compensation triggered"
 2. Verify all subgraphs are responding: `curl http://subgraph:8000/health`
 3. Check network connectivity: `ping subgraph-service`
 4. Review query timeout settings in fraiseql.toml
 
 **Solutions:**
+
 - Increase SAGA timeout (default 30s may be too aggressive): `saga_timeout_secs = 60`
 - Verify all subgraphs are reachable and responsive
 - Check if subgraph database is slow (may need optimization)
@@ -572,11 +584,13 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **Cause:** Each subgraph uses its own database. Mutations haven't fully replicated yet.
 
 **Diagnosis:**
+
 1. Query same entity from multiple subgraphs: `{ user(id: "X") { id } }`
 2. Check replication lag between databases
 3. Verify transaction order in audit logs
 
 **Solutions:**
+
 - This is expected during normal operation (strong consistency within each subgraph)
 - For critical consistency, ensure application waits for replication
 - Use federation readiness checks to detect lag
@@ -587,11 +601,13 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **Cause:** Multiple simultaneous mutations on same entity cause database locks.
 
 **Diagnosis:**
+
 1. Find locked rows: `SELECT * FROM pg_locks WHERE NOT granted;`
 2. Identify blocking queries: `SELECT * FROM pg_stat_statements WHERE calls > 1000;`
 3. Monitor lock wait times in application logs
 
 **Solutions:**
+
 - Add database indexes on WHERE clauses in mutations
 - Reduce mutation frequency if possible (batch updates)
 - Consider partitioning frequently updated tables
@@ -602,10 +618,12 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 **This is expected behavior.** FraiseQL chooses consistency over availability.
 
 **Diagnosis:**
+
 1. Confirm this is intentional choice for your use case
 2. If not acceptable, you need different architecture
 
 **Solutions:**
+
 - If high availability is critical, implement caching layer (Redis) for reads during partition
 - Use circuit breakers to detect partitions early
 - Implement graceful degradation (serve cached data with disclaimer)
@@ -616,25 +634,30 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 ## See Also
 
 **Related Architecture Guides:**
+
 - **[Federation Guide](../integrations/federation/guide.md)** — Multi-database federation with consistency guarantees
 - **[SAGA Pattern Details](../integrations/federation/sagas.md)** — Distributed transaction coordination and compensation
 - **[Execution Semantics](../architecture/core/execution-semantics.md)** — Query, mutation, and subscription execution guarantees
 
 **Operational Guides:**
+
 - **[Production Deployment](./production-deployment.md)** — Scaling FraiseQL for consistency requirements
 - **[Monitoring & Observability](./monitoring.md)** — Detecting consistency violations in production
 - **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Optimizing for consistency targets
 - **[Distributed Tracing](../operations/distributed-tracing.md)** — Tracking transaction causality
 
 **Testing & Validation:**
+
 - **[Testing Strategy](./testing-strategy.md)** — Testing consistency guarantees
 - **[E2E Testing Guide](../guides/development/e2e-testing.md)** — End-to-end consistency validation
 
 **Related Concepts:**
+
 - **[Common Patterns](./PATTERNS.md)** — Real-world patterns built on consistency model
 - **[Authorization & RBAC](./authorization-quick-start.md)** — Row-level consistency with permissions
 - **[Common Gotchas](./common-gotchas.md)** — Consistency pitfalls and solutions
 
 **Troubleshooting:**
+
 - **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide for consistency issues
 - **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and solutions

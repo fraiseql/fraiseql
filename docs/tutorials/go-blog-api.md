@@ -19,6 +19,7 @@ In this hands-on tutorial, you'll build a complete Blog API GraphQL schema using
 **Time estimate:** 30 minutes for basic setup, 45 minutes for complete implementation.
 
 **Prerequisites:**
+
 - Go 1.22+ installed
 - Basic GraphQL knowledge (types, queries, mutations)
 - PostgreSQL 14+ (for compilation and testing)
@@ -244,31 +245,31 @@ package schema
 
 // User represents a user in the system
 type User struct {
-	ID        int    `fraiseql:"id,type=Int"`
-	Name      string `fraiseql:"name,type=String"`
-	Email     string `fraiseql:"email,type=String"`
-	Bio       *string `fraiseql:"bio,type=String"`
-	CreatedAt string `fraiseql:"createdAt,type=String"`
+ ID        int    `fraiseql:"id,type=Int"`
+ Name      string `fraiseql:"name,type=String"`
+ Email     string `fraiseql:"email,type=String"`
+ Bio       *string `fraiseql:"bio,type=String"`
+ CreatedAt string `fraiseql:"createdAt,type=String"`
 }
 
 // Post represents a blog post
 type Post struct {
-	ID        int    `fraiseql:"id,type=Int"`
-	AuthorID  int    `fraiseql:"authorId,type=Int"`
-	Title     string `fraiseql:"title,type=String"`
-	Content   string `fraiseql:"content,type=String"`
-	Published bool   `fraiseql:"published,type=Boolean"`
-	CreatedAt string `fraiseql:"createdAt,type=String"`
-	UpdatedAt string `fraiseql:"updatedAt,type=String"`
+ ID        int    `fraiseql:"id,type=Int"`
+ AuthorID  int    `fraiseql:"authorId,type=Int"`
+ Title     string `fraiseql:"title,type=String"`
+ Content   string `fraiseql:"content,type=String"`
+ Published bool   `fraiseql:"published,type=Boolean"`
+ CreatedAt string `fraiseql:"createdAt,type=String"`
+ UpdatedAt string `fraiseql:"updatedAt,type=String"`
 }
 
 // Comment represents a comment on a post
 type Comment struct {
-	ID        int    `fraiseql:"id,type=Int"`
-	PostID    int    `fraiseql:"postId,type=Int"`
-	AuthorID  int    `fraiseql:"authorId,type=Int"`
-	Content   string `fraiseql:"content,type=String"`
-	CreatedAt string `fraiseql:"createdAt,type=String"`
+ ID        int    `fraiseql:"id,type=Int"`
+ PostID    int    `fraiseql:"postId,type=Int"`
+ AuthorID  int    `fraiseql:"authorId,type=Int"`
+ Content   string `fraiseql:"content,type=String"`
+ CreatedAt string `fraiseql:"createdAt,type=String"`
 }
 ```
 
@@ -296,6 +297,7 @@ The `fraiseql` tag format is:
 | `[]Post` | `[Post!]!` | No |
 
 In our example:
+
 - `ID int` → GraphQL `id: Int!`
 - `Bio *string` → GraphQL `bio: String` (nullable)
 - `CreatedAt string` → GraphQL `createdAt: String!`
@@ -308,98 +310,98 @@ Create `queries/queries.go`:
 package queries
 
 import (
-	"fraiseql-blog-api/schema"
-	"github.com/fraiseql/fraiseql-go/fraiseql"
+ "fraiseql-blog-api/schema"
+ "github.com/fraiseql/fraiseql-go/fraiseql"
 )
 
 // InitQueries registers all query operations
 func InitQueries() {
-	// Query: Get all users with pagination
-	fraiseql.NewQuery("users").
-		ReturnType(schema.User{}).
-		ReturnsArray(true).
-		Config(map[string]interface{}{
-			"sql_source": "v_user",
-			"auto_params": map[string]bool{
-				"limit":    true,
-				"offset":   true,
-				"where":    true,
-				"order_by": true,
-			},
-		}).
-		Arg("limit", "Int", 10).
-		Arg("offset", "Int", 0).
-		Description("Get all users with pagination and optional filtering").
-		Register()
+ // Query: Get all users with pagination
+ fraiseql.NewQuery("users").
+  ReturnType(schema.User{}).
+  ReturnsArray(true).
+  Config(map[string]interface{}{
+   "sql_source": "v_user",
+   "auto_params": map[string]bool{
+    "limit":    true,
+    "offset":   true,
+    "where":    true,
+    "order_by": true,
+   },
+  }).
+  Arg("limit", "Int", 10).
+  Arg("offset", "Int", 0).
+  Description("Get all users with pagination and optional filtering").
+  Register()
 
-	// Query: Get a single user by ID
-	fraiseql.NewQuery("user").
-		ReturnType(schema.User{}).
-		Config(map[string]interface{}{
-			"sql_source": "v_user",
-		}).
-		Arg("id", "Int", nil).
-		Description("Get a single user by their ID").
-		Register()
+ // Query: Get a single user by ID
+ fraiseql.NewQuery("user").
+  ReturnType(schema.User{}).
+  Config(map[string]interface{}{
+   "sql_source": "v_user",
+  }).
+  Arg("id", "Int", nil).
+  Description("Get a single user by their ID").
+  Register()
 
-	// Query: Get all posts with filtering
-	fraiseql.NewQuery("posts").
-		ReturnType(schema.Post{}).
-		ReturnsArray(true).
-		Config(map[string]interface{}{
-			"sql_source": "v_post",
-			"auto_params": map[string]bool{
-				"limit":    true,
-				"offset":   true,
-				"where":    true,
-				"order_by": true,
-			},
-		}).
-		Arg("authorId", "Int", nil, true).
-		Arg("published", "Boolean", nil, true).
-		Arg("limit", "Int", 20).
-		Arg("offset", "Int", 0).
-		Description("Get all posts with optional filtering by author or publication status").
-		Register()
+ // Query: Get all posts with filtering
+ fraiseql.NewQuery("posts").
+  ReturnType(schema.Post{}).
+  ReturnsArray(true).
+  Config(map[string]interface{}{
+   "sql_source": "v_post",
+   "auto_params": map[string]bool{
+    "limit":    true,
+    "offset":   true,
+    "where":    true,
+    "order_by": true,
+   },
+  }).
+  Arg("authorId", "Int", nil, true).
+  Arg("published", "Boolean", nil, true).
+  Arg("limit", "Int", 20).
+  Arg("offset", "Int", 0).
+  Description("Get all posts with optional filtering by author or publication status").
+  Register()
 
-	// Query: Get a single post by ID
-	fraiseql.NewQuery("post").
-		ReturnType(schema.Post{}).
-		Config(map[string]interface{}{
-			"sql_source": "v_post",
-		}).
-		Arg("id", "Int", nil).
-		Description("Get a single post by its ID").
-		Register()
+ // Query: Get a single post by ID
+ fraiseql.NewQuery("post").
+  ReturnType(schema.Post{}).
+  Config(map[string]interface{}{
+   "sql_source": "v_post",
+  }).
+  Arg("id", "Int", nil).
+  Description("Get a single post by its ID").
+  Register()
 
-	// Query: Get all comments on a post
-	fraiseql.NewQuery("comments").
-		ReturnType(schema.Comment{}).
-		ReturnsArray(true).
-		Config(map[string]interface{}{
-			"sql_source": "v_comment",
-			"auto_params": map[string]bool{
-				"limit":    true,
-				"offset":   true,
-				"where":    true,
-				"order_by": true,
-			},
-		}).
-		Arg("postId", "Int", nil).
-		Arg("limit", "Int", 50).
-		Arg("offset", "Int", 0).
-		Description("Get all comments on a post with pagination").
-		Register()
+ // Query: Get all comments on a post
+ fraiseql.NewQuery("comments").
+  ReturnType(schema.Comment{}).
+  ReturnsArray(true).
+  Config(map[string]interface{}{
+   "sql_source": "v_comment",
+   "auto_params": map[string]bool{
+    "limit":    true,
+    "offset":   true,
+    "where":    true,
+    "order_by": true,
+   },
+  }).
+  Arg("postId", "Int", nil).
+  Arg("limit", "Int", 50).
+  Arg("offset", "Int", 0).
+  Description("Get all comments on a post with pagination").
+  Register()
 
-	// Query: Get a single comment by ID
-	fraiseql.NewQuery("comment").
-		ReturnType(schema.Comment{}).
-		Config(map[string]interface{}{
-			"sql_source": "v_comment",
-		}).
-		Arg("id", "Int", nil).
-		Description("Get a single comment by its ID").
-		Register()
+ // Query: Get a single comment by ID
+ fraiseql.NewQuery("comment").
+  ReturnType(schema.Comment{}).
+  Config(map[string]interface{}{
+   "sql_source": "v_comment",
+  }).
+  Arg("id", "Int", nil).
+  Description("Get a single comment by its ID").
+  Register()
 }
 ```
 
@@ -443,61 +445,61 @@ Create `mutations/mutations.go`:
 package mutations
 
 import (
-	"fraiseql-blog-api/schema"
-	"github.com/fraiseql/fraiseql-go/fraiseql"
+ "fraiseql-blog-api/schema"
+ "github.com/fraiseql/fraiseql-go/fraiseql"
 )
 
 // InitMutations registers all mutation operations
 func InitMutations() {
-	// Mutation: Create a new user
-	fraiseql.NewMutation("createUser").
-		ReturnType(schema.User{}).
-		Config(map[string]interface{}{
-			"sql_source": "fn_create_user",
-			"operation":  "CREATE",
-		}).
-		Arg("name", "String", nil).
-		Arg("email", "String", nil).
-		Arg("bio", "String", nil, true).
-		Description("Create a new user account").
-		Register()
+ // Mutation: Create a new user
+ fraiseql.NewMutation("createUser").
+  ReturnType(schema.User{}).
+  Config(map[string]interface{}{
+   "sql_source": "fn_create_user",
+   "operation":  "CREATE",
+  }).
+  Arg("name", "String", nil).
+  Arg("email", "String", nil).
+  Arg("bio", "String", nil, true).
+  Description("Create a new user account").
+  Register()
 
-	// Mutation: Create a new blog post
-	fraiseql.NewMutation("createPost").
-		ReturnType(schema.Post{}).
-		Config(map[string]interface{}{
-			"sql_source": "fn_create_post",
-			"operation":  "CREATE",
-		}).
-		Arg("authorId", "Int", nil).
-		Arg("title", "String", nil).
-		Arg("content", "String", nil).
-		Description("Create a new blog post").
-		Register()
+ // Mutation: Create a new blog post
+ fraiseql.NewMutation("createPost").
+  ReturnType(schema.Post{}).
+  Config(map[string]interface{}{
+   "sql_source": "fn_create_post",
+   "operation":  "CREATE",
+  }).
+  Arg("authorId", "Int", nil).
+  Arg("title", "String", nil).
+  Arg("content", "String", nil).
+  Description("Create a new blog post").
+  Register()
 
-	// Mutation: Publish a post (set published=true)
-	fraiseql.NewMutation("publishPost").
-		ReturnType(schema.Post{}).
-		Config(map[string]interface{}{
-			"sql_source": "fn_publish_post",
-			"operation":  "UPDATE",
-		}).
-		Arg("id", "Int", nil).
-		Description("Publish a blog post").
-		Register()
+ // Mutation: Publish a post (set published=true)
+ fraiseql.NewMutation("publishPost").
+  ReturnType(schema.Post{}).
+  Config(map[string]interface{}{
+   "sql_source": "fn_publish_post",
+   "operation":  "UPDATE",
+  }).
+  Arg("id", "Int", nil).
+  Description("Publish a blog post").
+  Register()
 
-	// Mutation: Create a comment on a post
-	fraiseql.NewMutation("createComment").
-		ReturnType(schema.Comment{}).
-		Config(map[string]interface{}{
-			"sql_source": "fn_create_comment",
-			"operation":  "CREATE",
-		}).
-		Arg("postId", "Int", nil).
-		Arg("authorId", "Int", nil).
-		Arg("content", "String", nil).
-		Description("Create a comment on a blog post").
-		Register()
+ // Mutation: Create a comment on a post
+ fraiseql.NewMutation("createComment").
+  ReturnType(schema.Comment{}).
+  Config(map[string]interface{}{
+   "sql_source": "fn_create_comment",
+   "operation":  "CREATE",
+  }).
+  Arg("postId", "Int", nil).
+  Arg("authorId", "Int", nil).
+  Arg("content", "String", nil).
+  Description("Create a comment on a blog post").
+  Register()
 }
 ```
 
@@ -522,36 +524,36 @@ Create `cmd/export/main.go`:
 package main
 
 import (
-	"log"
+ "log"
 
-	"fraiseql-blog-api/mutations"
-	"fraiseql-blog-api/queries"
-	"fraiseql-blog-api/schema"
-	"github.com/fraiseql/fraiseql-go/fraiseql"
+ "fraiseql-blog-api/mutations"
+ "fraiseql-blog-api/queries"
+ "fraiseql-blog-api/schema"
+ "github.com/fraiseql/fraiseql-go/fraiseql"
 )
 
 func main() {
-	// Initialize schema builders
-	// These must be called to register queries/mutations
-	queries.InitQueries()
-	mutations.InitMutations()
+ // Initialize schema builders
+ // These must be called to register queries/mutations
+ queries.InitQueries()
+ mutations.InitMutations()
 
-	// Register all types
-	if err := fraiseql.RegisterTypes(
-		schema.User{},
-		schema.Post{},
-		schema.Comment{},
-	); err != nil {
-		log.Fatalf("Error registering types: %v", err)
-	}
+ // Register all types
+ if err := fraiseql.RegisterTypes(
+  schema.User{},
+  schema.Post{},
+  schema.Comment{},
+ ); err != nil {
+  log.Fatalf("Error registering types: %v", err)
+ }
 
-	// Export schema to JSON
-	if err := fraiseql.ExportSchema("schema.json"); err != nil {
-		log.Fatalf("Error exporting schema: %v", err)
-	}
+ // Export schema to JSON
+ if err := fraiseql.ExportSchema("schema.json"); err != nil {
+  log.Fatalf("Error exporting schema: %v", err)
+ }
 
-	log.Println("✅ Schema exported to schema.json")
-	log.Println("Run: fraiseql-cli compile schema.json -o schema.compiled.json")
+ log.Println("✅ Schema exported to schema.json")
+ log.Println("Run: fraiseql-cli compile schema.json -o schema.compiled.json")
 }
 ```
 
@@ -706,60 +708,60 @@ Create `schema/types_test.go`:
 package schema
 
 import (
-	"testing"
+ "testing"
 )
 
 func TestUserType(t *testing.T) {
-	user := User{
-		ID:        1,
-		Name:      "Alice",
-		Email:     "alice@example.com",
-		Bio:       nil,
-		CreatedAt: "2024-01-01T00:00:00Z",
-	}
+ user := User{
+  ID:        1,
+  Name:      "Alice",
+  Email:     "alice@example.com",
+  Bio:       nil,
+  CreatedAt: "2024-01-01T00:00:00Z",
+ }
 
-	if user.ID != 1 {
-		t.Errorf("Expected ID 1, got %d", user.ID)
-	}
-	if user.Name != "Alice" {
-		t.Errorf("Expected name 'Alice', got %s", user.Name)
-	}
-	if user.Bio != nil {
-		t.Errorf("Expected nil bio, got %v", user.Bio)
-	}
+ if user.ID != 1 {
+  t.Errorf("Expected ID 1, got %d", user.ID)
+ }
+ if user.Name != "Alice" {
+  t.Errorf("Expected name 'Alice', got %s", user.Name)
+ }
+ if user.Bio != nil {
+  t.Errorf("Expected nil bio, got %v", user.Bio)
+ }
 }
 
 func TestPostType(t *testing.T) {
-	post := Post{
-		ID:        42,
-		AuthorID:  1,
-		Title:     "Hello World",
-		Content:   "This is a blog post",
-		Published: false,
-		CreatedAt: "2024-01-01T00:00:00Z",
-		UpdatedAt: "2024-01-01T00:00:00Z",
-	}
+ post := Post{
+  ID:        42,
+  AuthorID:  1,
+  Title:     "Hello World",
+  Content:   "This is a blog post",
+  Published: false,
+  CreatedAt: "2024-01-01T00:00:00Z",
+  UpdatedAt: "2024-01-01T00:00:00Z",
+ }
 
-	if post.Title != "Hello World" {
-		t.Errorf("Expected title 'Hello World', got %s", post.Title)
-	}
-	if post.Published {
-		t.Errorf("Expected published to be false")
-	}
+ if post.Title != "Hello World" {
+  t.Errorf("Expected title 'Hello World', got %s", post.Title)
+ }
+ if post.Published {
+  t.Errorf("Expected published to be false")
+ }
 }
 
 func TestCommentType(t *testing.T) {
-	comment := Comment{
-		ID:        1,
-		PostID:    42,
-		AuthorID:  1,
-		Content:   "Great post!",
-		CreatedAt: "2024-01-01T00:00:00Z",
-	}
+ comment := Comment{
+  ID:        1,
+  PostID:    42,
+  AuthorID:  1,
+  Content:   "Great post!",
+  CreatedAt: "2024-01-01T00:00:00Z",
+ }
 
-	if comment.PostID != 42 {
-		t.Errorf("Expected post ID 42, got %d", comment.PostID)
-	}
+ if comment.PostID != 42 {
+  t.Errorf("Expected post ID 42, got %d", comment.PostID)
+ }
 }
 ```
 
@@ -771,80 +773,80 @@ Create `cmd/export/main_test.go`:
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"os"
-	"testing"
+ "encoding/json"
+ "io/ioutil"
+ "os"
+ "testing"
 
-	"fraiseql-blog-api/mutations"
-	"fraiseql-blog-api/queries"
-	"fraiseql-blog-api/schema"
-	"github.com/fraiseql/fraiseql-go/fraiseql"
+ "fraiseql-blog-api/mutations"
+ "fraiseql-blog-api/queries"
+ "fraiseql-blog-api/schema"
+ "github.com/fraiseql/fraiseql-go/fraiseql"
 )
 
 func TestSchemaExport(t *testing.T) {
-	// Setup
-	queries.InitQueries()
-	mutations.InitMutations()
+ // Setup
+ queries.InitQueries()
+ mutations.InitMutations()
 
-	if err := fraiseql.RegisterTypes(
-		schema.User{},
-		schema.Post{},
-		schema.Comment{},
-	); err != nil {
-		t.Fatalf("Failed to register types: %v", err)
-	}
+ if err := fraiseql.RegisterTypes(
+  schema.User{},
+  schema.Post{},
+  schema.Comment{},
+ ); err != nil {
+  t.Fatalf("Failed to register types: %v", err)
+ }
 
-	// Export to temporary file
-	tmpfile, err := ioutil.TempFile("", "schema-*.json")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpfile.Name())
+ // Export to temporary file
+ tmpfile, err := ioutil.TempFile("", "schema-*.json")
+ if err != nil {
+  t.Fatalf("Failed to create temp file: %v", err)
+ }
+ defer os.Remove(tmpfile.Name())
 
-	if err := fraiseql.ExportSchema(tmpfile.Name()); err != nil {
-		t.Fatalf("Failed to export schema: %v", err)
-	}
+ if err := fraiseql.ExportSchema(tmpfile.Name()); err != nil {
+  t.Fatalf("Failed to export schema: %v", err)
+ }
 
-	// Parse and verify
-	data, err := ioutil.ReadFile(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to read exported schema: %v", err)
-	}
+ // Parse and verify
+ data, err := ioutil.ReadFile(tmpfile.Name())
+ if err != nil {
+  t.Fatalf("Failed to read exported schema: %v", err)
+ }
 
-	var schemaData map[string]interface{}
-	if err := json.Unmarshal(data, &schemaData); err != nil {
-		t.Fatalf("Failed to parse schema JSON: %v", err)
-	}
+ var schemaData map[string]interface{}
+ if err := json.Unmarshal(data, &schemaData); err != nil {
+  t.Fatalf("Failed to parse schema JSON: %v", err)
+ }
 
-	// Verify required fields
-	if _, hasTypes := schemaData["types"]; !hasTypes {
-		t.Error("Schema missing 'types' field")
-	}
-	if _, hasQueries := schemaData["queries"]; !hasQueries {
-		t.Error("Schema missing 'queries' field")
-	}
-	if _, hasMutations := schemaData["mutations"]; !hasMutations {
-		t.Error("Schema missing 'mutations' field")
-	}
+ // Verify required fields
+ if _, hasTypes := schemaData["types"]; !hasTypes {
+  t.Error("Schema missing 'types' field")
+ }
+ if _, hasQueries := schemaData["queries"]; !hasQueries {
+  t.Error("Schema missing 'queries' field")
+ }
+ if _, hasMutations := schemaData["mutations"]; !hasMutations {
+  t.Error("Schema missing 'mutations' field")
+ }
 
-	// Verify type count
-	types := schemaData["types"].([]interface{})
-	if len(types) != 3 {
-		t.Errorf("Expected 3 types, got %d", len(types))
-	}
+ // Verify type count
+ types := schemaData["types"].([]interface{})
+ if len(types) != 3 {
+  t.Errorf("Expected 3 types, got %d", len(types))
+ }
 
-	// Verify query count
-	queries := schemaData["queries"].([]interface{})
-	if len(queries) < 6 {
-		t.Errorf("Expected at least 6 queries, got %d", len(queries))
-	}
+ // Verify query count
+ queries := schemaData["queries"].([]interface{})
+ if len(queries) < 6 {
+  t.Errorf("Expected at least 6 queries, got %d", len(queries))
+ }
 
-	// Verify mutation count
-	mutations := schemaData["mutations"].([]interface{})
-	if len(mutations) < 4 {
-		t.Errorf("Expected at least 4 mutations, got %d", len(mutations))
-	}
+ // Verify mutation count
+ mutations := schemaData["mutations"].([]interface{})
+ if len(mutations) < 4 {
+  t.Errorf("Expected at least 4 mutations, got %d", len(mutations))
+ }
 }
 ```
 
@@ -1102,19 +1104,19 @@ To serve the GraphQL API with middleware (auth, logging, etc):
 package server
 
 import (
-	"github.com/gin-gonic/gin"
+ "github.com/gin-gonic/gin"
 )
 
 func New() *gin.Engine {
-	router := gin.Default()
+ router := gin.Default()
 
-	// GraphQL endpoint proxies to FraiseQL server
-	router.POST("/graphql", func(c *gin.Context) {
-		// Forward to fraiseql-server on port 8000
-		// Include auth headers, logging, rate limiting
-	})
+ // GraphQL endpoint proxies to FraiseQL server
+ router.POST("/graphql", func(c *gin.Context) {
+  // Forward to fraiseql-server on port 8000
+  // Include auth headers, logging, rate limiting
+ })
 
-	return router
+ return router
 }
 ```
 
@@ -1149,6 +1151,7 @@ fraiseql-server --schema schema.compiled.json \
 ### Issue: "Struct tag format invalid"
 
 **Problem:**
+
 ```
 Error: invalid fraiseql tag format: "idtype=Int"
 ```
@@ -1171,6 +1174,7 @@ type User struct {
 ### Issue: "Type not registered"
 
 **Problem:**
+
 ```
 Error: type User used in query but not registered
 ```
@@ -1192,6 +1196,7 @@ if err := fraiseql.ExportSchema("schema.json"); err != nil {
 ### Issue: "Query builder not registered"
 
 **Problem:**
+
 ```
 schema.json is empty or missing queries
 ```
@@ -1218,6 +1223,7 @@ func main() {
 ### Issue: "Type mismatch in mutation"
 
 **Problem:**
+
 ```
 Error: argument 'id' type Int does not match parameter type String
 ```
@@ -1236,6 +1242,7 @@ fraiseql.NewMutation("createPost").
 ### Issue: "Compilation fails with SQL source error"
 
 **Problem:**
+
 ```
 Error: SQL source 'v_user' not found in database
 ```
@@ -1286,40 +1293,40 @@ fraiseql-blog-api/
 .PHONY: help test build export compile run clean docker-up docker-down
 
 help:
-	@echo "FraiseQL Blog API - Available targets:"
-	@echo "  make test          - Run Go tests"
-	@echo "  make build         - Build export binary"
-	@echo "  make export        - Export schema.json"
-	@echo "  make compile       - Compile schema with fraiseql-cli"
-	@echo "  make run           - Run FraiseQL server"
-	@echo "  make docker-up     - Start Docker Compose stack"
-	@echo "  make docker-down   - Stop Docker Compose stack"
-	@echo "  make clean         - Remove generated files"
+ @echo "FraiseQL Blog API - Available targets:"
+ @echo "  make test          - Run Go tests"
+ @echo "  make build         - Build export binary"
+ @echo "  make export        - Export schema.json"
+ @echo "  make compile       - Compile schema with fraiseql-cli"
+ @echo "  make run           - Run FraiseQL server"
+ @echo "  make docker-up     - Start Docker Compose stack"
+ @echo "  make docker-down   - Stop Docker Compose stack"
+ @echo "  make clean         - Remove generated files"
 
 test:
-	go test -v ./...
+ go test -v ./...
 
 build:
-	go build -o export cmd/export/main.go
+ go build -o export cmd/export/main.go
 
 export: build
-	./export
+ ./export
 
 compile: export
-	fraiseql-cli compile schema.json -o schema.compiled.json
+ fraiseql-cli compile schema.json -o schema.compiled.json
 
 run: compile
-	fraiseql-server --schema schema.compiled.json --port 8000
+ fraiseql-server --schema schema.compiled.json --port 8000
 
 docker-up:
-	docker-compose up -d
+ docker-compose up -d
 
 docker-down:
-	docker-compose down
+ docker-compose down
 
 clean:
-	rm -f export schema.json schema.compiled.json
-	go clean -testcache
+ rm -f export schema.json schema.compiled.json
+ go clean -testcache
 ```
 
 ### go.mod

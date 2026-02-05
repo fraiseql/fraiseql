@@ -25,6 +25,7 @@
 Execute steps one after another. Each step depends on the previous one's success.
 
 **When to Use:**
+
 - Steps must execute in order
 - Later steps need data from earlier ones
 - Rollback is straightforward
@@ -42,6 +43,7 @@ Step 4: Ship items          ✓
 ```
 
 **If Step 3 fails:**
+
 ```
 Step 4: Undo reservation    ✓
          ↑
@@ -70,6 +72,7 @@ async fn sequential_order_saga(order: Order) -> Result<SagaResult> {
 Execute independent steps concurrently.
 
 **When to Use:**
+
 - Steps are independent (no data dependencies)
 - You need better performance
 - Coordination complexity is acceptable
@@ -113,6 +116,7 @@ async fn parallel_onboarding_saga(user: User) -> Result<SagaResult> {
 Execute different paths based on conditions.
 
 **When to Use:**
+
 - Different paths for different customer types
 - Premium vs standard workflows
 - Region-specific business logic
@@ -167,6 +171,7 @@ async fn conditional_payment_saga(
 A saga that calls other sagas (composition).
 
 **When to Use:**
+
 - Reusing saga logic across different processes
 - Complex business processes need breaking down
 - Testing individual sub-sagas
@@ -224,11 +229,13 @@ async fn process_order_saga(order: Order) -> Result<SagaResult> {
 The coordinator automatically runs compensation for failed steps.
 
 **Pros:**
+
 - Minimal code
 - Predictable
 - Easy to test
 
 **Cons:**
+
 - Less control
 - May not fit complex business logic
 
@@ -252,11 +259,13 @@ SagaStep {
 Application explicitly triggers compensation based on business logic.
 
 **Pros:**
+
 - Full control
 - Can implement custom logic
 - Better for complex scenarios
 
 **Cons:**
+
 - More code
 - Risk of forgetting steps
 - Harder to test
@@ -293,11 +302,13 @@ async fn process_with_manual_compensation(order: Order) -> Result<()> {
 A dedicated service handles all compensations.
 
 **Pros:**
+
 - Separation of concerns
 - Reusable compensation logic
 - Easier to maintain
 
 **Cons:**
+
 - Additional service to deploy
 - Network calls for compensation
 
@@ -352,6 +363,7 @@ recovery_manager.start_recovery_loop().await?;
 ```
 
 **Behavior:**
+
 1. Detects failed sagas in store
 2. Retries from the point of failure
 3. Applies exponential backoff
@@ -362,6 +374,7 @@ recovery_manager.start_recovery_loop().await?;
 Operators manually trigger recovery for specific sagas.
 
 **Use When:**
+
 - Automatic recovery failed
 - Saga is in inconsistent state
 - Manual intervention required
@@ -385,6 +398,7 @@ println!("Status: {:?}", updated_saga.status);
 Recovery after system restart.
 
 **How It Works:**
+
 1. System boots
 2. Recovery manager starts
 3. Scans saga store for incomplete sagas
@@ -392,6 +406,7 @@ Recovery after system restart.
 5. Reruns compensation or forward steps as needed
 
 **Key Points:**
+
 - Idempotency is critical (same step runs twice safely)
 - Request IDs prevent duplicate side effects
 - Last known state is restored
@@ -454,6 +469,7 @@ async fn charge_card(
 ### Avoiding Idempotency Issues
 
 **Bad:**
+
 ```rust
 // Not idempotent - running twice doubles the charge
 async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
@@ -464,6 +480,7 @@ async fn add_credit(user_id: &str, amount: f64) -> Result<()> {
 ```
 
 **Good:**
+
 ```rust
 // Idempotent - running twice has same effect
 async fn set_credit(

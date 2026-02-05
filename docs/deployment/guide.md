@@ -419,7 +419,7 @@ curl http://localhost:8000/health
 aws ecr create-repository --repository-name fraiseql-server
 ```
 
-2. **Push Image**:
+1. **Push Image**:
 
 ```bash
 docker tag fraiseql-server:v2.0 {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
@@ -427,7 +427,7 @@ aws ecr get-login-password | docker login --username AWS --password-stdin {accou
 docker push {account}.dkr.ecr.us-east-1.amazonaws.com/fraiseql-server:v2.0
 ```
 
-3. **Create RDS Database**:
+1. **Create RDS Database**:
 
 ```bash
 aws rds create-db-instance \
@@ -438,7 +438,7 @@ aws rds create-db-instance \
   --allocated-storage 20
 ```
 
-4. **Create ECS Task Definition** (in AWS Console):
+1. **Create ECS Task Definition** (in AWS Console):
 
 - Container image: ECR URL
 - Memory: 512 MB
@@ -446,7 +446,7 @@ aws rds create-db-instance \
 - Environment variables: DATABASE_URL, FRAISEQL_* configs
 - Port mappings: 8000:8000
 
-5. **Create ECS Service**:
+1. **Create ECS Service**:
 
 ```bash
 aws ecs create-service \
@@ -474,7 +474,7 @@ docker tag fraiseql-server:v2.0 gcr.io/PROJECT_ID/fraiseql-server:v2.0
 docker push gcr.io/PROJECT_ID/fraiseql-server:v2.0
 ```
 
-2. **Deploy**:
+1. **Deploy**:
 
 ```bash
 gcloud run deploy fraiseql-server \
@@ -602,13 +602,13 @@ Common issues:
 SELECT * FROM pg_stat_statements ORDER BY mean_time DESC LIMIT 10;
 ```
 
-2. Monitor connection pool:
+1. Monitor connection pool:
 
 ```bash
 curl http://localhost:8000/health | jq .database.connection_pool
 ```
 
-3. Check query complexity:
+1. Check query complexity:
 
 - Simplify queries
 - Add pagination

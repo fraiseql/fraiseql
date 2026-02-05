@@ -10,6 +10,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - FraiseQL view naming conventions (v_*, va_*, tv_*, ta_*)
 - GraphQL query complexity concepts
 - JSON vs Arrow data plane differences
@@ -17,10 +18,12 @@
 - Table-backed vs logical view trade-offs
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - No specific software required (reference guide)
 
 **Required Infrastructure:**
+
 - None (quick reference only - no implementation needed)
 
 **Time Estimate:** 1-5 minutes to find the right view type for your use case
@@ -135,7 +138,7 @@ Query slow (>1s)? → Migrate to ta_*
 
 ## Migration Decision Tree
 
-### From v_* to tv_* (JSON)
+### From v_*to tv_* (JSON)
 
 ```
 Is query time > 1 second?
@@ -153,7 +156,7 @@ Are there 3+ table joins?
 
 **Estimated benefit**: 10-50x faster queries
 
-### From va_* to ta_* (Arrow)
+### From va_*to ta_* (Arrow)
 
 ```
 Is dataset > 1M rows?
@@ -296,6 +299,7 @@ SELECT
 ### Issue: Table-backed view empty after creation
 
 **Fix**: Run initial population
+
 ```sql
 SELECT refresh_tv_user_profile();
 ```
@@ -304,6 +308,7 @@ SELECT refresh_tv_user_profile();
 
 **Cause**: Trigger not firing
 **Fix**: Manually refresh + check trigger status
+
 ```sql
 SELECT * FROM refresh_tv_user_profile();
 SELECT * FROM information_schema.triggers WHERE trigger_name LIKE 'trg_refresh%';
@@ -313,6 +318,7 @@ SELECT * FROM information_schema.triggers WHERE trigger_name LIKE 'trg_refresh%'
 
 **Cause**: Too many writes + per-row refresh
 **Fix**: Switch to scheduled batch
+
 ```sql
 -- Drop per-row trigger
 DROP TRIGGER trg_refresh_tv_user_profile_on_user ON tb_user;
@@ -325,6 +331,7 @@ SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_use
 
 **Cause**: Schema mismatch, missing index, or wrong view
 **Fix**: Verify using EXPLAIN
+
 ```sql
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM tv_user_profile WHERE id = ?;
@@ -337,6 +344,7 @@ SELECT * FROM pg_indexes WHERE tablename = 'tv_user_profile';
 
 **Cause**: JSONB duplication + excess indexes
 **Fix**: Review DDL + consider scheduled batch only
+
 ```sql
 SELECT
     schemaname,
@@ -452,6 +460,7 @@ Did query time improve >5x?
 **Diagnosis**: Run EXPLAIN on both and compare. Most likely cause: missing indexes.
 
 **Solution**: Add index to base table on JOIN columns
+
 ```sql
 CREATE INDEX idx_base_col ON base_table(col);
 ```
@@ -463,6 +472,7 @@ CREATE INDEX idx_base_col ON base_table(col);
 ### "Arrow (ta_*) query still slow"
 
 **Not ready for Arrow yet.** Prerequisites:
+
 - Data >1M rows ✅
 - Using ClickHouse backend ✅
 - Query doesn't have subqueries ✅
@@ -472,6 +482,7 @@ If all true: Optimize query or increase ClickHouse resources.
 ### "I don't know current query performance"
 
 **Measure first**: Run with v_* for one week, collect metrics
+
 ```bash
 curl -X POST http://localhost:8000/graphql -d '{your_query}' \
   | jq '.extensions.timing'
@@ -499,5 +510,5 @@ Then compare after migration to tv_*.
 
 1. **New to view selection?** Start here (Quick Reference) → then read Full View Selection Guide
 2. **Ready to migrate?** Use Migration Checklist → benchmark with Performance Testing guide
-3. **Deep technical details?** Read tv_* and ta_* patterns
+3. **Deep technical details?** Read tv_*and ta_* patterns
 4. **Setting up schema?** Refer to Schema Conventions

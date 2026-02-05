@@ -113,6 +113,7 @@ Multiple independent teams?
 ### Monolithic Database
 
 **Best for:**
+
 - Startup phase
 - Single team
 - Related data (tightly coupled)
@@ -121,6 +122,7 @@ Multiple independent teams?
 - Transactions across all data
 
 **Operational Model:**
+
 ```
 ┌─ FraiseQL Application ─┐
 │                         │
@@ -130,6 +132,7 @@ Single node, simpler operations, full transaction support
 ```
 
 **Scaling strategy:**
+
 1. Vertical: Add CPU/memory (works to ~50K QPS)
 2. Replicas: Read replicas (helps with reads)
 3. Caching: Redis/Memcached layer
@@ -141,6 +144,7 @@ Single node, simpler operations, full transaction support
 **Failure modes:** Single point of failure (handle with RDS multi-AZ)
 
 **Example Architecture:**
+
 ```yaml
 fraiseql-server:
   database: postgresql://prod-db.internal:5432/fraiseql
@@ -156,6 +160,7 @@ fraiseql-server:
 ### Federated Database
 
 **Best for:**
+
 - Multiple independent services
 - >10 million records
 - >1,000 queries/second
@@ -164,6 +169,7 @@ fraiseql-server:
 - Different database needs per service
 
 **Operational Model:**
+
 ```
 ┌──────────────────────────────┐
 │   Apollo Router (Gateway)     │
@@ -177,6 +183,7 @@ fraiseql-server:
 Multiple services, owned independently, coordinated by gateway
 
 **Scaling strategy:**
+
 1. Add new subgraph for new service
 2. Each subgraph scales independently
 3. Combine via federation gateway
@@ -187,6 +194,7 @@ Multiple services, owned independently, coordinated by gateway
 **Benefits:** Independent scaling, team autonomy, data residency
 
 **Example Architecture:**
+
 ```yaml
 apollo-gateway:
   port: 4000
@@ -214,11 +222,13 @@ subgraphs:
 **Symptom:** Teams waiting on each other for database changes
 
 **Why Federation Helps:**
+
 - Each team owns subgraph
 - Independent deployments
 - No blocking on shared database
 
 **Impact:**
+
 - Deployment speed: 10x faster
 - Team autonomy: 100%
 - Coordination overhead: Medium
@@ -228,6 +238,7 @@ subgraphs:
 **Symptom:** Queries slow, database CPU at 100%, can't optimize further
 
 **Before federating:**
+
 ```bash
 # 1. Run EXPLAIN ANALYZE on slow query
 # 2. Add indexes on missing columns
@@ -239,6 +250,7 @@ subgraphs:
 ```
 
 **Federation helps if:**
+
 - Individual queries fast (sub-100ms)
 - But total throughput limited
 - Need distributed computation
@@ -248,11 +260,13 @@ subgraphs:
 **Symptom:** GDPR/HIPAA requires data stay in specific region
 
 **Why Federation Helps:**
+
 - EU customer data → PostgreSQL in EU
 - US customer data → PostgreSQL in US
 - Single query spans both (via federation)
 
 **Impact:**
+
 - Compliance: ✅ Met
 - Performance: ⚠️ Slower (cross-region)
 - Cost: Higher (multiple databases + gateway)
@@ -262,12 +276,14 @@ subgraphs:
 **Symptom:** Needs PostgreSQL features for users, ClickHouse for analytics
 
 **Why Federation Helps:**
+
 - Use right tool for job
 - Analytics via ClickHouse (1000x faster)
 - Users via PostgreSQL (ACID transactions)
 - Single GraphQL interface
 
 **Impact:**
+
 - Flexibility: ✅ Multiple tech stacks
 - Complexity: 🔴 Higher ops burden
 - Performance: ⚠️ Optimization required
@@ -287,6 +303,7 @@ Fast development, simple operations
 ```
 
 **Red flags appearing:**
+
 - Database response time degrading
 - Teams conflicting on schema
 - Data residency questions
@@ -363,6 +380,7 @@ Result: 80% on monolith, 20% on federation
 ```
 
 **Benefits:**
+
 - Gradual complexity increase
 - Can isolate problematic workloads
 - Easy to pilot federation
@@ -375,11 +393,13 @@ Result: 80% on monolith, 20% on federation
 ### "Our monolith is fine but team wants federation"
 
 **Red flags:**
+
 - Federation without pain point is premature
 - Adds complexity unnecessarily
 - May slow down development
 
 **Recommendation:**
+
 - Document current performance
 - Set pain threshold
 - Migrate when threshold crossed
@@ -388,11 +408,13 @@ Result: 80% on monolith, 20% on federation
 ### "We started federation too early"
 
 **Symptoms:**
+
 - Coordination overhead high
 - Development slower (not faster)
 - Operations too complex
 
 **Options:**
+
 1. Consolidate back to monolith (if <2 years)
 2. Simplify federation (fewer subgraphs)
 3. Use managed service (reduce ops burden)
@@ -400,6 +422,7 @@ Result: 80% on monolith, 20% on federation
 ### "We need federation but can't operate it"
 
 **Solutions:**
+
 1. Use managed federation service
 2. Hire DevOps/SRE team
 3. Simplify architecture
@@ -408,12 +431,14 @@ Result: 80% on monolith, 20% on federation
 ### "Performance still bad after federation"
 
 **Likely causes:**
+
 - Queries still complex
 - Wrong data in wrong database
 - Network latency between subgraphs
 - SAGA coordination overhead
 
 **Solutions:**
+
 - Re-architect queries (simpler per-subgraph)
 - Move data to optimize locality
 - Use direct DB federation (not HTTP)

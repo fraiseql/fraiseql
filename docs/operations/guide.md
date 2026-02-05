@@ -25,7 +25,7 @@ This guide is based on production-tested procedures used by the FraiseQL team. Y
 
 ### If You Have Limited Time
 
-1. **Read**: [SLA/SLO Framework](#slaslo-framework) (5 min)
+1. **Read**: [SLA/SLO Framework](#part-1-slaslo-framework) (5 min)
 2. **Configure**: [Health Checks](#health-checks) (3 min)
 3. **Set Up**: [Basic Alerting](#alerting-rules) (7 min)
 4. **Return Later**: Incident response procedures, on-call setup, training
@@ -37,10 +37,12 @@ This guide is based on production-tested procedures used by the FraiseQL team. Y
 ### What Are SLA and SLO?
 
 **Service Level Objective (SLO)**: Internal target for your service quality
+
 - Example: "99.9% uptime, P95 latency <100ms, error rate <0.1%"
 - Private goal, guides engineering
 
 **Service Level Agreement (SLA)**: External commitment to customers
+
 - Example: "99.5% uptime SLA with service credits"
 - Public promise, legal/commercial implications
 
@@ -64,18 +66,21 @@ SLA (Customer Commitment):
 ### How to Calculate SLO Compliance
 
 **Monthly Availability**:
+
 ```
 Uptime % = (Uptime Minutes / Total Minutes in Month) × 100
 Target: 99.9% = 43.2 minutes downtime allowed per month
 ```
 
 **Latency SLI** (Service Level Indicator):
+
 ```
 Latency SLI = (Queries with P95 < 100ms / Total Queries) × 100
 Target: 99.9% of queries meet latency target
 ```
 
 **Error Rate SLI**:
+
 ```
 Error Rate SLI = (Successful Queries / Total Queries) × 100
 Target: 99.9% success rate (0.1% error rate)
@@ -106,6 +111,7 @@ curl http://localhost:8000/health
 ```
 
 **Response** (HTTP 200):
+
 ```json
 {
   "status": "healthy",
@@ -127,6 +133,7 @@ curl http://localhost:8000/ready
 ```
 
 **Response - Ready** (HTTP 200):
+
 ```json
 {
   "ready": true,
@@ -137,6 +144,7 @@ curl http://localhost:8000/ready
 ```
 
 **Response - Not Ready** (HTTP 503):
+
 ```json
 {
   "ready": false,
@@ -147,6 +155,7 @@ curl http://localhost:8000/ready
 ```
 
 **Kubernetes Configuration** (recommended):
+
 ```yaml
 readinessProbe:
   httpGet:
@@ -178,6 +187,7 @@ curl http://localhost:8000/live
 ```
 
 **Response** (HTTP 200):
+
 ```json
 {
   "alive": true,
@@ -187,6 +197,7 @@ curl http://localhost:8000/live
 ```
 
 **Kubernetes Configuration** (recommended):
+
 ```yaml
 livenessProbe:
   httpGet:
@@ -274,16 +285,19 @@ FraiseQL handles graceful shutdown with signal handling:
 5. Exits cleanly
 
 **Kubernetes Configuration**:
+
 ```yaml
 terminationGracePeriodSeconds: 30  # Allow 30s for graceful shutdown
 ```
 
 **Docker Configuration**:
+
 ```dockerfile
 STOPSIGNAL SIGTERM
 ```
 
 **Manual Testing**:
+
 ```bash
 # Terminal 1: Start server
 cargo run -p fraiseql-server
@@ -308,6 +322,7 @@ kill -TERM <pid>
 Configure your load balancer to use the health endpoints:
 
 **AWS ALB**:
+
 ```hcl
 health_check {
   enabled = true
@@ -323,6 +338,7 @@ health_check {
 ```
 
 **Nginx**:
+
 ```nginx
 upstream fraiseql {
   server fraiseql-1:8000;
@@ -343,6 +359,7 @@ server {
 ```
 
 **HAProxy**:
+
 ```
 backend fraiseql
   option httpchk GET /ready HTTP/1.1
@@ -467,6 +484,7 @@ groups:
 **Recommended Dashboards**:
 
 **Dashboard 1: Production Health**
+
 - Uptime percentage (target: 99.9%)
 - Request rate (queries per minute)
 - Error rate (target: <0.1%)
@@ -475,6 +493,7 @@ groups:
 - API key count (trend monitoring)
 
 **Dashboard 2: Database Health**
+
 - Database query latency P95
 - Active connections vs max
 - Replication lag (if applicable)
@@ -482,6 +501,7 @@ groups:
 - Query throughput
 
 **Example Grafana Variables**:
+
 ```
 $job = fraiseql (data source: Prometheus)
 $environment = production
@@ -542,6 +562,7 @@ setup.kibana.host: "kibana.example.com:5601"
 ### Incident Severity Levels
 
 **CRITICAL** (Immediate Response Required)
+
 ```
 Impact: Complete service outage or data loss
 Examples:
@@ -555,6 +576,7 @@ Communication: Status page update + customer notification within 15 min
 ```
 
 **HIGH** (Urgent Response Required)
+
 ```
 Impact: Significant degradation, customer impact
 Examples:
@@ -569,6 +591,7 @@ Communication: Customer notification if >30 min impact
 ```
 
 **MEDIUM** (Standard Response)
+
 ```
 Impact: Minor issues, customer may notice
 Examples:
@@ -583,6 +606,7 @@ Communication: Slack notification only
 ```
 
 **LOW** (Routine Response)
+
 ```
 Impact: No immediate customer impact
 Examples:
@@ -600,6 +624,7 @@ Communication: Weekly summary
 ### 5-Phase Incident Response Workflow
 
 **Phase 1: Detection & Alert** (0-5 min)
+
 - Alert fires automatically (monitoring → Slack/PagerDuty)
 - On-call engineer acknowledges within SLA
 - Assess: Real incident or false positive?
@@ -607,6 +632,7 @@ Communication: Weekly summary
 - Open incident channel (`#incident-YYYYMMDD-NNN`)
 
 **Phase 2: Triage & Assessment** (5-15 min)
+
 - Check dashboards: Which metrics are affected?
 - Check logs: What errors are occurring?
 - Check recent changes: New deployments, config changes?
@@ -622,12 +648,14 @@ Based on root cause, implement fix:
 - External dependency down? Activate fallback
 
 **Phase 4: Recovery & Verification** (varies)
+
 - Verify fix works: Metrics return to normal, alerts clear
 - Monitor for 30 minutes: Watch for resurrection of issue
 - Update status: "Issue resolved, validating stability"
 - Announce resolution when stable
 
 **Phase 5: Post-Incident** (within 24 hours)
+
 - Schedule RCA (Root Cause Analysis) meeting
 - Identify preventive measures
 - Create action items with owners and due dates
@@ -751,30 +779,35 @@ Contact: support@fraiseql.com
 **Steps**:
 
 1. Verify service is down:
+
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: Connection refused or timeout
    ```
 
 2. Check logs for recent errors:
+
    ```bash
    kubectl logs -f deployment/fraiseql-api
    # Look for: panic, segfault, out of memory
    ```
 
 3. Restart service:
+
    ```bash
    kubectl rollout restart deployment/fraiseql-api
    # Or: systemctl restart fraiseql
    ```
 
 4. Verify restart:
+
    ```bash
    kubectl get deployment fraiseql-api
    # Expected: Ready 1/1, Restarts: 1
    ```
 
 5. Health check:
+
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: 200 OK, status: healthy
@@ -807,23 +840,27 @@ Contact: support@fraiseql.com
 **Steps**:
 
 1. Assess damage:
+
    ```sql
    SELECT COUNT(*) FROM users;
    -- Is this number correct?
    ```
 
 2. Stop application (prevent further writes):
+
    ```bash
    kubectl scale deployment fraiseql-api --replicas=0
    ```
 
 3. Find latest backup:
+
    ```bash
    aws s3 ls s3://your-backup-bucket/ | sort
    # Find most recent backup before incident
    ```
 
 4. Download and restore:
+
    ```bash
    aws s3 cp s3://your-backup-bucket/2026-03-15-12-00.sql.gz .
    gunzip 2026-03-15-12-00.sql.gz
@@ -833,17 +870,20 @@ Contact: support@fraiseql.com
    ```
 
 5. Verify restoration:
+
    ```sql
    SELECT COUNT(*) FROM users;
    -- Should match expected count from before incident
    ```
 
 6. Restart application:
+
    ```bash
    kubectl scale deployment fraiseql-api --replicas=3
    ```
 
 7. Health check:
+
    ```bash
    curl https://your-fraiseql-api.com/health
    # Expected: 200 OK
@@ -871,6 +911,7 @@ Contact: support@fraiseql.com
 **Steps**:
 
 1. Identify compromised key:
+
    ```
    From anomaly alert:
    - Key: fraiseql_us_east_1_xxxxx
@@ -878,6 +919,7 @@ Contact: support@fraiseql.com
    ```
 
 2. Verify compromise:
+
    ```bash
    # Check audit logs for suspicious queries
    curl -H "Authorization: Bearer $ES_TOKEN" \
@@ -886,6 +928,7 @@ Contact: support@fraiseql.com
    ```
 
 3. Revoke key immediately:
+
    ```sql
    UPDATE api_keys
    SET revoked_at = NOW(),
@@ -894,6 +937,7 @@ Contact: support@fraiseql.com
    ```
 
 4. Verify revocation:
+
    ```bash
    curl -H "Authorization: Bearer fraiseql_us_east_1_xxxxx" \
      https://your-fraiseql-api.com/graphql
@@ -901,6 +945,7 @@ Contact: support@fraiseql.com
    ```
 
 5. Generate replacement key:
+
    ```bash
    fraiseql-cli key generate \
      --name "replacement-key" \
@@ -915,6 +960,7 @@ Contact: support@fraiseql.com
    - Request to confirm no unauthorized data access
 
 7. Investigate impact:
+
    ```bash
    # What data did they access?
    # Which tables/fields?
@@ -945,6 +991,7 @@ Contact: support@fraiseql.com
 **Steps**:
 
 1. Identify which limit is triggered:
+
    ```bash
    # Check metrics
    curl https://your-fraiseql-api.com/metrics | grep rate_limit
@@ -954,6 +1001,7 @@ Contact: support@fraiseql.com
    ```
 
 2. Verify it's legitimate traffic:
+
    ```sql
    SELECT api_key, COUNT(*) as requests, source_ip
    FROM audit_logs
@@ -963,6 +1011,7 @@ Contact: support@fraiseql.com
    ```
 
 3. Increase limit temporarily (if legitimate):
+
    ```bash
    # Option 1: Redis (temporary, until service restart)
    redis-cli SET rate_limit:tier:premium:rps 2000
@@ -975,6 +1024,7 @@ Contact: support@fraiseql.com
    ```
 
 4. Monitor impact:
+
    ```bash
    # Watch for 5 minutes:
    watch -n 1 'curl -s https://your-fraiseql-api.com/metrics | grep rate_limit'
@@ -983,6 +1033,7 @@ Contact: support@fraiseql.com
    ```
 
 5. Permanent fix (if pattern repeats):
+
    ```bash
    # Deploy configuration update
    git commit -m "chore: increase rate limit for tier.premium to 2000 rps"
@@ -1038,6 +1089,7 @@ Contact: support@fraiseql.com
 ### Training Plan (5 Days)
 
 **Day 1: System Overview** (2.5 hours)
+
 - [ ] Architecture review
 - [ ] Service dependencies
 - [ ] SLA/SLO targets
@@ -1045,6 +1097,7 @@ Contact: support@fraiseql.com
 - [ ] Where to find runbooks
 
 **Day 2: Alert Familiarization** (2.5 hours)
+
 - [ ] Alert types and meanings
 - [ ] Alert thresholds and why
 - [ ] False positives and how to dismiss
@@ -1052,6 +1105,7 @@ Contact: support@fraiseql.com
 - [ ] Hands-on: Trigger alerts in staging
 
 **Day 3: Runbook Exercises** (2.5 hours)
+
 - [ ] Practice Runbook 1 (service restart) - staging
 - [ ] Practice Runbook 2 (DB recovery) - staging
 - [ ] Practice Runbook 3 (key revocation) - staging
@@ -1059,6 +1113,7 @@ Contact: support@fraiseql.com
 - [ ] Q&A
 
 **Day 4: Incident Response** (2.5 hours)
+
 - [ ] Walk through 5-phase response workflow
 - [ ] Communication templates
 - [ ] Escalation procedures
@@ -1066,6 +1121,7 @@ Contact: support@fraiseql.com
 - [ ] Practice full response
 
 **Day 5: Integration & Shadowing** (2.5 hours)
+
 - [ ] Full shift shadowing with current on-call
 - [ ] Observe real alerts and responses
 - [ ] Practice with actual dashboards
@@ -1085,16 +1141,19 @@ Contact: support@fraiseql.com
 ### Mock Incident Drill Scenarios
 
 **Scenario 1: Service Down** (30 min)
+
 - Simulate: Service crashes or becomes unresponsive
 - Expected response: Alert → diagnosis → restart → verify
 - Success: Service back in <15 minutes
 
 **Scenario 2: Database Failure** (45 min)
+
 - Simulate: Database corruption or loss
 - Expected response: Stop app → restore from backup → verify → restart
 - Success: Service back in <45 minutes
 
 **Scenario 3: Security Incident** (20 min)
+
 - Simulate: Anomaly detection alert, suspicious key activity
 - Expected response: Diagnose → revoke key → notify customer → investigate
 - Success: Key revoked in <10 minutes, customer notified
@@ -1125,6 +1184,7 @@ Contact: support@fraiseql.com
 ### Backup Strategy
 
 **Schedule**:
+
 ```
 Every 6 hours:
   00:00 UTC - Full backup
@@ -1160,10 +1220,12 @@ Every 6 hours:
 ### RTO/RPO Targets
 
 **Recovery Time Objective (RTO)**: <1 hour
+
 - How long to recover from complete data loss?
 - FraiseQL can restore typical database in ~30 minutes
 
 **Recovery Point Objective (RPO)**: <5 minutes
+
 - How much data loss is acceptable?
 - With 6-hour backups: lose up to 6 hours of data
 - To improve: Increase backup frequency or implement WAL archiving
@@ -1244,9 +1306,9 @@ Before going to production, customize this guide for your deployment:
 - **GraphQL Performance**: [Link to performance guide]
 - **Database Configuration**: [Link to DB tuning guide]
 - **Security Best Practices**: [Link to security guide]
-- **Prometheus Documentation**: https://prometheus.io/docs/
-- **Grafana Documentation**: https://grafana.com/docs/
-- **PagerDuty Documentation**: https://support.pagerduty.com/
+- **Prometheus Documentation**: <https://prometheus.io/docs/>
+- **Grafana Documentation**: <https://grafana.com/docs/>
+- **PagerDuty Documentation**: <https://support.pagerduty.com/>
 
 ---
 
@@ -1256,7 +1318,7 @@ If you have questions about this guide or customizing it for your environment:
 
 - **GitHub Issues**: [Link to FraiseQL GitHub]
 - **Community Forum**: [Link to community forum]
-- **Email**: hello@fraiseql.com
+- **Email**: <hello@fraiseql.com>
 
 ---
 

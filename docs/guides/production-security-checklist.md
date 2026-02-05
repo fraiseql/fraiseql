@@ -12,6 +12,7 @@ Complete pre-production security checklist for deploying FraiseQL to production.
 ## 🔒 Quick Assessment
 
 **Self-Assessment**: Before beginning, answer these questions:
+
 - [ ] Do you have a security requirements document?
 - [ ] Have you identified your compliance requirements (PCI-DSS, HIPAA, SOC 2, etc.)?
 - [ ] Is your organization's security team aware of this deployment?
@@ -478,6 +479,7 @@ If you answered **no** to any of these, start with [Security Planning](#security
 ## See Also
 
 **Security Documentation:**
+
 - **[Authentication Provider Selection](../integrations/authentication/provider-selection-guide.md)** — Choosing OAuth providers securely
 - **[Authentication Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** — Auth-specific security checks
 - **[RBAC & Authorization](../enterprise/rbac.md)** — Field-level access control configuration
@@ -485,11 +487,13 @@ If you answered **no** to any of these, start with [Security Planning](#security
 - **[KMS Integration](../enterprise/kms.md)** — Key management service configuration
 
 **Operations:**
+
 - **[Production Deployment Guide](./production-deployment.md)** — Deployment procedures
 - **[Monitoring & Observability](./monitoring.md)** — Production monitoring setup
 - **[Distributed Tracing](../operations/distributed-tracing.md)** — Observability configuration
 
 **Compliance:**
+
 - **[Specs: Security & Compliance](../specs/security-compliance.md)** — Security feature specifications
 - **[ALPHA_LIMITATIONS.md](../ALPHA_LIMITATIONS.md)** — Known limitations affecting security
 

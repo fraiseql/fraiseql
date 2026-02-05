@@ -92,6 +92,7 @@ SagaCoordinator (Central)
 ### Data Flow
 
 **Forward Path (Success):**
+
 1. Router receives mutation `startOrderSaga`
 2. Coordinator creates saga in store (PENDING)
 3. Executes step 1: `createUser` mutation
@@ -104,6 +105,7 @@ SagaCoordinator (Central)
 7. Return result to user
 
 **Compensation Path (Failure at Step 3):**
+
 1. Step 3 fails, saga status: FAILED
 2. Coordinator enters compensation phase
 3. Runs step 2 compensation: `refundCard` mutation
@@ -335,6 +337,7 @@ loop {
 Maintaining consistency across different database backends.
 
 **Scenario:**
+
 - Users in PostgreSQL
 - Orders in MongoDB
 - Payments in MySQL
@@ -418,6 +421,7 @@ metrics.counter("saga.compensated", tags!("type": "order")).increment();
 ### Dashboards and Alerts
 
 **Key Alerts:**
+
 - Saga failure rate > 5%
 - Saga compensation rate > 1%
 - Saga duration > 30 seconds
@@ -571,6 +575,7 @@ Saga Steps:
 ```
 
 **Results:**
+
 - Reduced order processing time: 2.3s → 1.8s (parallel steps 4-5)
 - Failure handling: Automatic compensation for 99.2% of failures
 - Recovery time: < 5 minutes for 99% of cases
@@ -589,6 +594,7 @@ Saga Steps:
 ```
 
 **Results:**
+
 - Signup success rate: 98.7%
 - Reduced customer support tickets: 45% decrease
 - Recovery: Automatic for 99.8% of failures
@@ -608,6 +614,7 @@ Saga Steps:
 ```
 
 **Results:**
+
 - Completed transactions: 99.97%
 - Automatic compensation: 98% of failures
 - Manual intervention required: 0.03%
@@ -638,11 +645,13 @@ Saga Steps:
 **Cause:** Subgraph operation taking too long or network latency.
 
 **Diagnosis:**
+
 1. Check subgraph response time: `time curl http://subgraph:8000/graphql -d '{...}'`
 2. Monitor SAGA logs: Look for "Step [name] timeout"
 3. Check database slow queries: `SELECT * FROM pg_stat_statements WHERE mean_exec_time > 1000;`
 
 **Solutions:**
+
 - Increase timeout in SAGA config: `saga_timeout_secs = 60`
 - Optimize slow step (add database index, reduce data volume)
 - Check network latency between datacenters
@@ -654,11 +663,13 @@ Saga Steps:
 **Cause:** Compensation step failed or subgraph unreachable during rollback.
 
 **Diagnosis:**
+
 1. Check SAGA status: `SELECT * FROM tb_saga WHERE status = 'compensating';`
 2. Review compensation logs for specific failure
 3. Verify all subgraphs are reachable: `curl http://subgraph/health`
 
 **Solutions:**
+
 - Ensure compensation is idempotent (safe to retry multiple times)
 - Test compensation path in staging before production
 - Add manual recovery endpoint to handle stuck SAGAs
@@ -670,11 +681,13 @@ Saga Steps:
 **Cause:** Step not idempotent - same step executed twice creates two records.
 
 **Diagnosis:**
+
 1. Check for duplicate records with same request ID
 2. Review whether step checks for existing data
 3. Verify request ID propagation through all services
 
 **Solutions:**
+
 - Implement idempotency: "If request ID exists, return existing result"
 - Use database unique constraints: `UNIQUE(request_id, entity_id)`
 - Store request ID with every mutation
@@ -686,11 +699,13 @@ Saga Steps:
 **Cause:** Compensation not targeting correct record or targeting too broadly.
 
 **Diagnosis:**
+
 1. Review compensation step SQL: does it use correct WHERE clause?
 2. Check if original step's ID was captured correctly
 3. Verify data before compensation: `SELECT * FROM table WHERE id = '...';`
 
 **Solutions:**
+
 - Use precise IDs in compensation: `DELETE FROM orders WHERE order_id = 'X' AND saga_id = 'Y'`
 - Add saga_id to all records created by step
 - Test compensation with production-like data volume
@@ -702,10 +717,12 @@ Saga Steps:
 **Cause:** This is exactly why SAGAs exist - partial failures trigger compensation.
 
 **Diagnosis:**
+
 1. Check SAGA logs for which steps succeeded/failed
 2. Verify compensation ran on all succeeded steps: `SELECT * FROM tb_saga_step_log WHERE step_name LIKE '%Compensation%';`
 
 **Solutions:**
+
 - Ensure compensation ran to completion (check logs)
 - If compensation failed, manually run compensation queries
 - Implement alerting for failed SAGAs requiring manual intervention
@@ -716,11 +733,13 @@ Saga Steps:
 **Cause:** Multiple network hops between subgraphs add latency.
 
 **Diagnosis:**
+
 1. Measure each step: Check SAGA logs for individual step durations
 2. Identify slowest step: typically network + database I/O
 3. Count steps: N steps = N network round trips
 
 **Solutions:**
+
 - Reduce number of steps: Combine operations where possible
 - Use direct database federation instead of HTTP for known services
 - Implement request batching (multiple mutations in one step)
@@ -732,11 +751,13 @@ Saga Steps:
 **Cause:** Compensation step has error or resource constraint.
 
 **Diagnosis:**
+
 1. Review compensation error in SAGA logs
 2. Test compensation manually with example data
 3. Check if subgraph is reachable: `curl http://subgraph:8000/health`
 
 **Solutions:**
+
 - Fix compensation logic and redeploy
 - Implement compensation retry with exponential backoff
 - Set up manual compensation procedure for when automatic fails
@@ -748,11 +769,13 @@ Saga Steps:
 **Cause:** SAGAs completing slower than new requests arriving.
 
 **Diagnosis:**
+
 1. Check queue depth: `SELECT COUNT(*) FROM tb_saga WHERE status = 'pending';`
 2. Monitor SAGA throughput: `SELECT COUNT(*) FROM tb_saga WHERE created_at > NOW() - INTERVAL '1 minute';`
 3. Identify bottleneck step with slowest average duration
 
 **Solutions:**
+
 - Scale slow subgraph (more instances, more database capacity)
 - Optimize bottleneck step (add indexes, cache data)
 - Implement rate limiting on mutation endpoints
@@ -767,6 +790,7 @@ Saga Steps:
 This is expected behavior during SAGA execution. Eventual consistency at subgraph level.
 
 **Solutions:**
+
 - Use SAGA coordination to ensure ordering
 - If cross-service consistency critical, use distributed locks (Redis, Consul)
 - Implement read consistency at client level (wait for confirmations)

@@ -89,7 +89,7 @@ Save this as `schema.json` in your project root:
 }
 ```
 
-### What this means:
+### What this means
 
 - **User type**: Represents a user with `id`, `name`, `email` fields
 - **users query**: Returns a list of all users
@@ -142,6 +142,7 @@ cargo run
 ```
 
 Expected output:
+
 ```
 Query result:
 {
@@ -163,6 +164,7 @@ Query result:
 ```
 
 **If you get an error:**
+
 - `schema.json not found`: Make sure `schema.json` is in your project root
 - `compile error`: Run `cargo check` to see the exact error
 

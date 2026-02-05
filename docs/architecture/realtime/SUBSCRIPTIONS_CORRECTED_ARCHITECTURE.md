@@ -79,6 +79,7 @@
 - Enables event replay from any checkpoint
 - **Populated manually** (application code must INSERT after mutations)
 - Schema:
+
   ```sql
   CREATE TABLE tb_entity_change_log (
       pk_entity_change_log BIGSERIAL PRIMARY KEY,
@@ -197,11 +198,13 @@ for entry in entries {
 ### What Was Wrong With LISTEN/NOTIFY Architecture?
 
 The previous documentation described this flow:
+
 ```
 Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 ```
 
 **Problems:**
+
 - ❌ Duplicate event capture mechanism (ChangeLogListener already polls)
 - ❌ No durability (NOTIFY messages are fire-and-forget)
 - ❌ No replay capability (can't reprocess old events)
@@ -212,6 +215,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 
 1. **Manual Event Population** - Application code must explicitly INSERT into `tb_entity_change_log`
    - Example:
+
      ```rust
      sqlx::query!(
          "INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
@@ -258,6 +262,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 **Status:** Pending
 
 **Changes Required:**
+
 1. Add `Arc<SubscriptionManager>` field to `ObserverRuntime`
 2. Pass subscription_manager from `Server::new()` → `init_observer_runtime()`
 3. In background task loop: `subscription_manager.publish_event()`
@@ -270,16 +275,19 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 **Options:**
 
 **Option A: Executor Hooks** (Recommended)
+
 - Add `after_mutation` hook in `Executor::execute_internal()`
 - Automatically INSERT into `tb_entity_change_log` after mutations
 - Fits FraiseQL's compiled architecture
 
 **Option B: Database Triggers**
+
 - Create triggers on all entity tables
 - Automatically INSERT into `tb_entity_change_log`
 - Pure SQL, automatic, but harder to maintain
 
 **Option C: Keep Manual** (Current)
+
 - Document best practice: always INSERT after mutations
 - Application responsibility
 - Simplest but error-prone
@@ -300,6 +308,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 4. Transport adapters deliver to WebSocket/Kafka/Webhooks
 
 **This architecture:**
+
 - ✅ Reuses existing infrastructure (ChangeLogListener, ObserverRuntime)
 - ✅ Provides durability and replay (database table storage)
 - ✅ Follows database-centric philosophy (tables not channels)
@@ -307,6 +316,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 - ✅ Simplifies system design (one event pipeline, not two)
 
 **Next steps:**
+
 - Wire SubscriptionManager into ObserverRuntime (Phase A revised)
 - Implement automatic event population (Phase B)
 - Add end-to-end tests (Phase D)

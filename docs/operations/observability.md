@@ -183,6 +183,7 @@ let entry = LogEntry::new(LogLevel::Info, "Query executed")
 ```
 
 **Example JSON Output**:
+
 ```json
 {
   "timestamp": "2026-01-31T12:34:56.789Z",

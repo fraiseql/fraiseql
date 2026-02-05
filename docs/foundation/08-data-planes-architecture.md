@@ -65,6 +65,7 @@ Query Type?
 ## JSON Plane: Transactional (OLTP)
 
 ### Purpose
+
 Optimized for **transactional workloads**: point queries, small result sets, mutations, real-time responsiveness.
 
 ### Characteristics
@@ -82,6 +83,7 @@ Optimized for **transactional workloads**: point queries, small result sets, mut
 ### How It Works
 
 **Query:**
+
 ```graphql
 query GetUser($userId: Int!) {
   user(userId: $userId) {
@@ -93,6 +95,7 @@ query GetUser($userId: Int!) {
 ```
 
 **Execution (JSON Plane):**
+
 ```
 Request
   ↓
@@ -112,6 +115,7 @@ Response (complete, single payload)
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -127,6 +131,7 @@ Response (complete, single payload)
 ### Performance Characteristics
 
 **Latency Breakdown (10-50ms typical):**
+
 ```
 Query lookup:        0.1ms
 Parameter binding:   0.5ms
@@ -139,6 +144,7 @@ Total:             ~28.6ms
 ```
 
 **Throughput:**
+
 ```
 Single server (4 CPUs, 8GB RAM):
 
@@ -156,6 +162,7 @@ Limiting factors:
 ### Best Practices for JSON Plane
 
 **1. Keep Result Sets Small**
+
 ```graphql
 # ❌ Bad: Fetching too much data
 query {
@@ -188,6 +195,7 @@ query {
 ```
 
 **2. Use Pagination for Lists**
+
 ```graphql
 # ❌ Bad: No pagination
 query {
@@ -207,6 +215,7 @@ query GetOrders($userId: Int!, $limit: Int = 10, $offset: Int = 0) {
 ```
 
 **3. Add Filters to Reduce Result Size**
+
 ```graphql
 # ❌ Bad: Fetch all then filter client-side
 query {
@@ -232,6 +241,7 @@ query GetRecentOrders($userId: Int!, $days: Int = 7) {
 ## Arrow Plane: Analytical (OLAP)
 
 ### Purpose
+
 Optimized for **analytical workloads**: bulk export, aggregations, streaming, large result sets, columnar analysis.
 
 ### Characteristics
@@ -249,6 +259,7 @@ Optimized for **analytical workloads**: bulk export, aggregations, streaming, la
 ### How It Works
 
 **Query:**
+
 ```graphql
 query ExportSalesData($startDate: Date!, $endDate: Date!) {
   sales(dateRange: {start: $startDate, end: $endDate}) {
@@ -263,6 +274,7 @@ query ExportSalesData($startDate: Date!, $endDate: Date!) {
 ```
 
 **Execution (Arrow Plane):**
+
 ```
 Request (Arrow Flight protocol)
   ↓
@@ -282,6 +294,7 @@ Client receives stream of Arrow batches (not complete in one payload)
 ```
 
 **Response (Arrow Flight Streaming):**
+
 ```
 Batch 1: 65,536 rows in Arrow format (binary, compressed)
   ↓
@@ -299,6 +312,7 @@ Stream complete
 ### Arrow vs JSON Format
 
 **JSON Format (OLTP):**
+
 ```json
 [
   {"saleId": 1, "productId": 10, "quantity": 5, "unitPrice": 29.99, "total": 149.95},
@@ -310,6 +324,7 @@ Size: ~450 bytes for 3 rows
 ```
 
 **Arrow Format (OLAP):**
+
 ```
 Columnar layout:
 ┌──────────────────────────────────────────────────┐
@@ -328,6 +343,7 @@ Compression ratio: 73% smaller than JSON
 ### Performance Characteristics
 
 **Latency (for 100K row export):**
+
 ```
 Initial query (setup):  500ms
 Streaming results:      2-4s
@@ -344,6 +360,7 @@ Factors:
 ```
 
 **Throughput:**
+
 ```
 Single server (4 CPUs, 8GB RAM):
 
@@ -384,6 +401,7 @@ Client                           Server
 FraiseQL generates Arrow Flight tickets for different query types:
 
 **Ticket 1: GraphQLQuery**
+
 ```json
 {
   "type": "GraphQLQuery",
@@ -393,6 +411,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
 ```
 
 **Ticket 2: OptimizedView**
+
 ```json
 {
   "type": "OptimizedView",
@@ -403,6 +422,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
 ```
 
 **Ticket 3: BulkExport**
+
 ```json
 {
   "type": "BulkExport",
@@ -415,6 +435,7 @@ FraiseQL generates Arrow Flight tickets for different query types:
 ### Best Practices for Arrow Plane
 
 **1. Use for Large Result Sets**
+
 ```graphql
 # ✅ Good: 100K+ rows, use Arrow
 query ExportAllSales {
@@ -430,6 +451,7 @@ query ExportAllSales {
 ```
 
 **2. Use Materialized Views for Analytics**
+
 ```sql
 -- Pre-computed analytics view
 CREATE MATERIALIZED VIEW va_sales_summary AS
@@ -453,6 +475,7 @@ query GetSalesSummary($startDate: Date!) {
 ```
 
 **3. Use Fact Tables for Denormalized Analytics**
+
 ```sql
 -- Fact table with pre-denormalized dimensions
 CREATE TABLE ta_sales_fact (
@@ -471,6 +494,7 @@ CREATE TABLE ta_sales_fact (
 ```
 
 **4. Stream in Batches**
+
 ```python
 # Client side: Process Arrow batches as they arrive
 for batch in arrow_stream:
@@ -506,6 +530,7 @@ for batch in arrow_stream:
 ### Example: Exporting 100K rows
 
 **JSON Plane:**
+
 ```
 Query execution: 2000ms
 JSON serialization: 5000ms
@@ -516,6 +541,7 @@ Total: ~24 seconds
 ```
 
 **Arrow Plane:**
+
 ```
 Query execution: 2000ms
 Arrow serialization: 500ms
@@ -531,6 +557,7 @@ Total: ~5-6 seconds
 ### Example: Real-time Dashboard (10 rows)
 
 **JSON Plane:**
+
 ```
 Query execution: 20ms
 JSON serialization: 1ms
@@ -540,6 +567,7 @@ Total: ~22ms
 ```
 
 **Arrow Plane:**
+
 ```
 Query execution: 20ms
 Arrow setup: 50ms (overhead not worth it for small result)
@@ -711,6 +739,7 @@ Data Science App processes batches
 FraiseQL supports two data planes optimized for different workloads:
 
 **JSON Plane (OLTP - Transactional):**
+
 - Latency: 10-50ms
 - Throughput: 100-2000 QPS
 - Best for: User-facing queries, real-time UIs, small result sets
@@ -718,6 +747,7 @@ FraiseQL supports two data planes optimized for different workloads:
 - Format: JSON
 
 **Arrow Plane (OLAP - Analytical):**
+
 - Latency: 500ms-5s
 - Throughput: 10-100 QPS
 - Best for: Data exports, analytics, large result sets, bulk operations
@@ -725,12 +755,14 @@ FraiseQL supports two data planes optimized for different workloads:
 - Format: Arrow columnar (5-10x more efficient than JSON for bulk data)
 
 **Choose JSON Plane for:**
+
 - Transactional workloads
 - Small result sets (< 10,000 rows)
 - Real-time responsiveness required
 - Web and mobile applications
 
 **Choose Arrow Plane for:**
+
 - Analytical workloads
 - Large result sets (> 10,000 rows)
 - Bulk data exports
@@ -738,6 +770,7 @@ FraiseQL supports two data planes optimized for different workloads:
 - Data science & BI tools
 
 **Performance Impact:**
+
 - Arrow is 4-5x faster for bulk exports (100K+ rows)
 - JSON is 3x faster for small results (< 100 rows)
 - Both leverage pre-compiled, optimized SQL

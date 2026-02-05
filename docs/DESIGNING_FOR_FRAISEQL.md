@@ -24,12 +24,14 @@ This guide covers design patterns specific to FraiseQL's compilation model. Frai
 FraiseQL separates what it can optimize from what it can't:
 
 **FraiseQL DOES:**
+
 - ✅ Prevent n+1 queries via JSONB view batching
 - ✅ Pre-optimize SQL execution at compile time
 - ✅ Generate efficient joins and aggregations
 - ✅ Handle query complexity scaling
 
 **FraiseQL CANNOT:**
+
 - ❌ Fix federation fragmentation (your architectural choice)
 - ❌ Auto-correct circular dependency chains
 - ❌ Solve worst-case complexity scenarios
@@ -75,6 +77,7 @@ type Post @key(fields: "id") {
 ```
 
 **Why it works for FraiseQL:**
+
 - Entity lives in one place (no fragmentation)
 - Clean batching: `User -> Profile` is local
 - Federation joins are explicit cross-service references
@@ -135,6 +138,7 @@ type Comment @key(fields: "id") {
 ```
 
 **Why it matters for FraiseQL:**
+
 - JSONB batching works best with consolidated entities
 - Reduces resolution chains
 - Makes complexity analysis tractable
@@ -249,6 +253,7 @@ type Post @key(fields: "id") {
 ```
 
 **FraiseQL calculates**:
+
 - Base: 1 user × 10 posts × 10 comments = 100 (tractable)
 - With author resolution: 100 × 1 (author already batched) = 100
 - With author's posts: 100 × 10 = 1000 (still reasonable)
@@ -489,6 +494,7 @@ type Role @ownerService("org-service") { ... }
 ```
 
 **Benefits:**
+
 - Clear responsibility
 - Easier debugging (which service owns that bug?)
 - Facilitates schema ownership policies
@@ -555,6 +561,7 @@ type User {
 ```
 
 **Problems:**
+
 - Impossible to cache effectively (too many variations)
 - Massive JSONB blobs
 - Authorization becomes complex
@@ -719,6 +726,7 @@ type Product @key(fields: "id") {
 ```
 
 **Why this design works for FraiseQL:**
+
 - Clear ownership (each service owns its domain)
 - User consolidated in one place (no fragmentation)
 - Pagination prevents explosion (orders and items bounded)
@@ -779,6 +787,7 @@ type UserGraph {
 ```
 
 **Why this works:**
+
 - Public/private data clearly separated
 - User relationships paginated (no explosion)
 - Aggregations (counts) cached efficiently

@@ -88,30 +88,30 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Core Architecture (1.5 hours)
 
-5. **`docs/architecture/core/authoring-languages.md`** (20 min)
+1. **`docs/architecture/core/authoring-languages.md`** (20 min)
    - Language-agnostic compilation via AuthoringIR
    - **Key Takeaway:** One canonical language per org, translation paths for migration
 
-6. **`docs/architecture/core/compilation-pipeline.md`** (30 min)
+2. **`docs/architecture/core/compilation-pipeline.md`** (30 min)
    - 7 phases from authoring → CompiledSchema
    - **Key Takeaway:** Deterministic, static analysis at compile time
 
-7. **`docs/architecture/core/execution-model.md`** (40 min)
+3. **`docs/architecture/core/execution-model.md`** (40 min)
    - 6 runtime phases
    - **Key Takeaway:** Runtime is deterministic, executes compiled plans
 
-8. **`docs/architecture/integration/federation.md`** (40 min)
+4. **`docs/architecture/integration/federation.md`** (40 min)
    - Federation v2 architecture and implementation
    - Direct DB federation for multi-database scenarios
    - **Key Takeaway:** Subgraph composition via direct database connections + HTTP fallback
 
 ### Specifications (1 hour)
 
-9. **`docs/specs/compiled-schema.md`** (25 min)
+1. **`docs/specs/compiled-schema.md`** (25 min)
    - CompiledSchema JSON structure
    - **Key Takeaway:** Immutable artifact, database-target-specific
 
-10. **`docs/specs/schema-conventions.md`** (35 min)
+2. **`docs/specs/schema-conventions.md`** (35 min)
 
 - Database patterns (tb_*, v_*, fn_*)
 - **Key Takeaway:** Conventions enable automatic CQRS, efficient composition
@@ -154,21 +154,21 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Compilation Pipeline (1.5 hours)
 
-4. **`docs/architecture/core/compilation-pipeline.md`** (50 min)
+1. **`docs/architecture/core/compilation-pipeline.md`** (50 min)
    - Complete 7-phase pipeline
    - **Key Takeaway:** Phase 4 (WHERE type generation) is database-specific
 
-5. **`docs/architecture/database/database-targeting.md`** (40 min)
+2. **`docs/architecture/database/database-targeting.md`** (40 min)
    - Capability manifest, operator filtering
    - **Key Takeaway:** Compile-time specialization, not runtime translation
 
 ### Output (1 hour)
 
-6. **`docs/specs/compiled-schema.md`** (35 min)
+1. **`docs/specs/compiled-schema.md`** (35 min)
    - JSON structure, validation rules
    - **Key Takeaway:** This is what compiler produces
 
-7. **`docs/specs/schema-conventions.md`** (25 min)
+2. **`docs/specs/schema-conventions.md`** (25 min)
    - Binding validation (types → database views)
    - **Key Takeaway:** Compiler validates bindings against database schema
 
@@ -205,25 +205,25 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Execution Pipeline (1.5 hours)
 
-3. **`docs/architecture/core/execution-model.md`** (60 min)
+1. **`docs/architecture/core/execution-model.md`** (60 min)
    - 6 runtime phases in detail
    - **Key Takeaway:** Deterministic execution of compiled plans
 
-4. **`docs/architecture/database/database-targeting.md`** (30 min)
+2. **`docs/architecture/database/database-targeting.md`** (30 min)
    - Backend lowering (SQL generation)
    - **Key Takeaway:** Runtime translates SDL predicates to database-specific SQL
 
 ### Performance & Operations (1.5 hours)
 
-5. **`docs/specs/caching.md`** (20 min)
+1. **`docs/specs/caching.md`** (20 min)
    - Query result caching, cache invalidation
    - **Key Takeaway:** Phase 0 of execution
 
-6. **`docs/specs/persisted-queries.md`** (25 min)
+2. **`docs/specs/persisted-queries.md`** (25 min)
    - APQ protocol, 3 security modes
    - **Key Takeaway:** Phase 0 APQ resolution before parsing
 
-7. **`docs/architecture/realtime/subscriptions.md`** (50 min)
+3. **`docs/architecture/realtime/subscriptions.md`** (50 min)
    - Database-native event streams, transport adapters
    - **Key Takeaway:** Subscriptions are compiled event projections, not GraphQL resolvers
 
@@ -265,17 +265,17 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Read Model (1 hour)
 
-3. **`docs/prd/PRD.md`** — Section 3.1.1 and 3.1.5 (20 min)
+1. **`docs/prd/PRD.md`** — Section 3.1.1 and 3.1.5 (20 min)
    - Read model, JSONB composition
    - **Key Takeaway:** Pre-aggregated views enable O(1) composition
 
-4. **`docs/specs/cdc-format.md`** (40 min)
+2. **`docs/specs/cdc-format.md`** (40 min)
    - CDC event format
    - **Key Takeaway:** Debezium-compatible, audit trail
 
 ### Enterprise Features (30 min)
 
-5. **`docs/enterprise/audit-logging.md`** — Sections 1-3 only (30 min)
+1. **`docs/enterprise/audit-logging.md`** — Sections 1-3 only (30 min)
    - Audit columns, cryptographic chain
    - **Key Takeaway:** Audit columns required for CDC
 
@@ -318,20 +318,20 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Analytics Architecture (1.5 hours)
 
-4. **`docs/architecture/analytics/fact-dimension-pattern.md`** ⭐ **START HERE** (40 min)
+1. **`docs/architecture/analytics/fact-dimension-pattern.md`** ⭐ **START HERE** (40 min)
    - Fact table structure (measures, dimensions, filters)
    - No joins principle
    - Aggregate tables = fact tables with different granularity
    - **Key Takeaway:** All analytical tables use same pattern: SQL columns (measures) + JSONB (dimensions)
 
-5. **`docs/architecture/analytics/aggregation-model.md`** (30 min)
+2. **`docs/architecture/analytics/aggregation-model.md`** (30 min)
    - GROUP BY compilation strategy
    - Aggregate function selection
    - Temporal bucketing (DATE_TRUNC, DATE_FORMAT, strftime, DATEPART)
    - HAVING clause validation
    - **Key Takeaway:** Compile-time schema analysis → optimized SQL
 
-6. **`docs/specs/analytical-schema-conventions.md`** (20 min)
+3. **`docs/specs/analytical-schema-conventions.md`** (20 min)
    - Naming conventions: tf_(fact tables, any granularity), td_ (dimension)
    - Column patterns: measures, dimensions, denormalized filters
    - Index recommendations
@@ -339,24 +339,24 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Database-Specific Implementation (1 hour)
 
-7. **`docs/specs/aggregation-operators.md`** (30 min)
+1. **`docs/specs/aggregation-operators.md`** (30 min)
    - PostgreSQL: Full support (STDDEV, VARIANCE, FILTER)
    - MySQL: Basic support (no statistical functions)
    - SQLite: Minimal support
    - SQL Server: Enterprise support (STDEV, VAR, JSON_VALUE)
    - **Key Takeaway:** Database capability manifest determines available functions
 
-8. **`docs/architecture/database/database-targeting.md`** (15 min)
+2. **`docs/architecture/database/database-targeting.md`** (15 min)
    - Compile-time database specialization
    - **Key Takeaway:** GraphQL schema matches database capabilities
 
-9. **`docs/specs/capability-manifest.md`** — Section 3.4 only (15 min)
+3. **`docs/specs/capability-manifest.md`** — Section 3.4 only (15 min)
    - Aggregation operators in capability manifest
    - **Key Takeaway:** How compiler knows which aggregates to generate
 
 ### Practical Application (30 min)
 
-10. **`docs/guides/analytics-patterns.md`** ⭐ **PRACTICAL EXAMPLES** (30 min)
+1. **`docs/guides/analytics-patterns.md`** ⭐ **PRACTICAL EXAMPLES** (30 min)
     - 10 common query patterns with SQL execution
     - Simple aggregation, GROUP BY, temporal bucketing, HAVING
     - Performance optimization tips
@@ -404,17 +404,17 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Monitoring (1 hour)
 
-3. **`docs/guides/monitoring.md`** (60 min)
+1. **`docs/guides/monitoring.md`** (60 min)
    - Prometheus metrics, OpenTelemetry, health checks
    - **Key Takeaway:** Complete observability setup
 
 ### Performance (30 min)
 
-4. **`docs/specs/caching.md`** (15 min)
+1. **`docs/specs/caching.md`** (15 min)
    - Query result caching backends
    - **Key Takeaway:** Memory vs Database backends
 
-5. **`docs/specs/persisted-queries.md`** — Sections 1-3 only (15 min)
+2. **`docs/specs/persisted-queries.md`** — Sections 1-3 only (15 min)
    - APQ deployment patterns
    - **Key Takeaway:** 3 security modes for different environments
 
@@ -452,21 +452,21 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Authorization (1.5 hours)
 
-3. **`docs/enterprise/rbac.md`** (60 min)
+1. **`docs/enterprise/rbac.md`** (60 min)
    - Hierarchical roles, field-level auth
    - **Key Takeaway:** 3 enforcement layers
 
-4. **`docs/enterprise/audit-logging.md`** (30 min)
+2. **`docs/enterprise/audit-logging.md`** (30 min)
    - Cryptographic chain, HMAC signatures
    - **Key Takeaway:** Tamper-evident audit trails
 
 ### Operations (30 min)
 
-5. **`docs/specs/introspection.md`** (15 min)
+1. **`docs/specs/introspection.md`** (15 min)
    - Introspection policies
    - **Key Takeaway:** Disable in production
 
-6. **`docs/guides/production-deployment.md`** — Section 6 only (15 min)
+2. **`docs/guides/production-deployment.md`** — Section 6 only (15 min)
    - Security hardening checklist
    - **Key Takeaway:** Pod Security Standards, network policies
 
@@ -506,18 +506,18 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Performance (30 min)
 
-4. **`docs/specs/caching.md`** — Sections 1-4 (15 min)
+1. **`docs/specs/caching.md`** — Sections 1-4 (15 min)
    - Query result caching
    - Cache invalidation with graphql-cascade
    - **Key Takeaway:** Client-side cache invalidation patterns
 
-5. **`docs/specs/persisted-queries.md`** — Sections 1-3 (15 min)
+2. **`docs/specs/persisted-queries.md`** — Sections 1-3 (15 min)
    - APQ protocol
    - **Key Takeaway:** Register queries at build time for security + performance
 
 ### Filtering (15 min)
 
-6. **`docs/reference/where-operators.md`** — Skim (15 min)
+1. **`docs/reference/where-operators.md`** — Skim (15 min)
    - WHERE operator catalog
    - **Key Takeaway:** Database-specific operators available
 
@@ -636,8 +636,8 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Week 5: Reference (As Needed)
 
-47. reference/scalars.md (reference)
-48. reference/where-operators.md (reference)
+1. reference/scalars.md (reference)
+2. reference/where-operators.md (reference)
 
 ---
 

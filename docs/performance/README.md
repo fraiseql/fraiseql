@@ -88,6 +88,7 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 ### Development / Testing
 
 **Configuration**:
+
 ```rust
 let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 ```
@@ -103,6 +104,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 5).await?;
 ### Staging / Pre-Production
 
 **Configuration**:
+
 ```rust
 let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 ```
@@ -123,6 +125,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, 20).await?;
 ### Production / Scale
 
 **Configuration**:
+
 ```rust
 let max_size = (num_cpus::get() * 2) + 5;
 let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await?;
@@ -169,16 +172,19 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 **Unlikely, but if it happens**:
 
 1. Check if projection is working:
+
    ```bash
    RUST_LOG=fraiseql_core::runtime=debug cargo run
    ```
 
 2. Disable projection temporarily:
+
    ```bash
    FRAISEQL_DISABLE_PROJECTION=true cargo run
    ```
 
 3. Check pool metrics:
+
    ```rust
    let metrics = adapter.pool_metrics();
    println!("{:?}", metrics);
@@ -194,6 +200,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 **Check in order**:
 
 1. Pool utilization:
+
    ```rust
    if metrics.waiting_requests > 0 {
        // Pool too small - increase size
@@ -201,11 +208,13 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
    ```
 
 2. Query performance:
+
    ```bash
    RUST_LOG=debug  # Check query times
    ```
 
 3. Database load:
+
    ```sql
    -- Check for slow queries
    SELECT * FROM pg_stat_statements

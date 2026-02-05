@@ -7,6 +7,7 @@ Complete guide for deploying FraiseQL in various environments.
 Choose your deployment environment:
 
 ### Local Development
+
 ```bash
 # 1. Compile schema
 fraiseql-cli compile schema.json -o schema.compiled.json
@@ -18,6 +19,7 @@ fraiseql-server -c config.toml
 ```
 
 ### Docker
+
 ```bash
 # 1. Build image
 docker build -t fraiseql-server:latest .
@@ -30,6 +32,7 @@ docker run -p 8080:8080 \
 ```
 
 ### Kubernetes
+
 See [Production Deployment Guide](guide.md) for Kubernetes manifests and best practices.
 
 ## Deployment Guides

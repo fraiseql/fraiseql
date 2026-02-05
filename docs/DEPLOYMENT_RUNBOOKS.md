@@ -7,6 +7,7 @@ Operational procedures for common scenarios.
 ### Scale Up
 
 Increase replicas:
+
 ```bash
 kubectl scale deployment fraiseql --replicas=5
 
@@ -16,6 +17,7 @@ kubectl edit deployment fraiseql
 ```
 
 Verify:
+
 ```bash
 kubectl get deployment fraiseql
 kubectl get pods -l app=fraiseql
@@ -24,6 +26,7 @@ kubectl get pods -l app=fraiseql
 ### Scale Down
 
 Decrease replicas gracefully:
+
 ```bash
 # Set graceful termination
 kubectl patch deployment fraiseql -p \
@@ -116,17 +119,20 @@ DEL fraiseql:*
 ### High CPU Usage
 
 1. Check metrics:
+
    ```bash
    kubectl top pods -l app=fraiseql
    ```
 
 2. Identify heavy queries:
+
    ```bash
    # In Prometheus: fraiseql_query_duration_ms
    # High values = slow queries
    ```
 
 3. Scale horizontally:
+
    ```bash
    kubectl scale deployment fraiseql --replicas=10
    ```
@@ -138,17 +144,20 @@ DEL fraiseql:*
 ### High Memory Usage
 
 1. Check current usage:
+
    ```bash
    kubectl top pods -l app=fraiseql
    ```
 
 2. Reduce cache TTL:
+
    ```bash
    kubectl set env deployment/fraiseql \
      CACHE_TTL_SECS=300  # 5 minutes instead of 10
    ```
 
 3. Reduce connection pool:
+
    ```bash
    kubectl set env deployment/fraiseql \
      DB_POOL_MAX=10  # from 20
@@ -161,11 +170,13 @@ DEL fraiseql:*
 ### Connection Pool Exhaustion
 
 1. Check active connections:
+
    ```bash
    kubectl logs deployment/fraiseql | grep "connections"
    ```
 
 2. Increase pool size:
+
    ```bash
    kubectl set env deployment/fraiseql \
      DB_POOL_MAX=30  # from 20
@@ -178,22 +189,26 @@ DEL fraiseql:*
 ### Database Connectivity Issues
 
 1. Verify database is running:
+
    ```bash
    kubectl get pod -l app=postgres
    ```
 
 2. Test connectivity:
+
    ```bash
    kubectl run -it --rm debug --image=postgres --restart=Never -- \
      psql -h postgres -U fraiseql -d fraiseql -c "SELECT 1"
    ```
 
 3. Check environment variables:
+
    ```bash
    kubectl get pod <fraiseql-pod> -o yaml | grep DATABASE_URL
    ```
 
 4. Restart pod if needed:
+
    ```bash
    kubectl delete pod <fraiseql-pod>
    ```
@@ -203,12 +218,14 @@ DEL fraiseql:*
 ### Pod Failure Recovery
 
 Automatic (handled by Kubernetes):
+
 - Failed pod automatically restarted
 - Verify with: `kubectl get events`
 
 ### Node Failure Recovery
 
 Pods are rescheduled (handled by Kubernetes):
+
 ```bash
 # Monitor
 kubectl get pods -o wide
@@ -218,12 +235,14 @@ kubectl get pods -o wide
 ### Complete Cluster Failure
 
 1. Assess backup status:
+
    ```bash
    # Verify recent backup exists and is valid
    ls -lh backup-*.sql.gz
    ```
 
 2. Restore from backup:
+
    ```bash
    # Create new cluster
    # Restore database
@@ -280,6 +299,7 @@ Max: 20-50 (depending on workload)
 ### Setting up Alerts
 
 In Prometheus:
+
 ```yaml
 alert: HighErrorRate
 expr: rate(fraiseql_errors_total[5m]) > 0.001

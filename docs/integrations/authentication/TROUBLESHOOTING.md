@@ -516,7 +516,7 @@ curl http://localhost:8000/health/auth | jq .
 
 1. **Check logs first**: `docker logs fraiseql`
 2. **Enable debug logging**: `RUST_LOG=debug`
-3. **Check GitHub issues**: https://github.com/fraiseql/fraiseql/issues
+3. **Check GitHub issues**: <https://github.com/fraiseql/fraiseql/issues>
 4. **Create issue with**:
    - Error message (no secrets!)
    - Steps to reproduce

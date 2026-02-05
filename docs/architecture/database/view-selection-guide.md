@@ -120,61 +120,72 @@ START: What query plane are you working in?
 
 ## When to Migrate
 
-### Migrate from v_* to tv_* when:
+### Migrate from v_*to tv_* when
 
 ✅ **GraphQL query times exceed 1 second**
+
 - Measure: Run production queries and log execution time
 - Action: Create tv_* table with pre-composed JSONB
 - Benefit: 10-50x faster queries
 
 ✅ **Query complexity has 3+ JOINs**
+
 - Indicator: Query hits database for nested data multiple times
 - Action: Pre-compose nested data into tv_* JSONB
 - Benefit: Single table scan vs. multiple JOINs
 
 ✅ **High read volume (>100 requests/sec) to same data structure**
+
 - Indicator: Database CPU high during peak traffic
 - Action: Cache computations in tv_* table
 - Benefit: Query cost moves from compute-heavy to storage-read
 
 ✅ **Real-time GraphQL subscriptions require fast updates**
+
 - Indicator: Subscription latency varies based on nesting depth
 - Action: Trigger-based tv_* refresh ensures consistent latency
 - Benefit: Subscription updates in <100ms
 
-### Migrate from va_* to ta_* when:
+### Migrate from va_*to ta_* when
 
 ✅ **Analytics query times exceed 1 second**
+
 - Measure: Run EXPLAIN on Arrow queries
 - Action: Create ta_* table with columnar storage
 - Benefit: 50-100x faster on time-series queries
 
 ✅ **Dataset larger than 1M rows**
+
 - Indicator: VA query memory usage > 1GB
 - Action: Use BRIN indexes on time-series columns
 - Benefit: Queries scan fewer pages
 
 ✅ **Read volume high, staleness acceptable**
+
 - Indicator: Multiple concurrent analytics queries affecting other workloads
 - Action: Batch refresh ta_* tables during off-hours
 - Benefit: Analytics isolated from OLTP
 
-### Don't Migrate when:
+### Don't Migrate when
 
 ❌ **Query already fast** (<500ms for GraphQL, <1s for analytics)
+
 - Keep logical views unless write overhead forces migration
 
 ❌ **Storage is severely constrained**
+
 - Keep logical views; optimize queries instead
 
 ❌ **Write volume is unpredictable**
+
 - Triggers may become overhead; use scheduled batch instead
 
 ## Migration Path Examples
 
-### Example 1: Complex User Profile (v_* → tv_*)
+### Example 1: Complex User Profile (v_*→ tv_*)
 
 **Current State**:
+
 ```sql
 -- v_user_full: Logical view with real-time composition
 -- Query time: 3-5 seconds
@@ -186,6 +197,7 @@ SELECT * FROM v_user_full WHERE id = ?;
 **Decision**: Migrate to tv_* for pre-composed data.
 
 **Implementation**:
+
 ```sql
 -- Step 1: Create intermediate composed views (helper)
 CREATE VIEW v_user_posts_composed AS ...
@@ -211,9 +223,10 @@ class User: ...
 - **Before**: 3-5 second page load + database spike during peak traffic
 - **After**: 100-200ms page load, consistent performance
 
-### Example 2: Large Analytics Dataset (va_* → ta_*)
+### Example 2: Large Analytics Dataset (va_*→ ta_*)
 
 **Current State**:
+
 ```sql
 -- va_orders: Logical view over 10M rows
 -- Query time: 5-10 seconds
@@ -225,6 +238,7 @@ SELECT * FROM va_orders WHERE created_at >= ? AND created_at < ?;
 **Decision**: Migrate to ta_* for optimized columnar storage.
 
 **Implementation**:
+
 ```sql
 -- Step 1: Create ta_orders table with BRIN indexes
 CREATE TABLE ta_orders (
@@ -319,6 +333,7 @@ stream = client.do_get(flight.Ticket(json.dumps(ticket_large).encode()))
 ```
 
 **View Discovery**:
+
 ```python
 # List available views
 views = client.list_flights(criteria=None)
@@ -355,7 +370,7 @@ Before creating a new view, answer these questions:
 
 ## Performance Testing
 
-### Test GraphQL Performance (v_* vs tv_*)
+### Test GraphQL Performance (v_*vs tv_*)
 
 ```sql
 -- Measure v_* execution time
@@ -367,7 +382,7 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM tv_user_profile WHERE id = ?;
 -- Should be 10-50x faster
 ```
 
-### Test Analytics Performance (va_* vs ta_*)
+### Test Analytics Performance (va_*vs ta_*)
 
 ```sql
 -- Measure va_* execution time

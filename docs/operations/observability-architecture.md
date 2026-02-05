@@ -1352,7 +1352,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
      Reason: Frequently filtered with high selectivity (8%)
 ```
 
-2. **JSON Format** (for CI/CD):
+1. **JSON Format** (for CI/CD):
 
 ```json
 {
@@ -1378,7 +1378,7 @@ fn detect_database_type(url: &Option<String>) -> Result<DatabaseType> {
 }
 ```
 
-3. **SQL Format** (ready to apply):
+1. **SQL Format** (ready to apply):
 
 ```sql
 -- Migration 1: Denormalize tf_sales.dimensions->>'region'

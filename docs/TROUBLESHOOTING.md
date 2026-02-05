@@ -19,6 +19,7 @@
 ### Problem: Cargo build fails
 
 **Solution**:
+
 ```bash
 # Install build tools
 sudo apt-get install build-essential
@@ -33,6 +34,7 @@ cargo clean && cargo build --release
 
 **Solution**:
 Ensure schema includes federation import:
+
 ```graphql
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0")
 ```
@@ -50,6 +52,7 @@ Verify @requires fields are included in entity representation and database queri
 
 **Solution**:
 Check that @key directives match across services:
+
 ```graphql
 # Both must match
 type User @key(fields: "id") { id: ID! }
@@ -74,6 +77,7 @@ extend type User @key(fields: "id") { id: ID! }
 
 **Solution**:
 Verify compensation mutations exist in schema:
+
 ```graphql
 type Mutation {
   cancelOrder(orderId: ID!): Order!
@@ -96,6 +100,7 @@ Increase timeout: `export FRAISEQL_SAGA_TIMEOUT_SECONDS=600`
 
 **Solution**:
 Add database indexes:
+
 ```sql
 CREATE INDEX idx_users_id ON users(id);
 ```
@@ -137,12 +142,14 @@ Enable recovery: `export FRAISEQL_SAGA_RECOVERY_ENABLED=true`
 ## Debugging
 
 ### Enable Debug Logs
+
 ```bash
 export RUST_LOG=fraiseql=debug
 RUST_LOG=debug cargo run
 ```
 
 ### Query Saga State
+
 ```bash
 docker-compose exec postgres psql -U fraiseql -d fraiseql
 SELECT * FROM sagas WHERE id = 'YOUR_SAGA_ID';
@@ -150,6 +157,7 @@ SELECT * FROM saga_steps WHERE saga_id = 'YOUR_SAGA_ID';
 ```
 
 ### Test GraphQL
+
 ```bash
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \

@@ -11,6 +11,7 @@ Comprehensive guide for integrating FraiseQL GraphQL APIs with popular web frame
 FraiseQL compiles GraphQL schemas to optimized SQL at build time. This guide shows how to integrate the compiled schemas with your application framework, handling the GraphQL endpoint, authentication, subscriptions, and error management.
 
 **Integration Pattern**:
+
 1. **Define schema** in Python/TypeScript (authoring only)
 2. **Compile schema** with `fraiseql-cli compile`
 3. **Load compiled schema** in your framework
@@ -48,6 +49,7 @@ FraiseQL compiles GraphQL schemas to optimized SQL at build time. This guide sho
 **Best For**: REST APIs with GraphQL integration, async microservices, OpenAPI documentation
 
 **Key Integration Points**:
+
 - Async/await support for non-blocking GraphQL execution
 - Dependency injection for database connections
 - Built-in OpenAPI documentation
@@ -101,6 +103,7 @@ async def websocket_endpoint(websocket):
 ```
 
 **Integration Checklist**:
+
 - ✅ Environment variable configuration
 - ✅ Connection pooling setup
 - ✅ Error middleware for GraphQL errors
@@ -111,6 +114,7 @@ async def websocket_endpoint(websocket):
 - ✅ Request validation
 
 **Performance Considerations**:
+
 - Connection pooling (min 5, max 20 workers)
 - Query result caching with TTL
 - Batch request processing
@@ -123,6 +127,7 @@ async def websocket_endpoint(websocket):
 **Best For**: Monolithic applications, admin dashboards, multi-tenant SaaS
 
 **Key Integration Points**:
+
 - Django ORM integration (external views/functions)
 - Middleware for authentication context
 - Template rendering
@@ -174,6 +179,7 @@ class GraphQLView(View):
 ```
 
 **Integration Checklist**:
+
 - ✅ Django settings integration
 - ✅ User authentication context
 - ✅ Permission decorators for queries/mutations
@@ -184,6 +190,7 @@ class GraphQLView(View):
 - ✅ CSRF protection
 
 **Performance Considerations**:
+
 - Database connection reuse
 - Query result caching via Django cache
 - Middleware for early validation
@@ -196,6 +203,7 @@ class GraphQLView(View):
 **Best For**: Microservices, REST APIs, simple integrations, prototyping
 
 **Key Integration Points**:
+
 - Minimal overhead, pure GraphQL endpoint
 - Flask blueprints for modular endpoints
 - Extension ecosystem
@@ -233,6 +241,7 @@ def graphql_ws():
 ```
 
 **Integration Checklist**:
+
 - ✅ Blueprint organization
 - ✅ Error handlers
 - ✅ Request validation
@@ -251,6 +260,7 @@ def graphql_ws():
 **Best For**: Large-scale applications, enterprise backend, microservices architecture
 
 **Key Integration Points**:
+
 - Dependency injection for FraiseQL server
 - Module-based organization
 - Guards for authentication
@@ -297,6 +307,7 @@ export class GraphQLController {
 ```
 
 **Integration Checklist**:
+
 - ✅ Module imports and exports
 - ✅ Service injection
 - ✅ Guard decorators for auth
@@ -313,6 +324,7 @@ export class GraphQLController {
 **Best For**: Microservices, REST APIs, lightweight deployments
 
 **Key Integration Points**:
+
 - Middleware stack for request/response handling
 - Route handlers
 - Error middleware
@@ -360,6 +372,7 @@ app.use(
 ```
 
 **Integration Checklist**:
+
 - ✅ Middleware ordering
 - ✅ Request body parsing
 - ✅ Error handling
@@ -376,6 +389,7 @@ app.use(
 **Best For**: High-throughput APIs, serverless, performance-critical applications
 
 **Key Integration Points**:
+
 - Plugin system for modularity
 - Request/reply handlers
 - Hooks for lifecycle events
@@ -419,6 +433,7 @@ fastify.listen({ port: 3000 });
 ```
 
 **Integration Checklist**:
+
 - ✅ Plugin registration
 - ✅ Request schema validation
 - ✅ Error handling hooks
@@ -437,6 +452,7 @@ fastify.listen({ port: 3000 });
 **Best For**: REST APIs, microservices, high-traffic services
 
 **Key Integration Points**:
+
 - Router groups for endpoint organization
 - Middleware for cross-cutting concerns
 - Context for request-scoped data
@@ -448,60 +464,61 @@ fastify.listen({ port: 3000 });
 package main
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"fraiseql-go"
+ "fmt"
+ "github.com/gin-gonic/gin"
+ "fraiseql-go"
 )
 
 func main() {
-	router := gin.Default()
+ router := gin.Default()
 
-	// Initialize FraiseQL server at startup
-	fraiseqlServer, err := fraiseql.NewServer(
-		fraiseql.Config{
-			CompiledSchemaPath: "schema.compiled.json",
-			DatabaseURL:       os.Getenv("DATABASE_URL"),
-			CacheTTL:          300,
-		},
-	)
-	if err != nil {
-		panic(err)
-	}
+ // Initialize FraiseQL server at startup
+ fraiseqlServer, err := fraiseql.NewServer(
+  fraiseql.Config{
+   CompiledSchemaPath: "schema.compiled.json",
+   DatabaseURL:       os.Getenv("DATABASE_URL"),
+   CacheTTL:          300,
+  },
+ )
+ if err != nil {
+  panic(err)
+ }
 
-	// GraphQL endpoint
-	router.POST("/api/graphql", func(c *gin.Context) {
-		var query struct {
-			Query     string                 `json:"query"`
-			Variables map[string]interface{} `json:"variables"`
-		}
+ // GraphQL endpoint
+ router.POST("/api/graphql", func(c *gin.Context) {
+  var query struct {
+   Query     string                 `json:"query"`
+   Variables map[string]interface{} `json:"variables"`
+  }
 
-		if err := c.ShouldBindJSON(&query); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
-			return
-		}
+  if err := c.ShouldBindJSON(&query); err != nil {
+   c.JSON(400, gin.H{"error": err.Error()})
+   return
+  }
 
-		ctx := c.Request.Context()
-		result, err := fraiseqlServer.Execute(ctx, fraiseql.ExecuteRequest{
-			Query:     query.Query,
-			Variables: query.Variables,
-			Context: map[string]interface{}{
-				"userID": c.GetString("user_id"),
-			},
-		})
+  ctx := c.Request.Context()
+  result, err := fraiseqlServer.Execute(ctx, fraiseql.ExecuteRequest{
+   Query:     query.Query,
+   Variables: query.Variables,
+   Context: map[string]interface{}{
+    "userID": c.GetString("user_id"),
+   },
+  })
 
-		if err != nil {
-			c.JSON(400, gin.H{"errors": []string{err.Error()}})
-			return
-		}
+  if err != nil {
+   c.JSON(400, gin.H{"errors": []string{err.Error()}})
+   return
+  }
 
-		c.JSON(200, result)
-	})
+  c.JSON(200, result)
+ })
 
-	router.Run(":8080")
+ router.Run(":8080")
 }
 ```
 
 **Integration Checklist**:
+
 - ✅ Router group organization
 - ✅ Middleware chain
 - ✅ Context propagation
@@ -518,6 +535,7 @@ func main() {
 **Best For**: REST APIs, full-featured services, enterprise applications
 
 **Key Integration Points**:
+
 - Route groups for modular endpoints
 - Middleware ecosystem
 - Custom bind/renderer for GraphQL
@@ -529,52 +547,53 @@ func main() {
 package main
 
 import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"fraiseql-go"
+ "github.com/labstack/echo/v4"
+ "github.com/labstack/echo/v4/middleware"
+ "fraiseql-go"
 )
 
 func main() {
-	e := echo.New()
+ e := echo.New()
 
-	// Initialize FraiseQL
-	fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
-		CompiledSchemaPath: "schema.compiled.json",
-		DatabaseURL:       os.Getenv("DATABASE_URL"),
-	})
+ // Initialize FraiseQL
+ fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
+  CompiledSchemaPath: "schema.compiled.json",
+  DatabaseURL:       os.Getenv("DATABASE_URL"),
+ })
 
-	// CORS middleware
-	e.Use(middleware.CORS())
+ // CORS middleware
+ e.Use(middleware.CORS())
 
-	// GraphQL routes
-	api := e.Group("/api")
-	{
-		api.POST("/graphql", func(c echo.Context) error {
-			var req fraiseql.GraphQLRequest
-			if err := c.Bind(&req); err != nil {
-				return c.JSON(400, map[string]interface{}{
-					"error": err.Error(),
-				})
-			}
+ // GraphQL routes
+ api := e.Group("/api")
+ {
+  api.POST("/graphql", func(c echo.Context) error {
+   var req fraiseql.GraphQLRequest
+   if err := c.Bind(&req); err != nil {
+    return c.JSON(400, map[string]interface{}{
+     "error": err.Error(),
+    })
+   }
 
-			result, err := fraiseqlServer.Execute(c.Request().Context(), req)
-			if err != nil {
-				return c.JSON(400, result)
-			}
+   result, err := fraiseqlServer.Execute(c.Request().Context(), req)
+   if err != nil {
+    return c.JSON(400, result)
+   }
 
-			return c.JSON(200, result)
-		})
+   return c.JSON(200, result)
+  })
 
-		api.WebSocket("/graphql/ws", func(c echo.Context) error {
-			return fraiseqlServer.HandleSubscription(c.Request().Context(), c.Response())
-		})
-	}
+  api.WebSocket("/graphql/ws", func(c echo.Context) error {
+   return fraiseqlServer.HandleSubscription(c.Request().Context(), c.Response())
+  })
+ }
 
-	e.Logger.Fatal(e.Start(":8080"))
+ e.Logger.Fatal(e.Start(":8080"))
 }
 ```
 
 **Integration Checklist**:
+
 - ✅ Route group management
 - ✅ Middleware chaining
 - ✅ WebSocket support
@@ -591,6 +610,7 @@ func main() {
 **Best For**: Microservices, minimal overhead, composable middleware
 
 **Key Integration Points**:
+
 - Router groups for modular routes
 - Lightweight middleware
 - Standard library http patterns
@@ -602,38 +622,39 @@ func main() {
 package main
 
 import (
-	"net/http"
-	"github.com/go-chi/chi/v5"
-	"fraiseql-go"
+ "net/http"
+ "github.com/go-chi/chi/v5"
+ "fraiseql-go"
 )
 
 func main() {
-	fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
-		CompiledSchemaPath: "schema.compiled.json",
-		DatabaseURL:       os.Getenv("DATABASE_URL"),
-	})
+ fraiseqlServer := fraiseql.MustNewServer(fraiseql.Config{
+  CompiledSchemaPath: "schema.compiled.json",
+  DatabaseURL:       os.Getenv("DATABASE_URL"),
+ })
 
-	r := chi.NewRouter()
+ r := chi.NewRouter()
 
-	r.Post("/graphql", handleGraphQL(fraiseqlServer))
-	r.HandleFunc("/graphql/ws", handleSubscription(fraiseqlServer))
+ r.Post("/graphql", handleGraphQL(fraiseqlServer))
+ r.HandleFunc("/graphql/ws", handleSubscription(fraiseqlServer))
 
-	http.ListenAndServe(":8080", r)
+ http.ListenAndServe(":8080", r)
 }
 
 func handleGraphQL(server *fraiseql.Server) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req fraiseql.GraphQLRequest
-		json.NewDecoder(r.Body).Decode(&req)
+ return func(w http.ResponseWriter, r *http.Request) {
+  var req fraiseql.GraphQLRequest
+  json.NewDecoder(r.Body).Decode(&req)
 
-		result, _ := server.Execute(r.Context(), req)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
-	}
+  result, _ := server.Execute(r.Context(), req)
+  w.Header().Set("Content-Type", "application/json")
+  json.NewEncoder(w).Encode(result)
+ }
 }
 ```
 
 **Integration Checklist**:
+
 - ✅ Composable middleware
 - ✅ Router groups
 - ✅ Context values
@@ -652,6 +673,7 @@ func handleGraphQL(server *fraiseql.Server) http.HandlerFunc {
 **Best For**: Large-scale applications, enterprise environments, microservices with orchestration
 
 **Key Integration Points**:
+
 - Spring beans for dependency injection
 - MVC controllers
 - Exception handlers
@@ -720,6 +742,7 @@ public class GraphQLController {
 ```
 
 **Integration Checklist**:
+
 - ✅ Spring beans
 - ✅ Auto-configuration
 - ✅ Security integration
@@ -736,6 +759,7 @@ public class GraphQLController {
 **Best For**: Serverless, Kubernetes, cloud-native deployments, instant startup
 
 **Key Integration Points**:
+
 - CDI for dependency injection
 - RESTEasy for HTTP
 - Config for externalized configuration
@@ -782,6 +806,7 @@ public class GraphQLResource {
 ```
 
 **Integration Checklist**:
+
 - ✅ CDI beans
 - ✅ Configuration management
 - ✅ Native compilation
@@ -800,6 +825,7 @@ public class GraphQLResource {
 **Best For**: Monolithic applications, rapid development, admin dashboards
 
 **Key Integration Points**:
+
 - Rails controllers
 - Middleware stack
 - ActiveRecord integration (views/functions only)
@@ -849,6 +875,7 @@ config.middleware.use Rack::CORSMiddleware
 ```
 
 **Integration Checklist**:
+
 - ✅ Controller organization
 - ✅ Middleware stack
 - ✅ Devise integration
@@ -865,6 +892,7 @@ config.middleware.use Rack::CORSMiddleware
 **Best For**: Simple APIs, microservices, quick prototypes
 
 **Key Integration Points**:
+
 - Route handlers
 - Middleware
 - Error handling
@@ -906,6 +934,7 @@ end
 ```
 
 **Integration Checklist**:
+
 - ✅ Route definition
 - ✅ Request parsing
 - ✅ Error handlers
@@ -939,6 +968,7 @@ Response:
 ```
 
 **Best Practices**:
+
 - Parse query and variables from request body
 - Extract user context from authentication headers/session
 - Return errors in GraphQL format (not HTTP error codes)
@@ -993,6 +1023,7 @@ ws.on('message', (event) => {
 ```
 
 **Server Implementation**:
+
 - Accept WebSocket upgrade
 - Parse GraphQL subscription from connection message
 - Stream results as JSON objects
@@ -1018,6 +1049,7 @@ Standardize error responses across all frameworks:
 ```
 
 **Common Error Types**:
+
 - `VALIDATION_ERROR` - Invalid query/variables
 - `AUTHENTICATION_ERROR` - Not authenticated
 - `AUTHORIZATION_ERROR` - Not authorized (RBAC)
@@ -1033,26 +1065,31 @@ Standardize error responses across all frameworks:
 ### Type Safety Per Framework
 
 **Python**:
+
 - Use type hints for query results
 - Validate with Pydantic models
 - Enable mypy/pyright checking
 
 **TypeScript/JavaScript**:
+
 - Generate TypeScript types from schema
 - Use `graphql-codegen` for type generation
 - Enable strict mode in tsconfig.json
 
 **Go**:
+
 - Use struct tags for JSON marshaling
 - Generate types with `gqlgen` or `gomodule-gqlgen`
 - Compile-time type checking
 
 **Java**:
+
 - Generate POJOs from schema
 - Use Jackson for JSON mapping
 - Enable compile-time verification
 
 **Ruby**:
+
 - Use ActiveSupport for type coercion
 - Document with YARD
 - Test with RSpec
@@ -1060,6 +1097,7 @@ Standardize error responses across all frameworks:
 ### Async Patterns
 
 **Python (async/await)**:
+
 ```python
 async def graphql(query, variables):
     result = await fraiseql_server.execute(query, variables)
@@ -1067,6 +1105,7 @@ async def graphql(query, variables):
 ```
 
 **TypeScript (Promises)**:
+
 ```typescript
 async executeQuery(query: string): Promise<Result> {
   const result = await fraiseql.execute(query);
@@ -1075,6 +1114,7 @@ async executeQuery(query: string): Promise<Result> {
 ```
 
 **Go (goroutines)**:
+
 ```go
 go fraiseqlServer.Execute(ctx, request)
 ```
@@ -1082,6 +1122,7 @@ go fraiseqlServer.Execute(ctx, request)
 ### Testing Setup
 
 **Python (pytest)**:
+
 ```python
 @pytest.fixture
 def fraiseql_server():
@@ -1093,6 +1134,7 @@ def test_query(fraiseql_server):
 ```
 
 **TypeScript (Jest)**:
+
 ```typescript
 describe('GraphQL', () => {
   it('should execute query', async () => {
@@ -1105,11 +1147,13 @@ describe('GraphQL', () => {
 ### Deployment Considerations
 
 **Development**:
+
 - Hot reload compiled schema changes
 - Enable query logging for debugging
 - Use local SQLite for testing
 
 **Production**:
+
 - Pre-compile schema at build time
 - Load from immutable artifact
 - Environment variable overrides
@@ -1131,6 +1175,7 @@ describe('GraphQL', () => {
    - Export to `schema.json`
 
 2. **Compile Schema**
+
    ```bash
    fraiseql-cli compile schema.json fraiseql.toml
    ```
@@ -1154,6 +1199,7 @@ describe('GraphQL', () => {
 ### Common Setup Patterns
 
 **Development Workflow**:
+
 ```bash
 # Watch for schema changes
 watchmedo shell-command \
@@ -1167,6 +1213,7 @@ python main.py
 ```
 
 **Production Deployment**:
+
 ```dockerfile
 FROM python:3.12
 COPY schema.compiled.json /app/

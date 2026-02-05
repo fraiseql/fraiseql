@@ -110,6 +110,7 @@ Choose transport based on your use case.
 ## Key Features
 
 ### ✅ Zero-Copy Deserialization
+
 Arrow data flows directly from FraiseQL into Python/R/Java without serialization overhead.
 
 ```python
@@ -122,6 +123,7 @@ df = pd.DataFrame(response.json())
 ```
 
 ### ✅ Streaming Architecture
+
 Process unlimited data with constant memory usage (batches of 10k rows).
 
 ```python
@@ -132,6 +134,7 @@ for batch in client.do_get(ticket):
 ```
 
 ### ✅ Dual Dataplane
+
 Analytics via Arrow/ClickHouse + Operational via JSON/Elasticsearch.
 
 ```python
@@ -143,6 +146,7 @@ results = es.search(index="fraiseql-events-*", body={...})
 ```
 
 ### ✅ 100% Backwards Compatible
+
 Existing HTTP/JSON clients continue to work unchanged. No breaking changes.
 
 ```bash
@@ -166,6 +170,7 @@ grpcurl localhost:50051 fraiseql.Flight ...  # Arrow Flight (new)
 ## Deployment
 
 ### Development (5 minutes)
+
 ```bash
 docker-compose up -d  # Arrow Flight on port 50051
 ```
@@ -200,25 +205,30 @@ See [Migration Guide](./migration-guide.md) for details.
 ## Common Questions
 
 ### Can I use Arrow Flight with web clients?
+
 No, Arrow Flight is for server-to-server or analytics client communication. Use HTTP/JSON for web/mobile clients.
 
 ### Will Arrow Flight break my existing HTTP/JSON clients?
+
 No, both run in parallel. Existing clients continue working unchanged.
 
 ### Do I need to change my database?
+
 No, Arrow Flight uses the same PostgreSQL database. It's an additional transport layer.
 
 ### What if I don't need analytics?
+
 That's fine! Arrow Flight is optional. HTTP/JSON continues to work perfectly for web applications.
 
 ### How much overhead does Arrow Flight add?
+
 Minimal: 2-3 threads for gRPC server, no additional memory when not in use.
 
 ## Support & Community
 
 - **GitHub Issues**: [fraiseql/fraiseql/issues](https://github.com/fraiseql/fraiseql/issues)
 - **Discussions**: [fraiseql/fraiseql/discussions](https://github.com/fraiseql/fraiseql/discussions)
-- **Email**: support@fraiseql.dev
+- **Email**: <support@fraiseql.dev>
 
 ## Next Steps
 

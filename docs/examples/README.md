@@ -5,11 +5,13 @@ Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow
 ## Available Examples
 
 ### 1. TypeScript Schema + FraiseQL Backend + Vue 3 Frontend
+
 **File**: [`fullstack-typescript-vue.md`](./fullstack-typescript-vue.md)
 
 **Overview**: E-commerce application showcasing the complete modern JavaScript/TypeScript stack.
 
 **What You'll Learn**:
+
 - ✅ Define GraphQL schemas using TypeScript decorators
 - ✅ Export schemas to FraiseQL's JSON format
 - ✅ Compile schemas with the FraiseQL CLI
@@ -18,6 +20,7 @@ Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow
 - ✅ Implement shopping cart, orders, reviews, and search
 
 **Key Technologies**:
+
 - **Schema Authoring**: TypeScript with decorators and `reflect-metadata`
 - **Backend**: Rust (FraiseQL server), PostgreSQL
 - **Frontend**: Vue 3, Apollo Client, Vite
@@ -25,6 +28,7 @@ Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow
 - **Deployment**: Docker and Docker Compose
 
 **Project Structure**:
+
 ```
 ecommerce-project/
 ├── schema-authoring/    # TypeScript schema definition
@@ -41,11 +45,13 @@ ecommerce-project/
 ---
 
 ### 2. Java Schema + FraiseQL Backend + Next.js Frontend
+
 **File**: [`fullstack-java-nextjs.md`](./fullstack-java-nextjs.md)
 
 **Overview**: Blog platform showcasing Java annotations for schema definition and modern Next.js 14+ Server Components.
 
 **What You'll Learn**:
+
 - ✅ Define GraphQL schemas using Java annotations (@GraphQLType, @GraphQLQuery, etc.)
 - ✅ Maven plugin integration for schema export
 - ✅ Type-safe relationships and field definitions
@@ -55,6 +61,7 @@ ecommerce-project/
 - ✅ Docker and Kubernetes deployment
 
 **Key Technologies**:
+
 - **Schema Authoring**: Java with Maven, FraiseQL annotations
 - **Backend**: Rust (FraiseQL server), PostgreSQL
 - **Frontend**: Next.js 14+, React Server Components, Apollo Client, TypeScript
@@ -62,6 +69,7 @@ ecommerce-project/
 - **Deployment**: Docker, Docker Compose, Vercel, Kubernetes
 
 **Project Structure**:
+
 ```
 blog-monorepo/
 ├── java-schema/             # Maven project with FraiseQL annotations
@@ -78,17 +86,20 @@ blog-monorepo/
 ---
 
 ### 3. Go Schema + FraiseQL Backend + Flutter Frontend
+
 **File**: [`fullstack-go-flutter.md`](./fullstack-go-flutter.md)
 
 **Overview**: Mobile-first application with API schema defined in Go.
 
 **What You'll Learn**:
+
 - Schema definition in Go with struct tags
 - Compiling Go schemas to FraiseQL format
 - Building Flutter mobile app with GraphQL client
 - iOS/Android deployment
 
 **Key Technologies**:
+
 - **Schema Authoring**: Go with struct tags
 - **Backend**: Rust (FraiseQL), PostgreSQL
 - **Frontend**: Flutter/Dart
@@ -158,18 +169,21 @@ Each example includes detailed manual setup instructions if you prefer to run se
 ## Learning Path
 
 ### Beginner
+
 1. Read the **Architecture Overview** in your chosen example
 2. Review the **TypeScript/Go Schema** section
 3. Understand **Database Design** patterns
 4. Run the **complete stack** locally
 
 ### Intermediate
+
 1. Modify the schema (add a new type or field)
 2. Re-export and re-compile
 3. See how frontend automatically adapts (via GraphQL introspection)
 4. Add new API endpoints
 
 ### Advanced
+
 1. Implement custom resolver functions
 2. Add authentication and authorization
 3. Set up production deployment (Kubernetes, cloud)
@@ -181,19 +195,25 @@ Each example includes detailed manual setup instructions if you prefer to run se
 ## Common Questions
 
 ### Q: Can I use TypeScript but deploy with Go?
+
 **A**: No. The authoring language is independent, but the runtime is always Rust (FraiseQL server). You choose TypeScript/Go for schema definition, not for runtime.
 
 ### Q: How do I add authentication?
+
 **A**: See the "Troubleshooting" section of each example. Authentication is configured in `fraiseql.toml` and flows from compile-time config to runtime enforcement.
 
 ### Q: Can I use a different database?
+
 **A**: Yes. FraiseQL supports PostgreSQL (primary), MySQL, SQLite, and SQL Server. Examples use PostgreSQL as it's the most feature-complete.
 
 ### Q: How do I call this from React/Svelte/Solid instead of Vue/Flutter?
+
 **A**: Any GraphQL client works. Apollo Client works with all frameworks. Just point your client to the FraiseQL GraphQL endpoint.
 
 ### Q: Can I deploy this without Docker?
+
 **A**: Yes. Docker Compose is for convenience. You can run:
+
 - PostgreSQL traditionally or managed cloud (RDS, CloudSQL)
 - FraiseQL server as a Rust binary
 - Vue/Flutter on any frontend hosting

@@ -12,6 +12,7 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Arrow Flight and gRPC fundamentals
 - Columnar data formats and Apache Arrow concepts
 - Analytics workload patterns and use cases
@@ -21,6 +22,7 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 - Elasticsearch for debugging support (Phase 4, optional)
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later (with Arrow Flight support)
 - Docker 20.10+ and Docker Compose 1.29+
 - Your analytical client SDK:
@@ -31,6 +33,7 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 - PostgreSQL 14+ database
 
 **Required Infrastructure:**
+
 - FraiseQL server with Arrow Flight enabled (port 50051)
 - Network connectivity from clients to port 50051 (gRPC)
 - PostgreSQL database for JSON queries (unchanged)
@@ -39,6 +42,7 @@ This guide shows how to incrementally adopt Arrow Flight in your organization.
 - Load balancer or Ingress controller for production routing
 
 **Optional but Recommended:**
+
 - ClickHouse instance for analytics optimizations
 - Elasticsearch instance for debugging
 - Analytics BI tool integration
@@ -141,6 +145,7 @@ These get the most benefit from Arrow Flight (15-50x faster).
 ### Example: Before vs After
 
 **Before** (HTTP/JSON, 30 seconds):
+
 ```python
 import requests
 import pandas as pd
@@ -169,6 +174,7 @@ print(f"Loaded {len(df)} orders")
 ```
 
 **After** (Arrow Flight, 2 seconds):
+
 ```python
 import pyarrow.flight as flight
 import polars as pl
@@ -199,6 +205,7 @@ print(f"Loaded {len(df)} orders")
 For each analytics script:
 
 1. **Update import statements**:
+
    ```python
    # Remove
    import requests
@@ -209,6 +216,7 @@ For each analytics script:
    ```
 
 2. **Replace query execution**:
+
    ```python
    # Before
    response = requests.post(
@@ -224,6 +232,7 @@ For each analytics script:
    ```
 
 3. **Update DataFrame operations** (optional):
+
    ```python
    # If using Polars instead of Pandas
    # Many operations are identical, some have different names
@@ -231,6 +240,7 @@ For each analytics script:
    ```
 
 4. **Test**:
+
    ```bash
    # Run script with Arrow Flight
    python script.py
@@ -239,6 +249,7 @@ For each analytics script:
    ```
 
 5. **Benchmark**:
+
    ```python
    import time
 
@@ -252,11 +263,13 @@ For each analytics script:
 ### Tool Support
 
 **Python**: Migrate requests → pyarrow.flight
+
 ```bash
 pip install pyarrow>=15.0.0 polars>=0.20.0
 ```
 
 **R**: Migrate jsonlite → arrow
+
 ```r
 install.packages("arrow")
 library(arrow)
@@ -335,6 +348,7 @@ docker exec fraiseql-clickhouse clickhouse-client \
 ### Step 5: Create Real-Time Dashboards
 
 **Example**: Daily order analytics
+
 ```sql
 SELECT
     toDate(timestamp) AS day,
@@ -422,6 +436,7 @@ curl "localhost:9200/fraiseql-events-*/_count"
 ### Step 5: Create Incident Response Runbooks
 
 **Example**: Find all failed orders in the last hour
+
 ```bash
 curl -X POST "localhost:9200/fraiseql-events-*/_search" \
   -H 'Content-Type: application/json' \
@@ -443,6 +458,7 @@ curl -X POST "localhost:9200/fraiseql-events-*/_search" \
 ```
 
 **Team**: Train support team on search queries
+
 ```bash
 # "Find all events for customer-123"
 curl -X POST "localhost:9200/fraiseql-events-*/_search" \
@@ -531,8 +547,8 @@ No data loss, no breaking changes.
 ## Support
 
 - **Slack**: #fraiseql-arrow-flight
-- **Docs**: https://docs.fraiseql.com/arrow-flight
-- **Issues**: https://github.com/fraiseql/fraiseql/issues
+- **Docs**: <https://docs.fraiseql.com/arrow-flight>
+- **Issues**: <https://github.com/fraiseql/fraiseql/issues>
 
 ---
 

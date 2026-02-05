@@ -14,6 +14,7 @@ This guide covers the security architecture and hardening options for FraiseQL d
 ### Threat Model
 
 Protected against:
+
 - ✅ Unauthorized network access (NetworkPolicy)
 - ✅ Privilege escalation (non-root containers)
 - ✅ Brute force attacks (rate limiting)
@@ -31,6 +32,7 @@ Protected against:
 - **Security Scanning**: Trivy scans for known vulnerabilities
 
 Scan image:
+
 ```bash
 trivy image fraiseql:latest --severity HIGH,CRITICAL
 ```
@@ -38,6 +40,7 @@ trivy image fraiseql:latest --severity HIGH,CRITICAL
 ### Runtime Security
 
 Enable in Kubernetes:
+
 ```yaml
 securityContext:
   allowPrivilegeEscalation: false
@@ -54,11 +57,13 @@ securityContext:
 ### Pod Security Policy
 
 Enforce:
+
 ```bash
 kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
 ```
 
 Requirements:
+
 - ✅ Non-root user required
 - ✅ No privileged containers
 - ✅ No capability escalation
@@ -69,6 +74,7 @@ Requirements:
 Default: Deny all traffic
 
 Allow only:
+
 ```
 - Ingress from nginx-ingress on port 8815
 - Egress to DNS (port 53)
@@ -77,6 +83,7 @@ Allow only:
 ```
 
 Apply:
+
 ```bash
 kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
 ```
@@ -110,17 +117,20 @@ env:
 ### External Secret Management (Recommended)
 
 1. **HashiCorp Vault**
+
    ```bash
    # Install Vault Agent
    helm install vault hashicorp/vault --namespace vault
    ```
 
 2. **AWS Secrets Manager**
+
    ```bash
    # Use IAM roles for pod authentication
    ```
 
 3. **Azure Key Vault**
+
    ```bash
    # Use managed identities
    ```
@@ -142,6 +152,7 @@ env:
 ### Access Control
 
 **Field-Level RBAC**:
+
 ```graphql
 @auth(
   requires: ["admin"],
@@ -159,6 +170,7 @@ type User {
 ### Audit Logging
 
 All operations logged:
+
 ```json
 {
   "timestamp": "2026-02-04T15:30:00Z",
@@ -171,6 +183,7 @@ All operations logged:
 ```
 
 Enable in configuration:
+
 ```toml
 [security.audit_logging]
 enabled = true
@@ -180,6 +193,7 @@ log_level = "info"
 ### Compliance
 
 Mapped to standards:
+
 - **NIST 800-53**: AC, SI, AU controls
 - **ISO 27001**: A.9 (Access Control), A.12 (Operations)
 - **PCI DSS**: Requirement 2 (configuration)
@@ -236,6 +250,6 @@ Mapped to standards:
 
 ## References
 
-- OWASP Top 10 API: https://owasp.org/API-Security/
-- Kubernetes Security Best Practices: https://kubernetes.io/docs/concepts/security/
-- CIS Kubernetes Benchmark: https://www.cisecurity.org/benchmark/kubernetes
+- OWASP Top 10 API: <https://owasp.org/API-Security/>
+- Kubernetes Security Best Practices: <https://kubernetes.io/docs/concepts/security/>
+- CIS Kubernetes Benchmark: <https://www.cisecurity.org/benchmark/kubernetes>

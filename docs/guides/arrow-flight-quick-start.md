@@ -119,7 +119,7 @@ for batch in reader:
 
 ---
 
-## That's It!
+## That's It
 
 You're now querying FraiseQL with Arrow Flight! 🎯
 
@@ -157,6 +157,7 @@ See [Arrow vs JSON Guide](./arrow-vs-json-guide.md) for when to use Arrow vs JSO
 
 **"Memory error on large queries"**
 → Stream results instead of loading all:
+
 ```python
 reader = client.do_get(descriptor)
 for batch in reader:

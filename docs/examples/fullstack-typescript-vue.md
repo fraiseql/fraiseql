@@ -80,6 +80,7 @@ This guide demonstrates the complete FraiseQL workflow: schema authoring in Type
 ```
 
 **Flow Summary**:
+
 1. **Write** TypeScript schema with decorators (author layer)
 2. **Export** to JSON schema (npm script)
 3. **Compile** with FraiseQL CLI (Rust compilation, generates optimized SQL)
@@ -1210,6 +1211,7 @@ cat schema.compiled.json | head -50
 Output: `schema.compiled.json`
 
 This file contains:
+
 - Validated type definitions
 - Optimized SQL templates (pre-compiled, zero runtime parsing)
 - Embedded configuration (security, rate limiting, etc.)
@@ -2400,6 +2402,7 @@ open http://localhost:5173
 **User action**: Search for "laptop"
 
 **Frontend code**:
+
 ```typescript
 // In ProductSearch.vue
 const { performSearch, results } = useSearchProducts();
@@ -2410,6 +2413,7 @@ const handleSearch = (query: string) => {
 ```
 
 **GraphQL query**:
+
 ```graphql
 query SearchProducts($query: String!, $limit: Int) {
   searchProducts(query: $query, limit: $limit) {
@@ -2424,6 +2428,7 @@ query SearchProducts($query: String!, $limit: Int) {
 ```
 
 **Rust execution** (FraiseQL):
+
 1. Receives `searchProducts` query
 2. Looks up compiled SQL template for `search_products` function
 3. Executes: `SELECT ... FROM products WHERE name ILIKE '%laptop%' LIMIT 20`
@@ -2435,6 +2440,7 @@ query SearchProducts($query: String!, $limit: Int) {
 **User action**: Click "Checkout" with 2 items in cart
 
 **Frontend code**:
+
 ```typescript
 const { createOrder } = useCreateOrder();
 
@@ -2450,6 +2456,7 @@ const handleCheckout = async () => {
 ```
 
 **GraphQL mutation**:
+
 ```graphql
 mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: String!) {
   createOrder(productIds: $productIds, quantities: $quantities, shippingAddress: $shippingAddress) {
@@ -2461,6 +2468,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
 ```
 
 **SQL execution** (FraiseQL):
+
 1. Receives `createOrder` mutation
 2. Calls Postgres function `create_order_from_cart`
 3. Function creates order, adds items, calculates total
@@ -2472,6 +2480,7 @@ mutation CreateOrder($productIds: [ID]!, $quantities: [Int]!, $shippingAddress: 
 **User action**: Click "Leave Review" on product page
 
 **Frontend code**:
+
 ```typescript
 const { addReview } = useReviews();
 
@@ -2482,6 +2491,7 @@ const submitReview = async (productId: string, rating: number, title: string, co
 ```
 
 **GraphQL mutation**:
+
 ```graphql
 mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: String!) {
   addReview(productId: $productId, rating: $rating, title: $title, content: $content) {
@@ -2495,6 +2505,7 @@ mutation AddReview($productId: ID!, $rating: Int!, $title: String!, $content: St
 ```
 
 **SQL execution**:
+
 1. INSERT review record
 2. Database trigger updates `updated_at` on products
 3. Cached product aggregates invalidated
@@ -2597,6 +2608,7 @@ ENABLE_INTROSPECTION=false
 **Error**: `connection refused to database`
 
 **Solution**:
+
 ```bash
 # Check database is running
 docker-compose ps postgres
@@ -2616,6 +2628,7 @@ psql $DATABASE_URL
 **Error**: `Invalid schema: type Product has no fields`
 
 **Solution**:
+
 ```bash
 # Verify schema.json is valid JSON
 cat schema.json | jq .
@@ -2632,6 +2645,7 @@ npm run build && node -e "require('reflect-metadata'); console.log(require('./di
 **Error**: `Network error: Failed to fetch`
 
 **Solution**:
+
 ```bash
 # Check CORS headers
 curl -i http://localhost:8080/graphql
@@ -2651,6 +2665,7 @@ VITE_DEBUG=true npm run dev
 **Error**: `Cart shows "Product" instead of actual name`
 
 **Solution**:
+
 ```typescript
 // Update useCart.ts to fetch product details
 const addItem = async (productId: string, quantity: number = 1) => {
@@ -2674,6 +2689,7 @@ const addItem = async (productId: string, quantity: number = 1) => {
 **Error**: `relation "orders" does not exist`
 
 **Solution**:
+
 ```bash
 # Run schema migration manually
 docker exec ecommerce-db psql -U fraiseql -d ecommerce -f /docker-entrypoint-initdb.d/01-schema.sql
@@ -2690,6 +2706,7 @@ docker-compose logs postgres
 **Symptom**: Queries take > 1 second
 
 **Solution**:
+
 ```sql
 -- Check query execution plans
 EXPLAIN ANALYZE

@@ -58,6 +58,7 @@ API Contracts
 ### Type Inference Examples
 
 **PostgreSQL:**
+
 ```sql
 CREATE TABLE tb_users (
   pk_user_id SERIAL PRIMARY KEY,              -- ← Int (non-nullable)
@@ -72,6 +73,7 @@ CREATE TABLE tb_users (
 ```
 
 **Generated GraphQL Type:**
+
 ```graphql
 type User {
   userId: Int!              # Non-nullable (PRIMARY KEY)
@@ -86,6 +88,7 @@ type User {
 ```
 
 **Python Schema (Optional - explicit definition):**
+
 ```python
 from fraiseql import schema
 from datetime import datetime
@@ -110,6 +113,7 @@ class User:
 ### Database Constraints Drive Nullability
 
 **Rule 1: NOT NULL → Non-Nullable in GraphQL**
+
 ```sql
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,           -- NOT NULL by default (primary key)
@@ -120,6 +124,7 @@ CREATE TABLE tb_orders (
 ```
 
 **Result in GraphQL:**
+
 ```graphql
 type Order {
   orderId: Int!              # Non-nullable (PRIMARY KEY)
@@ -130,6 +135,7 @@ type Order {
 ```
 
 **Rule 2: DEFAULT → Non-Nullable (if NO NULL allowed)**
+
 ```sql
 CREATE TABLE tb_products (
   pk_product_id INT PRIMARY KEY,
@@ -139,6 +145,7 @@ CREATE TABLE tb_products (
 ```
 
 **Result in GraphQL:**
+
 ```graphql
 type Product {
   productId: Int!     # Non-nullable (PRIMARY KEY)
@@ -185,6 +192,7 @@ type Order {
 ```
 
 **Database Table:**
+
 ```sql
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,
@@ -198,6 +206,7 @@ CREATE TABLE tb_orders (
 ### Relationships: One-to-Many
 
 **Database Schema:**
+
 ```sql
 CREATE TABLE tb_users (
   pk_user_id INT PRIMARY KEY,
@@ -212,6 +221,7 @@ CREATE TABLE tb_orders (
 ```
 
 **GraphQL Types with Relationship:**
+
 ```graphql
 type User {
   userId: Int!
@@ -227,6 +237,7 @@ type Order {
 ```
 
 **Query Example:**
+
 ```graphql
 query GetUserWithOrders($userId: Int!) {
   user(userId: $userId) {
@@ -243,6 +254,7 @@ query GetUserWithOrders($userId: Int!) {
 ### Relationships: Many-to-Many
 
 **Database Schema (Junction Table):**
+
 ```sql
 CREATE TABLE tb_students (
   pk_student_id INT PRIMARY KEY,
@@ -262,6 +274,7 @@ CREATE TABLE tj_student_courses (
 ```
 
 **GraphQL Types with Many-to-Many:**
+
 ```graphql
 type Student {
   studentId: Int!
@@ -277,6 +290,7 @@ type Course {
 ```
 
 **Query Example:**
+
 ```graphql
 query GetStudentCourses($studentId: Int!) {
   student(studentId: $studentId) {
@@ -295,6 +309,7 @@ query GetStudentCourses($studentId: Int!) {
 ### Arrays in GraphQL
 
 **Non-Empty List:**
+
 ```graphql
 type User {
   tags: [String!]!       # List of non-null strings, list itself is non-null
@@ -309,6 +324,7 @@ type User {
 ```
 
 **Nullable List:**
+
 ```graphql
 type User {
   tags: [String!]        # List can be null, but items must be non-null
@@ -323,6 +339,7 @@ type User {
 ```
 
 **List of Nullable Items:**
+
 ```graphql
 type User {
   notes: [String]!       # Non-null list, but items can be null
@@ -339,6 +356,7 @@ type User {
 ### Database to List Mapping
 
 **One-to-Many as List:**
+
 ```sql
 CREATE TABLE tb_orders (
   pk_order_id INT PRIMARY KEY,
@@ -348,6 +366,7 @@ CREATE TABLE tb_orders (
 ```
 
 **Maps to GraphQL List:**
+
 ```graphql
 type User {
   orders: [Order!]!      # Automatically inferred from foreign key relationship
@@ -363,6 +382,7 @@ While FraiseQL automatically infers types from your database, you can define cus
 ### Defining Custom Scalars
 
 **PostgreSQL with Custom Types:**
+
 ```sql
 -- Create an enum type
 CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'shipped', 'delivered');
@@ -374,6 +394,7 @@ CREATE TABLE tb_orders (
 ```
 
 **FraiseQL Inference:**
+
 ```graphql
 enum OrderStatus {
   PENDING
@@ -391,6 +412,7 @@ type Order {
 ### Custom Scalar Definitions
 
 **For complex types (in Python schema):**
+
 ```python
 from fraiseql import schema
 from typing import NewType
@@ -410,6 +432,7 @@ class User:
 ```
 
 **Validation:**
+
 ```python
 @schema.scalar("PhoneNumber")
 def serialize_phone(value: str) -> str:
@@ -432,6 +455,7 @@ def serialize_date_range(value: dict) -> dict:
 ### Required vs Optional
 
 **Required Field (Non-Null):**
+
 ```graphql
 type User {
   email: String!    # Must always have a value
@@ -446,6 +470,7 @@ query {
 ```
 
 **Optional Field (Nullable):**
+
 ```graphql
 type User {
   phone: String     # Can be null
@@ -475,6 +500,7 @@ query {
 ### Compile-Time Type Validation
 
 **Schema Definition:**
+
 ```python
 @schema.type(table="tb_users")
 class User:
@@ -483,6 +509,7 @@ class User:
 ```
 
 **Compile-Time Checks:**
+
 ```
 ✅ user_id: column pk_user_id is INT → type int ✓
 ✅ email: column email is VARCHAR → type str ✓
@@ -494,6 +521,7 @@ class User:
 ### Runtime Type Validation
 
 **Query Execution:**
+
 ```graphql
 query GetUser($userId: Int!) {
   user(userId: $userId) {
@@ -506,6 +534,7 @@ Variables: { "userId": "not-a-number" }
 ```
 
 **Runtime Check:**
+
 ```
 ❌ Variable $userId: expected Int, got String
 Error: "Variable $userId of type Int! was not provided a valid Int value"
@@ -518,6 +547,7 @@ Error: "Variable $userId of type Int! was not provided a valid Int value"
 ### Example 1: E-Commerce Product Type
 
 **Database:**
+
 ```sql
 CREATE TABLE tb_products (
   pk_product_id SERIAL PRIMARY KEY,
@@ -532,6 +562,7 @@ CREATE TABLE tb_products (
 ```
 
 **Inferred GraphQL Type:**
+
 ```graphql
 type Product {
   productId: Int!              # SERIAL primary key
@@ -546,6 +577,7 @@ type Product {
 ```
 
 **Optional Python Schema (explicit):**
+
 ```python
 @schema.type(table="tb_products")
 class Product:
@@ -562,6 +594,7 @@ class Product:
 ### Example 2: Complex User Type with Relationships
 
 **Database:**
+
 ```sql
 CREATE TABLE tb_users (
   pk_user_id SERIAL PRIMARY KEY,
@@ -580,6 +613,7 @@ CREATE TABLE tb_orders (
 ```
 
 **Inferred GraphQL Types:**
+
 ```graphql
 type User {
   userId: Int!
@@ -604,6 +638,7 @@ type Order {
 ## Type System Benefits
 
 ### 1. Automatic Consistency
+
 ```
 Database Schema (source of truth)
          ↓
@@ -615,6 +650,7 @@ No manual type synchronization needed
 ```
 
 ### 2. Safety Guarantees
+
 ```graphql
 type Order {
   total: Decimal!    # Guaranteed non-null
@@ -625,6 +661,7 @@ type Order {
 ```
 
 ### 3. Self-Documenting API
+
 ```graphql
 # From this type definition alone, you know:
 type Order {
@@ -725,6 +762,7 @@ type Order {
 FraiseQL's type system is automatically inferred from your database schema:
 
 **Built-In Scalar Types:**
+
 - Integers: Int, Long, Short
 - Decimals: Decimal, Float
 - Strings: String
@@ -733,6 +771,7 @@ FraiseQL's type system is automatically inferred from your database schema:
 - Special: UUID, JSON, Bytes
 
 **Key Principles:**
+
 1. **Database constraints drive nullability** - NOT NULL in DB = non-null in GraphQL
 2. **Relationships are automatic** - Foreign keys become GraphQL relationships
 3. **Lists are inferred** - One-to-many becomes [Type!]!
@@ -740,6 +779,7 @@ FraiseQL's type system is automatically inferred from your database schema:
 5. **Self-documenting** - Schema clearly shows what's required vs optional
 
 **Benefits:**
+
 - No manual type synchronization
 - Database and GraphQL schema always in sync
 - Type safety at compile-time and runtime

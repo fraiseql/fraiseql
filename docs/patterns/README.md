@@ -11,6 +11,7 @@ Complete architectural patterns and implementation guides for production FraiseQ
 ## Overview
 
 This section contains production-tested patterns for building scalable applications with FraiseQL. Each pattern includes:
+
 - Complete schema design
 - Architecture diagrams
 - Database structure
@@ -27,12 +28,14 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build a SaaS platform where customers are isolated at the database row level.
 
 **Architecture:**
+
 - Single PostgreSQL instance with tenant ID per row
 - Automatic tenant context injection from JWT claims
 - Row-level security policies in database
 - Billing integration with Stripe
 
 **Includes:**
+
 - Tenant isolation schema design
 - Dynamic data filtering at query time
 - Subscription management
@@ -48,6 +51,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build a BI/analytics dashboard querying large datasets efficiently.
 
 **Architecture:**
+
 - Fact tables for events (millions of rows)
 - Dimension tables for context
 - Materialized views for aggregations
@@ -55,6 +59,7 @@ This section contains production-tested patterns for building scalable applicati
 - Arrow Flight for bulk exports
 
 **Includes:**
+
 - Star schema design
 - Aggregation query patterns
 - Time-series data handling
@@ -71,6 +76,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Query across multiple databases (PostgreSQL, MySQL, SQLite) as a unified GraphQL API.
 
 **Architecture:**
+
 - PostgreSQL as primary (customer data)
 - MySQL as secondary (historical data)
 - SQLite for local caching
@@ -78,6 +84,7 @@ This section contains production-tested patterns for building scalable applicati
 - Transaction coordination
 
 **Includes:**
+
 - Federation setup and configuration
 - Cross-database query execution
 - Consistency guarantees
@@ -93,6 +100,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build collaborative tools (document editor, project management) with real-time updates.
 
 **Architecture:**
+
 - WebSocket subscriptions for live updates
 - Operational transformation for conflict resolution
 - Event sourcing for audit trail
@@ -100,6 +108,7 @@ This section contains production-tested patterns for building scalable applicati
 - Optimistic concurrency control
 
 **Includes:**
+
 - Subscription patterns for live data
 - Conflict resolution strategies
 - Presence management
@@ -115,6 +124,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Collect and query IoT sensor data efficiently (millions of data points).
 
 **Architecture:**
+
 - Time-partitioned tables for sensor readings
 - Aggregation tables for rollups (hourly, daily)
 - Retention policies
@@ -122,6 +132,7 @@ This section contains production-tested patterns for building scalable applicati
 - Streaming ingestion
 
 **Includes:**
+
 - Schema design for high-cardinality data
 - Efficient time-range queries
 - Downsampling strategies
@@ -137,6 +148,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build e-commerce with orders, inventory, fulfillment workflows.
 
 **Architecture:**
+
 - Product catalog with variants
 - Order management with state machine
 - Inventory tracking and reservations
@@ -144,6 +156,7 @@ This section contains production-tested patterns for building scalable applicati
 - Returns and refunds
 
 **Includes:**
+
 - Schema for products/variants/SKUs
 - Order state machine design
 - Inventory allocation queries
@@ -159,6 +172,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build a headless CMS with content versioning, drafts, and publishing workflows.
 
 **Architecture:**
+
 - Content models (dynamic types)
 - Version history tracking
 - Draft/published states
@@ -166,6 +180,7 @@ This section contains production-tested patterns for building scalable applicati
 - Content relationship graphs
 
 **Includes:**
+
 - Polymorphic content types
 - Version control and rollback
 - Publication workflows
@@ -181,6 +196,7 @@ This section contains production-tested patterns for building scalable applicati
 **Use Case:** Build a social network with feeds, followers, messaging, and notifications.
 
 **Architecture:**
+
 - User graph with follower relationships
 - Activity feed generation
 - Real-time notifications
@@ -188,6 +204,7 @@ This section contains production-tested patterns for building scalable applicati
 - Privacy controls per post
 
 **Includes:**
+
 - Graph queries for friends/followers
 - Feed algorithms (chronological, algorithmic)
 - Notification delivery
@@ -340,6 +357,7 @@ subscription OnUserOnline {
 ## See Also
 
 **Detailed Patterns:**
+
 - [Multi-Tenant SaaS with RLS](./saas-multi-tenant.md)
 - [Analytics Platform with OLAP](./analytics-olap-platform.md)
 - [Database Federation](./federation-patterns.md)
@@ -350,12 +368,14 @@ subscription OnUserOnline {
 - [Social Network Platform](./social-network.md)
 
 **Related Guides:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Performance Optimization](../guides/performance-optimization.md)
 - [Schema Design Best Practices](../guides/schema-design-best-practices.md)
 - [Security Checklist](../guides/production-security-checklist.md)
 
 **Full-Stack Examples:**
+
 - [Python + React Example](../examples/fullstack-python-react.md)
 - [TypeScript + Vue Example](../examples/fullstack-typescript-vue.md)
 - [Go + Flutter Example](../examples/fullstack-go-flutter.md)

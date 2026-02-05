@@ -664,14 +664,17 @@ query ClusterHealth {
 ## See Also
 
 **Related Patterns:**
+
 - [Analytics Platform](./analytics-olap-platform.md) - OLAP for metrics
 - [Real-Time Collaboration](./realtime-collaboration.md) - Real-time updates
 
 **Deployment:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Kubernetes Scaling](../guides/production-deployment.md)
 
 **Monitoring:**
+
 - [Observability & Monitoring](../guides/observability.md)
 
 ---

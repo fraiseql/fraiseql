@@ -70,18 +70,21 @@ System architecture, design decisions, and technical specifications.
 See [architecture/](architecture/) for comprehensive documentation including:
 
 **Core Compilation & Execution:**
+
 - Compilation and execution fundamentals
 - Database targeting and Arrow support
 - View selection guide (v_*, tv_*, va_*, ta_* patterns)
 - Table pattern optimization (JSON views and columnar views)
 
 **System Qualities:**
+
 - Reliability — Consistency, error handling, failure modes
 - Security — Security model and authentication
 - Performance — Optimization and performance characteristics
 - Observability — Monitoring and instrumentation model
 
 **Advanced Topics:**
+
 - Federation, extension points, and integration patterns
 - Subscriptions and event streaming
 - Architectural decisions and patterns

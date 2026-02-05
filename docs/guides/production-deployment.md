@@ -9,6 +9,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Docker containerization and image management
 - Kubernetes fundamentals (Pods, Deployments, Services, ConfigMaps, Secrets)
 - Linux/Unix system administration
@@ -17,6 +18,7 @@
 - Basic networking (DNS, ports, firewalls)
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Docker 20.10+ (if using containers)
 - kubectl 1.24+ (if using Kubernetes)
@@ -24,6 +26,7 @@
 - OpenSSL for certificate management
 
 **Required Infrastructure:**
+
 - PostgreSQL 14+ database (managed or self-hosted)
 - Kubernetes cluster 1.24+ or Docker host
 - Container registry (Docker Hub, AWS ECR, Google GCR, etc.)
@@ -31,6 +34,7 @@
 - TLS/SSL certificates
 
 **Recommended Tools:**
+
 - Helm 3+ (for Kubernetes package management)
 - kube-ops (for operational dashboards)
 - ArgoCD (for GitOps deployments)

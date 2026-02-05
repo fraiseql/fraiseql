@@ -14,6 +14,7 @@ Language-specific best practices and idioms for using FraiseQL with your preferr
 FraiseQL SDKs are available for **16 languages**. While the GraphQL API is universal, each language has idiomatic patterns and best practices. This guide covers the major languages; principles apply to others.
 
 **Quick links to best practices:**
+
 - [Python](#python-best-practices)
 - [TypeScript/JavaScript](#typescriptjavascript-best-practices)
 - [Go](#go-best-practices)
@@ -22,6 +23,7 @@ FraiseQL SDKs are available for **16 languages**. While the GraphQL API is unive
 
 **Comprehensive API References (All 16 Languages):**
 👉 **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 16 FraiseQL SDKs with installation, type systems, examples, and language-specific patterns for:
+
 - **Primary**: Python, TypeScript, Go, Java
 - **JVM**: Kotlin, Scala, Clojure, Groovy
 - **Native**: Rust, C#, Swift
@@ -75,6 +77,7 @@ asyncio.run(main())
 ```
 
 **Avoid blocking calls in async code:**
+
 ```python
 # ❌ Bad: Blocking I/O in async function
 async def fetch_user(id: str):
@@ -164,6 +167,7 @@ fraiseql-codegen generate --schema schema.json --output types.ts
 ```
 
 **Usage:**
+
 ```typescript
 import { Query, User } from './generated/types';
 
@@ -462,21 +466,25 @@ The following languages have complete SDK reference documentation available with
 ### JVM Ecosystem Languages
 
 **[Kotlin Reference](../integrations/sdk/kotlin-reference.md)** — Modern JVM with data classes, coroutines, and null safety
+
 - Use data classes for type safety
 - Leverage coroutines for async operations
 - Use sealed classes for error handling
 
 **[Scala Reference](../integrations/sdk/scala-reference.md)** — Functional programming with case classes and type system
+
 - Functional composition patterns
 - Pattern matching and sealed traits
 - Advanced type inference
 
 **[Clojure Reference](../integrations/sdk/clojure-reference.md)** — Functional Lisp dialect with persistent data structures
+
 - Immutable data structures
 - REPL-driven development
 - Spec validation
 
 **[Groovy Reference](../integrations/sdk/groovy-reference.md)** — Dynamic JVM language with DSL capabilities
+
 - Closures for clean DSLs
 - Metaprogramming patterns
 - 100% Java interoperability
@@ -484,17 +492,20 @@ The following languages have complete SDK reference documentation available with
 ### Compiled Native Languages
 
 **[Rust Reference](../integrations/sdk/rust-reference.md)** — Memory-safe systems programming
+
 - Zero-cost abstractions
 - Type system for exhaustive error handling
 - Async/await with tokio
 
 **[C# Reference](../integrations/sdk/csharp-reference.md)** — .NET ecosystem with modern language features
+
 - Nullable reference types (C# 11+)
 - Records and pattern matching
 - LINQ for data transformation
 - Dependency injection patterns
 
 **[Swift Reference](../integrations/sdk/swift-reference.md)** — Apple ecosystem with async/await
+
 - Async/await (Swift 5.9+)
 - Codable protocol for JSON handling
 - SwiftUI integration
@@ -503,23 +514,27 @@ The following languages have complete SDK reference documentation available with
 ### Dynamic/Interpreted Languages
 
 **[PHP Reference](../integrations/sdk/php-reference.md)** — Web-first language with PHP 8 attributes
+
 - PHP 8.2+ attributes (#[Type], #[Field])
 - Readonly classes and properties
 - Laravel/Symfony integration
 
 **[Ruby Reference](../integrations/sdk/ruby-reference.md)** — Expressive language with Rails integration
+
 - Bundler for dependency management
 - Ruby idioms: duck typing, blocks, mixins
 - Active Record pattern integration
 - RSpec for testing
 
 **[Dart Reference](../integrations/sdk/dart-reference.md)** — Flutter ecosystem with null safety
+
 - Null safety (required, ?, late)
 - Flutter widget integration
 - State management with Riverpod
 - JSON serialization with json_serializable
 
 **[Elixir Reference](../integrations/sdk/elixir-reference.md)** — Functional language for distributed systems
+
 - OTP patterns and supervisors
 - Pipe operator for composition
 - Phoenix web framework integration
@@ -580,6 +595,7 @@ async def get_data():
 ## See Also
 
 **SDK References:**
+
 - **[SDK Reference Documentation](../integrations/sdk/)** — Comprehensive API reference for all 16 languages
   - [Python](../integrations/sdk/python-reference.md)
   - [TypeScript](../integrations/sdk/typescript-reference.md)
@@ -598,6 +614,7 @@ async def get_data():
   - [Elixir](../integrations/sdk/elixir-reference.md)
 
 **Related Guides:**
+
 - **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 17 SDKs
 - **[Getting Started Guide](../GETTING_STARTED.md)** — Quick start guide for FraiseQL
 

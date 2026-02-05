@@ -1448,8 +1448,6 @@ input StringFilter {
 
 ---
 
-## F
-
 ### Federation v2
 
 **Apollo Federation v2 protocol for composing multiple GraphQL subgraphs into a single federated graph.**

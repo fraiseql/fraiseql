@@ -134,6 +134,7 @@ GraphQL API (Client interface)
 Each level maps directly:
 
 **Database Level:**
+
 ```sql
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -154,6 +155,7 @@ CREATE TABLE tb_orders (
 ```
 
 **FraiseQL Type Level:**
+
 ```python
 @fraiseql.type
 class User:
@@ -176,6 +178,7 @@ class Order:
 ```
 
 **GraphQL API Level:**
+
 ```graphql
 type User {
   userId: Int!
@@ -254,12 +257,14 @@ FraiseQL uses four types of database views, each optimized for different access 
 **Definition:** Database views (no physical storage) optimized for GraphQL transactional access.
 
 **When to use:**
+
 - Simple queries (1-2 tables involved)
 - Small to medium result sets (<10K rows)
 - Real-time data needed
 - Data changes frequently
 
 **Example:**
+
 ```sql
 -- Write table (source of truth)
 CREATE TABLE tb_users (
@@ -282,6 +287,7 @@ WHERE deleted_at IS NULL;  -- Only active users
 ```
 
 **Characteristics:**
+
 - **Storage overhead:** 0% (logical view only)
 - **Maintenance:** None (automatic via base table)
 - **Performance:** Database determines (can't be optimized separately)
@@ -289,6 +295,7 @@ WHERE deleted_at IS NULL;  -- Only active users
 - **Index support:** Uses indexes from base table
 
 **FraiseQL Integration:**
+
 ```python
 @fraiseql.type
 class User:
@@ -306,12 +313,14 @@ class User:
 **Definition:** Materialized JSONB tables with trigger-based refresh for complex nested JSON queries.
 
 **When to use:**
+
 - Complex nested structures (User + Orders + Items in one query)
 - High read volume (>1000 QPS)
 - Moderate write volume (<100 writes/sec)
 - Data can be 1-5 seconds stale
 
 **Example:**
+
 ```sql
 -- Write table
 CREATE TABLE tb_orders (
@@ -361,6 +370,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Characteristics:**
+
 - **Storage overhead:** 20-50% (JSONB pre-composition)
 - **Maintenance:** Trigger-based refresh (automatic)
 - **Performance:** 50-200ms (pre-composed, no joins at query time)
@@ -368,6 +378,7 @@ $$ LANGUAGE plpgsql;
 - **Index support:** JSONB GIN indexes for path searches
 
 **FraiseQL Integration:**
+
 ```python
 @fraiseql.type
 class OrderWithUser:
@@ -384,12 +395,14 @@ class OrderWithUser:
 **Definition:** Database views (no physical storage) optimized for Arrow Flight columnar queries.
 
 **When to use:**
+
 - Analytics on small datasets (<100K rows)
 - One-time reports
 - Data can be 5-60 seconds stale
 - Minimal storage overhead acceptable
 
 **Example:**
+
 ```sql
 -- Read view optimized for columnar extraction
 CREATE VIEW va_user_stats AS
@@ -405,6 +418,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Characteristics:**
+
 - **Storage overhead:** 0% (logical view only)
 - **Maintenance:** None (automatic)
 - **Performance:** 500ms-5s (depends on base table size)
@@ -412,6 +426,7 @@ WHERE deleted_at IS NULL;
 - **Arrow compatibility:** Fully compatible with Arrow Flight protocol
 
 **FraiseQL Integration:**
+
 ```python
 @fraiseql.aggregate_query(
     fact_table=None,  # Uses va_user_stats logical view
@@ -428,6 +443,7 @@ def user_stats_by_year() -> list[dict]:
 **Definition:** Materialized columnar tables with trigger-based refresh for high-performance analytics.
 
 **When to use:**
+
 - Large analytics datasets (>1M rows)
 - High-volume analytics (>100 queries/sec)
 - Aggregations across multiple dimensions
@@ -436,6 +452,7 @@ def user_stats_by_year() -> list[dict]:
 **The Three-Component Architecture:**
 
 #### Component 1: Measures (Direct SQL Columns)
+
 Numeric columns for fast aggregation. **225x faster** than JSONB aggregation.
 
 ```sql
@@ -461,6 +478,7 @@ WHERE created_at >= '2026-01-01';
 ```
 
 #### Component 2: Dimensions (JSONB Column)
+
 Flexible grouping attributes in a single JSON column. No schema migration needed to add new dimensions.
 
 ```sql
@@ -492,26 +510,31 @@ ORDER BY total_revenue DESC;
 **Database-Specific Dimension Extraction:**
 
 PostgreSQL:
+
 ```sql
 dimension_data->>'category'              -- JSONB operator
 ```
 
 MySQL:
+
 ```sql
 JSON_UNQUOTE(JSON_EXTRACT(dimension_data, '$.category'))
 ```
 
 SQLite:
+
 ```sql
 json_extract(dimension_data, '$.category')
 ```
 
 SQL Server:
+
 ```sql
 JSON_VALUE(dimension_data, '$.category')
 ```
 
 #### Component 3: Denormalized Filters (Indexed SQL Columns)
+
 High-selectivity filter columns for fast WHERE clauses.
 
 ```sql
@@ -537,6 +560,7 @@ CREATE INDEX idx_ta_sales_revenue_brin ON ta_sales USING BRIN(measure_revenue);
 ```
 
 **Query with All Three Components:**
+
 ```sql
 -- Fast WHERE (filters), GROUP BY (dimensions), aggregation (measures)
 SELECT
@@ -650,6 +674,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Characteristics:**
+
 - **Storage overhead:** 10-30% (columnar format + indexes)
 - **Maintenance:** Trigger-based refresh (<100ms latency)
 - **Performance:** 50-100ms (1M rows), 300-1000ms (100M rows)
@@ -771,6 +796,7 @@ class Product:
 ```
 
 **Works on PostgreSQL:**
+
 ```sql
 -- PostgreSQL
 CREATE TABLE tb_products (
@@ -783,6 +809,7 @@ CREATE TABLE tb_products (
 ```
 
 **Works on MySQL:**
+
 ```sql
 -- MySQL
 CREATE TABLE tb_products (
@@ -795,6 +822,7 @@ CREATE TABLE tb_products (
 ```
 
 **Works on SQLite:**
+
 ```sql
 -- SQLite
 CREATE TABLE tb_products (
@@ -817,6 +845,7 @@ CREATE TABLE tb_products (
 While the schema is portable, FraiseQL can leverage database-specific features:
 
 **PostgreSQL (Primary, Most Features):**
+
 ```sql
 -- PostgreSQL-specific: JSONB, arrays, types
 CREATE TABLE tb_events (
@@ -836,6 +865,7 @@ class Event:
 ```
 
 **MySQL (Limited Custom Types):**
+
 ```sql
 -- MySQL: Standard types, JSON as string
 CREATE TABLE tb_events (
@@ -847,6 +877,7 @@ CREATE TABLE tb_events (
 ```
 
 **SQLite (Minimal Types):**
+
 ```sql
 -- SQLite: TEXT for everything complex
 CREATE TABLE tb_events (
@@ -984,6 +1015,7 @@ Client (receives Arrow format, zero-copy deserialization)
 ```
 
 **Performance:**
+
 - **JSON Plane:** 10-20 MB/sec (row-by-row, HTTP)
 - **Arrow Plane:** 100-500 MB/sec (columnar, gRPC)
 - **Speedup:** 5-50x faster for analytics
@@ -1006,6 +1038,7 @@ Clients request data by submitting a **Flight Ticket**, which encodes the query:
 ```
 
 **Ticket Types:**
+
 1. **GraphQLQuery** - Execute GraphQL query, return Arrow
 2. **OptimizedView** - Query pre-optimized ta_* view directly
 3. **BulkExport** - Export entire table as Arrow
@@ -1187,6 +1220,7 @@ FraiseQL makes a deliberate choice:
 **Core assumption:** Your GraphQL API is a **database access interface**, not a general-purpose API aggregator.
 
 **Implementation:**
+
 - ✅ Transactional queries via `v_*` and `tv_*` views (JSON Plane)
 - ✅ Analytics queries via `va_*` and `ta_*` views (Arrow Plane)
 - ✅ Fact tables (`tf_*`) for high-performance aggregations
@@ -1194,6 +1228,7 @@ FraiseQL makes a deliberate choice:
 - ✅ Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 
 **Consequences:**
+
 - ✅ Simpler architecture (no custom resolvers)
 - ✅ Better performance (database optimization + fact tables)
 - ✅ Higher consistency (single source of truth)
@@ -1243,15 +1278,17 @@ Now you understand FraiseQL's database-centric approach:
 ✅ **FraiseQL treats the database as the primary application interface**
 
 ✅ **Four-tier view system optimizes for different access patterns:**
-   - `v_*` logical reads (JSON, real-time)
-   - `tv_*` materialized JSON (complex nested, high volume)
-   - `va_*` logical analytics (Arrow, small datasets)
-   - `ta_*` materialized facts (Arrow, large datasets, 50-100ms latency)
+
+- `v_*` logical reads (JSON, real-time)
+- `tv_*` materialized JSON (complex nested, high volume)
+- `va_*` logical analytics (Arrow, small datasets)
+- `ta_*` materialized facts (Arrow, large datasets, 50-100ms latency)
 
 ✅ **Fact tables with three components:**
-   - Measures (SQL columns, 225x faster aggregation)
-   - Dimensions (JSONB, flexible grouping, no migration)
-   - Filters (indexed SQL, fast WHERE)
+
+- Measures (SQL columns, 225x faster aggregation)
+- Dimensions (JSONB, flexible grouping, no migration)
+- Filters (indexed SQL, fast WHERE)
 
 ✅ **Calendar dimensions provide 10-16x analytics speedup** (pre-computed temporal buckets)
 

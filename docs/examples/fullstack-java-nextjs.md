@@ -2691,6 +2691,7 @@ This full-stack example demonstrates FraiseQL's complete architecture:
 - ✅ Easy to monitor and debug
 
 For more information, see:
+
 - [FraiseQL Architecture](../ARCHITECTURE_PRINCIPLES.md)
 - [Java SDK Documentation](../guides/java-sdk.md)
 - [Next.js Integration Guide](../guides/nextjs-integration.md)

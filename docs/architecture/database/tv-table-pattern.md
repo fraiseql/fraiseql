@@ -45,6 +45,7 @@
 ### Query Breakdown
 
 **Logical view (v_user_full)** - Real-time composition:
+
 ```
 
 1. Fetch user (1ms)
@@ -58,6 +59,7 @@ Total: 5-10 seconds
 ```
 
 **Table-backed view (tv_user_profile)** - Pre-computed:
+
 ```
 
 1. Fetch pre-composed JSONB (100-200ms)
@@ -395,7 +397,7 @@ SELECT
 
 ### Storage
 
-- **Data duplication**: tv_* tables duplicate JSONB from tb_* tables
+- **Data duplication**: tv_*tables duplicate JSONB from tb_* tables
 - **Storage overhead**: Typically 20-50% of source data size (JSONB is less dense than columnar)
 - **Index overhead**: GIN indexes add ~5-10% overhead
 
@@ -442,6 +444,7 @@ SELECT
 **Cause**: Trigger only fires on future changes, not existing data.
 
 **Solution**: Run initial population:
+
 ```sql
 SELECT * FROM refresh_tv_user_profile();
 ```
@@ -451,6 +454,7 @@ SELECT * FROM refresh_tv_user_profile();
 **Cause**: Trigger not firing or delayed.
 
 **Solution**: Check trigger status:
+
 ```sql
 SELECT * FROM information_schema.triggers
 WHERE trigger_name LIKE 'trg_refresh_tv%';
@@ -464,6 +468,7 @@ SELECT * FROM refresh_tv_user_profile();
 **Cause**: Multiple triggers (on related tables) causing many refreshes.
 
 **Solution**: Switch to batched refresh:
+
 ```sql
 -- Drop per-row triggers
 DROP TRIGGER IF EXISTS trg_refresh_tv_user_profile_on_post ON tb_post;

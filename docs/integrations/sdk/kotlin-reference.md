@@ -920,6 +920,7 @@ class SchemaValidationTest {
 **Issue**: `Could not find com.fraiseql:fraiseql-kotlin:2.0.0`
 
 **Solution**:
+
 ```gradle
 repositories {
     mavenCentral()
@@ -939,6 +940,7 @@ dependencies {
 **Issue**: `Unresolved reference: fraiseql`
 
 **Check Kotlin version** (1.8+ required):
+
 ```gradle
 plugins {
     kotlin("jvm") version "1.9.0"
@@ -950,6 +952,7 @@ plugins {
 **Issue**: `Cannot find Java class in Kotlin`
 
 **Solution - Configure interop**:
+
 ```gradle
 kotlin {
     jvmTarget = "11"
@@ -965,6 +968,7 @@ sourceSets {
 **Issue**: `Unresolved reference: async` or `launch`
 
 **Add coroutines dependency**:
+
 ```gradle
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.0'
@@ -981,6 +985,7 @@ dependencies {
 **Issue**: `Type mismatch: inferred type is User? but User was expected`
 
 **Solution - Handle nullability explicitly**:
+
 ```kotlin
 // ❌ Wrong - nullable but treated as non-null
 @FraiseQLType
@@ -1004,6 +1009,7 @@ data class User(val name: String) {
 **Issue**: `Cannot use type with parameter`
 
 **Solution - Use concrete data classes**:
+
 ```kotlin
 // ❌ Won't work - generics
 @FraiseQLType
@@ -1019,6 +1025,7 @@ data class UserBox(val value: User)
 **Issue**: `No primary constructor found`
 
 **Solution - Use simple data classes**:
+
 ```kotlin
 // ✅ Simple properties work
 @FraiseQLType
@@ -1034,6 +1041,7 @@ data class User(
 **Issue**: `Cannot instantiate sealed class`
 
 **Solution - Use regular classes or objects**:
+
 ```kotlin
 // ✅ Use normal inheritance or composition
 @FraiseQLType
@@ -1056,6 +1064,7 @@ data class Result(
 **Issue**: `Exception in thread "main" java.lang.IllegalStateException: No CoroutineScope`
 
 **Solution - Provide scope**:
+
 ```kotlin
 // ❌ Wrong - no scope
 val result = fraiseql.execute(query)
@@ -1077,6 +1086,7 @@ suspend fun graphql(@RequestBody request: GraphQLRequest): QueryResult {
 **Issue**: `NullPointerException in Java code called from Kotlin`
 
 **Solution - Null safety**:
+
 ```kotlin
 // ✅ Use let or !! carefully
 val result = javaMethod()?.let { process(it) }
@@ -1090,6 +1100,7 @@ val result = javaMethod()!!  // Only if sure it's not null
 **Issue**: `Cannot extend FraiseQL classes`
 
 **Solution - Create extension functions instead**:
+
 ```kotlin
 // ✅ Add functionality via extension
 fun Server.executeWithTimeout(query: String, timeoutMs: Long = 30000): QueryResult {
@@ -1107,6 +1118,7 @@ server.executeWithTimeout(query)
 **Issue**: `Returned value is lost`
 
 **Solution - Use correct scope function**:
+
 ```kotlin
 // ✅ let for transforming result
 val ids = users.let { it.map { u -> u.id } }
@@ -1131,12 +1143,14 @@ server.run {
 **Issue**: Build takes >30 seconds**
 
 **Parallel compilation**:
+
 ```gradle
 org.gradle.parallel=true
 org.gradle.workers.max=4
 ```
 
 **Or command line**:
+
 ```bash
 ./gradlew build --parallel --max-workers=4
 ```
@@ -1146,6 +1160,7 @@ org.gradle.workers.max=4
 **Issue**: Many coroutines slow down execution**
 
 **Limit concurrency**:
+
 ```kotlin
 val dispatcher = Dispatchers.Default.limitedParallelism(4)
 
@@ -1159,6 +1174,7 @@ launch(dispatcher) {
 **Issue**: Application uses >500MB**
 
 **Profile with Kotlin**:
+
 ```kotlin
 val runtime = Runtime.getRuntime()
 val memory = runtime.totalMemory() - runtime.freeMemory()
@@ -1172,6 +1188,7 @@ println("Memory: ${memory / 1024 / 1024}MB")
 #### Logging Setup
 
 **Add logging**:
+
 ```gradle
 dependencies {
     implementation 'io.github.microutils:kotlin-logging:3.0.0'
@@ -1191,6 +1208,7 @@ fun main() {
 ```
 
 **Run with debug**:
+
 ```bash
 java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -jar app.jar
 ```
@@ -1198,6 +1216,7 @@ java -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -jar app.jar
 #### IDE Debugging
 
 **IntelliJ IDEA**:
+
 1. Set breakpoint
 2. Debug Run (Shift+F9)
 3. Step through (F10)
@@ -1221,6 +1240,7 @@ fun testQuery() {
 #### GitHub Issues
 
 Provide:
+
 1. Kotlin version: `kotlinc -version`
 2. Java version: `java -version`
 3. FraiseQL version
@@ -1228,6 +1248,7 @@ Provide:
 5. Full error trace
 
 **Environment**:
+
 ```markdown
 - Kotlin: 1.9.0
 - Java: 11

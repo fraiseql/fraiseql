@@ -18,6 +18,7 @@ pnpm add fraiseql
 ```
 
 **Requirements:**
+
 - Node.js 18 or higher
 - TypeScript 5.0+ (strict mode recommended)
 - Decorators enabled in `tsconfig.json`:
@@ -721,6 +722,7 @@ app.listen(3000);
 **Issue**: `npm ERR! 404 Not Found - GET https://registry.npmjs.org/fraiseql`
 
 **Solutions**:
+
 ```bash
 # Check npm version
 npm --version
@@ -737,6 +739,7 @@ pnpm add fraiseql
 ```
 
 **Private registry**:
+
 ```bash
 # If using private npm registry
 npm config set registry https://your-registry.com
@@ -748,6 +751,7 @@ npm install fraiseql
 **Issue**: `Cannot find module 'fraiseql'`
 
 **Solution - Check tsconfig.json**:
+
 ```json
 {
   "compilerOptions": {
@@ -764,6 +768,7 @@ npm install fraiseql
 **Issue**: `ESM vs CommonJS mismatch`
 
 **Solution**:
+
 ```json
 {
   "compilerOptions": {
@@ -778,6 +783,7 @@ npm install fraiseql
 **Issue**: `Experimental decorators are not supported`
 
 **Solution - Enable decorators**:
+
 ```json
 {
   "compilerOptions": {
@@ -792,6 +798,7 @@ npm install fraiseql
 **Issue**: Running with Node.js 16 or lower
 
 **Solution**:
+
 ```bash
 # Check Node version (18+ required)
 node --version
@@ -802,6 +809,7 @@ nvm use 18.0.0
 ```
 
 **Check TypeScript version** (5.0+ required):
+
 ```bash
 npx tsc --version
 npm install -D typescript@5.0.0
@@ -818,6 +826,7 @@ npm install -D typescript@5.0.0
 **Cause**: Type annotation doesn't match registered fields
 
 **Solution**:
+
 ```typescript
 // ❌ Wrong - inconsistent type registration
 @fraiseql.type()
@@ -843,6 +852,7 @@ fraiseql.registerTypeFields('User', [
 **Issue**: `Property 'name' cannot be undefined but is accessed without assertion`
 
 **Solution - Explicit null handling**:
+
 ```typescript
 // ❌ Wrong - optional but should be explicit
 @fraiseql.type()
@@ -870,6 +880,7 @@ fraiseql.registerTypeFields('User', [
 **Cause**: FraiseQL doesn't support generic types
 
 **Solution - Use concrete types**:
+
 ```typescript
 // ❌ Won't work - generics not supported
 class Paginated<T> {
@@ -897,6 +908,7 @@ fraiseql.registerTypeFields('UserPage', [
 **Cause**: Type referenced but not registered
 
 **Solution - Register all types**:
+
 ```typescript
 // Define type
 @fraiseql.type()
@@ -925,6 +937,7 @@ function getUser(): User {
 **Issue**: `Error: Query execution failed`
 
 **Debug with logging**:
+
 ```typescript
 // Enable verbose logging
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
@@ -945,6 +958,7 @@ try {
 **Issue**: `UnhandledPromiseRejectionWarning: Query execution failed`
 
 **Solution - Always await**:
+
 ```typescript
 // ❌ Wrong - not awaiting
 const result = server.execute(query);  // Returns Promise
@@ -956,6 +970,7 @@ console.log(result);  // Actual result
 ```
 
 **Using async handlers**:
+
 ```typescript
 app.post('/graphql', async (req, res, next) => {
   try {
@@ -972,6 +987,7 @@ app.post('/graphql', async (req, res, next) => {
 **Issue**: `Error: Failed to connect to database`
 
 **Check environment**:
+
 ```bash
 # Verify DATABASE_URL is set
 echo $DATABASE_URL
@@ -981,6 +997,7 @@ psql postgresql://user:pass@localhost/db -c "SELECT 1"
 ```
 
 **Solution in code**:
+
 ```typescript
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   databaseUrl: process.env.DATABASE_URL,
@@ -995,6 +1012,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 **Issue**: `TimeoutError: Operation exceeded 30000ms timeout`
 
 **Solution - Increase timeout**:
+
 ```typescript
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   timeout: 60000,  // 60 seconds
@@ -1003,6 +1021,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 ```
 
 **Or optimize queries**:
+
 ```typescript
 // Add pagination to large datasets
 @fraiseql.query('getUsersPaginated')
@@ -1020,6 +1039,7 @@ function getUsersPaginated(limit: number = 20, offset: number = 0): User[] {
 **Issue**: `Cannot use import statement outside a module`
 
 **Solution - Configure properly**:
+
 ```json
 {
   "compilerOptions": {
@@ -1030,6 +1050,7 @@ function getUsersPaginated(limit: number = 20, offset: number = 0): User[] {
 ```
 
 Or for ESM:
+
 ```json
 {
   "compilerOptions": {
@@ -1045,6 +1066,7 @@ Or for ESM:
 **Issue**: `TypeScript compilation takes >30 seconds`
 
 **Solution - Skip library type checking**:
+
 ```json
 {
   "compilerOptions": {
@@ -1055,6 +1077,7 @@ Or for ESM:
 ```
 
 **Use incremental compilation**:
+
 ```json
 {
   "compilerOptions": {
@@ -1069,6 +1092,7 @@ Or for ESM:
 **Issue**: Output bundle is >1MB
 
 **Solution - Tree-shake unused code**:
+
 ```typescript
 // In build config (webpack, esbuild, etc.)
 // Enable side-effect-free imports
@@ -1076,6 +1100,7 @@ import { type } from 'fraiseql';  // Only import what you need
 ```
 
 **Use esbuild for faster builds**:
+
 ```bash
 esbuild src/index.ts --bundle --outfile=dist/bundle.js --minify
 ```
@@ -1085,6 +1110,7 @@ esbuild src/index.ts --bundle --outfile=dist/bundle.js --minify
 **Issue**: Queries execute slowly
 
 **Enable caching**:
+
 ```typescript
 const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
   cache: {
@@ -1101,6 +1127,7 @@ const server = await FraiseQLServer.fromCompiled('schema.compiled.json', {
 #### Enable Debug Logging
 
 **Setup logging**:
+
 ```typescript
 import * as fraiseql from 'fraiseql';
 
@@ -1118,6 +1145,7 @@ process.env.RUST_LOG = 'fraiseql=debug';
 #### Use TypeScript Compiler Options
 
 **Enable source maps**:
+
 ```json
 {
   "compilerOptions": {
@@ -1128,6 +1156,7 @@ process.env.RUST_LOG = 'fraiseql=debug';
 ```
 
 **Then debug**:
+
 ```bash
 node --inspect-brk dist/index.js
 # Opens Chrome DevTools at chrome://inspect
@@ -1136,12 +1165,14 @@ node --inspect-brk dist/index.js
 #### Inspect Generated Types
 
 **Print generated types**:
+
 ```typescript
 const schema = await fraiseql.loadCompiledSchema('schema.compiled.json');
 console.log(JSON.stringify(schema.types, null, 2));
 ```
 
 **Validate schema**:
+
 ```typescript
 const schema = await fraiseql.validateSchema(schemaJson);
 if (!schema.valid) {
@@ -1152,6 +1183,7 @@ if (!schema.valid) {
 #### Network Traffic Inspection
 
 **Using curl**:
+
 ```bash
 curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
@@ -1160,6 +1192,7 @@ curl -X POST http://localhost:3000/graphql \
 ```
 
 **Using browser DevTools**:
+
 - Open Network tab
 - Send GraphQL request
 - Inspect request/response headers and body
@@ -1171,6 +1204,7 @@ curl -X POST http://localhost:3000/graphql \
 #### GitHub Issues
 
 Provide when reporting issues:
+
 1. Node.js version: `node --version`
 2. TypeScript version: `npx tsc --version`
 3. FraiseQL version: `npm list fraiseql`
@@ -1179,6 +1213,7 @@ Provide when reporting issues:
 6. Full error traceback
 
 **Issue template**:
+
 ```markdown
 **Environment**:
 - Node.js: v18.16.0
@@ -1204,12 +1239,14 @@ Provide when reporting issues:
 #### Performance Profiling
 
 **Profile with Node.js**:
+
 ```bash
 node --prof dist/index.js
 node --prof-process isolate-*.log > profile.txt
 ```
 
 **Use clinic.js**:
+
 ```bash
 npm install -g clinic
 clinic doctor -- node dist/index.js

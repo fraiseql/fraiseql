@@ -12,6 +12,7 @@ Step-by-step guide for migrating existing database schemas to FraiseQL v2.0.0-al
 ## Overview
 
 This guide covers migrating from:
+
 - **Legacy GraphQL servers** (Apollo Server, Hasura, PostGraphile, etc.)
 - **Existing SQL databases** (PostgreSQL, MySQL, SQLite, SQL Server)
 - **Monolithic schemas** to **federated architectures**
@@ -102,6 +103,7 @@ SELECT name FROM sys.tables;
 ```
 
 **Output format:**
+
 ```
 TABLE_NAME | COLUMNS | ROWS | SIZE | INDEXES | PK | NOTES
 users      | 12      | 2M   | 500MB | 3      | id | Active users table
@@ -124,6 +126,7 @@ ORDER BY mean_time DESC LIMIT 20;
 ```
 
 **Use this to decide:**
+
 - Which fields should have indexes
 - Which views need materialization (tv_*)
 - Which queries need optimization
@@ -447,6 +450,7 @@ server {
 ```
 
 **Monitor:**
+
 - [ ] FraiseQL error rate < 0.1%
 - [ ] Response latency acceptable
 - [ ] No data inconsistencies
@@ -463,6 +467,7 @@ proxy_pass http://old_server;
 ```
 
 **Monitor:**
+
 - [ ] Error rate < 0.5%
 - [ ] Performance stable
 - [ ] No customer complaints
@@ -475,6 +480,7 @@ proxy_pass http://new_server;
 ```
 
 **Post-cutover monitoring:**
+
 - [ ] Error rate < 0.1%
 - [ ] Latency acceptable
 - [ ] All metrics normal
@@ -699,6 +705,7 @@ default_ttl_seconds = 300
 ## See Also
 
 **Related Guides:**
+
 - **[Schema Design Best Practices](./schema-design-best-practices.md)** — Designing effective schemas
 - **[Common Gotchas](./common-gotchas.md)** — Pitfalls to avoid during migration
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing post-migration
@@ -706,6 +713,7 @@ default_ttl_seconds = 300
 - **[View Selection Guide](./view-selection-performance-testing.md)** — Optimizing view types
 
 **Architecture & Reference:**
+
 - **[Authorization & RBAC](../enterprise/rbac.md)** — Row-level security setup
 - **[Federation Guide](../integrations/federation/guide.md)** — Multi-database migration
 - **[Schema Compilation](../architecture/core/compilation-phases.md)** — How schemas compile

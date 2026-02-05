@@ -18,7 +18,7 @@ This document provides step-by-step operational procedures for diagnosing and re
 2. [High Error Rate Response](#high-error-rate-response)
 3. [Cache Hit Rate Degradation](#cache-hit-rate-degradation)
 4. [Subgraph Latency Issues](#subgraph-latency-issues)
-5. [Complete Observability Pipeline Failure](#complete-observability-failure)
+5. [Complete Observability Pipeline Failure](#complete-observability-pipeline-failure)
 6. [Performance Baseline Analysis](#performance-baseline-analysis)
 7. [Alert Threshold Tuning](#alert-threshold-tuning)
 
@@ -64,6 +64,7 @@ Root Span: federation.query.execute (125ms total)
 ### Step 3: Identify Bottleneck Category
 
 **If entity_resolution > 50ms:**
+
 ```sql
 -- Check database query performance
 SELECT query, avg(duration_ms), max(duration_ms), count(*)
@@ -82,6 +83,7 @@ LIMIT 5;
 - Check connection pool saturation
 
 **If subgraph_request > 500ms:**
+
 ```bash
 # Check subgraph health
 curl -s https://subgraph-users.internal/health | jq .
@@ -211,6 +213,7 @@ kubectl rollout restart deployment/fraiseql
 ### Step 4: Root Cause Analysis
 
 **For Database Errors**:
+
 ```sql
 -- Check if connection pool is exhausted
 SELECT count(*) as active_connections FROM pg_stat_activity;
@@ -226,6 +229,7 @@ SELECT * FROM pg_locks WHERE NOT granted;
 ```
 
 **For Subgraph Errors**:
+
 ```bash
 # Check subgraph logs
 kubectl logs -l app=users-subgraph --tail=100 | grep -i error
@@ -326,6 +330,7 @@ grep -r "CACHE.*TTL\|CACHE.*TIMEOUT" src/
 - Consider caching strategy adjustments
 
 **For Invalidation Bug**:
+
 ```bash
 # If too-aggressive invalidation detected:
 # 1. Revert recent cache-related changes
@@ -487,6 +492,7 @@ tail -100 /var/log/fraiseql/app.log | jq '.trace_id' | head -5
 ### Recover Each Component
 
 **If Traces Missing**:
+
 ```bash
 # Check Jaeger connectivity
 curl -s http://jaeger:14268/api/traces?service=fraiseql-core | jq '.traceID' | head -3
@@ -499,6 +505,7 @@ kubectl logs -l app=fraiseql --tail=50 | grep -i "trace"
 ```
 
 **If Metrics Missing**:
+
 ```bash
 # Check Prometheus targets
 curl -s http://prometheus:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="fraiseql")'
@@ -511,6 +518,7 @@ curl -X POST http://prometheus:9090/-/reload
 ```
 
 **If Logs Missing**:
+
 ```bash
 # Check log file permissions
 ls -la /var/log/fraiseql/
@@ -849,4 +857,3 @@ curl -s http://localhost:9000/metrics | grep federation_ | head -10
 
 Last Updated: 2026-01-28
 Version: 1.0
-

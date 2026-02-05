@@ -54,6 +54,7 @@ class User:
 - `fields: list[str]` - Field names that comprise the key (supports composite keys)
 
 **Multiple Keys** (federation v2):
+
 ```python
 @type
 @key(fields=["id"])
@@ -65,6 +66,7 @@ class User:
 ```
 
 **Composite Keys** (for multi-tenant):
+
 ```python
 @type
 @key(fields=["organization_id", "user_id"])
@@ -146,6 +148,7 @@ class User:
 - `fields: list[str]` - Field names needed from authoritative subgraph
 
 **Example: Conditional Resolution**:
+
 ```python
 @type
 @extends
@@ -882,6 +885,7 @@ match resolver.resolve_entities(reps, "User", selection).await {
 ### Python
 
 1. **Type Annotations**: Always use type hints
+
 ```python
 @type
 @key(fields=["id"])
@@ -891,7 +895,8 @@ class User:
     email: str | None
 ```
 
-2. **Composite Keys**: Clearly document when using
+1. **Composite Keys**: Clearly document when using
+
 ```python
 @type
 @key(fields=["organization_id", "user_id"])
@@ -900,7 +905,8 @@ class User:
     user_id: str
 ```
 
-3. **External Fields**: Mark all external fields
+1. **External Fields**: Mark all external fields
+
 ```python
 @type
 @extends
@@ -912,6 +918,7 @@ class Order:
 ### TypeScript
 
 1. **Decorator Order**: Key decorators before field decorators
+
 ```typescript
 @Type()
 @Key({ fields: ['id'] })
@@ -922,7 +929,8 @@ class User {
 }
 ```
 
-2. **Null Safety**: Use strict null checks
+1. **Null Safety**: Use strict null checks
+
 ```typescript
 @Type()
 class User {
@@ -931,7 +939,8 @@ class User {
 }
 ```
 
-3. **Interfaces**: Create interfaces for complex types
+1. **Interfaces**: Create interfaces for complex types
+
 ```typescript
 interface UserInput {
   email: string;
@@ -949,6 +958,7 @@ class Mutation {
 ### Rust
 
 1. **Error Handling**: Use `Result<T>` consistently
+
 ```rust
 pub async fn resolve_entities(
     &self,
@@ -956,12 +966,14 @@ pub async fn resolve_entities(
 ) -> Result<Vec<Option<Value>>>;
 ```
 
-2. **Async/Await**: Mark async functions properly
+1. **Async/Await**: Mark async functions properly
+
 ```rust
 pub async fn resolve_entities_by_strategy(...) -> Result<...>;
 ```
 
-3. **Arc<dyn Trait>**: Use for database adapters
+1. **Arc<dyn Trait>**: Use for database adapters
+
 ```rust
 pub fn new(adapter: Arc<dyn DatabaseAdapter>) -> Self;
 ```

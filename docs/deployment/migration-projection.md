@@ -66,6 +66,7 @@ RUST_LOG=fraiseql_core::runtime=debug cargo run
 ```
 
 Look for messages like:
+
 ```
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
 ```
@@ -181,6 +182,7 @@ Memory Usage:                       Slight reduction
 ### Measurement Example
 
 **Before upgrade** (typical 10K row query):
+
 ```
 p50: 26ms
 p95: 30ms
@@ -189,6 +191,7 @@ Throughput: 230 Kelem/s
 ```
 
 **After upgrade** (same query):
+
 ```
 p50: 12ms  (54% improvement ⚡)
 p95: 14ms  (53% improvement ⚡)

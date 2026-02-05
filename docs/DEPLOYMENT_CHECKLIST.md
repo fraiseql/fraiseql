@@ -5,6 +5,7 @@ Use this checklist for pre-deployment verification.
 ## Pre-Deployment Phase (1-2 weeks before)
 
 ### Infrastructure
+
 - [ ] Kubernetes cluster provisioned and healthy
 - [ ] PostgreSQL database available and backed up
 - [ ] Redis cache configured
@@ -13,6 +14,7 @@ Use this checklist for pre-deployment verification.
 - [ ] Load balancer configured
 
 ### Security
+
 - [ ] Security policies reviewed
 - [ ] Network policies designed
 - [ ] RBAC roles defined
@@ -21,6 +23,7 @@ Use this checklist for pre-deployment verification.
 - [ ] Secrets not committed to Git
 
 ### Monitoring
+
 - [ ] Prometheus configured
 - [ ] Alert rules created
 - [ ] Dashboards prepared
@@ -49,6 +52,7 @@ Use this checklist for pre-deployment verification.
 ### 3. Deployment
 
 #### Database Migration
+
 ```bash
 # Backup existing database
 pg_dump $DATABASE_URL > backup-$(date +%Y%m%d).sql
@@ -61,6 +65,7 @@ psql $DATABASE_URL -c "\d"
 ```
 
 #### Kubernetes Deployment
+
 ```bash
 # Apply hardened manifests
 kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
@@ -73,6 +78,7 @@ kubectl get pods -l app=fraiseql -o wide
 ```
 
 #### Helm Deployment (Alternative)
+
 ```bash
 # Install/upgrade release
 helm upgrade --install fraiseql ./deploy/kubernetes/helm/fraiseql
@@ -130,6 +136,7 @@ psql $DATABASE_URL < backup-$(date +%Y%m%d).sql
 ## Post-Deployment Phase
 
 ### Day 1-7 Monitoring
+
 - [ ] Monitor error rates (< 0.1%)
 - [ ] Check p95 latency (< 1000ms)
 - [ ] Verify no memory leaks
@@ -137,12 +144,14 @@ psql $DATABASE_URL < backup-$(date +%Y%m%d).sql
 - [ ] Check backup completion
 
 ### Week 1 Review
+
 - [ ] Collect metrics for baseline
 - [ ] Document any issues
 - [ ] Review performance profiles
 - [ ] Plan optimizations
 
 ### Ongoing
+
 - [ ] Weekly: Review audit logs
 - [ ] Monthly: Security scan
 - [ ] Quarterly: Full assessment

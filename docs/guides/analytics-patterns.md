@@ -10,6 +10,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - SQL aggregation functions (SUM, AVG, COUNT, GROUP BY, HAVING)
 - Fact tables and dimension tables (star schema/data warehouse concepts)
 - JSONB/JSON data types and querying
@@ -20,6 +21,7 @@
 - GraphQL query syntax and execution
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later with Arrow Flight support (for columnar queries)
 - Your chosen SDK language (Python, TypeScript, Go, Java, etc.)
 - PostgreSQL 14+, MySQL 8.0+, or ClickHouse (analytics-optimized)
@@ -28,6 +30,7 @@
 - Optional: BI tool (Tableau, Looker, Metabase, Apache Superset)
 
 **Required Infrastructure:**
+
 - FraiseQL server with analytics schema deployed
 - Fact tables with measures (numeric columns) and dimensions (JSONB)
 - PostgreSQL/MySQL database with analytical indexes
@@ -36,6 +39,7 @@
 - Sample data loaded in analytics tables
 
 **Optional but Recommended:**
+
 - Data warehouse ETL tool (dbt, Airflow)
 - BI platform for visualization and dashboarding
 - Query performance profiling tools
@@ -686,11 +690,13 @@ query {
 **Cause:** Usually a schema mismatch or missing data in fact table.
 
 **Diagnosis:**
+
 1. Verify fact table exists: `SELECT COUNT(*) FROM fact_table_name;`
 2. Check column names match schema: `SELECT column_name FROM information_schema.columns WHERE table_name = 'fact_table_name';`
 3. Verify date range has data: `SELECT COUNT(*) FROM fact_table WHERE created_at > NOW() - INTERVAL '30 days';`
 
 **Solutions:**
+
 - Ensure fact table is populated with data
 - Verify table name matches exactly (case-sensitive in some databases)
 - Check date/time filters in query
@@ -701,11 +707,13 @@ query {
 **Cause:** Missing indexes on GROUP BY or WHERE clause columns.
 
 **Diagnosis:**
+
 1. Run `EXPLAIN (ANALYZE, BUFFERS)` on the aggregation query
 2. Look for "Seq Scan" on fact table - indicates missing index
 3. Check cardinality of grouping columns: `SELECT COUNT(DISTINCT column_name) FROM fact_table;`
 
 **Solutions:**
+
 - Add composite index on fact table: `CREATE INDEX idx_fact_date_col ON fact_table(created_at, groupby_column);`
 - Partition large fact tables by date
 - Use materialized views for pre-aggregated data (table-backed views)
@@ -717,11 +725,13 @@ query {
 **Cause:** Dimension data stored in JSONB but query doesn't specify extraction path.
 
 **Diagnosis:**
+
 1. Check data exists: `SELECT data FROM fact_table LIMIT 1;`
 2. Verify JSON structure: `SELECT jsonb_pretty(data) FROM fact_table LIMIT 1;`
 3. Test extraction: `SELECT data->>'customer_id' FROM fact_table LIMIT 1;`
 
 **Solutions:**
+
 - In WHERE clause, extract JSON: `WHERE data->>'customer_type' = 'premium'`
 - In GROUP BY, extract JSON: `GROUP BY data->>'region'`
 - For complex JSON: use `jsonb_to_record()` for deeper access
@@ -732,10 +742,12 @@ query {
 **Cause:** Grouping by high-cardinality dimension (unique values per row).
 
 **Diagnosis:**
+
 1. Check cardinality: `SELECT COUNT(DISTINCT groupby_column) FROM fact_table;`
 2. If > 100K distinct values, likely too granular
 
 **Solutions:**
+
 - Use `HAVING COUNT(*) > N` to filter small groups
 - Add grouping hierarchy (day → week → month)
 - Use top-K pattern: limit to top 100 results by count
@@ -746,11 +758,13 @@ query {
 **Cause:** FraiseQL uses SQL window functions but not all are compiled for your target database.
 
 **Diagnosis:**
+
 1. Check FraiseQL logs for specific error
 2. Verify database version supports window functions (PostgreSQL 8.4+, MySQL 8.0+)
 3. Test window function directly: `SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) FROM table LIMIT 1;`
 
 **Solutions:**
+
 - Use supported functions: ROW_NUMBER(), RANK(), DENSE_RANK(), LAG(), LEAD()
 - Avoid NTILE if unsupported in your database
 - For SQL Server: ensure compatibility level 2012+
@@ -761,11 +775,13 @@ query {
 **Cause:** Arrow schema doesn't include necessary fields for aggregation.
 
 **Diagnosis:**
+
 1. Compare row counts: JSON vs Arrow should be identical
 2. Check if NULL values handled differently
 3. Verify data type conversions (string vs int)
 
 **Solutions:**
+
 - Ensure all grouping columns are included in Arrow schema
 - Handle NULL values explicitly in GROUP BY: `GROUP BY COALESCE(column, 'unknown')`
 - Verify date/timestamp conversions between JSON and Arrow
@@ -776,11 +792,13 @@ query {
 **Cause:** Query scans too much data or database is under load.
 
 **Diagnosis:**
+
 1. Check query complexity: `EXPLAIN` on aggregation
 2. Verify database server resources: CPU, memory, disk I/O
 3. Check if other queries are running: `SELECT COUNT(*) FROM pg_stat_activity;`
 
 **Solutions:**
+
 - Add date range filter to limit data scanned
 - Pre-aggregate using table-backed views (tv_*)
 - Use materialized views for common aggregations
@@ -792,16 +810,19 @@ query {
 ## See Also
 
 **Architecture & Design:**
+
 - **[Aggregation Model](../architecture/analytics/aggregation-model.md)** — Compilation and execution of aggregations
 - **[Fact-Dimension Pattern](../architecture/analytics/fact-dimension-pattern.md)** — Table structure and relationships
 - **[Arrow Plane Architecture](../architecture/database/arrow-plane.md)** — Columnar data plane for analytics
 
 **Schema & Specifications:**
+
 - **[Analytical Schema Conventions](../specs/analytical-schema-conventions.md)** — Naming patterns for analytics tables
 - **[Aggregation Operators](../specs/aggregation-operators.md)** — Available aggregate functions
 - **[Scalar Types Reference](../reference/scalars.md)** — Data types for analytical fields
 
 **Related Guides:**
+
 - **[Common Patterns](./PATTERNS.md)** — Real-world patterns including analytics
 - **[Arrow Flight Quick Start](./arrow-flight-quick-start.md)** — Exporting analytics results
 - **[Arrow vs JSON Guide](./arrow-vs-json-guide.md)** — Choosing optimal data format for analytics
@@ -809,11 +830,13 @@ query {
 - **[View Selection Guide](./view-selection-performance-testing.md)** — Optimizing view types for performance
 
 **Operations & Optimization:**
+
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing slow queries
 - **[Observability Architecture](../operations/observability-architecture.md)** — Monitoring analytics performance
 - **[Monitoring Guide](./monitoring.md)** — Observing analytics in production
 
 **Troubleshooting:**
+
 - **[Common Gotchas](./common-gotchas.md)** — Analytics pitfalls and solutions
 - **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide
 - **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and solutions

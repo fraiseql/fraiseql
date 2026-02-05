@@ -49,6 +49,7 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 ### Example: Architecture Layers
 
 **Current ASCII:**
+
 ```
 ┌─────────────────────────────────────┐
 │  Authoring (Python/TypeScript)      │
@@ -68,6 +69,7 @@ D2 is a modern diagramming language that produces professional diagrams from cod
 ```
 
 **Future D2 Version:**
+
 ```d2
 Authoring: {
   label: "Authoring\n(Python/TypeScript)"
@@ -120,17 +122,20 @@ Compiled Schema -> Runtime: loads
 ### Infrastructure Requirements
 
 **Option A: Render at Build Time**
+
 - Add D2 CLI tool to documentation build pipeline
 - Generates SVG files during `docs build`
 - Stores SVG in `/docs/diagrams/` directory
 - Links SVG from markdown
 
 **Option B: Render in Browser (Simple)**
+
 - Use D2 online playground URL
 - Link directly from diagrams
 - No build infrastructure needed
 
 **Option C: Commit SVG Files (Hybrid)**
+
 - Generate SVG locally with D2 CLI
 - Commit SVG to git
 - Keep D2 source files alongside
@@ -149,18 +154,21 @@ Compiled Schema -> Runtime: loads
 ### Recommended Approach
 
 **Phase 1 (Now):** Continue with ASCII diagrams
+
 - Fast iteration
 - Zero dependencies
 - Markdown-compatible
 - Good enough for initial release
 
 **Phase 2-3:** Implement D2 for architecture diagrams
+
 - After Phase 1 content is stable
 - Focus on complex diagrams (architecture, flows)
 - Keep simple matrices as ASCII or Markdown tables
 - Gradual migration (not all-or-nothing)
 
 **Phase 7 (Finalization):** Visual polish pass
+
 - Convert remaining ASCII diagrams
 - Ensure consistent D2 styling across all diagrams
 - Test rendering in all documentation formats

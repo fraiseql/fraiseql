@@ -17,7 +17,7 @@ FraiseQL schemas compile to optimized SQL at build time, enabling deterministic 
 
 ---
 
-## 1. View Type Selection: v_* vs tv_* vs va_* vs ta_*
+## 1. View Type Selection: v_*vs tv_* vs va_*vs ta_*
 
 ### Decision Matrix
 
@@ -33,12 +33,14 @@ FraiseQL schemas compile to optimized SQL at build time, enabling deterministic 
 #### **v_* (Logical Views)** — For Simple, Real-Time Data
 
 **Use when:**
+
 - Simple computed fields (concatenation, math)
 - Data changes frequently
 - Storage overhead not acceptable
 - Real-time accuracy critical
 
 **Example:**
+
 ```python
 @fraiseql.type
 class UserProfile:
@@ -51,11 +53,13 @@ class UserProfile:
 ```
 
 **Performance characteristics:**
+
 - Query latency: 50-200ms (depends on computation)
 - Storage: None (computed in view)
 - Scalability: Degrades linearly with row count
 
 **When NOT to use:**
+
 - ❌ Aggregating millions of rows (GROUP BY on large table)
 - ❌ Complex joins (>3 tables)
 - ❌ Machine learning inference
@@ -64,12 +68,14 @@ class UserProfile:
 #### **tv_* (Table-Backed Views)** — For Complex, Pre-Computed Data
 
 **Use when:**
+
 - Complex aggregations (GROUP BY, JOINs)
 - Computation expensive (complex math, ML)
 - Performance more important than freshness
 - Refresh cycle acceptable (hourly/daily)
 
 **Example:**
+
 ```python
 @fraiseql.type
 class UserStats:
@@ -83,6 +89,7 @@ class UserStats:
 ```
 
 **Materialization strategy:**
+
 ```sql
 -- Materialization query (runs hourly)
 CREATE TABLE tv_user_stats AS
@@ -101,12 +108,14 @@ GROUP BY u.id;
 ```
 
 **Performance characteristics:**
+
 - Query latency: 1-10ms (table lookup, indexed)
 - Storage: ~10-20% of source data
 - Scalability: Constant (O(1) lookup)
 - Refresh lag: 1 hour (configurable)
 
 **Refresh strategies:**
+
 - **Full refresh**: Recompute entire table daily
 - **Incremental refresh**: Only update changed users
 - **Real-time refresh**: Update on each mutation (expensive)
@@ -114,12 +123,14 @@ GROUP BY u.id;
 #### **va_* (Arrow Logical Views)** — For Analytics Queries
 
 **Use when:**
+
 - Analytics/OLAP workloads (not OLTP)
 - Columnar data format preferred (Pandas, Polars, DuckDB)
 - Batch export needed
 - JSON format too verbose
 
 **Example:**
+
 ```python
 @fraiseql.type
 class ProductAnalytics:
@@ -132,6 +143,7 @@ class ProductAnalytics:
 ```
 
 **Query:**
+
 ```python
 import pyarrow.flight as flight
 import pandas as pd
@@ -142,6 +154,7 @@ df = reader.read_pandas()  # Zero-copy to pandas!
 ```
 
 **Performance characteristics:**
+
 - Query latency: 50-500ms (batch scan)
 - Data transfer: 10-20x smaller than JSON
 - Deserialization: Zero-copy to Arrow/Pandas
@@ -150,12 +163,14 @@ df = reader.read_pandas()  # Zero-copy to pandas!
 #### **ta_* (Arrow Table-Backed Views)** — For Pre-Materialized Analytics
 
 **Use when:**
+
 - Analytics table very large (100M+ rows)
 - Batch queries common
 - Pre-materialization acceptable
 - Long-term data warehouse export
 
 **Example:**
+
 ```python
 @fraiseql.type
 class SalesDataWarehouse:
@@ -187,6 +202,7 @@ class SalesDataWarehouse:
 ### Field Naming
 
 **Conventions:**
+
 ```python
 @fraiseql.type
 class User:
@@ -247,12 +263,13 @@ class OrderStatus(enum.Enum):
 |---|---|---|---|
 | `str` | Short text (< 255 chars) | username, email, name | ✅ Most fields |
 | `Text` | Long text (> 255 chars) | description, bio, content | ✅ Descriptions, content |
-| `Email` | Email addresses | contact@example.com | ✅ Always validate |
+| `Email` | Email addresses | <contact@example.com> | ✅ Always validate |
 | `UUID` | Unique identifiers | 550e8400-e29b-41d4 | ✅ Recommended for IDs |
 | `Slug` | URL-safe names | "my-product", "my-post" | ✅ URLs |
-| `Url` | Web addresses | https://example.com | ✅ Links |
+| `Url` | Web addresses | <https://example.com> | ✅ Links |
 
 **Anti-pattern:**
+
 ```python
 # ❌ Wrong: String ID instead of UUID
 id: str = "abc123"
@@ -271,6 +288,7 @@ id: UUID
 | `BigInt` | Very large integers | transaction_id | 128-bit |
 
 **Anti-pattern:**
+
 ```python
 # ❌ Wrong: Float for money (precision loss!)
 account_balance: float = 99.99
@@ -288,6 +306,7 @@ account_balance: Decimal = Decimal("99.99")
 | `Time` | Time only (no date) | 10:30:00 | None |
 
 **Best practice:**
+
 ```python
 @fraiseql.type
 class Event:
@@ -321,6 +340,7 @@ class Post:
 ```
 
 **Performance consideration:**
+
 - Eager-load related entities to avoid N+1
 - Use table-backed view if aggregation expensive
 
@@ -351,6 +371,7 @@ class Group:
 ```
 
 **Implementation with table-backed view:**
+
 ```sql
 CREATE TABLE tv_user_groups AS
 SELECT
@@ -396,6 +417,7 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 ### When to Add Indexes
 
 **ADD indexes for:**
+
 - ✅ All foreign keys (`user_id`, `org_id`)
 - ✅ Fields in WHERE clauses (filters)
 - ✅ @key fields in federation
@@ -404,6 +426,7 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 - ✅ High cardinality fields (many distinct values)
 
 **AVOID indexing:**
+
 - ❌ Very low cardinality fields (boolean, status with 3 values)
 - ❌ Fields that are never filtered
 - ❌ Non-selective indexes (>50% of rows match)
@@ -412,24 +435,28 @@ max_query_depth = 10  # Prevent Category -> Category -> Category...
 ### Index Strategies by Query Pattern
 
 **Pattern: Simple WHERE clause**
+
 ```sql
 -- Query: users WHERE created_at >= '2026-01-01'
 CREATE INDEX idx_users_created_at ON users(created_at);
 ```
 
 **Pattern: Composite filters**
+
 ```sql
 -- Query: users WHERE tenant_id = ? AND is_active = true
 CREATE INDEX idx_users_tenant_active ON users(tenant_id, is_active);
 ```
 
 **Pattern: Foreign key joins**
+
 ```sql
 -- Query: posts WHERE user_id = ?
 CREATE INDEX idx_posts_user_id ON posts(user_id);
 ```
 
 **Pattern: Full-text search**
+
 ```sql
 -- Query: products WHERE name ILIKE '%search%'
 CREATE INDEX idx_products_name_trgm ON products USING GIST(name gist_trgm_ops);  -- PostgreSQL
@@ -442,6 +469,7 @@ CREATE INDEX idx_products_name_trgm ON products USING GIST(name gist_trgm_ops); 
 ### Computed Field Patterns
 
 **Pattern 1: Simple concatenation (use v_*)**
+
 ```python
 @fraiseql.type
 class User:
@@ -451,6 +479,7 @@ class User:
 ```
 
 **Pattern 2: Complex aggregation (use tv_*)**
+
 ```python
 @fraiseql.type
 class User:
@@ -461,6 +490,7 @@ class User:
 ```
 
 **Pattern 3: Conditional logic (use CASE)**
+
 ```python
 @fraiseql.type
 class Order:
@@ -568,6 +598,7 @@ class User:
 ### Renaming Fields (❌ Breaking)
 
 **Workaround: Add alias**
+
 ```python
 @fraiseql.type
 class User:
@@ -699,18 +730,21 @@ class UserStats:
 ## See Also
 
 **Related Guides:**
+
 - **[Common Gotchas](./common-gotchas.md)** — Schema pitfalls to avoid
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing schema performance
 - **[View Selection Guide](./view-selection-performance-testing.md)** — Testing view performance
 - **[Common Patterns](./PATTERNS.md)** — Pattern implementations using best practices
 
 **Architecture & Specifications:**
+
 - **[Schema Compilation Pipeline](../architecture/core/compilation-phases.md)** — How schemas compile to SQL
 - **[WHERE Type Generation](../architecture/database/database-targeting.md)** — Filter operator compilation
 - **[Scalar Types Reference](../reference/scalars.md)** — All available scalar types
 - **[Specs: Schema Conventions](../specs/schema-conventions.md)** — Naming conventions
 
 **Security:**
+
 - **[RBAC & Field Authorization](../enterprise/rbac.md)** — Field-level access control
 - **[Production Security Checklist](./production-security-checklist.md)** — Security hardening
 

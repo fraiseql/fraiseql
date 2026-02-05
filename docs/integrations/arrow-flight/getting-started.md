@@ -27,6 +27,7 @@ sleep 10
 ```
 
 **Verify Arrow Flight is accessible**:
+
 ```bash
 # Check if port 50051 is listening
 netstat -tuln | grep 50051
@@ -99,11 +100,13 @@ print(f"  Memory: ~{table.nbytes / 1024 / 1024:.1f} MB")
 ```
 
 Run it:
+
 ```bash
 python my_first_query.py
 ```
 
 **Expected output**:
+
 ```
 Connecting to FraiseQL Arrow Flight server...
 ✅ Connected!
@@ -186,6 +189,7 @@ print(f"  Total events: {total_rows}")
 ```
 
 Run it:
+
 ```bash
 python stream_events.py
 ```
@@ -213,6 +217,7 @@ Arrow Flight supports Python, R, Rust, Java, and other languages. See the [archi
 ## Troubleshooting
 
 ### "Connection refused"
+
 ```
 Error: Error connecting to grpc://localhost:50051
 ```
@@ -220,6 +225,7 @@ Error: Error connecting to grpc://localhost:50051
 **Solution**: Ensure FraiseQL is running (`docker-compose ps`) and Arrow Flight is enabled.
 
 ### "No data returned"
+
 ```
 ✅ Success! Fetched 0 rows
 ```
@@ -227,6 +233,7 @@ Error: Error connecting to grpc://localhost:50051
 **Solution**: Check your GraphQL query is valid. Try a simple query without filters first.
 
 ### "Module not found: pyarrow"
+
 ```
 ModuleNotFoundError: No module named 'pyarrow'
 ```
@@ -240,6 +247,7 @@ ModuleNotFoundError: No module named 'pyarrow'
 ## Example Queries
 
 ### Fetch all users with a name
+
 ```python
 ticket = flight.Ticket(b'''{
     "type": "GraphQLQuery",
@@ -248,6 +256,7 @@ ticket = flight.Ticket(b'''{
 ```
 
 ### Stream orders from last 30 days
+
 ```python
 ticket = flight.Ticket(b'''{
     "type": "ObserverEvents",
@@ -258,6 +267,7 @@ ticket = flight.Ticket(b'''{
 ```
 
 ### Process events with aggregation
+
 ```python
 # Stream events
 reader = client.do_get(ticket)
@@ -274,6 +284,7 @@ print(summary)
 ## Performance Tips
 
 ### 1. Use Limits for Development
+
 ```python
 # Good: limit to 1000 during development
 "limit": 1000
@@ -283,6 +294,7 @@ print(summary)
 ```
 
 ### 2. Stream Large Datasets
+
 ```python
 # Bad: loads entire dataset in memory
 table = reader.read_all()
@@ -295,6 +307,7 @@ for batch in reader:
 ```
 
 ### 3. Use Polars for Heavy Lifting
+
 ```python
 # Zero-copy from Arrow to Polars
 df = pl.from_arrow(table)

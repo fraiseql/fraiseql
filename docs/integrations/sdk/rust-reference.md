@@ -27,6 +27,7 @@ tracing-subscriber = "0.3"
 ```
 
 **Requirements**:
+
 - Rust 1.70 or later
 - Edition 2021 or later
 - Linux, macOS, or Windows
@@ -1289,6 +1290,7 @@ FraiseQL Rust SDK performance characteristics:
 | JSON serialization | <1ms (100KB) | Single allocation |
 
 **Zero-cost optimizations**:
+
 - Inline traits where possible
 - LLVM auto-vectorization for loops
 - Stack allocation for small values
@@ -1328,6 +1330,7 @@ FraiseQL Rust SDK performance characteristics:
 **Issue**: `error: failed to resolve: use of undeclared type or module 'fraiseql'`
 
 **Solution**:
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -1344,11 +1347,13 @@ cargo build
 **Issue**: `cannot find crate 'fraiseql'`
 
 **Verify dependency**:
+
 ```bash
 cargo tree | grep fraiseql
 ```
 
 **Check Cargo.toml**:
+
 ```toml
 [dependencies]
 fraiseql = { git = "https://github.com/fraiseql/fraiseql", branch = "main" }
@@ -1359,12 +1364,14 @@ fraiseql = { git = "https://github.com/fraiseql/fraiseql", branch = "main" }
 **Issue**: `error: linking with 'cc' failed: exit status: 1`
 
 **Solution - Update compiler**:
+
 ```bash
 rustup update
 rustup default stable
 ```
 
 **Or specify version**:
+
 ```toml
 [package]
 rust-version = "1.70"
@@ -1379,12 +1386,14 @@ path = "src/main.rs"
 **Issue**: `feature 'observers' not found`
 
 **Enable features**:
+
 ```toml
 [dependencies]
 fraiseql = { version = "2.0", features = ["observers", "arrow-flight"] }
 ```
 
 **Build with features**:
+
 ```bash
 cargo build --features "observers,arrow-flight"
 ```
@@ -1398,6 +1407,7 @@ cargo build --features "observers,arrow-flight"
 **Issue**: `` `borrowed` does not live long enough``
 
 **Solution - Use references correctly**:
+
 ```rust
 // ❌ Wrong - dangling reference
 let server = create_server();
@@ -1414,6 +1424,7 @@ drop(server);  // Explicit drop
 **Issue**: `type annotations needed`
 
 **Solution - Be explicit**:
+
 ```rust
 // ❌ Compiler can't infer
 let result = server.execute(query);
@@ -1432,6 +1443,7 @@ let result = server.execute::<ExecuteResult>(&query);
 **Cause**: Type doesn't implement required trait
 
 **Solution**:
+
 ```rust
 // ✅ Implement required traits
 #[derive(Clone, Debug)]
@@ -1451,6 +1463,7 @@ fn execute_query<C: Send + Sync>(server: &Server, ctx: C) -> Result<()> {
 **Issue**: `could not compile because of unresolved macros`
 
 **Solution - Enable macro support**:
+
 ```rust
 #![allow(unused_macros)]
 
@@ -1473,6 +1486,7 @@ query! {
 **Issue**: `thread 'main' panicked at ...`
 
 **Solution - Use Result instead of unwrap**:
+
 ```rust
 // ❌ Panics if error
 let result = server.execute(&query).unwrap();
@@ -1495,6 +1509,7 @@ fn run() -> Result<()> {
 **Issue**: `Future is not Send` or `function is not awaitable`
 
 **Solution - Use proper async runtime**:
+
 ```rust
 // ✅ With tokio
 #[tokio::main]
@@ -1511,6 +1526,7 @@ async fn test_query() {
 ```
 
 **Ensure Send + Sync**:
+
 ```rust
 // Make sure your context implements Send + Sync
 #[derive(Clone)]
@@ -1531,6 +1547,7 @@ fn test_context_is_send() {
 **Issue**: `all connections are busy` or `connection timeout`
 
 **Increase pool size**:
+
 ```rust
 let server = Server::from_compiled_with_config(
     "schema.json",
@@ -1547,6 +1564,7 @@ let server = Server::from_compiled_with_config(
 **Issue**: `variables: Variables, expected: Variables`
 
 **Solution - Match types exactly**:
+
 ```rust
 // ❌ Wrong types
 let variables: serde_json::Value = json!({ "id": "123" });
@@ -1566,6 +1584,7 @@ server.execute(query, &variables)?;
 **Issue**: Build takes >2 minutes
 
 **Enable incremental compilation**:
+
 ```toml
 # .cargo/config.toml
 [build]
@@ -1573,6 +1592,7 @@ incremental = true
 ```
 
 **Use mold linker**:
+
 ```bash
 # Linux
 cargo install mold
@@ -1582,6 +1602,7 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 ```
 
 **Parallel compilation**:
+
 ```bash
 cargo build -j 4  # Use 4 cores
 ```
@@ -1591,18 +1612,21 @@ cargo build -j 4  # Use 4 cores
 **Issue**: Binary is >50MB
 
 **Strip debug info**:
+
 ```bash
 cargo build --release
 strip target/release/myapp
 ```
 
 **Use cargo-strip**:
+
 ```bash
 cargo install cargo-strip
 cargo strip --release
 ```
 
 **Or in Cargo.toml**:
+
 ```toml
 [profile.release]
 strip = true
@@ -1615,6 +1639,7 @@ codegen-units = 1
 **Issue**: Queries execute slowly
 
 **Enable caching**:
+
 ```rust
 let server = Server::from_compiled_with_config(
     "schema.json",
@@ -1626,6 +1651,7 @@ let server = Server::from_compiled_with_config(
 ```
 
 **Profile with perf**:
+
 ```bash
 cargo build --release
 perf record -g target/release/myapp
@@ -1637,11 +1663,13 @@ perf report
 **Issue**: Memory usage grows over time
 
 **Check for leaks**:
+
 ```bash
 valgrind --leak-check=full ./target/release/myapp
 ```
 
 **Use proper cleanup**:
+
 ```rust
 {
     let server = Server::from_compiled("schema.json")?;
@@ -1656,6 +1684,7 @@ valgrind --leak-check=full ./target/release/myapp
 #### Enable Logging
 
 **Setup env_logger**:
+
 ```toml
 [dependencies]
 env_logger = "0.11"
@@ -1672,6 +1701,7 @@ fn main() {
 ```
 
 **Run with logging**:
+
 ```bash
 RUST_LOG=fraiseql=debug cargo run
 RUST_LOG=debug cargo test -- --nocapture
@@ -1680,6 +1710,7 @@ RUST_LOG=debug cargo test -- --nocapture
 #### Use Rust Debugger
 
 **GDB debugging**:
+
 ```bash
 rust-gdb ./target/debug/myapp
 (gdb) break main
@@ -1688,6 +1719,7 @@ rust-gdb ./target/debug/myapp
 ```
 
 **LLDB debugging** (macOS):
+
 ```bash
 lldb ./target/debug/myapp
 (lldb) breakpoint set --name main
@@ -1708,6 +1740,7 @@ eprintln!("Result: {:?}", result);
 #### Inspect Generated Code
 
 **Check macro expansion**:
+
 ```bash
 cargo install cargo-expand
 cargo expand --lib fraiseql
@@ -1736,6 +1769,7 @@ mod tests {
 #### GitHub Issues
 
 Provide:
+
 1. Rust version: `rustc --version`
 2. Cargo version: `cargo --version`
 3. FraiseQL version
@@ -1744,6 +1778,7 @@ Provide:
 6. Relevant Cargo.toml
 
 **Issue template**:
+
 ```markdown
 **Environment**:
 - Rust: 1.75.0
@@ -1761,6 +1796,7 @@ Provide:
 ```
 
 **Enable backtrace**:
+
 ```bash
 RUST_BACKTRACE=1 cargo build
 RUST_BACKTRACE=full cargo test
@@ -1776,12 +1812,14 @@ RUST_BACKTRACE=full cargo test
 #### Advanced Debugging
 
 **Use cargo-watch for development**:
+
 ```bash
 cargo install cargo-watch
 cargo watch -x check -x test
 ```
 
 **Benchmarking**:
+
 ```rust
 #[bench]
 fn bench_execute(b: &mut Bencher) {

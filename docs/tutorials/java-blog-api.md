@@ -257,6 +257,7 @@ tasks.register('exportSchema', JavaExec) {
 ### IDE Setup
 
 **IntelliJ IDEA:**
+
 1. Open the project
 2. File → Project Structure → Project
 3. Set Project SDK to Java 17
@@ -264,6 +265,7 @@ tasks.register('exportSchema', JavaExec) {
 5. Mark `src/test/java` as Tests
 
 **Eclipse:**
+
 1. File → Import → Existing Maven Projects
 2. Select the project directory
 3. Eclipse automatically configures Java 17
@@ -848,6 +850,7 @@ fraiseql-cli compile schema.json
 ```
 
 This generates `schema.compiled.json` containing:
+
 - Optimized type definitions
 - Pre-compiled SQL generation templates
 - Security configuration
@@ -1068,6 +1071,7 @@ FraiseQL.query("posts")
 ```
 
 In GraphQL queries:
+
 ```graphql
 query {
   posts(limit: 10, offset: 20) {
@@ -1265,6 +1269,7 @@ Replace mock data with actual PostgreSQL queries using JDBC or JPA.
 **Error**: "Type mismatch: Java type not recognized"
 
 **Solution**: Use supported Java types:
+
 - Primitives: `int`, `long`, `float`, `double`, `boolean`
 - Objects: `Integer`, `Long`, `Float`, `Double`, `Boolean`, `String`
 - Collections: `List<T>`, `Set<T>`, `Map<String, T>`

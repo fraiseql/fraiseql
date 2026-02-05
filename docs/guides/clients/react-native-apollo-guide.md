@@ -28,6 +28,7 @@ yarn add @apollo/client graphql subscriptions-transport-ws
 ```
 
 For async storage:
+
 ```bash
 npm install @react-native-async-storage/async-storage
 # Link pod (iOS)
@@ -711,12 +712,14 @@ cd android && ./gradlew bundleRelease
 ## See Also
 
 **Related Guides:**
+
 - **[React + Apollo Guide](./react-apollo-guide.md)** - Web alternative
 - **[Flutter Guide](./flutter-graphql-guide.md)** - Alternative mobile framework
 - **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 
 **React Native & Apollo Documentation:**
+
 - [React Native Official Docs](https://reactnative.dev/)
 - [Apollo Client for React Native](https://www.apollographql.com/docs/react/)
 - [React Native AsyncStorage](https://react-native-async-storage.github.io/async-storage/)

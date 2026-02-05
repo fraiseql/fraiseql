@@ -3,6 +3,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - End-to-end testing concepts and best practices
 - Multiple programming languages (Python, TypeScript, Go, Java at minimum)
 - Schema definition and compilation workflows
@@ -11,6 +12,7 @@
 - Database fundamentals (PostgreSQL, MySQL, SQLite, SQL Server)
 
 **Required Software:**
+
 - Rust 1.75+ (for compilation phase)
 - Python 3.10+ with pip/uv
 - Node.js 18+ with npm or yarn
@@ -21,6 +23,7 @@
 - Git version control
 
 **Required Infrastructure:**
+
 - FraiseQL source repository (cloned locally)
 - ~10GB free disk space for Docker images, databases, and test artifacts
 - Docker daemon running
@@ -28,6 +31,7 @@
 - Internet connection for package dependencies
 
 **Optional but Recommended:**
+
 - Docker registry (for sharing test images)
 - CI/CD system integration (GitHub Actions, GitLab CI, Jenkins)
 - Kubernetes cluster (for orchestrated test environments)

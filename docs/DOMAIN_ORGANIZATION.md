@@ -14,6 +14,7 @@ A domain is a cohesive unit of business logic with its own types, queries, and m
 ## Why Domain Organization?
 
 ### ✅ Mirrors Code Structure
+
 Your GraphQL schema organization matches your application code:
 
 ```
@@ -37,6 +38,7 @@ schema/
 ```
 
 ### ✅ Scalable
+
 Start with monolithic, grow to many domains:
 
 ```
@@ -52,6 +54,7 @@ schema.json        →   schema/                schema/
 ```
 
 ### ✅ Team-Friendly
+
 Different teams can own different domains:
 
 - **Auth Team** → `schema/auth/`
@@ -59,9 +62,11 @@ Different teams can own different domains:
 - **Order Fulfillment Team** → `schema/orders/`
 
 ### ✅ Independent Development
+
 Teams work independently with clear contracts (types each domain exports).
 
 ### ✅ Easy to Navigate
+
 "Where is the User type?" → Look in `schema/auth/types.json`
 
 ## Directory Structure
@@ -158,6 +163,7 @@ schema/
 ```
 
 ### Auth Domain
+
 ```json
 {
   "types": [
@@ -176,6 +182,7 @@ schema/
 ```
 
 ### Products Domain
+
 ```json
 {
   "types": [
@@ -193,6 +200,7 @@ schema/
 ```
 
 ### Orders Domain (Cross-Domain References)
+
 ```json
 {
   "types": [
@@ -217,12 +225,14 @@ schema/
 ### 1. One Domain = One Responsibility
 
 Good:
+
 ```
 schema/auth/ - Authentication only
 schema/products/ - Product catalog only
 ```
 
 Bad:
+
 ```
 schema/everything/ - Types, products, auth, billing, ...
 ```
@@ -365,11 +375,13 @@ Consider:
 ### From Single Monolithic Schema
 
 **Before**:
+
 ```
 schema.json (2000 lines)
 ```
 
 **After**:
+
 ```
 schema/
 ├── auth/types.json
@@ -379,11 +391,13 @@ schema/
 ```
 
 **Step 1**: Create domain structure
+
 ```bash
 mkdir -p schema/{auth,products,orders,inventory}
 ```
 
 **Step 2**: Split schema.json into domains
+
 ```bash
 # Manually edit schema.json and split by domain
 # Copy User, Session types to schema/auth/types.json
@@ -392,6 +406,7 @@ mkdir -p schema/{auth,products,orders,inventory}
 ```
 
 **Step 3**: Configure domain discovery
+
 ```toml
 [domain_discovery]
 enabled = true
@@ -399,6 +414,7 @@ root_dir = "schema"
 ```
 
 **Step 4**: Compile and verify
+
 ```bash
 fraiseql compile fraiseql.toml
 fraiseql compile fraiseql.toml --check

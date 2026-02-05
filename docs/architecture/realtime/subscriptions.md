@@ -167,6 +167,7 @@ Delivered via transport adapter (graphql-ws, webhook, Kafka)
 - Enables event replay from any checkpoint
 - **Populated manually** (application code must INSERT after mutations)
 - Schema:
+
   ```sql
   CREATE TABLE tb_entity_change_log (
       pk_entity_change_log BIGSERIAL PRIMARY KEY,
@@ -293,6 +294,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 ```
 
 **Problems:**
+
 - ❌ Duplicate event capture mechanism (ChangeLogListener already polls)
 - ❌ No durability (NOTIFY messages are fire-and-forget)
 - ❌ No replay capability (can't reprocess old events)
@@ -303,6 +305,7 @@ Database → PostgreSQL NOTIFY → PostgresListener → SubscriptionManager
 
 1. **Manual Event Population** - Application code must explicitly INSERT into `tb_entity_change_log`
    - Example:
+
      ```rust
      sqlx::query!(
          "INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
@@ -400,6 +403,7 @@ ObserverRuntime (in-process routing)
 #### Configuration: Composition by Default, NATS Optional
 
 **Default (Composition):**
+
 ```toml
 # fraiseql.toml
 [observer_runtime]
@@ -409,6 +413,7 @@ transport = "in_process"  # Direct routing, no NATS required
 ```
 
 **Optional (NATS Everywhere):**
+
 ```toml
 [observer_runtime]
 transport = "nats"

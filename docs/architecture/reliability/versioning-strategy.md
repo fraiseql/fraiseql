@@ -19,7 +19,7 @@
 11. [Compiler Version Management](#10-compiler-version-management)
 12. [Ecosystem Versioning](#11-ecosystem-versioning)
 13. [Version Communication](#12-version-communication)
-14. [Support & Long-Term Maintenance](#13-support--long-term-maintenance)
+14. [Support & Long-Term Maintenance](#13-support-long-term-maintenance)
 15. [Version Decision Tree](#14-version-decision-tree)
 16. [Versioning Best Practices](#15-versioning-best-practices)
 17. [Examples](#16-examples)

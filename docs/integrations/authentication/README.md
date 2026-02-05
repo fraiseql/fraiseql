@@ -5,6 +5,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 ## Prerequisites
 
 **Required Knowledge:**
+
 - OAuth 2.0 and OIDC fundamentals
 - JWT token structure and validation
 - HTTP/REST APIs
@@ -12,6 +13,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 - Your chosen auth provider's console/admin panel
 
 **Required Tools:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - curl or Postman (for API testing)
 - Configured database (PostgreSQL 14+)
@@ -20,21 +22,25 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 **For Each Provider:**
 
 **Google OAuth:**
+
 - Google Cloud Console account with project
 - OAuth 2.0 credentials (Client ID and Secret)
 - Registered redirect URIs
 
 **Auth0:**
+
 - Auth0 account (free tier available)
 - Auth0 application created
 - Auth0 API configured
 
 **Keycloak:**
+
 - Keycloak server deployed (self-hosted)
 - Realm and client created
 - Admin access
 
 **SCRAM:**
+
 - FraiseQL configured with SCRAM support
 - Username/password credentials
 - TLS enabled for security
@@ -205,12 +211,14 @@ curl -X POST http://localhost:8000/auth/start \
 ## 🔑 Key Features
 
 ✅ **Multiple OAuth Providers**
+
 - Google OAuth 2.0 / OIDC
 - Keycloak
 - Auth0
 - Any OIDC-compliant provider
 
 ✅ **Security First**
+
 - PKCE for authorization code flow
 - CSRF protection via state parameter
 - JWT signature verification
@@ -218,6 +226,7 @@ curl -X POST http://localhost:8000/auth/start \
 - Session revocation
 
 ✅ **Production Ready**
+
 - Structured logging (JSON)
 - Prometheus metrics
 - Health checks
@@ -226,12 +235,14 @@ curl -X POST http://localhost:8000/auth/start \
 - Database backups
 
 ✅ **Extensible**
+
 - Pluggable `SessionStore` trait
 - Pluggable `OAuthProvider` trait
 - Custom provider implementations
 - Multiple session backends (PostgreSQL, Redis, DynamoDB, MongoDB)
 
 ✅ **Well Documented**
+
 - Setup guides for all major providers
 - Complete API reference
 - Implementation examples
@@ -313,15 +324,19 @@ RUST_LOG=debug cargo test -p fraiseql-server auth:: --lib -- --nocapture
 ## 🚨 Common Issues
 
 ### "Invalid Redirect URI"
+
 See: [Troubleshooting](./TROUBLESHOOTING.md#invalid-redirect-uri-error)
 
 ### "Invalid State"
+
 See: [Troubleshooting](./TROUBLESHOOTING.md#invalid-state-error)
 
 ### "Token Expired"
+
 See: [Troubleshooting](./TROUBLESHOOTING.md#token-expired-on-valid-token)
 
 ### Database Connection Issues
+
 See: [Troubleshooting](./TROUBLESHOOTING.md#database-issues)
 
 ---
@@ -380,7 +395,7 @@ See [Deployment Guide](./DEPLOYMENT.md#kubernetes-deployment) for manifests
 1. **Check the docs** - Most questions covered in documentation
 2. **Check troubleshooting** - [Troubleshooting Guide](./TROUBLESHOOTING.md)
 3. **Enable debug logging** - `RUST_LOG=debug`
-4. **Create GitHub issue** - https://github.com/fraiseql/fraiseql/issues
+4. **Create GitHub issue** - <https://github.com/fraiseql/fraiseql/issues>
    - Include error message (no secrets)
    - Steps to reproduce
    - Environment details

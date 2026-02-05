@@ -631,6 +631,7 @@ property("User ID should always be positive") = forAll {
 - **[Java Reference](./java-reference.md)** — Java authoring with annotations
 - **[TypeScript Reference](./typescript-reference.md)** — TypeScript authoring with decorators
 - **[RBAC Guide](../../enterprise/rbac.md)** — Role-based access control patterns
+
 ---
 
 ## Troubleshooting
@@ -642,6 +643,7 @@ property("User ID should always be positive") = forAll {
 **Issue**: `not found: SbtModule: fraiseql`
 
 **Solution**:
+
 ```scala
 // build.sbt
 libraryDependencies += "com.fraiseql" %% "fraiseql-scala" % "2.0.0"
@@ -664,6 +666,7 @@ sbt clean update
 **Cause**: Missing implicits
 
 **Solution**:
+
 ```scala
 // Import required implicits
 import com.fraiseql._
@@ -684,6 +687,7 @@ object MyApp {
 **Issue**: `type mismatch; found: String, required: FraiseQL.String`
 
 **Solution - Use correct types**:
+
 ```scala
 // ✅ Correct
 @fraiseql.type
@@ -703,11 +707,13 @@ case class User(email: Email)
 **Issue**: `java.lang.NoClassDefFoundError`
 
 **Check version** (2.13+ required):
+
 ```bash
 scala -version
 ```
 
 **Set in build.sbt**:
+
 ```scala
 scalaVersion := "2.13.11"
 scalacOptions ++= Seq("-feature", "-deprecation")
@@ -722,6 +728,7 @@ scalacOptions ++= Seq("-feature", "-deprecation")
 **Issue**: `non-exhaustive pattern match`
 
 **Solution - Complete patterns**:
+
 ```scala
 // ❌ Incomplete
 val user = getUserOption()
@@ -742,6 +749,7 @@ val name = user match {
 **Issue**: `could not find implicit value for parameter`
 
 **Solution - Define implicits**:
+
 ```scala
 implicit val config: FraiseQLConfig = FraiseQLConfig.default
 
@@ -760,6 +768,7 @@ object FraiseQL {
 **Issue**: `value json is not a member of MyType`
 
 **Solution - Implement typeclass**:
+
 ```scala
 import com.fraiseql.Serializable
 
@@ -776,6 +785,7 @@ implicit object MyTypeSerializable extends Serializable[MyType] {
 **Issue**: `[error] FraiseQL[T] is not a type constructor with expected kind [error]`
 
 **Solution - Use correct kind**:
+
 ```scala
 // ❌ Wrong - treating as type
 val result: FraiseQL[User] = query()
@@ -793,6 +803,7 @@ val result: FraiseQL.Result[User] = query()
 **Issue**: `scala.MatchError: ...`
 
 **Solution - Handle all cases**:
+
 ```scala
 val result = server.execute(query)
 
@@ -808,6 +819,7 @@ result match {
 **Issue**: `NullPointerException`
 
 **Solution - Use Option**:
+
 ```scala
 // ❌ Can NPE
 val user = getUser()
@@ -829,6 +841,7 @@ user match {
 **Issue**: `NoSuchElementException: Future.get on failed Future`
 
 **Solution - Handle Future correctly**:
+
 ```scala
 import scala.concurrent._
 import scala.util.{Success, Failure}
@@ -850,6 +863,7 @@ future.map(result => process(result))
 **Issue**: `AskTimeoutException`
 
 **Solution - Increase timeout**:
+
 ```scala
 import scala.concurrent.duration._
 
@@ -867,12 +881,14 @@ val result = server.ask(ExecuteQuery(query))
 **Issue**: Build takes >60 seconds
 
 **Enable incremental compilation**:
+
 ```scala
 // build.sbt
 incOptions := incOptions.value.withRecompileOnMacroDef(false)
 ```
 
 **Parallel execution**:
+
 ```bash
 sbt -J-Xmx2g -J-XX:+UseG1GC
 sbt parallelExecution in Test := true
@@ -883,11 +899,13 @@ sbt parallelExecution in Test := true
 **Issue**: `OutOfMemoryError: Java heap space`
 
 **Increase heap**:
+
 ```bash
 sbt -J-Xmx4g -J-Xms2g
 ```
 
 **Or in build.sbt**:
+
 ```scala
 javaOptions ++= Seq("-Xmx4g", "-Xms2g")
 ```
@@ -897,6 +915,7 @@ javaOptions ++= Seq("-Xmx4g", "-Xms2g")
 **Issue**: `StackOverflowError` with recursive lazy values
 
 **Solution - Use streams carefully**:
+
 ```scala
 // ❌ Can overflow
 lazy val infinite: Stream[Int] = 1 #:: infinite.map(_ + 1)
@@ -912,6 +931,7 @@ lazy val lazy_list = LazyList.from(1)
 #### Enable Logging
 
 **Setup logging**:
+
 ```scala
 import org.slf4j.LoggerFactory
 
@@ -923,6 +943,7 @@ logger.info("Result: {}", result)
 ```
 
 **Set log level**:
+
 ```bash
 RUST_LOG=fraiseql=debug sbt run
 ```
@@ -930,6 +951,7 @@ RUST_LOG=fraiseql=debug sbt run
 #### REPL Debugging
 
 **Use Scala REPL**:
+
 ```bash
 sbt console
 ```
@@ -974,6 +996,7 @@ object QueryProperties extends Properties("Query") {
 #### GitHub Issues
 
 Provide:
+
 1. Scala version: `scala -version`
 2. Java version: `java -version`
 3. SBT version: `sbt sbtVersion`
@@ -981,6 +1004,7 @@ Provide:
 5. Minimal reproducible example
 
 **Template**:
+
 ```markdown
 **Environment**:
 - Scala: 2.13.11
@@ -999,7 +1023,7 @@ Provide:
 
 #### Community Channels
 
-- **Scala Community**: https://contributors.scala-lang.org/
+- **Scala Community**: <https://contributors.scala-lang.org/>
 - **Stack Overflow**: Tag with `scala` and `fraiseql`
 - **GitHub Discussions**: Q&A
 

@@ -303,7 +303,7 @@ Complete security checklist for FraiseQL authentication deployment.
 
 ## Communication
 
-- [ ] Security vulnerabilities reported to security@yourdomain.com
+- [ ] Security vulnerabilities reported to <security@yourdomain.com>
 - [ ] Responsible disclosure policy documented
 - [ ] Response time: 48 hours
 - [ ] Fix time: 30 days for critical

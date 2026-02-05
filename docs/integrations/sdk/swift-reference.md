@@ -37,12 +37,14 @@ let package = Package(
 Or in Xcode: File → Add Packages → Enter repository URL.
 
 **Requirements:**
+
 - Swift 5.9 or later (async/await, typed throws)
 - Xcode 15.0 or later
 - iOS 13.0+, macOS 10.15+, tvOS 13.0+, watchOS 6.0+
 - Foundation framework (standard library)
 
 **Supported Platforms:**
+
 - iOS (primary: iPhone, iPad)
 - macOS (server or desktop)
 - tvOS (Apple TV)
@@ -1245,6 +1247,7 @@ struct AdaptiveUserListView: View {
 **Issue**: `error: no such module or it has no products`
 
 **Solution**:
+
 ```swift
 // Package.swift
 .package(url: "https://github.com/fraiseql/fraiseql-swift.git", .upToNextMajor(from: "2.0.0"))
@@ -1260,11 +1263,13 @@ swift package resolve
 **Issue**: `Unsupported Swift language version`
 
 **Check version** (5.7+ required):
+
 ```bash
 swift --version
 ```
 
 **Update Xcode**:
+
 ```bash
 xcode-select --install
 softwareupdate -i -a
@@ -1275,6 +1280,7 @@ softwareupdate -i -a
 **Issue**: `error: build system failure`
 
 **Solution - Clean and rebuild**:
+
 ```bash
 swift package clean
 swift package update
@@ -1286,6 +1292,7 @@ swift build
 **Issue**: `Platform not supported`
 
 **Check minimum deployment**:
+
 ```swift
 let minimumOS = "13.0"  // iOS
 let minimumMacOS = "10.15"
@@ -1300,6 +1307,7 @@ let minimumMacOS = "10.15"
 **Issue**: `error: type 'User' does not conform to protocol 'Decodable'`
 
 **Solution - Implement Codable**:
+
 ```swift
 // ✅ Correct
 struct User: Codable {
@@ -1326,6 +1334,7 @@ struct User {
 **Issue**: `Cannot convert value of type 'String' to expected argument type 'String?'`
 
 **Solution - Handle optionals properly**:
+
 ```swift
 // ✅ Explicit optionals
 struct User {
@@ -1344,6 +1353,7 @@ if let name = user.middleName {
 **Issue**: `error: cannot specialize non-generic type`
 
 **Solution - Use concrete types**:
+
 ```swift
 // ❌ Won't work - generics
 struct Box<T: Codable> {
@@ -1361,6 +1371,7 @@ struct UserBox {
 **Issue**: `error: no 'async' modifier on 'func'`
 
 **Solution - Mark async**:
+
 ```swift
 // ✅ Correct
 async func executeQuery(_ query: String) throws -> QueryResult {
@@ -1378,6 +1389,7 @@ async func executeQuery(_ query: String) throws -> QueryResult {
 **Issue**: `error: The network connection was lost`
 
 **Solution - Handle network errors**:
+
 ```swift
 // ✅ Handle errors
 do {
@@ -1395,6 +1407,7 @@ do {
 **Issue**: `DecodingError.dataCorrupted`
 
 **Solution - Debug decoding**:
+
 ```swift
 // ✅ Use custom decoder
 let decoder = JSONDecoder()
@@ -1412,6 +1425,7 @@ do {
 **Issue**: `data races detected`
 
 **Solution - Use MainActor**:
+
 ```swift
 // ✅ Main thread only
 @MainActor
@@ -1430,6 +1444,7 @@ nonisolated func backgroundTask() {
 **Issue**: `EXC_BAD_ACCESS` or memory warnings
 
 **Solution - Manage resources**:
+
 ```swift
 // ✅ Auto-cleanup
 class MyService {
@@ -1453,11 +1468,13 @@ weak var server: FraiseQLServer?
 **Issue**: Build takes >2 minutes
 
 **Parallel compilation**:
+
 ```bash
 swift build -c release -Xswiftc -g0
 ```
 
 **Incremental builds**:
+
 ```bash
 swift build -v  # Verbose to see incremental changes
 ```
@@ -1467,11 +1484,13 @@ swift build -v  # Verbose to see incremental changes
 **Issue**: Binary is >100MB
 
 **Optimize with -Onone for development**:
+
 ```bash
 swift build -c release -Xswiftc -Onone
 ```
 
 **Or full optimization**:
+
 ```bash
 swift build -c release -Xswiftc -Osize
 ```
@@ -1481,11 +1500,13 @@ swift build -c release -Xswiftc -Osize
 **Issue**: iOS app uses >200MB
 
 **Profile with Instruments**:
+
 1. Xcode → Product → Profile (Cmd+I)
 2. Select Memory profiler
 3. Run app and inspect
 
 **Optimize**:
+
 - Use lazy sequences
 - Release large objects
 - Implement custom Codable for efficiency
@@ -1495,6 +1516,7 @@ swift build -c release -Xswiftc -Osize
 **Issue**: Queries timeout or are slow
 
 **Increase timeout**:
+
 ```swift
 var request = URLRequest(url: graphqlURL, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 60)
 let session = URLSession(configuration: .default)
@@ -1533,6 +1555,7 @@ logger.error("Query failed: \(error)")
 ```
 
 **View logs**:
+
 ```bash
 log stream --predicate 'eventMessage contains "Query"'
 ```
@@ -1558,6 +1581,7 @@ class FraiseQLTests: XCTestCase {
 #### GitHub Issues
 
 Provide:
+
 1. Swift version: `swift --version`
 2. macOS/iOS version
 3. Xcode version
@@ -1566,6 +1590,7 @@ Provide:
 6. Full error message
 
 **Template**:
+
 ```markdown
 **Environment**:
 - Swift: 5.9
@@ -1586,12 +1611,13 @@ Provide:
 #### Community Channels
 
 - **GitHub Discussions**: Q&A
-- **Swift Forum**: https://forums.swift.org
+- **Swift Forum**: <https://forums.swift.org>
 - **Stack Overflow**: Tag with `swift` and `fraiseql`
 
 #### Profiling Tools
 
 **Instruments** (in Xcode):
+
 1. Product → Profile (Cmd+I)
 2. Select Core Data / Memory / Network
 3. Run and analyze

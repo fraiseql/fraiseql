@@ -8,6 +8,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - GraphQL fundamentals (types, fields, queries, mutations, resolvers)
 - At least one programming language (Python, TypeScript, Java, or Go)
 - Decorator/annotation syntax in your target language
@@ -16,6 +17,7 @@
 - CLI tool usage and file I/O operations
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Your chosen language runtime:
   - Python 3.10+ (for Python generator)
@@ -27,12 +29,14 @@
 - Bash or equivalent shell
 
 **Required Infrastructure:**
+
 - FraiseQL CLI tooling (fraiseql compile command)
 - PostgreSQL 14+ database (for compilation validation)
 - File system with write permissions for schema.json output
 - Network connectivity for downloading language SDKs
 
 **Optional but Recommended:**
+
 - IDE extensions for your language (IntelliSense, syntax highlighting)
 - Language package managers (pip, npm, Maven, go modules)
 - Type checkers (mypy for Python, tsc for TypeScript, etc.)

@@ -553,14 +553,14 @@ WHERE date_info IS NULL AND occurred_at IS NOT NULL;
 CREATE INDEX idx_sales_date_info ON tf_sales USING GIN (date_info);
 ```
 
-2. **Large result sets** (calendar optimization helps GROUP BY, not large result sets):
+1. **Large result sets** (calendar optimization helps GROUP BY, not large result sets):
 
 ```sql
 -- If returning millions of rows, limit the results
 SELECT ... FROM tf_sales ... LIMIT 1000;
 ```
 
-3. **Complex WHERE clauses** (calendar only optimizes GROUP BY):
+1. **Complex WHERE clauses** (calendar only optimizes GROUP BY):
 
 ```sql
 -- Ensure denormalized filter columns are indexed

@@ -12,6 +12,7 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 ## Prerequisites
 
 **Required Knowledge:**
+
 - GraphQL concepts and use cases
 - Database architecture and query patterns
 - ACID vs eventual consistency trade-offs
@@ -22,13 +23,16 @@ FraiseQL is **not a general-purpose GraphQL engine**. It's optimized for a speci
 - Data consistency requirements
 
 **Required Software:**
+
 - None (this is a decision-making guide, not hands-on implementation)
 - Optional: Documentation from your existing system/architecture
 
 **Required Infrastructure:**
+
 - None (decision guide only)
 
 **Optional but Recommended:**
+
 - Performance baseline data from current system (if migrating)
 - Team technical expertise assessment
 - Architecture documentation
@@ -246,6 +250,7 @@ FraiseQL guarantees: No cross-tenant data leaks, mutations atomic per tenant.
 - Caching is effective
 
 **Verdict**: FraiseQL works but might be overkill.
+
 - Better choice: WordPress, Strapi, or simpler CMS
 
 ---
@@ -264,6 +269,7 @@ FraiseQL guarantees: No cross-tenant data leaks, mutations atomic per tenant.
 **Better choice**: DynamoDB, Cassandra, ClickHouse
 
 **Example anti-pattern**:
+
 ```graphql
 query RealTimeMetrics {
   metrics(last: 10000) {
@@ -288,6 +294,7 @@ FraiseQL would be slow. Use Cassandra instead.
 **Better choice**: DynamoDB, Cassandra, Firebase
 
 **Example anti-pattern**:
+
 ```graphql
 mutation LikePost($postId: ID!) {
   likePost(postId: $postId) {
@@ -312,6 +319,7 @@ DynamoDB's eventual consistency is perfect here.
 **Better choice**: InfluxDB, TimescaleDB, Prometheus
 
 **Example anti-pattern**:
+
 ```graphql
 mutation LogSensorReading($sensorId: ID!, $value: Float!) {
   logReading(sensorId: $sensorId, value: $value) {
@@ -336,6 +344,7 @@ Use time-series DB directly.
 **Better choice**: Firebase, Socket.io + Redis, Websockets
 
 **Example anti-pattern**:
+
 ```graphql
 mutation SendMessage($chatId: ID!, $text: String!) {
   sendMessage(chatId: $chatId, text: $text) {
@@ -429,52 +438,66 @@ START
 
 ---
 
-## Red Flags: Don't Use FraiseQL If...
+## Red Flags: Don't Use FraiseQL If
 
 🚫 **You need mutation latency < 50ms**
+
 - FraiseQL's synchronous SAGA adds 100-500ms overhead
 
 🚫 **You need Availability in distributed scenarios**
+
 - FraiseQL chooses Consistency, refuses AP
 
 🚫 **Your data is primarily document-based**
+
 - FraiseQL assumes relational schema
 
 🚫 **You need infinite scaling without cost increase**
+
 - FraiseQL's cost scales with database performance
 
 🚫 **You want a managed service (hands-off)**
+
 - FraiseQL requires managing PostgreSQL/MySQL
 
 🚫 **You're building real-time analytics**
+
 - Use ClickHouse, InfluxDB, or similar
 
 🚫 **You want "eventual consistency" design**
+
 - FraiseQL refuses this philosophy
 
 ---
 
-## Green Flags: Do Use FraiseQL If...
+## Green Flags: Do Use FraiseQL If
 
 ✅ **You need guaranteed consistency**
+
 - FraiseQL makes it a first-class guarantee
 
 ✅ **You have complex multi-service transactions**
+
 - SAGA pattern with automatic compensation
 
 ✅ **You're in regulated industry** (finance, healthcare)
+
 - Audit logging and compliance built-in
 
 ✅ **You need multi-tenant data isolation**
+
 - Field-level RBAC compiled into schema
 
 ✅ **You want compile-time schema validation**
+
 - Errors caught at build time, never runtime
 
 ✅ **You're tired of N+1 query problems**
+
 - Joins determined at compile time
 
 ✅ **You want schema as code** (not API comments)
+
 - 16 languages supported for schema authoring
 
 ---
@@ -557,6 +580,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 | Learning curve | Medium | Low | Low | High |
 
 **Recommendation:**
+
 - If you need consistency + schema safety → FraiseQL
 - If you need serverless + real-time → Firebase/DynamoDB
 - If you need maximum flexibility → GraphQL-core
@@ -566,6 +590,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 **Phased Approach:**
 
 **Phase 1 (Week 1): POC on single feature**
+
 - Pick one GraphQL query with 2-3 tables
 - Define schema in Python/TypeScript
 - Compile and run local test
@@ -573,6 +598,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Success metric: Query executes and returns data
 
 **Phase 2 (Week 2): Expand to one service**
+
 - Migrate one real service to FraiseQL
 - Run side-by-side with existing API for comparison
 - Load test: Compare performance profiles
@@ -580,6 +606,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Success metric: FraiseQL performance acceptable
 
 **Phase 3 (Weeks 3-4): Production trial**
+
 - Deploy to staging
 - Shadow traffic (duplicate requests to both)
 - Monitor error rates, latency, consistency
@@ -587,6 +614,7 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 - Success metric: All metrics within acceptable range
 
 **Phase 4 (Week 5+): Full migration**
+
 - Gradual cutover: 10% → 25% → 50% → 100%
 - Rollback plan ready
 - Time: 2-4 weeks depending on traffic

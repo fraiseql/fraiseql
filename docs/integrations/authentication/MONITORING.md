@@ -370,6 +370,7 @@ services:
 ### User Can't Log In
 
 Check logs for:
+
 ```
 error: "invalid_state"  # State validation failed
 error: "oauth_error"    # Provider error
@@ -379,6 +380,7 @@ error: "token_expired"  # Token already expired
 ### Slow Authentication
 
 Check performance logs:
+
 ```
 duration_ms: > 500  # Identify slow operations
 event: "oauth_exchange"  # Likely provider latency
@@ -387,6 +389,7 @@ event: "oauth_exchange"  # Likely provider latency
 ### Session Issues
 
 Check session logs:
+
 ```
 event: "session_revoked"  # Track revocations
 event: "session_created"  # Track creation rate

@@ -16,6 +16,7 @@ uv add fraiseql
 ```
 
 **Requirements**:
+
 - Python 3.10 or later
 - Type annotations (PEP 484, 586, 604)
 - pip or uv package manager
@@ -1582,6 +1583,7 @@ def create_user(name: str) -> User:
 **Issue**: `ModuleNotFoundError: No module named 'fraiseql'`
 
 **Solutions**:
+
 ```bash
 # Verify installation
 python -m pip show fraiseql
@@ -1598,6 +1600,7 @@ python --version
 ```
 
 **Debugging**:
+
 - Verify you're in correct virtual environment: `which python`
 - Check site-packages location: `python -c "import site; print(site.getsitepackages())"`
 - Inspect pip cache: `pip cache info`
@@ -1607,6 +1610,7 @@ python --version
 **Issue**: `ImportError: cannot import name 'type' from 'fraiseql'`
 
 **Solutions**:
+
 ```python
 # ✅ Correct import style
 from fraiseql import type, query, mutation
@@ -1616,6 +1620,7 @@ from fraiseql.decorators import type  # This won't work
 ```
 
 **Check version**:
+
 ```python
 import fraiseql
 print(fraiseql.__version__)  # Should be 2.0.0+
@@ -1626,11 +1631,13 @@ print(fraiseql.__version__)  # Should be 2.0.0+
 **Issue**: `FraiseQL version 1.x installed, but code uses 2.x syntax`
 
 **Check installed version**:
+
 ```bash
 pip show fraiseql | grep Version
 ```
 
 **Upgrade to latest**:
+
 ```bash
 pip install fraiseql>=2.0.0
 ```
@@ -1640,6 +1647,7 @@ pip install fraiseql>=2.0.0
 **Issue**: `pip install` fails with dependency resolution error
 
 **Debug dependency tree**:
+
 ```bash
 pip install pipdeptree
 pipdeptree -p fraiseql
@@ -1649,6 +1657,7 @@ pip check
 ```
 
 **Resolve manually**:
+
 ```bash
 # Pin specific versions
 pip install fraiseql==2.0.0 pydantic>=2.0
@@ -1665,6 +1674,7 @@ pip install fraiseql==2.0.0 pydantic>=2.0
 **Cause**: Python type annotation doesn't match decorator specification
 
 **Solution**:
+
 ```python
 # ❌ Wrong - type annotation conflicts with decorator
 @fraiseql.type
@@ -1680,6 +1690,7 @@ class User:
 ```
 
 **Validate types before export**:
+
 ```python
 import fraiseql
 fraiseql.validate_schema()  # Raises ValidationError if issues found
@@ -1692,6 +1703,7 @@ fraiseql.validate_schema()  # Raises ValidationError if issues found
 **Cause**: Incorrect use of optional/non-null syntax
 
 **Solution**:
+
 ```python
 # ❌ Wrong - implies non-null, but can return None
 @fraiseql.type
@@ -1705,6 +1717,7 @@ class User:
 ```
 
 **Runtime null check**:
+
 ```python
 @fraiseql.query(sql_source="v_users")
 def user(id: int) -> User | None:  # Explicitly nullable
@@ -1719,6 +1732,7 @@ def user(id: int) -> User | None:  # Explicitly nullable
 **Cause**: Using `list[T]` syntax without proper import
 
 **Solution** (Python 3.10+):
+
 ```python
 # ✅ Works in Python 3.10+
 def get_users() -> list[User]:
@@ -1726,6 +1740,7 @@ def get_users() -> list[User]:
 ```
 
 **Compatibility** (Python 3.9):
+
 ```python
 from typing import List
 def get_users() -> List[User]:  # Use typing.List
@@ -1733,6 +1748,7 @@ def get_users() -> List[User]:  # Use typing.List
 ```
 
 **Always verify Python version**:
+
 ```python
 import sys
 assert sys.version_info >= (3, 10), "FraiseQL requires Python 3.10+"
@@ -1745,6 +1761,7 @@ assert sys.version_info >= (3, 10), "FraiseQL requires Python 3.10+"
 **Cause**: Referencing non-existent type in return annotation
 
 **Solution**:
+
 ```python
 # ❌ Wrong - UserType doesn't exist
 @fraiseql.query(sql_source="v_users")
@@ -1773,6 +1790,7 @@ def users() -> list[User]:
 **Cause**: SQL source table/view doesn't exist in database
 
 **Debug**:
+
 ```python
 # Check if view exists
 import psycopg2
@@ -1786,6 +1804,7 @@ print(cur.fetchall())  # Should return 1 row
 ```
 
 **Solution**:
+
 ```sql
 -- Create missing view
 CREATE VIEW v_users AS
@@ -1797,6 +1816,7 @@ SELECT id, name, email FROM users;
 **Issue**: `FraiseQLError: Failed to connect to database`
 
 **Debug connection**:
+
 ```bash
 # Test database connectivity
 psql postgresql://user:pass@localhost/dbname -c "SELECT 1"
@@ -1806,12 +1826,14 @@ echo $DATABASE_URL
 ```
 
 **Common causes**:
+
 - Database not running: `docker ps | grep postgres`
 - Wrong credentials: verify user/password
 - Firewall blocking: check network connectivity
 - Connection string format: `postgresql://user:pass@host:5432/db`
 
 **Solution**:
+
 ```python
 import os
 
@@ -1835,6 +1857,7 @@ except Exception as e:
 **Cause**: Complex query or slow database
 
 **Debug**:
+
 ```python
 # Enable query timing
 import logging
@@ -1845,6 +1868,7 @@ logging.basicConfig(level=logging.DEBUG)
 ```
 
 **Solutions**:
+
 ```python
 # Increase timeout in configuration
 fraiseql_config = {
@@ -1865,6 +1889,7 @@ def users(limit: int = 20, offset: int = 0) -> list[User]:
 **Issue**: `FraiseQLError: Authentication failed: token invalid`
 
 **Debug**:
+
 ```python
 # Check if context has required auth info
 @fraiseql.query(sql_source="v_users")
@@ -1876,6 +1901,7 @@ def my_users(context: dict) -> list[User]:
 ```
 
 **Solutions**:
+
 ```python
 # Ensure auth context is passed
 result = fraiseql_server.execute(
@@ -1897,12 +1923,14 @@ result = fraiseql_server.execute(
 **Issue**: `Query took 5 seconds to execute`
 
 **Debug with EXPLAIN**:
+
 ```sql
 -- Check query plan
 EXPLAIN ANALYZE SELECT * FROM v_users LIMIT 10;
 ```
 
 **Solutions**:
+
 ```python
 # Add query result caching
 @fraiseql.query(sql_source="v_users", cache_ttl=300)
@@ -1925,6 +1953,7 @@ def users(limit: int = 20, offset: int = 0) -> list[User]:
 **Issue**: Application memory usage grows over time
 
 **Debug**:
+
 ```python
 # Profile memory usage
 import tracemalloc
@@ -1935,11 +1964,13 @@ print(f"Current: {current / 1024 / 1024}MB; Peak: {peak / 1024 / 1024}MB")
 ```
 
 **Common causes**:
+
 - Unbounded result sets (missing `limit`)
 - Connection pool not releasing
 - Schema objects not cleaned up
 
 **Solutions**:
+
 ```python
 # Always paginate
 @fraiseql.query(sql_source="v_data")
@@ -1958,12 +1989,14 @@ with FraiseQLServer.from_compiled("schema.json") as server:
 **Issue**: `Too many open connections to database`
 
 **Debug connection count**:
+
 ```sql
 -- PostgreSQL
 SELECT count(*) FROM pg_stat_activity WHERE datname = 'mydb';
 ```
 
 **Solution - Configure pool size**:
+
 ```python
 server = FraiseQLServer.from_compiled(
     "schema.compiled.json",
@@ -1978,6 +2011,7 @@ server = FraiseQLServer.from_compiled(
 **Issue**: No performance improvement despite enabling `cache_ttl`
 
 **Verify cache**:
+
 ```python
 # Enable debug logging to see cache hits/misses
 import logging
@@ -1989,6 +2023,7 @@ print(f"Hits: {stats['hits']}, Misses: {stats['misses']}")
 ```
 
 **Ensure cache is actually used**:
+
 ```python
 # Each different query/variable combo is cached separately
 query1 = "query { users(limit: 10) { id } }"
@@ -2006,6 +2041,7 @@ result2 = server.execute(query, variables={"limit": 10})  # Cache hit!
 #### Enable Debug Logging
 
 **Setup logging**:
+
 ```python
 import logging
 logging.basicConfig(
@@ -2021,6 +2057,7 @@ logging.getLogger('fraiseql.sql').setLevel(logging.DEBUG)
 ```
 
 **Environment variable**:
+
 ```bash
 RUST_LOG=fraiseql=debug python app.py
 ```
@@ -2028,6 +2065,7 @@ RUST_LOG=fraiseql=debug python app.py
 #### Use Language Debugger
 
 **PDB (Python Debugger)**:
+
 ```python
 @fraiseql.query(sql_source="v_users")
 def users(limit: int = 10) -> list[User]:
@@ -2036,6 +2074,7 @@ def users(limit: int = 10) -> list[User]:
 ```
 
 **Run with debugger**:
+
 ```bash
 python -m pdb app.py
 ```
@@ -2043,6 +2082,7 @@ python -m pdb app.py
 #### Inspect Generated Schemas
 
 **Print compiled schema**:
+
 ```python
 import json
 with open("schema.compiled.json") as f:
@@ -2051,6 +2091,7 @@ with open("schema.compiled.json") as f:
 ```
 
 **Check generated GraphQL**:
+
 ```python
 # Introspection query
 result = server.execute("""
@@ -2069,11 +2110,13 @@ print(json.dumps(result, indent=2))
 #### Monitor Network Traffic
 
 **Using tcpdump**:
+
 ```bash
 tcpdump -i lo -A 'tcp port 5432'  # Monitor PostgreSQL
 ```
 
 **Using curl**:
+
 ```bash
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -2088,6 +2131,7 @@ curl -X POST http://localhost:8000/graphql \
 #### GitHub Issues
 
 When reporting issues, provide:
+
 1. Python version: `python --version`
 2. FraiseQL version: `pip show fraiseql`
 3. Minimal reproducible example
@@ -2095,6 +2139,7 @@ When reporting issues, provide:
 5. Relevant logs
 
 **Issue template**:
+
 ```markdown
 **Environment**:
 - Python: 3.12
@@ -2120,6 +2165,7 @@ When reporting issues, provide:
 #### Performance Profiling
 
 **Use cProfile**:
+
 ```python
 import cProfile
 import pstats
@@ -2139,12 +2185,14 @@ stats.print_stats(10)  # Top 10 functions
 #### Database Query Analysis
 
 **Enable PostgreSQL query logging**:
+
 ```sql
 ALTER DATABASE mydb SET log_statement = 'all';
 ALTER DATABASE mydb SET log_duration = 'on';
 ```
 
 **Analyze query plan**:
+
 ```python
 def explain_query(view_name):
     conn = psycopg2.connect(DATABASE_URL)

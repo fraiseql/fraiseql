@@ -721,14 +721,17 @@ describe('Collaborative Editing', () => {
 ## See Also
 
 **Related Patterns:**
+
 - [Multi-Tenant SaaS](./saas-multi-tenant.md) - Document ownership/permissions
 - [Activity Feeds in Social Networks](./social-network.md) - Similar patterns
 
 **Real-Time Features:**
+
 - [Real-Time Patterns](../guides/PATTERNS.md)
 - [Subscriptions & WebSockets](../guides/clients/README.md)
 
 **Production Deployment:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Observability & Monitoring](../guides/observability.md)
 

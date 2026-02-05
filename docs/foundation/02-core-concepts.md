@@ -52,6 +52,7 @@ class User:
 FraiseQL has several type categories:
 
 **1. Object Types** - Represent entities in your domain
+
 ```python
 @fraiseql.type
 class User:
@@ -67,6 +68,7 @@ class Order:
 ```
 
 **2. Scalar Types** - Basic values (strings, numbers, dates, etc.)
+
 ```
 String    → text (username, email, description)
 Int       → whole numbers (user_id, quantity)
@@ -80,6 +82,7 @@ JSON      → arbitrary data (metadata, config)
 ```
 
 **3. Enum Types** - Limited set of named values
+
 ```python
 @fraiseql.enum
 class OrderStatus:
@@ -143,6 +146,7 @@ query GetUser {
 ```
 
 **How it works in FraiseQL:**
+
 1. Query is received by server
 2. Server looks up pre-compiled SQL template for this query shape
 3. Server binds variables (id = 1) to parameters
@@ -172,6 +176,7 @@ mutation CreateOrder {
 ```
 
 **How it works in FraiseQL:**
+
 1. Mutation is received by server
 2. Authorization rules checked (can user modify this data?)
 3. Validation rules checked (are all required fields present?)
@@ -188,6 +193,7 @@ mutation CreateOrder {
 **Definition:** Logic that determines what data to return for a field or relationship.
 
 In traditional GraphQL servers, resolvers are *custom code* you write:
+
 ```javascript
 // Apollo Server - Traditional resolver (you write this)
 const userResolver = async (parent, args, context) => {
@@ -196,6 +202,7 @@ const userResolver = async (parent, args, context) => {
 ```
 
 In FraiseQL, resolvers are *automatically generated* at compile time:
+
 ```python
 # FraiseQL - Resolver compiled, not written
 @fraiseql.type
@@ -215,6 +222,7 @@ class User:
 **Definition:** A connection between two types, representing how data relates.
 
 **One-to-Many** (User has many Orders):
+
 ```python
 @fraiseql.type
 class User:
@@ -230,6 +238,7 @@ class Order:
 ```
 
 **Many-to-One** (Order belongs to User):
+
 ```python
 @fraiseql.type
 class Order:
@@ -239,6 +248,7 @@ class Order:
 ```
 
 **Many-to-Many** (Students enroll in Courses):
+
 ```python
 @fraiseql.type
 class Student:
@@ -254,6 +264,7 @@ class Course:
 ```
 
 **Self-Relationships** (Employee has manager):
+
 ```python
 @fraiseql.type
 class Employee:
@@ -274,6 +285,7 @@ class Employee:
 A schema is a contract between client and server:
 
 **The contract says:**
+
 - These types exist (User, Order, Product)
 - These fields are available (name, email, created_at)
 - These relationships exist (User has Orders)
@@ -282,11 +294,13 @@ A schema is a contract between client and server:
 - These authorization rules apply (only admins can delete users)
 
 **The client can trust:**
+
 - Fields won't disappear (backward compatibility)
 - Fields won't change type (type safety)
 - Authorization will be enforced (security)
 
 **The server guarantees:**
+
 - Query results match the schema (type safety)
 - No N+1 queries (performance)
 - Consistent performance (deterministic)
@@ -363,6 +377,7 @@ WHERE u.pk_user = 1;
 ```
 
 **Why this matters:**
+
 - You can predict query performance (look at the SQL)
 - Complex queries use database optimization (JOINs, indexes)
 - No application-level N+1 queries (database handles it)
@@ -400,6 +415,7 @@ RETURNING pk_order, status, created_at;
 ```
 
 **Why this matters:**
+
 - Mutations are database transactions (ACID guarantees)
 - Validation happens before SQL (prevent bad data)
 - Authorization checked before mutation (security)
@@ -414,6 +430,7 @@ RETURNING pk_order, status, created_at;
 FraiseQL separates **build time** from **runtime**:
 
 **Build Time (Compilation):**
+
 ```
 Python/TypeScript Schema → Compiler → Optimized SQL Templates
                         ↓
@@ -429,6 +446,7 @@ At build time:
 - ✅ All errors caught
 
 **Runtime (Execution):**
+
 ```
 GraphQL Query → Pre-compiled SQL Template → Database → Results
              ↓
@@ -444,6 +462,7 @@ At runtime:
 - ✅ Results formatted
 
 **Why this matters:**
+
 - Errors caught at compile time, not runtime
 - No schema validation overhead at query time
 - Predictable performance (no interpretation)
@@ -458,6 +477,7 @@ At runtime:
 ### Core Principle: The Database is the Source of Truth
 
 Traditional application architecture:
+
 ```
 Client → Application Code → ORM → Database
                     ↑
@@ -465,6 +485,7 @@ Client → Application Code → ORM → Database
 ```
 
 FraiseQL architecture:
+
 ```
 Client → Compiled SQL Templates → Database
          (no application code)
@@ -488,6 +509,7 @@ Client → Compiled SQL Templates → Database
 FraiseQL uses database **views** extensively:
 
 **Write Tables** (`tb_*` prefix):
+
 ```sql
 CREATE TABLE tb_users (
     pk_user BIGINT PRIMARY KEY,
@@ -496,9 +518,11 @@ CREATE TABLE tb_users (
     created_at TIMESTAMP
 );
 ```
+
 → Normalized, DBA-owned, source of truth
 
 **Read Views** (`v_*` prefix):
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -509,9 +533,11 @@ SELECT
 FROM tb_users
 WHERE deleted_at IS NULL;  -- Soft deletes
 ```
+
 → Curated for GraphQL, handles soft deletes, derived fields
 
 **Analytics Views** (`va_*` prefix):
+
 ```sql
 CREATE VIEW va_user AS
 SELECT
@@ -521,9 +547,11 @@ SELECT
     created_at
 FROM tb_users;
 ```
+
 → Optimized for columnar queries (Arrow plane)
 
 **Transaction Views** (`tv_*` prefix):
+
 ```sql
 CREATE VIEW tv_user AS
 SELECT * FROM tb_users;
@@ -561,6 +589,7 @@ class User:
 ```
 
 **Why this matters:**
+
 - Use best database for the job
 - Avoid vendor lock-in
 - Same schema definition works everywhere
@@ -575,6 +604,7 @@ class User:
 ### Compilation (Build Time)
 
 **What happens:**
+
 ```
 Schema (Python/TypeScript)
     ↓
@@ -592,6 +622,7 @@ schema.compiled.json (output artifact)
 ```
 
 **What is caught at compile time:**
+
 - ❌ Type mismatches (User.username should be VARCHAR, not INT)
 - ❌ Missing relationships (Reference to non-existent table)
 - ❌ Invalid queries (Field doesn't exist on type)
@@ -599,6 +630,7 @@ schema.compiled.json (output artifact)
 - ❌ Constraint violations
 
 **Example - Caught at Compile Time:**
+
 ```python
 # Error: Column type mismatch
 @fraiseql.type
@@ -614,6 +646,7 @@ class User:
 ### Runtime (Query Execution)
 
 **What happens:**
+
 ```
 GraphQL Query
     ↓
@@ -631,12 +664,14 @@ Response (send to client)
 ```
 
 **What is checked at runtime:**
+
 - ✅ Authorization (does user have permission?)
 - ✅ Parameter validation (is ID a valid number?)
 - ✅ Constraint checks (unique violation, foreign key, etc.)
 - ✅ Business logic (application-defined rules)
 
 **Example - Checked at Runtime:**
+
 ```graphql
 # Runtime check: Does user have permission?
 query GetUser {
@@ -721,6 +756,7 @@ query GetUser {
 ## Key Concepts Map
 
 **Terminology:**
+
 - **Schema** = Full specification of your API
 - **Type** = Data object definition (maps to table)
 - **Field** = Named value in a type (maps to column)
@@ -730,6 +766,7 @@ query GetUser {
 - **Relationship** = Connection between types (foreign key)
 
 **Mental Models:**
+
 - Schemas are *API contracts*
 - Types map to *database tables*
 - Queries map to *SELECT statements*
@@ -737,6 +774,7 @@ query GetUser {
 - Compilation separates *safety from execution*
 
 **Database Concepts:**
+
 - Tables (`tb_*`) = write tables
 - Views (`v_*`) = read views
 - Database is *source of truth*

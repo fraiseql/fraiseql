@@ -21,6 +21,7 @@ In this tutorial, you'll build a complete Blog API by:
 ### What You'll Build
 
 A **Blog API** supporting:
+
 - **Users**: Create and manage blog authors
 - **Posts**: Create, update, delete blog posts with author relationships
 - **Comments**: Add comments to posts with user relationships
@@ -841,6 +842,7 @@ class User:
 ```
 
 **Key points:**
+
 - Use Python 3.10+ type hints (`str | None` instead of `Optional[str]`)
 - All fields must be typed
 - Field names match your database columns
@@ -865,6 +867,7 @@ def posts(limit: int = 10) -> list[Post]:
 ```
 
 **Parameters:**
+
 - `sql_source`: The database view or table name (required)
 - `auto_params`: Dictionary of auto-generated parameters
   - `"limit": True` - Automatically add `limit` parameter
@@ -886,6 +889,7 @@ def create_user(name: str, email: str) -> User:
 ```
 
 **Operation types:**
+
 - `"CREATE"` - Insert new record
 - `"UPDATE"` - Modify existing record
 - `"DELETE"` - Remove record
@@ -903,6 +907,7 @@ python schema.py
 ```
 
 **Output:**
+
 ```
 ✅ Schema exported successfully!
    Generated: schema.json
@@ -1105,6 +1110,7 @@ python -c "import json; s = json.load(open('schema.json')); print(f'Types: {len(
 ```
 
 **Expected output:**
+
 ```
 ✅ schema.json is valid JSON
 Types: 3, Queries: 6, Mutations: 5
@@ -1155,6 +1161,7 @@ fraiseql-cli compile schema.json fraiseql.toml
 ```
 
 **Output:**
+
 ```
 ✅ Compilation successful!
    Generated: schema.compiled.json
@@ -1234,6 +1241,7 @@ query {
 ```
 
 **Expected response:**
+
 ```json
 {
     "data": {
@@ -1273,6 +1281,7 @@ query {
 ```
 
 **Expected response:**
+
 ```json
 {
     "data": {
@@ -1334,6 +1343,7 @@ mutation {
 ```
 
 **Expected response:**
+
 ```json
 {
     "data": {
@@ -1433,6 +1443,7 @@ query {
 ```
 
 **Expected error:**
+
 ```json
 {
     "errors": [
@@ -1469,6 +1480,7 @@ curl http://localhost:8000/health
 ```
 
 **Response:**
+
 ```json
 {
     "status": "ok",
@@ -1508,6 +1520,7 @@ def posts(limit: int = 10, offset: int = 0) -> list[Post]:
 ```
 
 GraphQL usage:
+
 ```graphql
 query {
     posts(limit: 20, offset: 40) {  # Fetch 20 posts, skip first 40
@@ -1532,6 +1545,7 @@ def posts(published: bool | None = None) -> list[Post]:
 ```
 
 GraphQL usage:
+
 ```graphql
 query {
     posts(where: {published: {_eq: true}, author_id: {_eq: 1}}) {
@@ -1557,6 +1571,7 @@ def posts() -> list[Post]:
 ```
 
 GraphQL usage:
+
 ```graphql
 query {
     posts(order_by: {field: "created_at", direction: DESC}) {
@@ -1586,6 +1601,7 @@ JOIN users u ON p.author_id = u.id;
 ```
 
 Python schema:
+
 ```python
 @fraiseql.type
 class PostWithAuthor:
@@ -1618,6 +1634,7 @@ def post_comments(
 ```
 
 GraphQL usage:
+
 ```graphql
 query {
     post_comments(
@@ -1640,6 +1657,7 @@ query {
 ### Mistake 1: Using Old Python Type Hints
 
 ❌ **Wrong:**
+
 ```python
 from typing import Optional
 def user(id: int) -> Optional[User]:
@@ -1647,6 +1665,7 @@ def user(id: int) -> Optional[User]:
 ```
 
 ✅ **Correct:**
+
 ```python
 def user(id: int) -> User | None:
     pass
@@ -1655,6 +1674,7 @@ def user(id: int) -> User | None:
 ### Mistake 2: Forgetting `sql_source`
 
 ❌ **Wrong:**
+
 ```python
 @fraiseql.query()
 def users() -> list[User]:
@@ -1662,6 +1682,7 @@ def users() -> list[User]:
 ```
 
 ✅ **Correct:**
+
 ```python
 @fraiseql.query(sql_source="v_users")
 def users() -> list[User]:
@@ -1673,6 +1694,7 @@ def users() -> list[User]:
 If your database column is `created_at`, your Python field must also be `created_at`:
 
 ❌ **Wrong:**
+
 ```python
 @fraiseql.type
 class Post:
@@ -1680,6 +1702,7 @@ class Post:
 ```
 
 ✅ **Correct:**
+
 ```python
 @fraiseql.type
 class Post:
@@ -1691,6 +1714,7 @@ class Post:
 If a database field can be NULL, mark it as nullable:
 
 ❌ **Wrong:**
+
 ```python
 @fraiseql.type
 class User:
@@ -1698,6 +1722,7 @@ class User:
 ```
 
 ✅ **Correct:**
+
 ```python
 @fraiseql.type
 class User:
@@ -1740,6 +1765,7 @@ psql -c "SELECT proname FROM pg_proc WHERE proname = 'fn_create_post';"
 #### Error: `ImportError: No module named 'fraiseql'`
 
 **Solution:**
+
 ```bash
 pip install fraiseql
 ```
@@ -1747,6 +1773,7 @@ pip install fraiseql
 #### Error: `Module has no attribute 'type'`
 
 **Solution:** Check that you're using the correct import:
+
 ```python
 import fraiseql
 # Then use @fraiseql.type, not @fraiseql_type
@@ -1757,6 +1784,7 @@ import fraiseql
 #### Error: `View 'v_posts' not found`
 
 **Solution:** Verify the view exists in your database:
+
 ```sql
 SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
 ```
@@ -1764,6 +1792,7 @@ SELECT * FROM information_schema.views WHERE table_name = 'v_posts';
 #### Error: `Type mismatch: expected String, got Integer`
 
 **Solution:** Check field types match between Python and database:
+
 ```python
 # If database column is VARCHAR, use str in Python
 @fraiseql.type
@@ -1776,6 +1805,7 @@ class Post:
 #### Error: `Connection refused`
 
 **Solution:** Verify database is running:
+
 ```bash
 psql postgresql://user:password@localhost/blog_db -c "SELECT 1"
 ```

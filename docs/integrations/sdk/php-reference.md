@@ -18,6 +18,7 @@ composer create-project fraiseql/php-starter my-api
 ```
 
 **Requirements**:
+
 - PHP 8.2 or later
 - Composer for dependency management
 - Type declarations enabled (strict types recommended)
@@ -774,6 +775,7 @@ class UserQueriesTest extends SchemaTestCase
 **Issue**: `Could not find package fraiseql/fraiseql`
 
 **Solution**:
+
 ```bash
 composer require fraiseql/fraiseql "^2.0"
 composer update
@@ -785,6 +787,7 @@ composer dump-autoload
 **Issue**: `Class 'FraiseQL\Server' not found`
 
 **Solution - Require autoloader**:
+
 ```php
 <?php
 require 'vendor/autoload.php';
@@ -798,11 +801,13 @@ $server = Server::fromCompiled('schema.compiled.json');
 **Issue**: `Parse error: syntax error, unexpected ...`
 
 **Check PHP version** (7.4+ required):
+
 ```bash
 php --version
 ```
 
 **Update PHP**:
+
 ```bash
 php -v
 # Or use version manager
@@ -815,6 +820,7 @@ phpenv global 8.2
 **Issue**: `Warning: Module compiled for PHP 8.1.0 API ... but loaded into ...`
 
 **Solution - Rebuild extensions**:
+
 ```bash
 pecl install fraiseql
 php -m | grep fraiseql
@@ -829,6 +835,7 @@ php -m | grep fraiseql
 **Issue**: `Uncaught TypeError: Return value must be of type array`
 
 **Solution - Use proper types**:
+
 ```php
 // ✅ Declare return types
 public function getUsers(): array {
@@ -846,6 +853,7 @@ public function getUser(int $id): ?User {
 **Issue**: `Error: Call to undefined method attribute()`
 
 **Solution - Use correct syntax**:
+
 ```php
 // ✅ PHP 8 attributes
 #[FraiseQL\Type]
@@ -867,6 +875,7 @@ class User {
 **Issue**: `Undefined class FraiseQL\Type`
 
 **Solution - Import classes**:
+
 ```php
 <?php
 use FraiseQL\Type;
@@ -888,11 +897,13 @@ function getUsers(): array { }
 **Issue**: `PDOException: SQLSTATE[HY000]: General error`
 
 **Check environment**:
+
 ```bash
 echo $DATABASE_URL
 ```
 
 **Solution - Configure database**:
+
 ```php
 $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
@@ -910,6 +921,7 @@ $server = \FraiseQL\Server::fromCompiled(
 **Issue**: `Cannot modify header information`
 
 **Solution - Set headers early**:
+
 ```php
 <?php
 // Must be first
@@ -926,6 +938,7 @@ echo json_encode($result);
 **Issue**: `Unexpected type for argument`
 
 **Solution - Cast properly**:
+
 ```php
 // ✅ Correct types
 $result = $server->execute(
@@ -943,6 +956,7 @@ $result = $server->execute(
 **Issue**: Queries take >5 seconds
 
 **Enable caching**:
+
 ```php
 $server = \FraiseQL\Server::fromCompiled(
     'schema.compiled.json',
@@ -955,6 +969,7 @@ $server = \FraiseQL\Server::fromCompiled(
 **Issue**: `Fatal error: Allowed memory size of X bytes exhausted`
 
 **Increase memory limit**:
+
 ```php
 ini_set('memory_limit', '512M');
 
@@ -963,6 +978,7 @@ memory_limit = 512M
 ```
 
 **Or check for leaks**:
+
 ```php
 echo memory_get_usage() . " bytes\n";
 $result = $server->execute($query);

@@ -583,6 +583,7 @@ Use `clojure.test` with immutable data structures:
 **Issue**: `Could not find artifact fraiseql:fraiseql-clojure`
 
 **Solution**:
+
 ```clojure
 ; project.clj
 (defproject myapp "0.1.0"
@@ -599,11 +600,13 @@ lein deps
 **Issue**: `Unsupported Java version`
 
 **Check version** (11+ required):
+
 ```bash
 java -version
 ```
 
 **Set in project.clj**:
+
 ```clojure
 :java-source-paths ["src/java"]
 :source-paths ["src/clj"]
@@ -615,6 +618,7 @@ java -version
 **Issue**: `No such var: fraiseql/type`
 
 **Solution - Require properly**:
+
 ```clojure
 (ns myapp.schema
   (:require [fraiseql.core :as fq]))
@@ -629,6 +633,7 @@ java -version
 **Issue**: `CompilerException`
 
 **Solution - Refresh in REPL**:
+
 ```clojure
 (require :reload 'fraiseql.core)
 ```
@@ -642,6 +647,7 @@ java -version
 **Issue**: `ExceptionInfo: Invalid schema structure`
 
 **Solution - Proper schema**:
+
 ```clojure
 ; ✅ Correct
 (fq/deftype User
@@ -661,6 +667,7 @@ java -version
 **Issue**: `ExceptionInfo: failed: ...`
 
 **Solution - Use s/explain**:
+
 ```clojure
 (require '[clojure.spec.alpha :as s])
 
@@ -673,6 +680,7 @@ java -version
 **Issue**: `ClassCastException: Transducer expected`
 
 **Solution - Use proper transducers**:
+
 ```clojure
 ; ✅ Correct
 (transduce
@@ -691,6 +699,7 @@ java -version
 **Issue**: `OutOfMemoryError` with large sequences
 
 **Solution - Force realization carefully**:
+
 ```clojure
 ; ✅ With doall
 (doall (map fraiseql/execute queries))
@@ -704,6 +713,7 @@ java -version
 **Issue**: `RejectedExecutionException`
 
 **Solution - Limit concurrency**:
+
 ```clojure
 (require '[clojure.core.async :as async])
 
@@ -720,6 +730,7 @@ java -version
 **Issue**: `No such namespace: fraiseql`
 
 **Solution - Require namespace**:
+
 ```clojure
 (ns myapp.core
   (:require [fraiseql.core :as fq]))
@@ -736,6 +747,7 @@ java -version
 **Issue**: Compile takes >30 seconds
 
 **Use AOT selectively**:
+
 ```clojure
 ; project.clj
 :aot [myapp.core]  ; Only what needed
@@ -746,6 +758,7 @@ java -version
 **Issue**: Memory grows with lazy sequences
 
 **Realize in chunks**:
+
 ```clojure
 ; ✅ Process in batches
 (->> (fq/query-stream query)
@@ -758,6 +771,7 @@ java -version
 **Issue**: `SQLException: Cannot get a connection`
 
 **Configure pool**:
+
 ```clojure
 (require '[hikari-cp.core :as hikari])
 
@@ -812,6 +826,7 @@ user> (fraiseql.core/execute server "{ user(id: 1) { id } }")
 ### Getting Help
 
 Provide:
+
 1. Clojure version: `clojure --version`
 2. Java version: `java -version`
 3. FraiseQL version: `lein deps :tree`
@@ -819,6 +834,7 @@ Provide:
 5. Stack trace
 
 **Template**:
+
 ```markdown
 **Environment**:
 - Clojure: 1.11.0

@@ -24,6 +24,7 @@ FraiseQL adopts a **fail-secure** approach to security configuration, prioritizi
 **Why**: This prevents token confusion attacks where tokens from one service can be used in another.
 
 **Configuration**:
+
 ```toml
 [auth]
 issuer = "https://tenant.auth0.com/"
@@ -31,11 +32,13 @@ audience = "https://api.example.com"  # Required for OIDC
 ```
 
 **Migration Steps**:
+
 1. Identify your API identifier (typically a URL like `https://api.example.com` or a simple ID like `my-api`)
 2. Add `audience = "YOUR_API_IDENTIFIER"` to your `[auth]` section
 3. Restart your server - it will fail with a clear error if missing
 
 **Error you might see**:
+
 ```
 OIDC audience is REQUIRED for security. Set 'audience' in auth config
 to your API identifier. This prevents token confusion attacks...
@@ -46,6 +49,7 @@ to your API identifier. This prevents token confusion attacks...
 **Status**: Disabled by default. Enable only when needed.
 
 **Available admin endpoints**:
+
 - `/api/v1/admin/reload-schema` - Reload GraphQL schema
 - `/api/v1/admin/cache/clear` - Clear caches
 - `/api/v1/admin/config` - View server configuration
@@ -53,6 +57,7 @@ to your API identifier. This prevents token confusion attacks...
 **To enable admin endpoints**:
 
 If you need admin endpoints:
+
 ```toml
 [server]
 admin_api_enabled = true
@@ -60,12 +65,14 @@ admin_token = "your-secure-token-32-characters-minimum!!"
 ```
 
 Or via environment variables:
+
 ```bash
 FRAISEQL_ADMIN_API_ENABLED=true
 FRAISEQL_ADMIN_TOKEN="your-secure-token-32-characters-minimum!!"
 ```
 
 Then authenticate requests:
+
 ```bash
 curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
      http://localhost:8000/api/v1/admin/config
@@ -76,11 +83,13 @@ curl -H "Authorization: Bearer your-secure-token-32-characters-minimum!!" \
 **Status**: Disabled by default. Enable based on environment needs.
 
 **Options:**
+
 - **Disabled** (default, recommended for production): Introspection endpoint not available
 - **Enabled without auth** (development): Schema available to all requests
 - **Enabled with auth** (production): Requires OIDC authentication
 
 **For Development** (public schema):
+
 ```toml
 [server]
 introspection_enabled = true
@@ -88,6 +97,7 @@ introspection_require_auth = false  # Schema public (dev only!)
 ```
 
 **For Production** (enable with auth):
+
 ```toml
 [server]
 introspection_enabled = true
@@ -95,6 +105,7 @@ introspection_require_auth = true   # Requires OIDC auth
 ```
 
 Environment variables:
+
 ```bash
 FRAISEQL_INTROSPECTION_ENABLED=true
 FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
@@ -109,12 +120,14 @@ FRAISEQL_INTROSPECTION_REQUIRE_AUTH=true  # In production
 **When to enable**: Local development environments only.
 
 **To enable** (development only):
+
 ```toml
 [server]
 playground_enabled = true
 ```
 
 Or environment variable:
+
 ```bash
 FRAISEQL_PLAYGROUND_ENABLED=true
 ```
@@ -124,10 +137,12 @@ FRAISEQL_PLAYGROUND_ENABLED=true
 ### CORS Configuration
 
 **Behavior**:
+
 - **Development mode** (FRAISEQL_ENV=development): CORS validation relaxed
 - **Production mode** (default): CORS must be explicitly configured
 
 **Configuration**:
+
 ```toml
 [server]
 cors_enabled = true
@@ -147,6 +162,7 @@ Design audit endpoints (`/api/v1/design/*`) support optional authentication.
 **Default**: Public (no auth required)
 
 **To require authentication**:
+
 ```toml
 [server]
 design_api_require_auth = true  # Requires OIDC authentication
@@ -207,6 +223,7 @@ audience = "localhost"  # Use "localhost" for local dev
 ```
 
 Or set environment variables:
+
 ```bash
 export FRAISEQL_ENV=development
 export FRAISEQL_PLAYGROUND_ENABLED=true
@@ -234,6 +251,7 @@ audience = "https://api.example.com"  # Your API identifier
 ```
 
 Or set environment variables:
+
 ```bash
 export FRAISEQL_ENV=production  # Or don't set (production is default)
 export FRAISEQL_ADMIN_TOKEN="your-secure-32+-char-token"
@@ -245,6 +263,7 @@ export FRAISEQL_ADMIN_API_ENABLED=true
 ### "OIDC audience is REQUIRED for security"
 
 **Solution**: Add the `audience` field to your `[auth]` section:
+
 ```toml
 [auth]
 audience = "your-api-identifier"
@@ -253,6 +272,7 @@ audience = "your-api-identifier"
 ### "playground_enabled is true in production mode"
 
 **Solution**: Either disable playground or set `FRAISEQL_ENV=development`:
+
 ```bash
 # Option 1: Disable
 playground_enabled = false
@@ -264,6 +284,7 @@ export FRAISEQL_ENV=development
 ### "cors_origins is empty in production mode"
 
 **Solution**: Explicitly configure CORS origins:
+
 ```toml
 [server]
 cors_origins = ["https://app.example.com"]
@@ -272,6 +293,7 @@ cors_origins = ["https://app.example.com"]
 ### Admin endpoints return 404
 
 **Solution**: Enable admin API:
+
 ```toml
 [server]
 admin_api_enabled = true
@@ -281,6 +303,7 @@ admin_token = "your-secure-token-32-char-minimum!!"
 ### Introspection endpoint returns 404
 
 **Solution**: Enable introspection:
+
 ```toml
 [server]
 introspection_enabled = true
@@ -305,6 +328,7 @@ Rate limiting is **enabled by default** with sensible per-IP and per-user limits
 ### Configuration
 
 **In TOML file** (`fraiseql.toml`):
+
 ```toml
 [rate_limiting]
 enabled = true
@@ -315,6 +339,7 @@ cleanup_interval_secs = 300  # Cleanup stale entries every 5 minutes
 ```
 
 **Via environment variables**:
+
 ```bash
 # Enable/disable rate limiting
 export FRAISEQL_RATE_LIMITING_ENABLED=true
@@ -360,6 +385,7 @@ When rate limit is exceeded, the server responds with HTTP 429:
 ### Recommended Limits by Use Case
 
 **Development**:
+
 ```toml
 [rate_limiting]
 enabled = false  # Or set very high limits
@@ -368,6 +394,7 @@ rps_per_user = 50000
 ```
 
 **Production (Standard)**:
+
 ```toml
 [rate_limiting]
 enabled = true
@@ -376,6 +403,7 @@ rps_per_user = 1000  # Higher for authenticated users
 ```
 
 **Production (High Traffic)**:
+
 ```toml
 [rate_limiting]
 enabled = true
@@ -393,6 +421,7 @@ export FRAISEQL_RATE_LIMITING_ENABLED=false
 ```
 
 Or in config:
+
 ```toml
 [rate_limiting]
 enabled = false

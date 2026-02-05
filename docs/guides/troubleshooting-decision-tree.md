@@ -54,24 +54,28 @@ Does your problem involve...
 ## 🚀 DEPLOYMENT ISSUES
 
 **Container fails to start:**
+
 - Check Docker image build: `docker build . --no-cache`
 - Verify Rust compilation: `cargo build --release`
 - Review startup logs: `docker logs <container_id>`
 - → **Full guide:** [Deployment Guide](../deployment/guide.md)
 
 **Application crashes during startup:**
+
 - Check schema compilation: `fraiseql compile schema.json`
 - Verify TOML syntax: `fraiseql validate config.toml`
 - Check environment variables: `env | grep FRAISEQL`
 - → **Full guide:** [Production Deployment](./production-deployment.md)
 
 **Server starts but no requests work:**
+
 - Verify port is listening: `netstat -an | grep 5000`
 - Check firewall rules: `sudo iptables -L`
 - Test with curl: `curl -i http://localhost:5000/health`
 - → **Full guide:** [Deployment Guide](../deployment/guide.md)
 
 **Service won't connect to database:**
+
 - → Go to: **DATABASE CONNECTIVITY** (below)
 
 ---
@@ -81,6 +85,7 @@ Does your problem involve...
 **Query returns GraphQL error:**
 
 **Error type:**
+
 ```
 Is the error about...
 
@@ -104,6 +109,7 @@ e) Something else?
 ```
 
 **Query returns null when expecting data:**
+
 - Verify data exists in database: `SELECT * FROM table_name LIMIT 1;`
 - Check WHERE clause filters: `SELECT * FROM table_name WHERE ... LIMIT 1;`
 - Verify authorization isn't hiding data (row-level filters)
@@ -111,12 +117,14 @@ e) Something else?
 - → [Troubleshooting Guide: No Results](../TROUBLESHOOTING.md#no-results)
 
 **Query response is incomplete or truncated:**
+
 - Check pagination limit: Default is 100, max is 1000
 - Increase limit in query: `users(first: 500) { ... }`
 - Check response size: Very large responses may be truncated
 - → [Troubleshooting Guide: Incomplete Results](../TROUBLESHOOTING.md#incomplete-results)
 
 **Query takes too long:**
+
 - → Go to: **PERFORMANCE ISSUES**
 
 ---
@@ -126,6 +134,7 @@ e) Something else?
 **Mutation fails or returns error:**
 
 **Error type:**
+
 ```
 Is the error about...
 
@@ -150,12 +159,14 @@ e) Something else?
 ```
 
 **Mutation succeeds but data looks wrong:**
+
 - Verify mutation result in GraphQL response
 - Query database directly: `SELECT * FROM table_name WHERE id = ...`
 - Check for triggers or stored procedures modifying data
 - → [Troubleshooting Guide: Data Integrity](../TROUBLESHOOTING.md#data-integrity)
 
 **Mutation is very slow:**
+
 - → Go to: **PERFORMANCE ISSUES**
 
 ---
@@ -163,18 +174,21 @@ e) Something else?
 ## 🔄 SUBSCRIPTION ISSUES
 
 **Subscription not connecting:**
+
 - Verify WebSocket endpoint: `wss://server:5000/graphql`
 - Check WebSocket proxy configuration
 - Verify authentication token in subscription
 - → [Troubleshooting Guide: WebSocket Connection](../TROUBLESHOOTING.md#websocket)
 
 **Subscription connects but no events:**
+
 - Verify CDC enabled: Check `tb_entity_change_log` has data
 - Check event filtering: `where` clause might hide events
 - Verify polling interval: Default 100ms, configurable
 - → [Subscriptions Architecture](../architecture/realtime/subscriptions.md#debugging)
 
 **Subscription receives stale data:**
+
 - Check event timestamp vs current time
 - Verify database replication lag (if multi-database)
 - Check CDC polling interval: Increase if too low
@@ -185,6 +199,7 @@ e) Something else?
 ## 🔐 AUTHENTICATION & AUTHORIZATION
 
 **Can't log in:**
+
 - Verify OAuth provider is configured
 - Check client ID and secret in vault: `echo $OAUTH_CLIENT_ID`
 - Verify redirect URI matches OAuth provider settings
@@ -192,18 +207,21 @@ e) Something else?
 - → [Authentication Provider Guide](../integrations/authentication/provider-selection-guide.md)
 
 **Token rejected or expired:**
+
 - Check token expiry: JWT tokens expire after 1 hour
 - Verify token refresh working: Is refresh token valid?
 - Check token signature: Token might be from different issuer
 - → [Authentication Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)
 
 **Query or mutation denied with "Unauthorized":**
+
 - Verify user is authenticated: Check Authorization header
 - Check user has required role: Verify in RBAC configuration
 - Check field-level permissions: Some fields might be restricted
 - → [RBAC & Field Authorization](../enterprise/rbac.md)
 
 **Row-level data hidden or unauthorized:**
+
 - Verify row-level security filter in schema: `where: Where... = fraiseql.where(...)`
 - Check tenant/org filtering is working
 - Verify context values passed: `x-tenant-id` header set?
@@ -214,6 +232,7 @@ e) Something else?
 ## ⚡ PERFORMANCE ISSUES
 
 **Single query is slow (>1 second):**
+
 1. Is it the first query? (Cold start, schema compilation)
 2. Is database responding slowly? Test database directly: `time psql -c "SELECT COUNT(*) FROM table"`
 3. Is query complex (many nested fields)?
@@ -222,6 +241,7 @@ e) Something else?
    - → [Performance Tuning Runbook](../operations/performance-tuning-runbook.md)
 
 **Specific query always slow:**
+
 - Analyze query: `EXPLAIN ANALYZE ...` on database
 - Check indexes exist on filtered columns
 - Check database statistics: `ANALYZE table_name;`
@@ -229,6 +249,7 @@ e) Something else?
 - → [View Selection Guide](./view-selection-performance-testing.md)
 
 **All queries getting slower over time:**
+
 - Check database connection pool: `SHOW max_connections;`
 - Check for connection leaks: Count open connections
 - Verify indexes haven't fragmented: `REINDEX;`
@@ -236,12 +257,14 @@ e) Something else?
 - → [Database Connectivity](#database-connectivity)
 
 **High latency for federation queries:**
+
 - Check inter-service latency: `ping service-name`
 - Verify database indexes on @key fields
 - Check federation strategy: HTTP vs DirectDB vs Local
 - → [Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)
 
 **Memory usage increasing:**
+
 - Check for memory leaks: Monitor `top -p <pid>`
 - Verify connection pooling: Connections should be reused
 - Check query result caching: Cache size might be too large
@@ -252,6 +275,7 @@ e) Something else?
 ## 🗄️ DATABASE CONNECTIVITY
 
 **Can't connect to database:**
+
 - Verify database server is running: `ping db-host`
 - Check database port: `telnet db-host 5432`
 - Verify credentials: Username, password, database name
@@ -259,6 +283,7 @@ e) Something else?
 - → [Database Connection Guide](../deployment/guide.md#database)
 
 **Connection times out:**
+
 - Increase timeout: `connect_timeout=30`
 - Check firewall rules: `telnet db-host 5432`
 - Check network latency: `ping db-host`
@@ -266,6 +291,7 @@ e) Something else?
 - → [Connection Pooling Guide](../deployment/guide.md#pooling)
 
 **"Too many connections" error:**
+
 - Check connection pool size: Default 10, max 100
 - Check for connection leaks: `SELECT COUNT(*) FROM pg_stat_activity;`
 - Increase database `max_connections` if needed
@@ -273,12 +299,14 @@ e) Something else?
 - → [Connection Pooling Guide](../deployment/guide.md#pooling)
 
 **SSL/TLS connection errors:**
+
 - Verify SSL mode: `sslmode=require` in connection string
 - Check certificate chain: `openssl s_client -connect db-host:5432`
 - Verify certificate not expired: `openssl x509 -enddate`
 - → [TLS Configuration](../deployment/guide.md#tls)
 
 **Authentication errors:**
+
 - Check database user password (special characters might need escaping)
 - Verify database user has SELECT/INSERT/UPDATE permissions
 - Check `pg_hba.conf` (PostgreSQL) for connection restrictions
@@ -289,6 +317,7 @@ e) Something else?
 ## ⚙️ CONFIGURATION ISSUES
 
 **Configuration not taking effect:**
+
 - Check TOML syntax: `fraiseql validate config.toml`
 - Verify environment variables override: Variables take precedence
 - Check file permissions: Can FraiseQL read config file?
@@ -296,13 +325,15 @@ e) Something else?
 - → [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 **Environment variables not recognized:**
+
 - Check variable name: `FRAISEQL_*` prefix required
 - Verify case sensitivity: `FRAISEQL_RATE_LIMIT_ENABLED` (not camelCase)
 - Check for typos: List all set variables: `env | grep FRAISEQL`
 - → [Troubleshooting Guide](../TROUBLESHOOTING.md)
 
 **TOML parsing error:**
-- Use TOML validator: https://www.toml-lint.com/
+
+- Use TOML validator: <https://www.toml-lint.com/>
 - Check for invalid characters or quotes
 - Verify array syntax: `[[section]]` vs `[section]`
 - → [Configuration Examples](../deployment/guide.md#configuration)
@@ -330,6 +361,7 @@ To find your error:
 ```
 
 **Don't see your error?**
+
 - → Go to: **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)**
 
 ---
@@ -337,18 +369,21 @@ To find your error:
 ## 🔗 FEDERATION ISSUES
 
 **Entity not found in federation:**
+
 - Verify @key directive matches across subgraphs
 - Check entity exists in database: `SELECT * FROM table WHERE id = ...`
 - Verify federation strategy: HTTP vs DirectDB vs Local
 - → [Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)
 
 **Federation query very slow:**
+
 - Check inter-service latency: `ping other-service`
 - Verify database indexes on @key fields
 - Consider switching to DirectDB strategy
 - → [Federation Performance](../integrations/federation/guide.md#performance-optimization)
 
 **SAGA transaction failed:**
+
 - Check SAGA logs: Look for compensation steps
 - Verify all services are running
 - Check inter-service network connectivity
@@ -379,12 +414,14 @@ To find your error:
 ## See Also
 
 **Complete Troubleshooting Guides:**
+
 - **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)** — Comprehensive FAQ
 - **[Authentication Troubleshooting](../integrations/authentication/TROUBLESHOOTING.md)** — Auth-specific issues
 - **[Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)** — Multi-service issues
 - **[Observer Troubleshooting](../guides/observers.md#troubleshooting)** — Event system issues
 
 **Related Guides:**
+
 - **[Production Deployment](./production-deployment.md)** — Deployment and operations
 - **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Optimization
 - **[Monitoring & Observability](./monitoring.md)** — Observability setup

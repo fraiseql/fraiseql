@@ -62,6 +62,7 @@ Error messages are sanitized to prevent information disclosure:
 **Threat**: Attacker sends extremely large or deeply nested schemas
 
 **Mitigation**:
+
 - Schema size limit: 100MB
 - Nesting depth limit: 1000 levels
 - Analysis timeout: 5 seconds per schema
@@ -74,12 +75,14 @@ Error messages are sanitized to prevent information disclosure:
 **Threat**: Error messages leak sensitive information
 
 **Mitigation**:
+
 - Error messages don't contain file paths
 - Error messages don't expose internal state
 - Schema names are sanitized
 - Stack traces not returned to clients
 
 **Tests**:
+
 - `test_design_audit_error_messages_dont_leak_paths`
 - `test_design_audit_doesnt_expose_internal_state`
 - `test_design_audit_sanitizes_schema_names`
@@ -89,12 +92,14 @@ Error messages are sanitized to prevent information disclosure:
 **Threat**: Malicious JSON in schema causes issues
 
 **Mitigation**:
+
 - Input sanitized before processing
 - Unicode injection prevention
 - Recursive structure handling
 - Type validation
 
 **Tests**:
+
 - `test_design_audit_rejects_unicode_injection`
 - `test_design_audit_handles_recursive_structures`
 - `test_design_audit_recovers_from_invalid_type`
@@ -104,12 +109,14 @@ Error messages are sanitized to prevent information disclosure:
 **Threat**: Attacker creates schemas that consume excessive resources
 
 **Mitigation**:
+
 - Analysis time limits
 - Memory usage limits
 - Deep nesting detection
 - Concurrent request throttling
 
 **Tests**:
+
 - `test_design_audit_limits_analysis_time`
 - `test_design_audit_handles_deeply_nested_json`
 
@@ -273,7 +280,7 @@ cargo test --test api_design_security_tests
 If you discover a security vulnerability in FraiseQL's design quality features:
 
 1. **Do not** post it on public issue trackers
-2. Email security details to: security@fraiseql.dev
+2. Email security details to: <security@fraiseql.dev>
 3. Include:
    - Description of vulnerability
    - Steps to reproduce
@@ -312,4 +319,4 @@ If you discover a security vulnerability in FraiseQL's design quality features:
 
 - Benchmark tests: `crates/fraiseql-core/benches/design_analysis.rs`
 - Security tests: `crates/fraiseql-server/tests/api_design_security_tests.rs`
-- OWASP API Security: https://owasp.org/www-project-api-security/
+- OWASP API Security: <https://owasp.org/www-project-api-security/>

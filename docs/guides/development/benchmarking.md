@@ -5,6 +5,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Performance benchmarking concepts and methodology
 - Criterion.rs benchmarking framework
 - Statistical analysis of benchmark results
@@ -13,6 +14,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 - Cargo and Rust build optimization flags
 
 **Required Software:**
+
 - Rust 1.75+ with full toolchain (rustup)
 - Cargo (included with Rust)
 - Docker 20.10+ and Docker Compose 1.29+ (for database services)
@@ -21,6 +23,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 - A text editor for configuration and analysis
 
 **Required Infrastructure:**
+
 - FraiseQL source repository (cloned locally)
 - ~15GB free disk space for:
   - Docker images (databases)
@@ -32,6 +35,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 - Database services running (via Docker Compose)
 
 **Optional but Recommended:**
+
 - Performance monitoring tools (perf, flamegraph)
 - Data analysis tools (Python pandas, R, Excel)
 - Visualization tools (gnuplot, matplotlib)
@@ -40,6 +44,7 @@ This guide covers setting up and running FraiseQL's comprehensive performance be
 - Baseline comparison infrastructure
 
 **Time Estimate:**
+
 - Initial setup: 15-30 minutes
 - Small benchmark: 2-5 minutes
 - Medium benchmark: 5-15 minutes
@@ -153,6 +158,7 @@ tokio-test = "0.4"
 ```
 
 **Features Enabled:**
+
 - `async_tokio` — Async benchmark support
 - Statistical analysis
 - HTML report generation to `target/criterion/`
@@ -162,11 +168,13 @@ tokio-test = "0.4"
 ### Database Support
 
 **Primary:** PostgreSQL
+
 - Used for most benchmarks
 - Full feature coverage
 - Connection pooling enabled
 
 **Secondary:** MySQL, SQLite, SQL Server
+
 - Performance comparison benchmarks
 - Adapter-specific optimizations
 
@@ -419,7 +427,6 @@ cargo bench -- --verbose
 
 ## Further Reading
 
-- **Criterion.rs Documentation**: https://bheisler.github.io/criterion.rs/book/
+- **Criterion.rs Documentation**: <https://bheisler.github.io/criterion.rs/book/>
 - **Performance Characteristics**: See `docs/architecture/performance/performance-characteristics.md`
 - **Advanced Optimization**: See `docs/architecture/performance/advanced-optimization.md`
-

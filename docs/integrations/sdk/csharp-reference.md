@@ -21,6 +21,7 @@ dotnet add package FraiseQL
 ```
 
 **Requirements**:
+
 - .NET 8.0 or later
 - C# 11+ (record types, required properties, file-scoped namespaces)
 - Nullable reference types enabled: `#nullable enable` in `.csproj` or `Directory.Build.props`
@@ -1060,6 +1061,7 @@ public class IntegrationTests : IAsyncLifetime
 **Issue**: `NU1101: Unable to find package FraiseQL`
 
 **Solution**:
+
 ```xml
 <!-- .csproj -->
 <ItemGroup>
@@ -1076,6 +1078,7 @@ dotnet add package FraiseQL --version 2.0.0
 **Issue**: `FileLoadException: Could not load file or assembly`
 
 **Solution - Check version**:
+
 ```bash
 dotnet list package --outdated
 dotnet restore
@@ -1087,11 +1090,13 @@ dotnet clean && dotnet build
 **Issue**: `This package requires .NET 6.0 or higher`
 
 **Check version** (6.0+ required):
+
 ```bash
 dotnet --version
 ```
 
 **Update .csproj**:
+
 ```xml
 <TargetFramework>net8.0</TargetFramework>
 ```
@@ -1101,6 +1106,7 @@ dotnet --version
 **Issue**: `The nuget source is unreachable`
 
 **Configure package source**:
+
 ```bash
 dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org
 dotnet nuget list source
@@ -1115,6 +1121,7 @@ dotnet nuget list source
 **Issue**: `CS8600: Converting null literal or possible null value to non-nullable reference type`
 
 **Enable nullable reference types**:
+
 ```xml
 <PropertyGroup>
   <Nullable>enable</Nullable>
@@ -1123,6 +1130,7 @@ dotnet nuget list source
 ```
 
 **Use correct nullability**:
+
 ```csharp
 // ❌ Wrong - implicit non-null
 [FraiseQLType]
@@ -1145,6 +1153,7 @@ public class User
 **Issue**: `CS0311: The type 'T' cannot be used as type parameter`
 
 **Solution - Use concrete types**:
+
 ```csharp
 // ❌ Won't work - generics
 [FraiseQLType]
@@ -1166,6 +1175,7 @@ public class UserBox
 **Issue**: `Cannot cast dynamic to IGraphQLType`
 
 **Solution - Use static types**:
+
 ```csharp
 // ❌ Don't use dynamic
 var result = (dynamic)fraiseql.Execute(query);
@@ -1182,6 +1192,7 @@ var result = fraiseql.Execute(query) as QueryResult;
 **Issue**: `CS0246: The type or namespace name 'FraiseQLType' could not be found`
 
 **Verify using statements**:
+
 ```csharp
 using FraiseQL;
 using FraiseQL.Attributes;
@@ -1199,6 +1210,7 @@ public class User { }
 **Issue**: `InvalidOperationException: 'await' requires async method`
 
 **Solution - Use async/await properly**:
+
 ```csharp
 // ❌ Wrong - not async
 public QueryResult Execute(string query)
@@ -1228,6 +1240,7 @@ public async Task<IActionResult> GraphQL([FromBody] GraphQLRequest request)
 **Issue**: `MissingMethodException: Method not found`
 
 **Solution - Use proper reflection**:
+
 ```csharp
 // ✅ Get property correctly
 var propertyInfo = typeof(User).GetProperty("Email",
@@ -1246,6 +1259,7 @@ if (propertyInfo != null)
 **Issue**: `InvalidOperationException: Unable to resolve service for type`
 
 **Register dependencies**:
+
 ```csharp
 // Startup.cs or Program.cs
 services.AddSingleton<IFraiseQLServer>(sp =>
@@ -1256,6 +1270,7 @@ services.AddScoped<IGraphQLService, GraphQLService>();
 ```
 
 **Use in controller**:
+
 ```csharp
 [ApiController]
 [Route("api")]
@@ -1282,6 +1297,7 @@ public class GraphQLController : ControllerBase
 **Issue**: `DbUpdateException: An error occurred while updating the entries`
 
 **Solution - Use SQL views/functions only, not EF**:
+
 ```csharp
 // FraiseQL works with SQL views, not EF entities
 // Don't mix EF with FraiseQL schema
@@ -1303,6 +1319,7 @@ public User[] GetUsers() { return new User[0]; }
 **Issue**: Application takes >10 seconds to start**
 
 **Pre-compile schema**:
+
 ```bash
 # Use fraiseql-cli
 fraiseql-cli compile schema.json fraiseql.toml
@@ -1316,6 +1333,7 @@ var server = FraiseQLServer.FromCompiled("schema.compiled.json");
 **Issue**: DLL is >100MB
 
 **Enable trimming**:
+
 ```xml
 <PropertyGroup>
   <PublishTrimmed>true</PublishTrimmed>
@@ -1332,6 +1350,7 @@ dotnet publish -c Release
 **Issue**: `InvalidOperationException: Timeout expired`
 
 **Increase pool size**:
+
 ```csharp
 var options = new DbContextOptionsBuilder<MyDbContext>()
     .UseSqlServer(
@@ -1349,6 +1368,7 @@ var options = new DbContextOptionsBuilder<MyDbContext>()
 **Issue**: Memory grows over time
 
 **Implement cleanup**:
+
 ```csharp
 public class GraphQLService : IDisposable
 {
@@ -1381,6 +1401,7 @@ public class GraphQLService : IDisposable
 #### Enable Logging
 
 **Setup logging**:
+
 ```csharp
 services.AddLogging(builder =>
 {
@@ -1441,6 +1462,7 @@ public class GraphQLTests
 #### Profiling
 
 **Use Visual Studio Profiler**:
+
 1. Debug → Performance Profiler
 2. Select CPU Usage
 3. Run app
@@ -1453,6 +1475,7 @@ public class GraphQLTests
 #### GitHub Issues
 
 Provide:
+
 1. .NET version: `dotnet --version`
 2. Visual Studio version (if applicable)
 3. FraiseQL version: `dotnet list package`
@@ -1460,6 +1483,7 @@ Provide:
 5. Full exception + stack trace
 
 **Template**:
+
 ```markdown
 **Environment**:
 - .NET: 8.0

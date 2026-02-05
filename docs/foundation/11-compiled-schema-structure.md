@@ -774,6 +774,7 @@ Memory footprint: ~2-3x JSON size (after deserialization)
 ### Schema Caching Strategy
 
 **Typical deployment:**
+
 ```rust
 // Server startup (once)
 let schema = CompiledSchema::from_json(&fs::read_to_string("schema.compiled.json")?)?;

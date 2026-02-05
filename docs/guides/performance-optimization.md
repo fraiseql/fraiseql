@@ -17,7 +17,7 @@ Comprehensive guide to optimizing FraiseQL performance for production systems.
 4. [Connection Pooling](#connection-pooling)
 5. [Monitoring & Profiling](#monitoring--profiling)
 6. [Scaling Strategies](#scaling-strategies)
-7. [Common Bottlenecks](#common-bottlenecks)
+7. [Common Bottlenecks](#common-bottlenecks--solutions)
 
 ---
 
@@ -26,6 +26,7 @@ Comprehensive guide to optimizing FraiseQL performance for production systems.
 ### 1. Avoid N+1 Query Problem
 
 ❌ **Bad: N+1 queries**
+
 ```graphql
 query GetUsers {
   users {
@@ -43,6 +44,7 @@ query GetUsers {
 Result: 101 queries (1 for users + 100 for individual user's posts)
 
 ✅ **Good: Single nested query**
+
 ```graphql
 query GetUsers {
   users {
@@ -61,6 +63,7 @@ Result: 1-2 queries total
 ### 2. Pagination for Large Result Sets
 
 ❌ **Bad: Fetch all records**
+
 ```graphql
 query AllPosts {
   posts {  # Returns 1,000,000 records!
@@ -72,6 +75,7 @@ query AllPosts {
 ```
 
 ✅ **Good: Paginate with limit/offset or cursor**
+
 ```graphql
 query PostsPaginated($first: Int!, $after: String) {
   posts(first: $first, after: $after) {
@@ -90,6 +94,7 @@ query PostsPaginated($first: Int!, $after: String) {
 ### 3. Request Only Needed Fields
 
 ❌ **Bad: Over-fetching**
+
 ```graphql
 query GetUser {
   user(id: "123") {
@@ -106,6 +111,7 @@ query GetUser {
 ```
 
 ✅ **Good: Specific fields**
+
 ```graphql
 query GetUser {
   user(id: "123") {
@@ -136,6 +142,7 @@ CREATE INDEX idx_content_search ON documents USING GIN(to_tsvector('english', co
 ```
 
 **Index Selection:**
+
 - Filter columns: Yes (WHERE clause)
 - Join columns: Yes (ON clause)
 - Order columns: Yes (ORDER BY)
@@ -444,6 +451,7 @@ metrics_api.submit_metrics(
 ### Vertical Scaling (More Powerful Hardware)
 
 ✅ **When:**
+
 - Single database is bottleneck
 - Cost-effective up to ~200GB data
 - Complex queries needing more CPU/RAM
@@ -576,11 +584,13 @@ ab -n 10000 -c 100 http://localhost:5000/graphql
 ## See Also
 
 **Related Guides:**
+
 - [Schema Design Best Practices](./schema-design-best-practices.md)
 - [Production Deployment](./production-deployment.md)
 - [Observability & Monitoring](./observability.md)
 
 **Production Patterns:**
+
 - [Analytics Platform](../patterns/analytics-olap-platform.md) - Optimize for aggregations
 - [SaaS Multi-Tenant](../patterns/saas-multi-tenant.md) - Row-level security performance
 

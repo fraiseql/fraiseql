@@ -827,15 +827,19 @@ describe('Multi-Tenant Isolation', () => {
 ## Common Pitfalls
 
 ### ❌ Storing tenant_id in app, not JWT
+
 Vulnerable to token swapping. Always extract from verified token.
 
 ### ❌ Relying only on app-level filtering
+
 Use database RLS as defense in depth.
 
 ### ❌ Not auditing sensitive operations
+
 Track who accessed what, when, for compliance.
 
 ### ❌ Same schema for all tenants
+
 Multi-schema is better if tenants are large, separate instances.
 
 ---
@@ -843,16 +847,19 @@ Multi-schema is better if tenants are large, separate instances.
 ## See Also
 
 **Related Patterns:**
+
 - [Database Federation](./federation-patterns.md) - Multiple databases
 - [Real-Time Collaboration](./realtime-collaboration.md) - Live updates
 - [E-Commerce Workflows](./ecommerce-workflows.md) - Complex workflows
 
 **Security Guides:**
+
 - [Production Security Checklist](../guides/production-security-checklist.md)
 - [Authentication & Authorization](../guides/authorization-quick-start.md)
 - [Audit Logging](../guides/observers.md)
 
 **Deployment:**
+
 - [Production Deployment](../guides/production-deployment.md)
 - [Kubernetes Setup](../guides/production-deployment.md)
 

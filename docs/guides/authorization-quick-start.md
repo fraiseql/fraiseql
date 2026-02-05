@@ -150,7 +150,7 @@ curl -X POST http://localhost:8000/graphql \
 
 ---
 
-## That's It!
+## That's It
 
 You now have role-based field-level authorization! 🔐
 

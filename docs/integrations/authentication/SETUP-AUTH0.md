@@ -13,6 +13,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 ## Prerequisites
 
 **Required Knowledge:**
+
 - OAuth 2.0 and OIDC fundamentals (client credentials flow, authorization code flow, ID tokens, access tokens)
 - JWT token structure and RS256 signature verification
 - HTTP/REST APIs and callback handling
@@ -20,6 +21,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 - Basic networking and domain/URL understanding
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - curl or Postman (for API testing)
 - A code editor for configuration files
@@ -27,7 +29,8 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 - Docker (optional, for local testing with ngrok)
 
 **Required Infrastructure:**
-- Auth0 account (free tier available at https://auth0.com/signup)
+
+- Auth0 account (free tier available at <https://auth0.com/signup>)
 - Auth0 tenant/domain (created automatically with account)
 - FraiseQL server instance (local or deployed)
 - Publicly accessible URL or ngrok tunnel for OAuth callbacks
@@ -36,6 +39,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 - Auth0 API definition (to be created in Step 3)
 
 **Optional but Recommended:**
+
 - ngrok or Cloudflare Tunnel (for local development without deployment)
 - Auth0 Rules/Actions for custom authorization logic
 - Auth0 Logs page for debugging authentication issues
@@ -61,18 +65,21 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
    - **Client Secret**: (copy this)
 
 3. Scroll down to "Allowed Callback URLs" and add:
+
    ```
    http://localhost:8000/auth/callback
    https://yourdomain.com/auth/callback
    ```
 
 4. Scroll to "Allowed Logout URLs" and add:
+
    ```
    http://localhost:3000
    https://yourdomain.com
    ```
 
 5. Scroll to "Allowed Web Origins" and add:
+
    ```
    http://localhost:3000
    http://localhost:8000
@@ -201,6 +208,7 @@ Auth0 Rules (legacy) or Actions allow custom logic:
 3. Name: "Add Custom Claims"
 4. Trigger: "Post-Login"
 5. Add code:
+
    ```javascript
    exports.onExecutePostLogin = async (event, api) => {
      const namespace = 'https://fraiseql.example.com';
@@ -306,6 +314,7 @@ if user.has_role("admin") {
 **Cause**: Auth0 application not accessible or database connection failed.
 
 **Solution**:
+
 ```bash
 # Test Auth0 connectivity
 curl https://your-domain.auth0.com/.well-known/openid-configuration

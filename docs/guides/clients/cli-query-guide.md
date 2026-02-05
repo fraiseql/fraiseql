@@ -49,6 +49,7 @@ fraiseql-query \
 ```
 
 Output:
+
 ```json
 {
   "data": {
@@ -199,6 +200,7 @@ fraiseql-query \
 ```
 
 Output:
+
 ```
 id,name,email
 1,Alice,alice@example.com
@@ -215,6 +217,7 @@ fraiseql-query \
 ```
 
 Output:
+
 ```
 ┌────┬───────┬───────────────────┐
 │ id │ name  │ email             │
@@ -259,6 +262,7 @@ fraiseql-query \
 ```
 
 Run:
+
 ```bash
 chmod +x fetch_user_data.sh
 ./fetch_user_data.sh 1
@@ -398,6 +402,7 @@ fraiseql-query \
 ```
 
 Output:
+
 ```json
 {
   "data": { "users": [...] },
@@ -594,11 +599,13 @@ fraiseql-query \
 ## See Also
 
 **Related Guides:**
+
 - **[Node.js Runtime Client](./nodejs-runtime-guide.md)** - Server-to-server queries
 - **[Real-Time Patterns](../PATTERNS.md)** - Subscription support
 - **[Production Deployment](../production-deployment.md)** - Running FraiseQL
 
 **Tools & Utilities:**
+
 - **[GraphQL CLI](https://github.com/Urigo/graphql-cli)** - Alternative GraphQL CLI tool
 - **[curl](https://curl.se/)** - Direct HTTP queries
 - **[jq](https://stedolan.github.io/jq/)** - JSON processing

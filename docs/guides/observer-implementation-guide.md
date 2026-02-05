@@ -12,6 +12,7 @@ Step-by-step implementation guide for setting up event-driven workflows using Fr
 ## Overview
 
 FraiseQL Observers react to database changes (mutations, CDC events) and trigger actions:
+
 - Webhooks (Discord, Slack, GitHub, Stripe, etc.)
 - Email notifications
 - SMS alerts
@@ -74,6 +75,7 @@ curl -X POST http://localhost:5000/graphql \
 ### Discord Webhooks
 
 **Setup Discord Webhook:**
+
 1. Create Discord server (if needed)
 2. Go to Server Settings → Webhooks → New Webhook
 3. Copy webhook URL
@@ -109,6 +111,7 @@ class OrderNotification:
 ### Slack Webhooks
 
 **Setup Slack Webhook:**
+
 1. Go to [api.slack.com](https://api.slack.com/apps)
 2. Create App → From scratch → Name + Workspace
 3. Enable Incoming Webhooks
@@ -148,6 +151,7 @@ class AlertHighValue Order:
 ### GitHub Integration
 
 **Setup GitHub Webhook:**
+
 1. Repository Settings → Webhooks → Add webhook
 2. Payload URL: `http://your-app/webhooks/github`
 3. Events: Select all relevant events
@@ -456,11 +460,13 @@ fraiseql_webhook_latency_seconds{provider="slack", quantile="p95"}
 ## See Also
 
 **Related Guides:**
+
 - **[Common Patterns](./PATTERNS.md)** — Observer patterns in real applications
 - **[Subscriptions Architecture](../architecture/realtime/subscriptions.md)** — Real-time alternatives to observers
 - **[Integration Patterns](../integrations/README.md)** — Integration architecture
 
 **Operations:**
+
 - **[Monitoring & Observability](./monitoring.md)** — Observer monitoring in production
 - **[Production Deployment](./production-deployment.md)** — Deploying observer workflows
 

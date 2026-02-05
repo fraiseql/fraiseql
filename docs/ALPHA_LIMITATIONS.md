@@ -35,6 +35,7 @@ These features are **fully implemented and tested**:
 **All 16 languages ready for alpha testing:**
 
 **JVM Ecosystem:**
+
 - ✅ Java
 - ✅ Kotlin
 - ✅ Scala
@@ -42,6 +43,7 @@ These features are **fully implemented and tested**:
 - ✅ Groovy
 
 **Dynamic Languages:**
+
 - ✅ Python
 - ✅ TypeScript/Node.js
 - ✅ Ruby
@@ -49,6 +51,7 @@ These features are **fully implemented and tested**:
 - ✅ Elixir
 
 **Compiled/Static Languages:**
+
 - ✅ Go
 - ✅ Rust
 - ✅ C#
@@ -79,6 +82,7 @@ Some optimizations identified during Phase 10 hardening are deferred to v2.1+:
 FraiseQL v2 is a **complete architectural redesign** and is **not backwards compatible** with v1.
 
 **Key differences:**
+
 - **Compiled execution** (v1 was interpreted)
 - **Database-centric design** (v1 was GraphQL-centric)
 - **TOML configuration** (v1 used environment variables)

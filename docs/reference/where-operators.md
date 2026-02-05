@@ -40,6 +40,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 | **Bitwise** (& bitwise AND, \| bitwise OR) | ✅ Full | ✅ Full | ✅ Full | ✅ Full | Universal for numeric types |
 
 **Legend**:
+
 - ✅ **Full** = Fully supported, optimal performance
 - ⚠️ **Limited** = Supported with workarounds or reduced functionality
 - ❌ **None** = Not supported; no direct equivalent
@@ -49,6 +50,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 ### Database-Specific Notes
 
 **PostgreSQL (Recommended for operators)**
+
 - ✅ All operators fully supported
 - ✅ JSONB operators optimized with GIN indexes
 - ✅ Full-text search with tsvector
@@ -56,6 +58,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ✅ Range types with native operators
 
 **MySQL**
+
 - ✅ Standard SQL operators all work
 - ⚠️ JSON operators available but slower than PostgreSQL
 - ⚠️ Full-text search available (MATCH AGAINST) but less powerful than PostgreSQL
@@ -63,6 +66,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ⚠️ No range types; use comparison operators
 
 **SQLite**
+
 - ✅ Standard SQL operators work
 - ⚠️ Minimal JSON support (JSON1 extension required)
 - ⚠️ Limited full-text search (FTS5 extension needed)
@@ -70,6 +74,7 @@ All operators are type-aware and only work with compatible column types. Invalid
 - ⚠️ Case-insensitive searches with `COLLATE NOCASE`
 
 **SQL Server**
+
 - ✅ Standard SQL operators work
 - ⚠️ JSON operators available (JSON_VALUE, JSON_QUERY)
 - ⚠️ Full-text search available but different syntax

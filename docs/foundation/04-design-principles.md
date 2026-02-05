@@ -50,6 +50,7 @@ FraiseQL Approach:
 ### Why This Matters
 
 **1. Database constraints become API guarantees**
+
 ```sql
 -- PostgreSQL
 CREATE TABLE tb_users (
@@ -62,6 +63,7 @@ CREATE TABLE tb_users (
 When you define `NOT NULL` in the database, FraiseQL's GraphQL schema will correctly reflect that the field is non-nullable. You don't need to specify it twice.
 
 **2. Database performance directly translates to API performance**
+
 ```sql
 -- Adding a database index
 CREATE INDEX idx_users_email ON tb_users(email);
@@ -102,6 +104,7 @@ Runtime (Server executes queries)
 Each phase should be optimized separately:
 
 **Authoring:** Easy and ergonomic (Python/TypeScript decorators)
+
 ```python
 from fraiseql import schema
 
@@ -113,6 +116,7 @@ class User:
 ```
 
 **Compilation:** Expensive but one-time (comprehensive validation and optimization)
+
 ```bash
 fraiseql-cli compile schema.json
 # Validates relationships, optimizes joins, generates SQL templates
@@ -120,6 +124,7 @@ fraiseql-cli compile schema.json
 ```
 
 **Runtime:** Fast and deterministic (execute pre-compiled templates)
+
 ```graphql
 query GetUser($id: Int!) {
   user(id: $id) {
@@ -165,6 +170,7 @@ All SQL is pre-compiled at compile time, eliminating injection vulnerabilities. 
 In FraiseQL, type safety is enforced at multiple levels:
 
 1. **Database schema enforcement**
+
    ```sql
    CREATE TABLE tb_products (
      pk_product_id INT PRIMARY KEY,
@@ -175,6 +181,7 @@ In FraiseQL, type safety is enforced at multiple levels:
    ```
 
 2. **GraphQL schema enforcement**
+
    ```graphql
    type Product {
      id: Int!
@@ -185,6 +192,7 @@ In FraiseQL, type safety is enforced at multiple levels:
    ```
 
 3. **Authorization enforcement**
+
    ```python
    @schema.permission("user_role = 'admin'")
    def delete_user(user_id: int) -> None:
@@ -240,6 +248,7 @@ class User:
 Because FraiseQL compiles queries and uses only the database as a data source, the performance characteristics of every query are determined at compile time:
 
 **Compile-time analysis can answer:**
+
 - How many database queries will this GraphQL query execute?
 - What indexes are needed for optimal performance?
 - Can this query cause N+1 problems?
@@ -307,6 +316,7 @@ Result: A GraphQL API with minimal code
 ### Examples of This Principle
 
 **Single source of truth**
+
 ```python
 # FraiseQL assumes: one database, source of truth
 @schema.type(table="tb_users")
@@ -319,6 +329,7 @@ class User:
 ```
 
 **Relationships are explicit**
+
 ```sql
 -- Foreign keys define relationships
 ALTER TABLE tb_orders
@@ -329,6 +340,7 @@ ALTER TABLE tb_orders
 FraiseQL uses these foreign keys to automatically enable GraphQL relationships. No custom resolver needed.
 
 **Multi-database, single schema**
+
 ```python
 # You can use multiple databases (PostgreSQL + MySQL + SQLite)
 # But each is treated independently

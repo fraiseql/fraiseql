@@ -1027,6 +1027,7 @@ class SchemaJunitTest {
 **Issue**: `Could not find com.fraiseql:fraiseql-groovy:2.0.0`
 
 **Solution**:
+
 ```gradle
 repositories {
     mavenCentral()
@@ -1042,6 +1043,7 @@ dependencies {
 **Issue**: `Cannot find groovy-all jar`
 
 **Solution - Add Groovy dependency**:
+
 ```gradle
 dependencies {
     implementation 'org.apache.groovy:groovy-all:4.0.0'
@@ -1054,6 +1056,7 @@ dependencies {
 **Issue**: `Cannot find Java class in Groovy`
 
 **Solution - Set up classpath**:
+
 ```gradle
 sourceSets {
     main {
@@ -1072,6 +1075,7 @@ sourceSets {
 **Issue**: `MissingMethodException`
 
 **Solution - Define methods properly**:
+
 ```groovy
 // ✅ Correct
 class MyClass {
@@ -1095,6 +1099,7 @@ String execute(String query) {
 **Issue**: `Invalid variable reference`
 
 **Solution - Proper closure scope**:
+
 ```groovy
 // ✅ Correct
 def process = { result ->
@@ -1109,6 +1114,7 @@ fraiseql.execute(query).each(process)
 **Issue**: `GroovyRuntimeException: Could not find matching method`
 
 **Solution - Check metaclass**:
+
 ```groovy
 // ✅ Add method dynamically
 String.metaClass.queryify = { ->
@@ -1123,6 +1129,7 @@ def query = 'user'.queryify()
 **Issue**: `ClassCastException` at runtime
 
 **Solution - Explicit casting**:
+
 ```groovy
 // ✅ Explicit cast
 def id = (int) request.params.id
@@ -1138,6 +1145,7 @@ def result = fraiseql.execute(query, [id: id])
 **Issue**: `MissingMethodException: No signature of method`
 
 **Solution - Define method first**:
+
 ```groovy
 // ✅ Define before using
 fraiseql.metaClass.executeWithRetry = { String query ->
@@ -1152,6 +1160,7 @@ fraiseql.executeWithRetry(query)
 **Issue**: `NullPointerException in closure`
 
 **Solution - Capture variables**:
+
 ```groovy
 // ❌ Wrong
 def users = []
@@ -1172,6 +1181,7 @@ queries.each { q ->
 **Issue**: `ConcurrentModificationException`
 
 **Solution - Synchronize if needed**:
+
 ```groovy
 def results = Collections.synchronizedList([])
 
@@ -1189,6 +1199,7 @@ queries.each { q ->
 **Issue**: Build takes >60 seconds
 
 **Parallel compilation**:
+
 ```gradle
 tasks.withType(JavaCompile).all { task ->
     task.options.fork = true
@@ -1202,6 +1213,7 @@ tasks.withType(JavaCompile).all { task ->
 **Issue**: Slow method calls due to dynamic dispatch
 
 **Use static type hints**:
+
 ```groovy
 // ❌ Slower - dynamic
 def result = fraiseql.execute(query)
@@ -1246,6 +1258,7 @@ println user.properties  // All properties
 ### Getting Help
 
 Provide:
+
 1. Java version: `java -version`
 2. Groovy version: `groovy --version`
 3. Gradle version: `gradle --version`

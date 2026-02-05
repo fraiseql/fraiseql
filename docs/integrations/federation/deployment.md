@@ -5,6 +5,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 ## Prerequisites
 
 **Required Knowledge:**
+
 - FraiseQL federation concepts and architecture
 - Apollo Federation v2 and GraphQL composition
 - Multi-region deployment patterns
@@ -16,6 +17,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 - Monitoring and debugging distributed systems
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Docker 20.10+ and Docker Compose 1.29+
 - Kubernetes 1.24+ with kubectl
@@ -28,6 +30,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 - Apollo Router or compatible federation gateway
 
 **Required Infrastructure:**
+
 - 2+ FraiseQL instances (one per subgraph minimum)
 - Database instances for each subgraph (or shared with isolation)
 - Federation gateway (Apollo Router or compatible)
@@ -39,6 +42,7 @@ Production-ready deployment of FraiseQL federation across multiple clouds.
 - Inter-service network connectivity (direct DB or HTTP)
 
 **Optional but Recommended:**
+
 - Multi-cloud setup (AWS + GCP + Azure for resilience)
 - Container registry (ECR, GCR, ACR, or Docker Hub)
 - Kubernetes Ingress controller (nginx, Istio, Envoy)
@@ -100,6 +104,7 @@ aws ecs create-service \
 ```
 
 **Expected Performance:**
+
 - Single query: <5ms
 - Batch 100: ~10ms
 - Cross-AZ: +5-10ms latency
@@ -133,6 +138,7 @@ gcloud run deploy fraiseql-users \
 ```
 
 **Expected Performance:**
+
 - Single query: <5ms
 - Batch 100: ~10ms
 - Cross-region: +10-20ms latency
@@ -177,6 +183,7 @@ az container create \
 ```
 
 **Expected Performance:**
+
 - Single query: <5ms
 - Batch 100: ~10ms
 - Cross-region: +15-25ms latency
@@ -466,6 +473,7 @@ export RUST_LOG=fraiseql_core::federation=debug
 **Symptoms:** Queries >200ms latency
 
 **Solutions:**
+
 1. Use DirectDB strategy if both are FraiseQL
 2. Enable query result caching
 3. Optimize field selection (only request needed fields)
@@ -484,18 +492,22 @@ traceroute orders-service.example.com
 **Symptoms:** `Error: Request timeout after 5000ms`
 
 **Solutions:**
+
 1. Increase timeout in config:
+
    ```toml
    [federation.http]
    timeout_ms = 10000  # Increase from 5000
    ```
 
 2. Check remote service health:
+
    ```bash
    curl -v https://orders.example.com/health
    ```
 
 3. Check network connectivity:
+
    ```bash
    curl -w "@curl-format.txt" -o /dev/null -s https://orders.example.com/graphql
    ```
@@ -507,17 +519,21 @@ traceroute orders-service.example.com
 **Symptoms:** >1% of federation queries fail
 
 **Solutions:**
+
 1. Check subgraph availability
+
    ```bash
    curl https://orders.example.com/_service
    ```
 
 2. Review logs for specific errors
+
    ```bash
    kubectl logs -l app=orders-service --tail=100
    ```
 
 3. Enable retry logic (automatic in FraiseQL):
+
    ```toml
    [federation.http]
    max_retries = 5
@@ -549,4 +565,3 @@ traceroute orders-service.example.com
 3. **Optimize:** Implement caching and monitoring
 4. **Scale:** Add more subgraphs/clouds
 5. **Monitor:** Track performance and user experience
-

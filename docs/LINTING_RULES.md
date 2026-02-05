@@ -28,6 +28,7 @@ Federation rules detect patterns that prevent efficient JSONB batching across su
 **Score Impact**: -10 points per violation
 
 **What It Detects**:
+
 ```graphql
 # users-service
 type User @key(fields: "id") { id: ID! }
@@ -40,11 +41,13 @@ type User @key(fields: "id") { id: ID!, commentCount: Int! }
 ```
 
 **Why It Matters for FraiseQL**:
+
 - JSONB batching works by constructing a single result per entity
 - When User exists in 3 places, FraiseQL can't predict which to use
 - Results in non-deterministic compilation or runtime resolution
 
 **How to Fix**:
+
 1. Consolidate User in one service (users-service)
 2. Other services reference User, don't redefine it
 3. Add fields to User for cross-domain data:
@@ -77,19 +80,23 @@ A 3-subgraph platform (users, content, analytics) had User in all three. Solutio
 **Score Impact**: -15 points per violation
 
 **What It Detects**:
+
 ```
 users-service → posts-service → comments-service → users-service
 A → B → A (simplest case)
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Creates unbounded resolution paths
 - Impossible to calculate worst-case complexity accurately
 - JSONB construction becomes non-deterministic
 - Federation joins loop infinitely
 
 **How to Fix**:
+
 1. Identify the circular reference:
+
 ```graphql
 # users-service
 type User @key(fields: "id") {
@@ -102,7 +109,8 @@ type Organization @key(fields: "id") {
 }
 ```
 
-2. Break the cycle by using IDs instead of references:
+1. Break the cycle by using IDs instead of references:
+
 ```graphql
 # org-service (owns the relationship)
 type Organization @key(fields: "id") {
@@ -119,6 +127,7 @@ type User @key(fields: "id") {
 ```
 
 Or consolidate the relationship in one service:
+
 ```graphql
 # org-service (owns relationship)
 type Organization {
@@ -144,6 +153,7 @@ A platform had User ↔ Organization ↔ Team circular references. Solution: org
 **Score Impact**: -20 points per violation
 
 **What It Detects**:
+
 ```graphql
 # users-service (defines User)
 type User @key(fields: "id") { ... }
@@ -155,12 +165,15 @@ type Post {
 ```
 
 **Why It Matters for FraiseQL**:
+
 - FraiseQL can't resolve cross-subgraph references without a key
 - Compilation fails or produces incorrect SQL
 - Runtime federation resolution is impossible
 
 **How to Fix**:
+
 1. Ensure entity has @key in all subgraphs where it's defined:
+
 ```graphql
 # posts-service
 type User @key(fields: "id") {
@@ -172,7 +185,8 @@ type Post {
 }
 ```
 
-2. Or, only define in one subgraph:
+1. Or, only define in one subgraph:
+
 ```graphql
 # posts-service (reference only)
 type Post {
@@ -189,6 +203,7 @@ type Post {
 **Score Impact**: -5 points per violation
 
 **What It Detects**:
+
 ```graphql
 # posts-service
 type Post @key(fields: "id") {
@@ -198,6 +213,7 @@ type Post @key(fields: "id") {
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Storing both reference and ID is redundant
 - Increases JSONB size without benefit
 - Creates potential for data inconsistency
@@ -206,6 +222,7 @@ type Post @key(fields: "id") {
 Choose one pattern:
 
 **Pattern A**: Store ID only, resolve on demand
+
 ```graphql
 type Post {
   authorId: ID!
@@ -214,6 +231,7 @@ type Post {
 ```
 
 **Pattern B**: Store reference, derive ID when needed
+
 ```graphql
 type Post {
   author: User!
@@ -234,6 +252,7 @@ Cost rules detect patterns that lead to worst-case complexity explosions.
 **Score Impact**: -8 points per violation
 
 **What It Detects**:
+
 ```graphql
 type User @key(fields: "id") {
   posts: [Post!]!  # No pagination - could be millions
@@ -246,12 +265,15 @@ type Post @key(fields: "id") {
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Unbounded lists create n+1-like problems in JSONB
 - Worst case: User with 1M posts × 1M comments = 1T JSONB records
 - Compilation can't calculate safe complexity bounds
 
 **How to Fix**:
+
 1. Add pagination to all collections:
+
 ```graphql
 type User @key(fields: "id") {
   posts(first: 20, after: String): PostConnection!
@@ -269,7 +291,8 @@ type PageInfo {
 }
 ```
 
-2. Or limit with maxItems:
+1. Or limit with maxItems:
+
 ```graphql
 type User {
   topPosts(limit: 10): [Post!]!  # Hard limit
@@ -286,6 +309,7 @@ type User {
 **Score Impact**: -20+ points per violation
 
 **What It Detects**:
+
 ```graphql
 type Query {
   users(first: 100): [User!]!  # 100 users
@@ -309,12 +333,15 @@ Query: `{ users { posts { comments { author { posts { comments } } } } } }`
 Worst case: 100 × 100 × 100 × 100 = **100M JSONB records**
 
 **Why It Matters**:
+
 - This query would consume all memory and hang
 - Compiler can't catch this without complexity hints
 - FraiseQL can't protect against runaway queries
 
 **How to Fix**:
+
 1. Add complexity directives:
+
 ```graphql
 type User {
   posts(first: 20): PostConnection! @complexity(value: 5)
@@ -329,7 +356,8 @@ type Comment {
 }
 ```
 
-2. Reduce pagination limits:
+1. Reduce pagination limits:
+
 ```graphql
 type Query {
   users(first: 10): [User!]!  # Reduced from 100
@@ -344,7 +372,8 @@ type Post {
 }
 ```
 
-3. Disable nesting on expensive fields:
+1. Disable nesting on expensive fields:
+
 ```graphql
 type Post {
   comments(first: 100): [Comment!]!  # Many, but not nested further
@@ -363,6 +392,7 @@ type Post {
 **Score Impact**: -3 points per violation
 
 **What It Detects**:
+
 ```graphql
 type User {
   # No @complexity directive
@@ -374,12 +404,14 @@ type User {
 ```
 
 **Why It Matters**:
+
 - FraiseQL assumes all fields cost the same
 - Can't accurately predict expensive queries
 - May allow queries that should be limited
 
 **How to Fix**:
 Add complexity hints to expensive fields:
+
 ```graphql
 type User {
   friends: [User!]! @complexity(value: 10)  # Not too bad
@@ -402,6 +434,7 @@ Cache rules ensure cached data stays coherent across subgraphs.
 **Score Impact**: -6 points per violation
 
 **What It Detects**:
+
 ```graphql
 # users-service
 type User @cache(maxAge: 300) {  # 5 minutes
@@ -417,12 +450,15 @@ type User @cache(maxAge: 3600) {  # 1 hour (INCONSISTENT!)
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Stale data scenario: email changes, but posts-service shows old email for 55 more minutes
 - JSONB caches independently, increasing staleness window
 - Users see conflicting data across requests
 
 **How to Fix**:
+
 1. Define federation-wide cache policy:
+
 ```graphql
 # Agreed: All user data cached 5 minutes
 type User @cache(maxAge: 300) {
@@ -432,7 +468,8 @@ type User @cache(maxAge: 300) {
 }
 ```
 
-2. Use cache groups for related entities:
+1. Use cache groups for related entities:
+
 ```graphql
 directive @cacheGroup(group: String!) on OBJECT
 
@@ -446,7 +483,8 @@ type Post @cache(maxAge: 300) {  # Same as user_profile group
 }
 ```
 
-3. Or separate by mutability:
+1. Or separate by mutability:
+
 ```graphql
 type User {
   # Static data: longer TTL
@@ -468,6 +506,7 @@ type User {
 **Score Impact**: -2 points per violation
 
 **What It Detects**:
+
 ```graphql
 type User {
   email: String!  # Cheap, doesn't need cache
@@ -479,12 +518,14 @@ type User {
 ```
 
 **Why It Matters**:
+
 - Expensive fields are recalculated every request
 - JSONB reconstruction is wasteful
 - Database load spikes for popular entities
 
 **How to Fix**:
 Add cache directives to expensive computations:
+
 ```graphql
 type User {
   email: String!  # Not cached (cheap)
@@ -504,6 +545,7 @@ type User {
 **Score Impact**: -1 point per violation
 
 **What It Detects**:
+
 ```graphql
 type Order {
   id: ID!
@@ -514,12 +556,14 @@ type Order {
 ```
 
 **Why It Matters**:
+
 - createdAt should cache forever (never changes)
 - status should cache 60s (changes frequently)
 - Same TTL for all wastes cache efficiency
 
 **How to Fix**:
 Match TTL to data mutability:
+
 ```graphql
 type Order {
   id: ID! @cache(maxAge: 0)  # Permanent key
@@ -542,6 +586,7 @@ Authorization rules ensure sensitive data doesn't leak across service boundaries
 **Score Impact**: -20 points per violation
 
 **What It Detects**:
+
 ```graphql
 # users-service
 type User @key(fields: "id") {
@@ -559,13 +604,16 @@ type Post {
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Any query to posts-service now exposes sensitive user data
 - Violates principle of least privilege
 - Creates data leakage vulnerabilities
 - Compliance violation (GDPR, HIPAA, etc.)
 
 **How to Fix**:
+
 1. Create public view of user:
+
 ```graphql
 type PublicUserProfile {
   id: ID!
@@ -587,7 +635,8 @@ type Post {
 }
 ```
 
-2. Or use scopes:
+1. Or use scopes:
+
 ```graphql
 type User {
   id: ID!
@@ -607,6 +656,7 @@ type User {
 **Score Impact**: -20 points per violation
 
 **What It Detects**:
+
 ```graphql
 type Mutation {
   # Anyone can do this!
@@ -621,12 +671,15 @@ type Mutation {
 ```
 
 **Why It Matters**:
+
 - Unauthenticated callers can modify critical data
 - CRITICAL security vulnerability
 - Compilation doesn't prevent this
 
 **How to Fix**:
+
 1. Add authentication requirements:
+
 ```graphql
 type Mutation {
   # Only authenticated users can delete their own account
@@ -642,7 +695,8 @@ type Mutation {
 }
 ```
 
-2. Add ownership validation in resolver:
+1. Add ownership validation in resolver:
+
 ```graphql
 type Mutation {
   deleteUser(id: ID!): Boolean!
@@ -660,6 +714,7 @@ type Mutation {
 **Score Impact**: -10 points per violation
 
 **What It Detects**:
+
 ```graphql
 # users-service
 type User @auth(requires: "authenticated") {
@@ -677,11 +732,14 @@ type Post @key(fields: "id") {
 Scenario: Anonymous user queries posts-service → sees User.email
 
 **Why It Matters**:
+
 - Auth enforced in one service, bypassed in another
 - Defeats authorization strategy
 
 **How to Fix**:
+
 1. Remove sensitive data from federation references:
+
 ```graphql
 # users-service
 type User {
@@ -695,7 +753,8 @@ type Post {
 }
 ```
 
-2. Or enforce auth in post-service too:
+1. Or enforce auth in post-service too:
+
 ```graphql
 # posts-service
 type Post @auth(requires: "authenticated") {
@@ -716,6 +775,7 @@ Compilation rules ensure your schema can be compiled to deterministic SQL.
 **Score Impact**: -25 points per violation
 
 **What It Detects**:
+
 ```graphql
 type Author {
   books: [Book!]!
@@ -727,12 +787,15 @@ type Book {
 ```
 
 **Why It Matters for FraiseQL**:
+
 - Creates infinite type graph
 - JSONB compilation can't determine base structure
 - May cause stack overflow during compilation
 
 **How to Fix**:
+
 1. Break cycle with IDs:
+
 ```graphql
 type Author {
   id: ID!
@@ -746,7 +809,8 @@ type Book {
 }
 ```
 
-2. Or use separate query:
+1. Or use separate query:
+
 ```graphql
 type Author {
   id: ID!
@@ -767,6 +831,7 @@ type Query {
 **Score Impact**: -15 points per violation
 
 **What It Detects**:
+
 ```graphql
 type User @key(fields: "id") {  # @key present
   name: String!
@@ -775,12 +840,15 @@ type User @key(fields: "id") {  # @key present
 ```
 
 **Why It Matters**:
+
 - FraiseQL needs primary key to construct JSONB
 - Can't generate deterministic SQL without identity
 - Runtime failures when de-duplicating results
 
 **How to Fix**:
+
 1. Add the primary key field:
+
 ```graphql
 type User @key(fields: "id") {
   id: ID!  # Must be declared
@@ -788,7 +856,8 @@ type User @key(fields: "id") {
 }
 ```
 
-2. Or change @key to use existing field:
+1. Or change @key to use existing field:
+
 ```graphql
 type User @key(fields: "email") {
   email: String!  # Use email as key
@@ -805,6 +874,7 @@ type User @key(fields: "email") {
 **Score Impact**: -2 points per violation
 
 **What It Detects**:
+
 ```graphql
 type Post {
   comments: [Comment!]!  # Could be 0 or 1M, unknown
@@ -814,12 +884,14 @@ type Post {
 ```
 
 **Why It Matters**:
+
 - Compiler allocates JSONB space based on cardinality
 - Unknown cardinality = conservative estimate (wastes memory)
 - Query performance suffers
 
 **How to Fix**:
 Add cardinality directives:
+
 ```graphql
 type Post {
   comments: [Comment!]! @cardinality(estimate: "many")

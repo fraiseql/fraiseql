@@ -49,6 +49,7 @@ FraiseQL shifts work from runtime to build time:
 ### 1. Performance & Predictability
 
 **Traditional GraphQL Problem:**
+
 ```python
 # Apollo Server - Query interpreted at runtime
 query GetUserOrders {
@@ -68,6 +69,7 @@ query GetUserOrders {
 ```
 
 **FraiseQL Solution:**
+
 ```python
 # FraiseQL - Query compiled to optimized SQL
 query GetUserOrders {
@@ -226,6 +228,7 @@ def search_products(query: str, category: str) -> List[Product]:
 ```
 
 **Result:**
+
 - Compiled to single optimized SQL query (no N+1)
 - In-stock filter pushed to database
 - Reviews batched in single query
@@ -251,6 +254,7 @@ class Invoice:
 ```
 
 **Result:**
+
 - Zero tenant data leaks (verified at compile time)
 - Permission checks optimized into SQL
 - Audit trail automatic
@@ -274,6 +278,7 @@ query GetUserAnalytics {
 ```
 
 **Result:**
+
 - 5-10x throughput improvement
 - Lower memory usage
 - Direct to analytics pipeline
@@ -411,6 +416,7 @@ query GetUserAnalytics {
 FraiseQL's architecture separates concerns:
 
 ### Layer 1: Authoring
+
 ```python
 # Your Python or TypeScript code
 @fraiseql.type
@@ -421,12 +427,14 @@ class User:
 ```
 
 ### Layer 2: Compilation
+
 ```bash
 $ fraiseql-cli compile schema.py
 # Generates: schema.compiled.json + SQL templates
 ```
 
 ### Layer 3: Runtime
+
 ```bash
 $ fraiseql-server --schema schema.compiled.json
 # Executes GraphQL queries using pre-compiled SQL
@@ -476,6 +484,7 @@ If you need something else:
 ---
 
 **Quick Reference:**
+
 - Problem: Traditional GraphQL interprets at runtime
 - Solution: FraiseQL compiles at build time
 - Result: Predictable performance, type safety, simplicity

@@ -90,11 +90,13 @@ let results = executor.execute(query, variables).await?;
 To disable projection and test with full JSONB:
 
 **Environment variable**:
+
 ```bash
 FRAISEQL_DISABLE_PROJECTION=true cargo run
 ```
 
 **In code**:
+
 ```rust
 // Note: execute_where_query() bypasses projection
 // Use execute_with_projection(view, None, clause, limit) to disable
@@ -201,6 +203,7 @@ Check these in order:
 ### 1. Be Specific with Fields
 
 ✅ **Good** - Request only what you need:
+
 ```graphql
 query {
   users {
@@ -212,6 +215,7 @@ query {
 ```
 
 ❌ **Bad** - Force full object fetch:
+
 ```graphql
 query {
   users {
@@ -227,6 +231,7 @@ fragment AllUserFields on User {
 ### 2. Use Nested Queries When Needed
 
 ✅ **Good** - Separate queries for different use cases:
+
 ```graphql
 # For list view (minimal fields)
 query UserList {
@@ -248,6 +253,7 @@ RUST_LOG=fraiseql_core::runtime=debug cargo run
 ```
 
 Look for in logs:
+
 ```
 DEBUG fraiseql_core::runtime::executor: SQL with projection = jsonb_build_object(...)
 ```
@@ -269,6 +275,7 @@ Results show projection impact in response headers.
 ### Example 1: Simple Query (Automatic Projection)
 
 **GraphQL Query**:
+
 ```graphql
 query {
   users(limit: 10) {
@@ -279,6 +286,7 @@ query {
 ```
 
 **Generated SQL** (automatic):
+
 ```sql
 SELECT jsonb_build_object(
   'id', data->>'id',
@@ -291,6 +299,7 @@ SELECT jsonb_build_object(
 ### Example 2: Complex Query (Nested Fields)
 
 **GraphQL Query**:
+
 ```graphql
 query {
   posts(limit: 100) {
@@ -309,6 +318,7 @@ query {
 ```
 
 **Generated SQL** (automatic):
+
 ```sql
 SELECT jsonb_build_object(
   'id', data->>'id',

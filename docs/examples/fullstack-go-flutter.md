@@ -3,6 +3,7 @@
 This guide demonstrates a complete end-to-end integration of a Go GraphQL schema definition with FraiseQL's compiled backend and a Flutter mobile application. We'll build a movie discovery app with searching, detailed views, reviews, and watchlist management.
 
 **Architecture Overview:**
+
 ```
 Go Schema Definition        FraiseQL Compiler        FraiseQL Server          Flutter Mobile App
 (movies.go)         →      (fraiseql-cli)    →    (schema.compiled.json)  →   (Flutter client)
@@ -32,65 +33,65 @@ Create `models.go` with FraiseQL tags:
 package main
 
 import (
-	"time"
+ "time"
 )
 
 // Movie represents a film in the catalog
 // @fraiseql.type(table="movies", cache_ttl=3600)
 type Movie struct {
-	ID          int       `fraiseql:"id,primary_key" json:"id"`
-	Title       string    `fraiseql:"title,indexed" json:"title"`
-	Description string    `fraiseql:"description" json:"description"`
-	ReleaseDate time.Time `fraiseql:"release_date,indexed" json:"releaseDate"`
-	Genre       string    `fraiseql:"genre,indexed" json:"genre"`
-	Director    string    `fraiseql:"director" json:"director"`
-	Duration    int       `fraiseql:"duration" json:"duration"` // in minutes
-	PosterURL   string    `fraiseql:"poster_url" json:"posterUrl"`
-	Rating      float64   `fraiseql:"rating" json:"rating"`
-	ReviewCount int       `fraiseql:"review_count" json:"reviewCount"`
-	CreatedAt   time.Time `fraiseql:"created_at,auto" json:"createdAt"`
-	UpdatedAt   time.Time `fraiseql:"updated_at,auto" json:"updatedAt"`
+ ID          int       `fraiseql:"id,primary_key" json:"id"`
+ Title       string    `fraiseql:"title,indexed" json:"title"`
+ Description string    `fraiseql:"description" json:"description"`
+ ReleaseDate time.Time `fraiseql:"release_date,indexed" json:"releaseDate"`
+ Genre       string    `fraiseql:"genre,indexed" json:"genre"`
+ Director    string    `fraiseql:"director" json:"director"`
+ Duration    int       `fraiseql:"duration" json:"duration"` // in minutes
+ PosterURL   string    `fraiseql:"poster_url" json:"posterUrl"`
+ Rating      float64   `fraiseql:"rating" json:"rating"`
+ ReviewCount int       `fraiseql:"review_count" json:"reviewCount"`
+ CreatedAt   time.Time `fraiseql:"created_at,auto" json:"createdAt"`
+ UpdatedAt   time.Time `fraiseql:"updated_at,auto" json:"updatedAt"`
 
-	// Relations
-	Reviews   []Review   `fraiseql:"reviews,foreign_key=movie_id" json:"reviews"`
-	Ratings   []Rating   `fraiseql:"ratings,foreign_key=movie_id" json:"ratings"`
-	Watchlist []Watchlist `fraiseql:"watchlist,foreign_key=movie_id" json:"watchlist"`
+ // Relations
+ Reviews   []Review   `fraiseql:"reviews,foreign_key=movie_id" json:"reviews"`
+ Ratings   []Rating   `fraiseql:"ratings,foreign_key=movie_id" json:"ratings"`
+ Watchlist []Watchlist `fraiseql:"watchlist,foreign_key=movie_id" json:"watchlist"`
 }
 
 // Review represents a user review of a movie
 // @fraiseql.type(table="reviews", cache_ttl=600)
 type Review struct {
-	ID        int       `fraiseql:"id,primary_key" json:"id"`
-	MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
-	UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
-	Username  string    `fraiseql:"username" json:"username"`
-	Content   string    `fraiseql:"content" json:"content"`
-	Rating    int       `fraiseql:"rating" json:"rating"` // 1-10
-	Helpful   int       `fraiseql:"helpful_count" json:"helpfulCount"`
-	CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
+ ID        int       `fraiseql:"id,primary_key" json:"id"`
+ MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
+ Username  string    `fraiseql:"username" json:"username"`
+ Content   string    `fraiseql:"content" json:"content"`
+ Rating    int       `fraiseql:"rating" json:"rating"` // 1-10
+ Helpful   int       `fraiseql:"helpful_count" json:"helpfulCount"`
+ CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
 
-	// Relations
-	Movie *Movie `fraiseql:"movie,foreign_key=movie_id" json:"movie"`
+ // Relations
+ Movie *Movie `fraiseql:"movie,foreign_key=movie_id" json:"movie"`
 }
 
 // Rating represents a numerical rating given by a user
 // @fraiseql.type(table="ratings")
 type Rating struct {
-	ID        int       `fraiseql:"id,primary_key" json:"id"`
-	MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
-	UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
-	Score     int       `fraiseql:"score" json:"score"` // 1-10
-	CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
+ ID        int       `fraiseql:"id,primary_key" json:"id"`
+ MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
+ Score     int       `fraiseql:"score" json:"score"` // 1-10
+ CreatedAt time.Time `fraiseql:"created_at,auto" json:"createdAt"`
 }
 
 // Watchlist represents a user's watchlist entry
 // @fraiseql.type(table="watchlists")
 type Watchlist struct {
-	ID        int       `fraiseql:"id,primary_key" json:"id"`
-	MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
-	UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
-	Status    string    `fraiseql:"status" json:"status"` // "want_to_watch", "watching", "watched"
-	AddedAt   time.Time `fraiseql:"added_at,auto" json:"addedAt"`
+ ID        int       `fraiseql:"id,primary_key" json:"id"`
+ MovieID   int       `fraiseql:"movie_id,indexed,foreign_key" json:"movieId"`
+ UserID    int       `fraiseql:"user_id,indexed,foreign_key" json:"userId"`
+ Status    string    `fraiseql:"status" json:"status"` // "want_to_watch", "watching", "watched"
+ AddedAt   time.Time `fraiseql:"added_at,auto" json:"addedAt"`
 }
 
 // Query represents the root query type
@@ -108,49 +109,49 @@ Create `queries.go`:
 package main
 
 import (
-	"context"
+ "context"
 )
 
 // GetMovies retrieves all movies with pagination
 // @fraiseql.query(name="getMovies", timeout_ms=5000)
 func (q *Query) GetMovies(ctx context.Context, limit int, offset int) ([]Movie, error) {
-	// This is a schema definition only - actual implementation in FraiseQL
-	return nil, nil
+ // This is a schema definition only - actual implementation in FraiseQL
+ return nil, nil
 }
 
 // SearchMovies searches movies by title or genre
 // @fraiseql.query(name="searchMovies", timeout_ms=5000)
 func (q *Query) SearchMovies(ctx context.Context, query string, genre string, limit int) ([]Movie, error) {
-	// Schema only
-	return nil, nil
+ // Schema only
+ return nil, nil
 }
 
 // GetMovieDetails retrieves a single movie with all related data
 // @fraiseql.query(name="getMovieDetails", timeout_ms=5000, cache_ttl=3600)
 func (q *Query) GetMovieDetails(ctx context.Context, movieID int) (*Movie, error) {
-	// Schema only
-	return nil, nil
+ // Schema only
+ return nil, nil
 }
 
 // GetMovieReviews retrieves reviews for a specific movie
 // @fraiseql.query(name="getMovieReviews", timeout_ms=5000)
 func (q *Query) GetMovieReviews(ctx context.Context, movieID int, limit int, offset int) ([]Review, error) {
-	// Schema only
-	return nil, nil
+ // Schema only
+ return nil, nil
 }
 
 // GetUserWatchlist retrieves a user's watchlist
 // @fraiseql.query(name="getUserWatchlist", timeout_ms=5000)
 func (q *Query) GetUserWatchlist(ctx context.Context, userID int, status string) ([]Movie, error) {
-	// Schema only - status can be filtered
-	return nil, nil
+ // Schema only - status can be filtered
+ return nil, nil
 }
 
 // GetTopRatedMovies retrieves highest rated movies
 // @fraiseql.query(name="getTopRatedMovies", timeout_ms=5000)
 func (q *Query) GetTopRatedMovies(ctx context.Context, limit int) ([]Movie, error) {
-	// Schema only
-	return nil, nil
+ // Schema only
+ return nil, nil
 }
 ```
 
@@ -164,75 +165,75 @@ package main
 // AddReview adds a new review to a movie
 // @fraiseql.mutation(name="addReview", timeout_ms=3000)
 type AddReviewInput struct {
-	MovieID  int    `json:"movieId" validate:"required,gt=0"`
-	UserID   int    `json:"userId" validate:"required,gt=0"`
-	Username string `json:"username" validate:"required,min=1,max=100"`
-	Content  string `json:"content" validate:"required,min=10,max=5000"`
-	Rating   int    `json:"rating" validate:"required,min=1,max=10"`
+ MovieID  int    `json:"movieId" validate:"required,gt=0"`
+ UserID   int    `json:"userId" validate:"required,gt=0"`
+ Username string `json:"username" validate:"required,min=1,max=100"`
+ Content  string `json:"content" validate:"required,min=10,max=5000"`
+ Rating   int    `json:"rating" validate:"required,min=1,max=10"`
 }
 
 type AddReviewOutput struct {
-	ID        int    `json:"id"`
-	MovieID   int    `json:"movieId"`
-	UserID    int    `json:"userId"`
-	Content   string `json:"content"`
-	Rating    int    `json:"rating"`
-	CreatedAt string `json:"createdAt"`
+ ID        int    `json:"id"`
+ MovieID   int    `json:"movieId"`
+ UserID    int    `json:"userId"`
+ Content   string `json:"content"`
+ Rating    int    `json:"rating"`
+ CreatedAt string `json:"createdAt"`
 }
 
 // RateMovie rates a movie
 // @fraiseql.mutation(name="rateMovie", timeout_ms=3000)
 type RateMovieInput struct {
-	MovieID int `json:"movieId" validate:"required,gt=0"`
-	UserID  int `json:"userId" validate:"required,gt=0"`
-	Score   int `json:"score" validate:"required,min=1,max=10"`
+ MovieID int `json:"movieId" validate:"required,gt=0"`
+ UserID  int `json:"userId" validate:"required,gt=0"`
+ Score   int `json:"score" validate:"required,min=1,max=10"`
 }
 
 type RateMovieOutput struct {
-	ID      int `json:"id"`
-	MovieID int `json:"movieId"`
-	UserID  int `json:"userId"`
-	Score   int `json:"score"`
+ ID      int `json:"id"`
+ MovieID int `json:"movieId"`
+ UserID  int `json:"userId"`
+ Score   int `json:"score"`
 }
 
 // AddToWatchlist adds a movie to user's watchlist
 // @fraiseql.mutation(name="addToWatchlist", timeout_ms=3000)
 type AddToWatchlistInput struct {
-	MovieID int    `json:"movieId" validate:"required,gt=0"`
-	UserID  int    `json:"userId" validate:"required,gt=0"`
-	Status  string `json:"status" validate:"required,oneof=want_to_watch watching watched"`
+ MovieID int    `json:"movieId" validate:"required,gt=0"`
+ UserID  int    `json:"userId" validate:"required,gt=0"`
+ Status  string `json:"status" validate:"required,oneof=want_to_watch watching watched"`
 }
 
 type AddToWatchlistOutput struct {
-	ID      int    `json:"id"`
-	MovieID int    `json:"movieId"`
-	UserID  int    `json:"userId"`
-	Status  string `json:"status"`
-	AddedAt string `json:"addedAt"`
+ ID      int    `json:"id"`
+ MovieID int    `json:"movieId"`
+ UserID  int    `json:"userId"`
+ Status  string `json:"status"`
+ AddedAt string `json:"addedAt"`
 }
 
 // UpdateWatchlistStatus updates status of a watchlist entry
 // @fraiseql.mutation(name="updateWatchlistStatus", timeout_ms=3000)
 type UpdateWatchlistStatusInput struct {
-	WatchlistID int    `json:"watchlistId" validate:"required,gt=0"`
-	Status      string `json:"status" validate:"required,oneof=want_to_watch watching watched"`
+ WatchlistID int    `json:"watchlistId" validate:"required,gt=0"`
+ Status      string `json:"status" validate:"required,oneof=want_to_watch watching watched"`
 }
 
 type UpdateWatchlistStatusOutput struct {
-	ID     int    `json:"id"`
-	Status string `json:"status"`
+ ID     int    `json:"id"`
+ Status string `json:"status"`
 }
 
 // RemoveFromWatchlist removes a movie from watchlist
 // @fraiseql.mutation(name="removeFromWatchlist", timeout_ms=3000)
 type RemoveFromWatchlistInput struct {
-	WatchlistID int `json:"watchlistId" validate:"required,gt=0"`
-	UserID      int `json:"userId" validate:"required,gt=0"`
+ WatchlistID int `json:"watchlistId" validate:"required,gt=0"`
+ UserID      int `json:"userId" validate:"required,gt=0"`
 }
 
 type RemoveFromWatchlistOutput struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+ Success bool   `json:"success"`
+ Message string `json:"message"`
 }
 ```
 
@@ -246,7 +247,7 @@ module github.com/example/movie-schema
 go 1.21
 
 require (
-	github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
+ github.com/fraiseql/fraiseql-go v2.0.0-alpha.1
 )
 ```
 
@@ -372,198 +373,198 @@ Create `cmd/export/main.go`:
 package main
 
 import (
-	"encoding/json"
-	"flag"
-	"fmt"
-	"log"
-	"os"
-	"reflect"
-	"strings"
+ "encoding/json"
+ "flag"
+ "fmt"
+ "log"
+ "os"
+ "reflect"
+ "strings"
 )
 
 type TypeDefinition struct {
-	Name      string       `json:"name"`
-	Table     string       `json:"table"`
-	CacheTTL  int          `json:"cacheTtl,omitempty"`
-	Fields    []FieldDef   `json:"fields"`
-	Relations []RelationDef `json:"relations"`
+ Name      string       `json:"name"`
+ Table     string       `json:"table"`
+ CacheTTL  int          `json:"cacheTtl,omitempty"`
+ Fields    []FieldDef   `json:"fields"`
+ Relations []RelationDef `json:"relations"`
 }
 
 type FieldDef struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	SQLType    string `json:"sqlType"`
-	PrimaryKey bool   `json:"primaryKey"`
-	Indexed    bool   `json:"indexed"`
-	Auto       bool   `json:"auto"`
+ Name       string `json:"name"`
+ Type       string `json:"type"`
+ SQLType    string `json:"sqlType"`
+ PrimaryKey bool   `json:"primaryKey"`
+ Indexed    bool   `json:"indexed"`
+ Auto       bool   `json:"auto"`
 }
 
 type RelationDef struct {
-	Name      string `json:"name"`
-	ForeignKey string `json:"foreignKey"`
-	Type      string `json:"type"` // "one" or "many"
+ Name      string `json:"name"`
+ ForeignKey string `json:"foreignKey"`
+ Type      string `json:"type"` // "one" or "many"
 }
 
 type QueryDefinition struct {
-	Name       string `json:"name"`
-	TimeoutMs  int    `json:"timeoutMs"`
-	CacheTTL   int    `json:"cacheTtl,omitempty"`
-	InputType  string `json:"inputType,omitempty"`
-	OutputType string `json:"outputType"`
+ Name       string `json:"name"`
+ TimeoutMs  int    `json:"timeoutMs"`
+ CacheTTL   int    `json:"cacheTtl,omitempty"`
+ InputType  string `json:"inputType,omitempty"`
+ OutputType string `json:"outputType"`
 }
 
 type MutationDefinition struct {
-	Name       string `json:"name"`
-	TimeoutMs  int    `json:"timeoutMs"`
-	InputType  string `json:"inputType"`
-	OutputType string `json:"outputType"`
+ Name       string `json:"name"`
+ TimeoutMs  int    `json:"timeoutMs"`
+ InputType  string `json:"inputType"`
+ OutputType string `json:"outputType"`
 }
 
 type SchemaExport struct {
-	Version   string                    `json:"version"`
-	Types     map[string]TypeDefinition `json:"types"`
-	Queries   []QueryDefinition         `json:"queries"`
-	Mutations []MutationDefinition      `json:"mutations"`
+ Version   string                    `json:"version"`
+ Types     map[string]TypeDefinition `json:"types"`
+ Queries   []QueryDefinition         `json:"queries"`
+ Mutations []MutationDefinition      `json:"mutations"`
 }
 
 func main() {
-	outputFile := flag.String("o", "schema.json", "Output file for schema.json")
-	flag.Parse()
+ outputFile := flag.String("o", "schema.json", "Output file for schema.json")
+ flag.Parse()
 
-	schema := SchemaExport{
-		Version:   "2.0.0-alpha.1",
-		Types:     make(map[string]TypeDefinition),
-		Queries:   make([]QueryDefinition, 0),
-		Mutations: make([]MutationDefinition, 0),
-	}
+ schema := SchemaExport{
+  Version:   "2.0.0-alpha.1",
+  Types:     make(map[string]TypeDefinition),
+  Queries:   make([]QueryDefinition, 0),
+  Mutations: make([]MutationDefinition, 0),
+ }
 
-	// Register types
-	schema.Types["Movie"] = parseType("Movie", Movie{}, "movies", 3600)
-	schema.Types["Review"] = parseType("Review", Review{}, "reviews", 600)
-	schema.Types["Rating"] = parseType("Rating", Rating{}, "ratings", 0)
-	schema.Types["Watchlist"] = parseType("Watchlist", Watchlist{}, "watchlists", 0)
+ // Register types
+ schema.Types["Movie"] = parseType("Movie", Movie{}, "movies", 3600)
+ schema.Types["Review"] = parseType("Review", Review{}, "reviews", 600)
+ schema.Types["Rating"] = parseType("Rating", Rating{}, "ratings", 0)
+ schema.Types["Watchlist"] = parseType("Watchlist", Watchlist{}, "watchlists", 0)
 
-	// Register queries
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "getMovies",
-		TimeoutMs:  5000,
-		OutputType: "[Movie]",
-	})
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "searchMovies",
-		TimeoutMs:  5000,
-		OutputType: "[Movie]",
-	})
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "getMovieDetails",
-		TimeoutMs:  5000,
-		CacheTTL:   3600,
-		OutputType: "Movie",
-	})
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "getMovieReviews",
-		TimeoutMs:  5000,
-		OutputType: "[Review]",
-	})
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "getUserWatchlist",
-		TimeoutMs:  5000,
-		OutputType: "[Movie]",
-	})
-	schema.Queries = append(schema.Queries, QueryDefinition{
-		Name:       "getTopRatedMovies",
-		TimeoutMs:  5000,
-		OutputType: "[Movie]",
-	})
+ // Register queries
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "getMovies",
+  TimeoutMs:  5000,
+  OutputType: "[Movie]",
+ })
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "searchMovies",
+  TimeoutMs:  5000,
+  OutputType: "[Movie]",
+ })
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "getMovieDetails",
+  TimeoutMs:  5000,
+  CacheTTL:   3600,
+  OutputType: "Movie",
+ })
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "getMovieReviews",
+  TimeoutMs:  5000,
+  OutputType: "[Review]",
+ })
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "getUserWatchlist",
+  TimeoutMs:  5000,
+  OutputType: "[Movie]",
+ })
+ schema.Queries = append(schema.Queries, QueryDefinition{
+  Name:       "getTopRatedMovies",
+  TimeoutMs:  5000,
+  OutputType: "[Movie]",
+ })
 
-	// Register mutations
-	schema.Mutations = append(schema.Mutations, MutationDefinition{
-		Name:       "addReview",
-		TimeoutMs:  3000,
-		InputType:  "AddReviewInput",
-		OutputType: "AddReviewOutput",
-	})
-	schema.Mutations = append(schema.Mutations, MutationDefinition{
-		Name:       "rateMovie",
-		TimeoutMs:  3000,
-		InputType:  "RateMovieInput",
-		OutputType: "RateMovieOutput",
-	})
-	schema.Mutations = append(schema.Mutations, MutationDefinition{
-		Name:       "addToWatchlist",
-		TimeoutMs:  3000,
-		InputType:  "AddToWatchlistInput",
-		OutputType: "AddToWatchlistOutput",
-	})
+ // Register mutations
+ schema.Mutations = append(schema.Mutations, MutationDefinition{
+  Name:       "addReview",
+  TimeoutMs:  3000,
+  InputType:  "AddReviewInput",
+  OutputType: "AddReviewOutput",
+ })
+ schema.Mutations = append(schema.Mutations, MutationDefinition{
+  Name:       "rateMovie",
+  TimeoutMs:  3000,
+  InputType:  "RateMovieInput",
+  OutputType: "RateMovieOutput",
+ })
+ schema.Mutations = append(schema.Mutations, MutationDefinition{
+  Name:       "addToWatchlist",
+  TimeoutMs:  3000,
+  InputType:  "AddToWatchlistInput",
+  OutputType: "AddToWatchlistOutput",
+ })
 
-	// Write schema
-	data, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		log.Fatalf("Failed to marshal schema: %v", err)
-	}
+ // Write schema
+ data, err := json.MarshalIndent(schema, "", "  ")
+ if err != nil {
+  log.Fatalf("Failed to marshal schema: %v", err)
+ }
 
-	if err := os.WriteFile(*outputFile, data, 0644); err != nil {
-		log.Fatalf("Failed to write schema: %v", err)
-	}
+ if err := os.WriteFile(*outputFile, data, 0644); err != nil {
+  log.Fatalf("Failed to write schema: %v", err)
+ }
 
-	fmt.Printf("Schema exported to %s\n", *outputFile)
+ fmt.Printf("Schema exported to %s\n", *outputFile)
 }
 
 func parseType(name string, v interface{}, table string, cacheTTL int) TypeDefinition {
-	t := reflect.TypeOf(v)
-	def := TypeDefinition{
-		Name:      name,
-		Table:     table,
-		CacheTTL:  cacheTTL,
-		Fields:    make([]FieldDef, 0),
-		Relations: make([]RelationDef, 0),
-	}
+ t := reflect.TypeOf(v)
+ def := TypeDefinition{
+  Name:      name,
+  Table:     table,
+  CacheTTL:  cacheTTL,
+  Fields:    make([]FieldDef, 0),
+  Relations: make([]RelationDef, 0),
+ }
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get("fraiseql")
-		if tag == "" {
-			continue
-		}
+ for i := 0; i < t.NumField(); i++ {
+  field := t.Field(i)
+  tag := field.Tag.Get("fraiseql")
+  if tag == "" {
+   continue
+  }
 
-		fieldDef := FieldDef{
-			Name:    field.Name,
-			Type:    field.Type.String(),
-			SQLType: getSQLType(field.Type),
-		}
+  fieldDef := FieldDef{
+   Name:    field.Name,
+   Type:    field.Type.String(),
+   SQLType: getSQLType(field.Type),
+  }
 
-		parts := strings.Split(tag, ",")
-		fieldDef.Name = parts[0]
-		for _, part := range parts[1:] {
-			switch {
-			case part == "primary_key":
-				fieldDef.PrimaryKey = true
-			case part == "indexed":
-				fieldDef.Indexed = true
-			case part == "auto":
-				fieldDef.Auto = true
-			}
-		}
+  parts := strings.Split(tag, ",")
+  fieldDef.Name = parts[0]
+  for _, part := range parts[1:] {
+   switch {
+   case part == "primary_key":
+    fieldDef.PrimaryKey = true
+   case part == "indexed":
+    fieldDef.Indexed = true
+   case part == "auto":
+    fieldDef.Auto = true
+   }
+  }
 
-		def.Fields = append(def.Fields, fieldDef)
-	}
+  def.Fields = append(def.Fields, fieldDef)
+ }
 
-	return def
+ return def
 }
 
 func getSQLType(t reflect.Type) string {
-	switch t.String() {
-	case "int":
-		return "INTEGER"
-	case "string":
-		return "VARCHAR(255)"
-	case "float64":
-		return "DECIMAL(3,1)"
-	case "time.Time":
-		return "TIMESTAMP"
-	default:
-		return "TEXT"
-	}
+ switch t.String() {
+ case "int":
+  return "INTEGER"
+ case "string":
+  return "VARCHAR(255)"
+ case "float64":
+  return "DECIMAL(3,1)"
+ case "time.Time":
+  return "TIMESTAMP"
+ default:
+  return "TEXT"
+ }
 }
 ```
 
@@ -2106,6 +2107,7 @@ flutter run -d <device_id>
 4. **Results display** → GridView updates with matching movies
 
 GraphQL Query:
+
 ```graphql
 query SearchMovies($query: String!, $genre: String, $limit: Int!) {
   searchMovies(query: $query, genre: $genre, limit: $limit) {
@@ -2127,6 +2129,7 @@ query SearchMovies($query: String!, $genre: String, $limit: Int!) {
 4. **UI displays** → Poster, metadata, and review list
 
 GraphQL Query:
+
 ```graphql
 query GetMovieDetails($movieId: Int!) {
   getMovieDetails(movieId: $movieId) {
@@ -2160,6 +2163,7 @@ query GetMovieDetails($movieId: Int!) {
 6. **UI updates** → Movie details refreshed, review appears
 
 GraphQL Mutation:
+
 ```graphql
 mutation AddReview(
   $movieId: Int!
@@ -2190,6 +2194,7 @@ mutation AddReview(
 ### 8.4 Manage Watchlist
 
 **Add to Watchlist:**
+
 ```graphql
 mutation AddToWatchlist(
   $movieId: Int!
@@ -2213,6 +2218,7 @@ mutation AddToWatchlist(
 ```
 
 **Get Watchlist:**
+
 ```graphql
 query GetUserWatchlist($userId: Int!, $status: String) {
   getUserWatchlist(userId: $userId, status: $status) {
@@ -2307,6 +2313,7 @@ flutter build appbundle --release
 ### API Connection Issues
 
 **Problem**: App cannot reach FraiseQL server
+
 - **Solution**: Verify correct IP/hostname in GraphQL client config
 - For emulator: Use `10.0.2.2` instead of `localhost` on Android
 - For physical device: Use machine's local IP address (`192.168.x.x`)
@@ -2314,6 +2321,7 @@ flutter build appbundle --release
 ### GraphQL Query Errors
 
 **Problem**: `Field does not exist` or validation errors
+
 - **Solution**: Verify query structure matches `schema.compiled.json`
 - Use GraphQL Playground: `http://localhost:8000/playground`
 - Check variable types and required fields
@@ -2321,7 +2329,9 @@ flutter build appbundle --release
 ### Database Connection Errors
 
 **Problem**: `Connection refused` or `database does not exist`
+
 - **Solution**:
+
   ```bash
   # Verify PostgreSQL is running
   docker-compose ps
@@ -2337,7 +2347,9 @@ flutter build appbundle --release
 ### Flutter Build Issues
 
 **Problem**: Dependency conflicts or build failures
+
 - **Solution**:
+
   ```bash
   flutter clean
   flutter pub get
@@ -2348,6 +2360,7 @@ flutter build appbundle --release
 ### Performance Issues
 
 **Problem**: Slow queries or high latency
+
 - **Solution**:
   - Enable caching in FraiseQL config
   - Check database indexes: `SELECT * FROM pg_stat_user_indexes;`
@@ -2357,6 +2370,7 @@ flutter build appbundle --release
 ### Image Loading Failures
 
 **Problem**: Poster images not displaying
+
 - **Solution**:
   - Verify image URLs are accessible
   - Check CORS configuration in `fraiseql.toml`
@@ -2377,6 +2391,7 @@ This full-stack example demonstrates:
 6. **End-to-End Integration**: Real GraphQL queries executing compiled SQL
 
 **Key Architectural Benefits:**
+
 - Zero-runtime overhead: Schema compiled to optimized SQL at build time
 - Type safety: Go → GraphQL → Rust → Flutter, all with type validation
 - Performance: Connection pooling, query caching, database indexing

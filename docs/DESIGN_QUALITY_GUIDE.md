@@ -81,26 +81,31 @@ Design scores range from 0-100:
 Each category is scored separately:
 
 **Federation (JSONB Batching)**
+
 - Detects over-federation (entities in 3+ subgraphs)
 - Identifies circular dependencies
 - Flags fragmented entity resolution
 
 **Cost (Compilation Determinism)**
+
 - Analyzes worst-case query complexity
 - Detects unbounded pagination
 - Identifies multiplier patterns (lists in lists)
 
 **Cache (JSONB Coherency)**
+
 - Checks TTL consistency across subgraphs
 - Validates cache directives on expensive fields
 - Verifies coherency strategies
 
 **Authorization (Security Boundaries)**
+
 - Detects auth boundary leaks
 - Checks for unprotected mutations
 - Verifies scope consistency
 
 **Compilation (Type Suitability)**
+
 - Validates schema structure for compilation
 - Checks for circular type references
 - Verifies required metadata
@@ -110,6 +115,7 @@ Each category is scored separately:
 ### Federation Rules
 
 #### Rule: Over-Federation Detection
+
 **Severity**: Warning (3+ subgraphs), Critical (5+)
 **Description**: Entity exists in too many subgraphs
 **Problem**: Can't batch efficiently with JSONB views across multiple subgraphs
@@ -137,6 +143,7 @@ Each category is scored separately:
 ```
 
 #### Rule: Circular Dependency Detection
+
 **Severity**: Warning
 **Description**: Circular reference chain (A → B → A)
 **Problem**: Nested JSONB becomes inefficient, hard to compile
@@ -160,6 +167,7 @@ Each category is scored separately:
 ### Cost Rules
 
 #### Rule: Worst-Case Complexity
+
 **Severity**: Critical (>5000), Warning (>1000)
 **Description**: Query can hit extreme complexity
 **Problem**: Unexpected production issues under load
@@ -190,6 +198,7 @@ Each category is scored separately:
 ### Cache Rules
 
 #### Rule: TTL Consistency
+
 **Severity**: Warning
 **Description**: Same entity with different TTLs across subgraphs
 **Problem**: Stale data in some subgraphs, fresh in others
@@ -217,6 +226,7 @@ Each category is scored separately:
 ### Authorization Rules
 
 #### Rule: Auth Boundary Leak
+
 **Severity**: Critical
 **Description**: Protected field accessible without auth check
 **Problem**: Security violation, data exposure
@@ -255,6 +265,7 @@ Each category is scored separately:
 ### Example 1: User/Posts/Comments Schema
 
 **Initial Design**:
+
 ```json
 {
   "subgraphs": [
@@ -266,6 +277,7 @@ Each category is scored separately:
 ```
 
 **Issues Found**:
+
 - User in 3 subgraphs (Warning) - Score -15
 - Potential circular references - Score -10
 - No TTL specified - Score -5
@@ -273,6 +285,7 @@ Each category is scored separately:
 **Score: 70** (Acceptable, but needs work)
 
 **Improved Design**:
+
 ```json
 {
   "subgraphs": [
@@ -442,6 +455,7 @@ See [DESIGN_QUALITY_PERFORMANCE.md](./DESIGN_QUALITY_PERFORMANCE.md) for details
 ## Security
 
 All design audit endpoints are secured with:
+
 - Input validation
 - Rate limiting
 - Error message sanitization
@@ -454,6 +468,7 @@ See [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md) for details.
 ### Issue: Low score on well-designed schema
 
 **Check**: Are you using the right pattern for FraiseQL?
+
 - Federation: Entities should be in ONE primary subgraph
 - Cost: Add pagination limits to list fields
 - Cache: Specify consistent TTLs
@@ -470,6 +485,7 @@ fraiseql --version
 
 **Cause**: Schema too large (>100MB) or server overloaded
 **Solution**:
+
 - Split into smaller schemas
 - Check server logs: `RUST_LOG=debug fraiseql-server`
 

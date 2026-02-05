@@ -39,6 +39,7 @@ Production-Ready Server
 ## Phase 1: Parse Schema Definitions
 
 ### Input
+
 Your schema definitions in Python or TypeScript:
 
 ```python
@@ -78,6 +79,7 @@ def list_orders(user_id: int) -> List[Order]:
 5. **Validate syntax** (no duplicate fields, valid type annotations)
 
 ### Output
+
 Internal representation of schema structure (parsed AST):
 
 ```
@@ -116,6 +118,7 @@ Schema {
 ## Phase 2: Extract Type Information & Build schema.json
 
 ### Input
+
 Parsed schema from Phase 1
 
 ### Process
@@ -208,6 +211,7 @@ tb_orders   | created_at   | timestamp | false       | now()
 ## Phase 3: Validate Relationships
 
 ### Input
+
 schema.json with all type and query information
 
 ### Process
@@ -230,6 +234,7 @@ Validating relationships...
 ```
 
 ### Output
+
 Validation report (warnings + errors):
 
 ```
@@ -251,6 +256,7 @@ Warnings:
 ## Phase 4: Analyze Query Patterns
 
 ### Input
+
 Validated schema.json with relationship information
 
 ### Process
@@ -284,6 +290,7 @@ Query: listOrders(userId: Int!) -> List<Order>
 ```
 
 ### Output
+
 Query analysis report with optimization recommendations:
 
 ```
@@ -305,6 +312,7 @@ Recommendations:
 ## Phase 5: Optimize SQL Templates
 
 ### Input
+
 Query patterns and complexity analysis from Phase 4
 
 ### Process
@@ -358,6 +366,7 @@ ORDER BY created_at DESC
 ```
 
 ### Output
+
 Compiled SQL templates (one per query):
 
 ```
@@ -379,6 +388,7 @@ Memory footprint: ~50KB
 ## Phase 6: Generate Authorization Rules
 
 ### Input
+
 Query definitions with permission annotations
 
 ### Process
@@ -430,6 +440,7 @@ Permission Rules (Compiled):
 ```
 
 ### Output
+
 Compiled authorization bytecode:
 
 ```
@@ -447,6 +458,7 @@ Authorization Bytecode:
 ## Phase 7: Output Compiled Schema
 
 ### Input
+
 All previous phases' outputs (SQL templates, auth rules, type definitions)
 
 ### Process
@@ -524,6 +536,7 @@ All previous phases' outputs (SQL templates, auth rules, type definitions)
 ```
 
 ### Output: Production-Ready Schema
+
 ```
 ✅ Compilation Complete
 
@@ -575,6 +588,7 @@ def search_products(query: str, limit: int = 10) -> List[Product]:
 
 **Phase 5: Optimize**
 → Generate SQL:
+
 ```sql
 SELECT product_id, name, price, in_stock
 FROM v_products
@@ -590,6 +604,7 @@ LIMIT $2
 → schema.compiled.json includes optimized template
 
 **Runtime: GraphQL Request**
+
 ```graphql
 query {
   searchProducts(query: "laptop", limit: 5) {
@@ -611,6 +626,7 @@ query {
 ## Benefits of Multi-Phase Compilation
 
 ### 1. Early Error Detection
+
 ```
 ❌ Error caught at compile time:
    Column 'users_id' not found in tb_users
@@ -619,6 +635,7 @@ query {
 ```
 
 ### 2. Performance Optimization
+
 ```
  detects missing index:
 → Recommendation: Add index on tb_orders(fk_user_id)
@@ -627,6 +644,7 @@ query {
 ```
 
 ### 3. Security Verification
+
 ```
  compiles authorization:
 → All permission rules checked for logic errors
@@ -635,6 +653,7 @@ query {
 ```
 
 ### 4. Deterministic Behavior
+
 ```
 All query optimization happens at build time.
 At runtime: just execute pre-compiled template.
@@ -646,6 +665,7 @@ Result: Predictable performance, no surprises.
 ## What the Compilation Pipeline Enables
 
 ### 1. Query Plan Transparency
+
 ```
 Every query has a pre-computed plan:
 SELECT statement, expected cost, required indexes
@@ -653,6 +673,7 @@ All visible before serving requests
 ```
 
 ### 2. Automatic Optimization
+
 ```
 Index missing? Phase 4 detects and recommends
 Index added? Phase 5 generates optimal SQL using it
@@ -660,6 +681,7 @@ No code changes needed
 ```
 
 ### 3. Schema Versioning
+
 ```
 Each compiled schema is versioned:
 schema.compiled.json version 1.2
@@ -667,6 +689,7 @@ Can run multiple versions, gradually migrate clients
 ```
 
 ### 4. Deployment Safety
+
 ```
 Compile server before deploying:
 
@@ -682,6 +705,7 @@ Result: Zero surprises in production
 ## When Compilation Happens
 
 ### Development
+
 ```bash
 # Watch for changes and recompile
 fraiseql-cli watch schema.py --output schema.compiled.json
@@ -691,6 +715,7 @@ fraiseql-cli compile schema.py --output schema.compiled.json
 ```
 
 ### CI/CD Pipeline
+
 ```bash
 # Automated compilation in build step
 fraiseql-cli compile schema.py \
@@ -700,6 +725,7 @@ fraiseql-cli compile schema.py \
 ```
 
 ### Production Deployment
+
 ```bash
 # 1. Compile schema (all validations run)
 fraiseql-cli compile schema.py --database-url prod_db
@@ -785,6 +811,7 @@ The FraiseQL compilation pipeline is a seven-phase process that transforms your 
 7. **Phase 7: Output** - Create schema.compiled.json
 
 **Key Benefits:**
+
 - Early error detection (compile time, not runtime)
 - Performance optimization (optimal SQL pre-generated)
 - Deterministic behavior (no query plan surprises)

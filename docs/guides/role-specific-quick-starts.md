@@ -427,6 +427,7 @@ tls_enabled = false  # Enable in production!
 ### Step 3: Connect BI Tool
 
 **DuckDB (for SQL exploration):**
+
 ```python
 import duckdb
 
@@ -443,6 +444,7 @@ result = conn.execute("""
 ```
 
 **Tableau (native Arrow Flight connector):**
+
 1. Data Source → Arrow Flight
 2. Server: `localhost`
 3. Port: `30000`
@@ -450,6 +452,7 @@ result = conn.execute("""
 5. Create visualization!
 
 **Python Analytics:**
+
 ```python
 import pandas as pd
 import pyarrow.flight as flight
@@ -653,11 +656,13 @@ class SendWelcomeEmail:
 ## See Also
 
 **All Quick Starts:**
+
 - **[Federation Quick Start](./federation-quick-start.md)** — Multi-database setup
 - **[Authorization Quick Start](./authorization-quick-start.md)** — Field-level access control
 - **[Arrow Flight Quick Start](./arrow-flight-quick-start.md)** — Analytics export
 
 **Complete Guides:**
+
 - **[Common Patterns](./PATTERNS.md)** — Real-world solutions
 - **[Schema Design](./schema-design-best-practices.md)** — Design patterns
 - **[Production Deployment](./production-deployment.md)** — Deployment procedures

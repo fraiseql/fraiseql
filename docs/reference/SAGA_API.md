@@ -28,6 +28,7 @@ let coordinator = SagaCoordinator::new(metadata, store);
 ```
 
 **Parameters:**
+
 - `metadata`: Federation metadata with type and directive information
 - `store`: Saga persistence store (PostgreSQL, MySQL, SQLite)
 
@@ -45,11 +46,13 @@ println!("Status: {:?}", result.status);
 ```
 
 **Parameters:**
+
 - `steps`: Vector of saga steps to execute in order
 
 **Returns:** `Result<SagaResult>` with execution results
 
 **Errors:**
+
 - `SagaError::StepFailed` - A step returned an error
 - `SagaError::CompensationFailed` - Compensation step failed
 - `SagaError::Timeout` - Saga exceeded timeout duration
@@ -67,6 +70,7 @@ let saga_id = coordinator.execute_async(steps).await?;
 ```
 
 **Parameters:**
+
 - `steps`: Vector of saga steps to execute
 
 **Returns:** `Result<String>` containing saga ID for status tracking
@@ -88,6 +92,7 @@ let result = coordinator.execute_parallel(
 ```
 
 **Parameters:**
+
 - `steps`: Vector of independent saga steps
 - `config`: Parallel execution configuration
 
@@ -152,6 +157,7 @@ if let Some(saga) = coordinator.get_saga("saga-123").await? {
 ```
 
 **Parameters:**
+
 - `saga_id`: Unique saga identifier
 
 **Returns:** `Result<Option<SagaState>>`

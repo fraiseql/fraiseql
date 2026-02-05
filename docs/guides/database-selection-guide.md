@@ -135,6 +135,7 @@ Existing database?
 ### PostgreSQL (Recommended Default)
 
 **Best for:**
+
 - Schema-first applications (FraiseQL strength)
 - Complex queries with multi-step JOINs
 - Full-text search capabilities needed
@@ -143,6 +144,7 @@ Existing database?
 - Analytics workloads
 
 **Why it wins for FraiseQL:**
+
 - Superior JSONB for multi-tenancy dimensions
 - Better indexes for compiled queries
 - Window functions mature
@@ -153,6 +155,7 @@ Existing database?
 **Cost:** Free (licensing-wise)
 
 **Example:**
+
 ```bash
 # Docker Compose
 version: '3.8'
@@ -173,17 +176,20 @@ volumes:
 ### MySQL 8.0+ (Cost-Conscious Choice)
 
 **Best for:**
+
 - Organizations with MySQL expertise
 - Cost-sensitive deployments (often cheaper hosting)
 - Standard OLTP workloads
 - Environments already running MySQL
 
 **When to consider:**
+
 - Team comfortable with MySQL
 - Simpler operational requirements
 - Relational data without complex JSON
 
 **Trade-offs vs PostgreSQL:**
+
 - Slightly slower on complex queries
 - Lock contention with heavy writes
 - JSONB not as sophisticated
@@ -198,12 +204,14 @@ volumes:
 ### SQLite (Development Only)
 
 **Best for:**
+
 - Local development
 - Testing
 - Single-file databases
 - Prototyping
 
 **NOT for production:**
+
 - ❌ No true concurrent writes
 - ❌ Locks entire database for writers
 - ❌ No remote access
@@ -214,6 +222,7 @@ volumes:
 **Cost:** Free
 
 **Example:**
+
 ```bash
 # Create test database (SQLite file)
 sqlite3 test.db ".schema"
@@ -227,12 +236,14 @@ export DATABASE_URL="sqlite:///:memory:"
 ### SQL Server (Enterprise)
 
 **Best for:**
+
 - Organizations with SQL Server licenses
 - Legacy SQL Server deployments
 - Existing SQL Server infrastructure
 - Enterprise support requirements
 
 **Trade-offs:**
+
 - Expensive licensing
 - More complex operations
 - Resource-hungry
@@ -301,6 +312,7 @@ fraiseql test
 ### Scenario 3: Migrate between cloud providers
 
 PostgreSQL maintains consistency across:
+
 - AWS RDS → Google Cloud SQL: Straightforward
 - AWS RDS → Azure Database: Straightforward
 - Self-hosted → AWS RDS: Use replication
@@ -359,6 +371,7 @@ SET GLOBAL innodb_buffer_pool_size = 4GB;
 ### "We chose MySQL but need PostgreSQL features"
 
 **Options:**
+
 1. Migrate to PostgreSQL (1-2 hours)
 2. Implement feature differently (app-layer JSON parsing)
 3. Wait for MySQL to add feature (may never happen)
@@ -368,6 +381,7 @@ SET GLOBAL innodb_buffer_pool_size = 4GB;
 ### "PostgreSQL is too complex to operate"
 
 **Solutions:**
+
 1. Use managed service (AWS RDS, Heroku)
 2. Use monitoring tools (pgAdmin, Grafana)
 3. Hire DevOps/DBA expertise
@@ -388,6 +402,7 @@ Week 4: Cutover and monitor
 ### "We're uncertain between PostgreSQL and MySQL"
 
 **Recommendation:** **Choose PostgreSQL** unless you have:
+
 - Existing MySQL infrastructure
 - Team prefers MySQL
 - Cost is absolutely critical

@@ -12,6 +12,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - SQL query fundamentals and JOIN optimization
 - Database views (logical vs materialized)
 - Query performance analysis (EXPLAIN ANALYZE)
@@ -22,6 +23,7 @@
 - Schema version control and migration tracking
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - SQL client for your database (psql, mysql, sqlcmd, sqlite3)
 - Schema migration tool (Flyway, Liquibase, or custom scripts)
@@ -30,6 +32,7 @@
 - DDL generation tool (fraiseql-cli or SDK)
 
 **Required Infrastructure:**
+
 - Production and staging database environments
 - Backup system for database snapshots
 - Query performance monitoring
@@ -39,6 +42,7 @@
 - Deployment pipeline or manual change management process
 
 **Optional but Recommended:**
+
 - Query performance baseline metrics
 - Automated performance regression testing
 - Blue-green or canary deployment strategy
@@ -59,6 +63,7 @@
 - [ ] Documented specific bottleneck with EXPLAIN output
 
 **Action**: Run EXPLAIN ANALYZE on current query
+
 ```sql
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user_full WHERE id = '550e8400...'
@@ -82,6 +87,7 @@ SELECT * FROM va_orders WHERE created_at >= NOW() - INTERVAL '7 days'
 - [ ] Not N+1 problem on client side
 
 **Check**: Run query with different filters to confirm consistency
+
 ```sql
 -- Baseline
 EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE id = ?;
@@ -117,6 +123,7 @@ EXPLAIN (ANALYZE) SELECT * FROM v_user_full WHERE created_at > ? AND status = ?;
   - [ ] (other composition views)
 
 **Template**:
+
 ```sql
 -- Helper view: Aggregate comments per post
 CREATE OR REPLACE VIEW v_comments_by_post AS
@@ -148,6 +155,7 @@ GROUP BY fk_post;
 - [ ] Planned indexing strategy (BRIN for timestamps, B-tree for FK)
 
 **Template**:
+
 ```sql
 CREATE TABLE ta_orders (
     id TEXT PRIMARY KEY,
@@ -207,6 +215,7 @@ CREATE TABLE ta_orders (
 - [ ] Query performance regression detection
 
 **Template Monitoring Queries**:
+
 ```sql
 -- Staleness
 SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
@@ -237,6 +246,7 @@ SELECT
 - [ ] No SQL errors in trigger definitions
 
 **Execution**:
+
 ```bash
 # In dev/staging environment
 psql -h staging-db -U postgres fraiseql_staging < migration.sql
@@ -261,6 +271,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 - [ ] Storage usage within estimates
 
 **Verification**:
+
 ```sql
 -- Row count match
 SELECT
@@ -292,6 +303,7 @@ SELECT pg_size_pretty(pg_total_relation_size('tv_user_profile'));
 - [ ] Verify table-backed view auto-updated
 
 **Execution**:
+
 ```bash
 # Create trigger function and attach
 psql -h staging-db -U postgres fraiseql_staging < trigger_setup.sql
@@ -319,6 +331,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 - [ ] Verify schedule timing
 
 **Execution**:
+
 ```bash
 psql -h staging-db -U postgres fraiseql_staging \
   -c "SELECT cron.schedule('refresh-tv-profile', '*/5 * * * *', 'SELECT refresh_tv_user_profile();');"
@@ -342,6 +355,7 @@ psql -h staging-db -U postgres fraiseql_staging \
 - [ ] Data accuracy verified with test queries
 
 **Benchmark Script**:
+
 ```sql
 -- Old view (baseline)
 EXPLAIN (ANALYZE, BUFFERS)
@@ -373,6 +387,7 @@ SELECT
 - [ ] Changed type binding to use new view
 
 **Example Change**:
+
 ```python
 # Before
 @fraiseql.type()
@@ -400,6 +415,7 @@ class UserProfile:
 - [ ] Concurrent queries don't cause issues
 
 **Test Commands**:
+
 ```bash
 # GraphQL queries
 curl -X POST http://staging-server/graphql \
@@ -439,12 +455,14 @@ pytest tests/ -v -k "user_profile"
 ### 14. Production Deployment (Careful!)
 
 **Step 1: Create Table**
+
 ```bash
 # During low-traffic window
 psql -h prod-db -U postgres fraiseql_prod < migration.sql
 ```
 
 **Step 2: Verify Creation**
+
 ```sql
 SELECT
     tablename,
@@ -458,6 +476,7 @@ WHERE tablename = 'tv_user_profile';
 - [ ] Document: Date/time deployed: _______
 
 **Step 3: Initial Population**
+
 ```sql
 SELECT * FROM refresh_tv_user_profile();
 ```
@@ -466,6 +485,7 @@ SELECT * FROM refresh_tv_user_profile();
 - [ ] Completed without errors: ☐ Yes
 
 **Step 4: Enable Triggers/Schedules**
+
 ```sql
 -- Attach triggers or enable schedule
 ALTER TABLE tv_user_profile ENABLE TRIGGER ALL;
@@ -478,6 +498,7 @@ SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
 - [ ] Document: Time enabled: _______
 
 **Step 5: Deploy Code**
+
 - [ ] GraphQL schema redeployed with type binding
 - [ ] No errors in deployment logs
 - [ ] Service restarted cleanly
@@ -491,18 +512,21 @@ SELECT * FROM cron.job WHERE jobname LIKE 'refresh%';
 ### 15. Post-Deployment Monitoring (24 hours)
 
 **Every 15 minutes:**
+
 - [ ] Query error rates normal
 - [ ] Staleness within acceptable range
 - [ ] No spike in database load
 - [ ] Application response times improved
 
 **Hourly:**
+
 - [ ] Check monitoring dashboard for anomalies
 - [ ] Verify refresh function completing
 - [ ] Query performance as expected
 - [ ] No customer complaints
 
 **Query Health**:
+
 ```sql
 -- Check staleness
 SELECT MAX(updated_at) - NOW() as staleness FROM tv_user_profile;
@@ -532,6 +556,7 @@ WHERE tablename = 'tv_user_profile';
 - [ ] Monitor application recovery
 
 **Rollback Command**:
+
 ```python
 # Revert to old view
 @fraiseql.type()  # Back to v_user_profile
@@ -617,6 +642,7 @@ class UserProfile:
 **Symptoms**: Table-backed view not updating after inserts
 
 **Debug**:
+
 ```sql
 -- Check trigger exists
 SELECT * FROM information_schema.triggers
@@ -636,6 +662,7 @@ SELECT refresh_tv_user_profile_for_user('test-id'::UUID);
 **Symptoms**: EXPLAIN ANALYZE on refresh shows >1s
 
 **Debug**:
+
 ```sql
 EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 -- Look for sequential scans, missing indexes
@@ -648,6 +675,7 @@ EXPLAIN (ANALYZE) SELECT refresh_tv_user_profile();
 **Symptoms**: Queries fail with "field not found in JSONB"
 
 **Debug**:
+
 ```sql
 -- Check JSONB structure
 SELECT data FROM tv_user_profile LIMIT 1;
@@ -661,6 +689,7 @@ SELECT data FROM tv_user_profile LIMIT 1;
 **Symptoms**: Insert errors due to disk space
 
 **Debug**:
+
 ```sql
 SELECT
     tablename,
@@ -681,11 +710,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Table-backed view might not solve your bottleneck or indexes missing.
 
 **Diagnosis:**
-1. Re-run performance test: Compare v_* vs tv_* latencies
+
+1. Re-run performance test: Compare v_*vs tv_* latencies
 2. Check table was actually created: `SELECT * FROM information_schema.tables WHERE table_name = 'tv_name';`
 3. Run EXPLAIN: Compare execution plans for both views
 
 **Solutions:**
+
 - Verify table has correct indexes: `SELECT * FROM pg_indexes WHERE tablename = 'tv_name';`
 - Check that query is actually using table (not original view)
 - Bottleneck might be in subquery, not view complexity
@@ -697,12 +728,14 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Table-backed view doesn't cover all access patterns of original view.
 
 **Diagnosis:**
-1. Check which queries use tv_* vs original v_*
+
+1. Check which queries use tv_*vs original v_*
 2. Find queries failing on tv_*: Review error logs
-3. Compare schemas: Does tv_* have all columns of v_*?
+3. Compare schemas: Does tv_*have all columns of v_*?
 
 **Solutions:**
-- Keep both views temporarily: v_* for queries, tv_* for new code
+
+- Keep both views temporarily: v_*for queries, tv_* for new code
 - Migrate gradually: Update application references one at a time
 - Add missing columns to table-backed view
 - Fix queries to work with table schema
@@ -712,11 +745,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Materialized view refresh locks table.
 
 **Diagnosis:**
+
 1. Check refresh time: How long does REFRESH MATERIALIZED VIEW take?
 2. Check if indexes exist: Needed for refresh to be fast
 3. Monitor table size: Large tables = slower refresh
 
 **Solutions:**
+
 - Add indexes to base tables before refresh
 - For high-frequency tables: Consider different strategy
 - Use REFRESH MATERIALIZED VIEW CONCURRENTLY (PostgreSQL 9.5+)
@@ -728,11 +763,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Table was created manually and doesn't match schema definition.
 
 **Diagnosis:**
+
 1. Compare schemas: `SELECT * FROM schema.json WHERE name = 'X'`
 2. Check table columns: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'tv_name';`
 3. Look for type mismatches: string vs int, timestamp vs date
 
 **Solutions:**
+
 - Re-generate table from schema.json: Drop and recreate
 - Use DDL generation tool to ensure consistency
 - Add missing columns to table
@@ -743,11 +780,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Migration script interrupted or deployment killed.
 
 **Diagnosis:**
+
 1. Check if table exists partially: `SELECT COUNT(*) FROM tv_name;`
 2. Check migration script status: Look for error logs
 3. Verify data consistency: Compare row counts with source view
 
 **Solutions:**
+
 - Complete the migration manually or rollback
 - Drop table and restart migration
 - Restore from backup if data corrupted
@@ -758,11 +797,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Migration happened but some queries still use original view.
 
 **Diagnosis:**
+
 1. Check query metrics: Which endpoints are slow?
 2. Verify which queries execute: Enable query logging
 3. Check application code: Are some components not updated?
 
 **Solutions:**
+
 - Identify which component/query uses old view
 - Update application to use table-backed view
 - Monitor for old view usage: Add alerts
@@ -773,11 +814,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Materialized views with large datasets can be very large.
 
 **Diagnosis:**
+
 1. Check table size: `SELECT pg_size_pretty(pg_total_relation_size('tv_name'));`
 2. Compare to source view: How much larger?
 3. Check if table can be partitioned
 
 **Solutions:**
+
 - Consider partitioning by date: Store only recent data in table
 - Use archive strategy: Move old data to separate table
 - Reduce columns: Include only what's needed
@@ -788,11 +831,13 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 **Cause:** Data not being ingested to ClickHouse or query going to PostgreSQL instead.
 
 **Diagnosis:**
+
 1. Check if ClickHouse table exists: `SELECT name FROM system.tables WHERE database = 'default';`
 2. Verify ingestion: `SELECT COUNT(*) FROM clickhouse_table;`
 3. Check routing: Which backend does Arrow query use?
 
 **Solutions:**
+
 - Verify CDC is configured to send to ClickHouse
 - Check network connectivity to ClickHouse
 - Ensure ClickHouse table schema matches
@@ -840,4 +885,4 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 2. View Selection Guide (full decision framework)
 3. This Checklist (migration workflow)
 4. Performance Testing (validation methodology)
-5. Specific pattern guides (tv_* or ta_*) as reference
+5. Specific pattern guides (tv_*or ta_*) as reference

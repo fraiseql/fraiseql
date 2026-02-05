@@ -41,6 +41,7 @@ Behavior:
 - Single server deployment
 
 **Configuration**:
+
 ```rust
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
@@ -63,6 +64,7 @@ let adapter = PostgresAdapter::with_pool_size(
 - Single or dual server
 
 **Configuration** (Recommended):
+
 ```rust
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
@@ -85,6 +87,7 @@ let adapter = PostgresAdapter::with_pool_size(
 - Multiple servers (load balanced)
 
 **Configuration**:
+
 ```rust
 let adapter = PostgresAdapter::with_pool_size(
     connection_string,
@@ -320,6 +323,7 @@ let results = futures::future::join_all(
 **Solutions**:
 
 1. **Increase pool size**:
+
    ```rust
    // From 10 to 30
    let adapter = PostgresAdapter::with_pool_size(
@@ -329,6 +333,7 @@ let results = futures::future::join_all(
    ```
 
 2. **Reduce query latency** (queries hold connections longer if slow):
+
    ```
    Enable SQL projection (already done) ✅
    Add database indexes
@@ -336,6 +341,7 @@ let results = futures::future::join_all(
    ```
 
 3. **Load balance** across multiple servers:
+
    ```
    Server A: 8 connections
    Server B: 8 connections

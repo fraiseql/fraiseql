@@ -5,6 +5,7 @@ This guide covers performance profiling, benchmarking, and optimization techniqu
 ## Prerequisites
 
 **Required Knowledge:**
+
 - Rust language fundamentals and async/await patterns
 - Cargo and build system concepts
 - Flamegraph interpretation and performance analysis
@@ -13,6 +14,7 @@ This guide covers performance profiling, benchmarking, and optimization techniqu
 - Database index and query plan analysis
 
 **Required Software:**
+
 - Rust 1.75+ with full toolchain (rustup)
 - Cargo (usually included with Rust)
 - flamegraph tool (`cargo install flamegraph`)
@@ -22,6 +24,7 @@ This guide covers performance profiling, benchmarking, and optimization techniqu
 - A text editor for code analysis
 
 **Required Infrastructure:**
+
 - FraiseQL source repository (cloned locally)
 - PostgreSQL instance for benchmarking tests
 - ~5GB free disk space for build artifacts and profiling data
@@ -29,6 +32,7 @@ This guide covers performance profiling, benchmarking, and optimization techniqu
 - Stable network connection for downloading dependencies
 
 **Optional but Recommended:**
+
 - Valgrind (for memory profiling on Linux)
 - Cachegrind (for cache analysis)
 - ASAN/MSAN (AddressSanitizer/MemorySanitizer)

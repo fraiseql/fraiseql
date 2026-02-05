@@ -24,11 +24,13 @@ This guide shows how to enforce design quality standards in continuous integrati
 ### 1. Install Agents
 
 **Python Schema Auditor**:
+
 ```bash
 pip install -r examples/agents/python/requirements.txt
 ```
 
 **TypeScript Federation Analyzer**:
+
 ```bash
 cd examples/agents/typescript
 npm install
@@ -47,11 +49,13 @@ Server runs on `http://localhost:8080` by default.
 ### 3. Run Analysis
 
 **Python**:
+
 ```bash
 python examples/agents/python/schema_auditor.py schema.compiled.json
 ```
 
 **TypeScript**:
+
 ```bash
 npx federation-analyzer --schema schema.compiled.json
 ```
@@ -348,13 +352,13 @@ else
 fi
 ```
 
-2. Make executable:
+1. Make executable:
 
 ```bash
 chmod +x .git/hooks/pre-commit
 ```
 
-3. Install globally (optional):
+1. Install globally (optional):
 
 ```bash
 mkdir -p ~/.githooks

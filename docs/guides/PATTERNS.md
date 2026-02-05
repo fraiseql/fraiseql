@@ -8,6 +8,7 @@
 ## Prerequisites
 
 **Required Knowledge:**
+
 - GraphQL fundamentals (types, fields, queries, mutations)
 - FraiseQL schema definition and configuration (see [GETTING_STARTED.md](../GETTING_STARTED.md))
 - Authentication and authorization concepts
@@ -18,6 +19,7 @@
 - Database relationships and foreign keys
 
 **Required Software:**
+
 - FraiseQL v2.0.0-alpha.1 or later
 - Your chosen SDK language:
   - Python 3.10+
@@ -30,12 +32,14 @@
 - Git (optional, for version control)
 
 **Required Infrastructure:**
+
 - FraiseQL server running with your schema
 - PostgreSQL, MySQL, SQLite, or SQL Server database
 - Network connectivity to FraiseQL server
 - Example data loaded in database (for testing patterns)
 
 **Optional but Recommended:**
+
 - Test database with sample data
 - GraphQL IDE (GraphQL Playground, Apollo Sandbox, Postman)
 - API monitoring tools
@@ -925,6 +929,7 @@ mutation UploadAvatar($userId: ID!, $file: Upload!) {
 ```
 
 JavaScript client:
+
 ```javascript
 const input = document.querySelector('input[type="file"]');
 const formData = new FormData();
@@ -1104,16 +1109,19 @@ pub async fn update_user(
 ### Caching Strategy
 
 **Layer 1: In-Memory Cache**
+
 - Speed: <1ms
 - Cost: Memory usage
 - Best for: Static queries, user profiles
 
 **Layer 2: Redis Cache**
+
 - Speed: ~5-10ms
 - Cost: Redis infrastructure
 - Best for: Cross-server consistency
 
 **Layer 3: HTTP Cache Headers**
+
 - Speed: Browser cache
 - Cost: Network requests
 - Best for: Public data
@@ -1148,11 +1156,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Token signed with different key or issuer mismatch.
 
 **Diagnosis:**
+
 1. Check token issuer: `echo $JWT_ISSUER`
 2. Verify public key: Compare with OAuth provider
 3. Decode token: `jwt decode $token` (check `iss` claim)
 
 **Solutions:**
+
 - Verify JWT_ISSUER environment variable matches provider
 - Ensure public key is current (providers rotate keys)
 - Check token expiration: `jq '.exp' token.json`
@@ -1163,11 +1173,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Cursor encoding/decoding mismatch or data ordering changed.
 
 **Diagnosis:**
+
 1. Decode cursor: `base64 -d cursor`
 2. Verify sort order matches: `SELECT * FROM users ORDER BY created_at, id LIMIT 10;`
 3. Check if records were deleted/reordered
 
 **Solutions:**
+
 - Ensure consistent sort order: `ORDER BY created_at DESC, id DESC`
 - Don't change sort order mid-pagination
 - Use stable cursor (record ID + timestamp)
@@ -1178,11 +1190,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Index not created or query format wrong.
 
 **Diagnosis:**
+
 1. Check if index exists: `SELECT * FROM pg_indexes WHERE tablename = 'users';`
 2. Test search manually: `SELECT * FROM users WHERE to_tsvector(name) @@ to_tsquery('john');`
 3. Verify column contains data: `SELECT COUNT(*) FROM users WHERE name IS NOT NULL;`
 
 **Solutions:**
+
 - Create full-text search index: `CREATE INDEX idx_user_search ON users USING GIN(to_tsvector('english', name || ' ' || email));`
 - Use query syntax: `&` (AND), `|` (OR), `!` (NOT)
 - Index must be functional for performance
@@ -1193,11 +1207,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Connection timeout, server restart, or network issue.
 
 **Diagnosis:**
+
 1. Check server logs for connection drops
 2. Verify network connection: `ping server`
 3. Check WebSocket URL: `wss://...` for production, `ws://...` for local
 
 **Solutions:**
+
 - Implement reconnection logic in client
 - Increase connection timeout if needed
 - Use persistent connections (TCP keepalive)
@@ -1209,11 +1225,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Request format incorrect or file too large.
 
 **Diagnosis:**
+
 1. Check Content-Type header: Should be `multipart/form-data`
 2. Check file size: Compare to server limits
 3. Verify field name matches schema
 
 **Solutions:**
+
 - Use correct Content-Type: `multipart/form-data`
 - Check max file size setting in fraiseql.toml
 - Ensure file field name matches GraphQL input type
@@ -1224,11 +1242,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Cache key too specific or cache size too small.
 
 **Diagnosis:**
+
 1. Monitor cache metrics: `SELECT hit_rate FROM cache_stats;`
 2. Check cache size: `SELECT pg_size_pretty(pg_total_relation_size('cache_table'));`
 3. Analyze popular queries: Which queries run most frequently?
 
 **Solutions:**
+
 - Increase cache size: More memory for L1 cache
 - Simplify cache key: Make key less dependent on exact values
 - Increase TTL for L2 cache: Let results stay cached longer
@@ -1240,11 +1260,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Database polling interval too large or WebSocket overhead.
 
 **Diagnosis:**
+
 1. Check polling interval setting: `[subscriptions] poll_interval_ms = ?`
 2. Monitor network latency: `ping subscription_server`
 3. Check database query performance: `EXPLAIN ANALYZE SELECT ...;`
 
 **Solutions:**
+
 - Reduce polling interval: 100-500ms is typical
 - Use CDC (Change Data Capture) instead of polling for better latency
 - Optimize database query (add indexes)
@@ -1256,11 +1278,13 @@ With L1+L2 cache (80% hit rate):
 **Cause:** Environment setup missing or configuration incorrect.
 
 **Diagnosis:**
+
 1. Follow setup guide: [Authentication Setup](../integrations/authentication/README.md)
 2. Check environment variables: `env | grep OAUTH`
 3. Verify credentials in OAuth provider console
 
 **Solutions:**
+
 - Ensure all prerequisites from guide are met
 - Check example matches your language SDK
 - Test with curl first before implementation
@@ -1291,6 +1315,7 @@ You now know how to implement:
 ## See Also
 
 **Related Guides:**
+
 - **[Authorization Quick Start](./authorization-quick-start.md)** — Field-level RBAC and role-based access control
 - **[Testing Strategy](./testing-strategy.md)** — Unit, integration, and end-to-end testing for patterns
 - **[Consistency Model](./consistency-model.md)** — Understanding data consistency in federation
@@ -1298,16 +1323,19 @@ You now know how to implement:
 - **[Schema Design Best Practices](./schema-design-best-practices.md)** — Designing schemas for common patterns
 
 **Integration Guides:**
+
 - **[Authentication Providers](../integrations/authentication/provider-selection-guide.md)** — Choosing OAuth2/OIDC providers
 - **[Federation Guide](../integrations/federation/guide.md)** — Implementing federation patterns
 - **[Arrow Flight Quick Start](./arrow-flight-quick-start.md)** — Exporting pattern results as columnar data
 
 **Deployment & Operations:**
+
 - **[Production Deployment](./production-deployment.md)** — Deploying pattern implementations to production
 - **[Monitoring & Observability](./monitoring.md)** — Observing pattern behavior in production
 - **[Security Deployment Checklist](../guides/production-security-checklist.md)** — Hardening patterns for security
 
 **Troubleshooting:**
+
 - **[Troubleshooting Decision Tree](../guides/troubleshooting-decision-tree.md)** — Route to correct guide for your problem
 - **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and common solutions
 
