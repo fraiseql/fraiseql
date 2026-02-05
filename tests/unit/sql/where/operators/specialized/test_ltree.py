@@ -662,6 +662,87 @@ class TestLTreeEdgeCases:
         assert result.as_string(None) == expected
 
 
+# ============================================================================
+# PATH COMPARISON OPERATORS: lt, gt, lte, gte
+# ============================================================================
+
+
+class TestLTreePathComparisonOperators:
+    """Test LTree path comparison operators (lexicographic ordering)."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_path_lt_operator(self) -> None:
+        """Test less than path comparison (lexicographic)."""
+        result = self.strategy.build_sql("lt", "top.science", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree < 'top.science'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_gt_operator(self) -> None:
+        """Test greater than path comparison (lexicographic)."""
+        result = self.strategy.build_sql("gt", "top.science", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree > 'top.science'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_lte_operator(self) -> None:
+        """Test less than or equal path comparison (lexicographic)."""
+        result = self.strategy.build_sql("lte", "top.technology", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree <= 'top.technology'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_gte_operator(self) -> None:
+        """Test greater than or equal path comparison (lexicographic)."""
+        result = self.strategy.build_sql("gte", "top.arts", self.path_sql, LTree)
+        expected = "(data->>'path')::ltree >= 'top.arts'::ltree"
+        assert result.as_string(None) == expected
+
+    def test_path_comparison_with_deep_paths(self) -> None:
+        """Test path comparison operators with deeply nested paths."""
+        deep_path = "top.science.physics.quantum"
+
+        # Less than
+        result_lt = self.strategy.build_sql("lt", deep_path, self.path_sql, LTree)
+        expected_lt = f"(data->>'path')::ltree < '{deep_path}'::ltree"
+        assert result_lt.as_string(None) == expected_lt
+
+        # Greater than
+        result_gt = self.strategy.build_sql("gt", deep_path, self.path_sql, LTree)
+        expected_gt = f"(data->>'path')::ltree > '{deep_path}'::ltree"
+        assert result_gt.as_string(None) == expected_gt
+
+        # Less than or equal
+        result_lte = self.strategy.build_sql("lte", deep_path, self.path_sql, LTree)
+        expected_lte = f"(data->>'path')::ltree <= '{deep_path}'::ltree"
+        assert result_lte.as_string(None) == expected_lte
+
+        # Greater than or equal
+        result_gte = self.strategy.build_sql("gte", deep_path, self.path_sql, LTree)
+        expected_gte = f"(data->>'path')::ltree >= '{deep_path}'::ltree"
+        assert result_gte.as_string(None) == expected_gte
+
+    def test_path_comparison_single_labels(self) -> None:
+        """Test path comparison with single-label paths."""
+        # Single label comparison
+        result_lt = self.strategy.build_sql("lt", "animals", self.path_sql, LTree)
+        expected_lt = "(data->>'path')::ltree < 'animals'::ltree"
+        assert result_lt.as_string(None) == expected_lt
+
+        result_gte = self.strategy.build_sql("gte", "plants", self.path_sql, LTree)
+        expected_gte = "(data->>'path')::ltree >= 'plants'::ltree"
+        assert result_gte.as_string(None) == expected_gte
+
+    def test_path_comparison_are_operator_aliases(self) -> None:
+        """Test that path comparisons work with ltree type."""
+        # These operators should be recognized as valid for LTree type
+        assert self.strategy.supports_operator("lt", LTree)
+        assert self.strategy.supports_operator("gt", LTree)
+        assert self.strategy.supports_operator("lte", LTree)
+        assert self.strategy.supports_operator("gte", LTree)
+
+
 class TestLTreeValidation:
     """Test LTree validation and error handling."""
 
@@ -679,3 +760,276 @@ class TestLTreeValidation:
         """Test that LTree NOT IN operator requires a list."""
         with pytest.raises(TypeError, match="'notin' operator requires a list"):
             build_ltree_notin_sql(self.path_sql, "not-a-list")
+
+
+# ============================================================================
+# PHASE A: DEPTH AND INDEX OPERATORS FOR GRAPHQL SCHEMA
+# ============================================================================
+
+
+class TestLTreeDepthOperatorsGraphQL:
+    """Test depth operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_nlevel_eq_graphql_integration(self) -> None:
+        """Test nlevel_eq operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_eq", 3, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "= 3" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_nlevel_gt_graphql_integration(self) -> None:
+        """Test nlevel_gt operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_gt", 2, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "> 2" in sql_str
+
+    def test_nlevel_gte_graphql_integration(self) -> None:
+        """Test nlevel_gte operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_gte", 1, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert ">= 1" in sql_str
+
+    def test_nlevel_lt_graphql_integration(self) -> None:
+        """Test nlevel_lt operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_lt", 5, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "< 5" in sql_str
+
+    def test_nlevel_lte_graphql_integration(self) -> None:
+        """Test nlevel_lte operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_lte", 4, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "<= 4" in sql_str
+
+    def test_nlevel_neq_graphql_integration(self) -> None:
+        """Test nlevel_neq operator generates correct SQL."""
+        result = self.strategy.build_sql("nlevel_neq", 2, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "!= 2" in sql_str
+
+    def test_depth_eq_alias_graphql(self) -> None:
+        """Test depth_eq alias works (should be same as nlevel_eq)."""
+        result = self.strategy.build_sql("depth_eq", 3, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "nlevel(" in sql_str
+        assert "= 3" in sql_str
+
+    def test_depth_operators_are_recognized(self) -> None:
+        """Test that all depth operators are recognized by strategy."""
+        depth_operators = [
+            "depth_eq",
+            "depth_gt",
+            "depth_gte",
+            "depth_lt",
+            "depth_lte",
+            "depth_neq",
+        ]
+        for op in depth_operators:
+            assert self.strategy.supports_operator(op, LTree), f"Operator {op} not supported"
+
+
+class TestLTreeIndexOperatorsGraphQL:
+    """Test index operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_index_operator_graphql_integration(self) -> None:
+        """Test index operator generates correct SQL."""
+        result = self.strategy.build_sql("index", "science", self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "science" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_index_eq_operator_graphql_integration(self) -> None:
+        """Test index_eq operator generates correct SQL."""
+        result = self.strategy.build_sql("index_eq", ("science", self.path_sql, 1), LTree)
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "science" in sql_str
+        assert "= 1" in sql_str
+
+    def test_index_gte_operator_graphql_integration(self) -> None:
+        """Test index_gte operator generates correct SQL."""
+        result = self.strategy.build_sql(
+            "index_gte", ("physics", self.path_sql, 2), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "index(" in sql_str
+        assert "physics" in sql_str
+        assert ">= 2" in sql_str
+
+    def test_index_operators_are_recognized(self) -> None:
+        """Test that all index operators are recognized by strategy."""
+        index_operators = ["index", "index_eq", "index_gte"]
+        for op in index_operators:
+            assert self.strategy.supports_operator(op, LTree), f"Operator {op} not supported"
+
+
+# ============================================================================
+# PHASE B: PATTERN MATCHING AND ARRAY OPERATORS FOR GRAPHQL SCHEMA
+# ============================================================================
+
+
+class TestLTreePatternMatchingGraphQL:
+    """Test pattern matching operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_matches_any_lquery_single_pattern(self) -> None:
+        """Test matches_any_lquery with single pattern."""
+        patterns = ["science.*"]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str  # LQuery matching operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_matches_any_lquery_multiple_patterns(self) -> None:
+        """Test matches_any_lquery with multiple patterns."""
+        patterns = ["science.*", "technology.*", "*.public"]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str
+        assert "ARRAY" in sql_str
+        assert sql_str.count("'") >= 6  # At least 3 patterns with ltree casting
+
+    def test_matches_any_lquery_complex_patterns(self) -> None:
+        """Test matches_any_lquery with complex lquery patterns."""
+        patterns = [
+            "science.{2}.*",  # Exactly 2 levels then anything
+            "*.astronomy.*",  # Anything then astronomy then anything
+            "technology.*.public",  # Technology, any level, then public
+        ]
+        result = self.strategy.build_sql("matches_any_lquery", patterns, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "?" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_matches_any_lquery_is_recognized(self) -> None:
+        """Test that matches_any_lquery operator is recognized."""
+        assert self.strategy.supports_operator("matches_any_lquery", LTree)
+
+
+class TestLTreeArrayOperatorsGraphQL:
+    """Test array operators integrated with GraphQL schema."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_in_array_single_path(self) -> None:
+        """Test in_array with single path."""
+        paths = ["science.astronomy"]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str  # Path containment operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_in_array_multiple_paths(self) -> None:
+        """Test in_array with multiple allowed paths."""
+        paths = ["science.astronomy", "science.biology", "science.physics"]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str
+        assert "ARRAY" in sql_str
+        assert sql_str.count("::ltree") >= 3
+
+    def test_in_array_complex_paths(self) -> None:
+        """Test in_array with deeply nested paths."""
+        paths = [
+            "org.dept.team.project.task",
+            "org.admin.finance",
+            "org.it.infrastructure.network",
+        ]
+        result = self.strategy.build_sql("in_array", paths, self.path_sql, LTree)
+        sql_str = result.as_string(None)
+        assert "<@" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_in_array_is_recognized(self) -> None:
+        """Test that in_array operator is recognized."""
+        assert self.strategy.supports_operator("in_array", LTree)
+
+    def test_array_contains_operator(self) -> None:
+        """Test array_contains operator (array field contains path)."""
+        # Format: (array, target_path)
+        array_val = ["public.documents", "shared.reports", "approved.archives"]
+        target_path = "approved.archives"
+        result = self.strategy.build_sql(
+            "array_contains", (array_val, self.path_sql, target_path), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "@>" in sql_str  # Array containment operator
+        assert "ARRAY" in sql_str
+        assert "::ltree" in sql_str
+
+    def test_array_contains_with_single_item_array(self) -> None:
+        """Test array_contains with single item array."""
+        array_val = ["public.documents"]
+        target_path = "public.documents"
+        result = self.strategy.build_sql(
+            "array_contains", (array_val, self.path_sql, target_path), LTree
+        )
+        sql_str = result.as_string(None)
+        assert "@>" in sql_str
+        assert "ARRAY" in sql_str
+
+    def test_array_contains_is_recognized(self) -> None:
+        """Test that array_contains operator is recognized."""
+        assert self.strategy.supports_operator("array_contains", LTree)
+
+
+class TestLTreePhaseBAliasesAndEdgeCases:
+    """Test Phase B operator aliases and edge cases."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.strategy = LTreeOperatorStrategy()
+        self.path_sql = SQL("data->>'path'")
+
+    def test_matches_any_lquery_requires_list(self) -> None:
+        """Test that matches_any_lquery requires a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("matches_any_lquery", "single-pattern", self.path_sql, LTree)
+
+    def test_matches_any_lquery_rejects_empty_list(self) -> None:
+        """Test that matches_any_lquery rejects empty pattern list."""
+        with pytest.raises(ValueError):
+            self.strategy.build_sql("matches_any_lquery", [], self.path_sql, LTree)
+
+    def test_in_array_requires_list(self) -> None:
+        """Test that in_array requires a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("in_array", "single-path", self.path_sql, LTree)
+
+    def test_array_contains_requires_tuple(self) -> None:
+        """Test that array_contains requires tuple (array, target)."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql("array_contains", "not-a-tuple", self.path_sql, LTree)
+
+    def test_array_contains_with_wrong_array_type(self) -> None:
+        """Test that array_contains validates array is a list."""
+        with pytest.raises(TypeError):
+            self.strategy.build_sql(
+                "array_contains", ("not-a-list", self.path_sql, "target"), LTree
+            )

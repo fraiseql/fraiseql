@@ -1,0 +1,164 @@
+{
+  "version": "1.0.0",
+  "compiledAt": "2026-02-01T00:00:00Z",
+  "types": {
+    "Event": {
+      "kind": "OBJECT",
+      "fields": {
+        "id": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false
+        },
+        "type": {
+          "type": "String!",
+          "sqlType": "VARCHAR(50)",
+          "nullable": false
+        },
+        "timestamp": {
+          "type": "DateTime!",
+          "sqlType": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false
+        },
+        "data": {
+          "type": "String!",
+          "sqlType": "TEXT",
+          "nullable": false
+        }
+      }
+    },
+    "Message": {
+      "kind": "OBJECT",
+      "fields": {
+        "id": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false
+        },
+        "userId": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false
+        },
+        "content": {
+          "type": "String!",
+          "sqlType": "TEXT",
+          "nullable": false
+        },
+        "timestamp": {
+          "type": "DateTime!",
+          "sqlType": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false
+        },
+        "reactions": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "defaultValue": 0
+        }
+      }
+    },
+    "UserActivity": {
+      "kind": "OBJECT",
+      "fields": {
+        "userId": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false
+        },
+        "username": {
+          "type": "String!",
+          "sqlType": "VARCHAR(255)",
+          "nullable": false
+        },
+        "status": {
+          "type": "String!",
+          "sqlType": "VARCHAR(50)",
+          "nullable": false
+        },
+        "lastSeen": {
+          "type": "DateTime!",
+          "sqlType": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false
+        },
+        "activeNow": {
+          "type": "Boolean!",
+          "sqlType": "BOOLEAN",
+          "nullable": false
+        }
+      }
+    },
+    "LiveMetrics": {
+      "kind": "OBJECT",
+      "fields": {
+        "id": {
+          "type": "Int!",
+          "sqlType": "INTEGER",
+          "nullable": false
+        },
+        "metric": {
+          "type": "String!",
+          "sqlType": "VARCHAR(100)",
+          "nullable": false
+        },
+        "value": {
+          "type": "Float!",
+          "sqlType": "NUMERIC(10, 2)",
+          "nullable": false
+        },
+        "timestamp": {
+          "type": "DateTime!",
+          "sqlType": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false
+        },
+        "source": {
+          "type": "String!",
+          "sqlType": "VARCHAR(100)",
+          "nullable": false
+        }
+      }
+    }
+  },
+  "queries": {
+    "events": {
+      "return": "[Event!]!",
+      "sql": "SELECT id, type, timestamp, data FROM events ORDER BY timestamp DESC LIMIT $1"
+    },
+    "event": {
+      "return": "Event",
+      "sql": "SELECT id, type, timestamp, data FROM events WHERE id = $1"
+    },
+    "messages": {
+      "return": "[Message!]!",
+      "sql": "SELECT id, userId, content, timestamp, reactions FROM messages ORDER BY timestamp DESC LIMIT $1"
+    },
+    "userActivity": {
+      "return": "UserActivity",
+      "sql": "SELECT userId, username, status, lastSeen, activeNow FROM user_activity WHERE userId = $1"
+    },
+    "metrics": {
+      "return": "[LiveMetrics!]!",
+      "sql": "SELECT id, metric, value, timestamp, source FROM live_metrics WHERE metric = $1 ORDER BY timestamp DESC LIMIT $2"
+    }
+  },
+  "subscriptions": {
+    "onEvent": {
+      "return": "Event!",
+      "pubsubTopic": "events",
+      "filter": "type = $1"
+    },
+    "onMessage": {
+      "return": "Message!",
+      "pubsubTopic": "messages"
+    },
+    "onUserStatusChange": {
+      "return": "UserActivity!",
+      "pubsubTopic": "user_activity"
+    },
+    "onMetricUpdate": {
+      "return": "LiveMetrics!",
+      "pubsubTopic": "metrics",
+      "filter": "metric = $1"
+    }
+  }
+}

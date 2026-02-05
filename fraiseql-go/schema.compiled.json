@@ -1,0 +1,263 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "createdAt",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "field_type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "createdAt",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "field_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "published",
+          "field_type": "Boolean",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "authorId",
+          "arg_type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "published",
+          "arg_type": "Boolean",
+          "nullable": false,
+          "default_value": true
+        },
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": false,
+          "default_value": 10
+        },
+        {
+          "name": "offset",
+          "arg_type": "Int",
+          "nullable": false,
+          "default_value": 0
+        }
+      ],
+      "description": "Get list of posts with filtering",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "arg_type": "Int",
+          "nullable": false,
+          "default_value": 10
+        },
+        {
+          "name": "offset",
+          "arg_type": "Int",
+          "nullable": false,
+          "default_value": 0
+        },
+        {
+          "name": "isActive",
+          "arg_type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Get list of users with pagination",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get a single user by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createPost",
+      "return_type": "Post",
+      "arguments": [
+        {
+          "name": "title",
+          "arg_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "arg_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new blog post",
+      "operation": "Custom"
+    },
+    {
+      "name": "publishPost",
+      "return_type": "Post",
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Publish a blog post",
+      "operation": "Custom"
+    },
+    {
+      "name": "createUser",
+      "return_type": "User",
+      "arguments": [
+        {
+          "name": "name",
+          "arg_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "arg_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new user",
+      "operation": "Custom"
+    },
+    {
+      "name": "updateUser",
+      "return_type": "User",
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "arg_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "arg_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "isActive",
+          "arg_type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Update an existing user",
+      "operation": "Custom"
+    },
+    {
+      "name": "deleteUser",
+      "return_type": "User",
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a user",
+      "operation": "Custom"
+    }
+  ],
+  "subscriptions": []
+}

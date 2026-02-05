@@ -1,0 +1,411 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "is_active",
+          "type": "Boolean",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Post",
+      "fields": [
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Revenue",
+      "fields": [
+        {
+          "name": "amount",
+          "type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "date",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "region",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get a single post by ID",
+      "config": {
+        "sql_source": "v_post"
+      }
+    },
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "type": "Int",
+          "nullable": false,
+          "default": 10
+        },
+        {
+          "name": "offset",
+          "type": "Int",
+          "nullable": false,
+          "default": 0
+        },
+        {
+          "name": "is_active",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Get all users with pagination and filtering",
+      "config": {
+        "auto_params": {
+          "limit": true,
+          "offset": true,
+          "order_by": true
+        },
+        "sql_source": "v_user"
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get a single user by ID",
+      "config": {
+        "sql_source": "v_user"
+      }
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "type": "Int",
+          "nullable": false,
+          "default": 10
+        },
+        {
+          "name": "offset",
+          "type": "Int",
+          "nullable": false,
+          "default": 0
+        },
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": true
+        },
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Get posts with pagination and filtering",
+      "config": {
+        "auto_params": {
+          "limit": true,
+          "offset": true,
+          "order_by": true
+        },
+        "sql_source": "v_post"
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "updateUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "is_active",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
+      "description": "Update an existing user",
+      "config": {
+        "operation": "UPDATE",
+        "sql_source": "fn_update_user"
+      }
+    },
+    {
+      "name": "deleteUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a user",
+      "config": {
+        "operation": "DELETE",
+        "sql_source": "fn_delete_user"
+      }
+    },
+    {
+      "name": "createPost",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new blog post",
+      "config": {
+        "operation": "CREATE",
+        "sql_source": "fn_create_post"
+      }
+    },
+    {
+      "name": "publishPost",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Publish a blog post",
+      "config": {
+        "operation": "UPDATE",
+        "sql_source": "fn_publish_post"
+      }
+    },
+    {
+      "name": "deletePost",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a blog post",
+      "config": {
+        "operation": "DELETE",
+        "sql_source": "fn_delete_post"
+      }
+    },
+    {
+      "name": "createUser",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new user",
+      "config": {
+        "operation": "CREATE",
+        "sql_source": "fn_create_user"
+      }
+    }
+  ],
+  "fact_tables": [
+    {
+      "name": "revenue",
+      "table_name": "tf_revenue",
+      "measures": [
+        "amount",
+        "count"
+      ],
+      "dimension_paths": [
+        {
+          "data_type": "text",
+          "json_path": "data-\u003e\u003e'category'",
+          "name": "category"
+        },
+        {
+          "data_type": "text",
+          "json_path": "data-\u003e\u003e'region'",
+          "name": "region"
+        },
+        {
+          "data_type": "text",
+          "json_path": "date_trunc('day', date)::text",
+          "name": "date"
+        }
+      ],
+      "description": "Revenue fact table for financial analytics"
+    }
+  ],
+  "aggregate_queries": [
+    {
+      "name": "revenueByRegion",
+      "fact_table": "revenue",
+      "auto_group_by": true,
+      "auto_aggregates": true,
+      "description": "Revenue aggregated by geographic region"
+    },
+    {
+      "name": "revenueByDate",
+      "fact_table": "revenue",
+      "auto_group_by": true,
+      "auto_aggregates": true,
+      "description": "Daily revenue trend analysis"
+    },
+    {
+      "name": "revenueByCategoryAndRegion",
+      "fact_table": "revenue",
+      "auto_group_by": true,
+      "auto_aggregates": true,
+      "description": "Revenue by both category and region for detailed analysis"
+    },
+    {
+      "name": "revenueByCategory",
+      "fact_table": "revenue",
+      "auto_group_by": true,
+      "auto_aggregates": true,
+      "description": "Revenue aggregated by product category"
+    }
+  ]
+}

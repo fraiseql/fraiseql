@@ -1,0 +1,161 @@
+{
+  "types": [
+    {
+      "name": "Organization",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "field_type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "description": "Top-level tenant organization"
+    },
+    {
+      "name": "Resource",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "tenantId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "field_type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Tenant-specific resource"
+    },
+    {
+      "name": "Tenant",
+      "sql_source": "",
+      "jsonb_column": "",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "organizationId",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "field_type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "description": "Division or workspace within an organization"
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "getOrganization",
+      "return_type": "Organization",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get organization by ID",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listResources",
+      "return_type": "Resource",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List resources in tenant",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    },
+    {
+      "name": "listTenants",
+      "return_type": "Tenant",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [],
+      "description": "List tenants in organization",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createResource",
+      "return_type": "Resource",
+      "arguments": [],
+      "description": "Create resource in tenant",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    },
+    {
+      "name": "createTenant",
+      "return_type": "Tenant",
+      "arguments": [],
+      "description": "Create new tenant",
+      "operation": {
+        "Insert": {
+          "table": ""
+        }
+      }
+    }
+  ],
+  "subscriptions": []
+}

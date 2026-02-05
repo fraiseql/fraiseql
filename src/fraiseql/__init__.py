@@ -34,6 +34,7 @@ from .types.interface import fraise_interface
 from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
 from .types.scalars.json import JSONField as JSON  # noqa: N814
+from .types.scalars.ltree import LTreeField as LTree
 
 # Core aliases (internal - not exported to prevent shadowing builtins)
 # Use fraiseql.type instead of importing 'type' directly
@@ -76,7 +77,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.9.11"
+__version__ = "1.9.17"
 
 
 # Lazy Rust extension loading for performance optimization
@@ -141,6 +142,7 @@ __all__ = [
     "EmailAddress",
     "Error",
     "FraiseQLConfig",
+    "LTree",
     "MutationErrorConfig",
     "MutationResultBase",
     "PageInfo",

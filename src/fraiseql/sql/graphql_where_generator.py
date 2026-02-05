@@ -340,29 +340,55 @@ class MacAddressFilter:
 
 @fraise_input
 class LTreeFilter:
-    """Filter for LTree hierarchical paths with full operator support.
+    """Filter for LTree hierarchical paths with comprehensive operator support.
 
-    Provides both basic comparison operators and PostgreSQL ltree-specific
-    hierarchical operators for path ancestry, descendancy, and pattern matching.
+    Provides complete set of PostgreSQL ltree operators for path filtering, analysis,
+    and manipulation. Organized into six categories:
 
-    PostgreSQL ltree operators:
-    - @> (ancestor_of): path @> 'a.b' - Is ancestor of path
-    - <@ (descendant_of): path <@ 'a.b' - Is descendant of path
-    - ~ (matches_lquery): path ~ '*.b.*' - Matches lquery pattern
-    - ? (matches_ltxtquery): path ? 'b' - Matches ltxtquery text pattern
-    - ? ANY() (matches_any_lquery): path ? ANY('{*.a.*, *.b.*}') - Matches any lquery
+    **Path Comparison Operators** (Lexicographic Ordering):
+    - eq, neq: Path equality/inequality
+    - lt, lte, gt, gte: Lexicographic path comparison
 
-    PostgreSQL ltree functions:
-    - nlevel(path): Returns number of labels in path
-    - subpath(path, offset, len): Extract subpath
-    - index(path, item): Position of item in path
-    - lca(paths): Lowest common ancestor
-    - path || value: Concatenate paths
+    **Hierarchy Operators** (Ancestor/Descendant Relationships):
+    - ancestor_of (@>): Is ancestor of path
+    - descendant_of (<@): Is descendant of path
+    - isdescendant: Alias for descendant_of
+
+    **Pattern Matching Operators**:
+    - matches_lquery (~): Matches lquery pattern with wildcards
+    - matches_ltxtquery (?): Matches ltxtquery text pattern (AND/OR/NOT logic)
+    - matches_any_lquery: Matches any of multiple lquery patterns
+
+    **Path Depth Operators** (using nlevel() function):
+    - nlevel: Get path depth (returns integer)
+    - nlevel_eq, nlevel_neq: Exact depth matching
+    - nlevel_gt, nlevel_gte: Depth greater than
+    - nlevel_lt, nlevel_lte: Depth less than
+    - depth_*: Aliases for nlevel_* (same semantics)
+
+    **Path Analysis Operators** (Extract and Find):
+    - index(label): Find position of label in path
+    - index_eq(label, pos): Label at exact position
+    - index_gte(label, pos): Label at or after position
+    - subpath(offset, len): Extract subpath range
+
+    **Path Manipulation Operators**:
+    - concat(path): Concatenate with another path
+    - lca(paths): Lowest common ancestor of multiple paths
+
+    **Array Operations**:
+    - in_array(paths): Path is in array of allowed paths
+    - array_contains(path): Array field contains target path
+    - matches_any_lquery(patterns): Path matches any of multiple lquery patterns
     """
 
     # Basic comparison operators
     eq: str | None = None
     neq: str | None = None
+    lt: str | None = None  # Path less than (lexicographic)
+    lte: str | None = None  # Path less than or equal (lexicographic)
+    gt: str | None = None  # Path greater than (lexicographic)
+    gte: str | None = None  # Path greater than or equal (lexicographic)
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
     isnull: bool | None = None
@@ -399,6 +425,10 @@ class LTreeFilter:
     index_gte: int | None = None  # index(path, item) >= value
     lca: list[str] | None = None  # Lowest Common Ancestor of paths
     concat: str | None = None  # path || value - concatenation
+
+    # Array operations
+    in_array: list[str] | None = None  # <@ - Path is in array of paths
+    array_contains: str | None = None  # @> - Array contains path
 
 
 @fraise_input

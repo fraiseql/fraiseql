@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql"
-version = "1.9.11"
+version = "1.9.17"
 edition = "2021"
 authors = ["FraiseQL Contributors"]
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
@@ -47,7 +47,7 @@ tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 
 # Bytes for PostgreSQL ToSql implementation
-bytes = "1.0"
+bytes = "1.11"  # Updated from 1.0 to fix CVE-2026-25541 (integer overflow)
 
 # GraphQL parsing (Phase 6)
 graphql-parser = "0.4"
@@ -65,7 +65,7 @@ linked-hash-map = "0.5"     # For LRU implementation
 sha2 = "0.10"               # Hashing for signatures
 
 # Authentication (Phase 10)
-jsonwebtoken = "9.2"        # JWT validation with built-in JWK support
+jsonwebtoken = "10.3"       # JWT validation with built-in JWK support. Updated from 9.2 to fix CVE-2026-25537 (type confusion/auth bypass)
 reqwest = { version = "0.11", features = ["json"] }  # JWKS fetching
 
 # Security features (Phase 12)
