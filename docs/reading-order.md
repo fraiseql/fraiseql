@@ -1,9 +1,9 @@
 # FraiseQL v2 Reading Order Guide
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Complete
-**Purpose:** Role-based navigation paths through FraiseQL v2 documentation
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** Updated for v2.0.0-alpha.1
+**Purpose:** Role-based navigation paths through FraiseQL v2.0.0-alpha.1 documentation
 
 ---
 
@@ -18,9 +18,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 **Choose your path:**
 
-1. [New to FraiseQL? Start Here](#new-to-frais
-
-eql-start-here)
+1. [New to FraiseQL? Start Here](#new-to-fraiseql-start-here)
 2. [For Architects](#for-architects)
 3. [For Compiler Developers](#for-compiler-developers)
 4. [For Runtime Developers](#for-runtime-developers)

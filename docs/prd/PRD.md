@@ -1,8 +1,8 @@
 # FraiseQL v2 — Product Requirements Document
 
-**Version:** 1.0
-**Status:** Draft
-**Date:** January 11, 2026
+**Version:** 2.0
+**Status:** Released (v2.0.0-alpha.1)
+**Date:** February 5, 2026
 **Audience:** Core maintainers, contributors, design partners
 
 ---
@@ -319,7 +319,7 @@ Single Arrow batches are limited to single-level projections.
 
 Arrow support is optional and feature-gated.
 
-**Implementation Status:** Planned (specification complete, implementation not started). Targeted for post-v2.0 release.
+**Implementation Status:** ✅ Implemented in v2.0.0-alpha.1 (feature-gated in cargo features)
 
 **Detailed specification:** See `docs/architecture/database/arrow-plane.md` for complete Arrow architecture, authoring syntax, performance characteristics, and implementation phases.
 
@@ -942,6 +942,7 @@ Traditional GraphQL servers use resolvers — functions that execute for each fi
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0 | 2026-02-05 | Updated for v2.0.0-alpha.1 release; Arrow and subscriptions marked as implemented |
 | 1.0 | 2026-01-11 | Initial PRD |
 
 ---
