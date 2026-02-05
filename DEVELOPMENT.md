@@ -2,22 +2,50 @@
 
 Quick reference for developers working on FraiseQL v2.
 
+For current feature set and version status, see `README.md`.
+
 ## Quick Start
 
 ```bash
-# Clone and setup
+# Clone repository
 git clone git@github.com:fraiseql/fraiseql.git
 cd fraiseql
-git checkout v2-development
 
-# Install tools
+# Install Rust tools
 rustup component add rustfmt clippy rust-analyzer
 cargo install cargo-watch cargo-audit cargo-llvm-cov
 
 # Build and test
 make build
 make test
+
+# Watch for changes during development
+make watch-check
 ```
+
+## Available Features
+
+**Core Engine:**
+- GraphQL execution with multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
+- Compiled schema with automatic SQL optimization
+- Automatic WHERE type generation with database-specific operators
+- Federation support with distributed transaction patterns
+
+**Enterprise Features:**
+- Encryption at rest and credential rotation
+- Secrets management integration (HashiCorp Vault, environment variables, file-based)
+- OAuth2/OIDC authentication with extensible provider system
+- Rate limiting and audit logging
+- Change Data Capture (CDC) with event dispatch
+- Role-based access control (RBAC)
+- Multi-tenant data isolation
+
+**Optional Extensions (feature-gated):**
+- Arrow Flight for columnar data streaming
+- Event system with webhook and action dispatch
+- PostgreSQL wire protocol compatibility
+
+See `README.md` for complete and current feature overview.
 
 ## Development Commands
 
@@ -44,9 +72,11 @@ make doc               # Build and open docs
 make bench             # Run performance benchmarks
 
 # Database
-make db-setup          # Create test database
-make db-teardown       # Drop test database
+make db-setup-local    # Create test database locally
+make db-teardown-local # Drop test database
 make db-reset          # Reset test database
+make db-up             # Start database container (Docker)
+make db-down           # Stop database container
 
 # Development
 make watch             # Watch and run tests
@@ -58,19 +88,26 @@ make watch-check       # Watch and run checks
 ```
 fraiseql/
 ├── crates/
-│   ├── fraiseql-core/     # Core execution engine
-│   ├── fraiseql-server/   # HTTP server (Axum)
-│   ├── fraiseql-cli/      # CLI tool
-│   └── fraiseql-python/   # Python FFI (PyO3)
+│   ├── fraiseql-core/              # Core execution engine (schema, query execution)
+│   ├── fraiseql-server/            # HTTP server (Axum-based)
+│   ├── fraiseql-cli/               # Compiler CLI tool
+│   ├── fraiseql-arrow/             # Arrow Flight support (optional)
+│   ├── fraiseql-observers/         # Event system, webhooks, actions (optional)
+│   ├── fraiseql-observers-macros/  # Macros for observer system
+│   ├── fraiseql-wire/              # PostgreSQL wire protocol (optional)
+│   └── fraiseql-error/             # Error types and utilities
 ├── tests/
-│   ├── integration/       # Integration tests
+│   ├── integration/       # Integration tests (database-dependent)
 │   ├── e2e/              # End-to-end tests
-│   ├── fixtures/         # Test data
-│   └── common/           # Test utilities
-├── benches/              # Benchmarks
-├── docs/                 # Documentation
-└── .github/workflows/    # CI/CD
+│   ├── fixtures/         # Test data and database fixtures
+│   └── common/           # Shared test utilities
+├── benches/              # Performance benchmarks (Criterion)
+├── docs/                 # Architecture and reference documentation
+├── tools/                # Development utilities
+└── .github/workflows/    # CI/CD pipelines
 ```
+
+**Note:** Python and TypeScript are authoring languages only (for schema definition). The runtime is pure Rust with no FFI or Python dependencies.
 
 ## Code Style
 
@@ -191,13 +228,26 @@ async fn my_test() {
 }
 ```
 
+### Test Suite
+
+The project includes **2,400+ tests** covering:
+- Unit tests (per-module)
+- Integration tests (multi-module, database-dependent)
+- End-to-end tests (full request/response flows)
+- Chaos engineering tests (failure scenarios and consistency)
+
 ### Coverage Target
 
 **85%+ line coverage** for all modules.
 
 ```bash
 make coverage
-# Open target/llvm-cov/html/index.html
+# Opens target/llvm-cov/html/index.html
+
+# Run specific test suites
+cargo test --lib              # Unit tests only
+make test-integration         # Integration tests (requires database)
+make test-e2e                 # End-to-end tests
 ```
 
 ## Performance
@@ -352,8 +402,11 @@ See `CONTRIBUTING.md` for full guidelines.
 
 ## Resources
 
-- **Implementation Roadmap**: `IMPLEMENTATION_ROADMAP.md`
-- **Architecture Docs**: `docs/architecture/`
+- **Project Overview**: `README.md`
+- **Architecture & Design**: `.claude/ARCHITECTURE_PRINCIPLES.md`
+- **Security Configuration**: `docs/SECURITY_CONFIGURATION.md`
+- **Testing Standards**: `TESTING.md`
+- **Contributing Guidelines**: `CONTRIBUTING.md`
 - **Rust Book**: <https://doc.rust-lang.org/book/>
 - **Clippy Lints**: <https://rust-lang.github.io/rust-clippy/>
 - **Criterion Guide**: <https://bheisler.github.io/criterion.rs/book/>
