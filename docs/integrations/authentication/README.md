@@ -461,3 +461,13 @@ See [Security Checklist](./SECURITY-CHECKLIST.md) for complete list.
 ---
 
 See [Security Checklist](./SECURITY-CHECKLIST.md) for deployment sign-off template.
+
+---
+
+## See Also
+
+- **[Federation Guide](../federation/guide.md)** - Multi-subgraph authentication coordination
+- **[Production Deployment](../../guides/production-deployment.md)** - Deploying authentication in production
+- **[Security Model](../../architecture/security/security-model.md)** - Authentication architecture deep dive
+- **[Observability](./MONITORING.md)** - Monitoring authentication events
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Common authentication issues

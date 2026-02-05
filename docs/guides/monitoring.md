@@ -1170,3 +1170,14 @@ FraiseQL provides production-grade monitoring:
 ✅ **Alerting**: Built-in threshold configuration
 
 Start with the minimal setup and progressively add more detailed monitoring as needed.
+
+---
+
+## See Also
+
+- **[Observability Guide](./observability.md)** - Database-centric observability and audit logging
+- **[Observability Architecture](../architecture/observability/observability-model.md)** - Technical design and implementation
+- **[Production Deployment](./production-deployment.md)** - Monitoring in production Kubernetes
+- **[Performance Optimization](../architecture/performance/advanced-optimization.md)** - Using metrics to optimize performance
+- **[Troubleshooting Guide](../observability/troubleshooting.md)** - Debug production issues using metrics
+- **[Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** - Monitoring security events

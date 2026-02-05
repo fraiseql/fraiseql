@@ -774,3 +774,13 @@ let metadata = FederationMetadata {
 - [Deployment Guide](./deployment.md)
 - [Readiness Checklist](./readiness-checklist.md)
 
+---
+
+## See Also
+
+- **[Consistency Model](../../guides/consistency-model.md)** - Understanding consistency in federation
+- **[Production Deployment](../../guides/production-deployment.md)** - Deploying federation in production
+- **[Federation Architecture](../../architecture/integration/federation.md)** - Technical architecture details
+- **[SAGA Pattern](./sagas.md)** - Distributed transaction coordination
+- **[Multi-Tenancy](../../enterprise/multi-tenancy.md)** - Tenant isolation in federation
+

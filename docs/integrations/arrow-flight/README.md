@@ -231,3 +231,13 @@ Minimal: 2-3 threads for gRPC server, no additional memory when not in use.
 **Made with ❤️ for data engineers and data scientists**
 
 Arrow Flight transforms FraiseQL from a GraphQL API into a high-performance analytics engine.
+
+---
+
+## See Also
+
+- **[Analytics Patterns Guide](../../guides/analytics-patterns.md)** - Practical query examples and use cases
+- **[Performance Optimization](../../architecture/performance/advanced-optimization.md)** - Query optimization techniques
+- **[Arrow Plane Architecture](../../architecture/database/arrow-plane.md)** - Technical deep dive
+- **[Aggregation Model](../../architecture/analytics/aggregation-model.md)** - Analytics compilation strategy
+- **[Window Functions](../../architecture/analytics/window-functions.md)** - Time-series analysis patterns

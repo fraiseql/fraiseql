@@ -1010,4 +1010,15 @@ HAVING COUNT(*) > (
 
 ---
 
+---
+
+## See Also
+
+- **[Monitoring & Observability Guide](./monitoring.md)** - Prometheus, OpenTelemetry, health checks setup
+- **[Observability Architecture](../architecture/observability/observability-model.md)** - Technical architecture and design
+- **[Production Deployment](./production-deployment.md)** - Observability in production environments
+- **[Database Fundamentals](../architecture/database/database-targeting.md)** - Understanding database-centric logging
+- **[CDC Format Specification](../specs/cdc-format.md)** - Change data capture event structure
+- **[Troubleshooting Guide](../observability/troubleshooting.md)** - Using observability data for debugging
+
 *End of Observability Guide*

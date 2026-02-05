@@ -550,3 +550,14 @@ vim src/file.rs
 ```
 
 Happy coding! 🚀
+
+---
+
+## See Also
+
+- **[Testing Strategy](../testing-strategy.md)** - Unit, integration, and E2E testing approach
+- **[Linting & Code Quality](./LINTING.md)** - Code standards and Clippy configuration
+- **[Benchmarking Guide](./benchmarking.md)** - Performance benchmarking with Criterion
+- **[Profiling Guide](./PROFILING_GUIDE.md)** - Performance profiling and optimization
+- **[E2E Testing Guide](./e2e-testing.md)** - End-to-end testing infrastructure
+- **[Contributing Guide](../../CONTRIBUTING.md)** - Contribution workflow and standards
