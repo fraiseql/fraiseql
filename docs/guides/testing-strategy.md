@@ -2468,6 +2468,133 @@ All testing strategies documented and ready for implementation.
 
 ---
 
+## Troubleshooting
+
+### "Test database connection fails: 'Connection refused'"
+
+**Cause:** PostgreSQL container not started or port not accessible.
+
+**Diagnosis:**
+1. Check if container is running: `docker ps | grep postgres`
+2. Verify port is listening: `netstat -tuln | grep 5432`
+3. Test connectivity: `psql postgresql://user:pass@localhost:5432/test_db`
+
+**Solutions:**
+- Start database: `docker-compose up -d` in test directory
+- Verify DATABASE_URL is correct
+- Check firewall rules allowing localhost:5432
+- Wait for database startup (may take 10-20 seconds)
+
+### "Flaky tests that pass sometimes, fail other times"
+
+**Cause:** Race conditions in database state or test isolation issues.
+
+**Diagnosis:**
+1. Run failing test 10 times: `cargo test test_name -- --test-threads=1 --nocapture`
+2. Look for non-deterministic behavior (random data, timestamps)
+3. Check test fixture cleanup: does previous test affect next test?
+
+**Solutions:**
+- Use test fixtures with unique IDs per test (UUIDs)
+- Add test isolation: truncate tables before each test
+- Avoid real time dependencies: use mock time or fixed dates
+- Run tests sequentially: `cargo test -- --test-threads=1` (slower but more reliable)
+- Use database transactions that rollback after each test
+
+### "E2E test hangs waiting for response"
+
+**Cause:** Server not responding or database query blocking.
+
+**Diagnosis:**
+1. Check if FraiseQL server is running: `curl http://localhost:8000/health`
+2. Check database: `docker exec postgres psql -U test -d test_db -c 'SELECT 1;'`
+3. Look for slow query: enable query logging in database
+
+**Solutions:**
+- Increase test timeout: `#[tokio::test(timeout = 60000ms)]`
+- Verify database has test data loaded
+- Check for deadlocks: `SELECT * FROM pg_locks;`
+- Simplify query to identify bottleneck
+- Ensure indexes exist on frequently queried columns
+
+### "Test coverage report shows <90% coverage"
+
+**Cause:** Some code paths not exercised by tests.
+
+**Diagnosis:**
+1. Generate coverage report: `cargo tarpaulin --out Html`
+2. Open `tarpaulin-report.html` and find uncovered lines
+3. Identify if untested code is: error paths, edge cases, or dead code
+
+**Solutions:**
+- Add error case tests: test both happy path and all error conditions
+- Add edge case tests: empty lists, NULL values, boundary conditions
+- For unreachable code: either delete it or mark `#[allow(dead_code)]` with comment
+- Ensure all error branches have tests
+
+### "Integration test fails with 'Foreign key constraint violation'"
+
+**Cause:** Test inserts data in wrong order or doesn't respect dependencies.
+
+**Diagnosis:**
+1. Check test fixture order: which table is inserted first?
+2. Verify foreign key relationships: `SELECT constraint_name FROM information_schema.key_column_usage;`
+3. Look at error - it will show which FK constraint failed
+
+**Solutions:**
+- Insert parent records before children
+- Use fixtures that auto-setup dependencies
+- Disable FK checks during setup if safe: `SET CONSTRAINTS ALL DEFERRED;`
+- Clean up in reverse order (children before parents)
+
+### "Test database grows too large (test_db.db > 1GB)"
+
+**Cause:** Test data not cleaned up between test runs or transaction not rolling back.
+
+**Diagnosis:**
+1. Check file size: `du -h test_db.db`
+2. List tables: `SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(...)) FROM pg_tables;`
+3. Find bloated table: `SELECT * FROM pg_stat_user_tables ORDER BY n_live_tup DESC;`
+
+**Solutions:**
+- Clean up database between test suites: truncate all tables
+- Use `TRUNCATE TABLE ... CASCADE;` to reset identity columns
+- Use transaction rollback instead of delete (faster cleanup)
+- For SQLite: use `VACUUM;` to reclaim space
+- Reduce test data size (generate minimal records)
+
+### "Test compilation slow (>5 minutes)"
+
+**Cause:** Large number of tests or heavy dependencies.
+
+**Diagnosis:**
+1. Check test count: `cargo test --lib -- --list | wc -l`
+2. Profile compilation: `cargo build -p fraiseql-core --release --timings`
+3. Look for slow dependencies in output
+
+**Solutions:**
+- Use `cargo nextest` for faster test execution (2-3x speedup)
+- Compile tests in release mode for CI (slower compile, faster tests)
+- Split tests into multiple binaries (compile in parallel)
+- Use `#[cfg(test)] mod test_helpers;` to avoid recompiling test code
+
+### "Test requires fresh database state but previous test left data"
+
+**Cause:** Lack of test isolation - tests run in same transaction or database.
+
+**Diagnosis:**
+1. Run tests in different order: `cargo test -- --test-threads=1`
+2. Check if ordering affects results
+3. Look for hardcoded IDs in tests (sign of shared state)
+
+**Solutions:**
+- Use `#[test]` with explicit setup/teardown for each test
+- Create unique data per test (use test name or counter)
+- Use `tokio::test` with database transactions that rollback
+- Ensure CI drops and recreates test database before each run
+
+---
+
 ## See Also
 
 - **[E2E Testing Guide](./development/e2e-testing.md)** - End-to-end testing infrastructure and execution

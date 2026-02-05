@@ -673,6 +673,133 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
 ---
 
+## Troubleshooting
+
+### "Migration performance test shows no improvement (same latency)"
+
+**Cause:** Table-backed view might not solve your bottleneck or indexes missing.
+
+**Diagnosis:**
+1. Re-run performance test: Compare v_* vs tv_* latencies
+2. Check table was actually created: `SELECT * FROM information_schema.tables WHERE table_name = 'tv_name';`
+3. Run EXPLAIN: Compare execution plans for both views
+
+**Solutions:**
+- Verify table has correct indexes: `SELECT * FROM pg_indexes WHERE tablename = 'tv_name';`
+- Check that query is actually using table (not original view)
+- Bottleneck might be in subquery, not view complexity
+- Consider partitioning if table has millions of rows
+- For Arrow plane (ta_*): May need ClickHouse integration for benefits
+
+### "Cannot rollback migration - original view needed"
+
+**Cause:** Table-backed view doesn't cover all access patterns of original view.
+
+**Diagnosis:**
+1. Check which queries use tv_* vs original v_*
+2. Find queries failing on tv_*: Review error logs
+3. Compare schemas: Does tv_* have all columns of v_*?
+
+**Solutions:**
+- Keep both views temporarily: v_* for queries, tv_* for new code
+- Migrate gradually: Update application references one at a time
+- Add missing columns to table-backed view
+- Fix queries to work with table schema
+
+### "View refresh is slow or blocking queries"
+
+**Cause:** Materialized view refresh locks table.
+
+**Diagnosis:**
+1. Check refresh time: How long does REFRESH MATERIALIZED VIEW take?
+2. Check if indexes exist: Needed for refresh to be fast
+3. Monitor table size: Large tables = slower refresh
+
+**Solutions:**
+- Add indexes to base tables before refresh
+- For high-frequency tables: Consider different strategy
+- Use REFRESH MATERIALIZED VIEW CONCURRENTLY (PostgreSQL 9.5+)
+- Schedule refreshes during off-peak hours
+- Consider real-time CDC instead of materialized view
+
+### "Schema mismatch between schema.json and table structure"
+
+**Cause:** Table was created manually and doesn't match schema definition.
+
+**Diagnosis:**
+1. Compare schemas: `SELECT * FROM schema.json WHERE name = 'X'`
+2. Check table columns: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'tv_name';`
+3. Look for type mismatches: string vs int, timestamp vs date
+
+**Solutions:**
+- Re-generate table from schema.json: Drop and recreate
+- Use DDL generation tool to ensure consistency
+- Add missing columns to table
+- Update schema.json if intentional difference
+
+### "Deployment rollback failed - stuck in middle state"
+
+**Cause:** Migration script interrupted or deployment killed.
+
+**Diagnosis:**
+1. Check if table exists partially: `SELECT COUNT(*) FROM tv_name;`
+2. Check migration script status: Look for error logs
+3. Verify data consistency: Compare row counts with source view
+
+**Solutions:**
+- Complete the migration manually or rollback
+- Drop table and restart migration
+- Restore from backup if data corrupted
+- Implement migration idempotency: migrations should be safe to retry
+
+### "Query performance degraded for users on old view"
+
+**Cause:** Migration happened but some queries still use original view.
+
+**Diagnosis:**
+1. Check query metrics: Which endpoints are slow?
+2. Verify which queries execute: Enable query logging
+3. Check application code: Are some components not updated?
+
+**Solutions:**
+- Identify which component/query uses old view
+- Update application to use table-backed view
+- Monitor for old view usage: Add alerts
+- Deprecate old view once everything migrated
+
+### "Table-backed view takes too much disk space"
+
+**Cause:** Materialized views with large datasets can be very large.
+
+**Diagnosis:**
+1. Check table size: `SELECT pg_size_pretty(pg_total_relation_size('tv_name'));`
+2. Compare to source view: How much larger?
+3. Check if table can be partitioned
+
+**Solutions:**
+- Consider partitioning by date: Store only recent data in table
+- Use archive strategy: Move old data to separate table
+- Reduce columns: Include only what's needed
+- If not worth disk cost: Keep logical view instead
+
+### "ClickHouse integration not improving Arrow plane performance"
+
+**Cause:** Data not being ingested to ClickHouse or query going to PostgreSQL instead.
+
+**Diagnosis:**
+1. Check if ClickHouse table exists: `SELECT name FROM system.tables WHERE database = 'default';`
+2. Verify ingestion: `SELECT COUNT(*) FROM clickhouse_table;`
+3. Check routing: Which backend does Arrow query use?
+
+**Solutions:**
+- Verify CDC is configured to send to ClickHouse
+- Check network connectivity to ClickHouse
+- Ensure ClickHouse table schema matches
+- Force query to ClickHouse: Check fraiseql.toml routing config
+- Monitor ClickHouse logs for insert errors
+
+---
+
 ## Template Customization
 
 **Copy this section for your specific migration:**

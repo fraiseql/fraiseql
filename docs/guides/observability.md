@@ -1012,6 +1012,118 @@ HAVING COUNT(*) > (
 
 ---
 
+## Troubleshooting
+
+### "Entity change log table missing or not populated"
+
+**Cause:** CDC not enabled or table not created.
+
+**Diagnosis:**
+1. Check if table exists: `SELECT * FROM information_schema.tables WHERE table_name = 'tb_entity_change_log';`
+2. Query table: `SELECT COUNT(*) FROM tb_entity_change_log;`
+3. Check FraiseQL config: Is CDC enabled?
+
+**Solutions:**
+- Run migrations: `fraiseql migrate --target latest`
+- Verify table was created by migration: Check database logs
+- Enable CDC in fraiseql.toml: `[cdc] enabled = true`
+- Check application logs for migration errors
+
+### "Change log has data but CDC consumers aren't receiving events"
+
+**Cause:** Consumer not connected or subscription has lag.
+
+**Diagnosis:**
+1. Check consumer status: `SELECT * FROM tb_cdc_consumer_offset WHERE consumer_id = 'X';`
+2. Verify connection: `SELECT COUNT(*) FROM tb_entity_change_log WHERE id > last_offset;`
+3. Check for errors in consumer logs
+
+**Solutions:**
+- Restart consumer service
+- Reset consumer offset to catch up: `UPDATE tb_cdc_consumer_offset SET offset = 0 WHERE consumer_id = 'X';`
+- Verify network connectivity to CDC source
+- Check authentication credentials for consumer
+- Monitor lag: Alert if lag > 1000 events
+
+### "Query logs missing recent mutations"
+
+**Cause:** Logging not enabled or query log table full.
+
+**Diagnosis:**
+1. Check logging level: `grep RUST_LOG fraiseql.toml`
+2. Check query log table size: `SELECT pg_size_pretty(pg_total_relation_size('tb_query_log'));`
+3. Verify queries are actually running: `SELECT COUNT(*) FROM tb_query_log WHERE created_at > NOW() - INTERVAL '1 hour';`
+
+**Solutions:**
+- Enable query logging: `RUST_LOG=info,fraiseql::query_log=debug`
+- Implement log rotation: Clean up old logs older than 30 days
+- Increase retention window: `VACUUM ANALYZE tb_query_log;`
+- Stream logs to external system (Splunk, DataDog) instead of storing in database
+
+### "Correlation IDs not present in logs"
+
+**Cause:** Client not sending X-Correlation-ID header or application not passing through.
+
+**Diagnosis:**
+1. Check request headers: Add `X-Correlation-ID` to all requests
+2. Verify logs include correlation ID: `grep -i correlation application.log`
+3. Check FraiseQL version supports correlation IDs
+
+**Solutions:**
+- Always send correlation ID from client: `curl -H "X-Correlation-ID: abc-123" ...`
+- Propagate correlation ID to subgraph calls
+- Verify logging configuration includes correlation ID
+- Use `X-Request-ID` as fallback if correlation ID missing
+
+### "Audit trail doesn't show who made a change"
+
+**Cause:** User/tenant context not captured or not included in log.
+
+**Diagnosis:**
+1. Check for user_id in change log: `SELECT DISTINCT user_id FROM tb_entity_change_log;`
+2. Verify token contains user info
+3. Check if middleware extracts user from JWT
+
+**Solutions:**
+- Ensure all mutations include user context (from JWT or session)
+- Middleware should extract user_id and inject into query context
+- Store user_id in change log: `INSERT INTO tb_entity_change_log (..., user_id) VALUES (..., current_user_id);`
+- For compliance: Store full user record snapshot in audit log
+
+### "Performance degradation after enabling detailed observability"
+
+**Cause:** Logging and CDC adds overhead - database I/O or CPU bound.
+
+**Diagnosis:**
+1. Compare before/after: Measure query latency with/without logging
+2. Check database CPU: `SELECT * FROM pg_stat_statements ORDER BY mean_exec_time DESC;`
+3. Monitor disk I/O: May be bottleneck if log table very large
+
+**Solutions:**
+- Use log sampling: Log 1 in 100 queries to reduce I/O
+- Async logging: Queue logs to background writer (don't block mutations)
+- Archival: Move old logs to separate table/schema
+- Use external log aggregation (Splunk, DataDog) instead of database
+- Disable debug-level logging in production (use info level)
+
+### "Tenant data leaked in observability logs"
+
+**Cause:** Sensitive data logged or not scoped correctly.
+
+**Diagnosis:**
+- Audit logs to find if PII/sensitive data present
+- Check log filtering: Does it respect data isolation?
+- Review who has access to observability systems
+
+**Solutions:**
+- Sanitize logs: Hash or mask PII before logging
+- Scope all observations by tenant: Use tenant_id in WHERE clauses
+- Implement access controls on observability data
+- Regular audit of log contents for compliance
+- Implement field-level encryption for sensitive fields
+
+---
+
 ## See Also
 
 - **[Monitoring & Observability Guide](./monitoring.md)** - Prometheus, OpenTelemetry, health checks setup

@@ -1139,6 +1139,134 @@ With L1+L2 cache (80% hit rate):
 
 ---
 
+## Troubleshooting
+
+### "JWT token validation failing: 'Invalid token signature'"
+
+**Cause:** Token signed with different key or issuer mismatch.
+
+**Diagnosis:**
+1. Check token issuer: `echo $JWT_ISSUER`
+2. Verify public key: Compare with OAuth provider
+3. Decode token: `jwt decode $token` (check `iss` claim)
+
+**Solutions:**
+- Verify JWT_ISSUER environment variable matches provider
+- Ensure public key is current (providers rotate keys)
+- Check token expiration: `jq '.exp' token.json`
+- Regenerate token if expired
+
+### "Pagination cursor returning empty or wrong records"
+
+**Cause:** Cursor encoding/decoding mismatch or data ordering changed.
+
+**Diagnosis:**
+1. Decode cursor: `base64 -d cursor`
+2. Verify sort order matches: `SELECT * FROM users ORDER BY created_at, id LIMIT 10;`
+3. Check if records were deleted/reordered
+
+**Solutions:**
+- Ensure consistent sort order: `ORDER BY created_at DESC, id DESC`
+- Don't change sort order mid-pagination
+- Use stable cursor (record ID + timestamp)
+- Handle deleted records gracefully (skip and get next)
+
+### "Full-text search not finding results"
+
+**Cause:** Index not created or query format wrong.
+
+**Diagnosis:**
+1. Check if index exists: `SELECT * FROM pg_indexes WHERE tablename = 'users';`
+2. Test search manually: `SELECT * FROM users WHERE to_tsvector(name) @@ to_tsquery('john');`
+3. Verify column contains data: `SELECT COUNT(*) FROM users WHERE name IS NOT NULL;`
+
+**Solutions:**
+- Create full-text search index: `CREATE INDEX idx_user_search ON users USING GIN(to_tsvector('english', name || ' ' || email));`
+- Use query syntax: `&` (AND), `|` (OR), `!` (NOT)
+- Index must be functional for performance
+- For stemming: Use language-specific dictionary
+
+### "Subscription WebSocket connection drops unexpectedly"
+
+**Cause:** Connection timeout, server restart, or network issue.
+
+**Diagnosis:**
+1. Check server logs for connection drops
+2. Verify network connection: `ping server`
+3. Check WebSocket URL: `wss://...` for production, `ws://...` for local
+
+**Solutions:**
+- Implement reconnection logic in client
+- Increase connection timeout if needed
+- Use persistent connections (TCP keepalive)
+- For server restarts: Graceful shutdown closes connections cleanly
+- Monitor connection health: Send heartbeats every 30 seconds
+
+### "File upload fails: 'Multipart form data parsing error'"
+
+**Cause:** Request format incorrect or file too large.
+
+**Diagnosis:**
+1. Check Content-Type header: Should be `multipart/form-data`
+2. Check file size: Compare to server limits
+3. Verify field name matches schema
+
+**Solutions:**
+- Use correct Content-Type: `multipart/form-data`
+- Check max file size setting in fraiseql.toml
+- Ensure file field name matches GraphQL input type
+- For large files: Implement chunked upload
+
+### "Cache hit rate is low (<30%)"
+
+**Cause:** Cache key too specific or cache size too small.
+
+**Diagnosis:**
+1. Monitor cache metrics: `SELECT hit_rate FROM cache_stats;`
+2. Check cache size: `SELECT pg_size_pretty(pg_total_relation_size('cache_table'));`
+3. Analyze popular queries: Which queries run most frequently?
+
+**Solutions:**
+- Increase cache size: More memory for L1 cache
+- Simplify cache key: Make key less dependent on exact values
+- Increase TTL for L2 cache: Let results stay cached longer
+- Pre-warm cache: Load frequently-accessed data at startup
+- For L2 (Redis): Monitor memory usage and eviction policy
+
+### "Real-time subscription updates have latency >2 seconds"
+
+**Cause:** Database polling interval too large or WebSocket overhead.
+
+**Diagnosis:**
+1. Check polling interval setting: `[subscriptions] poll_interval_ms = ?`
+2. Monitor network latency: `ping subscription_server`
+3. Check database query performance: `EXPLAIN ANALYZE SELECT ...;`
+
+**Solutions:**
+- Reduce polling interval: 100-500ms is typical
+- Use CDC (Change Data Capture) instead of polling for better latency
+- Optimize database query (add indexes)
+- Ensure WebSocket is directly to server (not through heavy proxy)
+- Use batching: Combine multiple changes into single update
+
+### "Pattern implementation doesn't match example - authentication failing"
+
+**Cause:** Environment setup missing or configuration incorrect.
+
+**Diagnosis:**
+1. Follow setup guide: [Authentication Setup](../integrations/authentication/README.md)
+2. Check environment variables: `env | grep OAUTH`
+3. Verify credentials in OAuth provider console
+
+**Solutions:**
+- Ensure all prerequisites from guide are met
+- Check example matches your language SDK
+- Test with curl first before implementation
+- Enable debug logging: `RUST_LOG=debug`
+- Review Security Checklist for common mistakes
+
+---
+
 ## Summary
 
 You now know how to implement:

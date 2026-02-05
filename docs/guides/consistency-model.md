@@ -514,6 +514,100 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 
 ---
 
+## Troubleshooting
+
+### "Mutation taking too long (>1 second)"
+
+**Cause:** Synchronous consistency requirement means mutations wait for database locks and replication.
+
+**Diagnosis:**
+1. Check database performance: `EXPLAIN ANALYZE` on mutation query
+2. Check network latency between services: `ping federation-subgraph`
+3. Monitor database locks: `SELECT * FROM pg_locks;`
+
+**Solutions:**
+- Add database indexes on frequently mutated columns
+- Scale database horizontally (more replicas for read distribution)
+- For federation, consider async job pattern (see pattern guide)
+- Verify network is low-latency between datacenters
+
+### "Stale data in replicas during failover"
+
+**Cause:** Strong consistency only within single primary. Replicas lag during network partitions.
+
+**Diagnosis:**
+1. Check replication lag: PostgreSQL `SELECT now() - pg_last_xact_replay_timestamp();`
+2. Monitor partition detection: Check FraiseQL logs for "partition detected"
+3. Verify replica freshness before routing queries
+
+**Solutions:**
+- Route all writes to primary, reads can use replicas with acceptable lag
+- Set up automatic replica promotion (e.g., Patroni, Pg-failover)
+- Monitor replication lag continuously (set alerts at >5s lag)
+- Document acceptable stale-data window for your use case
+
+### "Federation query returns partial data"
+
+**Cause:** SAGA coordination timeout or subgraph unavailability.
+
+**Diagnosis:**
+1. Check SAGA logs for "compensation triggered"
+2. Verify all subgraphs are responding: `curl http://subgraph:8000/health`
+3. Check network connectivity: `ping subgraph-service`
+4. Review query timeout settings in fraiseql.toml
+
+**Solutions:**
+- Increase SAGA timeout (default 30s may be too aggressive): `saga_timeout_secs = 60`
+- Verify all subgraphs are reachable and responsive
+- Check if subgraph database is slow (may need optimization)
+- Consider splitting complex federation queries into separate requests
+
+### "Different data visible in federation subgraphs"
+
+**Cause:** Each subgraph uses its own database. Mutations haven't fully replicated yet.
+
+**Diagnosis:**
+1. Query same entity from multiple subgraphs: `{ user(id: "X") { id } }`
+2. Check replication lag between databases
+3. Verify transaction order in audit logs
+
+**Solutions:**
+- This is expected during normal operation (strong consistency within each subgraph)
+- For critical consistency, ensure application waits for replication
+- Use federation readiness checks to detect lag
+- Consider using `@requires` directive to create implicit ordering dependencies
+
+### "High lock contention on frequently updated records"
+
+**Cause:** Multiple simultaneous mutations on same entity cause database locks.
+
+**Diagnosis:**
+1. Find locked rows: `SELECT * FROM pg_locks WHERE NOT granted;`
+2. Identify blocking queries: `SELECT * FROM pg_stat_statements WHERE calls > 1000;`
+3. Monitor lock wait times in application logs
+
+**Solutions:**
+- Add database indexes on WHERE clauses in mutations
+- Reduce mutation frequency if possible (batch updates)
+- Consider partitioning frequently updated tables
+- Implement optimistic locking if conflict is acceptable
+
+### "Partition tolerance: system becomes unavailable instead of serving stale data"
+
+**This is expected behavior.** FraiseQL chooses consistency over availability.
+
+**Diagnosis:**
+1. Confirm this is intentional choice for your use case
+2. If not acceptable, you need different architecture
+
+**Solutions:**
+- If high availability is critical, implement caching layer (Redis) for reads during partition
+- Use circuit breakers to detect partitions early
+- Implement graceful degradation (serve cached data with disclaimer)
+- Document expected outage windows for users
+
+---
+
 ## Related Documentation
 
 - [Production Deployment](./production-deployment.md) - How to scale FraiseQL

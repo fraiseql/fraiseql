@@ -553,6 +553,129 @@ Happy coding! 🚀
 
 ---
 
+## Troubleshooting
+
+### "Build fails with 'error: linker `cc` not found'"
+
+**Cause:** C++ build tools not installed on system.
+
+**Diagnosis:**
+1. Check if `cc` available: `which cc` or `which gcc`
+2. Check Rust setup: `rustup show`
+
+**Solutions:**
+- Install build tools: `sudo apt-get install build-essential` (Linux)
+- Install Xcode Command Line Tools: `xcode-select --install` (macOS)
+- Use `rustup`: `rustup install stable`
+
+### "Cargo build fails with 'cannot find package' dependency"
+
+**Cause:** Dependency not downloading or network issue.
+
+**Diagnosis:**
+1. Check internet connectivity
+2. Try clearing cache: `cargo clean`
+3. Check dependency in Cargo.toml spelling
+
+**Solutions:**
+- Verify Cargo.toml has correct dependency name/version
+- Update index: `cargo update`
+- Check for network issues: Try pinging crates.io
+- Check if crate is yanked/removed: Look on crates.io
+
+### "Compilation is very slow (>10 minutes)"
+
+**Cause:** Large project or unoptimized linker.
+
+**Diagnosis:**
+1. Profile build: `cargo build --release --timings`
+2. Check for heavy dependencies in output
+3. Measure link time vs compile time
+
+**Solutions:**
+- Use `mold` linker: Uncomment in `.cargo/config.toml` (Linux only, 3-5x faster)
+- Use incremental compilation: `cargo build -j 4`
+- In CI, use `cargo check` first (faster than full build)
+- Split into smaller crates to compile in parallel
+- Use sccache for distributed caching in CI
+
+### "Tests fail with 'database connection refused'"
+
+**Cause:** Test database not running or not accessible.
+
+**Diagnosis:**
+1. Check PostgreSQL running: `docker ps | grep postgres`
+2. Verify connection string: `echo $DATABASE_TEST_URL`
+3. Test manually: `psql $DATABASE_TEST_URL -c 'SELECT 1;'`
+
+**Solutions:**
+- Start test database: `docker-compose -f tests/docker-compose.yml up -d`
+- Wait for startup: Database may take 10-20 seconds
+- Create test database if missing: `createdb test_db`
+- Check DATABASE_URL environment variable is set
+
+### "IDE doesn't show type hints or autocomplete"
+
+**Cause:** Rust analyzer not working or not installed.
+
+**Diagnosis:**
+1. Check if rust-analyzer installed: `rustup component list | grep rust-analyzer`
+2. Restart IDE/editor
+3. Check if project is recognized: `cargo metadata`
+
+**Solutions:**
+- Install rust-analyzer: `rustup component add rust-analyzer`
+- Reload IDE window
+- Check .vscode/settings.json has rust-analyzer path
+- Update VSCode to latest version
+- Check project root has Cargo.toml
+
+### "Cargo clippy shows warnings I didn't write"
+
+**Cause:** Clippy found issues in existing code or dependencies.
+
+**Diagnosis:**
+1. Identify source of warning: Look at file path in error
+2. Check if in test code or main code
+3. Filter by crate: `cargo clippy -p specific_crate`
+
+**Solutions:**
+- Fix warnings if in your code: `cargo clippy --fix --allow-dirty`
+- For dependency warnings: Ignore (not your code)
+- Add `#[allow(clippy::lint_name)]` if intentional
+- Consider upgrading dependency if it has warning
+
+### "Different Rust version required (error: toolchain mismatch)"
+
+**Cause:** Project requires specific Rust version.
+
+**Diagnosis:**
+1. Check rust-toolchain.toml for version requirement
+2. Check current version: `rustc --version`
+
+**Solutions:**
+- Install correct version: `rustup install 1.XX.X`
+- Update stable: `rustup update stable`
+- Use specific version: `rustup override set 1.XX.X`
+- Let rustup handle it: It reads rust-toolchain.toml automatically
+
+### "Git pre-commit hook fails on your changes"
+
+**Cause:** Code quality check failed before commit.
+
+**Diagnosis:**
+1. Rerun hook manually to see error
+2. Run same check: `cargo clippy --all-targets`
+3. Check what hook does: Look at `.git/hooks/pre-commit`
+
+**Solutions:**
+- Fix linting issues: `cargo clippy --fix`
+- Run formatter: `cargo fmt`
+- Skip hook temporarily: `git commit --no-verify` (not recommended)
+- Update hook if it's wrong: Edit `.pre-commit-config.yaml`
+
+---
+
 ## See Also
 
 - **[Testing Strategy](../testing-strategy.md)** - Unit, integration, and E2E testing approach

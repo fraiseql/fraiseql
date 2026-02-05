@@ -342,4 +342,128 @@ PostgreSQL
 
 ---
 
+## Troubleshooting
+
+### "Arrow Flight server not listening on port 50051"
+
+**Cause:** Server not started or bound to different port.
+
+**Diagnosis:**
+1. Check if process is running: `ps aux | grep fraiseql`
+2. Verify port: `netstat -tuln | grep 50051`
+3. Check logs: `docker logs fraiseql | grep "Arrow Flight"`
+
+**Solutions:**
+- Start FraiseQL with Arrow Flight enabled: `fraiseql --enable-arrow-flight`
+- Check fraiseql.toml for port configuration: `[arrow_flight] bind_port = 50051`
+- Verify firewall allows port 50051
+- Try different port if 50051 in use: `[arrow_flight] bind_port = 50052`
+
+### "Client connection refused: 'Connection refused on 127.0.0.1:50051'"
+
+**Cause:** Server listening on different host or client connecting to wrong address.
+
+**Diagnosis:**
+1. Check server bind address: `grep bind_address /path/to/fraiseql.toml`
+2. Verify server is accessible: `telnet localhost 50051`
+3. Check if client using correct host/port: `nc -zv host.com 50051`
+
+**Solutions:**
+- Ensure server bound to 0.0.0.0 for remote access: `bind_address = "0.0.0.0:50051"`
+- For Docker: map port in docker-compose: `ports: ["50051:50051"]`
+- Use correct hostname: `arrow.example.com` not just `localhost`
+- For Kubernetes: create Service exposing port 50051
+
+### "Arrow schema mismatch: received schema doesn't match expected"
+
+**Cause:** Schema definition changed between client and server.
+
+**Diagnosis:**
+1. Print server schema: Server logs schema on startup
+2. Print client schema: `print(flight_client.get_flight_info(...))`
+3. Compare schemas - look for missing/renamed fields
+
+**Solutions:**
+- Regenerate client code if schema changed
+- Restart both client and server with matching schema versions
+- Use schema versioning in Arrow metadata
+- Check schema.compiled.json wasn't modified unexpectedly
+
+### "Arrow Flight query returns empty result or wrong data"
+
+**Cause:** Query execution issue or schema mismatch.
+
+**Diagnosis:**
+1. Verify query works in HTTP/JSON: `curl -X POST http://localhost:8000/graphql`
+2. Compare Arrow vs JSON results row counts
+3. Check if filtering applies to Arrow plane
+
+**Solutions:**
+- Arrow queries go through same execution engine as JSON
+- Verify data exists in database
+- Check WHERE clause applies correctly in Arrow context
+- Enable query logging to see actual SQL executed
+
+### "Arrow Flight performance not better than HTTP/JSON"
+
+**Cause:** Small dataset or not utilizing columnar advantages.
+
+**Diagnosis:**
+1. Check result set size: `EXPLAIN SELECT ...` shows row count
+2. Measure actual performance: Time both endpoints
+3. Look for network bottleneck vs data processing
+
+**Solutions:**
+- Arrow Flight benefits with large datasets (>10K rows)
+- For small results, HTTP/JSON is fine
+- Use ClickHouse for analytics (10-100x faster aggregations)
+- Verify network between client and server (gRPC more efficient than HTTP)
+- Check if result is CPU-bound or I/O-bound
+
+### "ClickHouse integration: data not appearing in analytics table"
+
+**Cause:** Observer not configured to send to ClickHouse or ingestion failing.
+
+**Diagnosis:**
+1. Check Observer configuration: `grep "ClickHouse" fraiseql.toml`
+2. Verify ClickHouse is running: `curl http://localhost:8123/ping`
+3. Check if mutations are triggering observers: `SELECT COUNT(*) FROM system.events WHERE event = 'InsertedRows';`
+
+**Solutions:**
+- Configure Observer to output to ClickHouse
+- Verify ClickHouse table exists and schema matches
+- Check network connectivity between FraiseQL and ClickHouse
+- Review ClickHouse logs for insert errors
+
+### "Elasticsearch integration: query debugging logs not appearing"
+
+**Cause:** Elasticsearch not configured or debug logging disabled.
+
+**Diagnosis:**
+1. Check Elasticsearch running: `curl http://localhost:9200/_cluster/health`
+2. Verify debug index exists: `curl http://localhost:9200/_cat/indices | grep debug`
+3. Check logging level in fraiseql.toml: `[logging] level = "debug"`
+
+**Solutions:**
+- Enable debug logging: Set `level = "debug"` in fraiseql.toml
+- Ensure Elasticsearch configured in fraiseql.toml
+- Create debug index if missing: `curl -X PUT http://localhost:9200/debug-logs`
+- Verify network allows queries from FraiseQL to Elasticsearch port 9200
+
+### "Authentication/TLS not working in Arrow Flight"
+
+**Cause:** These features not yet implemented (known limitation).
+
+**Diagnosis:**
+1. Confirm from Known Limitations section above
+2. Check FraiseQL version: `fraiseql --version` (should indicate phase)
+
+**Current Workaround:**
+- Use Arrow Flight only in trusted internal networks
+- Implement TLS at reverse proxy layer (nginx, Envoy)
+- Use API key validation at proxy level
+- Scheduled for Phase 10 hardening
+
+---
+
 **Next**: [Getting Started Tutorial](./getting-started.md)
