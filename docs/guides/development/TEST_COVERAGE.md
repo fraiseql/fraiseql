@@ -400,9 +400,16 @@ All PRs must pass:
 - [x] Webhook execution tests
 - [x] Event streaming tests
 
+### Language SDK Tests (Implemented in Alpha)
+
+- [x] Python SDK tests (`fraiseql-python/tests/`)
+- [x] TypeScript SDK tests (`fraiseql-typescript/tests/`)
+- [x] Go SDK tests (`fraiseql-go/tests/`)
+- [x] PHP SDK tests (`fraiseql-php/tests/`)
+
 ### Post-GA Future Coverage (v2.1+)
 
-- [ ] Additional language SDK tests (Java, Kotlin, Ruby, Scala)
+- [ ] Additional language SDK tests (Java, Kotlin, Ruby, Scala, Rust)
 - [ ] Database-specific optimization tests (MySQL, SQLite, SQL Server)
 - [ ] Enhanced observability tests
 - [ ] Additional provider integrations

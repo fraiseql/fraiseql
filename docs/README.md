@@ -2,7 +2,7 @@
 
 **Version:** 2.0.0-alpha.1
 **Status:** Alpha release - Ready for community testing
-**Last Updated:** February 3, 2026
+**Last Updated:** February 5, 2026
 
 > ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [ALPHA_LIMITATIONS.md](ALPHA_LIMITATIONS.md) for what's deferred. New to alpha? Start with the [Alpha Testing Guide](ALPHA_TESTING_GUIDE.md).
 
