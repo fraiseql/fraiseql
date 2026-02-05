@@ -5,6 +5,22 @@
 **Status:** ✅ Implemented in v2.0.0-alpha.1 (Feature-gated in cargo features)
 **Audience:** Analytics Engineers, Data Platform Architects, Performance-Sensitive Developers
 
+## Table of Contents
+
+1. [Introduction & Philosophy](#1-introduction--philosophy)
+2. [Arrow Plane Architecture](#2-arrow-plane-architecture)
+3. [Authoring Arrow Projections](#3-authoring-arrow-projections)
+4. [Querying Arrow Projections](#4-querying-arrow-projections)
+5. [Database Implementation](#5-database-implementation)
+6. [Performance Characteristics](#6-performance-characteristics)
+7. [Security & Data Governance](#7-security--data-governance)
+8. [Multi-Database Support](#8-multi-database-support)
+9. [Limitations & Trade-offs](#10-limitations--trade-offs)
+10. [Examples](#11-examples)
+11. [Decision Guide: When to Use Each Plane](#13-decision-guide-when-to-use-each-plane)
+12. [FAQ](#14-faq)
+13. [Appendix: Arrow Type Reference](#15-appendix-arrow-type-reference)
+
 ---
 
 ## 1. Introduction & Philosophy

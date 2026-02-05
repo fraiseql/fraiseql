@@ -5,6 +5,22 @@
 **Status:** ✅ Implemented in v2.0.0-alpha.1
 **Audience:** Runtime Developers, Integration Engineers, Database Architects
 
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Architecture](#2-architecture)
+3. [Subscription Schema Authoring](#3-subscription-schema-authoring)
+4. [Transport Protocols](#4-transport-protocols)
+5. [Filtering & Variables](#5-filtering--variables)
+6. [Event Format & Transformation](#6-event-format--transformation)
+7. [Multi-Database Support](#7-multi-database-support)
+8. [System Architecture](#8-system-architecture)
+9. [Performance Characteristics](#9-performance-characteristics)
+10. [Limitations & Trade-Offs](#10-limitations--trade-offs)
+11. [Security & Authorization](#11-security--authorization)
+12. [Examples](#12-examples)
+13. [Appendix](#13-appendix)
+
 ---
 
 ## 1. Overview

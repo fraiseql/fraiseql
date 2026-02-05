@@ -1,9 +1,25 @@
 # Federation: Hybrid HTTP + Database-Level Linking
 
-**Version:** 1.0
-**Date:** January 11, 2026
-**Status:** Complete
+**Version:** 2.0
+**Date:** February 5, 2026
+**Status:** ✅ Implemented in v2.0.0-alpha.1
 **Audience:** Architects, Integration Engineers, Runtime Developers
+
+## Table of Contents
+
+1. [Introduction & Philosophy](#1-introduction--philosophy)
+2. [View-Based Federation Contract](#2-view-based-federation-contract)
+3. [Federation Architecture](#3-federation-architecture)
+4. [Compile-Time Federation Pipeline](#4-compile-time-federation-pipeline)
+5. [Schema Authoring](#5-schema-authoring)
+6. [Database Setup & Connection Configuration](#6-database-setup--connection-configuration)
+7. [HTTP Federation Implementation](#7-http-federation-implementation)
+8. [@requires and @provides Support](#8-requires-and-provides-support)
+9. [Runtime Entity Resolution Architecture](#9-runtime-entity-resolution-architecture)
+10. [Multi-Database Federation Architecture](#10-multi-database-federation-architecture)
+11. [Deployment & Configuration](#11-deployment--configuration)
+12. [Federation Examples](#12-federation-examples)
+13. [Performance Characteristics & Limitations](#13-performance-characteristics--limitations)
 
 ---
 
