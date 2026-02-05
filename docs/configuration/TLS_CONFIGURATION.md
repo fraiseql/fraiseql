@@ -1,5 +1,37 @@
 # TLS/SSL Configuration Guide
 
+## Prerequisites
+
+**Required Knowledge:**
+- SSL/TLS fundamentals (certificates, keys, handshakes)
+- X.509 certificate structure and standards
+- Public Key Infrastructure (PKI) concepts
+- OpenSSL command-line tools
+- DNS and certificate CN/SAN matching
+- Basic Linux/Unix system administration
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- OpenSSL 1.1.1+ (for certificate generation and verification)
+- curl or OpenSSL CLI (for testing HTTPS endpoints)
+- A code editor for configuration files
+- Bash or similar shell for scripting
+
+**Required Infrastructure:**
+- FraiseQL server instance (local or deployed)
+- TLS certificate and private key (self-signed or from CA)
+- Ports 8443 (HTTPS) and optionally 8444 (mTLS client cert)
+- Database with TLS support (PostgreSQL 10+, MySQL 5.7+, etc.)
+
+**Optional but Recommended:**
+- Certificate Authority (CA) certificate for client validation
+- Let's Encrypt or other automated certificate provisioning
+- HSM (Hardware Security Module) for key storage
+- Certificate management tools (cert-manager for Kubernetes)
+- Nginx or Envoy reverse proxy with SSL termination
+
+**Time Estimate:** 30-60 minutes for basic setup, 2-3 hours for mTLS in production
+
 ## Overview
 
 FraiseQL v2 Phase 10.10 implements comprehensive TLS encryption for:

@@ -12,9 +12,47 @@ This guide walks you through setting up Keycloak authentication with FraiseQL.
 
 ## Prerequisites
 
-- Docker and Docker Compose (or Keycloak server)
-- FraiseQL server
-- Basic understanding of OIDC
+**Required Knowledge:**
+- OAuth 2.0 and OIDC fundamentals (authorization code flow with PKCE, ID tokens, access tokens, refresh tokens)
+- JWT token structure and RS256 signature verification
+- Keycloak concepts (realms, clients, scopes, user roles)
+- Docker and Docker Compose basics
+- HTTP/REST APIs and callback URLs
+- Basic networking and DNS resolution
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Docker 20.10+ and Docker Compose 1.29+ (for local Keycloak)
+  - OR: Keycloak 20+ server (if self-hosted separately)
+- curl or Postman (for API testing)
+- A code editor for configuration files
+- Bash or similar shell for environment variables
+- PostgreSQL 14+ (included in Docker Compose, or separate instance)
+
+**Required Infrastructure:**
+
+*For Local Development (Docker):*
+- Docker daemon running
+- ~2GB available disk space for images and volumes
+- Port 8080 available for Keycloak UI
+- Port 5432 available for PostgreSQL (or modify docker-compose)
+
+*For Production:*
+- Keycloak server instance (self-hosted or cloud-hosted)
+- PostgreSQL 14+ database for Keycloak state
+- PostgreSQL database for FraiseQL session storage
+- FraiseQL server instance
+- Publicly accessible URL for OAuth callbacks
+- Load balancer (optional, for HA)
+- TLS/HTTPS certificate
+
+**Optional but Recommended:**
+- Keycloak Themes for branding
+- Custom Keycloak User Federation for integrating with LDAP/Active Directory
+- Keycloak Realm Backup (for production recovery)
+- Nginx reverse proxy with SSL (for production)
+
+**Time Estimate:** 25-45 minutes (15 min for Docker setup + 10-30 min for client/realm configuration and testing)
 
 ## Option 1: Running Keycloak Locally (Docker)
 

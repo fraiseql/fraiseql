@@ -4,9 +4,32 @@ This guide walks you through setting up Google OAuth authentication with FraiseQ
 
 ## Prerequisites
 
-- A Google Cloud Project
-- Access to Google Cloud Console
-- FraiseQL server running on a publicly accessible URL (or ngrok for development)
+**Required Knowledge:**
+- OAuth 2.0 and OIDC fundamentals (authorization code flow, ID tokens, access tokens)
+- JWT token structure and claims
+- HTTP/REST APIs and callbacks
+- Basic networking and DNS (understanding of redirect URIs)
+- Google Cloud Console navigation and project management
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- curl or Postman (for testing endpoints)
+- A code editor for configuration files
+- Bash or similar shell for environment variable setup
+- Docker (optional, for testing with ngrok tunneling)
+
+**Required Infrastructure:**
+- Active Google Cloud account (free tier available)
+- Google Cloud Project (to be created in Step 1)
+- FraiseQL server instance (running locally or deployed)
+- Publicly accessible URL or ngrok tunnel for OAuth callbacks
+- PostgreSQL database for session storage (if using custom SessionStore)
+
+**Optional but Recommended:**
+- ngrok or similar tunneling service (for local testing without deployment)
+- HTTPS certificate for production (Let's Encrypt or your certificate authority)
+
+**Time Estimate:** 15-30 minutes for complete setup and testing
 
 ## Step 1: Create a Google Cloud Project
 

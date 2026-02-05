@@ -2,6 +2,47 @@
 
 Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This directory contains complete documentation for implementing, deploying, and maintaining authentication in FraiseQL.
 
+## Prerequisites
+
+**Required Knowledge:**
+- OAuth 2.0 and OIDC fundamentals
+- JWT token structure and validation
+- HTTP/REST APIs
+- Basic networking and DNS
+- Your chosen auth provider's console/admin panel
+
+**Required Tools:**
+- FraiseQL v2.0.0-alpha.1 or later
+- curl or Postman (for API testing)
+- Configured database (PostgreSQL 14+)
+- Node.js or Python (for SDK examples)
+
+**For Each Provider:**
+
+**Google OAuth:**
+- Google Cloud Console account with project
+- OAuth 2.0 credentials (Client ID and Secret)
+- Registered redirect URIs
+
+**Auth0:**
+- Auth0 account (free tier available)
+- Auth0 application created
+- Auth0 API configured
+
+**Keycloak:**
+- Keycloak server deployed (self-hosted)
+- Realm and client created
+- Admin access
+
+**SCRAM:**
+- FraiseQL configured with SCRAM support
+- Username/password credentials
+- TLS enabled for security
+
+**Time Estimate:** 30 minutes to 2 hours depending on provider choice
+
+---
+
 ## 📚 Documentation Structure
 
 ### Quick Start

@@ -1,5 +1,41 @@
 # FraiseQL E2E Testing Guide
 
+## Prerequisites
+
+**Required Knowledge:**
+- End-to-end testing concepts and best practices
+- Multiple programming languages (Python, TypeScript, Go, Java at minimum)
+- Schema definition and compilation workflows
+- Docker and Docker Compose basics
+- GraphQL query and mutation syntax
+- Database fundamentals (PostgreSQL, MySQL, SQLite, SQL Server)
+
+**Required Software:**
+- Rust 1.75+ (for compilation phase)
+- Python 3.10+ with pip/uv
+- Node.js 18+ with npm or yarn
+- Go 1.21+ (for Go SDK tests)
+- Java 11+ with Maven (for Java SDK tests)
+- Docker 20.10+ and Docker Compose 1.29+
+- Makefile support (usually pre-installed on Unix/Linux)
+- Git version control
+
+**Required Infrastructure:**
+- FraiseQL source repository (cloned locally)
+- ~10GB free disk space for Docker images, databases, and test artifacts
+- Docker daemon running
+- Network connectivity for downloading container images
+- Internet connection for package dependencies
+
+**Optional but Recommended:**
+- Docker registry (for sharing test images)
+- CI/CD system integration (GitHub Actions, GitLab CI, Jenkins)
+- Kubernetes cluster (for orchestrated test environments)
+- Load testing tools (k6, Locust)
+- API testing tools (Postman, Insomnia)
+
+**Time Estimate:** 45 minutes - 2 hours depending on test dataset size
+
 ## Overview
 
 End-to-end (E2E) testing for FraiseQL validates the complete pipeline from schema authoring through compilation to runtime execution. This guide covers the E2E testing infrastructure, test execution, and troubleshooting.

@@ -2,6 +2,34 @@
 
 FraiseQL implements request rate limiting to prevent denial-of-service (DoS) attacks and resource exhaustion.
 
+## Prerequisites
+
+**Required Knowledge:**
+- HTTP request fundamentals (status codes, headers)
+- Rate limiting algorithms (token bucket, leaky bucket)
+- TOML configuration file syntax
+- Authentication concepts (IP-based vs user-based rate limiting)
+- DoS attack patterns and mitigation strategies
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- A text editor for `fraiseql.toml` configuration
+- curl or Postman (for testing rate limit headers)
+- Bash or similar shell for configuration management
+
+**Required Infrastructure:**
+- FraiseQL server instance (configured with rate limiting enabled)
+- PostgreSQL or similar database (for storing rate limit state)
+- Network connectivity to test HTTP endpoints
+
+**Optional but Recommended:**
+- Monitoring tools (Prometheus, Grafana) to track rate limit violations
+- API gateway (Kong, Tyk) for additional rate limiting at proxy level
+- Distributed rate limiting backend (Redis) for multi-instance deployments
+- Logging aggregation (ELK, Splunk) for rate limit event analysis
+
+**Time Estimate:** 15-30 minutes for basic configuration, 1-2 hours for production tuning
+
 ## Overview
 
 Rate limiting is implemented using a token bucket algorithm with support for:

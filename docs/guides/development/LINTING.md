@@ -1,5 +1,37 @@
 # FraiseQL Linting & Code Quality Guide
 
+## Prerequisites
+
+**Required Knowledge:**
+- Rust language syntax and idioms
+- Clippy linter concepts and warnings
+- Cargo build system
+- Code quality principles and best practices
+- Rust formatting conventions (rustfmt)
+- Documentation comment syntax in Rust
+
+**Required Software:**
+- Rust 1.75+ with full toolchain (rustup)
+- Clippy (usually included with Rust)
+- rustfmt (usually included with Rust)
+- Cargo (usually included with Rust)
+- Git (for pre-commit hooks setup)
+- A text editor supporting Rust diagnostics
+
+**Required Infrastructure:**
+- FraiseQL source repository (cloned locally)
+- ~2GB free disk space for build artifacts
+- Internet connection for downloading dependencies
+- Build environment (Linux, macOS, or Windows)
+
+**Optional but Recommended:**
+- IDE/Editor integration (rust-analyzer, IntelliJ)
+- Pre-commit framework for Git hooks
+- CI/CD system (GitHub Actions, GitLab CI)
+- Code review tools
+
+**Time Estimate:** 10-20 minutes for first lint run, 2-3 hours for fixing existing issues
+
 ## Overview
 
 FraiseQL maintains strict code quality standards through Clippy linting, formatting checks, and comprehensive testing. This document outlines the linting rules, best practices, and workflow for ensuring code quality across the project.

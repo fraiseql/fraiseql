@@ -1,9 +1,41 @@
 # Production Deployment Guide
 
-**Version**: FraiseQL v1.8+
-**Status:** Complete
+**Version**: v2.0.0-alpha.1
+**Status:** ✅ Production Ready
 **Target**: Enterprise-scale deployments
 **Platforms**: Kubernetes, Docker Compose, bare metal
+
+## Prerequisites
+
+**Required Knowledge:**
+- Docker containerization and image management
+- Kubernetes fundamentals (Pods, Deployments, Services, ConfigMaps, Secrets)
+- Linux/Unix system administration
+- PostgreSQL/database administration
+- TLS/SSL certificate management
+- Basic networking (DNS, ports, firewalls)
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Docker 20.10+ (if using containers)
+- kubectl 1.24+ (if using Kubernetes)
+- PostgreSQL 14+ client tools
+- OpenSSL for certificate management
+
+**Required Infrastructure:**
+- PostgreSQL 14+ database (managed or self-hosted)
+- Kubernetes cluster 1.24+ or Docker host
+- Container registry (Docker Hub, AWS ECR, Google GCR, etc.)
+- Domain name with DNS records
+- TLS/SSL certificates
+
+**Recommended Tools:**
+- Helm 3+ (for Kubernetes package management)
+- kube-ops (for operational dashboards)
+- ArgoCD (for GitOps deployments)
+- Prometheus + Grafana (for monitoring)
+
+**Time Estimate:** 2-4 hours for initial deployment
 
 ---
 

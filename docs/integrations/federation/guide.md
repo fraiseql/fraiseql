@@ -2,6 +2,38 @@
 
 FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL composition with sub-5ms latency for local entity resolution and sub-20ms for direct database federation.
 
+## Prerequisites
+
+**Required Knowledge:**
+- GraphQL basics (types, fields, queries, mutations)
+- Apollo Federation v2 concepts (@key, @external, @extends)
+- Multi-database architecture understanding
+- REST API design (for HTTP federation fallback)
+- Basic networking and service communication
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- Apollo Router or compatible gateway
+- Python 3.10+, TypeScript 4.5+, or other supported SDK
+- PostgreSQL 14+ or MySQL 8.0+ or SQL Server 2019+
+- Docker (for local testing)
+
+**Required Infrastructure:**
+- 2+ FraiseQL instances (one per subgraph)
+- Apollo Router instance or Apollo Gateway
+- Database instances (one per subgraph or shared)
+- Network connectivity between services
+- For local DB federation: direct database access between subgraphs
+
+**Optional but Recommended:**
+- Load balancer (for HA)
+- Service mesh (Istio, Linkerd for observability)
+- Distributed tracing (Jaeger, Zipkin)
+
+**Time Estimate:** 1-3 hours to set up multi-database federation
+
+---
+
 ## Table of Contents
 
 1. [Quick Start](#quick-start)

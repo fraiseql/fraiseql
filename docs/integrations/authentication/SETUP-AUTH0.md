@@ -12,9 +12,36 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 
 ## Prerequisites
 
+**Required Knowledge:**
+- OAuth 2.0 and OIDC fundamentals (client credentials flow, authorization code flow, ID tokens, access tokens)
+- JWT token structure and RS256 signature verification
+- HTTP/REST APIs and callback handling
+- Auth0 tenant management and application concepts
+- Basic networking and domain/URL understanding
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- curl or Postman (for API testing)
+- A code editor for configuration files
+- Bash or similar shell for environment variables
+- Docker (optional, for local testing with ngrok)
+
+**Required Infrastructure:**
 - Auth0 account (free tier available at https://auth0.com/signup)
-- FraiseQL server
-- Public domain or ngrok URL for callbacks
+- Auth0 tenant/domain (created automatically with account)
+- FraiseQL server instance (local or deployed)
+- Publicly accessible URL or ngrok tunnel for OAuth callbacks
+- PostgreSQL database for session storage (if using custom SessionStore)
+- Auth0 Application (to be created in Step 1)
+- Auth0 API definition (to be created in Step 3)
+
+**Optional but Recommended:**
+- ngrok or Cloudflare Tunnel (for local development without deployment)
+- Auth0 Rules/Actions for custom authorization logic
+- Auth0 Logs page for debugging authentication issues
+- HTTPS certificate for production deployment
+
+**Time Estimate:** 20-40 minutes for complete setup and first user authentication test
 
 ## Step 1: Create Auth0 Application
 

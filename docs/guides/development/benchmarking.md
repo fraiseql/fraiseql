@@ -2,6 +2,50 @@
 
 This guide covers setting up and running FraiseQL's comprehensive performance benchmarking infrastructure.
 
+## Prerequisites
+
+**Required Knowledge:**
+- Performance benchmarking concepts and methodology
+- Criterion.rs benchmarking framework
+- Statistical analysis of benchmark results
+- CPU/memory profiling concepts
+- Database performance characteristics
+- Cargo and Rust build optimization flags
+
+**Required Software:**
+- Rust 1.75+ with full toolchain (rustup)
+- Cargo (included with Rust)
+- Docker 20.10+ and Docker Compose 1.29+ (for database services)
+- Bash or similar shell for running benchmark scripts
+- PostgreSQL 14+, MySQL 8.0+, SQLite 3.x, SQL Server 2019+ (via Docker)
+- A text editor for configuration and analysis
+
+**Required Infrastructure:**
+- FraiseQL source repository (cloned locally)
+- ~15GB free disk space for:
+  - Docker images (databases)
+  - Build artifacts and binary outputs
+  - Benchmark result files and CSV exports
+- Docker daemon running
+- Multiple CPU cores (recommended: 8+ for accurate profiling)
+- Stable network connectivity
+- Database services running (via Docker Compose)
+
+**Optional but Recommended:**
+- Performance monitoring tools (perf, flamegraph)
+- Data analysis tools (Python pandas, R, Excel)
+- Visualization tools (gnuplot, matplotlib)
+- CI/CD integration for automated benchmarking
+- Historical benchmark storage and trending
+- Baseline comparison infrastructure
+
+**Time Estimate:**
+- Initial setup: 15-30 minutes
+- Small benchmark: 2-5 minutes
+- Medium benchmark: 5-15 minutes
+- Large benchmark: 10-30 minutes
+- Full analysis: 1-2 hours
+
 ## Quick Start
 
 ### 1. One-Command Setup

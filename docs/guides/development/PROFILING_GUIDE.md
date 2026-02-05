@@ -2,6 +2,42 @@
 
 This guide covers performance profiling, benchmarking, and optimization techniques for FraiseQL.
 
+## Prerequisites
+
+**Required Knowledge:**
+- Rust language fundamentals and async/await patterns
+- Cargo and build system concepts
+- Flamegraph interpretation and performance analysis
+- CPU profiling and memory profiling concepts
+- SQL query optimization basics
+- Database index and query plan analysis
+
+**Required Software:**
+- Rust 1.75+ with full toolchain (rustup)
+- Cargo (usually included with Rust)
+- flamegraph tool (`cargo install flamegraph`)
+- Criterion benchmarking framework (already in dependencies)
+- perf (Linux) or Instruments (macOS) for system profiling
+- PostgreSQL 14+ for integration test database
+- A text editor for code analysis
+
+**Required Infrastructure:**
+- FraiseQL source repository (cloned locally)
+- PostgreSQL instance for benchmarking tests
+- ~5GB free disk space for build artifacts and profiling data
+- Linux, macOS, or Windows with appropriate profiling tools
+- Stable network connection for downloading dependencies
+
+**Optional but Recommended:**
+- Valgrind (for memory profiling on Linux)
+- Cachegrind (for cache analysis)
+- ASAN/MSAN (AddressSanitizer/MemorySanitizer)
+- Graphviz (for flamegraph visualization)
+- Docker (for isolated benchmark environments)
+- Performance monitoring tools (htop, System Monitor)
+
+**Time Estimate:** 30-45 minutes for first benchmark run, 2-4 hours for comprehensive profiling analysis
+
 ## Table of Contents
 
 1. [Quick Start](#quick-start)

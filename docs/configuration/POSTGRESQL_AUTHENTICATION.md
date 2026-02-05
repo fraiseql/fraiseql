@@ -2,6 +2,39 @@
 
 FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechanisms. This guide covers supported authentication methods and version requirements.
 
+## Prerequisites
+
+**Required Knowledge:**
+- PostgreSQL user and role management
+- SCRAM authentication protocol basics
+- SSL/TLS certificate handling
+- Connection string/URI syntax
+- Database permissions and privilege models
+- Linux/Unix command-line tools (psql, openssl)
+
+**Required Software:**
+- FraiseQL v2.0.0-alpha.1 or later
+- PostgreSQL 10+ (for SCRAM-SHA-256 support)
+- psql command-line client (usually included with PostgreSQL)
+- OpenSSL 1.1.1+ (for certificate generation)
+- A text editor for configuration files
+
+**Required Infrastructure:**
+- PostgreSQL 10 or later instance (local or remote)
+- PostgreSQL superuser or admin account for user creation
+- FraiseQL server instance
+- Network connectivity between FraiseQL and PostgreSQL
+- For TLS: PostgreSQL compiled with SSL support
+
+**Optional but Recommended:**
+- PostgreSQL HA solution (replication, failover)
+- Connection pooling (pgBouncer, PgPool)
+- Secrets management system (Vault, AWS Secrets Manager)
+- Monitoring tools (pg_stat_statements, pg_stat_monitor)
+- Audit logging for authentication events
+
+**Time Estimate:** 20-40 minutes for basic setup, 1-2 hours for production TLS setup
+
 ## Overview
 
 PostgreSQL authentication in FraiseQL uses the SCRAM (Salted Challenge Response Authentication Mechanism) family of authentication protocols. These are cryptographically secure alternatives to older MD5-based authentication.
