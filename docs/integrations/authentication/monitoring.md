@@ -484,9 +484,9 @@ impl AuthPrometheus {
 
 ## See Also
 
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Security Checklist](./SECURITY-CHECKLIST.md)
-- [API Reference](./API-REFERENCE.md)
+- [Deployment Guide](./deployment.md)
+- [Security Checklist](./security-checklist.md)
+- [API Reference](./api-reference.md)
 
 ---
 

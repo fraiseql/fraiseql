@@ -174,7 +174,7 @@ You now have role-based field-level authorization! 🔐
 
 - Set up RBAC with Azure AD, Auth0, or Keycloak (see [Auth Provider Selection](../integrations/authentication/provider-selection-guide.md))
 - Configure audit logging for compliance (see [Observability Guide](../guides/observability.md))
-- Implement attribute-based access control (ABAC) for fine-grained control (see [RBAC Patterns](./PATTERNS.md#role-based-access-control))
+- Implement attribute-based access control (ABAC) for fine-grained control (see [RBAC Patterns](./patterns.md#role-based-access-control))
 - Understand authorization in federation (see [Federation Guide](../integrations/federation/guide.md))
 
 ### Common Issues
@@ -191,7 +191,7 @@ You now have role-based field-level authorization! 🔐
 **"Authorization too slow"**
 → Increase `cache_ttl_seconds` from 300 to 3600. Or use JWT claims directly instead of external provider calls.
 
-See [Troubleshooting](../../TROUBLESHOOTING.md) for complete troubleshooting guide.
+See [Troubleshooting](../../troubleshooting.md) for complete troubleshooting guide.
 
 ---
 
@@ -199,5 +199,5 @@ See [Troubleshooting](../../TROUBLESHOOTING.md) for complete troubleshooting gui
 
 - **[Auth Provider Selection](../integrations/authentication/provider-selection-guide.md)** - Choosing your auth provider
 - **[Observability](./observability.md)** - Logging and monitoring authorization
-- **[RBAC Patterns](./PATTERNS.md#role-based-access-control)** - Real-world RBAC examples
+- **[RBAC Patterns](./patterns.md#role-based-access-control)** - Real-world RBAC examples
 - **[Federation](../integrations/federation/guide.md)** - Cross-service authorization in federation

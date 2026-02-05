@@ -884,7 +884,7 @@ flutter build appbundle --release
 
 - **[Full-Stack Go + Flutter Example](../../examples/fullstack-go-flutter.md)**
 - **[React Native Guide](./react-native-apollo-guide.md)** - Mobile web alternative
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
+- **[Real-Time Patterns](../patterns.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 
 **Flutter & GraphQL Documentation:**

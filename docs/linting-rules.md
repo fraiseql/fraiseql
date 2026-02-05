@@ -1083,4 +1083,4 @@ Base: 100
 
 ---
 
-**Next**: Check [CI_CD_INTEGRATION.md](./CI_CD_INTEGRATION.md) for how to integrate design quality checks into your development workflow.
+**Next**: Check [ci-cd-integration.md](./ci-cd-integration.md) for how to integrate design quality checks into your development workflow.

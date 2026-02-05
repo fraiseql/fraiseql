@@ -183,7 +183,7 @@ Each guide includes testing patterns for:
 
 ### Related Guides
 
-- **[Real-Time Patterns](../PATTERNS.md)** — Subscription patterns
+- **[Real-Time Patterns](../patterns.md)** — Subscription patterns
 - **[Authentication & Authorization](../authorization-quick-start.md)** — Securing client access
 - **[Production Deployment](../production-deployment.md)** — Hosting considerations
 

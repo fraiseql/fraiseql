@@ -129,7 +129,7 @@ asyncio.run(main())
 - [ ] Add mutations (CREATE, UPDATE, DELETE)
 - [ ] Add authentication (OAuth2)
 - [ ] Add filtering and pagination
-- → Read: [Common Patterns](./PATTERNS.md)
+- → Read: [Common Patterns](./patterns.md)
 
 ---
 
@@ -703,7 +703,7 @@ class SendWelcomeEmail:
 
 | Role | Time | Focus | Next |
 |---|---|---|---|
-| Backend Dev | 5 min | Get running locally | [PATTERNS](./PATTERNS.md) |
+| Backend Dev | 5 min | Get running locally | [PATTERNS](./patterns.md) |
 | Architect | 15 min | Design schema | [Schema Design](./schema-design-best-practices.md) |
 | DevOps/SRE | 20 min | Deploy to production | [Production Deploy](./production-deployment.md) |
 | Data Analyst | 15 min | Export to BI tool | [Arrow Flight](./arrow-flight-quick-start.md) |
@@ -721,7 +721,7 @@ class SendWelcomeEmail:
 
 **Complete Guides:**
 
-- **[Common Patterns](./PATTERNS.md)** — Real-world solutions
+- **[Common Patterns](./patterns.md)** — Real-world solutions
 - **[Schema Design](./schema-design-best-practices.md)** — Design patterns
 - **[Production Deployment](./production-deployment.md)** — Deployment procedures
 

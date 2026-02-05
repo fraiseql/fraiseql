@@ -15,7 +15,7 @@ Practical how-to guides for operators, developers, and DevOps teams.
 ## 🚀 Getting Started
 
 - **[Language Generators](language-generators.md)** — Schema authoring in Python, TypeScript, Go, Java, PHP
-- **[Patterns](PATTERNS.md)** — Common schema design patterns and best practices
+- **[Patterns](patterns.md)** — Common schema design patterns and best practices
 
 ## 🎯 Evaluation & Decision Making
 
@@ -30,14 +30,14 @@ Practical how-to guides for operators, developers, and DevOps teams.
 
 - **[Testing Strategy](testing-strategy.md)** — Unit, integration, E2E, and performance testing
 - **[E2E Testing](development/e2e-testing.md)** — End-to-end testing with real services
-- **[Profiling Guide](development/PROFILING_GUIDE.md)** — Profile and optimize code
+- **[Profiling Guide](development/profiling-guide.md)** — Profile and optimize code
 - **[Benchmarking](development/benchmarking.md)** — Performance benchmarking with Criterion
 
 ### Code Quality
 
-- **[Linting](development/LINTING.md)** — Code quality and linting standards
-- **[Test Coverage](development/TEST_COVERAGE.md)** — Measure and improve test coverage
-- **[Developer Guide](development/DEVELOPER_GUIDE.md)** — Development environment setup
+- **[Linting](development/linting.md)** — Code quality and linting standards
+- **[Test Coverage](development/test-coverage.md)** — Measure and improve test coverage
+- **[Developer Guide](development/developer-guide.md)** — Development environment setup
 
 ## 📊 Operations & Monitoring
 
@@ -77,11 +77,11 @@ See [Integrations Guide](../integrations/) for:
 - **Evaluate if FraiseQL is right for me** → [Choosing FraiseQL](choosing-fraiseql.md)
 - **Understand consistency guarantees** → [Consistency Model](consistency-model.md)
 - **Get started quickly** → [Language Generators](language-generators.md)
-- **Design a schema** → [Patterns](PATTERNS.md)
+- **Design a schema** → [Patterns](patterns.md)
 - **Deploy to production** → [Production Deployment](production-deployment.md)
 - **Set up monitoring** → [Monitoring](monitoring.md)
 - **Test my code** → [Testing Strategy](testing-strategy.md)
-- **Integrate with Auth0** → [Auth0 Setup](../integrations/authentication/SETUP-AUTH0.md)
+- **Integrate with Auth0** → [Auth0 Setup](../integrations/authentication/setup-auth0.md)
 - **Set up federation** → [Federation Guide](../integrations/federation/guide.md)
 
 ---

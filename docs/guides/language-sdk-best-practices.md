@@ -670,7 +670,7 @@ async def get_data():
 **Related Guides:**
 
 - **[SDK Reference Documentation](../integrations/sdk/)** — Complete API reference for all 17 SDKs
-- **[Getting Started Guide](../GETTING_STARTED.md)** — Quick start guide for FraiseQL
+- **[Getting Started Guide](../getting-started.md)** — Quick start guide for FraiseQL
 
 ---
 

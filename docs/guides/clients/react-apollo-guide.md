@@ -828,7 +828,7 @@ describe('UserList Error Handling', () => {
 **Related Guides:**
 
 - **[Full-Stack Python + React Example](../../tutorials/fullstack-python-react.md)**
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
+- **[Real-Time Patterns](../patterns.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 - **[Production Deployment](../production-deployment.md)** - React app hosting
 

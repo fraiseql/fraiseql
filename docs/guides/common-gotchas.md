@@ -1058,7 +1058,7 @@ query {
 
 **Related Guides:**
 
-- **[Common Patterns](./PATTERNS.md)** — Real-world solutions avoiding gotchas
+- **[Common Patterns](./patterns.md)** — Real-world solutions avoiding gotchas
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing query performance
 - **[Testing Strategy](./testing-strategy.md)** — Testing to catch gotchas early
 - **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide

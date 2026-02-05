@@ -901,7 +901,7 @@ query {
 
 ### Related Guides
 
-- **[Common Patterns](./PATTERNS.md)** — Real-world patterns including analytics
+- **[Common Patterns](./patterns.md)** — Real-world patterns including analytics
 - **[Arrow Flight Quick Start](./arrow-flight-quick-start.md)** — Exporting analytics results
 - **[Arrow vs JSON Guide](./arrow-vs-json-guide.md)** — Choosing optimal data format for analytics
 - **[Database Selection Guide](./database-selection-guide.md)** — Choosing database for analytics workloads
@@ -917,7 +917,7 @@ query {
 
 - **[Common Gotchas](./common-gotchas.md)** — Analytics pitfalls and solutions
 - **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide
-- **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and solutions
+- **[Troubleshooting Guide](../troubleshooting.md)** — FAQ and solutions
 
 ---
 

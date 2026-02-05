@@ -62,11 +62,11 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 ### Quick Start
 
 1. **First Time Setup?** → Choose your provider:
-   - [Google OAuth Setup](./SETUP-GOOGLE-OAUTH.md) - Recommended for quick testing
-   - [Keycloak Setup](./SETUP-KEYCLOAK.md) - Self-hosted option
-   - [Auth0 Setup](./SETUP-AUTH0.md) - Managed service option
+   - [Google OAuth Setup](./setup-google-oauth.md) - Recommended for quick testing
+   - [Keycloak Setup](./setup-keycloak.md) - Self-hosted option
+   - [Auth0 Setup](./setup-auth0.md) - Managed service option
 
-2. **Need API Details?** → [API Reference](./API-REFERENCE.md)
+2. **Need API Details?** → [API Reference](./api-reference.md)
    - Complete endpoint documentation
    - Request/response formats
    - Error codes and handling
@@ -74,12 +74,12 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 
 ### Implementation
 
-- **[API Reference](./API-REFERENCE.md)** - Complete endpoint documentation
+- **[API Reference](./api-reference.md)** - Complete endpoint documentation
   - All HTTP endpoints with examples
   - Error handling patterns
   - JavaScript integration examples
 
-- **[Custom SessionStore Implementation](./IMPLEMENT-SESSION-STORE.md)** - Build your own backend
+- **[Custom SessionStore Implementation](./implement-session-store.md)** - Build your own backend
   - Redis implementation (full code)
   - DynamoDB implementation (full code)
   - MongoDB implementation (full code)
@@ -87,7 +87,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 
 ### Deployment & Operations
 
-- **[Deployment Guide](./DEPLOYMENT.md)** - Production deployment
+- **[Deployment Guide](./deployment.md)** - Production deployment
   - Docker Compose setup
   - Kubernetes manifests
   - Nginx reverse proxy
@@ -95,14 +95,14 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
   - Database setup and backups
   - Scaling and high availability
 
-- **[Monitoring Guide](./MONITORING.md)** - Observability
+- **[Monitoring Guide](./monitoring.md)** - Observability
   - Structured logging (JSON)
   - Prometheus metrics
   - Grafana dashboards
   - Health checks
   - Alert rules
 
-- **[Troubleshooting Guide](./TROUBLESHOOTING.md)** - Common issues
+- **[Troubleshooting Guide](./troubleshooting.md)** - Common issues
   - Login flow problems
   - Token issues
   - Database connectivity
@@ -111,7 +111,7 @@ Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This
 
 ### Security & Compliance
 
-- **[Security Checklist](./SECURITY-CHECKLIST.md)** - Production security
+- **[Security Checklist](./security-checklist.md)** - Production security
   - 100+ point security audit
   - OAuth provider specifics
   - GDPR / SOC2 / PCI-DSS
@@ -188,39 +188,39 @@ curl -X POST http://localhost:8000/auth/start \
 
 **Developers**
 
-- Start: [API Reference](./API-REFERENCE.md)
-- Then: [Setup Guide](./SETUP-GOOGLE-OAUTH.md) for your provider
-- Reference: [Custom SessionStore](./IMPLEMENT-SESSION-STORE.md) if needed
+- Start: [API Reference](./api-reference.md)
+- Then: [Setup Guide](./setup-google-oauth.md) for your provider
+- Reference: [Custom SessionStore](./implement-session-store.md) if needed
 
 **DevOps / Site Reliability Engineers**
 
-- Start: [Deployment Guide](./DEPLOYMENT.md)
-- Then: [Monitoring Guide](./MONITORING.md)
-- Reference: [Troubleshooting](./TROUBLESHOOTING.md)
+- Start: [Deployment Guide](./deployment.md)
+- Then: [Monitoring Guide](./monitoring.md)
+- Reference: [Troubleshooting](./troubleshooting.md)
 
 **Security / Compliance Teams**
 
-- Start: [Security Checklist](./SECURITY-CHECKLIST.md)
-- Reference: [Deployment Guide](./DEPLOYMENT.md) for architecture
+- Start: [Security Checklist](./security-checklist.md)
+- Reference: [Deployment Guide](./deployment.md) for architecture
 
 **Support / Operations**
 
-- Start: [Troubleshooting Guide](./TROUBLESHOOTING.md)
-- Reference: [Monitoring Guide](./MONITORING.md) for dashboards
+- Start: [Troubleshooting Guide](./troubleshooting.md)
+- Reference: [Monitoring Guide](./monitoring.md) for dashboards
 
 ### By Task
 
 | Task | Document |
 |------|----------|
-| Set up OAuth with Google | [SETUP-GOOGLE-OAUTH.md](./SETUP-GOOGLE-OAUTH.md) |
-| Set up Keycloak | [SETUP-KEYCLOAK.md](./SETUP-KEYCLOAK.md) |
-| Set up Auth0 | [SETUP-AUTH0.md](./SETUP-AUTH0.md) |
-| Call auth endpoints | [API-REFERENCE.md](./API-REFERENCE.md) |
-| Build custom session store | [IMPLEMENT-SESSION-STORE.md](./IMPLEMENT-SESSION-STORE.md) |
-| Deploy to production | [DEPLOYMENT.md](./DEPLOYMENT.md) |
-| Set up monitoring | [MONITORING.md](./MONITORING.md) |
-| Debug issues | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) |
-| Pass security audit | [SECURITY-CHECKLIST.md](./SECURITY-CHECKLIST.md) |
+| Set up OAuth with Google | [setup-google-oauth.md](./setup-google-oauth.md) |
+| Set up Keycloak | [setup-keycloak.md](./setup-keycloak.md) |
+| Set up Auth0 | [setup-auth0.md](./setup-auth0.md) |
+| Call auth endpoints | [api-reference.md](./api-reference.md) |
+| Build custom session store | [implement-session-store.md](./implement-session-store.md) |
+| Deploy to production | [deployment.md](./deployment.md) |
+| Set up monitoring | [monitoring.md](./monitoring.md) |
+| Debug issues | [troubleshooting.md](./troubleshooting.md) |
+| Pass security audit | [security-checklist.md](./security-checklist.md) |
 
 ---
 
@@ -347,25 +347,25 @@ RUST_LOG=debug cargo test -p FraiseQL-server auth:: --lib -- --nocapture
 
 ### "Invalid Redirect URI"
 
-See: [Troubleshooting](./TROUBLESHOOTING.md#invalid-redirect-uri-error)
+See: [Troubleshooting](./troubleshooting.md#invalid-redirect-uri-error)
 
 ### "Invalid State"
 
-See: [Troubleshooting](./TROUBLESHOOTING.md#invalid-state-error)
+See: [Troubleshooting](./troubleshooting.md#invalid-state-error)
 
 ### "Token Expired"
 
-See: [Troubleshooting](./TROUBLESHOOTING.md#token-expired-on-valid-token)
+See: [Troubleshooting](./troubleshooting.md#token-expired-on-valid-token)
 
 ### Database Connection Issues
 
-See: [Troubleshooting](./TROUBLESHOOTING.md#database-issues)
+See: [Troubleshooting](./troubleshooting.md#database-issues)
 
 ---
 
 ## 📋 Checklist for Deployment
 
-- [ ] Review [Security Checklist](./SECURITY-CHECKLIST.md)
+- [ ] Review [Security Checklist](./security-checklist.md)
 - [ ] Set up OAuth provider (Google/Keycloak/Auth0)
 - [ ] Configure environment variables
 - [ ] Set up PostgreSQL database
@@ -406,18 +406,18 @@ RUST_LOG=info,fraiseql_server::auth=debug
 
 ### Docker Environment
 
-See [Deployment Guide](./DEPLOYMENT.md#docker-deployment) for complete setup
+See [Deployment Guide](./deployment.md#docker-deployment) for complete setup
 
 ### Kubernetes Configuration
 
-See [Deployment Guide](./DEPLOYMENT.md#kubernetes-deployment) for manifests
+See [Deployment Guide](./deployment.md#kubernetes-deployment) for manifests
 
 ---
 
 ## 🆘 Getting Help
 
 1. **Check the docs** - Most questions covered in documentation
-2. **Check troubleshooting** - [Troubleshooting Guide](./TROUBLESHOOTING.md)
+2. **Check troubleshooting** - [Troubleshooting Guide](./troubleshooting.md)
 3. **Enable debug logging** - `RUST_LOG=debug`
 4. **Create GitHub issue** - <https://github.com/FraiseQL/FraiseQL/issues>
    - Include error message (no secrets)
@@ -449,7 +449,7 @@ See [Deployment Guide](./DEPLOYMENT.md#kubernetes-deployment) for manifests
 - **Rotate secrets** regularly
 - **Use strong passwords** for database
 
-See [Security Checklist](./SECURITY-CHECKLIST.md) for complete list.
+See [Security Checklist](./security-checklist.md) for complete list.
 
 ---
 
@@ -466,15 +466,15 @@ See [Security Checklist](./SECURITY-CHECKLIST.md) for complete list.
 
 | Document | Length | Purpose |
 |----------|--------|---------|
-| SETUP-GOOGLE-OAUTH.md | 400 lines | Google OAuth setup |
-| SETUP-KEYCLOAK.md | 350 lines | Self-hosted OIDC |
-| SETUP-AUTH0.md | 400 lines | Managed OIDC |
-| API-REFERENCE.md | 500 lines | Complete API docs |
-| IMPLEMENT-SESSION-STORE.md | 600 lines | Custom backends (3 examples) |
-| DEPLOYMENT.md | 500 lines | Production deployment |
-| MONITORING.md | 350 lines | Observability setup |
-| SECURITY-CHECKLIST.md | 450 lines | Security audit |
-| TROUBLESHOOTING.md | 450 lines | Common issues |
+| setup-google-oauth.md | 400 lines | Google OAuth setup |
+| setup-keycloak.md | 350 lines | Self-hosted OIDC |
+| setup-auth0.md | 400 lines | Managed OIDC |
+| api-reference.md | 500 lines | Complete API docs |
+| implement-session-store.md | 600 lines | Custom backends (3 examples) |
+| deployment.md | 500 lines | Production deployment |
+| monitoring.md | 350 lines | Observability setup |
+| security-checklist.md | 450 lines | Security audit |
+| troubleshooting.md | 450 lines | Common issues |
 | README.md | This file | Overview |
 
 **Total: 3,000+ lines of documentation**
@@ -499,7 +499,7 @@ See [Security Checklist](./SECURITY-CHECKLIST.md) for complete list.
 
 ---
 
-See [Security Checklist](./SECURITY-CHECKLIST.md) for deployment sign-off template.
+See [Security Checklist](./security-checklist.md) for deployment sign-off template.
 
 ---
 
@@ -508,5 +508,5 @@ See [Security Checklist](./SECURITY-CHECKLIST.md) for deployment sign-off templa
 - **[Federation Guide](../federation/guide.md)** - Multi-subgraph authentication coordination
 - **[Production Deployment](../../guides/production-deployment.md)** - Deploying authentication in production
 - **[Security Model](../../architecture/security/security-model.md)** - Authentication architecture deep dive
-- **[Observability](./MONITORING.md)** - Monitoring authentication events
-- **[Troubleshooting](./TROUBLESHOOTING.md)** - Common authentication issues
+- **[Observability](./monitoring.md)** - Monitoring authentication events
+- **[Troubleshooting](./troubleshooting.md)** - Common authentication issues

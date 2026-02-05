@@ -805,7 +805,7 @@ const result = await client.query({
 **Related Guides:**
 
 - **[CLI Query Tool](./cli-query-guide.md)** - Command-line queries
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription support
+- **[Real-Time Patterns](../patterns.md)** - Subscription support
 - **[Production Deployment](../production-deployment.md)** - Running FraiseQL
 
 **Framework Guides:**

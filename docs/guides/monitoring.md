@@ -1281,4 +1281,4 @@ Start with the minimal setup and progressively add more detailed monitoring as n
 - **[Production Deployment](./production-deployment.md)** - Monitoring in production Kubernetes
 - **[Performance Optimization](../architecture/performance/advanced-optimization.md)** - Using metrics to optimize performance
 - **[Troubleshooting Guide](../observability/troubleshooting.md)** - Debug production issues using metrics
-- **[Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** - Monitoring security events
+- **[Security Checklist](../integrations/authentication/security-checklist.md)** - Monitoring security events

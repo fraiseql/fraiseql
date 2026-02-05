@@ -831,7 +831,7 @@ let results = coordinator.execute_batch(vec![saga1, saga2, saga3]).await?;
 ## Next Steps
 
 1. **[Federation Sagas](../../integrations/federation/sagas.md)** - Integrate sagas with Apollo Federation
-2. **[SAGA API Reference](../../reference/SAGA_API.md)** - Complete API reference
+2. **[SAGA API Reference](../../reference/saga-api.md)** - Complete API reference
 3. **[Quick Start](quick-start.md)** - Review basics if needed
 
 ---

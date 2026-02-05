@@ -511,7 +511,7 @@ Now that you understand saga basics:
 
 1. **Read [patterns.md](patterns.md)** for advanced coordination patterns
 2. **Review [federation sagas](../../integrations/federation/sagas.md)** to integrate sagas with Apollo Federation
-3. **Check [SAGA API Reference](../../reference/SAGA_API.md)** for detailed API documentation
+3. **Check [SAGA API Reference](../../reference/saga-api.md)** for detailed API documentation
 
 ## See Also
 

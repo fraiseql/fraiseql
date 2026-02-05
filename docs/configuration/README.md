@@ -14,14 +14,14 @@ Complete configuration reference for FraiseQL security, networking, and operatio
 
 ### Security Configuration
 
-- **[Security Configuration](SECURITY_CONFIGURATION.md)** — Overview of all security settings
-- **[TLS/SSL Configuration](TLS_CONFIGURATION.md)** — Configure HTTPS and mutual TLS
-- **[Rate Limiting](RATE_LIMITING.md)** — Brute-force protection and request throttling
-- **[Runtime Security Initialization](SECURITY_RUNTIME_INITIALIZATION.md)** — Initialize security subsystems at startup
+- **[Security Configuration](security-configuration.md)** — Overview of all security settings
+- **[TLS/SSL Configuration](tls-configuration.md)** — Configure HTTPS and mutual TLS
+- **[Rate Limiting](rate-limiting.md)** — Brute-force protection and request throttling
+- **[Runtime Security Initialization](security-runtime-initialization.md)** — Initialize security subsystems at startup
 
 ### Database Configuration
 
-- **[PostgreSQL Authentication](POSTGRESQL_AUTHENTICATION.md)** — PostgreSQL connection and authentication
+- **[PostgreSQL Authentication](postgresql-authentication.md)** — PostgreSQL connection and authentication
 
 ## Environment Variables
 
@@ -55,10 +55,10 @@ FRAISEQL_DATABASE_POOL_TIMEOUT=30
 
 ### Production Setup
 
-1. Enable TLS: [TLS Configuration](TLS_CONFIGURATION.md)
-2. Set rate limits: [Rate Limiting](RATE_LIMITING.md)
-3. Configure security: [Security Configuration](SECURITY_CONFIGURATION.md)
-4. Database connection: [PostgreSQL Authentication](POSTGRESQL_AUTHENTICATION.md)
+1. Enable TLS: [TLS Configuration](tls-configuration.md)
+2. Set rate limits: [Rate Limiting](rate-limiting.md)
+3. Configure security: [Security Configuration](security-configuration.md)
+4. Database connection: [PostgreSQL Authentication](postgresql-authentication.md)
 
 ### Development Setup
 

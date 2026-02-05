@@ -812,7 +812,7 @@ class UserStats:
 - **[Common Gotchas](./common-gotchas.md)** — Schema pitfalls to avoid
 - **[Performance Tuning Runbook](../operations/performance-tuning-runbook.md)** — Optimizing schema performance
 - **[View Selection Guide](./view-selection-performance-testing.md)** — Testing view performance
-- **[Common Patterns](./PATTERNS.md)** — Pattern implementations using best practices
+- **[Common Patterns](./patterns.md)** — Pattern implementations using best practices
 
 ### Architecture & Specifications
 

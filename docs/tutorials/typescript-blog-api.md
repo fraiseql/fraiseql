@@ -2085,7 +2085,7 @@ enable_mutations = true
 
 ### Learning More
 
-1. **Authentication:** See [Authentication Integration Guide](../integrations/authentication/API-REFERENCE.md)
+1. **Authentication:** See [Authentication Integration Guide](../integrations/authentication/api-reference.md)
 2. **Advanced Queries:** See [Pagination & Keyset Cursors](../specs/pagination-keyset.md)
 3. **Performance:** See [Performance Optimization Guide](../performance/projection-optimization.md)
 4. **Federation:** See [Apollo Federation Integration](../integrations/federation/README.md)
@@ -2153,6 +2153,6 @@ You've learned:
 
 ---
 
-**Questions?** See [FAQ](../FAQ.md) or [Troubleshooting Guide](../TROUBLESHOOTING.md).
+**Questions?** See [FAQ](../faq.md) or [Troubleshooting Guide](../troubleshooting.md).
 
-**Ready to deploy?** See [Deployment Security Guide](../DEPLOYMENT_SECURITY.md).
+**Ready to deploy?** See [Deployment Security Guide](../deployment-security.md).

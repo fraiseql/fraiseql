@@ -133,9 +133,9 @@ Deployment -> DeployDecisions
 | Custom scalar value validation | Runtime | Rust runtime | `scalars.md` | ✅ Yes (per value) |
 | **AUTHORIZATION** |
 | Authorization rule syntax | Compile-time | Schema validator | `authoring-contract.md` Section 5 | ❌ No |
-| What auth context fields are required | Compile-time | Auth context schema declaration | `PRD.md` Section 4.2 | ❌ No |
-| Whether user is authenticated | Runtime | External auth provider | `PRD.md` Section 4.2 | ✅ Yes (per request) |
-| AuthContext structure | Runtime | Auth provider produces | `PRD.md` Section 4.2 | ✅ Yes (per user) |
+| What auth context fields are required | Compile-time | Auth context schema declaration | `prd.md` Section 4.2 | ❌ No |
+| Whether user is authenticated | Runtime | External auth provider | `prd.md` Section 4.2 | ✅ Yes (per request) |
+| AuthContext structure | Runtime | Auth provider produces | `prd.md` Section 4.2 | ✅ Yes (per user) |
 | Whether user is authorized for query | Runtime | Compiled auth metadata + AuthContext | `execution-model.md` Phase 2 | ✅ Yes (per request) |
 | Whether user can see specific field | Runtime | Compiled field-level auth + AuthContext | `execution-model.md` Phase 5 | ✅ Yes (per field) |
 | Role hierarchy rules | Compile-time | RBAC schema declaration | `rbac.md` | ❌ No |
@@ -480,7 +480,7 @@ Does the decision depend on request-specific data?
 
 ## Related Specifications
 
-- **`docs/prd/PRD.md` Section 2.3-2.4** — Compile-time vs runtime responsibilities
+- **`docs/prd/prd.md` Section 2.3-2.4** — Compile-time vs runtime responsibilities
 - **`docs/architecture/core/compilation-pipeline.md`** — What compiler does (compile-time)
 - **`docs/architecture/core/execution-model.md`** — What runtime does (runtime)
 - **`docs/architecture/database/database-targeting.md`** — Database target (compile-time decision)

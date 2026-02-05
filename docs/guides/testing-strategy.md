@@ -2687,7 +2687,7 @@ All testing strategies documented and ready for implementation.
 
 - **[E2E Testing Guide](./development/e2e-testing.md)** - End-to-end testing infrastructure and execution
 - **[Benchmarking Guide](./development/benchmarking.md)** - Performance benchmarking and profiling
-- **[Profiling Guide](./development/PROFILING_GUIDE.md)** - Performance profiling and optimization
-- **[Developer Guide](./development/DEVELOPER_GUIDE.md)** - Development setup and workflow
-- **[LINTING.md](./development/LINTING.md)** - Code quality and Clippy linting standards
-- **[CI/CD Integration](../CI_CD_INTEGRATION.md)** - Continuous integration and automated testing
+- **[Profiling Guide](./development/profiling-guide.md)** - Performance profiling and optimization
+- **[Developer Guide](./development/developer-guide.md)** - Development setup and workflow
+- **[linting.md](./development/linting.md)** - Code quality and Clippy linting standards
+- **[CI/CD Integration](../ci-cd-integration.md)** - Continuous integration and automated testing

@@ -51,12 +51,12 @@ This document provides **reading paths** tailored to different roles and use cas
    - Feature list
    - **Key Takeaway:** FraiseQL is a compiled database execution layer, not a GraphQL server
 
-2. **`docs/prd/PRD.md`** — Read Sections 1-2 only (20 minutes)
+2. **`docs/prd/prd.md`** — Read Sections 1-2 only (20 minutes)
    - Vision and philosophy
    - System architecture
    - **Key Takeaway:** Compilation over interpretation, database as source of truth
 
-3. **`docs/GLOSSARY.md`** — Skim, bookmark for reference (10 minutes)
+3. **`docs/glossary.md`** — Skim, bookmark for reference (10 minutes)
    - Key terminology
    - **Key Takeaway:** AuthoringIR, CompiledSchema, database targeting
 
@@ -87,10 +87,10 @@ This document provides **reading paths** tailored to different roles and use cas
 ### Foundation (1 hour)
 
 1. **`README.md`** (5 min)
-2. **`docs/prd/PRD.md`** (30 min)
+2. **`docs/prd/prd.md`** (30 min)
    - All sections
    - **Key Takeaway:** Design principles, architectural boundaries
-3. **`docs/GLOSSARY.md`** (10 min)
+3. **`docs/glossary.md`** (10 min)
 4. **`docs/architecture/database/database-targeting.md`** (15 min)
    - **Key Takeaway:** Compile-time schema specialization
 
@@ -133,7 +133,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 **Recommended Next:**
 
-- `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
+- `docs/adrs/adr-009-federation-architecture.md` — Federation design decisions
 - `docs/architecture/realtime/subscriptions.md` — Real-time events and event streaming
 - `docs/architecture/performance/advanced-optimization.md` — Advanced performance optimization
 - `docs/architecture/decisions/design-decisions.md` — Core design rationale
@@ -157,7 +157,7 @@ This document provides **reading paths** tailored to different roles and use cas
    - Language-agnostic compilation
    - **Key Takeaway:** All languages → AuthoringIR
 
-3. **`docs/GLOSSARY.md`** — Reference as needed (25 min)
+3. **`docs/glossary.md`** — Reference as needed (25 min)
    - Focus on: AuthoringIR, CompiledSchema, Binding, Projection
 
 ### Compilation Pipeline (1.5 hours)
@@ -208,7 +208,7 @@ This document provides **reading paths** tailored to different roles and use cas
    - JSON structure, all fields
    - **Key Takeaway:** This is runtime's input
 
-2. **`docs/GLOSSARY.md`** (15 min)
+2. **`docs/glossary.md`** (15 min)
    - Focus on: Backend Lowering, Projection, Authorization
 
 ### Execution Pipeline (1.5 hours)
@@ -263,7 +263,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Conventions (1 hour)
 
-1. **`docs/prd/PRD.md`** — Section 3.2 only (15 min)
+1. **`docs/prd/prd.md`** — Section 3.2 only (15 min)
    - Schema conventions overview
    - **Key Takeaway:** Opinionated patterns required
 
@@ -273,7 +273,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Read Model (1 hour)
 
-1. **`docs/prd/PRD.md`** — Section 3.1.1 and 3.1.5 (20 min)
+1. **`docs/prd/prd.md`** — Section 3.1.1 and 3.1.5 (20 min)
    - Read model, JSONB composition
    - **Key Takeaway:** Pre-aggregated views enable O(1) composition
 
@@ -320,7 +320,7 @@ This document provides **reading paths** tailored to different roles and use cas
    - Phase 2.5: Aggregation Resolution
    - **Key Takeaway:** How GROUP BY and aggregates are compiled
 
-3. **`docs/prd/PRD.md`** — Section 3.5 only (10 min)
+3. **`docs/prd/prd.md`** — Section 3.5 only (10 min)
    - Analytical Execution Semantics overview
    - **Key Takeaway:** No joins principle, fact table patterns
 
@@ -450,7 +450,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Security Model (1 hour)
 
-1. **`docs/prd/PRD.md`** — Section 4 only (30 min)
+1. **`docs/prd/prd.md`** — Section 4 only (30 min)
    - Authentication (external), authorization (declarative)
    - **Key Takeaway:** No user code execution, deterministic enforcement
 
@@ -504,13 +504,13 @@ This document provides **reading paths** tailored to different roles and use cas
 ### GraphQL API (45 min)
 
 1. **`README.md`** (5 min)
-2. **`docs/prd/PRD.md`** — Sections 1, 3.1, 5 only (30 min)
+2. **`docs/prd/prd.md`** — Sections 1, 3.1, 5 only (30 min)
    - What FraiseQL provides
    - Read model
    - GraphQL semantics
    - **Key Takeaway:** Deterministic, type-safe API
 
-3. **`docs/GLOSSARY.md`** — WHERE Operators, APQ, Cache Invalidation (10 min)
+3. **`docs/glossary.md`** — WHERE Operators, APQ, Cache Invalidation (10 min)
 
 ### Performance (30 min)
 
@@ -558,8 +558,8 @@ This document provides **reading paths** tailored to different roles and use cas
 **Day 1:**
 
 1. README.md (5 min)
-2. PRD.md (60 min)
-3. GLOSSARY.md (30 min)
+2. prd.md (60 min)
+3. glossary.md (30 min)
 
 **Day 2:**
 4. architecture/database/database-targeting.md (30 min)
@@ -640,7 +640,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 **Day 17:**
 45. architecture/observability/observability-model.md (50 min)
-46. adrs/ADR-009-federation-architecture.md (40 min)
+46. adrs/adr-009-federation-architecture.md (40 min)
 
 ### Week 5: Reference (As Needed)
 
@@ -655,10 +655,10 @@ This document provides **reading paths** tailored to different roles and use cas
 |----------|-------|-----------|-------|
 | **Meta** |
 | README.md | 1,000+ | 5 min | Overview |
-| GLOSSARY.md | 800+ | 30 min | Reference |
+| glossary.md | 800+ | 30 min | Reference |
 | reading-order.md (this) | 731 | 15 min | Navigation |
 | **PRD** |
-| prd/PRD.md | 1,100+ | 60 min | High-level |
+| prd/prd.md | 1,100+ | 60 min | High-level |
 | **Architecture: Core** |
 | architecture/core/compilation-pipeline.md | 1,024 | 60 min | Deep |
 | architecture/core/compilation-phases.md | 1,597 | 50 min | Deep |
@@ -715,7 +715,7 @@ This document provides **reading paths** tailored to different roles and use cas
 | guides/production-deployment.md | 958 | 60 min | Medium |
 | guides/testing-strategy.md | 2,454 | 80 min | Deep |
 | **ADRs** |
-| adrs/ADR-009-federation-architecture.md | 800+ | 40 min | Deep |
+| adrs/adr-009-federation-architecture.md | 800+ | 40 min | Deep |
 | **Reference** |
 | reference/scalars.md | 900+ | Reference | Reference |
 | reference/where-operators.md | 1,200+ | Reference | Reference |
@@ -728,7 +728,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 Don't try to read everything at once. Follow the path for your role first.
 
-### 2. Keep GLOSSARY.md Open
+### 2. Keep glossary.md Open
 
 Reference terminology as you read. Most confusion comes from undefined terms.
 
@@ -758,7 +758,7 @@ If documentation is unclear, file an issue. Documentation improves through feedb
 <!-- Code example in TEXT -->
 README.md
     ↓
-prd/PRD.md
+prd/prd.md
     ↓
     ├─→ architecture/database/database-targeting.md
     │       ↓
@@ -786,7 +786,7 @@ prd/PRD.md
                                     ↓
                                     └─→ architecture/performance/advanced-optimization.md
 
-prd/PRD.md
+prd/prd.md
     ↓
 specs/schema-conventions.md
     ↓
@@ -826,7 +826,7 @@ architecture/integration/federation.md
     ├─→ architecture/integration/multiplane-interactions.md
     ├─→ architecture/integration/extension-points.md
     ├─→ architecture/integration/integration-patterns.md
-    └─→ adrs/ADR-009-federation-architecture.md
+    └─→ adrs/adr-009-federation-architecture.md
 
 architecture/decisions/design-decisions.md
     ↓

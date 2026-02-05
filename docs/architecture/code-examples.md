@@ -8,7 +8,7 @@ tags: ["documentation", "reference"]
 
 # FraiseQL v2: Code Examples
 
-**Companion to:** RUST_CORE_ARCHITECTURE.md
+**Companion to:** rust-core-architecture.md
 
 This document provides concrete, runnable code examples for the core architecture components.
 

@@ -677,6 +677,6 @@ else:
 
 ## Next Steps
 
-- See [GRAPHQL_API.md](./GRAPHQL_API.md) for detailed GraphQL API specification
+- See [graphql-api.md](./graphql-api.md) for detailed GraphQL API specification
 - See [Deployment Guide](../../deployment/guide.md) for production deployment
 - See [examples/](../../../examples/) for example schemas and queries

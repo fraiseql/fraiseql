@@ -256,7 +256,7 @@ Comprehensive tests verify the security configuration flow:
 2. Add parsing logic in `from_json()` method with default fallback
 3. Add environment variable override in `apply_env_overrides()` if applicable
 4. Update tests to verify parsing and defaults
-5. Update `SECURITY_CONFIGURATION.md` with documentation
+5. Update `security-configuration.md` with documentation
 
 ### To Add a New Security Subsystem
 
@@ -275,5 +275,5 @@ Comprehensive tests verify the security configuration flow:
 
 ## See Also
 
-- [SECURITY_CONFIGURATION.md](./SECURITY_CONFIGURATION.md) - Configuration reference
+- [security-configuration.md](./security-configuration.md) - Configuration reference
 - [Authentication Design](../architecture/security/authentication-detailed.md) - Authentication system architecture

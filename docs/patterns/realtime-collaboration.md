@@ -787,7 +787,7 @@ describe('Collaborative Editing', () => {
 
 **Real-Time Features:**
 
-- [Real-Time Patterns](../guides/PATTERNS.md)
+- [Real-Time Patterns](../guides/patterns.md)
 - [Subscriptions & WebSockets](../guides/clients/README.md)
 
 **Production Deployment:**

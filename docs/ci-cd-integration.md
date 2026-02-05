@@ -720,4 +720,4 @@ RUST_LOG=debug FraiseQL-server
 - Train team on design patterns
 - Review and fix violations
 
-See [LINTING_RULES.md](./LINTING_RULES.md) for how to fix specific violations.
+See [linting-rules.md](./linting-rules.md) for how to fix specific violations.

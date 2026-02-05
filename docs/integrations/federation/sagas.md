@@ -852,7 +852,7 @@ This is expected behavior during SAGA execution. Eventual consistency at subgrap
 
 ## Next Steps
 
-1. Review **[SAGA API Reference](../../reference/SAGA_API.md)** for complete API
+1. Review **[SAGA API Reference](../../reference/saga-api.md)** for complete API
 2. Check **[Observability Guide](operations/observability.md)** for monitoring
 3. See **[Deployment Guide](deployment.md)** for deployment details
 

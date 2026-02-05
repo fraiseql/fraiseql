@@ -571,7 +571,7 @@ curl http://localhost:8000/health/auth | jq .
 
 See Also:
 
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Monitoring Guide](./MONITORING.md)
-- [Security Checklist](./SECURITY-CHECKLIST.md)
-- [API Reference](./API-REFERENCE.md)
+- [Deployment Guide](./deployment.md)
+- [Monitoring Guide](./monitoring.md)
+- [Security Checklist](./security-checklist.md)
+- [API Reference](./api-reference.md)

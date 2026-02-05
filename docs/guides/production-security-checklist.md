@@ -489,7 +489,7 @@ If you answered **no** to any of these, start with [Security Planning](#security
 **Security Documentation:**
 
 - **[Authentication Provider Selection](../integrations/authentication/provider-selection-guide.md)** — Choosing OAuth providers securely
-- **[Authentication Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** — Auth-specific security checks
+- **[Authentication Security Checklist](../integrations/authentication/security-checklist.md)** — Auth-specific security checks
 - **[RBAC & Authorization](../enterpri../../guides/authorization-quick-start.md)** — Field-level access control configuration
 - **[Audit Logging](../enterprise/audit-logging.md)** — Compliance and audit trail setup
 - **[KMS Integration](../enterprise/kms.md)** — Key management service configuration
@@ -503,7 +503,7 @@ If you answered **no** to any of these, start with [Security Planning](#security
 **Compliance:**
 
 - **[Specs: Security & Compliance](../specs/security-compliance.md)** — Security feature specifications
-- **[ALPHA_LIMITATIONS.md](../ALPHA_LIMITATIONS.md)** — Known limitations affecting security
+- **[alpha-limitations.md](../alpha-limitations.md)** — Known limitations affecting security
 
 ---
 

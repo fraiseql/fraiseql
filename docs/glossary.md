@@ -74,7 +74,7 @@ Arrow plane produces typed, columnar batches instead of nested JSON objects. Ben
 **Related specs:**
 
 - `docs/architecture/database/arrow-plane.md` — Arrow plane architecture
-- `docs/prd/PRD.md` Section 3.4.2 — Overview
+- `docs/prd/prd.md` Section 3.4.2 — Overview
 
 **See also:** JSON Plane, Projection
 
@@ -104,7 +104,7 @@ All tables must include:
 
 - `docs/specs/schema-conventions.md` Section 3 — Audit columns
 - `docs/enterprise/audit-logging.md` — Audit event logging
-- `docs/prd/PRD.md` Section 3.2 — Schema conventions
+- `docs/prd/prd.md` Section 3.2 — Schema conventions
 
 **See also:** Soft Delete, CDC, Schema Conventions
 
@@ -129,7 +129,7 @@ Produced by external authentication providers and consumed by authorization enfo
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 4 — Security model
+- `docs/prd/prd.md` Section 4 — Security model
 - `docs/specs/security-compliance.md` — Authentication integration
 - `docs/enterpri../../guides/authorization-quick-start.md` — Role-based authorization
 
@@ -156,7 +156,7 @@ FraiseQL does NOT authenticate users itself. Authentication is delegated to plug
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 4.2 — Authentication
+- `docs/prd/prd.md` Section 4.2 — Authentication
 - `docs/specs/security-compliance.md` — Provider integration
 
 **See also:** AuthContext, Authorization
@@ -186,7 +186,7 @@ Authorization in FraiseQL:
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 4.3 — Authorization
+- `docs/prd/prd.md` Section 4.3 — Authorization
 - `docs/enterpri../../guides/authorization-quick-start.md` — Role-based access control
 - `docs/specs/authoring-contract.md` — Authorization declarations
 
@@ -216,7 +216,7 @@ Python/TypeScript/YAML/SDL/CLI → AuthoringIR → Compilation Pipeline → Comp
 
 - `docs/architecture/core/authoring-languages.md` — Language-agnostic authoring
 - `docs/architecture/core/compilation-pipeline.md` Phase 1b — IR building
-- `docs/prd/PRD.md` Principle 10 — Language-agnostic authoring
+- `docs/prd/prd.md` Principle 10 — Language-agnostic authoring
 
 **See also:** CompiledSchema, Compilation Pipeline
 
@@ -265,7 +265,7 @@ Bindings declare how types map to database resources:
 **Related specs:**
 
 - `docs/specs/authoring-contract.md` Section 4 — Bindings
-- `docs/prd/PRD.md` Section 3.1 — Database contract
+- `docs/prd/prd.md` Section 3.1 — Database contract
 
 **See also:** Projection, View
 
@@ -321,7 +321,7 @@ The capability manifest is the source of truth for multi-database support. For e
 **Related specs:**
 
 - `docs/architecture/database/database-targeting.md` Section 2 — Capability manifest
-- `docs/prd/PRD.md` Section 3.3 — Compile-time database specialization
+- `docs/prd/prd.md` Section 3.3 — Compile-time database specialization
 
 **See also:** Database Target, WHERE Operators, Backend Lowering
 
@@ -415,7 +415,7 @@ CompiledSchema contains:
 **Related specs:**
 
 - `docs/specs/compiled-schema.md` — Complete JSON specification
-- `docs/prd/PRD.md` Section 2 — System architecture
+- `docs/prd/prd.md` Section 2 — System architecture
 
 **See also:** AuthoringIR, Compilation Pipeline
 
@@ -480,7 +480,7 @@ config = CompilerConfig(
 **Related specs:**
 
 - `docs/architecture/database/database-targeting.md` — Complete multi-database architecture
-- `docs/prd/PRD.md` Section 3.3 — Compile-time specialization
+- `docs/prd/prd.md` Section 3.3 — Compile-time specialization
 
 **See also:** Capability Manifest, Backend Lowering, WHERE Operators
 
@@ -518,7 +518,7 @@ Every entity has:
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
-- `docs/prd/PRD.md` Section 3.2 — Schema conventions
+- `docs/prd/prd.md` Section 3.2 — Schema conventions
 
 **See also:** Schema Conventions, Primary Key, Trinity Pattern
 
@@ -550,7 +550,7 @@ Every entity has:
 **Related specs:**
 
 - `docs/architecture/core/execution-model.md` — Complete execution specification
-- `docs/prd/PRD.md` Section 2.3 — Runtime responsibilities
+- `docs/prd/prd.md` Section 2.3 — Runtime responsibilities
 
 **See also:** CompiledSchema, Compilation Pipeline
 
@@ -579,8 +579,8 @@ FraiseQL federation is NOT runtime GraphQL-to-GraphQL calls. Instead:
 **Related specs:**
 
 - `docs/architecture/integration/federation.md` — Federation architecture
-- `docs/adrs/ADR-009-federation-architecture.md` — Federation design decisions
-- `docs/prd/PRD.md` Section 6.1 — Federation model
+- `docs/adrs/adr-009-federation-architecture.md` — Federation design decisions
+- `docs/prd/prd.md` Section 6.1 — Federation model
 
 **See also:** CompiledSchema, Entity Resolution
 
@@ -704,7 +704,7 @@ FraiseQL supports three introspection policies:
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 3.4.1 — JSON plane
+- `docs/prd/prd.md` Section 3.4.1 — JSON plane
 - `docs/architecture/core/execution-model.md` Phase 5 — Projection
 
 **See also:** Arrow Plane, Projection
@@ -744,7 +744,7 @@ LEFT JOIN v_posts_by_user p ON p.fk_user = u.pk_user;
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 3.1.5 — Projection composition
+- `docs/prd/prd.md` Section 3.1.5 — Projection composition
 - `docs/specs/schema-conventions.md` Section 4 — View composition
 
 **See also:** Pre-Aggregated View, Projection, View
@@ -781,7 +781,7 @@ Executes: `fn_create_user(jsonb)` stored procedure.
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 3.1.2 — Write model
+- `docs/prd/prd.md` Section 3.1.2 — Write model
 - `docs/specs/authoring-contract.md` — Mutation declarations
 
 **See also:** Stored Procedure, Binding, Cascade Metadata
@@ -818,7 +818,7 @@ GROUP BY fk_user;
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 4 — View patterns
-- `docs/prd/PRD.md` Section 3.1.5 — Composition
+- `docs/prd/prd.md` Section 3.1.5 — Composition
 
 **See also:** JSONB Composition, View, Schema Conventions
 
@@ -841,7 +841,7 @@ Convention: `pk_{entity}` (e.g., `pk_user`, `pk_post`)
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
-- `docs/prd/PRD.md` Section 3.2 — Dual-key strategy
+- `docs/prd/prd.md` Section 3.2 — Dual-key strategy
 
 **See also:** Dual-Key Strategy, Foreign Key, UUID
 
@@ -865,7 +865,7 @@ Two forms:
 **Related specs:**
 
 - `docs/architecture/core/execution-model.md` Phase 5 — Result projection
-- `docs/prd/PRD.md` Section 3.1 — Read model
+- `docs/prd/prd.md` Section 3.1 — Read model
 
 **See also:** JSONB Composition, View, Binding
 
@@ -923,7 +923,7 @@ Caches the full response of a query:
 **Related specs:**
 
 - `docs/enterpri../../guides/authorization-quick-start.md` — Complete RBAC specification
-- `docs/prd/PRD.md` Section 4.3 — Authorization
+- `docs/prd/prd.md` Section 4.3 — Authorization
 
 **See also:** Authorization, Field-Level Authorization, AuthContext
 
@@ -957,7 +957,7 @@ Caches the full response of a query:
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` — Complete conventions reference
-- `docs/prd/PRD.md` Section 3.2 — Overview
+- `docs/prd/prd.md` Section 3.2 — Overview
 
 **See also:** Dual-Key Strategy, Pre-Aggregated View, Audit Columns
 
@@ -984,7 +984,7 @@ Each profile configures:
 **Related specs:**
 
 - `docs/specs/security-compliance.md` Section 2 — Security profiles
-- `docs/prd/PRD.md` Section 4 — Security model
+- `docs/prd/prd.md` Section 4 — Security model
 
 **See also:** Introspection, Rate Limiting
 
@@ -1018,7 +1018,7 @@ SELECT ... FROM tb_user WHERE deleted_at IS NULL;
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 3 — Audit columns
-- `docs/prd/PRD.md` Section 3.2 — Conventions
+- `docs/prd/prd.md` Section 3.2 — Conventions
 
 **See also:** Audit Columns, Schema Conventions
 
@@ -1050,7 +1050,7 @@ Pattern: `fn_{action}_{entity}` (e.g., `fn_create_user`, `fn_update_post`)
 
 **Related specs:**
 
-- `docs/prd/PRD.md` Section 3.1.2 — Write model
+- `docs/prd/prd.md` Section 3.1.2 — Write model
 - `docs/specs/schema-conventions.md` Section 5 — Stored procedures
 
 **See also:** Mutation, Binding, Cascade Metadata
@@ -1094,7 +1094,7 @@ FraiseQL subscriptions are NOT GraphQL resolver-based subscriptions. Instead:
 
 - `docs/architecture/realtime/subscriptions.md` — Complete subscription architecture and implementation
 - `docs/specs/cdc-format.md` — CDC event structure (events originate here)
-- `docs/prd/PRD.md` Section 5.2 — Subscription requirements
+- `docs/prd/prd.md` Section 5.2 — Subscription requirements
 - `docs/specs/schema-conventions.md section 6` — Event buffering table (`tb_entity_change_log`)
 
 **See also:** CDC, Transport Adapter, Subscription Filter, Subscription Variable, WebSocket
@@ -1315,7 +1315,7 @@ Column: `id` (UUID type, 16 bytes)
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 2 — Column conventions
-- `docs/prd/PRD.md` Section 3.2 — Dual-key strategy
+- `docs/prd/prd.md` Section 3.2 — Dual-key strategy
 
 **See also:** Dual-Key Strategy, Primary Key
 
@@ -1358,7 +1358,7 @@ WHERE deleted_at IS NULL;
 **Related specs:**
 
 - `docs/specs/schema-conventions.md` Section 4 — View patterns
-- `docs/prd/PRD.md` Section 3.1.1 — Read model
+- `docs/prd/prd.md` Section 3.1.1 — Read model
 
 **See also:** Projection, Binding, JSONB Composition
 
@@ -1426,7 +1426,7 @@ input StringFilter {
 **Related specs:**
 
 - `docs/architecture/database/database-targeting.md` Section 4 — WHERE type generation
-- `docs/prd/PRD.md` Section 3.3 — Compile-time specialization
+- `docs/prd/prd.md` Section 3.3 — Compile-time specialization
 
 **See also:** WHERE Operators, Database Target
 
@@ -1515,7 +1515,7 @@ FraiseQL implements Federation v2 as a subgraph (not a gateway), using Apollo Ro
 **Related specs:**
 
 - `docs/architecture/integration/federation.md` — Complete federation specification
-- `docs/prd/PRD.md` Section 6.1 — Federation requirements
+- `docs/prd/prd.md` Section 6.1 — Federation requirements
 
 **See also:** Subgraph, Entity Resolution, @key, @external, @requires, @provides
 

@@ -759,7 +759,7 @@ cd android && ./gradlew bundleRelease
 
 - **[React + Apollo Guide](./react-apollo-guide.md)** - Web alternative
 - **[Flutter Guide](./flutter-graphql-guide.md)** - Alternative mobile framework
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
+- **[Real-Time Patterns](../patterns.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 
 **React Native & Apollo Documentation:**

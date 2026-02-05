@@ -128,4 +128,4 @@ FraiseQL compile FraiseQL.toml
 - Medium (50-200 types): 1-2 hours
 - Large (200+ types): 2-4 hours
 
-See [DOMAIN_ORGANIZATION.md](DOMAIN_ORGANIZATION.md) for detailed best practices.
+See [domain-organization.md](domain-organization.md) for detailed best practices.

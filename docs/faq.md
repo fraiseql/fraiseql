@@ -523,7 +523,7 @@ SELECT id, email, phone FROM users WHERE id = $1
 ```text
 <!-- Code example in TEXT -->
 
-See [entity resolution troubleshooting](TROUBLESHOOTING.md#problem-entity-resolution-fails).
+See [entity resolution troubleshooting](troubleshooting.md#problem-entity-resolution-fails).
 
 ---
 
@@ -546,7 +546,7 @@ recovery_manager.recover_saga(&stuck_saga).await?;
 ```text
 <!-- Code example in TEXT -->
 
-See [saga troubleshooting](TROUBLESHOOTING.md#problem-saga-stuck-in-executing).
+See [saga troubleshooting](troubleshooting.md#problem-saga-stuck-in-executing).
 
 ---
 
@@ -565,7 +565,7 @@ extend type User @key(fields: "userId") { ... }  // Different key!
 ```text
 <!-- Code example in TEXT -->
 
-See [supergraph troubleshooting](TROUBLESHOOTING.md#problem-cannot-compose-supergraph).
+See [supergraph troubleshooting](troubleshooting.md#problem-cannot-compose-supergraph).
 
 ---
 
@@ -595,7 +595,7 @@ Watch for logs like:
 
 A: Check these resources in order:
 
-1. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues & solutions
+1. **[troubleshooting.md](troubleshooting.md)** - Common issues & solutions
 2. **[Federation Guide](integrations/federation/guide.md)** - Saga basics
 3. **[Federation Sagas](integrations/federation/sagas.md)** - Federation patterns
 4. **[Examples](../examples/federation/)** - Working code

@@ -344,7 +344,7 @@ const graphqlResponse = await fetch('http://localhost:8000/graphql', {
 
 - [Google OAuth 2.0 Documentation](https://developers.google.com/identity/protocols/oauth2)
 - [OpenID Connect with Google](https://developers.google.com/identity/openid-connect)
-- [FraiseQL Auth API Reference](./API-REFERENCE.md)
+- [FraiseQL Auth API Reference](./api-reference.md)
 
 ## Production Deployment
 
@@ -389,4 +389,4 @@ Google applies rate limits:
 
 ---
 
-**Next Step**: See [API Reference](./API-REFERENCE.md) for complete endpoint documentation.
+**Next Step**: See [API Reference](./api-reference.md) for complete endpoint documentation.

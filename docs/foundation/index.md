@@ -408,9 +408,9 @@ tags: ["documentation", "reference"]
 
 - `EXAMPLE_TESTING_CHECKLIST.md` - How to test code examples
 - `PHASE_7_COMPLETION_CRITERIA.md` - What "done" means
-- `NAMING_PATTERNS.md` - Database naming conventions
-- `DOCUMENTATION_INDEX.md` - Complete topic inventory
-- `DIAGRAMMING_ROADMAP.md` - ASCII diagrams now, D2 diagramming in Phase 2+
+- `NAMING_patterns.md` - Database naming conventions
+- `DOCUMENTATION_index.md` - Complete topic inventory
+- `diagramming-roadmap.md` - ASCII diagrams now, D2 diagramming in Phase 2+
 
 ---
 

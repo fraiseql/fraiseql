@@ -653,9 +653,9 @@ psql -c "SELECT count(*) FROM pg_stat_activity;"
 
 ## See Also
 
-- [Monitoring Guide](./MONITORING.md)
-- [Security Checklist](./SECURITY-CHECKLIST.md)
-- [Troubleshooting](./TROUBLESHOOTING.md)
+- [Monitoring Guide](./monitoring.md)
+- [Security Checklist](./security-checklist.md)
+- [Troubleshooting](./troubleshooting.md)
 
 ---
 

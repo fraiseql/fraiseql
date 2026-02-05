@@ -187,7 +187,7 @@ Focus your alpha testing on:
 - [ ] Arrow Flight export
 - [ ] Docker and Kubernetes deployment
 
-See [Alpha Testing Guide](ALPHA_TESTING_GUIDE.md) for detailed testing checklist.
+See [Alpha Testing Guide](alpha-testing-guide.md) for detailed testing checklist.
 
 ---
 
@@ -223,7 +223,7 @@ Expected performance characteristics:
 
 If you encounter an issue not listed here:
 
-1. Check [ALPHA_TESTING_GUIDE.md](ALPHA_TESTING_GUIDE.md) for known workarounds
+1. Check [alpha-testing-guide.md](alpha-testing-guide.md) for known workarounds
 2. Open a [GitHub Issue](https://github.com/FraiseQL/FraiseQL/issues) with:
    - Description of the limitation
    - Environment (database, language, OS)
@@ -234,9 +234,9 @@ If you encounter an issue not listed here:
 
 ## 📚 Additional Resources
 
-- **[Alpha Testing Guide](ALPHA_TESTING_GUIDE.md)** — How to test effectively
-- **[FAQ](FAQ.md)** — General questions
-- **[TROUBLESHOOTING](../TROUBLESHOOTING.md)** — Common problems
+- **[Alpha Testing Guide](alpha-testing-guide.md)** — How to test effectively
+- **[FAQ](faq.md)** — General questions
+- **[TROUBLESHOOTING](../troubleshooting.md)** — Common problems
 - **[Release Notes](../ALPHA_RELEASE_NOTES.md)** — What's included in alpha
 - **[GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)** — Report problems
 

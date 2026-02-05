@@ -1451,4 +1451,4 @@ docker run -p 8080:8080 blog-api:1.0
 - [GraphQL Specification](https://spec.graphql.org/)
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 
-**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).
+**Questions?** See [troubleshooting.md](../troubleshooting.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).

@@ -879,7 +879,7 @@ const user = computed(() => result.value?.user);
 
 - **[Full-Stack TypeScript + Vue Example](../../examples/fullstack-typescript-vue.md)**
 - **[React + Apollo Guide](./react-apollo-guide.md)** - For comparison
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription architecture
+- **[Real-Time Patterns](../patterns.md)** - Subscription architecture
 - **[Authentication & Authorization](../authorization-quick-start.md)** - Securing queries
 
 **Vue & Apollo Documentation:**

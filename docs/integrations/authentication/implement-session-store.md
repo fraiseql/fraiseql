@@ -592,7 +592,7 @@ mod tests {
 
 ## See Also
 
-- [API Reference](./API-REFERENCE.md)
+- [API Reference](./api-reference.md)
 
 ---
 

@@ -26,7 +26,7 @@ ADRs document the **context, decision, and consequences** of architectural choic
 
 | ADR | Title | Date | Status |
 |-----|-------|------|--------|
-| [ADR-009](ADR-009-federation-architecture.md) | Federation Architecture | 2026-01-11 | Accepted |
+| [ADR-009](adr-009-federation-architecture.md) | Federation Architecture | 2026-01-11 | Accepted |
 
 ---
 

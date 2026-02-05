@@ -214,7 +214,7 @@ docker compose -f docker/docker-compose.demo.yml exec postgres-blog \
 
 1. **Explore the Schema**: Browse types and fields in GraphQL IDE
 2. **Try Sample Queries**: Use examples from `/examples/basic/queries/`
-3. **Read Documentation**: See `/docs/GETTING_STARTED.md`
+3. **Read Documentation**: See `/docs/getting-started.md`
 4. **Build Your Schema**: Learn to author schemas in `/docs/guides/schema-authoring.md`
 5. **Deploy to Production**: See `/docs/deployment/guide.md`
 

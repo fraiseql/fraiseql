@@ -227,7 +227,7 @@ psql -h localhost -U FraiseQL FraiseQL < backup.sql
 
 ### Disaster Recovery
 
-See DEPLOYMENT_RUNBOOKS.md for recovery procedures.
+See deployment-runbooks.md for recovery procedures.
 
 ## Troubleshooting
 
@@ -264,4 +264,4 @@ redis-cli -h localhost ping
 - Audit logging for compliance
 - Secrets managed via external systems
 
-See DEPLOYMENT_SECURITY.md for detailed security architecture.
+See deployment-security.md for detailed security architecture.

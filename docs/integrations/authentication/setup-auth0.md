@@ -419,8 +419,8 @@ Most applications fit in the free tier initially.
 - [Auth0 Documentation](https://auth0.com/docs)
 - [Auth0 API Reference](https://auth0.com/docs/api)
 - [Auth0 Rules & Actions](https://auth0.com/docs/get-started/actions)
-- [FraiseQL API Reference](./API-REFERENCE.md)
+- [FraiseQL API Reference](./api-reference.md)
 
 ---
 
-**Next Step**: See [API Reference](./API-REFERENCE.md) for complete endpoint documentation.
+**Next Step**: See [API Reference](./api-reference.md) for complete endpoint documentation.

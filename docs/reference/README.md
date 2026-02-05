@@ -64,7 +64,7 @@ Complete API and operator references.
 
 | Document | Description | Lines | Est. Time |
 |----------|-------------|-------|-----------|
-| [SAGA_API.md](SAGA_API.md) | SAGA API reference for distributed transactions | 800+ | Reference |
+| [saga-api.md](saga-api.md) | SAGA API reference for distributed transactions | 800+ | Reference |
 
 **Topics Covered:**
 
@@ -79,7 +79,7 @@ Complete API and operator references.
 
 ### REST API Reference
 
-- **[API Reference](api/GRAPHQL_API.md)** — Complete HTTP API endpoint documentation
+- **[API Reference](api/graphql-api.md)** — Complete HTTP API endpoint documentation
 
 ---
 

@@ -104,7 +104,7 @@ a) "Field X doesn't exist"?
    - Check schema is compiled: `schema.compiled.json` exists
    - Verify field name in schema definition
    - Regenerate schema: `FraiseQL compile`
-   → [Troubleshooting Guide: Schema Errors](../TROUBLESHOOTING.md#schema-errors)
+   → [Troubleshooting Guide: Schema Errors](../troubleshooting.md#schema-errors)
 
 b) "Unauthorized" or "Permission denied"?
    → Go to: AUTHENTICATION & AUTHORIZATION
@@ -126,14 +126,14 @@ e) Something else?
 - Check WHERE clause filters: `SELECT * FROM table_name WHERE ... LIMIT 1;`
 - Verify authorization isn't hiding data (row-level filters)
 - Check pagination offset: Is `skip` too high?
-- → [Troubleshooting Guide: No Results](../TROUBLESHOOTING.md#no-results)
+- → [Troubleshooting Guide: No Results](../troubleshooting.md#no-results)
 
 **Query response is incomplete or truncated:**
 
 - Check pagination limit: Default is 100, max is 1000
 - Increase limit in query: `users(first: 500) { ... }`
 - Check response size: Very large responses may be truncated
-- → [Troubleshooting Guide: Incomplete Results](../TROUBLESHOOTING.md#incomplete-results)
+- → [Troubleshooting Guide: Incomplete Results](../troubleshooting.md#incomplete-results)
 
 **Query takes too long:**
 
@@ -154,12 +154,12 @@ Is the error about...
 a) "Constraint violation" (duplicate key, foreign key)?
    - Check unique constraints: SHOW UNIQUE CONSTRAINTS
    - Verify foreign key exists: SELECT * FROM referenced_table WHERE id = ...
-   → [Troubleshooting Guide: Constraint Violations](../TROUBLESHOOTING.md#constraint-violations)
+   → [Troubleshooting Guide: Constraint Violations](../troubleshooting.md#constraint-violations)
 
 b) "Invalid input" or "Validation error"?
    - Review input validation error message
    - Check field types match schema
-   → [Troubleshooting Guide: Input Validation](../TROUBLESHOOTING.md#input-validation)
+   → [Troubleshooting Guide: Input Validation](../troubleshooting.md#input-validation)
 
 c) "Permission denied"?
    → Go to: AUTHENTICATION & AUTHORIZATION
@@ -177,7 +177,7 @@ e) Something else?
 - Verify mutation result in GraphQL response
 - Query database directly: `SELECT * FROM table_name WHERE id = ...`
 - Check for triggers or stored procedures modifying data
-- → [Troubleshooting Guide: Data Integrity](../TROUBLESHOOTING.md#data-integrity)
+- → [Troubleshooting Guide: Data Integrity](../troubleshooting.md#data-integrity)
 
 **Mutation is very slow:**
 
@@ -192,7 +192,7 @@ e) Something else?
 - Verify WebSocket endpoint: `wss://server:5000/graphql`
 - Check WebSocket proxy configuration
 - Verify authentication token in subscription
-- → [Troubleshooting Guide: WebSocket Connection](../TROUBLESHOOTING.md#websocket)
+- → [Troubleshooting Guide: WebSocket Connection](../troubleshooting.md#websocket)
 
 **Subscription connects but no events:**
 
@@ -206,7 +206,7 @@ e) Something else?
 - Check event timestamp vs current time
 - Verify database replication lag (if multi-database)
 - Check CDC polling interval: Increase if too low
-- → [Troubleshooting Guide: Event Delivery](../TROUBLESHOOTING.md#event-delivery)
+- → [Troubleshooting Guide: Event Delivery](../troubleshooting.md#event-delivery)
 
 ---
 
@@ -225,7 +225,7 @@ e) Something else?
 - Check token expiry: JWT tokens expire after 1 hour
 - Verify token refresh working: Is refresh token valid?
 - Check token signature: Token might be from different issuer
-- → [Authentication Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)
+- → [Authentication Security Checklist](../integrations/authentication/security-checklist.md)
 
 **Query or mutation denied with "Unauthorized":**
 
@@ -336,14 +336,14 @@ e) Something else?
 - Verify environment variables override: Variables take precedence
 - Check file permissions: Can FraiseQL read config file?
 - Restart server after config change
-- → [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- → [Troubleshooting Guide](../troubleshooting.md)
 
 **Environment variables not recognized:**
 
 - Check variable name: `FRAISEQL_*` prefix required
 - Verify case sensitivity: `FRAISEQL_RATE_LIMIT_ENABLED` (not camelCase)
 - Check for typos: List all set variables: `env | grep FRAISEQL`
-- → [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- → [Troubleshooting Guide](../troubleshooting.md)
 
 **TOML parsing error:**
 
@@ -372,13 +372,13 @@ Error Category:
 To find your error:
 1. Copy error code: "E_BINDING_UNKNOWN_FIELD_202"
 2. Search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
-3. Refer to [Main Troubleshooting Guide](../TROUBLESHOOTING.md)
+3. Refer to [Main Troubleshooting Guide](../troubleshooting.md)
 ```text
 <!-- Code example in TEXT -->
 
 **Don't see your error?**
 
-- → Go to: **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)**
+- → Go to: **[Main Troubleshooting Guide](../troubleshooting.md)**
 
 ---
 
@@ -413,10 +413,10 @@ To find your error:
 
 1. **Check if you have an error code:**
    - Search: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
-   - Refer to: [Troubleshooting Guide](../TROUBLESHOOTING.md)
+   - Refer to: [Troubleshooting Guide](../troubleshooting.md)
 
 2. **Review comprehensive guides:**
-   - **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)** — All FAQs and common issues
+   - **[Main Troubleshooting Guide](../troubleshooting.md)** — All FAQs and common issues
    - **[Production Deployment](./production-deployment.md)** — Deployment procedures
    - **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Performance optimization
 
@@ -431,8 +431,8 @@ To find your error:
 
 **Complete Troubleshooting Guides:**
 
-- **[Main Troubleshooting Guide](../TROUBLESHOOTING.md)** — Comprehensive FAQ
-- **[Authentication Troubleshooting](../integrations/authentication/TROUBLESHOOTING.md)** — Auth-specific issues
+- **[Main Troubleshooting Guide](../troubleshooting.md)** — Comprehensive FAQ
+- **[Authentication Troubleshooting](../integrations/authentication/troubleshooting.md)** — Auth-specific issues
 - **[Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)** — Multi-service issues
 - **[Observer Troubleshooting](../guides/observers.md#troubleshooting)** — Event system issues
 

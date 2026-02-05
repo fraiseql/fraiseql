@@ -442,8 +442,8 @@ Each realm has:
 
 - [Keycloak Documentation](https://www.keycloak.org/documentation)
 - [Keycloak Admin Guide](https://www.keycloak.org/docs/latest/server_admin/)
-- [FraiseQL API Reference](./API-REFERENCE.md)
+- [FraiseQL API Reference](./api-reference.md)
 
 ---
 
-**Next Step**: See [API Reference](./API-REFERENCE.md) for complete endpoint documentation.
+**Next Step**: See [API Reference](./api-reference.md) for complete endpoint documentation.

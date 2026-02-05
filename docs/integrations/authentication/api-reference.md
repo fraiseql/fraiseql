@@ -539,10 +539,10 @@ To add custom provider, implement `OAuthProvider` trait.
 
 ## See Also
 
-- [Google OAuth Setup](./SETUP-GOOGLE-OAUTH.md)
-- [Keycloak Setup](./SETUP-KEYCLOAK.md)
-- [Auth0 Setup](./SETUP-AUTH0.md)
-- [Custom SessionStore Implementation](./IMPLEMENT-SESSION-STORE.md)
+- [Google OAuth Setup](./setup-google-oauth.md)
+- [Keycloak Setup](./setup-keycloak.md)
+- [Auth0 Setup](./setup-auth0.md)
+- [Custom SessionStore Implementation](./implement-session-store.md)
 
 ---
 

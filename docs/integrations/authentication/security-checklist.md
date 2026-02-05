@@ -336,6 +336,6 @@ Complete security checklist for FraiseQL authentication deployment.
 
 See Also:
 
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Monitoring Guide](./MONITORING.md)
-- [Troubleshooting](./TROUBLESHOOTING.md)
+- [Deployment Guide](./deployment.md)
+- [Monitoring Guide](./monitoring.md)
+- [Troubleshooting](./troubleshooting.md)

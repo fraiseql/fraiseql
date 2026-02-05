@@ -407,7 +407,7 @@ Absolutely! Each tutorial is independent and uses the same patterns, so learning
 Have questions about these tutorials?
 
 - Check the [Troubleshooting section](go-blog-api.md#troubleshooting)
-- Review the [FAQ](../FAQ.md)
+- Review the [FAQ](../faq.md)
 - Open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL)
 
 Want to contribute a tutorial?
@@ -428,7 +428,7 @@ Want to contribute a tutorial?
 - **[Testing Strategy](../guides/testing-strategy.md)** - Comprehensive testing approaches
 - **[Deployment Guide](../deployment/)** - Production deployment strategies
 - **[CLI Reference](../reference/)** - FraiseQL-cli command reference
-- **[TOML Configuration Reference](../TOML_REFERENCE.md)** - Complete FraiseQL.toml options
+- **[TOML Configuration Reference](../toml-reference.md)** - Complete FraiseQL.toml options
 
 ---
 

@@ -251,7 +251,7 @@ pub struct FederationLogContext {
 - `tests/integration/dashboards/entity_resolution.json` (2.3 KB, 7 panels)
 - `tests/integration/alert_rules.yml` (8.2 KB, 15 alerts)
 - `tests/federation_dashboards.rs` (15 KB validation tests)
-- `docs/PHASE_6_DASHBOARDS_AND_MONITORING.md` (510 lines)
+- `docs/PHASE_6_DASHBOARDS_AND_monitoring.md` (510 lines)
 
 **Dashboard 1: Federation Overview (7 Panels)**
 

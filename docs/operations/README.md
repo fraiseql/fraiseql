@@ -38,7 +38,7 @@ Complete guide for deploying, monitoring, and maintaining FraiseQL in production
 ## Running in Production
 
 1. **Deploy**: Follow [Deployment Guide](../deployment/guide.md)
-2. **Configure**: Set up [TLS](../configuration/TLS_CONFIGURATION.md), [Rate Limiting](../configuration/RATE_LIMITING.md)
+2. **Configure**: Set up [TLS](../configuration/tls-configuration.md), [Rate Limiting](../configuration/rate-limiting.md)
 3. **Monitor**: Enable [metrics](../guides/monitoring.md) and [distributed tracing](distributed-tracing.md)
 4. **Maintain**: Use [operations guide](guide.md) for day-to-day tasks
 
@@ -48,8 +48,8 @@ For multi-database federation operations, see [Federation Guide](../integrations
 
 ## Support
 
-- **Troubleshooting**: See [main troubleshooting guide](../TROUBLESHOOTING.md)
-- **Known Limitations**: See [alpha limitations](../ALPHA_LIMITATIONS.md)
+- **Troubleshooting**: See [main troubleshooting guide](../troubleshooting.md)
+- **Known Limitations**: See [alpha limitations](../alpha-limitations.md)
 
 ---
 

@@ -642,8 +642,8 @@ cargo tarpaulin --all-features --workspace
 
 ## Questions?
 
-- See [ALPHA_LIMITATIONS.md](../../ALPHA_LIMITATIONS.md) for alpha limitations
-- See [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md) for common issues
+- See [alpha-limitations.md](../../alpha-limitations.md) for alpha limitations
+- See [troubleshooting.md](../../troubleshooting.md) for common issues
 
 ---
 

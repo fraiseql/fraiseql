@@ -508,11 +508,11 @@ Use an OAuth provider as a bridge to your legacy system.
 
 ## See Also
 
-- **[Google OAuth Setup](./SETUP-GOOGLE-OAUTH.md)** - Quick start
-- **[Auth0 Setup](./SETUP-AUTH0.md)** - Quick start
-- **[Keycloak Setup](./SETUP-KEYCLOAK.md)** - Quick start
-- **[Security Checklist](./SECURITY-CHECKLIST.md)** - Pre-production verification
-- **[API Reference](./API-REFERENCE.md)** - Complete API
+- **[Google OAuth Setup](./setup-google-oauth.md)** - Quick start
+- **[Auth0 Setup](./setup-auth0.md)** - Quick start
+- **[Keycloak Setup](./setup-keycloak.md)** - Quick start
+- **[Security Checklist](./security-checklist.md)** - Pre-production verification
+- **[API Reference](./api-reference.md)** - Complete API
 
 ---
 

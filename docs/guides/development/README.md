@@ -12,8 +12,8 @@ Tools and guides for FraiseQL development and testing.
 
 ## Getting Set Up
 
-- **[Developer Guide](DEVELOPER_GUIDE.md)** — Development environment setup
-- **[Linting](LINTING.md)** — Code quality standards and linting
+- **[Developer Guide](developer-guide.md)** — Development environment setup
+- **[Linting](linting.md)** — Code quality standards and linting
 
 ## Testing
 
@@ -29,7 +29,7 @@ Tools and guides for FraiseQL development and testing.
 ### E2E Testing
 
 - **[E2E Testing Guide](e2e-testing.md)** — End-to-end testing with real services
-- **[Test Coverage](TEST_COVERAGE.md)** — Measure and improve test coverage
+- **[Test Coverage](test-coverage.md)** — Measure and improve test coverage
 
 ## Performance
 
@@ -43,7 +43,7 @@ Tools and guides for FraiseQL development and testing.
 
 ### Profiling
 
-- **[Profiling Guide](PROFILING_GUIDE.md)** — Profile and optimize code
+- **[Profiling Guide](profiling-guide.md)** — Profile and optimize code
   - Identify bottlenecks
   - Flame graphs
   - Memory profiling
@@ -75,8 +75,8 @@ cargo flamegraph --bin FraiseQL-server
 
 - **Add a new feature** → Start with [Testing Strategy](../testing-strategy.md) (TDD approach)
 - **Improve performance** → Use [Benchmarking Guide](benchmarking.md) to measure
-- **Debug an issue** → Use [Profiling Guide](PROFILING_GUIDE.md) to find root cause
-- **Ensure code quality** → Run [Linting](LINTING.md) before commit
+- **Debug an issue** → Use [Profiling Guide](profiling-guide.md) to find root cause
+- **Ensure code quality** → Run [Linting](linting.md) before commit
 
 ---
 

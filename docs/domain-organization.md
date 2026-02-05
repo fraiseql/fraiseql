@@ -553,5 +553,5 @@ These are potential future enhancements to FraiseQL.
 
 **See Also**:
 
-- [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Detailed migration instructions
+- [migration-guide.md](migration-guide.md) - Detailed migration instructions
 - `examples/` - Working examples

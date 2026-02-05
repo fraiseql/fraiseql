@@ -874,4 +874,4 @@ These patterns let FraiseQL do what it does best: compile optimal SQL for your G
 
 ---
 
-**Next**: Check [LINTING_RULES.md](./LINTING_RULES.md) for detailed rule reference and how FraiseQL's linter detects violations of these patterns.
+**Next**: Check [linting-rules.md](./linting-rules.md) for detailed rule reference and how FraiseQL's linter detects violations of these patterns.

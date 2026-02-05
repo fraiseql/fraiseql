@@ -251,7 +251,7 @@ Each example includes detailed manual setup instructions if you prefer to run se
 
 Once you understand the end-to-end flow:
 
-1. **Advanced Schema Design**: See [`../DESIGNING_FOR_FRAISEQL.md`](../DESIGNING_FOR_FRAISEQL.md)
+1. **Advanced Schema Design**: See [`../designing-for-fraiseql.md`](../designing-for-fraiseql.md)
 2. **Enterprise Features**: Authentication, authorization, audit logging
 3. **Performance Optimization**: Caching, APQ, connection pooling
 4. **Operations**: Monitoring, scaling, upgrades

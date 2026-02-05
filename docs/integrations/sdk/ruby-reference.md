@@ -1411,4 +1411,4 @@ StackProf.results('tmp/stackprof.dump').print_text
 
 ---
 
-**Questions?** See [FAQ](../../FAQ.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).
+**Questions?** See [FAQ](../../faq.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).

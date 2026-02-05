@@ -11,7 +11,7 @@ tags: ["documentation", "reference"]
 **Date:** January 11, 2026
 **Status:** Accepted
 **Authors:** FraiseQL Architecture Team
-**Relates to:** federation.md, PRD.md Section 6.1
+**Relates to:** federation.md, prd.md Section 6.1
 
 ---
 
@@ -392,9 +392,9 @@ graphql_url = "https://reviews-api.example.com/graphql"
 ## References
 
 - `docs/architecture/integration/federation.md` — Complete federation specification
-- `docs/prd/PRD.md` Section 6.1 — Federation requirements
+- `docs/prd/prd.md` Section 6.1 — Federation requirements
 - Apollo Federation v2 specification — Standard protocol
-- `docs/GLOSSARY.md` — Federation terminology
+- `docs/glossary.md` — Federation terminology
 
 ---
 

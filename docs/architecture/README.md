@@ -18,9 +18,9 @@ Complete architectural documentation for FraiseQL v2.
 
 | Document | Description | Lines | Status |
 |----------|-------------|-------|--------|
-| **[RUST_CORE_ARCHITECTURE.md](RUST_CORE_ARCHITECTURE.md)** | Complete core runtime architecture | 1,500+ | ✅ Complete |
-| **[CODE_EXAMPLES.md](CODE_EXAMPLES.md)** | Runnable code examples | 800+ | ✅ Complete |
-| **[ADVANCED_FEATURES_ARCHITECTURE.md](ADVANCED_FEATURES_ARCHITECTURE.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Complete |
+| **[rust-core-architecture.md](rust-core-architecture.md)** | Complete core runtime architecture | 1,500+ | ✅ Complete |
+| **[code-examples.md](code-examples.md)** | Runnable code examples | 800+ | ✅ Complete |
+| **[advanced-features-architecture.md](advanced-features-architecture.md)** | Federation, RBAC, subscriptions, observability | 1,200+ | ✅ Complete |
 
 ### Core Features Designed
 

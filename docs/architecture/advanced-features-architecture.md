@@ -8,7 +8,7 @@ tags: ["documentation", "reference"]
 
 # FraiseQL v2: Advanced Features Architecture
 
-**Companion to:** RUST_CORE_ARCHITECTURE.md
+**Companion to:** rust-core-architecture.md
 **Date:** 2026-01-11
 **Status:** Complete Architecture Extension
 
@@ -31,7 +31,7 @@ tags: ["documentation", "reference"]
 
 ### Core Principle: Trait-Based Extension
 
-The architecture designed in RUST_CORE_ARCHITECTURE.md uses **trait-based abstraction** throughout, making all components pluggable:
+The architecture designed in rust-core-architecture.md uses **trait-based abstraction** throughout, making all components pluggable:
 
 ```rust
 <!-- Code example in RUST -->
@@ -1142,7 +1142,7 @@ impl WebhookAdapter {
 | **Validators** | `Validator` trait + registry | Called pre-mutation, async with DB access |
 | **Transport Adapters** | `EventStream` subscription | Multiple transports (WebSocket, webhook, Kafka) |
 
-### All features are trait-based and pluggable. The core architecture from RUST_CORE_ARCHITECTURE.md supports all of them without modification
+### All features are trait-based and pluggable. The core architecture from rust-core-architecture.md supports all of them without modification
 
 ---
 

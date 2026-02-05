@@ -689,7 +689,7 @@ FraiseQL-query \
 **Related Guides:**
 
 - **[Node.js Runtime Client](./nodejs-runtime-guide.md)** - Server-to-server queries
-- **[Real-Time Patterns](../PATTERNS.md)** - Subscription support
+- **[Real-Time Patterns](../patterns.md)** - Subscription support
 - **[Production Deployment](../production-deployment.md)** - Running FraiseQL
 
 **Tools & Utilities:**

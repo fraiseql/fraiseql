@@ -1996,11 +1996,11 @@ This workflow puts **schema authoring** front and center—defining your data mo
 ## Additional Resources
 
 - [Python SDK Reference](../integrations/sdk/python-reference.md)
-- [TOML Configuration Reference](../TOML_REFERENCE.md)
+- [TOML Configuration Reference](../toml-reference.md)
 - [GraphQL Schema Design Best Practices](../guides/schema-design-best-practices.md)
-- [Common Patterns](../guides/PATTERNS.md)
-- [Troubleshooting](../TROUBLESHOOTING.md)
+- [Common Patterns](../guides/patterns.md)
+- [Troubleshooting](../troubleshooting.md)
 
 ---
 
-**Questions?** See [FAQ](../FAQ.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).
+**Questions?** See [FAQ](../faq.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

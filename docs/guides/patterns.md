@@ -18,7 +18,7 @@ tags: ["documentation", "reference"]
 **Required Knowledge:**
 
 - GraphQL fundamentals (types, fields, queries, mutations)
-- FraiseQL schema definition and configuration (see [GETTING_STARTED.md](../GETTING_STARTED.md))
+- FraiseQL schema definition and configuration (see [getting-started.md](../getting-started.md))
 - Authentication and authorization concepts
 - Multi-tenancy and data isolation patterns
 - Caching strategies and trade-offs
@@ -1357,7 +1357,7 @@ You now know how to implement:
 ## Next Steps
 
 - **Ready to deploy?** → [Deployment Guide](../deployment/guide.md)
-- **Need help?** → [Troubleshooting Guide](../TROUBLESHOOTING.md)
+- **Need help?** → [Troubleshooting Guide](../troubleshooting.md)
 - **Want more patterns?** → Explore more guides in the [guides](../guides/) directory
 
 ---
@@ -1387,8 +1387,8 @@ You now know how to implement:
 **Troubleshooting:**
 
 - **[Troubleshooting Decision Tree](../guides/troubleshooting-decision-tree.md)** — Route to correct guide for your problem
-- **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and common solutions
+- **[Troubleshooting Guide](../troubleshooting.md)** — FAQ and common solutions
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).
+**Questions?** See [troubleshooting.md](../troubleshooting.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

@@ -781,11 +781,11 @@ The mutation either succeeds completely or fails cleanly. No partial states.
 
 **Related Concepts:**
 
-- **[Common Patterns](./PATTERNS.md)** — Real-world patterns built on consistency model
+- **[Common Patterns](./patterns.md)** — Real-world patterns built on consistency model
 - **[Authorization & RBAC](./authorization-quick-start.md)** — Row-level consistency with permissions
 - **[Common Gotchas](./common-gotchas.md)** — Consistency pitfalls and solutions
 
 **Troubleshooting:**
 
 - **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** — Route to correct guide for consistency issues
-- **[Troubleshooting Guide](../TROUBLESHOOTING.md)** — FAQ and solutions
+- **[Troubleshooting Guide](../troubleshooting.md)** — FAQ and solutions

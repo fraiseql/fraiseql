@@ -10,7 +10,7 @@ tags: ["documentation", "reference"]
 
 **Duration**: 2-4 hours
 **Outcome**: Deploy FraiseQL to production with confidence
-**Prerequisites**: Completed [GETTING_STARTED.md](../GETTING_STARTED.md)
+**Prerequisites**: Completed [getting-started.md](../getting-started.md)
 
 ---
 
@@ -751,6 +751,6 @@ docker run -p 8000:8000 FraiseQL-server:v2.0.0-alpha.0  # Previous v2 version
 
 ## Next Steps
 
-- See [HTTP_SERVER.md](../reference/api/HTTP_SERVER.md) for server configuration options
-- See [GRAPHQL_API.md](../reference/api/GRAPHQL_API.md) for API specification
+- See [http-server.md](../reference/api/http-server.md) for server configuration options
+- See [graphql-api.md](../reference/api/graphql-api.md) for API specification
 - See [examples/](../../examples/) for query examples

@@ -198,7 +198,7 @@ Query result:
 
 ### Learn more
 
-- **Common Patterns**: See [PATTERNS.md](guides/PATTERNS.md) for solutions to real-world problems
+- **Common Patterns**: See [patterns.md](guides/patterns.md) for solutions to real-world problems
 - **Deployment**: When ready to deploy, see [deployment guide](deployment/guide.md)
 - **Operations**: Manage your FraiseQL instance with [operations guide](operations/guide.md)
 
@@ -212,10 +212,10 @@ Query result:
 ### Common questions
 
 **Q: Where do I put my database code?**
-A: Replace the mock data in the schema execution with real database queries. See [PATTERNS.md](guides/PATTERNS.md) for examples.
+A: Replace the mock data in the schema execution with real database queries. See [patterns.md](guides/patterns.md) for examples.
 
 **Q: How do I add authentication?**
-A: See the authentication pattern in [PATTERNS.md](guides/PATTERNS.md).
+A: See the authentication pattern in [patterns.md](guides/patterns.md).
 
 **Q: Can I use this in production?**
 A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](operations/guide.md).
@@ -243,7 +243,7 @@ A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](opera
 
 - Check your query syntax against the schema
 - Use the error message to identify the issue
-- See [patterns guide](guides/PATTERNS.md) for query help
+- See [patterns guide](guides/patterns.md) for query help
 
 ---
 
@@ -254,8 +254,8 @@ A: Yes! See [deployment guide](deployment/guide.md) and [operations guide](opera
 ✅ Executed a query
 ✅ Handled results and errors
 
-**Next**: Continue with [PATTERNS.md](guides/PATTERNS.md) for deeper understanding.
+**Next**: Continue with [patterns.md](guides/patterns.md) for deeper understanding.
 
 ---
 
-**Questions?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).
+**Questions?** See [troubleshooting.md](troubleshooting.md) for FAQ and solutions, or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL-v2).

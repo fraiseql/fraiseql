@@ -79,8 +79,8 @@ See [Production Deployment Guide](guide.md) for Kubernetes manifests and best pr
 
 Before deployment, configure:
 
-1. **Security**: [TLS Configuration](../configuration/TLS_CONFIGURATION.md), [Rate Limiting](../configuration/RATE_LIMITING.md)
-2. **Database**: [PostgreSQL Authentication](../configuration/POSTGRESQL_AUTHENTICATION.md)
+1. **Security**: [TLS Configuration](../configuration/tls-configuration.md), [Rate Limiting](../configuration/rate-limiting.md)
+2. **Database**: [PostgreSQL Authentication](../configuration/postgresql-authentication.md)
 3. **Operations**: [Observability](../operations/observability.md), [Distributed Tracing](../operations/distributed-tracing.md)
 
 ## Running Checks
@@ -107,7 +107,7 @@ Common deployment issues:
 - Database authentication failures
 - Rate limiting being too strict
 
-See [Troubleshooting Guide](../TROUBLESHOOTING.md) for solutions.
+See [Troubleshooting Guide](../troubleshooting.md) for solutions.
 
 ---
 

@@ -126,8 +126,8 @@ FraiseQL/
 │       └── src/                # PostgreSQL wire protocol
 │
 ├── docs/                        # Documentation
-│   ├── LINTING.md              # Code quality guide
-│   ├── DEVELOPER_GUIDE.md      # This file
+│   ├── linting.md              # Code quality guide
+│   ├── developer-guide.md      # This file
 │   ├── PERFORMANCE.md          # Performance tuning
 │   └── architecture/           # Architecture docs
 │
@@ -577,7 +577,7 @@ When reviewing code:
 - [Rust Book](https://doc.rust-lang.org/book/)
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
 - [FraiseQL Architecture](../../architecture/)
-- [Linting Guide](./LINTING.md)
+- [Linting Guide](./linting.md)
 
 ## Quick Reference
 
@@ -766,8 +766,8 @@ Happy coding! 🚀
 ## See Also
 
 - **[Testing Strategy](../testing-strategy.md)** - Unit, integration, and E2E testing approach
-- **[Linting & Code Quality](./LINTING.md)** - Code standards and Clippy configuration
+- **[Linting & Code Quality](./linting.md)** - Code standards and Clippy configuration
 - **[Benchmarking Guide](./benchmarking.md)** - Performance benchmarking with Criterion
-- **[Profiling Guide](./PROFILING_GUIDE.md)** - Performance profiling and optimization
+- **[Profiling Guide](./profiling-guide.md)** - Performance profiling and optimization
 - **[E2E Testing Guide](./e2e-testing.md)** - End-to-end testing infrastructure
 - **[Contributing Guide](../../../CONTRIBUTING.md)** - Contribution workflow and standards

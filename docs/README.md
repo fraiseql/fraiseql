@@ -1,7 +1,7 @@
 <!-- Skip to main content -->
 ---
 title: FraiseQL v2 Documentation
-description: > ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [ALPHA_LIMITATIONS.md](ALPHA_LIMITA
+description: > ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [alpha-limitations.md](ALPHA_LIMITA
 keywords: []
 tags: ["documentation", "reference"]
 ---
@@ -12,7 +12,7 @@ tags: ["documentation", "reference"]
 **Status:** Alpha release - Ready for community testing
 **Last Updated:** February 5, 2026
 
-> ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [ALPHA_LIMITATIONS.md](ALPHA_LIMITATIONS.md) for what's deferred. New to alpha? Start with the [Alpha Testing Guide](ALPHA_TESTING_GUIDE.md).
+> ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [alpha-limitations.md](alpha-limitations.md) for what's deferred. New to alpha? Start with the [Alpha Testing Guide](alpha-testing-guide.md).
 
 ---
 
@@ -21,10 +21,10 @@ tags: ["documentation", "reference"]
 **New to FraiseQL?** Start here:
 
 1. Read the main [README.md](../README.md) (5 minutes)
-2. **[Alpha Testing Guide](ALPHA_TESTING_GUIDE.md)** ⭐ — How to test and provide feedback
-3. **[Alpha Limitations](ALPHA_LIMITATIONS.md)** — What's not in this release
+2. **[Alpha Testing Guide](alpha-testing-guide.md)** ⭐ — How to test and provide feedback
+3. **[Alpha Limitations](alpha-limitations.md)** — What's not in this release
 4. Follow the [Reading Order Guide](reading-order.md) for your role
-5. Bookmark the [Glossary](GLOSSARY.md) for reference
+5. Bookmark the [Glossary](glossary.md) for reference
 
 ---
 
@@ -69,7 +69,7 @@ See [integrations/arrow-flight/](integrations/arrow-flight/) for guides on:
 
 High-level vision, philosophy, and system requirements.
 
-See [PRD.md](prd/PRD.md) for product requirements and design philosophy.
+See [prd.md](prd/prd.md) for product requirements and design philosophy.
 
 ### Architecture
 
@@ -112,19 +112,19 @@ Practical how-to guides for operators, developers, and DevOps teams.
 
 - **Evaluation**: ⭐ **[Choosing FraiseQL](guides/choosing-fraiseql.md)** — Should you use FraiseQL? Use case analysis and decision matrix
 - **Architecture**: ⭐ **[Consistency Model](guides/consistency-model.md)** — Understanding FraiseQL's CAP theorem choice (Consistency + Partition Tolerance)
-- **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/PATTERNS.md)
+- **Getting Started**: [Language Generators](guides/language-generators.md), [Patterns](guides/patterns.md)
 - **Deployment**: [Production Deployment](guides/production-deployment.md) — Kubernetes deployment
 - **Operations**: [Monitoring](guides/monitoring.md), [Observability](guides/observability.md), [Analytics Patterns](guides/analytics-patterns.md)
-- **Development**: [Testing Strategy](guides/testing-strategy.md), [Benchmarking](guides/development/benchmarking.md), [Profiling](guides/development/PROFILING_GUIDE.md)
+- **Development**: [Testing Strategy](guides/testing-strategy.md), [Benchmarking](guides/development/benchmarking.md), [Profiling](guides/development/profiling-guide.md)
 
 ### [Configuration](configuration/)
 
 Configuration reference for security, networking, and operations.
 
-- [Security Configuration](configuration/SECURITY_CONFIGURATION.md) — Security settings overview
-- [TLS/SSL Configuration](configuration/TLS_CONFIGURATION.md) — HTTPS and mutual TLS
-- [Rate Limiting](configuration/RATE_LIMITING.md) — Brute-force protection
-- [PostgreSQL Authentication](configuration/POSTGRESQL_AUTHENTICATION.md) — Database connection
+- [Security Configuration](configuration/security-configuration.md) — Security settings overview
+- [TLS/SSL Configuration](configuration/tls-configuration.md) — HTTPS and mutual TLS
+- [Rate Limiting](configuration/rate-limiting.md) — Brute-force protection
+- [PostgreSQL Authentication](configuration/postgresql-authentication.md) — Database connection
 
 ### [Deployment](deployment/)
 
@@ -170,7 +170,7 @@ Complete API and operator references.
 
 Historical record of architectural decisions and rationale.
 
-- [ADR-009: Federation Architecture](adrs/ADR-009-federation-architecture.md)
+- [ADR-009: Federation Architecture](adrs/adr-009-federation-architecture.md)
 
 ---
 
@@ -194,8 +194,8 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 | Topic | Document |
 |-------|----------|
 | **What is FraiseQL?** | [README.md](../README.md) |
-| **Key Concepts** | [GLOSSARY.md](GLOSSARY.md) |
-| **Design Philosophy** | [prd/PRD.md](prd/PRD.md) |
+| **Key Concepts** | [glossary.md](glossary.md) |
+| **Design Philosophy** | [prd/prd.md](prd/prd.md) |
 | **How Compilation Works** | [architecture/core/compilation-pipeline.md](architecture/core/compilation-pipeline.md) |
 | **How Execution Works** | [architecture/core/execution-model.md](architecture/core/execution-model.md) |
 | **Database Support** | [architecture/database/database-targeting.md](architecture/database/database-targeting.md) |
@@ -210,7 +210,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 **I want to...**
 
 - **Understand FraiseQL** → [Reading Order: New to FraiseQL](reading-order.md#new-to-FraiseQL-start-here)
-- **Evaluate for adoption** → [PRD](prd/PRD.md) + [Architecture Guide](architecture/)
+- **Evaluate for adoption** → [PRD](prd/prd.md) + [Architecture Guide](architecture/)
 - **Write schemas** → [Specs: Authoring Contract](specs/authoring-contract.md) + [Schema Conventions](specs/schema-conventions.md)
 - **Build a compiler** → [Reading Order: Compiler Developers](reading-order.md#for-compiler-developers)
 - **Extend the runtime** → [Reading Order: Runtime Developers](reading-order.md#for-runtime-developers)

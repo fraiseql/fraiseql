@@ -484,7 +484,7 @@ async function analyzeSchema(schemaPath: string) {
 - **Memory usage**: <100MB for enterprise schemas
 - **Throughput**: 10,000+ concurrent API requests
 
-See [DESIGN_QUALITY_PERFORMANCE.md](./DESIGN_QUALITY_PERFORMANCE.md) for details.
+See [design-quality-performance.md](./design-quality-performance.md) for details.
 
 ## Security
 
@@ -495,7 +495,7 @@ All design audit endpoints are secured with:
 - Error message sanitization
 - Authorization support
 
-See [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md) for details.
+See [design-quality-security.md](./design-quality-security.md) for details.
 
 ## Troubleshooting
 
@@ -547,5 +547,5 @@ A: Yes, save audit results and track trends.
 
 - API Reference: See `/api/v1/design/*` endpoints
 - CLI Help: `FraiseQL lint --help`
-- Performance: [DESIGN_QUALITY_PERFORMANCE.md](./DESIGN_QUALITY_PERFORMANCE.md)
-- Security: [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md)
+- Performance: [design-quality-performance.md](./design-quality-performance.md)
+- Security: [design-quality-security.md](./design-quality-security.md)

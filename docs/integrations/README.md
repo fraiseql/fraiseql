@@ -23,13 +23,13 @@ Integration guides for connecting FraiseQL with external services and databases.
 ### Authentication
 
 - **[Authentication Guide](authentication/README.md)** — Overview and setup
-- **[Auth0 Setup](authentication/SETUP-AUTH0.md)**
-- **[Google OAuth Setup](authentication/SETUP-GOOGLE-OAUTH.md)**
-- **[Keycloak Setup](authentication/SETUP-KEYCLOAK.md)**
-- **[SCRAM Authentication](authentication/SCRAM.md)**
+- **[Auth0 Setup](authentication/setup-auth0.md)**
+- **[Google OAuth Setup](authentication/setup-google-oauth.md)**
+- **[Keycloak Setup](authentication/setup-keycloak.md)**
+- **[SCRAM Authentication](authentication/scram.md)**
 - **[Deployment](authentication/DEPLOYMENT.md)**
-- **[Security Checklist](authentication/SECURITY-CHECKLIST.md)**
-- **[Troubleshooting](authentication/TROUBLESHOOTING.md)**
+- **[Security Checklist](authentication/security-checklist.md)**
+- **[Troubleshooting](authentication/troubleshooting.md)**
 
 ### Arrow Flight (Analytics)
 
