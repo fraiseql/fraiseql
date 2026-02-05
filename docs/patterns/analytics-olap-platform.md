@@ -63,162 +63,111 @@ Server -> Consumers: "Results"
 
 ---
 
-## Schema Design: Star Schema
+## Schema Design: FraiseQL Fact Tables (Denormalized OLAP)
 
-The star schema has a central fact table connected to multiple dimension tables:
+FraiseQL uses a **denormalized fact table pattern** optimized for fast analytics without expensive joins:
 
 ```d2
 direction: right
 
-Events: "Events\n(Fact Table)" {
+FactTable: "tf_events\n(Fact Table)" {
   shape: box
   style.fill: "#fff59d"
   style.border: "3px solid #f57f17"
+  children: [
+    Measures: "Measures (SQL columns)\nrevenue, quantity, sessions"
+    Dimensions: "Dimensions (JSONB)\nuser, product, category, region"
+    Filters: "Filters (Indexed)\nuser_id, occurred_at"
+  ]
 }
 
-Users: "Users\n(Dimension)" {
+Benefits: "✅ No expensive joins\n✅ Flexible dimensions\n✅ Fast GROUP BY" {
   shape: box
-  style.fill: "#b3e5fc"
+  style.fill: "#c8e6c9"
 }
 
-Products: "Products\n(Dimension)" {
-  shape: box
-  style.fill: "#b3e5fc"
-}
-
-DateDim: "Date\n(Dimension)" {
-  shape: box
-  style.fill: "#b3e5fc"
-}
-
-TimeDim: "Time\n(Dimension)" {
-  shape: box
-  style.fill: "#b3e5fc"
-}
-
-Geo: "Geography\n(Dimension)" {
-  shape: box
-  style.fill: "#b3e5fc"
-}
-
-Events -> Users: "user_id"
-Events -> Products: "product_id"
-Events -> DateDim: "event_date"
-Events -> TimeDim: "event_time"
-Events -> Geo: "country"
+FactTable -> Benefits
 ```
 
-**Key characteristics:**
+**Why FraiseQL's Pattern?**
 
-- **Fact table** (center): Contains transactional events with billions of rows, indexed for fast queries
-- **Dimension tables** (around): Reference data for filtering and grouping (users, products, dates, time, geography)
-- **Foreign keys**: Fact table references all dimensions for efficient joins
-- **Pre-computed aggregates**: Optional materialized views for common aggregations
+| Aspect | Traditional Star Schema | FraiseQL Fact Tables |
+|--------|----------------------|-------------------|
+| **Structure** | Fact table + multiple dimension tables | Single denormalized fact table |
+| **Joins** | Multiple expensive joins per query | No joins needed |
+| **Dimensions** | Fixed schema columns | JSONB with flexible schema |
+| **Query Speed** | Slower (N joins) | Faster (no joins) |
+| **Schema Flexibility** | Hard to add dimensions | Easy (JSONB expansion) |
 
 ---
 
-### Fact Tables (Events)
+### Fact Tables (tf_events)
+
+FraiseQL fact tables follow a three-part structure:
 
 ```sql
--- Events (fact table - billions of rows possible)
-CREATE TABLE events (
+-- Fact table with measures, JSONB dimensions, and indexed filters
+CREATE TABLE tf_events (
+  -- Row identifier
   event_id BIGSERIAL PRIMARY KEY,
-  event_date DATE NOT NULL,  -- Partitioned by date
-  event_timestamp TIMESTAMP NOT NULL,
-  user_id UUID NOT NULL,
-  product_id UUID NOT NULL,
-  order_id UUID,
-  event_type VARCHAR(50) NOT NULL,  -- view, click, purchase, etc.
-  event_properties JSONB,  -- Flexible schema for custom properties
-  revenue DECIMAL(12, 2),  -- NULL for non-purchase events
-  quantity INT,
-  session_id VARCHAR(100),
-  device_type VARCHAR(50),
-  country VARCHAR(2),
-  source VARCHAR(100),  -- utm_source, referrer, etc.
 
+  -- MEASURES: Numeric columns for fast aggregation
+  revenue DECIMAL(12, 2),
+  quantity INT,
+  cost DECIMAL(12, 2),
+  sessions INT,
+
+  -- DIMENSIONS: JSONB for flexible GROUP BY
+  -- Contains: user_category, product, region, country, utm_source, etc.
+  data JSONB NOT NULL,
+
+  -- FILTERS: Indexed denormalized columns for fast WHERE
+  user_id UUID NOT NULL,
+  occurred_at TIMESTAMP NOT NULL,
+
+  -- Temporal partitioning
+  event_date DATE NOT NULL,  -- Partition key
+
+  -- Audit columns
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  -- Indexes for query performance
   INDEX idx_event_date (event_date),
-  INDEX idx_event_type (event_type),
   INDEX idx_user_id (user_id),
-  INDEX idx_product_id (product_id),
-  INDEX idx_timestamp (event_timestamp)
+  INDEX idx_occurred_at (occurred_at),
+  INDEX idx_data GIN (data)
 ) PARTITION BY RANGE (event_date);
 
--- Create partitions (monthly)
-CREATE TABLE events_2024_01 PARTITION OF events
+-- Create monthly partitions
+CREATE TABLE tf_events_2024_01 PARTITION OF tf_events
   FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
-CREATE TABLE events_2024_02 PARTITION OF events
+CREATE TABLE tf_events_2024_02 PARTITION OF tf_events
   FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
--- ... etc
-```text
+-- ... continue for each month
+```
 
-### Dimension Tables (Reference Data)
+**Key components:**
 
-```sql
--- Users Dimension (slowly changing dimension - Type 2)
-CREATE TABLE dim_users (
-  user_key BIGSERIAL PRIMARY KEY,
-  user_id UUID NOT NULL,
-  email VARCHAR(255),
-  full_name VARCHAR(255),
-  country VARCHAR(2),
-  signup_date DATE,
-  lifetime_value DECIMAL(12, 2),
-  customer_segment VARCHAR(50),  -- vip, regular, at_risk
-  last_activity_date DATE,
-  valid_from TIMESTAMP DEFAULT NOW(),
-  valid_to TIMESTAMP DEFAULT '9999-12-31'::TIMESTAMP,
-  is_current BOOLEAN DEFAULT TRUE,
+1. **Measures** (numeric columns):
+   - `revenue`, `quantity`, `cost`, `sessions`
+   - Used in `SUM()`, `AVG()`, `COUNT()` aggregations
+   - Keep these as direct SQL columns for performance
 
-  INDEX idx_user_id (user_id),
-  INDEX idx_is_current (is_current)
-);
+2. **Dimensions** (JSONB column):
+   - Single `data` JSONB column containing flexible schema
+   - Paths like `data->>'user_category'`, `data->>'product'`, `data->>'region'`
+   - Easy to add new dimensions without schema migration
+   - Query with operators: `->>` (text), `->` (JSON), `@>` (contains)
 
--- Products Dimension
-CREATE TABLE dim_products (
-  product_key BIGSERIAL PRIMARY KEY,
-  product_id UUID NOT NULL UNIQUE,
-  product_name VARCHAR(255) NOT NULL,
-  category VARCHAR(100),
-  subcategory VARCHAR(100),
-  brand VARCHAR(100),
-  price DECIMAL(12, 2),
-  cost DECIMAL(12, 2),
-  supplier_id UUID,
-  created_date DATE,
+3. **Filters** (indexed columns):
+   - `user_id`, `occurred_at` - denormalized for fast WHERE
+   - Must be indexed: `INDEX idx_user_id (user_id)`
+   - Avoid searching these values in JSONB (slow)
 
-  INDEX idx_category (category),
-  INDEX idx_brand (brand)
-);
-
--- Date Dimension (pre-computed for fast grouping)
-CREATE TABLE dim_date (
-  date_key INT PRIMARY KEY,
-  date DATE UNIQUE,
-  year INT,
-  month INT,
-  day INT,
-  quarter INT,
-  week_of_year INT,
-  day_of_week INT,
-  day_name VARCHAR(10),
-  month_name VARCHAR(10),
-  is_weekend BOOLEAN,
-  is_holiday BOOLEAN,
-
-  INDEX idx_date (date)
-);
-
--- Time Dimension (for intraday analysis)
-CREATE TABLE dim_time (
-  time_key INT PRIMARY KEY,
-  time_of_day TIME,
-  hour INT,
-  minute INT,
-  second INT,
-  period_of_day VARCHAR(20)  -- morning, afternoon, evening, night
-);
-```text
+4. **Temporal structure**:
+   - Partition by `event_date` (monthly or daily)
+   - Improves query speed for time-range filters
+   - Enables archival of old partitions
 
 ### Aggregate Tables (Pre-Computed)
 
@@ -268,47 +217,52 @@ CREATE TABLE agg_cohorts (
 
 ## FraiseQL OLAP Schema
 
+FraiseQL uses a **fact table pattern** with measures (SQL columns) and dimensions (JSONB):
+
 ```python
 # analytics_schema.py
 from FraiseQL import types
 from decimal import Decimal
 from datetime import datetime, date
 
+@types.fact_table(
+    table_name="tf_events",
+    measures=["revenue", "quantity", "sessions"],
+    dimension_column="data",
+    dimension_paths=[
+        {"name": "product_id", "json_path": "data->>'product_id'", "data_type": "text"},
+        {"name": "category", "json_path": "data->>'category'", "data_type": "text"},
+        {"name": "region", "json_path": "data->>'region'", "data_type": "text"},
+        {"name": "source", "json_path": "data->>'source'", "data_type": "text"},
+        {"name": "device_type", "json_path": "data->>'device_type'", "data_type": "text"},
+    ]
+)
 @types.object
 class Event:
-    """Raw event data (fact table)"""
+    """Event fact table - denormalized for fast analytics"""
     event_id: int
     event_date: date
     event_timestamp: datetime
-    user_id: str
-    product_id: str
-    event_type: str
-    revenue: Decimal | None
-    quantity: int | None
-    country: str
-    source: str
 
-@types.object
-class DimUser:
-    """User dimension (reference data)"""
-    user_id: str
-    email: str
-    full_name: str
-    country: str
-    signup_date: date
-    lifetime_value: Decimal
-    customer_segment: str
-    last_activity_date: date
+    # MEASURES: Numeric columns for fast SUM/AVG/COUNT aggregation
+    revenue: Decimal | None              # NULL for non-purchase events
+    quantity: int | None                 # NULL for non-sale events
+    sessions: int | None                 # Session count
 
-@types.object
-class DimProduct:
-    """Product dimension"""
-    product_id: str
-    product_name: str
-    category: str
-    brand: str
-    price: Decimal
-    cost: Decimal
+    # DIMENSIONS: JSONB for flexible GROUP BY
+    # Includes: product_id, category, region, source, device_type
+    dimensions: dict                     # data JSONB column
+
+    # FILTERS: Indexed denormalized columns for fast WHERE clauses
+    user_id: str                         # Indexed for fast filtering
+    occurred_at: datetime                # Indexed for time-range queries
+```
+
+**Schema mapping:**
+
+- `revenue`, `quantity`, `sessions` → **Measures** (direct columns, fast aggregation)
+- `dimensions` dict (JSONB column `data`) → **Dimensions** (flexible, no joins needed)
+- `user_id`, `occurred_at` → **Filters** (indexed for WHERE performance)
 
 @types.object
 class MetricResult:
