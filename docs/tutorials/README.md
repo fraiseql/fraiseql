@@ -412,7 +412,7 @@ Want to contribute a tutorial?
 - **[Full-Stack Architecture](fullstack-python-react.md)** - Python → FraiseQL → React end-to-end
 - **[Language Generators Guide](../guides/language-generators.md)** - Overview of all schema authoring languages
 - **[Schema Design Best Practices](../guides/schema-design-best-practices.md)** - Design patterns and principles
-- **[Frontend Integration Guide](../guides/frontend-integration.md)** - React, Apollo Client, and other frontends
+- **[Frontend Integration Guide](../guides/clients/README.md)** - React, Apollo Client, and other frontends
 - **[Testing Strategy](../guides/testing-strategy.md)** - Comprehensive testing approaches
 - **[Deployment Guide](../deployment/)** - Production deployment strategies
 - **[CLI Reference](../reference/)** - FraiseQL-cli command reference

@@ -1143,7 +1143,7 @@ go tool pprof cpu.prof
 
 ## See Also
 
-- **Architecture Guide**: [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)
+- **Architecture Guide**: [FraiseQL Architecture Principles](../../architecture/README.md)
 - **Python SDK**: [Python Reference](./python-reference.md)
 - **TypeScript SDK**: [TypeScript Reference](./typescript-reference.md)
 - **Database Patterns**: [SQL View & Function Patterns](../../guides/database-selection-guide.md)

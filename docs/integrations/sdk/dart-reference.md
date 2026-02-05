@@ -1078,13 +1078,13 @@ void main() {
 
 ## See Also
 
-- [FraiseQL Python SDK Reference](/docs/integrations/sdk/python-reference.md) - Schema authoring guide
-- [FraiseQL Swift SDK Reference](/docs/integrations/sdk/swift-reference.md) - iOS/macOS integration
-- [Flutter State Management Guide](/docs/integrations/flutter/state-management.md) - Provider, Riverpod, GetX
-- [JSON Serialization Best Practices](/docs/integrations/json-serialization.md) - json_serializable patterns
+- [FraiseQL Python SDK Reference](python-reference.md) - Schema authoring guide
+- [FraiseQL Swift SDK Reference](swift-reference.md) - iOS/macOS integration
+- [Flutter State Management Guide](../README.md) - Provider, Riverpod, GetX
+- [JSON Serialization Best Practices](../../integrations/README.md) - json_serializable patterns
 - [Null Safety in Dart](https://dart.dev/null-safety) - Official Dart null safety documentation
 - [Flutter Official Documentation](https://flutter.dev) - Flutter framework reference
-- [FraiseQL Architecture](/do../../../ARCHITECTURE_PRINCIPLES.md) - System design principles
+- [FraiseQL Architecture](../../architecture/README.md) - System design principles
 
 ---
 

@@ -376,7 +376,7 @@ subscription OnUserOnline {
 
 **Full-Stack Examples:**
 
-- [Python + React Example](../examples/fullstack-python-react.md)
+- [Python + React Example](../tutorials/fullstack-python-react.md)
 - [TypeScript + Vue Example](../examples/fullstack-typescript-vue.md)
 - [Go + Flutter Example](../examples/fullstack-go-flutter.md)
 - [Java + Next.js Example](../examples/fullstack-java-nextjs.md)

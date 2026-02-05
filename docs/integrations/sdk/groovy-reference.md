@@ -1007,14 +1007,14 @@ class SchemaJunitTest {
 
 ## See Also
 
-- [API Guide](../../../FraiseQL-groovy/API_GUIDE.md) - Detailed API reference
+- [API Guide](../../reference/README.md) - Detailed API reference
 - [Java SDK Reference](./java-reference.md) - Java SDK documentation
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization patterns
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables and aggregations
 - [GraphQL Scalar Types](../../reference/scalars.md) - Complete scalar type reference
-- [Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
+- [Architecture Principles](../../architecture/README.md) - System design
 
 ---
 

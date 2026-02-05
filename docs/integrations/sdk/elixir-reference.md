@@ -666,9 +666,9 @@ end
 
 ## See Also
 
-- [FraiseQL Architecture Guide](../../../../ARCHITECTURE_PRINCIPLES.md)
+- [FraiseQL Architecture Guide](../../architecture/README.md)
 - [Schema Compilation Pipeline](../../foundation/06-compilation-pipeline.md)
-- [Phoenix Framework Integration](../../guides/choosing-FraiseQL.md)
+- [Phoenix Framework Integration](../../guides/choosing-fraiseql.md)
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md)
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md)
 - [Python Reference](./python-reference.md)

@@ -1260,7 +1260,7 @@ clinic doctor -- node dist/index.js
 - [GraphQL Scalars Reference](../../reference/scalars.md)
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md)
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md)
-- [Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)
+- [Architecture Principles](../../architecture/README.md)
 - [TypeScript SDK GitHub](https://github.com/FraiseQL/FraiseQL-typescript)
 
 ---

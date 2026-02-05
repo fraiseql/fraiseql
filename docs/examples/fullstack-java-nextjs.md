@@ -2692,7 +2692,7 @@ This full-stack example demonstrates FraiseQL's complete architecture:
 
 For more information, see:
 
-- [FraiseQL Architecture](../../../ARCHITECTURE_PRINCIPLES.md)
-- [Java SDK Documentation](../../../integrations/sdk/java-reference.md)
-- [Next.js Integration Guide](../../../guides/choosing-FraiseQL.md)
-- [GraphQL API Reference](../../reference/README.md)
+- [FraiseQL Architecture](../architecture/README.md)
+- [Java SDK Documentation](../../docs/integrations/sdk/java-reference.md)
+- [Next.js Integration Guide](../../docs/guides/choosing-fraiseql.md)
+- [GraphQL API Reference](../../docs/reference/README.md)

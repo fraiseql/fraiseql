@@ -521,14 +521,14 @@ def processSearchResults(results: List[SearchResult]): Unit =
 ```scala
 // Typeclass for GraphQL serialization
 trait GraphQLSerializable[T]:
-  def toGraphQL(value: T): String
+  def toGraphQL(): String
 
 given GraphQLSerializable[User] with
   def toGraphQL(user: User): String =
     s"""{ id: ${user.id}, name: "${user.name}" }"""
 
 // Implicit extension methods
-extension [T: GraphQLSerializable](value: T)
+extension [T: GraphQLSerializable]()
   def toGraphQL: String = summon[GraphQLSerializable[T]].toGraphQL(value)
 ```
 
@@ -1032,7 +1032,7 @@ Provide:
 ## See Also
 
 - **[Fact Tables Guide](../../architecture/analytics/fact-dimension-pattern.md)** — Analytics dimension modeling
-- **[Schema Validation](../../guides/schema-validation.md)** — Compile-time schema validation
+- **[Schema Validation](../../guides/README.md)** — Compile-time schema validation
 - **[CLI Reference](../../reference/cli-commands-cheatsheet.md)** — `FraiseQL-cli` commands and options
 - **[Cats Library](https://typelevel.org/cats/)** — Functional effect composition patterns
 - **[Scala Documentation](https://docs.scala-lang.org/)** — Official Scala language reference

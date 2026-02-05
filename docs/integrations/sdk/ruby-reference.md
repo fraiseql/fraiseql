@@ -717,10 +717,10 @@ end
 
 ## See Also
 
-- [FraiseQL Compiler Documentation](../../compiler/)
-- [Rails Integration Guide](../../../integrations/authentication/README.md)
+- [FraiseQL Compiler Documentation](../../guides/README.md)
+- [Rails Integration Guide](../../integrations/authentication/README.md)
 - [Security Best Practices](../../guides/)
-- [GraphQL Schema Design Patterns](../../architecture/core/schema-design.md)
+- [GraphQL Schema Design Patterns](../../architecture/README.md)
 - [RBAC Implementation Guide](../../guides/authorization-quick-start.md)
 - [Performance Tuning](../../performance/)
 
@@ -1273,7 +1273,7 @@ StackProf.results('tmp/stackprof.dump').print_text
 ## See Also
 
 - [Security Best Practices](../../guides/)
-- [GraphQL Schema Design Patterns](../../architecture/core/schema-design.md)
+- [GraphQL Schema Design Patterns](../../architecture/README.md)
 - [RBAC Implementation Guide](../../guides/authorization-quick-start.md)
 - [Performance Tuning](../../performance/)
 

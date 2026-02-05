@@ -389,7 +389,7 @@ export function CollaborativeEditor({ documentId }: { documentId: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [content, setContent] = useState('');
   const [vectorClock, setVectorClock] = useState<Record<string, number>>({});
-  const [editors, setEditors] = useState<any[]>([]);
+  const [editors, setEditors] = useState<any[]>[]);
   const userId = getCurrentUserId();
 
   // Fetch initial document
@@ -442,7 +442,7 @@ export function CollaborativeEditor({ documentId }: { documentId: string }) {
   // Handle local edits
   const handleChange = useCallback(
     async (e: React.ChangeEvent<HTMLDivElement>) => {
-      const newContent = e.currentTarget.textContent || '';
+      const newContent = e.currentTarget.textContent'';
       const operation = detectOperation(content, newContent);
 
       // Update local state immediately

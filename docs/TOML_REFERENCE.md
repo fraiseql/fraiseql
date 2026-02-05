@@ -515,5 +515,5 @@ invalidate_on = ["User"]
 For more information:
 
 - [Migration Guide](./MIGRATION_GUIDE.md)
-- [API Documentation](./API.md)
-- [Examples](../tests/integration/examples/)
+- [API Documentation](reference/README.md)
+- [Examples](../examples/)

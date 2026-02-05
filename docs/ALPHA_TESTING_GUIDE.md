@@ -154,7 +154,7 @@ CREATE VIEW v_users AS
 SELECT id, name, email FROM tb_user;
 ```text
 
-For other databases, see [Database Schema Conventions](docs/specs/schema-conventions.md).
+For other databases, see [Database Schema Conventions](specs/schema-conventions.md).
 
 ### 5. Run Server
 

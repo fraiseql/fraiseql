@@ -71,7 +71,7 @@ Complete API and operator references.
 
 ### REST API Reference
 
-- **[API Reference](api/)** — Complete HTTP API endpoint documentation
+- **[API Reference](api/GRAPHQL_API.md)** — Complete HTTP API endpoint documentation
 
 ---
 

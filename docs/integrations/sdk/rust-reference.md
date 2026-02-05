@@ -1266,7 +1266,7 @@ async fn fetch_user(id: i32) -> User {
 
 ## See Also
 
-- [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
+- [FraiseQL Architecture Principles](../../architecture/README.md) - System design
 - [GraphQL Scalar Types Reference](../../reference/scalars.md) - 60+ types
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables

@@ -756,12 +756,12 @@ class UserQueriesTest extends SchemaTestCase
 
 ## See Also
 
-- [Type System Guide](../../../docs/TYPE_SYSTEM.md)
-- [Schema Design Patterns](../../../docs/DESIGN_PATTERNS.md)
-- [RBAC Implementation](../../../docs/SECURITY_PATTERNS.md)
-- [Laravel Integration](./laravel-integration.md)
-- [Symfony Integration](./symfony-integration.md)
-- [Testing Guide](../reference/README.md)
+- [Type System Guide](../../reference/scalars.md)
+- [Schema Design Patterns](../../patterns/README.md)
+- [RBAC Implementation](../../architecture/security/security-model.md)
+- [Laravel Integration](https://laravel.com/docs/)
+- [Symfony Integration](https://symfony.com/doc/current/)
+- [Testing Guide](../../reference/README.md)
 - [API Reference](https://github.com/FraiseQL/FraiseQL/tree/dev/docs/api)
 
 ---

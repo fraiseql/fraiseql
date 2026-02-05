@@ -1045,10 +1045,10 @@ public class IntegrationTests : IAsyncLifetime
 - **[Python SDK Reference](./python-reference.md)** - Python authoring interface
 - **[TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
 - **[Go SDK Reference](./go-reference.md)** - Go runtime and server integration
-- **[Rust Core](../../core/architecture.md)** - FraiseQL compiler and runtime
+- **[Rust Core](../../architecture/README.md)** - FraiseQL compiler and runtime
 - **[Security Configuration](../../integrations/authentication/README.md)** - RBAC and authentication
-- **[Deployment Guide](../../deployment/docker.md)** - Docker, Kubernetes, cloud platforms
-- **[Performance Tuning](../../performance/query-optimization.md)** - Benchmarking and optimization
+- **[Deployment Guide](../../operations/configuration.md)** - Docker, Kubernetes, cloud platforms
+- **[Performance Tuning](../../operations/performance-tuning-runbook.md)** - Benchmarking and optimization
 
 ---
 
@@ -1513,10 +1513,10 @@ Provide:
 - **[Java SDK Reference](./java-reference.md)** - Java authoring interface
 - **[TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
 - **[Go SDK Reference](./go-reference.md)** - Go runtime and server integration
-- **[Rust Core](../../core/architecture.md)** - FraiseQL compiler and runtime
+- **[Rust Core](../../architecture/README.md)** - FraiseQL compiler and runtime
 - **[Security Configuration](../../integrations/authentication/README.md)** - RBAC and authentication
-- **[Deployment Guide](../../deployment/docker.md)** - Docker, Kubernetes, cloud platforms
-- **[Performance Tuning](../../performance/query-optimization.md)** - Benchmarking and optimization
+- **[Deployment Guide](../../operations/configuration.md)** - Docker, Kubernetes, cloud platforms
+- **[Performance Tuning](../../operations/performance-tuning-runbook.md)** - Benchmarking and optimization
 
 ---
 

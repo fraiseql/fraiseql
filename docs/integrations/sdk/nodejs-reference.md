@@ -672,7 +672,7 @@ const result = await client.query('tenantUsers', {
 - [GraphQL Scalars Reference](../../reference/scalars.md) - Complete scalar types list
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization patterns
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables and aggregations
-- [Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
+- [Architecture Principles](../../architecture/README.md) - System design
 - [Node.js SDK GitHub](https://github.com/FraiseQL/FraiseQL-nodejs)
 
 ---
@@ -919,7 +919,7 @@ Provide:
 - [TypeScript SDK Reference](./typescript-reference.md) - Schema authoring
 - [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization patterns
 - [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables and aggregations
-- [Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
+- [Architecture Principles](../../architecture/README.md) - System design
 - [Node.js SDK GitHub](https://github.com/FraiseQL/FraiseQL-nodejs)
 
 ---

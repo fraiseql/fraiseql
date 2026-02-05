@@ -901,7 +901,7 @@ class SchemaValidationTest {
 ## See Also
 
 - [Kotlin Documentation](https://kotlinlang.org/) - Official Kotlin language docs
-- [FraiseQL Architecture Guide](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
+- [FraiseQL Architecture Guide](../../architecture/README.md) - System design
 - [Java SDK Reference](./java-reference.md) - Comparison with Java SDK
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation

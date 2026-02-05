@@ -2063,7 +2063,7 @@ if (error) {
 ### Learning Resources
 
 - **FraiseQL CLI Reference:** `../reference/cli.md`
-- **Schema Design Guide:** `../guid../../architecture/core/schema-design.md`
+- **Schema Design Guide:** `../guid../../docs/architecture/core/schema-design.md`
 - **React & Apollo Best Practices:** `../guides/frontend-integration.md`
 - **Database Design:** `../patterns/database-schema-patterns.md`
 

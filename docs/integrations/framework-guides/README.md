@@ -1236,7 +1236,7 @@ CMD ["python", "/app/app.py"]
 ## See Also
 
 - **SDK References**: [Python](../sdk/python-reference.md) | [TypeScript](../sdk/typescript-reference.md) | [Go](../sdk/go-reference.md) | [Java](../sdk/java-reference.md) | [Ruby](../sdk/ruby-reference.md)
-- **Architecture**: [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)
+- **Architecture**: [FraiseQL Architecture Principles](../../architecture/README.md)
 - **Authentication**: [Auth Integration Guide](../authentication/README.md)
 - **Deployment**: [Deployment Guide](../../guides/production-deployment.md)
 - **API Federation**: [Federation Guide](../federation/README.md)
