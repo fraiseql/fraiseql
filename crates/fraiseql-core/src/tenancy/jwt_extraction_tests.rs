@@ -16,8 +16,8 @@ fn test_extract_tenant_from_jwt_claims() {
         "sub": "user123",
         "tenant_id": "acme-corp",
         "email": "alice@acme.com",
-        "iat": 1234567890,
-        "exp": 1234571490
+        "iat": 1_234_567_890,
+        "exp": 1_234_571_490
     });
 
     // Extract tenant_id from claims
@@ -35,7 +35,7 @@ fn test_missing_tenant_id_in_jwt() {
     let claims = json!({
         "sub": "user123",
         "email": "alice@example.com",
-        "iat": 1234567890
+        "iat": 1_234_567_890
     });
 
     let tenant_id = claims.get("tenant_id").and_then(|v| v.as_str());

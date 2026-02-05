@@ -244,10 +244,10 @@ impl SagaExecutor {
 
             // Find the step we're executing
             let step_id = Uuid::new_v4(); // Placeholder ID for error reporting
-            let saga_step =
-                steps.iter().find(|s| s.order == step_number as usize).ok_or_else(|| {
-                    crate::federation::saga_store::SagaStoreError::StepNotFound(step_id)
-                })?;
+            let saga_step = steps
+                .iter()
+                .find(|s| s.order == step_number as usize)
+                .ok_or(crate::federation::saga_store::SagaStoreError::StepNotFound(step_id))?;
 
             // 2. Check step state is Pending
             if saga_step.state != StepState::Pending {

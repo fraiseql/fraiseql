@@ -191,7 +191,10 @@ impl AuditEvent {
         match self.status.as_str() {
             "success" | "failure" | "denied" => {},
             _ => {
-                return Err(AuditError::ValidationError(format!("Invalid status: {}", self.status)));
+                return Err(AuditError::ValidationError(format!(
+                    "Invalid status: {}",
+                    self.status
+                )));
             },
         }
 

@@ -44,7 +44,7 @@ impl PostgresAuditBackend {
             .map_err(|e| AuditError::DatabaseError(format!("Failed to get connection: {}", e)))?;
 
         // Create audit_log table if not exists
-        let create_table_sql = r#"
+        let create_table_sql = r"
             CREATE TABLE IF NOT EXISTS audit_log (
                 id UUID PRIMARY KEY,
                 timestamp TIMESTAMPTZ NOT NULL,
@@ -62,7 +62,7 @@ impl PostgresAuditBackend {
                 tenant_id VARCHAR(255),
                 metadata JSONB NOT NULL DEFAULT '{}'::JSONB
             )
-        "#;
+        ";
 
         client
             .execute(create_table_sql, &[])
@@ -127,7 +127,7 @@ impl AuditBackend for PostgresAuditBackend {
             .map_err(|e| AuditError::DatabaseError(format!("Invalid timestamp format: {}", e)))?
             .with_timezone(&chrono::Utc);
 
-        let insert_sql = r#"
+        let insert_sql = r"
             INSERT INTO audit_log (
                 id, timestamp, event_type, user_id, username, ip_address,
                 resource_type, resource_id, action, before_state, after_state,
@@ -137,7 +137,7 @@ impl AuditBackend for PostgresAuditBackend {
                 $7, $8, $9, $10, $11,
                 $12, $13, $14, $15
             )
-        "#;
+        ";
 
         client
             .execute(

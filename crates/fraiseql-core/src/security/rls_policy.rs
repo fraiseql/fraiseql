@@ -369,14 +369,12 @@ fn evaluate_rls_expression(
         let right = eq_parts.1.trim();
 
         // Left side: user.{field}
-        if left.starts_with("user.") {
-            let user_field = &left[5..];
+        if let Some(user_field) = left.strip_prefix("user.") {
             let user_value = extract_user_value(user_field, context);
 
             // Right side: object.{field} or literal
-            if right.starts_with("object.") {
+            if let Some(object_field) = right.strip_prefix("object.") {
                 // Return a field comparison filter
-                let object_field = &right[7..];
                 return Ok(Some(WhereClause::Field {
                     path:     vec![object_field.to_string()],
                     operator: crate::db::WhereOperator::Eq,

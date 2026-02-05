@@ -113,7 +113,7 @@ impl Default for RequirePermissionDirective {
 }
 
 impl DirectiveHandler for RequirePermissionDirective {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "require_permission"
     }
 
