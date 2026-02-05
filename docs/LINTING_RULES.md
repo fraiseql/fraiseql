@@ -1,6 +1,6 @@
 # FraiseQL Linting Rules Reference
 
-### Comprehensive guide to FraiseQL's design quality rules
+## Comprehensive guide to FraiseQL's design quality rules
 
 Each rule detects patterns that conflict with FraiseQL's compilation model. Violations don't prevent compilation—they reduce design quality scores and flag potential issues.
 

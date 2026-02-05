@@ -718,10 +718,10 @@ end
 ## See Also
 
 - [FraiseQL Compiler Documentation](../../compiler/)
-- [Rails Integration Guide](../../authentication/rails.md)
-- [Security Best Practices](../../security/)
-- [GraphQL Schema Design Patterns](../schema-design.md)
-- [RBAC Implementation Guide](../rbac.md)
+- [Rails Integration Guide](../../../integrations/authentication/README.md)
+- [Security Best Practices](../../guides/)
+- [GraphQL Schema Design Patterns](../../architecture/core/schema-design.md)
+- [RBAC Implementation Guide](../../guides/authorization-quick-start.md)
 - [Performance Tuning](../../performance/)
 
 ---
@@ -1272,11 +1272,11 @@ StackProf.results('tmp/stackprof.dump').print_text
 
 ## See Also
 
-- [Security Best Practices](../../security/)
-- [GraphQL Schema Design Patterns](../schema-design.md)
-- [RBAC Implementation Guide](../rbac.md)
+- [Security Best Practices](../../guides/)
+- [GraphQL Schema Design Patterns](../../architecture/core/schema-design.md)
+- [RBAC Implementation Guide](../../guides/authorization-quick-start.md)
 - [Performance Tuning](../../performance/)
 
 ---
 
-**Questions?** See [FAQ](../../faq.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).
+**Questions?** See [FAQ](../../FAQ.md) or open an issue on [GitHub](https://github.com/FraiseQL/FraiseQL).

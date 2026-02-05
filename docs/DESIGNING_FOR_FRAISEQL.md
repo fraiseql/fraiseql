@@ -1,6 +1,6 @@
 # Designing Schemas for FraiseQL
 
-### Master the art of architecting GraphQL for compiled SQL execution
+## Master the art of architecting GraphQL for compiled SQL execution
 
 This guide covers design patterns specific to FraiseQL's compilation model. FraiseQL automatically optimizes SQL execution for your schema, but *architectural decisions* matter—and matter a lot.
 

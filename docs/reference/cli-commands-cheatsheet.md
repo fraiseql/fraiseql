@@ -607,4 +607,4 @@ FraiseQL commands
 
 - **[Scalar Types Cheatsheet](./scalar-types-cheatsheet.md)** - Type reference
 - **[WHERE Operators Cheatsheet](./where-operators-cheatsheet.md)** - Filtering syntax
-- **[Configuration Parameters Cheatsheet](./configuration-parameters-cheatsheet.md)** - TOML settings
+- **[Configuration Parameters Cheatsheet](../reference/cli-commands-cheatsheet.md)** - TOML settings

@@ -123,7 +123,7 @@ Produced by external authentication providers and consumed by authorization enfo
 
 - `docs/prd/PRD.md` Section 4 — Security model
 - `docs/specs/security-compliance.md` — Authentication integration
-- `docs/enterprise/rbac.md` — Role-based authorization
+- `docs/enterpri../../guides/authorization-quick-start.md` — Role-based authorization
 
 **See also:** Authorization, Authentication Provider
 
@@ -179,7 +179,7 @@ Authorization in FraiseQL:
 **Related specs:**
 
 - `docs/prd/PRD.md` Section 4.3 — Authorization
-- `docs/enterprise/rbac.md` — Role-based access control
+- `docs/enterpri../../guides/authorization-quick-start.md` — Role-based access control
 - `docs/specs/authoring-contract.md` — Authorization declarations
 
 **See also:** AuthContext, RBAC, Field-Level Authorization
@@ -592,7 +592,7 @@ Example: All users can see `User.name`, but only admins can see `User.email`.
 
 **Related specs:**
 
-- `docs/enterprise/rbac.md` Section 6 — Field-level authorization
+- `docs/enterpri../../guides/authorization-quick-start.md` Section 6 — Field-level authorization
 - `docs/architecture/core/execution-model.md` Section 7.3 — Filtering during projection
 
 **See also:** Authorization, RBAC
@@ -898,7 +898,7 @@ Caches the full response of a query:
 
 **Related specs:**
 
-- `docs/enterprise/rbac.md` — Complete RBAC specification
+- `docs/enterpri../../guides/authorization-quick-start.md` — Complete RBAC specification
 - `docs/prd/PRD.md` Section 4.3 — Authorization
 
 **See also:** Authorization, Field-Level Authorization, AuthContext

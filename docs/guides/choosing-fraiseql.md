@@ -626,5 +626,5 @@ If the answers are mixed, discuss trade-offs with your team. Every architecture 
 
 - [Consistency Model Deep Dive](./consistency-model.md)
 - [Production Deployment](./production-deployment.md)
-- [Foundation Concepts](../foundation/01-what-is-FraiseQL.md)
+- [Foundation Concepts](../foundation/01-what-is-fraiseql.md)
 - [Core Architecture](../foundation/02-core-concepts.md)

@@ -1,6 +1,6 @@
 # CI/CD Integration Guide
 
-### Integrate FraiseQL design quality checks into your development workflow
+## Integrate FraiseQL design quality checks into your development workflow
 
 This guide shows how to enforce design quality standards in continuous integration pipelines.
 

@@ -1046,7 +1046,7 @@ public class IntegrationTests : IAsyncLifetime
 - **[TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
 - **[Go SDK Reference](./go-reference.md)** - Go runtime and server integration
 - **[Rust Core](../../core/architecture.md)** - FraiseQL compiler and runtime
-- **[Security Configuration](../authentication/oauth2-oidc.md)** - RBAC and authentication
+- **[Security Configuration](../../integrations/authentication/README.md)** - RBAC and authentication
 - **[Deployment Guide](../../deployment/docker.md)** - Docker, Kubernetes, cloud platforms
 - **[Performance Tuning](../../performance/query-optimization.md)** - Benchmarking and optimization
 
@@ -1514,7 +1514,7 @@ Provide:
 - **[TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
 - **[Go SDK Reference](./go-reference.md)** - Go runtime and server integration
 - **[Rust Core](../../core/architecture.md)** - FraiseQL compiler and runtime
-- **[Security Configuration](../authentication/oauth2-oidc.md)** - RBAC and authentication
+- **[Security Configuration](../../integrations/authentication/README.md)** - RBAC and authentication
 - **[Deployment Guide](../../deployment/docker.md)** - Docker, Kubernetes, cloud platforms
 - **[Performance Tuning](../../performance/query-optimization.md)** - Benchmarking and optimization
 

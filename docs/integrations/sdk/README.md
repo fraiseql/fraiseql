@@ -549,7 +549,7 @@ Key capabilities:
 
 ### Documentation
 
-- [Language SDK Best Practices](../../guides/language-SDK-best-practices.md) - Cross-language patterns and idioms
+- [Language SDK Best Practices](../../guides/language-sdk-best-practices.md) - Cross-language patterns and idioms
 - [FraiseQL Getting Started Guide](../../GETTING_STARTED.md) - Quick start for all languages
 - **GitHub Repository**: [FraiseQL/FraiseQL](https://github.com/FraiseQL/FraiseQL) - Source code and examples
 

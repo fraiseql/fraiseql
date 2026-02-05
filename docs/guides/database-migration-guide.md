@@ -714,7 +714,7 @@ default_ttl_seconds = 300
 
 **Architecture & Reference:**
 
-- **[Authorization & RBAC](../enterprise/rbac.md)** — Row-level security setup
+- **[Authorization & RBAC](../enterpri../../guides/authorization-quick-start.md)** — Row-level security setup
 - **[Federation Guide](../integrations/federation/guide.md)** — Multi-database migration
 - **[Schema Compilation](../architecture/core/compilation-phases.md)** — How schemas compile
 

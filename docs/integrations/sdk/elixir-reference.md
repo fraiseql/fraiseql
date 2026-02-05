@@ -666,11 +666,11 @@ end
 
 ## See Also
 
-- [FraiseQL Architecture Guide](../../guides/ARCHITECTURE_PRINCIPLES.md)
+- [FraiseQL Architecture Guide](../../../../ARCHITECTURE_PRINCIPLES.md)
 - [Schema Compilation Pipeline](../../foundation/06-compilation-pipeline.md)
-- [Phoenix Framework Integration](../../guides/web-framework-integration.md)
-- [Analytics & OLAP Guide](../../guides/analytics-olap.md)
-- [Security & RBAC Guide](../../guides/security-and-rbac.md)
+- [Phoenix Framework Integration](../../guides/choosing-FraiseQL.md)
+- [Analytics & OLAP Guide](../../guides/analytics-patterns.md)
+- [Security & RBAC Guide](../../guides/authorization-quick-start.md)
 - [Python Reference](./python-reference.md)
 - [TypeScript Reference](./typescript-reference.md)
 - [Go Reference](./go-reference.md)

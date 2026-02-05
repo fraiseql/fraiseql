@@ -482,7 +482,7 @@ If you answered **no** to any of these, start with [Security Planning](#security
 
 - **[Authentication Provider Selection](../integrations/authentication/provider-selection-guide.md)** — Choosing OAuth providers securely
 - **[Authentication Security Checklist](../integrations/authentication/SECURITY-CHECKLIST.md)** — Auth-specific security checks
-- **[RBAC & Authorization](../enterprise/rbac.md)** — Field-level access control configuration
+- **[RBAC & Authorization](../enterpri../../guides/authorization-quick-start.md)** — Field-level access control configuration
 - **[Audit Logging](../enterprise/audit-logging.md)** — Compliance and audit trail setup
 - **[KMS Integration](../enterprise/kms.md)** — Key management service configuration
 

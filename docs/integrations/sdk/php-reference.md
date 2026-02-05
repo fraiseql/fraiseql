@@ -761,7 +761,7 @@ class UserQueriesTest extends SchemaTestCase
 - [RBAC Implementation](../../../docs/SECURITY_PATTERNS.md)
 - [Laravel Integration](./laravel-integration.md)
 - [Symfony Integration](./symfony-integration.md)
-- [Testing Guide](../../../docs/TESTING_GUIDE.md)
+- [Testing Guide](../reference/README.md)
 - [API Reference](https://github.com/FraiseQL/FraiseQL/tree/dev/docs/api)
 
 ---

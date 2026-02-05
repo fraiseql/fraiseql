@@ -492,15 +492,19 @@ FraiseQL --version
 ## FAQ
 
 ### Q: Can I disable specific rules?
+
 A: Not in the core, but design audit APIs return structured results so agents can implement custom policies.
 
 ### Q: Is design audit required for production?
+
 A: No, it's optional. Use it for development and CI/CD gates if desired.
 
 ### Q: How often should I run design audit?
+
 A: On every schema change (integrate with CI/CD).
 
 ### Q: Can I compare scores over time?
+
 A: Yes, save audit results and track trends.
 
 ## References

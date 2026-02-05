@@ -1235,10 +1235,10 @@ CMD ["python", "/app/app.py"]
 
 ## See Also
 
-- **SDK References**: [Python](../SDK/python-reference.md) | [TypeScript](../SDK/typescript-reference.md) | [Go](../SDK/go-reference.md) | [Java](../SDK/java-reference.md) | [Ruby](../SDK/ruby-reference.md)
-- **Architecture**: [FraiseQL Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md)
+- **SDK References**: [Python](../sdk/python-reference.md) | [TypeScript](../sdk/typescript-reference.md) | [Go](../sdk/go-reference.md) | [Java](../sdk/java-reference.md) | [Ruby](../sdk/ruby-reference.md)
+- **Architecture**: [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)
 - **Authentication**: [Auth Integration Guide](../authentication/README.md)
-- **Deployment**: [Deployment Guide](../../guides/deployment.md)
+- **Deployment**: [Deployment Guide](../../guides/production-deployment.md)
 - **API Federation**: [Federation Guide](../federation/README.md)
 - **Performance**: [Performance Optimization](../../guides/performance-optimization.md)
 

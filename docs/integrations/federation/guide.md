@@ -814,4 +814,4 @@ let metadata = FederationMetadata {
 - **[Production Deployment](../../guides/production-deployment.md)** - Deploying federation in production
 - **[Federation Architecture](../../architecture/integration/federation.md)** - Technical architecture details
 - **[SAGA Pattern](./sagas.md)** - Distributed transaction coordination
-- **[Enterprise RBAC](../../enterprise/rbac.md)** - Row-level security and multi-tenant isolation
+- **[Enterprise RBAC](../../enterpri../../guides/authorization-quick-start.md)** - Row-level security and multi-tenant isolation

@@ -745,7 +745,7 @@ class UserStats:
 
 ### Security:
 
-- **[RBAC & Field Authorization](../enterprise/rbac.md)** — Field-level access control
+- **[RBAC & Field Authorization](../enterpri../../guides/authorization-quick-start.md)** — Field-level access control
 - **[Production Security Checklist](./production-security-checklist.md)** — Security hardening
 
 ---

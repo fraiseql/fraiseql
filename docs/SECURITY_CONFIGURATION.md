@@ -447,7 +447,7 @@ Built-in protection for common GraphQL security issues:
 
 - Check the troubleshooting section in this guide
 - Review error messages - they include actionable guidance
-- Consult [ARCHITECTURE_PRINCIPLES.md](./ARCHITECTURE_PRINCIPLES.md) for security best practices
+- Consult [ARCHITECTURE_PRINCIPLES.md]../../../ARCHITECTURE_PRINCIPLES.md) for security best practices
 - Report issues with detailed reproduction steps
 
 ---

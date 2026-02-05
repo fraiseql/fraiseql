@@ -238,7 +238,7 @@ This document provides **reading paths** tailored to different roles and use cas
 **Recommended Next:**
 
 - `docs/reference/where-operators.md` — SQL generation for each operator
-- `docs/enterprise/rbac.md` — Authorization enforcement
+- `docs/enterpri../../guides/authorization-quick-start.md` — Authorization enforcement
 - `docs/guides/monitoring.md` — Instrumentation
 - `docs/specs/cdc-format.md` — Event format for subscriptions
 - `docs/architecture/core/execution-semantics.md` — Detailed execution semantics
@@ -427,7 +427,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 **Recommended Next:**
 
-- `docs/enterprise/rbac.md` — Role-based access control setup
+- `docs/enterpri../../guides/authorization-quick-start.md` — Role-based access control setup
 - `docs/enterprise/kms.md` — Key management integration
 - `docs/guides/observability.md` — Observability best practices
 - `docs/architecture/observability/observability-model.md` — Observability architecture
@@ -452,7 +452,7 @@ This document provides **reading paths** tailored to different roles and use cas
 
 ### Authorization (1.5 hours)
 
-1. **`docs/enterprise/rbac.md`** (60 min)
+1. **`docs/enterpri../../guides/authorization-quick-start.md`** (60 min)
    - Hierarchical roles, field-level auth
    - **Key Takeaway:** 3 enforcement layers
 
@@ -583,7 +583,7 @@ This document provides **reading paths** tailored to different roles and use cas
 ### Week 3: Enterprise & Operations (3-4 hours)
 
 **Day 7:**
-19. enterprise/rbac.md (60 min)
+19. enterpri../../guides/authorization-quick-start.md (60 min)
 20. enterprise/audit-logging.md (60 min)
 
 **Day 8:**
@@ -698,7 +698,7 @@ This document provides **reading paths** tailored to different roles and use cas
 | specs/security-compliance.md | 750+ | 40 min | Medium |
 | specs/introspection.md | 400+ | 25 min | Light |
 | **Enterprise** |
-| enterprise/rbac.md | 1,200+ | 60 min | Deep |
+| enterpri../../guides/authorization-quick-start.md | 1,200+ | 60 min | Deep |
 | enterprise/audit-logging.md | 1,200+ | 60 min | Deep |
 | enterprise/kms.md | 1,100+ | 50 min | Medium |
 | **Guides** |
@@ -795,7 +795,7 @@ specs/security-compliance.md
     ├─→ architecture/security/security-model.md
     │       ↓
     │       └─→ architecture/security/authentication-detailed.md
-    ├─→ enterprise/rbac.md
+    ├─→ enterpri../../guides/authorization-quick-start.md
     ├─→ enterprise/audit-logging.md
     └─→ enterprise/kms.md
 

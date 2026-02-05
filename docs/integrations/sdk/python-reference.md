@@ -1556,11 +1556,11 @@ def create_user(name: str) -> User:
 
 ## See Also
 
-- **Architecture Guide**: [FraiseQL Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md)
+- **Architecture Guide**: [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)
 - **GraphQL Scalar Types**: [60+ Scalar Type Reference](../../reference/scalars.md)
-- **Analytics Guide**: [Fact Tables & OLAP](../../guides/analytics-olap.md)
-- **Security Guide**: [RBAC & Authorization](../../guides/security-and-rbac.md)
-- **Database Patterns**: [SQL View & Function Patterns](../../guides/database-patterns.md)
+- **Analytics Guide**: [Fact Tables & OLAP](../../guides/analytics-patterns.md)
+- **Security Guide**: [RBAC & Authorization](../../guides/authorization-quick-start.md)
+- **Database Patterns**: [SQL View & Function Patterns](../../guides/database-selection-guide.md)
 - **Other SDKs**: [TypeScript](./typescript-reference.md), [Go](./go-reference.md), [Java](./java-reference.md)
 
 ---

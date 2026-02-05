@@ -292,5 +292,5 @@ created_at: DateTime  # Always UTC, explicit
 ## See Also
 
 - **[WHERE Operators Cheatsheet](./where-operators-cheatsheet.md)** - Filtering syntax
-- **[Configuration Parameters Cheatsheet](./configuration-parameters-cheatsheet.md)** - TOML settings
+- **[Configuration Parameters Cheatsheet](../reference/cli-commands-cheatsheet.md)** - TOML settings
 - **[CLI Commands Cheatsheet](./cli-commands-cheatsheet.md)** - Command-line reference

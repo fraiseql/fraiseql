@@ -147,7 +147,7 @@ Integration guides for external services and databases.
 
 Enterprise-grade features for production deployments.
 
-- [RBAC](enterprise/rbac.md) — Role-based access control
+- [RBAC](enterpri../../guides/authorization-quick-start.md) — Role-based access control
 - [Audit Logging](enterprise/audit-logging.md) — Cryptographic audit trails
 - [KMS Integration](enterprise/kms.md) — Key management for field encryption
 
@@ -207,7 +207,7 @@ Not sure where to start? See the **[Reading Order Guide](reading-order.md)** for
 - **Build a compiler** → [Reading Order: Compiler Developers](reading-order.md#for-compiler-developers)
 - **Extend the runtime** → [Reading Order: Runtime Developers](reading-order.md#for-runtime-developers)
 - **Deploy to production** → [Guides: Production Deployment](guides/production-deployment.md)
-- **Implement security** → [Enterprise: RBAC](enterprise/rbac.md) + [Security Model](architecture/security/security-model.md)
+- **Implement security** → [Enterprise: RBAC](enterpri../../guides/authorization-quick-start.md) + [Security Model](architecture/security/security-model.md)
 - **Optimize performance** → [Performance: Advanced Optimization](architecture/performance/advanced-optimization.md)
 - **Add federation** → [Architecture: Integration/Federation](architecture/integration/federation.md)
 - **Query from client** → [Reading Order: Frontend Developers](reading-order.md#for-frontend-developers)

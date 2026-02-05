@@ -1229,7 +1229,7 @@ struct AdaptiveUserListView: View {
 - [Python SDK Reference](./python-reference.md)
 - [TypeScript SDK Reference](./typescript-reference.md)
 - [GraphQL Scalars Reference](../../reference/scalars.md)
-- [Security & RBAC Guide](../../guides/security-and-rbac.md)
+- [Security & RBAC Guide](../../guides/authorization-quick-start.md)
 - [Apple Developer: Async/Await](https://developer.apple.com/documentation/swift/concurrency)
 - [Apple Developer: Codable](https://developer.apple.com/documentation/foundation/codable)
 - [SwiftUI Documentation](https://developer.apple.com/xcode/swiftui/)

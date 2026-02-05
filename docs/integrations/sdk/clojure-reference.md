@@ -563,9 +563,9 @@ Use `clojure.test` with immutable data structures:
 - **[FraiseQL TypeScript SDK Reference](./typescript-reference.md)** - TypeScript authoring interface
 - **[FraiseQL Go SDK Reference](./go-reference.md)** - Go authoring interface
 - **[FraiseQL Java SDK Reference](./java-reference.md)** - Java authoring interface
-- **[RBAC Documentation](../../enterprise/rbac.md)** - Role-based access control
+- **[RBAC Documentation](../../enterpri../../guides/authorization-quick-start.md)** - Role-based access control
 - **[Audit Logging](../../enterprise/audit-logging.md)** - Compliance and auditing
-- **[Architecture Principles](../../ARCHITECTURE_PRINCIPLES.md)** - System design
+- **[Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md)** - System design
 - **Clojure Resources**:
   - [Official Clojure Guide](https://clojure.org/guides/getting_started)
   - [Clojure Spec Guide](https://clojure.org/guides/spec)

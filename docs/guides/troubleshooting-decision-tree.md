@@ -218,14 +218,14 @@ e) Something else?
 - Verify user is authenticated: Check Authorization header
 - Check user has required role: Verify in RBAC configuration
 - Check field-level permissions: Some fields might be restricted
-- → [RBAC & Field Authorization](../enterprise/rbac.md)
+- → [RBAC & Field Authorization](../enterpri../../guides/authorization-quick-start.md)
 
 **Row-level data hidden or unauthorized:**
 
 - Verify row-level security filter in schema: `where: Where... = FraiseQL.where(...)`
 - Check tenant/org filtering is working
 - Verify context values passed: `x-tenant-id` header set?
-- → [RBAC Guide](../enterprise/rbac.md)
+- → [RBAC Guide](../enterpri../../guides/authorization-quick-start.md)
 
 ---
 

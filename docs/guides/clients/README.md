@@ -163,8 +163,8 @@ Each guide includes testing patterns for:
 
 ### SDK References:
 
-- **[All 16 Language SDKs](../../integrations/SDK/)** — How to author schemas in your language
-- **[SDK Best Practices](../language-SDK-best-practices.md)** — Server-side SDK usage patterns
+- **[All 16 Language SDKs](../../integrations/sdk/)** — How to author schemas in your language
+- **[SDK Best Practices](../language-sdk-best-practices.md)** — Server-side SDK usage patterns
 
 #### Full-Stack Examples:
 

@@ -630,7 +630,7 @@ property("User ID should always be positive") = forAll {
 - **[Python Reference](./python-reference.md)** — Python authoring with decorators
 - **[Java Reference](./java-reference.md)** — Java authoring with annotations
 - **[TypeScript Reference](./typescript-reference.md)** — TypeScript authoring with decorators
-- **[RBAC Guide](../../enterprise/rbac.md)** — Role-based access control patterns
+- **[RBAC Guide](../../enterpri../../guides/authorization-quick-start.md)** — Role-based access control patterns
 
 ---
 
@@ -1033,6 +1033,6 @@ Provide:
 
 - **[Fact Tables Guide](../../architecture/analytics/fact-dimension-pattern.md)** — Analytics dimension modeling
 - **[Schema Validation](../../guides/schema-validation.md)** — Compile-time schema validation
-- **[CLI Reference](../../reference/cli.md)** — `FraiseQL-cli` commands and options
+- **[CLI Reference](../../reference/cli-commands-cheatsheet.md)** — `FraiseQL-cli` commands and options
 - **[Cats Library](https://typelevel.org/cats/)** — Functional effect composition patterns
 - **[Scala Documentation](https://docs.scala-lang.org/)** — Official Scala language reference

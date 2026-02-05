@@ -504,5 +504,5 @@ users(where: { id: { in: ["id1", "id2", ... "id10000"] } })
 ## See Also
 
 - **[Scalar Types Cheatsheet](./scalar-types-cheatsheet.md)** - Type reference
-- **[Configuration Parameters Cheatsheet](./configuration-parameters-cheatsheet.md)** - TOML settings
+- **[Configuration Parameters Cheatsheet](../reference/cli-commands-cheatsheet.md)** - TOML settings
 - **[CLI Commands Cheatsheet](./cli-commands-cheatsheet.md)** - Command-line reference

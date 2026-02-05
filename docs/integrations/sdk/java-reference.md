@@ -1431,10 +1431,10 @@ java -agentpath:/path/to/libyjpagent.so MyApp
 - [API Guide](../../../FraiseQL-java/API_GUIDE.md) - Detailed API reference
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation
-- [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns
-- [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables and aggregations
+- [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization patterns
+- [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables and aggregations
 - [GraphQL Scalar Types](../../reference/scalars.md) - Complete scalar type reference
-- [Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
+- [Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
 
 ---
 

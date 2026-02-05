@@ -901,12 +901,12 @@ class SchemaValidationTest {
 ## See Also
 
 - [Kotlin Documentation](https://kotlinlang.org/) - Official Kotlin language docs
-- [FraiseQL Architecture Guide](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
+- [FraiseQL Architecture Guide](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
 - [Java SDK Reference](./java-reference.md) - Comparison with Java SDK
 - [Python SDK Reference](./python-reference.md) - Python SDK documentation
 - [TypeScript SDK Reference](./typescript-reference.md) - TypeScript SDK documentation
-- [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization patterns
-- [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables and aggregations
+- [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization patterns
+- [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables and aggregations
 - [GraphQL Scalar Types](../../reference/scalars.md) - Complete scalar type reference
 
 ---

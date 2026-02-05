@@ -905,7 +905,7 @@ class User:
 - Field-level auth uses Rust FFI when available (< 0.1 ms per field)
 - Falls back to Python implementation if needed (< 1 ms per field)
 
-See **docs/enterprise/rbac.md** for complete Role-Based Access Control documentation, including:
+See **docs/enterpri../../guides/authorization-quick-start.md** for complete Role-Based Access Control documentation, including:
 
 - Hierarchical role inheritance
 - Permission caching strategies

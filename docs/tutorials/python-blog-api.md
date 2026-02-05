@@ -1863,7 +1863,7 @@ This workflow puts **schema authoring** front and center—defining your data mo
 
 ## Additional Resources
 
-- [Python SDK Reference](../reference/python-SDK.md)
+- [Python SDK Reference](../../integrations/sdk/python-reference.md)
 - [TOML Configuration Reference](../TOML_REFERENCE.md)
 - [GraphQL Schema Design Best Practices](../guides/schema-design-best-practices.md)
 - [Common Patterns](../guides/PATTERNS.md)

@@ -1358,8 +1358,8 @@ docker run -p 8080:8080 blog-api:1.0
 
 ## Further Reading
 
-- [FraiseQL Architecture](../architecture/ARCHITECTURE_PRINCIPLES.md)
-- [Java Authoring API Reference](../reference/java-authoring-api.md)
+- [FraiseQL Architecture](../../ARCHITECTURE_PRINCIPLES.md)
+- [Java Authoring API Reference](../../integrations/sdk/java-reference.md)
 - [GraphQL Specification](https://spec.graphql.org/)
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 

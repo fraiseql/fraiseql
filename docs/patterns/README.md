@@ -167,7 +167,7 @@ This section contains production-tested patterns for building scalable applicati
 
 ## Content Management System (CMS)
 
-### [Headless CMS with Versioning](./cms-headless.md)
+### [Headless CMS with Versioning](../patterns/realtime-collaboration.md)
 
 **Use Case:** Build a headless CMS with content versioning, drafts, and publishing workflows.
 
@@ -191,7 +191,7 @@ This section contains production-tested patterns for building scalable applicati
 
 ## Social Network Platform
 
-### [Social Network with Activity Feeds](./social-network.md)
+### [Social Network with Activity Feeds](../patterns/realtime-collaboration.md)
 
 **Use Case:** Build a social network with feeds, followers, messaging, and notifications.
 
@@ -364,8 +364,8 @@ subscription OnUserOnline {
 - [Real-Time Collaboration](./realtime-collaboration.md)
 - [IoT Time-Series Data](./iot-timeseries.md)
 - [E-Commerce Workflows](./ecommerce-workflows.md)
-- [Headless CMS](./cms-headless.md)
-- [Social Network Platform](./social-network.md)
+- [Headless CMS](../patterns/realtime-collaboration.md)
+- [Social Network Platform](../patterns/realtime-collaboration.md)
 
 **Related Guides:**
 

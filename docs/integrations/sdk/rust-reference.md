@@ -1266,10 +1266,10 @@ async fn fetch_user(id: i32) -> User {
 
 ## See Also
 
-- [FraiseQL Architecture Principles](../../guides/ARCHITECTURE_PRINCIPLES.md) - System design
+- [FraiseQL Architecture Principles](../../../../ARCHITECTURE_PRINCIPLES.md) - System design
 - [GraphQL Scalar Types Reference](../../reference/scalars.md) - 60+ types
-- [Security & RBAC Guide](../../guides/security-and-rbac.md) - Authorization
-- [Analytics & OLAP Guide](../../guides/analytics-olap.md) - Fact tables
+- [Security & RBAC Guide](../../guides/authorization-quick-start.md) - Authorization
+- [Analytics & OLAP Guide](../../guides/analytics-patterns.md) - Fact tables
 - [SDK Documentation Index](./README.md) - All 16 language SDKs
 - [TypeScript SDK Reference](./typescript-reference.md)
 - [Python SDK Reference](./python-reference.md)
