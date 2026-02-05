@@ -1,7 +1,7 @@
 <!-- Skip to main content -->
 ---
 title: FraiseQL v2 Documentation
-description: > ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [alpha-limitations.md](ALPHA_LIMITA
+description: > ⚠️ **ALPHA RELEASE**: This documentation covers v2.0.0-alpha.1. Expect some features to evolve before GA (April 2026). See [alpha-limitations.md](alpha-limitations.md
 keywords: []
 tags: ["documentation", "reference"]
 ---

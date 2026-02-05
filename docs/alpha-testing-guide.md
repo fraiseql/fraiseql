@@ -422,7 +422,7 @@ See [Benchmarking Guide](guides/development/benchmarking.md) for detailed setup.
 - **[Database Conventions](specs/schema-conventions.md)** — Schema naming
 - **[Reference API](reference/)** — Complete API reference
 - **[Language Examples](guides/language-generators.md)** — Code examples
-- **[Troubleshooting](../troubleshooting.md)** — Common issues
+- **[Troubleshooting](troubleshooting.md)** — Common issues
 
 ---
 

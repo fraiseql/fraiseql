@@ -236,7 +236,7 @@ If you encounter an issue not listed here:
 
 - **[Alpha Testing Guide](alpha-testing-guide.md)** — How to test effectively
 - **[FAQ](faq.md)** — General questions
-- **[TROUBLESHOOTING](../troubleshooting.md)** — Common problems
+- **[TROUBLESHOOTING](troubleshooting.md)** — Common problems
 - **[Release Notes](../ALPHA_RELEASE_NOTES.md)** — What's included in alpha
 - **[GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)** — Report problems
 

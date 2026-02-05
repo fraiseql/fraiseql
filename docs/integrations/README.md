@@ -27,7 +27,7 @@ Integration guides for connecting FraiseQL with external services and databases.
 - **[Google OAuth Setup](authentication/setup-google-oauth.md)**
 - **[Keycloak Setup](authentication/setup-keycloak.md)**
 - **[SCRAM Authentication](authentication/scram.md)**
-- **[Deployment](authentication/DEPLOYMENT.md)**
+- **[Deployment](authentication/deployment.md)**
 - **[Security Checklist](authentication/security-checklist.md)**
 - **[Troubleshooting](authentication/troubleshooting.md)**
 
