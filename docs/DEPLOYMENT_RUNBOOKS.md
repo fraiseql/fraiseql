@@ -40,7 +40,7 @@ kubectl scale deployment fraiseql --replicas=2
 ```bash
 # Update image
 kubectl set image deployment/fraiseql \
-  fraiseql=fraiseql:v2.1.1
+  fraiseql=fraiseql:v2.0.0-alpha.1
 
 # Monitor rollout
 kubectl rollout status deployment/fraiseql
