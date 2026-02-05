@@ -282,7 +282,7 @@ If you discover a security vulnerability in FraiseQL's design quality features:
 
 ## Known Security Limitations
 
-### Current (v2.1.0-agent)
+### Current (v2.0.0-alpha.1)
 
 - Authentication is optional (configure to enforce)
 - No built-in per-user schema restrictions

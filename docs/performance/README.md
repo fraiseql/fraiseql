@@ -6,7 +6,7 @@
 
 ## Quick Start (5 minutes)
 
-If you just upgraded to v2.0.0-a1:
+If you just upgraded to v2.0.0-alpha.1:
 
 ### 1. No Changes Required ✅
 
@@ -40,9 +40,9 @@ wrk -t4 -c100 -d30s http://localhost:3000/graphql
 
 | Feature | Impact | Status |
 |---------|--------|--------|
-| **SQL Projection** | 42-55% latency ↓ | ✅ v2.0.0-a1 |
-| **Projection Caching** | 2-10x speedup | ✅ v2.0.0-a1 |
-| **Query Plan Caching** | 10-20% speedup | ✅ v2.0.0-a1 |
+| **SQL Projection** | 42-55% latency ↓ | ✅ v2.0.0-alpha.1 |
+| **Projection Caching** | 2-10x speedup | ✅ v2.0.0-alpha.1 |
+| **Query Plan Caching** | 10-20% speedup | ✅ v2.0.0-alpha.1 |
 | **Connection Pooling** | Tunable | ✅ Documented |
 
 **Total out-of-box improvement: 42-55%** 🎉
@@ -146,7 +146,7 @@ let adapter = PostgresAdapter::with_pool_size(connection_string, max_size).await
 
 ### Pre-Deployment
 
-- [ ] Upgraded to v2.0.0-a1
+- [ ] Upgraded to v2.0.0-alpha.1
 - [ ] Ran full test suite
 - [ ] Connection pool size calculated
 - [ ] Load test passed
@@ -258,7 +258,7 @@ queries:
 
 ### Out-of-Box Performance
 
-With v2.0.0-a1 on medium hardware (8 cores, 16GB RAM):
+With v2.0.0-alpha.1 on medium hardware (8 cores, 16GB RAM):
 
 ```
 Latency (p50):     12ms

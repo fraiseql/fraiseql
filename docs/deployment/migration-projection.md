@@ -1,4 +1,4 @@
-# Migration Guide: SQL Projection Optimization (v2.0.0-a1)
+# Migration Guide: SQL Projection Optimization (v2.0.0-alpha.1)
 
 **Version**: 2.0.0-a1
 **Breaking Changes**: None ✅
@@ -6,7 +6,7 @@
 
 ## Overview
 
-FraiseQL v2.0.0-a1 introduces automatic SQL projection optimization that reduces query latency by 42-55%. This is a **fully backward-compatible change** with no migration required.
+FraiseQL v2.0.0-alpha.1 introduces automatic SQL projection optimization that reduces query latency by 42-55%. This is a **fully backward-compatible change** with no migration required.
 
 ## What Changed
 
@@ -152,7 +152,7 @@ cargo build --release
 
 ## Migration Checklist
 
-- [ ] Update `fraiseql-core` to v2.0.0-a1
+- [ ] Update `fraiseql-core` to v2.0.0-alpha.1
 - [ ] Run full test suite (`cargo test`)
 - [ ] Deploy to staging environment
 - [ ] Verify logs show projection SQL (`RUST_LOG=debug`)
@@ -347,7 +347,7 @@ A: Yes, it's been extensively tested. No breaking changes or behavioral changes.
 
 ## Next Steps
 
-1. Update to v2.0.0-a1
+1. Update to v2.0.0-alpha.1
 2. Test in staging (expect 40-55% improvement)
 3. Deploy to production
 4. Monitor metrics

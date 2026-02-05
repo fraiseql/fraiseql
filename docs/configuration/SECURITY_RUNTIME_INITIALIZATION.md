@@ -1,6 +1,6 @@
 # Security Runtime Initialization
 
-This document describes how FraiseQL v2.1.0 loads and initializes security configuration at server runtime.
+This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes security configuration at server runtime.
 
 ## Architecture Overview
 

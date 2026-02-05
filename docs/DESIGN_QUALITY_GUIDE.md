@@ -460,7 +460,7 @@ See [DESIGN_QUALITY_SECURITY.md](./DESIGN_QUALITY_SECURITY.md) for details.
 
 ### Issue: "Unknown rule" error
 
-**Update**: Ensure you're using FraiseQL v2.1.0-agent or later
+**Update**: Ensure you're using FraiseQL v2.0.0-alpha.1 or later
 
 ```bash
 fraiseql --version

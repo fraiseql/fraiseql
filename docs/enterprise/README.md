@@ -2,11 +2,11 @@
 
 Enterprise-grade security, compliance, and audit capabilities for production deployments.
 
-**Phase 7 (v2.0.0)** adds comprehensive runtime security hardening including error sanitization, rate limiting, token protection, and encrypted state management.
+Enterprise-grade runtime security hardening including error sanitization, rate limiting, token protection, and encrypted state management.
 
 ---
 
-## 🔐 Phase 7: Runtime Security Features
+## 🔐 Runtime Security Features
 
 Configured via `fraiseql.toml` with environment variable overrides.
 
@@ -84,7 +84,7 @@ auth_verify_window_secs = 60
 
 ### Full Configuration Reference
 
-All Phase 7 features are configured in `fraiseql.toml` under `[fraiseql.security]`:
+All runtime security features are configured in `fraiseql.toml` under `[fraiseql.security]`:
 
 ```toml
 [fraiseql.security]

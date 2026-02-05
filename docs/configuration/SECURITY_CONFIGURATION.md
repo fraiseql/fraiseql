@@ -1,12 +1,12 @@
-# FraiseQL v2.1.0 - Security Configuration via TOML
+# FraiseQL v2.0.0-alpha.1 - Security Configuration via TOML
 
 **Status**: ✅ Production Ready
-**Version**: 2.1.0
+**Version**: 2.0.0-alpha.1
 **Format**: TOML (Configuration as Code)
 
 ## Overview
 
-FraiseQL v2.1.0 uses a **single-source-of-truth TOML configuration file** for all security settings. All configuration is **declarative, language-agnostic, and compiled into the schema**.
+FraiseQL v2.0.0-alpha.1 uses a **single-source-of-truth TOML configuration file** for all security settings. All configuration is **declarative, language-agnostic, and compiled into the schema**.
 
 Security configuration is specified in `fraiseql.toml` at the project root:
 
