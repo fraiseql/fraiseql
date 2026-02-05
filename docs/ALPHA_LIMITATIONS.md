@@ -32,28 +32,30 @@ These features are **fully implemented and tested**:
 
 ### Language Support
 
-**What's ready now:**
-- Python ✅
-- TypeScript ✅
-- Go ✅
-- PHP ✅
+**All 16 languages ready for alpha testing:**
 
-**Coming in beta/GA (v2.0.0-beta.1+):**
-- Java
-- Kotlin
-- Ruby
-- Scala
-- Clojure
-- Swift
-- Dart
-- C#
-- Groovy
-- Elixir
-- Rust
+**JVM Ecosystem:**
+- ✅ Java
+- ✅ Kotlin
+- ✅ Scala
+- ✅ Clojure
+- ✅ Groovy
 
-**Workaround**: Use one of the 4 ready languages for alpha testing.
+**Dynamic Languages:**
+- ✅ Python
+- ✅ TypeScript/Node.js
+- ✅ Ruby
+- ✅ PHP
+- ✅ Elixir
 
-**Timeline**: Full language parity by GA release (April 2026).
+**Compiled/Static Languages:**
+- ✅ Go
+- ✅ Rust
+- ✅ C#
+- ✅ Swift
+- ✅ Dart
+
+**Timeline**: All languages available in v2.0.0-alpha.1 release.
 
 ---
 

@@ -400,18 +400,31 @@ All PRs must pass:
 - [x] Webhook execution tests
 - [x] Event streaming tests
 
-### Language SDK Tests (Implemented in Alpha)
+### Language SDK Tests (16 Languages Implemented)
 
-- [x] Python SDK tests (`fraiseql-python/tests/`)
-- [x] TypeScript SDK tests (`fraiseql-typescript/tests/`)
-- [x] Go SDK tests (`fraiseql-go/tests/`)
-- [x] PHP SDK tests (`fraiseql-php/tests/`)
+**Authoring Layer SDKs** (schema definition):
+
+- [x] Python (`fraiseql-python/tests/`)
+- [x] TypeScript/Node.js (`fraiseql-typescript/tests/`, `fraiseql-nodejs/tests/`)
+- [x] Go (`fraiseql-go/tests/`)
+- [x] PHP (`fraiseql-php/tests/`)
+- [x] Java (`fraiseql-java/tests/`)
+- [x] Kotlin (`fraiseql-kotlin/tests/`)
+- [x] Ruby (`fraiseql-ruby/tests/`)
+- [x] Scala (`fraiseql-scala/tests/`)
+- [x] Rust (`fraiseql-rust/tests/`)
+- [x] C# (`fraiseql-csharp/tests/`)
+- [x] Clojure (`fraiseql-clojure/tests/`)
+- [x] Elixir (`fraiseql-elixir/tests/`)
+- [x] Swift (`fraiseql-swift/tests/`)
+- [x] Dart (`fraiseql-dart/tests/`)
+- [x] Groovy (`fraiseql-groovy/tests/`)
 
 ### Post-GA Future Coverage (v2.1+)
 
-- [ ] Additional language SDK tests (Java, Kotlin, Ruby, Scala, Rust)
-- [ ] Database-specific optimization tests (MySQL, SQLite, SQL Server)
-- [ ] Enhanced observability tests
+- [ ] Enhanced language SDK optimization for newer versions
+- [ ] Database-specific optimization tests (MySQL, SQLite, SQL Server edge cases)
+- [ ] Advanced observability features
 - [ ] Additional provider integrations
 
 ---
