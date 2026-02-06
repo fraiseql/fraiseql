@@ -15,7 +15,7 @@ struct GraphResult {
     content: String,
 }
 
-fn export_federation_graph(schema_file: &str, format: GraphFormat) -> anyhow::Result<GraphResult> {
+fn export_federation_graph(_schema_file: &str, format: GraphFormat) -> anyhow::Result<GraphResult> {
     // Simulate federation graph export
     let content = match format {
         GraphFormat::Json => json!({
@@ -186,6 +186,6 @@ fn test_federation_graph_not_empty() {
     let parsed: serde_json::Value = serde_json::from_str(&json_graph.content).unwrap();
 
     // Should have at least some subgraphs and edges
-    assert!(parsed["subgraphs"].as_array().unwrap().len() > 0);
-    assert!(parsed["edges"].as_array().unwrap().len() > 0);
+    assert!(!parsed["subgraphs"].as_array().unwrap().is_empty());
+    assert!(!parsed["edges"].as_array().unwrap().is_empty());
 }

@@ -1,6 +1,5 @@
 //! Tests for explain command - shows execution plan and complexity
 
-use fraiseql_cli::output::CommandResult;
 use serde_json::json;
 
 // Mock test data structure
@@ -31,8 +30,8 @@ fn explain_query(query: &str) -> anyhow::Result<ExplainResult> {
     // For testing, we calculate realistic complexity metrics
 
     // Count max depth (nesting level of braces)
-    let mut max_depth = 0;
-    let mut current_depth = 0;
+    let mut max_depth: usize = 0;
+    let mut current_depth: usize = 0;
     for ch in query.chars() {
         match ch {
             '{' => {
@@ -40,9 +39,7 @@ fn explain_query(query: &str) -> anyhow::Result<ExplainResult> {
                 max_depth = max_depth.max(current_depth);
             },
             '}' => {
-                if current_depth > 0 {
-                    current_depth -= 1;
-                }
+                current_depth = current_depth.saturating_sub(1);
             },
             _ => {},
         }

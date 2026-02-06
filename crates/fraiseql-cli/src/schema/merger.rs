@@ -114,7 +114,7 @@ impl SchemaMerger {
         // Load type files
         if !type_files.is_empty() {
             let type_paths: Vec<std::path::PathBuf> =
-                type_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+                type_files.iter().map(std::path::PathBuf::from).collect();
             let loaded = crate::schema::MultiFileLoader::load_from_paths(&type_paths)
                 .context("Failed to load type files")?;
             if let Some(types_array) = loaded.get("types") {
@@ -125,7 +125,7 @@ impl SchemaMerger {
         // Load query files
         if !query_files.is_empty() {
             let query_paths: Vec<std::path::PathBuf> =
-                query_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+                query_files.iter().map(std::path::PathBuf::from).collect();
             let loaded = crate::schema::MultiFileLoader::load_from_paths(&query_paths)
                 .context("Failed to load query files")?;
             if let Some(queries_array) = loaded.get("queries") {
@@ -136,7 +136,7 @@ impl SchemaMerger {
         // Load mutation files
         if !mutation_files.is_empty() {
             let mutation_paths: Vec<std::path::PathBuf> =
-                mutation_files.iter().map(|f| std::path::PathBuf::from(f)).collect();
+                mutation_files.iter().map(std::path::PathBuf::from).collect();
             let loaded = crate::schema::MultiFileLoader::load_from_paths(&mutation_paths)
                 .context("Failed to load mutation files")?;
             if let Some(mutations_array) = loaded.get("mutations") {
@@ -253,7 +253,14 @@ impl SchemaMerger {
         toml_schema.validate()?;
 
         // If includes are specified, load and merge files
-        let types_value = if !toml_schema.includes.is_empty() {
+        let types_value = if toml_schema.includes.is_empty() {
+            // No includes specified, use empty schema
+            serde_json::json!({
+                "types": [],
+                "queries": [],
+                "mutations": []
+            })
+        } else {
             let resolved = toml_schema
                 .includes
                 .resolve_globs()
@@ -261,15 +268,15 @@ impl SchemaMerger {
 
             // Load all type files
             let type_files: Vec<std::path::PathBuf> = resolved.types;
-            let mut merged_types = if !type_files.is_empty() {
-                crate::schema::MultiFileLoader::load_from_paths(&type_files)
-                    .context("Failed to load type files")?
-            } else {
+            let mut merged_types = if type_files.is_empty() {
                 serde_json::json!({
                     "types": [],
                     "queries": [],
                     "mutations": []
                 })
+            } else {
+                crate::schema::MultiFileLoader::load_from_paths(&type_files)
+                    .context("Failed to load type files")?
             };
 
             // Load and merge query files
@@ -299,13 +306,6 @@ impl SchemaMerger {
             }
 
             merged_types
-        } else {
-            // No includes specified, use empty schema
-            serde_json::json!({
-                "types": [],
-                "queries": [],
-                "mutations": []
-            })
         };
 
         // Merge with TOML definitions
@@ -377,7 +377,9 @@ impl SchemaMerger {
         // Add types from TOML that aren't already in types_array
         let existing_type_names: std::collections::HashSet<_> = types_array
             .iter()
-            .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .filter_map(|t| {
+                t.get("name").and_then(|v| v.as_str()).map(std::string::ToString::to_string)
+            })
             .collect();
 
         for (type_name, toml_type) in &toml_schema.types {

@@ -128,5 +128,5 @@ fn test_cost_zero_for_empty_query() {
     let result = calculate_cost(query).unwrap();
 
     // Empty query should have minimal cost
-    assert!(result.complexity_score >= 0);
+    assert_eq!(result.complexity_score, 0);
 }
