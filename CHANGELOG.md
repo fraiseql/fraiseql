@@ -5,6 +5,72 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.2] - 2026-02-06
+
+### Added
+
+**Audit Backend Test Coverage (Complete):**
+
+- PostgreSQL audit backend comprehensive tests (27 tests, 804 lines):
+  * Backend creation and schema validation
+  * Event logging with optional fields
+  * Query operations with filters and pagination
+  * JSONB metadata and state snapshots
+  * Multi-tenancy and tenant isolation
+  * Bulk logging and concurrent operations
+  * Schema idempotency verification
+  * Complex multi-filter queries
+  * Error handling and validation scenarios
+
+- Syslog audit backend comprehensive tests (27 tests, 574 lines):
+  * RFC 3164 format validation
+  * Facility and severity mapping
+  * Event logging and complex event handling
+  * Query behavior (always returns empty)
+  * Network operations and timeout handling
+  * Concurrent logging with 20+ concurrent tasks
+  * Builder pattern and trait compliance
+  * E2E integration flows for all statuses
+
+**Arrow Flight Enhancements:**
+
+- Event storage capabilities
+- Export functionality
+- Subscription support
+- Observer events integration tests
+- Schema refresh tests with streaming updates
+
+**Observer Infrastructure:**
+
+- Storage layer implementation
+- Event-driven observer patterns
+- Automatic observer triggering
+
+### Fixed
+
+- Removed placeholder test stubs for deferred audit backends
+- Enhanced test documentation with clear categories
+- Improved error handling in audit operations
+
+### Test Coverage
+
+- Total comprehensive tests: 54+ (27 PostgreSQL, 27 Syslog)
+- All tests passing with zero warnings
+- Database tests marked for CI integration with proper isolation
+- Syslog tests run without external dependencies
+
+### Already Included (Clarification)
+
+Note: The following features are already available in this release and not deferred:
+
+- OpenTelemetry integration for distributed tracing
+- Advanced analytics with Arrow views (va_*, tv_*, ta_*)
+- Performance metrics collection and monitoring
+- GraphQL subscriptions with streaming support
+- Real-time analytics pipelines
+
+---
+
 ## [2.0.0-alpha.1] - 2026-02-05
 
 ### Added

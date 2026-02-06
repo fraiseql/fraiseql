@@ -154,4 +154,4 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.75"  # MSRV
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
