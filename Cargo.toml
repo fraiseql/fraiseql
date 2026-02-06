@@ -49,7 +49,7 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-wire = {path = "crates/fraiseql-wire"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "0.1.1"}
 futures = "0.3"
 # GraphQL parsing
 graphql-parser = "0.4"
