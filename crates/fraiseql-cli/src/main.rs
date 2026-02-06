@@ -417,7 +417,7 @@ async fn main() {
             include_monitoring,
             validate,
             gen_verbose,
-        } => match commands::generate_views::RefreshStrategy::from_str(&refresh_strategy) {
+        } => match commands::generate_views::RefreshStrategy::parse(&refresh_strategy) {
             Ok(refresh_strat) => {
                 let config = commands::generate_views::GenerateViewsConfig {
                     schema_path: schema,
@@ -448,7 +448,7 @@ async fn main() {
 
         Commands::Introspect { command } => match command {
             IntrospectCommands::Facts { database, format } => {
-                match commands::introspect_facts::OutputFormat::from_str(&format) {
+                match commands::introspect_facts::OutputFormat::parse(&format) {
                     Ok(fmt) => commands::introspect_facts::run(&database, fmt).await,
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }

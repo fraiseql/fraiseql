@@ -843,6 +843,7 @@ fn map_security_error_to_status(error: fraiseql_core::security::SecurityError) -
 }
 
 /// Create a short-lived session token (5 minutes).
+#[allow(clippy::result_large_err)]
 fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
 ) -> std::result::Result<String, Status> {
@@ -883,6 +884,7 @@ fn create_session_token(
 /// # Returns
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
 /// * `Err(Status)` - Invalid token, expired, or malformed
+#[allow(clippy::result_large_err)]
 fn validate_session_token(
     token: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
@@ -936,6 +938,7 @@ fn validate_session_token(
 /// # Returns
 /// * `Ok(String)` - Session token extracted from header
 /// * `Err(Status)` - Missing or malformed authorization header
+#[allow(clippy::result_large_err)]
 fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<String, Status> {
     let metadata = request.metadata();
 

@@ -28,7 +28,7 @@ impl FromStr for GraphFormat {
             "json" => Ok(GraphFormat::Json),
             "dot" => Ok(GraphFormat::Dot),
             "mermaid" => Ok(GraphFormat::Mermaid),
-            other => Err(format!("Unknown format: {}. Use json, dot, or mermaid", other)),
+            other => Err(format!("Unknown format: {other}. Use json, dot, or mermaid")),
         }
     }
 }

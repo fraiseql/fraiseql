@@ -71,8 +71,8 @@ impl DomainDiscovery {
                 let name = path
                     .file_name()
                     .and_then(|n| n.to_str())
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| anyhow::anyhow!("Invalid domain name: {:?}", path))?;
+                    .map(std::string::ToString::to_string)
+                    .ok_or_else(|| anyhow::anyhow!("Invalid domain name: {}", path.display()))?;
 
                 domains.push(Domain { name, path });
             }
@@ -130,7 +130,7 @@ impl SchemaIncludes {
                 match entry {
                     Ok(path) => type_paths.push(path),
                     Err(e) => {
-                        anyhow::bail!("Error resolving type glob pattern '{}': {}", pattern, e);
+                        anyhow::bail!("Error resolving type glob pattern '{pattern}': {e}");
                     },
                 }
             }
@@ -144,7 +144,7 @@ impl SchemaIncludes {
                 match entry {
                     Ok(path) => query_paths.push(path),
                     Err(e) => {
-                        anyhow::bail!("Error resolving query glob pattern '{}': {}", pattern, e);
+                        anyhow::bail!("Error resolving query glob pattern '{pattern}': {e}");
                     },
                 }
             }
@@ -158,7 +158,7 @@ impl SchemaIncludes {
                 match entry {
                     Ok(path) => mutation_paths.push(path),
                     Err(e) => {
-                        anyhow::bail!("Error resolving mutation glob pattern '{}': {}", pattern, e);
+                        anyhow::bail!("Error resolving mutation glob pattern '{pattern}': {e}");
                     },
                 }
             }
@@ -645,7 +645,7 @@ pub struct CacheRule {
 }
 
 /// Analytics configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AnalyticsConfig {
     /// Enable analytics
@@ -653,15 +653,6 @@ pub struct AnalyticsConfig {
     pub enabled: bool,
     /// Analytics queries
     pub queries: Vec<AnalyticsQuery>,
-}
-
-impl Default for AnalyticsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            queries: vec![],
-        }
-    }
 }
 
 /// Analytics query definition
@@ -720,11 +711,11 @@ impl TomlSchema {
     pub fn from_file(path: &str) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
-        Self::from_str(&content)
+        Self::parse_toml(&content)
     }
 
     /// Parse schema from TOML string
-    pub fn from_str(content: &str) -> Result<Self> {
+    pub fn parse_toml(content: &str) -> Result<Self> {
         toml::from_str(content).context("Failed to parse TOML schema")
     }
 
@@ -862,7 +853,7 @@ return_type = "User"
 return_array = true
 sql_source = "v_user"
 "#;
-        let schema = TomlSchema::from_str(toml).expect("Failed to parse");
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
         assert_eq!(schema.schema.name, "myapp");
         assert!(schema.types.contains_key("User"));
     }

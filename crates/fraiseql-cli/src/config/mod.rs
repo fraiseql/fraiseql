@@ -79,7 +79,7 @@ impl FraiseQLConfig {
 
         let path = Path::new(path);
         if !path.exists() {
-            anyhow::bail!("Configuration file not found: {path:?}");
+            anyhow::bail!("Configuration file not found: {}", path.display());
         }
 
         let toml_content = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;

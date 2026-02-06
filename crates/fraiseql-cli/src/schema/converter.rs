@@ -31,6 +31,11 @@ impl SchemaConverter {
     /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
     /// 4. Optimization (for future phases)
+    ///
+    /// # Panics
+    ///
+    /// Panics if fact table metadata serialization fails (which should never happen
+    /// for valid `FactTable` structures).
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
