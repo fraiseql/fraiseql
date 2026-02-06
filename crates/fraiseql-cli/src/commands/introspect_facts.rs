@@ -27,7 +27,7 @@ pub enum OutputFormat {
 
 impl OutputFormat {
     /// Parse from string
-    pub fn from_str(s: &str) -> std::result::Result<Self, String> {
+    pub fn parse(s: &str) -> std::result::Result<Self, String> {
         match s.to_lowercase().as_str() {
             "python" | "py" => Ok(Self::Python),
             "json" => Ok(Self::Json),
@@ -270,9 +270,9 @@ mod tests {
 
     #[test]
     fn test_output_format_from_str() {
-        assert!(matches!(OutputFormat::from_str("python"), Ok(OutputFormat::Python)));
-        assert!(matches!(OutputFormat::from_str("json"), Ok(OutputFormat::Json)));
-        assert!(OutputFormat::from_str("invalid").is_err());
+        assert!(matches!(OutputFormat::parse("python"), Ok(OutputFormat::Python)));
+        assert!(matches!(OutputFormat::parse("json"), Ok(OutputFormat::Json)));
+        assert!(OutputFormat::parse("invalid").is_err());
     }
 
     #[test]

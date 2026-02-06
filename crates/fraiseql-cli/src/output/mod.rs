@@ -22,7 +22,12 @@ pub struct CliContext {
 
 impl CliContext {
     /// Create a new CLI context
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        clippy::too_many_arguments,
+        clippy::fn_params_excessive_bools,
+        clippy::missing_const_for_fn
+    )]
     pub fn new(json_mode: bool, quiet_mode: bool, verbose: bool, debug: bool) -> Self {
         Self {
             formatter: OutputFormatter::new(json_mode, quiet_mode),
@@ -36,7 +41,7 @@ impl CliContext {
     pub fn print_result(&self, result: &CommandResult) -> i32 {
         let output = self.formatter.format(result);
         if !output.is_empty() {
-            println!("{}", output);
+            println!("{output}");
         }
         result.exit_code
     }
@@ -55,7 +60,7 @@ impl OutputFormatter {
     /// # Arguments
     /// * `json_mode` - If true, output JSON; otherwise output text
     /// * `quiet_mode` - If true and not in JSON mode, suppress all output
-    pub fn new(json_mode: bool, quiet_mode: bool) -> Self {
+    pub const fn new(json_mode: bool, quiet_mode: bool) -> Self {
         Self {
             json_mode,
             quiet_mode,
@@ -77,11 +82,11 @@ impl OutputFormatter {
             // Quiet mode suppresses output
             (false, true) => String::new(),
             // Text mode with output
-            (false, false) => self.format_text(result),
+            (false, false) => Self::format_text(result),
         }
     }
 
-    fn format_text(&self, result: &CommandResult) -> String {
+    fn format_text(result: &CommandResult) -> String {
         match result.status.as_str() {
             "success" => {
                 let mut output = format!("✓ {} succeeded", result.command);
@@ -89,7 +94,7 @@ impl OutputFormatter {
                 if !result.warnings.is_empty() {
                     output.push_str("\n\nWarnings:");
                     for warning in &result.warnings {
-                        output.push_str(&format!("\n  • {}", warning));
+                        output.push_str(&format!("\n  • {warning}"));
                     }
                 }
 
@@ -101,7 +106,7 @@ impl OutputFormatter {
                 if !result.errors.is_empty() {
                     output.push_str("\n\nErrors:");
                     for error in &result.errors {
-                        output.push_str(&format!("\n  • {}", error));
+                        output.push_str(&format!("\n  • {error}"));
                     }
                 }
 
@@ -111,11 +116,11 @@ impl OutputFormatter {
                 let mut output = format!("✗ {} error", result.command);
 
                 if let Some(msg) = &result.message {
-                    output.push_str(&format!("\n  {}", msg));
+                    output.push_str(&format!("\n  {msg}"));
                 }
 
                 if let Some(code) = &result.code {
-                    output.push_str(&format!("\n  Code: {}", code));
+                    output.push_str(&format!("\n  Code: {code}"));
                 }
 
                 output

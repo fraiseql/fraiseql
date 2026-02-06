@@ -38,10 +38,10 @@ pub struct AnalysisSummary {
 /// Run analyze command
 pub fn run(schema_path: &str) -> Result<CommandResult> {
     // Load schema file to verify it exists
-    let _schema_content = fs::read_to_string(schema_path)?;
+    let schema_content = fs::read_to_string(schema_path)?;
 
     // Parse as JSON to verify structure (basic validation)
-    let _schema: serde_json::Value = serde_json::from_str(&_schema_content)?;
+    let _schema: serde_json::Value = serde_json::from_str(&schema_content)?;
 
     let mut categories: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -106,7 +106,7 @@ pub fn run(schema_path: &str) -> Result<CommandResult> {
     );
 
     // Calculate summary
-    let total_recommendations: usize = categories.values().map(|v| v.len()).sum();
+    let total_recommendations: usize = categories.values().map(Vec::len).sum();
     let categories_count = categories.len();
 
     // Simple health score calculation

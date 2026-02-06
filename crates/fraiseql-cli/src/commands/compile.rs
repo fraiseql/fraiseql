@@ -43,6 +43,7 @@ use crate::{
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     input: &str,
     types: Option<&str>,
@@ -63,7 +64,11 @@ pub async fn run(
     }
 
     // Load schema based on file type and options
-    let mut intermediate: IntermediateSchema = if input.ends_with(".toml") {
+    let is_toml = input_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"));
+    let mut intermediate: IntermediateSchema = if is_toml {
         // TOML workflow (new)
         info!("Using TOML-based workflow");
 
@@ -98,19 +103,17 @@ pub async fn run(
         } else {
             // Try modes in order: domain discovery → includes → toml-only
             info!("Mode: TOML-based (checking for domain discovery...)");
-            match crate::schema::SchemaMerger::merge_from_domains(input) {
-                Ok(schema) => schema,
-                Err(_) => {
-                    info!("No domains configured, checking for TOML includes...");
-                    match crate::schema::SchemaMerger::merge_with_includes(input) {
-                        Ok(schema) => schema,
-                        Err(_) => {
-                            info!("No includes configured, using TOML-only definitions");
-                            crate::schema::SchemaMerger::merge_toml_only(input)
-                                .context("Failed to load schema from TOML")?
-                        },
-                    }
-                },
+            if let Ok(schema) = crate::schema::SchemaMerger::merge_from_domains(input) {
+                schema
+            } else {
+                info!("No domains configured, checking for TOML includes...");
+                if let Ok(schema) = crate::schema::SchemaMerger::merge_with_includes(input) {
+                    schema
+                } else {
+                    info!("No includes configured, using TOML-only definitions");
+                    crate::schema::SchemaMerger::merge_toml_only(input)
+                        .context("Failed to load schema from TOML")?
+                }
             }
         }
     } else {

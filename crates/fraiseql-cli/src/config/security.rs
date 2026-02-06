@@ -338,7 +338,7 @@ impl RoleDefinitionConfig {
 }
 
 /// Complete security configuration from fraiseql.toml
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SecurityConfig {
     /// Audit logging configuration
@@ -362,20 +362,6 @@ pub struct SecurityConfig {
     /// Default role when user has no explicit role assignment
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_role:       Option<String>,
-}
-
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            audit_logging:      AuditLoggingConfig::default(),
-            error_sanitization: ErrorSanitizationConfig::default(),
-            rate_limiting:      RateLimitConfig::default(),
-            state_encryption:   StateEncryptionConfig::default(),
-            constant_time:      ConstantTimeConfig::default(),
-            role_definitions:   Vec::new(),
-            default_role:       None,
-        }
-    }
 }
 
 impl SecurityConfig {

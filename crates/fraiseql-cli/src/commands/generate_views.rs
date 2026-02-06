@@ -25,7 +25,7 @@ pub enum RefreshStrategy {
 
 impl RefreshStrategy {
     /// Parse from string
-    pub fn from_str(s: &str) -> std::result::Result<Self, String> {
+    pub fn parse(s: &str) -> std::result::Result<Self, String> {
         match s.to_lowercase().as_str() {
             "trigger-based" | "trigger" => Ok(Self::TriggerBased),
             "scheduled" => Ok(Self::Scheduled),
@@ -348,13 +348,10 @@ mod tests {
 
     #[test]
     fn test_refresh_strategy_from_str() {
-        assert_eq!(
-            RefreshStrategy::from_str("trigger-based").unwrap(),
-            RefreshStrategy::TriggerBased
-        );
-        assert_eq!(RefreshStrategy::from_str("trigger").unwrap(), RefreshStrategy::TriggerBased);
-        assert_eq!(RefreshStrategy::from_str("scheduled").unwrap(), RefreshStrategy::Scheduled);
-        assert!(RefreshStrategy::from_str("invalid").is_err());
+        assert_eq!(RefreshStrategy::parse("trigger-based").unwrap(), RefreshStrategy::TriggerBased);
+        assert_eq!(RefreshStrategy::parse("trigger").unwrap(), RefreshStrategy::TriggerBased);
+        assert_eq!(RefreshStrategy::parse("scheduled").unwrap(), RefreshStrategy::Scheduled);
+        assert!(RefreshStrategy::parse("invalid").is_err());
     }
 
     #[test]
