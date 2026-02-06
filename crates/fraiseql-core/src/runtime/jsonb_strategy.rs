@@ -2,6 +2,8 @@
 //!
 //! Determines whether to project fields at database level or stream full JSONB
 
+use serde::Deserialize;
+
 /// Strategy for JSONB field handling
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum JsonbStrategy {
@@ -10,6 +12,31 @@ pub enum JsonbStrategy {
     Project,
     /// Stream full JSONB column, filter in application
     Stream,
+}
+
+impl std::str::FromStr for JsonbStrategy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "project" => Ok(JsonbStrategy::Project),
+            "stream" => Ok(JsonbStrategy::Stream),
+            other => Err(format!(
+                "Invalid JSONB strategy '{}', must be 'project' or 'stream'",
+                other
+            )),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for JsonbStrategy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        std::str::FromStr::from_str(&s).map_err(serde::de::Error::custom)
+    }
 }
 
 /// Configuration for JSONB optimization strategy
@@ -40,7 +67,7 @@ impl JsonbOptimizationOptions {
 
         let percent = (requested_fields as f64 / total_fields as f64) * 100.0;
 
-        if percent >= self.auto_threshold_percent as f64 {
+        if percent >= f64::from(self.auto_threshold_percent) {
             JsonbStrategy::Stream
         } else {
             self.default_strategy
@@ -51,6 +78,54 @@ impl JsonbOptimizationOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ========================================================================
+    // Strategy Parsing Tests
+    // ========================================================================
+
+    #[test]
+    fn test_jsonb_strategy_from_str_project() {
+        let strategy: JsonbStrategy = "project".parse().unwrap();
+        assert_eq!(strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_from_str_stream() {
+        let strategy: JsonbStrategy = "stream".parse().unwrap();
+        assert_eq!(strategy, JsonbStrategy::Stream);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_from_str_case_insensitive() {
+        assert_eq!("PROJECT".parse::<JsonbStrategy>().unwrap(), JsonbStrategy::Project);
+        assert_eq!("Stream".parse::<JsonbStrategy>().unwrap(), JsonbStrategy::Stream);
+        assert_eq!("pRoJeCt".parse::<JsonbStrategy>().unwrap(), JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_from_str_invalid() {
+        let result = "invalid".parse::<JsonbStrategy>();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid JSONB strategy"));
+    }
+
+    #[test]
+    fn test_jsonb_strategy_deserialize() {
+        let json = r#""project""#;
+        let strategy: JsonbStrategy = serde_json::from_str(json).unwrap();
+        assert_eq!(strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_deserialize_stream() {
+        let json = r#""stream""#;
+        let strategy: JsonbStrategy = serde_json::from_str(json).unwrap();
+        assert_eq!(strategy, JsonbStrategy::Stream);
+    }
+
+    // ========================================================================
+    // Strategy Selection Tests
+    // ========================================================================
 
     #[test]
     fn test_choose_strategy_below_threshold() {

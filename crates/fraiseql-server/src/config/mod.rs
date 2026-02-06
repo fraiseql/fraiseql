@@ -16,6 +16,7 @@ pub mod validation;
 // Re-export config types
 pub use cors::CorsConfig;
 pub use jsonb_optimization::{JsonbOptimizationConfig, JsonbStrategy};
+// Note: JsonbOptimizationOptions is the core version, re-exported from fraiseql-core
 pub use metrics::{LatencyTargets, MetricsConfig, SloConfig};
 pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
 pub use tracing::TracingConfig;
