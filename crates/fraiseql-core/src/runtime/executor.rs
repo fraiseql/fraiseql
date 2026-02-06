@@ -1214,6 +1214,7 @@ mod tests {
     use super::*;
     use crate::{
         db::{types::JsonbValue, where_clause::WhereClause},
+        runtime::JsonbOptimizationOptions,
         schema::{AutoParams, CompiledSchema, QueryDefinition},
     };
 
@@ -1350,6 +1351,7 @@ mod tests {
             field_filter:         None,
             rls_policy:           None,
             query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
         };
 
         let executor = Executor::with_config(schema, adapter, config);
