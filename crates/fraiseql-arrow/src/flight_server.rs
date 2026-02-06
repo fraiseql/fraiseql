@@ -277,6 +277,48 @@ impl FraiseQLFlightService {
         }
     }
 
+    /// Pre-load schemas from database at startup (Phase 5.1 optimization).
+    ///
+    /// For production deployments, call this method after creating the service to pre-load
+    /// all va_* and ta_* view schemas from the database. This reduces first-query latency
+    /// by discovering schemas at startup instead of on first query.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database queries fail. Falls back to hardcoded defaults if
+    /// no schemas are preloaded.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
+    /// use fraiseql_arrow::DatabaseAdapter;
+    /// use std::sync::Arc;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
+    ///     let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
+    ///
+    ///     // Pre-load schemas from database at startup (Phase 5.1)
+    ///     let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
+    ///     eprintln!("Preloaded {} schemas from database", preloaded);
+    ///
+    ///     // Schemas now available immediately for queries
+    ///     // Without preloading, first query would trigger schema inference
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn preload_schemas_from_db(&self) -> crate::error::Result<usize> {
+        if let Some(ref db_adapter) = self.db_adapter {
+            self.schema_registry.preload_all_schemas(&**db_adapter).await
+        } else {
+            // No database adapter, use defaults
+            self.schema_registry.register_defaults();
+            Ok(0)
+        }
+    }
+
     /// Get a reference to the schema registry.
     ///
     /// Useful for testing and schema introspection.
