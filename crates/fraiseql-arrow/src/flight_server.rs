@@ -1268,9 +1268,140 @@ impl FlightService for FraiseQLFlightService {
             "Authenticated do_put request"
         );
 
-        // TODO: Implement authenticated data upload with RLS checks
-        info!("DoPut called (authenticated) - not yet implemented");
-        Err(Status::unimplemented("DoPut not yet implemented"))
+        // Check if database adapter is available
+        let db_adapter = self.db_adapter.as_ref()
+            .ok_or_else(|| Status::internal("Database adapter not configured"))?;
+
+        // Get the incoming stream
+        let mut stream = request.into_inner();
+
+        // Create channel for responses
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+
+        // Clone database adapter for spawned task
+        let db_adapter = Arc::clone(db_adapter);
+        let user_id = authenticated_user.user_id.clone();
+
+        // Spawn handler task to process incoming data
+        tokio::spawn(async move {
+            // First message should contain schema and FlightDescriptor
+            match stream.message().await {
+                Ok(Some(first_msg)) => {
+                    // Extract target table name from FlightDescriptor
+                    let table_name = match first_msg.flight_descriptor {
+                        Some(descriptor) => {
+                            if descriptor.path.is_empty() {
+                                let _ = tx.send(Err(Status::invalid_argument(
+                                    "FlightDescriptor path cannot be empty"
+                                ))).await;
+                                return;
+                            }
+                            // descriptor.path contains UTF8 strings
+                            descriptor.path[0].clone()
+                        },
+                        None => {
+                            let _ = tx.send(Err(Status::invalid_argument(
+                                "Missing FlightDescriptor"
+                            ))).await;
+                            return;
+                        }
+                    };
+
+                    info!(
+                        user_id = %user_id,
+                        table = %table_name,
+                        "Starting data upload"
+                    );
+
+                    let mut total_rows = 0;
+
+                    // Process incoming RecordBatch messages
+                    while let Ok(Some(flight_data)) = stream.message().await {
+                        // Skip empty messages or pure metadata
+                        if flight_data.data_body.is_empty() {
+                            continue;
+                        }
+
+                        // Decode RecordBatch from FlightData
+                        match decode_flight_data_to_batch(&flight_data) {
+                            Ok(batch) => {
+                                let rows_in_batch = batch.num_rows();
+
+                                // Build INSERT query from RecordBatch
+                                match build_insert_query(&table_name, &batch) {
+                                    Ok(sql) => {
+                                        info!(
+                                            user_id = %user_id,
+                                            table = %table_name,
+                                            rows = rows_in_batch,
+                                            "Inserting batch"
+                                        );
+
+                                        // Execute INSERT via database adapter
+                                        match db_adapter.execute_raw_query(&sql).await {
+                                            Ok(_) => {
+                                                total_rows += rows_in_batch;
+                                                // Send success result for this batch
+                                                let metadata = format!("Inserted {} rows", rows_in_batch)
+                                                    .into_bytes();
+                                                if let Err(e) = tx.send(Ok(PutResult {
+                                                    app_metadata: metadata.into(),
+                                                })).await {
+                                                    warn!("Failed to send result: {}", e);
+                                                    break;
+                                                }
+                                            },
+                                            Err(e) => {
+                                                let err_msg = format!("Database insert failed: {}", e);
+                                                warn!("{}", err_msg);
+                                                let _ = tx.send(Err(Status::internal(err_msg))).await;
+                                                break;
+                                            }
+                                        }
+                                    },
+                                    Err(e) => {
+                                        let err_msg = format!("Failed to build INSERT query: {}", e);
+                                        warn!("{}", err_msg);
+                                        let _ = tx.send(Err(Status::invalid_argument(err_msg))).await;
+                                        break;
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                let err_msg = format!("Failed to decode Arrow batch: {}", e);
+                                warn!("{}", err_msg);
+                                let _ = tx.send(Err(Status::invalid_argument(err_msg))).await;
+                                break;
+                            }
+                        }
+                    }
+
+                    info!(
+                        user_id = %user_id,
+                        table = %table_name,
+                        total_rows = total_rows,
+                        "Upload completed"
+                    );
+
+                    // Send final success result
+                    let metadata = format!("Upload complete: {} total rows", total_rows)
+                        .into_bytes();
+                    let _ = tx.send(Ok(PutResult {
+                        app_metadata: metadata.into(),
+                    })).await;
+                },
+                Ok(None) => {
+                    let _ = tx.send(Err(Status::invalid_argument("Empty stream"))).await;
+                },
+                Err(e) => {
+                    let _ = tx.send(Err(Status::internal(format!("Stream error: {}", e)))).await;
+                }
+            }
+        });
+
+        // Return response stream
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as Self::DoPutStream))
     }
 
     /// Execute an action (RPC method for operations beyond data transfer).
@@ -1702,6 +1833,225 @@ fn execute_placeholder_query(
     }
 
     rows
+}
+
+/// Decode FlightData message into an Arrow RecordBatch.
+///
+/// Parses the IPC format data contained in FlightData.data_body.
+///
+/// # Arguments
+/// * `flight_data` - FlightData message containing serialized RecordBatch
+///
+/// # Returns
+/// Decoded RecordBatch
+///
+/// # Errors
+/// Returns error if decoding fails
+fn decode_flight_data_to_batch(flight_data: &FlightData) -> std::result::Result<RecordBatch, String> {
+    use arrow::ipc::reader::StreamReader;
+    use std::io::Cursor;
+
+    if flight_data.data_body.is_empty() {
+        return Err("Empty flight data body".to_string());
+    }
+
+    let cursor = Cursor::new(&flight_data.data_body);
+    let mut reader = StreamReader::try_new(cursor, None)
+        .map_err(|e| format!("Failed to create IPC stream reader: {}", e))?;
+
+    // Read first batch from the stream
+    reader.next()
+        .ok_or_else(|| "No batch in flight data message".to_string())?
+        .map_err(|e| format!("Failed to read batch: {}", e))
+}
+
+/// Quote a PostgreSQL identifier (table name, column name, etc).
+///
+/// Wraps the identifier in double quotes and escapes internal quotes.
+/// This prevents SQL injection and handles reserved keywords.
+///
+/// # Arguments
+/// * `identifier` - Table or column name
+///
+/// # Returns
+/// Quoted identifier safe for SQL
+///
+/// # Example
+/// ```ignore
+/// assert_eq!(quote_identifier("order"), "\"order\"");
+/// assert_eq!(quote_identifier("my\"table"), "\"my\"\"table\"");
+/// ```
+fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
+}
+
+/// Convert an Arrow RecordBatch column value to SQL literal.
+///
+/// Handles type conversion and escaping for SQL INSERT statements.
+///
+/// # Arguments
+/// * `array` - Arrow Array column data
+/// * `row` - Row index in the array
+///
+/// # Returns
+/// SQL literal string (e.g., "123", "'text'", "NULL")
+///
+/// # Errors
+/// Returns error message if unsupported Arrow type
+fn arrow_value_to_sql(
+    array: &std::sync::Arc<dyn arrow::array::Array>,
+    row: usize,
+) -> std::result::Result<String, String> {
+    use arrow::array::*;
+    use arrow::datatypes::DataType;
+
+    if array.is_null(row) {
+        return Ok("NULL".to_string());
+    }
+
+    match array.data_type() {
+        DataType::Int8 => {
+            let arr = array.as_any().downcast_ref::<Int8Array>().ok_or("Failed to cast to Int8Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Int16 => {
+            let arr = array.as_any().downcast_ref::<Int16Array>().ok_or("Failed to cast to Int16Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Int32 => {
+            let arr = array.as_any().downcast_ref::<Int32Array>().ok_or("Failed to cast to Int32Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Int64 => {
+            let arr = array.as_any().downcast_ref::<Int64Array>().ok_or("Failed to cast to Int64Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::UInt8 => {
+            let arr = array.as_any().downcast_ref::<UInt8Array>().ok_or("Failed to cast to UInt8Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::UInt16 => {
+            let arr = array.as_any().downcast_ref::<UInt16Array>().ok_or("Failed to cast to UInt16Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::UInt32 => {
+            let arr = array.as_any().downcast_ref::<UInt32Array>().ok_or("Failed to cast to UInt32Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::UInt64 => {
+            let arr = array.as_any().downcast_ref::<UInt64Array>().ok_or("Failed to cast to UInt64Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Float32 => {
+            let arr = array.as_any().downcast_ref::<Float32Array>().ok_or("Failed to cast to Float32Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Float64 => {
+            let arr = array.as_any().downcast_ref::<Float64Array>().ok_or("Failed to cast to Float64Array")?;
+            Ok(arr.value(row).to_string())
+        },
+        DataType::Utf8 => {
+            let arr = array.as_any().downcast_ref::<StringArray>().ok_or("Failed to cast to StringArray")?;
+            let val = arr.value(row);
+            // Escape single quotes for SQL string literals
+            Ok(format!("'{}'", val.replace('\'', "''")))
+        },
+        DataType::LargeUtf8 => {
+            let arr = array.as_any().downcast_ref::<LargeStringArray>().ok_or("Failed to cast to LargeStringArray")?;
+            let val = arr.value(row);
+            Ok(format!("'{}'", val.replace('\'', "''")))
+        },
+        DataType::Boolean => {
+            let arr = array.as_any().downcast_ref::<BooleanArray>().ok_or("Failed to cast to BooleanArray")?;
+            Ok(if arr.value(row) { "true" } else { "false" }.to_string())
+        },
+        DataType::Timestamp(_, _) => {
+            // Try as microseconds (common format)
+            if let Some(arr) = array.as_any().downcast_ref::<TimestampMicrosecondArray>() {
+                let ts = arr.value(row);
+                let secs = ts / 1_000_000;
+                let nanos = (ts % 1_000_000) * 1000;
+                return Ok(format!("to_timestamp({}, {})", secs, nanos));
+            }
+            // Try as nanoseconds
+            if let Some(arr) = array.as_any().downcast_ref::<TimestampNanosecondArray>() {
+                let ts = arr.value(row);
+                let secs = ts / 1_000_000_000;
+                let nanos = ts % 1_000_000_000;
+                return Ok(format!("to_timestamp({}, {})", secs, nanos));
+            }
+            // Try as milliseconds
+            if let Some(arr) = array.as_any().downcast_ref::<TimestampMillisecondArray>() {
+                let ts = arr.value(row);
+                let secs = ts / 1_000;
+                let millis = ts % 1_000;
+                return Ok(format!("to_timestamp({}, {})", secs, millis * 1_000_000));
+            }
+            // Try as seconds
+            if let Some(arr) = array.as_any().downcast_ref::<TimestampSecondArray>() {
+                let ts = arr.value(row);
+                return Ok(format!("to_timestamp({})", ts));
+            }
+            Err(format!("Unsupported timestamp precision: {:?}", array.data_type()))
+        },
+        DataType::Date32 => {
+            let arr = array.as_any().downcast_ref::<Date32Array>().ok_or("Failed to cast to Date32Array")?;
+            let days_since_epoch = arr.value(row);
+            // Calculate date from days since epoch (1970-01-01)
+            let epoch_date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
+            let target_date = epoch_date + chrono::Duration::days(i64::from(days_since_epoch));
+            Ok(format!("'{}'", target_date))
+        },
+        _ => Err(format!("Unsupported Arrow type for SQL conversion: {:?}", array.data_type())),
+    }
+}
+
+/// Build a SQL INSERT statement from a RecordBatch.
+///
+/// Generates parameterized INSERT query with proper escaping.
+///
+/// # Arguments
+/// * `table_name` - Target table name
+/// * `batch` - Arrow RecordBatch containing rows to insert
+///
+/// # Returns
+/// SQL INSERT statement
+///
+/// # Errors
+/// Returns error if column types are unsupported
+fn build_insert_query(table_name: &str, batch: &RecordBatch) -> std::result::Result<String, String> {
+    let schema = batch.schema();
+    let num_rows = batch.num_rows();
+    let num_cols = batch.num_columns();
+
+    if num_rows == 0 || num_cols == 0 {
+        return Err("RecordBatch is empty".to_string());
+    }
+
+    // Build column list
+    let columns: Vec<String> = schema.fields()
+        .iter()
+        .map(|f| quote_identifier(f.name()))
+        .collect();
+
+    // Build VALUES clause for each row
+    let mut values_clauses = Vec::new();
+    for row_idx in 0..num_rows {
+        let mut row_values = Vec::new();
+        for col_idx in 0..num_cols {
+            let array = batch.column(col_idx);
+            let value = arrow_value_to_sql(array, row_idx)?;
+            row_values.push(value);
+        }
+        values_clauses.push(format!("({})", row_values.join(", ")));
+    }
+
+    Ok(format!(
+        "INSERT INTO {} ({}) VALUES {}",
+        quote_identifier(table_name),
+        columns.join(", "),
+        values_clauses.join(", ")
+    ))
 }
 
 /// Dummy executor for testing that implements QueryExecutor trait.
