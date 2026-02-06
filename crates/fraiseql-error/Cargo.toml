@@ -11,6 +11,7 @@ workspace = true
 
 [package]
 name = "fraiseql-error"
+description = "Error types for FraiseQL v2"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
