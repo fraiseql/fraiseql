@@ -120,15 +120,11 @@ jobs:
       - name: Publish fraiseql-cli
         run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
 
-  # Build and publish Python wheel
+  # Build and publish Python package
   publish-python:
-    name: Publish Python Package (${{ matrix.os }})
+    name: Publish Python Package to PyPI
     needs: create-release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -136,18 +132,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
 
-      - name: Install maturin
-        run: pip install maturin
-
-      - name: Build wheel
-        run: maturin build --release --package fraiseql-python
+      - name: Build distributions
+        working-directory: fraiseql-python
+        run: python -m build
 
       - name: Publish to PyPI
+        working-directory: fraiseql-python
         env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: maturin publish --package fraiseql-python
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/* --skip-existing
