@@ -7,6 +7,7 @@ use tokio_postgres::{NoTls, Row};
 use super::where_generator::PostgresWhereGenerator;
 use crate::{
     db::{
+        identifier::quote_postgres_identifier,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
         where_clause::WhereClause,
@@ -225,7 +226,11 @@ impl PostgresAdapter {
         // Build SQL with projection
         // The projection_template is expected to be the SELECT clause with projection SQL
         // e.g., "jsonb_build_object('id', data->>'id', 'email', data->>'email')"
-        let mut sql = format!("SELECT {} FROM \"{}\"", projection.projection_template, view);
+        let mut sql = format!(
+            "SELECT {} FROM {}",
+            projection.projection_template,
+            quote_postgres_identifier(view)
+        );
 
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
@@ -302,7 +307,7 @@ impl DatabaseAdapter for PostgresAdapter {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
-        let mut sql = format!("SELECT data FROM {view}");
+        let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
 
         // Collect WHERE clause params (if any)
         let mut typed_params: Vec<QueryParam> = Vec::new();

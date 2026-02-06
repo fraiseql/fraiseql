@@ -8,6 +8,7 @@ use tiberius::Config;
 use super::where_generator::SqlServerWhereGenerator;
 use crate::{
     db::{
+        identifier::quote_sqlserver_identifier,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
@@ -259,9 +260,18 @@ impl DatabaseAdapter for SqlServerAdapter {
         // SQL Server uses square brackets for identifiers and TOP for LIMIT
         // e.g., "JSON_QUERY((SELECT data FOR JSON PATH, WITHOUT_ARRAY_WRAPPER))"
         let mut sql = if let Some(lim) = limit {
-            format!("SELECT TOP {} {} FROM [{}]", lim, projection.projection_template, view)
+            format!(
+                "SELECT TOP {} {} FROM {}",
+                lim,
+                projection.projection_template,
+                quote_sqlserver_identifier(view)
+            )
         } else {
-            format!("SELECT {} FROM [{}]", projection.projection_template, view)
+            format!(
+                "SELECT {} FROM {}",
+                projection.projection_template,
+                quote_sqlserver_identifier(view)
+            )
         };
 
         // Collect WHERE clause params (if any)
@@ -292,12 +302,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         let mut sql = if let Some(lim) = limit {
             if offset.is_some() {
                 // With OFFSET, we need ORDER BY for pagination
-                format!("SELECT data FROM [{view}]")
+                format!("SELECT data FROM {}", quote_sqlserver_identifier(view))
             } else {
-                format!("SELECT TOP {lim} data FROM [{view}]")
+                format!("SELECT TOP {lim} data FROM {}", quote_sqlserver_identifier(view))
             }
         } else {
-            format!("SELECT data FROM [{view}]")
+            format!("SELECT data FROM {}", quote_sqlserver_identifier(view))
         };
 
         // Collect WHERE clause params (if any)

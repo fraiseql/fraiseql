@@ -42,6 +42,7 @@
 //! ```
 
 pub mod collation;
+pub mod identifier;
 pub mod path_escape;
 pub mod projection_generator;
 pub mod traits;
@@ -71,6 +72,10 @@ pub mod fraiseql_wire_adapter;
 pub use collation::{CollationCapabilities, CollationMapper};
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
+pub use identifier::{
+    quote_mysql_identifier, quote_postgres_identifier, quote_sqlite_identifier,
+    quote_sqlserver_identifier,
+};
 #[cfg(feature = "mysql")]
 pub use mysql::MySqlAdapter;
 #[cfg(feature = "postgres")]

@@ -9,6 +9,7 @@ use sqlx::{
 use super::where_generator::SqliteWhereGenerator;
 use crate::{
     db::{
+        identifier::quote_sqlite_identifier,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
@@ -208,7 +209,11 @@ impl DatabaseAdapter for SqliteAdapter {
         // The projection_template contains the SELECT clause with json_object() calls
         // SQLite uses double quotes for identifiers, not backticks
         // e.g., "json_object('id', data->'$.id', 'email', data->'$.email')"
-        let mut sql = format!("SELECT {} FROM \"{}\"", projection.projection_template, view);
+        let mut sql = format!(
+            "SELECT {} FROM {}",
+            projection.projection_template,
+            quote_sqlite_identifier(view)
+        );
 
         // Collect WHERE clause params (if any)
         let mut params: Vec<serde_json::Value> = Vec::new();
@@ -239,7 +244,7 @@ impl DatabaseAdapter for SqliteAdapter {
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
-        let mut sql = format!("SELECT data FROM \"{view}\"");
+        let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
 
         // Collect WHERE clause params (if any)
         let mut params: Vec<serde_json::Value> = Vec::new();
