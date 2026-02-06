@@ -58,6 +58,7 @@
 - `src/tracing/exporter.rs` (215 lines, expanded later)
 
 **Tests**: 27 tests (all passing)
+
 - Config validation: 6 tests
 - Propagation: 12 tests
 - Spans: 3 tests
@@ -78,6 +79,7 @@
 - `PHASE_9_1_IMPLEMENTATION_GUIDE.md` (563 lines)
 
 **Tests**: 7 tests (all passing)
+
 - ListenerTracer: 2 tests
 - ExecutorTracer: 2 tests
 - ConditionTracer: 2 tests
@@ -102,6 +104,7 @@
 - `PHASE_9_1_ACTION_TRACING_GUIDE.md` (445 lines)
 
 **Tests**: 14 tests (all passing)
+
 - WebhookTracer: 2 tests
 - EmailTracer: 2 tests
 - SlackTracer: 2 tests
@@ -124,6 +127,7 @@
 - `PHASE_9_1_JAEGER_INTEGRATION_GUIDE.md` (490 lines)
 
 **Tests**: 16 tests (all passing)
+
 - Config creation: 1 test
 - Validation: 6 tests
 - Initialization: 3 tests
@@ -148,6 +152,7 @@
 - `src/tracing/tests.rs` (400+ lines)
 
 **Tests**: 18 E2E tests (all passing)
+
 - Full initialization: 1 test
 - Trace context propagation: 1 test
 - Listener lifecycle: 1 test

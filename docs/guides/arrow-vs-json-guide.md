@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Arrow vs JSON Data Plane: Decision Guide
 description: Use JSON (HTTP/GraphQL) for:
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

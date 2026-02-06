@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Capability Manifest Specification
 description: The **Capability Manifest** is a machine-readable declaration of which WHERE operators each database supports. It drives compile-time schema generation, ensurin
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

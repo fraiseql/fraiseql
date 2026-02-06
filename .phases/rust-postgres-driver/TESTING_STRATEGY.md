@@ -9,6 +9,7 @@
 ## Overview
 
 This document defines the testing strategy for the Rust PostgreSQL driver migration. It covers:
+
 - Test architecture and organization
 - Test types and when to use each
 - Parity testing (Rust vs psycopg)
@@ -17,6 +18,7 @@ This document defines the testing strategy for the Rust PostgreSQL driver migrat
 - Coverage targets
 
 **Success Definition**:
+
 - ✅ All 5991+ existing tests pass with Rust backend
 - ✅ Zero performance regressions (< 5% deviation)
 - ✅ 100% code coverage of new Rust code
@@ -99,6 +101,7 @@ fraiseql_rs/
 **Location**: Inline in `src/` files + `tests/unit/`
 
 **Example**:
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -121,6 +124,7 @@ mod tests {
 **Coverage Target**: ≥ 85%
 
 **Tools**:
+
 ```bash
 # Generate coverage
 cargo tarpaulin --out Html
@@ -138,6 +142,7 @@ cargo tarpaulin --exclude-files fraiseql_rs/examples/*
 **Categories**:
 
 #### A. Connection Pool Tests
+
 ```rust
 #[tokio::test]
 async fn test_concurrent_connections() {
@@ -205,6 +210,7 @@ async fn test_connection_timeout() {
 ```
 
 #### B. Query Execution Tests
+
 ```rust
 #[tokio::test]
 async fn test_simple_select() {
@@ -260,6 +266,7 @@ async fn test_transaction_rollback() {
 ```
 
 #### C. WHERE Clause Tests
+
 ```rust
 #[test]
 fn test_where_parity_with_python() {
@@ -309,6 +316,7 @@ fn test_where_edge_cases() {
 ```
 
 #### D. Streaming Tests
+
 ```rust
 #[tokio::test]
 async fn test_streaming_large_result_set() {
@@ -369,6 +377,7 @@ async fn test_streaming_memory_usage() {
 **Location**: `tests/regression/parity/`
 
 **Strategy**:
+
 ```rust
 #[tokio::test]
 async fn test_query_result_parity() {
@@ -467,6 +476,7 @@ async fn test_mutation_result_parity() {
 **Location**: `benches/`
 
 **Strategy**:
+
 ```rust
 // benches/query_performance.rs
 
@@ -534,6 +544,7 @@ criterion_main!(benches);
 ```
 
 **Running Benchmarks**:
+
 ```bash
 # Establish baseline
 cargo bench -- --save-baseline main
@@ -556,6 +567,7 @@ test query_execution::large_result_stream ... bench: 245.123 ms/iter (+/- 12.345
 **Location**: Python integration tests (use Rust backend)
 
 **Strategy**:
+
 ```python
 # tests/integration/graphql/test_rust_backend.py
 
@@ -645,6 +657,7 @@ println_macro = "warn"
 ```
 
 **Fixed warnings before merge**:
+
 ```bash
 cargo clippy --fix --allow-dirty
 cargo fmt
@@ -663,6 +676,7 @@ open tarpaulin-report.html
 ```
 
 **Excluded from coverage**:
+
 - Example files
 - Test utilities
 - Generated code
@@ -743,6 +757,7 @@ jobs:
 ### Test Categorization
 
 **~80% of tests stay as-is** (Integration & E2E tests):
+
 ```python
 # These work through the Python API wrapper
 # Backend (Python or Rust) is invisible to them
@@ -756,6 +771,7 @@ def test_graphql_query():
 ```
 
 **~20% need updating or removal** (Unit tests of Python-specific code):
+
 ```python
 # These test Python internals being replaced
 
@@ -771,6 +787,7 @@ from fraiseql.where_builder import build_where  # Replaced by Rust in Phase 2
 ### Migration by Phase
 
 #### **Phase 0: Foundation**
+
 ```
 Existing Python Tests: ✅ ALL 5991+ PASS
 ├─ No changes to Python code yet
@@ -779,6 +796,7 @@ Existing Python Tests: ✅ ALL 5991+ PASS
 ```
 
 #### **Phase 1: Connection Pool**
+
 ```
 New Rust Tests: ✅ Connection pool unit tests (Rust)
 Existing Python Tests: ✅ 5991+ PASS
@@ -791,6 +809,7 @@ Changes: None (Python code unchanged)
 ```
 
 #### **Phase 2: Query Execution**
+
 ```
 New Rust Tests: ✅ WHERE clause tests (Rust)
 Existing Python Tests: ⚠️ 5991+ PASS (some redundant)
@@ -804,6 +823,7 @@ Changes: None (Python code still there, feature-flagged)
 ```
 
 #### **Phase 3: Result Streaming**
+
 ```
 New Rust Tests: ✅ Streaming unit tests (Rust)
 Existing Python Tests: ⚠️ 5991+ PASS (some redundant)
@@ -816,6 +836,7 @@ Changes: None (Python code still there, feature-flagged)
 ```
 
 #### **Phase 4: Full Integration**
+
 ```
 New Rust Tests: ✅ GraphQL E2E tests (testing Rust backend)
 Existing Python Tests: ✅ ALL 5991+ PASS (all backends tested)
@@ -830,6 +851,7 @@ Changes: None (Python code still there, feature-flagged)
 ```
 
 #### **Phase 5: Deprecation & Cleanup**
+
 ```
 Removed Python Code:
 ├─ src/fraiseql/db.py (replaced by Rust)
@@ -895,6 +917,7 @@ Result: Same coverage, all Rust-backed
 **Example: WHERE clause builder tests**
 
 Phase 0-4:
+
 ```python
 # Python WHERE tests
 def test_python_where_simple():
@@ -923,6 +946,7 @@ fn test_where_parity() {
 ```
 
 Phase 5 (after removing Python db.py):
+
 ```python
 # Python WHERE tests removed (Python code deleted)
 # Rust WHERE tests kept (Rust code remains)
@@ -960,6 +984,7 @@ FRAISEQL_PARITY_TESTING=true cargo test
 **Q: Do I need to port test X to Rust?**
 
 A: Ask these questions:
+
 - Does it test Python `db.py` internals? → Remove in Phase 5
 - Does it test the Python API wrapper? → Keep as-is (works with Rust backend)
 - Does it test database functionality? → Keep as-is (parity guaranteed)
@@ -978,6 +1003,7 @@ A: Phase 5, when you delete the Python code they test. If a test doesn't test Py
 ## Test Execution Timeline
 
 ### Phase 1: Foundation
+
 ```
 - Unit tests: Pool types (100% coverage)
 - Integration: Pool initialization, health check
@@ -985,6 +1011,7 @@ A: Phase 5, when you delete the Python code they test. If a test doesn't test Py
 ```
 
 ### Phase 2: Query Execution
+
 ```
 - Unit tests: WHERE clause building (100% coverage)
 - Integration: Query execution, parameter binding
@@ -993,6 +1020,7 @@ A: Phase 5, when you delete the Python code they test. If a test doesn't test Py
 ```
 
 ### Phase 3: Streaming
+
 ```
 - Unit tests: JSON transformation (100% coverage)
 - Integration: Streaming large results
@@ -1001,6 +1029,7 @@ A: Phase 5, when you delete the Python code they test. If a test doesn't test Py
 ```
 
 ### Phase 4: Integration
+
 ```
 - E2E: Full GraphQL queries
 - Parity: All query/mutation types
@@ -1009,6 +1038,7 @@ A: Phase 5, when you delete the Python code they test. If a test doesn't test Py
 ```
 
 ### Phase 5: Deprecation
+
 ```
 - Final regression: Full test suite with Rust
 - Benchmark comparison: Phase 4 vs Phase 5
@@ -1095,24 +1125,28 @@ cargo test
 ## Success Criteria Summary
 
 ✅ **Code Quality**:
+
 - Clippy: 0 warnings (strict)
 - Format: 100% (`cargo fmt`)
 - Coverage: ≥ 80% new code
 - Docs: All public APIs
 
 ✅ **Testing**:
+
 - Unit: 100% of logic
 - Integration: All modules
 - E2E: Full GraphQL
 - Parity: Rust == psycopg
 
 ✅ **Performance**:
+
 - Regression: < 5%
 - Memory: Stable
 - Latency: < 100ms p99
 - Throughput: 2-3x psycopg
 
 ✅ **CI/CD**:
+
 - All workflows passing
 - Benchmarks tracked
 - Coverage reported

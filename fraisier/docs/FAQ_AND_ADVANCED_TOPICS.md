@@ -87,17 +87,20 @@ You can use a simple NATS deployment (single server) for development and small d
 **A:** Yes. Three rollback mechanisms:
 
 1. **Automatic rollback** (on deployment failure):
+
    ```yaml
    provider_config:
      auto_rollback_on_failure: true
    ```
 
 2. **Manual rollback** (command):
+
    ```bash
    fraisier rollback my_service production
    ```
 
 3. **Commit-based deployment** (deploy specific version):
+
    ```bash
    fraisier deploy my_service production --commit abc123def456
    ```
@@ -144,12 +147,14 @@ fraisier status my_service production
 **A:** Best practices:
 
 1. **Never commit secrets** to Git:
+
    ```bash
    echo ".env" >> .gitignore
    echo ".env.local" >> .gitignore
    ```
 
 2. **Use environment variables**:
+
    ```bash
    export DATABASE_PASSWORD="secure_password"
    fraisier deploy my_service production
@@ -162,6 +167,7 @@ fraisier status my_service production
    - Azure Key Vault
 
 4. **Store in fraises.yaml**:
+
    ```yaml
    provider_config:
      env_vars:
@@ -194,6 +200,7 @@ fraisier status my_service production
 **A:**
 
 **Rolling Deployment**:
+
 ```
 v1 instance 1  →  v2 instance 1
 v1 instance 2  →  v2 instance 2
@@ -205,6 +212,7 @@ v1 instance 3  →  v2 instance 3
 - **Best for**: Stateless services, backward-compatible changes
 
 **Blue-Green Deployment**:
+
 ```
 Blue  (v1): instance 1, 2, 3
   ↓
@@ -220,6 +228,7 @@ Red   (v1): kept as rollback
 - **Best for**: Breaking changes, high-risk updates
 
 **Canary Deployment**:
+
 ```
 v1: 100% traffic
   ↓
@@ -239,6 +248,7 @@ v2: 100% traffic (gradual rollout)
 **A:** Use webhooks:
 
 1. **GitHub webhook**:
+
    ```bash
    # Add to repository Settings → Webhooks
    Payload URL: https://fraisier.example.com/webhooks/github
@@ -248,6 +258,7 @@ v2: 100% traffic (gradual rollout)
    ```
 
 2. **Configure Fraisier**:
+
    ```yaml
    provider_config:
      auto_deploy: true
@@ -256,6 +267,7 @@ v2: 100% traffic (gradual rollout)
    ```
 
 3. **Push to trigger**:
+
    ```bash
    git push origin main  # Automatically triggers deployment
    ```
@@ -353,21 +365,25 @@ For stateful services (databases, persistent sessions):
 **A:** Step-by-step:
 
 1. **Check status**:
+
    ```bash
    fraisier status my_service production
    ```
 
 2. **View logs**:
+
    ```bash
    fraisier logs dep_12345 --tail 100
    ```
 
 3. **Check health checks**:
+
    ```bash
    curl http://my-service.example.com/health
    ```
 
 4. **SSH to server and check service**:
+
    ```bash
    ssh deploy@production.example.com
    sudo systemctl status my-service
@@ -375,11 +391,13 @@ For stateful services (databases, persistent sessions):
    ```
 
 5. **Force restart** (if safe):
+
    ```bash
    ssh deploy@production.example.com "sudo systemctl restart my-service"
    ```
 
 6. **Rollback if needed**:
+
    ```bash
    fraisier rollback my_service production
    ```
@@ -391,6 +409,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed scenarios.
 **A:** Common causes:
 
 1. **Service not ready yet**:
+
    ```yaml
    health_check:
      start_period: 30  # Give 30s to start
@@ -398,12 +417,14 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed scenarios.
    ```
 
 2. **Wrong health check URL**:
+
    ```bash
    # Test manually
    curl -v http://localhost:8000/health
    ```
 
 3. **Port not listening**:
+
    ```bash
    # Check port
    netstat -tlnp | grep 8000
@@ -411,6 +432,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed scenarios.
    ```
 
 4. **Timeout too short**:
+
    ```yaml
    health_check:
      timeout: 15  # Increase from 5s
@@ -421,27 +443,32 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed scenarios.
 **A:** Check:
 
 1. **Dockerfile syntax**:
+
    ```bash
    docker build -f Dockerfile --dry-run .
    ```
 
 2. **Build context**:
+
    ```bash
    docker build --progress=plain .
    ```
 
 3. **Docker daemon**:
+
    ```bash
    docker ps  # If this fails, daemon issue
    ```
 
 4. **Disk space**:
+
    ```bash
    docker system df
    docker system prune -a  # Clean unused images
    ```
 
 5. **Build logs**:
+
    ```bash
    docker build --progress=plain --no-cache . 2>&1 | tail -50
    ```
@@ -451,27 +478,32 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed scenarios.
 **A:** Steps:
 
 1. **Check exit code**:
+
    ```bash
    docker ps -a | grep my-service
    docker inspect <container_id> | grep ExitCode
    ```
 
 2. **View logs**:
+
    ```bash
    docker logs <container_id> --tail 100
    ```
 
 3. **Check environment**:
+
    ```bash
    docker inspect <container_id> | grep -A 20 Env
    ```
 
 4. **Check resource limits**:
+
    ```bash
    docker stats <container_id>
    ```
 
 5. **Test locally**:
+
    ```bash
    docker run -it my-service:latest /bin/bash
    # Inside container, test manually

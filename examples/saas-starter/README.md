@@ -5,6 +5,7 @@ Production-ready multi-tenant SaaS application starter built with FraiseQL. Get 
 ## What This Template Provides
 
 A **complete, production-ready SaaS foundation** with:
+
 - ✅ Multi-tenant architecture with PostgreSQL Row-Level Security (RLS)
 - ✅ User management with JWT authentication
 - ✅ Organization/workspace management
@@ -19,6 +20,7 @@ A **complete, production-ready SaaS foundation** with:
 ## Use Cases
 
 This starter is perfect for:
+
 - B2B SaaS applications
 - Team collaboration tools
 - Project management platforms
@@ -150,6 +152,7 @@ cp .env.example .env
 ```
 
 Edit `.env`:
+
 ```env
 # Database
 DATABASE_URL=postgresql://localhost/saas_starter
@@ -194,6 +197,7 @@ python main.py
 ```
 
 The API will be available at:
+
 - **GraphQL API:** http://localhost:8000/graphql
 - **GraphQL Playground:** http://localhost:8000/graphql
 - **API Documentation:** http://localhost:8000/docs
@@ -228,6 +232,7 @@ mutation Register($input: RegisterInput!) {
 ```
 
 Variables:
+
 ```json
 {
   "input": {
@@ -563,6 +568,7 @@ async def delete_project(info: Info, project_id: UUID):
 ```
 
 **Built-in roles:**
+
 - `owner` - Full access, billing, team management
 - `admin` - Full access except billing
 - `member` - Read/write access to resources

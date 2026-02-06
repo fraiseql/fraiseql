@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Authentication System - Complete Documentation
 description: Welcome to FraiseQL's comprehensive OAuth 2.0 / OIDC authentication system. This directory contains complete documentation for implementing, deploying, and main
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

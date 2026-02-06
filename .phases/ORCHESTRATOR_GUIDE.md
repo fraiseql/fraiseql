@@ -36,11 +36,13 @@
 ## Recommended Execution Order
 
 ### Day 1 (4 hours)
+
 1. **Phase 03** (0.75h) - Quick win, builds confidence
 2. **Phase 02** (1.5h) - Straightforward configuration
 3. **Phase 01** (2h of 2.5h) - Start longest task
 
 ### Day 2 (4.75 hours)
+
 1. **Phase 01** (0.5h) - Finish operations runbook
 2. **Phase 04** (1.5h) - Incident response procedures
 3. **Phase 05** (1.5h) - Classified deployment guide
@@ -53,11 +55,13 @@
 ### Before Each Phase
 
 1. **Read phase instructions:**
+
    ```bash
    cat .phases/0X-phase-name/phase.md
    ```
 
 2. **Gather context files:**
+
    ```bash
    # Example for Phase 01
    cp docs/production/MONITORING.md .phases/01-operations-runbook/context/
@@ -80,6 +84,7 @@
 ### After Phase Completion
 
 7. **Review output:**
+
    ```bash
    # Check all required files exist
    ls -lh .phases/0X-phase-name/output/
@@ -89,6 +94,7 @@
    ```
 
 8. **Run verification commands:**
+
    ```bash
    # Example verification from phase.md
    wc -l .phases/01-operations-runbook/output/OPERATIONS_RUNBOOK.md
@@ -96,12 +102,14 @@
    ```
 
 9. **Move to final location:**
+
    ```bash
    # Example for Phase 01
    cp .phases/01-operations-runbook/output/OPERATIONS_RUNBOOK.md ./OPERATIONS_RUNBOOK.md
    ```
 
 10. **Commit changes:**
+
     ```bash
     # Use commit message template from phase.md
     git add OPERATIONS_RUNBOOK.md
@@ -119,6 +127,7 @@
     ```
 
 11. **Update phase status:**
+
     ```bash
     # Edit .phases/README.md
     # Change phase status: ⬜ Not Started → ✅ Complete
@@ -129,6 +138,7 @@
 ## Context Files Guide
 
 ### Phase 01: Operations Runbook
+
 ```bash
 cp docs/production/MONITORING.md .phases/01-operations-runbook/context/
 cp docs/production/ALERTING.md .phases/01-operations-runbook/context/
@@ -138,6 +148,7 @@ cp docs/security/PROFILES.md .phases/01-operations-runbook/context/
 ```
 
 ### Phase 02: Loki Configuration
+
 ```bash
 cp docs/production/MONITORING.md .phases/02-loki-configuration/context/
 # Copy any existing observability examples
@@ -146,6 +157,7 @@ find examples/observability -type f -name "*.yml" -o -name "*.yaml" | \
 ```
 
 ### Phase 03: Dependabot Config
+
 ```bash
 # Check for existing CI/CD workflows
 ls .github/workflows/*.yml
@@ -155,6 +167,7 @@ test -f COMPLIANCE/SUPPLY_CHAIN/DEPENDENCY_MANAGEMENT.md && \
 ```
 
 ### Phase 04: Incident Response
+
 ```bash
 cp docs/production/MONITORING.md .phases/04-incident-response/context/
 cp docs/security/PROFILES.md .phases/04-incident-response/context/
@@ -165,6 +178,7 @@ test -f OPERATIONS_RUNBOOK.md && \
 ```
 
 ### Phase 05: Classified Deployment
+
 ```bash
 cp docs/security/PROFILES.md .phases/05-classified-deployment/context/
 cp COMPLIANCE/AUDIT/AUDIT_LOGGING.md .phases/05-classified-deployment/context/
@@ -175,6 +189,7 @@ find docs/deployment -type f -name "*.md" | \
 ```
 
 ### Phase 06: Security Validation
+
 ```bash
 cp docs/security/PROFILES.md .phases/06-security-validation/context/
 # Copy Phase 05 output if complete
@@ -192,6 +207,7 @@ find scripts -name "*.py" | head -3 | \
 Before committing, verify:
 
 ### Documentation Quality
+
 - [ ] Content is clear and well-organized
 - [ ] Commands are copy-paste ready (no placeholders like `<example>`)
 - [ ] Cross-references use correct relative paths
@@ -201,6 +217,7 @@ Before committing, verify:
 - [ ] Meets line count requirements (from phase.md)
 
 ### Technical Accuracy
+
 - [ ] Configuration files have valid syntax (YAML, Python)
 - [ ] File paths reference actual FraiseQL components
 - [ ] Commands reference actual directories/files
@@ -208,6 +225,7 @@ Before committing, verify:
 - [ ] Examples are realistic and usable
 
 ### Completeness
+
 - [ ] All required sections present (from phase.md)
 - [ ] All acceptance criteria met
 - [ ] Verification commands pass
@@ -218,18 +236,23 @@ Before committing, verify:
 ## Common Issues & Solutions
 
 ### Issue: Junior asks "What should X be?"
+
 **Solution:** Check context files for existing patterns, or use best practices from the phase.md instructions
 
 ### Issue: Output file is too short/long
+
 **Solution:** Review phase.md requirements - most docs should be 300-600 lines
 
 ### Issue: Commands reference non-existent files
+
 **Solution:** Have junior check actual codebase structure in context files
 
 ### Issue: Configuration file has syntax errors
+
 **Solution:** Run verification commands from phase.md to catch errors
 
 ### Issue: Junior is stuck on technical detail
+
 **Solution:** Provide guidance, or mark as "good enough" and note for future improvement
 
 ---

@@ -103,21 +103,25 @@ Query via trace_id in log backend
 ### Priority Order
 
 1. **W3C Traceparent Header** (highest)
+
    ```
    traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
    ```
 
 2. **X-Trace-Id Header**
+
    ```
    X-Trace-Id: my-custom-trace-id-123
    ```
 
 3. **Jaeger Header**
+
    ```
    Uber-Trace-Id: abc123def456:span789:0:1
    ```
 
 4. **Generate New** (if none present)
+
    ```rust
    let trace_id = uuid::Uuid::new_v4().to_string();
    set_trace_id_context(&trace_id);
@@ -184,6 +188,7 @@ logger.error("payment_failed", vec![
 ```
 
 **Output Format**:
+
 ```
 2026-01-22T10:00:00.123Z [INFO] service-name user_created
   trace_id=abc123def456 user_id=123 email="user@example.com"
@@ -342,6 +347,7 @@ async fn handle_webhook(payload: &str) -> Result<()> {
 ```
 
 **Trace in Jaeger**:
+
 ```
 Span: webhook_handler
 ├─ duration: 150ms
@@ -350,6 +356,7 @@ Span: webhook_handler
 ```
 
 **Logs in Loki**:
+
 ```
 2026-01-22T10:00:00.123Z [INFO] webhook webhook_received
   trace_id=abc123def456 content_length=256
@@ -434,16 +441,19 @@ pub async fn process_order(
 ### Grafana Loki
 
 **Query logs for a specific trace**:
+
 ```logql
 {service="order-service"} | json | trace_id="abc123def456"
 ```
 
 **Dashboard panel**:
+
 ```logql
 count_over_time({service="order-service"} | json | trace_id!="" [5m])
 ```
 
 **Set log retention by trace**:
+
 ```logql
 # Keep logs from successful orders for 7 days
 {service="order-service", status="completed"} | retention_days(7)
@@ -452,6 +462,7 @@ count_over_time({service="order-service"} | json | trace_id!="" [5m])
 ### ELK Stack
 
 **Elasticsearch query**:
+
 ```json
 {
   "query": {
@@ -619,6 +630,7 @@ tokio::spawn(async move {
 **Cause**: Logs use different format than expected
 
 **Solution**: Ensure structured logging output matches expected format:
+
 ```
 TIMESTAMP [LEVEL] SERVICE EVENT trace_id=VALUE field=VALUE
 ```
@@ -665,12 +677,14 @@ After log correlation works well.2.D adds:
 ## File References
 
 **Correlation Module**: `src/logging/correlation.rs`
+
 - `TraceIdExtractor`: Extract trace IDs from various formats
 - `TraceContext`: Structure for propagating context
 - `set_trace_id_context()`: Set thread-local trace ID
 - `get_current_trace_id()`: Get current trace ID
 
 **Structured Logging Module**: `src/logging/structured.rs`
+
 - `StructuredLogger`: Main logging interface
 - `LogBuilder`: Builder pattern for logs
 - Auto-injection of trace_id into all logs

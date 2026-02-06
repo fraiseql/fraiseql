@@ -13,6 +13,7 @@ The plan is comprehensive in scope but lacks implementation rigor. It reads more
 **Problem**: The plan specifies far too many labels on metrics, creating exponential cardinality growth.
 
 **Example**:
+
 ```
 federation_entity_resolution_duration_ms
   - By: typename, resolution_strategy, hop_level, subgraph
@@ -47,15 +48,18 @@ This will overwhelm Prometheus storage and slow down queries.
 **Examples**:
 
 1. **`federation_query_overhead_ms`**
+
    ```
    Definition: total_federation_latency - local_subgraph_latencies
 
    Issue: "local_subgraph_latencies" is NOT a metric defined anywhere
    ```
+
    - How do we extract raw subgraph latency without federation overhead?
    - This metric is compute-impossible without changing architecture
 
 2. **`federation_entity_deduplication_ratio`** (gauge)
+
    ```
    How to compute: deduplicated_count / original_count
 
@@ -65,6 +69,7 @@ This will overwhelm Prometheus storage and slow down queries.
    ```
 
 3. **`federation_query_hop_latency_ms`**
+
    ```
    Labels: hop_level, subgraph_name
 
@@ -132,6 +137,7 @@ This will overwhelm Prometheus storage and slow down queries.
 **Problem**: Test lists are just checkboxes with no actual test cases defined.
 
 **Example**:
+
 ```
 
 **Tests**:
@@ -154,6 +160,7 @@ This is useless without:
 **Fix Needed**:
 
 1. Specify actual test scenarios:
+
    ```
    test_federation_entity_resolution_creates_span:
      - Input: 10 User entities, DB resolution
@@ -172,6 +179,7 @@ This is useless without:
 **Problem**: Plan references mutation conflict detection and replication status that don't exist.
 
 **Undefined**:
+
 ```
 federation_mutation_conflicts_total
   - By: mutation_type, typename, conflict_type (version/constraint)
@@ -195,6 +203,7 @@ In `federation_docker_compose_integration.rs`, there's no conflict detection log
 **Problem**: Alert thresholds don't align with SLO targets.
 
 **Example**:
+
 ```
 SLO:  3-hop query < 250ms p99
 Alert: federation_query_total_latency_ms[5m:p99] > 300ms
@@ -204,6 +213,7 @@ Issue: Alert fires at 300ms but SLO target is 250ms
 ```
 
 **Another example**:
+
 ```
 Alert: federation_query_hop_latency_ms{hop_level=~"2|3"}[5m:p99] > 150ms
 
@@ -230,6 +240,7 @@ Issue: But 3-hop queries should be < 250ms
 **Problem**: The span hierarchy specifies too many attributes per span, which impacts performance.
 
 **Example**:
+
 ```
 Subgraph Request Span specifies:
 
@@ -269,6 +280,7 @@ The plan doesn't monitor subgraph HTTP connection pool health, which is critical
 - Are connections timing out?
 
 **Fix**: Add metrics:
+
 ```
 federation_http_pool_connections_active: Gauge
 federation_http_pool_connections_idle: Gauge
@@ -284,6 +296,7 @@ The plan doesn't measure query complexity (field count, nesting depth), which af
 - Cache hit rates
 
 **Fix**: Add metric:
+
 ```
 federation_query_complexity: Histogram
   - By: complexity_bucket (simple/medium/complex)
@@ -304,6 +317,7 @@ The plan uses multiple terms for similar concepts:
  says "Alert runbooks" should be created, but they're not in the plan. The reference file `FEDERATION_OBSERVABILITY_RUNBOOK.md` doesn't exist.
 
 **Fix**: Include actual runbook format:
+
 ```
 ## Alert: High Federation Query Latency
 
@@ -363,6 +377,7 @@ The plan doesn't specify:
 ### 15. Configuration Not Discussed
 
 Should observability be configurable?
+
 - Enable/disable by feature flag?
 - Sampling rates configurable?
 - Log level per module?
@@ -370,6 +385,7 @@ Should observability be configurable?
 ### 16. Backwards Compatibility
 
 How do we add instrumentation without breaking existing code?
+
 - All new metrics fields should be optional?
 - Errors in observability should not fail queries?
 
@@ -480,4 +496,3 @@ The plan is too ambitious and under-specified for implementation. It reads like 
 ---
 
 **Review Complete**: 2026-01-28
-

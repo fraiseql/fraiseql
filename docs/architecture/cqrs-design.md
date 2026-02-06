@@ -64,6 +64,7 @@ flowchart LR
 ```
 
 **PostgreSQL View Example**:
+
 ```sql
 -- Read-optimized view
 CREATE VIEW v_user AS
@@ -79,6 +80,7 @@ FROM tb_user;
 ```
 
 **GraphQL Type**:
+
 ```python
 from fraiseql.types import ID
 
@@ -99,6 +101,7 @@ class User:
 ```
 
 **Benefits of View-Based Queries**:
+
 - ✅ **Pre-formatted data** - JSONB already in response format
 - ✅ **Rust pipeline** - Zero Python serialization overhead
 - ✅ **Denormalized reads** - Fast joins via Trinity Pattern (`pk_*`)
@@ -128,6 +131,7 @@ flowchart LR
 ```
 
 **PostgreSQL Function Example**:
+
 ```sql
 -- Write-optimized function
 CREATE OR REPLACE FUNCTION fn_create_user(
@@ -168,6 +172,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **GraphQL Mutation**:
+
 ```python
 @fraiseql.mutation
 async def create_user(
@@ -193,6 +198,7 @@ async def create_user(
 ```
 
 **Benefits of Function-Based Mutations**:
+
 - ✅ **Business logic in database** - Consistent validation rules
 - ✅ **Transactional integrity** - ACID guarantees
 - ✅ **Security** - Functions control what can be modified
@@ -233,6 +239,7 @@ flowchart TD
 | **Functions** | `fn_*` | Write operations | GraphQL mutations |
 
 **Example Structure**:
+
 ```sql
 -- Layer 1: Data storage (internal)
 CREATE TABLE tb_user (
@@ -286,6 +293,7 @@ flowchart TD
 ```
 
 **Characteristics**:
+
 - 📖 **Read-only** - No data modification
 - ⚡ **Performance-focused** - Denormalized views, JSONB pre-formatting
 - 🔄 **Cacheable** - Same query always returns same result
@@ -293,6 +301,7 @@ flowchart TD
 - 🚀 **Rust pipeline** - Zero Python serialization
 
 **Example**:
+
 ```graphql
 # Query (read)
 query {
@@ -327,6 +336,7 @@ flowchart TD
 ```
 
 **Characteristics**:
+
 - ✏️ **Write operations** - Modify data
 - 🔒 **Validated** - Business rules enforced
 - 🔄 **Transactional** - ACID guarantees
@@ -334,6 +344,7 @@ flowchart TD
 - 📝 **Audit trail** - All changes logged
 
 **Example**:
+
 ```graphql
 # Mutation (write)
 mutation {
@@ -375,16 +386,19 @@ flowchart TD
 ```
 
 **Views (Read)**:
+
 - Expose only public `id` (UUID)
 - Hide internal `pk_*` (INTEGER)
 - Use fast `pk_*` joins internally
 
 **Functions (Write)**:
+
 - Accept public `id` (UUID) as input
 - Resolve to `pk_*` (INTEGER) internally
 - Perform fast operations using `pk_*`
 
 **Example**:
+
 ```sql
 -- View exposes UUID
 CREATE VIEW v_comment AS
@@ -448,6 +462,7 @@ flowchart TD
 ```
 
 **Query errors are rare**:
+
 - Schema validation catches issues early
 - Views are read-only (no data integrity issues)
 - Filters validated before SQL execution
@@ -474,6 +489,7 @@ flowchart TD
 ```
 
 **Mutation error handling is explicit**:
+
 ```sql
 CREATE FUNCTION fn_create_user(
     p_name TEXT,
@@ -541,6 +557,7 @@ $$ LANGUAGE plpgsql;
 | **Audit** | Application code | Database triggers |
 
 **Benefits**:
+
 - ✅ Fewer network round-trips
 - ✅ Consistent validation rules
 - ✅ Guaranteed transactional integrity
@@ -553,26 +570,31 @@ $$ LANGUAGE plpgsql;
 ### ✅ DO
 
 1. **Use views for all queries**
+
    ```sql
    CREATE VIEW v_user AS ...  -- ✅ Read-optimized
    ```
 
 2. **Use functions for all mutations**
+
    ```sql
    CREATE FUNCTION fn_create_user(...) RETURNS JSONB ...  -- ✅ Write-controlled
    ```
 
 3. **Return JSONB from functions**
+
    ```sql
    RETURN jsonb_build_object('success', true, 'userId', v_id);  -- ✅ Structured
    ```
 
 4. **Expose only public `id` in views**
+
    ```sql
    SELECT id, data FROM v_user;  -- ✅ UUID only
    ```
 
 5. **Use `pk_*` internally for joins**
+
    ```sql
    JOIN tb_post p ON p.pk_post = c.pk_post  -- ✅ Fast
    ```
@@ -582,26 +604,31 @@ $$ LANGUAGE plpgsql;
 ### ❌ DON'T
 
 1. **Don't query tables directly**
+
    ```python
    SELECT * FROM tb_user  -- ❌ Use v_user instead
    ```
 
 2. **Don't write INSERT/UPDATE in application code**
+
    ```python
    await db.execute("INSERT INTO tb_user ...")  -- ❌ Use fn_create_user()
    ```
 
 3. **Don't expose `pk_*` in views**
+
    ```sql
    SELECT pk_user, id FROM v_user  -- ❌ Internal only
    ```
 
 4. **Don't use UUID for foreign keys**
+
    ```sql
    user_id UUID REFERENCES tb_user(id)  -- ❌ Slow, use pk_user
    ```
 
 5. **Don't skip validation in functions**
+
    ```sql
    INSERT INTO tb_user VALUES (...)  -- ❌ Validate first
    ```
@@ -622,6 +649,7 @@ FraiseQL uses consistent naming for CQRS components:
 | **Custom Functions** | `fn_` | `fn_promote_user` | Business operations |
 
 **Consistency ensures**:
+
 - Clear intent (table vs view vs function)
 - Easy to find related components
 - Obvious what each component does

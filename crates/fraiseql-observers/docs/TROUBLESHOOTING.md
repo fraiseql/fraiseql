@@ -34,6 +34,7 @@ Start with this checklist to identify the issue:
 ### Issue 1: "No Listener Running" Error
 
 **Symptoms**:
+
 ```
 Error: No listener is currently running
 Status: Unable to process events
@@ -64,7 +65,8 @@ psql postgresql://user:pass@localhost/fraiseql -c "LISTEN test_channel; NOTIFY t
 
 **Solutions**:
 
-#### If database connection failed:
+#### If database connection failed
+
 ```bash
 # Verify credentials
 echo $DATABASE_URL
@@ -76,7 +78,8 @@ psql $DATABASE_URL -c "SELECT 1;"
 DATABASE_URL="postgresql://user:pass@host:5432/db" fraiseql-observer start
 ```
 
-#### If permission denied:
+#### If permission denied
+
 ```bash
 # Grant needed permissions
 psql postgresql://postgres:postgres@localhost/fraiseql << EOF
@@ -86,7 +89,8 @@ GRANT ALL ON SEQUENCE observer_checkpoints_id_seq TO observer_user;
 EOF
 ```
 
-#### If PostgreSQL LISTEN/NOTIFY not working:
+#### If PostgreSQL LISTEN/NOTIFY not working
+
 ```bash
 # Check if extension is available
 psql $DATABASE_URL -c "SELECT * FROM pg_available_extensions WHERE name = 'uuid-ossp';"
@@ -100,6 +104,7 @@ psql $DATABASE_URL -c "CREATE EXTENSION IF NOT EXISTS uuid-ossp;"
 ### Issue 2: Event Processing Stuck
 
 **Symptoms**:
+
 ```
 Events arriving in database
 But not being processed
@@ -132,7 +137,8 @@ fraiseql-observers metrics --metric observer_action_duration_seconds
 
 **Solutions**:
 
-#### If condition always false:
+#### If condition always false
+
 ```bash
 # Debug the condition
 fraiseql-observers debug-event --event-id evt-123
@@ -145,6 +151,7 @@ fraiseql-observers debug-event --event-id evt-123
 ```
 
 **Fix**: Review and correct the condition in your observer definition:
+
 ```rust
 // Wrong: This filters for events AFTER they're created
 ObserverDefinition {
@@ -159,7 +166,8 @@ ObserverDefinition {
 }
 ```
 
-#### If external service hanging:
+#### If external service hanging
+
 ```bash
 # Increase timeout in configuration
 retry_strategy: BackoffStrategy::Exponential {
@@ -179,6 +187,7 @@ circuit_breaker: CircuitBreakerConfig {
 ### Issue 3: High DLQ Accumulation
 
 **Symptoms**:
+
 ```
 fraiseql-observers dlq stats
 Total Items: 1,250 (growing)
@@ -217,7 +226,8 @@ fraiseql-observers dlq stats --by-error
 
 **Solutions**:
 
-#### If external service unreachable:
+#### If external service unreachable
+
 ```bash
 # Test connectivity
 curl -v https://webhook.example.com/notify
@@ -237,7 +247,8 @@ nslookup webhook.example.com
 # - Headers format correct
 ```
 
-#### If endpoint invalid:
+#### If endpoint invalid
+
 ```bash
 # Check DLQ item for details
 fraiseql-observers dlq show dlq-001 | grep -A5 "Error"
@@ -251,7 +262,8 @@ curl -X POST https://webhook.example.com/notify \
   -d '{"test": true}'
 ```
 
-#### If rate limited:
+#### If rate limited
+
 ```bash
 # Check error details
 fraiseql-observers dlq show dlq-001
@@ -270,6 +282,7 @@ batch_size: 100,  // Process multiple at once
 ```
 
 **Manual Retry**:
+
 ```bash
 # Dry run first (show what would be retried)
 fraiseql-observers dlq retry-all --observer obs-webhook --dry-run
@@ -287,6 +300,7 @@ fraiseql-observers dlq stats
 ### Issue 4: Duplicate Events Being Processed
 
 **Symptoms**:
+
 ```
 Same webhook called twice
 Same email sent twice
@@ -316,7 +330,8 @@ fraiseql-observers metrics --metric observer_cache_hit_rate
 
 **Solutions**:
 
-#### If deduplication not enabled:
+#### If deduplication not enabled
+
 ```toml
 # Add to features in Cargo.toml
 [features]
@@ -326,7 +341,8 @@ dedup = ["redis"]
 cargo build --release --features "dedup"
 ```
 
-#### If deduplication window too short:
+#### If deduplication window too short
+
 ```rust
 // Increase from 5 minutes to 30 minutes
 dedup_store: Arc::new(
@@ -338,7 +354,8 @@ dedup_store: Arc::new(
 ),
 ```
 
-#### To verify deduplication working:
+#### To verify deduplication working
+
 ```bash
 # 1. Send test event
 INSERT INTO fraiseql_events (entity_type, entity_id, ...)
@@ -361,6 +378,7 @@ fraiseql-observers debug-event --entity-id order-123
 ### Issue 5: Performance Degradation Over Time
 
 **Symptoms**:
+
 ```
 Events processed in 50ms initially
 Events processed in 500ms+ after hours
@@ -394,7 +412,8 @@ psql $DATABASE_URL -c "SELECT pg_size_pretty(pg_total_relation_size('observer_ch
 
 **Solutions**:
 
-#### If cache memory exhausted:
+#### If cache memory exhausted
+
 ```rust
 // Option 1: Reduce cache TTL (entries expire faster)
 cache_ttl: Duration::from_secs(60),  // Was 300
@@ -417,7 +436,8 @@ redis:
   command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
 ```
 
-#### If connection pool exhausted:
+#### If connection pool exhausted
+
 ```rust
 // Increase connection pool size
 checkpoint_store: Arc::new(
@@ -433,7 +453,8 @@ checkpoint_store: Arc::new(
 ),
 ```
 
-#### If checkpoint table too large:
+#### If checkpoint table too large
+
 ```bash
 # Add retention policy (keep 30 days)
 psql $DATABASE_URL << EOF
@@ -454,6 +475,7 @@ $$);
 ### Issue 6: Failover Not Working
 
 **Symptoms**:
+
 ```
 Multi-listener configured with 3 listeners
 Primary listener crashes
@@ -493,7 +515,8 @@ fraiseql-observers status | grep Leader
 
 **Solutions**:
 
-#### If health check too slow:
+#### If health check too slow
+
 ```rust
 multi_listener_config: Some(MultiListenerConfig {
     num_listeners: 3,
@@ -502,7 +525,8 @@ multi_listener_config: Some(MultiListenerConfig {
 }),
 ```
 
-#### If checkpoints not shared:
+#### If checkpoints not shared
+
 ```rust
 // Ensure ALL listeners use same checkpoint store
 // In config for each listener:
@@ -519,7 +543,8 @@ psql $DATABASE_URL -c "\d observer_checkpoints"
 # Should show: UNIQUE INDEX listener_id
 ```
 
-#### To test failover recovery:
+#### To test failover recovery
+
 ```bash
 # 1. Monitor before failure
 watch -n 1 'fraiseql-observers status'
@@ -538,6 +563,7 @@ kill $(pgrep fraiseql-observer | head -1)
 ### Issue 7: Circuit Breaker Opening Too Easily
 
 **Symptoms**:
+
 ```
 Brief network hiccup
 Circuit opens and stays open for minutes
@@ -566,7 +592,8 @@ fraiseql-observers metrics --metric observer_action_failures_by_service
 
 **Solutions**:
 
-#### Adjust circuit breaker thresholds:
+#### Adjust circuit breaker thresholds
+
 ```rust
 CircuitBreakerConfig {
     failure_threshold: 0.7,      // Higher = more tolerant (was 0.5)
@@ -576,7 +603,8 @@ CircuitBreakerConfig {
 }
 ```
 
-#### If external service unreliable:
+#### If external service unreliable
+
 ```rust
 // Instead of relying on circuit breaker, use timeout + retry
 retry_strategy: BackoffStrategy::Fixed {
@@ -673,26 +701,31 @@ grep "circuit" observer.log    # Circuit breaker issues
 When reporting issues, include:
 
 1. **Configuration**:
+
    ```bash
    fraiseql-observers status --detailed > status.json
    ```
 
 2. **Recent Metrics**:
+
    ```bash
    fraiseql-observers metrics > metrics.txt
    ```
 
 3. **DLQ Status**:
+
    ```bash
    fraiseql-observers dlq stats > dlq-stats.json
    ```
 
 4. **Recent Logs** (last 100 lines):
+
    ```bash
    docker logs observer-listener --tail 100 > recent-logs.txt
    ```
 
 5. **Configuration (redacted)**:
+
    ```bash
    env | grep -E "DATABASE|REDIS|ELASTIC" > config.env
    ```
@@ -723,6 +756,7 @@ When reporting issues, include:
 - Configuration version control
 
 ### 4. Load Testing
+
 ```bash
 # Simulate load before production
 fraiseql-load-test \
@@ -731,6 +765,7 @@ fraiseql-load-test \
 ```
 
 ### 5. Failover Testing
+
 ```bash
 # Monthly failover drills
 # 1. Kill primary listener
@@ -746,6 +781,7 @@ fraiseql-load-test \
 ### Slow Event Processing
 
 1. **Identify bottleneck**:
+
    ```bash
    fraiseql-observers metrics | grep duration_seconds
    # Check which action type is slowest
@@ -758,6 +794,7 @@ fraiseql-load-test \
    - Batch operations
 
 3. **Verify improvement**:
+
    ```bash
    # Compare before/after metrics
    fraiseql-observers metrics > after.txt
@@ -766,6 +803,7 @@ fraiseql-load-test \
 ### High Memory Usage
 
 1. **Identify source**:
+
    ```bash
    docker stats | grep observer
    # Check if memory grows over time
@@ -778,6 +816,7 @@ fraiseql-load-test \
    - Reduce dedup window
 
 3. **Monitor**:
+
    ```bash
    watch -n 5 'docker stats'
    ```
@@ -790,4 +829,3 @@ fraiseql-load-test \
 - Configuration Examples: `CONFIGURATION_EXAMPLES.md`
 - CLI Tools: `CLI_TOOLS.md`
 - Performance Tuning: `PERFORMANCE_TUNING.md`
-

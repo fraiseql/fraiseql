@@ -9,16 +9,19 @@ FraiseQL supports filtering on related objects using two different approaches de
 Used when filtering by a related object's ID, leveraging foreign key columns.
 
 **Example**:
+
 ```python
 where = {"machine": {"id": {"eq": machine_uuid}}}
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT * FROM allocations WHERE machine_id = '01451122-5021-0000-5000-000000000072'::uuid
 ```
 
 **When to use**:
+
 - Filtering by related object ID
 - Hybrid tables with both FK columns and JSONB data
 - Best performance (uses indexed FK column)
@@ -28,17 +31,20 @@ SELECT * FROM allocations WHERE machine_id = '01451122-5021-0000-5000-0000000000
 Used when filtering by fields within JSONB-stored related objects.
 
 **Example**:
+
 ```python
 where = {"machine": {"name": {"contains": "Printer"}}}
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT * FROM allocations
 WHERE data->'machine'->>'name' LIKE '%Printer%'
 ```
 
 **When to use**:
+
 - Filtering by related object fields (not ID)
 - JSONB-stored related data
 - When FK column doesn't exist
@@ -48,6 +54,7 @@ WHERE data->'machine'->>'name' LIKE '%Printer%'
 You can combine both approaches in a single filter.
 
 **Example**:
+
 ```python
 where = {
     "machine": {
@@ -58,6 +65,7 @@ where = {
 ```
 
 **Generated SQL**:
+
 ```sql
 SELECT * FROM allocations
 WHERE machine_id = '01451122-5021-0000-5000-000000000072'::uuid
@@ -74,6 +82,7 @@ WHERE machine_id = '01451122-5021-0000-5000-000000000072'::uuid
    - Equivalent results
 
 2. **Direct FK filter vs nested filter**
+
    ```python
    # These are equivalent, but direct FK is clearer:
 
@@ -109,6 +118,7 @@ For databases using the Trinity Pattern (UUID public ID + INTEGER internal PK):
 3. **JSONB path performance**
    - JSONB filters can be slower than FK filters
    - Consider adding JSONB indexes for frequently filtered paths:
+
      ```sql
      CREATE INDEX idx_machine_name ON allocations
      USING GIN ((data->'machine'));
@@ -121,6 +131,7 @@ For databases using the Trinity Pattern (UUID public ID + INTEGER internal PK):
 **Cause**: Fixed in FraiseQL v1.8.0-alpha.4+
 
 **Solution**: Upgrade to latest version or use direct FK filter:
+
 ```python
 # Instead of:
 allocations(where: { machine: { id: { eq: $id } } })
@@ -132,11 +143,13 @@ allocations(where: { machineId: { eq: $id } })
 ### Empty Results from Nested Filter
 
 **Possible causes**:
+
 1. Table metadata not registered
 2. FK column naming mismatch
 3. JSONB path structure mismatch
 
 **Debug steps**:
+
 1. Enable debug logging: `FRAISEQL_LOG_LEVEL=DEBUG`
 2. Check generated SQL in logs
 3. Verify FK column exists: `SELECT column_name FROM information_schema.columns WHERE table_name = 'your_table'`

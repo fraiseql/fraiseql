@@ -16,6 +16,7 @@ Pentagon-Readiness Assessment recommends "Enable Dependabot for automated depend
 ## Objective
 
 Configure GitHub Dependabot for:
+
 1. Automated dependency updates (weekly schedule)
 2. Security vulnerability alerts
 3. Automated PR creation for updates
@@ -23,6 +24,7 @@ Configure GitHub Dependabot for:
 5. Documentation of review workflow
 
 **Deliverables:**
+
 - `.github/dependabot.yml` configuration
 - Documentation update to `COMPLIANCE/SUPPLY_CHAIN/DEPENDENCY_MANAGEMENT.md`
 
@@ -31,12 +33,14 @@ Configure GitHub Dependabot for:
 ## Context Files
 
 **Review these files (orchestrator will copy to `context/` if they exist):**
+
 - `.github/workflows/*.yml` - Existing CI/CD workflows
 - `pyproject.toml` or `requirements.txt` - Python dependencies
 - `COMPLIANCE/SUPPLY_CHAIN/DEPENDENCY_MANAGEMENT.md` - Existing supply chain docs
 - `COMPLIANCE/SUPPLY_CHAIN/SBOM.md` - SBOM documentation
 
 **External References:**
+
 - Dependabot configuration: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 - Dependabot grouping: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#groups
 
@@ -51,6 +55,7 @@ Configure GitHub Dependabot for:
 **Target Location:** `.github/dependabot.yml`
 
 **Requirements:**
+
 - [ ] Python package ecosystem configured
 - [ ] GitHub Actions ecosystem configured
 - [ ] Weekly update schedule (Mondays, 09:00 UTC)
@@ -110,6 +115,7 @@ updates:
 ```
 
 **Notes:**
+
 - Replace `fraiseql/maintainers` and `fraiseql/security-team` with actual GitHub teams or usernames
 - If no teams exist, use individual maintainer usernames like `@username1`, `@username2`
 - Remove Docker ecosystem if not using Dockerfiles
@@ -124,6 +130,7 @@ updates:
 This will be **appended** to `COMPLIANCE/SUPPLY_CHAIN/DEPENDENCY_MANAGEMENT.md`
 
 **Requirements:**
+
 - [ ] Section title: "## Automated Dependency Updates"
 - [ ] Dependabot configuration overview
 - [ ] Update schedule documented
@@ -214,11 +221,13 @@ gh api repos/:owner/:repo/dependabot/alerts
 ```
 
 **View open Dependabot PRs:**
+
 ```bash
 gh pr list --label dependencies
 ```
 
 **View Dependabot configuration:**
+
 ```bash
 cat .github/dependabot.yml
 ```
@@ -233,6 +242,7 @@ If Dependabot creates too many PRs or causes issues:
    - Commit and push
 
 2. **Close all pending PRs:**
+
    ```bash
    gh pr list --label dependencies --json number --jq '.[].number' | \
      xargs -I {} gh pr close {}
@@ -245,6 +255,7 @@ If Dependabot creates too many PRs or causes issues:
 ### Metrics
 
 Track Dependabot effectiveness:
+
 - Number of security vulnerabilities patched per month
 - Average time to merge security updates
 - Number of automated vs manual dependency updates
@@ -254,6 +265,7 @@ Track Dependabot effectiveness:
 
 - GitHub Dependabot Documentation: https://docs.github.com/en/code-security/dependabot
 - Dependabot Configuration Options: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
 ```
 
 ---
@@ -351,6 +363,7 @@ After committing, enable in GitHub UI:
    - Choose email/Slack/webhook notifications
 
 4. **Verify configuration:**
+
    ```bash
    # Check if Dependabot is enabled (requires GitHub CLI with auth)
    gh api repos/fraiseql/fraiseql/vulnerability-alerts

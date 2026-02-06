@@ -459,18 +459,21 @@ spec:
 ### No Traces Appearing
 
 **Check 1**: Is Jaeger running?
+
 ```bash
 curl http://localhost:16686/api/services
 # Should return: {"services":["fraiseql-observer"]}
 ```
 
 **Check 2**: Is tracing enabled?
+
 ```bash
 echo $TRACING_ENABLED
 # Should be: true
 ```
 
 **Check 3**: Is endpoint correct?
+
 ```bash
 curl http://localhost:14268/api/traces
 # Should succeed (empty trace response is OK)
@@ -479,6 +482,7 @@ curl http://localhost:14268/api/traces
 ### Traces Not Exported
 
 **Check**: Call flush_spans() at shutdown
+
 ```rust
 // Before exiting
 flush_spans()?;

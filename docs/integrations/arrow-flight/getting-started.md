@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Getting Started with Arrow Flight (5-Minute Tutorial)
 description: This tutorial gets you running Arrow Flight queries in **5 minutes**.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

@@ -1,6 +1,7 @@
 # Coverage Gap Analysis
 
 ## Summary
+
 - Modules with <50% coverage: 45+
 - Critical gaps (core modules): 8
 - Non-critical gaps (optional features): 37+
@@ -22,6 +23,7 @@
 ## Non-Critical Gaps (P2-P3)
 
 ### P2 - Medium Priority (Optional Features)
+
 | Module | Coverage | Notes |
 |--------|----------|-------|
 | `decorators.py` | 42% | Many decorator variants untested |
@@ -30,6 +32,7 @@
 | `db.py` | 48% | Large module, partial coverage |
 
 ### P3 - Low Priority (Enterprise/Optional)
+
 - `enterprise/rbac/*` - All 0% (enterprise feature)
 - `enterprise/audit/*` - All 0% (enterprise feature)
 - `enterprise/crypto/*` - All 0% (enterprise feature)
@@ -37,6 +40,7 @@
 ## Zero Coverage Modules
 
 ### Intentionally Untested (CLI/DevTools)
+
 | Module | Reason |
 |--------|--------|
 | `cli/main.py` | CLI entry point |
@@ -45,6 +49,7 @@
 | `debug/debug.py` | Debug utilities |
 
 ### Enterprise Features (Untested - 0%)
+
 | Module | Reason |
 |--------|--------|
 | `enterprise/rbac/mutations.py` | RBAC mutations |
@@ -53,6 +58,7 @@
 | `enterprise/audit/event_logger.py` | Audit logging |
 
 ### Native Auth (Untested - 0%)
+
 | Module | Reason |
 |--------|--------|
 | `auth/native/factory.py` | Native auth factory |
@@ -62,6 +68,7 @@
 | `auth/native/tokens.py` | Token management |
 
 ### Caching Module (Untested - 0%)
+
 | Module | Reason |
 |--------|--------|
 | `caching/cache_key.py` | Cache key generation |
@@ -72,6 +79,7 @@
 ## Action Items
 
 ### P0 - Critical (Immediate)
+
 1. **Add tests for `core/nested_field_resolver.py`** - 11% coverage on core functionality
    - Test nested object resolution
    - Test array field handling
@@ -83,6 +91,7 @@
    - Test transaction handling
 
 ### P1 - High (This Sprint)
+
 3. **Add tests for `cqrs/pagination.py`** - 13% coverage
    - Test cursor-based pagination
    - Test offset pagination
@@ -93,6 +102,7 @@
    - `auth/token_revocation.py` - Test revocation flows
 
 ### P2 - Medium (Next Sprint)
+
 5. **Add caching tests** - 0% coverage for entire module
    - Start with `caching/result_cache.py`
    - Add `caching/cache_key.py` tests
@@ -102,6 +112,7 @@
    - Test error responses
 
 ### P3 - Low (Backlog)
+
 7. **CLI tests** - Consider e2e tests for critical CLI commands
    - `init` command
    - `migrate` command

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Multi-Plane Interactions: Cross-Plane Semantics and Composition
 description: FraiseQL's three execution planes (JSON, Arrow, Delta) operate from the same schema but are independent execution contexts. This document specifies how they int
 keywords: ["design", "scalability", "performance", "patterns", "security"]

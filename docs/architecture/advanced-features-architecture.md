@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2: Advanced Features Architecture
 description: 1. [Extension Points & Pluggability](#extension-points--pluggability)
 keywords: ["design", "scalability", "performance", "patterns", "security"]
@@ -1189,5 +1190,3 @@ impl WebhookAdapter {
 All features build on the core foundation (schema compilation, runtime execution, database abstraction).
 
 ---
-
-

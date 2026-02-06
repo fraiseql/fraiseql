@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Federation Platform - Project Readiness Assessment
 description: - FraiseQL federation architecture concepts
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

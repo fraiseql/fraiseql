@@ -74,6 +74,7 @@ Executes a federated query through Apollo Router gateway:
 - Orders subgraph resolves User references via HTTP federation
 
 **Example Query**:
+
 ```graphql
 query {
     users(limit: 3) {
@@ -177,6 +178,7 @@ This script will:
 5. Clean up environment
 
 Options:
+
 ```bash
 ./run_2subgraph_tests.sh --no-cleanup    # Keep Docker Compose running for debugging
 ```
@@ -238,6 +240,7 @@ The script will:
 ## Test Results Interpretation
 
 ### ✓ All Tests Pass
+
 Federation is working correctly. Subgraphs can:
 
 - Respond independently
@@ -250,21 +253,25 @@ Federation is working correctly. Subgraphs can:
 Check the error messages:
 
 **Error: "Service not ready"**
+
 - Docker Compose services didn't start
 - Verify Docker is running: `docker ps`
 - Check logs: `docker-compose logs`
 
 **Error: "Gateway federation query failed"**
+
 - Apollo Router couldn't compose schema
 - Check subgraph SDL: `curl http://localhost:4001/graphql?query={_service{sdl}}`
 - Verify federation directives in schemas
 
 **Error: "Entity resolution failed"**
+
 - HTTP federation not configured correctly
 - Check federation.toml in orders service
 - Verify users subgraph URL is correct
 
 **Error: "Query timed out"**
+
 - Services are slow or unreachable
 - Check Docker resource limits
 - Verify network connectivity
@@ -290,6 +297,7 @@ docker-compose logs -f
 ### Manual GraphQL Queries
 
 Test users subgraph:
+
 ```bash
 curl -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
@@ -297,6 +305,7 @@ curl -X POST http://localhost:4001/graphql \
 ```
 
 Test orders subgraph:
+
 ```bash
 curl -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
@@ -304,6 +313,7 @@ curl -X POST http://localhost:4002/graphql \
 ```
 
 Test gateway (federated query):
+
 ```bash
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
@@ -313,6 +323,7 @@ curl -X POST http://localhost:4000/graphql \
 ### Check Schema Composition
 
 View Apollo Router's composed schema:
+
 ```bash
 curl http://localhost:4000/graphql?query={_service{sdl}} | jq '.data._service.sdl'
 ```
@@ -320,6 +331,7 @@ curl http://localhost:4000/graphql?query={_service{sdl}} | jq '.data._service.sd
 ### Database Access
 
 Access PostgreSQL databases directly:
+
 ```bash
 # Users database
 psql postgresql://postgres:fraiseql@localhost:5432/users
@@ -335,7 +347,9 @@ SELECT * FROM tb_order;
 ## Troubleshooting
 
 ### "docker-compose: command not found"
+
 Install Docker Compose v2:
+
 ```bash
 # macOS
 brew install docker-compose
@@ -346,7 +360,9 @@ curl -L https://github.com/docker/compose/releases/download/v2.20.0/docker-compo
 ```
 
 ### Ports Already in Use
+
 If ports 4000-4003 or 5432-5434 are already in use:
+
 ```bash
 # Kill existing containers
 docker-compose down -v --remove-orphans
@@ -355,12 +371,14 @@ docker-compose down -v --remove-orphans
 ```
 
 ### Out of Disk Space
+
 ```bash
 # Clean up Docker volumes and images
 docker system prune -a --volumes
 ```
 
 ### Services Won't Start
+
 ```bash
 # Check Docker daemon
 docker ps

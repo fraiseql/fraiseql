@@ -57,6 +57,7 @@ Auto-discovers domains and generates `schema.compiled.json`.
 ## Key Concepts
 
 ### Multi-Tenancy
+
 Each domain includes `accountId` field for tenant isolation:
 
 ```
@@ -75,6 +76,7 @@ Account
 - **Integrations** handles external services
 
 ### Security
+
 Role-based access control per domain:
 
 - Account owner: account settings
@@ -125,6 +127,7 @@ mutation {
 ## Extending the Schema
 
 ### Add Support Domain
+
 ```bash
 mkdir -p schema/support
 # Add schema/support/types.json with Ticket, SupportUser, etc.
@@ -132,6 +135,7 @@ fraiseql compile fraiseql.toml
 ```
 
 ### Add Analytics Domain
+
 ```bash
 mkdir -p schema/analytics
 # Add schema/analytics/types.json with Metrics, Events, etc.

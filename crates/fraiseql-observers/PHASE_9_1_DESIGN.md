@@ -93,6 +93,7 @@ Root Span: Event Processing (event_id, checkpoint_offset)
 - `Cargo.toml` - Add dependencies
 
 **Dependencies to Add**:
+
 ```toml
 opentelemetry = "0.20"
 opentelemetry-jaeger = "0.19"
@@ -156,6 +157,7 @@ pub fn init_tracing(config: TracingConfig) -> Result<()> {
 - `src/actions/traced_webhook.rs` (new - wrapper)
 
 **W3C Trace Context Headers**:
+
 ```
 traceparent: 00-{trace_id}-{span_id}-{flags}
 tracestate: vendor=value
@@ -599,6 +601,7 @@ tracing:
 ## Backward Compatibility
 
 ### Guarantee
+
 ✅ **100% backward compatible** with Phase 8
 
 - Tracing is **opt-in** via configuration
@@ -764,28 +767,35 @@ tracing:
 ### Traces, Spans, and Events
 
 **Trace**: Complete request flow from entry to exit
+
 - Example: One event processing flow
 
 **Span**: Individual operation within a trace
+
 - Example: Condition evaluation, action execution
 
 **Event**: Named event within a span
+
 - Example: "Action completed" within action execution span
 
 **Attributes**: Key-value data on spans
+
 - Example: `http_status_code: 200`, `error: false`
 
 ### Sampling
 
 **Deterministic Sampler**: Consistent sampling
+
 - Same trace ID always sampled/not sampled
 - Better for debugging (consistent behavior)
 
 **Probabilistic Sampler**: Random sampling
+
 - `sample_rate: 0.1` = trace 10% of events
 - Reduces overhead
 
 **Parent-based Sampler**: Follow parent's decision
+
 - Child spans follow parent's sampling decision
 - Maintains trace coherency
 
@@ -795,4 +805,3 @@ tracing:
 **Version**: 1.0
 **Status**: Ready for Implementation
 **Date**: January 22, 2026
-

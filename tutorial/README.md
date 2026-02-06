@@ -131,6 +131,7 @@ curl http://localhost:3001/api/chapters
 ```
 
 Response:
+
 ```json
 [
   {
@@ -154,6 +155,7 @@ curl http://localhost:3001/api/chapters/1
 ```
 
 Response:
+
 ```json
 {
   "id": 1,
@@ -175,6 +177,7 @@ curl -X POST http://localhost:3001/api/execute \
 ```
 
 Response:
+
 ```json
 {
   "data": {
@@ -203,6 +206,7 @@ curl http://localhost:3001/api/schema/types
 ```
 
 Response:
+
 ```json
 {
   "types": [
@@ -237,6 +241,7 @@ Users can write and execute GraphQL queries with:
 - **Result formatting** with syntax highlighting
 
 **Keyboard Shortcuts:**
+
 - `Ctrl+Enter` / `Cmd+Enter` - Execute query
 - `Arrow Left/Right` - Navigate between chapters
 - `Arrow Up/Down` - Scroll content (when focused)
@@ -335,6 +340,7 @@ environment:
 ### Tutorial won't start
 
 Check logs:
+
 ```bash
 docker compose -f docker/docker-compose.demo.yml logs tutorial
 ```

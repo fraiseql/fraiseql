@@ -23,6 +23,7 @@
 
 **Base Image**: python:3.13-slim
 **Vulnerabilities**:
+
 - CRITICAL: 0 ✅
 - HIGH: 0 ✅
 - MEDIUM: 9 (documented and accepted)
@@ -122,6 +123,7 @@ kubectl get pod -n fraiseql-production -l app=fraiseql -o jsonpath='{.items[0].s
 ### Security Features
 
 #### Container Hardening
+
 - ✅ Non-root user (UID 65532)
 - ✅ Read-only root filesystem
 - ✅ Dropped all Linux capabilities
@@ -130,6 +132,7 @@ kubectl get pod -n fraiseql-production -l app=fraiseql -o jsonpath='{.items[0].s
 - ✅ AppArmor/SELinux compatible
 
 #### Network Security
+
 - ✅ Network policies (zero-trust)
 - ✅ Ingress TLS with strong ciphers
 - ✅ mTLS for service-to-service (recommended)
@@ -137,6 +140,7 @@ kubectl get pod -n fraiseql-production -l app=fraiseql -o jsonpath='{.items[0].s
 - ✅ Egress filtering
 
 #### Runtime Security
+
 - ✅ Falco for threat detection
 - ✅ Unauthorized process detection
 - ✅ File integrity monitoring
@@ -163,6 +167,7 @@ helm install falco falcosecurity/falco \
 ```
 
 **Security features**:
+
 - Pod Security Standards: restricted
 - Network policies (zero-trust)
 - Read-only root filesystem
@@ -361,6 +366,7 @@ scrape_configs:
 ```
 
 **Key Metrics**:
+
 - `fraiseql_requests_total` - Total HTTP requests
 - `fraiseql_request_duration_seconds` - Request latency
 - `fraiseql_graphql_queries_total` - GraphQL queries
@@ -386,6 +392,7 @@ scrape_configs:
 ### Security Alerts (Falco)
 
 Falco rules monitor for:
+
 - ✅ Unexpected processes
 - ✅ Shell execution
 - ✅ Unauthorized file writes
@@ -395,6 +402,7 @@ Falco rules monitor for:
 - ✅ Sensitive file access
 
 **Alert Destinations**:
+
 - Slack
 - PagerDuty
 - Email
@@ -556,6 +564,7 @@ kubectl run -n fraiseql-production test-pod \
 **Response Plan**:
 
 1. **Assess Impact** (< 4 hours)
+
    ```bash
    # Get vulnerability details
    trivy image fraiseql:1.8.0-hardened \
@@ -569,6 +578,7 @@ kubectl run -n fraiseql-production test-pod \
    - Document findings
 
 3. **Apply Patch** (< 7 days for HIGH, < 24 hours for CRITICAL)
+
    ```bash
    # Pull latest base image
    docker pull python:3.13-slim
@@ -581,6 +591,7 @@ kubectl run -n fraiseql-production test-pod \
    ```
 
 4. **Deploy Update**
+
    ```bash
    # Canary deployment
    kubectl set image deployment/fraiseql \
@@ -592,6 +603,7 @@ kubectl run -n fraiseql-production test-pod \
    ```
 
 5. **Verify Fix**
+
    ```bash
    # Final scan
    trivy image fraiseql:1.8.0-hardened

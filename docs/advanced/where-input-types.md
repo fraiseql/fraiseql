@@ -79,6 +79,7 @@ assignments = await db.find("assignments", where=where_filter)
 ```
 
 **Benefits:**
+
 - ✅ Full IDE autocomplete
 - ✅ Type errors caught at development time
 - ✅ Self-documenting code
@@ -120,6 +121,7 @@ assignments = await db.find("assignments", where=where_dict)
 ```
 
 **Generated SQL:**
+
 ```sql
 SELECT * FROM assignments
 WHERE data->>'status' = 'active'
@@ -172,6 +174,7 @@ where_dict = {
 ```
 
 **Benefits:**
+
 - ✅ Maximum flexibility
 - ✅ Dynamic query construction
 - ✅ Easy to serialize/deserialize
@@ -181,7 +184,7 @@ where_dict = {
 
 ## When to Use Each Syntax
 
-### Use WhereType When:
+### Use WhereType When
 
 1. **Writing GraphQL resolvers** - Type safety prevents bugs
 2. **Building query helpers** - IDE autocomplete improves DX
@@ -205,7 +208,7 @@ async def active_assignments(info, device_name: str) -> list[Assignment]:
     return await db.find("assignments", where=where)
 ```
 
-### Use Dict-Based When:
+### Use Dict-Based When
 
 1. **Dynamic filters** - Building queries from user input
 2. **Repository layer** - Direct database access
@@ -283,6 +286,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ## Filter Operators by Field Type
 
 > **💡 Advanced Operators**: FraiseQL provides comprehensive PostgreSQL operator support including arrays, full-text search, JSONB, and regex. See:
+>
 > - **[Filter Operators Reference](./filter-operators.md)** - Complete operator documentation with examples
 > - **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases
 
@@ -304,6 +308,7 @@ query {
 ```
 
 **Available operators:**
+
 - `eq`, `neq` - equals, not equals
 - `contains`, `startswith`, `endswith` - string pattern matching
 - `in`, `nin` - list membership
@@ -324,6 +329,7 @@ query {
 ```
 
 **Available operators:**
+
 - `eq`, `neq` - equals, not equals
 - `gt`, `gte`, `lt`, `lte` - comparisons
 - `in`, `nin` - list membership
@@ -343,6 +349,7 @@ query {
 ```
 
 **Available operators:**
+
 - `eq`, `neq` - equals, not equals
 - `isnull` - null checking
 
@@ -360,6 +367,7 @@ query {
 ```
 
 **Available operators:**
+
 - `eq`, `neq` - equals, not equals
 - `gt`, `gte`, `lt`, `lte` - comparisons
 - `in`, `nin` - list membership
@@ -379,11 +387,13 @@ query {
 ```
 
 **Basic operators:**
+
 - `contains` - array contains this value
 - `in` - array intersects with provided list
 - `isnull` - null checking
 
 **Advanced array operators** ([full documentation](./filter-operators.md#array-operators)):
+
 - `eq`, `neq` - Array equality/inequality
 - `overlaps` - Arrays share elements (automatically optimized for native/JSONB arrays)
 - `contained_by` - Array is subset of provided values
@@ -404,6 +414,7 @@ query {
 ```
 
 **Available operators:**
+
 - `eq`, `neq` - equals, not equals
 - `in`, `nin` - list membership
 - `isnull` - null checking
@@ -530,6 +541,7 @@ posts = await db.find("posts", where=where_dict)
 ```
 
 **See also:**
+
 - **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering.md)** - Comprehensive dict syntax documentation
 - Examples include multiple nested fields, camelCase support, and performance tips
 
@@ -668,6 +680,7 @@ async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
 ```
 
 **Choose based on your needs:**
+
 - **WhereType**: Better for static queries with IDE support
 - **Dict**: Better for dynamic queries built at runtime
 
@@ -711,18 +724,22 @@ async def posts(user: User, info, where: PostWhereInput | None = None) -> list[P
 ### Common Issues
 
 **"Field 'X' doesn't exist on WhereInput type"**
+
 - Ensure the field exists on your base type
 - Check for typos in field names
 
 **"Operator 'X' not supported for field type"**
+
 - Different field types support different operators
 - Check the operator compatibility table above
 
 **"Circular reference in Where input generation"**
+
 - Avoid circular relationships in your type definitions
 - Use forward references or restructure your types
 
 **Performance issues with complex filters**
+
 - Simplify your filter logic
 - Add database indexes on filtered columns
 - Consider pre-computed views for complex queries

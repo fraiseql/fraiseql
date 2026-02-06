@@ -10,12 +10,14 @@
 ## Objective
 
 Implement zero-copy result streaming from database to HTTP response:
+
 1. Stream results directly from PostgreSQL
 2. Transform JSONB data without buffering
 3. Build GraphQL response bytes in Rust
 4. Eliminate unnecessary allocations
 
 **Success Criteria**:
+
 - ✅ Results stream directly from DB (no buffering entire result set)
 - ✅ JSONB fields transform to camelCase during streaming
 - ✅ Memory usage 50% lower than Phase 2
@@ -26,6 +28,7 @@ Implement zero-copy result streaming from database to HTTP response:
 ## Architecture
 
 ### Current Flow (Phase 2)
+
 ```
 PostgreSQL
     ↓
@@ -41,6 +44,7 @@ HTTP
 ```
 
 ### Optimized Flow (Phase 3)
+
 ```
 PostgreSQL
     ↓
@@ -396,6 +400,7 @@ async def execute_graphql_query_streaming(
 ## Verification
 
 ### Benchmarks
+
 ```bash
 # Memory usage comparison (Phase 2 vs Phase 3)
 cargo run --release --example memory_benchmark
@@ -408,6 +413,7 @@ cargo test --release test_streaming_large_results
 ```
 
 ### Tests
+
 ```bash
 # Streaming tests
 cargo test -p fraiseql_rs --lib response::streaming
@@ -420,6 +426,7 @@ uv run pytest tests/integration/streaming/ -v
 ```
 
 ### Performance Validation
+
 ```bash
 # Measure memory reduction
 /usr/bin/time -v cargo test --release 2>&1 | grep "Maximum resident set size"

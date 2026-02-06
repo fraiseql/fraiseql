@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Observability Guide for FraiseQL
 description: - Observability fundamentals (logs, metrics, traces - the three pillars)
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
@@ -1241,5 +1242,3 @@ HAVING COUNT(*) > (
 - **[Database Fundamentals](../architecture/database/database-targeting.md)** - Understanding database-centric logging
 - **[CDC Format Specification](../specs/cdc-format.md)** - Change data capture event structure
 - **[Troubleshooting Guide](../observability/troubleshooting.md)** - Using observability data for debugging
-
-

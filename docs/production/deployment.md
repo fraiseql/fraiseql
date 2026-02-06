@@ -19,6 +19,7 @@ Complete production deployment guide for FraiseQL: Docker, Kubernetes, environme
 Deploy FraiseQL applications to production with confidence using battle-tested patterns for Docker containers, Kubernetes orchestration, and zero-downtime deployments.
 
 **Deployment Targets:**
+
 - Docker (standalone or Compose)
 - Kubernetes (with Helm charts)
 - Cloud platforms (GCP, AWS, Azure)

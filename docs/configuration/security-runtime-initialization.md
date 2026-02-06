@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Security Runtime Initialization
 description: This document describes how FraiseQL v2.0.0-alpha.1 loads and initializes security configuration at server runtime.
 keywords: ["security"]

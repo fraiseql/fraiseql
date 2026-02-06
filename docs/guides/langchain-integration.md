@@ -48,6 +48,7 @@ python src/main.py
 ```
 
 The template includes:
+
 - Complete GraphQL schema with RAG queries
 - Document upload mutations
 - LangChain integration with OpenAI embeddings
@@ -384,21 +385,25 @@ FRAISEQL_AUTO_CAMEL_CASE=true
 ### Common Issues
 
 **"pgvector extension not found"**
+
 ```sql
 -- Enable the extension
 CREATE EXTENSION vector;
 ```
 
 **"Dimension mismatch"**
+
 - Ensure your vector column dimension matches your embedding model
 - OpenAI ada-002: 1536 dimensions
 - MiniLM: 384 dimensions
 
 **"Connection timeout"**
+
 - Check your DATABASE_URL
 - Ensure PostgreSQL is running and accessible
 
 **"OpenAI API rate limit"**
+
 - Implement retry logic with exponential backoff
 - Consider using a different model or provider
 

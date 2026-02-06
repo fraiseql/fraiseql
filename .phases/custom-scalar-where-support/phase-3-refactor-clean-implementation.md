@@ -15,12 +15,14 @@ Improve code quality and maintainability without changing behavior. Focus on cle
 ## Context
 
 **Phase 2 Results**:
+
 - ✅ Custom scalar WHERE filtering works
 - ✅ All unit tests pass
 - ✅ 4/6 integration tests pass
 - ✅ Basic functionality implemented
 
 **Current Issues**:
+
 - Code is functional but could be cleaner
 - Some duplication with existing filter patterns
 - Type hints could be improved
@@ -31,11 +33,13 @@ Improve code quality and maintainability without changing behavior. Focus on cle
 ## Implementation Steps
 
 ### Step 1: Review Current Implementation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Examine the current `_create_custom_scalar_filter()` function and identify areas for improvement.
 
 **Current Issues**:
+
 - Manual class creation instead of using patterns from existing filters
 - Field definitions are duplicated from StringFilter
 - No clear documentation
@@ -44,6 +48,7 @@ Improve code quality and maintainability without changing behavior. Focus on cle
 ---
 
 ### Step 2: Extract Common Filter Field Definitions
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Create a reusable function for standard filter fields.
@@ -71,6 +76,7 @@ def _get_standard_filter_fields(scalar_type: type) -> dict[str, Any]:
 ---
 
 ### Step 3: Refactor Custom Scalar Filter Creation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Simplify `_create_custom_scalar_filter()` to use the common field definitions.
@@ -132,6 +138,7 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
 ---
 
 ### Step 4: Add Comprehensive Documentation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Add detailed docstrings and comments.
@@ -178,11 +185,13 @@ Example:
 ---
 
 ### Step 5: Improve Type Hints
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Add better type hints throughout the implementation.
 
 **Type Improvements**:
+
 - Add proper imports for `GraphQLScalarType`
 - Use `TypeAlias` for filter cache types
 - Add return type annotations
@@ -191,9 +200,11 @@ Example:
 ---
 
 ### Step 6: Test Refactored Implementation
+
 **Action**: Run all tests to ensure refactoring didn't break anything.
 
 **Commands**:
+
 ```bash
 # Run unit tests
 uv run pytest tests/unit/sql/test_custom_scalar_where_filters.py -v
@@ -224,12 +235,14 @@ uv run pytest tests/unit/sql/ -x
 ## Expected Code Quality Improvements
 
 **Before (Phase 2)**:
+
 - Manual class creation with hardcoded fields
 - Duplicated field definitions
 - Minimal documentation
 - Basic type hints
 
 **After (Phase 3)**:
+
 - Reusable field definition functions
 - Consistent with existing filter patterns
 - Comprehensive docstrings

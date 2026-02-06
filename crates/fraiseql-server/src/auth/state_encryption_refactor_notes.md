@@ -1,4 +1,5 @@
 # State Encryption Integration Guide
+
 # Phase 7, Cycle 4: REFACTOR phase - Integration points
 
 ## Overview
@@ -17,6 +18,7 @@ The `StateEncryption` utility provides encrypted state handling for OAuth PKCE p
 ### 1. InMemoryStateStore (state_store.rs)
 
 **Current Status**: Stores unencrypted state in DashMap
+
 ```rust
 pub struct InMemoryStateStore {
     states: Arc<DashMap<String, (String, u64)>>,
@@ -24,6 +26,7 @@ pub struct InMemoryStateStore {
 ```
 
 **Recommended Changes**:
+
 ```rust
 use crate::auth::state_encryption::StateEncryption;
 
@@ -83,6 +86,7 @@ impl StateStore for InMemoryStateStore {
 ### 2. RedisStateStore (state_store.rs)
 
 **Current Status**: Stores unencrypted state in Redis
+
 ```rust
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisStateStore {
@@ -91,6 +95,7 @@ pub struct RedisStateStore {
 ```
 
 **Recommended Changes**:
+
 ```rust
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisStateStore {
@@ -167,6 +172,7 @@ impl StateStore for RedisStateStore {
 ### 3. AuthState (handlers.rs)
 
 **Current Status**: AuthState initialization
+
 ```rust
 #[derive(Clone)]
 pub struct AuthState {
@@ -177,6 +183,7 @@ pub struct AuthState {
 ```
 
 **Recommended Changes**:
+
 ```rust
 pub struct AuthState {
     pub oauth_provider: Arc<dyn OAuthProvider>,
@@ -205,6 +212,7 @@ let auth_state = AuthState {
 ### 4. auth_callback Handler (handlers.rs)
 
 **Current Status**: State validation
+
 ```rust
 let (_provider_name, expiry) = state.state_store.retrieve(&query.state).await?;
 ```
@@ -272,6 +280,7 @@ let encryption = StateEncryption::new(&key)?;
 ### Configuration
 
 Add to environment/config:
+
 ```bash
 STATE_ENCRYPTION_KEY=<base64-encoded-32-bytes>
 ```

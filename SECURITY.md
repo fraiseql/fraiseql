@@ -23,6 +23,7 @@ Please do not report security vulnerabilities through public GitHub issues.
 If you prefer email, send details to: **security@fraiseql.com** (response may be delayed)
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -203,6 +204,7 @@ We aim to coordinate disclosure with the reporter.
 ## Security Updates
 
 Subscribe to security announcements:
+
 - Watch the GitHub repository
 - Follow our security mailing list
 - Check release notes for security fixes
@@ -229,6 +231,7 @@ Contact us for compliance documentation.
 ## Questions?
 
 For security questions that aren't vulnerabilities:
+
 - Open a GitHub discussion
 - Email: security@fraiseql.com
 

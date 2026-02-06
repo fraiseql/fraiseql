@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Building a Blog API with FraiseQL: TypeScript Schema Authoring Tutorial
 description: In this tutorial, we'll build a production-ready Blog API using FraiseQL's TypeScript schema authoring layer. You'll learn:
 keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]

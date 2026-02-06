@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Automatic Persisted Queries (APQ) Specification
 description: - **Reduced Bandwidth**: Send 64-character hash instead of multi-kilobyte queries
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

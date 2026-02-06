@@ -5,12 +5,14 @@ A minimal FraiseQL GraphQL API project.
 ## Getting Started
 
 1. Set up a Python virtual environment:
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate
    ```
 
 2. Install dependencies:
+
    ```bash
    pip install -e ".[dev]"
    ```
@@ -18,11 +20,13 @@ A minimal FraiseQL GraphQL API project.
 3. Set up your PostgreSQL database and update the DATABASE_URL in `.env`
 
 4. Run migrations (if any):
+
    ```bash
    fraiseql migrate
    ```
 
 5. Start the development server:
+
    ```bash
    python -m src.main
    ```

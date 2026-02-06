@@ -65,6 +65,7 @@ class Order(Model):
 This example uses an **order management system**:
 
 ### Tables (Write Model)
+
 - `tb_customers` - Customer master data
 - `tb_products` - Product catalog
 - `tb_orders` - Order headers
@@ -73,6 +74,7 @@ This example uses an **order management system**:
 - `tb_audit_log` - Complete audit trail
 
 ### Views (Read Model)
+
 - `v_orders_summary` - Denormalized order data with totals
 - `v_order_details` - Complete order information
 - `v_customer_orders` - Customer order history
@@ -80,6 +82,7 @@ This example uses an **order management system**:
 - `v_revenue_by_product` - Analytics view
 
 ### Functions (Commands)
+
 - `fn_create_order()` - Create order with validation
 - `fn_add_order_item()` - Add item with inventory check
 - `fn_process_payment()` - Process payment with ACID guarantees
@@ -191,6 +194,7 @@ mutation CreateOrder {
 ```
 
 **What happens in the database**:
+
 1. Validates customer exists
 2. Validates all products exist and have stock
 3. Creates order record
@@ -235,6 +239,7 @@ mutation CancelOrder {
 ```
 
 **Business rules enforced in database**:
+
 - Can't cancel already shipped orders
 - Can't cancel already cancelled orders
 - Automatically calculates refund amount
@@ -255,6 +260,7 @@ ORDER BY created_at DESC;
 ```
 
 Results:
+
 ```
 | operation | entity_type | entity_id | changed_by | changes                    | created_at          |
 |-----------|-------------|-----------|------------|----------------------------|---------------------|
@@ -355,6 +361,7 @@ For **analytics** (can be slightly stale), use materialized views (refresh perio
 | Cancel Order        | 200ms (7 queries) | 40ms (1 query)   | 5x          |
 
 **Why faster?**
+
 - Single database round-trip
 - No N+1 queries
 - Database-level optimization
@@ -435,6 +442,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY v_revenue_by_product;
 ```
 
 Schedule with cron:
+
 ```bash
 */15 * * * * psql -c "REFRESH MATERIALIZED VIEW CONCURRENTLY v_revenue_by_product"
 ```

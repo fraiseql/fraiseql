@@ -16,6 +16,7 @@ While FraiseQL has excellent test coverage (990+ tests), a quick security valida
 ## Objective
 
 Create a Python script that validates security configuration in deployed FraiseQL environments:
+
 1. TLS 1.3 enforcement
 2. GraphQL introspection disabled (for classified)
 3. APQ required mode (for classified)
@@ -30,6 +31,7 @@ Create a Python script that validates security configuration in deployed FraiseQ
 ## Context Files
 
 **Review these files (orchestrator will copy to `context/`):**
+
 - `docs/security/PROFILES.md` - Security profile definitions
 - `.phases/05-classified-deployment/output/CLASSIFIED_ENVIRONMENTS.md` - IL4/IL5 requirements (if completed)
 - `scripts/` directory - Existing script patterns
@@ -57,47 +59,55 @@ python scripts/validate_security_config.py --url https://api.example.com --profi
 ```
 
 **Arguments:**
+
 - `--url` (required): Base URL of FraiseQL deployment
 - `--profile` (optional): Security profile to validate against (STANDARD, REGULATED, RESTRICTED, IL4, IL5)
 - `--insecure` (optional): Disable SSL certificate verification (for testing with self-signed certs)
 
 **Exit Codes:**
+
 - `0`: All checks passed
 - `1`: One or more checks failed with ERROR severity
 
 ### Validation Checks (6 Required)
 
 #### 1. TLS Configuration
+
 - Verify TLS 1.3 is enabled
 - Check SSL certificate validity (unless --insecure)
 - **ERROR for IL4/IL5** if TLS 1.3 not enabled
 - **WARNING for STANDARD/REGULATED** if TLS 1.3 not enabled
 
 #### 2. GraphQL Introspection
+
 - Send introspection query: `{ __schema { types { name } } }`
 - Verify introspection is disabled
 - **ERROR for IL4/IL5/RESTRICTED** if introspection enabled
 - **WARNING for STANDARD/REGULATED** if introspection enabled
 
 #### 3. APQ (Automatic Persisted Queries)
+
 - Send non-persisted query: `{ __typename }`
 - For IL4/IL5: Verify APQ "required" mode (query should fail)
 - **ERROR for IL4/IL5** if arbitrary queries allowed
 - **INFO for others**
 
 #### 4. Rate Limiting
+
 - Send 20 rapid requests
 - Verify rate limiting triggers (HTTP 429)
 - **ERROR for IL4/IL5** if no rate limiting detected
 - **WARNING for others** if no rate limiting detected
 
 #### 5. Error Detail Level
+
 - Send invalid query to trigger error
 - Check for information leakage (stack traces, file paths, line numbers)
 - **ERROR for IL4/IL5** if sensitive info in errors
 - **WARNING for others** if sensitive info in errors
 
 #### 6. Security Headers
+
 - Check for security headers:
   - `Strict-Transport-Security` (HSTS)
   - `X-Content-Type-Options: nosniff`
@@ -112,6 +122,7 @@ python scripts/validate_security_config.py --url https://api.example.com --profi
 ### Classes
 
 **ValidationResult:**
+
 ```python
 class ValidationResult:
     def __init__(self, check: str, passed: bool, message: str, severity: str = "ERROR"):
@@ -122,6 +133,7 @@ class ValidationResult:
 ```
 
 **SecurityValidator:**
+
 ```python
 class SecurityValidator:
     def __init__(self, base_url: str, profile: str, insecure: bool = False):
@@ -218,6 +230,7 @@ else:
 ### Dependencies
 
 **Use only standard library + requests:**
+
 ```python
 import argparse
 import json
@@ -481,10 +494,12 @@ python scripts/validate_security_config.py --url https://localhost:8000 --profil
 ```
 
 **Exit Codes:**
+
 - `0` - All checks passed (or passed with warnings only)
 - `1` - One or more checks failed with ERROR severity
 
 **Checks Performed:**
+
 1. TLS 1.3 enabled
 2. GraphQL introspection disabled (for IL4/IL5/RESTRICTED)
 3. APQ "required" mode (for IL4/IL5)
@@ -493,11 +508,13 @@ python scripts/validate_security_config.py --url https://localhost:8000 --profil
 6. Security headers present (HSTS, X-Content-Type-Options, X-Frame-Options, CSP)
 
 **When to Run:**
+
 - Before initial production deployment
 - After security configuration changes
 - After upgrading FraiseQL versions
 - As part of deployment pipeline (CI/CD)
 - During security audits
+
 ```
 
 ---

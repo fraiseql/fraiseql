@@ -45,6 +45,7 @@ uv run pytest tests/ -v --cov=fraiseql --cov-report=html
 ```
 
 **Expected Results:**
+
 - All tests pass ✅
 - Code coverage ≥ 90%
 - No regressions from v1.7.x
@@ -60,6 +61,7 @@ uv run mypy src/fraiseql --strict
 ```
 
 **Expected Results:**
+
 - No type errors
 - Success/Error types validate correctly
 - Union types recognized
@@ -77,6 +79,7 @@ cargo test --release
 ```
 
 **Expected Results:**
+
 - All tests pass
 - Response builder works correctly
 - Status classification accurate
@@ -96,11 +99,13 @@ cargo bench --bench mutation_benchmark -- --baseline v1.7.x
 ```
 
 **Acceptance Criteria:**
+
 - No performance regression (< 5% slower)
 - Memory usage unchanged
 - Response time within ±10ms
 
 **Key Metrics:**
+
 - Response builder throughput
 - Error type allocation overhead
 - Union type resolution speed
@@ -144,6 +149,7 @@ query IntrospectMutations {
 ```
 
 **Expected:**
+
 - All mutations return union types
 - Union types include Success and Error
 - Introspection works correctly
@@ -166,6 +172,7 @@ docker-compose down
 ```
 
 **Test Scenarios:**
+
 - Validation failures → Error type (422)
 - Not found → Error type (404)
 - Conflicts → Error type (409)
@@ -180,6 +187,7 @@ docker-compose down
 ### Step 5.7: Pre-Release Checklist
 
 **Code:**
+
 - [ ] All phases (1-4) complete
 - [ ] All tests passing
 - [ ] No type errors
@@ -187,6 +195,7 @@ docker-compose down
 - [ ] Schema validates
 
 **Documentation:**
+
 - [ ] Migration guide complete
 - [ ] API reference updated
 - [ ] Status strings doc updated
@@ -194,6 +203,7 @@ docker-compose down
 - [ ] Code examples added
 
 **Quality:**
+
 - [ ] Code review complete
 - [ ] Security review (if needed)
 - [ ] Backward compatibility checked
@@ -206,6 +216,7 @@ docker-compose down
 **No separate version bump needed** - we're incorporating this into the existing v1.8.0-beta.1 plan.
 
 **Current status:**
+
 ```bash
 # Check current version
 grep 'version =' pyproject.toml
@@ -218,6 +229,7 @@ grep 'version =' pyproject.toml
 ```
 
 **When ready to release v1.8.0-beta.1 (after implementing all 5 phases):**
+
 ```bash
 # Update to beta.1
 sed -i 's/version = "1.8.0-alpha.5"/version = "1.8.0-beta.1"/' pyproject.toml
@@ -319,6 +331,7 @@ This beta combines TWO major features:
 ```
 
 ### After (v1.8.0)
+
 ```json
 {
   "__typename": "CreateMachineError",
@@ -351,33 +364,39 @@ pip install fraiseql==1.8.0b1
 ## Changelog
 
 ### Breaking Changes
+
 - Validation failures (`noop:*`) now return Error type, not Success
 - Success types must have non-null entity
 - Error types require `code: int` field
 - All mutations return union types
 
 ### Added
+
 - REST-like `code` field in Error type (422, 404, 409, 500)
 - Schema validation for mutation types
 - Migration guide with examples
 
 ### Changed
+
 - Moved `noop:*` from `error_as_data_prefixes` to `error_prefixes`
 - Updated response builder to return Error for all non-success statuses
 - Updated schema generation to create union types
 
 ### Deprecated
+
 - `error_as_data_prefixes` (use `error_prefixes` instead)
 - `always_return_as_data` flag
 - `STRICT_STATUS_CONFIG` (use `DEFAULT_ERROR_CONFIG`)
 
 ### Fixed
+
 - Type safety: Success type can no longer have null entity
 - Semantic clarity: Validation errors properly categorized
 
 ## Full Changelog
 
 See [CHANGELOG.md](https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md)
+
 ```
 
 ---
@@ -434,6 +453,7 @@ uv publish
 ### Step 5.13: Final Release Checklist
 
 **Prerequisites:**
+
 - [ ] Beta period complete (1+ week)
 - [ ] All P0/P1 issues resolved
 - [ ] No regressions reported
@@ -441,6 +461,7 @@ uv publish
 - [ ] PrintOptim team ready for migration
 
 **Final Verification:**
+
 - [ ] All tests pass on main branch
 - [ ] Performance benchmarks acceptable
 - [ ] Schema validates
@@ -511,6 +532,7 @@ class CreateMachineSuccess:
 ```
 
 **After (v1.8.0):**
+
 ```python
 @fraiseql.success
 class CreateMachineSuccess:
@@ -542,6 +564,7 @@ pip install --upgrade fraiseql==1.8.0
 ## Support
 
 Need help migrating?
+
 - [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - [Discord](https://discord.gg/fraiseql)
 - [Migration Examples](https://github.com/fraiseql/fraiseql/tree/main/examples/v1.8.0-migration)
@@ -549,6 +572,7 @@ Need help migrating?
 ## Acknowledgments
 
 Special thanks to Tim Berners-Lee for the architectural review that inspired this improvement, and to the FraiseQL community for beta testing.
+
 ```
 
 ---
@@ -595,6 +619,7 @@ Thanks to our community for beta testing...
 **PrintOptim Backend:**
 
 **Communication:**
+
 ```markdown
 Subject: FraiseQL v1.8.0 Released - Migration Plan
 
@@ -628,6 +653,7 @@ Let me know when you're ready to start!
 ```
 
 **Migration Support:**
+
 - [ ] Schedule kickoff meeting
 - [ ] Provide migration examples
 - [ ] Offer pair programming
@@ -640,6 +666,7 @@ Let me know when you're ready to start!
 ## Success Criteria
 
 ### Release Metrics
+
 - [ ] v1.8.0 published to PyPI
 - [ ] GitHub release created
 - [ ] Docs site updated
@@ -648,12 +675,14 @@ Let me know when you're ready to start!
 - [ ] Performance within acceptable range
 
 ### Adoption Metrics (Track)
+
 - Downloads from PyPI
 - GitHub stars/watchers
 - Issue reports (bugs vs questions)
 - Migration completion rate
 
 ### PrintOptim Migration
+
 - [ ] PrintOptim upgraded to v1.8.0
 - [ ] All tests passing
 - [ ] Deployed to staging
@@ -667,6 +696,7 @@ Let me know when you're ready to start!
 If critical issues discovered post-release:
 
 **Option 1: Hotfix**
+
 ```bash
 # Create hotfix branch
 git checkout -b hotfix/v1.9.1 v1.8.0
@@ -680,6 +710,7 @@ uv publish
 ```
 
 **Option 2: Yank Release**
+
 ```bash
 # Yank from PyPI (if severely broken)
 pip install twine
@@ -690,6 +721,7 @@ echo "v1.8.0 yanked due to critical issue. Use v1.7.x until v1.9.1."
 ```
 
 **Option 3: Deprecation**
+
 ```bash
 # If fundamentally flawed, deprecate and plan v2.0
 echo "v1.8.0 deprecated. v2.0.0 in development with revised approach."
@@ -713,6 +745,7 @@ echo "v1.8.0 deprecated. v2.0.0 in development with revised approach."
 ## Final Checklist
 
 ### Pre-Release
+
 - [ ] All phases (1-4) complete
 - [ ] All tests passing
 - [ ] Documentation complete
@@ -720,6 +753,7 @@ echo "v1.8.0 deprecated. v2.0.0 in development with revised approach."
 - [ ] Beta tested (1+ week)
 
 ### Release
+
 - [ ] Version bumped to 1.8.0
 - [ ] Published to PyPI
 - [ ] GitHub release created
@@ -727,6 +761,7 @@ echo "v1.8.0 deprecated. v2.0.0 in development with revised approach."
 - [ ] Blog post published
 
 ### Post-Release
+
 - [ ] Monitor for issues
 - [ ] Support early adopters
 - [ ] Coordinate PrintOptim migration

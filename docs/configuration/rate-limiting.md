@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Rate Limiting
 description: FraiseQL implements request rate limiting to prevent denial-of-service (DoS) attacks and resource exhaustion.
 keywords: []

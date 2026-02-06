@@ -46,6 +46,7 @@ async def startup():
 Wrap your existing repository with `CachedRepository`:
 
 **Before**:
+
 ```python
 def get_graphql_context(request: Request) -> dict:
     repo = FraiseQLRepository(
@@ -61,6 +62,7 @@ def get_graphql_context(request: Request) -> dict:
 ```
 
 **After**:
+
 ```python
 from fraiseql.caching import CachedRepository
 
@@ -98,6 +100,7 @@ context={}
 **Why this matters**: Without `tenant_id`, all tenants share the same cache keys, leading to data leakage between tenants!
 
 **Verify**:
+
 ```python
 # Check that tenant_id is in context
 assert base_repo.context.get("tenant_id") is not None, "tenant_id required!"
@@ -155,6 +158,7 @@ users = await cached_repo.find("users", skip_cache=True)
 ```
 
 Monitor logs for:
+
 - Cache table created successfully
 - No errors from cache operations
 - Connection pool not exhausted
@@ -243,6 +247,7 @@ print(f"Hits: {stats['hits']}, Misses: {stats['misses']}")
 **Symptom**: Cache keys don't include tenant_id
 
 **Fix**:
+
 ```python
 # Ensure tenant middleware runs BEFORE GraphQL
 @app.middleware("http")
@@ -259,6 +264,7 @@ context={"tenant_id": request.state.tenant_id}
 **Symptom**: `PostgresCacheError: relation "fraiseql_cache" does not exist`
 
 **Fix**:
+
 ```python
 # Ensure auto_initialize=True
 cache = PostgresCache(
@@ -275,6 +281,7 @@ await cache._ensure_initialized()
 **Symptom**: "Connection pool is full" errors after enabling cache
 
 **Fix**:
+
 ```python
 # Option 1: Increase pool size
 pool = DatabasePool(db_url, min_size=20, max_size=40)
@@ -289,6 +296,7 @@ cache = PostgresCache(cache_pool)
 **Symptom**: Cache returns old data after mutations
 
 **Fix**:
+
 ```python
 # Ensure mutations use cached_repo (auto-invalidates)
 await cached_repo.execute_function("update_user", {"id": user_id, ...})

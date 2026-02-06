@@ -19,18 +19,21 @@ FraiseQL has a **sophisticated APQ implementation** with multiple backends, tena
 ### 1. Query Storage Layer ✅
 
 **Files:**
+
 - `src/fraiseql/storage/apq_store.py` - Public API
 - `src/fraiseql/storage/backends/base.py` - Abstract interface
 - `src/fraiseql/storage/backends/memory.py` - Default backend
 - `src/fraiseql/storage/backends/postgresql.py` - PostgreSQL backend
 
 **Capabilities:**
+
 - ✅ SHA256 hash-based query storage
 - ✅ Pluggable backend system (Memory, PostgreSQL, Redis, Custom)
 - ✅ Tenant-aware cache keys
 - ✅ Statistics API (`get_storage_stats()`)
 
 **Current Behavior:**
+
 ```python
 # When Apollo Client sends APQ request:
 1. Client sends query hash (sha256)
@@ -43,15 +46,18 @@ FraiseQL has a **sophisticated APQ implementation** with multiple backends, tena
 ### 2. Response Caching Layer ⚠️ (Disabled by Default)
 
 **Files:**
+
 - `src/fraiseql/middleware/apq_caching.py` - Response caching logic
 
 **Capabilities:**
+
 - ✅ Pre-computed response storage
 - ✅ Tenant isolation
 - ✅ Error response filtering (won't cache errors)
 - ✅ Context-aware caching
 
 **Current Configuration:**
+
 ```python
 # src/fraiseql/fastapi/config.py
 apq_storage_backend: Literal["memory", "postgresql", "redis", "custom"] = "memory"
@@ -66,10 +72,12 @@ apq_response_cache_ttl: int = 600  # 10 minutes
 **File:** `src/fraiseql/fastapi/routers.py`
 
 **Integration Points:**
+
 - Lines 200-265: APQ request detection and handling
 - Lines 362-379: Response caching (if enabled)
 
 **Flow:**
+
 ```
 Request arrives
     ↓
@@ -91,18 +99,22 @@ Execute query → Store response in cache → Return response
 ## What's Working Well ✅
 
 ### 1. Robust Backend System
+
 - Pluggable architecture supports multiple storage backends
 - Clean abstraction layer (`APQStorageBackend`)
 - Tenant isolation built-in
 
 ### 2. Comprehensive Testing
+
 Multiple test suites covering:
+
 - APQ protocol compliance
 - Backend integrations
 - Context propagation
 - Apollo Client compatibility
 
 ### 3. Production-Ready Error Handling
+
 - Standardized error responses
 - Graceful fallbacks
 - Apollo Client format compliance
@@ -116,6 +128,7 @@ Multiple test suites covering:
 **Problem:** Zero visibility into APQ performance
 
 **Missing Metrics:**
+
 - ❌ Query cache hit/miss rate
 - ❌ Response cache hit/miss rate (when enabled)
 - ❌ Parsing time savings
@@ -124,6 +137,7 @@ Multiple test suites covering:
 - ❌ Most frequently cached queries
 
 **Impact:**
+
 - Can't measure APQ effectiveness
 - Can't optimize cache configuration
 - Can't justify enabling response caching
@@ -134,12 +148,14 @@ Multiple test suites covering:
 **Problem:** No way to observe APQ in production
 
 **Missing Features:**
+
 - ❌ Real-time cache hit rate dashboard
 - ❌ Cache size monitoring
 - ❌ Performance metrics visualization
 - ❌ Alerting for low hit rates
 
 **Impact:**
+
 - Operations team can't monitor APQ health
 - Can't detect caching issues
 - No visibility into optimization opportunities
@@ -149,11 +165,13 @@ Multiple test suites covering:
 **Problem:** Major performance optimization not being utilized
 
 **Current State:**
+
 ```python
 apq_cache_responses: bool = False  # ⚠️ Disabled!
 ```
 
 **Why This Matters:**
+
 ```
 WITHOUT Response Caching (current):
 ├─ Query string lookup: 0.1ms ✅ (cached)
@@ -171,11 +189,13 @@ WITH Response Caching (enabled):
 ```
 
 **Risk of Enabling:**
+
 - Stale data if not properly invalidated
 - Increased memory usage
 - Tenant isolation complexity
 
 **Mitigation:**
+
 - 10-minute TTL (already configured)
 - Error response filtering (already implemented)
 - Tenant-aware keys (already implemented)
@@ -185,6 +205,7 @@ WITH Response Caching (enabled):
 **Problem:** Can't quantify APQ benefits
 
 **Missing Data:**
+
 - ❌ Baseline: Query parsing time
 - ❌ APQ Impact: Time savings per cache hit
 - ❌ Response Caching Impact: End-to-end time savings
@@ -263,6 +284,7 @@ WITH Response Caching (enabled):
 ```
 
 **Performance Improvement:**
+
 - **First Request:** 26-46ms (cache miss)
 - **Subsequent Requests:** 0.1ms (cache hit)
 - **Speedup:** 260-460x for cached responses!
@@ -277,6 +299,7 @@ WITH Response Caching (enabled):
 **Estimated Time:** 2-3 hours
 
 **Tasks:**
+
 1. Create `APQMetrics` class to track:
    - Query cache hits/misses
    - Response cache hits/misses
@@ -290,6 +313,7 @@ WITH Response Caching (enabled):
    - `/admin/apq-metrics` - Detailed metrics
 
 **Success Criteria:**
+
 - Real-time hit/miss rate tracking
 - Cache size monitoring
 - Performance metrics available
@@ -300,12 +324,14 @@ WITH Response Caching (enabled):
 **Estimated Time:** 3-4 hours
 
 **Tasks:**
+
 1. Create monitoring dashboard endpoint
 2. Add Prometheus metrics (optional)
 3. Add structured logging for key events
 4. Create alerting thresholds (hit rate < 70%)
 
 **Success Criteria:**
+
 - Observable APQ performance
 - Actionable metrics
 - Production-ready monitoring
@@ -316,12 +342,14 @@ WITH Response Caching (enabled):
 **Estimated Time:** 2-3 hours
 
 **Tasks:**
+
 1. Benchmark with response caching enabled
 2. Test tenant isolation
 3. Verify TTL behavior
 4. Document when to enable/disable
 
 **Success Criteria:**
+
 - Clear guidance on response caching
 - Benchmarks showing 100x+ improvement
 - Production configuration recommendations
@@ -356,6 +384,7 @@ WITH Response Caching (enabled):
 ## Existing Test Coverage
 
 **Test Files Found:**
+
 ```
 tests/config/test_apq_backend_config.py
 tests/integration/middleware/test_apq_middleware_integration.py
@@ -373,6 +402,7 @@ tests/test_apq_storage.py
 **Coverage:** Excellent functional testing, but **no performance tests**
 
 **Missing:**
+
 - ❌ Performance benchmarks
 - ❌ Hit rate measurements
 - ❌ Load testing with APQ
@@ -387,6 +417,7 @@ tests/test_apq_storage.py
 **Current State:** Unknown (no metrics tracking)
 
 **Path Forward:**
+
 1. Add metrics tracking (Phase 3.2)
 2. Measure baseline hit rate
 3. Enable response caching if hit rate is high
@@ -397,10 +428,12 @@ tests/test_apq_storage.py
 **Current State:** Unknown (no benchmarks)
 
 **Expected Results:**
+
 - Query caching alone: ~5-10% improvement (query string lookup)
 - **Response caching enabled: 90-95% improvement** (skip parsing + execution)
 
 **Reality Check:**
+
 - Roadmap assumed we'd optimize GraphQL parsing caching
 - **We found something better**: Full response caching!
 - With response caching, we skip parsing AND execution

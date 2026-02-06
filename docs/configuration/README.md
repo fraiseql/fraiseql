@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Configuration Guide
 description: Complete configuration reference for FraiseQL security, networking, and operational settings.
 keywords: []

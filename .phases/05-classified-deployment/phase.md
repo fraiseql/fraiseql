@@ -16,6 +16,7 @@ Pentagon-Readiness Assessment recommends "Enhance documentation for classified d
 ## Objective
 
 Create deployment guide for IL4/IL5 classified environments with:
+
 1. Overview of DoD Impact Level requirements
 2. IL4 deployment configuration (CUI + Mission Critical)
 3. IL5 deployment configuration (Classified/Secret)
@@ -30,6 +31,7 @@ Create deployment guide for IL4/IL5 classified environments with:
 ## Background: DoD Impact Levels
 
 **Impact Level 4 (IL4):**
+
 - **Data Classification:** Controlled Unclassified Information (CUI)
 - **Systems:** Mission-critical systems, DoD networks
 - **Requirements:** FIPS 140-2, mTLS, RLS, strict audit logging
@@ -37,6 +39,7 @@ Create deployment guide for IL4/IL5 classified environments with:
 - **Clearance:** Secret clearance for administrators
 
 **Impact Level 5 (IL5):**
+
 - **Data Classification:** Classified information (Secret level)
 - **Systems:** National Security Systems
 - **Requirements:** All IL4 + air-gapped deployment, HSM, continuous monitoring
@@ -48,6 +51,7 @@ Create deployment guide for IL4/IL5 classified environments with:
 ## Context Files
 
 **Review these files before writing (orchestrator will copy to `context/`):**
+
 - `docs/security/PROFILES.md` - Security profiles (especially RESTRICTED)
 - `docs/security/KMS.md` - KMS/encryption configuration (if exists)
 - `COMPLIANCE/AUDIT/AUDIT_LOGGING.md` - Audit logging capabilities
@@ -55,6 +59,7 @@ Create deployment guide for IL4/IL5 classified environments with:
 - `docs/production/MONITORING.md` - Observability setup
 
 **External References:**
+
 - DoD Cloud Computing SRG: https://dl.dod.cyber.mil/wp-content/uploads/cloud/pdf/Cloud_Computing_SRG_v1r3.pdf
 - DISA STIGs: https://public.cyber.mil/stigs/
 - NIST FIPS 140-2: https://csrc.nist.gov/publications/detail/fips/140/2/final
@@ -74,6 +79,7 @@ Create deployment guide for IL4/IL5 classified environments with:
 ### 1. Overview
 
 **Introduction section:**
+
 - Purpose of this guide
 - When to use IL4 vs IL5
 - Prerequisites (clearances, approvals, infrastructure)
@@ -267,6 +273,7 @@ CREATE POLICY classification_access ON documents
 #### Pre-Deployment Checklist (IL4)
 
 **Security:**
+
 - [ ] SLSA provenance verified for all artifacts
 - [ ] SBOM reviewed and all dependencies approved
 - [ ] DoD PKI certificates obtained and installed
@@ -277,12 +284,14 @@ CREATE POLICY classification_access ON documents
 - [ ] Rate limiting configured (10 req/min)
 
 **Compliance:**
+
 - [ ] ATO package submitted
 - [ ] STIG compliance scan completed (Trivy, DISA SCAP)
 - [ ] Audit logging verified (VERBOSE mode, 7-year retention)
 - [ ] Security scan results reviewed (no critical vulnerabilities)
 
 **Operations:**
+
 - [ ] Incident response plan approved
 - [ ] Backup/restore tested in GovCloud
 - [ ] Disaster recovery plan documented
@@ -296,6 +305,7 @@ CREATE POLICY classification_access ON documents
 #### Additional Requirements Beyond IL4
 
 **IL5 enhancements:**
+
 - **Air-gapped deployment:** No internet access, all artifacts transferred via approved media
 - **Hardware Security Modules (HSM):** For key storage and cryptographic operations
 - **Continuous monitoring:** SIEM integration (Splunk, ArcSight)
@@ -331,6 +341,7 @@ config = SecurityProfile.RESTRICTED.configure(
 **Artifact transfer workflow:**
 
 1. **On internet-connected system (outside classified network):**
+
    ```bash
    # Download release artifacts
    wget https://github.com/fraiseql/fraiseql/releases/download/vX.Y.Z/fraiseql-X.Y.Z.tar.gz
@@ -350,6 +361,7 @@ config = SecurityProfile.RESTRICTED.configure(
    - Log transfer in chain-of-custody form
 
 3. **On air-gapped system (inside classified network):**
+
    ```bash
    # Verify checksums again
    sha256sum -c fraiseql-X.Y.Z.tar.gz.sha256
@@ -381,6 +393,7 @@ hsm = HSMProvider(
 #### SIEM Integration
 
 **Required logging to SIEM:**
+
 - All authentication attempts (success and failure)
 - All GraphQL queries with user context
 - All field-level access (VERBOSE audit mode)
@@ -407,6 +420,7 @@ logging.getLogger("fraiseql.audit").addHandler(splunk_handler)
 #### Pre-Deployment Checklist (IL5)
 
 **All IL4 requirements PLUS:**
+
 - [ ] Air-gapped artifact transfer completed and verified
 - [ ] HSM configured and tested (dual control)
 - [ ] SIEM integration configured and tested
@@ -494,6 +508,7 @@ aws kms describe-key --key-id <kms-key-arn> --region us-gov-west-1
 **Symptoms:** `TLS handshake failed`, connection rejected
 
 **Resolution:**
+
 1. Verify client certificate is signed by DoD PKI CA
 2. Check certificate chain includes all intermediate CAs
 3. Verify certificate not expired
@@ -515,6 +530,7 @@ openssl x509 -in client.crt -noout -text | grep -E "(Subject|Issuer|Not Before|N
 **Symptoms:** All queries fail with "persisted query not found"
 
 **Resolution:**
+
 1. Pre-register all queries before enabling APQ required mode
 2. Generate query hashes: `sha256sum query.graphql`
 3. Upload to APQ store
@@ -532,6 +548,7 @@ curl -X POST https://fraiseql.mil/graphql/apq \
 **Symptoms:** Disk usage high, audit logs growing rapidly
 
 **Resolution:**
+
 1. Configure log rotation: `/etc/logrotate.d/fraiseql-audit`
 2. Compress old logs: `gzip /var/log/fraiseql/audit.log.*`
 3. Archive to S3 GovCloud or approved storage
@@ -561,12 +578,14 @@ aws s3 cp /var/log/fraiseql/audit.log.gz \
 ### 7. References
 
 **Internal Documentation:**
+
 - FraiseQL Security Profiles: `docs/security/PROFILES.md`
 - FraiseQL KMS Configuration: `docs/security/KMS.md`
 - FraiseQL Audit Logging: `COMPLIANCE/AUDIT/AUDIT_LOGGING.md`
 - Operations Runbook: `OPERATIONS_RUNBOOK.md`
 
 **External Standards:**
+
 - DoD Cloud Computing SRG: https://dl.dod.cyber.mil/wp-content/uploads/cloud/pdf/Cloud_Computing_SRG_v1r3.pdf
 - DISA STIGs: https://public.cyber.mil/stigs/
 - NIST FIPS 140-2: https://csrc.nist.gov/publications/detail/fips/140/2/final
@@ -577,6 +596,7 @@ aws s3 cp /var/log/fraiseql/audit.log.gz \
 ## Requirements Summary
 
 **Content Quality:**
+
 - [ ] 400-600 lines total
 - [ ] Clear distinction between IL4 and IL5 requirements
 - [ ] Configuration examples use actual FraiseQL settings
@@ -585,6 +605,7 @@ aws s3 cp /var/log/fraiseql/audit.log.gz \
 - [ ] Troubleshooting section covers common issues
 
 **Technical Accuracy:**
+
 - [ ] DoD Impact Level descriptions are accurate
 - [ ] Security configurations match RESTRICTED profile capabilities
 - [ ] Network configurations follow least-privilege principle

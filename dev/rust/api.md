@@ -25,17 +25,21 @@ Complete API documentation for the fraiseql-rs Python extension module.
 Convert a single snake_case string to camelCase.
 
 **Signature:**
+
 ```python
 def to_camel_case(s: str) -> str
 ```
 
 **Parameters:**
+
 - `s` (str): The snake_case string to convert
 
 **Returns:**
+
 - str: The camelCase string
 
 **Examples:**
+
 ```python
 >>> fraiseql_rs.to_camel_case("user_name")
 "userName"
@@ -48,10 +52,12 @@ def to_camel_case(s: str) -> str
 ```
 
 **Performance:**
+
 - **Time**: ~0.01-0.05ms per string
 - **Speedup**: 20-100x vs Python
 
 **Notes:**
+
 - Leading underscores are preserved: `"_private"` → `"_private"`
 - Multiple consecutive underscores are treated as single: `"user__name"` → `"userName"`
 - Numbers are preserved: `"address_line_1"` → `"addressLine1"`
@@ -63,18 +69,22 @@ def to_camel_case(s: str) -> str
 Transform dictionary keys from snake_case to camelCase.
 
 **Signature:**
+
 ```python
 def transform_keys(obj: dict, recursive: bool = False) -> dict
 ```
 
 **Parameters:**
+
 - `obj` (dict): Dictionary with snake_case keys
 - `recursive` (bool, optional): If True, recursively transform nested dicts and lists. Default: False
 
 **Returns:**
+
 - dict: New dictionary with camelCase keys
 
 **Examples:**
+
 ```python
 >>> data = {"user_id": 1, "user_name": "John"}
 >>> fraiseql_rs.transform_keys(data)
@@ -91,10 +101,12 @@ def transform_keys(obj: dict, recursive: bool = False) -> dict
 ```
 
 **Performance:**
+
 - **Time**: ~0.2-0.5ms for 20 fields
 - **Speedup**: 10-50x vs Python
 
 **Use Cases:**
+
 - When you already have Python dicts in memory
 - Simple, one-level transformations
 - When you need to preserve Python dict types
@@ -106,20 +118,25 @@ def transform_keys(obj: dict, recursive: bool = False) -> dict
 Transform JSON string with camelCase conversion (no typename injection).
 
 **Signature:**
+
 ```python
 def transform_json(json_str: str) -> str
 ```
 
 **Parameters:**
+
 - `json_str` (str): JSON string with snake_case keys
 
 **Returns:**
+
 - str: Transformed JSON string with camelCase keys
 
 **Raises:**
+
 - `ValueError`: If json_str is not valid JSON
 
 **Examples:**
+
 ```python
 >>> input_json = '{"user_id": 1, "user_posts": [{"post_id": 1}]}'
 >>> fraiseql_rs.transform_json(input_json)
@@ -127,16 +144,19 @@ def transform_json(json_str: str) -> str
 ```
 
 **Performance:**
+
 - **Time**: ~0.1-0.2ms for simple objects, ~0.5-1ms for complex
 - **Speedup**: 10-50x vs Python
 - **Fastest option** when no typename is needed
 
 **Use Cases:**
+
 - Pure camelCase transformation
 - No GraphQL type information needed
 - Maximum performance for simple transformations
 
 **Performance Characteristics:**
+
 - Zero-copy JSON parsing
 - Move semantics (no value cloning)
 - Single-pass transformation
@@ -149,6 +169,7 @@ def transform_json(json_str: str) -> str
 Transform JSON with `__typename` injection using manual type mapping.
 
 **Signature:**
+
 ```python
 def transform_json_with_typename(
     json_str: str,
@@ -157,6 +178,7 @@ def transform_json_with_typename(
 ```
 
 **Parameters:**
+
 - `json_str` (str): JSON string with snake_case keys
 - `type_info` (str | dict | None): Type information
   - `str`: Simple typename for root object (e.g., `"User"`)
@@ -164,14 +186,17 @@ def transform_json_with_typename(
   - `None`: No typename injection (behaves like `transform_json`)
 
 **Returns:**
+
 - str: Transformed JSON string with camelCase keys and `__typename` fields
 
 **Raises:**
+
 - `ValueError`: If json_str is not valid JSON or type_info is invalid
 
 **Examples:**
 
 **Simple string typename:**
+
 ```python
 >>> input_json = '{"user_id": 1, "user_name": "John"}'
 >>> fraiseql_rs.transform_json_with_typename(input_json, "User")
@@ -179,6 +204,7 @@ def transform_json_with_typename(
 ```
 
 **Type map for nested structures:**
+
 ```python
 >>> type_map = {
 ...     "$": "User",
@@ -189,22 +215,26 @@ def transform_json_with_typename(
 ```
 
 **No typename (None):**
+
 ```python
 >>> fraiseql_rs.transform_json_with_typename(input_json, None)
 '{"userId":1,"userName":"John"}'  # Same as transform_json
 ```
 
 **Type Map Format:**
+
 - `"$"` or `""`: Root type
 - `"field_name"`: Type for field or array elements
 - `"parent.child"`: Nested path for deeply nested structures
 
 **Performance:**
+
 - **Time**: ~0.1-0.3ms for simple, ~1.5-3ms for complex nested
 - **Overhead**: ~10-20% vs `transform_json`
 - Type lookup is O(1) average (HashMap)
 
 **Use Cases:**
+
 - Simple schemas (< 5 types)
 - Dynamic type resolution
 - One-off transformations
@@ -217,6 +247,7 @@ def transform_json_with_typename(
 Transform JSON using a GraphQL-like schema definition with automatic type detection.
 
 **Signature:**
+
 ```python
 def transform_with_schema(
     json_str: str,
@@ -226,17 +257,21 @@ def transform_with_schema(
 ```
 
 **Parameters:**
+
 - `json_str` (str): JSON string with snake_case keys
 - `root_type` (str): Root type name from schema (e.g., `"User"`)
 - `schema` (dict): Schema definition dict mapping type names to field definitions
 
 **Returns:**
+
 - str: Transformed JSON string with camelCase keys and `__typename` fields
 
 **Raises:**
+
 - `ValueError`: If json_str is not valid JSON or schema is invalid
 
 **Schema Format:**
+
 ```python
 schema = {
     "TypeName": {
@@ -250,6 +285,7 @@ schema = {
 ```
 
 **Field Types:**
+
 - **Scalars**: `"Int"`, `"String"`, `"Boolean"`, `"Float"`, `"ID"`
 - **Objects**: `"User"`, `"Post"`, `"Profile"` (custom type names)
 - **Arrays**: `"[Post]"`, `"[Comment]"` (bracket notation)
@@ -257,6 +293,7 @@ schema = {
 **Examples:**
 
 **Simple schema:**
+
 ```python
 >>> schema = {
 ...     "User": {
@@ -277,6 +314,7 @@ schema = {
 ```
 
 **Complex nested schema:**
+
 ```python
 >>> schema = {
 ...     "User": {
@@ -301,17 +339,20 @@ schema = {
 ```
 
 **Performance:**
+
 - **Time**: Same as `transform_json_with_typename` (~1.5-3ms for complex)
 - **Schema parsing**: ~0.05-0.2ms (one-time cost)
 - Use `SchemaRegistry` to amortize parsing cost
 
 **Use Cases:**
+
 - **Complex schemas** (5+ types)
 - **Static schemas** (known upfront)
 - **Clean API** (no manual type maps)
 - **Production use** with FraiseQL
 
 **Advantages over `transform_json_with_typename`:**
+
 - Automatic array detection with `[Type]` notation
 - Self-documenting schema
 - Easier to maintain
@@ -326,6 +367,7 @@ schema = {
 Reusable schema registry for optimal performance when transforming multiple records.
 
 **Constructor:**
+
 ```python
 registry = fraiseql_rs.SchemaRegistry()
 ```
@@ -337,15 +379,18 @@ registry = fraiseql_rs.SchemaRegistry()
 Register a type in the schema.
 
 **Signature:**
+
 ```python
 def register_type(self, type_name: str, type_def: dict) -> None
 ```
 
 **Parameters:**
+
 - `type_name` (str): Name of the type (e.g., `"User"`)
 - `type_def` (dict): Type definition dict with `"fields"` key
 
 **Example:**
+
 ```python
 >>> registry = fraiseql_rs.SchemaRegistry()
 >>> registry.register_type("User", {
@@ -362,21 +407,26 @@ def register_type(self, type_name: str, type_def: dict) -> None
 Transform JSON using the registered schema.
 
 **Signature:**
+
 ```python
 def transform(self, json_str: str, root_type: str) -> str
 ```
 
 **Parameters:**
+
 - `json_str` (str): JSON string to transform
 - `root_type` (str): Root type name (e.g., `"User"`)
 
 **Returns:**
+
 - str: Transformed JSON string with camelCase keys and `__typename` fields
 
 **Raises:**
+
 - `ValueError`: If json_str is not valid JSON
 
 **Example:**
+
 ```python
 >>> registry = fraiseql_rs.SchemaRegistry()
 >>> registry.register_type("User", user_def)
@@ -406,6 +456,7 @@ for record in 1000 records:
 ```
 
 **Use Cases:**
+
 - **Batch processing**: Transform many records
 - **Long-running services**: Parse schema once at startup
 - **Repeated transformations**: Same schema, different data
@@ -465,11 +516,13 @@ schema = {
 Raised when JSON parsing fails or input is invalid.
 
 **Common Causes:**
+
 - Invalid JSON syntax
 - Malformed type_info parameter
 - Invalid schema definition
 
 **Example:**
+
 ```python
 try:
     result = fraiseql_rs.transform_json("not valid json")
@@ -479,6 +532,7 @@ except ValueError as e:
 ```
 
 **Best Practices:**
+
 - Always validate JSON before transformation
 - Use try-except blocks for error handling
 - Log errors for debugging

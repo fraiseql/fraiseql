@@ -1,13 +1,17 @@
 # Phase 2: Consolidate Duplicate Test Files (REFACTOR)
 
 ## Objective
+
 Merge duplicate test files into single comprehensive test files, ensuring no test coverage is lost.
 
 ## Context
+
 During development, multiple test files were created for the same features with different suffixes (_simple, _fixed, _complex). These need to be consolidated into single, well-organized test files.
 
 ## Files to Modify
+
 Based on inventory, we have 4 consolidation tasks:
+
 1. Field authorization tests (4 files → 1)
 2. Error array tests (2 files → 1)
 3. Decorators tests (1 file → rename only, handled in Phase 3)
@@ -27,6 +31,7 @@ ls -lh tests/integration/auth/test_field_auth*.py
 ```
 
 **Expected output**: 4 files listed
+
 - `test_field_authorization.py`
 - `test_field_authorization_simple.py`
 - `test_field_authorization_fixed.py`
@@ -58,12 +63,14 @@ grep "def test_" tests/integration/auth/test_field_auth_complex.py | head -20
 #### 1.3: Create consolidated file
 
 Strategy:
+
 - Use `test_field_authorization.py` as the base (KEEP file)
 - Add any unique tests from the other 3 files
 - Organize tests into logical sections with comments
 - Remove duplicate tests (keep the most comprehensive version)
 
 **Current state analysis**:
+
 ```bash
 # Base file has 2 tests in a class:
 # - test_field_auth_basic_error_handling
@@ -192,12 +199,14 @@ class TestFieldAuthorization:
 ```
 
 **Deduplication decision rules**:
+
 1. **Identical names + similar assertions** → Keep one (usually from base)
 2. **Similar names but different assertions** → Keep both, clarify names if needed
 3. **Different names testing same feature** → Keep the more comprehensive one
 4. **Unique tests** → Always copy to consolidated file
 
 **Manual steps**:
+
 1. Open `tests/integration/auth/test_field_authorization.py` in your editor
 2. Open the three other files in separate tabs/windows
 3. Create section comments in the base file (Basic, Advanced, Async, Special Cases)
@@ -240,6 +249,7 @@ uv run pytest tests/integration/auth/test_field_authorization.py -v
 **Expected output**: All tests pass
 
 **If tests fail**:
+
 - Check imports are correct
 - Check fixtures are present
 - Check for copy-paste errors
@@ -265,6 +275,7 @@ ls -lh tests/integration/graphql/mutations/test_*error*.py
 ```
 
 **Expected output**: 2 files
+
 - `test_native_error_arrays.py` (keep this one)
 - `test_error_arrays.py` (delete this one)
 
@@ -298,6 +309,7 @@ uv run pytest tests/integration/ -v --tb=short
 **Expected output**: All tests pass
 
 **If tests fail**:
+
 1. Check which test file failed
 2. Review the consolidation for that file
 3. Look for missing imports, fixtures, or test logic
@@ -380,6 +392,7 @@ No test coverage lost. All tests passing."
 We want to keep all the test coverage. Each file might test different edge cases.
 
 **How do I know if tests are duplicates?**
+
 - Same test name = probably duplicate (check assertions to confirm)
 - Same assertions = definitely duplicate (keep the better-documented version)
 - Different assertions for same feature = NOT duplicates, keep both
@@ -393,12 +406,14 @@ That's okay for now. If a single test file has >500 lines, consider splitting by
 
 **How to organize tests in consolidated file?**
 Group by feature complexity:
+
 1. Basic functionality tests
 2. Tests with relations/joins
 3. Edge cases and error conditions
 4. Performance/integration tests
 
 **Time estimate**: ~2 hours
+
 - Field authorization consolidation: ~1.5 hours
 - Error arrays: ~15 minutes
 - Verification: ~15 minutes

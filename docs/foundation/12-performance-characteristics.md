@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.7: Performance Characteristics
 description: FraiseQL's performance characteristics are determined by its **compiled-first architecture**. Unlike runtime GraphQL servers that interpret queries on every req
 keywords: ["query-execution", "data-planes", "graphql", "performance", "compilation", "architecture"]

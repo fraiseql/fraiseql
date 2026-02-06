@@ -24,7 +24,7 @@ class TestBareMetalE2E:
     @pytest.mark.asyncio
     async def test_api_deployment_workflow(self):
         """Test complete API deployment on Bare Metal.
-        
+
         Workflow:
         1. Connect to server
         2. Pull latest code
@@ -55,23 +55,23 @@ class TestBareMetalE2E:
 
             # Simulate deployment
             await provider.connect()
-            
+
             # Git pull
             exit_code, stdout, stderr = await provider.execute_command(
                 "cd /var/www/api && git pull origin main"
             )
             assert exit_code == 0
-            
+
             # Run migrations
             exit_code, stdout, stderr = await provider.execute_command(
                 "cd /var/www/api && python manage.py migrate"
             )
             assert exit_code == 0
-            
+
             # Restart service
             result = await provider.restart_service("api.service")
             assert result is True
-            
+
             # Health check
             health_check = HealthCheck(
                 type=HealthCheckType.HTTP,
@@ -81,7 +81,7 @@ class TestBareMetalE2E:
             )
             is_healthy = await provider.check_health(health_check)
             assert is_healthy is True
-            
+
             await provider.disconnect()
             mock_connect.assert_called_once()
             mock_disconnect.assert_called_once()
@@ -156,7 +156,7 @@ class TestDockerComposeE2E:
     @pytest.mark.asyncio
     async def test_container_deployment_workflow(self):
         """Test complete container deployment workflow.
-        
+
         Workflow:
         1. Pull latest image
         2. Rebuild container
@@ -269,7 +269,7 @@ class TestCoolifyE2E:
     @pytest.mark.asyncio
     async def test_deployment_lifecycle(self):
         """Test complete deployment lifecycle via Coolify.
-        
+
         Workflow:
         1. Trigger deployment
         2. Wait for completion
@@ -413,7 +413,7 @@ class TestMultiProviderScenarios:
     @pytest.mark.asyncio
     async def test_canary_deployment_docker_to_bare_metal(self):
         """Test canary deployment: Docker Compose test, Bare Metal production.
-        
+
         Scenario:
         1. Deploy to Docker Compose test environment
         2. Run health checks
@@ -461,7 +461,7 @@ class TestMultiProviderScenarios:
     @pytest.mark.asyncio
     async def test_blue_green_deployment(self):
         """Test blue-green deployment pattern.
-        
+
         Scenario:
         1. Blue (current): Running on Docker Compose
         2. Green (new): Deploy on Docker Compose

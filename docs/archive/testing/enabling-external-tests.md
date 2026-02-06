@@ -33,16 +33,19 @@ Follow the detailed instructions below for each service.
 ### HashiCorp Vault Tests (3 tests)
 
 **What's Tested:**
+
 - Encrypt/decrypt roundtrip with real Vault
 - Data key generation
 - Multiple key isolation
 
 **Prerequisites:**
+
 - Docker installed and running
 
 **Setup Steps:**
 
 1. **Start Vault in dev mode:**
+
    ```bash
    docker run -d --rm \
      --name fraiseql-vault-test \
@@ -53,18 +56,21 @@ Follow the detailed instructions below for each service.
    ```
 
 2. **Enable transit engine:**
+
    ```bash
    docker exec fraiseql-vault-test \
      vault secrets enable -path=transit transit
    ```
 
 3. **Create encryption key:**
+
    ```bash
    docker exec -e VAULT_TOKEN=fraiseql-test-token fraiseql-vault-test \
      vault write -f transit/keys/fraiseql-test
    ```
 
 4. **Set environment variables:**
+
    ```bash
    export VAULT_ADDR=http://localhost:8200
    export VAULT_TOKEN=fraiseql-test-token
@@ -73,11 +79,13 @@ Follow the detailed instructions below for each service.
    ```
 
 5. **Run tests:**
+
    ```bash
    pytest tests/integration/security/test_kms_integration.py -k vault -v
    ```
 
 **Expected Output:**
+
 ```
 tests/integration/security/test_kms_integration.py::TestVaultIntegration::test_encrypt_decrypt_roundtrip PASSED
 tests/integration/security/test_kms_integration.py::TestVaultIntegration::test_data_key_generation PASSED
@@ -87,6 +95,7 @@ tests/integration/security/test_kms_integration.py::TestVaultIntegration::test_d
 ```
 
 **Cleanup:**
+
 ```bash
 docker rm -f fraiseql-vault-test
 ```
@@ -96,6 +105,7 @@ docker rm -f fraiseql-vault-test
 ### AWS KMS Tests (3 tests)
 
 **What's Tested:**
+
 - Encrypt/decrypt with AWS KMS
 - Data key generation
 - Multiple key isolation
@@ -103,11 +113,13 @@ docker rm -f fraiseql-vault-test
 #### Option A: LocalStack (Recommended for Testing)
 
 **Prerequisites:**
+
 - Docker installed and running
 
 **Setup Steps:**
 
 1. **Start LocalStack:**
+
    ```bash
    docker run -d --rm \
      --name fraiseql-localstack-test \
@@ -117,12 +129,14 @@ docker rm -f fraiseql-vault-test
    ```
 
 2. **Wait for LocalStack to be ready:**
+
    ```bash
    # Wait until health check shows KMS available
    curl http://localhost:4566/_localstack/health
    ```
 
 3. **Create KMS key:**
+
    ```bash
    docker exec fraiseql-localstack-test \
      aws --endpoint-url=http://localhost:4566 kms create-key \
@@ -133,6 +147,7 @@ docker rm -f fraiseql-vault-test
    ```
 
 4. **Set environment variables:**
+
    ```bash
    export AWS_ENDPOINT_URL=http://localhost:4566
    export AWS_REGION=us-east-1
@@ -142,11 +157,13 @@ docker rm -f fraiseql-vault-test
    ```
 
 5. **Run tests:**
+
    ```bash
    pytest tests/integration/security/test_kms_integration.py -k aws -v
    ```
 
 **Cleanup:**
+
 ```bash
 docker rm -f fraiseql-localstack-test
 ```
@@ -154,18 +171,21 @@ docker rm -f fraiseql-localstack-test
 #### Option B: Real AWS KMS
 
 **Prerequisites:**
+
 - AWS account with KMS permissions
 - AWS credentials configured
 
 **Setup Steps:**
 
 1. **Create KMS key (one-time):**
+
    ```bash
    aws kms create-key --region us-east-1 --query 'KeyMetadata.KeyId' --output text
    # Save the output KEY_ID
    ```
 
 2. **Set environment variables:**
+
    ```bash
    export AWS_REGION=us-east-1
    export AWS_ACCESS_KEY_ID=<your access key>
@@ -174,6 +194,7 @@ docker rm -f fraiseql-localstack-test
    ```
 
 3. **Run tests:**
+
    ```bash
    pytest tests/integration/security/test_kms_integration.py -k aws -v
    ```
@@ -189,6 +210,7 @@ docker rm -f fraiseql-localstack-test
 The Cascade tests are skipped because the GraphQL Cascade feature is still in development. The tests define the expected behavior but the feature implementation is incomplete.
 
 **Tests:**
+
 - `test_cascade_end_to_end` - Complete cascade flow
 - `test_cascade_with_error_response` - Error handling
 - `test_cascade_mutation_updates_cache` - Cache updates
@@ -201,6 +223,7 @@ The test fixtures are defined (`tests/fixtures/cascade/conftest.py`), but the co
 Planned for FraiseQL v2.1 (Q1 2026)
 
 **How to Track Progress:**
+
 - GitHub Issue: #xxx (Cascade Feature Implementation)
 - Project Board: FraiseQL v2.1 Roadmap
 
@@ -214,6 +237,7 @@ Use manual cache invalidation with `@mutation(cache_invalidate=["posts", "users"
 The `enable-kms-tests.sh` script automates all the setup above.
 
 ### Script Location
+
 ```bash
 ./tests/scripts/enable-kms-tests.sh
 ```
@@ -221,6 +245,7 @@ The `enable-kms-tests.sh` script automates all the setup above.
 ### Usage Examples
 
 **Setup everything (Vault + LocalStack):**
+
 ```bash
 ./tests/scripts/enable-kms-tests.sh --vault --localstack
 source .env.test.kms
@@ -228,6 +253,7 @@ pytest tests/integration/security/test_kms_integration.py -v
 ```
 
 **Setup Vault only:**
+
 ```bash
 ./tests/scripts/enable-kms-tests.sh --vault
 source .env.test.kms
@@ -235,6 +261,7 @@ pytest tests/integration/security/test_kms_integration.py -k vault -v
 ```
 
 **Setup with real AWS:**
+
 ```bash
 # Set AWS credentials first
 export AWS_ACCESS_KEY_ID=your_key
@@ -248,6 +275,7 @@ pytest tests/integration/security/test_kms_integration.py -v
 ```
 
 **Cleanup all services:**
+
 ```bash
 ./tests/scripts/enable-kms-tests.sh --cleanup
 ```
@@ -285,6 +313,7 @@ export AWS_KMS_KEY_ID=<generated-key-id>
 ```
 
 **To use:**
+
 ```bash
 source .env.test.kms
 ```
@@ -393,6 +422,7 @@ jobs:
 **Problem:** Port 8200 already in use
 
 **Solution:**
+
 ```bash
 # Find what's using port 8200
 lsof -i :8200
@@ -406,6 +436,7 @@ docker rm -f $(docker ps -a | grep vault | awk '{print $1}')
 **Problem:** KMS service shows as "unavailable"
 
 **Solution:**
+
 ```bash
 # Check LocalStack logs
 docker logs fraiseql-localstack-test
@@ -427,6 +458,7 @@ sleep 15
 **Problem:** Environment variables not set
 
 **Solution:**
+
 ```bash
 # Verify environment variables
 echo $VAULT_ADDR
@@ -446,6 +478,7 @@ export VAULT_ADDR=http://localhost:8200
 
 **Solution:**
 Ensure your AWS IAM user/role has these permissions:
+
 ```json
 {
   "Version": "2012-10-17",

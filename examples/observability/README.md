@@ -5,6 +5,7 @@
 A comprehensive example of integrating FraiseQL applications with modern observability tools including Loki for log aggregation, Grafana for visualization, and Prometheus metrics collection.
 
 **What you'll learn:**
+
 - Structured logging with Loki integration
 - Application metrics and monitoring setup
 - Grafana dashboard configuration
@@ -12,11 +13,13 @@ A comprehensive example of integrating FraiseQL applications with modern observa
 - Log aggregation and analysis patterns
 
 **Prerequisites:**
+
 - `../blog_api/` - Basic GraphQL API patterns
 - Docker and Docker Compose knowledge
 - Understanding of monitoring concepts
 
 **Next steps:**
+
 - `../enterprise_patterns/` - Production monitoring patterns
 - `../compliance-demo/` - Audit logging and compliance monitoring
 
@@ -44,11 +47,13 @@ FraiseQL App → Structured Logs → Loki → Grafana Dashboards
 **Purpose**: Centralized log aggregation and analysis
 
 **Files**:
+
 - `loki/loki-config.yaml` - Loki server configuration
 - `loki/promtail-config.yaml` - Log shipping configuration
 - `loki/grafana-datasources.yaml` - Grafana data source setup
 
 **Key Features**:
+
 - Structured JSON logging support
 - Label-based log filtering
 - Long-term log retention
@@ -59,9 +64,11 @@ FraiseQL App → Structured Logs → Loki → Grafana Dashboards
 **Purpose**: Visualization and monitoring dashboards
 
 **Files**:
+
 - `loki/grafana-datasources.yaml` - Data source definitions
 
 **Capabilities**:
+
 - Log visualization with Loki
 - Metrics panels with Prometheus
 - Alerting and notification setup
@@ -74,6 +81,7 @@ FraiseQL App → Structured Logs → Loki → Grafana Dashboards
 **File**: `docker-compose.loki.yml`
 
 **Services**:
+
 - Loki (log aggregation)
 - Grafana (visualization)
 - Promtail (log shipping)
@@ -333,6 +341,7 @@ curl -X POST -H "Content-Type: application/json" \
 ### 2. Structured Logging Fields
 
 Always include:
+
 - `timestamp`: ISO 8601 UTC format
 - `level`: Log level
 - `logger`: Logger name
@@ -344,12 +353,14 @@ Always include:
 ### 3. Metrics to Monitor
 
 **Application Metrics**:
+
 - Request rate per operation
 - Error rate per operation
 - Response time percentiles
 - Active connections
 
 **Business Metrics**:
+
 - User registration rate
 - Query complexity distribution
 - Cache hit rates
@@ -449,6 +460,7 @@ scrape_configs:
 ### Common Issues
 
 **Loki not receiving logs**:
+
 ```bash
 # Check Promtail status
 docker-compose -f docker-compose.loki.yml logs promtail
@@ -458,12 +470,14 @@ curl http://localhost:3100/ready
 ```
 
 **Grafana data source errors**:
+
 ```bash
 # Test Loki connection
 curl "http://localhost:3100/loki/api/v1/query?query={app=\"fraiseql\"}"
 ```
 
 **Metrics not appearing**:
+
 ```bash
 # Check Prometheus targets
 curl http://localhost:9090/api/v1/targets

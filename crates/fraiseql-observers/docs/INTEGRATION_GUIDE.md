@@ -51,6 +51,7 @@ psql postgresql://user:pass@localhost/db < checkpoint.sql
 #### Step 2: Add Checkpoint Feature
 
 In `Cargo.toml`:
+
 ```toml
 [features]
 checkpoint = []
@@ -96,6 +97,7 @@ psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints;"
 ```
 
 **Expected Output**:
+
 ```
 observer_checkpoints:
  id | listener_id | event_id | last_processed_at
@@ -129,6 +131,7 @@ concurrent = []
 #### Step 2: Wrap Executor
 
 **Before**:
+
 ```rust
 let executor = ObserverExecutor::new(matcher, dlq);
 
@@ -137,6 +140,7 @@ executor.execute_actions(actions).await?;
 ```
 
 **After**:
+
 ```rust
 use fraiseql_observers::concurrent::ConcurrentActionExecutor;
 
@@ -1014,4 +1018,3 @@ For integration help:
 - Review Configuration Examples: `CONFIGURATION_EXAMPLES.md`
 - Troubleshoot Issues: `TROUBLESHOOTING.md`
 - Check CLI Documentation: `CLI_TOOLS.md`
-

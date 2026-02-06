@@ -1,12 +1,15 @@
 # Phase 1: PostgreSQL Migration Files
 
 ## Objective
+
 Rename the PostgreSQL composite type and all helper functions from `mutation_result_v2` to `mutation_response`.
 
 ## Duration
+
 2 hours
 
 ## Files to Modify
+
 1. `migrations/trinity/005_add_mutation_result_v2.sql` → rename to `005_add_mutation_response.sql`
 2. `examples/mutations_demo/v2_init.sql`
 3. `examples/mutations_demo/v2_mutation_functions.sql`
@@ -16,6 +19,7 @@ Rename the PostgreSQL composite type and all helper functions from `mutation_res
 ## Task 1.1: Rename Main Migration File
 
 ### Step 1: Rename the File
+
 ```bash
 cd /home/lionel/code/fraiseql
 git mv migrations/trinity/005_add_mutation_result_v2.sql \
@@ -23,6 +27,7 @@ git mv migrations/trinity/005_add_mutation_result_v2.sql \
 ```
 
 **Verification**:
+
 ```bash
 ls -la migrations/trinity/005_add_mutation_response.sql
 ! ls -la migrations/trinity/005_add_mutation_result_v2.sql  # Should not exist
@@ -33,6 +38,7 @@ ls -la migrations/trinity/005_add_mutation_response.sql
 **File**: `migrations/trinity/005_add_mutation_response.sql`
 
 **Change** (lines 1-4):
+
 ```sql
 -- OLD
 -- Migration: Add mutation_result_v2 type and helper functions
@@ -44,6 +50,7 @@ ls -la migrations/trinity/005_add_mutation_response.sql
 ### Step 3: Rename Type Definition
 
 **Change** (line ~12):
+
 ```sql
 -- OLD
 CREATE TYPE mutation_result_v2 AS (
@@ -67,6 +74,7 @@ CREATE TYPE mutation_response AS (
 9. `mutation_error()` - line ~261
 
 **Change for ALL**:
+
 ```sql
 -- OLD
 RETURNS mutation_result_v2 AS $$
@@ -80,6 +88,7 @@ RETURNS mutation_response AS $$
 **Find all casts** (search for `)::mutation_result_v2`):
 
 **Change ALL occurrences**:
+
 ```sql
 -- OLD
 )::mutation_result_v2;
@@ -93,6 +102,7 @@ RETURNS mutation_response AS $$
 ### Step 6: Update Utility Functions
 
 **Functions** (lines 281-319):
+
 - `mutation_is_success(result mutation_result_v2)`
 - `mutation_is_error(result mutation_result_v2)`
 - `mutation_is_noop(result mutation_result_v2)`
@@ -100,6 +110,7 @@ RETURNS mutation_response AS $$
 - `mutation_noop_reason(result mutation_result_v2)`
 
 **Change parameter type for ALL**:
+
 ```sql
 -- OLD
 CREATE OR REPLACE FUNCTION mutation_is_success(result mutation_result_v2) RETURNS boolean
@@ -113,6 +124,7 @@ CREATE OR REPLACE FUNCTION mutation_is_success(result mutation_response) RETURNS
 **In the commented example section** (lines 536-707):
 
 **Find and replace**:
+
 ```sql
 -- OLD
 RETURNS mutation_result_v2 AS $$
@@ -122,6 +134,7 @@ RETURNS mutation_response AS $$
 ```
 
 **Verification**:
+
 ```bash
 # No v2 references should remain
 ! grep -i "mutation_result_v2" migrations/trinity/005_add_mutation_response.sql
@@ -138,6 +151,7 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
 **File**: `examples/mutations_demo/v2_init.sql`
 
 ### Step 1: Update File Header
+
 ```sql
 -- OLD (line ~1)
 -- Updated init.sql using mutation_result_v2 format
@@ -149,19 +163,23 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
 ### Step 2: Global Replace
 
 **Find ALL occurrences**:
+
 ```bash
 grep -n "mutation_result_v2" examples/mutations_demo/v2_init.sql
 ```
 
 **Replace ALL with**:
+
 - `mutation_result_v2` → `mutation_response`
 
 **Expected changes**:
+
 - Type definition: `CREATE TYPE mutation_response`
 - Function return types: `RETURNS mutation_response`
 - Type casts: `)::mutation_response`
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" examples/mutations_demo/v2_init.sql
 grep -c "mutation_response" examples/mutations_demo/v2_init.sql
@@ -177,6 +195,7 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
 ### Step 1: Update Comments
 
 **Find all comments mentioning the type**:
+
 ```bash
 grep -n "mutation_result_v2" examples/mutations_demo/v2_mutation_functions.sql
 ```
@@ -184,14 +203,17 @@ grep -n "mutation_result_v2" examples/mutations_demo/v2_mutation_functions.sql
 ### Step 2: Global Replace
 
 **Replace ALL**:
+
 - `mutation_result_v2` → `mutation_response`
 
 **Expected changes**:
+
 - Function return types
 - Type casts
 - Comments
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" examples/mutations_demo/v2_mutation_functions.sql
 grep -c "mutation_response" examples/mutations_demo/v2_mutation_functions.sql

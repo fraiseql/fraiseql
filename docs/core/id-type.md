@@ -152,6 +152,7 @@ query {
 If you have existing code using `UUID`, migration is straightforward:
 
 **Before:**
+
 ```python
 from uuid import UUID
 
@@ -161,6 +162,7 @@ class User:
 ```
 
 **After:**
+
 ```python
 from fraiseql.types import ID
 

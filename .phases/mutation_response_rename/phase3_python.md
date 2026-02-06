@@ -1,16 +1,20 @@
 # Phase 3: Python Layer Updates (v1.8.0)
 
 ## Objective
+
 Update Python docstrings and comments to use `mutation_response` as the canonical name.
 
 ## Duration
+
 1 hour
 
 ## Note on v1.8.0 Strategy
+
 The Python layer doesn't interact with PostgreSQL type names directly - it receives JSON from Rust.
 This phase only updates documentation/comments to reflect the new canonical name.
 
 ## Files to Modify
+
 - `src/fraiseql/mutations/entity_flattener.py`
 - `src/fraiseql/mutations/rust_executor.py`
 
@@ -20,7 +24,8 @@ This phase only updates documentation/comments to reflect the new canonical name
 
 **File**: `src/fraiseql/mutations/entity_flattener.py`
 
-### Changes:
+### Changes
+
 Search for all docstrings/comments mentioning `mutation_result_v2` and update:
 
 ```python
@@ -34,7 +39,8 @@ Note: mutation_result_v2 is deprecated but still supported (v1.8.0+).
 """
 ```
 
-### Verification:
+### Verification
+
 ```bash
 ! grep -i "mutation_result_v2" src/fraiseql/mutations/entity_flattener.py
 ```
@@ -45,10 +51,12 @@ Note: mutation_result_v2 is deprecated but still supported (v1.8.0+).
 
 **File**: `src/fraiseql/mutations/rust_executor.py`
 
-### Changes:
+### Changes
+
 Update any docstrings/comments mentioning the type.
 
-### Verification:
+### Verification
+
 ```bash
 ! grep -i "mutation_result_v2" src/fraiseql/mutations/rust_executor.py
 ```
@@ -56,12 +64,14 @@ Update any docstrings/comments mentioning the type.
 ---
 
 ## Acceptance Criteria
+
 - [ ] Primary documentation uses `mutation_response`
 - [ ] Backward compatibility notes added where relevant
 - [ ] Imports still work
 - [ ] Type hints unchanged (they reference JSON structure, not SQL type)
 
 ## Git Commit
+
 ```bash
 git add src/fraiseql/mutations/
 git commit -m "docs(py): update to use mutation_response terminology

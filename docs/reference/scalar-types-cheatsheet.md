@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Scalar Types Cheat Sheet
 description: Quick reference for all FraiseQL scalar types, mappings, and examples.
 keywords: ["directives", "types", "scalars", "schema", "api"]

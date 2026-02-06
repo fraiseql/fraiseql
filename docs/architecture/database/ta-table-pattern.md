@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: ta_* Table Pattern: Table-Backed Arrow Views
 description: - Physical storage on disk (materialized data)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

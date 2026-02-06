@@ -34,6 +34,7 @@ FraiseQL might seem different if you're used to traditional web frameworks. Here
 **Think "Database-First"**: Instead of starting with your API and figuring out the database later, FraiseQL starts with PostgreSQL and builds your API on top. Your database becomes the foundation of your application.
 
 **Key Concepts to Know**:
+
 - **[CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Separate reading data from writing data
 - **[JSONB Views](../core/concepts-glossary.md#view)**: Pre-packaged data ready for GraphQL
 - **[Database-First](../core/concepts-glossary.md)**: Business logic lives in PostgreSQL
@@ -43,6 +44,7 @@ FraiseQL might seem different if you're used to traditional web frameworks. Here
 ### Quick Philosophy Check
 
 Before diving deep, ask yourself:
+
 - Do you want your database to do more heavy lifting?
 - Are you tired of ORM complexity?
 - Do you want automatic multi-tenancy and security?
@@ -87,6 +89,7 @@ async def get_user(info, id: ID) -> User:
 ### How It Works
 
 1. **Configuration** - Specify database URL once:
+
    ```python
    config = FraiseQLConfig(
        database_url="postgresql://localhost/mydb"
@@ -94,6 +97,7 @@ async def get_user(info, id: ID) -> User:
    ```
 
 2. **Automatic Setup** - FraiseQL creates and manages connection pool:
+
    ```python
    app = create_fraiseql_app(config=config)
    # Database pool created automatically
@@ -101,12 +105,14 @@ async def get_user(info, id: ID) -> User:
 
 3. **Context Injection** - Every resolver gets `db` in context:
    ```python
+
 import fraiseql
 
    @fraiseql.query
    async def any_query(info) -> Any:
        db = info.context["db"]  # FraiseQLRepository instance
        # Ready to use immediately
+
    ```
 
 ### Benefits
@@ -146,6 +152,7 @@ FraiseQL embraces **PostgreSQL's JSONB** as a first-class storage mechanism, not
 ### Traditional vs JSONB-First
 
 **Traditional ORM Approach**:
+
 ```sql
 -- Rigid schema, many columns
 CREATE TABLE tb_user (
@@ -162,6 +169,7 @@ CREATE TABLE tb_user (
 ```
 
 **FraiseQL JSONB-First Approach**:
+
 ```sql
 -- Flexible, indexed, performant
 CREATE TABLE tb_user (
@@ -189,6 +197,7 @@ FROM tb_user;
 ### Why JSONB-First?
 
 **1. Schema Evolution Without Migrations**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -211,6 +220,7 @@ class User:
 ```
 
 **2. JSON Passthrough Performance**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -225,6 +235,7 @@ async def user(info, id: ID) -> User:
 ```
 
 **3. Flexible Data Models**:
+
 ```sql
 -- Different tenants can have different user fields
 -- Tenant A users
@@ -237,6 +248,7 @@ async def user(info, id: ID) -> User:
 ### JSONB Best Practices
 
 **1. Use Views for GraphQL**:
+
 ```sql
 CREATE VIEW v_product AS
 SELECT
@@ -250,6 +262,7 @@ FROM tb_product;
 ```
 
 **2. Index Frequently Queried Fields**:
+
 ```sql
 -- GIN index for contains queries
 CREATE INDEX idx_product_search ON tb_product
@@ -260,6 +273,7 @@ CREATE INDEX idx_product_sku ON tb_product ((data->>'sku'));
 ```
 
 **3. Validate in PostgreSQL, Not Python**:
+
 ```sql
 CREATE FUNCTION validate_user_data(data jsonb) RETURNS boolean AS $$
 BEGIN
@@ -428,6 +442,7 @@ async def orders(info) -> list[Order]:
 FraiseQL eliminates external dependencies by implementing **caching, error tracking, and observability** directly in PostgreSQL. This "In PostgreSQL Everything" philosophy delivers cost savings, operational simplicity, and consistent performance.
 
 **Cost Savings:**
+
 ```
 Traditional Stack:
 - Sentry: $300-3,000/month
@@ -440,6 +455,7 @@ FraiseQL Stack:
 ```
 
 **Operational Simplicity:**
+
 ```
 Before: FastAPI + PostgreSQL + Redis + Sentry + Grafana = 5 services
 After:  FastAPI + PostgreSQL + Grafana = 3 services
@@ -502,6 +518,7 @@ WHERE e.fingerprint = 'order_creation_failed';
 ### Integrated Observability Stack
 
 **OpenTelemetry Integration:**
+
 ```python
 # Traces and metrics automatically stored in PostgreSQL
 # Full correlation with errors and business events
@@ -520,6 +537,7 @@ LIMIT 10;
 
 **Grafana Dashboards:**
 Pre-built dashboards in `grafana/`:
+
 - Error monitoring (grouping, rates, trends)
 - OpenTelemetry traces (spans, performance)
 - Performance metrics (latency, throughput)
@@ -561,11 +579,13 @@ async def health_endpoint():
 ### You Control Composition
 
 Unlike opinionated frameworks that dictate:
+
 - ❌ Where files go
 - ❌ How to structure modules
 - ❌ What patterns to use
 
 FraiseQL provides:
+
 - ✅ Building blocks (HealthCheck, @mutation, @query)
 - ✅ Clear interfaces (CheckResult, CheckFunction)
 - ✅ Flexibility in composition

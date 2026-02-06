@@ -70,6 +70,7 @@ make test                                       # Run tests
 ## Essential Patterns
 
 ### Define a Type
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -83,6 +84,7 @@ class User:
 ```
 
 ### Query - Get All Items
+
 ```python
 import fraiseql
 
@@ -94,6 +96,7 @@ async def users(info) -> list[User]:
 ```
 
 ### Query - Get by ID
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -107,6 +110,7 @@ async def user(info, id: ID) -> User | None:
 ```
 
 ### Query - Filter with Where Input Types
+
 ```python
 import fraiseql
 from fraiseql.sql import create_graphql_where_input
@@ -122,6 +126,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ```
 
 ### Mutation - Create
+
 ```python
 import fraiseql
 
@@ -137,6 +142,7 @@ def create_user(input: CreateUserInput) -> User:
 ```
 
 ### Mutation - Update
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -153,6 +159,7 @@ def update_user(id: ID, input: UpdateUserInput) -> User:
 ```
 
 ### Mutation - Delete
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -172,6 +179,7 @@ def delete_user(id: ID) -> DeleteResult:
 FraiseQL automatically generates powerful Where input types for type-safe filtering:
 
 ### Automatic Where Input Generation
+
 ```python
 from fraiseql.sql import create_graphql_where_input
 
@@ -188,6 +196,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ### Filter Operators by Type
 
 **String Fields:**
+
 ```graphql
 where: {
   name: { eq: "John", contains: "Jo", startswith: "J" }
@@ -196,6 +205,7 @@ where: {
 ```
 
 **Numeric Fields:**
+
 ```graphql
 where: {
   age: { gt: 18, lte: 65, in: [25, 30, 35] }
@@ -204,6 +214,7 @@ where: {
 ```
 
 **Boolean Fields:**
+
 ```graphql
 where: {
   isActive: { eq: true }
@@ -212,6 +223,7 @@ where: {
 ```
 
 **Array/List Fields:**
+
 ```graphql
 where: {
   tags: { contains: "urgent" }  # Array contains this value
@@ -220,6 +232,7 @@ where: {
 ```
 
 ### Logical Operators
+
 ```graphql
 # AND - all conditions must be true
 where: {
@@ -257,6 +270,7 @@ where: {
 ```
 
 ### Usage in GraphQL
+
 ```graphql
 query GetFilteredUsers {
   users(where: {
@@ -305,6 +319,7 @@ from fraiseql.types import (
 ## Advanced Type Operators
 
 ### IP Address Operations (NetworkOperatorStrategy)
+
 ```python
 # Basic
 "eq", "neq", "in", "notin", "nin"
@@ -326,6 +341,7 @@ from fraiseql.types import (
 ```
 
 ### LTree Hierarchical Paths (LTreeOperatorStrategy)
+
 ```python
 # Basic
 "eq", "neq", "in", "notin"
@@ -343,6 +359,7 @@ from fraiseql.types import (
 ```
 
 ### DateRange Operations (DateRangeOperatorStrategy)
+
 ```python
 # Basic
 "eq", "neq", "in", "notin"
@@ -363,16 +380,19 @@ from fraiseql.types import (
 ### Other Type Operations
 
 **MAC Address (MacAddressOperatorStrategy):**
+
 ```python
 "eq", "neq", "in", "notin", "isnull"
 ```
 
 **Generic Types (ComparisonOperatorStrategy):**
+
 ```python
 "eq", "neq", "gt", "gte", "lt", "lte"
 ```
 
 **String Operations (PatternMatchingStrategy):**
+
 ```python
 "matches",      # Regex pattern
 "startswith",   # LIKE 'prefix%'
@@ -381,12 +401,14 @@ from fraiseql.types import (
 ```
 
 **List Operations (ListOperatorStrategy):**
+
 ```python
 "in",   # Value in list
 "notin" # Value not in list
 ```
 
 **All Types:**
+
 ```python
 "isnull"  # IS NULL / IS NOT NULL
 ```
@@ -394,6 +416,7 @@ from fraiseql.types import (
 ## GraphQL Query Examples
 
 ### Get all items
+
 ```graphql
 query {
   users {
@@ -405,6 +428,7 @@ query {
 ```
 
 ### Get by ID
+
 ```graphql
 query {
   user(id: "123e4567-e89b-12d3-a456-426614174000") {
@@ -415,6 +439,7 @@ query {
 ```
 
 ### Filter results
+
 ```graphql
 query {
   usersByStatus(status: "active") {
@@ -425,6 +450,7 @@ query {
 ```
 
 ### Create item
+
 ```graphql
 mutation {
   createUser(input: { name: "Alice", email: "alice@example.com" }) {
@@ -436,6 +462,7 @@ mutation {
 ```
 
 ### Update item
+
 ```graphql
 mutation {
   updateUser(
@@ -450,6 +477,7 @@ mutation {
 ```
 
 ### Delete item
+
 ```graphql
 mutation {
   deleteUser(id: "123e4567-e89b-12d3-a456-426614174000") {
@@ -462,6 +490,7 @@ mutation {
 ## PostgreSQL Patterns
 
 ### Table (Write Model)
+
 ```sql
 -- tb_user - Write operations (trinity pattern)
 CREATE TABLE tb_user (
@@ -477,6 +506,7 @@ CREATE TABLE tb_user (
 ```
 
 ### View (Read Model)
+
 ```sql
 -- v_user - Read operations (uses public id, not pk_user)
 CREATE VIEW v_user AS
@@ -498,6 +528,7 @@ WHERE status != 'deleted';
 See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for complete example with validation.
 
 ### Trigger (Auto-updates)
+
 ```sql
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION fn_update_updated_at()
@@ -517,6 +548,7 @@ CREATE TRIGGER tr_user_updated_at
 ## FastAPI Integration
 
 ### Basic App
+
 ```python
 from fastapi import FastAPI
 from fraiseql.fastapi import FraiseQLRouter
@@ -534,6 +566,7 @@ app.include_router(router, prefix="/graphql")
 ```
 
 ### With Custom Context
+
 ```python
 from fraiseql.fastapi import FraiseQLRouter
 

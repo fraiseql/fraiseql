@@ -474,12 +474,14 @@ async def metrics():
 ## Performance Targets
 
 **Recommended Targets** (P95):
+
 - Simple queries (< 10 fields): **< 10ms**
 - Nested queries (1-2 levels): **< 50ms**
 - Large result sets (1000 rows): **< 100ms**
 - Mutations: **< 20ms**
 
 **Production Benchmarks** (FraiseQL v1.9+):
+
 - JSON transformation overhead: **< 0.1ms** (Rust pipeline)
 - Connection pool acquisition: **< 1ms**
 - GraphQL parsing: **< 5ms**
@@ -490,16 +492,19 @@ async def metrics():
 ## Tools
 
 **Benchmarking**:
+
 - [Locust](https://locust.io/) - Load testing
 - [Artillery](https://artillery.io/) - Load testing with scenarios
 - [k6](https://k6.io/) - JavaScript load testing
 
 **Profiling**:
+
 - [py-spy](https://github.com/benfred/py-spy) - Python profiler
 - [cProfile](https://docs.python.org/3/library/profile.html) - Built-in profiler
 - [memory_profiler](https://pypi.org/project/memory-profiler/) - Memory usage
 
 **Monitoring**:
+
 - [Prometheus](https://prometheus.io/) - Metrics collection
 - [Grafana](https://grafana.com/) - Metrics visualization
 - [pg_stat_statements](https://www.postgresql.org/docs/current/pgstatstatements.html) - PostgreSQL query stats

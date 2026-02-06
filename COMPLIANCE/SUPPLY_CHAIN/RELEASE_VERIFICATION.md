@@ -53,6 +53,7 @@ choco install cosign
 **Recommended method** - Provides strongest guarantees about build provenance.
 
 ### What It Verifies
+
 - ✅ Artifact was built by FraiseQL's GitHub Actions workflow
 - ✅ Build happened in the official fraiseql/fraiseql repository
 - ✅ No tampering since build
@@ -71,6 +72,7 @@ gh attestation verify fraiseql-1.7.1-py3-none-any.whl \
 ```
 
 **Expected Output:**
+
 ```
 Loaded digest sha256:abc123... for file://fraiseql-1.7.1-py3-none-any.whl
 Loaded 1 attestation from GitHub API
@@ -122,6 +124,7 @@ fi
 **For PyPI installations** - Built into pip (experimental in pip 25.0+).
 
 ### What It Verifies
+
 - ✅ Package on PyPI matches what was built by GitHub Actions
 - ✅ No tampering between build and PyPI upload
 - ✅ Cryptographic link to source repository
@@ -143,6 +146,7 @@ curl -s https://pypi.org/simple/fraiseql/ \
 ```
 
 **Expected Output:**
+
 ```json
 {
   "filename": "fraiseql-1.7.1-py3-none-any.whl",
@@ -164,6 +168,7 @@ curl -s https://pypi.org/simple/fraiseql/ \
 **Traditional verification** - Always works, but provides weakest guarantees.
 
 ### What It Verifies
+
 - ✅ File was not corrupted during download
 - ✅ File matches what was published
 - ⚠️  Does NOT verify who built it or how
@@ -180,6 +185,7 @@ sha256sum -c fraiseql-1.7.1-py3-none-any.whl.sha256
 ```
 
 **Expected Output:**
+
 ```
 fraiseql-1.7.1-py3-none-any.whl: OK
 ```
@@ -216,6 +222,7 @@ cosign verify-blob \
 ```
 
 **Expected Output:**
+
 ```
 Verified OK
 ```
@@ -273,6 +280,7 @@ jobs:
 **Cause**: GitHub CLI version too old or not installed.
 
 **Solution**: Update GitHub CLI to latest version:
+
 ```bash
 gh --version  # Should be 2.40.0+
 gh upgrade
@@ -283,6 +291,7 @@ gh upgrade
 **Cause**: Wrong repository or branch specified.
 
 **Solution**: Ensure you're using:
+
 - Owner: `fraiseql`
 - Repo: `fraiseql`
 - For SBOM: Identity regex must match `https://github.com/fraiseql/fraiseql`
@@ -311,6 +320,7 @@ cat fraiseql-1.7.1-attestation.jsonl | jq '.'
 ```
 
 This shows:
+
 - Exact GitHub Actions workflow used
 - Commit SHA that was built
 - Runner environment (OS, architecture)
@@ -353,6 +363,7 @@ jobs:
 ## For Contributors
 
 If you're building from source, note that:
+
 - Your local builds will NOT have attestations (GitHub Actions required)
 - You can still verify checksums manually
 - Official releases should always be used in production
@@ -368,6 +379,7 @@ If you're building from source, note that:
 ---
 
 **Document Control:**
+
 - **Author**: Security Team
 - **Reviewers**: Project Maintainers
 - **Next Review**: 2026-12-04

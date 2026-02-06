@@ -43,6 +43,7 @@ tools/fraiseql_tools/
 - Error handling: FileNotFoundError, JSONDecodeError, ValueError
 
 **Example**:
+
 ```python
 schema = load_schema("schema.json")
 # Returns: {"version": "2.0", "types": [...], "queries": [...], "mutations": [...]}
@@ -185,6 +186,7 @@ The templates use Jinja2-inspired syntax but are rendered using custom Python lo
 ### Context Variables
 
 Common context passed to all templates:
+
 ```python
 {
     "entity_name": "User",        # Original entity name
@@ -422,6 +424,7 @@ Error cases tested:
 ### Idempotency
 
 All DDL uses IF NOT EXISTS for idempotent execution:
+
 ```sql
 CREATE TABLE IF NOT EXISTS tv_user (...)
 CREATE INDEX IF NOT EXISTS idx_tv_user_entity_id (...)
@@ -533,6 +536,7 @@ full_ddl = ddl + "\n\n" + comp_ddl
 ## File Locations
 
 All implementation files are located under:
+
 ```
 /home/lionel/code/fraiseql/tools/fraiseql_tools/
 ```
@@ -544,6 +548,7 @@ Key files:
 - `templates/*.sql`: 6 SQL template files (1100+ lines total)
 
 Example files:
+
 ```
 /home/lionel/code/fraiseql/examples/ddl-generation/
 ```

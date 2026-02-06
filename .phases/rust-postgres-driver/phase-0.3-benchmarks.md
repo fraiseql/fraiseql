@@ -10,6 +10,7 @@
 ## Objective
 
 Establish performance benchmarking infrastructure to track regressions:
+
 1. Set up Criterion.rs benchmark framework
 2. Create baseline benchmarks for critical paths
 3. Establish performance thresholds
@@ -17,6 +18,7 @@ Establish performance benchmarking infrastructure to track regressions:
 5. Create performance comparison scripts
 
 **Success Criteria**:
+
 - ✅ Criterion benchmarks running successfully
 - ✅ Connection pool baseline established
 - ✅ Query execution baseline recorded
@@ -41,6 +43,7 @@ Establish performance benchmarking infrastructure to track regressions:
 ## Criterion.rs Overview
 
 Criterion.rs is a statistics-driven benchmarking framework:
+
 - Automatically detects regressions (>5% change)
 - Generates HTML reports
 - Compares against previous runs
@@ -476,31 +479,31 @@ echo "✅ Performance check passed"
 
 ## bench: Run all benchmarks
 bench:
-	cd fraiseql_rs && cargo bench --all
-	@echo "✅ Benchmarks complete"
+ cd fraiseql_rs && cargo bench --all
+ @echo "✅ Benchmarks complete"
 
 ## bench-pool: Benchmark connection pool
 bench-pool:
-	cd fraiseql_rs && cargo bench --bench connection_pool
-	@echo "✅ Pool benchmark complete"
+ cd fraiseql_rs && cargo bench --bench connection_pool
+ @echo "✅ Pool benchmark complete"
 
 ## bench-queries: Benchmark query execution
 bench-queries:
-	cd fraiseql_rs && cargo bench --bench query_execution
-	@echo "✅ Query benchmark complete"
+ cd fraiseql_rs && cargo bench --bench query_execution
+ @echo "✅ Query benchmark complete"
 
 ## bench-streaming: Benchmark streaming performance
 bench-streaming:
-	cd fraiseql_rs && cargo bench --bench streaming
-	@echo "✅ Streaming benchmark complete"
+ cd fraiseql_rs && cargo bench --bench streaming
+ @echo "✅ Streaming benchmark complete"
 
 ## bench-baseline: Capture performance baseline
 bench-baseline:
-	bash scripts/benchmark_baseline.sh
+ bash scripts/benchmark_baseline.sh
 
 ## bench-compare: Compare against previous baseline
 bench-compare:
-	bash scripts/check_performance.sh
+ bash scripts/check_performance.sh
 ```
 
 ---
@@ -571,21 +574,25 @@ open target/criterion/report/index.html
 ## Performance Targets
 
 ### Connection Pool (Phase 1)
+
 - Pool creation: < 10ms
 - Connection acquisition: < 1ms
 - Connection release: < 0.5ms
 
 ### Query Execution (Phase 2)
+
 - Simple SELECT: 5-10ms faster than psycopg
 - WHERE clause compilation: < 5ms
 - Parameter binding: < 1ms per param
 
 ### Streaming (Phase 3)
+
 - JSON transformation: < 2ms for 100 fields
 - Response building: < 10ms for 1000 rows
 - Streaming overhead: < 5% vs direct send
 
 ### End-to-End (Phase 4)
+
 - Query to HTTP response: 20-30% faster than psycopg
 - Memory usage: 10-15% lower
 - Throughput: 2-3x higher
@@ -599,6 +606,7 @@ open target/criterion/report/index.html
 **Issue**: cargo bench command not found
 
 **Fix**:
+
 ```bash
 cd fraiseql_rs
 cargo install cargo-criterion
@@ -612,6 +620,7 @@ cargo criterion
 **Issue**: Benchmarks complete too quickly or take too long
 
 **Fix**: Adjust `measurement_time` in benchmark files:
+
 ```rust
 criterion_group! {
     name = benches;
@@ -643,6 +652,7 @@ criterion_group! {
 ---
 
 **Estimated Duration**: 1.5 hours
+
 - Create benchmark files: 45 min
 - Create baseline scripts: 20 min
 - CI/CD configuration: 25 min

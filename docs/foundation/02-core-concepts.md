@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 1.2: Core Concepts & Terminology
 description: Before diving into FraiseQL's architecture and capabilities, you need to understand the vocabulary and mental models that underpin the system. This topic define
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

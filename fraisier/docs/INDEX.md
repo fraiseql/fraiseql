@@ -46,6 +46,7 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 ### In this `docs/` Directory
 
 #### Core Documentation
+
 | File | Purpose | Audience |
 |------|---------|----------|
 | **ARCHITECTURE.md** | Detailed technical architecture | Engineers, Architects |
@@ -56,6 +57,7 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 #### Phase 10: Complete Documentation System (v0.1.0)
 
 ##### 10.1: API Reference Documentation
+
 | File | Purpose | Size | Audience |
 |------|---------|------|----------|
 | **API_REFERENCE.md** | Complete REST API endpoints, examples, SDKs | 25K | Developers, Integrators |
@@ -64,6 +66,7 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 | **EVENT_REFERENCE.md** | NATS event types, filtering, replay patterns | 17K | Developers, DevOps |
 
 ##### 10.2: Getting Started Guides
+
 | File | Purpose | Time | Audience |
 |------|---------|------|----------|
 | **GETTING_STARTED_SQLITE.md** | Local development setup | 5-10 min | Everyone |
@@ -72,6 +75,7 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 | **GETTING_STARTED_DOCKER.md** | Full Docker Compose stack | 15-20 min | Everyone |
 
 ##### 10.3: Provider Setup Guides
+
 | File | Purpose | Time | Audience |
 |------|---------|------|----------|
 | **PROVIDER_BARE_METAL.md** | SSH + systemd deployment | 20-25 min | DevOps |
@@ -79,21 +83,25 @@ Complete documentation for the Fraisier deployment orchestrator and reference im
 | **PROVIDER_COOLIFY.md** | Coolify PaaS integration | 20-25 min | DevOps |
 
 ##### 10.4: Monitoring & Operations
+
 | File | Purpose | Audience |
 |------|---------|----------|
 | **MONITORING_SETUP.md** | Prometheus, Grafana, alerting rules | DevOps, SREs |
 
 ##### 10.5: Troubleshooting & Help
+
 | File | Purpose | Scenarios | Audience |
 |------|---------|-----------|----------|
 | **TROUBLESHOOTING.md** | 50+ common issues with debug commands | 50+ | Everyone |
 
 ##### 10.6: Real-World Examples
+
 | File | Purpose | Examples | Audience |
 |------|---------|----------|----------|
 | **REAL_WORLD_EXAMPLES.md** | 4 production configurations with code | 4 | DevOps, Architects |
 
 ##### 10.7: FAQ & Advanced Topics
+
 | File | Purpose | Q&A | Audience |
 |------|---------|-----|----------|
 | **FAQ_AND_ADVANCED_TOPICS.md** | 40+ FAQ, custom providers, performance tuning | 40+ | Everyone |
@@ -227,7 +235,7 @@ fraisier/
 
 ## Quick Reference Searches
 
-### How do I...
+### How do I
 
 | Question | Find Answer In |
 |----------|---|

@@ -430,16 +430,19 @@ if __name__ == "__main__":
 ## Distance Semantics Explanation
 
 ### Cosine Distance
+
 - **Range**: 0.0 (identical) to 2.0 (opposite)
 - **Best for**: Text similarity, semantic search
 - **Interpretation**: Lower values = more similar
 
 ### L2 Distance
+
 - **Range**: 0.0 (identical) to ∞ (very different)
 - **Best for**: Spatial data, exact matches
 - **Interpretation**: Euclidean distance in vector space
 
 ### Inner Product
+
 - **Range**: -∞ to ∞ (more negative = more similar)
 - **Best for**: Learned similarity metrics
 - **Interpretation**: Dot product of normalized vectors
@@ -449,6 +452,7 @@ if __name__ == "__main__":
 ### Common Issues
 
 **"extension 'vector' does not exist"**
+
 ```bash
 # Install pgvector on your system
 sudo apt-get install postgresql-16-pgvector  # Ubuntu/Debian
@@ -457,6 +461,7 @@ brew install pgvector  # macOS
 ```
 
 **Slow queries without indexes**
+
 ```sql
 -- Check if your queries use the index
 EXPLAIN SELECT * FROM documents
@@ -465,6 +470,7 @@ ORDER BY embedding <=> '[...]'::vector LIMIT 10;
 ```
 
 **Dimension mismatches**
+
 ```sql
 -- Check vector dimensions
 SELECT id, vector_dims(embedding) as dims FROM documents LIMIT 5;
@@ -472,6 +478,7 @@ SELECT id, vector_dims(embedding) as dims FROM documents LIMIT 5;
 ```
 
 **Memory issues with large result sets**
+
 ```python
 # Use smaller limits and pagination
 results = await semantic_search(repo, query, limit=50)  # Not 1000

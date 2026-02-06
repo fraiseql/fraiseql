@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL Scala with all oth
 Complete implementation of advanced authorization and security features for Scala:
 
 **Sealed Traits (type-safe enumerations):**
+
 - `RoleMatchStrategy` - Any, All, Exactly
 - `AuthzPolicyType` - Rbac, Abac, Custom, Hybrid
 
 **Case Classes (immutable data types):**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes (mutable builders with fluent API):**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for Scal
 ### Builder Methods
 
 **AuthorizeBuilder:**
+
 - `withRule(String)` - Set authorization rule expression
 - `withPolicy(String)` - Reference named policy
 - `withDescription(String)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for Scal
 - `build()` - Return configuration
 
 **RoleRequiredBuilder:**
+
 - `withRoles(List[String])` - Set required roles
 - `withStrategy(RoleMatchStrategy)` - Role matching strategy
 - `withHierarchy(Boolean)` - Role hierarchy support
@@ -62,6 +67,7 @@ Complete implementation of advanced authorization and security features for Scal
 - `build()` - Return configuration
 
 **AuthzPolicyBuilder:**
+
 - `withType(AuthzPolicyType)` - Policy type
 - `withDescription(String)` - Policy description
 - `withRule(String)` - Authorization rule
@@ -261,6 +267,7 @@ Scala-specific advantages:
 **Current Status**: 100% Parity across 12 languages (360/360 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

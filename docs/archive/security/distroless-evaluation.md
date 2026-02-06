@@ -9,12 +9,14 @@
 ## Vulnerability Comparison
 
 ### python:3.13-slim (Current)
+
 - **CRITICAL**: 0
 - **HIGH**: 0
 - **MEDIUM**: 9 (documented and accepted in .trivyignore)
 - **Total**: 9 vulnerabilities
 
 ### gcr.io/distroless/python3-debian12:nonroot + FraiseQL (Proposed)
+
 - **CRITICAL**: 2 ❌
 - **HIGH**: 3 ❌
 - **MEDIUM**: 23
@@ -27,6 +29,7 @@
 ### CRITICAL Vulnerabilities (2)
 
 #### CVE-2023-45853 (zlib1g)
+
 - **Package**: zlib1g 1:1.2.13.dfsg-1
 - **Issue**: Integer overflow and resultant heap-based buffer overflow in zipOpenNewFileInZip4_6
 - **Impact**: Potential remote code execution if application processes untrusted ZIP files
@@ -37,6 +40,7 @@
   - **Mitigation**: Accept risk with documentation, monitor for patch
 
 #### CVE-2025-7458 (libsqlite3-0)
+
 - **Package**: libsqlite3-0 3.40.1-2+deb12u2
 - **Issue**: SQLite integer overflow
 - **Impact**: Potential denial of service or data corruption
@@ -50,6 +54,7 @@
 ### HIGH Vulnerabilities (3 instances of same CVE)
 
 #### CVE-2025-8194 (Python 3.11 tarfile)
+
 - **Package**: python3.11-minimal, libpython3.11-minimal, libpython3.11-stdlib
 - **Issue**: Cpython infinite loop when parsing a tarfile
 - **Impact**: Denial of service if application processes malicious tar files
@@ -68,10 +73,12 @@
 ### Why Distroless Has More Vulnerabilities
 
 The gcr.io/distroless/python3-debian12:nonroot base image uses:
+
 - **Python 3.11** (Debian 12 default)
 - **Debian 12.12** packages
 
 The python:3.13-slim image uses:
+
 - **Python 3.13** (latest, with recent security patches)
 - **Debian 12.12** packages (same)
 
@@ -80,6 +87,7 @@ The python:3.13-slim image uses:
 ### Distroless Advantages (Still Valid)
 
 Despite the vulnerabilities, distroless still offers:
+
 - ✅ No shell (prevents shell-based attacks)
 - ✅ No package manager (prevents runtime tampering)
 - ✅ Minimal attack surface (fewer binaries)
@@ -159,6 +167,7 @@ USER fraiseql
 ~~Migrate to distroless~~ → **Continue with python:3.13-slim + hardening**
 
 Actions:
+
 1. ✅ Keep python:3.13-slim as base (0 CRITICAL/HIGH vulnerabilities)
 2. ✅ Implement security hardening:
    - Non-root user (UID 1000 or use distroless UID 65532)

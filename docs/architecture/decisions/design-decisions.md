@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Design Decisions: Architecture Decision Records (ADRs)
 description: This document records the fundamental architectural decisions behind FraiseQL, including the rationale, alternatives considered, and trade-offs made. Each decis
 keywords: ["design", "scalability", "performance", "patterns", "security"]

@@ -43,6 +43,7 @@ fraisier [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
 - `--json`: Output in JSON format (default: false)
 
 **Examples**:
+
 ```bash
 # Use custom config file
 fraisier --config ~/fraisier/config.yaml deploy my_api production
@@ -66,6 +67,7 @@ fraisier --database postgresql --db-path postgresql://localhost/fraisier deploy 
 Deploy a service to an environment.
 
 **Usage**:
+
 ```bash
 fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 ```
@@ -95,6 +97,7 @@ fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 - `--metadata KEY=VALUE`: Add metadata for audit logging (repeatable)
 
 **Examples**:
+
 ```bash
 # Deploy latest version with default rolling strategy
 fraisier deploy my_api production
@@ -138,6 +141,7 @@ fraisier deploy my_api production -y
 Rollback to a previous version.
 
 **Usage**:
+
 ```bash
 fraisier rollback [OPTIONS] FRAISE ENVIRONMENT
 ```
@@ -156,6 +160,7 @@ fraisier rollback [OPTIONS] FRAISE ENVIRONMENT
 - `--yes / -y`: Skip confirmation prompt
 
 **Examples**:
+
 ```bash
 # Rollback to previous version
 fraisier rollback my_api production
@@ -180,6 +185,7 @@ fraisier rollback my_api production -y
 Pause an ongoing deployment.
 
 **Usage**:
+
 ```bash
 fraisier pause DEPLOYMENT_ID
 ```
@@ -189,6 +195,7 @@ fraisier pause DEPLOYMENT_ID
 - `DEPLOYMENT_ID` (required): Deployment ID to pause
 
 **Example**:
+
 ```bash
 fraisier pause dep_00001
 ```
@@ -200,6 +207,7 @@ fraisier pause dep_00001
 Resume a paused deployment.
 
 **Usage**:
+
 ```bash
 fraisier resume DEPLOYMENT_ID
 ```
@@ -209,6 +217,7 @@ fraisier resume DEPLOYMENT_ID
 - `DEPLOYMENT_ID` (required): Deployment ID to resume
 
 **Example**:
+
 ```bash
 fraisier resume dep_00001
 ```
@@ -220,6 +229,7 @@ fraisier resume dep_00001
 Cancel an ongoing deployment.
 
 **Usage**:
+
 ```bash
 fraisier cancel DEPLOYMENT_ID
 ```
@@ -229,6 +239,7 @@ fraisier cancel DEPLOYMENT_ID
 - `DEPLOYMENT_ID` (required): Deployment ID to cancel
 
 **Example**:
+
 ```bash
 fraisier cancel dep_00001
 ```
@@ -242,6 +253,7 @@ fraisier cancel dep_00001
 Show current status of a service.
 
 **Usage**:
+
 ```bash
 fraisier status [OPTIONS] FRAISE [ENVIRONMENT]
 ```
@@ -258,6 +270,7 @@ fraisier status [OPTIONS] FRAISE [ENVIRONMENT]
 - `--interval SECONDS`: Update interval (default: 5)
 
 **Examples**:
+
 ```bash
 # Quick status
 fraisier status my_api
@@ -273,6 +286,7 @@ fraisier status my_api production --watch
 ```
 
 **Output Example**:
+
 ```
 my_api / production
 ├─ Status: Healthy
@@ -291,6 +305,7 @@ my_api / production
 List all services (fraises).
 
 **Usage**:
+
 ```bash
 fraisier list [OPTIONS]
 ```
@@ -303,6 +318,7 @@ fraisier list [OPTIONS]
 - `--long / -l`: Show detailed information
 
 **Examples**:
+
 ```bash
 # List all services
 fraisier list
@@ -327,6 +343,7 @@ fraisier list --environment production --type api --long
 Check health of all services.
 
 **Usage**:
+
 ```bash
 fraisier health [OPTIONS]
 ```
@@ -338,6 +355,7 @@ fraisier health [OPTIONS]
 - `--interval SECONDS`: Update interval (default: 5)
 
 **Examples**:
+
 ```bash
 # Check all services
 fraisier health
@@ -358,6 +376,7 @@ fraisier health --watch --interval 10
 View deployment history.
 
 **Usage**:
+
 ```bash
 fraisier history [OPTIONS] FRAISE [ENVIRONMENT]
 ```
@@ -375,6 +394,7 @@ fraisier history [OPTIONS] FRAISE [ENVIRONMENT]
 - `--long / -l`: Show detailed information
 
 **Examples**:
+
 ```bash
 # Recent deployments
 fraisier history my_api
@@ -396,6 +416,7 @@ fraisier history my_api production --long
 ```
 
 **Output Example**:
+
 ```
 my_api / production (last 5):
 
@@ -413,6 +434,7 @@ my_api / production (last 5):
 View deployment logs.
 
 **Usage**:
+
 ```bash
 fraisier logs [OPTIONS] DEPLOYMENT_ID
 ```
@@ -431,6 +453,7 @@ fraisier logs [OPTIONS] DEPLOYMENT_ID
 - `--no-timestamps`: Hide timestamps
 
 **Examples**:
+
 ```bash
 # Show last 100 lines
 fraisier logs dep_00001
@@ -457,6 +480,7 @@ fraisier logs dep_00001 --component provider
 Manage configuration.
 
 **Usage**:
+
 ```bash
 fraisier config [OPTIONS] ACTION
 ```
@@ -468,6 +492,7 @@ fraisier config [OPTIONS] ACTION
 - `init`: Initialize configuration file
 
 **Examples**:
+
 ```bash
 # Show current configuration
 fraisier config show
@@ -486,6 +511,7 @@ fraisier config init
 Manage environment configuration.
 
 **Usage**:
+
 ```bash
 fraisier env [OPTIONS] ACTION [ENVIRONMENT]
 ```
@@ -499,6 +525,7 @@ fraisier env [OPTIONS] ACTION [ENVIRONMENT]
 - `update`: Update environment
 
 **Examples**:
+
 ```bash
 # List environments
 fraisier env list
@@ -522,6 +549,7 @@ fraisier env update production --health-check-timeout 60
 Database management.
 
 **Usage**:
+
 ```bash
 fraisier db [OPTIONS] ACTION
 ```
@@ -540,6 +568,7 @@ fraisier db [OPTIONS] ACTION
 - `--path PATH`: Database path/connection string
 
 **Examples**:
+
 ```bash
 # Initialize SQLite database
 fraisier db init --database sqlite --path fraisier.db
@@ -569,6 +598,7 @@ fraisier db restore --input backup.sql
 Display system metrics.
 
 **Usage**:
+
 ```bash
 fraisier metrics [OPTIONS]
 ```
@@ -581,6 +611,7 @@ fraisier metrics [OPTIONS]
 - `--interval SECONDS`: Update interval (default: 5)
 
 **Examples**:
+
 ```bash
 # Show all metrics
 fraisier metrics
@@ -602,6 +633,7 @@ fraisier metrics --watch
 Manage alerts.
 
 **Usage**:
+
 ```bash
 fraisier alerts [OPTIONS] ACTION
 ```
@@ -614,6 +646,7 @@ fraisier alerts [OPTIONS] ACTION
 - `resolve`: Mark alert as resolved
 
 **Examples**:
+
 ```bash
 # List active alerts
 fraisier alerts list
@@ -637,6 +670,7 @@ fraisier alerts resolve alert_123
 Manage webhooks.
 
 **Usage**:
+
 ```bash
 fraisier webhook [OPTIONS] ACTION
 ```
@@ -653,6 +687,7 @@ fraisier webhook [OPTIONS] ACTION
 - `--event EVENT`: Filter by event type
 
 **Examples**:
+
 ```bash
 # List webhooks
 fraisier webhook list
@@ -677,6 +712,7 @@ fraisier webhook remove webhook_123
 Authentication management.
 
 **Usage**:
+
 ```bash
 fraisier auth [OPTIONS] ACTION
 ```
@@ -689,6 +725,7 @@ fraisier auth [OPTIONS] ACTION
 - `status`: Show authentication status
 
 **Examples**:
+
 ```bash
 # Login
 fraisier auth login

@@ -13,6 +13,7 @@
 Fix the CASCADE nesting bug where CASCADE data appears inside entity objects instead of at the success wrapper level.
 
 **Current Behavior (Bug):**
+
 ```json
 {
   "createAllocation": {
@@ -25,6 +26,7 @@ Fix the CASCADE nesting bug where CASCADE data appears inside entity objects ins
 ```
 
 **Expected Behavior (After Fix):**
+
 ```json
 {
   "createAllocation": {
@@ -43,6 +45,7 @@ Fix the CASCADE nesting bug where CASCADE data appears inside entity objects ins
 FraiseQL Rust doesn't parse PrintOptim's new 8-field `mutation_response` composite type. It treats the composite as a JSON blob, causing incorrect field mapping.
 
 **PrintOptim Structure (Already Migrated):**
+
 ```sql
 CREATE TYPE app.mutation_response AS (
     status          TEXT,     -- Position 1
@@ -57,6 +60,7 @@ CREATE TYPE app.mutation_response AS (
 ```
 
 **FraiseQL Rust (Current):**
+
 - Expects old 6-field format OR simple JSONB
 - Doesn't know about Position 7 (cascade field)
 - Doesn't extract CASCADE from correct position
@@ -99,12 +103,14 @@ CREATE TYPE app.mutation_response AS (
 ### Approach: Add 8-Field Composite Type Parser
 
 **Why This Works:**
+
 1. PrintOptim already migrated to 8-field format (~70 functions)
 2. CASCADE already at Position 7 (explicit field)
 3. entity_type already at Position 4
 4. Zero database changes needed
 
 **What We're Adding:**
+
 - New module: `postgres_composite.rs` (~80 lines)
 - Parser for 8-field `mutation_response` composite type
 - Fallback to simple format (backward compatibility)
@@ -148,6 +154,7 @@ CREATE TYPE app.mutation_response AS (
 **Task:** Create `postgres_composite.rs`
 
 **Steps:**
+
 1. Create new file: `fraiseql_rs/src/mutation/postgres_composite.rs`
 2. Define `PostgresMutationResponse` struct with 8 fields
 3. Implement `from_json()` parser
@@ -161,6 +168,7 @@ CREATE TYPE app.mutation_response AS (
 **Task:** Update entry point to use new parser
 
 **Steps:**
+
 1. Add `mod postgres_composite;` to `mod.rs`
 2. Update `build_mutation_response()`:
    - Try 8-field parser first
@@ -174,6 +182,7 @@ CREATE TYPE app.mutation_response AS (
 **Task:** Comprehensive test coverage
 
 **Steps:**
+
 1. Unit tests for composite type parsing
 2. CASCADE extraction tests
 3. entity_type resolution tests
@@ -187,6 +196,7 @@ CREATE TYPE app.mutation_response AS (
 **Task:** Test with PrintOptim
 
 **Steps:**
+
 1. Build FraiseQL locally
 2. Run PrintOptim test suite
 3. Verify CASCADE location in responses
@@ -320,6 +330,7 @@ async def test_cascade_at_success_level():
 **Impact:** Medium
 
 **Mitigation:**
+
 - Try 8-field parser first, fallback to simple format
 - Add tests for both formats
 - Test with existing FraiseQL users
@@ -331,6 +342,7 @@ async def test_cascade_at_success_level():
 **Impact:** Low
 
 **Mitigation:**
+
 - Simple struct deserialization (very fast)
 - Benchmark before/after
 - Monitor in production

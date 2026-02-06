@@ -9,6 +9,7 @@
 ## ✅ What's Good
 
 ### Architecture
+
 - ✅ Clean separation of concerns (jwt.rs, provider.rs, cache.rs, errors.rs)
 - ✅ Trait-based provider design allows multiple auth backends
 - ✅ UserContext struct already exists in unified.rs (Phase 9)
@@ -16,12 +17,14 @@
 - ✅ JWKS caching with TTL is correct approach
 
 ### Design Patterns
+
 - ✅ Async/await properly used throughout
 - ✅ Error handling with Result<T> and custom error types
 - ✅ Thread-safe caching with Arc<Mutex<>>
 - ✅ Python wrapper maintains backward compatibility
 
 ### Dependencies
+
 - ✅ jsonwebtoken 9.2 is correct version
 - ✅ reqwest for JWKS fetching is appropriate
 - ✅ sha2 for token hashing is correct
@@ -37,6 +40,7 @@
 **Location**: `jwt.rs:193-198`
 
 **Problem**:
+
 ```rust
 fn jwk_to_pem(jwk: &JWK) -> Result<String> {
     // Convert JWK (n, e) to PEM format
@@ -51,6 +55,7 @@ fn jwk_to_pem(jwk: &JWK) -> Result<String> {
 **Solution**: Use existing crate instead of manual implementation
 
 **Fix Required**:
+
 ```toml
 # Add to Cargo.toml
 [dependencies]
@@ -93,6 +98,7 @@ let decoding_key = DecodingKey::from_jwk(&jwk)?;
 **Location**: `jwt.rs:129,146`
 
 **Problem**:
+
 ```rust
 cache: Arc<Mutex<HashMap<String, (String, SystemTime)>>>,  // SystemTime not imported
 ```
@@ -100,6 +106,7 @@ cache: Arc<Mutex<HashMap<String, (String, SystemTime)>>>,  // SystemTime not imp
 **Impact**: Compilation error
 
 **Fix**:
+
 ```rust
 use std::time::SystemTime;
 ```
@@ -111,6 +118,7 @@ use std::time::SystemTime;
 **Location**: `jwt.rs:129`
 
 **Problem**:
+
 ```rust
 cache: Arc<Mutex<HashMap<String, (String, SystemTime)>>>,  // Arc not imported
 ```
@@ -118,6 +126,7 @@ cache: Arc<Mutex<HashMap<String, (String, SystemTime)>>>,  // Arc not imported
 **Impact**: Compilation error
 
 **Fix**:
+
 ```rust
 use std::sync::{Arc, Mutex};
 ```
@@ -129,6 +138,7 @@ use std::sync::{Arc, Mutex};
 **Location**: `lib.rs:543-552`
 
 **Problem**:
+
 ```rust
 pub fn validate_token(&self, py: Python, token: String) -> PyResult<PyObject> {
     // Async validation wrapped for Python
@@ -145,6 +155,7 @@ pub fn validate_token(&self, py: Python, token: String) -> PyResult<PyObject> {
 **Impact**: Type mismatch - won't compile
 
 **Fix**:
+
 ```rust
 pub fn validate_token(&self, py: Python, token: String) -> PyResult<PyObject> {
     let provider = self.provider.clone();
@@ -174,6 +185,7 @@ pub fn validate_token(&self, py: Python, token: String) -> PyResult<PyObject> {
 **Location**: `cache.rs:347`
 
 **Problem**:
+
 ```rust
 return Some(context.clone());  // UserContext doesn't derive Clone
 ```
@@ -181,6 +193,7 @@ return Some(context.clone());  // UserContext doesn't derive Clone
 **Impact**: Compilation error
 
 **Fix in unified.rs**:
+
 ```rust
 /// User context for authorization and personalization.
 #[derive(Debug, Clone)]  // ✅ Add Clone
@@ -202,6 +215,7 @@ pub struct UserContext {
 **Impact**: Compilation error
 
 **Fix in Cargo.toml**:
+
 ```toml
 [dependencies]
 pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }
@@ -223,6 +237,7 @@ tokio = { version = "1.35", features = ["full"] }
 **Risk**: Medium - unlikely in practice but possible
 
 **Fix**:
+
 ```rust
 // Use composite key: (jwks_url, kid)
 cache: Arc<Mutex<HashMap<(String, String), (String, SystemTime)>>>,
@@ -255,6 +270,7 @@ if let Some((key, cached_at)) = cache.get(&cache_key) {
 **Location**: `jwt.rs:173-177`
 
 **Problem**:
+
 ```rust
 async fn fetch_jwks(&self, url: &str) -> Result<JWKS> {
     let response = reqwest::get(url).await?;  // No timeout
@@ -266,6 +282,7 @@ async fn fetch_jwks(&self, url: &str) -> Result<JWKS> {
 **Risk**: Hanging requests if Auth0/JWKS endpoint is slow
 
 **Fix**:
+
 ```rust
 async fn fetch_jwks(&self, url: &str) -> Result<JWKS> {
     let client = reqwest::Client::builder()
@@ -320,6 +337,7 @@ impl JWKSCache {
 **Suggestion**: Document the expected Auth0 custom claim format
 
 **Fix**: Add documentation:
+
 ```rust
 /// Extract roles and permissions from Auth0 custom claims
 ///
@@ -346,11 +364,13 @@ impl JWKSCache {
 **Suggestion**: Improve error message when audience validation fails
 
 **Current**:
+
 ```rust
 validation.set_audience(&self.audience);
 ```
 
 **Better**:
+
 ```rust
 validation.set_audience(&self.audience);
 // jsonwebtoken will return generic error
@@ -373,6 +393,7 @@ let token_data = decode::<Claims>(token, &decoding_key, &validation)
 **Suggestion**: Extract `exp` from JWT claims instead of passing separately
 
 **Current**:
+
 ```rust
 pub fn set(&self, token_hash: String, context: UserContext, exp: u64) {
 ```
@@ -432,6 +453,7 @@ impl JWKSCache {
 **Status**: ✅ Good - tokens are hashed with SHA256 before caching
 
 **Verification**:
+
 ```rust
 pub fn hash_token(token: &str) -> String {
     use sha2::{Sha256, Digest};
@@ -452,6 +474,7 @@ pub fn hash_token(token: &str) -> String {
 **Issue**: `reqwest::get(url)` accepts HTTP URLs
 
 **Fix**:
+
 ```rust
 async fn fetch_jwks(&self, url: &str) -> Result<JWKS> {
     // Validate HTTPS
@@ -472,6 +495,7 @@ async fn fetch_jwks(&self, url: &str) -> Result<JWKS> {
 **Status**: ✅ Good - hardcoded to RS256
 
 **Verification**:
+
 ```rust
 algorithms: vec![Algorithm::RS256],
 ```
@@ -483,6 +507,7 @@ algorithms: vec![Algorithm::RS256],
 ## 📝 Required Changes Summary
 
 ### Must Fix (Compilation Errors)
+
 1. ✅ Add missing imports: `SystemTime`, `Arc`, `Mutex`
 2. ✅ Implement JWK to PEM conversion (use `jsonwebtoken::DecodingKey::from_jwk`)
 3. ✅ Fix PyO3 async return type (convert UserContext → PyUserContext)
@@ -490,12 +515,14 @@ algorithms: vec![Algorithm::RS256],
 5. ✅ Add `pyo3-asyncio` dependency
 
 ### Should Fix (Runtime Issues)
+
 6. ✅ Add JWKS fetch timeout (5 seconds)
 7. ✅ Use LRU cache for JWKS (prevent unbounded growth)
 8. ✅ Fix JWKS cache key collision (use composite key)
 9. ✅ Validate HTTPS for JWKS URLs
 
 ### Nice to Have (Improvements)
+
 10. ℹ️ Document Auth0 custom claims format
 11. ℹ️ Better error messages for audience validation
 12. ℹ️ Include `exp` in UserContext (avoid duplicate extraction)
@@ -721,6 +748,7 @@ tokio = { version = "1.35", features = ["full"] }  # ✅ Ensure full features
 **Status**: ⚠️ **Phase 10 requires corrections before implementation**
 
 **Severity**:
+
 - 🔴 **5 Critical**: Must fix (compilation errors)
 - 🟡 **5 Medium**: Should fix (runtime issues)
 - 🟢 **4 Minor**: Nice to have (improvements)
@@ -732,6 +760,7 @@ tokio = { version = "1.35", features = ["full"] }  # ✅ Ensure full features
 ## 🎯 Action Items
 
 ### Before Implementation
+
 1. ✅ Update jwt.rs with corrected implementation
 2. ✅ Add missing imports
 3. ✅ Update UserContext to derive Clone and include exp
@@ -739,12 +768,14 @@ tokio = { version = "1.35", features = ["full"] }  # ✅ Ensure full features
 5. ✅ Update dependencies in Cargo.toml
 
 ### During Implementation
+
 6. ✅ Add HTTPS validation for JWKS URLs
 7. ✅ Add timeout to JWKS fetching
 8. ✅ Use LRU cache for JWKS
 9. ✅ Add comprehensive error messages
 
 ### After Implementation
+
 10. ✅ Write unit tests for all fixes
 11. ✅ Performance benchmark auth validation
 12. ✅ Document Auth0 custom claims format

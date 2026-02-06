@@ -1,6 +1,21 @@
 # FraiseQL Security Advisory Configuration
 # See: https://docs.rs/cargo-audit/latest/cargo_audit/
 
+[unmaintained]
+# Warn about unmaintained crates but don't fail the build
+# These are stable and well-tested; no replacement crates available yet
+ignore = [
+  "RUSTSEC-2024-0384",  # instant: no longer maintained
+  "RUSTSEC-2024-0436",  # paste: no longer maintained
+  "RUSTSEC-2025-0134"  # rustls-pemfile: unmaintained
+]
+
+[unsound]
+# Unsound crates with known issues but no alternatives
+ignore = [
+  "RUSTSEC-2026-0002"  # lru: IterMut violates Stacked Borrows (transitive from aws-sdk-s3)
+]
+
 [vulnerabilities]
 # RUSTSEC-2023-0071: Marvin Attack timing sidechannel in rsa crate
 # Status: Accepted known risk
@@ -8,26 +23,11 @@
 # Impact: Only affects MySQL SSL negotiation; PostgreSQL is recommended
 # Can be removed once upstream provides a fix
 ignore = [
-  "RUSTSEC-2023-0071",  # rsa: Marvin Attack timing sidechannel
-]
-
-[unmaintained]
-# Warn about unmaintained crates but don't fail the build
-# These are stable and well-tested; no replacement crates available yet
-ignore = [
-  "RUSTSEC-2024-0384",  # instant: no longer maintained
-  "RUSTSEC-2024-0436",  # paste: no longer maintained
-  "RUSTSEC-2025-0134",  # rustls-pemfile: unmaintained
-]
-
-[unsound]
-# Unsound crates with known issues but no alternatives
-ignore = [
-  "RUSTSEC-2026-0002",  # lru: IterMut violates Stacked Borrows (transitive from aws-sdk-s3)
+  "RUSTSEC-2023-0071"  # rsa: Marvin Attack timing sidechannel
 ]
 
 [yanked]
 # Warn about yanked versions but don't fail
 ignore = [
-  "testcontainers 0.26.4",  # Yanked but stable for testing
+  "testcontainers 0.26.4"  # Yanked but stable for testing
 ]

@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: Example: Analytics Dashboard Optimization
-description: This example demonstrates optimizing a **complex analytics dashboard** with multiple JSON dimensions, resulting in significant performance improvements through 
+description: This example demonstrates optimizing a **complex analytics dashboard** with multiple JSON dimensions, resulting in significant performance improvements through
 keywords: ["deployment", "scaling", "code", "fullstack", "production", "performance", "monitoring", "troubleshooting"]
 tags: ["documentation", "reference"]
 ---

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Design Quality Security Guide
 description: FraiseQL's design quality audit APIs are designed with security as a first-class concern. This guide covers security features, best practices, and threat mitiga
 keywords: ["security"]

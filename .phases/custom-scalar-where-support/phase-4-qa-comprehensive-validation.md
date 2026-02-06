@@ -15,6 +15,7 @@ Perform comprehensive validation to ensure the custom scalar WHERE support featu
 ## Context
 
 **Phase 3 Results**:
+
 - ✅ Code is clean, well-documented, and maintainable
 - ✅ All unit tests pass
 - ✅ 4/6 integration tests pass
@@ -27,9 +28,11 @@ Perform comprehensive validation to ensure the custom scalar WHERE support featu
 ## Implementation Steps
 
 ### Step 1: Run Full Test Suite
+
 **Action**: Execute the complete test suite to ensure no regressions.
 
 **Commands**:
+
 ```bash
 # Run all tests
 uv run pytest tests/ -x --tb=short
@@ -43,9 +46,11 @@ uv run pytest tests/ --cov=fraiseql --cov-report=term-missing
 ---
 
 ### Step 2: Manual GraphQL Query Testing
+
 **Action**: Create a manual test script to verify GraphQL queries work with custom scalar WHERE clauses.
 
 **Test Script** (`test_custom_scalar_where_manual.py`):
+
 ```python
 """Manual testing of custom scalar WHERE support."""
 import asyncio
@@ -131,9 +136,11 @@ if __name__ == "__main__":
 ---
 
 ### Step 3: Performance Benchmarking
+
 **Action**: Measure filter generation performance to ensure no performance regressions.
 
 **Benchmark Script**:
+
 ```python
 """Performance benchmarking for custom scalar filter generation."""
 import time
@@ -173,9 +180,11 @@ if __name__ == "__main__":
 ---
 
 ### Step 4: Memory Leak Testing
+
 **Action**: Verify that filter caching prevents memory leaks.
 
 **Test Script**:
+
 ```python
 """Test for memory leaks in filter caching."""
 import gc
@@ -221,9 +230,11 @@ if __name__ == "__main__":
 ---
 
 ### Step 5: Edge Case Validation
+
 **Action**: Test edge cases and error conditions.
 
 **Test Cases**:
+
 1. **Nullable scalars**: `Optional[CIDRScalar]`
 2. **List of scalars**: `list[CIDRScalar]`
 3. **Mixed types**: Regular fields + custom scalars
@@ -236,9 +247,11 @@ if __name__ == "__main__":
 ---
 
 ### Step 6: Documentation Review
+
 **Action**: Review and update documentation.
 
 **Tasks**:
+
 1. Check that scalar documentation mentions WHERE support
 2. Verify API docs include filter examples
 3. Ensure changelog mentions the feature
@@ -263,12 +276,14 @@ if __name__ == "__main__":
 ## Expected Results
 
 ### Test Suite Results
+
 ```bash
 $ uv run pytest tests/ -x
 =========================== 168 passed in 45.67s ===========================
 ```
 
 ### Manual Query Results
+
 ```bash
 === Test Query 1 ===
 ✅ Success: {'getNetworkDevices': [{'id': 1, 'name': 'Router1', 'ipAddress': '192.168.1.0/24'}]}
@@ -281,6 +296,7 @@ $ uv run pytest tests/ -x
 ```
 
 ### Performance Results
+
 ```bash
 Average filter generation time: 0.000123 seconds
 Total time for 1000 iterations: 0.123 seconds
@@ -288,6 +304,7 @@ Total time for 1000 iterations: 0.123 seconds
 ```
 
 ### Memory Leak Results
+
 ```bash
 Initial cache size: 0
 Final cache size: 2

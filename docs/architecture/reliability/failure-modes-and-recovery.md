@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Failure Modes and Recovery
 description: This document specifies how FraiseQL fails and recovers. Understanding failure modes enables operators to design resilient deployments and understand recovery t
 keywords: ["design", "scalability", "performance", "patterns", "security"]

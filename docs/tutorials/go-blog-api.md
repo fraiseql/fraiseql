@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Build a Blog API with FraiseQL - Go Schema Authoring Tutorial
 description: In this hands-on tutorial, you'll build a complete Blog API GraphQL schema using **Go struct tags and the builder pattern**. By the end, you'll understand:
 keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]

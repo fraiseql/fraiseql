@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Subscriptions: Corrected Architecture (Database-Centric)
 description: > **This document describes the ACTUAL FraiseQL subscription architecture.**
 keywords: ["design", "scalability", "performance", "patterns", "security"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Analytical Schema Conventions
 description: This document defines naming conventions and patterns for analytical tables in FraiseQL.
 keywords: ["format", "compliance", "schema", "protocol", "specification", "standard"]
@@ -438,5 +439,3 @@ input SalesHavingInput {
 - **Aggregation Operators** (`aggregation-operators.md`) - Available aggregate functions
 
 ---
-
-

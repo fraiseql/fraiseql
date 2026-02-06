@@ -114,6 +114,7 @@
 - Metrics available at `http://<address>:<port>/metrics`
 
 **Usage**:
+
 ```bash
 fraisier metrics                           # Default localhost:8001
 fraisier metrics --port 8080               # Custom port
@@ -258,6 +259,7 @@ fraisier metrics --address 0.0.0.0         # Listen all interfaces
 - **Type Hints**: Full Python 3.10+ style throughout
 
 ### Linting Results
+
 ```
 ✅ fraisier/errors.py - All checks passed
 ✅ fraisier/recovery.py - All checks passed
@@ -273,6 +275,7 @@ fraisier metrics --address 0.0.0.0         # Listen all interfaces
 ## Architecture Impact
 
 ### Error Handling Flow
+
 ```
 Exception Occurs
     ↓
@@ -293,6 +296,7 @@ AuditLogger compliance record
 ```
 
 ### Observability Stack
+
 ```
 Application
     ↓

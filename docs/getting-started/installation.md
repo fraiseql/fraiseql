@@ -15,6 +15,7 @@ tags:
 ## System Requirements
 
 **Minimum Requirements:**
+
 - **Python**: 3.13+
 - **PostgreSQL**: 13+
 - **Rust Toolchain**: 1.70+ (for building from source)
@@ -22,6 +23,7 @@ tags:
 - **Disk**: 200MB (500MB+ with Rust toolchain)
 
 **Recommended for Most Users:**
+
 - **Python**: 3.13+
 - **PostgreSQL**: 15+
 - **Rust Toolchain**: Latest stable (for optimal performance)
@@ -76,6 +78,7 @@ fraiseql dev
 ```
 
 **What you get**:
+
 - ✅ Core GraphQL framework with Rust backend
 - ✅ High-performance PostgreSQL integration
 - ✅ Basic CLI tools
@@ -99,6 +102,7 @@ pip install fraiseql[all]
 ```
 
 **What you get** (in addition to Quick Start):
+
 - ✅ pytest, black, ruff, mypy
 - ✅ Test containers for PostgreSQL
 - ✅ OpenTelemetry tracing
@@ -118,6 +122,7 @@ pip install fraiseql[tracing]
 ```
 
 **What you get** (in addition to Quick Start):
+
 - ✅ OpenTelemetry integration
 - ✅ Jaeger tracing support
 - ✅ Prometheus metrics
@@ -136,6 +141,7 @@ pip install fraiseql[auth0]
 ```
 
 **What you get** (in addition to Quick Start):
+
 - ✅ Auth0 integration
 - ✅ JWT token validation
 - ✅ User authentication middleware
@@ -153,6 +159,7 @@ pip install fraiseql[docs]
 ```
 
 **What you get** (in addition to Quick Start):
+
 - ✅ MkDocs for documentation
 - ✅ Material theme
 - ✅ Documentation deployment tools
@@ -169,6 +176,7 @@ pip install fraiseql[all]
 ```
 
 **What you get** (all features from all options above):
+
 - ✅ All Quick Start features
 - ✅ All Development features (testing, code quality)
 - ✅ All Tracing features (OpenTelemetry, monitoring)
@@ -196,11 +204,13 @@ pip install fraiseql[all]
 After installation, verify everything works:
 
 ### 1. Python Version Check
+
 ```bash
 python --version  # Should be 3.13+
 ```
 
 ### 2. Rust Toolchain Check
+
 ```bash
 # Check if Rust is installed
 rustc --version  # Should show version 1.70+
@@ -213,11 +223,13 @@ rustc --print target-list | head -5
 ```
 
 ### 3. FraiseQL Installation Check
+
 ```bash
 fraiseql --version  # Should show version number (includes Rust backend)
 ```
 
 ### 4. Rust Extension Verification
+
 ```bash
 # Test that Rust backend loads correctly
 python -c "from fraiseql.core.database import DatabasePool; print('✅ Rust backend available')"
@@ -227,6 +239,7 @@ python -c "import fraiseql; print('✅ FraiseQL with Rust backend loaded')"
 ```
 
 ### 5. PostgreSQL Connection Check
+
 ```bash
 # Make sure PostgreSQL is running
 psql --version
@@ -236,6 +249,7 @@ psql "postgresql://localhost/postgres" -c "SELECT version();"
 ```
 
 ### 6. Create Test Project
+
 ```bash
 # Create a test project
 fraiseql init test-project
@@ -247,6 +261,7 @@ ls -la
 ```
 
 ### 7. Run Development Server
+
 ```bash
 # Start the dev server
 fraiseql dev
@@ -263,7 +278,9 @@ curl http://localhost:8000/graphql \
 ### Common Issues
 
 #### Issue: "Rust toolchain not found"
+
 **Solution**: Install Rust toolchain
+
 ```bash
 # Install Rust using rustup (recommended)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -278,7 +295,9 @@ export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
 #### Issue: "Rust extension failed to build"
+
 **Solution**: Install build dependencies and retry
+
 ```bash
 # Ubuntu/Debian
 sudo apt update
@@ -295,7 +314,9 @@ pip install fraiseql --no-cache-dir
 ```
 
 #### Issue: "Python version 3.13+ required"
+
 **Solution**: Upgrade Python
+
 ```bash
 # Check current version
 python --version
@@ -310,7 +331,9 @@ pyenv global 3.13.0
 ```
 
 #### Issue: "ModuleNotFoundError: No module named 'fraiseql'"
+
 **Solution**: Install FraiseQL
+
 ```bash
 # Make sure you're in the right environment
 pip install fraiseql
@@ -321,7 +344,9 @@ pip install fraiseql
 ```
 
 #### Issue: "fraiseql command not found"
+
 **Solution**: Add to PATH or use python -m
+
 ```bash
 # Option 1: Use python module
 python -m fraiseql --version
@@ -334,7 +359,9 @@ pip install --force-reinstall fraiseql
 ```
 
 #### Issue: "PostgreSQL connection failed"
+
 **Solution**: Check PostgreSQL setup
+
 ```bash
 # Check if PostgreSQL is running
 sudo systemctl status postgresql
@@ -350,7 +377,9 @@ psql test_db -c "SELECT 1;"
 ```
 
 #### Issue: "Permission denied" on project creation
+
 **Solution**: Check directory permissions
+
 ```bash
 # Make sure you can write to current directory
 mkdir test-dir && rmdir test-dir
@@ -360,7 +389,9 @@ fraiseql init /tmp/my-project
 ```
 
 #### Issue: "Port 8000 already in use"
+
 **Solution**: Use a different port
+
 ```bash
 # The dev server doesn't have a port option yet
 # Kill the process using port 8000
@@ -370,7 +401,9 @@ lsof -ti:8000 | xargs kill -9
 ```
 
 #### Issue: "Rust backend not available"
+
 **Solution**: Check Rust extension loading
+
 ```bash
 # Test Rust backend import
 python -c "from fraiseql.core.database import DatabasePool; print('Rust backend OK')"
@@ -386,6 +419,7 @@ python -c "import sys; print('Python path:'); [print(p) for p in sys.path]"
 ### Advanced Troubleshooting
 
 #### Check Installation Details
+
 ```bash
 # Show where FraiseQL is installed
 pip show fraiseql
@@ -398,6 +432,7 @@ pip check
 ```
 
 #### Clean Reinstall
+
 ```bash
 # Remove all FraiseQL packages
 pip uninstall fraiseql fraiseql-confiture -y
@@ -410,6 +445,7 @@ pip install fraiseql[dev]
 ```
 
 #### Environment Issues
+
 ```bash
 # Check Python path
 python -c "import sys; print(sys.path)"
@@ -425,6 +461,7 @@ source venv/bin/activate  # or your venv path
 ## Platform-Specific Notes
 
 ### macOS
+
 ```bash
 # Install Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -441,6 +478,7 @@ createdb mydb
 ```
 
 ### Ubuntu/Debian
+
 ```bash
 # Install Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -466,6 +504,7 @@ sudo -u postgres createdb mydb
 ```
 
 ### Windows
+
 ```bash
 # Install Rust toolchain from https://rustup.rs/
 # Or use winget/chocolatey:
@@ -483,6 +522,7 @@ createdb mydb
 ```
 
 ### Docker
+
 ```bash
 # Use the official PostgreSQL image
 docker run --name postgres -e POSTGRES_PASSWORD=mypass -d -p 5432:5432 postgres:15

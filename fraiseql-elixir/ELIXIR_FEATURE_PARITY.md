@@ -19,6 +19,7 @@
 ### Security Module (`lib/fraiseql/security.ex`)
 
 **Type Specs (for type safety):**
+
 - `role_match_strategy` - :any | :all | :exactly
 - `authz_policy_type` - :rbac | :abac | :custom | :hybrid
 - `authorize_config` - Map with typed fields
@@ -26,11 +27,13 @@
 - `authz_policy_config` - Map with typed fields
 
 **Configuration Functions:**
+
 - `authorize_config/1` - Custom authorization rules with keyword arguments
 - `role_required_config/1` - Role-based access control with keyword arguments
 - `authz_policy_config/2` - Reusable authorization policies
 
 **Builder Functions:**
+
 - `authorize_builder/0` - Create builder for custom authorization rules
 - `authorize/1` - Build authorization config from builder
 - `role_required_builder/0` - Create RBAC builder
@@ -39,6 +42,7 @@
 - `build_policy/1` - Build policy config from builder
 
 **Helper Functions:**
+
 - `strategy_to_string/1` - Convert strategy atom to string
 - `policy_type_to_string/1` - Convert policy type atom to string
 
@@ -267,6 +271,7 @@ Elixir-specific advantages:
 **Current Status**: 100% Parity across 16 languages (480/480 features) ✅
 
 **Languages Certified:**
+
 - ✅ Python, TypeScript, Java, Go, PHP, Node.js, Ruby, Kotlin, C#/.NET, Rust, Swift, Scala, Groovy, Clojure, Dart, Elixir
 
 Last Updated: January 26, 2026

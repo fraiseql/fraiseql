@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Observability Model: Comprehensive Monitoring, Tracing, and Alerting
 description: FraiseQL provides a **comprehensive observability model** covering three pillars:
 keywords: ["design", "scalability", "performance", "patterns", "security"]

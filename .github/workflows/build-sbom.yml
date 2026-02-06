@@ -14,7 +14,7 @@ jobs:
       - name: Generate SBOM with Syft
         run: |
           echo "SBOM generation placeholder"
-          
+
       - name: Scan with Trivy
         run: |
           echo "Vulnerability scan placeholder"

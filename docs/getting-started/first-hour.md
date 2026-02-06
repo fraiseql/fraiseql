@@ -380,6 +380,7 @@ class Note:
 ```
 
 **What is `sql_source`?** This parameter tells FraiseQL which database view to query. It's optional when the view name matches the class name (e.g., class `Note` → view `v_note`), but becomes required if:
+
 - The view name doesn't follow the `v_{lowercase_class_name}` pattern
 - You want to explicitly document the data source
 - You're using a table view (`tv_*`) instead of a regular view

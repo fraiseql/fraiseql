@@ -5,6 +5,7 @@
 After completing the industrial WHERE clause refactor and running the full test suite, this document identifies similar refactoring opportunities in the FraiseQL codebase.
 
 **Test Suite Status:**
+
 - **Total Tests:** 4,943 tests
 - **Status:** 1 failing test (regression from WHERE refactor), 23 skipped
 - **Passing:** 1,453 tests confirmed passing before timeout
@@ -22,12 +23,14 @@ After completing the industrial WHERE clause refactor and running the full test 
 **Test:** `tests/integration/graphql/test_graphql_with_where_filter`
 
 **Error:**
+
 ```
 column "active" does not exist
 LINE 1: SELECT "data"::text FROM "v_user" WHERE "active" = $1
 ```
 
 **Expected:**
+
 ```sql
 WHERE data->>'active' = $1
 ```
@@ -42,6 +45,7 @@ WHERE data->>'active' = $1
 ### 1. `operator_strategies.py` (2,149 lines) ⭐ TOP CANDIDATE
 
 **Current State:**
+
 - Single monolithic file with all operator strategy implementations
 - Mix of different specialized type handlers (network, ltree, daterange, etc.)
 - Contains ~15-20 distinct operator strategy methods
@@ -65,6 +69,7 @@ src/fraiseql/sql/operators/
 ```
 
 **Benefits:**
+
 - Clear separation of concerns
 - Easier to test each operator family
 - Easier to add new operator types
@@ -79,6 +84,7 @@ src/fraiseql/sql/operators/
 ### 2. `db.py` (2,078 lines) ⭐ HIGH PRIORITY
 
 **Current State:**
+
 - Single file with 2 classes: `DatabaseQuery` and `FraiseQLRepository`
 - 15+ methods mixing concerns
 
@@ -96,6 +102,7 @@ src/fraiseql/db/
 ```
 
 **Benefits:**
+
 - Clear separation of query building vs execution
 - Easier to maintain and test
 - Better encapsulation
@@ -108,11 +115,13 @@ src/fraiseql/db/
 ### 3. `graphql_where_generator.py` (960 lines)
 
 **Current State:**
+
 - Recently underwent some refactoring but still large
 - Mixes WHERE input generation with SQL generation
 
 **Refactoring Opportunity:**
 Already partially done! Could further split:
+
 - WhereInput type generation
 - SQL WHERE clause generation
 - Field type detection logic (already in `sql/where/core/field_detection.py`)
@@ -126,10 +135,12 @@ Already partially done! Could further split:
 ### 4. `mutation_decorator.py` (919 lines)
 
 **Current State:**
+
 - Single file handling all mutation decoration logic
 - Mixes validation, CASCADE support, error handling
 
 **Refactoring Opportunity:**
+
 ```
 src/fraiseql/mutations/
 ├── decorator.py               # Main @mutation decorator
@@ -150,6 +161,7 @@ src/fraiseql/mutations/
 
 **Current State:**
 Two separate caching modules:
+
 - `src/fraiseql/cache/` (old?)
 - `src/fraiseql/caching/` (new?)
 
@@ -161,6 +173,7 @@ Two separate caching modules:
 ### 2. Enterprise Module Organization
 
 **Files:**
+
 - `enterprise/rbac/mutations.py` (682 lines)
 - `enterprise/audit/*`
 - `enterprise/crypto/*`
@@ -173,7 +186,8 @@ Two separate caching modules:
 
 ## Priority 4: Monitoring & Observability Consolidation
 
-### Large Files in Monitoring:
+### Large Files in Monitoring
+
 - `monitoring/notifications.py` (747 lines)
 - `monitoring/postgres_error_tracker.py` (584 lines)
 
@@ -184,22 +198,26 @@ Two separate caching modules:
 ## Recommended Refactoring Order
 
 ### Phase 1 (Immediate - Week 1)
+
 1. **FIX:** WHERE clause JSONB path regression (1-2 hours)
 2. **VERIFY:** Full test suite passes
 
 ### Phase 2 (High Value - Week 2-3)
+
 3. **REFACTOR:** `operator_strategies.py` → operator modules (2-3 days)
    - Similar process to WHERE refactor
    - Break into 10-12 strategy files
    - Keep all tests passing
 
 ### Phase 3 (Foundation - Week 4-5)
+
 4. **REFACTOR:** `db.py` → database modules (3-4 days)
    - Highest risk, plan carefully
    - Incremental approach
    - Extensive integration testing
 
 ### Phase 4 (Polish - Week 6)
+
 5. **REFACTOR:** `mutation_decorator.py` → mutation modules (2-3 days)
 6. **AUDIT:** Caching layer consolidation (1 day)
 
@@ -208,16 +226,19 @@ Two separate caching modules:
 ## Success Metrics for Refactoring
 
 ### Code Quality
+
 - ✅ No file > 1,000 lines (except generated code)
 - ✅ Clear single responsibility per file
 - ✅ <10 methods per class average
 
 ### Testing
+
 - ✅ All 4,943 tests passing
 - ✅ No skipped tests without documented reason
 - ✅ >95% code coverage maintained
 
 ### Maintainability
+
 - ✅ New developers can find code in < 5 minutes
 - ✅ Changes require touching < 3 files on average
 - ✅ Clear module boundaries
@@ -251,6 +272,7 @@ Based on WHERE refactor experience:
 The codebase is generally well-structured with ~73,000 lines across 357 files. The industrial WHERE clause refactor was successful and provides a template for similar improvements.
 
 **Top 3 Recommendations:**
+
 1. Fix WHERE clause regression immediately
 2. Apply operator strategy pattern to `operator_strategies.py`
 3. Consider splitting `db.py` for long-term maintainability

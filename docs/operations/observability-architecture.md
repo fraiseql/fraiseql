@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Observability System Architecture
 description: 1. [Overview](#overview)
 keywords: ["design", "deployment", "scaling", "scalability", "troubleshooting", "performance", "monitoring", "patterns"]

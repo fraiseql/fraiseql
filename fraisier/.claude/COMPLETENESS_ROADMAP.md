@@ -134,6 +134,7 @@ async def init_database(adapter):
 **Why Critical**: Deployments only work with providers
 
 **Phase 4.1: Bare Metal Provider** (SSH + systemd)
+
 - SSH connection management
 - systemd service control
 - Health check via HTTP/TCP
@@ -141,6 +142,7 @@ async def init_database(adapter):
 - ~400 lines code, 20 tests
 
 **Phase 4.2: Docker Compose Provider**
+
 - docker-compose file management
 - Service up/down
 - Port mapping
@@ -148,6 +150,7 @@ async def init_database(adapter):
 - ~350 lines code, 18 tests
 
 **Phase 4.3: Coolify Provider** (SaaS integration)
+
 - Coolify API integration
 - Project/service management
 - Deployment triggering
@@ -375,6 +378,7 @@ Given you said you want "best completeness":
 ## What You'd Have at Each Milestone
 
 ### After Phase 3.10-A+B (5-7 hours)
+
 ```
 ✅ Multi-database deployments (SQLite/PostgreSQL/MySQL)
 ✅ Automatic schema initialization
@@ -384,6 +388,7 @@ Given you said you want "best completeness":
 ```
 
 ### After Phase 4.1 (Bare Metal) (+3-5 hours = 8-12 hours total)
+
 ```
 ✅ Can deploy to Bare Metal (SSH + systemd)
 ✅ Health checks verify deployment success
@@ -393,6 +398,7 @@ Given you said you want "best completeness":
 ```
 
 ### After Phase 4 (All Providers) (+7-10 hours = 15-22 hours total)
+
 ```
 ✅ Can deploy to 3 different systems (Bare Metal, Docker, Coolify)
 ✅ Each provider fully tested
@@ -402,6 +408,7 @@ Given you said you want "best completeness":
 ```
 
 ### After Phase 5+6 (Patterns + Tests) (+7-9 hours = 22-31 hours total)
+
 ```
 ✅ Blue-Green, Canary, Rolling deployments all work
 ✅ Full E2E test coverage
@@ -412,6 +419,7 @@ Given you said you want "best completeness":
 ```
 
 ### After Phase 7+8 (Infrastructure + Docs) (+7-9 hours = 29-40 hours total)
+
 ```
 ✅ Docker image for easy deployment
 ✅ docker-compose setup for full stack

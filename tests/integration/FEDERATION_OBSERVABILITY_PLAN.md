@@ -37,25 +37,30 @@ To avoid confusion, terms are defined precisely:
 ### 2.1 Available Infrastructure
 
 **Metrics Collection** (`crates/fraiseql-server/src/metrics_server.rs`)
+
 - AtomicU64 counters (lock-free)
 - Histogram buckets: 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
 - Prometheus text export via `/metrics`
 
 **Distributed Tracing** (`crates/fraiseql-server/src/tracing_server.rs`)
+
 - W3C Trace Context format (trace_id, parent_span_id, trace_flags)
 - TraceSpan with attributes, events, status tracking
 - Structured span hierarchy support
 
 **Query Tracing** (`crates/fraiseql-core/src/runtime/query_tracing.rs`)
+
 - Phase-level timing: parse, validate, execute, format
 - Microsecond precision
 
 **Structured Logging** (`crates/fraiseql-server/src/logging.rs`)
+
 - RequestId (UUID) for correlation
 - RequestContext with user/tenant info
 - JSON serializable StructuredLogEntry
 
 **Health Checks** (`crates/fraiseql-server/src/lifecycle/health.rs`)
+
 - Liveness: `/health/live`
 - Readiness: `/health/ready`
 - Startup: `/health/startup`
@@ -225,6 +230,7 @@ federation_errors_total (counter)
 - Lower resource overhead than Tempo
 
 **Configuration**:
+
 ```
 Jaeger collector: localhost:4317 (OTLP HTTP)
 Sampling: 100% in dev, 10% in production
@@ -329,21 +335,25 @@ Subgraph returns in response headers (if it supports tracing):
 #### 3.3.2 Log Emission Points
 
 1. **Entity Resolution Start**
+
    ```json
    {message: "Entity resolution started", federation: {operation_type: "entity_resolution", entity_count: 25, ...}}
    ```
 
 2. **Per-Strategy Resolution**
+
    ```json
    {message: "Resolved entities via DB", federation: {operation_type: "entity_resolution", resolution_strategy: "db", typename: "User", entity_count: 15, duration_ms: 22.3, status: "success"}}
    ```
 
 3. **Subgraph Request**
+
    ```json
    {message: "Subgraph request", federation: {operation_type: "subgraph_request", subgraph_name: "orders-subgraph", entity_count: 10, http_status: 200, duration_ms: 25.3, status: "success"}}
    ```
 
 4. **Error**
+
    ```json
    {level: "error", message: "Entity resolution failed", federation: {operation_type: "entity_resolution", typename: "Order", status: "error", error_message: "Connection timeout"}}
    ```
@@ -357,6 +367,7 @@ Subgraph returns in response headers (if it supports tracing):
 #### 4.1.1 Probe Types
 
 **Liveness Probe** (fast check, frequent)
+
 - Endpoint: Subgraph GraphQL endpoint
 - Query: `query { __typename }`
 - Timeout: 2 seconds
@@ -364,6 +375,7 @@ Subgraph returns in response headers (if it supports tracing):
 - Success: HTTP 200 + valid JSON response
 
 **Readiness Probe** (comprehensive check, less frequent)
+
 - Endpoint: Subgraph GraphQL endpoint
 - Query: Full introspection query (`__schema { types { name } }`)
 - Timeout: 10 seconds
@@ -539,6 +551,7 @@ pub async fn federation_health(
 ### 5.2 Alert Rules
 
 **Alert: Subgraph Unavailable**
+
 ```
 Condition: federation_subgraph_available == 0
 Duration: 1 minute
@@ -548,6 +561,7 @@ Runbook: See section 5.3
 ```
 
 **Alert: High Subgraph Error Rate**
+
 ```
 Condition: federation_subgraph_error_rate_percent > 5
 Duration: 5 minutes
@@ -557,6 +571,7 @@ Runbook: See section 5.3
 ```
 
 **Alert: Entity Resolution Slow**
+
 ```
 Condition: federation_entity_resolution_duration_ms[5m:p99] > 150ms
 Duration: 5 minutes
@@ -566,6 +581,7 @@ Runbook: See section 5.3
 ```
 
 **Alert: Federation Query Slow**
+
 ```
 Condition: federation_query_total_duration_ms[5m:p99] > 375ms
 Duration: 5 minutes
@@ -575,6 +591,7 @@ Runbook: See section 5.3
 ```
 
 **Alert: Cache Hit Rate Low**
+
 ```
 Condition: federation_cache_hit_rate_percent < 50
 Duration: 10 minutes
@@ -1237,4 +1254,3 @@ If any component exceeds budget, optimization work happens in Phase 5.
 **Last Updated**: 2026-01-28
 
 **Total Lines**: 842 (this document, revised from 847 with issues addressed)
-

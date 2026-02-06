@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Change Data Capture (CDC) Format Specification
 description: The **CDC Format** defines how database mutations (INSERT, UPDATE, DELETE) are captured and emitted as events for real-time subscriptions, audit logging, and ex
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

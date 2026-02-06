@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Authentication Deployment Guide
 description: Production deployment guide for FraiseQL's authentication system.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

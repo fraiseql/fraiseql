@@ -34,20 +34,26 @@ Cascade works by having PostgreSQL functions return not just the mutation result
 FraiseQL implements the [official GraphQL Cascade specification](https://github.com/graphql-cascade/graphql-cascade) (v1.1) with support for multiple compliance levels:
 
 ### **Cascade Basic** ✅
+
 Core entity tracking for cache synchronization:
+
 - Entity tracking (created, updated, deleted)
 - Basic invalidation strategies
 - Standard response format
 
 ### **Cascade Standard** ✅
+
 Enhanced features for production applications:
+
 - Cascade depth control and relationship traversal
 - Transaction metadata and timestamps
 - Structured error handling
 - Advanced invalidation strategies
 
 ### **Cascade Complete** (Partial)
+
 Advanced features for sophisticated applications:
+
 - Optimistic updates and concurrent mutation handling
 - Real-time subscriptions with cascade invalidation
 - Conflict resolution strategies
@@ -217,6 +223,7 @@ class CreatePost:
 The cascade object (from `cascade` field in v2 format or `_cascade` in legacy format) contains the following fields. Examples below show **PostgreSQL output format** (snake_case); FraiseQL automatically converts to camelCase for GraphQL clients.
 
 ### `updated` (Array)
+
 Array of entities that were created or updated:
 
 ```json
@@ -233,21 +240,25 @@ Array of entities that were created or updated:
 #### Why CASCADE is Different from Queries
 
 **For regular GraphQL queries:**
+
 - PostgreSQL returns plain JSONB (no `__typename` in database)
 - Rust automatically injects `__typename` using the schema registry
 - Rust knows the type of each field from the GraphQL schema
 
 **For CASCADE data:**
+
 - PostgreSQL must include `__typename` in the JSONB
 - Rust cannot auto-inject because CASCADE is a generic JSONB structure
 - Rust doesn't know what types are inside `updated`/`deleted` arrays
 - You must explicitly include `__typename` for each entity
 
 Think of it this way:
+
 - **Query data**: Rust knows the schema → auto-injects `__typename`
 - **CASCADE data**: Rust doesn't know what's inside → you provide `__typename`
 
 ### `deleted` (Array)
+
 Array of entity IDs that were deleted:
 
 ```json
@@ -261,6 +272,7 @@ Array of entity IDs that were deleted:
 ```
 
 ### `invalidations` (Array)
+
 Query cache invalidation hints:
 
 ```json
@@ -272,6 +284,7 @@ Query cache invalidation hints:
 ```
 
 ### `metadata` (Object)
+
 Operation metadata:
 
 ```json
@@ -460,6 +473,7 @@ Both formats support the same cascade structure and client integration patterns.
 ## Examples
 
 See `examples/cascade/` for complete working examples including:
+
 - PostgreSQL functions with cascade
 - FraiseQL mutations
 - Client-side cache updates

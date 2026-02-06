@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL Node.js with Pytho
 Complete implementation of advanced authorization and security features for Node.js:
 
 **Enums:**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Interfaces:**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for Node
 **Builder Methods:**
 
 *AuthorizeBuilder:*
+
 - `rule(string)` - Set authorization rule expression
 - `policy(string)` - Reference named policy
 - `description(string)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for Node
 - `build()` - Return configuration
 
 *RoleRequiredBuilder:*
+
 - `roles(...string)` - Set required roles (variadic)
 - `rolesArray(string[])` - Set roles from array
 - `strategy(RoleMatchStrategy)` - Role matching strategy
@@ -63,6 +68,7 @@ Complete implementation of advanced authorization and security features for Node
 - `build()` - Return configuration
 
 *AuthzPolicyBuilder:*
+
 - `description(string)` - Policy description
 - `rule(string)` - Authorization rule
 - `attributes(...string)` - Attribute conditions (variadic)
@@ -77,6 +83,7 @@ Complete implementation of advanced authorization and security features for Node
 - `build()` - Return configuration
 
 **TypeScript Decorators:**
+
 - `@Authorize(config)` - Custom authorization rules
 - `@RoleRequired(config)` - Role-based access control
 - `@AuthzPolicy(config)` - Authorization policies
@@ -298,6 +305,7 @@ Node.js-specific advantages:
 **Current Status**: 100% Parity across 6 languages (180/180 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

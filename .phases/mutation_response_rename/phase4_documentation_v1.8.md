@@ -1,12 +1,15 @@
 # Phase 4: Documentation Updates (v1.8.0 with Deprecation Notices)
 
 ## Objective
+
 Update all user-facing documentation to use `mutation_response` with deprecation notices for `mutation_result_v2`.
 
 ## Duration
+
 2 hours
 
 ## Files to Modify
+
 - `docs/mutations/status-strings.md` (if exists)
 - `docs/features/sql-function-return-format.md`
 - `docs/features/mutation-result-reference.md`
@@ -19,6 +22,7 @@ Update all user-facing documentation to use `mutation_response` with deprecation
 ## Strategy for v1.8.0
 
 **Documentation should:**
+
 1. Use `mutation_response` in all new examples
 2. Add deprecation notices for `mutation_result_v2`
 3. Explain the migration timeline
@@ -32,6 +36,7 @@ For EACH file (except CHANGELOG):
 
 1. **Find/replace**: `mutation_result_v2` → `mutation_response` in code examples
 2. **Add deprecation box** at the top of the document:
+
    ```markdown
    > **Note on Naming (v1.8.0+)**
    >
@@ -45,7 +50,8 @@ For EACH file (except CHANGELOG):
 
 3. **Review examples** - Ensure they demonstrate best practices with new name
 
-### Verification (per file):
+### Verification (per file)
+
 ```bash
 # Check examples use new name
 grep -c "mutation_response" docs/mutations/status-strings.md
@@ -106,6 +112,7 @@ END;
 ### How to Migrate
 
 **Find and replace** in your SQL files:
+
 ```bash
 # Find uses of old name
 grep -r "mutation_result_v2" your_project/
@@ -117,8 +124,10 @@ sed -i 's/mutation_result_v2/mutation_response/g' your_file.sql
 ### Why the Change?
 
 The "v2" suffix was confusing and implied versioning. The new name is clearer:
+
 - `mutation_response` - What it is (a response from a mutation)
 - No version number - Evolves via database migrations, not type name
+
 ```
 
 ---
@@ -160,6 +169,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **After (recommended):**
+
 ```sql
 CREATE FUNCTION create_user(input_data JSONB)
 RETURNS mutation_response AS $$
@@ -171,6 +181,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Note**: Both versions work in v1.8.0. No breaking changes.
+
 ```
 
 ---
@@ -203,6 +214,7 @@ $$ LANGUAGE plpgsql;
 - [ ] No `mutation_result_v2` in code examples (except deprecation notices)
 
 ## Git Commit
+
 ```bash
 git add docs/ CHANGELOG.md migrations/trinity/README.md examples/
 git commit -m "docs: introduce mutation_response with deprecation notices

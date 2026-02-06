@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Analytics Platform with OLAP
 description: Complete guide to building a scalable analytics and business intelligence platform using FraiseQL with OLAP (Online Analytical Processing) patterns.
 keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]

@@ -7,28 +7,33 @@ This directory contains example configurations for different deployment topologi
 ### 1. PostgreSQL-Only (`01-postgresql-only.toml`)
 
 **When to use:**
+
 - Single PostgreSQL database
 - Low event volume (<1000 events/sec)
 - Simple deployment (no additional infrastructure)
 - Development/testing
 
 **Architecture:**
+
 ```
 PostgreSQL (LISTEN/NOTIFY) → Observer Workers (in-process)
 ```
 
 **Pros:**
+
 - ✅ Simplest deployment
 - ✅ No additional infrastructure (Redis, NATS)
 - ✅ Low operational overhead
 
 **Cons:**
+
 - ❌ No deduplication (at-most-once delivery)
 - ❌ No action caching (slower repeated operations)
 - ❌ No horizontal scaling
 - ❌ Single point of failure
 
 **Running:**
+
 ```bash
 fraiseql-observer --config examples/01-postgresql-only.toml
 ```
@@ -38,12 +43,14 @@ fraiseql-observer --config examples/01-postgresql-only.toml
 ### 2. PostgreSQL + Redis (`02-postgresql-redis.toml`)
 
 **When to use:**
+
 - Single PostgreSQL database
 - Medium event volume (1000-10000 events/sec)
 - Needs reliability (deduplication)
 - Needs performance (action result caching)
 
 **Architecture:**
+
 ```
 PostgreSQL (LISTEN/NOTIFY) → Observer Workers
                               ↓
@@ -51,15 +58,18 @@ PostgreSQL (LISTEN/NOTIFY) → Observer Workers
 ```
 
 **Pros:**
+
 - ✅ Event deduplication (at-least-once delivery)
 - ✅ Action result caching (100x faster for cache hits)
 - ✅ Simple deployment (2 services)
 
 **Cons:**
+
 - ❌ No horizontal scaling
 - ❌ Single database only
 
 **Running:**
+
 ```bash
 # Start Redis
 docker run -d -p 6379:6379 redis:7
@@ -73,12 +83,14 @@ fraiseql-observer --config examples/02-postgresql-redis.toml
 ### 3. NATS Distributed (`03-nats-distributed.toml`)
 
 **When to use:**
+
 - Multiple observer workers (horizontal scaling)
 - High availability (worker failures tolerated)
 - High event volume (10000+ events/sec)
 - Geographic distribution
 
 **Architecture:**
+
 ```
 PostgreSQL → Bridge → NATS JetStream → Worker 1
                                       → Worker 2
@@ -88,6 +100,7 @@ PostgreSQL → Bridge → NATS JetStream → Worker 1
 ```
 
 **Pros:**
+
 - ✅ Horizontal scaling (add workers on-demand)
 - ✅ High availability (workers can fail/restart)
 - ✅ At-least-once delivery (NATS + Redis dedup)
@@ -95,10 +108,12 @@ PostgreSQL → Bridge → NATS JetStream → Worker 1
 - ✅ Load balancing across workers
 
 **Cons:**
+
 - ❌ Complex deployment (PostgreSQL + NATS + Redis)
 - ❌ Higher operational overhead
 
 **Running:**
+
 ```bash
 # Terminal 1: Start NATS
 docker run -d -p 4222:4222 nats:latest -js
@@ -120,11 +135,13 @@ fraiseql-observer --config examples/03-nats-distributed.toml
 ### 4. Multi-Database Bridge (`04-multi-database-bridge.toml`)
 
 **When to use:**
+
 - Multiple PostgreSQL databases
 - Centralized event bus (NATS)
 - Separate bridge and worker processes
 
 **Architecture:**
+
 ```
 Database 1 → Bridge 1 ┐
 Database 2 → Bridge 2 ├→ NATS → Worker 1
@@ -133,16 +150,19 @@ Database 3 → Bridge 3 ┘          Worker 2
 ```
 
 **Pros:**
+
 - ✅ Multi-database support
 - ✅ Centralized monitoring (NATS)
 - ✅ Independent scaling (bridges vs workers)
 - ✅ Fault isolation
 
 **Cons:**
+
 - ❌ Most complex deployment
 - ❌ Highest operational overhead
 
 **Running:**
+
 ```bash
 # Terminal 1: Start NATS cluster
 docker-compose -f nats-cluster.yml up
@@ -255,6 +275,7 @@ export FRAISEQL_MAX_CONCURRENT_ACTIONS=20
 | Multi-Database | 100K+ events/s | 20ms | 150ms | ✅ | ✅ |
 
 *Benchmarks assume:*
+
 - PostgreSQL on SSD
 - Redis in-memory
 - NATS JetStream with 3-node cluster
@@ -337,6 +358,7 @@ See `k8s/*.yaml` for Kubernetes manifests:
 ## Troubleshooting
 
 **Bridge not publishing events:**
+
 ```bash
 # Check checkpoint table
 SELECT * FROM tb_observer_checkpoint WHERE transport_name = 'pg_to_nats';
@@ -346,6 +368,7 @@ DELETE FROM tb_observer_checkpoint WHERE transport_name = 'pg_to_nats';
 ```
 
 **Workers not receiving events:**
+
 ```bash
 # Check NATS consumer
 nats consumer info fraiseql_events fraiseql_observer_worker_group_1
@@ -355,6 +378,7 @@ nats consumer report fraiseql_events
 ```
 
 **Redis connection issues:**
+
 ```bash
 # Test Redis connectivity
 redis-cli -u redis://localhost:6379 PING
@@ -367,6 +391,7 @@ redis-cli -u redis://localhost:6379 KEYS "action_result:*"
 ```
 
 **High latency:**
+
 ```bash
 # Check backlog
 RUST_LOG=info fraiseql-observer --config config.toml

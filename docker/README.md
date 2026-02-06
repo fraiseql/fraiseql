@@ -13,11 +13,13 @@ docker compose -f docker-compose.demo.yml up -d
 ```
 
 Open your browser:
+
 - **GraphQL IDE**: http://localhost:3000 (Query explorer)
 - **Tutorial**: http://localhost:3001 (6-chapter interactive learning)
 - **Server**: http://localhost:8000 (GraphQL API)
 
 Stop with:
+
 ```bash
 make demo-stop
 ```
@@ -35,6 +37,7 @@ docker compose -f docker-compose.prod-examples.yml up -d
 ```
 
 Services run on:
+
 - **Blog IDE**: http://localhost:3000
 - **E-Commerce IDE**: http://localhost:3100 (if all examples)
 - **Streaming IDE**: http://localhost:3200 (if all examples)
@@ -66,6 +69,7 @@ make prod-examples-status # Check health
 **Best for**: Learning, experimentation, first-time users
 
 **Services**:
+
 - PostgreSQL 16 (blog database)
 - FraiseQL Server (GraphQL API)
 - Apollo Sandbox (GraphQL IDE)
@@ -73,6 +77,7 @@ make prod-examples-status # Check health
 - Admin Dashboard (Debugging & monitoring)
 
 **Usage**:
+
 ```bash
 docker compose -f docker-compose.demo.yml up -d      # Start
 docker compose -f docker-compose.demo.yml logs -f    # View logs
@@ -84,6 +89,7 @@ docker compose -f docker-compose.demo.yml down -v    # Stop (fresh start)
 **Best for**: Production deployments, minimal resource footprint
 
 **Services**:
+
 - PostgreSQL 16
 - FraiseQL Server
 - Pre-built blog example
@@ -93,6 +99,7 @@ docker compose -f docker-compose.demo.yml down -v    # Stop (fresh start)
 **Best for**: Showcasing capabilities, testing different scenarios
 
 **Services**:
+
 - PostgreSQL 16 (multi-example database)
 - 3 FraiseQL instances (blog, e-commerce, streaming)
 - Pre-built examples with sample data
@@ -102,12 +109,14 @@ docker compose -f docker-compose.demo.yml down -v    # Stop (fresh start)
 **Best for**: Developers, running tests, integration work
 
 **Services**:
+
 - PostgreSQL 16 (primary)
 - MySQL 8.0 (multi-database testing)
 - SQL Server 2022 (enterprise testing)
 - Optional: Redis, NATS (use `--profile` flags)
 
 **Usage**:
+
 ```bash
 docker compose up -d                    # Core databases only
 docker compose --profile with-server up -d  # Add FraiseQL server
@@ -119,6 +128,7 @@ docker compose --profile with-redis --profile with-nats up -d  # Everything
 **Best for**: Running integration tests with all services
 
 **Services**:
+
 - PostgreSQL 16 with pgvector
 - MySQL 8.3
 - SQL Server 2022
@@ -128,6 +138,7 @@ docker compose --profile with-redis --profile with-nats up -d  # Everything
 - Elasticsearch 8.15
 
 **Usage**:
+
 ```bash
 docker compose -f docker-compose.test.yml up -d
 make test-integration
@@ -181,16 +192,19 @@ make help | grep demo  # Demo commands only
 **Type**: Multi-stage build
 
 **Stages**:
+
 1. **Builder**: Rust 1.84-slim - compiles `fraiseql-server` and `fraiseql-cli`
 2. **Runtime**: Debian bookworm-slim - minimal dependencies, optimized image
 
 **Build locally**:
+
 ```bash
 docker build -t fraiseql:latest .
 docker build -t fraiseql:v2.0.0 .
 ```
 
 **Push to registry**:
+
 ```bash
 docker tag fraiseql:latest myregistry/fraiseql:latest
 docker push myregistry/fraiseql:latest
@@ -257,6 +271,7 @@ kill -9 <PID>
 ### Services Won't Start
 
 Check logs:
+
 ```bash
 docker compose -f docker-compose.demo.yml logs
 docker compose -f docker-compose.demo.yml logs fraiseql-server
@@ -265,11 +280,13 @@ docker compose -f docker-compose.demo.yml logs fraiseql-server
 ### Database Connection Failed
 
 Verify PostgreSQL is running:
+
 ```bash
 docker compose -f docker-compose.demo.yml exec postgres-blog pg_isready
 ```
 
 Reset the database:
+
 ```bash
 docker compose -f docker-compose.demo.yml down -v
 docker compose -f docker-compose.demo.yml up -d
@@ -278,6 +295,7 @@ docker compose -f docker-compose.demo.yml up -d
 ### Tutorial Can't Connect to Server
 
 Verify network connectivity:
+
 ```bash
 docker compose -f docker-compose.demo.yml exec tutorial \
   curl -v http://fraiseql-server:8000/health
@@ -312,6 +330,7 @@ Demo services run on the `fraiseql-demo` network for inter-service communication
 ```
 
 Service hostnames (from within containers):
+
 - `postgres-blog` - PostgreSQL
 - `fraiseql-server` - GraphQL API
 - `tutorial` - Tutorial server

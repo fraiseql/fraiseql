@@ -19,6 +19,7 @@
 ## Benchmark 1: Transformation Only (Rust vs Pure Python)
 
 ### Methodology
+
 - 100 iterations per test case
 - Warm-up runs performed
 - Input: JSON strings
@@ -41,6 +42,7 @@
 ## Benchmark 2: End-to-End (Query + Transformation)
 
 ### Methodology
+
 - 30 iterations per test case
 - Real PostgreSQL database (local)
 - Includes: Query execution + data transfer + transformation
@@ -138,12 +140,14 @@ Current performance claims reflect actual measurements:
 ### 2. Architecture + Performance Benefits
 
 **Architecture benefits** (these are real and valuable):
+
 - ✅ No PostgreSQL function dependency (simpler deployment)
 - ✅ Horizontal scaling (app layer vs database bottleneck)
 - ✅ GIL-free execution (true parallelism)
 - ✅ Zero external dependencies (PostgreSQL-native caching)
 
 **Performance benefits** (now impressive and honest):
+
 - ✅ 7-10x faster transformation (Rust vs Python)
 - ✅ 2-4x faster end-to-end (including APQ/TurboRouter)
 - ✅ Negligible transformation overhead (< 0.1ms)
@@ -152,6 +156,7 @@ Current performance claims reflect actual measurements:
 ### 3. Rust Now Required
 
 **Breaking change in v0.11.5**:
+
 - ✅ Rust transformation is REQUIRED (not optional)
 - ✅ No Python fallback
 - ✅ CamelForge removed entirely
@@ -160,6 +165,7 @@ Current performance claims reflect actual measurements:
 ### 4. Production Ready
 
 Ready for v1.0-alpha1:
+
 - ✅ Performance claims accurate
 - ✅ Benchmarks documented
 - ✅ Architecture solid

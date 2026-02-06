@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Full-Stack Blog Platform: Java Authoring → FraiseQL Backend → Next.js Frontend
 description: 1. [Architecture Overview](#architecture-overview)
 keywords: ["code", "production", "fullstack", "sample", "real-world"]

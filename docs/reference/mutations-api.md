@@ -59,6 +59,7 @@ mutation {
 ```
 
 **Performance Impact**:
+
 - `enable_cascade=False`: Zero overhead (default for most mutations)
 - `enable_cascade=True` + no selection: ~5-10% overhead (tracking but not serializing)
 - `enable_cascade=True` + with selection: ~10-20% overhead (full tracking + serialization)
@@ -99,6 +100,7 @@ type CascadeMetadata {
 ### Selection Examples
 
 **Full CASCADE**:
+
 ```graphql
 cascade {
   updated {
@@ -126,6 +128,7 @@ cascade {
 ```
 
 **Partial CASCADE** (metadata only):
+
 ```graphql
 cascade {
   metadata {
@@ -135,6 +138,7 @@ cascade {
 ```
 
 **With Inline Fragments**:
+
 ```graphql
 cascade {
   updated {
@@ -158,6 +162,7 @@ cascade {
 ### Nullability
 
 The `cascade` field is nullable:
+
 - Returns `null` if no side effects occurred
 - Not present in response if not requested in selection
 - Returns object with requested fields if side effects occurred

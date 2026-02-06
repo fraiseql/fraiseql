@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Arrow Flight Quick Start (5 Minutes)
 description: Get your first Arrow Flight analytics query working in 5 minutes.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

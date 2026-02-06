@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 1.4: Design Principles
 description: FraiseQL is built on five core design principles that guide every architectural decision. These principles explain not just *what* FraiseQL does, but *why* it d
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

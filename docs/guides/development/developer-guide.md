@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Developer Guide
 description: Welcome to the FraiseQL development guide! This document covers setup, development workflow, testing, and contribution guidelines.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

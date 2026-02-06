@@ -71,6 +71,7 @@ query {
 ```
 
 **Execution Flow:**
+
 1. Client sends query to Apollo Router (4000)
 2. Router queries Users subgraph (4001) for users
 3. Router extracts order references from response
@@ -78,6 +79,7 @@ query {
 5. Router merges results and returns to client
 
 **Latency Contribution:**
+
 - Users subgraph query: ~10-50ms
 - Orders subgraph query: ~10-50ms
 - Gateway coordination: ~5-10ms
@@ -104,6 +106,7 @@ query {
 ```
 
 **Execution Flow:**
+
 1. Client sends query to Apollo Router (4000)
 2. Router queries Users subgraph (4001)
 3. Router queries Orders subgraph (4002) for orders belonging to users
@@ -113,6 +116,7 @@ query {
 7. Returns complete 3-level response to client
 
 **Latency Contribution:**
+
 - Users subgraph query: ~15-50ms
 - Orders subgraph query: ~20-80ms
 - Products subgraph query: ~20-80ms
@@ -368,6 +372,7 @@ docker-compose down -v  # -v removes volumes
 **Symptoms:** `docker-compose ps` shows service status as `Exited` or `Unhealthy`
 
 **Solution:**
+
 ```bash
 # View logs for specific service
 docker-compose logs users-subgraph
@@ -385,6 +390,7 @@ docker-compose up -d
 **Symptoms:** Gateway health check fails, introspection returns empty
 
 **Solution:**
+
 1. Verify all subgraphs are healthy: `docker-compose ps`
 2. Check router logs: `docker-compose logs apollo-router`
 3. Verify supergraph.yaml configuration includes all 3 subgraphs
@@ -395,6 +401,7 @@ docker-compose up -d
 **Symptoms:** Queries >5 seconds or timeout
 
 **Solution:**
+
 1. Check subgraph individual response times
 2. Verify database query performance: `docker-compose logs orders-subgraph`
 3. Check network latency between containers
@@ -406,6 +413,7 @@ docker-compose up -d
 **Symptoms:** Error: "Products subgraph not found" or port 4003 not responding
 
 **Solution:**
+
 1. Verify products database initialized: `docker-compose logs postgres-products`
 2. Check products service built: `docker-compose logs products-subgraph`
 3. Verify fixtures/init-products.sql exists and loads correctly
@@ -416,6 +424,7 @@ docker-compose up -d
 **Symptoms:** null values for nested fields, "entity not found" errors
 
 **Solution:**
+
 1. Verify entity keys match across subgraphs
 2. Check federation directives in schemas (@key, @external, @requires)
 3. Validate foreign key references in databases

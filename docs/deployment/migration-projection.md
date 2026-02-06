@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Migration Guide: SQL Projection Optimization (v2.0.0-alpha.1)
 description: FraiseQL v2.0.0-alpha.1 introduces automatic SQL projection optimization that reduces query latency by 42-55%. This is a **fully backward-compatible change** wi
 keywords: []

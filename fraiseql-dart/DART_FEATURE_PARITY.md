@@ -19,20 +19,24 @@
 ### Security Module (`lib/fraiseql_security.dart`)
 
 **Enums (with const values):**
+
 - `RoleMatchStrategy` - any, all, exactly
 - `AuthzPolicyType` - rbac, abac, custom, hybrid
 
 **Configuration Classes:**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Fluent builder for custom authorization rules
 - `RoleRequiredBuilder` - Fluent builder for RBAC configuration
 - `AuthzPolicyBuilder` - Fluent builder for authorization policies
 
 **Serialization:**
+
 - All configuration classes implement `toMap()` for JSON serialization
 - All configuration classes implement `==` operator and `hashCode` for value equality
 
@@ -269,6 +273,7 @@ Dart-specific advantages:
 **Current Status**: 100% Parity across 15 languages (450/450 features) ✅
 
 **Languages Certified:**
+
 - ✅ Python, TypeScript, Java, Go, PHP, Node.js, Ruby, Kotlin, C#/.NET, Rust, Swift, Scala, Groovy, Clojure, Dart
 
 Last Updated: January 26, 2026

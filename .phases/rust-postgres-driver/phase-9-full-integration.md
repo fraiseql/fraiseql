@@ -18,6 +18,7 @@ Complete the migration to a full Rust database layer by unifying all phases into
 5. Complete deprecation of Python database layer
 
 **Success Criteria**:
+
 - ✅ Python calls single function: `await execute_graphql_query(query, variables, user_context)`
 - ✅ Rust handles entire pipeline end-to-end
 - ✅ All 5991+ tests pass with zero regressions
@@ -543,6 +544,7 @@ criterion_main!(benches);
 ```
 
 Run benchmarks:
+
 ```bash
 cd fraiseql_rs && cargo bench
 ```
@@ -552,11 +554,13 @@ cd fraiseql_rs && cargo bench
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] All Phase 1-8 tests passing
 - [ ] All 5991+ existing tests passing
 - [ ] Performance baseline established
 
 ### Migration
+
 - [ ] Initialize Rust pipeline on app startup
 - [ ] Update FastAPI router to call unified function
 - [ ] Update all GraphQL endpoints
@@ -564,6 +568,7 @@ cd fraiseql_rs && cargo bench
 - [ ] Run full test suite
 
 ### Post-Migration
+
 - [ ] All 5991+ tests still passing
 - [ ] Zero regressions detected
 - [ ] Performance benchmarks confirm improvements
@@ -574,7 +579,8 @@ cd fraiseql_rs && cargo bench
 
 ## Performance Summary
 
-### Before (Python + Rust):
+### Before (Python + Rust)
+
 ```
 GraphQL Parse (graphql-core):    40-60µs    (Python C ext)
 Python SQL generation:           2-4ms      (string + dict ops)
@@ -583,7 +589,8 @@ Rust JSON transform:             0.5-1ms    (fast)
 Total per request:               ~10-20ms
 ```
 
-### After (Full Rust):
+### After (Full Rust)
+
 ```
 Parse (graphql-parser):          20-30µs    (pure Rust)
 SQL generation (cached):         1-10µs     (cache hit) / 50-100µs (miss)
@@ -592,7 +599,8 @@ JSON transform (Rust pipeline):  0.2-0.5ms  (zero-copy)
 Total per request:               ~5-11ms    (with caching ~6-8ms)
 ```
 
-### Real-World Impact (100 req/s workload):
+### Real-World Impact (100 req/s workload)
+
 - **Before**: 1000ms+ total time
 - **After**: 600-800ms total time
 - **Improvement**: 1.5-2x overall (5-10x on compute, 0x on network/DB)
@@ -602,6 +610,7 @@ Total per request:               ~5-11ms    (with caching ~6-8ms)
 ## Cleanup & Finalization
 
 ### Remove Deprecated Code
+
 ```bash
 # Phase 6 cleanup: Remove Python GraphQL parsing
 rm -rf src/fraiseql/graphql/
@@ -617,6 +626,7 @@ rm -f src/fraiseql/db.py
 ```
 
 ### Update Documentation
+
 ```bash
 # Update all docs to reflect Rust-based architecture
 sed -i 's/psycopg/tokio-postgres/g' docs/architecture/**/*.md
@@ -624,6 +634,7 @@ sed -i 's/Python database layer/Rust database layer/g' docs/**/*.md
 ```
 
 ### Final Verification
+
 ```bash
 # Run full test suite
 pytest -v
@@ -657,6 +668,7 @@ grep -r "from psycopg\|import psycopg\|from fraiseql.db\|from fraiseql.sql" src/
 ## Success Criteria - FINAL
 
 ### Functional
+
 - ✅ All 5991+ tests pass (zero regressions)
 - ✅ All existing GraphQL queries work identically
 - ✅ All mutations work identically
@@ -664,17 +676,20 @@ grep -r "from psycopg\|import psycopg\|from fraiseql.db\|from fraiseql.sql" src/
 - ✅ No psycopg code remains
 
 ### Performance
+
 - ✅ Query building: 10-80x faster (2-4ms → 50-200µs)
 - ✅ Cached queries: 5-10x faster due to cache hits
 - ✅ Overall requests: 1.5-2x faster (network is bottleneck)
 
 ### Code Quality
+
 - ✅ Zero unsafe code (unless in critical paths)
 - ✅ Full error handling with descriptive messages
 - ✅ Comprehensive logging and metrics
 - ✅ Memory efficient (< 100MB cache)
 
 ### Operational
+
 - ✅ Easy deployment (single binary)
 - ✅ Monitoring and observability
 - ✅ Graceful error handling
@@ -685,12 +700,14 @@ grep -r "from psycopg\|import psycopg\|from fraiseql.db\|from fraiseql.sql" src/
 ## Deployment Strategy
 
 ### Phase 1: Canary (5% traffic)
+
 ```python
 # Route 5% of requests to Rust pipeline
 # Monitor for errors, latency, memory usage
 ```
 
 ### Phase 2: Gradual Rollout (25% → 50% → 100%)
+
 ```python
 # Increase traffic percentage as confidence grows
 # Monitor performance metrics
@@ -698,6 +715,7 @@ grep -r "from psycopg\|import psycopg\|from fraiseql.db\|from fraiseql.sql" src/
 ```
 
 ### Phase 3: Full Cutover
+
 ```python
 # All traffic on Rust pipeline
 # Remove Python database code

@@ -15,18 +15,22 @@ This document provides a comprehensive mapping of security controls across Frais
 ## Security Profile Definitions
 
 ### STANDARD Profile
+
 **Target Environment**: General purpose applications, development, staging
 **Compliance**: General security best practices
 **Risk Tolerance**: Medium
 
 ### REGULATED Profile
+
 **Target Environment**: PCI-DSS, HIPAA, SOC 2 compliant applications
 **Compliance**: Industry-specific regulations
 **Risk Tolerance**: Low
 
 ### RESTRICTED Profile
+
 **Target Environment**: Highly regulated industries, government, defense, classified data
 **Compliance Examples**:
+
 - 🇺🇸 NIST 800-53, FedRAMP, DoD requirements
 - 🇪🇺 NIS2 Essential Entities, EU Cyber Resilience Act
 - 🇬🇧 UK NCSC High-Security Guidance
@@ -198,6 +202,7 @@ This document provides a comprehensive mapping of security controls across Frais
 ## Control Implementation Matrix
 
 ### Legend
+
 - ✅ **Enabled/Required**: Control is active and enforced
 - ⚠️ **Optional/Recommended**: Control is available but not enforced
 - ❌ **Disabled/Not Required**: Control is not active
@@ -208,7 +213,9 @@ This document provides a comprehensive mapping of security controls across Frais
 ## Risk Acceptance
 
 ### STANDARD Profile
+
 **Accepted Risks**:
+
 - Optional MFA
 - Optional audit logging
 - Permissive CORS
@@ -217,7 +224,9 @@ This document provides a comprehensive mapping of security controls across Frais
 **Justification**: Development and low-risk production environments where convenience and performance are prioritized.
 
 ### REGULATED Profile
+
 **Accepted Risks**:
+
 - Optional IP allowlisting
 - Optional mTLS
 - No penetration testing requirement
@@ -225,7 +234,9 @@ This document provides a comprehensive mapping of security controls across Frais
 **Justification**: Balanced approach for regulated industries with managed risk tolerance.
 
 ### RESTRICTED Profile
+
 **Accepted Risks**:
+
 - Minimal (all controls enforced)
 
 **Justification**: Zero-trust architecture for high-security environments.
@@ -235,6 +246,7 @@ This document provides a comprehensive mapping of security controls across Frais
 ## Control Testing
 
 ### Automated Testing
+
 | Control Category | Test Type | Frequency |
 |------------------|-----------|-----------|
 | Authentication | Unit tests | Every commit |
@@ -244,6 +256,7 @@ This document provides a comprehensive mapping of security controls across Frais
 | SQL injection | Architecture tests | Every commit |
 
 ### Manual Testing
+
 | Control Category | Test Type | Frequency |
 |------------------|-----------|-----------|
 | Penetration testing | External audit | Annually |
@@ -254,19 +267,22 @@ This document provides a comprehensive mapping of security controls across Frais
 
 ## Profile Selection Guide
 
-### Choose STANDARD if:
+### Choose STANDARD if
+
 - Development or staging environment
 - Internal applications with trusted users
 - Performance is critical
 - Compliance requirements are minimal
 
-### Choose REGULATED if:
+### Choose REGULATED if
+
 - Handling payment card data (PCI-DSS)
 - Handling health information (HIPAA)
 - SOC 2 compliance required
 - Customer data protection is important
 
-### Choose RESTRICTED if:
+### Choose RESTRICTED if
+
 - Government or defense applications (any jurisdiction)
 - Classified data handling
 - Critical Infrastructure (CII) operations
@@ -317,6 +333,7 @@ restricted = ProfileEnforcer(
 ## Maintenance and Review
 
 **Review Frequency**: Quarterly or when:
+
 - New compliance requirements emerge
 - Security incidents occur
 - Architecture changes significantly

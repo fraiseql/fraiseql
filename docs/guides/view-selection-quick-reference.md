@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: View Selection Quick Reference Card
 description: - FraiseQL view naming conventions (v_*, va_*, tv_*, ta_*)
 keywords: ["debugging", "implementation", "directives", "best-practices", "types", "deployment", "schema", "scalars"]

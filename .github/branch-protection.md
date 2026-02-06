@@ -9,6 +9,7 @@ Navigate to: Settings → Branches → Add rule
 ### Rule Pattern: `main`
 
 #### 1. Protect matching branches
+
 - [x] **Require a pull request before merging**
   - [x] Require approvals: **1**
   - [x] Dismiss stale pull request approvals when new commits are pushed
@@ -16,6 +17,7 @@ Navigate to: Settings → Branches → Add rule
   - [x] Require approval of the most recent reviewable push
 
 #### 2. Status checks
+
 - [x] **Require status checks to pass before merging**
   - [x] Require branches to be up to date before merging
 
@@ -30,21 +32,26 @@ Navigate to: Settings → Branches → Add rule
   - `rust-quality / Check formatting`
 
 #### 3. Conversation resolution
+
 - [x] **Require conversation resolution before merging**
 
 #### 4. Signed commits (optional)
+
 - [ ] Require signed commits
 
 #### 5. Linear history
+
 - [x] **Require linear history** (enforces rebasing instead of merge commits)
 
 #### 6. Restrictions
+
 - [ ] Restrict who can push to matching branches (only if needed)
 - [x] **Restrict who can push to matching branches**
   - Users/teams with push access: Repository administrators only
   - [x] Include administrators
 
 #### 7. Force pushes
+
 - [x] **Allow force pushes**
   - [x] Specify who can force push: Repository administrators only
 - [x] **Allow deletions** (admins only)

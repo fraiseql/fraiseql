@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Compilation Phases: Detailed Specifications
 description: 1. [Executive Summary](#executive-summary)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

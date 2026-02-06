@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Migration Workflow: Applying Optimizations Safely
 description: This guide covers the **complete workflow** for safely applying observability-driven schema optimizations to production, including:
 keywords: []

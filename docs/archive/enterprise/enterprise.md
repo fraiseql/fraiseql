@@ -13,12 +13,14 @@ License: MIT
 ## Why Enterprises Choose FraiseQL
 
 ### 🚀 **99% Performance Improvement**
+
 - Sub-millisecond query response times
 - JSON Passthrough optimization bypasses serialization overhead
 - Automatic Persisted Queries (APQ) reduce bandwidth by 90%
 - Built-in DataLoader prevents N+1 queries
 
 ### 🔒 **Enterprise Security**
+
 - Field-level authorization with `@auth` decorators
 - Row-level security (RLS) via PostgreSQL policies
 - CSRF protection and secure headers
@@ -26,6 +28,7 @@ License: MIT
 - Introspection control for production environments
 
 ### 📊 **Production-Grade Observability**
+
 - **Prometheus Metrics**: Request rates, latency percentiles, error tracking
 - **OpenTelemetry Tracing**: Distributed tracing across services
 - **Sentry Integration**: Error tracking with context capture
@@ -33,6 +36,7 @@ License: MIT
 - **Grafana Dashboards**: Pre-built monitoring dashboards
 
 ### ☸️ **Kubernetes Native**
+
 - Complete Kubernetes manifests included
 - Helm chart with 50+ configuration options
 - Horizontal Pod Autoscaling (HPA) based on custom metrics
@@ -41,12 +45,14 @@ License: MIT
 - Production-tested deployment patterns
 
 ### 🏢 **CQRS Architecture**
+
 - Command Query Responsibility Segregation
 - Read replicas for scalability
 - Optimistic concurrency control
 - Audit logging built-in
 
 ### 🛡️ **Compliance Ready**
+
 - **GDPR**: Data masking, field-level permissions, audit trails
 - **SOC 2**: Encryption at rest and in transit, access controls
 - **HIPAA**: PHI data handling with field-level encryption
@@ -79,18 +85,21 @@ License: MIT
 #### Unified Audit Table Architecture
 
 FraiseQL uses a **single unified audit table** that combines:
+
 - ✅ **CDC (Change Data Capture)** - old_data, new_data, changed_fields
 - ✅ **Cryptographic chain integrity** - event_hash, signature, previous_hash
 - ✅ **Business metadata** - operation types, business_actions
 - ✅ **Multi-tenant isolation** - per-tenant cryptographic chains
 
 **Why One Table?**
+
 - **Simplicity**: One schema to understand, one table to query
 - **Performance**: No duplicate writes, no bridge synchronization
 - **Integrity**: Single source of truth, atomic operations
 - **Philosophy**: "In PostgreSQL Everything" - all logic in PostgreSQL
 
 **Querying Audit Trail:**
+
 ```sql
 -- Get complete audit history for a user
 SELECT timestamp, operation_type, entity_type, entity_id,
@@ -104,6 +113,7 @@ SELECT verify_audit_chain($tenant_id, $start_date, $end_date);
 ```
 
 **Cryptographic Chain Verification:**
+
 ```sql
 -- Check if audit trail has been tampered with
 SELECT event_id, chain_valid, expected_hash, actual_hash
@@ -197,6 +207,7 @@ fraiseql = FraiseQL(
 ## Enterprise Support Tiers
 
 ### 🥇 **Enterprise** - $60,000/year
+
 **For mission-critical production deployments**
 
 - ✅ **24/7 Support**: 1-hour response SLA
@@ -211,6 +222,7 @@ fraiseql = FraiseQL(
 **Ideal for**: Financial services, healthcare, large e-commerce
 
 ### 🥈 **Business** - $24,000/year
+
 **For growing production applications**
 
 - ✅ **Business Hours Support**: 4-hour response SLA
@@ -223,6 +235,7 @@ fraiseql = FraiseQL(
 **Ideal for**: SaaS companies, mid-sized enterprises
 
 ### 🥉 **Professional** - $12,000/year
+
 **For production-ready startups**
 
 - ✅ **Email Support**: 8-hour response SLA
@@ -233,6 +246,7 @@ fraiseql = FraiseQL(
 **Ideal for**: High-growth startups, production MVPs
 
 ### 🆓 **Community** - Free
+
 **For evaluation and development**
 
 - ✅ **Community Forum**: Best-effort support
@@ -302,31 +316,37 @@ Benefits:
 ## Success Stories
 
 ### **FinTech Company** - 100M+ API requests/day
+>
 > "FraiseQL reduced our API response time from 200ms to 2ms. We scaled from 10,000 to 1M daily active users without adding servers."
 >
 > — CTO, Series B FinTech Startup
 
 **Results:**
+
 - 99% performance improvement
 - $40,000/month infrastructure savings
 - Zero downtime during Black Friday
 
 ### **Healthcare SaaS** - HIPAA Compliance
+>
 > "Built-in field-level authorization and audit logging saved us 3 months of security development. SOC 2 audit was straightforward."
 >
 > — VP Engineering, Healthcare Platform
 
 **Results:**
+
 - SOC 2 Type II certified in 4 months
 - HIPAA compliance with minimal custom code
 - $120,000 saved on security engineering
 
 ### **E-Commerce Platform** - Global Scale
+>
 > "Automatic Persisted Queries reduced our CDN costs by 90%. The Kubernetes setup deployed in one day."
 >
 > — Infrastructure Lead, E-Commerce Unicorn
 
 **Results:**
+
 - 90% bandwidth reduction
 - $50,000/year CDN savings
 - 1-day production deployment
@@ -338,12 +358,14 @@ Benefits:
 ### System Requirements
 
 **Minimum (Development)**
+
 - PostgreSQL 12+
 - Python 3.10+
 - 512MB RAM
 - 1 CPU core
 
 **Recommended (Production)**
+
 - PostgreSQL 14+ with read replicas
 - Python 3.11+
 - 2GB RAM per instance
@@ -376,6 +398,7 @@ Benefits:
 Contact: **enterprise@fraiseql.com**
 
 We'll show you:
+
 - ✅ Live performance comparison vs your current stack
 - ✅ Custom ROI calculation for your use case
 - ✅ Architecture review of your GraphQL API
@@ -384,6 +407,7 @@ We'll show you:
 ### 2. Proof of Concept
 
 **Free 30-day evaluation** with Enterprise support:
+
 - Architecture consultation
 - Custom deployment guide
 - Performance benchmarking
@@ -392,6 +416,7 @@ We'll show you:
 ### 3. Production Deployment
 
 We'll help you:
+
 - Set up Kubernetes infrastructure
 - Configure monitoring and alerting
 - Train your team
@@ -436,16 +461,19 @@ We'll help you:
 ## Contact
 
 ### Enterprise Sales
+
 - **Email**: enterprise@fraiseql.com
 - **Calendar**: [Schedule Demo](https://calendly.com/fraiseql/enterprise-demo)
 - **Phone**: +1 (555) 123-4567
 
 ### Technical Support
+
 - **Enterprise Portal**: https://support.fraiseql.com
 - **Email**: support@fraiseql.com
 - **Slack**: [Enterprise Slack](https://fraiseql-enterprise.slack.com)
 
 ### Community
+
 - **Documentation**: https://docs.fraiseql.com
 - **GitHub**: https://github.com/your-org/fraiseql
 - **Discord**: https://discord.gg/fraiseql
@@ -458,6 +486,7 @@ We'll help you:
 FraiseQL is **MIT licensed** - use it anywhere, no vendor lock-in.
 
 Enterprise customers receive:
+
 - Extended warranties
 - Indemnification
 - Priority bug fixes

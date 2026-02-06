@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Consistency Model
 description: FraiseQL provides **strict serializable consistency** within a single database instance and **causal consistency** across federated instances. This document spe
 keywords: ["design", "scalability", "performance", "patterns", "security"]

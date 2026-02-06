@@ -1,4 +1,5 @@
 # Constant-Time Comparison Integration Guide
+
 # Phase 7, Cycle 3: REFACTOR phase - Integration points
 
 ## Overview
@@ -20,6 +21,7 @@ The `ConstantTimeOps` utility provides constant-time comparison functions for pr
 **Current Status**: Tokens are hashed using SHA256 before storage. Hash comparison happens in session store implementation.
 
 **Recommended Approach**:
+
 ```rust
 // In SessionStore::validate_session_token() or similar
 use crate::auth::constant_time::ConstantTimeOps;
@@ -44,6 +46,7 @@ if tokens_match { ... }
 **Current Status**: State lookup in `InMemoryStateStore::retrieve()` uses HashMap key lookup, which is constant-time for the hash lookup but the key comparison might leak timing.
 
 **Recommended Approach**:
+
 ```rust
 // When implementing StateStore::retrieve() with custom comparison:
 use crate::auth::constant_time::ConstantTimeOps;
@@ -67,6 +70,7 @@ for entry in self.states.iter() {
 **Current Status**: PKCE code verifier is validated against the stored verifier in the OAuth flow.
 
 **Recommended Approach**:
+
 ```rust
 // In auth_callback() when validating PKCE:
 use crate::auth::constant_time::ConstantTimeOps;
@@ -88,6 +92,7 @@ if !verifier_valid { return Err(...); }
 **Current Status**: Session tokens are revoked using hash lookup.
 
 **Recommended Approach**:
+
 ```rust
 // In auth_logout():
 use crate::auth::constant_time::ConstantTimeOps;
@@ -160,6 +165,7 @@ Unit tests are included in `constant_time.rs` covering:
 - Token-specific comparison functions
 
 Run tests with:
+
 ```bash
 cargo test constant_time::tests
 ```

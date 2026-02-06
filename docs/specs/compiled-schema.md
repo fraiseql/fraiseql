@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: CompiledSchema Specification
 description: The **CompiledSchema** is the compiled output from the authoring layer. It contains all information the Rust runtime needs to execute GraphQL queries without fu
 keywords: ["format", "compliance", "schema", "protocol", "specification", "standard"]
@@ -781,5 +782,3 @@ CompiledSchema versions follow semver:
 Runtime enforces compatibility via `metadata.compatibility.minRuntimeVersion`.
 
 ---
-
-

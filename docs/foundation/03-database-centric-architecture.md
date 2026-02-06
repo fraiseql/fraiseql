@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 1.3: Database-Centric Architecture
 description: FraiseQL's fundamental design choice is to treat the **database as the primary application interface**, not as a storage afterthought. This topic explains why t
 keywords: ["design", "query-execution", "security", "patterns", "data-planes", "graphql", "scalability", "performance"]

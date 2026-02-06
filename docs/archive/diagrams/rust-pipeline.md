@@ -1,6 +1,7 @@
 # Rust Pipeline Architecture
 
 ## Overview
+
 The Rust pipeline provides high-performance data transformation between PostgreSQL JSONB results and GraphQL responses. This optional pipeline optimizes field projection, filtering, and serialization for complex queries.
 
 ## ASCII Art Diagram
@@ -33,6 +34,7 @@ The Rust pipeline provides high-performance data transformation between PostgreS
 ## Detailed Pipeline Flow
 
 ### Input Stage
+
 ```
 PostgreSQL Result ──▶ JSONB Raw Data
                       │
@@ -45,6 +47,7 @@ PostgreSQL Result ──▶ JSONB Raw Data
 ```
 
 ### Processing Stage
+
 ```
 Raw Data + Context ──▶ Rust Pipeline
                         │
@@ -57,6 +60,7 @@ Raw Data + Context ──▶ Rust Pipeline
 ```
 
 ### Output Stage
+
 ```
 Transformed Data ──▶ GraphQL Response
                      │
@@ -96,7 +100,9 @@ graph TD
 ## Pipeline Components
 
 ### JSONB Parser
+
 **Purpose**: Efficiently deserialize PostgreSQL JSONB data
+
 ```rust
 use serde_json::Value;
 
@@ -111,7 +117,9 @@ impl JsonbParser {
 ```
 
 ### Field Projector
+
 **Purpose**: Select only requested fields to reduce memory usage
+
 ```rust
 struct FieldProjector {
     requested_fields: HashSet<String>,
@@ -128,7 +136,9 @@ impl FieldProjector {
 ```
 
 ### Filter Engine
+
 **Purpose**: Apply GraphQL query filters efficiently
+
 ```rust
 struct FilterEngine {
     conditions: Vec<FilterCondition>,
@@ -147,7 +157,9 @@ impl FilterEngine {
 ```
 
 ### Type Validator
+
 **Purpose**: Ensure data conforms to GraphQL schema
+
 ```rust
 struct TypeValidator {
     schema: GraphQLSchema,
@@ -167,7 +179,9 @@ impl TypeValidator {
 ```
 
 ### JSON Serializer
+
 **Purpose**: Efficient JSON output with memory pooling
+
 ```rust
 use serde_json::ser::Serializer;
 
@@ -188,6 +202,7 @@ impl JsonSerializer {
 ## Performance Characteristics
 
 ### Memory Efficiency
+
 ```
 Python Approach: Load full JSONB → Process in Python → Serialize
 Rust Pipeline:  Stream processing → In-place transformation → Direct serialization
@@ -197,12 +212,14 @@ Processing Speed: 3-5x faster
 ```
 
 ### CPU Optimization
+
 - **SIMD Operations**: Vectorized JSON parsing
 - **Memory Pooling**: Reuse allocation buffers
 - **Zero-Copy**: Avoid unnecessary data copying
 - **CPU Cache**: Optimized data locality
 
 ### Scalability
+
 - **Concurrent Processing**: Multiple pipelines per core
 - **Async I/O**: Non-blocking database reads
 - **Streaming**: Process large result sets incrementally
@@ -210,6 +227,7 @@ Processing Speed: 3-5x faster
 ## Integration Points
 
 ### With PostgreSQL
+
 ```rust
 // Direct PostgreSQL integration
 use tokio_postgres::Client;
@@ -230,6 +248,7 @@ async fn execute_with_rust_pipeline(
 ```
 
 ### With FastAPI
+
 ```python
 from fraiseql import RustPipeline
 
@@ -253,6 +272,7 @@ class GraphQLApp:
 ## Configuration Options
 
 ### Pipeline Selection
+
 ```python
 # Automatic selection based on query complexity
 pipeline_config = {
@@ -264,6 +284,7 @@ pipeline_config = {
 ```
 
 ### Performance Tuning
+
 ```rust
 #[derive(Debug, Clone)]
 pub struct PipelineConfig {
@@ -277,6 +298,7 @@ pub struct PipelineConfig {
 ## Error Handling
 
 ### Pipeline Errors
+
 ```rust
 #[derive(Debug)]
 pub enum PipelineError {
@@ -298,6 +320,7 @@ impl std::fmt::Display for PipelineError {
 ```
 
 ### Fallback Strategy
+
 ```python
 async def safe_execute_with_pipeline(self, query, data):
     try:
@@ -313,18 +336,21 @@ async def safe_execute_with_pipeline(self, query, data):
 ## Monitoring and Observability
 
 ### Performance Metrics
+
 - Pipeline execution time
 - Memory usage per pipeline
 - CPU utilization
 - Error rates by pipeline stage
 
 ### Business Metrics
+
 - Queries processed by Rust pipeline
 - Performance improvement percentage
 - Memory savings
 - Error fallback rates
 
 ### Health Checks
+
 ```rust
 async fn health_check(pipeline: &RustPipeline) -> HealthStatus {
     // Test basic functionality
@@ -342,6 +368,7 @@ async fn health_check(pipeline: &RustPipeline) -> HealthStatus {
 ## Development Workflow
 
 ### Testing the Pipeline
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -367,6 +394,7 @@ mod tests {
 ```
 
 ### Benchmarking
+
 ```rust
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
@@ -385,16 +413,19 @@ fn benchmark_pipeline(c: &mut Criterion) {
 ## Deployment Considerations
 
 ### Binary Distribution
+
 - Compile Rust pipeline as shared library
 - Include in Python package distribution
 - Platform-specific binaries for different architectures
 
 ### Version Compatibility
+
 - Semantic versioning for pipeline API
 - Backward compatibility for configuration
 - Migration path for breaking changes
 
 ### Resource Management
+
 - Memory limits per pipeline instance
 - CPU core allocation
 - Garbage collection tuning for Python integration
@@ -402,17 +433,20 @@ fn benchmark_pipeline(c: &mut Criterion) {
 ## Future Enhancements
 
 ### Advanced Features
+
 - **Query Optimization**: Reorder operations for better performance
 - **Caching**: Intermediate result caching
 - **Compression**: Automatic compression for large payloads
 - **Streaming**: Process results as they arrive from database
 
 ### Performance Improvements
+
 - **GPU Acceleration**: For large dataset processing
 - **Custom Allocators**: Memory pool optimization
 - **JIT Compilation**: Runtime query optimization
 
 ### Observability
+
 - **Distributed Tracing**: End-to-end request tracing
 - **Metrics Export**: Prometheus-compatible metrics
 - **Profiling**: CPU and memory profiling tools

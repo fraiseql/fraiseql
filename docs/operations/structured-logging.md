@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: Structured JSON Logging in FraiseQL v2
-description: FraiseQL v2 provides a comprehensive structured logging system that outputs all logs in JSON format, making them easy to parse, aggregate, and analyze with log 
+description: FraiseQL v2 provides a comprehensive structured logging system that outputs all logs in JSON format, making them easy to parse, aggregate, and analyze with log
 keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]
 tags: ["documentation", "reference"]
 ---

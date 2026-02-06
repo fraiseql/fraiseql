@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Observability & Monitoring Guide
 description: FraiseQL v2 provides a comprehensive, production-ready observability stack that enables real-time monitoring, performance analysis, debugging, and operational e
 keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]

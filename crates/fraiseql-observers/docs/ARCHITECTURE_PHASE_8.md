@@ -68,6 +68,7 @@
 3. No events are lost, even if the observer crashes
 
 **Key Components**:
+
 ```rust
 pub trait CheckpointStore: Send + Sync {
     async fn save_checkpoint(&self, checkpoint: CheckpointState) -> Result<()>;
@@ -80,6 +81,7 @@ pub struct PostgresCheckpointStore {
 ```
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE observer_checkpoints (
     id BIGSERIAL PRIMARY KEY,
@@ -106,6 +108,7 @@ CREATE TABLE observer_checkpoints (
 3. Reduces latency by 5x
 
 **Key Components**:
+
 ```rust
 pub struct ConcurrentActionExecutor<E: ActionExecutor> {
     executor: E,
@@ -122,6 +125,7 @@ impl<E: ActionExecutor> ConcurrentActionExecutor<E> {
 ```
 
 **Execution Model**:
+
 ```
 Sequential (Without 8.2):          Parallel (With 8.2):
 A: ===== (100ms)                   A: ===== (100ms)
@@ -146,6 +150,7 @@ Total: 300ms                       Total: 100ms (3x improvement)
 4. Prevents duplicate webhooks, emails, etc.
 
 **Key Components**:
+
 ```rust
 pub trait DeduplicationStore: Send + Sync {
     async fn is_duplicate(&self, event_hash: &str) -> Result<bool>;
@@ -159,6 +164,7 @@ pub struct RedisDeduplicationStore {
 ```
 
 **Example Scenario**:
+
 ```
 Event 1: Order#123 created
   Hash: abc123def456
@@ -185,6 +191,7 @@ Event 1 (duplicate): Order#123 created (from retry)
 4. Configurable TTL (default: 60 seconds)
 
 **Key Components**:
+
 ```rust
 pub trait CacheBackend: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Value>>;
@@ -198,6 +205,7 @@ pub struct RedisCacheBackend {
 ```
 
 **Performance Comparison**:
+
 ```
 Without Cache:
   User lookup: 200ms (API call)
@@ -226,6 +234,7 @@ Cache Hit Rate**: ~80% for typical workloads
 4. 90-day retention by default
 
 **Key Components**:
+
 ```rust
 pub trait SearchBackend: Send + Sync {
     async fn index_event(&self, event: &EntityEvent) -> Result<()>;
@@ -239,6 +248,7 @@ pub struct HttpSearchBackend {
 ```
 
 **Example Queries**:
+
 ```
 
 1. All orders created in the last 24 hours
@@ -267,6 +277,7 @@ pub struct HttpSearchBackend {
 4. Surviving restarts via persistent job store
 
 **Key Components**:
+
 ```rust
 pub trait JobQueue: Send + Sync {
     async fn enqueue(&self, job: Job) -> Result<()>;
@@ -282,6 +293,7 @@ pub struct JobWorkerPool {
 ```
 
 **Retry Strategy**:
+
 ```
 Attempt 1: fails (immediate retry)
 Attempt 2: wait 100ms, retry
@@ -307,6 +319,7 @@ Attempt 5: wait 800ms → Max 30s delay reached
 4. Track system health in real-time
 
 **Key Metrics**:
+
 ```
 # Counters (always increasing)
 observer_events_processed_total{listener_id="listener-1"}
@@ -323,6 +336,7 @@ observer_event_processing_duration_seconds{le="0.1"}
 ```
 
 **Example Alert Rules**:
+
 ```yaml
 groups:
   - name: observer_alerts
@@ -349,6 +363,7 @@ groups:
 4. Gradually recover with "half-open" probing
 
 **States**:
+
 ```
 CLOSED (normal)
   ↓ (failures > threshold)
@@ -360,6 +375,7 @@ back to CLOSED or OPEN
 ```
 
 **Configuration**:
+
 ```rust
 pub struct CircuitBreakerConfig {
     pub failure_threshold: f64,      // 0.5 = 50% failures trigger open
@@ -370,6 +386,7 @@ pub struct CircuitBreakerConfig {
 ```
 
 **Example**:
+
 ```
 External service (webhook endpoint) starts failing:
   Requests 1-5: All fail
@@ -398,6 +415,7 @@ Service recovers:
 5. No events lost due to shared checkpoints
 
 **Architecture**:
+
 ```
 ┌──────────────────────────────┐
 │  MultiListenerCoordinator    │
@@ -419,6 +437,7 @@ Service recovers:
 ```
 
 **Failover Sequence**:
+
 ```
 
 1. Listener 1 running (last checkpoint: event 500)
@@ -431,6 +450,7 @@ Service recovers:
 ```
 
 **Key Components**:
+
 ```rust
 pub struct ListenerStateMachine {
     current_state: ListenerState,  // Initializing, Connecting, Running, Recovering, Stopped
@@ -701,6 +721,7 @@ ObserverRuntimeConfig {
 3. Data issue (malformed event)
 
 **Investigation**:
+
 ```bash
 # Check DLQ items
 fraiseql-observers dlq list --limit 50
@@ -717,6 +738,7 @@ fraiseql-observers metrics --metric observer_actions_failed_total
 1. Fix underlying issue (restore service, update config)
 2. Verify with test event
 3. Retry DLQ items
+
 ```bash
 fraiseql-observers dlq retry-all --observer obs-webhook --dry-run
 fraiseql-observers dlq retry-all --observer obs-webhook
@@ -735,6 +757,7 @@ fraiseql-observers dlq retry-all --observer obs-webhook
 3. Resource exhaustion (CPU, memory, connections)
 
 **Investigation**:
+
 ```bash
 # Check cache stats
 fraiseql-observers metrics --metric observer_cache_hit_rate

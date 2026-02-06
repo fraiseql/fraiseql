@@ -12,6 +12,7 @@
 FraiseQL implements a **production-ready GraphQL execution engine** with **~85-90% specification compliance**. This document identifies remaining specification gaps and prioritizes them by implementation effort and business impact.
 
 **Key Findings:**
+
 - 11 major GraphQL features fully compliant
 - 5 features partially implemented
 - 8 features intentionally omitted (with documented trade-offs)
@@ -92,11 +93,13 @@ NOT working (nested):
 ```
 
 **Implementation Gap:**
+
 - `_extract_root_query_fields()` handles root fragments only (lines 518-522)
 - Fragment resolver exists but not called recursively
 - Rust pipeline receives flat field list
 
 **Scope:**
+
 - Lines: ~50 LOC changes
 - Files: routers.py (1), fragment_resolver.py (2)
 - Tests: 5 new test cases
@@ -120,12 +123,14 @@ class UserDataLoader(DataLoader[UUID, dict]):
 ```
 
 **Implementation Gap:**
+
 - DataLoader exists (optimization/dataloader.py)
 - Registry pattern missing
 - Context management needed
 - Auto-discovery not implemented
 
 **Scope:**
+
 - Lines: ~150 LOC
 - Files: registry.py (1), dependencies.py (2), resolver_wrappers.py (3)
 - Tests: 12-15 integration tests
@@ -148,11 +153,13 @@ class UserDataLoader(DataLoader[UUID, dict]):
 ```
 
 **Implementation Gap:**
+
 - Directive location support limited to FIELD_DEFINITION
 - No custom directive middleware
 - RBAC directives exist but not generalized
 
 **Scope:**
+
 - Lines: ~100 LOC
 - Files: enterprise/rbac/directives.py (1), routers.py (2), schema_builder.py (3)
 - Tests: 8-10 directive tests
@@ -175,12 +182,14 @@ NOT working: HTTP Server-Sent Events
 ```
 
 **Implementation Gap:**
+
 - Streaming infrastructure exists (subscriptions)
 - SSE response format not implemented
 - Incremental delivery protocol missing
 - @stream/@defer directives not defined
 
 **Scope:**
+
 - Lines: ~150 LOC
 - Files: routers.py (1), execute.py (2), schema_builder.py (3)
 - Tests: 8-10 streaming tests
@@ -201,12 +210,14 @@ query { users { ...StrictTypes } }  # Type check ❌
 ```
 
 **Implementation Gap:**
+
 - Fragment cycle detection not implemented
 - Type compatibility validation missing
 - Fragment usage statistics not collected
 - Complexity analyzer simplified (line 185 in query_complexity.py)
 
 **Scope:**
+
 - Lines: ~100 LOC
 - Files: fragment_resolver.py (1), query_complexity.py (2)
 - Tests: 10 edge case tests
@@ -220,6 +231,7 @@ query { users { ...StrictTypes } }  # Type check ❌
 **Status:** Intentionally NOT implemented
 
 **Rationale:** Lines 461-480 in routers.py:
+
 ```python
 def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
     """
@@ -231,6 +243,7 @@ def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
 ```
 
 **GraphQL Spec Allows:** Partial results
+
 ```graphql
 {
   users {
@@ -244,6 +257,7 @@ def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
 ```
 
 **FraiseQL Implementation:**
+
 ```graphql
 # Same query
 # Result: { data: { users: null }, errors: [...] }
@@ -251,12 +265,14 @@ def _check_nested_errors(data: Any, path: list[str | int]) -> list[dict]:
 ```
 
 **Trade-off Analysis:**
+
 - ✅ Guarantees data consistency with database views
 - ✅ Simpler error handling (fail-fast)
 - ❌ Less granular error information
 - ❌ Not spec-compliant for nested errors
 
 **Workaround:** Split into separate queries
+
 ```graphql
 # Instead of:
 { users { id profile { title } } }
@@ -273,16 +289,19 @@ query UserProfiles { userProfiles(ids: [...]) { title } }
 **Status:** Not implemented
 
 **What's Missing:**
+
 - Incremental field streaming
 - Deferred field resolution
 - Server-Sent Events (SSE) support
 
 **Why Hard:**
+
 - Would require streaming infrastructure
 - Incremental execution model change
 - Protocol complexity
 
 **Workaround:** Use pagination
+
 ```graphql
 # Instead of:
 { items @stream(initialCount: 10) { id } }
@@ -367,6 +386,7 @@ Complexity vs Impact:
 **ROI:** Excellent
 
 #### Current State
+
 - Fragment spreads expanded at root level only
 - `_expand_fragment_spread()` exists and works (lines 299-387)
 - Nested fragments not processed
@@ -374,6 +394,7 @@ Complexity vs Impact:
 #### Implementation Plan
 
 **Step 1:** Extend Fragment Resolution (30 min)
+
 ```python
 # File: fraiseql/fastapi/routers.py
 # Location: Modify _extract_root_query_fields()
@@ -402,12 +423,14 @@ def process_selections(selections, document, variables):
 ```
 
 **Step 2:** Update Field Extraction (30 min)
+
 ```python
 # Apply recursive processing to nested selections
 # Ensure field names, aliases, and arguments preserved through recursion
 ```
 
 **Step 3:** Add Tests (1 hour)
+
 ```python
 # tests/unit/fastapi/test_multi_field_fragments.py
 
@@ -452,6 +475,7 @@ def test_mixed_fragments_inline_and_spread():
 **ROI:** Excellent
 
 #### Current State
+
 - @skip, @include, @deprecated working
 - RBAC directives exist but not generalized
 - No framework for custom directives
@@ -459,6 +483,7 @@ def test_mixed_fragments_inline_and_spread():
 #### Implementation Plan
 
 **Step 1:** Create Directive Framework (45 min)
+
 ```python
 # File: fraiseql/fastapi/directives.py (NEW)
 
@@ -509,6 +534,7 @@ class CacheDirective(CustomDirective):
 ```
 
 **Step 2:** Add Directive Registration (30 min)
+
 ```python
 # File: fraiseql/gql/schema_builder.py
 
@@ -530,6 +556,7 @@ DirectiveRegistry.register("cache", CacheDirective())
 ```
 
 **Step 3:** Integrate with Resolver Pipeline (45 min)
+
 ```python
 # File: fraiseql/fastapi/routers.py
 # Modify execute resolver section (around line 750)
@@ -550,6 +577,7 @@ if field_node.directives:
 ```
 
 **Step 4:** Define Directive Schema (30 min)
+
 ```python
 # File: fraiseql/gql/schema_builder.py
 
@@ -568,6 +596,7 @@ schema_directives = [
 ```
 
 **Step 5:** Add Tests (1 hour)
+
 ```python
 # tests/unit/fastapi/test_custom_directives.py
 
@@ -601,6 +630,7 @@ def test_directive_with_variables():
 **ROI:** Excellent (Dev productivity)
 
 #### Current State
+
 - DataLoader class fully implemented
 - Loaders exist: UserLoader, ProjectLoader, etc.
 - Manual registration required
@@ -609,6 +639,7 @@ def test_directive_with_variables():
 #### Implementation Plan
 
 **Step 1:** Create Loader Registry (1 hour)
+
 ```python
 # File: fraiseql/optimization/loader_registry.py (NEW)
 
@@ -646,6 +677,7 @@ class LoaderRegistry:
 ```
 
 **Step 2:** Integrate with Context Creation (1 hour)
+
 ```python
 # File: fraiseql/fastapi/dependencies.py
 # Modify build_graphql_context()
@@ -670,6 +702,7 @@ def build_graphql_context(
 ```
 
 **Step 3:** Wrap Resolvers with Loader Injection (1 hour)
+
 ```python
 # File: fraiseql/gql/resolver_wrappers.py
 
@@ -692,6 +725,7 @@ def inject_loader_wrapper(resolver_func, loader_name):
 ```
 
 **Step 4:** Update Field Resolution (1 hour)
+
 ```python
 # File: fraiseql/gql/schema_builder.py
 # Modify field resolver creation
@@ -704,6 +738,7 @@ if is_foreign_key_field:
 ```
 
 **Step 5:** Add Cleanup in FastAPI Middleware (30 min)
+
 ```python
 # File: fraiseql/fastapi/middleware.py (or routers.py)
 
@@ -720,6 +755,7 @@ async def cleanup_loaders(request: Request, call_next):
 ```
 
 **Step 6:** Add Tests (1.5 hours)
+
 ```python
 # tests/integration/performance/test_auto_dataloader.py
 
@@ -753,6 +789,7 @@ def test_loader_cleanup_after_request():
 **ROI:** Good (not critical)
 
 #### Current State
+
 - WebSocket subscriptions fully work
 - AsyncGenerator pattern established
 - Streaming infrastructure partially in place
@@ -760,6 +797,7 @@ def test_loader_cleanup_after_request():
 #### Implementation Plan
 
 **Step 1:** Define @stream & @defer Directives (1 hour)
+
 ```python
 # File: fraiseql/gql/schema_builder.py
 
@@ -782,6 +820,7 @@ defer_directive = GraphQLDirective(
 ```
 
 **Step 2:** Implement Incremental Delivery Protocol (2 hours)
+
 ```python
 # File: fraiseql/graphql/incremental_delivery.py (NEW)
 
@@ -808,6 +847,7 @@ class IncrementalDelivery:
 ```
 
 **Step 3:** Modify Execution for Streaming (2 hours)
+
 ```python
 # File: fraiseql/graphql/execute.py
 # Modify execute_graphql()
@@ -852,6 +892,7 @@ async def stream_execution(document, variables, operation_name):
 ```
 
 **Step 4:** Add HTTP Streaming Response (1 hour)
+
 ```python
 # File: fraiseql/fastapi/routers.py
 # Modify graphql_endpoint()
@@ -882,6 +923,7 @@ async def graphql_endpoint(request: Request):
 ```
 
 **Step 5:** Add Tests (2 hours)
+
 ```python
 # tests/integration/graphql/test_streaming.py
 
@@ -915,6 +957,7 @@ async def test_stream_with_variables():
 **ROI:** Good
 
 #### Current State
+
 - Fragment resolution works
 - No cycle detection
 - No type validation
@@ -922,6 +965,7 @@ async def test_stream_with_variables():
 #### Implementation Plan
 
 **Step 1:** Add Cycle Detection (1 hour)
+
 ```python
 # File: fraiseql/core/fragment_resolver.py
 # Modify resolve_all_fields()
@@ -961,6 +1005,7 @@ def resolve_all_fields(
 ```
 
 **Step 2:** Add Type Validation (1 hour)
+
 ```python
 # Validate fragment type matches field type
 
@@ -979,6 +1024,7 @@ def validate_fragment_type(fragment_def, field_type, schema):
 ```
 
 **Step 3:** Update Complexity Analyzer (1 hour)
+
 ```python
 # File: fraiseql/analysis/query_complexity.py
 # Fix line 185-186 simplification
@@ -1006,6 +1052,7 @@ def enter_fragment_spread(self, node, *_args):
 ```
 
 **Step 4:** Add Tests (1 hour)
+
 ```python
 # tests/unit/core/test_fragment_cycles.py
 
@@ -1038,6 +1085,7 @@ def test_valid_fragment_no_cycle():
 **Priority:** Must-have
 **Effort:** 8-10 hours
 **Features:**
+
 - [ ] Gap #1: Nested Field Fragments (2-3h)
 - [ ] Gap #5: Fragment Cycle Detection (3-4h)
 - [ ] Testing & Documentation (2-3h)
@@ -1051,6 +1099,7 @@ def test_valid_fragment_no_cycle():
 **Priority:** Should-have
 **Effort:** 6-8 hours
 **Features:**
+
 - [ ] Gap #2: Custom Directives (2-4h)
   - @rate_limit
   - @access_level
@@ -1067,6 +1116,7 @@ def test_valid_fragment_no_cycle():
 **Priority:** Should-have
 **Effort:** 4-6 hours
 **Features:**
+
 - [ ] Gap #3: Auto DataLoader Integration (4-6h)
   - Registry
   - Auto-discovery
@@ -1082,6 +1132,7 @@ def test_valid_fragment_no_cycle():
 **Priority:** Nice-to-have
 **Effort:** 6-8 hours
 **Features:**
+
 - [ ] Gap #4: HTTP Streaming / @stream support (6-8h)
   - Incremental delivery protocol
   - SSE response handling
@@ -1098,6 +1149,7 @@ def test_valid_fragment_no_cycle():
 **Probability:** Low
 **Impact:** Medium
 **Mitigation:**
+
 - Run full test suite after each change (6000+ tests)
 - Add feature flags for new capabilities
 - Gradual rollout in test environment
@@ -1109,6 +1161,7 @@ def test_valid_fragment_no_cycle():
 **Probability:** Low
 **Impact:** High
 **Mitigation:**
+
 - Benchmark tests for each feature
 - Monitor query execution time
 - Profile memory usage
@@ -1121,6 +1174,7 @@ def test_valid_fragment_no_cycle():
 **Probability:** Medium
 **Impact:** Medium
 **Mitigation:**
+
 - Comprehensive cycle detection tests
 - Type validation at parse time
 - Depth limits for fragment expansion
@@ -1133,6 +1187,7 @@ def test_valid_fragment_no_cycle():
 **Probability:** Medium
 **Impact:** Medium
 **Mitigation:**
+
 - Lazy directive evaluation
 - Caching of directive results
 - Performance benchmarks
@@ -1143,12 +1198,14 @@ def test_valid_fragment_no_cycle():
 ## Part 5: Success Criteria
 
 ### Phase 1 Success
+
 - [ ] All nested fragment tests pass (5+)
 - [ ] Fragment cycles detected and rejected (10+ edge cases)
 - [ ] No regressions in existing fragment tests
 - [ ] Performance unchanged (<5% variance)
 
 ### Phase 2 Success
+
 - [ ] All directive tests pass (8+)
 - [ ] Rate limiting enforced
 - [ ] Access control working
@@ -1156,12 +1213,14 @@ def test_valid_fragment_no_cycle():
 - [ ] Documentation complete
 
 ### Phase 3 Success
+
 - [ ] Auto-discovery working for all loaders
 - [ ] Per-request isolation verified
 - [ ] N+1 queries eliminated (benchmarked)
 - [ ] Cleanup reliable across 100+ requests
 
 ### Phase 4 Success
+
 - [ ] @stream directives working
 - [ ] @defer directives working
 - [ ] SSE streaming validated
@@ -1172,6 +1231,7 @@ def test_valid_fragment_no_cycle():
 ## Part 6: Testing Strategy
 
 ### Unit Tests
+
 - Fragment cycle detection (10 tests)
 - Type validation (8 tests)
 - Directive evaluation (12 tests)
@@ -1181,6 +1241,7 @@ def test_valid_fragment_no_cycle():
 **Total Unit Tests:** ~50
 
 ### Integration Tests
+
 - End-to-end nested fragments (5 tests)
 - Multi-directive queries (5 tests)
 - DataLoader performance (5 tests)
@@ -1189,6 +1250,7 @@ def test_valid_fragment_no_cycle():
 **Total Integration Tests:** ~20
 
 ### Performance Tests
+
 - Fragment resolution time
 - DataLoader batching efficiency
 - Streaming memory usage
@@ -1201,18 +1263,21 @@ def test_valid_fragment_no_cycle():
 ## Part 7: Documentation Requirements
 
 ### Developer Documentation
+
 - [ ] Fragment support guide (nested, cycles, types)
 - [ ] Custom directive framework guide
 - [ ] DataLoader auto-integration guide
 - [ ] HTTP streaming setup guide
 
 ### API Documentation
+
 - [ ] @stream directive specification
 - [ ] @defer directive specification
 - [ ] Custom directive creation guide
 - [ ] Loader registration guide
 
 ### Examples
+
 - [ ] Nested fragment query examples
 - [ ] Custom directive usage examples
 - [ ] DataLoader integration example
@@ -1223,6 +1288,7 @@ def test_valid_fragment_no_cycle():
 ## Part 8: Dependencies & Prerequisites
 
 ### Existing Infrastructure Available
+
 - ✅ Fragment resolver (exists and works)
 - ✅ DataLoader implementation (exists and works)
 - ✅ Subscription async framework (exists)
@@ -1230,11 +1296,13 @@ def test_valid_fragment_no_cycle():
 - ✅ GraphQL-core integration (exists)
 
 ### Required Additions
+
 - ⚠️ Registry pattern (can reuse existing patterns)
 - ⚠️ Middleware integration (partially exists)
 - ⚠️ Streaming response format (new)
 
 ### External Dependencies
+
 - None (all GraphQL spec)
 
 ---

@@ -7,12 +7,14 @@ This guide provides step-by-step instructions for migrating existing FraiseQL mu
 ### ✅ Good Candidates for CASCADE Migration
 
 **High-Impact Mutations**:
+
 - **Create Operations**: New entities with side effects (post creation → author stats update)
 - **Complex Updates**: Multi-entity modifications (order fulfillment → inventory + user balance)
 - **Social Features**: Follow/unfollow, like/unlike with counter updates
 - **Content Management**: Article publishing with category/tag updates
 
 **Performance Benefits**:
+
 - **Network Reduction**: 60-80% fewer queries after mutations
 - **Cache Consistency**: Automatic cache updates prevent stale data
 - **User Experience**: Immediate UI updates without loading states
@@ -20,11 +22,13 @@ This guide provides step-by-step instructions for migrating existing FraiseQL mu
 ### ❌ Skip CASCADE for These Cases
 
 **Low-Impact Mutations**:
+
 - Simple preference updates (single entity, no side effects)
 - Administrative operations (rarely used)
 - Real-time features (cursor positions, typing indicators)
 
 **When CASCADE Adds Little Value**:
+
 - Mutations without client-side follow-up queries
 - Single-entity updates with no dependent data
 - Operations that trigger full page reloads
@@ -70,6 +74,7 @@ FROM tb_user;
 ```
 
 **Best Practices for Entity Views**:
+
 - Include all fields clients typically access
 - Use consistent naming: `v_entity_name`
 - Add performance indexes on `id` column
@@ -197,6 +202,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Key Changes**:
+
 1. Extract entity IDs into variables for reuse
 2. Add `_cascade` field to return JSONB
 3. Include all affected entities in `updated` array
@@ -207,6 +213,7 @@ $$ LANGUAGE plpgsql;
 ### Step 1.1: Update Mutation Decorators
 
 #### Before
+
 ```python
 @fraiseql.mutation
 class CreatePost:
@@ -216,6 +223,7 @@ class CreatePost:
 ```
 
 #### After
+
 ```python
 @fraiseql.mutation(enable_cascade=True)
 class CreatePost:
@@ -229,6 +237,7 @@ class CreatePost:
 Ensure Success types have explicit field annotations:
 
 #### Before (May work but not recommended)
+
 ```python
 @fraiseql.type
 class CreatePostSuccess:
@@ -237,6 +246,7 @@ class CreatePostSuccess:
 ```
 
 #### After (Required for CASCADE)
+
 ```python
 @fraiseql.type
 class CreatePostSuccess:
@@ -246,6 +256,7 @@ class CreatePostSuccess:
 ```
 
 **Field Mapping Rules**:
+
 - **Entity Fields**: GraphQL object types (Post, User, etc.)
 - **Standard Fields**: Primitive types (str, int, bool, etc.)
 - **CASCADE Field**: Automatically added when `enable_cascade=True`
@@ -253,6 +264,7 @@ class CreatePostSuccess:
 ### Step 1.3: Update GraphQL Queries
 
 #### Before (Client handles cache manually)
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -264,6 +276,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 #### After (CASCADE provides cache updates)
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -667,6 +680,7 @@ cascade_entities_total = Counter(
 #### Grafana Dashboard
 
 Create dashboards tracking:
+
 - CASCADE processing latency
 - Payload size distribution
 - Error rates
@@ -733,12 +747,14 @@ groups:
 **Symptoms**: `cascade` field is `null` or missing in GraphQL response
 
 **Checklist**:
+
 1. ✅ Mutation has `enable_cascade=True`
 2. ✅ PostgreSQL function returns `_cascade` field
 3. ✅ Entity views exist and are accessible
 4. ✅ Success type has proper field annotations
 
 **Debug Commands**:
+
 ```sql
 -- Check PostgreSQL function output
 SELECT jsonb_pretty(_cascade) FROM graphql.create_post('{"title": "Test"}');
@@ -752,11 +768,13 @@ SELECT data FROM v_post WHERE id = 'post-123';
 **Symptoms**: Entity fields (like `post`) not appearing in response
 
 **Common Causes**:
+
 - Case sensitivity mismatch between `entity_type` and field names
 - Missing fields in PostgreSQL entity structure
 - Incorrect Success type field definitions
 
 **Debug Steps**:
+
 ```python
 # Check entity flattener logs
 logger.debug(f"Entity type '{entity_type}' matched field '{field_name}'")
@@ -771,12 +789,14 @@ print(f"Expected fields: {expected_fields}")
 **Symptoms**: Client cache doesn't reflect CASCADE changes
 
 **Checklist**:
+
 1. ✅ Apollo Client version supports CASCADE
 2. ✅ Cache updates applied correctly
 3. ✅ Entity IDs match cache keys (`__typename` + `id`)
 4. ✅ Fragment structure matches entity schema
 
 **Debug Tips**:
+
 ```typescript
 // Manually test cache operations
 const id = cache.identify({ __typename: 'Post', id: 'post-123' });
@@ -788,6 +808,7 @@ console.log('Cache ID:', id);
 **Symptoms**: CASCADE processing is slow or memory-intensive
 
 **Optimization Steps**:
+
 1. **Limit CASCADE scope**: Include only directly affected entities
 2. **Optimize database views**: Add indexes for CASCADE view queries
 3. **Batch updates**: Group related entity updates
@@ -804,12 +825,14 @@ FROM graphql.create_post('{"title": "Test"}');
 ## Migration Checklist
 
 ### Database Preparation
+
 - [ ] Create entity views for CASCADE data extraction
 - [ ] Add CASCADE helper functions to schema
 - [ ] Update PostgreSQL functions to include `_cascade` field
 - [ ] Test CASCADE data generation
 
 ### Application Code Changes
+
 - [ ] Add `enable_cascade=True` to mutation decorators
 - [ ] Update Success types with explicit field annotations
 - [ ] Update GraphQL queries to request CASCADE field
@@ -817,12 +840,14 @@ FROM graphql.create_post('{"title": "Test"}');
 - [ ] Test CASCADE integration end-to-end
 
 ### Deployment Steps
+
 - [ ] Enable feature flag in staging environment
 - [ ] Deploy with CASCADE-enabled mutations
 - [ ] Monitor performance and errors
 - [ ] Gradually enable for production traffic
 
 ### Post-Deployment
+
 - [ ] Monitor CASCADE performance metrics
 - [ ] Collect user feedback on performance improvements
 - [ ] Plan optimizations based on usage patterns
@@ -831,24 +856,28 @@ FROM graphql.create_post('{"title": "Test"}');
 ## Best Practices Summary
 
 ### Database Design
+
 - Use consistent entity view naming (`v_entity_name`)
 - Include all fields clients typically need
 - Add performance indexes on frequently accessed columns
 - Validate view data completeness and accuracy
 
 ### Application Architecture
+
 - Start with simple mutations (create operations)
 - Use feature flags for gradual rollout
 - Implement comprehensive error handling
 - Monitor performance and payload sizes
 
 ### Client Integration
+
 - Leverage automatic cache updates when possible
 - Implement manual updates for complex scenarios
 - Handle CASCADE processing errors gracefully
 - Test thoroughly with real data patterns
 
 ### Performance Optimization
+
 - Keep CASCADE payloads under 50KB
 - Include only directly affected entities
 - Use appropriate invalidation strategies
@@ -864,6 +893,7 @@ FROM graphql.create_post('{"title": "Test"}');
 ## Migration Effort Estimate
 
 **Typical Application Migration**:
+
 - **Small App** (1-5 mutations): 1-2 days
 - **Medium App** (5-20 mutations): 3-5 days
 - **Large App** (20+ mutations): 1-2 weeks

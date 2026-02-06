@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Database Schema Migration Guide
 description: Step-by-step guide for migrating existing database schemas to FraiseQL v2.0.0-alpha.1.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "schema", "tutorial"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 1.1: What is FraiseQL?
 description: FraiseQL is a **compiled GraphQL execution engine** that transforms schema definitions into optimized SQL at build time, eliminating runtime overhead and enabli
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

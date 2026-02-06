@@ -15,6 +15,7 @@ This runbook guides you through diagnosing and resolving high memory usage in Fr
 ## 🚨 Symptoms
 
 ### Primary Indicators
+
 - Application memory usage > 80% of limit
 - OOMKilled events in container logs
 - Swap usage increasing
@@ -75,6 +76,7 @@ rate(python_gc_collections_total[5m]) > 10
 ### Step 1: Check Current Memory Usage
 
 **Via Prometheus**:
+
 ```promql
 # Current memory usage
 process_resident_memory_bytes
@@ -87,6 +89,7 @@ process_virtual_memory_bytes
 ```
 
 **Via System Commands**:
+
 ```bash
 # Check container memory usage (Docker)
 docker stats --no-stream <container_id>
@@ -99,6 +102,7 @@ free -h
 ```
 
 **Via Application Endpoint**:
+
 ```bash
 # Health check endpoint includes memory stats
 curl http://localhost:8000/health/detailed
@@ -117,6 +121,7 @@ curl http://localhost:8000/health/detailed
 ### Step 2: Identify Memory Consumers
 
 **Via Prometheus - Component Breakdown**:
+
 ```promql
 # Database connection pool memory
 fraiseql_db_connections_total * 10485760  # ~10MB per connection estimate
@@ -129,6 +134,7 @@ fraiseql_graphql_queries_total - fraiseql_graphql_queries_success - fraiseql_gra
 ```
 
 **Via Python Memory Profiler** (development only):
+
 ```python
 import tracemalloc
 
@@ -147,6 +153,7 @@ for stat in top_stats[:10]:
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Find memory-related events
 jq -r 'select(.event | startswith("system.memory")) |
@@ -162,6 +169,7 @@ jq -r 'select(.context.request_size_bytes > 1048576) |
 ### Step 3: Check for Memory Leaks
 
 **Python Garbage Collection Stats**:
+
 ```promql
 # GC collection frequency (high = potential leak)
 rate(python_gc_collections_total[5m])
@@ -171,6 +179,7 @@ python_gc_objects_uncollectable_total
 ```
 
 **Check Object Count Growth**:
+
 ```promql
 # Total Python objects
 python_gc_objects_collected_total
@@ -180,6 +189,7 @@ rate(python_gc_objects_collected_total[10m])
 ```
 
 **Via Application Code**:
+
 ```python
 import gc
 
@@ -200,6 +210,7 @@ for obj_type, count in sorted(type_counts.items(), key=lambda x: -x[1])[:10]:
 ### Step 4: Check Database Connection Pool
 
 **Via Prometheus**:
+
 ```promql
 # Active connections (each uses ~10MB)
 fraiseql_db_connections_active
@@ -212,6 +223,7 @@ fraiseql_db_connections_idle
 ```
 
 **Via PostgreSQL**:
+
 ```sql
 -- Check connection count
 SELECT count(*) AS connections FROM pg_stat_activity;
@@ -227,6 +239,7 @@ GROUP BY application_name;
 ### Step 5: Check Request Processing
 
 **Large Requests/Responses**:
+
 ```promql
 # HTTP request size histogram
 histogram_quantile(0.95,
@@ -240,6 +253,7 @@ histogram_quantile(0.95,
 ```
 
 **Active Operations**:
+
 ```bash
 # Count in-flight GraphQL operations
 curl http://localhost:8000/metrics | grep fraiseql_graphql | grep -v "#"
@@ -290,6 +304,7 @@ app = FraiseQL(
 ```
 
 **Environment Variable**:
+
 ```bash
 export FRAISEQL_DB_POOL_SIZE=5
 export FRAISEQL_DB_MAX_OVERFLOW=2
@@ -300,6 +315,7 @@ export FRAISEQL_DB_MAX_OVERFLOW=2
 #### 1. Analyze Memory Usage Pattern
 
 **Check for Memory Leak**:
+
 ```bash
 # Compare memory usage over time
 curl http://localhost:8000/metrics | grep process_resident_memory
@@ -312,6 +328,7 @@ curl http://localhost:8000/metrics | grep process_resident_memory
 ```
 
 **Identify Leak Source**:
+
 ```python
 # Use objgraph to find memory leaks (development)
 import objgraph
@@ -331,6 +348,7 @@ objgraph.show_growth()
 #### 2. Optimize Connection Pool Settings
 
 **Right-size Based on Actual Usage**:
+
 ```python
 # Calculate optimal pool size
 # Formula: pool_size = concurrent_requests / avg_query_time
@@ -347,6 +365,7 @@ app = FraiseQL(
 ```
 
 **Memory Impact**:
+
 ```
 Each connection ≈ 10MB
 pool_size=20 → ~200MB
@@ -365,6 +384,7 @@ app = FraiseQL(
 ```
 
 **Benefits**:
+
 - Prevents connection memory bloat
 - Releases idle connection memory
 - Detects stale connections
@@ -382,6 +402,7 @@ app = FraiseQL(cache=cache)
 ```
 
 **Switch to External Cache**:
+
 ```python
 from fraiseql.caching import RedisCache
 
@@ -399,6 +420,7 @@ app = FraiseQL(cache=cache)
 #### 1. Implement Memory Limits
 
 **Docker/Kubernetes**:
+
 ```yaml
 # docker-compose.yml
 services:
@@ -422,6 +444,7 @@ resources:
 ```
 
 **Set OOM Score** (Linux):
+
 ```bash
 # Prevent OOM killer from targeting this process
 echo -1000 > /proc/<pid>/oom_score_adj
@@ -473,6 +496,7 @@ async def resolve_users(info, limit: int = 100):
 ```
 
 **Pagination for Large Results**:
+
 ```python
 @app.query.field("orders")
 async def resolve_orders(
@@ -514,6 +538,7 @@ spec:
 ```
 
 **Benefits**:
+
 - Reduced memory per instance
 - Better fault tolerance
 - Higher total capacity
@@ -574,22 +599,26 @@ groups:
 ### Grafana Dashboard Panels
 
 **1. Memory Usage Timeline**:
+
 ```promql
 process_resident_memory_bytes
 process_virtual_memory_bytes
 ```
 
 **2. Memory Usage Percentage**:
+
 ```promql
 (process_resident_memory_bytes / node_memory_MemTotal_bytes) * 100
 ```
 
 **3. Memory Growth Rate**:
+
 ```promql
 rate(process_resident_memory_bytes[10m])
 ```
 
 **4. Garbage Collection Activity**:
+
 ```promql
 rate(python_gc_collections_total[5m])
 python_gc_objects_uncollectable_total

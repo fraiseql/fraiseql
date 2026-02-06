@@ -1,12 +1,15 @@
 # Phase 1: Audit and Inventory (GREENFIELD)
 
 ## Objective
+
 Create a complete, structured inventory of all integration test files requiring cleanup, categorized by the type of issue.
 
 ## Context
+
 Before making any changes, we need a clear map of what needs to be done. This phase involves scanning the test suite and creating a machine-readable inventory that will guide the subsequent phases.
 
 ## Files to Create
+
 - `tests/integration/.cleanup-inventory.json`
 
 ## Implementation Steps
@@ -269,6 +272,7 @@ echo "Delete files: $(jq '.categories.incomplete_tests.files | length' tests/int
 ```
 
 **Expected output**:
+
 ```
 ✓ JSON valid
 Duplicate groups: 4

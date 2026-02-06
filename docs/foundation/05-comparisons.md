@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 1.5: FraiseQL Compared to Other Approaches
 description: FraiseQL is one of several approaches to building GraphQL APIs. This topic compares FraiseQL with popular alternatives to help you understand where each approac
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

@@ -7,21 +7,25 @@ Comprehensive benchmark comparing different PostgreSQL methods for generating JS
 ### View-Based Generation (Query Side)
 
 1. **`jsonb_build_object()`** - Current FraiseQL pattern
+
    ```sql
    jsonb_build_object('key1', col1, 'key2', col2, ...)
    ```
 
 2. **`row_to_json()` with LATERAL** - Manual field selection with LATERAL join
+
    ```sql
    row_to_json(t)::jsonb FROM ... CROSS JOIN LATERAL (SELECT ...) t
    ```
 
 3. **`row_to_json()` with subquery** - Manual field selection with subquery
+
    ```sql
    row_to_json((SELECT t FROM (SELECT ...) t))::jsonb
    ```
 
 4. **`to_jsonb()`** - Simplest approach, converts entire row
+
    ```sql
    to_jsonb(table_name) - 'pk_field'
    ```
@@ -29,11 +33,13 @@ Comprehensive benchmark comparing different PostgreSQL methods for generating JS
 ### Trinity Table GENERATED Columns (Write Side)
 
 5. **GENERATED with `jsonb_build_object()`**
+
    ```sql
    data JSONB GENERATED ALWAYS AS (jsonb_build_object(...)) STORED
    ```
 
 6. **GENERATED with `to_jsonb()`**
+
    ```sql
    data JSONB GENERATED ALWAYS AS (to_jsonb(table_name) - 'data' - 'pk') STORED
    ```
@@ -107,6 +113,7 @@ Based on PostgreSQL performance characteristics, we expect:
 3. **`jsonb_build_object()`** - Slowest but most flexible (current approach)
 
 For **Trinity tables with GENERATED columns**:
+
 - Similar performance characteristics
 - Additional storage overhead for precomputed JSONB
 - Faster SELECT queries (no generation cost)
@@ -123,18 +130,21 @@ For **Trinity tables with GENERATED columns**:
 ### Trade-offs
 
 **`to_jsonb()` Advantages:**
+
 - ✅ Fastest generation
 - ✅ Simplest SQL
 - ❌ Snake_case keys (requires Rust transformation)
 - ❌ Less control over field selection
 
 **`row_to_json()` Advantages:**
+
 - ✅ 2-3x faster than jsonb_build_object
 - ✅ Full control over fields
 - ✅ Can use camelCase in SQL
 - ⚠️ Slightly more complex SQL
 
 **`jsonb_build_object()` Advantages:**
+
 - ✅ Maximum flexibility
 - ✅ Current FraiseQL pattern (no changes needed)
 - ❌ Slowest method
@@ -165,11 +175,13 @@ Generated columns typically add **30-50% storage overhead** but eliminate query-
 Based on benchmark results, you should see:
 
 **For Views:**
+
 1. Use `to_jsonb()` for simple views (let Rust handle camelCase)
 2. Use `row_to_json()` when you need field selection in SQL
 3. Reserve `jsonb_build_object()` for complex nested compositions
 
 **For Trinity Tables:**
+
 1. Use GENERATED columns when read:write ratio > 10:1
 2. Choose `to_jsonb()` for GENERATED columns (simpler, faster)
 3. Consider materialized views for expensive aggregations
@@ -186,6 +198,7 @@ psql -d your_db -c "DROP TABLE IF EXISTS tv_user_to_jsonb CASCADE;"
 ## Contributing
 
 Found interesting results? Please share:
+
 - Your hardware specs (CPU, RAM, disk type)
 - PostgreSQL version and configuration
 - Benchmark results summary

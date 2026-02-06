@@ -7,6 +7,7 @@ Fast lookup for common commands, patterns, and questions.
 ## Commands at a Glance
 
 ### Testing
+
 ```bash
 pytest -v                                    # Run all tests
 pytest tests/test_deployers.py -v            # Run deployer tests only
@@ -16,6 +17,7 @@ pytest -s -v                                 # Show print output
 ```
 
 ### Code Quality
+
 ```bash
 ruff format fraisier/                        # Format code
 ruff check fraisier/                         # Check for issues
@@ -23,6 +25,7 @@ ruff check fraisier/ --fix                   # Auto-fix issues
 ```
 
 ### Git
+
 ```bash
 git log --oneline -20                        # Last 20 commits
 git log -p fraisier/database.py              # Changes to database file
@@ -31,6 +34,7 @@ git status                                   # Current status
 ```
 
 ### Database
+
 ```bash
 sqlite3 fraisier.db "SELECT * FROM v_fraise_status;"
 sqlite3 fraisier.db "SELECT * FROM v_deployment_history LIMIT 5;"
@@ -111,6 +115,7 @@ with get_connection() as conn:
 ### "AttributeError: module 'subprocess' has no attribute 'run'"
 
 **Fix**: Mock subprocess correctly in tests
+
 ```python
 with patch("subprocess.run") as mock_run:
     mock_run.return_value = MagicMock(returncode=0, stdout="output")
@@ -120,6 +125,7 @@ with patch("subprocess.run") as mock_run:
 ### "ModuleNotFoundError: No module named 'fraisier'"
 
 **Fix**: Install in development mode
+
 ```bash
 cd fraisier
 pip install -e ".[dev]"
@@ -128,6 +134,7 @@ pip install -e ".[dev]"
 ### "Database locked" errors
 
 **Fix**: Close database connections properly
+
 ```python
 # Good
 with get_connection() as conn:
@@ -142,6 +149,7 @@ conn = sqlite3.connect(db_path)
 ### "Tests have no coverage"
 
 **Fix**: Run pytest with --cov flag
+
 ```bash
 pytest --cov=fraisier --cov-report=html
 # Open htmlcov/index.html in browser
@@ -152,6 +160,7 @@ pytest --cov=fraisier --cov-report=html
 ## Type Hints Quick Ref
 
 ### Modern Style (Python 3.10+)
+
 ```python
 # ✅ Good - use these
 def process(items: list[str], config: dict[str, int] | None = None) -> str | None:
@@ -161,6 +170,7 @@ def process(items: list[str], config: dict[str, int] | None = None) -> str | Non
 ```
 
 ### Old Style (Python 3.9)
+
 ```python
 # ❌ Avoid in new code
 from typing import Optional, List, Dict
@@ -315,6 +325,7 @@ def execute(self) -> DeploymentResult:
 ## Trinity Pattern Reminder
 
 Every table follows this column order:
+
 ```sql
 id → identifier → pk_* → fk_* → domain_columns → audit_columns
 ```

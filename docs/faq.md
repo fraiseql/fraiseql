@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Frequently Asked Questions (FAQ)
 description: 1. [General Questions](#general-questions)
 keywords: []

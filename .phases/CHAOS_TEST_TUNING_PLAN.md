@@ -77,6 +77,7 @@ The v1.9.0a1 branch includes **128 new chaos engineering tests** designed to val
 **Status**: ❌ FAILED
 
 **Error**:
+
 ```python
 assert auth_contentions >= 1, "Should experience some auth contention under load"
 AssertionError: Should experience some auth contention under load
@@ -84,6 +85,7 @@ assert 0 >= 1
 ```
 
 **Root Cause Analysis**:
+
 - System hardware is too fast for current load parameters
 - Connection pool is large enough to handle concurrent requests
 - No actual contention detected under test conditions
@@ -99,6 +101,7 @@ assert 0 >= 1
 **Goal**: Understand all failure patterns
 
 **Tasks**:
+
 1. Run all chaos tests with detailed output (`-vv --tb=long`)
 2. Categorize failures into types:
    - Environment-specific (hardware, timing)
@@ -109,6 +112,7 @@ assert 0 >= 1
 4. Identify patterns across test categories
 
 **Deliverables**:
+
 - Failure categorization spreadsheet
 - Priority-ranked fix list
 - Pattern analysis document
@@ -226,6 +230,7 @@ async def test_concurrent_authentication_load(chaos_config):
 ```
 
 **Specific Tuning**:
+
 1. **Reduce connection pool size** (20 → 10) to create bottleneck
 2. **Increase concurrent requests** dynamically based on hardware
 3. **Add adaptive assertions** that scale with load
@@ -254,6 +259,7 @@ async def test_cache_invalidation_under_load(chaos_config):
 ```
 
 **Specific Tuning**:
+
 1. **Add retry logic** for timing-sensitive assertions
 2. **Adjust TTL values** based on system performance
 3. **Increase cache size** if too much eviction occurring
@@ -279,6 +285,7 @@ async def test_race_condition_detection(chaos_config):
 ```
 
 **Specific Tuning**:
+
 1. **Add synchronization barriers** for true simultaneous execution
 2. **Scale iterations** with hardware capability
 3. **Add explicit yields** to increase context switching
@@ -306,6 +313,7 @@ async def test_transaction_rollback_under_load(chaos_config, db_pool):
 ```
 
 **Specific Tuning**:
+
 1. **Create dedicated pools** with specific sizes for each test
 2. **Add transaction isolation checks**
 3. **Increase data volume** for meaningful consistency tests
@@ -331,6 +339,7 @@ async def test_connection_timeout_handling(chaos_config):
 ```
 
 **Specific Tuning**:
+
 1. **Scale timeouts** inversely with hardware speed
 2. **Add network simulation** using `tc` (traffic control) on Linux
 3. **Test reconnection logic** explicitly
@@ -474,6 +483,7 @@ pytest tests/chaos -v
 ```
 
 ### Specific Category
+
 ```bash
 pytest tests/chaos/auth -v
 pytest tests/chaos/cache -v
@@ -483,16 +493,19 @@ pytest tests/chaos/concurrency -v
 ## Configuration
 
 ### Environment Variables
+
 - `CHAOS_LOAD_MULTIPLIER`: Scale concurrent requests (default: auto-detect)
 - `CHAOS_TIMEOUT`: Override timeout values (default: 5s)
 - `CHAOS_POOL_SIZE`: Connection pool size (default: 10)
 
 ### Hardware Requirements
+
 - Minimum: 2 cores, 4GB RAM
 - Recommended: 4+ cores, 8+ GB RAM
 - CI/CD: Tests auto-adjust for constrained environments
 
 ## Expected Pass Rates
+
 - **Local Development**: 80-90%
 - **CI/CD**: 70-85% (resource constraints)
 - **Production Validation**: 90-95%
@@ -500,14 +513,17 @@ pytest tests/chaos/concurrency -v
 ## Troubleshooting
 
 ### High Failure Rate
+
 1. Check `CHAOS_LOAD_MULTIPLIER` - may be too high
 2. Increase timeout values if hardware is slow
 3. Review logs for specific assertion failures
 
 ### Flaky Tests
+
 1. Ensure database is not under external load
 2. Check for resource constraints (CPU, memory)
 3. Run tests in isolation: `pytest -x tests/chaos/auth/test_specific.py`
+
 ```
 
 ---
@@ -701,6 +717,7 @@ Some chaos tests are designed to fail under certain conditions:
 Chaos test tuning is a **systematic, iterative process** that will significantly improve the production readiness of v1.9.0a1. While the current ~50-70% pass rate may seem concerning, it's **normal and expected** for new chaos tests.
 
 **Key Principles**:
+
 1. **Adaptive**: Tests adapt to environment capabilities
 2. **Documented**: All behaviors and limitations documented
 3. **Prioritized**: Fix critical tests (auth, security) first

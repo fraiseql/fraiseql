@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: tv_* Table Pattern: Table-Backed JSON Views
 description: - Physical storage on disk (materialized JSONB data)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

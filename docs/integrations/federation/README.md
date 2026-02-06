@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Federation
 description: Multi-database query composition with SAGA pattern consistency.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

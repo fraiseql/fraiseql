@@ -12,6 +12,7 @@
 The original gap analysis correctly identified 5 easy-to-implement gaps, but **prioritized them incorrectly for FraiseQL's actual architecture**.
 
 FraiseQL is **not a traditional GraphQL server**—it's a **view-centric query engine** where:
+
 - All joins are **pre-computed in `tv_*` materialized views**
 - Business logic validation happens in **SQL functions**, not directives
 - Data fetching is **inherently optimized** by the database schema design
@@ -47,7 +48,7 @@ FraiseQL is **not a traditional GraphQL server**—it's a **view-centric query e
 
 **Corrected Assessment:** ⚠️ **SKIP - Unnecessary by design**
 
-#### Why It's Wrong:
+#### Why It's Wrong
 
 FraiseQL's view-centric architecture **eliminates N+1 queries at the schema level**:
 
@@ -74,12 +75,14 @@ class UserWithPosts:
 ```
 
 **Why DataLoaders are unnecessary:**
+
 1. ✅ All required relationships are **pre-computed in `tv_*` views**
 2. ✅ PostgreSQL JSONB arrays/objects handle **1-to-many relationships**
 3. ✅ No batching needed because **data is already denormalized**
 4. ✅ IVM (Incremental View Maintenance) handles **view refresh**, not DataLoaders
 
 **When would you need DataLoaders?**
+
 - ❌ Only if querying normalized `tb_*` base tables instead of views
 - ❌ Only if your schema forces N+1 queries (architectural problem)
 - ❌ Not with FraiseQL's intended usage pattern
@@ -94,7 +97,7 @@ class UserWithPosts:
 
 **Corrected Assessment:** ⚠️ **REFRAME - Implement as metadata directives only**
 
-#### Why the Original Was Wrong:
+#### Why the Original Was Wrong
 
 FraiseQL validates **at the database layer**, not in GraphQL directives:
 
@@ -130,7 +133,7 @@ FROM tb_user
 WHERE tenant_id = current_setting('app.current_tenant_id')::uuid;
 ```
 
-#### The Right Implementation:
+#### The Right Implementation
 
 **Use directives for schema metadata, not business logic:**
 
@@ -157,6 +160,7 @@ class UserWithProfile:
 ```
 
 **These directives:**
+
 - 📋 Document schema intentions
 - 🔍 Enable tooling (view dependency graphs)
 - 📊 Support cost analysis
@@ -173,7 +177,7 @@ class UserWithProfile:
 
 **Corrected Assessment:** ❌ **SKIP - Out of scope for FraiseQL**
 
-#### Why:
+#### Why
 
 1. **FraiseQL queries are bounded**: Views return pre-shaped, complete results
 2. **No streaming benefit**: Data is already optimized at schema level
@@ -194,6 +198,7 @@ class UserWithProfile:
 **What:** Expand fragment spreads recursively in nested field selections
 
 **Why it matters:**
+
 - ✅ Complex denormalized views have many fields
 - ✅ Fragment reuse becomes critical as schemas grow
 - ✅ Enables composition of view selectors
@@ -201,6 +206,7 @@ class UserWithProfile:
 **Current code location:** `src/fraiseql/core/fragment_resolver.py:40-62`
 
 **Implementation:**
+
 ```python
 # Current: resolve() at root level only
 def resolve(sel: SelectionNode) -> None:
@@ -225,6 +231,7 @@ def resolve(sel: SelectionNode) -> None:
 ```
 
 **Tests (5+ cases):**
+
 - Fragment spread in nested field selection
 - Multiple levels of nesting
 - Mix of inline fragments and spreads
@@ -242,6 +249,7 @@ def resolve(sel: SelectionNode) -> None:
 **What:** Detect and reject circular fragment references
 
 **Why it matters:**
+
 - ✅ Prevents DoS via infinite fragment recursion
 - ✅ Catches configuration errors early
 - ✅ Enables safe fragment validation at parse time
@@ -287,6 +295,7 @@ def resolve_all_fields(
 ```
 
 **Tests (10+ cases):**
+
 - Direct self-reference: `fragment A → A`
 - Mutual cycle: `A → B → A`
 - Chain cycle: `A → B → C → A`
@@ -306,6 +315,7 @@ def resolve_all_fields(
 **What:** Directives that document schema intentions and enable tooling
 
 **Why it matters:**
+
 - ✅ Documents view dependencies for maintenance
 - ✅ Enables automatic view refresh strategy generation
 - ✅ Supports query cost analysis
@@ -374,6 +384,7 @@ class CostUnitsDirective(SchemaDirective):
 ```
 
 **Schema Definition:**
+
 ```python
 # File: src/fraiseql/gql/schema_builder.py
 
@@ -415,6 +426,7 @@ schema_directives = [
 ```
 
 **Usage Example:**
+
 ```python
 @fraiseql.type(sql_source="tv_user_with_profile")
 class UserWithProfile:
@@ -433,6 +445,7 @@ class UserWithProfile:
 ```
 
 **Tests (8+ cases):**
+
 - TTL validation (positive, negative, zero)
 - View dependency validation (existing, missing views)
 - Function requirement validation (existing, missing functions)
@@ -452,6 +465,7 @@ class UserWithProfile:
 **Rejection Reason:** Architectural mismatch with view-centric design
 
 **Why:**
+
 - Denormalized views eliminate N+1 queries at schema level
 - DataLoaders add complexity without benefit
 - Graph doesn't require batching when data is pre-joined
@@ -466,6 +480,7 @@ class UserWithProfile:
 **Rejection Reason:** Out of scope for bounded query results
 
 **Why:**
+
 - FraiseQL queries return complete, pre-shaped results from views
 - Incremental delivery doesn't align with view-based architecture
 - WebSocket subscriptions already handle streaming needs
@@ -480,13 +495,15 @@ class UserWithProfile:
 
 ### Phase 1: Query Ergonomics (Weeks 1-2)
 
-#### Nested Fragments Success:
+#### Nested Fragments Success
+
 - [ ] All 5+ nested fragment test cases pass
 - [ ] No regressions in existing fragment tests (full test suite passes)
 - [ ] Complex denormalized views work with nested spreads
 - [ ] Performance < 5% variance
 
-#### Fragment Cycle Detection Success:
+#### Fragment Cycle Detection Success
+
 - [ ] All 10+ cycle detection test cases pass
 - [ ] Direct self-references rejected
 - [ ] Mutual cycles rejected
@@ -496,7 +513,8 @@ class UserWithProfile:
 
 ### Phase 2: Schema Semantics (Weeks 3-4)
 
-#### View/Metadata Directives Success:
+#### View/Metadata Directives Success
+
 - [ ] All 8+ directive validation tests pass
 - [ ] Schema introspection shows all directives
 - [ ] TTL validation working
@@ -510,18 +528,22 @@ class UserWithProfile:
 ## Part 6: Risk Analysis
 
 ### Risk 1: Breaking Fragment Resolution
+
 **Probability:** Low
 **Mitigation:** Run full test suite after each change, use feature branches
 
 ### Risk 2: Performance Regression
+
 **Probability:** Low
 **Mitigation:** Benchmark fragment resolution time, profile memory usage
 
 ### Risk 3: Directive Validation Too Strict
+
 **Probability:** Medium
 **Mitigation:** Make directives optional, provide migration guide for existing schemas
 
 ### Risk 4: Fragment Cycles Hard to Debug
+
 **Probability:** Low
 **Mitigation:** Clear error messages with cycle path visualization
 
@@ -546,6 +568,7 @@ Phase 2: Schema Semantics
 ```
 
 **Can be done in parallel:**
+
 - Gap #1 and Gap #5 (different modules, can have separate PRs)
 - Gap #2 (independent of fragments)
 
@@ -554,16 +577,19 @@ Phase 2: Schema Semantics
 ## Part 8: What NOT to Do
 
 ### 🚫 Don't implement "business logic directives"
+
 - Validation goes in SQL CHECK constraints, not directives
 - Rate limiting goes in rate_limit tables + stored procedures
 - Access control goes in `tv_*` views with role filters
 
 ### 🚫 Don't implement DataLoaders
+
 - They solve a non-problem in FraiseQL's architecture
 - Denormalization eliminates N+1 queries
 - Adds unnecessary complexity
 
 ### 🚫 Don't implement HTTP Streaming
+
 - FraiseQL queries return bounded results
 - WebSocket subscriptions handle actual streaming
 - Protocol overhead not justified
@@ -585,6 +611,7 @@ Phase 2: Schema Semantics
 **Total effort: 8-11 hours** (vs. original 28 hours for all gaps)
 
 **Impact:**
+
 - ✅ Improves from ~90% to ~93% spec compliance
 - ✅ Maintains FraiseQL's architectural integrity
 - ✅ Focuses on real developer pain points

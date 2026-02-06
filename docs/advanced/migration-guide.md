@@ -17,12 +17,14 @@ This guide helps you migrate from the Python-based mutation pipeline to the new 
 ## Key Changes
 
 ### Performance Improvements
+
 - **10-50x faster** response building
 - **Zero-copy** JSON parsing where possible
 - **SIMD acceleration** for string transformations
 - **Arena-based memory management**
 
 ### API Compatibility
+
 - Drop-in replacement for existing Python code
 - Same function signatures and return formats
 - Maintains all existing GraphQL response structures
@@ -32,11 +34,13 @@ This guide helps you migrate from the Python-based mutation pipeline to the new 
 ### 1. Update Imports
 
 **Before:**
+
 ```python
 from fraiseql.mutations import build_mutation_response
 ```
 
 **After:**
+
 ```python
 from fraiseql_rs import build_mutation_response
 ```
@@ -64,6 +68,7 @@ result = build_mutation_response(
 **Important:** The Rust pipeline returns `bytes` instead of `dict`.
 
 **Before:**
+
 ```python
 # Python pipeline returns dict
 result = build_mutation_response(...)
@@ -72,6 +77,7 @@ user = result["data"]["createUser"]["user"]
 ```
 
 **After:**
+
 ```python
 # Rust pipeline returns bytes
 result = build_mutation_response(...)
@@ -88,6 +94,7 @@ user = parsed["data"]["createUser"]["user"]
 If you're using type annotations:
 
 **Before:**
+
 ```python
 from typing import Dict, Any
 def create_user(...) -> Dict[str, Any]:
@@ -96,6 +103,7 @@ def create_user(...) -> Dict[str, Any]:
 ```
 
 **After:**
+
 ```python
 from typing import Dict, Any
 import json
@@ -108,14 +116,17 @@ def create_user(...) -> Dict[str, Any]:
 ## Format Support
 
 ### Simple Format (Auto-detected)
+
 ```json
 {"id": "123", "name": "John", "email": "john@example.com"}
 ```
+
 - No `status` field or invalid status values
 - Entire JSON becomes the entity
 - Assumes success status
 
 ### Full v2 Format
+
 ```json
 {
   "status": "created",
@@ -125,6 +136,7 @@ def create_user(...) -> Dict[str, Any]:
   "cascade": {"updated": [], "deleted": []}
 }
 ```
+
 - Complete mutation response structure
 - Rich status taxonomy
 - Cascade data support
@@ -134,9 +146,11 @@ def create_user(...) -> Dict[str, Any]:
 The Rust pipeline supports a comprehensive status taxonomy:
 
 ### Success States
+
 - `success`, `created`, `updated`, `deleted` → HTTP 200
 
 ### Error States
+
 - `failed:*` → HTTP 422 or 500
 - `unauthorized:*` → HTTP 401
 - `forbidden:*` → HTTP 403
@@ -145,6 +159,7 @@ The Rust pipeline supports a comprehensive status taxonomy:
 - `timeout:*` → HTTP 408
 
 ### Noop States
+
 - `noop:*` → HTTP 200 (success with no changes)
 
 ## Cascade Data Handling
@@ -167,12 +182,14 @@ Cascade data represents side effects of mutations:
 ### Update Test Assertions
 
 **Before:**
+
 ```python
 result = build_mutation_response(...)
 assert result["data"]["createUser"]["__typename"] == "CreateUserSuccess"
 ```
 
 **After:**
+
 ```python
 result = build_mutation_response(...)
 parsed = json.loads(result.decode('utf-8'))
@@ -258,6 +275,7 @@ result = build_mutation_response(...)
 ## Complete Example
 
 **Before (Python):**
+
 ```python
 from fraiseql.mutations import build_mutation_response
 import json
@@ -282,6 +300,7 @@ def create_user(name: str, email: str):
 ```
 
 **After (Rust):**
+
 ```python
 from fraiseql_rs import build_mutation_response
 import json

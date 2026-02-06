@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Calendar Dimensions for High-Performance Analytics
 description: Calendar dimensions provide **10-20x performance improvements** for time-based aggregations by using pre-computed temporal fields stored in JSONB columns instea
 keywords: ["design", "scalability", "performance", "patterns", "security"]

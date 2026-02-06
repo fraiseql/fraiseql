@@ -15,6 +15,7 @@ Write comprehensive tests that **define the expected behavior** of custom scalar
 ## Context
 
 Currently:
+
 - ✅ Custom scalars work as field types
 - ✅ Custom scalars work in database roundtrip
 - ❌ Custom scalars don't work in WHERE clauses
@@ -28,6 +29,7 @@ Currently:
 ## Tests to Write
 
 ### Test 1: Filter Type Generation (Unit Test)
+
 **File**: `tests/unit/sql/test_custom_scalar_where_filters.py` (NEW)
 
 **Purpose**: Verify that custom scalar filter types are generated correctly
@@ -138,12 +140,14 @@ def test_nullable_custom_scalar_filter():
 ```
 
 **Expected Result**: All tests FAIL with clear messages like:
+
 - `AssertionError: expected 'CIDRFilter', got 'StringFilter'`
 - `KeyError: 'ipNetwork' not in where_input.fields`
 
 ---
 
 ### Test 2: GraphQL Query Integration (Integration Test)
+
 **File**: `tests/integration/meta/test_all_scalars.py` (MODIFY)
 
 **Purpose**: Un-skip the 6 WHERE clause tests, fix them to work properly
@@ -153,6 +157,7 @@ def test_nullable_custom_scalar_filter():
 **Changes Needed**:
 
 1. **Remove skip decorator**:
+
 ```python
 # REMOVE THIS:
 @pytest.mark.skip(
@@ -301,6 +306,7 @@ async def test_scalar_in_where_clause(scalar_name, scalar_class, meta_test_pool)
 ```
 
 **Expected Result**: All 6 tests FAIL with:
+
 ```
 AssertionError: Scalar CIDRScalar failed in WHERE clause: [GraphQLError("Variable '$filterValue' of type 'CIDR!' used in position expecting type 'String'.")]
 ```
@@ -308,6 +314,7 @@ AssertionError: Scalar CIDRScalar failed in WHERE clause: [GraphQLError("Variabl
 ---
 
 ### Test 3: Edge Cases (Unit Tests)
+
 **File**: `tests/unit/sql/test_custom_scalar_where_filters.py`
 
 **Purpose**: Test edge cases and error handling
@@ -372,11 +379,13 @@ def test_built_in_scalar_types_unchanged():
 ## Implementation Steps
 
 ### Step 1: Create Unit Test File
+
 **Action**: Create `tests/unit/sql/test_custom_scalar_where_filters.py`
 
 **Content**: All unit tests from above
 
 **Verification**:
+
 ```bash
 uv run pytest tests/unit/sql/test_custom_scalar_where_filters.py -v
 ```
@@ -386,19 +395,23 @@ uv run pytest tests/unit/sql/test_custom_scalar_where_filters.py -v
 ---
 
 ### Step 2: Un-skip Integration Tests
+
 **Action**: Modify `tests/integration/meta/test_all_scalars.py`
 
 **Changes**:
+
 1. Remove `@pytest.mark.skip(...)` decorator from `test_scalar_in_where_clause`
 2. Simplify test implementation (use code above)
 3. Ensure test creates database table, inserts data, queries with WHERE
 
 **Verification**:
+
 ```bash
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_clause -v
 ```
 
 **Expected**: All 6 tests FAIL with:
+
 ```
 Variable '$filterValue' of type 'CIDR!' used in position expecting type 'String'
 ```
@@ -406,6 +419,7 @@ Variable '$filterValue' of type 'CIDR!' used in position expecting type 'String'
 ---
 
 ### Step 3: Document Current Behavior
+
 **Action**: Add docstring to test file explaining what we're testing
 
 ```python

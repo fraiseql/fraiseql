@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Window Operators Specification
 description: This specification defines window function operators available in FraiseQL, organized by database target and function category.
 keywords: ["format", "compliance", "protocol", "specification", "standard"]
@@ -363,5 +364,3 @@ FROM tf_sales;
 - **Aggregation Operators** (`aggregation-operators.md`) - Aggregate function reference
 
 ---
-
-

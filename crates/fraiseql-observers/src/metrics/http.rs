@@ -60,7 +60,7 @@ pub fn format_metrics(metrics: &ObserverMetrics) -> Result<String, prometheus::E
 /// let metrics = Arc::new(ObserverMetrics::new(&registry)?);
 /// let formatted = format_metrics(&metrics)?;
 /// ```
-#[must_use] 
+#[must_use]
 pub fn metrics_response(metrics: &ObserverMetrics) -> String {
     format_metrics(metrics).unwrap_or_else(|_| "# Failed to encode metrics\n".to_string())
 }

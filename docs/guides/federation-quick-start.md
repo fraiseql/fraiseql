@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Federation Quick Start (5 Minutes)
 description: Get a basic federation running in 5 minutes.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Design Quality Guide
 description: FraiseQL Design Quality is an automated linting and auditing system for GraphQL schema architecture. It helps teams design schemas that work optimally with Frai
 keywords: []

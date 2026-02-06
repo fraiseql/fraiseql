@@ -39,6 +39,7 @@
 ## Recent Changes (Rate Limiting Commit)
 
 The following files were recently updated as part of the rate limiting implementation:
+
 - `docs/SECURITY_MIGRATION_v2.1.md` - Added rate limiting section
 
 These should definitely be reviewed to ensure the documentation is accurate and complete.

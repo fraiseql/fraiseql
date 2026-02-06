@@ -84,6 +84,7 @@ Host prod-2.example.com
 ```
 
 Now you can SSH without specifying the key:
+
 ```bash
 ssh prod-1.example.com
 ```
@@ -245,6 +246,7 @@ exec python -m myapp.server
 ```
 
 Make executable:
+
 ```bash
 chmod +x /opt/my-api/bin/start.sh
 ```
@@ -334,6 +336,7 @@ fraisier deploy my_api production
 Your application must respond to health check requests:
 
 **Python Flask Example**:
+
 ```python
 from flask import Flask, jsonify
 
@@ -349,6 +352,7 @@ def health():
 ```
 
 **Node.js Express Example**:
+
 ```javascript
 app.get('/health', (req, res) => {
   res.json({
@@ -360,6 +364,7 @@ app.get('/health', (req, res) => {
 ```
 
 **Go Example**:
+
 ```go
 func healthHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")

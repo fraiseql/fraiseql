@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Schema Conventions Specification
 description: FraiseQL enforces opinionated PostgreSQL schema conventions that enable automatic compilation, efficient filtering, and optimal performance. These conventions a
 keywords: ["format", "compliance", "schema", "protocol", "specification", "standard"]

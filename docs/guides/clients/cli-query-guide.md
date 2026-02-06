@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: CLI Query Tool for FraiseQL
 description: Complete guide for querying FraiseQL servers from the command line using the `FraiseQL-query` CLI tool.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "query-execution", "tutorial"]

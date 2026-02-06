@@ -1,26 +1,45 @@
 [build-system]
-requires = ["maturin>=1.9,<2.0"]
 build-backend = "maturin"
+requires = ["maturin>=1.9,<2.0"]
+
+[dependency-groups]
+dev = [
+  "build>=1.2.2.post1",
+  "docker>=7.1.0",
+  "langchain>=1.0.5",
+  "langchain-community>=0.4.1",
+  "langchain-core>=1.2.5",
+  "llama-index>=0.14.8",
+  "llama-index-core>=0.14.8",
+  "maturin>=1.9.6",
+  "pre-commit>=4.2.0",
+  "psutil>=7.1.3",
+  "pyright>=1.1.405",
+  "pytest>=8.4.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-cov>=7.0.0",
+  "asgi-lifespan>=2.1.0",
+  "pytest-forked>=1.6.0",
+  "testcontainers>=4.10.0",
+  "twine>=6.1.0",
+  "ty>=0.0.1a28",
+  "moto[kms]>=5.1.18"
+]
+docs = [
+  "mkdocs>=1.6.1",
+  "mkdocs-material>=9.6.22",
+  "mkdocs-mermaid2-plugin>=1.2.3",
+  "mkdocs-minify-plugin>=0.8.0",
+  "mkdocs-redirects>=1.2.2",
+  "pymdown-extensions>=10.16.1",
+  "sphinx>=9.0.4",
+  "sphinx-autodoc-typehints>=3.6.0",
+  "sphinx-rtd-theme>=0.5.1"
+]
 
 [project]
-name = "fraiseql"
-version = "1.9.17"
-description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
-  { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
-]
-license = { text = "MIT" }
-readme = "README.md"
-requires-python = ">=3.13,<3.14"
-keywords = [
-  "graphql",
-  "postgresql",
-  "api",
-  "database",
-  "jsonb",
-  "fastapi",
-  "async",
-  "orm",
+  {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -34,9 +53,8 @@ classifiers = [
   "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
   "Topic :: Software Development :: Libraries :: Application Frameworks",
   "Typing :: Typed",
-  "Operating System :: OS Independent",
+  "Operating System :: OS Independent"
 ]
-
 dependencies = [
   "fastapi>=0.115.12",
   "starlette>=0.49.1",
@@ -60,76 +78,26 @@ dependencies = [
   "sqlparse>=0.5.0",
   "fraiseql-confiture>=0.1.0",
   "jinja2>=3.1.0",
-  "urllib3>=2.6.3",
+  "urllib3>=2.6.3"
 ]
-
-[project.urls]
-Homepage = "https://github.com/fraiseql/fraiseql"
-Documentation = "https://fraiseql.dev"
-Repository = "https://github.com/fraiseql/fraiseql"
-Issues = "https://github.com/fraiseql/fraiseql/issues"
-Changelog = "https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md"
-
-[project.scripts]
-fraiseql = "fraiseql.cli:main"
+description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
+keywords = [
+  "graphql",
+  "postgresql",
+  "api",
+  "database",
+  "jsonb",
+  "fastapi",
+  "async",
+  "orm"
+]
+license = {text = "MIT"}
+name = "fraiseql"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+version = "1.9.17"
 
 [project.optional-dependencies]
-dev = [
-  "black>=25.0.1",
-  "pre-commit>=4.2.0",
-  "pytest>=8.3.5",
-  "pytest-asyncio>=1.0.0",
-  "pytest-timeout>=2.4.0",
-  "faker>=37.5.3",
-  "testcontainers[postgres]>=4.10.0",
-  "testcontainers[vault]>=4.10.0",
-  "docker>=7.1.0",
-  "pytest-xdist>=3.5.0",
-  "pytest-watch>=1.0.0",
-  "pytest-cov>=4.0.0",
-   "pytest-mock>=3.11.0",
-   "pytest-benchmark>=4.0.0",
-   "tox>=4.0.0",
-  "ruff>=0.13.0",
-  "build>=1.0.0",
-  "twine>=6.1.0",
-  "pyyaml>=6.0.0",
-  "prometheus-client>=0.20.0",
-  "email-validator>=2.0.0",
-  "hvac>=2.0.0",
-  "moto[kms]>=5.0.0",
-  "aiohttp>=3.13.3",
-  "filelock>=3.20.1",
-  "werkzeug>=3.1.5",
-]
-auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
-sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
-aws = ["boto3>=1.34.0"]
-kms-vault = ["httpx>=0.27.0"]
-kms-aws = ["aioboto3>=12.0.0"]
-kms-gcp = ["google-cloud-kms>=3.10.0"]  # Updated from 2.21.0 to support protobuf 5.x
-kms = ["cryptography>=42.0.0"]
-kms-all = [
-  "cryptography>=42.0.0",
-  "httpx>=0.27.0",
-  "aioboto3>=12.0.0",
-  "google-cloud-kms>=3.10.0",  # Updated from 2.21.0 to support protobuf 5.x
-]
-docs = [
-  "mkdocs>=1.6.1",
-  "mkdocs-material>=9.6.22",
-  "mkdocs-redirects>=1.2.2",
-  "pymdown-extensions>=10.16.1",
-]
-tracing = [
-  "protobuf>=5.28.1",  # Updated from >=4.25.8,<7.0 to fix CVE-2026-0994 (JSON recursion depth bypass)
-  "wrapt>=1.16.0",
-  "opentelemetry-api>=1.20.0",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-instrumentation-psycopg>=0.40b0",
-  "opentelemetry-exporter-otlp>=1.20.0",
-  "opentelemetry-exporter-jaeger>=1.20.0",
-]
 all = [
   "protobuf>=5.28.1",  # Updated from >=4.25.8,<7.0 to fix CVE-2026-0994 (JSON recursion depth bypass)
   "wrapt>=1.16.0",
@@ -145,23 +113,91 @@ all = [
   "boto3>=1.34.0",
   "cryptography>=42.0.0",
   "aioboto3>=12.0.0",
-  "google-cloud-kms>=2.21.0",
+  "google-cloud-kms>=2.21.0"
+]
+auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
+aws = ["boto3>=1.34.0"]
+dev = [
+  "black>=25.0.1",
+  "pre-commit>=4.2.0",
+  "pytest>=8.3.5",
+  "pytest-asyncio>=1.0.0",
+  "pytest-timeout>=2.4.0",
+  "faker>=37.5.3",
+  "testcontainers[postgres]>=4.10.0",
+  "testcontainers[vault]>=4.10.0",
+  "docker>=7.1.0",
+  "pytest-xdist>=3.5.0",
+  "pytest-watch>=1.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-mock>=3.11.0",
+  "pytest-benchmark>=4.0.0",
+  "tox>=4.0.0",
+  "ruff>=0.13.0",
+  "build>=1.0.0",
+  "twine>=6.1.0",
+  "pyyaml>=6.0.0",
+  "prometheus-client>=0.20.0",
+  "email-validator>=2.0.0",
+  "hvac>=2.0.0",
+  "moto[kms]>=5.0.0",
+  "aiohttp>=3.13.3",
+  "filelock>=3.20.1",
+  "werkzeug>=3.1.5"
+]
+docs = [
+  "mkdocs>=1.6.1",
+  "mkdocs-material>=9.6.22",
+  "mkdocs-redirects>=1.2.2",
+  "pymdown-extensions>=10.16.1"
+]
+kms = ["cryptography>=42.0.0"]
+kms-all = [
+  "cryptography>=42.0.0",
+  "httpx>=0.27.0",
+  "aioboto3>=12.0.0",
+  "google-cloud-kms>=3.10.0"  # Updated from 2.21.0 to support protobuf 5.x
+]
+kms-aws = ["aioboto3>=12.0.0"]
+kms-gcp = ["google-cloud-kms>=3.10.0"]  # Updated from 2.21.0 to support protobuf 5.x
+kms-vault = ["httpx>=0.27.0"]
+sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
+tracing = [
+  "protobuf>=5.28.1",  # Updated from >=4.25.8,<7.0 to fix CVE-2026-0994 (JSON recursion depth bypass)
+  "wrapt>=1.16.0",
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-instrumentation-psycopg>=0.40b0",
+  "opentelemetry-exporter-otlp>=1.20.0",
+  "opentelemetry-exporter-jaeger>=1.20.0"
 ]
 
+[project.scripts]
+fraiseql = "fraiseql.cli:main"
+
+[project.urls]
+Changelog = "https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md"
+Documentation = "https://fraiseql.dev"
+Homepage = "https://github.com/fraiseql/fraiseql"
+Issues = "https://github.com/fraiseql/fraiseql/issues"
+Repository = "https://github.com/fraiseql/fraiseql"
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+# Also include typed marker and Rust source files for sdist
+include = ["src/fraiseql/py.typed", "fraiseql_rs/**/*"]
+# Module name for the Rust extension (will be installed as fraiseql/_fraiseql_rs.so)
+module-name = "fraiseql._fraiseql_rs"
+# Python packages to include (our main package)
+python-packages = ["fraiseql"]
+# Include Python source code from src/
+python-source = "src"
+
 [tool.pytest.ini_options]
-# Test discovery
-pythonpath = ["src"]
-testpaths = ["tests", "examples"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-
-asyncio_mode = "auto"
-
-# timeout options (disabled due to pytest-timeout config issue)
-# timeout = 20
-# timeout_method = "thread"
-
 # Output options
 addopts = [
   "--verbose",
@@ -169,9 +205,23 @@ addopts = [
   "--strict-markers",
   "--strict-config",
   "--disable-warnings",
-  "-ra",
+  "-ra"
 ]
-
+asyncio_mode = "auto"
+# Console output
+console_output_style = "progress"
+# Filter warnings
+filterwarnings = [
+  "ignore::DeprecationWarning",
+  "ignore::PendingDeprecationWarning",
+  "ignore:.*Use 'async with.*:DeprecationWarning",
+  "ignore::pytest.PytestUnraisableExceptionWarning"
+]
+# Logging configuration
+log_cli = false
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_level = "INFO"
 # Comprehensive test markers
 markers = [
   "unit: Unit tests (fast, isolated, no external dependencies)",
@@ -207,304 +257,229 @@ markers = [
   "chaos_resources: Chaos tests for resource exhaustion (memory, CPU, disk)",
   "chaos_concurrency: Chaos tests for concurrent execution (deadlocks, race conditions)",
   "chaos_validation: Chaos test validation and success criteria checks",
-  "chaos_verification: Chaos infrastructure verification tests",
+  "chaos_verification: Chaos infrastructure verification tests"
 ]
-
-# Async support - explicit @pytest.mark.asyncio decorators used instead
-
-# Console output
-console_output_style = "progress"
-
-# Logging configuration
-log_cli = false
-log_cli_level = "INFO"
-log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
-log_cli_date_format = "%Y-%m-%d %H:%M:%S"
-
-# Filter warnings
-filterwarnings = [
-  "ignore::DeprecationWarning",
-  "ignore::PendingDeprecationWarning",
-  "ignore:.*Use 'async with.*:DeprecationWarning",
-  "ignore::pytest.PytestUnraisableExceptionWarning",
-]
-
 # Minimum version
 minversion = "8.0"
-
-[tool.black]
-line-length = 100
-target-version = ["py313"]
+python_classes = ["Test*"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+# Test discovery
+pythonpath = ["src"]
+testpaths = ["tests", "examples"]
 
 [tool.ruff]
-src = ["src"]
-target-version = "py313"
-line-length = 100
 exclude = ["tests", "examples", "tools", "scripts", "conftest.py", "dev", "verify_native_errors.py", "deploy/docker/entrypoint.py", ".phases"]
 fix = true
+line-length = 100
+src = ["src"]
+target-version = "py313"
 
 [tool.ruff.lint]
-select = ["ALL"]
 ignore = [
   # Previously ignored rules
-  "D203",    # One-blank-line-before-class
-  "D213",    # Multi-line-summary-second-line
-  "TC006",   # Unquoted cast
-  "UP035",   # typing.Type is deprecated - conflicts with pyright
-  "UP006",   # Use type instead of Type - conflicts with pyright
-  "PLW0603", # Using global statement - needed for singleton pattern
-  "FURB162", # Unnecessary timezone replacement - false positive for ISO format parsing
+  "D203",  # One-blank-line-before-class
+  "D213",  # Multi-line-summary-second-line
+  "TC006",  # Unquoted cast
+  "UP035",  # typing.Type is deprecated - conflicts with pyright
+  "UP006",  # Use type instead of Type - conflicts with pyright
+  "PLW0603",  # Using global statement - needed for singleton pattern
+  "FURB162",  # Unnecessary timezone replacement - false positive for ISO format parsing
   "FIX002",  # TODO comments are fine in development
-  "N818",    # Exception naming - would require breaking changes
-  "A003",    # Builtins shadowing - needed for 'list' method in repository
-
+  "N818",  # Exception naming - would require breaking changes
+  "A003",  # Builtins shadowing - needed for 'list' method in repository
   # Documentation - enable for public APIs only
-  "D105", # Missing docstring in magic method
-  "D107", # Missing docstring in __init__
-  "D415", # First line should end with a period
-
+  "D105",  # Missing docstring in magic method
+  "D107",  # Missing docstring in __init__
+  "D415",  # First line should end with a period
   # Type annotations - strict checking enabled (except ANN401 which is too restrictive)
   # "ANN001",  # Missing type annotation for function argument - ENABLED
   # "ANN002",  # Missing type annotation for *args - ENABLED
   # "ANN003",  # Missing type annotation for **kwargs - ENABLED
   # "ANN201",  # Missing return type annotation for public function - ENABLED
-  "ANN202", # Missing return type annotation for private function - ENABLED
-  "ANN204", # Missing return type annotation for special method - ENABLED
-  "ANN401", # Dynamically typed expressions (Any) are allowed for flexible APIs
-
+  "ANN202",  # Missing return type annotation for private function - ENABLED
+  "ANN204",  # Missing return type annotation for special method - ENABLED
+  "ANN401",  # Dynamically typed expressions (Any) are allowed for flexible APIs
   # Too strict or pedantic
   "INP001",  # Implicit namespace package
-  "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
+  "PLC0415",  # Import should be at top-level (sometimes conditional imports make sense)
   "TRY003",  # Avoid specifying long messages outside exception class
   "TRY301",  # Abstract raise to inner function
   "TRY400",  # Use logging.exception instead of logging.error
-  "EM101",   # Exception must not use string literal
-  "EM102",   # Exception must not use f-string literal
+  "EM101",  # Exception must not use string literal
+  "EM102",  # Exception must not use f-string literal
   "FBT001",  # Boolean positional arg in function definition
   "FBT002",  # Boolean default value in function definition
   "FBT003",  # Boolean positional value in function call
-  "PLR2004", # Magic value used in comparison
-  "S101",    # Use of assert detected (needed for tests)
+  "PLR2004",  # Magic value used in comparison
+  "S101",  # Use of assert detected (needed for tests)
   "BLE001",  # Do not catch blind exception
-  "A002",    # Argument name shadowing builtin
+  "A002",  # Argument name shadowing builtin
   "ARG001",  # Unused function argument
   "ARG002",  # Unused method argument
-
   # Style preferences - these are suggestions not requirements
-  "G004",    # Logging statement uses f-string - performance impact minimal
+  "G004",  # Logging statement uses f-string - performance impact minimal
   "TRY300",  # Consider moving statement to else block - style preference
   "RET504",  # Unnecessary assignment before return - sometimes clearer
   "TRY203",  # Use raise from to specify exception cause - not always needed
   "SIM105",  # Use contextlib.suppress - style preference
   "SIM103",  # Return condition directly - sometimes less readable
   "SIM108",  # Use ternary operator - sometimes less readable
-  "S324",    # MD5 hash usage - acceptable for cache keys, not cryptographic
+  "S324",  # MD5 hash usage - acceptable for cache keys, not cryptographic
   "ERA001",  # Commented out code - sometimes useful for reference
-  "B904",    # Use raise from within except - not always appropriate
+  "B904",  # Use raise from within except - not always appropriate
   "COM812",  # Trailing comma - conflicts with formatter
   "ARG004",  # Unused static method argument
   "ARG005",  # Unused lambda argument
-  "PLR0913", # Too many arguments to function call
-  "PLR0915", # Too many statements
-  "C901",    # Function is too complex
-  "PLR0912", # Too many branches
-  "PLR0911", # Too many return statements
-  "UP007",   # Use X | Y for type unions (not compatible with older Python)
-  "UP045",   # Use X | None instead of Optional[X] (we support Python 3.11+)
-  "UP046",   # Generic class should use type parameters (Python 3.12+ syntax)
-  "UP047",   # Generic function should use type parameters (Python 3.12+ syntax)
-  "N802",    # Function name should be lowercase
-  "N806",    # Variable in function should be lowercase
+  "PLR0913",  # Too many arguments to function call
+  "PLR0915",  # Too many statements
+  "C901",  # Function is too complex
+  "PLR0912",  # Too many branches
+  "PLR0911",  # Too many return statements
+  "UP007",  # Use X | Y for type unions (not compatible with older Python)
+  "UP045",  # Use X | None instead of Optional[X] (we support Python 3.11+)
+  "UP046",  # Generic class should use type parameters (Python 3.12+ syntax)
+  "UP047",  # Generic function should use type parameters (Python 3.12+ syntax)
+  "N802",  # Function name should be lowercase
+  "N806",  # Variable in function should be lowercase
   "SLF001",  # Private member accessed
-  "PERF401", # Use list comprehension
+  "PERF401",  # Use list comprehension
   "RUF012",  # Mutable class attributes should be annotated
-
   # Security warnings that are often false positives
-  "S105", # Possible hardcoded password
-  "S106", # Possible hardcoded password
-  "S107", # Possible hardcoded password
-  "S108", # Probable insecure usage of temp file/directory
-  "S110", # Try-except-pass without logging
-  "S603", # Subprocess without shell equals true
-  "S607", # Starting process with partial executable path
-  "S608", # Possible SQL injection (often false positive with query builders)
-
+  "S105",  # Possible hardcoded password
+  "S106",  # Possible hardcoded password
+  "S107",  # Possible hardcoded password
+  "S108",  # Probable insecure usage of temp file/directory
+  "S110",  # Try-except-pass without logging
+  "S603",  # Subprocess without shell equals true
+  "S607",  # Starting process with partial executable path
+  "S608",  # Possible SQL injection (often false positive with query builders)
   # Import organization - let black/isort handle this
-  "E402", # Module level import not at top of file
-
+  "E402",  # Module level import not at top of file
   # Overly specific exception handling
-  "PT011", # pytest.raises() is too broad
+  "PT011"  # pytest.raises() is too broad
 ]
+select = ["ALL"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/*.pyi" = ["ANN401", "PYI020", "UP037", "UP007"]
-"tests/**/*.py" = [
-  "S101",    # Use of assert
-  "DTZ011",  # Use of datetime.date.today() in tests is acceptable
-  "PLR2004", # Magic values are OK in tests
-  "S105",    # Hardcoded passwords OK in tests
-  "S106",    # Hardcoded passwords OK in tests
-  "ARG001",  # Unused arguments OK in test fixtures
-  "ARG002",  # Unused arguments OK in test fixtures
-  "ANN001",  # Missing type annotations in test fixtures (complex types)
-  "T201",    # Print statements OK in tests (debugging output)
-  "D100",    # Missing module docstrings in tests
-  "D101",    # Missing class docstrings in tests
-  "D102",    # Missing method docstrings in tests
-  "D103",    # Missing function docstrings in tests
+"archive/**/*.py" = [
+  "ALL"  # Ignore all linting rules in archived code
 ]
 "benchmarks/**/*.py" = [
-  "T201",   # Print statements OK in benchmarks
-  "E501",   # Long lines OK in benchmarks
-  "SIM117", # Nested with statements OK in benchmarks
-  "B007",   # Loop control variables OK in benchmarks
-  "F841",   # Unused variables OK in benchmarks
-]
-"archive/**/*.py" = [
-  "ALL", # Ignore all linting rules in archived code
-]
-"frameworks/**/*.py" = [
-  "ALL", # Prototype frameworks - not production code
-]
-"src/fraiseql/resolvers/**/*.py" = [
-  "ANN001",  # Example/template resolvers - type annotations optional
-  "DTZ003",  # datetime.utcnow() acceptable in examples
-  "TRY002",  # Generic exceptions OK in example code
-]
-"src/fraiseql/core/query_builder.py" = [
-  "ANN205",  # Staticmethod return type annotation optional
-]
-"src/fraiseql/fastapi/middleware.py" = [
-  "ANN001",  # FastAPI middleware signature compatibility
-  "ANN201",  # FastAPI middleware return type compatibility
-  "D102",    # FastAPI middleware method docstring optional
-]
-"fraiseql_rs/**/*.py" = [
-  "ALL", # Rust bridge code - has special requirements
-]
-"tests/types/test_json_type_support.py" = [
-  "E501", # Long JSON string in test
-]
-"src/fraiseql/cli/commands/*.py" = [
-  "T201", # Print statements OK in CLI commands
+  "T201",  # Print statements OK in benchmarks
+  "E501",  # Long lines OK in benchmarks
+  "SIM117",  # Nested with statements OK in benchmarks
+  "B007",  # Loop control variables OK in benchmarks
+  "F841"  # Unused variables OK in benchmarks
 ]
 "examples/**/*.py" = [
-  "E402",     # Module level import not at top of file
-  "F401",     # Unused imports OK in examples
-  "F841",     # Unused variables OK in examples
-  "ERA001",   # Commented-out code OK in examples
-  "T201",     # Print statements OK in examples
-  "S101",     # Assert OK in examples
+  "E402",  # Module level import not at top of file
+  "F401",  # Unused imports OK in examples
+  "F841",  # Unused variables OK in examples
+  "ERA001",  # Commented-out code OK in examples
+  "T201",  # Print statements OK in examples
+  "S101",  # Assert OK in examples
   "PLR2004",  # Magic values OK in examples
-  "S311",     # Random OK for demo purposes
-  "RUF001",   # Ambiguous characters OK
-  "RUF002",   # Ambiguous characters OK
-  "RUF003",   # Ambiguous characters OK
-  "E741",     # Ambiguous variable names OK in examples
-  "B008",     # Function calls in arguments OK
-  "UP032",    # f-string usage OK
-  "B018",     # Useless expressions OK in examples
+  "S311",  # Random OK for demo purposes
+  "RUF001",  # Ambiguous characters OK
+  "RUF002",  # Ambiguous characters OK
+  "RUF003",  # Ambiguous characters OK
+  "E741",  # Ambiguous variable names OK in examples
+  "B008",  # Function calls in arguments OK
+  "UP032",  # f-string usage OK
+  "B018",  # Useless expressions OK in examples
   "PLR0913",  # Too many arguments OK in examples
-  "N802",     # Function names OK in examples
-  "N806",     # Variable names OK in examples
-  "ASYNC110", # asyncio.sleep in while loop OK in examples
+  "N802",  # Function names OK in examples
+  "N806",  # Variable names OK in examples
+  "ASYNC110",  # asyncio.sleep in while loop OK in examples
   "FAST002",  # FastAPI deps without Annotated OK in examples
   "FAST003",  # FastAPI deps OK in examples
-  "S603",     # Subprocess OK in examples
-  "S607",     # Subprocess OK in examples
-  "DTZ005",   # Datetime OK in examples
-  "DTZ007",   # Datetime OK in examples
-  "SIM118",   # Dictionary keys OK in examples
-  "C901",     # Complex functions OK in examples
+  "S603",  # Subprocess OK in examples
+  "S607",  # Subprocess OK in examples
+  "DTZ005",  # Datetime OK in examples
+  "DTZ007",  # Datetime OK in examples
+  "SIM118",  # Dictionary keys OK in examples
+  "C901",  # Complex functions OK in examples
   "PLR0912",  # Too many branches OK in examples
   "PLR0915",  # Too many statements OK in examples
-  "PLW1508",  # Invalid env var default OK in examples
+  "PLW1508"  # Invalid env var default OK in examples
+]
+"fraiseql_rs/**/*.py" = [
+  "ALL"  # Rust bridge code - has special requirements
+]
+"frameworks/**/*.py" = [
+  "ALL"  # Prototype frameworks - not production code
 ]
 "marketing/**/*.py" = [
-  "ALL", # Marketing visualizations - not production code
+  "ALL"  # Marketing visualizations - not production code
+]
+"rename_examples.py" = [
+  "ALL"  # One-off utility script
 ]
 "scripts/**/*.py" = [
-  "ALL", # Utility scripts - not production code
+  "ALL"  # Utility scripts - not production code
+]
+"src/fraiseql/cli/commands/*.py" = [
+  "T201"  # Print statements OK in CLI commands
+]
+"src/fraiseql/core/query_builder.py" = [
+  "ANN205"  # Staticmethod return type annotation optional
+]
+"src/fraiseql/core/rust_pipeline.py" = [
+  "TID252"  # Relative imports necessary to avoid circular imports with bundled Rust extension
+]
+"src/fraiseql/core/rust_transformer.py" = [
+  "TID252"  # Relative imports necessary to avoid circular imports with bundled Rust extension
 ]
 "src/fraiseql/enterprise/**/*.py" = [
   "TD002",  # Missing author in TODO
   "TD003",  # Missing issue link in TODO
-  "E501",   # Long lines acceptable in enterprise modules
+  "E501",  # Long lines acceptable in enterprise modules
   "TC001",  # Type-checking imports
   "TC002",  # Type-checking imports
   "TC003",  # Type-checking imports
-  "F841",   # Unused variables (often placeholders)
-  "D106",   # Missing docstring in nested class (Config classes)
-  "T201",   # Print statements (for debugging)
-  "B007",   # Loop control variables
-  "DTZ003", # datetime.utcnow() usage
+  "F841",  # Unused variables (often placeholders)
+  "D106",  # Missing docstring in nested class (Config classes)
+  "T201",  # Print statements (for debugging)
+  "B007",  # Loop control variables
+  "DTZ003"  # datetime.utcnow() usage
 ]
-"rename_examples.py" = [
-  "ALL", # One-off utility script
+"src/fraiseql/fastapi/middleware.py" = [
+  "ANN001",  # FastAPI middleware signature compatibility
+  "ANN201",  # FastAPI middleware return type compatibility
+  "D102"  # FastAPI middleware method docstring optional
 ]
-"src/fraiseql/core/rust_pipeline.py" = [
-  "TID252", # Relative imports necessary to avoid circular imports with bundled Rust extension
+"src/fraiseql/resolvers/**/*.py" = [
+  "ANN001",  # Example/template resolvers - type annotations optional
+  "DTZ003",  # datetime.utcnow() acceptable in examples
+  "TRY002"  # Generic exceptions OK in example code
 ]
-"src/fraiseql/core/rust_transformer.py" = [
-  "TID252", # Relative imports necessary to avoid circular imports with bundled Rust extension
+"tests/**/*.py" = [
+  "S101",  # Use of assert
+  "DTZ011",  # Use of datetime.date.today() in tests is acceptable
+  "PLR2004",  # Magic values are OK in tests
+  "S105",  # Hardcoded passwords OK in tests
+  "S106",  # Hardcoded passwords OK in tests
+  "ARG001",  # Unused arguments OK in test fixtures
+  "ARG002",  # Unused arguments OK in test fixtures
+  "ANN001",  # Missing type annotations in test fixtures (complex types)
+  "T201",  # Print statements OK in tests (debugging output)
+  "D100",  # Missing module docstrings in tests
+  "D101",  # Missing class docstrings in tests
+  "D102",  # Missing method docstrings in tests
+  "D103"  # Missing function docstrings in tests
+]
+"tests/types/test_json_type_support.py" = [
+  "E501"  # Long JSON string in test
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.pylint]
-max-args = 8 # Increased from default 5
+max-args = 8  # Increased from default 5
 
 [tool.setuptools_scm]
-version_scheme = "python-simplified-semver"
 local_scheme = "node-and-date"
-
-[tool.maturin]
-# Include Python source code from src/
-python-source = "src"
-# Python packages to include (our main package)
-python-packages = ["fraiseql"]
-# Module name for the Rust extension (will be installed as fraiseql/_fraiseql_rs.so)
-module-name = "fraiseql._fraiseql_rs"
-# Also include typed marker and Rust source files for sdist
-include = ["src/fraiseql/py.typed", "fraiseql_rs/**/*"]
-features = ["pyo3/extension-module"]
-
-# Development: Use local fraiseql-confiture for development
-# Production/CI: Comment out for releases to use PyPI version
-# [tool.uv.sources]
-# fraiseql-confiture = { path = "../confiture", editable = true }
-
-[dependency-groups]
-dev = [
-  "build>=1.2.2.post1",
-  "docker>=7.1.0",
-  "langchain>=1.0.5",
-  "langchain-community>=0.4.1",
-  "langchain-core>=1.2.5",
-  "llama-index>=0.14.8",
-  "llama-index-core>=0.14.8",
-  "maturin>=1.9.6",
-  "pre-commit>=4.2.0",
-  "psutil>=7.1.3",
-  "pyright>=1.1.405",
-  "pytest>=8.4.0",
-  "pytest-asyncio>=1.0.0",
-  "pytest-cov>=7.0.0",
-  "asgi-lifespan>=2.1.0",
-  "pytest-forked>=1.6.0",
-  "testcontainers>=4.10.0",
-  "twine>=6.1.0",
-  "ty>=0.0.1a28",
-  "moto[kms]>=5.1.18",
-]
-docs = [
-  "mkdocs>=1.6.1",
-  "mkdocs-material>=9.6.22",
-  "mkdocs-mermaid2-plugin>=1.2.3",
-  "mkdocs-minify-plugin>=0.8.0",
-  "mkdocs-redirects>=1.2.2",
-  "pymdown-extensions>=10.16.1",
-  "sphinx>=9.0.4",
-  "sphinx-autodoc-typehints>=3.6.0",
-  "sphinx-rtd-theme>=0.5.1",
-]
+version_scheme = "python-simplified-semver"

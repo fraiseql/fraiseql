@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Enterprise RBAC Documentation
 description: FraiseQL's Enterprise Role-Based Access Control (RBAC) system provides:
 keywords: []

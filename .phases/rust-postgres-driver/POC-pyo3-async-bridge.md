@@ -11,6 +11,7 @@
 ## Executive Summary
 
 The Python-Rust async bridge using PyO3 is the riskiest technical component. This PoC validates:
+
 - ✅ Can call async Rust code from Python
 - ✅ Can return results through FFI boundary
 - ✅ Can share connection pool across requests
@@ -24,6 +25,7 @@ The Python-Rust async bridge using PyO3 is the riskiest technical component. Thi
 ## Why This Matters
 
 **The Challenge**:
+
 - Python has asyncio event loop
 - Rust has tokio runtime
 - PyO3 FFI boundary is unforgiving
@@ -31,6 +33,7 @@ The Python-Rust async bridge using PyO3 is the riskiest technical component. Thi
 - Errors crossing boundary need careful handling
 
 **Failure Modes**:
+
 - Runtime panics when async bridge misaligns
 - Memory corruption from improper sharing
 - Deadlocks when runtimes conflict
@@ -427,6 +430,7 @@ uv run pytest tests/poc_pyo3_bridge.py -v
 ### If PoC Succeeds ✅
 
 You should see:
+
 ```
 ✅ Async execute: Result of: SELECT 1
 ✅ Multiple calls: 5 succeeded
@@ -448,12 +452,14 @@ You should see:
 **Common Issues**:
 
 1. **"Module not found"**
+
    ```bash
    # Make sure you built it
    cd fraiseql_rs && cargo build --features python-binding
    ```
 
 2. **"RuntimeError: no running event loop"**
+
    ```python
    # Function must be called from async context
    # Wrap in asyncio.run() if needed
@@ -461,6 +467,7 @@ You should see:
    ```
 
 3. **"TypeError: expected coroutine"**
+
    ```python
    # Make sure you're awaiting
    result = await bridge.execute_async("SELECT 1")  # ✅
@@ -504,6 +511,7 @@ asyncio.run(test())
 Once PoC succeeds, copy patterns to Phase 1:
 
 1. **Connection Pool Module**
+
    ```rust
    // Copy Arc<Pool> pattern from PoC
    pub struct DatabasePool {
@@ -512,6 +520,7 @@ Once PoC succeeds, copy patterns to Phase 1:
    ```
 
 2. **Async Bridge Functions**
+
    ```rust
    // Copy pyo3_asyncio pattern from PoC
    #[pyfunction]
@@ -521,6 +530,7 @@ Once PoC succeeds, copy patterns to Phase 1:
    ```
 
 3. **Error Handling**
+
    ```rust
    // Copy error propagation from PoC
    Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
@@ -531,6 +541,7 @@ Once PoC succeeds, copy patterns to Phase 1:
 ## Success Definition
 
 **PoC is successful when:**
+
 - ✅ All tests pass
 - ✅ No panics or segfaults
 - ✅ Performance acceptable
@@ -538,6 +549,7 @@ Once PoC succeeds, copy patterns to Phase 1:
 - ✅ Team feels confident about async bridge
 
 **If any test fails:**
+
 - Debug and fix before proceeding
 - Don't proceed to Phase 1 with unknowns
 - This is the foundation for everything else
@@ -551,6 +563,7 @@ Once PoC succeeds, copy patterns to Phase 1:
 This PoC is the most complex technical component. Do not proceed without approval.
 
 **Senior reviewer should verify**:
+
 - [ ] Rust async bridge compiles and runs
 - [ ] All 12 tests pass (not just 10-11)
 - [ ] No memory leaks or segfaults
@@ -562,11 +575,13 @@ This PoC is the most complex technical component. Do not proceed without approva
 If PoC tests fail, **STOP here**. Do not proceed to Phase 1.
 
 **Debug first**:
+
 - Add `println!()` debugging (OK in PoC)
 - Check error messages carefully
 - Ask for help from Rust expert if stuck > 2 hours
 
 **Preparation for review**:
+
 ```bash
 # Document results
 cargo test --verbose 2>&1 | tee poc_test_results.txt
@@ -588,6 +603,7 @@ cargo test --test '*pyo3*'
 ## Timeline
 
 **Estimated**: 4-6 hours
+
 - Setup & dependencies: 30 min
 - Write Rust code: 1.5 hours
 - Python test code: 1.5 hours

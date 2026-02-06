@@ -12,6 +12,7 @@
 Fixes the CASCADE nesting bug in FraiseQL where CASCADE data appears inside entity objects instead of at the GraphQL success wrapper level.
 
 **Before (Bug):**
+
 ```json
 {
   "createAllocation": {
@@ -24,6 +25,7 @@ Fixes the CASCADE nesting bug in FraiseQL where CASCADE data appears inside enti
 ```
 
 **After (Fixed):**
+
 ```json
 {
   "createAllocation": {
@@ -38,6 +40,7 @@ Fixes the CASCADE nesting bug in FraiseQL where CASCADE data appears inside enti
 ## Why This Is Simple
 
 PrintOptim has already migrated to the perfect 8-field `mutation_response` composite type with:
+
 - ✅ Explicit CASCADE field at Position 7
 - ✅ entity_type field at Position 4
 - ✅ ~70 mutation functions already updated
@@ -76,13 +79,16 @@ cat 00_OVERVIEW.md
 ## Implementation Summary
 
 ### Files to Create
+
 1. `fraiseql_rs/src/mutation/postgres_composite.rs` (~80 lines)
 
 ### Files to Modify
+
 2. `fraiseql_rs/src/mutation/mod.rs` (~5 lines)
 3. `fraiseql_rs/src/mutation/tests.rs` (~100 lines tests)
 
 ### Files to Update
+
 4. `fraiseql_rs/Cargo.toml` (version bump)
 5. `pyproject.toml` (version bump)
 6. `CHANGELOG.md` (release notes)
@@ -118,6 +124,7 @@ cat 00_OVERVIEW.md
 ## Prerequisites
 
 ### Required
+
 - Rust toolchain (stable)
 - Python 3.10+
 - uv (Python package manager)
@@ -125,6 +132,7 @@ cat 00_OVERVIEW.md
 - PrintOptim repository for testing
 
 ### Optional
+
 - PostgreSQL for integration tests
 - Docker for full E2E tests
 
@@ -146,6 +154,7 @@ Hour 4:    Version bump and release
 ## Success Criteria
 
 ### Must Have
+
 - [ ] CASCADE at success wrapper level
 - [ ] CASCADE NOT in entity
 - [ ] All tests pass
@@ -153,11 +162,13 @@ Hour 4:    Version bump and release
 - [ ] Published to PyPI
 
 ### Should Have
+
 - [ ] Test coverage > 90%
 - [ ] Clear error messages
 - [ ] Documentation updated
 
 ### Nice to Have
+
 - [ ] CI/CD pipeline green
 - [ ] Performance benchmarks
 
@@ -176,9 +187,11 @@ Hour 4:    Version bump and release
 ## Dependencies
 
 ### Upstream
+
 - None (self-contained change)
 
 ### Downstream
+
 - PrintOptim must upgrade to fraiseql>=1.8.0a5 to get fix
 
 ---
@@ -188,12 +201,14 @@ Hour 4:    Version bump and release
 If issues found after release:
 
 1. **Revert commit:**
+
    ```bash
    git revert <commit-hash>
    git push
    ```
 
 2. **Publish rollback version:**
+
    ```bash
    # Bump to v1.8.0-alpha.6 with revert
    uv publish
@@ -208,16 +223,19 @@ If issues found after release:
 ## Testing Strategy
 
 ### Unit Tests (Rust)
+
 - 20-25 tests for parser
 - 100% coverage of new code
 - Run time: < 1 second
 
 ### Integration Tests (Python)
+
 - 5-10 tests with real mutations
 - PostgreSQL required
 - Run time: 5-10 seconds
 
 ### E2E Tests (PrintOptim)
+
 - 2-3 full mutation flows
 - Full PrintOptim environment
 - Run time: 10-30 seconds
@@ -229,16 +247,19 @@ If issues found after release:
 ## Post-Release
 
 ### Immediate (Day 1)
+
 1. Update PrintOptim dependency to fraiseql>=1.8.0a5
 2. Deploy to dev environment
 3. Monitor logs for errors
 
 ### Short Term (Week 1)
+
 1. Gather feedback from team
 2. Monitor Sentry for exceptions
 3. Plan stable v1.8.0 release
 
 ### Long Term (Month 1)
+
 1. Remove backward compatibility code (if safe)
 2. Add deprecation warnings for old format
 3. Plan v2.0 if breaking changes needed

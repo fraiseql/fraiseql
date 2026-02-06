@@ -18,6 +18,12 @@ name = "federation_bench"
 
 [dependencies]
 anyhow = {workspace = true}
+# Arrow Flight integration (optional)
+# Note: fraiseql-arrow depends on fraiseql-core, not the other way around
+# to avoid circular dependency. fraiseql-arrow provides the Flight server
+# and concrete Arrow conversion implementations.
+arrow = {version = "53", optional = true}
+arrow-array = {version = "53", optional = true}
 base64 = {workspace = true}
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
@@ -57,9 +63,9 @@ thiserror = {workspace = true}
 # Database - SQL Server
 tiberius = {version = "0.12", default-features = false, features = ["tds73", "rustls"], optional = true}
 tokio = {workspace = true}
-tokio-util = "0.7"
 # Database - PostgreSQL
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
+tokio-util = "0.7"
 toml = {workspace = true}
 # Logging
 tracing = {workspace = true}
@@ -67,19 +73,16 @@ uuid = {workspace = true}
 async-trait.workspace = true
 deadpool-postgres.workspace = true
 
-# Arrow Flight integration (optional)
-# Note: fraiseql-arrow depends on fraiseql-core, not the other way around
-# to avoid circular dependency. fraiseql-arrow provides the Flight server
-# and concrete Arrow conversion implementations.
-arrow = {version = "53", optional = true}
-arrow-array = {version = "53", optional = true}
-
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
-tokio-test = "0.4"
 tempfile = {workspace = true}
+tokio-test = "0.4"
 
 [features]
+# Arrow Flight integration for high-performance analytics
+# Provides arrow_executor module for Arrow RecordBatch conversion.
+# For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
+arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres"]
 kafka = ["rdkafka"]
 mysql = ["sqlx/mysql"]
@@ -94,10 +97,6 @@ test-postgres = []
 # Run with: cargo test --features test-sqlserver -- --test-threads=1
 test-sqlserver = ["sqlserver"]
 wire-backend = ["fraiseql-wire"]
-# Arrow Flight integration for high-performance analytics
-# Provides arrow_executor module for Arrow RecordBatch conversion.
-# For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
-arrow = ["dep:arrow", "dep:arrow-array"]
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"

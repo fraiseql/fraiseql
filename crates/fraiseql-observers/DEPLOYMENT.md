@@ -162,6 +162,7 @@ See `examples/` directory for complete configuration examples:
 - Observer worker (in-process)
 
 **Deploy**:
+
 ```bash
 docker-compose -f docker-compose.postgres-only.yml up -d
 
@@ -190,6 +191,7 @@ docker-compose -f docker-compose.postgres-only.yml down
 - Observer worker
 
 **Deploy**:
+
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml up -d
 
@@ -223,6 +225,7 @@ docker-compose -f docker-compose.postgres-redis.yml down
 - Workers (3+ instances, scalable)
 
 **Deploy**:
+
 ```bash
 # Start with 3 workers
 docker-compose -f docker-compose.nats-distributed.yml up -d
@@ -263,6 +266,7 @@ docker-compose -f docker-compose.nats-distributed.yml down
 - Workers (10+ instances, scalable)
 
 **Deploy**:
+
 ```bash
 # Start all services
 docker-compose -f docker-compose.multi-database.yml up -d
@@ -330,6 +334,7 @@ See `k8s/` directory for example manifests:
 - `secret.yaml` - Credentials
 
 **Deploy**:
+
 ```bash
 # Create namespace
 kubectl create namespace fraiseql
@@ -384,6 +389,7 @@ curl http://localhost:8222/healthz
 **Issue**: Bridge not publishing events
 
 **Solution**:
+
 ```bash
 # Check checkpoint table
 docker-compose exec postgres psql -U fraiseql -d fraiseql \
@@ -397,6 +403,7 @@ docker-compose exec postgres psql -U fraiseql -d fraiseql \
 **Issue**: Workers not receiving events
 
 **Solution**:
+
 ```bash
 # Check NATS consumer lag
 docker-compose exec nats nats consumer info fraiseql_events fraiseql_observer_worker_group
@@ -408,6 +415,7 @@ docker-compose exec nats nats stream info fraiseql_events
 **Issue**: High Redis memory usage
 
 **Solution**:
+
 ```bash
 # Check Redis memory
 docker-compose exec redis redis-cli INFO memory
@@ -422,6 +430,7 @@ docker-compose exec redis redis-cli CONFIG SET maxmemory-policy allkeys-lru
 **Issue**: Duplicate events being processed
 
 **Solution**:
+
 ```bash
 # Verify dedup is enabled
 docker-compose exec observer env | grep FRAISEQL_ENABLE_DEDUP
@@ -436,6 +445,7 @@ docker-compose exec redis redis-cli TTL event:<event_id>
 ### Metrics & Dashboards
 
 **Prometheus Metrics** (when Phase 8.7 is complete):
+
 ```
 # Observer metrics
 fraiseql_observer_events_processed_total
@@ -459,11 +469,13 @@ fraiseql_observer_processing_duration_seconds
 ### PostgreSQL-Only → PostgreSQL + Redis
 
 1. Deploy Redis:
+
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml up -d redis
 ```
 
 2. Update environment variables:
+
 ```bash
 export FRAISEQL_REDIS_URL=redis://redis:6379
 export FRAISEQL_ENABLE_DEDUP=true
@@ -471,11 +483,13 @@ export FRAISEQL_ENABLE_CACHING=true
 ```
 
 3. Restart observer:
+
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml up -d observer
 ```
 
 4. Verify Redis connection:
+
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml logs observer | grep "Redis connected"
 ```
@@ -483,26 +497,31 @@ docker-compose -f docker-compose.postgres-redis.yml logs observer | grep "Redis 
 ### PostgreSQL + Redis → NATS Distributed
 
 1. Deploy NATS:
+
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml up -d nats
 ```
 
 2. Deploy bridge (publishes historical events):
+
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml up -d bridge
 ```
 
 3. Deploy workers:
+
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml up -d --scale worker=3
 ```
 
 4. Stop old PostgreSQL observer:
+
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml stop observer
 ```
 
 5. Verify NATS stream:
+
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml exec nats nats stream info fraiseql_events
 ```

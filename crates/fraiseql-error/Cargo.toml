@@ -1,3 +1,14 @@
+[dependencies]
+axum = "0.7"
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+sqlx = {version = "0.8", default-features = false}
+thiserror = "1"
+toml = "0.8"
+
+[lints]
+workspace = true
+
 [package]
 name = "fraiseql-error"
 authors.workspace = true
@@ -10,14 +21,3 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
-
-[dependencies]
-thiserror = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-toml = "0.8"
-axum = "0.7"
-sqlx = { version = "0.8", default-features = false }
-
-[lints]
-workspace = true

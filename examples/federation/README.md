@@ -11,12 +11,14 @@ Two-subgraph federation with PostgreSQL.
 **Architecture:** Users Service + Orders Service
 
 **Key Features:**
+
 - Simple entity ownership
 - Cross-subgraph references
 - Local database resolution
 - Docker Compose setup
 
 **Start:**
+
 ```bash
 cd basic
 docker-compose up -d
@@ -34,18 +36,21 @@ Multi-tenant federation with composite keys.
 **Architecture:** TenantUsers Service + TenantOrders Service
 
 **Key Features:**
+
 - Composite key federation (organizationId, userId)
 - Multi-tenant data isolation
 - Cross-tenant safety
 - Scalable SaaS architecture
 
 **Start:**
+
 ```bash
 cd composite-keys
 docker-compose up -d
 ```
 
 **Query:**
+
 ```graphql
 query {
   user(organizationId: "org1", userId: "user1") {
@@ -67,17 +72,20 @@ query {
 Three-cloud deployment with AWS, GCP, and Azure.
 
 **Architecture:**
+
 - AWS us-east-1: Users Service
 - GCP europe-west1: Orders Service
 - Azure southeast-asia: Products Service
 
 **Key Features:**
+
 - Data locality (EU, US, APAC)
 - Single schema definition
 - Cost transparency
 - No vendor lock-in
 
 **Deployment:**
+
 ```bash
 ./deploy.sh aws us-east-1 users-subgraph
 ./deploy.sh gcp europe-west1 orders-subgraph
@@ -91,12 +99,14 @@ Three-cloud deployment with AWS, GCP, and Azure.
 Complex federation scenarios.
 
 **Includes:**
+
 - Circular references (A ↔ B ↔ C)
 - Shared fields (@shareable)
 - Requires directives (@requires)
 - Multi-tier federation (4+ subgraphs)
 
 **Key Features:**
+
 - 4-tier entity hierarchy
 - Field-level federation
 - Advanced optimization patterns
@@ -209,6 +219,7 @@ query GetUserOrders($userId: ID!) {
 ```
 
 Variables:
+
 ```json
 {"userId": "user1"}
 ```
@@ -257,6 +268,7 @@ query {
 ### Service won't start
 
 Check logs:
+
 ```bash
 docker-compose logs users-service
 docker-compose logs orders-service
@@ -265,6 +277,7 @@ docker-compose logs orders-service
 ### Slow queries
 
 Check latency of individual services:
+
 ```bash
 time curl http://localhost:4001/graphql -d '{"query": "{users{id}}"}'
 time curl http://localhost:4002/graphql -d '{"query": "{orders{id}}"}'
@@ -273,11 +286,13 @@ time curl http://localhost:4002/graphql -d '{"query": "{orders{id}}"}'
 ### Database connection errors
 
 Check PostgreSQL is ready:
+
 ```bash
 docker-compose ps postgres1 postgres2
 ```
 
 Verify connection string:
+
 ```bash
 docker exec <service> env | grep DATABASE_URL
 ```
@@ -298,4 +313,3 @@ docker exec <service> env | grep DATABASE_URL
 - [Federation Guide](../../docs/FEDERATION.md) - Complete guide
 - [Deployment Guide](../../docs/FEDERATION_DEPLOYMENT.md) - Production setup
 - [Performance Guide](../../docs/PERFORMANCE.md) - Optimization tips
-

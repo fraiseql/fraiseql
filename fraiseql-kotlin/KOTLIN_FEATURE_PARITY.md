@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL Kotlin with Python
 Complete implementation of advanced authorization and security features for Kotlin:
 
 **Sealed Classes:**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Data Classes:**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for Kotl
 **Builder Methods:**
 
 *AuthorizeBuilder:*
+
 - `rule(String)` - Set authorization rule expression
 - `policy(String)` - Reference named policy
 - `description(String)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for Kotl
 - `build()` - Return configuration
 
 *RoleRequiredBuilder:*
+
 - `roles(vararg String)` - Set required roles (variadic)
 - `rolesArray(List<String>)` - Set roles from list
 - `strategy(RoleMatchStrategy)` - Role matching strategy
@@ -63,6 +68,7 @@ Complete implementation of advanced authorization and security features for Kotl
 - `build()` - Return configuration
 
 *AuthzPolicyBuilder:*
+
 - `description(String)` - Policy description
 - `rule(String)` - Authorization rule
 - `attributes(vararg String)` - Attribute conditions (variadic)
@@ -77,6 +83,7 @@ Complete implementation of advanced authorization and security features for Kotl
 - `build()` - Return configuration
 
 **Kotlin Annotations:**
+
 - `@Authorize` - Custom authorization rules
 - `@RoleRequired` - Role-based access control
 - `@AuthzPolicy` - Authorization policies
@@ -297,6 +304,7 @@ Kotlin-specific advantages:
 **Current Status**: 100% Parity across 8 languages (240/240 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

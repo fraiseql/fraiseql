@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Fact-Dimension Pattern
 description: FraiseQL enforces the **fact table pattern** for analytical workloads:
 keywords: ["design", "scalability", "performance", "patterns", "security"]
@@ -612,5 +613,3 @@ CREATE INDEX idx_sales_category
 - **Database Targeting** (`../database/database-targeting.md`) - Multi-database support
 
 ---
-
-

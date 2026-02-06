@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Linting Rules Reference
 description: Each rule detects patterns that conflict with FraiseQL's compilation model. Violations don't prevent compilation—they reduce design quality scores and flag pote
 keywords: []

@@ -88,6 +88,7 @@ if __name__ == "__main__":
 ```
 
 **Expected Output:**
+
 ```
 ✅ Found 3 users
   - Alice Johnson (alice@example.com)
@@ -129,6 +130,7 @@ async def active_users(info) -> list[User]:
 ```
 
 **Benefits:**
+
 - Full IDE autocomplete and type checking
 - Compile-time error detection
 - Self-documenting code
@@ -175,6 +177,7 @@ results = await repo.find("assignments", where=where_dict)
 ```
 
 **Generated SQL:**
+
 ```sql
 SELECT * FROM assignments
 WHERE data->>'status' = 'active'
@@ -322,6 +325,7 @@ ON assignments USING gin ((data->'device'->'is_active'));
 ### Nested Array Performance
 
 For nested array filtering (client-side):
+
 - Efficient for arrays with < 1000 items
 - No N+1 queries - filtering happens after fetch
 - For larger arrays, consider database-level filtering

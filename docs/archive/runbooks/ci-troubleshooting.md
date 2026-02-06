@@ -22,6 +22,7 @@ This runbook provides step-by-step troubleshooting procedures for common CI/CD i
 **Symptom**: Pull request shows "Quality Gate" check failing
 
 **Diagnostic Steps**:
+
 ```bash
 # 1. Check which job failed
 gh pr checks <PR_NUMBER>
@@ -33,6 +34,7 @@ gh run view <RUN_ID> --log-failed
 **Common Causes & Solutions**:
 
 #### Unit Tests Failed
+
 ```bash
 # Check test output
 gh run view <RUN_ID> --job=<JOB_ID>
@@ -44,6 +46,7 @@ gh run view <RUN_ID> --job=<JOB_ID>
 ```
 
 #### Lint Errors
+
 ```bash
 # Run locally to reproduce
 uv run ruff check src/ tests/
@@ -54,6 +57,7 @@ uv run ruff check --fix src/ tests/
 ```
 
 #### Security Scan Failed
+
 ```bash
 # Check security scan results
 gh run view <RUN_ID> --log | grep -A 10 "Security"
@@ -70,6 +74,7 @@ uv pip install --upgrade <vulnerable-package>
 ```
 
 #### Integration Tests Failed
+
 ```bash
 # Check integration test logs
 gh run view <RUN_ID> --log | grep -A 50 "integration-postgres"
@@ -93,6 +98,7 @@ pytest tests/ -m 'requires_postgres' -v --tb=short
 **Symptom**: `psycopg.OperationalError: could not connect to server`
 
 **Diagnostic Steps**:
+
 ```bash
 # 1. Check if PostgreSQL service started
 # In CI logs, look for:
@@ -105,6 +111,7 @@ grep "DATABASE_URL\|DB_HOST\|DB_PORT" <ci-logs>
 **Solutions**:
 
 #### CI Environment
+
 ```yaml
 # Verify PostgreSQL service in workflow YAML
 services:
@@ -124,6 +131,7 @@ services:
 ```
 
 #### Local Development
+
 ```bash
 # Check PostgreSQL status
 pg_isready -h localhost -p 5432 -U fraiseql
@@ -143,6 +151,7 @@ createdb fraiseql_test
 **Cause**: Schema leakage between test classes
 
 **Diagnostic Steps**:
+
 ```bash
 # Run tests with verbose schema info
 pytest tests/ -v --log-cli-level=DEBUG | grep "schema\|CREATE SCHEMA"
@@ -152,6 +161,7 @@ grep -r "public\." tests/
 ```
 
 **Solution**:
+
 ```python
 # Ensure tests use search_path, not hardcoded schemas
 # ❌ WRONG
@@ -173,6 +183,7 @@ await conn.execute("CREATE TABLE users (...)")
 **Symptom**: Enterprise tests fail with "Vault not ready after 10 attempts"
 
 **Diagnostic Steps**:
+
 ```bash
 # 1. Check Vault container logs
 gh run view <RUN_ID> --log | grep -A 20 "Vault"
@@ -202,6 +213,7 @@ grep "waiting.*s before retry" <logs>
    - Solution: Verify Vault service config in workflow
 
 **Manual Verification**:
+
 ```bash
 # Test Vault startup locally
 docker run -d --name vault -p 8200:8200 \
@@ -221,6 +233,7 @@ done
 **Symptom**: Vault starts but tests fail
 
 **Diagnostic Steps**:
+
 ```bash
 # Check Vault authentication
 grep "VAULT_TOKEN\|VAULT_ADDR" <ci-logs>
@@ -230,11 +243,13 @@ grep -A 10 "kms\|encrypt\|decrypt" <test-logs>
 ```
 
 **Common Causes**:
+
 1. **Wrong Token**: Mismatch between `VAULT_DEV_ROOT_TOKEN_ID` and `VAULT_TOKEN`
 2. **Wrong URL**: `VAULT_ADDR` not pointing to correct host/port
 3. **KMS Not Enabled**: Vault transit engine not enabled
 
 **Solution**:
+
 ```bash
 # Verify Vault configuration in workflow
 env:
@@ -253,6 +268,7 @@ vault write -f transit/keys/fraiseql
 **Symptom**: Auth0 integration tests fail in enterprise workflow
 
 **Diagnostic Steps**:
+
 ```bash
 # Check test output
 pytest -m 'requires_auth0' -v --tb=short
@@ -262,11 +278,13 @@ grep -i "jwt\|token\|auth" <test-logs>
 ```
 
 **Common Causes**:
+
 1. **Mock Configuration**: Auth0 mocks not properly set up
 2. **Token Validation**: JWT validation logic incorrect
 3. **Network Issues**: Timeout connecting to Auth0 (if using real Auth0)
 
 **Solution**:
+
 ```python
 # Ensure tests use mocks
 @pytest.fixture
@@ -288,6 +306,7 @@ def auth0_mock():
 **Symptom**: Quality gate fails with "Performance regression detected"
 
 **Diagnostic Steps**:
+
 ```bash
 # 1. Check performance test results
 gh run view <RUN_ID> --log | grep -A 20 "performance"
@@ -317,6 +336,7 @@ pytest tests/ --durations=10
    - Solution: Add timeouts or use mocks
 
 **Remediation**:
+
 ```bash
 # Identify slow tests
 pytest tests/ --durations=20 -v
@@ -333,12 +353,14 @@ FRAISEQL_LOG_LEVEL=DEBUG pytest tests/integration/...
 **Symptom**: CI spends 30+ seconds collecting tests
 
 **Diagnostic Steps**:
+
 ```bash
 # Time test collection
 time pytest --collect-only tests/ -q
 ```
 
 **Solution**:
+
 ```toml
 # In pyproject.toml, ensure norecursedirs is set
 [tool.pytest.ini_options]
@@ -362,6 +384,7 @@ norecursedirs = [
 ### Tests Can't Connect to Database
 
 **Quick Fix**:
+
 ```bash
 # Check PostgreSQL status
 pg_isready -h localhost -p 5432
@@ -382,6 +405,7 @@ createdb fraiseql_test
 **Symptom**: Tests fail with "FRAISEQL_ENVIRONMENT not set"
 
 **Solution**:
+
 ```bash
 # Create .env file
 cat > .env <<EOF
@@ -401,6 +425,7 @@ export $(cat .env | xargs)
 **Symptom**: `pytest -m 'requires_postgres'` doesn't filter correctly
 
 **Diagnostic Steps**:
+
 ```bash
 # List all available markers
 pytest --markers
@@ -413,6 +438,7 @@ grep "markers" pyproject.toml
 ```
 
 **Solution**:
+
 ```toml
 # Ensure markers defined in pyproject.toml
 [tool.pytest.ini_options]
@@ -428,6 +454,7 @@ markers = [
 **Symptom**: `fixture 'db_connection' not found` or similar
 
 **Diagnostic Steps**:
+
 ```bash
 # List available fixtures
 pytest --fixtures tests/
@@ -437,6 +464,7 @@ grep -r "db_connection" tests/fixtures/
 ```
 
 **Common Solutions**:
+
 ```python
 # Ensure conftest.py is in correct location
 tests/
@@ -454,6 +482,7 @@ tests/
 ### CI Completely Broken
 
 **Immediate Actions**:
+
 ```bash
 # 1. Check GitHub Actions status
 curl https://www.githubstatus.com/api/v2/status.json
@@ -468,6 +497,7 @@ git commit --no-verify -m "Emergency fix"
 ### Vault Hanging All Enterprise Tests
 
 **Quick Fix**:
+
 ```bash
 # Disable enterprise workflow temporarily
 # Edit .github/workflows/enterprise-tests.yml
@@ -482,6 +512,7 @@ on:
 **Symptom**: Tests hang waiting for connections
 
 **Quick Fix**:
+
 ```python
 # Increase pool size in test configuration
 pool = psycopg_pool.AsyncConnectionPool(

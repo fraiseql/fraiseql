@@ -2,6 +2,11 @@
 enabled = true
 version = "v2"
 
+[federation.http]
+max_retries = 3
+retry_delay_ms = 100
+timeout_ms = 5000
+
 # User type is owned by users subgraph (HTTP federation)
 [[federation.subgraphs]]
 name = "User"
@@ -10,12 +15,7 @@ url = "${USERS_SUBGRAPH_URL:-http://users-subgraph:4001/graphql}"
 
 # Order type is local to this subgraph
 [[federation.subgraphs]]
+key_columns = ["id"]
 name = "Order"
 strategy = "local"
 view_name = "v_order"
-key_columns = ["id"]
-
-[federation.http]
-timeout_ms = 5000
-max_retries = 3
-retry_delay_ms = 100

@@ -31,6 +31,7 @@ tb_user (base table) → v_user (API view) → tv_user_with_posts (computed view
 ```
 
 This three-tier approach gives you:
+
 - **Performance** (no expensive JOINs in queries)
 - **Security** (automatic tenant isolation)
 - **Flexibility** (easy to extend without breaking APIs)
@@ -46,6 +47,7 @@ This three-tier approach gives you:
 **Naming Convention**: `tb_{entity}` (e.g., `tb_user`, `tb_post`, `tb_comment`)
 
 **Structure**:
+
 ```sql
 CREATE TABLE tb_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,6 +62,7 @@ CREATE INDEX idx_user_tenant ON tb_user(tenant_id);
 ```
 
 **Key Features**:
+
 - **Tenant ID** always present for multi-tenancy
 - **JSONB data** column for flexible schema
 - **Audit timestamps** (created_at, updated_at)
@@ -72,6 +75,7 @@ CREATE INDEX idx_user_tenant ON tb_user(tenant_id);
 **Naming Convention**: `v_{entity}` (e.g., `v_user`, `v_post`, `v_comment`)
 
 **Structure**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -88,6 +92,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 ```
 
 **Key Features**:
+
 - **Automatic tenant filtering** via session variables
 - **Flattened JSONB fields** for GraphQL compatibility
 - **Security by default** (impossible to query other tenants)
@@ -100,6 +105,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 **Naming Convention**: `tv_{entity}_{relationship}` (e.g., `tv_user_with_posts`, `tv_post_with_comments`)
 
 **Structure**:
+
 ```sql
 CREATE VIEW tv_user_with_posts AS
 SELECT
@@ -124,6 +130,7 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 ```
 
 **Key Features**:
+
 - **Pre-joined data** (no expensive JOINs at query time)
 - **Aggregated relationships** (posts as JSON array)
 - **Zero-copy performance** (data prepared once, read many times)
@@ -136,6 +143,7 @@ GROUP BY u.id, u.tenant_id, u.email, u.first_name, u.last_name, u.created_at, u.
 ### 1. Zero-Copy Performance
 
 **Traditional Approach** (expensive JOINs):
+
 ```sql
 -- Runtime JOIN for every query
 SELECT u.*, p.*
@@ -145,6 +153,7 @@ WHERE u.id = $1;
 ```
 
 **Trinity Pattern** (pre-computed):
+
 ```sql
 -- Single table scan, no JOINs
 SELECT *
@@ -157,12 +166,14 @@ WHERE id = $1;
 ### 2. Automatic Multi-Tenancy
 
 **Session Variable Injection**:
+
 ```python
 # FraiseQL automatically sets tenant from JWT
 # SET LOCAL app.tenant_id = 'tenant-uuid';
 ```
 
 **View-Level Security**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT * FROM tb_user
@@ -173,6 +184,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 ### 3. Schema Evolution Without Migrations
 
 **Add New Fields**:
+
 ```sql
 -- No ALTER TABLE needed!
 UPDATE tb_user
@@ -181,6 +193,7 @@ WHERE id = $1;
 ```
 
 **GraphQL Schema Updates**:
+
 ```python
 from fraiseql.types import ID
 
@@ -196,11 +209,13 @@ class User:
 ### 4. Consistent Naming Conventions
 
 **Always Use**:
+
 - `tb_user` - Base table
 - `v_user` - API view
 - `tv_user_with_posts` - Computed view
 
 **Never Use**:
+
 - `users` - Ambiguous, no tenant context
 - `user_view` - Inconsistent naming
 - `user_posts` - Missing computed view prefix

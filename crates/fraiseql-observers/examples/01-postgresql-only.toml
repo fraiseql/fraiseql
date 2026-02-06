@@ -11,48 +11,45 @@
 # - Low event volume (<1000 events/sec)
 # - Simple deployment (no additional infrastructure)
 
-# Transport configuration
-[transport]
-# Use PostgreSQL LISTEN/NOTIFY (default)
-transport = "postgres"
-run_bridge = false      # No NATS bridge
-run_executors = true    # Run observers in-process
+# Example observer: Send email when order is shipped
+[[observers]]
+condition = "data.status == 'shipped'"
+entity = "Order"
+event_type = "UPDATE"
 
-# No Redis configuration (dedup + caching disabled)
-# redis = ...
+[[observers.actions]]
+body_template = "Order #{{ data.id }} is on its way."
+subject = "Your order has shipped!"
+to_template = "{{ data.customer_email }}"
+type = "email"
+
+[observers.on_failure]
+
+[observers.retry]
+backoff_strategy = "exponential"
+initial_delay_ms = 100
+max_attempts = 3
+max_delay_ms = 30000
 
 # Performance features (all disabled without Redis)
 [performance]
-enable_dedup = false        # No deduplication (at-most-once delivery)
-enable_caching = false      # No action result caching
-enable_concurrent = true    # Still use concurrent action execution
-max_concurrent_actions = 10
-concurrent_timeout_ms = 30000
-
+backlog_alert_threshold = 500
 # Runtime settings
 channel_capacity = 1000
+concurrent_timeout_ms = 30000
+enable_caching = false  # No action result caching
+enable_concurrent = true  # Still use concurrent action execution
+enable_dedup = false  # No deduplication (at-most-once delivery)
 max_concurrency = 50
+max_concurrent_actions = 10
 overflow_policy = "drop"
-backlog_alert_threshold = 500
 shutdown_timeout = "30s"
 
-# Example observer: Send email when order is shipped
-[[observers]]
-event_type = "UPDATE"
-entity = "Order"
-condition = "data.status == 'shipped'"
+# Transport configuration
+[transport]
+run_bridge = false  # No NATS bridge
+run_executors = true  # Run observers in-process
+# Use PostgreSQL LISTEN/NOTIFY (default)
+transport = "postgres"
 
-[[observers.actions]]
-type = "email"
-to_template = "{{ data.customer_email }}"
-subject = "Your order has shipped!"
-body_template = "Order #{{ data.id }} is on its way."
-
-[observers.retry]
-max_attempts = 3
-initial_delay_ms = 100
-max_delay_ms = 30000
-backoff_strategy = "exponential"
-
-[observers.on_failure]
 # Log errors (no DLQ without Redis)

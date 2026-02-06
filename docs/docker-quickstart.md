@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Docker Quickstart
 description: Get FraiseQL running in 30 seconds without local Rust compilation.
 keywords: []

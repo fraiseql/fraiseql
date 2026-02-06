@@ -20,6 +20,7 @@ Comprehensive security guide for production FraiseQL deployments: SQL injection 
 Production security requires defense in depth: multiple layers of protection from the network edge to the database, with continuous monitoring and incident response.
 
 **Security Layers:**
+
 - SQL injection prevention (parameterized queries)
 - Query complexity analysis
 - Rate limiting

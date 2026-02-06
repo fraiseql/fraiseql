@@ -134,12 +134,14 @@ CREATE INDEX fraiseql_cache_expires_idx
 ```
 
 **UNLOGGED Benefits**:
+
 - **No WAL overhead** - writes are as fast as in-memory cache
 - **Crash-safe** - table cleared on crash (acceptable for cache)
 - **Shared access** - all app instances share same cache
 - **Zero dependencies** - no Redis/Memcached required
 
 **Trade-offs**:
+
 - Data lost on PostgreSQL crash/restart (acceptable for cache)
 - Not replicated to read replicas (primary-only)
 
@@ -160,6 +162,7 @@ else:
 ```
 
 **Detection Logic**:
+
 1. Query `pg_extension` table for `pg_fraiseql_cache`
 2. If found: Enable domain-based invalidation features
 3. If not found: Gracefully fall back to TTL-only caching
@@ -265,6 +268,7 @@ users = await cached_repo.find("v_user", status="active")
 ```
 
 **Without tenant_id**:
+
 ```python
 # 🚨 CRITICAL SECURITY VIOLATION - DO NOT USE IN PRODUCTION
 # This example shows what happens when tenant_id is missing.
@@ -297,6 +301,7 @@ fraiseql:{tenant_id}:{view_name}:{filters}:{order_by}:{limit}:{offset}
 ```
 
 **Examples**:
+
 ```
 # Tenant A
 fraiseql:tenant-a:users:status:active:limit:10
@@ -344,6 +349,7 @@ async def tenant_context_middleware(request: Request, call_next):
 The `pg_fraiseql_cache` extension provides automatic domain-based cache invalidation beyond simple TTL expiry:
 
 **Without Extension** (TTL-only):
+
 ```python
 # Cache entry valid for 5 minutes, even if data changes
 users = await cached_repo.find("v_user", cache_ttl=300)
@@ -351,6 +357,7 @@ users = await cached_repo.find("v_user", cache_ttl=300)
 ```
 
 **With Extension** (Domain-based):
+
 ```python
 # Cache automatically invalidated when 'user' domain data changes
 users = await cached_repo.find("v_user", cache_ttl=300)
@@ -864,12 +871,14 @@ CREATE TABLE fraiseql_cache_3 PARTITION OF fraiseql_cache
 **Symptom**: < 70% hit rate, frequent cache misses
 
 **Causes**:
+
 1. TTLs too short
 2. High query diversity (many unique queries)
 3. Aggressive invalidation
 4. Missing tenant_id (keys not reused)
 
 **Solutions**:
+
 ```python
 # Increase TTLs
 result_cache.default_ttl = 600  # 10 minutes
@@ -889,11 +898,13 @@ print(cache_key)  # Should include tenant_id
 **Symptom**: Cached data doesn't reflect recent changes
 
 **Causes**:
+
 1. TTL too long
 2. Mutations not invalidating cache
 3. Extension not installed (no domain-based invalidation)
 
 **Solutions**:
+
 ```python
 # Check extension
 if not cache.has_domain_versioning:
@@ -914,11 +925,13 @@ cache_ttl = 30  # 30 seconds
 **Symptom**: PostgreSQL memory usage growing
 
 **Causes**:
+
 1. Cache table too large
 2. Expired entries not cleaned
 3. Too many cached large results
 
 **Solutions**:
+
 ```sql
 -- Check table size
 SELECT pg_size_pretty(pg_total_relation_size('fraiseql_cache'));
@@ -947,6 +960,7 @@ if len(json.dumps(result)) > 100_000:  # > 100KB
 **Cause**: Cache operations holding connections too long
 
 **Solution**:
+
 ```python
 # Use separate pool for cache
 cache_pool = DatabasePool(
@@ -963,6 +977,7 @@ cache = PostgresCache(cache_pool)
 **Symptom**: Unexpected errors, constraint violations
 
 **Solution**:
+
 ```sql
 -- Drop and recreate cache table (safe - it's just cache)
 DROP TABLE IF EXISTS fraiseql_cache CASCADE;
@@ -984,11 +999,13 @@ CREATE INDEX fraiseql_cache_expires_idx
 **Symptom**: `has_domain_versioning` is False despite extension installed
 
 **Causes**:
+
 1. Extension not installed in correct database
 2. Permissions issue
 3. Extension name mismatch
 
 **Solutions**:
+
 ```sql
 -- Verify extension installed
 SELECT * FROM pg_extension WHERE extname = 'pg_fraiseql_cache';

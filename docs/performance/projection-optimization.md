@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: SQL Projection Optimization Guide
 description: FraiseQL automatically optimizes GraphQL queries by projecting only requested fields at the database level using SQL `jsonb_build_object()`. This reduces networ
 keywords: []

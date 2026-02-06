@@ -18,6 +18,7 @@ Implement query plan caching at the Rust level to eliminate repeated query build
 5. Performance: 5-10x speedup for repeated queries
 
 **Success Criteria**:
+
 - ✅ Identical queries return pre-compiled plan (< 1µs)
 - ✅ Different queries bypass cache properly
 - ✅ Cache hit rate 60-80% in typical workloads
@@ -723,6 +724,7 @@ async def test_cache_stats(parser, builder, test_schema):
 ## Performance Analysis
 
 ### Before Caching
+
 ```
 Query 1: Parse (40µs) + Build (150µs) = 190µs
 Query 2: Parse (40µs) + Build (150µs) = 190µs
@@ -731,6 +733,7 @@ Total for identical queries: 570µs
 ```
 
 ### After Caching
+
 ```
 Query 1: Parse (40µs) + Build (150µs) + Cache store (5µs) = 195µs
 Query 2: Parse (40µs) + Cache lookup (1µs) = 41µs  ✓ 4.6x faster
@@ -741,6 +744,7 @@ Total for identical queries: 277µs  ✓ 2x faster overall
 ### Real-World Workload (Typical SaaS App)
 
 Assuming 60% query pattern repetition:
+
 - 100 requests/second
 - 40 repeated patterns (cache hits)
 - 60 unique patterns (cache misses)

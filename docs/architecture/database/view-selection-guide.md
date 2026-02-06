@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: View Selection Guide: Choosing Between v_*, tv_*, va_*, and ta_*
 description: FraiseQL supports **four distinct view patterns** across two query planes. This guide helps you choose the right pattern for your use case.
 keywords: ["design", "scalability", "performance", "patterns", "security"]

@@ -101,26 +101,31 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 ## Trust Boundaries
 
 ### Boundary 1: External Network → FastAPI
+
 - **Protection**: TLS/HTTPS encryption, rate limiting, WAF
 - **Trust Level**: UNTRUSTED
 - **Validation**: All input validated and sanitized
 
 ### Boundary 2: FastAPI → GraphQL Layer
+
 - **Protection**: Authentication, authorization, query validation
 - **Trust Level**: SEMI-TRUSTED (authenticated users)
 - **Validation**: Query depth, complexity, field-level permissions
 
 ### Boundary 3: GraphQL → Rust Pipeline
+
 - **Protection**: Type safety, memory safety, bounds checking
 - **Trust Level**: TRUSTED (internal)
 - **Validation**: JSON schema validation
 
 ### Boundary 4: Application → PostgreSQL
+
 - **Protection**: Parameterized queries, RLS, connection pooling
 - **Trust Level**: TRUSTED
 - **Validation**: SQL injection prevention, stored function contracts
 
 ### Boundary 5: Application → KMS Provider
+
 - **Protection**: Mutual TLS, API authentication, envelope encryption
 - **Trust Level**: SEMI-TRUSTED (external service)
 - **Validation**: Certificate pinning, request signing
@@ -134,16 +139,19 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Attacker gains access to Data Encryption Keys (DEKs) stored in memory.
 
 **Attack Vectors**:
+
 - Memory dump from compromised application server
 - Side-channel attacks (timing, cache)
 - Debugging interface exploitation
 - Container escape to host memory
 
 **Impact**: CRITICAL
+
 - Decryption of all data encrypted with compromised DEK
 - Loss of confidentiality for sensitive data
 
 **Mitigations**:
+
 - ✅ DEKs stored in memory only (never on disk)
 - ✅ Periodic key rotation via background task
 - ✅ Memory protection via OS-level security (DEP, ASLR)
@@ -161,17 +169,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Attacker crafts malicious GraphQL queries to bypass validation or access unauthorized data.
 
 **Attack Vectors**:
+
 - Deeply nested queries causing DoS
 - Alias-based query complexity explosion
 - Field injection via variables
 - Introspection-based reconnaissance
 
 **Impact**: HIGH
+
 - Service disruption (resource exhaustion)
 - Unauthorized data access
 - Information disclosure
 
 **Mitigations**:
+
 - ✅ Query depth limiting (configured per security profile)
 - ✅ Query complexity analysis
 - ✅ Rate limiting per user/IP
@@ -189,17 +200,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Sensitive data leaks through application logs, traces, or error messages.
 
 **Attack Vectors**:
+
 - OpenTelemetry traces containing PII
 - Error messages revealing internal state
 - Debug logs in production
 - Log aggregation systems accessible to unauthorized parties
 
 **Impact**: HIGH
+
 - Privacy violations (GDPR, HIPAA)
 - Credential exposure
 - Intellectual property theft
 
 **Mitigations**:
+
 - ✅ TracingConfig.sanitize_patterns for automatic PII redaction
 - ✅ Error messages sanitized before returning to client
 - ✅ Structured logging with sensitivity levels
@@ -216,18 +230,21 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Attacker injects malicious SQL through GraphQL variables or input fields.
 
 **Attack Vectors**:
+
 - Unsanitized GraphQL variables
 - Dynamic SQL construction
 - Stored function parameter injection
 - Second-order SQL injection via stored data
 
 **Impact**: CRITICAL
+
 - Complete database compromise
 - Data exfiltration
 - Data manipulation or deletion
 - Privilege escalation
 
 **Mitigations**:
+
 - ✅ **Architectural defense**: All queries through PostgreSQL views and stored functions
 - ✅ No dynamic SQL construction in application code
 - ✅ Parameterized queries only
@@ -245,6 +262,7 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Attacker overwhelms the system with requests or expensive operations.
 
 **Attack Vectors**:
+
 - High-volume request flooding
 - Expensive GraphQL queries
 - Large payload uploads
@@ -252,11 +270,13 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 - Rust pipeline resource starvation
 
 **Impact**: HIGH
+
 - Service unavailability
 - Revenue loss
 - Reputation damage
 
 **Mitigations**:
+
 - ✅ Rate limiting (configured per security profile)
 - ✅ Body size limits (1MB/10MB/100KB based on profile)
 - ✅ Query complexity limits
@@ -275,17 +295,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Third-party dependencies contain security vulnerabilities.
 
 **Attack Vectors**:
+
 - Known CVEs in Python packages
 - Known CVEs in Rust crates
 - Compromised package registries
 - Supply chain attacks
 
 **Impact**: VARIES (depending on vulnerability)
+
 - Remote code execution
 - Data breach
 - Service disruption
 
 **Mitigations**:
+
 - ✅ SBOM generation (CycloneDX format)
 - ✅ Automated dependency scanning (Safety, cargo-audit)
 - ✅ Container security scanning (Trivy)
@@ -304,17 +327,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Weak or missing authentication/authorization allows unauthorized access.
 
 **Attack Vectors**:
+
 - Missing authentication checks
 - Broken session management
 - Privilege escalation
 - Horizontal/vertical access control bypass
 
 **Impact**: CRITICAL
+
 - Unauthorized data access
 - Data manipulation
 - Account takeover
 
 **Mitigations**:
+
 - ✅ Field-level authorization in GraphQL resolvers
 - ✅ PostgreSQL Row-Level Security (RLS)
 - ✅ Stored functions with SECURITY DEFINER controls
@@ -333,17 +359,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Weak or improperly implemented cryptography.
 
 **Attack Vectors**:
+
 - Weak cipher selection
 - Improper key derivation
 - Insufficient entropy
 - Timing attacks on crypto operations
 
 **Impact**: HIGH
+
 - Data decryption
 - Authentication bypass
 - Integrity violations
 
 **Mitigations**:
+
 - ✅ Industry-standard KMS providers (Vault, AWS, GCP)
 - ✅ AES-256-GCM for symmetric encryption
 - ✅ Envelope encryption pattern
@@ -362,17 +391,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Attacker exploits container escape or infrastructure vulnerabilities.
 
 **Attack Vectors**:
+
 - Container escape via kernel vulnerabilities
 - Exposed Docker socket
 - Privileged container exploitation
 - Kubernetes RBAC misconfiguration
 
 **Impact**: CRITICAL
+
 - Host system compromise
 - Multi-tenant data breach
 - Infrastructure takeover
 
 **Mitigations**:
+
 - ✅ Non-root container user
 - ✅ Read-only root filesystem
 - ✅ Container security scanning (Trivy)
@@ -392,17 +424,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Description**: Malicious or negligent insiders abuse access.
 
 **Attack Vectors**:
+
 - Excessive permissions
 - Direct database access
 - Credential sharing
 - Lack of audit trails
 
 **Impact**: HIGH
+
 - Data exfiltration
 - Data manipulation
 - Compliance violations
 
 **Mitigations**:
+
 - ✅ Principle of least privilege
 - ✅ Audit logging of all operations
 - ✅ Database RLS prevents unauthorized queries
@@ -436,18 +471,21 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 ## Compliance Mapping
 
 ### PCI-DSS Requirements
+
 - **Req 3**: Protect stored cardholder data → KMS encryption, envelope encryption
 - **Req 6**: Secure development → SBOM, dependency scanning
 - **Req 8**: Identify and authenticate access → Field-level authz, RLS
 - **Req 10**: Track and monitor access → Audit logging, tracing
 
 ### HIPAA Requirements
+
 - **§164.312(a)(1)**: Access controls → Security profiles, field authz
 - **§164.312(a)(2)(iv)**: Encryption → KMS, TLS
 - **§164.312(b)**: Audit controls → Structured logging
 - **§164.312(e)(1)**: Transmission security → TLS 1.2+
 
 ### GDPR Requirements
+
 - **Art 25**: Data protection by design → Security profiles
 - **Art 32**: Security of processing → Encryption, access controls
 - **Art 33**: Breach notification → Audit trails
@@ -458,21 +496,25 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 ## Attack Surface Analysis
 
 ### Network Attack Surface
+
 - **Exposed**: HTTPS port (443/8000)
 - **Risk**: Medium
 - **Mitigation**: TLS, rate limiting, WAF
 
 ### Application Attack Surface
+
 - **Exposed**: GraphQL endpoint, REST API
 - **Risk**: High
 - **Mitigation**: Input validation, authentication, authorization
 
 ### Database Attack Surface
+
 - **Exposed**: None (internal network only)
 - **Risk**: Low
 - **Mitigation**: Network segmentation, connection pooling
 
 ### KMS Attack Surface
+
 - **Exposed**: Outbound connections to KMS providers
 - **Risk**: Medium
 - **Mitigation**: Mutual TLS, API authentication
@@ -482,6 +524,7 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 ## Incident Response
 
 ### Detection Mechanisms
+
 1. **Anomalous query patterns** → OpenTelemetry traces
 2. **Authentication failures** → Audit logs
 3. **Rate limit violations** → Middleware logs
@@ -489,6 +532,7 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 5. **KMS failures** → Provider alerts
 
 ### Response Procedures
+
 1. **Isolate** affected services/users
 2. **Investigate** using audit trails and traces
 3. **Contain** by revoking credentials/keys
@@ -501,17 +545,20 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 ## Security Testing Recommendations
 
 ### Automated Testing
+
 - ✅ Unit tests for security middleware (83 tests)
 - ✅ Integration tests for KMS providers (6 tests)
 - 🔄 Add: Fuzzing for GraphQL parser
 - 🔄 Add: Load testing for DoS resilience
 
 ### Manual Testing
+
 - 🔄 Penetration testing (annually)
 - 🔄 Code review (security-focused)
 - 🔄 Architecture review (threat modeling update)
 
 ### Continuous Monitoring
+
 - ✅ Dependency scanning (CI/CD)
 - ✅ Container scanning (CI/CD)
 - 🔄 Runtime application self-protection (RASP)
@@ -526,6 +573,7 @@ This document provides a comprehensive threat model for FraiseQL, a high-perform
 **Next Review**: 2026-02-24
 
 **Change Triggers**:
+
 - New features or APIs
 - Security incidents
 - New compliance requirements

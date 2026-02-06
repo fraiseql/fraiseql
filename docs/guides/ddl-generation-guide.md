@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: DDL Generation Guide: Creating Table-Backed Views
 description: - SQL fundamentals (SELECT, JOIN, WHERE clauses)
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

@@ -119,16 +119,16 @@ spec:
         fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
-      
+
       # Pod disruption budget
       serviceAccountName: default
       terminationGracePeriodSeconds: 30
-      
+
       containers:
       - name: fraiseql
         image: fraiseql:latest
         imagePullPolicy: IfNotPresent
-        
+
         # Container security context
         securityContext:
           allowPrivilegeEscalation: false
@@ -142,12 +142,12 @@ spec:
           runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
-        
+
         ports:
         - containerPort: 8815
           name: http
           protocol: TCP
-        
+
         # Environment variables
         env:
         - name: RUST_LOG
@@ -157,7 +157,7 @@ spec:
             secretKeyRef:
               name: fraiseql-db
               key: url
-        
+
         # Resource constraints
         resources:
           requests:
@@ -166,7 +166,7 @@ spec:
           limits:
             cpu: 1000m
             memory: 1Gi
-        
+
         # Probes
         livenessProbe:
           httpGet:
@@ -177,7 +177,7 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3
-        
+
         readinessProbe:
           httpGet:
             path: /health
@@ -187,7 +187,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 2
-        
+
         startupProbe:
           httpGet:
             path: /health
@@ -197,7 +197,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 30
-      
+
       # Pod affinity for distribution
       affinity:
         podAntiAffinity:

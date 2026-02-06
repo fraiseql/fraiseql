@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2: Rust Core Architecture Design
 description: 1. [Executive Summary](#executive-summary)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

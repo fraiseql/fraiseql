@@ -14,6 +14,7 @@
 ## System Architecture
 
 ### Infrastructure
+
 - **Hosting**: [AWS/GCP/Azure/DigitalOcean/Heroku/Self-hosted]
 - **Database**: [PostgreSQL version, managed/self-hosted]
 - **Application**: [FastAPI/Strawberry/Custom]
@@ -21,6 +22,7 @@
 - **Regions**: [Number of regions/datacenters]
 
 ### FraiseQL Configuration
+
 - **Version**: [e.g., 0.11.0]
 - **Modules Used**:
   - [ ] Core GraphQL
@@ -54,6 +56,7 @@ Example:
 ## Performance Metrics
 
 ### Request Volume
+
 - **Daily Requests**: [number] requests/day
 - **Peak Traffic**: [number] req/sec
 - **Average Traffic**: [number] req/sec
@@ -136,6 +139,7 @@ Example:
 ## Challenges & Solutions
 
 ### Challenge 1: [Title]
+
 **Problem**: [Description of challenge faced]
 
 **Solution**: [How it was resolved with FraiseQL]
@@ -143,6 +147,7 @@ Example:
 **Outcome**: [Results after solution]
 
 ### Challenge 2: [Title]
+
 **Problem**: [Description]
 
 **Solution**: [Resolution]
@@ -178,6 +183,7 @@ Example:
 - **Experience**: [Pros/cons compared to Sentry]
 
 **Example Query**:
+
 ```sql
 -- [Include an actual query they use for error monitoring]
 SELECT
@@ -200,6 +206,7 @@ LIMIT 10;
 - **Experience**: [Performance comparison vs Redis]
 
 **Example Pattern**:
+
 ```python
 # [Include actual caching pattern they use]
 await cache.set(f"user:{user_id}", user_data, ttl=3600)
@@ -220,14 +227,17 @@ await cache.set(f"user:{user_id}", user_data, ttl=3600)
 ## Metrics Timeline
 
 ### Month 1: Initial Deployment
+
 - [Key metrics]
 - [Challenges]
 
 ### Month 3: Production Stable
+
 - [Growth metrics]
 - [Optimizations made]
 
 ### Month 6+: At Scale
+
 - [Current performance]
 - [Lessons learned]
 
@@ -255,11 +265,13 @@ When filling out this template:
 ## What Makes a Good Case Study
 
 ✅ **Good**:
+
 - "We handle 50M requests/day with P95 latency of 45ms"
 - "Reduced our infrastructure costs from $4,200/mo to $800/mo"
 - "Challenge: Initial cache hit rate was 60%, solved by adjusting TTLs to 73%"
 
 ❌ **Avoid**:
+
 - "We handle many requests"
 - "Saved some money"
 - "Everything works perfectly" (not believable)

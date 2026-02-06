@@ -13,6 +13,7 @@ Release v1.8.1 with @error decorator rename, custom scalar WHERE filtering suppo
 **Important**: Despite the CHANGELOG showing v1.8.1 dated 2025-12-12, this version was **never actually tagged/released**. This is the official v1.8.1 release.
 
 **Version Progression**:
+
 - v1.8.0 (released, tagged) - Base version
 - **v1.8.1 (this release, NOT YET TAGGED)** - @error decorator rename, custom scalar WHERE support, WHERE improvements
 
@@ -23,11 +24,13 @@ Release v1.8.1 with @error decorator rename, custom scalar WHERE filtering suppo
 ### 🎯 Major Features
 
 #### 1. Custom Scalar WHERE Clause Support
+
 All 54 custom scalar types now support WHERE filtering with standard operators.
 
 **Impact**: Makes custom scalars fully functional across the entire FraiseQL pipeline.
 
 **Example**:
+
 ```python
 from fraiseql.types.scalars import EmailScalar, CIDRScalar
 
@@ -49,11 +52,13 @@ query {
 **Known Limitation**: JSON/dict-valued scalars (JSONScalar) cannot use standard WHERE operators due to parser conflicts. Documented in code.
 
 #### 2. Automatic Field Name Conversion in WHERE Clauses
+
 WHERE clauses automatically convert GraphQL camelCase to database snake_case.
 
 **Impact**: Eliminates manual field name conversion in WHERE clauses.
 
 **Example**:
+
 ```python
 # Before: Required snake_case
 where = {"ip_address": {"eq": "192.168.1.1"}}
@@ -63,6 +68,7 @@ where = {"ipAddress": {"eq": "192.168.1.1"}}  # Converts to ip_address
 ```
 
 #### 3. Deep Nested WHERE Clause Support
+
 WHERE clauses now support arbitrary nesting depth.
 
 **Impact**: Fixes "Invalid operator" errors for deeply nested queries.
@@ -72,18 +78,21 @@ WHERE clauses now support arbitrary nesting depth.
 ## Pre-Release Checklist
 
 ### Code & Tests
+
 - [x] All tests passing (167/167 scalar tests)
 - [x] No regressions in existing functionality
 - [x] Custom scalar WHERE support implemented
 - [x] Known limitations documented
 
 ### Documentation
+
 - [ ] Update CHANGELOG.md with v1.8.1 entry
 - [ ] Move Unreleased section to v1.8.1
 - [ ] Add custom scalar WHERE support to changelog
-- [ ] Update version numbers (pyproject.toml, __init__.py)
+- [ ] Update version numbers (pyproject.toml, **init**.py)
 
 ### Version Management
+
 - [ ] Create release branch `release/v1.8.1` from current HEAD
 - [ ] Update version to 1.8.1
 - [ ] Tag release as `v1.8.1`
@@ -94,6 +103,7 @@ WHERE clauses now support arbitrary nesting depth.
 ## Release Steps
 
 ### Step 1: Create Release Branch
+
 ```bash
 # Ensure we're on the right branch
 git checkout feature/rename-failure-to-error
@@ -106,6 +116,7 @@ git log v1.8.0..HEAD --oneline
 ```
 
 **Expected commits to include**:
+
 - 8681321e feat(where): enable WHERE clause filtering for custom scalar types
 - a4d87cde refactor(where): clean up custom scalar filter generation
 - 23a38f93 test(where): add tests for custom scalar WHERE filters
@@ -120,6 +131,7 @@ git log v1.8.0..HEAD --oneline
 ### Step 2: Update Version Numbers
 
 #### File 1: pyproject.toml
+
 ```toml
 # Change from:
 version = "1.8.0"
@@ -128,7 +140,8 @@ version = "1.8.0"
 version = "1.8.1"
 ```
 
-#### File 2: src/fraiseql/__init__.py
+#### File 2: src/fraiseql/**init**.py
+
 ```python
 # Change from:
 __version__ = "1.8.0"
@@ -138,6 +151,7 @@ __version__ = "1.8.1"
 ```
 
 #### File 3: README.md
+
 ```markdown
 # Change from:
 **📍 You are here: Main FraiseQL Framework (v1.8.0-beta.5) - Beta Release**
@@ -192,12 +206,14 @@ query {
 **Known Limitation**: JSON/dict-valued scalars (JSONScalar) cannot use standard WHERE operators because the parser interprets dict keys as filter operators. Use specialized JSONB operators or filter on JSON paths instead. See `src/fraiseql/where_clause.py` for details.
 
 #### Automatic Field Name Conversion in WHERE Clauses
+
 - WHERE clauses now automatically convert GraphQL camelCase field names to database snake_case
 - Supports arbitrary nesting levels (e.g., `machine.network.ipAddress`)
 - Backward compatible - existing snake_case field names work unchanged
 - Applies to both dict-based and WhereInput-based WHERE clauses
 
 **Examples**:
+
 ```python
 # GraphQL camelCase (now works automatically)
 where = {"ipAddress": {"eq": "192.168.1.1"}}
@@ -211,21 +227,25 @@ where = {"machine": {"network": {"ipAddress": {"eq": "192.168.1.1"}}}}
 ### Fixes
 
 #### Deep Nested WHERE Clause Support
+
 - Fixed WHERE clause processing to handle arbitrary levels of nesting
 - Previously only supported 1 level of nesting, now supports unlimited depth
 - Resolves "Invalid operator" errors for deeply nested GraphQL queries
 
 #### PageInfo Type Consistency
+
 - Fixed PageInfo type caching to ensure single instance across schema
 - Prevents "duplicate type" errors in complex schemas with multiple connections
 
 #### Connection Decorator Type Annotations
+
 - Fixed @connection decorator to preserve original function type annotations
 - Resolves type checker warnings and improves IDE autocomplete
 
 ## [1.8.1] - 2025-12-12
 
 (existing content remains unchanged)
+
 ```
 
 ---
@@ -245,6 +265,7 @@ git commit -m "chore(release): prepare v1.8.1 release
 ---
 
 ### Step 5: Create and Push Tag
+
 ```bash
 # Create annotated tag
 git tag -a v1.8.1 -m "Release v1.8.1: Custom Scalar WHERE Support
@@ -269,6 +290,7 @@ git push origin v1.8.1
 ---
 
 ### Step 6: Merge to Main Branch
+
 ```bash
 # Switch to main/dev branch (whichever is primary)
 git checkout dev  # or main
@@ -286,6 +308,7 @@ git push origin dev
 ---
 
 ### Step 7: Clean Up (Optional)
+
 ```bash
 # Delete release branch locally
 git branch -d release/v1.8.1
@@ -299,6 +322,7 @@ git push origin --delete release/v1.8.1
 ## Verification
 
 ### Before Release
+
 ```bash
 # Verify all tests pass
 uv run pytest tests/integration/meta/test_all_scalars.py -v
@@ -313,6 +337,7 @@ grep "__version__.*1\.8\.1" src/fraiseql/__init__.py
 ```
 
 ### After Release
+
 ```bash
 # Verify tag exists
 git tag -l | grep v1.8.1
@@ -329,6 +354,7 @@ git ls-remote --tags origin | grep v1.8.1
 ## Communication
 
 ### Release Notes (GitHub/GitLab)
+
 ```markdown
 # FraiseQL v1.8.1
 
@@ -374,6 +400,7 @@ JSONScalar cannot use standard WHERE operators due to parser conflicts. Use JSON
 ### Full Changelog
 
 See CHANGELOG.md for complete list of changes.
+
 ```
 
 ---
@@ -395,6 +422,7 @@ git checkout -b hotfix/v1.8.2 v1.8.1
 ```
 
 ### Option 2: Revert Tag (Nuclear Option)
+
 ```bash
 # Delete tag locally
 git tag -d v1.8.1

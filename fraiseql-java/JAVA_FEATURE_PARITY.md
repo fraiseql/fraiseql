@@ -28,6 +28,7 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 ### Implementation Status
 
 **Implemented:**
+
 - Object types with @GraphQLType annotation
 - Automatic field extraction via @GraphQLField
 - Custom field names and types
@@ -64,6 +65,7 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 ### Current Implementation
 
 **Implemented:**
+
 - Field descriptions via @GraphQLField annotation
 - Custom field names
 - Nullable field support
@@ -97,6 +99,7 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 ### Implementation Status
 
 **Implemented:**
+
 - Fact table definitions with @GraphQLFactTable annotation
 - Measure fields with aggregation functions (SUM, AVG, COUNT, MIN, MAX, STDDEV, VARIANCE)
 - Dimension fields with hierarchy support and cardinality hints
@@ -123,6 +126,7 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 ### Implementation Status
 
 **Implemented:**
+
 - Custom authorization rules via @Authorize annotation
 - Rule expressions with context variables ($context.userId, $context.roles, etc.)
 - Field-level and type-level authorization
@@ -146,6 +150,7 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 ### New Test Suites (Phases 2-5)
 
 **Phase 2 - Core Tests:**
+
 - **TypeSystemTest** (18 tests): Type registration, field extraction, type conversion
 - **OperationsTest** (13 tests): Query, mutation, subscription builders
 - **FieldMetadataTest** (15 tests): Field metadata, nullability, naming
@@ -153,22 +158,26 @@ This document certifies the feature parity status of FraiseQL Java with TypeScri
 - **AnalyticsTest** (10 tests): Analytics patterns and aggregations
 
 **Phase 3 - Type Decorators:**
+
 - **EnumTest** (8 tests): Enum types with values
 - **InterfaceTest** (6 tests): Interface type definitions
 - **UnionTest** (6 tests): Union type members
 - **InputTest** (6 tests): Input type fields
 
 **Phase 4 - Field Metadata:**
+
 - **DeprecationTest** (6 tests): Deprecation markers and API versioning
 - **ScopeAccessControlTest** (6 tests): JWT scope-based access control
 
 **Phase 5 - Analytics:**
+
 - **FactTableTest** (6 tests): Fact table registration and aggregation
 - **MeasureAndDimensionTest** (5 tests): Measures, dimensions, and hierarchies
 - **AggregateQueryTest** (5 tests): Aggregate query patterns
 - **AnalyticsPatternTest** (12 tests): Advanced OLAP patterns and scenarios
 
 **Phase 6 - Security Extensions:**
+
 - **AuthorizationTest** (8 tests): Custom authorization rules and policies
 - **RoleBasedAccessControlTest** (11 tests): RBAC patterns and role hierarchies
 - **AttributeBasedAccessControlTest** (11 tests): ABAC with attributes and classifications

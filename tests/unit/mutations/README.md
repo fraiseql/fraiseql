@@ -9,6 +9,7 @@ This directory contains unit and integration tests for FraiseQL mutation functio
 Field selection/filtering ensures that auto-injected mutation response fields are only returned when explicitly requested by the client.
 
 **Files**:
+
 - `test_rust_field_selection.py` - Rust layer field filtering (Success/Error types)
 - `test_named_fragments.py` - Named fragment support
 - `test_field_selection_performance.py` - Performance benchmarks
@@ -30,24 +31,28 @@ Field selection/filtering ensures that auto-injected mutation response fields ar
 ## Auto-Injected Fields (v1.8.1)
 
 ### Success Types
+
 - `status: String!` - Operation status (e.g., "created", "updated")
 - `message: String` - Human-readable message
 - `id: UUID` - ID of created/updated entity (if entity field present)
 - `updatedFields: [String!]` - List of fields that were updated
 
 ### Error Types
+
 - `status: String!` - Error status (e.g., "failed:validation")
 - `message: String` - Human-readable error message
 - `code: Int!` - HTTP-like error code (computed from status)
 - `errors: [Error!]` - Detailed error array
 
 **Breaking Changes (v1.8.1)**:
+
 - ❌ Success types do NOT have `errors` field (removed for semantic correctness)
 - ❌ Error types do NOT have `id` or `updatedFields` fields (errors = no entity created)
 
 ## Field Selection Examples
 
 ### GraphQL Query
+
 ```graphql
 mutation CreateMachine($input: CreateMachineInput!) {
     createMachine(input: $input) {
@@ -60,6 +65,7 @@ mutation CreateMachine($input: CreateMachineInput!) {
 ```
 
 ### Response (with field selection)
+
 ```json
 {
     "data": {
@@ -74,6 +80,7 @@ mutation CreateMachine($input: CreateMachineInput!) {
 ```
 
 ### Benefits
+
 - ✅ Reduced bandwidth (only requested fields)
 - ✅ GraphQL spec compliance
 - ✅ Better performance (less serialization)
@@ -102,10 +109,12 @@ If field selection isn't working:
 
 1. **Check FraiseQL version**: Must be v1.8.1+ (commit eaa1f78f or later)
 2. **Enable debug logging**:
+
     ```bash
     export FRAISEQL_DEBUG_FIELD_EXTRACTION=1
     uv run pytest tests/unit/mutations/test_rust_field_selection.py -xvs
     ```
+
 3. **Verify field extraction**: Check that `_extract_selected_fields()` returns correct set
 4. **Verify Rust API**: Ensure using `build_mutation_response()` not old `build_graphql_response()`
 

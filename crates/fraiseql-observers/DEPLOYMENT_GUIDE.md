@@ -478,6 +478,7 @@ fraiseql-observers metrics | grep cache_hit
 ### Prometheus Metrics to Monitor
 
 **Event Processing**:
+
 ```yaml
 observer_events_processed_total       # Total events
 observer_events_matched_total         # Events matched by observers
@@ -486,6 +487,7 @@ observer_actions_failed_total         # Failed actions
 ```
 
 **Performance**:
+
 ```yaml
 observer_event_processing_duration_seconds     # Event latency
 observer_action_duration_seconds               # Action duration
@@ -493,6 +495,7 @@ observer_cache_hit_rate                        # Cache effectiveness
 ```
 
 **System Health**:
+
 ```yaml
 observer_dlq_items_total              # DLQ size
 observer_listener_health              # Listener health (1=healthy, 0=down)
@@ -771,4 +774,3 @@ fraiseql-observers metrics | grep action_duration
 **Deployment Guide Version**: 1.0
 **Last Updated**: January 22, 2026
 **Status**: Ready for Production
-

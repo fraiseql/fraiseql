@@ -13,6 +13,7 @@
 **Rationale**: Using PostgreSQL for RBAC caching is not just a good idea—it's **essential** for FraiseQL's architectural integrity and competitive positioning.
 
 **Impact**:
+
 - ✅ **Aligns with core "In PostgreSQL Everything" philosophy**
 - ✅ **Eliminates $50-500/month Redis cost** (contradicts value proposition)
 - ✅ **Leverages existing mature PostgresCache infrastructure**
@@ -32,6 +33,7 @@ From `docs/core/fraiseql-philosophy.md` and `README.md`:
 > **One database to rule them all.** FraiseQL eliminates external dependencies by implementing caching, error tracking, and observability directly in PostgreSQL.
 
 **Cost Savings Promise**:
+
 ```
 Traditional Stack:
 - Sentry: $300-3,000/month
@@ -44,6 +46,7 @@ FraiseQL Stack:
 ```
 
 **Operational Simplicity Promise**:
+
 ```
 Before: FastAPI + PostgreSQL + Redis + Sentry + Grafana = 5 services
 After:  FastAPI + PostgreSQL + Grafana = 3 services
@@ -52,10 +55,12 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 ### Critical Inconsistency
 
 The current RBAC plan introduces Redis for permission caching:
+
 - **Line 1379**: "2-layer cache: Request + Redis"
 - **Lines 2036-2150**: Redis-based PermissionCache implementation
 
 **This contradicts**:
+
 1. ✗ The "In PostgreSQL Everything" philosophy
 2. ✗ The "$0/month additional" cost promise
 3. ✗ The "3 services" operational simplicity promise
@@ -70,6 +75,7 @@ The current RBAC plan introduces Redis for permission caching:
 FraiseQL **already has** a mature PostgreSQL caching system at `src/fraiseql/caching/postgres_cache.py`:
 
 **Key Features**:
+
 1. **UNLOGGED Tables** - Redis-level performance without WAL overhead
 2. **TTL Support** - Automatic expiration like Redis
 3. **Pattern-Based Deletion** - `delete_pattern()` for bulk invalidation
@@ -79,6 +85,7 @@ FraiseQL **already has** a mature PostgreSQL caching system at `src/fraiseql/cac
 7. **Multi-Instance Safe** - Shared cache across app instances
 
 **Performance**:
+
 - UNLOGGED tables skip WAL = **fast writes** (Redis-comparable)
 - Indexed lookups = **sub-millisecond reads**
 - Persistent across restarts (better than Redis default)
@@ -104,16 +111,19 @@ await cache.setup_table_trigger("user_roles", domain_name="user_role")
 ### FraiseQL's Core Patterns
 
 **CQRS (Command Query Responsibility Segregation)**:
+
 - **Commands** (writes): PostgreSQL functions (`fn_*`)
 - **Queries** (reads): PostgreSQL views (`v_*`, `tv_*`)
 - **Cache**: Should also be PostgreSQL (consistency)
 
 **Rust Pipeline for Data**:
+
 - PostgreSQL → Rust → HTTP (unified execution)
 - Adding Redis = introducing a separate data path
 - PostgreSQL cache maintains single data pipeline
 
 **CDC + Audit for Mutations**:
+
 - All mutations go through PostgreSQL functions
 - PostgreSQL triggers capture changes
 - Domain versioning auto-invalidates caches
@@ -170,6 +180,7 @@ await cache.setup_table_trigger("user_roles", domain_name="user_role")
 **Target**: <5ms permission check (cached)
 
 **PostgreSQL Cache Breakdown**:
+
 ```
 1. Check request cache: 0ms (in-memory)
 2. PostgreSQL lookup: 0.1-0.3ms (UNLOGGED table, indexed)
@@ -186,6 +197,7 @@ await cache.setup_table_trigger("user_roles", domain_name="user_role")
 ### Problem: Permission Caching
 
 **Challenge**: Permissions must invalidate when:
+
 - User roles change (user_roles table)
 - Role permissions change (role_permissions table)
 - Role hierarchy changes (roles.parent_role_id)
@@ -236,6 +248,7 @@ if cached_versions and cached_versions != current_versions:
 ```
 
 **Benefits**:
+
 - ✅ **Zero manual invalidation** - triggers handle it
 - ✅ **Guaranteed consistency** - ACID transactions
 - ✅ **Cascade invalidation** - role changes invalidate users
@@ -259,6 +272,7 @@ async def assign_role(user_id, role_id):
 ```
 
 **Drawbacks**:
+
 - ✗ Manual invalidation = **bugs waiting to happen**
 - ✗ No CASCADE support = **complex invalidation logic**
 - ✗ Pattern deletion = **slower than version check**
@@ -271,11 +285,13 @@ async def assign_role(user_id, role_id):
 ### PostgreSQL-Only Approach
 
 **Infrastructure**:
+
 - PostgreSQL: Already running (sunk cost)
 - Additional storage: ~10-50MB for permission cache (negligible)
 - **Total additional cost**: $0/month
 
 **Operational**:
+
 - Services to manage: 1 (PostgreSQL)
 - Backup strategy: Same as main database
 - Monitoring: Same as main database
@@ -284,6 +300,7 @@ async def assign_role(user_id, role_id):
 ### Redis Approach (Current Plan)
 
 **Infrastructure**:
+
 - PostgreSQL: Already running
 - Redis Cloud: $50-500/month (depending on scale)
   - Small: $50/month (256MB)
@@ -292,6 +309,7 @@ async def assign_role(user_id, role_id):
 - **Total additional cost**: $50-500/month
 
 **Operational**:
+
 - Services to manage: 2 (PostgreSQL + Redis)
 - Backup strategy: Need Redis backup plan
 - Monitoring: Need Redis monitoring
@@ -318,6 +336,7 @@ async def assign_role(user_id, role_id):
 **Performance Concern**: "PostgreSQL slower than Redis"
 
 **Mitigation**:
+
 - UNLOGGED tables = comparable performance (0.1-0.3ms)
 - Request-level cache = same-request lookups are instant
 - 5ms target is generous (actual: <1ms)
@@ -326,6 +345,7 @@ async def assign_role(user_id, role_id):
 **Connection Concern**: "PostgreSQL connections scarce"
 
 **Mitigation**:
+
 - Use existing connection pool (no additional connections)
 - Cache queries are simple (SELECT by primary key)
 - No long-running transactions (read-only lookups)
@@ -333,6 +353,7 @@ async def assign_role(user_id, role_id):
 **Scaling Concern**: "Will PostgreSQL cache scale?"
 
 **Mitigation**:
+
 - UNLOGGED tables have minimal overhead
 - Indexed lookups scale linearly
 - 10,000 users = ~10,000 cache entries = trivial storage
@@ -343,18 +364,21 @@ async def assign_role(user_id, role_id):
 **Consistency Concern**: "Manual invalidation bugs"
 
 **Risk**: HIGH - Easy to forget invalidation, leading to stale permissions
+
 - **Impact**: Security vulnerability (wrong permissions cached)
 - **Likelihood**: MEDIUM-HIGH (complex invalidation rules)
 
 **Operational Concern**: "Additional service dependency"
 
 **Risk**: MEDIUM - Redis outage breaks permission checks
+
 - **Impact**: Application degradation or failure
 - **Likelihood**: LOW-MEDIUM (depends on Redis reliability)
 
 **Philosophy Concern**: "Contradicts core architecture"
 
 **Risk**: HIGH - Undermines FraiseQL's value proposition
+
 - **Impact**: Confuses users, weakens competitive positioning
 - **Likelihood**: CERTAIN (if Redis is used)
 
@@ -367,6 +391,7 @@ async def assign_role(user_id, role_id):
 **Use PostgreSQL exclusively for RBAC permission caching**
 
 **Implementation**:
+
 1. Replace Redis-based PermissionCache with PostgresCache
 2. Implement 2-layer cache: request-level + PostgreSQL
 3. Use domain versioning for automatic invalidation
@@ -376,12 +401,14 @@ async def assign_role(user_id, role_id):
 ### Architecture Benefits
 
 **Alignment**:
+
 - ✅ Consistent with "In PostgreSQL Everything" philosophy
 - ✅ Maintains $0 additional infrastructure cost
 - ✅ Keeps operational simplicity (3 services, not 4)
 - ✅ Leverages existing PostgresCache infrastructure
 
 **Technical**:
+
 - ✅ Automatic invalidation via domain versioning
 - ✅ CASCADE rules for complex invalidation
 - ✅ ACID guarantees for cache updates
@@ -389,6 +416,7 @@ async def assign_role(user_id, role_id):
 - ✅ No manual invalidation logic (fewer bugs)
 
 **Performance**:
+
 - ✅ Meets <5ms target easily (actual: <1ms)
 - ✅ Request-level cache for same-request optimization
 - ✅ UNLOGGED tables for Redis-comparable performance
@@ -396,11 +424,13 @@ async def assign_role(user_id, role_id):
 ### Implementation Notes
 
 **Do NOT**:
+
 - ✗ Introduce Redis for permission caching
 - ✗ Use manual invalidation logic
 - ✗ Create separate invalidation pathways
 
 **DO**:
+
 - ✅ Use existing PostgresCache class
 - ✅ Leverage domain versioning
 - ✅ Set up table triggers for auto-invalidation
@@ -421,6 +451,7 @@ async def assign_role(user_id, role_id):
 6. **Consistency**: Single data pipeline (PostgreSQL → Rust → HTTP)
 
 **Using Redis would**:
+
 - ✗ Contradict core architecture
 - ✗ Undermine competitive positioning
 - ✗ Add operational complexity

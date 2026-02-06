@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: WHERE Operators Cheat Sheet
 description: Quick reference for all filtering operators in FraiseQL GraphQL queries.
 keywords: ["directives", "types", "scalars", "schema", "api"]

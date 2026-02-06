@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Phase 1 Foundation Documentation - Topic Index
 description: - Definition: Compiled GraphQL execution engine
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

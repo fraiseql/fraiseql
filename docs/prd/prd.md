@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 — Product Requirements Document
 description: FraiseQL is a **compiled database execution layer** that provides a GraphQL API over transactional state managed by the database.
 keywords: []

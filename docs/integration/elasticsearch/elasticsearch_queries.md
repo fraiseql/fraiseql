@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Elasticsearch Search Examples for FraiseQL Events
 description: This document shows practical examples of querying FraiseQL events in Elasticsearch.
 keywords: []

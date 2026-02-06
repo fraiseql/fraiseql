@@ -1,6 +1,7 @@
 # Request Flow Diagram
 
 ## Overview
+
 This diagram shows the complete lifecycle of a GraphQL request through the FraiseQL architecture, from client to database and back.
 
 ## ASCII Art Diagram
@@ -26,6 +27,7 @@ This diagram shows the complete lifecycle of a GraphQL request through the Frais
 ## Detailed Flow with Annotations
 
 ### Phase 1: Request Reception
+
 ```
 Client Request ──▶ FastAPI Server
                       │
@@ -37,6 +39,7 @@ Client Request ──▶ FastAPI Server
 ```
 
 ### Phase 2: Query Resolution
+
 ```
 Parsed Query ──▶ Repository Layer
                    │
@@ -49,6 +52,7 @@ Parsed Query ──▶ Repository Layer
 ```
 
 ### Phase 3: Database Execution
+
 ```
 SQL Query ──▶ PostgreSQL Database
                 │
@@ -60,6 +64,7 @@ SQL Query ──▶ PostgreSQL Database
 ```
 
 ### Phase 4: Response Transformation (Optional)
+
 ```
 Raw Data ──▶ Rust Transform Pipeline (Optional)
                │
@@ -71,6 +76,7 @@ Raw Data ──▶ Rust Transform Pipeline (Optional)
 ```
 
 ### Phase 5: Response Building
+
 ```
 Transformed Data ──▶ Python Response Builder
                       │
@@ -105,31 +111,37 @@ graph TD
 ## Key Components Explained
 
 ### Client
+
 - Sends GraphQL queries/mutations
 - Receives JSON responses
 - Can be web app, mobile app, or API client
 
 ### FastAPI Server
+
 - HTTP server handling GraphQL requests
 - Routes to appropriate resolvers
 - Handles authentication/authorization
 
 ### Repository Layer
+
 - Abstracts database operations
 - Maps GraphQL operations to SQL
 - Handles connection pooling
 
 ### PostgreSQL Database
+
 - Stores data in relational tables (tb_*)
 - Serves data through JSONB views (v_*)
 - Executes business logic functions (fn_*)
 
 ### Rust Transform Pipeline (Optional)
+
 - High-performance data transformation
 - JSONB to GraphQL type conversion
 - Field-level projections and filtering
 
 ### Response Builder
+
 - Formats final GraphQL response
 - Handles error formatting
 - Applies GraphQL spec compliance
@@ -148,6 +160,7 @@ query GetUser($id: ID!) {
 ```
 
 **Flow:**
+
 1. **Client** → FastAPI receives HTTP POST with GraphQL query
 2. **FastAPI** → Parses query, validates against schema
 3. **Repository** → Builds SQL: `SELECT * FROM v_user WHERE id = $1`

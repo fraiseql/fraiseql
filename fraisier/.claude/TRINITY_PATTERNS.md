@@ -54,6 +54,7 @@ CREATE TABLE tb_fraise_state (
 - Reference point for foreign keys
 
 **Usage**:
+
 ```sql
 -- Use in FKs
 fk_fraise_state INTEGER REFERENCES tb_fraise_state(pk_fraise_state)
@@ -81,6 +82,7 @@ CREATE TABLE tb_fraise_state (
 - Immutable, globally unique
 
 **Usage**:
+
 ```sql
 -- For API responses
 SELECT id FROM tb_deployment WHERE pk_deployment = 5
@@ -111,6 +113,7 @@ CREATE TABLE tb_fraise_state (
 - Deterministic generation from entity attributes
 
 **Usage**:
+
 ```sql
 -- Query by business key
 SELECT * FROM tb_fraise_state WHERE identifier = 'my_api:production:backup_job'
@@ -157,6 +160,7 @@ CREATE TABLE tb_fraise_state (
 ```
 
 **Example Data**:
+
 ```
 pk_fraise_state  id                                      identifier
 1                550e8400-e29b-41d4-a716-446655440001   my_api:production
@@ -204,6 +208,7 @@ CREATE TABLE tb_deployment (
 ```
 
 **Example Data**:
+
 ```
 pk_deployment  id                  identifier                              fk_fraise_state  status
 1              550e8400-e29b-41d4  my_api:production:2026-01-22T10:30:00  1               success
@@ -246,6 +251,7 @@ CREATE TABLE tb_webhook_event (
 ```
 
 **Example Data**:
+
 ```
 pk_webhook_event  id                  identifier                fk_deployment  event_type
 1                 550e8400-e29b-41d7  github:2026-01-22:a1b2c3 1             push
@@ -284,6 +290,7 @@ FROM tb_fraise_state fs;
 ```
 
 **Usage in Code**:
+
 ```python
 # Python - Query using v_fraise_status
 state = db.get_fraise_state("my_api", "production")
@@ -445,6 +452,7 @@ db.link_webhook_to_deployment(
 ### Scenario: SQLite (Local) + PostgreSQL (Cloud)
 
 **SQLite Instance (Local)**:
+
 ```
 tb_fraise_state:
   pk_fraise_state: 1
@@ -458,6 +466,7 @@ tb_deployment:
 ```
 
 **PostgreSQL Instance (Cloud)**:
+
 ```
 tb_fraise_state:
   pk_fraise_state: 42

@@ -469,6 +469,7 @@ async fn test_tracing_with_jaeger() {
 ### Optimization Tips
 
 1. **Use Sampling in Production**:
+
    ```bash
    export JAEGER_SAMPLE_RATE=0.1  # Trace 10% of events
    ```
@@ -478,6 +479,7 @@ async fn test_tracing_with_jaeger() {
    - Reduces impact on request latency
 
 3. **Disable When Not Needed**:
+
    ```bash
    export TRACING_ENABLED=false
    ```
@@ -489,17 +491,20 @@ async fn test_tracing_with_jaeger() {
 ### Tracing Not Working
 
 **Check 1: Is tracing enabled?**
+
 ```bash
 echo $TRACING_ENABLED  # Should be "true"
 ```
 
 **Check 2: Is Jaeger accessible?**
+
 ```bash
 curl http://localhost:14268/api/traces
 # Should return empty traces list, not connection error
 ```
 
 **Check 3: Are spans being created?**
+
 ```bash
 # Check logs for span creation messages
 RUST_LOG=debug cargo run
@@ -542,4 +547,3 @@ RUST_LOG=debug cargo run
 **Document**: Phase 9.1 Implementation Guide
 **Status**: In Progress
 **Last Updated**: January 22, 2026
-

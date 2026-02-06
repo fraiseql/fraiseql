@@ -86,6 +86,7 @@ Every plan includes:
 - View Directives: **2-4 hours** (most files)
 
 Can be done:
+
 - **Sequentially:** 1-2 weeks (comfortable pace)
 - **In parallel:** 3-5 days (3 developers)
 
@@ -96,21 +97,25 @@ Can be done:
 ### Why These 3 Features?
 
 ✅ **All align with FraiseQL's view-centric architecture**
+
 - Fragments: Enable complex denormalized view queries
 - Cycles: Ensure query safety for view relationships
 - Directives: Document view dependencies
 
 ✅ **All are low-risk, purely additive**
+
 - No breaking changes
 - Backward compatible
 - Can be implemented independently
 
 ✅ **All have high value**
+
 - Query ergonomics (fragments)
 - Query safety (cycles)
 - Schema documentation (directives)
 
 ✅ **All are well-specified**
+
 - Complete implementation plans
 - Tested code examples
 - Clear success criteria
@@ -118,11 +123,13 @@ Can be done:
 ### Why NOT DataLoaders or Streaming?
 
 ❌ **Auto-integrated DataLoaders** (Gap #3)
+
 - Unnecessary: Denormalized views eliminate N+1 by design
 - Adds complexity without benefit
 - Doesn't fit FraiseQL's architecture
 
 ❌ **HTTP Streaming / @stream @defer** (Gap #4)
+
 - Out of scope: FraiseQL returns bounded results
 - Protocol overhead not justified
 - WebSocket subscriptions already work
@@ -173,17 +180,20 @@ Total:                73 tests   ██████████████
 ### What Users Get
 
 **Better Query Ergonomics** (Nested Fragments)
+
 - Reuse fragments in nested selections
 - Complex denormalized view queries more natural
 - Less query boilerplate
 
 **Schema Safety** (Fragment Cycles)
+
 - Circular fragments detected early
 - Clear error messages
 - DoS prevention
 - Type validation
 
 **Schema Documentation** (View Directives)
+
 - View dependencies explicit
 - Query cost tracking
 - SQL function requirements documented
@@ -203,6 +213,7 @@ Total:                73 tests   ██████████████
 ### Recommended Approach
 
 **Option 1: Sequential (Safe, comfortable pace)**
+
 ```
 Week 1:
   Day 1-2: Nested Fragments (2-3h)
@@ -214,6 +225,7 @@ Week 2:
 ```
 
 **Option 2: Parallel (Faster, requires coordination)**
+
 ```
 Day 1-3: All 3 features in parallel
          Dev A: Nested Fragments
@@ -286,7 +298,7 @@ All mitigations documented in implementation plans.
 
 ## What's Included in Each Plan
 
-### Every Implementation Plan Has:
+### Every Implementation Plan Has
 
 ✅ **Part 1:** Current state analysis
 ✅ **Part 2:** Implementation strategy
@@ -355,18 +367,21 @@ All mitigations documented in implementation plans.
 ## Quick Start Checklist
 
 ### Before Starting
+
 - [ ] Read this summary
 - [ ] Read IMPLEMENTATION-ROADMAP.md
 - [ ] Choose which feature to implement first
 - [ ] Read relevant implementation plan
 
 ### During Implementation
+
 - [ ] Follow step-by-step instructions
 - [ ] Implement code changes
 - [ ] Write/run tests
 - [ ] Check for regressions
 
 ### After Implementation
+
 - [ ] All tests pass
 - [ ] No regressions
 - [ ] Code review approval
@@ -377,12 +392,14 @@ All mitigations documented in implementation plans.
 ## Cost-Benefit Analysis
 
 ### Cost
+
 - **Developer time:** 8-11 hours
 - **New files:** 5 files (~500 LOC)
 - **Modified files:** 3 files (~140 LOC)
 - **Test code:** ~1500 LOC
 
 ### Benefit
+
 - **Query ergonomics:** Fragments reusable
 - **Schema safety:** Cycle detection
 - **Documentation:** View metadata
@@ -409,15 +426,19 @@ All mitigations documented in implementation plans.
 ## Questions?
 
 ### About Strategy
+
 → Read: QA-REVIEW-graphql-spec-gaps-final.md
 
 ### About Timeline
+
 → Read: IMPLEMENTATION-ROADMAP.md
 
 ### About How to Implement
+
 → Read: Relevant implementation-plan-*.md
 
 ### About Navigation
+
 → Read: README-IMPLEMENTATION.md
 
 ---

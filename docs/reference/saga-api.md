@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Saga API Reference
 description: Complete API documentation for FraiseQL saga orchestration.
 keywords: ["directives", "types", "scalars", "schema", "api"]

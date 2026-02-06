@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL TOML Configuration Reference
 description: Complete reference for `FraiseQL.toml` configuration in FraiseQL v2.
 keywords: ["directives", "types", "scalars", "schema", "api"]

@@ -15,6 +15,7 @@
 **Why it matters**: Allows multiple operations to run concurrently without blocking.
 
 **Example**:
+
 ```rust
 // async fn creates a Future
 async fn fetch_user(id: i32) -> User {
@@ -36,6 +37,7 @@ let user = fetch_user(1).await;  // await waits for result
 **Why it matters**: Connection pools need to be shared across multiple requests without copying.
 
 **Example**:
+
 ```rust
 use std::sync::Arc;
 
@@ -81,6 +83,7 @@ let pool_copy = Arc::clone(&pool);  // Doesn't copy data, just reference
 **Why it matters**: Requires careful type conversion and error handling at boundaries.
 
 **Example**:
+
 ```rust
 #[pyfunction]  // Makes this callable from Python
 fn add(a: i32, b: i32) -> i32 {
@@ -113,10 +116,12 @@ fn add(a: i32, b: i32) -> i32 {
 **Why it matters**: FraiseQL uses JSONB for flexible data schemas. More efficient than JSON.
 
 **Difference from JSON**:
+
 - JSON: Human-readable but slower to query
 - JSONB: Binary format, indexed, faster queries (↓ 20% query time)
 
 **Example in SQL**:
+
 ```sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -136,6 +141,7 @@ SELECT * FROM users WHERE profile->>'role' = 'admin';
 **What**: Rust code that generates other Rust code at compile time.
 
 **Common ones you'll see**:
+
 - `println!()` - print debug output
 - `dbg!()` - print variable and its value
 - `assert!()` - test assertion
@@ -155,6 +161,7 @@ SELECT * FROM users WHERE profile->>'role' = 'admin';
 **Why it matters**: Prevents data races in concurrent code.
 
 **Example**:
+
 ```rust
 use std::sync::{Arc, Mutex};
 
@@ -175,6 +182,7 @@ let mut count = counter.lock().unwrap();  // Get exclusive access
 **What**: Rust's powerful syntax for handling different cases.
 
 **Examples**:
+
 ```rust
 // Match on Result
 match result {
@@ -198,6 +206,7 @@ match maybe_user {
 **What**: Rust library for creating Python modules in Rust.
 
 **What it does**:
+
 - Defines Rust functions that Python can call
 - Converts types between Python and Rust
 - Handles errors at FFI boundary
@@ -211,10 +220,12 @@ match maybe_user {
 **What**: Bridge between PyO3 and async Rust code.
 
 **Problem it solves**: PyO3 alone is synchronous. This library lets us:
+
 - Return Futures from Rust to Python
 - Python can `.await` them
 
 **Key function**:
+
 ```rust
 pyo3_asyncio::tokio::future_into_py(py, async { ... })
 ```
@@ -230,6 +241,7 @@ pyo3_asyncio::tokio::future_into_py(py, async { ... })
 **Why it matters**: Rust's way of handling errors without exceptions.
 
 **Example**:
+
 ```rust
 fn divide(a: i32, b: i32) -> Result<i32, String> {
     if b == 0 {
@@ -258,6 +270,7 @@ let result = divide(10, 2)?;  // Propagates error if it occurs
 **Current**: 2021 (what FraiseQL uses)
 
 **What changed between editions**:
+
 - 2015: Original Rust
 - 2018: Simplified module system, better async
 - 2021: Better error messages, improved async
@@ -273,6 +286,7 @@ let result = divide(10, 2)?;  // Propagates error if it occurs
 **What**: Description of database table structure (columns, types, constraints).
 
 **Example**:
+
 ```sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,      -- column: name, type, constraint
@@ -293,6 +307,7 @@ CREATE TABLE users (
 **Why it matters**: Used throughout Rust code for efficiency (no copying).
 
 **Example**:
+
 ```rust
 let v = vec![1, 2, 3, 4, 5];
 let slice = &v[1..4];  // References elements 1, 2, 3 (doesn't copy)
@@ -306,10 +321,12 @@ println!("{:?}", slice);  // [2, 3, 4]
 **What**: Two different string types in Rust.
 
 **Difference**:
+
 - `String` - Owned, mutable, allocated on heap
 - `&str` - Borrowed, immutable, reference to data
 
 **When to use**:
+
 ```rust
 fn greet(name: &str) {  // Use &str for parameters
     println!("Hello, {}", name);
@@ -326,6 +343,7 @@ greet(&greeting);  // Pass as &str
 **What**: Rust's way of grouping related data (like a class without methods).
 
 **Example**:
+
 ```rust
 struct User {
     id: i32,
@@ -353,6 +371,7 @@ println!("{}", user.name);
 **What**: Write tests BEFORE writing code.
 
 **Flow**:
+
 1. Write test (it fails - "RED")
 2. Write code to make test pass ("GREEN")
 3. Refactor code to be clean ("REFACTOR")
@@ -367,6 +386,7 @@ println!("{}", user.name);
 **What**: Async runtime for Rust - manages async tasks and scheduling.
 
 **What it does**:
+
 - Runs multiple async tasks concurrently
 - Handles threads in background
 - Manages the event loop
@@ -382,6 +402,7 @@ println!("{}", user.name);
 **What**: Like an interface - defines methods that types must implement.
 
 **Example**:
+
 ```rust
 trait Animal {
     fn speak(&self) -> String;
@@ -395,6 +416,7 @@ impl Animal for Dog {
 ```
 
 **Common traits**:
+
 - `Clone` - Make a copy
 - `Debug` - Print for debugging
 - `Iterator` - Loop over items
@@ -410,6 +432,7 @@ impl Animal for Dog {
 **Dangerous**: Using `.unwrap()` can crash your program!
 
 **Example**:
+
 ```rust
 let x: Result<i32, String> = Ok(5);
 let value = x.unwrap();  // Gets 5
@@ -419,6 +442,7 @@ let value = y.unwrap();  // PANICS! - program crashes
 ```
 
 **Better alternatives**:
+
 ```rust
 // Use ? operator (propagates error)
 let value = y?;
@@ -442,6 +466,7 @@ let value = y.unwrap_or(0);  // Returns 0 if error
 **What**: Controls whether code is accessible from outside a module.
 
 **Rules**:
+
 ```rust
 struct MyStruct { ... }      // Private - only visible in this module
 pub struct MyStruct { ... }  // Public - visible everywhere
@@ -461,6 +486,7 @@ pub(crate) fn internal() {}  // Visible within crate
 **What**: Filters database queries to specific rows.
 
 **Example**:
+
 ```sql
 SELECT * FROM users WHERE age > 18 AND role = 'admin';
 ```
@@ -478,6 +504,7 @@ SELECT * FROM users WHERE age > 18 AND role = 'admin';
 **Why it matters**: Saves memory and CPU time for large result sets.
 
 **Example**:
+
 ```
 PostgreSQL Result (on disk)
   ↓
@@ -491,6 +518,7 @@ HTTP Response
 ```
 
 **Traditional approach** (3+ copies):
+
 ```
 PostgreSQL
   ↓ Copy 1: Into Python
@@ -504,11 +532,13 @@ PostgreSQL
 ## Quick Reference by Phase
 
 ### Phase 0
+
 - **Clippy** - Linter for Rust code quality
 - **Macro** - Code generation (`todo!`, `println!`)
 - **Rustfmt** - Code formatter
 
 ### Phase 1
+
 - **Arc** - Shared ownership for connection pool
 - **Mutex** - Lock for shared state
 - **Tokio** - Async runtime
@@ -516,20 +546,24 @@ PostgreSQL
 - **Schema** - Table structure registry
 
 ### Phase 2
+
 - **Where Clauses** - SQL filtering
 - **Pattern Matching** - Handling results
 - **Result<T, E>** - Error handling
 
 ### Phase 3
+
 - **Zero-Copy** - Efficient streaming
 - **JSONB** - JSON storage in PostgreSQL
 
 ### Phase 4
+
 - **FFI** - Python-Rust boundary
 - **PyO3** - Python module creation
 - **PyO3-asyncio** - Async bridge
 
 ### Phase 5
+
 - **Feature Flags** - Conditional compilation
 
 ---
@@ -554,19 +588,23 @@ PostgreSQL
 ## External Resources
 
 ### Rust
+
 - **Official Book**: https://doc.rust-lang.org/book/
 - **Rust by Example**: https://doc.rust-lang.org/rust-by-example/
 - **Clippy Docs**: https://docs.rs/clippy/
 
 ### Async Rust
+
 - **Tokio Tutorial**: https://tokio.rs/tokio/tutorial
 - **Async Rust**: https://rust-lang.github.io/async-book/
 
 ### PostgreSQL
+
 - **Official Docs**: https://www.postgresql.org/docs/
 - **JSONB Guide**: https://www.postgresql.org/docs/current/datatype-json.html
 
 ### Libraries
+
 - **PyO3**: https://pyo3.rs/
 - **Deadpool**: https://docs.rs/deadpool-postgres/
 - **Tokio-postgres**: https://docs.rs/tokio-postgres/

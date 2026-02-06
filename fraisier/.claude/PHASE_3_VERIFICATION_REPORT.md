@@ -48,6 +48,7 @@
 - Proper class hierarchy
 
 **Verification**:
+
 ```bash
 pytest tests/test_errors.py -v
 26/26 tests passing ✅
@@ -70,6 +71,7 @@ pytest tests/test_errors.py -v
 - `RetryableOperation` wrapper for easy retry integration
 
 **Verification**:
+
 ```bash
 pytest tests/test_recovery.py::TestRetryStrategy -v
 7/7 tests passing ✅
@@ -131,6 +133,7 @@ pytest tests/test_recovery.py::TestRetryableOperation -v
 - Full context preservation
 
 **Verification**:
+
 ```bash
 pytest tests/test_observability.py::TestJSONFormatter -v
 3/3 tests passing ✅
@@ -158,6 +161,7 @@ pytest tests/test_observability.py::TestAuditLogger -v
 - Clean keyboard interrupt
 
 **Manual Verification**:
+
 ```bash
 fraisier metrics --help
 # Shows help correctly
@@ -183,6 +187,7 @@ fraisier metrics --port 8001
 - Troubleshooting guide
 
 **Verification**:
+
 ```bash
 python -c "import json; json.load(open('monitoring/grafana-dashboard.json'))"
 # Valid JSON ✅
@@ -207,6 +212,7 @@ python -c "import json; json.load(open('monitoring/grafana-dashboard.json'))"
 - `CompositeHealthChecker` for aggregation
 
 **Verification**:
+
 ```bash
 ruff check fraisier/health_check.py
 All checks passed ✅
@@ -294,6 +300,7 @@ pytest tests/test_observability.py::TestHealthCheckManager -v
 - Health checks (7 tests)
 
 **Verification**:
+
 ```bash
 pytest tests/test_errors.py tests/test_recovery.py tests/test_observability.py -v
 ======================= 93 passed in 10.91s =======================
@@ -323,6 +330,7 @@ pytest tests/test_errors.py tests/test_recovery.py tests/test_observability.py -
 ## Code Quality Verification
 
 ### Ruff Linting Results
+
 ```bash
 ruff check fraisier/errors.py
 All checks passed ✅
@@ -347,7 +355,9 @@ All checks passed ✅
 ```
 
 ### Python Syntax Validation
+
 All files compiled successfully:
+
 ```bash
 python -m py_compile fraisier/errors.py
 python -m py_compile fraisier/recovery.py

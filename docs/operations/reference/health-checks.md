@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Health Checks Guide
 description: This guide explains FraiseQL's three-tier health check system for production deployments. Health checks enable automated monitoring, graceful failover, and oper
 keywords: ["directives", "types", "scalars", "deployment", "schema", "scaling", "performance", "monitoring"]

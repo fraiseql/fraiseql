@@ -5,6 +5,7 @@
 **Context**: The `@wraps(func)` decorator preserves `__name__`, `__doc__`, etc., but NOT `__annotations__`. This causes `get_type_hints(wrapper)` to return an empty dict `{}`, so the schema builder can't determine the function's arguments or return type.
 
 **Files to Modify**:
+
 - `src/fraiseql/decorators.py` (lines 865-946)
 
 **Priority**: P1 - Foundation phase
@@ -39,12 +40,14 @@ The GraphQL schema builder calls `get_type_hints(wrapper)` to extract pagination
 ### Solution
 
 1. **Import required types**:
+
    ```python
    from typing import get_type_hints
    from fraiseql.types.generic import Connection
    ```
 
 2. **Construct wrapper_annotations dict** before `@wraps(func)`:
+
    ```python
    wrapper_annotations = {
        'info': GraphQLResolveInfo,
@@ -58,6 +61,7 @@ The GraphQL schema builder calls `get_type_hints(wrapper)` to extract pagination
    ```
 
 3. **Set annotations after wrapper creation**:
+
    ```python
    wrapper.__annotations__ = wrapper_annotations
    ```
@@ -65,6 +69,7 @@ The GraphQL schema builder calls `get_type_hints(wrapper)` to extract pagination
 ### Verification
 
 **Test Script**:
+
 ```python
 from typing import get_type_hints
 from fraiseql import fraise_type
@@ -98,6 +103,7 @@ assert str(hints['return']).startswith('fraiseql.types.generic.Connection')
 **Lines 865-946**: The `@connection` decorator function
 
 **Changes**:
+
 1. Add imports: `get_type_hints`, `Connection`
 2. Construct `wrapper_annotations` dict before `@wraps(func)`
 3. Set `wrapper.__annotations__ = wrapper_annotations` after metadata assignment
@@ -107,15 +113,18 @@ assert str(hints['return']).startswith('fraiseql.types.generic.Connection')
 ## Testing Strategy
 
 ### Unit Test
+
 - Create test script to verify `get_type_hints(wrapper)` returns correct annotations
 - Verify pagination arguments: `first`, `after`, `last`, `before`, `where`
 - Verify return type: `Connection[T]`
 
 ### Integration Test
+
 - Run existing decorator tests to ensure no regressions
 - Connection tests should remain skipped (Phase 2 required for schema generation)
 
 ### Verification Commands
+
 ```bash
 # Test annotations preservation
 python test_connection_annotations.py
@@ -175,6 +184,7 @@ Next: Phase 2 - Register Connection/Edge/PageInfo types in schema builder
 ## Rollback Plan
 
 If issues arise:
+
 ```bash
 git revert <commit-hash>
 # Remove the annotation preservation code

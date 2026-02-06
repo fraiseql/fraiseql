@@ -119,12 +119,14 @@ pytest -m 'requires_postgres and not slow'
 The CI pipeline uses markers to split test execution:
 
 **Main CI (quality-gate.yml):**
+
 ```yaml
 # Only PostgreSQL tests - fast and reliable
 pytest -m 'requires_postgres and not requires_vault and not requires_auth0'
 ```
 
 **Enterprise CI (enterprise-tests.yml):**
+
 ```yaml
 # Vault tests
 pytest -m 'requires_vault'
@@ -225,6 +227,7 @@ markers = [
 ### Common Issues
 
 **"Marker not recognized"**
+
 ```bash
 # Check marker definitions
 pytest --markers | grep requires_
@@ -234,6 +237,7 @@ grep "requires_postgres" pyproject.toml
 ```
 
 **Tests not running with marker**
+
 ```bash
 # Check marker application
 pytest --collect-only -m 'requires_postgres' -q
@@ -243,6 +247,7 @@ grep "@pytest.mark.requires_postgres" tests/path/to/test.py
 ```
 
 **CI marker filtering not working**
+
 ```bash
 # Test the exact command locally
 pytest -m 'requires_postgres and not requires_vault and not requires_auth0' --collect-only
@@ -271,6 +276,7 @@ When adding markers to existing tests:
 ### Example Migration
 
 **Before:**
+
 ```python
 def test_database_query(db_connection):
     # Uses db_connection fixture → needs PostgreSQL
@@ -278,6 +284,7 @@ def test_database_query(db_connection):
 ```
 
 **After:**
+
 ```python
 @pytest.mark.requires_postgres
 def test_database_query(db_connection):

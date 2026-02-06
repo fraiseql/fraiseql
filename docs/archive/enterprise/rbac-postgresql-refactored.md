@@ -65,6 +65,7 @@ Implement a hierarchical role-based access control system that supports complex 
 ```
 
 **Cache Flow**:
+
 1. GraphQL resolver checks `@requires_permission`
 2. PermissionResolver checks request-level cache (in-memory dict)
 3. If miss, checks PostgreSQL cache (UNLOGGED table, <0.3ms)
@@ -73,6 +74,7 @@ Implement a hierarchical role-based access control system that supports complex 
 6. Stores in request-level cache for same-request reuse
 
 **Automatic Invalidation**:
+
 1. Admin assigns role to user → `user_roles` INSERT
 2. PostgreSQL trigger increments `user_role` domain version
 3. CASCADE rule increments `user_permissions` domain version
@@ -1137,16 +1139,19 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## Performance Targets
 
 **Cache Performance**:
+
 - ✅ Request-level cache: <0.01ms (in-memory dict)
 - ✅ PostgreSQL cache: <0.3ms (UNLOGGED table, indexed)
 - ✅ Total cached lookup: <0.5ms (well under 5ms target)
 - ✅ Permission computation (uncached): <50ms (expensive, but cached)
 
 **Cache Hit Rates**:
+
 - Expected: 85-95% (typical for permission checks)
 - Target: >80% hit rate in production
 
 **Invalidation**:
+
 - Automatic: Domain versioning (instant, trigger-based)
 - Manual: <1ms (single DELETE query)
 
@@ -1155,6 +1160,7 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## Success Criteria
 
 **Phase 1: Schema & Models**
+
 - [ ] RBAC tables created with hierarchy support
 - [ ] PostgreSQL cache domains registered
 - [ ] Table triggers configured for auto-invalidation
@@ -1164,6 +1170,7 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 - [ ] All tests pass
 
 **Phase 2: PostgreSQL Caching**
+
 - [ ] PermissionCache implemented using PostgresCache
 - [ ] 2-layer cache working (request + PostgreSQL)
 - [ ] Domain versioning enabled
@@ -1173,6 +1180,7 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 - [ ] Performance <0.5ms for cached lookups
 
 **Phase 3: Permission Resolution**
+
 - [ ] User permissions computed from all roles
 - [ ] Role hierarchy working
 - [ ] Caching integrated
@@ -1181,24 +1189,28 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 - [ ] Performance <100ms for uncached computation
 
 **Phase 4: GraphQL Integration**
+
 - [ ] @requires_permission directive working
 - [ ] @requires_role directive working
 - [ ] Constraint evaluation implemented
 - [ ] Error messages helpful
 
 **Phase 5: Row-Level Security**
+
 - [ ] RLS policies enforced
 - [ ] Tenant isolation working
 - [ ] Own-data-only constraints working
 - [ ] Super admin bypass working
 
 **Phase 6: Management APIs**
+
 - [ ] Role creation/deletion working
 - [ ] Role assignment working
 - [ ] Permission management working
 - [ ] Audit logging integrated
 
 **Overall Success Metrics**:
+
 - [ ] Supports 10,000+ users
 - [ ] Permission check <5ms (cached) ✅ Actual: <0.5ms
 - [ ] Permission check <100ms (uncached)
@@ -1215,28 +1227,33 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## PostgreSQL-Specific Benefits
 
 **Automatic Invalidation**:
+
 - ✅ No manual cache clearing logic
 - ✅ No stale permission bugs
 - ✅ CASCADE rules for hierarchical invalidation
 - ✅ Tenant-scoped version tracking
 
 **Operational Simplicity**:
+
 - ✅ One database (PostgreSQL only)
 - ✅ No Redis cluster management
 - ✅ No Redis failover complexity
 - ✅ Unified backup strategy
 
 **Cost Savings**:
+
 - ✅ $0 additional infrastructure
 - ✅ No Redis Cloud subscription ($50-500/month)
 - ✅ Aligns with "In PostgreSQL Everything" promise
 
 **ACID Guarantees**:
+
 - ✅ Transactional cache updates
 - ✅ Consistent reads across instances
 - ✅ No eventual consistency issues
 
 **Integration**:
+
 - ✅ Leverages existing PostgresCache infrastructure
 - ✅ Works with APQ cache (same backend)
 - ✅ Unified monitoring (Grafana queries PostgreSQL)
@@ -1247,6 +1264,7 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## Migration Notes
 
 **From Redis-based plan**:
+
 1. Replace `redis` dependency with `PostgresCache`
 2. Remove Redis connection setup
 3. Use `PermissionCache(db_pool)` instead of `PermissionCache(redis_client)`
@@ -1254,6 +1272,7 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 5. Update documentation to reflect PostgreSQL-only architecture
 
 **Backward Compatibility**:
+
 - If `pg_fraiseql_cache` extension not available, falls back to TTL-only caching
 - Still faster than Redis for permission lookups
 - Graceful degradation
@@ -1263,11 +1282,13 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## Documentation Requirements
 
 **New Documentation**:
+
 - `docs/enterprise/rbac-postgresql-caching.md` - Architecture deep-dive
 - `docs/enterprise/rbac-cache-invalidation.md` - Domain versioning guide
 - `docs/enterprise/rbac-performance.md` - Performance benchmarks
 
 **Updated Documentation**:
+
 - Update all RBAC references to specify PostgreSQL caching
 - Add section to "In PostgreSQL Everything" philosophy
 - Include RBAC as example in marketing materials
@@ -1277,23 +1298,27 @@ uv run pytest tests/integration/enterprise/rbac/test_cache_performance.py -v
 ## Testing Strategy
 
 **Unit Tests**:
+
 - PermissionCache get/set/invalidate
 - Domain version checking
 - Request-level cache
 
 **Integration Tests**:
+
 - Automatic invalidation on role changes
 - CASCADE rule invalidation
 - Multi-tenant cache isolation
 - Permission resolution with caching
 
 **Performance Tests**:
+
 - Cache hit rate measurement
 - Cached lookup latency (<0.5ms)
 - Uncached computation latency (<100ms)
 - 10,000 user stress test
 
 **Load Tests**:
+
 - 1,000 concurrent permission checks
 - Cache invalidation under load
 - Multi-tenant cache performance

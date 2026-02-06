@@ -11,6 +11,7 @@
 This directory contains phase plans to fix the 114 failing integration tests for FraiseQL scalars. The tests validate that all 54 custom scalar types work correctly through the complete pipeline: schema registration → database persistence → retrieval.
 
 **Current Status** (After Phase 2.5):
+
 - ✅ 54/54 schema registration tests passing
 - ✅ 54/54 database roundtrip tests passing (Phase 1)
 - ⚠️ 10/54 GraphQL query tests passing (need test values)
@@ -26,6 +27,7 @@ This directory contains phase plans to fix the 114 failing integration tests for
 ### Issue: SQL Parameter Binding Error
 
 **Error Message**:
+
 ```
 psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were passed
 ```
@@ -35,6 +37,7 @@ psycopg.ProgrammingError: the query has 0 placeholders but 1 parameters were pas
 **Problem**: The test code uses an f-string to construct SQL queries, which doesn't support parameterized placeholders ($1, $2, etc.). However, it then attempts to pass parameters separately to `conn.execute()`.
 
 **Code**:
+
 ```python
 # WRONG - f-string doesn't create placeholders
 await conn.execute(
@@ -56,6 +59,7 @@ We need to fix how the test constructs parameterized queries. There are two appr
 ### Approach A: Keep Parameterized Queries (Recommended)
 
 **Advantages**:
+
 - Safer (prevents SQL injection)
 - More realistic (matches production code patterns)
 - Better practice
@@ -80,11 +84,13 @@ await conn.execute(
 ### Approach B: Direct Value Interpolation
 
 **Advantages**:
+
 - Simpler code
 - Fewer imports
 - Tests are isolated environments (no injection risk)
 
 **Implementation**:
+
 ```python
 # For simple test values (strings, numbers)
 from psycopg.types import TypeInfo
@@ -102,6 +108,7 @@ await conn.execute(f"""
 ## Phases
 
 ### Phase 1: Fix Database Roundtrip Tests [REFACTOR] ✅
+
 **File**: `phase-1-fix-database-roundtrip.md`
 **Objective**: Fix SQL parameter binding in all 54 scalar roundtrip tests
 **Effort**: 1-2 hours
@@ -109,6 +116,7 @@ await conn.execute(f"""
 **Status**: ✅ **COMPLETE** (committed: b721de3a)
 
 ### Phase 2: Fix Remaining Tests [REFACTOR] ✅
+
 **File**: `phase-2-fix-remaining-tests.md`
 **Objective**: Fix 54 GraphQL query tests + 6 WHERE clause tests
 **Effort**: 2 hours
@@ -116,6 +124,7 @@ await conn.execute(f"""
 **Status**: ✅ **COMPLETE** (committed: 5521c164)
 
 ### Phase 2.5: Enable Scalar Field Types [GREEN] ✅
+
 **File**: N/A (investigation-driven fix)
 **Objective**: Enable custom scalars to be used as field types in GraphQL
 **Effort**: 3-4 hours (investigation + implementation)
@@ -123,6 +132,7 @@ await conn.execute(f"""
 **Status**: ✅ **COMPLETE** (committed: c05cb25d)
 
 ### Phase 3: Fix Remaining Test Failures [REFACTOR]
+
 **File**: `phase-3-fix-remaining-test-failures.md`
 **Objective**: Add valid test values and fix field annotations
 **Effort**: 2.5-3.5 hours
@@ -140,12 +150,14 @@ No external dependencies. This is a test-only fix.
 ## Verification
 
 ### After Phase 1 ✅
+
 ```bash
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_database_roundtrip -v
 # Expected: 54 passed
 ```
 
 ### After Phase 2
+
 ```bash
 # Run all scalar tests
 uv run pytest tests/integration/meta/test_all_scalars.py -v
@@ -181,6 +193,7 @@ After all phases:
 **Phase 3**: 📝 Ready for implementation
 
 **Next Steps for Phase 3**:
+
 1. Read `phase-3-fix-remaining-test-failures.md`
 2. Add valid test values for all 54 scalars
 3. Fix field annotation in WHERE clause test

@@ -112,6 +112,7 @@ Verifies Apollo Router can discover and introspect all three subgraphs:
 - ✓ All types present in composed schema
 
 **Implementation:**
+
 - Introspection query: `__schema { types { name } }`
 - Validates User, Order, and Product types exist
 - Counts total types in schema (should be >15)
@@ -127,6 +128,7 @@ Validates proper schema composition with all subgraph definitions:
 - ✓ Schema properly merged from all sources
 
 **Implementation:**
+
 - Query root schema structure
 - Extract Query type fields
 - Verify all root queries accessible
@@ -143,6 +145,7 @@ Checks Schema Definition Language completeness via introspection:
 - ✓ Type relationships intact
 
 **Implementation:**
+
 - Full introspection query with type definitions
 - Verify query type exists
 - Count types to ensure complete schema
@@ -159,6 +162,7 @@ Validates federation directives are present in composed schema:
 - ✓ Directives have correct locations
 
 **Implementation:**
+
 - Introspection query: `__schema { directives { name locations } }`
 - Verify standard GraphQL directives
 - Check federation directive availability
@@ -175,6 +179,7 @@ Verifies Apollo Router correctly routes queries to appropriate subgraphs:
 - ✓ No errors in routing
 
 **Implementation:**
+
 - Query users directly: `query { users { id } }`
 - Query orders directly: `query { orders { id } }`
 - Query products directly: `query { products { id } }`
@@ -192,6 +197,7 @@ Tests Apollo Router error handling for malformed/invalid queries:
 - ✓ Proper error responses
 
 **Implementation:**
+
 - Test invalid field: `{ users { nonexistentField } }`
 - Test non-existent root: `{ nonexistentRoot { id } }`
 - Test malformed query: `{ users { id` (missing closing brace)
@@ -340,6 +346,7 @@ query {
 **Symptoms:** Router doesn't start, logs show "failed to introspect subgraph"
 
 **Solution:**
+
 ```bash
 # Verify subgraph endpoints
 curl -X POST http://localhost:4001/graphql \
@@ -358,6 +365,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 **Symptoms:** Introspection shows incomplete types, queries fail
 
 **Solution:**
+
 1. Verify all subgraphs are healthy
 2. Check federation directives in each subgraph SDL
 3. Validate @key directives are properly defined
@@ -368,6 +376,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 **Symptoms:** "Unknown field" errors, fields return null
 
 **Solution:**
+
 1. Test direct subgraph query: `curl http://localhost:4002/graphql`
 2. Check query matches composed schema
 3. Verify field names case-sensitive
@@ -378,6 +387,7 @@ docker-compose exec apollo-router cat /etc/apollo/supergraph.yaml
 **Symptoms:** "@key directive missing", "type mismatch"
 
 **Solution:**
+
 1. Verify each subgraph schema has @key directives
 2. Check key fields exist in each type
 3. Ensure @extends in dependent subgraphs

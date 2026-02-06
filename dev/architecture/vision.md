@@ -12,12 +12,14 @@
 ### **Why Rebuild (Not Evolve)?**
 
 **v0 Reality**:
+
 - 50,000+ LOC with accumulated complexity
 - Feature bloat (2 caching systems, multiple monitoring approaches)
 - Hard to maintain and extend
 - Difficult for new contributors
 
 **v1 Approach**:
+
 - Start fresh with lessons learned
 - ~8,000-10,000 LOC (80% reduction)
 - Clean architecture from day 1
@@ -56,6 +58,7 @@ CREATE TABLE tv_user (
 ```
 
 **Benefits**:
+
 - 10x faster database joins (SERIAL vs UUID)
 - Secure public API (UUID doesn't leak count)
 - SEO-friendly URLs (slugs/usernames)
@@ -105,6 +108,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 Python becomes a thin wrapper:
+
 ```python
 @mutation
 async def create_user(info, organisation: str, identifier: str, name: str, email: str) -> User:
@@ -114,6 +118,7 @@ async def create_user(info, organisation: str, identifier: str, name: str, email
 ```
 
 **Benefits**:
+
 - Reusable (psql, cron, other services)
 - Testable in SQL (pgTAP)
 - Automatic transactions (ACID guarantees)
@@ -274,9 +279,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ## 📅 15-Week Production Timeline
 
 ### **Weeks 1-2: Foundation & Documentation**
+
 **Objective**: Philosophy and architecture documentation
 
 **Deliverables**:
+
 - [ ] WHY_FRAISEQL.md (problem/solution/benchmarks)
 - [ ] CQRS_FIRST.md (database-level CQRS)
 - [ ] MUTATIONS_AS_FUNCTIONS.md (PostgreSQL functions)
@@ -289,9 +296,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 3-4: Core Type System**
+
 **Objective**: Clean, production-grade type system
 
 **Implementation**:
+
 - [ ] Type System (`types/`) - 800 LOC
   - `@type` decorator with full GraphQL spec support
   - `@input` decorator for mutations
@@ -308,9 +317,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 5-6: CQRS Repositories**
+
 **Objective**: Command/Query separation with Trinity support
 
 **Implementation**:
+
 - [ ] CommandRepository - 300 LOC
   - PostgreSQL function calls
   - Transaction support
@@ -331,9 +342,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 6-7: Decorators & FastAPI**
+
 **Objective**: Complete GraphQL endpoint
 
 **Implementation**:
+
 - [ ] Decorators - 300 LOC
   - `@query`, `@mutation`, `@subscription`
   - Auto-registration
@@ -353,9 +366,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 7-8: Rust Integration**
+
 **Objective**: 40x performance boost
 
 **Implementation**:
+
 - [ ] Rust Transformer - 500 LOC (Python + Rust)
   - JSON transformation
   - Field selection
@@ -373,9 +388,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 9-10: Confiture Integration**
+
 **Objective**: Best-in-class database migrations
 
 **Implementation**:
+
 - [ ] Confiture Integration - 600 LOC
   - GraphQL schema → DDL generation
   - CLI wrapper commands
@@ -390,9 +407,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 11: Enterprise Features**
+
 **Objective**: Production-critical features
 
 **Implementation**:
+
 - [ ] Row-Level Security - 500 LOC
   - RLS policy generators
   - `@require_rls` decorator
@@ -408,9 +427,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Week 12: Monitoring**
+
 **Objective**: Production observability
 
 **Implementation**:
+
 - [ ] Grafana Dashboards - 400 LOC + 5 JSONs
   - Query performance dashboard
   - Error tracking dashboard
@@ -428,9 +449,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Week 13: Developer Experience**
+
 **Objective**: Productivity tools
 
 **Implementation**:
+
 - [ ] CLI Scaffolding - 800 LOC
   - Generate models, resolvers, migrations
   - Project init
@@ -446,9 +469,11 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ---
 
 ### **Weeks 14-15: Production Examples & Documentation**
+
 **Objective**: Production-ready launch
 
 **Implementation**:
+
 - [ ] Multi-tenant SaaS Example
   - RLS policies
   - Tenant isolation
@@ -478,30 +503,35 @@ result = await query_repo.find_one("tv_user", id=user_id)
 ## 🎯 Production Success Criteria
 
 ### **Performance**
+
 - [ ] < 1ms query latency (P95)
 - [ ] 40x speedup vs traditional frameworks (benchmarked)
 - [ ] 100K+ queries/sec on standard hardware
 - [ ] Sub-100ms P99 latency under load
 
 ### **Reliability**
+
 - [ ] 100% test coverage on core
 - [ ] Zero known critical bugs
 - [ ] RLS enabled for multi-tenant
 - [ ] Comprehensive error tracking
 
 ### **Scalability**
+
 - [ ] Horizontal scaling (stateless)
 - [ ] Database connection pooling
 - [ ] Proper cache invalidation
 - [ ] Load tested to 1M+ QPS
 
 ### **Observability**
+
 - [ ] OpenTelemetry integrated
 - [ ] 5 Grafana dashboards
 - [ ] Structured logging
 - [ ] Error categorization
 
 ### **Developer Experience**
+
 - [ ] Zero-config quick start
 - [ ] CLI scaffolding tools
 - [ ] TypeScript type generation
@@ -509,6 +539,7 @@ result = await query_repo.find_one("tv_user", id=user_id)
 - [ ] Complete API documentation
 
 ### **Production Readiness**
+
 - [ ] Kubernetes manifests
 - [ ] Docker compose setup
 - [ ] Environment configuration
@@ -564,6 +595,7 @@ Start with the "why" before the "how":
 ## 📊 Competitive Positioning (Production Focus)
 
 ### **vs Strawberry**
+
 - ✅ 40x faster (Rust)
 - ✅ Built-in CQRS (vs manual DataLoaders)
 - ✅ Enterprise features (RLS, OpenTelemetry, Grafana)
@@ -571,6 +603,7 @@ Start with the "why" before the "how":
 - ❌ Smaller ecosystem (for now)
 
 ### **vs Graphene**
+
 - ✅ Modern async/await
 - ✅ Database-first (vs ORM)
 - ✅ Sub-1ms queries
@@ -578,6 +611,7 @@ Start with the "why" before the "how":
 - ❌ Less mature (new framework)
 
 ### **vs PostGraphile**
+
 - ✅ Python ecosystem (not Node.js)
 - ✅ Explicit schema (full control)
 - ✅ Rust acceleration
@@ -585,6 +619,7 @@ Start with the "why" before the "how":
 - ❌ Manual schema definition (vs auto-generated)
 
 ### **vs Hasura**
+
 - ✅ Python code (vs config)
 - ✅ Full control over logic
 - ✅ Lighter weight
@@ -615,29 +650,34 @@ This rebuild shows mastery of:
 ## 💡 Key Design Decisions
 
 ### **Why Clean Rebuild?**
+
 - v0 has 50K LOC with accumulated debt
 - Fresh start = clean architecture
 - 80% reduction in code (10K vs 50K)
 - Production features designed-in, not bolted-on
 
 ### **Why Trinity Identifiers?**
+
 - 10x faster joins (SERIAL vs UUID)
 - Secure public API (UUID)
 - Human-friendly (slugs)
 - Production requirement for scale
 
 ### **Why PostgreSQL Functions?**
+
 - Reusable across clients
 - Atomic transactions
 - Testable in SQL
 - Production reliability
 
 ### **Why Rust?**
+
 - 40x speedup on critical path
 - Production performance requirement
 - Graceful degradation
 
 ### **Why These Enterprise Features?**
+
 - **RLS**: Multi-tenant SaaS requirement
 - **OpenTelemetry**: Production debugging
 - **Grafana**: Operations visibility
@@ -685,23 +725,27 @@ docs/
 ## ✅ Week-by-Week Checklist
 
 ### **Week 1-2**: Documentation Foundation
+
 - [ ] Philosophy docs (4 files)
 - [ ] Architecture overview
 - [ ] Quick start guide
 
 ### **Week 3-4**: Core Type System
+
 - [ ] Type decorators
 - [ ] Schema generation
 - [ ] 100+ tests
 - [ ] v0.1.0 release
 
 ### **Week 5-6**: CQRS Repositories
+
 - [ ] Command/Query repositories
 - [ ] WHERE builder
 - [ ] 150+ tests
 - [ ] v0.2.0 release
 
 ### **Week 6-7**: Decorators & FastAPI
+
 - [ ] Query/mutation decorators
 - [ ] GraphQL endpoint
 - [ ] Error tracking
@@ -709,30 +753,35 @@ docs/
 - [ ] v0.3.0 release
 
 ### **Week 7-8**: Rust Integration
+
 - [ ] Rust transformer
 - [ ] Benchmarks (40x proven)
 - [ ] 50+ tests
 - [ ] v0.4.0 release
 
 ### **Week 9-10**: Confiture Integration
+
 - [ ] Migration system
 - [ ] Schema sync
 - [ ] 30+ tests
 - [ ] v0.5.0 release
 
 ### **Week 11**: Enterprise Features
+
 - [ ] RLS helpers
 - [ ] OpenTelemetry
 - [ ] 80+ tests
 - [ ] v0.6.0 release
 
 ### **Week 12**: Monitoring
+
 - [ ] Grafana dashboards
 - [ ] Cache invalidation
 - [ ] 40+ tests
 - [ ] v0.7.0 release
 
 ### **Week 13**: Developer Experience
+
 - [ ] CLI tools
 - [ ] TypeScript generation
 - [ ] Advanced mutations
@@ -740,6 +789,7 @@ docs/
 - [ ] v0.8.0 release
 
 ### **Week 14-15**: Production Polish
+
 - [ ] 3 production examples
 - [ ] Complete documentation
 - [ ] Benchmark suite
@@ -750,6 +800,7 @@ docs/
 ## 🎯 Final Goal
 
 **By Week 15 (February 2026)**:
+
 - ✅ Production-ready v1.0
 - ✅ Sub-1ms query latency (proven)
 - ✅ Enterprise features (RLS, observability, migrations)

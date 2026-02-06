@@ -8,6 +8,7 @@
 ## 🎯 Core Insight: The Bottleneck Shifts
 
 **Before Rust Optimization**:
+
 ```
 DB Query: 0.5ms (20% of time)
 Python Transform: 20ms (80% of time) ← BOTTLENECK
@@ -17,6 +18,7 @@ Optimization target: Transformation layer
 ```
 
 **After Rust Optimization**:
+
 ```
 DB Query: 0.5ms (50% of time) ← NEW BOTTLENECK
 Rust Transform: 0.5ms (50% of time)
@@ -46,6 +48,7 @@ EXECUTE get_user(1);  -- Uses cached plan
 ```
 
 **Performance Impact**:
+
 ```
 First query:  0.8ms (cold - load from disk)
 Second query: 0.1ms (hot - in buffer pool)
@@ -54,6 +57,7 @@ Second query: 0.1ms (hot - in buffer pool)
 ```
 
 **Configuration** (in `postgresql.conf`):
+
 ```conf
 # Increase shared buffers for better caching
 shared_buffers = 4GB  # 25% of RAM
@@ -99,6 +103,7 @@ CREATE TABLE tb_user (
 ```
 
 **Performance**:
+
 ```
 Query: SELECT data FROM users WHERE id = 1;
 Execution: 0.05ms (indexed lookup + JSONB retrieve)
@@ -118,6 +123,7 @@ Speedup: 40-100x
 
 **When Useful**:
 Complex aggregations that are:
+
 - Expensive to compute (>100ms)
 - Updated infrequently (hourly/daily)
 - Acceptable staleness
@@ -164,6 +170,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_stats;  -- Manual/cron
 | **Generated column** | 0.1ms | 0ms | Simple aggregations |
 
 **When to Use**:
+
 - ✅ Complex aggregations (multiple JOINs, GROUP BY)
 - ✅ Analytics/reporting queries
 - ✅ Acceptable staleness (refresh every 5-60 minutes)
@@ -206,6 +213,7 @@ async def dashboard(info) -> DashboardStats:
 ### Strategy 4: UNLOGGED Tables (Ephemeral Cache)
 
 **What UNLOGGED Means**:
+
 - Not written to WAL (Write-Ahead Log)
 - 2-3x faster writes
 - **Data lost on crash** (not durable)
@@ -285,12 +293,14 @@ async def expensive_query(info) -> DashboardStats:
 | **Regular table** | 0.4ms | 0.1ms | Full | Persistent data |
 
 **Advantages**:
+
 - ✅ Same database (no Redis needed)
 - ✅ ACID transactions with cache
 - ✅ SQL querying of cache
 - ✅ Simpler infrastructure
 
 **Disadvantages**:
+
 - ❌ Lost on crash (acceptable for cache)
 - ❌ Not distributed (per-database)
 - ❌ Cleanup needed (TTL handling)
@@ -479,6 +489,7 @@ async def analyze_cache_performance():
 ```
 
 **Benefits**:
+
 - ✅ Transaction safety (cache + data in same transaction)
 - ✅ Built-in metrics (hit count, computation time)
 - ✅ SQL querying of cache state
@@ -760,12 +771,14 @@ async def dashboard(info) -> Dashboard:
 ### 1. Database Caching is MORE Valuable with Rust
 
 **Why**: Rust makes transformation fast (0.5ms), so database becomes the bottleneck
+
 - Without Rust: 80% time in transformation → optimize transformation
 - With Rust: 50% time in database → optimize database
 
 ### 2. Generated Columns are Ideal
 
 **Why**:
+
 - ✅ Automatic (no refresh needed)
 - ✅ Always up-to-date (updated on write)
 - ✅ Fast (0.05ms lookup)
@@ -776,6 +789,7 @@ async def dashboard(info) -> Dashboard:
 ### 3. Materialized Views for Aggregations
 
 **Use when**:
+
 - Complex aggregations (GROUP BY, multiple JOINs)
 - Acceptable staleness (minutes to hours)
 - Read-heavy (many queries per update)
@@ -785,10 +799,12 @@ async def dashboard(info) -> Dashboard:
 ### 4. Skip Redis for Most Cases
 
 **Rust-first changes the equation**:
+
 - Before: Redis needed because transformation is slow
 - After: Database + Rust is fast enough (<2ms)
 
 **Use Redis only if**:
+
 - Distributed cache needed (multiple servers)
 - Very high traffic (>10k RPS)
 - Sub-millisecond latency required
@@ -796,6 +812,7 @@ async def dashboard(info) -> Dashboard:
 ### 5. PostgreSQL Configuration Matters
 
 **Simple config changes**:
+
 ```conf
 shared_buffers = 4GB
 effective_cache_size = 12GB
@@ -825,6 +842,7 @@ work_mem = 64MB
 **Why**: Rust eliminates transformation bottleneck, making database optimization more impactful
 
 **Best strategies**:
+
 1. ✅ **PostgreSQL configuration** (always do this)
 2. ✅ **Generated JSONB columns** (already using - optimal!)
 3. ✅ **Partial indexes** (for common queries)
@@ -832,6 +850,7 @@ work_mem = 64MB
 5. ⚠️ **UNLOGGED tables** (if avoiding Redis)
 
 **Skip**:
+
 - ❌ Redis (for most cases - database is fast enough)
 - ❌ Complex cache invalidation (use generated columns instead)
 

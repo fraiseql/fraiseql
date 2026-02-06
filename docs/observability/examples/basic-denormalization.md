@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Example: Basic JSONB Denormalization
 description: This example demonstrates a **complete end-to-end workflow** for denormalizing a frequently-accessed JSONB path to a direct column, resulting in a **12.5x query
 keywords: ["code", "production", "fullstack", "sample", "real-world"]

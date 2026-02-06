@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Migration Guide: Single File to Domain Organization
 description: This guide walks you through migrating from a monolithic `schema.json` to domain-driven organization.
 keywords: []

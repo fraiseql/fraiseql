@@ -43,6 +43,7 @@ PostgreSQL Database
 ```
 
 **Testing Implications**:
+
 - Test the Rust driver pool directly via Python bindings
 - Pool type: `DatabasePool` (in fraiseql_rs/src/db/pool.rs)
 - Connection type: `deadpool_postgres::Object`
@@ -63,6 +64,7 @@ PostgreSQL Database
 | **TOTAL** | **5-7 weeks** | **120-160h** | Complete chaos suite |
 
 **Key Differences from v1.0**:
+
 - +20 hours total (Rust driver complexity)
 - +1-2 weeks timeline (more thorough Phase 0)
 - Better effort distribution
@@ -74,6 +76,7 @@ PostgreSQL Database
 ### 0.1 - Tool Selection (VERIFIED IN v2.0)
 
 **Real Tools Used**:
+
 - ✅ **toxiproxy** - Network chaos (Shopify-maintained)
 - ✅ **pytest-asyncio** - Async test support
 - ✅ **pytest-timeout** - Test timeout management
@@ -81,6 +84,7 @@ PostgreSQL Database
 - ✅ **Custom pytest plugin** - Failure injection decorators
 
 **NOT Using**:
+
 - ❌ pytest-chaos (does not exist as maintained library)
 
 **Effort**: 3-4 hours to build custom plugin
@@ -90,6 +94,7 @@ PostgreSQL Database
 ### 0.2 - Baseline Metrics (RIGOROUS APPROACH)
 
 **Methodology** (Fixed from v1.0):
+
 ```python
 # For each metric, collect 10+ samples
 baseline = {
@@ -106,12 +111,14 @@ baseline = {
 ```
 
 **Metrics to Collect**:
+
 - Query performance (simple, nested, mutations, aggregations)
 - Connection pool (checkout time, availability, reuse)
 - Authentication (token validation cached/uncached, JWKS fetch)
 - Rust pipeline (JSON transform, schema lookup, response encoding)
 
 **Acceptance Criteria**:
+
 - ✅ 30+ metrics collected
 - ✅ Each with 10+ samples minimum
 - ✅ Statistical measures: mean, stddev, min, max, p95, p99, CI95, CI99
@@ -135,6 +142,7 @@ baseline = {
 ## Phase 1: Network & Connectivity Chaos (5-7 days, 30-35 hours)
 
 ### 1.1 - Rust Driver Connection Failures
+
 - Connection refused
 - Pool exhaustion
 - Connection idle timeout
@@ -143,6 +151,7 @@ baseline = {
 **Test Count**: 12-15 tests
 
 ### 1.2 - Network Latency (via Toxiproxy)
+
 - Gradual latency increase
 - Consistent high latency
 - Jittery latency
@@ -151,6 +160,7 @@ baseline = {
 **Test Count**: 8-10 tests
 
 ### 1.3 - Packet Loss & Corruption (via Toxiproxy)
+
 - Packet loss (1%, 5%, 10%)
 - Duplicate packets
 - Out-of-order packets
@@ -163,6 +173,7 @@ baseline = {
 ## Phase 2: Database & Query Chaos (7-8 days, 40-50 hours)
 
 ### 2.1 - Query Execution Failures (10-12 tests)
+
 - Query timeout
 - Query syntax errors
 - Constraint violations
@@ -171,12 +182,14 @@ baseline = {
 **Note**: Removed "Insufficient Permissions" test (wait for Phase 11 RBAC)
 
 ### 2.2 - Data Consistency (4-6 tests, FLAKY)
+
 - Dirty read prevention
 - Write conflict detection
 
 **⚠️ WARNING**: Expect 30-50% flakiness - inherit to transaction isolation timing
 
 ### 2.3 - PostgreSQL Failure Modes (6-8 tests)
+
 - Table locks
 - Index corruption
 - Connection limits
@@ -186,17 +199,20 @@ baseline = {
 ## Phase 3: Cache & Auth Chaos (5-7 days, 30-40 hours)
 
 ### 3.1 - Cache Failures (10-12 tests)
+
 - Cache TTL expiration
 - Partial invalidation
 - LRU eviction under pressure
 
 ### 3.2 - JWKS & Token Cache (8-10 tests)
+
 - JWKS fetch failure
 - Key rotation
 - Token cache corruption
 - High JWKS latency
 
 ### 3.3 - Auth Failures (6-8 tests, Phase 10 Validation)
+
 - Expired tokens
 - Invalid signatures
 - Auth bypass prevention
@@ -208,12 +224,14 @@ baseline = {
 ## Phase 4: Resource & Concurrency Chaos (7-8 days, 45-55 hours)
 
 ### 4.1 - Memory & Resource Constraints (8-10 tests)
+
 - Application memory limits
 - Rust pipeline memory pressure
 - Connection pool memory
 - CPU throttling
 
 ### 4.2 - High Concurrency (10-12 tests)
+
 - Pool saturation (1000 concurrent)
 - Race conditions in cache
 - Concurrent mutations
@@ -221,6 +239,7 @@ baseline = {
 - Lock contention
 
 ### 4.3 - Cascading Failures (8-10 tests)
+
 - Database down → cache fallback
 - Cache + DB both degraded
 - Auth down + critical query
@@ -234,26 +253,31 @@ baseline = {
 **Split into 3 sub-phases** (Fixed from v1.0 underestimate):
 
 ### 5.1 - Metrics During Chaos (8-10 hours)
+
 - Metric collection overhead (<5%)
 - Error rate tracking
 - Trace data capture
 
 ### 5.2 - Alert Integration (5-8 hours, Optional)
+
 - Alert triggering (<5s detection)
 - Alert accuracy (>95%)
 
 ### 5.3 - Report Generation (15-20 hours)
 
 **5.3a**: Basic JSON Report (8-10 hours)
+
 - Structured results collection
 - Summary statistics
 
 **5.3b**: HTML Visualization (10-12 hours)
+
 - Dashboard with charts
 - Per-test details
 - Trend analysis
 
 **5.3c**: Advanced Dashboard (10+ hours, Optional)
+
 - Real-time execution visualization
 - Failure timeline
 - Recovery analysis
@@ -265,16 +289,19 @@ baseline = {
 ### Test Categorization
 
 **Stable** (0-5% flakiness):
+
 - Network tests (Phase 1)
 - Auth tests (Phase 3)
 - Most resource tests (Phase 4)
 
 **Flaky** (5-20% flakiness):
+
 - Query failure tests (Phase 2.1)
 - Concurrent mutation tests (Phase 4.2)
 - Metrics overhead tests (Phase 5.1)
 
 **Very Flaky** (20-50% flakiness):
+
 - Data consistency tests (Phase 2.2) - inherent to transaction timing
 
 ### Retry Strategy
@@ -295,6 +322,7 @@ def test_something(self):
 ### Documentation
 
 Each flaky test must document:
+
 - Why it's flaky (timing, resource contention, etc.)
 - Expected failure rate
 - Acceptance criteria (passes once is OK)
@@ -306,11 +334,13 @@ Each flaky test must document:
 ### Separate Job for Chaos Tests
 
 **Rationale**:
+
 - Total runtime: 120-180 minutes (2-3 hours)
 - Don't block PR merges
 - Run weekly/monthly or manually
 
 **Pipeline**:
+
 ```yaml
 chaos-tests:
   run: pytest tests/chaos/ -v --report chaos_report.html
@@ -348,6 +378,7 @@ apt-get install toxiproxy   # Linux
 **Phase 5**: 20+ observability tests, reports generated, runbook complete
 
 **Overall**:
+
 - ✅ 150+ tests passing
 - ✅ Production readiness verified
 - ✅ Recovery procedures documented
@@ -370,17 +401,20 @@ apt-get install toxiproxy   # Linux
 ## Realistic Expectations
 
 **Runtime**:
+
 - Baseline collection (one-time): 4-8 hours
 - Full test suite: 120-180 minutes
 - Per-test duration: 30-120 seconds
 - Report generation: 2-5 minutes
 
 **Flakiness**:
+
 - ~5% of tests flake on any given run
 - Data consistency tests: 30-50% flake rate (normal)
 - Retry up to 3x to account
 
 **Coverage**:
+
 - 150+ test scenarios
 - 8 failure domains
 - 50+ failure types
@@ -391,12 +425,14 @@ apt-get install toxiproxy   # Linux
 ## Post-Implementation
 
 **Ongoing**:
+
 - Run weekly (before releases)
 - Run monthly (scheduled job)
 - Update baselines quarterly
 - Maintain trend analysis
 
 **Improvements**:
+
 - Add new scenarios as discovered
 - Refine tolerances from production experience
 - Update procedures from incidents
@@ -425,6 +461,7 @@ apt-get install toxiproxy   # Linux
 ✅ **READY FOR IMPLEMENTATION**
 
 All critical gaps resolved. Plan is:
+
 - Architecturally sound
 - Tool selection verified
 - Effort estimates realistic

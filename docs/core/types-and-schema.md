@@ -20,6 +20,7 @@ Type system for GraphQL schema definition using Python decorators and dataclasse
 **Purpose**: Define GraphQL object types from Python classes
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -77,6 +78,7 @@ class TypeName:
 ```
 
 **Type Mapping Process:**
+
 1. **Python Class** with type hints and `@type` decorator
 2. **Type Decorator** processes annotations and metadata
 3. **GraphQL Schema** generated with proper types and nullability
@@ -86,6 +88,7 @@ class TypeName:
 **Examples**:
 
 Basic type without database binding:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -102,6 +105,7 @@ class User:
 ```
 
 **Generated GraphQL Schema**:
+
 ```graphql
 type User {
   id: ID!
@@ -114,6 +118,7 @@ type User {
 ```
 
 Type with SQL source for automatic queries:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -126,6 +131,7 @@ class User:
 ```
 
 Type with regular table columns (no JSONB):
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -139,6 +145,7 @@ class User:
 ```
 
 Type with custom JSONB column:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -151,6 +158,7 @@ class Machine:
 ```
 
 **With Custom Fields** (using @field decorator):
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -176,6 +184,7 @@ class User:
 ```
 
 With nested object resolution:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -196,6 +205,7 @@ class Employee:
 ```
 
 With embedded nested objects (default):
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -246,6 +256,7 @@ class User:
 ```
 
 **Generated GraphQL Schema:**
+
 ```graphql
 """A user account in the system."""
 type User {
@@ -264,6 +275,7 @@ type User {
 ```
 
 **Advantages:**
+
 - ✅ Clean, compact Python code (no blank lines needed)
 - ✅ All documentation in one place
 - ✅ Standard Google/Sphinx docstring format
@@ -271,6 +283,7 @@ type User {
 - ✅ Works well with auto-documentation tools
 
 **Use when:**
+
 - Writing most production code (recommended default)
 - Following team Python style guides
 - Working with code generators
@@ -307,15 +320,18 @@ class Article:
 ```
 
 **Advantages:**
+
 - ✅ Multi-line descriptions with details
 - ✅ IDE hover support on individual fields
 - ✅ Good for complex fields needing explanation
 
 **Disadvantages:**
+
 - ❌ Requires blank lines between fields (less compact)
 - ❌ Only works for file-based classes (not dynamically created)
 
 **Use when:**
+
 - Individual fields need detailed multi-line explanations
 - You want IDE hover to show field-specific docs
 - Working with complex domain models
@@ -352,6 +368,7 @@ class User:
 ```
 
 **Use when:**
+
 - Need to override GraphQL field name
 - Migrating from older FraiseQL versions
 - Need other `fraise_field` options (purpose, init, etc.)
@@ -367,6 +384,7 @@ When multiple documentation methods are used, FraiseQL applies them in this prio
 5. **Explicit `fraise_field(description="...")`** (backward compatibility)
 
 **Example with priorities:**
+
 ```python
 @fraiseql.type
 class User:
@@ -389,6 +407,7 @@ class User:
 ```
 
 **Result:**
+
 - `id`: "From inline comment (highest priority)"
 - `name`: "From attribute docstring (overrides class docstring)."
 - `email`: "From class docstring"
@@ -406,12 +425,14 @@ class User:
 ### GraphQL Introspection
 
 All field descriptions automatically appear in:
+
 - GraphQL introspection queries
 - GraphQL Playground / GraphiQL documentation
 - Generated TypeScript/client code
 - API documentation tools
 
 **Introspection Example:**
+
 ```graphql
 query IntrospectUser {
   __type(name: "User") {
@@ -424,6 +445,7 @@ query IntrospectUser {
 ```
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -448,6 +470,7 @@ query IntrospectUser {
 **Purpose**: Define GraphQL input types for mutations and queries
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -460,6 +483,7 @@ class InputName:
 **Examples**:
 
 Basic input type:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -479,6 +503,7 @@ class Order:
 ```
 
 Enum with integer values:
+
 ```python
 @fraiseql.enum
 class Priority(Enum):
@@ -493,6 +518,7 @@ class Priority(Enum):
 **Purpose**: Define GraphQL interface types for polymorphism
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -505,6 +531,7 @@ class InterfaceName:
 **Examples**:
 
 Basic Node interface:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -527,6 +554,7 @@ class Post:
 ```
 
 Interface with computed fields:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -553,6 +581,7 @@ class Article:
 ```
 
 Multiple interface implementation:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -607,6 +636,7 @@ class Document:
 | DateRange | DateRange | Date range | "[2025-01-01,2025-12-31]" |
 
 **Usage Example**:
+
 ```python
 import fraiseql
 
@@ -641,6 +671,7 @@ class Category:
 **Purpose**: Cursor-based pagination following Relay specification
 
 **Types**:
+
 ```python
 import fraiseql
 
@@ -665,6 +696,7 @@ class Connection[T]:
 ```
 
 **Usage with @connection decorator**:
+
 ```python
 import fraiseql
 from fraiseql.types import Connection
@@ -687,6 +719,7 @@ async def users_connection(
 ```
 
 **Manual usage**:
+
 ```python
 import fraiseql
 
@@ -704,6 +737,7 @@ async def users_connection(info, first: int = 20) -> Connection[User]:
 **Alias**: `PaginatedResponse = Connection`
 
 **Usage**:
+
 ```python
 import fraiseql
 
@@ -736,11 +770,13 @@ async def users_paginated(
 **Purpose**: Distinguish between "field not provided" and "field explicitly set to None"
 
 **Import**:
+
 ```python
 from fraiseql.types import UNSET
 ```
 
 **Usage in Input Types**:
+
 ```python
 import fraiseql
 from fraiseql.types import UNSET
@@ -755,6 +791,7 @@ class UpdateUserInput:
 ```
 
 **Usage in Mutations**:
+
 ```python
 import fraiseql
 
@@ -775,6 +812,7 @@ async def update_user(info, input: UpdateUserInput) -> User:
 ```
 
 **GraphQL Example**:
+
 ```graphql
 # Mutation that only updates name (sets it to null)
 mutation {
@@ -793,6 +831,7 @@ mutation {
 ## Best Practices
 
 **Type Design**:
+
 - Use descriptive names (User, CreateUserInput, UserConnection)
 - Separate input types from output types
 - Use UNSET for optional update fields
@@ -800,22 +839,26 @@ mutation {
 - Use interfaces for shared behavior
 
 **Field Naming**:
+
 - Use snake_case in Python (auto-converts to camelCase in GraphQL)
 - Prefix inputs with operation name (CreateUserInput, UpdateUserInput)
 - Suffix connections with Connection (UserConnection)
 
 **Nullability**:
+
 - Make fields non-nullable by default (better type safety)
 - Use `| None` only when field can truly be absent
 - Use UNSET for "not provided" vs None for "clear this field"
 
 **SQL Source Configuration**:
+
 - Set sql_source for queryable types
 - Set jsonb_column=None for regular table columns
 - Use jsonb_column="data" (default) for CQRS/JSONB tables
 - Use custom jsonb_column for non-standard column names
 
 **Performance**:
+
 - Use resolve_nested=True only for types that need separate database queries
 - Default (resolve_nested=False) assumes data is embedded in parent JSONB
 - Embedded data is faster (single query) vs nested resolution (multiple queries)

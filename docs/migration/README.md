@@ -35,6 +35,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 - **Time:** 3-4 days for 1 engineer
 
 **Key advantages:**
+
 - Database schema likely already optimal
 - PostgreSQL functions reusable
 - RLS policies work identically
@@ -51,6 +52,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 - **Time:** 1-2 weeks for 2 engineers
 
 **Key considerations:**
+
 - Migrate from Django ORM to direct PostgreSQL access
 - Convert `DjangoObjectType` to `@fraiseql.type` decorators
 - Move business logic from Python to PostgreSQL functions
@@ -67,6 +69,7 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 - **Time:** 2-3 weeks for 2 engineers
 
 **Key considerations:**
+
 - Similar decorator syntax makes type conversion easy
 - Need to adopt PostgreSQL-first approach
 - Move resolver logic to database views/functions
@@ -93,30 +96,35 @@ These guides provide step-by-step instructions, code examples, timeline estimate
 All migrations follow a similar high-level process:
 
 ### Phase 1: Assessment (1-2 days)
+
 - Audit current schema (types, resolvers, mutations)
 - Review database structure
 - Estimate effort using framework-specific guide
 - Plan rollback strategy
 
 ### Phase 2: Database Preparation (1-3 days)
+
 - Adopt trinity pattern (tb_/v_/tv_)
 - Create views for GraphQL exposure
 - Set up Row-Level Security (RLS) if needed
 - Migrate functions to fn_* pattern
 
 ### Phase 3: Type & Query Migration (2-3 days)
+
 - Convert types to FraiseQL decorators
 - Migrate queries to use `db.find()` / `db.find_one()`
 - Implement custom resolvers
 - Test extensively
 
 ### Phase 4: Mutation Migration (2-3 days)
+
 - Create PostgreSQL functions for mutations
 - Map mutations to functions with `@fraiseql.mutation`
 - Enable CASCADE for automatic cache invalidation
 - Verify mutation behavior
 
 ### Phase 5: Testing & Deployment (2-3 days)
+
 - Run comprehensive test suite
 - Performance benchmarks (expect 7-10x improvement)
 - Blue-green deployment
@@ -131,6 +139,7 @@ All migrations follow a similar high-level process:
 ### Pattern 1: ORM Model → PostgreSQL View
 
 **Before (Django ORM / SQLAlchemy):**
+
 ```python
 class User(models.Model):
     email = models.EmailField()
@@ -138,6 +147,7 @@ class User(models.Model):
 ```
 
 **After (FraiseQL):**
+
 ```sql
 -- Base table
 CREATE TABLE tb_user (
@@ -161,6 +171,7 @@ class User:
 ### Pattern 2: Resolver Logic → Database Function
 
 **Before (Python resolver):**
+
 ```python
 @strawberry.mutation
 async def create_user(email: str, name: str) -> User:
@@ -173,6 +184,7 @@ async def create_user(email: str, name: str) -> User:
 ```
 
 **After (FraiseQL + PostgreSQL):**
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(
     input_email TEXT,
@@ -201,6 +213,7 @@ class CreateUser:
 ### Pattern 3: Manual Cache Invalidation → CASCADE
 
 **Before (Manual cache management):**
+
 ```python
 # Client must manually update cache after mutation
 mutation {
@@ -216,6 +229,7 @@ query {
 ```
 
 **After (FraiseQL CASCADE):**
+
 ```python
 @fraiseql.mutation(function="fn_create_post", enable_cascade=True)
 class CreatePost:
@@ -249,10 +263,12 @@ After migration to FraiseQL, you should see:
 | **CPU Usage** | 40-60% lower |
 
 **Real-world example:**
+
 - **Before (Strawberry):** 8-12ms for 100 objects, ~1,200 req/s
 - **After (FraiseQL):** 0.8-1.2ms for 100 objects, ~12,000 req/s
 
 **Benchmark your migration:**
+
 ```bash
 # Run performance comparison
 wrk -t4 -c100 -d30s http://localhost:8000/graphql
@@ -263,16 +279,19 @@ wrk -t4 -c100 -d30s http://localhost:8000/graphql
 ## Support & Resources
 
 ### Documentation
+
 - [Trinity Pattern Guide](../core/trinity-pattern.md) - Database naming conventions
 - [CASCADE Documentation](../features/graphql-cascade.md) - Automatic cache invalidation
 - [Production Deployment Checklist](../tutorials/production-deployment.md) - Go-live preparation
 
 ### Community Support
+
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub Issues**: [Report Problems](https://github.com/fraiseql/fraiseql/issues)
 - **Email**: support@fraiseql.com
 
 ### Professional Services
+
 - **Consulting**: Available for enterprise migrations
 - **Training**: 1-day workshops on FraiseQL architecture
 - **Support Plans**: Priority support for production deployments
@@ -303,6 +322,7 @@ Found an issue or want to improve a guide?
 ---
 
 **Ready to migrate?** Start with your framework-specific guide:
+
 - [From PostGraphile](./from-postgraphile.md)
 - [From Graphene](./from-graphene.md)
 - [From Strawberry](./from-strawberry.md)

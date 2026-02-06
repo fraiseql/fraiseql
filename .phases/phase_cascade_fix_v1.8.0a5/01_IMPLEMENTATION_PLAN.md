@@ -104,6 +104,7 @@ cargo test cascade_fix_tests
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Tests created
 - [ ] Tests fail with expected error (module not found)
 - [ ] Test logic is sound
@@ -293,6 +294,7 @@ mod tests {
 ```
 
 **Implementation Notes:**
+
 - Use `#[serde(deny_unknown_fields)]` to catch structure mismatches early
 - Use `#[serde(default)]` for optional fields
 - Filter null CASCADE values (database returns NULL, not omitted field)
@@ -375,6 +377,7 @@ cargo test
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Module compiles without errors
 - [ ] All existing tests still pass (backward compatibility)
 - [ ] New cascade_fix_tests pass
@@ -407,6 +410,7 @@ cargo build --all-targets
 ```
 
 **Acceptance Criteria:**
+
 - [ ] No clippy warnings
 - [ ] Code formatted with rustfmt
 - [ ] All public items documented
@@ -486,6 +490,7 @@ uv run pytest tests/api/mutations/ -v --tb=short
 ```
 
 **Acceptance Criteria:**
+
 - [ ] CASCADE appears at success wrapper level
 - [ ] CASCADE does NOT appear in entity
 - [ ] All PrintOptim tests pass
@@ -596,6 +601,7 @@ uv publish
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Version bumped to 1.8.0-alpha.5
 - [ ] CHANGELOG updated
 - [ ] Git commit created

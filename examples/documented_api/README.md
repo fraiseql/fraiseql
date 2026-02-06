@@ -5,6 +5,7 @@ Production-ready example demonstrating FraiseQL's automatic GraphQL schema docum
 ## What This Example Demonstrates
 
 This example shows how FraiseQL **automatically generates comprehensive GraphQL documentation** without any extra configuration:
+
 - ✅ Type-level documentation from class docstrings
 - ✅ Field-level documentation from attribute docstrings
 - ✅ Query/mutation documentation from function docstrings
@@ -43,6 +44,7 @@ type Product {
 ```
 
 **Problems:**
+
 - 😫 Documentation written twice
 - 🐛 Docs get out of sync
 - ⏰ Wastes development time
@@ -74,6 +76,7 @@ class Product:
 ```
 
 **FraiseQL automatically generates:**
+
 - ✅ GraphQL schema with full documentation
 - ✅ Introspection responses
 - ✅ GraphQL Playground documentation
@@ -87,6 +90,7 @@ class Product:
 ### 1. Type Documentation
 
 **Python:**
+
 ```python
 @app.type
 @dataclass
@@ -103,6 +107,7 @@ class Product:
 ```
 
 **Generated GraphQL:**
+
 ```graphql
 """
 A product in the e-commerce catalog.
@@ -121,6 +126,7 @@ type Product {
 ### 2. Field Documentation
 
 **Python:**
+
 ```python
 @app.type
 @dataclass
@@ -144,6 +150,7 @@ class Product:
 ```
 
 **Generated GraphQL:**
+
 ```graphql
 type Product {
   "Unique product identifier (auto-generated)"
@@ -170,6 +177,7 @@ type Product {
 ### 3. Query Documentation with Examples
 
 **Python:**
+
 ```python
 @app.query
 async def products(
@@ -216,6 +224,7 @@ async def products(
 ```
 
 **Generated GraphQL:**
+
 ```graphql
 """
 Query products with flexible filtering.
@@ -260,6 +269,7 @@ products(
 ### 4. Enum Documentation
 
 **Python:**
+
 ```python
 class ProductCategory(str, Enum):
     """Product category classification.
@@ -279,6 +289,7 @@ class ProductCategory(str, Enum):
 ```
 
 **Generated GraphQL:**
+
 ```graphql
 """
 Product category classification.
@@ -324,6 +335,7 @@ python main.py
 ```
 
 The API will be available at:
+
 - **GraphQL API:** http://localhost:8000/graphql
 - **GraphQL Playground:** http://localhost:8000/graphql (with full documentation)
 
@@ -337,6 +349,7 @@ The API will be available at:
 4. Click any type/field to see full documentation
 
 **Features:**
+
 - Full type descriptions
 - Field descriptions with formatting
 - Argument documentation
@@ -369,6 +382,7 @@ query GetTypeDocumentation {
 ```
 
 Response includes all docstring content:
+
 ```json
 {
   "__type": {
@@ -393,12 +407,14 @@ Response includes all docstring content:
 ### 1. Be Descriptive But Concise
 
 **❌ Too Short:**
+
 ```python
 price: Decimal
 """Product price"""
 ```
 
 **❌ Too Long:**
+
 ```python
 price: Decimal
 """The price of the product which is stored as a decimal value in the database
@@ -408,6 +424,7 @@ costs, or other fees that may be added at checkout..."""
 ```
 
 **✅ Just Right:**
+
 ```python
 price: Decimal
 """Price in USD.
@@ -664,6 +681,7 @@ async def expensive_report(info) -> Report:
 **Problem:** Docstrings not showing in GraphQL Playground
 
 **Solutions:**
+
 1. Ensure docstrings use `"""` (triple quotes)
 2. Check docstring is immediately after field/function
 3. Verify FraiseQL version >= 0.10.0

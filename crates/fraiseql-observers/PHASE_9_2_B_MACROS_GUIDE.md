@@ -89,6 +89,7 @@ async fn fetch_user(user_id: u32) -> Result<User> {
 ```
 
 **Generated Trace Structure**:
+
 ```
 Span: fetch_user
 ├─ Event: function entered
@@ -109,6 +110,7 @@ async fn validate_email(email: &str) -> Result<()> {
 ```
 
 **Trace for Error Case**:
+
 ```
 Span: validate_email
 ├─ Event: function entered
@@ -129,18 +131,21 @@ fn process_batch(items: Vec<Item>) -> usize {
 ### Span Name Selection
 
 **Automatic** (recommended):
+
 ```rust
 #[traced]  // Span name = "my_function"
 async fn my_function() { }
 ```
 
 **Custom**:
+
 ```rust
 #[traced(name = "custom_name")]  // Span name = "custom_name"
 async fn my_function() { }
 ```
 
 **String Literal Required**:
+
 ```rust
 #[traced(name = "valid")]        // ✅ Works
 #[traced(name = some_variable)]  // ❌ Compiler error
@@ -250,6 +255,7 @@ fn create_user(user_id: u32, name: String, email: String) {
 ```
 
 **Generated Log**:
+
 ```
 DEBUG create_user user_id=123 name="John" email="john@example.com" function entered
 ```
@@ -302,6 +308,7 @@ async fn process_request(request_id: u64, payload: String) -> Result<()> {
 ```
 
 **Combined Output**:
+
 ```
 Span: process_request
 ├─ Event: request_id=123 payload="data" function entered
@@ -453,6 +460,7 @@ async fn execute_action(req: &Request) -> Result<Response> {
 ```
 
 **Trace Structure**:
+
 ```
 Span: api_request
 └─ Span: business_logic
@@ -668,6 +676,7 @@ Before using macros in production:
 ### From Manual Instrumentation
 
 **Before**:
+
 ```rust
 async fn process_event(event: &Event) -> Result<()> {
     let tracer = ListenerTracer::new("processor");
@@ -683,6 +692,7 @@ async fn process_event(event: &Event) -> Result<()> {
 ```
 
 **After**:
+
 ```rust
 #[traced(name = "process_event")]
 async fn process_event(event: &Event) -> Result<()> {
@@ -782,10 +792,12 @@ async fn child_function() -> Result<()> {
 ## File Reference
 
 **Macro Implementation**: `crates/fraiseql-observers-macros/src/lib.rs`
+
 - `traced()` macro: Lines 27-107
 - `instrument()` macro: Lines 120-177
 
 **Usage in Main Crate**: `crates/fraiseql-observers/src/lib.rs`
+
 - Re-export macros from proc-macro crate
 
 ---

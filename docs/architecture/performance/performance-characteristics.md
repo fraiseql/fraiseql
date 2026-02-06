@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Performance Characteristics: Benchmarks, Optimization Strategies, and Tuning Guide
 description: FraiseQL is designed for **consistent, predictable performance** at scale. Performance characteristics are measurable, deterministic, and tunable.
 keywords: ["design", "scalability", "performance", "patterns", "security"]

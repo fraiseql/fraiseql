@@ -63,6 +63,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Why this works:**
+
 - ✅ Audit logging is **explicit** - visible in the function code
 - ✅ CDC data (`changed_fields`, `old_data`, `new_data`) is **explicit**
 - ✅ AI models can **see and generate** the audit code
@@ -84,11 +85,13 @@ CREATE TRIGGER populate_crypto_trigger
 ```
 
 **What it does:**
+
 - Populates `previous_hash` (links to last audit event)
 - Computes `event_hash` (SHA-256 of event data)
 - Generates `signature` (HMAC for tamper detection)
 
 **Why a trigger is acceptable here:**
+
 - 🔒 **Security-critical** - crypto chain must be tamper-proof
 - 🏗️ **Infrastructure concern** - not business logic
 - 🎯 **Limited scope** - ONLY audit_events table, ONLY crypto fields
@@ -103,6 +106,7 @@ CREATE TRIGGER populate_crypto_trigger
 Business logic triggers are **problematic for AI-assisted development**:
 
 ### 1. **Implicit Behavior** (AI-hostile)
+
 Triggers execute automatically without visible code paths, making it hard for AI to understand data flow.
 
 ```sql
@@ -113,11 +117,13 @@ CREATE TRIGGER audit_changes
 ```
 
 **Problem:** AI models can't trace:
+
 - "Where is the audit log created?"
 - "What fields are logged?"
 - "Can I modify audit behavior?"
 
 ### 2. **Hidden Side Effects**
+
 Changes in one table can affect others invisibly, confusing debugging.
 
 ```sql
@@ -130,6 +136,7 @@ CREATE TRIGGER notify_on_message
 **Problem:** Developer (and AI) must remember "inserting a message sends a notification."
 
 ### 3. **Testing Complexity**
+
 Hard to isolate and test trigger logic independently.
 
 ```sql
@@ -142,9 +149,11 @@ CREATE TRIGGER validate_status
 **Problem:** Unit testing requires full database setup.
 
 ### 4. **Code Generation Issues**
+
 AI models struggle to generate correct trigger syntax vs explicit code.
 
 **AI is better at:**
+
 ```python
 # ✅ GOOD: AI can generate this
 @mutation
@@ -155,6 +164,7 @@ async def update_post(id: str, status: str) -> Post:
 ```
 
 **AI struggles with:**
+
 ```sql
 -- ❌ BAD: AI often gets trigger syntax wrong
 CREATE TRIGGER validate_status BEFORE UPDATE ON tb_post
@@ -163,12 +173,15 @@ CREATE TRIGGER validate_status BEFORE UPDATE ON tb_post
 ```
 
 ### 5. **Maintenance Burden**
+
 Developers (and AI) must remember "invisible" trigger logic when modifying schema.
 
 ### 6. **Performance Unpredictability**
+
 Triggers can cause cascading effects that are hard to profile.
 
 ### 7. **Documentation Drift**
+
 Trigger logic often becomes undocumented or forgotten.
 
 ---
@@ -185,6 +198,7 @@ CREATE TRIGGER audit_changes
 ```
 
 **Problems:**
+
 - AI doesn't see audit log creation
 - Hidden side effect
 - Hard to customize per operation
@@ -203,6 +217,7 @@ CREATE TRIGGER update_timestamp
 ```
 
 **Problems:**
+
 - AI doesn't see timestamp being set
 - Implicit behavior
 - Can't control when timestamp updates
@@ -240,6 +255,7 @@ CREATE TRIGGER delete_orphan_comments
 ```
 
 **Problems:**
+
 - Hidden cascade behavior
 - AI can't see deletion logic
 - Debugging is confusing
@@ -277,6 +293,7 @@ CREATE TRIGGER validate_post_status
 ```
 
 **Problems:**
+
 - Validation rules hidden in trigger
 - AI can't generate validation code
 - Hard to test independently
@@ -321,6 +338,7 @@ CREATE TRIGGER notify_on_message
 ```
 
 **Problems:**
+
 - Notification logic is invisible
 - Can't customize per use case
 - Hard to test
@@ -356,6 +374,7 @@ CREATE TRIGGER auto_generate_slug
 ```
 
 **Problems:**
+
 - Slug generation logic is hidden
 - Can't customize or override
 - AI doesn't understand logic
@@ -385,26 +404,31 @@ async def create_post(title: str, content: str, context: Context) -> Post:
 ### ✅ GOOD: Explicit Schema Features (AI-Friendly)
 
 **1. DEFAULT values** - Clear and explicit
+
 ```sql
 created_at TIMESTAMPTZ DEFAULT NOW()
 ```
 
 **2. CHECK constraints** - Documented in schema
+
 ```sql
 CHECK (status IN ('draft', 'published', 'archived'))
 ```
 
 **3. FOREIGN KEY CASCADE** - Explicit in schema
+
 ```sql
 REFERENCES tb_post(id) ON DELETE CASCADE
 ```
 
 **4. GENERATED ALWAYS AS** - Explicit computed column
+
 ```sql
 full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
 ```
 
 **5. Explicit Functions** - Called from application
+
 ```python
 result = await db.call_function("create_post_with_audit", ...)
 ```
@@ -423,6 +447,7 @@ CREATE TRIGGER populate_crypto_trigger
 ```
 
 **Why acceptable:**
+
 - 🔒 Tamper-proof requirement (application code shouldn't set crypto fields)
 - 🏗️ Infrastructure concern (not business logic)
 - 🎯 Limited scope (only audit table, only crypto fields)
@@ -430,6 +455,7 @@ CREATE TRIGGER populate_crypto_trigger
 - 🛡️ Security-critical (breaking this would compromise audit integrity)
 
 **Application cannot set:**
+
 - `previous_hash` - Must link to actual last event
 - `event_hash` - Must be computed from event data
 - `signature` - Must use server-side secret key
@@ -468,6 +494,7 @@ ORDER BY event_object_table, trigger_name;
 **Example: Audit Logging Trigger → FraiseQL Pattern**
 
 **Before (Trigger):**
+
 ```sql
 CREATE TRIGGER audit_changes
     AFTER INSERT ON tb_post
@@ -475,6 +502,7 @@ CREATE TRIGGER audit_changes
 ```
 
 **After (FraiseQL):**
+
 ```sql
 CREATE FUNCTION create_post_with_audit(...) RETURNS TABLE(...) AS $$
 BEGIN
@@ -496,6 +524,7 @@ $$ LANGUAGE plpgsql;
 **Example: Timestamp Trigger → Explicit Updates**
 
 **Before (Trigger):**
+
 ```sql
 CREATE TRIGGER update_timestamp
     BEFORE UPDATE ON tb_post
@@ -503,6 +532,7 @@ CREATE TRIGGER update_timestamp
 ```
 
 **After (Explicit):**
+
 ```sql
 -- Use DEFAULT (set once on INSERT)
 CREATE TABLE tb_post (
@@ -527,6 +557,7 @@ async def update_post(id: str, title: str, context: Context) -> Post:
 **Before dropping triggers:**
 
 1. **Unit test the new explicit code**
+
    ```python
    async def test_audit_logging():
        post = await create_post_with_audit(...)
@@ -535,6 +566,7 @@ async def update_post(id: str, title: str, context: Context) -> Post:
    ```
 
 2. **Integration test the full flow**
+
    ```python
    async def test_mutation_with_audit():
        result = await schema.execute("""
@@ -696,7 +728,8 @@ async def create_post(
 
 **FraiseQL's Philosophy:** Explicit over implicit.
 
-### ❌ Avoid Business Logic Triggers:
+### ❌ Avoid Business Logic Triggers
+
 - Audit logging triggers
 - Timestamp update triggers
 - Cascade/cleanup triggers
@@ -704,7 +737,8 @@ async def create_post(
 - Notification triggers
 - Auto-generation triggers
 
-### ✅ Use Explicit Patterns:
+### ✅ Use Explicit Patterns
+
 - **Audit:** Call `log_and_return_mutation()` explicitly
 - **Timestamps:** Use `DEFAULT NOW()` + explicit updates
 - **Cascades:** Use `ON DELETE CASCADE` or explicit app logic
@@ -712,7 +746,8 @@ async def create_post(
 - **Notifications:** Explicit app-level code
 - **Generation:** Explicit function calls
 
-### ✅ Acceptable Exception:
+### ✅ Acceptable Exception
+
 - **Infrastructure triggers** for cryptographic chain integrity
 - ONLY on `audit_events` table
 - ONLY for security-critical tamper-proofing
@@ -733,6 +768,7 @@ async def create_post(
 ---
 
 **Related Documentation:**
+
 - [Trinity Pattern](../core/trinity-pattern/) - FraiseQL's tb_/v_/tv_ naming
 - [Database Patterns](../advanced/database-patterns/) - Advanced patterns
 - [Audit Trails](../security-compliance/README/) - Enterprise audit system
@@ -740,5 +776,6 @@ async def create_post(
 ---
 
 **Questions or Feedback?**
+
 - GitHub Issues: https://github.com/fraiseql/fraiseql/issues
 - Documentation: https://fraiseql.org/docs

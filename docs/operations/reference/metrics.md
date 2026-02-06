@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Metrics Reference
 description: This document lists all Prometheus metrics exposed by FraiseQL v2 for monitoring and observability.
 keywords: ["directives", "types", "scalars", "deployment", "schema", "scaling", "performance", "monitoring"]

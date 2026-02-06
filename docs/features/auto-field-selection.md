@@ -61,6 +61,7 @@ if info is None and "graphql_info" in self.context:
 ```
 
 **Existing code**:
+
 - `src/fraiseql/db.py:626-627` (`find()`)
 - `src/fraiseql/db.py:742-743` (`find_one()`)
 
@@ -83,21 +84,25 @@ if info is None and "graphql_info" in self.context:
 ## Test Coverage
 
 ### RED Phase (Tests that initially failed)
+
 ✅ `test_query_decorator_auto_injects_info_into_context` - Decorator injection
 ✅ `test_db_find_extracts_info_from_context` - Repository extraction
 ✅ `test_db_find_one_extracts_info_from_context` - Repository extraction
 ✅ `test_field_selection_works_without_explicit_info_parameter` - End-to-end
 
 ### GREEN Phase (Backwards compatibility)
+
 ✅ `test_explicit_info_parameter_takes_precedence` - Explicit info=info still works
 ✅ `test_existing_resolvers_unchanged` - Old pattern continues to work
 
 ### REFACTOR Phase (Edge cases)
+
 ✅ `test_nested_resolver_field_selection` - Nested resolvers
 ✅ `test_multiple_queries_in_single_request` - Multiple queries
 ✅ `test_opt_out_with_explicit_none` - Explicit opt-out
 
 ### QA Phase (Performance)
+
 ✅ `test_rust_pipeline_activated_with_auto_inject` - Rust pipeline activation
 ✅ `test_no_performance_regression` - No overhead
 
@@ -163,9 +168,11 @@ return await db.find("users", limit=limit)  # Auto-inject (easier, prevents bugs
 ## Benefits
 
 ### 1. Prevents Silent Performance Bugs
+
 Field selection is now enabled by default without manual parameter passing.
 
 ### 2. Reduces Boilerplate
+
 ```python
 # Before: 15 characters per call
 await db.find("table", info=info, ...)
@@ -175,11 +182,13 @@ await db.find("table", ...)
 ```
 
 ### 3. Follows Industry Standards
+
 - **Strawberry** (Python): Auto-injects via type system
 - **Apollo Server** (JavaScript): `info` in context by default
 - **Hot Chocolate** (.NET): Auto-handles field selection
 
 ### 4. Maintains Flexibility
+
 Explicit `info=None` still available for debugging/admin tools.
 
 ---
@@ -196,16 +205,19 @@ Explicit `info=None` still available for debugging/admin tools.
 ## Testing Strategy
 
 ### Unit Tests
+
 - Decorator injection logic
 - Repository extraction logic
 - Backwards compatibility
 
 ### Integration Tests
+
 - End-to-end field selection
 - Rust pipeline activation
 - Performance validation
 
 ### Regression Tests
+
 - All Issue #199 scenarios covered
 - Tests for production bug patterns
 

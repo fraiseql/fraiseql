@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: CI/CD Integration Guide
 description: This guide shows how to enforce design quality standards in continuous integration pipelines.
 keywords: []

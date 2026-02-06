@@ -835,4 +835,3 @@ fraiseql-observers status --format json | head -20
 - Troubleshoot Issues: `TROUBLESHOOTING.md`
 - Performance Tuning: `PERFORMANCE_TUNING.md`
 - Integration Guide: `INTEGRATION_GUIDE.md`
-

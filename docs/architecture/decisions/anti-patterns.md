@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Anti-Patterns: What NOT to Do
-description: This document catalogs anti-patterns—designs that seem reasonable but lead to problems in practice. Learning what NOT to do is as important as learning what TO 
+description: This document catalogs anti-patterns—designs that seem reasonable but lead to problems in practice. Learning what NOT to do is as important as learning what TO
 keywords: ["workflow", "design", "scalability", "saas", "performance", "realtime", "patterns", "ecommerce"]
 tags: ["documentation", "reference"]
 ---

@@ -247,6 +247,7 @@ fn test_entry_point_tries_composite_first() {
 ```
 
 **Test Metrics:**
+
 - Total unit tests: ~20-25
 - Coverage: 100% of new code
 - Run time: < 1 second
@@ -399,6 +400,7 @@ async def test_printoptim_allocation_cascade(db_session):
 ```
 
 **Test Metrics:**
+
 - Total integration tests: ~5-10
 - Requires: PostgreSQL database
 - Run time: 5-10 seconds
@@ -436,6 +438,7 @@ async def test_full_allocation_cascade_flow(db_session):
 ```
 
 **Test Metrics:**
+
 - Total E2E tests: 2-3
 - Requires: Full PrintOptim environment
 - Run time: 10-30 seconds
@@ -611,21 +614,27 @@ open htmlcov/index.html
 ### Common Issues
 
 **Issue 1: Compilation Error**
+
 ```
 error[E0432]: unresolved import `crate::mutation::postgres_composite`
 ```
+
 **Fix:** Ensure `mod postgres_composite;` added to `mod.rs`
 
 **Issue 2: Test Failure - Wrong CASCADE Location**
+
 ```
 AssertionError: 'cascade' found in allocation object
 ```
+
 **Fix:** Verify `to_mutation_result()` extracts CASCADE from Position 7
 
 **Issue 3: Parse Error**
+
 ```
 Failed to parse PostgreSQL mutation_response composite type
 ```
+
 **Fix:** Check JSON structure matches 8-field format exactly
 
 ---

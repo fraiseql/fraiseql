@@ -13,6 +13,7 @@
 ### Start MySQL
 
 **Docker**:
+
 ```bash
 docker run -d \
   --name fraisier-mysql \
@@ -25,6 +26,7 @@ docker run -d \
 ```
 
 **Wait for MySQL to be ready**:
+
 ```bash
 docker exec fraisier-mysql mysqladmin -u fraisier -pfraisier_password ping
 ```
@@ -32,6 +34,7 @@ docker exec fraisier-mysql mysqladmin -u fraisier -pfraisier_password ping
 ### Configure Fraisier
 
 Create `.env`:
+
 ```bash
 FRAISIER_DATABASE=mysql
 FRAISIER_DB_PATH=mysql://fraisier:fraisier_password@localhost:3306/fraisier
@@ -79,16 +82,19 @@ fraises:
 ### Connection String
 
 **Standard**:
+
 ```
 mysql://user:password@host:3306/database
 ```
 
 **With SSL**:
+
 ```
 mysql://user:password@host:3306/database?ssl_verify_cert=true
 ```
 
 **Charset**:
+
 ```
 mysql://user:password@host:3306/database?charset=utf8mb4
 ```
@@ -127,6 +133,7 @@ fraisier db status
 ### MySQL Configuration
 
 Add to `my.cnf`:
+
 ```ini
 [mysqld]
 # Connection pool
@@ -156,6 +163,7 @@ EOF
 ### Connection Pooling
 
 In `fraises.yaml`:
+
 ```yaml
 database:
   url: mysql://fraisier:password@localhost/fraisier
@@ -190,6 +198,7 @@ echo "✓ Backup completed"
 ```
 
 Schedule:
+
 ```bash
 # Backup daily at 2 AM
 0 2 * * * /opt/fraisier/backup-fraisier.sh
@@ -208,6 +217,7 @@ mysql -u fraisier -pfraisier_password fraisier < backup.sql
 ### Primary Server
 
 Add to `my.cnf`:
+
 ```ini
 [mysqld]
 server_id = 1

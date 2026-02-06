@@ -42,6 +42,7 @@ fraisier webhook add [OPTIONS] WEBHOOK_URL
 - `--timeout SECONDS`: Request timeout (default: 30)
 
 **Examples**:
+
 ```bash
 # Single event
 fraisier webhook add \
@@ -84,6 +85,7 @@ fraisier webhook add \
 Fired when a deployment begins.
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.started",
@@ -113,6 +115,7 @@ Fired when a deployment begins.
 Fired when a deployment finishes successfully.
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.completed",
@@ -146,6 +149,7 @@ Fired when a deployment finishes successfully.
 Fired when a deployment fails.
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.failed",
@@ -179,6 +183,7 @@ Fired when a deployment fails.
 Fired when a deployment is cancelled.
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.cancelled",
@@ -206,6 +211,7 @@ Fired when a deployment is cancelled.
 Fired when a deployment is rolled back.
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.rolled_back",
@@ -234,6 +240,7 @@ Fired when a deployment is rolled back.
 Fired when health checks begin.
 
 **Payload**:
+
 ```json
 {
   "event": "health_check.started",
@@ -258,6 +265,7 @@ Fired when health checks begin.
 Fired when health checks pass.
 
 **Payload**:
+
 ```json
 {
   "event": "health_check.passed",
@@ -285,6 +293,7 @@ Fired when health checks pass.
 Fired when health checks fail.
 
 **Payload**:
+
 ```json
 {
   "event": "health_check.failed",
@@ -321,6 +330,7 @@ X-Fraisier-Signature: sha256=abcd1234...
 ```
 
 **Generate Signature** (Python example):
+
 ```python
 import hmac
 import hashlib
@@ -344,16 +354,19 @@ def verify_webhook_signature(payload, signature, secret):
 ### Secret Management
 
 1. Generate a secure secret:
+
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 2. Store in environment variable (never in code):
+
 ```bash
 export FRAISIER_WEBHOOK_SECRET="your_secret_here"
 ```
 
 3. Verify signature on received webhook:
+
 ```python
 signature = request.headers.get('X-Fraisier-Signature')
 if not verify_webhook_signature(request.body, signature, os.getenv('FRAISIER_WEBHOOK_SECRET')):
@@ -485,6 +498,7 @@ if __name__ == '__main__':
 ```
 
 Register webhook:
+
 ```bash
 fraisier webhook add \
   --event deployment.started \
@@ -631,11 +645,13 @@ fraisier webhook list [OPTIONS]
 - `--long / -l`: Detailed output
 
 **Example**:
+
 ```bash
 fraisier webhook list --event deployment.completed
 ```
 
 **Output**:
+
 ```
 Webhooks (4 total):
 
@@ -663,6 +679,7 @@ fraisier webhook test WEBHOOK_ID
 Sends a test event to verify the webhook is working.
 
 **Example**:
+
 ```bash
 fraisier webhook test webhook_001
 
@@ -689,6 +706,7 @@ fraisier webhook update WEBHOOK_ID [OPTIONS]
 - `--retry-count N`: Update retry count
 
 **Example**:
+
 ```bash
 # Disable webhook
 fraisier webhook update webhook_001 --inactive
@@ -709,6 +727,7 @@ fraisier webhook remove WEBHOOK_ID
 ```
 
 **Example**:
+
 ```bash
 fraisier webhook remove webhook_001
 ```
@@ -730,6 +749,7 @@ fraisier webhook logs WEBHOOK_ID [OPTIONS]
 - `--since TIME`: Show since this time (e.g., "1h", "1d")
 
 **Example**:
+
 ```bash
 # Recent deliveries
 fraisier webhook logs webhook_001 --limit 20

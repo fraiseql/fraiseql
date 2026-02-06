@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL CLI Schema Format Guide
 description: The `FraiseQL-cli` command-line tool compiles FraiseQL schemas from JSON format into optimized SQL templates and execution plans. This document describes the sc
 keywords: ["directives", "types", "scalars", "schema", "api"]

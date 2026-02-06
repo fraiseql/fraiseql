@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Authoring Contract Specification
 description: The **authoring contract** defines how schema authors declare GraphQL types, queries, mutations, and bindings. The contract is language-agnostic (Python, TypeSc
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

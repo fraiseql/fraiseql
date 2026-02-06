@@ -9,6 +9,7 @@
 ## Context
 
 Implementation is complete. Now we need to:
+
 1. Test edge cases
 2. Update existing tests that relied on old behavior
 3. Validate against GraphQL spec
@@ -40,12 +41,14 @@ assert "cascade" not in result, (
 ```
 
 **Other tests to review**:
+
 1. `test_cascade_in_success_response` - Ensure it requests CASCADE in query
 2. `test_cascade_entity_structure` - Ensure CASCADE is in selection
 3. `test_cascade_invalidations` - Ensure CASCADE is in selection
 4. `test_cascade_metadata` - Ensure CASCADE is in selection
 
 **Verification**:
+
 ```bash
 uv run pytest tests/integration/test_graphql_cascade.py -xvs
 ```
@@ -421,6 +424,7 @@ class TestCascadeNullHandling:
 ```
 
 **Verification**:
+
 ```bash
 uv run pytest tests/integration/test_cascade_edge_cases.py -xvs
 ```

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Auth0 OAuth 2.0 / OIDC Setup Guide
 description: This guide walks you through setting up Auth0 authentication with FraiseQL.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]
@@ -78,6 +79,7 @@ This guide walks you through setting up Auth0 authentication with FraiseQL.
 <!-- Code example in TEXT -->
    http://localhost:8000/auth/callback
    https://yourdomain.com/auth/callback
+
    ```text
 <!-- Code example in TEXT -->
 

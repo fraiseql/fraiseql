@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Full-Stack Examples
 description: Complete, production-ready examples demonstrating FraiseQL's end-to-end workflow from schema authoring through deployment and frontend integration.
 keywords: ["code", "production", "fullstack", "sample", "real-world"]

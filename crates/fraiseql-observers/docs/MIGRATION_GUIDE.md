@@ -733,4 +733,3 @@ After Phase 8 migration, verify:
 5. Team communication
 
 Good luck with your migration!
-

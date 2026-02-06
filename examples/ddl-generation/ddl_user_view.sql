@@ -128,10 +128,10 @@ BEGIN
     -- Construct the entity JSON from source table
     v_json_result := (
         SELECT jsonb_build_object(
-            
-            '', 
+
+            '',
             {%- if not loop.last %},{% endif %}
-            
+
         )
         FROM table_user
         WHERE id = p_entity_id
@@ -182,10 +182,10 @@ BEGIN
         SELECT
             id AS entity_id,
             jsonb_build_object(
-                
-                '', 
+
+                '',
                 {%- if not loop.last %},{% endif %}
-                
+
             ) AS entity_json
         FROM table_user
         WHERE id = ANY(p_entity_ids)

@@ -58,6 +58,7 @@ nano .env
 ```
 
 Required environment variables:
+
 ```bash
 DATABASE_URL=postgresql://localhost:5432/ragdb
 OPENAI_API_KEY=your_openai_api_key_here
@@ -70,6 +71,7 @@ python app.py
 ```
 
 The application will be available at:
+
 - **GraphQL Playground**: http://localhost:8000/graphql
 - **REST API**: http://localhost:8000/api
 
@@ -207,6 +209,7 @@ The database schema follows the Trinity Pattern:
 3. **`tv_document_embedding`** - Table view with computed columns (vectors)
 
 This pattern provides:
+
 - Clear separation of concerns
 - Optimized read/write performance
 - Consistent naming conventions

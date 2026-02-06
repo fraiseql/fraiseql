@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Federation API Reference
 description: Complete API reference for Python, TypeScript, and Rust federation support.
 keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]

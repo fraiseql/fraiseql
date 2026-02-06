@@ -33,25 +33,25 @@ requires-python = ">=3.11"
 version = "0.1.0"
 
 [project.optional-dependencies]
+all-databases = [
+  "aiosqlite>=0.19.0",
+  "psycopg[binary]>=3.1.0",
+  "aiomysql>=0.2.0"
+]
 dev = [
   "pytest>=8.0.0",
   "pytest-asyncio>=0.23.0",
   "ruff>=0.3.0",
   "aiosqlite>=0.19.0"
 ]
-postgres = [
-  "psycopg[binary]>=3.1.0"
+graphql = [
+  "strawberry-graphql>=0.220.0"
 ]
 mysql = [
   "aiomysql>=0.2.0"
 ]
-all-databases = [
-  "aiosqlite>=0.19.0",
-  "psycopg[binary]>=3.1.0",
-  "aiomysql>=0.2.0"
-]
-graphql = [
-  "strawberry-graphql>=0.220.0"
+postgres = [
+  "psycopg[binary]>=3.1.0"
 ]
 
 [project.scripts]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Observability Configuration Reference
 description: This document provides complete configuration reference for FraiseQL's observability system. All settings are **opt-in** and carefully tuned for production safe
 keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]

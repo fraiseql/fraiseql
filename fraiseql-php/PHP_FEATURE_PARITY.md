@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL PHP with Python/Ty
 Complete implementation of advanced authorization and security features for PHP:
 
 **Enums:**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Configuration Classes:**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder::create()` - Custom authorization rule builder
 - `RoleRequiredBuilder::create()` - Role-based access control builder
 - `AuthzPolicyBuilder::create(name)` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for PHP:
 **Builder Methods:**
 
 *AuthorizeBuilder:*
+
 - `rule(string)` - Set authorization rule expression
 - `policy(string)` - Reference named policy
 - `description(string)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for PHP:
 - `build()` - Return configuration
 
 *RoleRequiredBuilder:*
+
 - `roles(...string)` - Set required roles (variadic)
 - `rolesArray(array)` - Set roles from array
 - `strategy(RoleMatchStrategy)` - Role matching strategy
@@ -63,6 +68,7 @@ Complete implementation of advanced authorization and security features for PHP:
 - `build()` - Return configuration
 
 *AuthzPolicyBuilder:*
+
 - `description(string)` - Policy description
 - `rule(string)` - Authorization rule
 - `attributes(...string)` - Attribute conditions (variadic)
@@ -77,11 +83,13 @@ Complete implementation of advanced authorization and security features for PHP:
 - `build()` - Return configuration
 
 **PHP Attributes:**
+
 - `#[Authorize(...)]` - Custom authorization rules
 - `#[RoleRequired(...)]` - Role-based access control
 - `#[AuthzPolicy(...)]` - Authorization policies
 
 **SchemaRegistry Extensions:**
+
 - `registerAuthzPolicy(AuthzPolicyConfig)` - Register authorization policy
 - `getAuthzPolicy(string)` - Get policy by name
 - `getAllAuthzPolicies()` - Get all policies
@@ -303,6 +311,7 @@ PHP-specific advantages:
 **Current Status**: 100% Parity across 5 languages (150/150 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

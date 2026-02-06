@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Troubleshooting Guide
 description: 1. [Installation & Setup](#installation--setup)
 keywords: []

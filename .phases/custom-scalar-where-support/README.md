@@ -11,6 +11,7 @@
 Enable WHERE clause filtering on custom scalar fields by teaching FraiseQL's WHERE filter generator to recognize and support custom scalar types.
 
 **Current Status**:
+
 - ✅ 162/162 tests passing (scalars work as fields, arguments, database roundtrip)
 - ❌ 6/6 WHERE clause tests skipped (filter generation doesn't support custom scalars)
 
@@ -23,7 +24,9 @@ Enable WHERE clause filtering on custom scalar fields by teaching FraiseQL's WHE
 ## Problem Statement
 
 ### Current Behavior
+
 When a type has a custom scalar field:
+
 ```python
 @fraise_type
 class Allocation:
@@ -32,6 +35,7 @@ class Allocation:
 ```
 
 The generated WhereInput treats it as a String:
+
 ```graphql
 input AllocationWhereInput {
     id: UUIDFilter         # ✅ Works (built-in)
@@ -42,7 +46,9 @@ input AllocationWhereInput {
 **Error**: `Variable '$filterValue' of type 'CIDR!' used in position expecting type 'String'`
 
 ### Root Cause
+
 `create_graphql_where_input()` in `src/fraiseql/sql/graphql_where_generator.py` doesn't recognize custom scalar types. It only handles:
+
 - Built-in scalars (String, Int, Boolean, Float, ID)
 - Special cases (UUID, DateTime, Date, Time)
 - Enums
@@ -54,6 +60,7 @@ input AllocationWhereInput {
 ## Solution Design
 
 ### Core Insight
+
 Custom scalars need the **same operators as StringFilter**, but using the **scalar type** instead of String:
 
 ```graphql
@@ -70,6 +77,7 @@ input CIDRFilter {
 ```
 
 ### Implementation Strategy
+
 1. **Detect custom scalars** - Check if field type is GraphQLScalarType (not built-in)
 2. **Generate scalar filter** - Create {ScalarName}Filter with standard operators
 3. **Cache filters** - Don't regenerate for each field
@@ -80,18 +88,21 @@ input CIDRFilter {
 ## Phases
 
 ### Phase 1: RED - Write Failing Tests [TDD]
+
 **File**: `phase-1-red-write-failing-tests.md`
 **Objective**: Create comprehensive test coverage for custom scalar WHERE filtering
 **Effort**: 2 hours
 **Outcome**: Clear test specification of expected behavior
 
 **Deliverables**:
+
 - Unit tests for filter generation (5-8 tests)
 - Integration tests using existing 6 WHERE tests (un-skip them)
 - Edge case tests (nullable scalars, list fields)
 - All tests FAIL with clear error messages
 
 **Success Criteria**:
+
 - [ ] Tests clearly show what's missing
 - [ ] Test failures point to exact location in code
 - [ ] No false positives (tests would pass when they shouldn't)
@@ -99,18 +110,21 @@ input CIDRFilter {
 ---
 
 ### Phase 2: GREEN - Minimal Implementation [TDD]
+
 **File**: `phase-2-green-minimal-implementation.md`
 **Objective**: Make tests pass with minimal code
 **Effort**: 3-4 hours
 **Outcome**: All tests passing, feature works
 
 **Deliverables**:
+
 - Modified `create_graphql_where_input()` to detect custom scalars
 - New `create_custom_scalar_filter()` function
 - Filter caching mechanism
 - All 168 tests passing
 
 **Success Criteria**:
+
 - [ ] All RED tests now pass
 - [ ] No regressions in existing 162 tests
 - [ ] WHERE queries work with all 54 custom scalars
@@ -119,18 +133,21 @@ input CIDRFilter {
 ---
 
 ### Phase 3: REFACTOR - Clean Implementation [REFACTOR]
+
 **File**: `phase-3-refactor-clean-implementation.md`
 **Objective**: Improve code quality without changing behavior
 **Effort**: 1-2 hours
 **Outcome**: Clean, maintainable implementation
 
 **Deliverables**:
+
 - Extract duplicated filter generation logic
 - Consistent naming conventions
 - Clear separation of concerns
 - Improved type hints and documentation
 
 **Success Criteria**:
+
 - [ ] All 168 tests still passing
 - [ ] Code follows FraiseQL patterns
 - [ ] No TODO comments or temporary hacks
@@ -139,18 +156,21 @@ input CIDRFilter {
 ---
 
 ### Phase 4: QA - Comprehensive Validation [QA]
+
 **File**: `phase-4-qa-comprehensive-validation.md`
 **Objective**: Verify feature works in all scenarios
 **Effort**: 1 hour
 **Outcome**: Confidence in production readiness
 
 **Deliverables**:
+
 - Manual testing with real GraphQL queries
 - Performance benchmarks (filter generation time)
 - Edge case validation
 - Documentation review
 
 **Success Criteria**:
+
 - [ ] All 168 tests passing
 - [ ] Manual GraphQL queries work correctly
 - [ ] No memory leaks (filters properly cached)
@@ -160,12 +180,14 @@ input CIDRFilter {
 ---
 
 ### Phase 5: GREENFIELD - Archaeological Cleanup [CLEANUP]
+
 **File**: `phase-5-greenfield-archaeological-cleanup.md`
 **Objective**: Remove all temporary/investigation artifacts, achieve evergreen state
 **Effort**: 30 minutes - 1 hour
 **Outcome**: Repository is clean, timeless, ready for any future reader
 
 **Context**: During this implementation, we've accumulated:
+
 - Planning documents in `.phases/`
 - Investigation artifacts in `/tmp/`
 - Temporary test modifications
@@ -173,6 +195,7 @@ input CIDRFilter {
 - Multiple commit messages showing the journey
 
 **Deliverables**:
+
 1. **Remove Investigation Artifacts**
    - Delete `/tmp/fraiseql-*` documents
    - Archive or delete `.phases/fix-scalar-integration-tests/` planning docs
@@ -206,6 +229,7 @@ input CIDRFilter {
    - Not: "fix(where): finally got WHERE filters working after investigation"
 
 **Success Criteria**:
+
 - [ ] No temporary files in repository
 - [ ] No "TODO: cleanup" comments
 - [ ] Documentation reads as timeless truth, not historical account
@@ -222,8 +246,10 @@ input CIDRFilter {
 Before Phase 1, quick investigation (30 minutes):
 
 ### 1. Understand Current Filter Generation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 **Questions**:
+
 - How does `create_graphql_where_input()` currently work?
 - Where does it decide which filter type to use?
 - How are built-in scalars (UUID, DateTime) handled?
@@ -232,7 +258,9 @@ Before Phase 1, quick investigation (30 minutes):
 **Action**: Read code and document findings
 
 ### 2. Identify Insertion Point
+
 **Questions**:
+
 - Where should custom scalar detection happen?
 - Can we reuse StringFilter logic?
 - Do we need to modify SQL generation too?
@@ -240,7 +268,9 @@ Before Phase 1, quick investigation (30 minutes):
 **Action**: Find the exact location for the fix
 
 ### 3. Check Operator Compatibility
+
 **Questions**:
+
 - Do all operators (eq, contains, startsWith) make sense for scalars?
 - Should some operators be excluded for certain scalars?
 - How does SQL serialization handle custom scalars?
@@ -252,12 +282,14 @@ Before Phase 1, quick investigation (30 minutes):
 ## Files to Modify
 
 ### Core Implementation
+
 1. **`src/fraiseql/sql/graphql_where_generator.py`**
    - Add custom scalar detection
    - Add filter generation for custom scalars
    - Add filter caching
 
 ### Tests
+
 2. **`tests/integration/meta/test_all_scalars.py`**
    - Un-skip WHERE clause tests
    - Possibly simplify test implementation
@@ -269,6 +301,7 @@ Before Phase 1, quick investigation (30 minutes):
    - Test filter caching
 
 ### Documentation (Phase 5)
+
 4. **Documentation files** (identify during implementation)
    - Usage guide for custom scalars
    - WHERE clause documentation
@@ -285,16 +318,19 @@ Before Phase 1, quick investigation (30 minutes):
 ## Risks & Mitigation
 
 ### Risk 1: SQL Generation Doesn't Handle Custom Scalars
+
 **Likelihood**: Low
 **Impact**: High
 **Mitigation**: Test SQL generation early in Phase 2. Custom scalars already work in database roundtrip tests, so serialization should work.
 
 ### Risk 2: Performance Impact from Filter Generation
+
 **Likelihood**: Low
 **Impact**: Medium
 **Mitigation**: Add caching in Phase 2. Generate filters once per scalar type, reuse across fields.
 
 ### Risk 3: Some Operators Don't Make Sense for All Scalars
+
 **Likelihood**: Medium
 **Impact**: Low
 **Mitigation**: Start with all operators (like StringFilter). Remove specific ones if problems arise. Document which operators are available.
@@ -304,16 +340,19 @@ Before Phase 1, quick investigation (30 minutes):
 ## Success Metrics
 
 ### Must Have (Phase 1-2)
+
 - [x] All 168 tests passing (162 existing + 6 WHERE)
 - [ ] No regressions in existing functionality
 - [ ] WHERE queries work with custom scalars
 
 ### Should Have (Phase 3)
+
 - [ ] Clean, maintainable code
 - [ ] Consistent with FraiseQL patterns
 - [ ] Good test coverage (unit + integration)
 
 ### Nice to Have (Phase 4-5)
+
 - [ ] Performance benchmarks show no degradation
 - [ ] Documentation updated
 - [ ] Example queries in docs
@@ -324,6 +363,7 @@ Before Phase 1, quick investigation (30 minutes):
 ## Verification Commands
 
 ### After Each Phase
+
 ```bash
 # Run all scalar tests
 uv run pytest tests/integration/meta/test_all_scalars.py -v
@@ -332,6 +372,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 ```
 
 ### After Phase 4 (QA)
+
 ```bash
 # Run full test suite
 uv run pytest tests/ -v
@@ -340,6 +381,7 @@ uv run pytest tests/ -v
 ```
 
 ### After Phase 5 (Cleanup)
+
 ```bash
 # Verify no temporary files
 find . -name "*.tmp" -o -name "*_temp*" -o -name "*TODO*"
@@ -376,6 +418,7 @@ git grep -i "will be added\|coming soon\|not yet\|pending" -- '*.md' | grep -v "
 ## Commit Strategy
 
 ### During Implementation (Phases 1-4)
+
 - Commit after each phase passes
 - Use conventional commit format:
   - Phase 1: `test(where): add tests for custom scalar WHERE filters [RED]`
@@ -384,11 +427,13 @@ git grep -i "will be added\|coming soon\|not yet\|pending" -- '*.md' | grep -v "
   - Phase 4: `test(where): comprehensive validation of scalar WHERE support [QA]`
 
 ### After Phase 5 (Cleanup)
+
 - **Option A**: Keep all commits (shows TDD process)
 - **Option B**: Squash into single feature commit (evergreen history)
 - **Recommendation**: Option A during development, Option B before merging to main
 
 **Final Commit Message** (if squashing):
+
 ```
 feat(where): add WHERE filter support for custom scalar types
 
@@ -419,6 +464,7 @@ Closes: #XXX (create issue during Phase 1)
 ---
 
 **Note**: This plan follows TDD rigorously:
+
 - Phase 1 (RED) = Write tests that define the behavior
 - Phase 2 (GREEN) = Make tests pass with minimal code
 - Phase 3 (REFACTOR) = Improve code while keeping tests green

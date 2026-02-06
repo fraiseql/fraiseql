@@ -30,6 +30,7 @@ This document provides step-by-step rollback procedures if issues are discovered
 ### Level 1: Feature Flag Disable (Instant - No Downtime)
 
 **When to use:**
+
 - Minor issues detected
 - Non-critical bugs
 - Performance testing
@@ -72,6 +73,7 @@ kubectl rollout restart deployment/fraiseql-app
 3. **Verify rollback:**
 
 Check logs - you should NOT see:
+
 ```
 INFO: Initialized schema registry with N types
 ```
@@ -89,6 +91,7 @@ curl -X POST http://localhost:8000/graphql \
 ```
 
 **Impact:**
+
 - ✅ Application continues to run
 - ⚠️ Issue #112 bug returns (nested `__typename` incorrect)
 - ⚠️ GraphQL aliases don't work
@@ -100,6 +103,7 @@ curl -X POST http://localhost:8000/graphql \
 ### Level 2: Version Rollback (5-10 minutes)
 
 **When to use:**
+
 - Critical bugs in production
 - Feature flag disable not sufficient
 - Multiple issues detected
@@ -166,6 +170,7 @@ pytest tests/ --tb=short
 ```
 
 **Impact:**
+
 - ✅ Complete rollback to previous behavior
 - ⚠️ Lose schema registry benefits
 - ✅ No data loss
@@ -176,6 +181,7 @@ pytest tests/ --tb=short
 ### Level 3: Emergency Hotfix (30-60 minutes)
 
 **When to use:**
+
 - Specific bug identified that can be quickly fixed
 - Rollback not desired (need schema registry benefits)
 - Issue is isolated and well-understood
@@ -237,6 +243,7 @@ tail -f /var/log/fraiseql/app.log
 ```
 
 **Impact:**
+
 - ✅ Fixes specific issue
 - ✅ Maintains schema registry benefits
 - ⏱️ Longer recovery time
@@ -265,6 +272,7 @@ tail -f /var/log/fraiseql/app.log
 Before rolling back, gather this information:
 
 **1. Application Logs:**
+
 ```bash
 # Check for schema registry initialization
 grep "Initialized schema registry" /var/log/fraiseql/app.log
@@ -277,6 +285,7 @@ grep "WARNING" /var/log/fraiseql/app.log | tail -50
 ```
 
 **2. Performance Metrics:**
+
 ```bash
 # Query latency
 # (Use your monitoring tools)
@@ -289,12 +298,14 @@ top -p $(pgrep -f fraiseql)
 ```
 
 **3. Error Rates:**
+
 ```bash
 # HTTP 500 errors
 # (Check your access logs or monitoring dashboard)
 ```
 
 **4. Reproduce the Issue:**
+
 ```bash
 # Try to reproduce with a simple query
 curl -X POST http://localhost:8000/graphql \
@@ -307,12 +318,14 @@ curl -X POST http://localhost:8000/graphql \
 After rolling back, verify:
 
 **1. Application Health:**
+
 ```bash
 curl http://localhost:8000/health
 # Should return 200 OK
 ```
 
 **2. Basic Queries Work:**
+
 ```bash
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
@@ -320,10 +333,12 @@ curl -X POST http://localhost:8000/graphql \
 ```
 
 **3. Performance Restored:**
+
 - Check query latency is back to baseline
 - Monitor for 10-15 minutes
 
 **4. Error Rate Dropped:**
+
 - HTTP 500 errors should return to normal levels
 
 ---
@@ -333,26 +348,31 @@ curl -X POST http://localhost:8000/graphql \
 ### During an Incident
 
 **1. Immediate (T+0 minutes):**
+
 - Detect issue via monitoring/alerts
 - Assess severity using decision matrix
 - Notify on-call engineer
 
 **2. Investigation (T+5 minutes):**
+
 - Gather logs and metrics (see checklist above)
 - Determine appropriate rollback level
 - Notify stakeholders if high/critical severity
 
 **3. Execution (T+10 minutes):**
+
 - Execute rollback procedure
 - Document actions taken
 - Monitor for resolution
 
 **4. Validation (T+15 minutes):**
+
 - Run post-rollback validation
 - Confirm issue resolved
 - Continue monitoring for 30 minutes
 
 **5. Retrospective (T+24 hours):**
+
 - Document root cause
 - Create bug report
 - Plan permanent fix
@@ -392,11 +412,13 @@ Incident Manager: [Name]
 Test rollback procedures regularly:
 
 **Quarterly (Every 3 months):**
+
 1. Level 1: Feature Flag disable/enable
 2. Verify application works in both modes
 3. Document any issues
 
 **Bi-annually (Every 6 months):**
+
 1. Level 2: Version rollback in staging
 2. Test full upgrade/downgrade cycle
 3. Measure rollback time
@@ -492,6 +514,7 @@ The Schema Registry rollback plan provides **three levels** of recovery:
 3. **Level 3** (Hotfix): 30-60 minutes, targeted fix
 
 **Key Points:**
+
 - ✅ No data loss possible (read-only transformation)
 - ✅ Multiple rollback options
 - ✅ Clear decision matrix

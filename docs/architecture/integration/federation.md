@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Federation: Hybrid HTTP + Database-Level Linking
 description: 1. [Introduction & Philosophy](#1-introduction--philosophy)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

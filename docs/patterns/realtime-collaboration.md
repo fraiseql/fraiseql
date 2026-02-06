@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Real-Time Collaboration with Subscriptions
 description: Complete guide to building collaborative tools (like Google Docs, Figma, Notion) with real-time synchronization using FraiseQL subscriptions.
 keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]

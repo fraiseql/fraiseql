@@ -75,6 +75,7 @@ A **travel booking saga** that shows:
 ## Why This Pattern?
 
 **Multi-service sagas are useful when:**
+
 - Services are independently deployed
 - Each service has its own database
 - Operations must be coordinated across boundaries
@@ -82,6 +83,7 @@ A **travel booking saga** that shows:
 - Strong consistency guarantees are needed
 
 **Trade-offs:**
+
 - More complex than single-service transactions
 - Higher latency (coordinating multiple services)
 - But: Services can be scaled independently
@@ -310,6 +312,7 @@ Service Health       Compensation Reasons
 For production, ensure:
 
 1. **Distributed Tracing**: Correlate requests across 5 services
+
    ```bash
    trace_id: abc-123-def
    │
@@ -321,6 +324,7 @@ For production, ensure:
    ```
 
 2. **Circuit Breakers**: Fail fast if a service is down
+
    ```
    Flight Service down? → Don't try hotel/car
    → Fail fast and save 300ms

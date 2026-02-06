@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Benchmarking Guide
 description: This guide covers setting up and running FraiseQL's comprehensive performance benchmarking infrastructure.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

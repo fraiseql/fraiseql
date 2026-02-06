@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.2: Query Execution Model
 description: While Topic 2.1 explained how FraiseQL **compiles** schemas at build time, this topic explains what happens when a query **executes** at runtime.
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

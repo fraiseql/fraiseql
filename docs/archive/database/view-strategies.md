@@ -22,12 +22,14 @@ FraiseQL provides multiple view strategies to optimize read performance for diff
 ## Strategy 1: Standard Views (`v_*`)
 
 ### When to Use
+
 - Small datasets (<10,000 rows)
 - Development/prototyping
 - When absolute freshness is required
 - Storage constraints (no extra space for table views)
 
 ### Implementation
+
 ```sql
 -- Standard SQL view
 CREATE VIEW v_user AS
@@ -55,12 +57,14 @@ FROM tb_user u;
 ```
 
 ### Performance Characteristics
+
 - **Read Time**: 5-10ms (JOIN + subquery on every read)
 - **Write Time**: 0.5ms (no sync needed)
 - **Storage**: 1x (no extra storage)
 - **Freshness**: Always live
 
 ### GraphQL Integration
+
 ```python
 import fraiseql
 
@@ -83,12 +87,14 @@ async def user(info, id: ID) -> User:
 ## Strategy 2: Table Views (`tv_*`) - **Recommended for Production**
 
 ### When to Use
+
 - Production GraphQL APIs (recommended)
 - Large datasets (>100,000 rows)
 - Read-heavy workloads (10:1+ read:write ratio)
 - Sub-millisecond response times required
 
 ### Implementation
+
 ```sql
 -- Table view (regular table with explicit sync)
 CREATE TABLE tv_user (
@@ -143,12 +149,14 @@ FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 ```
 
 ### Performance Characteristics
+
 - **Read Time**: 0.05-0.5ms (simple indexed lookup)
 - **Write Time**: 1-2ms (sync triggers)
 - **Storage**: 1.5-2x (denormalized data)
 - **Freshness**: Near real-time (sync on write)
 
 ### GraphQL Integration
+
 ```python
 import fraiseql
 
@@ -171,12 +179,14 @@ async def user(info, id: ID) -> User:
 ## Strategy 3: Materialized Views (`mv_*`)
 
 ### When to Use
+
 - Complex aggregations (GROUP BY, COUNT, SUM)
 - Analytics dashboards
 - Acceptable data staleness (5-60 minutes)
 - Read-heavy analytical queries
 
 ### Implementation
+
 ```sql
 -- Materialized view for analytics
 CREATE MATERIALIZED VIEW mv_user_stats AS
@@ -206,6 +216,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 ### Refresh Strategy
+
 ```sql
 -- Cron job to refresh every 30 minutes
 SELECT cron.schedule(
@@ -215,6 +226,7 @@ SELECT cron.schedule(
 ```
 
 ### Performance Characteristics
+
 - **Read Time**: 0.1-0.5ms (pre-computed)
 - **Write Time**: N/A (batch refresh)
 - **Storage**: 1.2-1.5x (aggregated data)
@@ -224,7 +236,8 @@ SELECT cron.schedule(
 
 ## Decision Guide
 
-### Use `v_*` When:
+### Use `v_*` When
+
 ```yaml
 Conditions:
   dataset_size: "< 10k"
@@ -234,7 +247,8 @@ Conditions:
   development_phase: true
 ```
 
-### Use `tv_*` When:
+### Use `tv_*` When
+
 ```yaml
 Conditions:
   dataset_size: "> 100k"
@@ -244,7 +258,8 @@ Conditions:
   production_environment: true
 ```
 
-### Use `mv_*` When:
+### Use `mv_*` When
+
 ```yaml
 Conditions:
   query_type: "Analytics/Aggregation"
@@ -258,6 +273,7 @@ Conditions:
 ## Migration Path
 
 ### From `v_*` to `tv_*`
+
 ```sql
 -- Step 1: Create table view
 CREATE TABLE tv_user (
@@ -287,6 +303,7 @@ FROM v_user;
 ```
 
 ### From Direct Queries to `mv_*`
+
 ```sql
 -- Step 1: Create materialized view
 CREATE MATERIALIZED VIEW mv_dashboard AS
@@ -305,6 +322,7 @@ SELECT cron.schedule('0 * * * *', $$REFRESH MATERIALIZED VIEW CONCURRENTLY mv_da
 ## Best Practices
 
 ### 1. Naming Consistency
+
 ```sql
 -- ✅ Correct naming
 CREATE VIEW v_user AS ...           -- Standard view
@@ -317,6 +335,7 @@ CREATE TABLE user_cache AS ...       -- Unclear purpose
 ```
 
 ### 2. Index Strategy
+
 ```sql
 -- For v_* views: Index underlying tables
 CREATE INDEX idx_user_email ON tb_user(email);
@@ -329,6 +348,7 @@ CREATE INDEX idx_mv_stats_count ON mv_user_stats(post_count);
 ```
 
 ### 3. Monitoring
+
 ```sql
 -- Check view performance
 EXPLAIN ANALYZE SELECT * FROM v_user WHERE id = $1;

@@ -386,6 +386,7 @@ app.add_middleware(GraphQLComplexityMiddleware, max_complexity=100)
 Structural limits prevent attackers from crafting expensive queries:
 
 **❌ Traditional GraphQL:**
+
 ```graphql
 # Expensive query possible (gets blocked by middleware)
 query Attack {
@@ -408,6 +409,7 @@ query Attack {
 ```
 
 **✅ FraiseQL:**
+
 ```graphql
 # Impossible to craft - schema doesn't allow it
 query {

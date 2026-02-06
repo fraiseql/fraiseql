@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Linting & Code Quality Guide
 description: - Rust language syntax and idioms
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

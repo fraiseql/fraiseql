@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Connection Pool Tuning Guide
 description: Connection pooling is essential for GraphQL API performance. A properly tuned connection pool can improve throughput by 2-3x and reduce latency variance.
 keywords: []

@@ -68,6 +68,7 @@ Fraisier is a deployment orchestrator built as the reference implementation of a
 - Returns formatted output via Rich library
 
 **Data Flow**:
+
 ```
 User Input → CLI Command → Config Loader → Deployer → Result
 ```
@@ -88,6 +89,7 @@ User Input → CLI Command → Config Loader → Deployer → Result
 - Branch mapping for webhook routing
 
 **Example**:
+
 ```python
 config = FraisierConfig("fraises.yaml")
 
@@ -105,6 +107,7 @@ fraise_config = config.get_fraise_for_branch("main")
 **Base Class**: `BaseDeployer` (abstract)
 
 **Interface**:
+
 ```python
 class BaseDeployer(ABC):
     def get_current_version(self) -> str | None
@@ -136,6 +139,7 @@ class BaseDeployer(ABC):
 - **Config**: schedule, script, dependencies
 
 **Deployment Flow**:
+
 ```
 
 1. Load fraise configuration
@@ -156,6 +160,7 @@ class BaseDeployer(ABC):
 **Base Class**: `GitProvider` (abstract)
 
 **Interface**:
+
 ```python
 class GitProvider(ABC):
     def verify_webhook_signature(self, payload: bytes, headers: dict) -> bool
@@ -175,6 +180,7 @@ class GitProvider(ABC):
 | Bitbucket | HMAC/IP | X-Hub-Signature | ✅ |
 
 **Webhook Event Normalization**:
+
 ```python
 @dataclass
 class WebhookEvent:
@@ -285,6 +291,7 @@ v_deployment_stats
 ```
 
 **Key Methods**:
+
 ```python
 class Database:
     def record_deployment(...)
@@ -300,6 +307,7 @@ class Database:
 **Responsibility**: Event-driven deployment trigger
 
 **Architecture**:
+
 ```
 Git Webhook Event
        ↓
@@ -324,6 +332,7 @@ Database Recording
 - `GET /providers` - List supported providers
 
 **Flow**:
+
 ```python
 1. Receive webhook
 2. Verify signature (provider-specific)
@@ -517,6 +526,7 @@ class CustomProvider(DeploymentProvider):
 ### Current
 
 Basic exception handling:
+
 ```python
 try:
     result = deployer.execute()
@@ -527,6 +537,7 @@ except subprocess.CalledProcessError as e:
 ### Planned
 
 Custom exception hierarchy:
+
 ```python
 class FraiseQLError(Exception):
     """Base exception"""

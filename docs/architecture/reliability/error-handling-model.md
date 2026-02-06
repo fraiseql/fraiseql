@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: Error Handling Model
-description: FraiseQL's error handling model is **deterministic, predictable, and classifiable**. Unlike traditional GraphQL servers where error handling varies by resolver 
+description: FraiseQL's error handling model is **deterministic, predictable, and classifiable**. Unlike traditional GraphQL servers where error handling varies by resolver
 keywords: ["design", "scalability", "performance", "patterns", "security"]
 tags: ["documentation", "reference"]
 ---

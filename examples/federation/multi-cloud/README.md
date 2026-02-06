@@ -107,6 +107,7 @@ cd deployment/aws
 ```
 
 **What this does:**
+
 1. Creates RDS PostgreSQL instance
 2. Initializes users schema
 3. Builds Docker image
@@ -115,6 +116,7 @@ cd deployment/aws
 6. Returns endpoint URL
 
 **Expected output:**
+
 ```
 ✅ RDS instance created: users-db-xxx.us-east-1.rds.amazonaws.com
 ✅ Docker image pushed: 123456789.dkr.ecr.us-east-1.amazonaws.com/fraiseql-users:latest
@@ -131,6 +133,7 @@ cd deployment/gcp
 ```
 
 **What this does:**
+
 1. Creates Cloud SQL PostgreSQL instance
 2. Initializes orders schema
 3. Builds Docker image
@@ -139,6 +142,7 @@ cd deployment/gcp
 6. Returns endpoint URL
 
 **Expected output:**
+
 ```
 ✅ Cloud SQL instance created: orders-db-xxx.c.PROJECT_ID.cloudsql.iam.gserviceaccount.com
 ✅ Docker image pushed: europe-west1-docker.pkg.dev/PROJECT/fraiseql/orders-service:latest
@@ -153,6 +157,7 @@ cd deployment/azure
 ```
 
 **What this does:**
+
 1. Creates Azure Database for PostgreSQL server
 2. Initializes products schema
 3. Builds Docker image
@@ -161,6 +166,7 @@ cd deployment/azure
 6. Returns endpoint URL
 
 **Expected output:**
+
 ```
 ✅ PostgreSQL server created: products-db-xxx.postgres.database.azure.com
 ✅ Docker image pushed: fraiseqlregistry.azurecr.io/fraiseql-products:latest
@@ -237,6 +243,7 @@ curl -X POST https://gateway.example.com/graphql \
 | **Total** | All | Infrastructure | **$42-160** |
 
 **Plus egress:**
+
 - AWS to GCP: $0.02/GB egress
 - GCP to Azure: $0.12/GB egress (GCP Premium egress)
 - Azure to AWS: $0.02/GB egress
@@ -250,6 +257,7 @@ For typical SaaS (1TB/month federation traffic):
 ### Service won't start
 
 **AWS:**
+
 ```bash
 aws ecs describe-services --cluster fraiseql --services users-service
 aws ecs describe-task-definition --task-definition fraiseql-users:1
@@ -257,12 +265,14 @@ aws logs tail /ecs/fraiseql-users --follow
 ```
 
 **GCP:**
+
 ```bash
 gcloud run services describe orders-service --region europe-west1
 gcloud run services logs orders-service --region europe-west1 --tail
 ```
 
 **Azure:**
+
 ```bash
 az container logs --resource-group fraiseql --name products-service
 az container show --resource-group fraiseql --name products-service

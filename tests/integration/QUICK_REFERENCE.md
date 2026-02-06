@@ -20,6 +20,7 @@ curl -X POST http://localhost:4000/graphql \
 ```
 
 Expected response:
+
 ```json
 {
   "data": {
@@ -60,11 +61,13 @@ Client → Apollo Router (4000) → {Users, Orders, Products} Subgraphs
 ## Running Tests
 
 ### All Federation Tests
+
 ```bash
 cargo test --test federation_docker_compose_integration --ignored --nocapture
 ```
 
 ### By Category
+
 ```bash
 # Health checks
 cargo test test_users_subgraph_health --ignored --nocapture
@@ -83,6 +86,7 @@ cargo test test_federation_query_performance --ignored --nocapture
 ```
 
 ### Automated Runner
+
 ```bash
 ./run_3subgraph_tests.sh
 ```
@@ -104,6 +108,7 @@ cargo test test_federation_query_performance --ignored --nocapture
 ## Sample Queries
 
 ### Simple (Users only)
+
 ```graphql
 query {
   users(limit: 5) {
@@ -114,6 +119,7 @@ query {
 ```
 
 ### 2-Hop (Users + Orders)
+
 ```graphql
 query {
   users(limit: 5) {
@@ -128,6 +134,7 @@ query {
 ```
 
 ### 3-Hop (Users + Orders + Products)
+
 ```graphql
 query {
   users(limit: 5) {
@@ -163,6 +170,7 @@ query {
    - FraiseQL optimizes projections automatically
 
 4. **Use Variables** (more cache hits)
+
    ```graphql
    query GetUsers($limit: Int!) {
      users(limit: $limit) { id }
@@ -174,12 +182,14 @@ query {
 ## Debugging Checklist
 
 ### Services Not Starting?
+
 ```bash
 docker-compose logs [service-name]
 docker-compose down -v && docker-compose up -d
 ```
 
 ### Queries Timing Out?
+
 ```bash
 # Check individual subgraph
 curl http://localhost:4001/graphql \
@@ -191,6 +201,7 @@ docker-compose logs postgres-users
 ```
 
 ### Federation Query Fails?
+
 ```bash
 # Check schema
 curl http://localhost:4000/graphql \
@@ -200,6 +211,7 @@ curl http://localhost:4000/graphql \
 ```
 
 ### Performance Degrading?
+
 ```bash
 # Check cache hit rate
 # Should be 60-80% after warm-up
@@ -266,6 +278,7 @@ All passing ✅
 ## Expected Output
 
 ### Successful Federation Query
+
 ```json
 {
   "data": {
@@ -293,6 +306,7 @@ All passing ✅
 ```
 
 ### Test Execution Output
+
 ```
 test test_three_subgraph_federation_users_orders_products ... ok
 test test_apollo_router_discovers_subgraphs ... ok

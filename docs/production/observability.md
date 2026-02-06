@@ -20,6 +20,7 @@ Complete observability stack for FraiseQL applications with **PostgreSQL-native 
 FraiseQL implements the **"In PostgreSQL Everything"** philosophy for observability. Instead of using external services like Sentry, Datadog, or New Relic, all observability data (errors, traces, metrics, business events) is stored in PostgreSQL.
 
 **Benefits:**
+
 - **Cost Savings**: Save $300-3,000/month vs SaaS observability platforms
 - **Unified Storage**: All data in one place for easy correlation
 - **SQL-Powered**: Query everything with standard SQL
@@ -27,6 +28,7 @@ FraiseQL implements the **"In PostgreSQL Everything"** philosophy for observabil
 - **ACID Guarantees**: Transactional consistency for observability data
 
 **Observability Stack:**
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    PostgreSQL Database                   │
@@ -291,6 +293,7 @@ INSERT INTO tb_error_notification_config (
 **Slack Message Format:**
 
 FraiseQL sends rich Slack Block Kit messages with:
+
 - **Header**: Error type with severity emoji (🔴 🟡 🔵)
 - **Details**: Environment, occurrence count, timestamps
 - **Stack Trace**: Code-formatted preview (500 chars)
@@ -544,11 +547,13 @@ INSERT INTO tb_error_notification_config (
 **Issue: Notifications not sending**
 
 1. **Check configuration:**
+
    ```sql
    SELECT * FROM tb_error_notification_config WHERE enabled = true;
    ```
 
 2. **Verify error matches filters:**
+
    ```sql
    SELECT
        e.error_type,
@@ -564,6 +569,7 @@ INSERT INTO tb_error_notification_config (
    ```
 
 3. **Check rate limiting:**
+
    ```sql
    SELECT * FROM tb_error_notification_log
    WHERE error_id = 'your-error-id'
@@ -571,6 +577,7 @@ INSERT INTO tb_error_notification_config (
    ```
 
 4. **Review delivery errors:**
+
    ```sql
    SELECT error_message, COUNT(*) as count
    FROM tb_error_notification_log
@@ -585,6 +592,7 @@ INSERT INTO tb_error_notification_config (
 - Verify SMTP credentials and host
 - Check firewall allows outbound port 587/465
 - Test SMTP connection manually:
+
   ```python
   import smtplib
   server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -597,6 +605,7 @@ INSERT INTO tb_error_notification_config (
 - Verify webhook URL is correct
 - Check webhook hasn't been revoked in Slack
 - Test webhook manually:
+
   ```bash
   curl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK/URL \
     -H 'Content-Type: application/json' \
@@ -892,6 +901,7 @@ Pre-built dashboards for PostgreSQL-native observability.
 **Location**: `grafana/error_monitoring.json`
 
 **Panels:**
+
 - Error rate over time
 - Top 10 error fingerprints
 - Error distribution by environment
@@ -901,6 +911,7 @@ Pre-built dashboards for PostgreSQL-native observability.
 **Data Source**: PostgreSQL
 
 **Example Query (Error Rate):**
+
 ```sql
 SELECT
   date_trunc('minute', occurred_at) as time,
@@ -919,6 +930,7 @@ ORDER BY time;
 **Location**: `grafana/trace_performance.json`
 
 **Panels:**
+
 - Request rate (requests/sec)
 - P50, P95, P99 latency
 - Slowest operations
@@ -926,6 +938,7 @@ ORDER BY time;
 - Database query duration
 
 **Example Query (P95 Latency):**
+
 ```sql
 SELECT
   date_trunc('minute', start_time) as time,
@@ -944,6 +957,7 @@ ORDER BY time;
 **Location**: `grafana/system_metrics.json`
 
 **Panels:**
+
 - Database pool connections (active/idle)
 - Cache hit rate
 - GraphQL operation rate
@@ -1085,6 +1099,7 @@ FraiseQL implements automatic table partitioning for production-scale error stor
 **Solution**: Monthly partitioning with automatic partition management.
 
 **Benefits:**
+
 - **Query Performance**: 10-50x faster queries via partition pruning
 - **Storage Efficiency**: Drop old partitions instantly vs slow DELETE operations
 - **Maintenance**: Auto-create future partitions, auto-drop old partitions

@@ -68,6 +68,7 @@ result_bytes = build_mutation_response(
 ```
 
 **Changes**:
+
 1. Import `extract_cascade_selections` from `cascade_selections.py`
 2. Extract CASCADE selections from GraphQL query when `enable_cascade=True`
 3. Pass extracted selections (JSON string or None) to Rust
@@ -287,6 +288,7 @@ if let Some(cascade) = &result.cascade {
 ```
 
 This ensures:
+
 - No `cascade` in GraphQL query → `cascade_selections = None` → CASCADE not added to response
 - `cascade { ... }` in query → `cascade_selections = Some(json)` → Filtered CASCADE added
 

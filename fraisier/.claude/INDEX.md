@@ -36,6 +36,7 @@ Quick navigation for all Fraisier development resources.
 ## By Topic
 
 ### Planning & Status
+
 | Document | Purpose | Length |
 |----------|---------|--------|
 | [00_START_HERE.md](00_START_HERE.md) | Navigation & overview | 5 min |
@@ -44,6 +45,7 @@ Quick navigation for all Fraisier development resources.
 | [INDEX.md](INDEX.md) | This file | 2 min |
 
 ### Development & Architecture
+
 | Document | Purpose | Length |
 |----------|---------|--------|
 | [CLAUDE.md](CLAUDE.md) | Development standards | 25 min |
@@ -52,6 +54,7 @@ Quick navigation for all Fraisier development resources.
 | [../../docs/DEPLOYMENT_GUIDE.md](../../docs/DEPLOYMENT_GUIDE.md) | Deployment walkthrough | 20 min |
 
 ### Testing & Quality
+
 | Document | Purpose | Length |
 |----------|---------|--------|
 | [../../docs/TESTING.md](../../docs/TESTING.md) | Testing strategy | 20 min |
@@ -168,7 +171,7 @@ See [PHASE_1_IMPLEMENTATION_PLAN.md](PHASE_1_IMPLEMENTATION_PLAN.md) for detaile
 - **deployers/api.py** - APIDeployer implementation
 - **deployers/etl.py** - ETLDeployer implementation
 - **deployers/scheduled.py** - ScheduledDeployer implementation
-- **deployers/__init__.py** - Deployer exports
+- **deployers/**init**.py** - Deployer exports
 - **git/base.py** - Git provider interface
 - **git/{github,gitlab,gitea,bitbucket}.py** - Provider implementations
 - **git/registry.py** - Provider registry

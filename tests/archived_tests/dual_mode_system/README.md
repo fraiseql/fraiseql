@@ -9,6 +9,7 @@
 ## Why Archived?
 
 FraiseQL previously had a "dual-mode" system that supported two execution modes:
+
 - **Development mode**: Python-based query execution with full object instantiation
 - **Production mode**: Rust pipeline with zero-copy HTTP response generation
 
@@ -36,10 +37,13 @@ The archived `test_dual_mode_repository_unit.py` tested:
 If you need similar functionality:
 
 ### For Mode Detection
+
 The Rust pipeline is now always active. No mode detection needed.
 
 ### For Object Instantiation
+
 The Rust pipeline returns `RustResponseBytes` directly. If you need Python objects:
+
 ```python
 # Modern approach (v0.11.x+)
 import json
@@ -53,7 +57,9 @@ if isinstance(result, RustResponseBytes):
 ```
 
 ### For Type Safety
+
 Use GraphQL types directly in your schema instead of relying on Python object instantiation:
+
 ```python
 @fraiseql.type
 class User:
@@ -74,6 +80,7 @@ class User:
 ## Archived File
 
 The test file has been renamed to prevent pytest from collecting it:
+
 - **Original name**: `test_dual_mode_repository_unit.py`
 - **Archived name**: `dual_mode_repository_unit.py.archived`
 
@@ -82,6 +89,7 @@ This ensures the tests don't show up in test runs while keeping the code availab
 ## Restoration
 
 If you need to restore these tests for reference:
+
 ```bash
 # View from git history
 git show HEAD~1:tests/integration/database/repository/test_dual_mode_repository_unit.py

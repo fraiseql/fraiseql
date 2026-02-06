@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Architecture
 description: Complete architectural documentation for FraiseQL v2.
 keywords: ["design", "scalability", "performance", "patterns", "security"]

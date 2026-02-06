@@ -11,6 +11,7 @@ This plan completes FraiseQL's pgvector implementation by adding the remaining a
 ### What's Already Complete (v1.5.0)
 
 ✅ **Phase 1 & 2 Complete:**
+
 - 6 vector distance operators (cosine, L2, L1, inner product, Hamming, Jaccard)
 - VectorFilter GraphQL input type (WHERE clauses)
 - VectorOrderBy GraphQL input type (ORDER BY clauses)
@@ -50,12 +51,14 @@ Vector patterns  VectorFilter    vectors.py     Native pgvector
 ```
 
 **Strengths:**
+
 - ✅ Proven TDD methodology
 - ✅ Clean separation of concerns
 - ✅ Type-safe schema generation
 - ✅ Production-ready test infrastructure
 
 **Extension Points for Phase 3:**
+
 - `src/fraiseql/sql/where/operators/vectors.py` - Add new operators
 - `src/fraiseql/sql/graphql_where_generator.py` - Schema generation
 - `src/fraiseql/sql/order_by_generator.py` - ORDER BY support
@@ -75,6 +78,7 @@ Vector patterns  VectorFilter    vectors.py     Native pgvector
 ### Background
 
 PostgreSQL `halfvec` type:
+
 - Stores vectors as 16-bit floats instead of 32-bit
 - 50% memory reduction
 - Slight precision loss (acceptable for most use cases)
@@ -132,6 +136,7 @@ def test_halfvec_type_hint_detection():
 **Expected Failure**: Functions `_detect_vector_type()` and halfvec field detection don't exist yet.
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/unit/core/test_field_detection_halfvec.py -xvs
 # Expected: FAILED - Functions not implemented
@@ -182,6 +187,7 @@ def _should_use_vector_operators(field_name: str) -> bool:
 ```
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/unit/core/test_field_detection_halfvec.py -xvs
 # Expected: PASSED
@@ -190,11 +196,13 @@ uv run pytest tests/unit/core/test_field_detection_halfvec.py -xvs
 #### REFACTOR Phase
 
 **Improvements:**
+
 1. Extract patterns to module-level constants for maintainability
 2. Add docstrings with examples
 3. Ensure backward compatibility with existing vector detection
 
 **Code Quality:**
+
 ```python
 # Module-level constants for clarity
 HALFVEC_PATTERNS = frozenset({
@@ -239,6 +247,7 @@ def _detect_vector_type(field_name: str) -> str | None:
 ```
 
 **Run Tests:**
+
 ```bash
 uv run pytest tests/unit/core/test_field_detection_halfvec.py -v
 # All tests should still pass
@@ -247,6 +256,7 @@ uv run pytest tests/unit/core/test_field_detection_halfvec.py -v
 #### QA Phase
 
 **Verification:**
+
 ```bash
 # Run all field detection tests
 uv run pytest tests/unit/core/test_field_detection*.py -v
@@ -259,6 +269,7 @@ uv run ruff check src/fraiseql/core/graphql_type.py
 ```
 
 **Success Criteria:**
+
 - [ ] All field detection tests pass
 - [ ] No type errors
 - [ ] No linting issues
@@ -321,6 +332,7 @@ def test_regular_vector_backward_compatibility():
 **Expected Failure**: Functions don't accept `vector_type` parameter yet.
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/unit/sql/test_halfvec_operators.py -xvs
 # Expected: FAILED - Missing parameter
@@ -386,6 +398,7 @@ def build_l2_distance_sql(
 ```
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/unit/sql/test_halfvec_operators.py -xvs
 # Expected: PASSED
@@ -394,11 +407,13 @@ uv run pytest tests/unit/sql/test_halfvec_operators.py -xvs
 #### REFACTOR Phase
 
 **Improvements:**
+
 1. DRY: Extract common pattern for all operators
 2. Add type validation for vector_type parameter
 3. Update all 6 distance operators consistently
 
 **Refactored Code:**
+
 ```python
 from typing import Literal
 
@@ -465,6 +480,7 @@ def build_l1_distance_sql(
 ```
 
 **Run Tests:**
+
 ```bash
 uv run pytest tests/unit/sql/test_halfvec_operators.py -v
 uv run pytest tests/unit/sql/test_order_by_vector.py -v  # Ensure no regression
@@ -473,6 +489,7 @@ uv run pytest tests/unit/sql/test_order_by_vector.py -v  # Ensure no regression
 #### QA Phase
 
 **Verification:**
+
 ```bash
 # Run all vector operator tests
 uv run pytest tests/unit/sql/test_*vector*.py -v
@@ -599,6 +616,7 @@ async def test_halfvec_memory_usage(db_pool, halfvec_test_setup):
 **Expected Failure**: Integration will fail because vector_type detection and plumbing not connected yet.
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/integration/test_halfvec_e2e.py -xvs
 # Expected: FAILED - Need to wire up vector_type detection
@@ -673,6 +691,7 @@ class OrderBy:
 ```
 
 **Run Test:**
+
 ```bash
 uv run pytest tests/integration/test_halfvec_e2e.py -xvs
 # Expected: PASSED
@@ -681,6 +700,7 @@ uv run pytest tests/integration/test_halfvec_e2e.py -xvs
 #### REFACTOR Phase
 
 **Improvements:**
+
 1. Cache vector type detection results
 2. Add validation for halfvec dimension constraints
 3. Improve error messages for type mismatches
@@ -688,6 +708,7 @@ uv run pytest tests/integration/test_halfvec_e2e.py -xvs
 #### QA Phase
 
 **Verification:**
+
 ```bash
 # Run all halfvec tests
 uv run pytest tests/integration/test_halfvec_e2e.py -v
@@ -700,6 +721,7 @@ uv run pytest tests/ -k vector --tb=short
 ```
 
 **Success Criteria:**
+
 - [ ] All halfvec tests pass
 - [ ] No regression in existing vector tests
 - [ ] Memory usage verified (50% reduction)
@@ -710,6 +732,7 @@ uv run pytest tests/ -k vector --tb=short
 ### Phase 3.1 Summary
 
 **Deliverables:**
+
 - ✅ halfvec field detection by naming convention
 - ✅ SQL generation for all 6 operators with halfvec
 - ✅ WHERE clause support
@@ -733,6 +756,7 @@ uv run pytest tests/ -k vector --tb=short
 ### Background
 
 PostgreSQL `sparsevec` type:
+
 - Stores only non-zero values and their indices
 - Format: `{1:0.5,3:0.8,7:0.3}/1536` (indices:values/dimensions)
 - Memory efficient for high-dimensional sparse data
@@ -898,6 +922,7 @@ def build_cosine_distance_sql(
 #### REFACTOR Phase
 
 **Improvements:**
+
 1. Add scipy.sparse support for scientific computing
 2. Add validation for dimension consistency
 3. Optimize sparse format generation
@@ -933,6 +958,7 @@ def convert_to_sparsevec_format(
 #### QA Phase
 
 **Verification:**
+
 ```bash
 uv run pytest tests/unit/sql/test_sparsevec_conversion.py -v
 uv run pytest tests/unit/sql/test_sparsevec_operators.py -v
@@ -1039,6 +1065,7 @@ Full integration testing with various sparse formats.
 ### Phase 3.2 Summary
 
 **Deliverables:**
+
 - ✅ sparsevec format conversion (dict, list, scipy.sparse)
 - ✅ SQL generation for all operators
 - ✅ WHERE and ORDER BY support
@@ -1060,12 +1087,14 @@ Full integration testing with various sparse formats.
 ### Background
 
 Vector aggregations enable:
+
 - Cluster centroid calculation
 - Batch similarity operations
 - Vector statistics (mean, sum)
 - GROUP BY with vector operations
 
 PostgreSQL pgvector supports:
+
 - `avg(vector_column)` - Average of vectors
 - `sum(vector_column)` - Sum of vectors
 - Compatible with GROUP BY
@@ -1336,6 +1365,7 @@ Test with large datasets and multiple GROUP BY columns.
 ### Phase 3.3 Summary
 
 **Deliverables:**
+
 - ✅ Vector AVG and SUM aggregation functions
 - ✅ GraphQL schema generation for aggregations
 - ✅ GROUP BY support with vectors
@@ -1357,6 +1387,7 @@ Test with large datasets and multiple GROUP BY columns.
 ### Overview
 
 Enable users to register custom distance functions for domain-specific similarity:
+
 - Music similarity (weighted features)
 - Chemical compound similarity
 - Custom business logic
@@ -1568,6 +1599,7 @@ def create_postgresql_function(
 ### Phase 3.4 Summary
 
 **Deliverables:**
+
 - ✅ Custom distance function registration API
 - ✅ GraphQL schema generation for custom functions
 - ✅ SQL generation with parameter passing
@@ -1591,12 +1623,14 @@ def create_postgresql_function(
 Vector quantization compresses vectors for memory/performance optimization:
 
 **Product Quantization (PQ):**
+
 - Divides vectors into segments
 - Quantizes each segment independently
 - Significant memory reduction (8-16x)
 - Slight accuracy loss
 
 **Scalar Quantization (SQ):**
+
 - Converts float32 to int8
 - 4x memory reduction
 - Faster comparisons
@@ -1902,6 +1936,7 @@ Extensive performance benchmarking with various configurations.
 ### Phase 3.5 Summary
 
 **Deliverables:**
+
 - ✅ Product quantization configuration and indexing
 - ✅ Scalar quantization support
 - ✅ Memory usage measurement and validation
@@ -1958,16 +1993,19 @@ Extensive performance benchmarking with various configurations.
 After completing Phase 3, FraiseQL will be:
 
 🥇 **#1 GraphQL framework for AI/ML applications**
+
 - Only framework with complete pgvector feature parity
 - 6-12 months ahead of any competitors
 - Production-ready for enterprise vector workloads
 
 🏆 **Unique Market Position:**
+
 - Python-native + GraphQL + Complete Vector Search
 - No other framework offers this combination
 - Defensible technical moat
 
 💰 **$200B+ Market Opportunity:**
+
 - AI/ML applications
 - RAG systems
 - Semantic search
@@ -1988,12 +2026,14 @@ After completing Phase 3, FraiseQL will be:
 ## Appendix: Testing Strategy
 
 ### Unit Tests
+
 - Field detection (vector type identification)
 - SQL generation (all operators, all types)
 - Format conversion (sparse, quantization)
 - Schema generation (GraphQL types)
 
 ### Integration Tests
+
 - Real PostgreSQL with pgvector
 - All vector types (vector, halfvec, sparsevec)
 - All operators (6 distance functions)
@@ -2001,12 +2041,14 @@ After completing Phase 3, FraiseQL will be:
 - Memory usage verification
 
 ### End-to-End Tests
+
 - Full GraphQL queries
 - Repository operations
 - Aggregation queries
 - Quantized index operations
 
 ### Performance Tests
+
 - Query speed benchmarks
 - Memory usage measurement
 - Compression ratio validation
