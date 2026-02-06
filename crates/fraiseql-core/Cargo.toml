@@ -101,7 +101,6 @@ wire-backend = ["fraiseql-wire"]
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
 name = "fraiseql-core"
-readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
