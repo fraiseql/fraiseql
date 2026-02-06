@@ -22,7 +22,7 @@ clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
 dashmap = "6.1"
 # FraiseQL core (for Executor and query execution)
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.1"}
+fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.2"}
 futures = "0.3"
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "9"
