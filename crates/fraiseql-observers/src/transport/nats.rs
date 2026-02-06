@@ -239,7 +239,7 @@ impl EventTransport for NatsTransport {
         // Convert JetStream messages to Result<EntityEvent>
         let event_stream = messages.filter_map(move |msg_result| {
             let filter_op = Arc::clone(&filter_operation);
-            let _filter_tenant = Arc::clone(&filter_tenant_id);
+            let filter_tenant = Arc::clone(&filter_tenant_id);
 
             async move {
                 match msg_result {
@@ -267,7 +267,21 @@ impl EventTransport for NatsTransport {
                                     }
                                 }
 
-                                // TODO: Filter by tenant_id when multi-tenancy is implemented
+                                // Filter by tenant_id if specified
+                                if let Some(ref tenant) = filter_tenant.as_ref() {
+                                    if event.tenant_id.as_ref() != Some(tenant) {
+                                        tracing::trace!(
+                                            event_id = %event.id,
+                                            event_tenant = ?event.tenant_id,
+                                            filter_tenant = %tenant,
+                                            "Skipping event due to tenant_id mismatch"
+                                        );
+                                        if let Err(e) = msg.ack().await {
+                                            tracing::error!("Failed to acknowledge NATS message: {}", e);
+                                        }
+                                        return None;
+                                    }
+                                }
 
                                 // Acknowledge message after successful parsing
                                 if let Err(e) = msg.ack().await {

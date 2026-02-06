@@ -5,7 +5,7 @@
 
 use redis::aio::ConnectionManager;
 
-use super::{CacheBackend, CachedActionResult};
+use super::{CacheBackend, CacheBackendDyn, CachedActionResult};
 use crate::error::Result;
 
 /// Redis-backed cache backend.
@@ -114,6 +114,44 @@ impl CacheBackend for RedisCacheBackend {
         }
 
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheBackendDyn for RedisCacheBackend {
+    async fn get(&self, cache_key: &str) -> Result<Option<CachedActionResult>> {
+        let key = Self::cache_key(cache_key);
+
+        let value: Option<String> =
+            redis::cmd("GET").arg(&key).query_async(&mut self.conn.clone()).await?;
+
+        match value {
+            Some(json) => {
+                let result = serde_json::from_str(&json)
+                    .map_err(|e| crate::error::ObserverError::SerializationError(e.to_string()))?;
+                Ok(Some(result))
+            },
+            None => Ok(None),
+        }
+    }
+
+    async fn set(&self, cache_key: &str, result: &CachedActionResult) -> Result<()> {
+        let key = Self::cache_key(cache_key);
+        let json = serde_json::to_string(result)
+            .map_err(|e| crate::error::ObserverError::SerializationError(e.to_string()))?;
+
+        redis::cmd("SETEX")
+            .arg(&key)
+            .arg(self.ttl_seconds as i64)
+            .arg(&json)
+            .query_async::<_, ()>(&mut self.conn.clone())
+            .await?;
+
+        Ok(())
+    }
+
+    fn ttl_seconds(&self) -> u64 {
+        self.ttl_seconds
     }
 }
 

@@ -210,6 +210,7 @@ impl ChangeLogEntry {
             data,
             changes,
             user_id,
+            tenant_id: None,
             timestamp,
         })
     }

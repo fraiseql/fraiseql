@@ -115,6 +115,42 @@ pub trait CacheBackend: Send + Sync + Clone {
     async fn clear_all(&self) -> Result<()>;
 }
 
+/// Object-safe cache backend trait for trait objects.
+///
+/// This is a subset of `CacheBackend` designed to be object-safe (works as `dyn CacheBackendDyn`).
+/// Unlike `CacheBackend`, it does not require `Clone`, making it suitable for use as a trait object.
+#[async_trait::async_trait]
+pub trait CacheBackendDyn: Send + Sync {
+    /// Get a cached action result.
+    ///
+    /// Returns `Ok(Some(result))` if cached and not expired.
+    /// Returns `Ok(None)` if not cached or expired.
+    ///
+    /// # Arguments
+    ///
+    /// * `cache_key` - The cache key for this action result
+    ///
+    /// # Errors
+    ///
+    /// Returns error if cache operation fails
+    async fn get(&self, cache_key: &str) -> Result<Option<CachedActionResult>>;
+
+    /// Store an action result in cache with TTL.
+    ///
+    /// # Arguments
+    ///
+    /// * `cache_key` - The cache key for this action result
+    /// * `result` - The action result to cache
+    ///
+    /// # Errors
+    ///
+    /// Returns error if cache operation fails
+    async fn set(&self, cache_key: &str, result: &CachedActionResult) -> Result<()>;
+
+    /// Get the default cache TTL in seconds.
+    fn ttl_seconds(&self) -> u64;
+}
+
 /// Cached action result with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedActionResult {

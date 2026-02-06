@@ -20,7 +20,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 ///     pub timestamp: DateTime<Utc>,      // Event timestamp
 ///     pub data: serde_json::Value,       // Event payload
 ///     pub user_id: Option<String>,       // User who triggered event
-///     pub org_id: Option<String>,        // Organization context
+///     pub tenant_id: Option<String>,     // Tenant for multi-tenant isolation
 /// }
 /// ```
 ///
@@ -33,7 +33,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 /// - **timestamp**: Event timestamp in UTC (Timestamp microseconds)
 /// - **data**: Event payload as JSON string (Utf8)
 /// - **user_id**: Optional user identifier (Utf8, nullable)
-/// - **org_id**: Optional organization identifier (Utf8, nullable)
+/// - **tenant_id**: Optional tenant identifier for multi-tenant isolation (Utf8, nullable)
 ///
 /// # Example
 ///
@@ -58,7 +58,7 @@ pub fn entity_event_arrow_schema() -> Arc<Schema> {
         ),
         Field::new("data", DataType::Utf8, false), // JSON as string
         Field::new("user_id", DataType::Utf8, true),
-        Field::new("org_id", DataType::Utf8, true),
+        Field::new("tenant_id", DataType::Utf8, true),
     ]))
 }
 
@@ -79,7 +79,7 @@ mod tests {
         assert_eq!(schema.field(4).name(), "timestamp");
         assert_eq!(schema.field(5).name(), "data");
         assert_eq!(schema.field(6).name(), "user_id");
-        assert_eq!(schema.field(7).name(), "org_id");
+        assert_eq!(schema.field(7).name(), "tenant_id");
     }
 
     #[test]
@@ -96,7 +96,7 @@ mod tests {
 
         // Optional fields
         assert!(schema.field(6).is_nullable()); // user_id
-        assert!(schema.field(7).is_nullable()); // org_id
+        assert!(schema.field(7).is_nullable()); // tenant_id
     }
 
     #[test]

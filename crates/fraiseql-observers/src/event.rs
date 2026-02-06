@@ -61,6 +61,8 @@ pub struct EntityEvent {
     pub changes:     Option<std::collections::HashMap<String, FieldChanges>>,
     /// User ID from auth context (if available)
     pub user_id:     Option<String>,
+    /// Tenant ID for multi-tenant isolation (if applicable)
+    pub tenant_id:   Option<String>,
     /// When the event occurred
     pub timestamp:   DateTime<Utc>,
 }
@@ -82,6 +84,7 @@ impl EntityEvent {
             data,
             changes: None,
             user_id: None,
+            tenant_id: None,
             timestamp: Utc::now(),
         }
     }
@@ -90,6 +93,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
+        self
+    }
+
+    /// Set the `tenant_id` for this event (for multi-tenant isolation)
+    #[must_use]
+    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 
@@ -212,5 +222,53 @@ mod tests {
 
         assert!(event.is_deleted());
         assert!(!event.is_new());
+    }
+
+    #[test]
+    fn test_entity_event_with_tenant_id() {
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 100}),
+        )
+        .with_tenant_id("tenant-123");
+
+        assert_eq!(event.tenant_id, Some("tenant-123".to_string()));
+    }
+
+    #[test]
+    fn test_entity_event_tenant_id_with_owned_string() {
+        let tenant_id_owned = String::from("tenant-456");
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 100}),
+        )
+        .with_tenant_id(tenant_id_owned);
+
+        assert_eq!(event.tenant_id, Some("tenant-456".to_string()));
+    }
+
+    #[test]
+    fn test_entity_event_multi_tenant_isolation() {
+        let event1 = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 100}),
+        )
+        .with_tenant_id("tenant-1");
+
+        let event2 = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 200}),
+        )
+        .with_tenant_id("tenant-2");
+
+        assert_ne!(event1.tenant_id, event2.tenant_id);
     }
 }

@@ -74,7 +74,7 @@ impl EventToArrowConverter {
             .with_timezone(Arc::from("UTC"));
         let mut data_builder = StringBuilder::with_capacity(events.len(), events.len() * 500);
         let mut user_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
-        let mut org_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
+        let mut tenant_id_builder = StringBuilder::with_capacity(events.len(), events.len() * 36);
 
         // Populate builders
         for event in events {
@@ -105,9 +105,11 @@ impl EventToArrowConverter {
                 None => user_id_builder.append_null(),
             }
 
-            // org_id (not in EntityEvent, always null for now)
-            // TODO: Add org_id to EntityEvent if needed
-            org_id_builder.append_null();
+            // tenant_id (nullable)
+            match &event.tenant_id {
+                Some(id) => tenant_id_builder.append_value(id),
+                None => tenant_id_builder.append_null(),
+            }
         }
 
         // Finish builders and create RecordBatch
@@ -119,7 +121,7 @@ impl EventToArrowConverter {
             Arc::new(timestamp_builder.finish()),
             Arc::new(data_builder.finish()),
             Arc::new(user_id_builder.finish()),
-            Arc::new(org_id_builder.finish()),
+            Arc::new(tenant_id_builder.finish()),
         ];
 
         RecordBatch::try_new(schema, columns)

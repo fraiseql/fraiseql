@@ -12,6 +12,8 @@ use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
+#[cfg(feature = "caching")]
+use crate::cache::{CacheBackendDyn, CachedActionResult};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsRegistry;
 use crate::{
@@ -47,6 +49,9 @@ pub struct ObserverExecutor {
     cache_action:     Arc<CacheAction>,
     /// Dead letter queue for failed actions
     dlq:              Arc<dyn DeadLetterQueue>,
+    /// Optional cache backend for action result caching
+    #[cfg(feature = "caching")]
+    cache_backend:    Option<Arc<dyn CacheBackendDyn>>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
     metrics:          MetricsRegistry,
@@ -55,6 +60,40 @@ pub struct ObserverExecutor {
 impl ObserverExecutor {
     /// Create a new executor
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
+        Self::with_cache(matcher, dlq, None)
+    }
+
+    /// Create a new executor with optional cache backend
+    #[cfg(feature = "caching")]
+    pub fn with_cache(
+        matcher: EventMatcher,
+        dlq: Arc<dyn DeadLetterQueue>,
+        cache_backend: Option<Arc<dyn CacheBackendDyn>>,
+    ) -> Self {
+        Self {
+            matcher: Arc::new(matcher),
+            condition_parser: Arc::new(ConditionParser::new()),
+            webhook_action: Arc::new(WebhookAction::new()),
+            slack_action: Arc::new(SlackAction::new()),
+            email_action: Arc::new(EmailAction::new()),
+            sms_action: Arc::new(SmsAction::new()),
+            push_action: Arc::new(PushAction::new()),
+            search_action: Arc::new(SearchAction::new()),
+            cache_action: Arc::new(CacheAction::new()),
+            dlq,
+            cache_backend,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
+        }
+    }
+
+    /// Create a new executor with optional cache backend (no-op when caching feature disabled)
+    #[cfg(not(feature = "caching"))]
+    pub fn with_cache(
+        matcher: EventMatcher,
+        dlq: Arc<dyn DeadLetterQueue>,
+        _cache_backend: Option<Arc<dyn std::fmt::Debug>>,
+    ) -> Self {
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(ConditionParser::new()),
@@ -201,7 +240,15 @@ impl ObserverExecutor {
     ) -> Result<ActionResult> {
         debug!("Executing action: {} for event {}", action.action_type(), event.id);
 
-        match action {
+        // Try cache first (skip for CacheAction itself)
+        #[cfg(feature = "caching")]
+        if !matches!(action, ActionConfig::Cache { .. }) {
+            if let Some(cached) = self.try_cache_get(event, action).await {
+                return Ok(cached);
+            }
+        }
+
+        let result = match action {
             ActionConfig::Webhook {
                 url,
                 url_env,
@@ -372,7 +419,17 @@ impl ObserverExecutor {
                 }),
                 Err(e) => Err(e),
             },
+        };
+
+        // Cache successful results before returning
+        #[cfg(feature = "caching")]
+        if let Ok(ref res) = result {
+            if !matches!(action, ActionConfig::Cache { .. }) {
+                self.cache_store(event, action, res).await;
+            }
         }
+
+        result
     }
 
     /// Handle action failure based on failure policy
@@ -673,6 +730,75 @@ impl ObserverExecutor {
         mut listener: crate::listener::ChangeLogListener,
     ) -> tokio::task::JoinHandle<Result<()>> {
         tokio::spawn(async move { self.run_listener_loop(&mut listener, None).await })
+    }
+
+    /// Generate a cache key for action result caching.
+    ///
+    /// Format: `action_result:{event.id}:{action_type}:{entity_type}:{entity_id}`
+    #[cfg(feature = "caching")]
+    fn cache_key(event: &EntityEvent, action: &ActionConfig) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        // Hash the action config for uniqueness
+        let mut hasher = DefaultHasher::new();
+        format!("{:?}", action).hash(&mut hasher);
+        let action_hash = hasher.finish();
+
+        format!(
+            "action_result:{}:{}:{}:{}",
+            event.id, action_hash, event.entity_type, event.entity_id
+        )
+    }
+
+    /// Try to get cached action result, return None if cache disabled or miss.
+    #[cfg(feature = "caching")]
+    async fn try_cache_get(
+        &self,
+        event: &EntityEvent,
+        action: &ActionConfig,
+    ) -> Option<ActionResult> {
+        if let Some(ref cache) = self.cache_backend {
+            let cache_key = Self::cache_key(event, action);
+            if let Ok(Some(cached)) = cache.get(&cache_key).await {
+                debug!(
+                    "Cache hit for {} ({}ms latency)",
+                    action.action_type(),
+                    cached.duration_ms
+                );
+                #[cfg(feature = "metrics")]
+                self.metrics.cache_hit();
+
+                return Some(ActionResult {
+                    action_type: cached.action_type,
+                    success: cached.success,
+                    message: cached.message,
+                    duration_ms: cached.duration_ms,
+                });
+            }
+        }
+        None
+    }
+
+    /// Store action result in cache (no-op if cache disabled).
+    #[cfg(feature = "caching")]
+    async fn cache_store(
+        &self,
+        event: &EntityEvent,
+        action: &ActionConfig,
+        result: &ActionResult,
+    ) {
+        if let Some(ref cache) = self.cache_backend {
+            if result.success {
+                let cache_key = Self::cache_key(event, action);
+                let cached_result =
+                    CachedActionResult::new(result.action_type.clone(), result.success, result.message.clone(), result.duration_ms);
+
+                if let Err(e) = cache.set(&cache_key, &cached_result).await {
+                    warn!("Failed to cache action result: {}", e);
+                }
+            }
+        }
     }
 }
 
