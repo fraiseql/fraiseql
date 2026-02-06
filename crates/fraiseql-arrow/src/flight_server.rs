@@ -41,6 +41,7 @@ use crate::{
     convert::{ConvertConfig, RowToArrowConverter},
     db::DatabaseAdapter,
     db_convert::convert_db_rows_to_arrow,
+    exchange_protocol::{ExchangeMessage, RequestType},
     metadata::SchemaRegistry,
     schema::{graphql_result_schema, observer_event_schema},
     ticket::FlightTicket,
@@ -1490,15 +1491,19 @@ impl FlightService for FraiseQLFlightService {
         Ok(Response::new(Box::pin(stream)))
     }
 
-    /// Bidirectional streaming.
+    /// Bidirectional streaming with correlation ID matching.
     ///
-    /// Phase 2.2b: Requires authenticated session token from handshake.
-    /// Bidirectional streaming with RLS checks (implementation deferred to Phase 2.3+).
+    /// Supports request/response operations in a single bidirectional stream:
+    /// - Query: Execute GraphQL queries and return Arrow-encoded results
+    /// - Upload: Insert data batches into tables
+    /// - Subscribe: Stream entity change events (deferred to v2.1)
+    ///
+    /// Each message includes a correlation_id to match requests to responses.
     async fn do_exchange(
         &self,
         request: Request<Streaming<FlightData>>,
     ) -> std::result::Result<Response<Self::DoExchangeStream>, Status> {
-        // Phase 2.2b: Validate session token for bidirectional streams
+        // Validate session token for bidirectional streams
         let session_token = extract_session_token(&request)?;
         let authenticated_user = validate_session_token(&session_token)?;
 
@@ -1507,9 +1512,364 @@ impl FlightService for FraiseQLFlightService {
             "Authenticated do_exchange request"
         );
 
-        // TODO: Implement authenticated bidirectional streaming
-        info!("DoExchange called (authenticated) - not yet implemented");
-        Err(Status::unimplemented("DoExchange not yet implemented"))
+        // Create security context for RLS
+        let security_context = fraiseql_core::security::SecurityContext::from_user(
+            authenticated_user.clone(),
+            uuid::Uuid::new_v4().to_string(),
+        );
+
+        // Get incoming stream
+        let mut incoming = request.into_inner();
+
+        // Create channel for responses
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+
+        // Clone shared state for spawned task
+        let db_adapter = self.db_adapter.clone();
+        let executor = self.executor.clone();
+        let user_id = authenticated_user.user_id.clone();
+
+        // Spawn handler task for bidirectional streaming
+        tokio::spawn(async move {
+            while let Ok(Some(flight_data)) = incoming.message().await {
+                // Decode exchange message from FlightData.app_metadata
+                let msg_bytes = flight_data.app_metadata.as_ref();
+
+                match ExchangeMessage::from_json_bytes(msg_bytes) {
+                    Ok(ExchangeMessage::Request {
+                        correlation_id,
+                        request_type,
+                    }) => {
+                        match request_type {
+                            RequestType::Query {
+                                query,
+                                variables,
+                            } => {
+                                // Execute GraphQL query
+                                info!(
+                                    user_id = %user_id,
+                                    correlation_id = %correlation_id,
+                                    "Executing exchange query"
+                                );
+
+                                let result = match &executor {
+                                    Some(exec) => {
+                                        exec.execute_with_security(
+                                            &query,
+                                            variables.as_ref(),
+                                            &security_context,
+                                        )
+                                        .await
+                                    }
+                                    None => Err("No executor configured".to_string()),
+                                };
+
+                                match result {
+                                    Ok(json_result) => {
+                                        // Convert JSON result to Arrow batch
+                                        info!(
+                                            user_id = %user_id,
+                                            correlation_id = %correlation_id,
+                                            "Converting query result to Arrow"
+                                        );
+
+                                        match encode_json_to_arrow_batch(&json_result) {
+                                            Ok(batch) => {
+                                                // Convert batch to FlightData
+                                                match record_batch_to_flight_data(&batch) {
+                                                    Ok(flight_batch) => {
+                                                        // Send batch data
+                                                        if let Err(e) = tx.send(Ok(flight_batch)).await {
+                                                            warn!("Failed to send batch: {}", e);
+                                                        }
+
+                                                        // Send completion marker
+                                                        let complete_msg =
+                                                            ExchangeMessage::Complete {
+                                                                correlation_id: correlation_id
+                                                                    .clone(),
+                                                            };
+                                                        if let Ok(complete_bytes) =
+                                                            complete_msg.to_json_bytes()
+                                                        {
+                                                            let complete_data = FlightData {
+                                                                app_metadata: complete_bytes.into(),
+                                                                ..Default::default()
+                                                            };
+                                                            let _ = tx.send(Ok(complete_data)).await;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        warn!(
+                                                            "Failed to encode batch: {}",
+                                                            e
+                                                        );
+                                                        let error_response =
+                                                            ExchangeMessage::Response {
+                                                                correlation_id: correlation_id
+                                                                    .clone(),
+                                                                result: Err(format!(
+                                                                    "Encoding error: {}",
+                                                                    e
+                                                                )),
+                                                            };
+                                                        if let Ok(err_bytes) =
+                                                            error_response.to_json_bytes()
+                                                        {
+                                                            let err_data = FlightData {
+                                                                app_metadata: err_bytes.into(),
+                                                                ..Default::default()
+                                                            };
+                                                            let _ = tx.send(Ok(err_data)).await;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!(
+                                                    "Failed to convert result to Arrow: {}",
+                                                    e
+                                                );
+                                                let error_response = ExchangeMessage::Response {
+                                                    correlation_id: correlation_id.clone(),
+                                                    result: Err(format!(
+                                                        "Conversion error: {}",
+                                                        e
+                                                    )),
+                                                };
+                                                if let Ok(err_bytes) =
+                                                    error_response.to_json_bytes()
+                                                {
+                                                    let err_data = FlightData {
+                                                        app_metadata: err_bytes.into(),
+                                                        ..Default::default()
+                                                    };
+                                                    let _ = tx.send(Ok(err_data)).await;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "Query execution failed: {}",
+                                            e
+                                        );
+                                        let error_response = ExchangeMessage::Response {
+                                            correlation_id: correlation_id.clone(),
+                                            result: Err(format!("Query execution failed: {}", e)),
+                                        };
+                                        if let Ok(err_bytes) = error_response.to_json_bytes() {
+                                            let err_data = FlightData {
+                                                app_metadata: err_bytes.into(),
+                                                ..Default::default()
+                                            };
+                                            let _ = tx.send(Ok(err_data)).await;
+                                        }
+                                    }
+                                }
+                            }
+                            RequestType::Upload { table, batch } => {
+                                // Handle upload request using do_put logic
+                                info!(
+                                    user_id = %user_id,
+                                    correlation_id = %correlation_id,
+                                    table = %table,
+                                    "Processing exchange upload"
+                                );
+
+                                // Check database adapter availability
+                                match db_adapter {
+                                    Some(ref adapter) => {
+                                        // Decode Arrow batch
+                                        match decode_upload_batch(&batch) {
+                                            Ok(record_batch) => {
+                                                // Build INSERT query
+                                                match build_insert_query(&table, &record_batch) {
+                                                    Ok(sql) => {
+                                                        // Execute INSERT
+                                                        match adapter
+                                                            .execute_raw_query(&sql)
+                                                            .await
+                                                        {
+                                                            Ok(_) => {
+                                                                let rows_inserted =
+                                                                    record_batch.num_rows();
+                                                                info!(
+                                                                    user_id = %user_id,
+                                                                    table = %table,
+                                                                    rows = rows_inserted,
+                                                                    "Upload successful"
+                                                                );
+
+                                                                // Send success response
+                                                                let success_msg =
+                                                                    format!(
+                                                                        "Inserted {} rows",
+                                                                        rows_inserted
+                                                                    )
+                                                                    .into_bytes();
+                                                                let response =
+                                                                    ExchangeMessage::Response {
+                                                                        correlation_id:
+                                                                            correlation_id
+                                                                                .clone(),
+                                                                        result: Ok(
+                                                                            success_msg,
+                                                                        ),
+                                                                    };
+                                                                if let Ok(resp_bytes) =
+                                                                    response.to_json_bytes()
+                                                                {
+                                                                    let resp_data = FlightData {
+                                                                        app_metadata: resp_bytes.into(),
+                                                                        ..Default::default()
+                                                                    };
+                                                                    let _ = tx
+                                                                        .send(Ok(resp_data))
+                                                                        .await;
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                warn!(
+                                                                    "Insert failed: {}",
+                                                                    e
+                                                                );
+                                                                let error_response =
+                                                                    ExchangeMessage::Response {
+                                                                        correlation_id:
+                                                                            correlation_id
+                                                                                .clone(),
+                                                                        result: Err(format!(
+                                                                            "Insert failed: {}",
+                                                                            e
+                                                                        )),
+                                                                    };
+                                                                if let Ok(err_bytes) =
+                                                                    error_response
+                                                                        .to_json_bytes()
+                                                                {
+                                                                    let err_data = FlightData {
+                                                                        app_metadata: err_bytes.into(),
+                                                                        ..Default::default()
+                                                                    };
+                                                                    let _ = tx
+                                                                        .send(Ok(err_data))
+                                                                        .await;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        warn!(
+                                                            "Failed to build INSERT: {}",
+                                                            e
+                                                        );
+                                                        let error_response =
+                                                            ExchangeMessage::Response {
+                                                                correlation_id:
+                                                                    correlation_id.clone(),
+                                                                result: Err(format!(
+                                                                    "Failed to build INSERT: {}",
+                                                                    e
+                                                                )),
+                                                            };
+                                                        if let Ok(err_bytes) =
+                                                            error_response.to_json_bytes()
+                                                        {
+                                                            let err_data = FlightData {
+                                                                app_metadata: err_bytes.into(),
+                                                                ..Default::default()
+                                                            };
+                                                            let _ = tx
+                                                                .send(Ok(err_data))
+                                                                .await;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!("Failed to decode batch: {}", e);
+                                                let error_response = ExchangeMessage::Response {
+                                                    correlation_id: correlation_id.clone(),
+                                                    result: Err(format!(
+                                                        "Failed to decode batch: {}",
+                                                        e
+                                                    )),
+                                                };
+                                                if let Ok(err_bytes) =
+                                                    error_response.to_json_bytes()
+                                                {
+                                                    let err_data = FlightData {
+                                                        app_metadata: err_bytes.into(),
+                                                        ..Default::default()
+                                                    };
+                                                    let _ = tx.send(Ok(err_data)).await;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        warn!("Database adapter not configured");
+                                        let error_response = ExchangeMessage::Response {
+                                            correlation_id: correlation_id.clone(),
+                                            result: Err(
+                                                "Database adapter not configured".to_string(),
+                                            ),
+                                        };
+                                        if let Ok(err_bytes) = error_response.to_json_bytes() {
+                                            let err_data = FlightData {
+                                                app_metadata: err_bytes.into(),
+                                                ..Default::default()
+                                            };
+                                            let _ = tx.send(Ok(err_data)).await;
+                                        }
+                                    }
+                                }
+                            }
+                            RequestType::Subscribe { .. } => {
+                                // Subscriptions deferred to v2.1
+                                warn!("Subscriptions not yet supported");
+                                let error_response = ExchangeMessage::Response {
+                                    correlation_id: correlation_id.clone(),
+                                    result: Err(
+                                        "Subscriptions not yet supported (deferred to v2.1)"
+                                            .to_string(),
+                                    ),
+                                };
+                                if let Ok(err_bytes) = error_response.to_json_bytes() {
+                                    let err_data = FlightData {
+                                        app_metadata: err_bytes.into(),
+                                        ..Default::default()
+                                    };
+                                    let _ = tx.send(Ok(err_data)).await;
+                                }
+                            }
+                        }
+                    }
+                    Ok(ExchangeMessage::Complete { correlation_id }) => {
+                        info!(
+                            user_id = %user_id,
+                            correlation_id = %correlation_id,
+                            "Client stream complete"
+                        );
+                        break;
+                    }
+                    Ok(ExchangeMessage::Response { .. }) => {
+                        warn!("Received response from client (unexpected)");
+                    }
+                    Err(e) => {
+                        warn!("Failed to decode exchange message: {}", e);
+                        // Send error but continue processing
+                    }
+                }
+            }
+
+            info!(user_id = %user_id, "Do-exchange stream closed");
+        });
+
+        // Return response stream
+        let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(output_stream) as Self::DoExchangeStream))
     }
 
     /// Get flight info for a descriptor (metadata about available data).
@@ -2052,6 +2412,62 @@ fn build_insert_query(table_name: &str, batch: &RecordBatch) -> std::result::Res
         columns.join(", "),
         values_clauses.join(", ")
     ))
+}
+
+/// Encode JSON result from GraphQL query into Arrow RecordBatch.
+///
+/// Converts JSON query result into columnar Arrow format for efficient streaming.
+/// As a simple implementation, wraps JSON in a single string column.
+///
+/// # Arguments
+/// * `json_str` - JSON string from GraphQL query result
+///
+/// # Returns
+/// Arrow RecordBatch with single "result" column
+///
+/// # Errors
+/// Returns error if RecordBatch creation fails
+fn encode_json_to_arrow_batch(json_str: &str) -> std::result::Result<RecordBatch, String> {
+    use arrow::array::StringArray;
+    use arrow::datatypes::{DataType, Field, Schema};
+
+    // Create a simple single-column batch with JSON result
+    let schema = Arc::new(Schema::new(vec![Field::new("result", DataType::Utf8, false)]));
+    let string_array = StringArray::from(vec![json_str]);
+    let batch = RecordBatch::try_new(schema, vec![Arc::new(string_array)])
+        .map_err(|e| format!("Failed to create RecordBatch: {}", e))?;
+
+    Ok(batch)
+}
+
+/// Decode serialized Arrow RecordBatch from upload request.
+///
+/// Deserializes Arrow IPC format batch data.
+///
+/// # Arguments
+/// * `batch_bytes` - Serialized RecordBatch in Arrow IPC format
+///
+/// # Returns
+/// Decoded RecordBatch
+///
+/// # Errors
+/// Returns error if deserialization fails
+fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
+    use arrow::ipc::reader::StreamReader;
+    use std::io::Cursor;
+
+    if batch_bytes.is_empty() {
+        return Err("Empty batch data".to_string());
+    }
+
+    let cursor = Cursor::new(batch_bytes);
+    let mut reader = StreamReader::try_new(cursor, None)
+        .map_err(|e| format!("Failed to create IPC stream reader: {}", e))?;
+
+    // Read first batch from the stream
+    reader.next()
+        .ok_or_else(|| "No batch in data".to_string())?
+        .map_err(|e| format!("Failed to read batch: {}", e))
 }
 
 /// Dummy executor for testing that implements QueryExecutor trait.
