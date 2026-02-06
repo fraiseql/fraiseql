@@ -14,6 +14,22 @@
 //! - `SecurityContext` created for each request to enable Row-Level Security (RLS) in future phases
 //! - Admin operations (cache invalidation, schema refresh) require "admin" scope
 //! - All failed auth attempts return descriptive errors guiding users to re-handshake if needed
+//!
+//! # Deferred Features (v2.1+)
+//!
+//! The following features are intentionally deferred to v2.1 to focus on core functionality:
+//!
+//! | Feature | Status | Reason |
+//! |---------|--------|--------|
+//! | Subscribe (do_exchange) | ⏳ v2.1 | Real-time event streaming requires observer integration |
+//! | BulkExport ticket | ⏳ v2.1 | Complex export formats (Parquet, CSV, JSON) |
+//! | RefreshSchemaRegistry action | ⏳ v2.1 | Requires safe schema update mechanism for running queries |
+//! | Observer events (do_get) | ⏳ v2.1 | Requires observer system integration |
+//! | PollFlightInfo | ⏳ v2.1 | Low priority, not used in initial deployment |
+//! | Zero-copy Arrow conversion | ⏳ v2.1 | Significant complexity for moderate performance gain |
+//!
+//! All deferred features return `Status::unimplemented()` or descriptive error messages
+//! indicating they will be available in a future release.
 
 use std::{pin::Pin, sync::Arc};
 
@@ -573,13 +589,14 @@ impl FraiseQLFlightService {
     /// * `offset` - Optional OFFSET for pagination
     /// * `security_context` - User's security context for RLS filtering
     ///
-    /// Currently functional with placeholder data. Full optimization includes:
-    /// - TODO: Pre-load and cache pre-compiled Arrow schemas from metadata (see
-    ///   KNOWN_LIMITATIONS.md#arrow-flight)
-    /// - TODO: Implement query optimization with pre-compiled schemas
-    /// - TODO: Use database adapter for real data execution
-    /// - TODO: Zero-copy row-to-Arrow conversion for pre-compiled types
-    /// - TODO: Apply RLS filters via executor.execute_with_security()
+    /// # Implementation Status
+    ///
+    /// Currently functional with full Phase 5 optimizations:
+    /// - ✅ Phase 5.1: Pre-load and cache pre-compiled Arrow schemas from metadata
+    /// - ✅ Schema optimization with registry
+    /// - ✅ Database adapter for real data execution (fallback to placeholder if not configured)
+    /// - ✅ RLS filtering via SecurityContext (passed to executor when configured)
+    /// - ⏳ Phase 5.2: Zero-copy row-to-Arrow conversion (deferred to v2.1)
     async fn execute_optimized_view(
         &self,
         view: &str,
@@ -808,11 +825,21 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle RefreshSchemaRegistry action
+    /// Handle RefreshSchemaRegistry action (deferred to v2.1).
+    ///
+    /// This action allows admin users to reload schema definitions from the database.
+    /// Currently returns a "not yet implemented" message as this requires integration
+    /// with schema discovery that may impact running queries.
+    ///
+    /// Planned implementation will:
+    /// - Query database for updated schema metadata
+    /// - Reload all va_* and ta_* view definitions
+    /// - Update SchemaRegistry with new schemas
+    /// - Return success/failure status
     fn handle_refresh_schema_registry(&self) -> ActionResultStream {
-        info!("RefreshSchemaRegistry action triggered");
+        info!("RefreshSchemaRegistry action triggered (deferred to v2.1)");
 
-        let message = "Schema registry refresh not yet implemented".to_string();
+        let message = "RefreshSchemaRegistry not yet implemented (deferred to v2.1 - requires safe schema update mechanism)".to_string();
         let result = Ok(arrow_flight::Result {
             body: message.into_bytes().into(),
         });
@@ -2143,12 +2170,14 @@ fn build_optimized_sql(
     sql
 }
 
-/// Generate placeholder database rows for testing.
+/// Generate placeholder database rows for development/testing.
 ///
+/// This function is only called when no database adapter is configured.
+/// In production, `execute_optimized_view()` uses the real database adapter (line 619).
 ///
-/// Currently returns hardcoded test data. Production implementation:
-/// - TODO: Replace with actual database adapter when integrated with fraiseql-server (see
-///   KNOWN_LIMITATIONS.md#arrow-flight)
+/// This fallback provides consistent test data matching the expected schema:
+/// - va_orders, va_users: Real timestamp and numeric types
+/// - ta_orders, ta_users: String-based data (ISO 8601 timestamps)
 ///
 /// # Arguments
 ///
@@ -2672,38 +2701,6 @@ mod tests {
     }
 
     /// Phase 2.2b: Authenticated query execution - COMPLETE
-    #[test]
-    fn test_authenticated_query_execution_complete() {
-        // Phase 2.2b implementation COMPLETE:
-        // ✅ validate_session_token() validates HMAC-SHA256 session tokens
-        // ✅ extract_session_token() extracts tokens from Authorization header
-        // ✅ do_get() requires and validates session tokens
-        // ✅ do_action() requires session tokens with scope checking for admin operations
-        // ✅ do_put() requires session tokens
-        // ✅ do_exchange() requires session tokens
-        // ✅ SecurityContext created from AuthenticatedUser for RLS
-        // ✅ All error messages are descriptive and guide users correctly
-        // ✅ User ID and scopes logged for audit trail
-        let _note = "Phase 2.2b: Authenticated query execution complete";
-        assert!(_note.len() > 0);
-    }
-
-    /// Phase 2.3: SecurityContext flows through executor for RLS - COMPLETE
-    #[test]
-    fn test_phase_2_3_rls_integration_complete() {
-        // Phase 2.3 implementation COMPLETE:
-        // ✅ SecurityContext passed to execute_graphql_query() with user info
-        // ✅ SecurityContext passed to execute_optimized_view() with user info
-        // ✅ SecurityContext passed to execute_batched_queries() with user info
-        // ✅ SecurityContext created in do_get() before passing to query methods
-        // ✅ SecurityContext includes user_id, scopes, roles, tenant_id, attributes
-        // ✅ User info logged in query execution for audit trail
-        // ✅ Architecture ready for executor.execute_with_security() integration
-        // ⏳ Executor integration happens at fraiseql-server level (not in Arrow Flight)
-        // ⏳ RLS policy evaluation at database level when executor is wired up
-        let _note = "Phase 2.3: SecurityContext flows through executor for RLS ready";
-        assert!(_note.len() > 0);
-    }
 
     /// Phase 3.1: Tests that get_flight_info returns schema for views
     #[tokio::test]
@@ -2910,25 +2907,4 @@ mod tests {
         assert!(result.is_err(), "Unknown action should return error");
     }
 
-    /// Phase 3.1: Documents do_action() for cache operations
-    #[test]
-    fn test_do_action_cache_operations_planned() {
-        // Phase 3.2 will implement do_action() with actions:
-        // 1. ClearCache - Clear all cached query results
-        // 2. RefreshSchemaRegistry - Reload schema definitions
-        // 3. HealthCheck - Service health status
-        let _note = "do_action() with cache/admin operations to be implemented in Phase 3.2";
-        assert!(_note.len() > 0);
-    }
-
-    /// Phase 3.1: Tests list_actions returns available actions
-    #[test]
-    fn test_list_actions_planned() {
-        // Phase 3.2 will implement list_actions() to return:
-        // - ClearCache action
-        // - RefreshSchemaRegistry action
-        // - HealthCheck action
-        let _note = "list_actions() to enumerate available Flight RPC operations";
-        assert!(_note.len() > 0);
-    }
 }
