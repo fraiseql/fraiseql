@@ -18,6 +18,7 @@ async def author(self, info) -> User:
 ```
 
 **Query**:
+
 ```graphql
 {
   posts {  # 1 query
@@ -152,6 +153,7 @@ app = create_fraiseql_app(
 ```
 
 **Query**:
+
 ```graphql
 {
   posts {
@@ -190,6 +192,7 @@ async def post_created(info) -> Post:
 ```
 
 **GraphQL**:
+
 ```graphql
 subscription {
   postCreated {
@@ -215,6 +218,7 @@ async def post_created(info, author_id: ID | None = None) -> Post:
 ```
 
 **GraphQL**:
+
 ```graphql
 subscription {
   postCreated(authorId: "550e8400-e29b-41d4-a716-446655440000") {
@@ -262,6 +266,7 @@ async def post_created(info) -> Post:
 ```
 
 **PostgreSQL Trigger**:
+
 ```sql
 -- Trigger to NOTIFY when post created
 CREATE OR REPLACE FUNCTION notify_post_created()
@@ -516,6 +521,7 @@ async def search_posts(
 ```
 
 **PostgreSQL Setup**:
+
 ```sql
 -- Add tsvector column
 ALTER TABLE tb_post
@@ -596,6 +602,7 @@ async def users_by_email_pattern(
 ### 1. Use Dataloader for Related Data
 
 ✅ **DO:**
+
 ```python
 @dataloader_field(UserDataLoader, key_field="author_id")
 async def author(self) -> User:
@@ -603,6 +610,7 @@ async def author(self) -> User:
 ```
 
 ❌ **DON'T:**
+
 ```python
 @fraiseql.field
 async def author(self, info) -> User:

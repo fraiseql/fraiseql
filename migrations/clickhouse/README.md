@@ -30,11 +30,13 @@ CREATE TABLE fraiseql_events (
 ```
 
 **Indexes:**
+
 - Bloom filter on `event_type` for fast filtering
 - Bloom filter on `entity_type` for entity queries
 - Bloom filter on `org_id` for organization filtering
 
 **Storage:**
+
 - MergeTree engine with monthly partitioning
 - Ordered by `(entity_type, timestamp)` for efficient queries
 - 90-day TTL for automatic cleanup
@@ -42,16 +44,19 @@ CREATE TABLE fraiseql_events (
 ### Materialized Views
 
 **fraiseql_events_hourly**: Hourly counts and unique entity counts
+
 - Aggregates: `event_count`, `unique_entities`
 - Grouped by: hour, entity_type, event_type
 - Retention: 120 days
 
 **fraiseql_org_daily**: Daily organization statistics
+
 - Aggregates: event count, unique entities, unique users
 - Grouped by: day, org_id
 - Retention: 90 days
 
 **fraiseql_event_type_stats**: Event type distribution
+
 - Aggregates: count, rate (events/second)
 - Grouped by: hour, event_type
 - Retention: 120 days
@@ -253,16 +258,19 @@ ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
 ### Events not appearing in ClickHouse
 
 1. Check Arrow Flight sink is running:
+
    ```bash
    docker logs fraiseql-arrow
    ```
 
 2. Verify NATS has events:
+
    ```bash
    nats stream info fraiseql_events
    ```
 
 3. Check ClickHouse connectivity:
+
    ```bash
    curl -s http://localhost:8123/?query="SELECT 1" | head
    ```
@@ -270,11 +278,13 @@ ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
 ### Slow queries on fraiseql_events
 
 1. Verify indexes exist:
+
    ```sql
    SELECT * FROM system.indexes WHERE table = 'fraiseql_events';
    ```
 
 2. Check partition pruning is working:
+
    ```sql
    EXPLAIN
    SELECT * FROM fraiseql_events
@@ -282,6 +292,7 @@ ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
    ```
 
 3. Review table settings:
+
    ```sql
    SHOW CREATE TABLE fraiseql_events;
    ```
@@ -289,11 +300,13 @@ ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
 ### Materialized views not updating
 
 1. Check view status:
+
    ```sql
    SELECT name, target_table, is_ready FROM system.views WHERE name LIKE 'fraiseql%_mv';
    ```
 
 2. Check for errors in query log:
+
    ```sql
    SELECT * FROM system.query_log
    WHERE query LIKE '%fraiseql_events_hourly_mv%'
@@ -301,6 +314,7 @@ ALTER TABLE fraiseql_org_daily MODIFY TTL day + INTERVAL 120 DAY;
    ```
 
 3. Manually refresh (if stuck):
+
    ```sql
    -- Drop and recreate view
    DROP VIEW fraiseql_events_hourly_mv;

@@ -12,9 +12,11 @@
 This execution plan references two detailed planning documents:
 
 ### 📄 Document 1: QA-REVIEW-PLAN.md
+
 **Comprehensive QA validation** - 5 parts, 50+ specific tasks
 
 **Covers:**
+
 - Part 1: Implementation QA (code, tests, performance, security)
 - Part 2: Documentation quality assurance
 - Part 3: Integration verification
@@ -24,9 +26,11 @@ This execution plan references two detailed planning documents:
 **Purpose**: Ensure code quality, test coverage, and backward compatibility
 
 ### 📄 Document 2: DOCUMENTATION-QUALITY-ASSURANCE.md
+
 **Documentation validation** - 10 parts, comprehensive coverage
 
 **Covers:**
+
 - Part 1: Documentation files structure
 - Part 2-4: Nested fragments, cycle detection, API changes docs
 - Part 5-8: Example validation, consistency, technical accuracy
@@ -53,6 +57,7 @@ This execution plan references two detailed planning documents:
 ```
 
 **Success Criteria:**
+
 - ✅ All 10 fragment tests pass
 - ✅ All 5991+ existing tests pass
 - ✅ No linting errors
@@ -62,6 +67,7 @@ This execution plan references two detailed planning documents:
 - ✅ Backward compatible
 
 **Files to Review:**
+
 - `src/fraiseql/fastapi/routers.py` - Main implementation
 - `tests/unit/fastapi/test_multi_field_fragments.py` - Test suite
 
@@ -82,6 +88,7 @@ This execution plan references two detailed planning documents:
 ```
 
 **Success Criteria:**
+
 - ✅ All documentation files complete
 - ✅ All examples valid and tested
 - ✅ Consistent style and terminology
@@ -91,6 +98,7 @@ This execution plan references two detailed planning documents:
 - ✅ Cross-references working
 
 **Documentation to Review:**
+
 - `docs/features/fragments.md` - Feature guide
 - `docs/examples/nested-fragments.md` - 5+ examples
 - `docs/examples/fragment-cycles.md` - Error scenarios
@@ -113,6 +121,7 @@ This execution plan references two detailed planning documents:
 ```
 
 **Success Criteria:**
+
 - ✅ Commit message clear and complete
 - ✅ All intended files in commit
 - ✅ Version bumped in 8 files
@@ -121,6 +130,7 @@ This execution plan references two detailed planning documents:
 - ✅ Release notes accurate
 
 **Commands:**
+
 ```bash
 # Create feature branch
 git checkout -b chore/prepare-v1.8.6-release
@@ -146,11 +156,13 @@ make pr-ship-patch
 **Problem**: Fragments only worked at root query level
 
 **Solution**: Recursive fragment processing
+
 - `process_selections()` function added
 - Handles fragments at any nesting depth
 - Maintains backward compatibility
 
 **Tests**: 3 new test cases
+
 - Basic nested fragments
 - Multi-level nesting (3+ deep)
 - Mixed with aliases
@@ -162,11 +174,13 @@ make pr-ship-patch
 **Problem**: No protection against circular fragment references
 
 **Solution**: Cycle detection with visited fragment tracking
+
 - Added `visited_fragments` parameter
 - Tracks fragments during recursive expansion
 - Hard failure on cycles (security-first)
 
 **Tests**: 4 new test cases
+
 - Direct cycles (A ↔ B)
 - Self-reference (A ↔ A)
 - Long chains (A → B → C → A)
@@ -343,17 +357,20 @@ make pr-ship-patch
 ### Must Have (Release Blockers)
 
 ✅ **Code Quality**
+
 - [ ] All 10 new tests pass
 - [ ] All 5991+ existing tests pass
 - [ ] No breaking changes
 
 ✅ **Documentation**
+
 - [ ] Nested fragments documented
 - [ ] Cycle detection documented
 - [ ] 5+ examples for each feature
 - [ ] All examples valid
 
 ✅ **Release Process**
+
 - [ ] Version bumped correctly (8 files)
 - [ ] Git tag created
 - [ ] PR created with auto-merge
@@ -362,11 +379,13 @@ make pr-ship-patch
 ### Should Have (Quality Enhancements)
 
 🔄 **Performance**
+
 - [ ] < 1μs overhead confirmed
 - [ ] No memory leaks
 - [ ] No query performance regression
 
 🔄 **Documentation Polish**
+
 - [ ] Cross-references working
 - [ ] Consistent terminology
 - [ ] Copy-paste ready examples
@@ -379,6 +398,7 @@ make pr-ship-patch
 ### Risk 1: Tests Fail During Release
 
 **Mitigation**: Run full test suite before Phase C
+
 - If tests fail: Halt release, investigate
 - Fix implementation or tests
 - Restart from Phase A
@@ -386,6 +406,7 @@ make pr-ship-patch
 ### Risk 2: Documentation Incomplete
 
 **Mitigation**: Complete documentation before Phase C
+
 - If docs missing: Halt release, add docs
 - Verify examples work
 - Restart from Phase B
@@ -393,6 +414,7 @@ make pr-ship-patch
 ### Risk 3: Backward Compatibility Break
 
 **Mitigation**: Verify existing fragment queries still work
+
 - If broken: Halt release, redesign approach
 - Ensure zero API changes
 - Restart from Phase A
@@ -400,6 +422,7 @@ make pr-ship-patch
 ### Risk 4: Performance Regression
 
 **Mitigation**: Benchmark before and after
+
 - If regression > 5%: Halt release, optimize
 - Re-benchmark and verify
 - Restart from Phase A
@@ -411,6 +434,7 @@ make pr-ship-patch
 **Before each phase:**
 
 ### Phase A Sign-Off (Code QA)
+
 - [ ] Reviewed all code changes
 - [ ] All tests passing (10 new + 5981 existing)
 - [ ] Performance acceptable
@@ -419,6 +443,7 @@ make pr-ship-patch
 - [ ] **CODE QA APPROVED**
 
 ### Phase B Sign-Off (Documentation QA)
+
 - [ ] All doc files complete
 - [ ] All examples valid
 - [ ] Consistency verified
@@ -427,6 +452,7 @@ make pr-ship-patch
 - [ ] **DOCUMENTATION APPROVED**
 
 ### Phase C Sign-Off (Release)
+
 - [ ] Final tests passing
 - [ ] Version bumped (8 files)
 - [ ] Git tag created
@@ -455,18 +481,21 @@ make pr-ship-patch
 ### After Approval
 
 ✅ **Code Quality**
+
 - All tests passing (100% pass rate)
 - No regressions
 - Zero security issues
 - Performance verified
 
 ✅ **Documentation Quality**
+
 - Feature-complete
 - All examples working
 - Consistent throughout
 - Copy-paste ready
 
 ✅ **Release Ready**
+
 - v1.8.6 tagged
 - PR auto-merge enabled
 - Release notes published
@@ -487,16 +516,19 @@ Phase C (Release):         1 hour     ─┘
 ## 📋 Document References
 
 ### QA-REVIEW-PLAN.md
+
 - **Sections**: 5 parts, 50+ tasks
 - **Use For**: Code QA, testing, commits, releases
 - **Tasks**: Check/execute all items for each phase
 
 ### DOCUMENTATION-QUALITY-ASSURANCE.md
+
 - **Sections**: 10 parts, comprehensive coverage
 - **Use For**: Documentation validation
 - **Tasks**: Complete full checklist before approval
 
 ### Compliance Report
+
 - **File**: `/tmp/fraiseql-graphql-compliance-report.md`
 - **Contains**: Implementation details, test results, business impact
 

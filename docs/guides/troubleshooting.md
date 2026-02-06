@@ -14,6 +14,7 @@ tags:
 Common issues and solutions for FraiseQL beginners.
 
 **💡 Quick Navigation:**
+
 - **[Troubleshooting Decision Tree](troubleshooting-decision-tree.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - **This guide** - Specific error messages and detailed solutions
 
@@ -26,6 +27,7 @@ Can't find your issue? Check the [GitHub Issues](../issues) or ask in [Discussio
 **Cause**: Database schema not created or incomplete
 
 **Solution**:
+
 ```bash
 # Check if your database exists
 psql -l | grep your_database_name
@@ -51,6 +53,7 @@ psql your_database_name -c "\dv v_*"
 **Cause**: FraiseQL not installed or virtual environment issue
 
 **Solution**:
+
 ```bash
 # Install FraiseQL
 pip install fraiseql[all]
@@ -73,6 +76,7 @@ python -c "import fraiseql; print('FraiseQL installed!')"
 **Cause**: PostgreSQL not running or connection parameters wrong
 
 **Solution**:
+
 ```bash
 # Check if PostgreSQL is running
 sudo systemctl status postgresql  # Linux
@@ -100,6 +104,7 @@ psql -h localhost -U postgres -d postgres
 **Cause**: Python type doesn't match database view structure
 
 **Solution**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -126,6 +131,7 @@ class Note:
 **Cause**: Server not running or wrong endpoint
 
 **Solution**:
+
 ```bash
 # Check server is running
 curl http://localhost:8000/graphql
@@ -153,6 +159,7 @@ uvicorn app:app --reload --host 0.0.0.0 --port 8000
 **Cause**: No data in database or view not returning data
 
 **Solution**:
+
 ```bash
 # Check table has data
 psql your_db -c "SELECT COUNT(*) FROM tb_note;"
@@ -178,6 +185,7 @@ psql your_db -c "INSERT INTO tb_note (title, content) VALUES ('Test', 'Content')
 **Cause**: Database user lacks permissions
 
 **Solution**:
+
 ```bash
 # Create user with permissions
 psql -U postgres -c "CREATE USER myuser WITH PASSWORD 'mypass';"
@@ -198,6 +206,7 @@ psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE mydb TO myuser;"
 **Cause**: Database schema not updated after adding fields
 
 **Solution**:
+
 ```bash
 # Add the missing column
 psql your_db -c "ALTER TABLE tb_note ADD COLUMN tags TEXT[] DEFAULT '{}';"
@@ -220,6 +229,7 @@ psql your_db -c "CREATE VIEW v_note AS SELECT jsonb_build_object('id', id, 'titl
 **Cause**: Database function not created
 
 **Solution**:
+
 ```sql
 -- Create the missing function
 CREATE OR REPLACE FUNCTION fn_delete_note(note_id UUID)
@@ -242,6 +252,7 @@ $$ LANGUAGE plpgsql;
 **Cause**: Schema file not in current directory or wrong path
 
 **Solution**:
+
 ```bash
 # Find your schema file
 find . -name "schema.sql"
@@ -265,6 +276,7 @@ psql mydb < schema.sql
 **Cause**: Wrong import syntax or FraiseQL version issue
 
 **Solution**:
+
 ```python
 # Correct imports for current version
 import fraiseql
@@ -284,6 +296,7 @@ import fraiseql
 **Cause**: Python syntax error or missing dependencies
 
 **Solution**:
+
 ```bash
 # Check Python syntax
 python -m py_compile app.py
@@ -305,6 +318,7 @@ lsof -i :8000
 ## Need More Help?
 
 ### Debug Checklist
+
 1. ✅ PostgreSQL is running: `pg_isready -h localhost`
 2. ✅ Database exists: `psql -l | grep your_db`
 3. ✅ Schema loaded: `psql your_db -c "\dt tb_*"` and `psql your_db -c "\dv v_*"`
@@ -313,12 +327,14 @@ lsof -i :8000
 6. ✅ GraphQL endpoint responds: `curl http://localhost:8000/graphql`
 
 ### Getting Help
+
 - 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
 - 🔍 Search [existing issues](../issues)
 - 💬 Ask in [GitHub Discussions](../discussions)
 - 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
+
 - [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns
 - Examples (../../examples/) - Working applications you can study
 - [Beginner Learning Path](../tutorials/beginner-path.md) - Complete skill progression

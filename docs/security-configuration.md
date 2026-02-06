@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Security Configuration Guide
 description: This guide covers security features and configuration options available in FraiseQL v2.0.0-alpha.1.
 keywords: ["security"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: IoT Platform with Time-Series Data
 description: Complete guide to building a scalable IoT platform for collecting and querying sensor data efficiently.
 keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]

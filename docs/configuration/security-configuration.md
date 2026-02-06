@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2.0.0-alpha.1 - Security Configuration via TOML
 description: FraiseQL v2.0.0-alpha.1 uses a **single-source-of-truth TOML configuration file** for all security settings. All configuration is **declarative, language-agnost
 keywords: ["security"]

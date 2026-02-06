@@ -43,6 +43,7 @@ System monitoring, schema exploration, and query debugging interface for FraiseQ
 ## Getting Started
 
 ### Via Docker
+
 ```bash
 docker compose -f docker/docker-compose.demo.yml up -d
 ```
@@ -50,6 +51,7 @@ docker compose -f docker/docker-compose.demo.yml up -d
 Then open: **http://localhost:3002**
 
 ### Local Development
+
 ```bash
 cd admin-dashboard
 npm install
@@ -77,6 +79,7 @@ curl http://localhost:3002/api/system/overview
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -110,6 +113,7 @@ curl http://localhost:3002/api/schema/types
 ```
 
 Response:
+
 ```json
 {
   "types": [
@@ -136,6 +140,7 @@ curl http://localhost:3002/api/schema/type/User
 ```
 
 Response:
+
 ```json
 {
   "__type": {
@@ -177,6 +182,7 @@ curl -X POST http://localhost:3002/api/debug/query \
 ```
 
 Response:
+
 ```json
 {
   "result": {
@@ -208,6 +214,7 @@ curl "http://localhost:3002/api/metrics?minutes=60"
 ```
 
 Response:
+
 ```json
 {
   "period": {
@@ -235,6 +242,7 @@ Response:
 ```
 
 **Query Parameters:**
+
 - `minutes` - Time window in minutes (default: 60)
   - 10 = Last 10 minutes
   - 60 = Last 60 minutes
@@ -252,6 +260,7 @@ curl "http://localhost:3002/api/logs?type=all&limit=50"
 ```
 
 Response:
+
 ```json
 {
   "logs": [
@@ -272,6 +281,7 @@ Response:
 ```
 
 **Query Parameters:**
+
 - `type` - Filter by type (default: all)
   - all = All logs
   - request = Request logs only
@@ -281,6 +291,7 @@ Response:
 ## UI Pages
 
 ### Overview
+
 System health dashboard with key metrics:
 
 - Current status (Healthy/Unhealthy)
@@ -291,12 +302,14 @@ System health dashboard with key metrics:
 - FraiseQL Server connection status
 
 **How to use:**
+
 - Refreshes automatically every 10 seconds
 - Status badge in header shows real-time status
 - Click on metrics to get more details
 - Use for quick system health check
 
 ### Schema Explorer
+
 Browse the entire GraphQL schema:
 
 - List of all types in the schema
@@ -305,12 +318,14 @@ Browse the entire GraphQL schema:
 - Click type name to see fields
 
 **How to use:**
+
 - Search by type name (Ctrl+F in browser)
 - Understand available data structures
 - See field types and relationships
 - Plan queries based on schema
 
 ### Query Debugger
+
 Test GraphQL queries in real-time:
 
 1. Paste a GraphQL query
@@ -320,6 +335,7 @@ Test GraphQL queries in real-time:
 5. Check execution timing
 
 **Example Queries:**
+
 ```graphql
 # Simple query
 query {
@@ -358,12 +374,14 @@ query GetUserWithPosts {
 ```
 
 **Analysis Metrics:**
+
 - **Complexity**: Simple/Moderate/Complex based on field count
 - **Field Count**: Number of fields requested
 - **Execution Time**: Milliseconds to execute
 - **Est. Rows**: Estimated rows to return
 
 ### Metrics
+
 Performance analysis and trending:
 
 - Select time window (10 min, 1 hour, 4 hours, 24 hours)
@@ -373,12 +391,14 @@ Performance analysis and trending:
 - Identify performance bottlenecks
 
 **How to interpret:**
+
 - Histogram shows distribution of query times
 - Spikes indicate slow queries
 - Error rate > 5% indicates issues
 - Compare across time windows to spot trends
 
 ### Logs
+
 Centralized system logging:
 
 - Filter by type: All, Requests, Errors
@@ -387,6 +407,7 @@ Centralized system logging:
 - Paginated for easy browsing
 
 **How to use:**
+
 - Monitor recent activity
 - Track errors and issues
 - Understand system behavior
@@ -465,6 +486,7 @@ Edit `admin-dashboard/public/index.html` CSS variables:
 ### Adding New Pages
 
 1. Add new page div in HTML:
+
 ```html
 <div id="newpage" class="page">
   <!-- Content -->
@@ -472,11 +494,13 @@ Edit `admin-dashboard/public/index.html` CSS variables:
 ```
 
 2. Add navigation button:
+
 ```html
 <button class="nav-item" onclick="switchPage('newpage')">📄 New Page</button>
 ```
 
 3. Add load function:
+
 ```javascript
 if (page === 'newpage') loadNewPage();
 
@@ -504,6 +528,7 @@ async function loadNewPage() {
 ## Troubleshooting
 
 ### Dashboard won't load
+
 ```bash
 # Check if server is running
 curl http://localhost:3002/health

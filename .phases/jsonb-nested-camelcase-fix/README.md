@@ -11,6 +11,7 @@
 Fix the bug where nested JSONB object fields are not converted to camelCase in GraphQL responses. This affects fields with snake_case names (e.g., `smtp_server` → `smtpServer`) and fields with underscore+number patterns (e.g., `dns_1` → `dns1`).
 
 **Current Status**:
+
 - All CI tests pass (no coverage for this scenario)
 - PrintOptim backend has 8+ test failures due to this bug
 
@@ -23,6 +24,7 @@ Fix the bug where nested JSONB object fields are not converted to camelCase in G
 ### Current Behavior
 
 When a JSONB column contains nested objects with snake_case field names:
+
 ```json
 {
     "id": "...",
@@ -34,6 +36,7 @@ When a JSONB column contains nested objects with snake_case field names:
 ```
 
 GraphQL response returns **snake_case keys** for nested objects:
+
 ```json
 {
     "gateway": {"id": "...", "ipAddress": "30.0.0.1"},
@@ -58,6 +61,7 @@ GraphQL response returns **snake_case keys** for nested objects:
 FraiseQL has **two JSON transformation code paths**:
 
 ### Path A: Schema-Aware Transformation
+
 **Files**: `fraiseql_rs/src/json_transform.rs`, `fraiseql_rs/src/pipeline/builder.rs`
 
 - Entry: `build_with_schema()` in `pipeline/builder.rs:86`
@@ -66,6 +70,7 @@ FraiseQL has **two JSON transformation code paths**:
 - **Issue**: When field not in registry, fallback path may not convert keys
 
 ### Path B: Zero-Copy Streaming
+
 **Files**: `fraiseql_rs/src/core/transform.rs`
 
 - Entry: `build_zero_copy()` in `pipeline/builder.rs:145`
@@ -110,11 +115,13 @@ FraiseQL has **two JSON transformation code paths**:
 ### Test Strategy
 
 **Regression Test** (integration):
+
 - **Location**: `tests/regression/test_jsonb_nested_camelcase.py`
 - **Scope**: Full GraphQL execution with database
 - **Pattern**: Class-scoped fixtures, SchemaAwarePool wrapper
 
 **Unit Test** (isolation):
+
 - **Location**: `tests/unit/core/test_jsonb_camelcase_conversion.py`
 - **Scope**: Test Rust functions directly via Python bindings
 
@@ -145,10 +152,12 @@ FraiseQL has **two JSON transformation code paths**:
 ## Files to Create/Modify
 
 ### New Test Files
+
 - `tests/regression/test_jsonb_nested_camelcase.py` - Integration tests
 - `tests/unit/core/test_jsonb_camelcase_conversion.py` - Unit tests
 
 ### Likely Implementation Changes
+
 - `fraiseql_rs/src/json_transform.rs` - Fix recursive transformation
 - `fraiseql_rs/src/pipeline/builder.rs` - Ensure transform is applied
 - `fraiseql_rs/src/core/transform.rs` - Fix nested object handling (if needed)
@@ -158,23 +167,27 @@ FraiseQL has **two JSON transformation code paths**:
 ## Verification Commands
 
 ### Quick Check (during development)
+
 ```bash
 uv run pytest tests/unit/core/test_jsonb_camelcase_conversion.py -v
 uv run pytest tests/regression/test_jsonb_nested_camelcase.py -v
 ```
 
 ### Full Suite (before commit)
+
 ```bash
 uv run pytest tests/ -v --tb=short
 ```
 
 ### Existing JSONB Tests (regression check)
+
 ```bash
 uv run pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
 uv run pytest tests/integration/graphql/test_jsonb_graphql_full_execution.py -v
 ```
 
 ### PrintOptim Validation
+
 ```bash
 cd /home/lionel/code/printoptim_backend
 uv run pytest tests/api/queries/dim/network/ -v
@@ -185,15 +198,18 @@ uv run pytest tests/api/queries/dim/network/ -v
 ## Success Metrics
 
 ### Must Have
+
 - [ ] All new tests passing
 - [ ] No regressions in existing tests
 - [ ] PrintOptim test failures resolved
 
 ### Should Have
+
 - [ ] Clean, documented code
 - [ ] Consistent with FraiseQL patterns
 
 ### Nice to Have
+
 - [ ] Repository in evergreen state
 - [ ] No archaeological traces of the fix
 
@@ -202,6 +218,7 @@ uv run pytest tests/api/queries/dim/network/ -v
 ## Commit Strategy
 
 ### Per-Phase Commits
+
 ```
 test(jsonb): add tests for nested JSONB camelCase conversion [RED]
 fix(jsonb): convert nested JSONB object fields to camelCase [GREEN]
@@ -211,6 +228,7 @@ chore(cleanup): achieve evergreen state for JSONB fix [UNARCHEOLOGY]
 ```
 
 ### Final Squashed Commit
+
 ```
 fix(jsonb): convert nested JSONB object fields to camelCase
 

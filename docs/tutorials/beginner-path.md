@@ -17,6 +17,7 @@ Complete pathway from zero to building production GraphQL APIs with FraiseQL.
    - Test in GraphQL Playground
 
 2. **Verify Your Setup**
+
 ```bash
 # Check installations
 python --version  # 3.11+
@@ -45,6 +46,7 @@ python app.py
    - Lists with `list[Type]`
 
 **Practice Exercise**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -73,6 +75,7 @@ def notes() -> list[Note]:
    - COALESCE for empty arrays
 
 **Key Pattern**:
+
 ```sql
 -- Instead of N queries, compose in view:
 CREATE VIEW v_user_with_posts AS
@@ -105,6 +108,7 @@ FROM tb_user u;
    - Calling functions from Python
 
 **Mutation Pattern**:
+
 ```sql
 -- PostgreSQL function
 CREATE FUNCTION fn_create_note(
@@ -167,6 +171,7 @@ After completing this path:
 ## Common Beginner Mistakes
 
 ### ❌ Mistake 1: No ID column in view
+
 ```sql
 -- WRONG: Can't filter efficiently
 CREATE VIEW v_user AS
@@ -182,6 +187,7 @@ FROM tb_user;
 ```
 
 ### ❌ Mistake 2: Missing return type
+
 ```python
 import fraiseql
 
@@ -197,6 +203,7 @@ async def users(info) -> list[User]:
 ```
 
 ### ❌ Mistake 3: Not handling NULL
+
 ```python
 import fraiseql
 
@@ -212,6 +219,7 @@ class User:
 ```
 
 ### ❌ Mistake 4: Forgetting COALESCE in arrays
+
 ```sql
 -- WRONG: Returns NULL instead of empty array
 'posts', (SELECT jsonb_agg(...) FROM tb_post)
@@ -226,6 +234,7 @@ class User:
 ## Quick Reference Card
 
 ### Essential Pattern
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -255,6 +264,7 @@ def items() -> list[Item]:
 ```
 
 ### Essential Commands
+
 ```bash
 # Install
 pip install fraiseql fastapi uvicorn
@@ -275,11 +285,13 @@ psql myapp -c "SELECT * FROM v_item LIMIT 1;"
 ### Continue Learning
 
 **Backend Focus**:
+
 - [Database Patterns](../advanced/database-patterns.md) - tv_ pattern, entity change log
 - [Performance](../performance/index.md) - Rust transformation, APQ caching
 - [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation
 
 **Production Ready**:
+
 - [Production Deployment](./production-deployment.md) - Docker, monitoring, security
 - [Authentication](../advanced/authentication.md) - User auth patterns
 - [Monitoring](../production/monitoring.md) - Observability
@@ -295,16 +307,19 @@ psql myapp -c "SELECT * FROM v_item LIMIT 1;"
 ## Troubleshooting
 
 **"View not found" error**
+
 - Check view name has `v_` prefix
 - Verify view exists: `\dv v_*` in psql
 - Ensure view has `data` column
 
 **Type errors**
+
 - Match Python types to PostgreSQL types
 - Use `UUID` not `str` for UUIDs
 - Add `| None` for nullable fields
 
 **N+1 queries detected**
+
 - Compose data in views, not in resolvers
 - Use `jsonb_agg` for arrays
 - Check [Database Patterns](../advanced/database-patterns.md)

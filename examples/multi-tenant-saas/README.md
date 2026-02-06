@@ -60,6 +60,7 @@ This example uses the **shared database with Row-Level Security** pattern:
 ### Why Row-Level Security (RLS)?
 
 **Traditional approach (error-prone):**
+
 ```python
 # ❌ Manual filtering - easy to forget
 projects = await db.find("projects", where={"organization_id": tenant_id})
@@ -69,12 +70,14 @@ projects = await db.find("projects")  # Oops! All tenants' data!
 ```
 
 **RLS approach (secure by default):**
+
 ```python
 # ✅ RLS automatically filters - impossible to forget
 projects = await db.find("projects")  # Only current tenant's data
 ```
 
 **Key Benefits:**
+
 - **Zero-trust**: Database enforces isolation, not application code
 - **Defense in depth**: Works even if application has bugs
 - **Audit-friendly**: Policies are visible in database schema
@@ -100,6 +103,7 @@ psql multi_tenant_saas < schema.sql
 ```
 
 The schema creates:
+
 - 2 sample organizations (Acme Corporation, Beta Industries)
 - 5 sample users (alice@acme.com, bob@acme.com, etc.)
 - 3 sample projects
@@ -113,6 +117,7 @@ python main.py
 ```
 
 The server starts on http://localhost:8000 with:
+
 - **GraphQL Playground**: http://localhost:8000/graphql
 - **Registration**: POST http://localhost:8000/auth/register
 - **Login**: POST http://localhost:8000/auth/login
@@ -137,6 +142,7 @@ curl -X POST http://localhost:8000/auth/register \
 ```
 
 Response:
+
 ```json
 {
   "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -166,6 +172,7 @@ curl -X POST http://localhost:8000/auth/login \
 ```
 
 Response includes JWT token with tenant context:
+
 ```json
 {
   "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -208,6 +215,7 @@ query CurrentContext {
 ```
 
 **Set Authorization Header:**
+
 ```
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc...
 ```
@@ -239,6 +247,7 @@ query ListProjects {
 ```
 
 **RLS in Action:**
+
 - User from "Acme Corporation" sees only Acme's projects
 - User from "Beta Industries" sees only Beta's projects
 - Impossible to query across tenants
@@ -313,6 +322,7 @@ mutation CreateProject {
 ```
 
 **CASCADE Effect:**
+
 - Returns the new project
 - Automatically updates `organizationStats` (activeProjects count)
 - Client cache invalidated for organization stats
@@ -338,6 +348,7 @@ mutation CreateTask {
 ```
 
 **CASCADE Effect:**
+
 - Returns the new task
 - Automatically updates parent project's task list
 - Client cache invalidated for project
@@ -358,6 +369,7 @@ mutation UpdateTaskStatus {
 ```
 
 **CASCADE Effect:**
+
 - Returns the updated task
 - Updates `organizationStats` (completedTasks count)
 - Logs audit trail entry
@@ -407,6 +419,7 @@ async def set_tenant_context(info) -> None:
 ```
 
 **Result:**
+
 - All queries automatically filtered by `organization_id`
 - Impossible to leak data across tenants
 - Works even if developer forgets to add `WHERE organization_id = ...`
@@ -425,6 +438,7 @@ app = create_fraiseql_app(
 ```
 
 **Compliance features:**
+
 - All mutations logged to `tb_audit_log`
 - IP address and user agent tracking
 - Changes tracked (old/new values)
@@ -433,6 +447,7 @@ app = create_fraiseql_app(
 ### 3. JWT Authentication
 
 **Token payload:**
+
 ```json
 {
   "user_id": "11111111-1111-1111-1111-111111111112",
@@ -443,6 +458,7 @@ app = create_fraiseql_app(
 ```
 
 **Tenant context automatically set:**
+
 - Extracted from JWT by middleware
 - Set as PostgreSQL session variable
 - RLS policies use this variable
@@ -451,12 +467,14 @@ app = create_fraiseql_app(
 ### 4. Role-Based Access Control (RBAC)
 
 **Roles:**
+
 - `owner` - Full access, can manage billing and team
 - `admin` - Full access except billing
 - `member` - Read/write access to resources
 - `readonly` - Read-only access
 
 **Example policy (to add):**
+
 ```python
 @fraiseql.mutation
 @requires_role("owner", "admin")
@@ -510,6 +528,7 @@ All tables follow the trinity pattern:
 ### Computed Views
 
 **`tv_project`** - Projects with owner details (denormalized):
+
 ```sql
 CREATE VIEW tv_project AS
 SELECT
@@ -524,6 +543,7 @@ JOIN tb_user u ON p.owner_id = u.id;
 ```
 
 **`tv_task`** - Tasks with project and assigned user details (denormalized):
+
 ```sql
 CREATE VIEW tv_task AS
 SELECT
@@ -536,6 +556,7 @@ LEFT JOIN tb_user u ON t.assigned_to = u.id;
 ```
 
 **`tv_organization`** - Organizations with real-time statistics:
+
 ```sql
 CREATE VIEW tv_organization AS
 SELECT
@@ -659,6 +680,7 @@ RATE_LIMIT_PER_ORG=1000  # requests per hour per organization
 ### Performance Optimization
 
 **1. Add database indexes for tenant-scoped queries:**
+
 ```sql
 -- Optimize tenant + created_at queries
 CREATE INDEX idx_project_org_created
@@ -670,6 +692,7 @@ CREATE INDEX idx_task_org_status
 ```
 
 **2. Use materialized views for expensive aggregations:**
+
 ```sql
 -- Pre-compute expensive aggregations
 CREATE MATERIALIZED VIEW mv_organization_stats AS
@@ -680,6 +703,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_organization_stats;
 ```
 
 **3. Enable connection pooling:**
+
 ```python
 # In production, use connection pool
 from asyncpg import create_pool
@@ -704,6 +728,7 @@ pool = await create_pool(
 ### Why RLS Over Application-Level Filtering?
 
 **Application-level filtering:**
+
 ```python
 # ❌ Easy to make mistakes
 projects = await db.find("projects", where={"organization_id": tenant_id})
@@ -716,6 +741,7 @@ projects = await db.find("projects")  # Data leak!
 ```
 
 **RLS (database-level):**
+
 ```python
 # ✅ Impossible to forget
 projects = await db.find("projects")  # Automatically filtered
@@ -730,6 +756,7 @@ projects = await db.find("projects")  # Automatically filtered
 ### When to Use RLS
 
 **✅ Use RLS when:**
+
 - Building multi-tenant SaaS application
 - Handling sensitive data (PII, financial, health)
 - Compliance requirements (GDPR, HIPAA, SOC 2)
@@ -737,6 +764,7 @@ projects = await db.find("projects")  # Automatically filtered
 - Want database-enforced isolation
 
 **⚠️ Consider alternatives when:**
+
 - Simple single-tenant application
 - All users see same data (no isolation)
 - Need complex cross-tenant analytics (RLS adds overhead)
@@ -745,11 +773,13 @@ projects = await db.find("projects")  # Automatically filtered
 ### Performance Considerations
 
 RLS has minimal performance impact when:
+
 - Proper indexes on `organization_id`
 - Queries naturally filter by tenant
 - Using PostgreSQL 12+ (optimized RLS)
 
 **Benchmark (100k projects across 1000 tenants):**
+
 ```
 Without RLS: 2.3ms avg query time
 With RLS: 2.4ms avg query time (<5% overhead)

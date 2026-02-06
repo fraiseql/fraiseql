@@ -184,6 +184,7 @@ podAnnotations:
 ```
 
 Metrics exposed:
+
 - `graphql_requests_total` - Total GraphQL requests
 - `graphql_request_duration_seconds` - Request latency histogram
 - `database_connections_total` - DB connection pool stats

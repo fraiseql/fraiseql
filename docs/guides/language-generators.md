@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Language Generators
 description: - GraphQL fundamentals (types, fields, queries, mutations, resolvers)
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

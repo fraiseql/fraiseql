@@ -27,6 +27,7 @@ This guide provides recommendations for effectively using GraphQL Cascade in you
 | Create invoice (update account balance) | ✅ YES | Financial side effects critical for UI |
 
 **Rule of Thumb**:
+
 - **Use CASCADE** when side effects affect entities the client cares about
 - **Skip CASCADE** for simple CRUD or server-side operations
 
@@ -34,9 +35,10 @@ This guide provides recommendations for effectively using GraphQL Cascade in you
 
 ## When to Use Cascade
 
-### ✅ Request CASCADE When:
+### ✅ Request CASCADE When
 
 **You Need Cache Updates**
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -50,6 +52,7 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 Use CASCADE when your client needs to update its cache based on side effects.
 
 **You're Using Apollo Client or Similar**
@@ -58,9 +61,10 @@ CASCADE works seamlessly with Apollo Client's automatic cache updates.
 **You Have Complex Mutations**
 Mutations that affect multiple entities benefit from CASCADE for consistency.
 
-### ❌ Don't Request CASCADE When:
+### ❌ Don't Request CASCADE When
 
 **Simple Display-Only Mutations**
+
 ```graphql
 mutation UpdateUserPreference($input: PreferenceInput!) {
   updatePreference(input: $input) {
@@ -108,6 +112,7 @@ This reduces payload size while still getting needed side effect information.
 ### ✅ Good Candidates for Cascade
 
 **Multi-Entity Mutations**
+
 ```sql
 -- Creating a post updates both post and user entities
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
@@ -136,6 +141,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **List Invalidation Requirements**
+
 ```sql
 -- New post requires invalidating post lists
 '_cascade', app.build_cascade(
@@ -150,6 +156,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Complex Business Logic**
+
 - Order placement updating inventory, user balance, and order history
 - User following updating follower counts and feed timelines
 - Comment creation updating post stats and notification counts
@@ -157,6 +164,7 @@ $$ LANGUAGE plpgsql;
 ### ❌ When to Skip Cascade
 
 **Single Entity Updates**
+
 ```python
 # Simple preference update - no cascade needed
 @mutation  # Not enable_cascade=True
@@ -167,11 +175,13 @@ class UpdateUserPreferences:
 ```
 
 **Frequent, Independent Updates**
+
 - Real-time cursor position updates
 - Typing indicators
 - Presence status changes
 
 **Large, Infrequent Operations**
+
 - Bulk imports/exports
 - Database migrations
 - Administrative operations
@@ -196,6 +206,7 @@ mutation UpdateUserPreference($input: PreferenceInput!) {
 ```
 
 **Response** (minimal payload):
+
 ```json
 {
   "data": {
@@ -243,12 +254,14 @@ class UpdateUserPreference:
 ```
 
 **Benefits**:
+
 - ✅ **Smaller payload**: ~50-80% reduction vs CASCADE response
 - ✅ **Faster response**: No CASCADE tracking overhead
 - ✅ **Lower bandwidth**: Critical for mobile clients
 - ✅ **Simpler debugging**: Less data to inspect
 
 **Use this pattern for**:
+
 - User preferences/settings
 - Simple status toggles
 - Single-field updates
@@ -261,6 +274,7 @@ class UpdateUserPreference:
 ### Entity Selection Principles
 
 **Include All Affected Entities**
+
 ```sql
 -- GOOD: Include both post and author
 updated => jsonb_build_array(
@@ -275,11 +289,13 @@ updated => jsonb_build_array(
 ```
 
 **Use Appropriate Operations**
+
 - `CREATED`: New entities added to the system
 - `UPDATED`: Existing entities modified
 - `DELETED`: Entities removed (use `deleted` array)
 
 **Keep Entity Data Complete**
+
 ```sql
 -- GOOD: Complete entity data
 CREATE VIEW v_post AS
@@ -304,6 +320,7 @@ jsonb_build_object(
 ### Invalidation Strategies
 
 **Query-Specific Invalidations**
+
 ```sql
 -- Invalidate specific query patterns
 invalidations => jsonb_build_array(
@@ -315,11 +332,13 @@ invalidations => jsonb_build_array(
 ```
 
 **Scope Options**
+
 - `PREFIX`: Invalidate queries starting with the name (e.g., `posts`, `postsConnection`)
 - `EXACT`: Invalidate only exact query name matches
 - `SUFFIX`: Invalidate queries ending with the name (less common)
 
 **Strategic Invalidation**
+
 ```sql
 -- For new posts: invalidate list queries but not individual post queries
 invalidations => jsonb_build_array(
@@ -339,6 +358,7 @@ invalidations => jsonb_build_array(
 ### Payload Size Management
 
 **Keep Cascade Payloads Reasonable**
+
 ```sql
 -- GOOD: Essential entities only
 -- Post creation affects: Post + Author (2 entities)
@@ -348,12 +368,14 @@ invalidations => jsonb_build_array(
 ```
 
 **Monitor Payload Sizes**
+
 ```python
 # Track cascade payload sizes in production
 cascade_size = Histogram('fraiseql_cascade_payload_bytes', 'Cascade payload size')
 ```
 
 **Large Cascade Thresholds**
+
 - **Small**: < 1KB (most mutations)
 - **Medium**: 1-10KB (complex business logic)
 - **Large**: > 10KB (review necessity)
@@ -361,6 +383,7 @@ cascade_size = Histogram('fraiseql_cascade_payload_bytes', 'Cascade payload size
 ### Client Cache Efficiency
 
 **Prefer Entity Updates Over Invalidations**
+
 ```sql
 -- GOOD: Update specific entities
 updated => jsonb_build_array(
@@ -374,6 +397,7 @@ invalidations => jsonb_build_array(
 ```
 
 **Batch Related Updates**
+
 ```sql
 -- GOOD: Single cascade with multiple updates
 updated => jsonb_build_array(
@@ -388,6 +412,7 @@ updated => jsonb_build_array(
 ### Cascade on Error Responses
 
 **Include Cascade on Partial Success**
+
 ```sql
 -- If some operations succeeded but validation failed
 IF validation_error THEN
@@ -400,6 +425,7 @@ END IF;
 ```
 
 **No Cascade on Complete Failure**
+
 ```sql
 -- If nothing was actually changed
 IF complete_failure THEN
@@ -414,6 +440,7 @@ END IF;
 ### Client Error Handling
 
 **Graceful Cascade Processing**
+
 ```typescript
 const result = await client.mutate({ mutation: CREATE_POST, variables });
 
@@ -430,6 +457,7 @@ if (result.data?.createPost.cascade) {
 ```
 
 **Validate Cascade Structure**
+
 ```typescript
 function applyCascadeToCache(cascade: CascadeData) {
     // Validate structure before processing
@@ -446,6 +474,7 @@ function applyCascadeToCache(cascade: CascadeData) {
 ### Entity View Patterns
 
 **Consistent View Naming**
+
 ```sql
 -- Use v_ prefix for cascade views
 CREATE VIEW v_user AS SELECT id, jsonb_build_object(...) as data FROM tb_user;
@@ -454,6 +483,7 @@ CREATE VIEW v_comment AS SELECT id, jsonb_build_object(...) as data FROM tb_comm
 ```
 
 **Complete Entity Data**
+
 ```sql
 -- Include all fields clients typically need
 CREATE VIEW v_post AS
@@ -473,6 +503,7 @@ SELECT id, jsonb_build_object(
 ```
 
 **Performance Considerations**
+
 ```sql
 -- Add indexes for cascade view performance
 CREATE INDEX idx_post_author_id ON tb_post(author_id);
@@ -485,6 +516,7 @@ EXPLAIN ANALYZE SELECT data FROM v_post WHERE id = 'some-uuid';
 ### Helper Function Usage
 
 **Standard Helper Functions**
+
 ```sql
 -- Use consistent helper functions across your application
 CREATE OR REPLACE FUNCTION app.cascade_entity(text, uuid, text, text) RETURNS jsonb;
@@ -493,6 +525,7 @@ CREATE OR REPLACE FUNCTION app.build_cascade(jsonb, jsonb, jsonb, jsonb) RETURNS
 ```
 
 **Custom Helpers for Your Domain**
+
 ```sql
 -- Domain-specific cascade builders
 CREATE OR REPLACE FUNCTION app.cascade_post_creation(uuid, uuid) RETURNS jsonb;
@@ -504,6 +537,7 @@ CREATE OR REPLACE FUNCTION app.cascade_user_update(uuid) RETURNS jsonb;
 ### Apollo Client Best Practices
 
 **Type-Safe Cascade Handling**
+
 ```typescript
 interface CascadeUpdate {
     __typename: string;
@@ -546,6 +580,7 @@ function applyCascade(cache: ApolloCache, cascade: CascadeData) {
 ```
 
 **Optimistic Updates with Cascade**
+
 ```typescript
 const [createPost] = useMutation(CREATE_POST, {
     optimisticResponse: {
@@ -568,6 +603,7 @@ const [createPost] = useMutation(CREATE_POST, {
 ### Error Recovery
 
 **Fallback Strategies**
+
 ```typescript
 function applyCascadeWithFallback(cache: ApolloCache, cascade: CascadeData) {
     try {
@@ -581,6 +617,7 @@ function applyCascadeWithFallback(cache: ApolloCache, cascade: CascadeData) {
 ```
 
 **Partial Failure Handling**
+
 ```typescript
 function applyCascadeRobust(cache: ApolloCache, cascade: CascadeData) {
     let successCount = 0;
@@ -614,6 +651,7 @@ function applyCascadeRobust(cache: ApolloCache, cascade: CascadeData) {
 ### Key Metrics to Track
 
 **Performance Metrics**
+
 ```python
 # Cascade processing time
 cascade_processing_duration = Histogram(
@@ -636,6 +674,7 @@ cascade_entities_total = Counter(
 ```
 
 **Effectiveness Metrics**
+
 ```python
 # Cache hit improvements
 cache_hit_rate = Gauge(
@@ -651,6 +690,7 @@ network_requests_reduced_total = Counter(
 ```
 
 **Error Metrics**
+
 ```python
 # Cascade processing errors
 cascade_errors_total = Counter(
@@ -663,6 +703,7 @@ cascade_errors_total = Counter(
 ### Alerting Rules
 
 **Performance Alerts**
+
 ```yaml
 groups:
   - name: cascade_performance
@@ -685,6 +726,7 @@ groups:
 ```
 
 **Error Alerts**
+
 ```yaml
       - alert: CascadeProcessingErrors
         expr: rate(fraiseql_cascade_errors_total[5m]) > 0.05
@@ -700,6 +742,7 @@ groups:
 ### Unit Tests
 
 **Test Cascade Data Structure**
+
 ```python
 def test_cascade_data_structure():
     cascade = generate_cascade_data()
@@ -716,6 +759,7 @@ def test_cascade_data_structure():
 ```
 
 **Test Helper Functions**
+
 ```sql
 -- Test cascade_entity function
 SELECT app.cascade_entity('Post', '123e4567-e89b-12d3-a456-426614174000', 'CREATED', 'v_post');
@@ -726,6 +770,7 @@ SELECT app.cascade_entity('Post', '123e4567-e89b-12d3-a456-426614174000', 'CREAT
 ### Integration Tests
 
 **End-to-End Cascade Flow**
+
 ```python
 async def test_cascade_end_to_end():
     # Create test data
@@ -736,6 +781,7 @@ async def test_cascade_end_to_end():
 ```
 
 **Error Scenarios**
+
 ```python
 async def test_cascade_with_partial_failure():
     # Test cascade when some updates succeed but others fail
@@ -746,6 +792,7 @@ async def test_cascade_with_partial_failure():
 ### Client Tests
 
 **Apollo Cache Updates**
+
 ```typescript
 it('applies cascade updates to cache', () => {
     const mockCache = new MockApolloCache();
@@ -763,11 +810,13 @@ it('applies cascade updates to cache', () => {
 ### Gradual Adoption
 
 **Start with Low-Risk Mutations**
+
 1. Begin with read-heavy mutations (create operations)
 2. Add cascade to update operations
 3. Finally tackle delete operations
 
 **Feature Flags**
+
 ```python
 # Use environment variables for gradual rollout
 ENABLE_CASCADE = os.getenv('ENABLE_CASCADE', 'false').lower() == 'true'
@@ -780,16 +829,19 @@ class CreatePost:
 ### Rollback Strategies
 
 **Immediate Rollback**
+
 1. Remove `enable_cascade=True` from mutations
 2. Clients gracefully ignore cascade field
 3. Monitor for performance improvements
 
 **Partial Rollback**
+
 1. Keep cascade enabled but reduce scope
 2. Remove complex cascades, keep simple ones
 3. Adjust invalidation strategies
 
 **Full Rollback**
+
 1. Remove all cascade-related code
 2. Drop helper functions (optional)
 3. Revert to traditional cache management
@@ -797,21 +849,25 @@ class CreatePost:
 ## Common Pitfalls
 
 ### Over-Cascading
+
 **Problem**: Including too many entities in cascade
 **Solution**: Include only directly affected entities
 **Impact**: Large payloads, complex client logic
 
 ### Under-Cascading
+
 **Problem**: Missing important entity updates
 **Solution**: Audit all side effects of mutations
 **Impact**: Inconsistent cache state, unnecessary refetches
 
 ### Inconsistent Entity Data
+
 **Problem**: Cascade entity data doesn't match GraphQL schema
 **Solution**: Keep views in sync with GraphQL types
 **Impact**: Client errors, cache corruption
 
 ### Ignoring Performance
+
 **Problem**: Not monitoring cascade impact
 **Solution**: Track metrics and optimize based on data
 **Impact**: Performance degradation, increased costs
@@ -821,6 +877,7 @@ class CreatePost:
 ### Conditional Cascade
 
 **Based on Client Capabilities**
+
 ```sql
 -- Include cascade only for clients that support it
 IF input->>'client_supports_cascade' = 'true' THEN
@@ -838,6 +895,7 @@ END IF;
 ```
 
 **Selective Cascade**
+
 ```sql
 -- Include different cascade data based on operation type
 CASE input->>'operation_type'
@@ -853,6 +911,7 @@ END CASE;
 ### Cascade Composition
 
 **Reusable Cascade Components**
+
 ```sql
 CREATE OR REPLACE FUNCTION app.cascade_user_stats(uuid) RETURNS jsonb;
 CREATE OR REPLACE FUNCTION app.cascade_post_lists(uuid) RETURNS jsonb;

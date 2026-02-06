@@ -16,6 +16,7 @@ Simple keywords indicating successful operations:
 | `deleted` | Entity removed | Success | 200 |
 
 **Example:**
+
 ```sql
 RETURN ('created', 'User created successfully', v_user_id, 'User', v_user_json, ...)::mutation_response;
 ```
@@ -35,6 +36,7 @@ Semantic prefixes indicating operation failures. These map to the Error type in 
 | `failed:` | System/database failure | 500 | `failed:database_error` |
 
 **Examples:**
+
 ```sql
 -- Validation error
 IF v_email IS NULL OR v_email = '' THEN
@@ -61,11 +63,13 @@ Indicates no change was made due to business rules, but it's not an error. Maps 
 | `noop:` | No operation performed | Error | 422 |
 
 **Common noop reasons:**
+
 - `noop:already_exists` - Entity already exists (idempotent operation)
 - `noop:no_changes` - No fields changed
 - `noop:already_deleted` - Entity already soft-deleted
 
 **Example:**
+
 ```sql
 INSERT INTO subscriptions (user_id, plan_id)
 VALUES (v_user_id, v_plan_id)

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: GraphQL Schema Introspection Specification
 description: FraiseQL provides comprehensive control over GraphQL schema introspection through a three-tier policy system. Schema introspection allows clients to query schem
 keywords: ["format", "compliance", "schema", "graphql", "protocol", "specification", "standard"]

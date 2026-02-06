@@ -154,6 +154,7 @@ class ProviderRegistry:
 - Rollback support
 
 **Key Methods**:
+
 ```python
 class BareMetalProvider(BaseProvider):
     """Deploy to bare metal servers via SSH."""
@@ -207,6 +208,7 @@ class BareMetalProvider(BaseProvider):
 **Purpose**: Prevent concurrent deployments to same service
 
 **Implementation**:
+
 ```python
 class DeploymentLock:
     """Lock to prevent concurrent deployments."""
@@ -235,6 +237,7 @@ class DeploymentLock:
 ```
 
 **Usage**:
+
 ```python
 with DeploymentLock(service_name, provider_name):
     result = provider.deploy_service(...)
@@ -259,6 +262,7 @@ with DeploymentLock(service_name, provider_name):
 - Log retrieval
 
 **Key Methods**:
+
 ```python
 class DockerComposeProvider(BaseProvider):
     """Deploy using Docker Compose."""
@@ -327,6 +331,7 @@ class DockerComposeProvider(BaseProvider):
 - Log retrieval from Coolify
 
 **Key Methods**:
+
 ```python
 class CoolifyProvider(BaseProvider):
     """Deploy using Coolify platform."""
@@ -399,6 +404,7 @@ class CoolifyProvider(BaseProvider):
 - DeploymentLock: 6 tests
 
 **Test Patterns**:
+
 ```python
 @pytest.fixture
 def bare_metal_provider():
@@ -446,6 +452,7 @@ def test_bare_metal_pre_flight_check(bare_metal_provider, mock_subprocess):
 ### Update fraises.yaml Format
 
 **Before**:
+
 ```yaml
 fraises:
   my_api:
@@ -457,6 +464,7 @@ fraises:
 ```
 
 **After**:
+
 ```yaml
 fraises:
   my_api:
@@ -484,6 +492,7 @@ fraises:
 ### Add Provider Configuration Table
 
 **Table**: `tb_provider_config`
+
 ```sql
 CREATE TABLE tb_provider_config (
     id TEXT NOT NULL UNIQUE,                    -- Public UUID
@@ -502,6 +511,7 @@ CREATE TABLE tb_provider_config (
 ### Add Deployment Lock Table
 
 **Table**: `tb_deployment_lock`
+
 ```sql
 CREATE TABLE tb_deployment_lock (
     pk_deployment_lock INTEGER PRIMARY KEY,

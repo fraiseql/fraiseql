@@ -45,12 +45,14 @@ This folder contains **everything needed** to implement 3 GraphQL spec complianc
 Three comprehensive plans, one per feature:
 
 #### Plan 1: `implementation-plan-nested-fragments.md`
+
 **Feature:** Nested Field Fragments
 **Effort:** 2-3 hours
 **Complexity:** Low
 **Status:** ✅ Ready
 
 Contains:
+
 - Current state analysis
 - Implementation strategy
 - 9 detailed implementation steps
@@ -61,12 +63,14 @@ Contains:
 - Migration guide
 
 #### Plan 2: `implementation-plan-fragment-cycles.md`
+
 **Feature:** Fragment Cycle Detection
 **Effort:** 3-4 hours
 **Complexity:** Low-Moderate
 **Status:** ✅ Ready
 
 Contains:
+
 - Current state analysis
 - DFS algorithm explanation
 - 6 detailed implementation steps
@@ -77,12 +81,14 @@ Contains:
 - Edge case handling
 
 #### Plan 3: `implementation-plan-view-directives.md`
+
 **Feature:** View/Metadata Directives
 **Effort:** 2-4 hours
 **Complexity:** Low-Moderate
 **Status:** ✅ Ready
 
 Contains:
+
 - Current state analysis
 - Directive definitions (4 types)
 - 7 detailed implementation steps
@@ -237,11 +243,13 @@ All tests included in implementation plans.
 ## 🔍 Finding Things
 
 ### By Feature
+
 - Nested Fragments → `implementation-plan-nested-fragments.md`
 - Fragment Cycles → `implementation-plan-fragment-cycles.md`
 - View Directives → `implementation-plan-view-directives.md`
 
 ### By Topic
+
 - **Effort/Timeline:** `IMPLEMENTATION-ROADMAP.md` (section: Implementation Timeline)
 - **Code changes:** Each plan has "Part 4: Complete Code Changes"
 - **Tests:** Each plan has "Part 5: Test Suite"
@@ -249,6 +257,7 @@ All tests included in implementation plans.
 - **Risk:** `IMPLEMENTATION-ROADMAP.md` (section: Risk Assessment)
 
 ### By File
+
 - `src/fraiseql/core/fragment_resolver.py` → Nested Fragments plan
 - `src/fraiseql/core/fragment_validator.py` → Cycles plan (NEW)
 - `src/fraiseql/gql/schema_directives.py` → Directives plan (NEW)
@@ -258,15 +267,19 @@ All tests included in implementation plans.
 ## 🎓 Learning Resources
 
 ### Understanding Fragment Resolution
+
 - See: `implementation-plan-nested-fragments.md`, Part 1-2
 
 ### Understanding Cycle Detection
+
 - See: `implementation-plan-fragment-cycles.md`, Part 9 (Algorithm Explanation)
 
 ### Understanding Directives
+
 - See: `implementation-plan-view-directives.md`, Part 1-2
 
 ### Understanding FraiseQL's View Architecture
+
 - See: `QA-REVIEW-graphql-spec-gaps-final.md`, Part 2 (Architectural Misunderstanding)
 
 ---
@@ -340,18 +353,23 @@ implementation-plan-view-directives.md
 ## 📞 Support
 
 ### Problem: Don't understand the architecture
+
 → Read: `QA-REVIEW-graphql-spec-gaps-final.md`, Part 2-3
 
 ### Problem: Don't know how to start
+
 → Read: `IMPLEMENTATION-ROADMAP.md`, "Quick Start" section
 
 ### Problem: Stuck on implementation
+
 → Read: Relevant plan's "Part 3: Detailed Implementation Steps"
 
 ### Problem: Tests not passing
+
 → Read: Relevant plan's "Part 5: Test Suite"
 
 ### Problem: Need to understand algorithm
+
 → Read: Relevant plan's later parts (usually Part 9 or 10)
 
 ---
@@ -359,6 +377,7 @@ implementation-plan-view-directives.md
 ## ✨ What You're Getting
 
 ### Documentation
+
 ✅ Complete strategy (QA review)
 ✅ Complete roadmap (timeline + overview)
 ✅ 3 implementation plans (100+ pages total)
@@ -366,17 +385,20 @@ implementation-plan-view-directives.md
 ✅ Complete code examples (no guessing)
 
 ### Code
+
 ✅ New files needed (fully specified)
 ✅ Modified files (diff provided)
 ✅ Complete implementations (copy-paste ready)
 
 ### Testing
+
 ✅ Unit tests (45+ tests)
 ✅ Integration tests (20+ tests)
 ✅ Performance tests (5+ tests)
 ✅ Success criteria (detailed checklist)
 
 ### Support
+
 ✅ Step-by-step instructions
 ✅ Risk analysis
 ✅ Troubleshooting guidance

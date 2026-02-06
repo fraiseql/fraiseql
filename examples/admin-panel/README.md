@@ -5,6 +5,7 @@ Production-ready admin panel example demonstrating how to build internal tools w
 ## What This Example Demonstrates
 
 This is a **complete admin panel application** showing:
+
 - ✅ Customer support dashboard with search and account management
 - ✅ Operations dashboard for order management and fulfillment
 - ✅ Sales metrics and pipeline management
@@ -16,9 +17,11 @@ This is a **complete admin panel application** showing:
 ## Use Cases
 
 ### Customer Support Dashboard
+
 **Problem:** Support teams need quick access to customer information without direct database access.
 
 **Solution:** FraiseQL provides read-only views with safe search capabilities:
+
 ```graphql
 query SearchCustomers($query: String!, $status: String) {
   customerSearch(query: $query, status: $status) {
@@ -38,9 +41,11 @@ query SearchCustomers($query: String!, $status: String) {
 ```
 
 ### Operations Dashboard
+
 **Problem:** Operations teams need visibility into orders, inventory, and fulfillment status.
 
 **Solution:** Real-time PostgreSQL views provide live production data:
+
 ```graphql
 query OperationsMetrics {
   operationsMetrics {
@@ -61,9 +66,11 @@ query OperationsMetrics {
 ```
 
 ### Sales Dashboard
+
 **Problem:** Sales teams need real-time pipeline visibility and deal management.
 
 **Solution:** Live metrics with mutation support for deal updates:
+
 ```graphql
 query SalesDashboard {
   salesMetrics {
@@ -202,6 +209,7 @@ python main.py
 ```
 
 The admin panel will be available at:
+
 - **GraphQL API:** http://localhost:8000/graphql
 - **GraphQL Playground:** http://localhost:8000/graphql
 - **API Documentation:** http://localhost:8000/docs
@@ -211,6 +219,7 @@ The admin panel will be available at:
 ### Customer Support Tools
 
 #### Search Customers
+
 ```graphql
 query SearchCustomers {
   customerSearch(query: "john@example.com") {
@@ -238,6 +247,7 @@ query SearchCustomers {
 ```
 
 #### View Support Tickets
+
 ```graphql
 query OpenTickets {
   supportTickets(status: "open", limit: 50) {
@@ -253,6 +263,7 @@ query OpenTickets {
 ```
 
 #### Update Customer Account
+
 ```graphql
 mutation UpdateCustomer($id: UUID!, $input: CustomerUpdateInput!) {
   updateCustomerStatus(
@@ -270,6 +281,7 @@ mutation UpdateCustomer($id: UUID!, $input: CustomerUpdateInput!) {
 ### Operations Dashboard
 
 #### Real-Time Metrics
+
 ```graphql
 query OperationsDashboard {
   operationsMetrics {
@@ -295,6 +307,7 @@ query OperationsDashboard {
 ```
 
 #### Order Management
+
 ```graphql
 query OrdersNeedingAttention {
   orders(
@@ -322,6 +335,7 @@ query OrdersNeedingAttention {
 ```
 
 #### Update Order Status
+
 ```graphql
 mutation UpdateOrderStatus($orderId: UUID!, $status: String!, $notes: String) {
   updateOrderStatus(
@@ -345,6 +359,7 @@ mutation UpdateOrderStatus($orderId: UUID!, $status: String!, $notes: String) {
 ### Sales Dashboard
 
 #### Sales Metrics
+
 ```graphql
 query SalesTeamMetrics {
   salesMetrics {
@@ -376,6 +391,7 @@ query SalesTeamMetrics {
 ```
 
 #### Deal Management
+
 ```graphql
 query MyPipeline($repId: UUID!) {
   deals(
@@ -399,6 +415,7 @@ query MyPipeline($repId: UUID!) {
 ```
 
 #### Update Deal
+
 ```graphql
 mutation MoveDealStage($dealId: UUID!, $newStage: String!, $notes: String) {
   updateDealStage(
@@ -459,6 +476,7 @@ ADMIN_ROLES = {
 ### 2. Audit Trail for All Actions
 
 Every mutation automatically logs:
+
 - Who performed the action (admin user)
 - What action was performed
 - What entity was modified
@@ -504,6 +522,7 @@ async def update_customer_status(
 ### 3. Read-Only Views by Default
 
 All queries use database views that:
+
 - Filter out sensitive data (passwords, tokens, etc.)
 - Aggregate related data for efficiency
 - Provide pre-computed metrics
@@ -653,6 +672,7 @@ async def update_customer_status(info, customer_id: UUID, new_status: str):
 ### Dashboard Metrics
 
 Monitor admin panel usage:
+
 - Most common queries
 - Slowest operations
 - Most active admin users
@@ -665,6 +685,7 @@ Monitor admin panel usage:
 **Problem:** Customer search taking >2 seconds with 100k+ users
 
 **Solution:** Add full-text search index
+
 ```sql
 -- Add GIN index for text search
 ALTER TABLE users ADD COLUMN search_vector tsvector
@@ -684,6 +705,7 @@ WHERE search_vector @@ to_tsquery('english', 'john');
 **Problem:** admin_audit_log table using too much disk space
 
 **Solution:** Partition by month and archive old data
+
 ```sql
 -- Create partitioned table
 CREATE TABLE admin_audit_log_partitioned (

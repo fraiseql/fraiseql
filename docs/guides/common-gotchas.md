@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Common Gotchas & Pitfalls
 description: Learn from common mistakes and pitfalls when using FraiseQL. Each gotcha includes diagnosis steps and solutions.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

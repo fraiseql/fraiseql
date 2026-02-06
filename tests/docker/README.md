@@ -15,6 +15,7 @@ docker compose ps
 ```
 
 You should see:
+
 ```
 NAME                 STATUS
 fraiseql-postgres    Up (healthy)
@@ -58,6 +59,7 @@ All databases use test credentials for development:
 - **Database**: fraiseql
 
 **Connection String**:
+
 ```
 postgresql://test_user:test_password@localhost:5433/fraiseql
 ```
@@ -73,6 +75,7 @@ postgresql://test_user:test_password@localhost:5433/fraiseql
 - **Root Password**: root_password
 
 **Connection String**:
+
 ```
 mysql://test_user:test_password@localhost:3306/fraiseql
 ```
@@ -85,6 +88,7 @@ mysql://test_user:test_password@localhost:3306/fraiseql
 - **Database**: fraiseql
 
 **Connection String**:
+
 ```
 mssql://sa:SqlServer@123@localhost:1433/fraiseql
 ```
@@ -106,6 +110,7 @@ docker compose logs -f sqlserver
 ### Connect to Databases Directly
 
 **PostgreSQL**:
+
 ```bash
 docker compose exec postgres psql -U test_user -d fraiseql
 # Or from host if psql installed:
@@ -113,6 +118,7 @@ psql postgresql://test_user:test_password@localhost:5432/fraiseql
 ```
 
 **MySQL**:
+
 ```bash
 docker compose exec mysql mysql -u test_user -p test_password -D fraiseql
 # Or from host if mysql client installed:
@@ -120,6 +126,7 @@ mysql -h localhost -u test_user -p test_password fraiseql
 ```
 
 **SQL Server**:
+
 ```bash
 docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P SqlServer@123
 # Or use Azure Data Studio / DBeaver with connection string above
@@ -243,11 +250,13 @@ sleep 60 && docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S local
 ### Tests Still Failing
 
 1. Ensure all services show `healthy`:
+
    ```bash
    docker compose ps
    ```
 
 2. Test connectivity directly:
+
    ```bash
    docker compose exec postgres psql -U test_user -d fraiseql -c "SELECT 1;"
    docker compose exec mysql mysql -u test_user -p test_password -e "SELECT 1;"
@@ -255,6 +264,7 @@ sleep 60 && docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S local
    ```
 
 3. Check test-specific database creation:
+
    ```bash
    # Tests create test schemas dynamically
    # You can check if they're being created in logs
@@ -262,6 +272,7 @@ sleep 60 && docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S local
    ```
 
 4. Run with verbose output:
+
    ```bash
    cargo test --all-features -- --nocapture --test-threads=1
    ```

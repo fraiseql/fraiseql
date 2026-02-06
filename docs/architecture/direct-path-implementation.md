@@ -13,14 +13,17 @@ GraphQL Query → FastAPI → Parser → SQL → JSONB → Rust → HTTP
 ## Pipeline Components
 
 ### 1. GraphQL Query Parser
+
 **Location**: `src/fraiseql/core/direct_query_parser.py`
 
 Extracts essential information from GraphQL queries:
+
 - Field name (e.g., `user`, `users`)
 - Arguments (e.g., `id`, `where`, `limit`, `offset`)
 - Field paths for projection (e.g., `[["id"], ["firstName"], ["email"]]`)
 
 **Example**:
+
 ```python
 parse_graphql_query_simple('query { user(id: "123") { id firstName } }')
 # Returns:
@@ -32,6 +35,7 @@ parse_graphql_query_simple('query { user(id: "123") { id firstName } }')
 ```
 
 ### 2. Direct Path Router
+
 **Location**: `src/fraiseql/fastapi/routers.py` (lines 315-381)
 
 Intercepts GraphQL requests and routes them through the direct path:
@@ -68,6 +72,7 @@ return Response(content=bytes(result_bytes), media_type="application/json")
 ```
 
 ### 3. SQL Generation
+
 **Location**: `src/fraiseql/db.py`
 
 Generates optimized SQL for JSONB tables:
@@ -89,9 +94,11 @@ LIMIT 10 OFFSET 20
 **Key Enhancement**: Added `jsonb_column` parameter to WHERE clause builders to use JSONB path operators (`data->>'field'`) instead of column names.
 
 ### 4. Rust Transformation
+
 **Location**: Rust binary (fraiseql-rs)
 
 Processes JSONB data and returns complete GraphQL response:
+
 - **Field projection**: Filters to requested fields only
 - **camelCase conversion**: `first_name` → `firstName`
 - **`__typename` injection**: Adds GraphQL type information
@@ -108,6 +115,7 @@ The direct path respects the trinity pattern:
 - **Type**: `{Entity}` (GraphQL type) - Python class with `@fraiseql_type`
 
 **Example**:
+
 ```sql
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,
@@ -130,6 +138,7 @@ class User:
 ## Performance Benefits
 
 The direct path eliminates:
+
 - ❌ GraphQL resolver overhead
 - ❌ Python JSON parsing
 - ❌ Python field extraction

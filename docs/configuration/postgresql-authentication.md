@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: PostgreSQL Authentication Guide
 description: FraiseQL requires secure authentication with PostgreSQL using SCRAM-based mechanisms. This guide covers supported authentication methods and version requirement
 keywords: []

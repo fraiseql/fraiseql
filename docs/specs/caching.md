@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Caching Specification
 description: Caching in FraiseQL is a **comprehensive, deterministic system** that improves performance while maintaining **absolute data consistency** through automatic inv
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

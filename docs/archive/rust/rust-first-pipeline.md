@@ -11,12 +11,14 @@ PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (cam
 ```
 
 **Key Benefits:**
+
 - **7-10x faster** than Python string operations
 - **Zero-copy** from database to HTTP response
 - **Automatic** camelCase transformation and __typename injection
 - **Always active** - no configuration required
 
 **See Also:**
+
 - [Performance Benchmarks](../../benchmarks/) - Quantified performance improvements
 - [Blog API Example](../../examples/blog_api/) - Production Rust pipeline usage
 
@@ -172,6 +174,7 @@ field_paths = [["id"], ["firstName"]]
 ### From Multi-Mode System
 
 **Before (v0.11.4 and earlier):**
+
 ```
 NORMAL: Python string ops → JSON → HTTP
 PASSTHROUGH: Direct JSONB → HTTP
@@ -179,6 +182,7 @@ TURBO: Cached templates → Python ops → HTTP
 ```
 
 **After (v1.0.0+):**
+
 ```
 ALL: PostgreSQL → Rust Pipeline → HTTP
 ```
@@ -224,14 +228,17 @@ return await repo.find_rust("users", "users", info)
 ### Common Issues
 
 **"fraiseql-rs not found"**
+
 - Install: `pip install fraiseql[rust]`
 - Verify: `python -c "import fraiseql_rs"`
 
 **Slow performance**
+
 - Check: `repo.find_rust()` vs `repo.find()`
 - Verify: Rust pipeline methods in use
 
 **Memory growth**
+
 - Monitor: Rust buffer allocations
 - Check: Large result sets causing growth
 
@@ -564,7 +571,7 @@ The Rust pipeline provides significant performance improvements:
 
 ## Rust Implementation Details
 
-### fraiseql-rs additions:
+### fraiseql-rs additions
 
 ```rust
 // src/graphql_response.rs
@@ -648,6 +655,7 @@ fn fraiseql_rs(_py: Python, m: &PyModule) -> PyResult<()> {
 ### Overall Request Latency
 
 Current:
+
 ```
 DB query:        4000μs
 Python ops:       310μs  ← ELIMINATED
@@ -657,6 +665,7 @@ TOTAL:           4510μs
 ```
 
 With Rust Pipeline:
+
 ```
 DB query:        4000μs
 Rust ops:          13μs  ← 24x FASTER
@@ -666,6 +675,7 @@ TOTAL:           4213μs  (7% improvement)
 ```
 
 **For large result sets (1000+ rows):**
+
 ```
 Current:  4000μs (DB) + 3100μs (Python) + 200μs (HTTP) = 7300μs
 Rust:     4000μs (DB) +   25μs (Rust)   + 200μs (HTTP) = 4225μs
@@ -678,27 +688,32 @@ Rust:     4000μs (DB) +   25μs (Rust)   + 200μs (HTTP) = 4225μs
 ## Benefits Summary
 
 ### 1. **Performance: 7-42% overall improvement**
+
    - Small results (100 rows): 7% faster
    - Large results (1000+ rows): 42% faster
    - Critical path now 24x faster
 
 ### 2. **Architecture: True Zero-Copy Path**
+
    ```
    PostgreSQL → Rust → HTTP
    (no Python string operations)
    ```
 
 ### 3. **Simplicity: Less Code**
+
    - Eliminated `raw_json_executor.py` complexity
    - Single Rust function call
    - No RawJSONResult wrapper needed
 
 ### 4. **Reliability: Rust Safety**
+
    - No Python string escaping bugs
    - Compile-time correctness
    - Better error messages
 
 ### 5. **Memory: Fewer Allocations**
+
    - No intermediate Python strings
    - Rust pre-allocates buffers
    - No Python GC pressure
@@ -712,11 +727,13 @@ Rust:     4000μs (DB) +   25μs (Rust)   + 200μs (HTTP) = 4225μs
 The Rust pipeline is the exclusive execution path for all FraiseQL queries in v1.0.0+. All repository methods automatically use the Rust pipeline for optimal performance.
 
 ### Files
+
 - `fraiseql_rs/` - Rust crate with GraphQL response building
 - `src/fraiseql/core/rust_pipeline.py` - Python integration layer
 - `src/fraiseql/db.py` - Updated repository with Rust pipeline support
 
 ### Integration
+
 - FastAPI automatically detects `RustResponseBytes` and sends directly to HTTP
 - Zero configuration required - works automatically
 - Backward compatible with existing GraphQL schemas

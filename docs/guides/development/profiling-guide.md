@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Performance Profiling & Optimization Guide
 description: This guide covers performance profiling, benchmarking, and optimization techniques for FraiseQL.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "performance", "tutorial"]

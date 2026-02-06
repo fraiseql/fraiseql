@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: PostgreSQL SCRAM Authentication
 description: FraiseQL supports SCRAM (Salted Challenge Response Authentication Mechanism) authentication for secure connections to PostgreSQL databases.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

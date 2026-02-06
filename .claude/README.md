@@ -28,7 +28,7 @@ These historical files document the development journey but are not needed for c
 
 ## 🎯 Quick Navigation
 
-### I want to...
+### I want to
 
 **...understand the architecture**
 → Read [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md)
@@ -194,18 +194,23 @@ pub trait DatabaseAdapter: Send + Sync {
 ## 🎯 Architecture Decisions (Quick Reference)
 
 ### Why Generic `Server<A>` Instead of Concrete Type?
+
 ✅ Type safety, easy testing, swappable databases
 
 ### Why Separate fraiseql-observers Crate?
+
 ✅ Large feature (9K LOC), many dependencies, can be disabled
 
 ### Why Remove RuntimeServer?
+
 ✅ Dead code, maintaining two servers was confusing, Server<A> does everything
 
 ### Why Feature Flags?
+
 ✅ Users only compile what they need, reduces binary size
 
 ### Why Trait-Based Design?
+
 ✅ Mockable dependencies, easy testing, clear contracts
 
 ---

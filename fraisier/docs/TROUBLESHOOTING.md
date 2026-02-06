@@ -40,6 +40,7 @@
 **Solutions**:
 
 1. **Check if Fraisier is running**:
+
 ```bash
 # Local
 curl http://localhost:8000/health
@@ -53,6 +54,7 @@ docker logs fraisier
 ```
 
 2. **Verify hostname/port**:
+
 ```bash
 # Test connectivity
 nc -zv localhost 8000
@@ -63,6 +65,7 @@ nslookup fraisier.example.com
 ```
 
 3. **Check firewall**:
+
 ```bash
 # On server
 sudo ufw status
@@ -73,6 +76,7 @@ telnet localhost 8000
 ```
 
 4. **Verify SSL certificate**:
+
 ```bash
 # Check certificate
 openssl s_client -connect fraisier.example.com:8443
@@ -82,6 +86,7 @@ curl -vI https://fraisier.example.com
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier --version
 fraisier config show
@@ -109,12 +114,14 @@ fraisier list
 **Solutions**:
 
 1. **Get new token**:
+
 ```bash
 fraisier auth login
 fraisier auth token
 ```
 
 2. **Verify token format**:
+
 ```bash
 # Should be Bearer token
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/health
@@ -124,12 +131,14 @@ echo $FRAISIER_TOKEN
 ```
 
 3. **Check token expiration**:
+
 ```bash
 # Decode JWT token (requires jq)
 echo $FRAISIER_TOKEN | cut -d'.' -f2 | base64 -d | jq .exp
 ```
 
 4. **Re-login**:
+
 ```bash
 fraisier auth logout
 fraisier auth login
@@ -157,6 +166,7 @@ fraisier auth login
 **Solutions**:
 
 1. **Check deployment status**:
+
 ```bash
 fraisier status my_api production
 fraisier logs dep_00001
@@ -166,6 +176,7 @@ curl http://localhost:8000/api/v1/deployments/dep_00001
 ```
 
 2. **Check provider health**:
+
 ```bash
 # SSH access (for bare metal)
 ssh deploy@prod-1.example.com "systemctl status my-api"
@@ -178,6 +189,7 @@ curl https://coolify.example.com/api/system/status
 ```
 
 3. **Cancel and retry**:
+
 ```bash
 fraisier cancel dep_00001
 # Wait 30 seconds
@@ -185,6 +197,7 @@ fraisier deploy my_api production --wait
 ```
 
 4. **Check resource usage**:
+
 ```bash
 # Memory, CPU, disk
 fraisier metrics
@@ -197,6 +210,7 @@ ssh deploy@prod-1.example.com "free -h && df -h"
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier history my_api production --status pending
 fraisier logs dep_00001 --level error
@@ -223,6 +237,7 @@ curl http://localhost:9090/api/v1/query?query=fraisier_active_deployments
 **Solutions**:
 
 1. **Verify application is running**:
+
 ```bash
 # Bare metal
 ssh deploy@prod-1.example.com "ps aux | grep myapp"
@@ -233,6 +248,7 @@ docker logs api
 ```
 
 2. **Test health check manually**:
+
 ```bash
 # From client
 curl -v http://localhost:8000/health
@@ -245,6 +261,7 @@ docker-compose exec api curl http://localhost:8000/health
 ```
 
 3. **Check port binding**:
+
 ```bash
 # Verify port is listening
 netstat -tlnp | grep 8000
@@ -256,6 +273,7 @@ ssh deploy@prod-1.example.com "netstat -tlnp | grep 8000"
 ```
 
 4. **Review application logs**:
+
 ```bash
 # Bare metal
 ssh deploy@prod-1.example.com "sudo journalctl -u my-api -f"
@@ -268,6 +286,7 @@ docker-compose logs -f api
 ```
 
 5. **Increase health check timeout**:
+
 ```yaml
 # In fraises.yaml
 health_check:
@@ -277,6 +296,7 @@ health_check:
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier logs dep_00001 --level error
 fraisier logs dep_00001 --component health_check
@@ -304,6 +324,7 @@ curl -v http://localhost:8000/health
 **Solutions**:
 
 1. **Check application logs**:
+
 ```bash
 # View real-time logs
 fraisier logs dep_00001 --follow
@@ -316,6 +337,7 @@ fraisier logs dep_00001 --component deployment
 ```
 
 2. **Verify environment variables**:
+
 ```bash
 # Check on server
 ssh deploy@prod-1.example.com "env | grep APP"
@@ -328,6 +350,7 @@ fraisier config show
 ```
 
 3. **Run database migrations**:
+
 ```bash
 # Manual migration
 ssh deploy@prod-1.example.com "cd /opt/my-api && python migrate.py"
@@ -337,6 +360,7 @@ fraisier coolify:exec --command "python migrate.py"
 ```
 
 4. **Check service dependencies**:
+
 ```bash
 # Test database connection
 curl http://db.example.com:5432
@@ -370,6 +394,7 @@ nslookup db.example.com
 **Solutions**:
 
 1. **Increase retry configuration**:
+
 ```yaml
 health_check:
   max_retries: 5  # More retries
@@ -378,12 +403,14 @@ health_check:
 ```
 
 2. **Add startup delay**:
+
 ```yaml
 health_check:
   startup_delay: 30  # Wait 30 seconds before first check
 ```
 
 3. **Improve health check endpoint**:
+
 ```python
 # Better health check
 @app.route('/health')
@@ -399,6 +426,7 @@ def health():
 ```
 
 4. **Debug individual checks**:
+
 ```bash
 # Run health check 10 times and see results
 for i in {1..10}; do
@@ -408,6 +436,7 @@ done
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier logs dep_00001 --component health_check --level debug
 curl -v http://localhost:8000/health
@@ -435,6 +464,7 @@ curl -v http://localhost:8000/health
 **Solutions**:
 
 1. **Check database is running**:
+
 ```bash
 # PostgreSQL
 psql postgresql://user:password@localhost/fraisier
@@ -447,6 +477,7 @@ sqlite3 fraisier.db
 ```
 
 2. **Verify connection string**:
+
 ```bash
 # Check environment variable
 echo $DATABASE_URL
@@ -456,6 +487,7 @@ psql postgresql://fraisier:password@db.example.com:5432/fraisier
 ```
 
 3. **Check network access**:
+
 ```bash
 # Test connectivity
 nc -zv db.example.com 5432
@@ -466,6 +498,7 @@ ssh deploy@prod-1.example.com "nc -zv db.example.com 5432"
 ```
 
 4. **Check credentials**:
+
 ```bash
 # Verify username/password
 psql -U fraisier -d fraisier -c "SELECT 1;"
@@ -475,6 +508,7 @@ psql -U postgres -c "SELECT * FROM pg_user WHERE usename='fraisier';"
 ```
 
 5. **Enable connection logging**:
+
 ```yaml
 database:
   type: postgresql
@@ -484,6 +518,7 @@ database:
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier db status
 fraisier logs dep_00001 --level error | grep -i database
@@ -510,6 +545,7 @@ psql postgresql://user:password@localhost/fraisier -c "SELECT 1;"
 **Solutions**:
 
 1. **Check slow queries**:
+
 ```bash
 # PostgreSQL
 psql -U fraisier -d fraisier -c "
@@ -521,11 +557,13 @@ LIMIT 10;
 ```
 
 2. **Analyze table**:
+
 ```bash
 psql -U fraisier -d fraisier -c "ANALYZE tb_deployment;"
 ```
 
 3. **Create missing indexes**:
+
 ```bash
 psql -U fraisier -d fraisier << 'EOF'
 CREATE INDEX idx_deployment_created ON tb_deployment(created_at);
@@ -534,6 +572,7 @@ EOF
 ```
 
 4. **Check connection pool**:
+
 ```bash
 # View active connections
 fraisier db status | grep connections
@@ -568,12 +607,14 @@ WHERE duration > interval '5 minutes';
 **Solutions**:
 
 1. **Check Dockerfile syntax**:
+
 ```bash
 docker build --no-cache .
 # Check error output
 ```
 
 2. **Test build locally**:
+
 ```bash
 # Build with verbose output
 docker build -v .
@@ -583,6 +624,7 @@ docker build --target builder .
 ```
 
 3. **Check dependencies**:
+
 ```bash
 # Verify all packages exist
 docker pull python:3.11
@@ -593,12 +635,14 @@ docker run -it python:3.11 pip install requests
 ```
 
 4. **Increase build timeout**:
+
 ```yaml
 provider_config:
   build_timeout: 1800  # 30 minutes
 ```
 
 5. **Use build cache**:
+
 ```yaml
 provider_config:
   build_cache: true
@@ -606,6 +650,7 @@ provider_config:
 ```
 
 **Debug Commands**:
+
 ```bash
 docker build --no-cache -t my-api .
 docker logs $(docker ps -lq)
@@ -631,6 +676,7 @@ docker logs $(docker ps -lq)
 **Solutions**:
 
 1. **Check container logs**:
+
 ```bash
 docker logs container_name
 docker logs -f container_name  # Follow logs
@@ -638,6 +684,7 @@ docker logs --tail 100 container_name  # Last 100 lines
 ```
 
 2. **Run container interactively**:
+
 ```bash
 # Start with shell instead
 docker run -it my-api /bin/bash
@@ -647,6 +694,7 @@ docker run -it my-api python -m myapp.server
 ```
 
 3. **Check permissions**:
+
 ```bash
 # Inside container
 docker run -it my-api ls -la /app/
@@ -656,11 +704,13 @@ RUN chmod +x /app/start.sh
 ```
 
 4. **Verify environment variables**:
+
 ```bash
 docker run -e DATABASE_URL=postgresql://... -it my-api
 ```
 
 **Debug Commands**:
+
 ```bash
 docker logs my-api
 docker inspect my-api | grep -A 5 State
@@ -689,6 +739,7 @@ docker run -it my-api env
 **Solutions**:
 
 1. **Verify SSH key exists**:
+
 ```bash
 ls -la ~/.ssh/fraisier
 # Should be: -rw------- (600)
@@ -699,6 +750,7 @@ ls -la ~/.ssh/fraisier.pub
 ```
 
 2. **Add key to server**:
+
 ```bash
 ssh-copy-id -i ~/.ssh/fraisier deploy@prod-1.example.com
 
@@ -708,6 +760,7 @@ cat ~/.ssh/fraisier.pub | ssh deploy@prod-1.example.com \
 ```
 
 3. **Fix key permissions**:
+
 ```bash
 # On client
 chmod 600 ~/.ssh/fraisier
@@ -718,6 +771,7 @@ ssh deploy@prod-1.example.com "chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_k
 ```
 
 4. **Test SSH**:
+
 ```bash
 ssh -i ~/.ssh/fraisier -v deploy@prod-1.example.com "echo SSH working"
 
@@ -726,6 +780,7 @@ ssh -vvv -i ~/.ssh/fraisier deploy@prod-1.example.com
 ```
 
 **Debug Commands**:
+
 ```bash
 ssh-keygen -l -f ~/.ssh/fraisier
 ssh-keyscan prod-1.example.com
@@ -752,18 +807,21 @@ ssh -v -i ~/.ssh/fraisier deploy@prod-1.example.com
 **Solutions**:
 
 1. **Test network connectivity**:
+
 ```bash
 ping prod-1.example.com
 traceroute prod-1.example.com
 ```
 
 2. **Verify SSH port open**:
+
 ```bash
 nc -zv prod-1.example.com 22
 telnet prod-1.example.com 22
 ```
 
 3. **Check firewall on server**:
+
 ```bash
 ssh deploy@prod-1.example.com "sudo ufw status | grep 22"
 
@@ -772,6 +830,7 @@ ssh deploy@prod-1.example.com "sudo ufw allow 22"
 ```
 
 4. **Verify SSH service running**:
+
 ```bash
 ssh deploy@prod-1.example.com "sudo systemctl status ssh"
 
@@ -780,6 +839,7 @@ ssh deploy@prod-1.example.com "sudo systemctl restart ssh"
 ```
 
 5. **Increase timeout**:
+
 ```yaml
 provider_config:
   ssh_timeout: 30  # seconds
@@ -787,6 +847,7 @@ provider_config:
 ```
 
 **Debug Commands**:
+
 ```bash
 ping -c 1 prod-1.example.com
 nc -zv prod-1.example.com 22
@@ -815,6 +876,7 @@ ssh -v prod-1.example.com
 **Solutions**:
 
 1. **Check NATS is running**:
+
 ```bash
 docker-compose ps nats
 curl http://localhost:8222/varz
@@ -824,6 +886,7 @@ nc -zv localhost 4222
 ```
 
 2. **Verify NATS URL**:
+
 ```bash
 echo $NATS_SERVERS
 # Should be: nats://localhost:4222 or similar
@@ -833,17 +896,20 @@ nats rtt
 ```
 
 3. **Test connectivity**:
+
 ```bash
 nc -zv localhost 4222
 telnet localhost 4222
 ```
 
 4. **Check credentials**:
+
 ```bash
 nats -s nats://user:password@localhost:4222 server info
 ```
 
 **Debug Commands**:
+
 ```bash
 nats server info
 nats stream list
@@ -871,6 +937,7 @@ echo $NATS_SERVERS
 **Solutions**:
 
 1. **Verify subscriber is listening**:
+
 ```bash
 # Check subscriptions
 nats consumer list DEPLOYMENT_EVENTS
@@ -880,6 +947,7 @@ nats sub "fraisier.deployment.>"
 ```
 
 2. **Test event publish**:
+
 ```bash
 nats pub "fraisier.deployment.started.default" '{"test":"data"}'
 
@@ -888,6 +956,7 @@ nats sub "fraisier.deployment.started.>" --max-msgs=1
 ```
 
 3. **Check consumer lag**:
+
 ```bash
 nats consumer info DEPLOYMENT_EVENTS CONSUMER_NAME
 
@@ -896,6 +965,7 @@ nats stream view DEPLOYMENT_EVENTS --last 10
 ```
 
 4. **Verify filter settings**:
+
 ```python
 # Check filter in code
 registry = EventSubscriberRegistry()
@@ -904,6 +974,7 @@ registry.register(handler, EventFilter(event_type="deployment.started"))
 ```
 
 **Debug Commands**:
+
 ```bash
 nats stream list
 nats consumer list DEPLOYMENT_EVENTS
@@ -932,12 +1003,14 @@ nats sub "fraisier.>" --verbose
 **Solutions**:
 
 1. **Check metrics endpoint**:
+
 ```bash
 curl http://localhost:9090/metrics
 curl http://localhost:8000/metrics  # Fraisier metrics
 ```
 
 2. **Verify Prometheus scrape config**:
+
 ```yaml
 # In prometheus.yml
 scrape_configs:
@@ -948,6 +1021,7 @@ scrape_configs:
 ```
 
 3. **Check Prometheus targets**:
+
 ```bash
 # Go to Prometheus UI
 open http://localhost:9090/targets
@@ -957,6 +1031,7 @@ curl http://localhost:9090/api/v1/targets
 ```
 
 4. **Restart Prometheus**:
+
 ```bash
 docker-compose restart prometheus
 
@@ -965,6 +1040,7 @@ docker logs prometheus
 ```
 
 **Debug Commands**:
+
 ```bash
 curl http://localhost:8000/metrics | grep fraisier_deployments
 curl http://localhost:9090/api/v1/query?query=up
@@ -992,12 +1068,14 @@ curl http://localhost:9090/api/v1/query?query=up
 **Solutions**:
 
 1. **Profile deployment**:
+
 ```bash
 fraisier deploy my_api production --verbose
 # Track each step's time
 ```
 
 2. **Check network speed**:
+
 ```bash
 # Test download speed
 curl -O https://github.com/your-org/my-api/archive/main.zip
@@ -1005,6 +1083,7 @@ curl -O https://github.com/your-org/my-api/archive/main.zip
 ```
 
 3. **Optimize Git clone**:
+
 ```yaml
 provider_config:
   git_depth: 1  # Shallow clone
@@ -1012,6 +1091,7 @@ provider_config:
 ```
 
 4. **Pre-warm cache**:
+
 ```bash
 # Warm container image cache
 docker pull my-api:latest
@@ -1021,6 +1101,7 @@ fraisier db init  # Parallel initialization
 ```
 
 5. **Parallel health checks**:
+
 ```yaml
 health_check:
   parallel: true  # Check all instances in parallel
@@ -1048,6 +1129,7 @@ health_check:
 **Solutions**:
 
 1. **Check database size**:
+
 ```bash
 fraisier db status  # See database size
 
@@ -1056,6 +1138,7 @@ psql -U fraisier -d fraisier -c "SELECT pg_database_size('fraisier') / 1024 / 10
 ```
 
 2. **Reduce retention**:
+
 ```yaml
 database:
   retention_days: 30  # Keep only 30 days
@@ -1063,6 +1146,7 @@ database:
 ```
 
 3. **Archive old logs**:
+
 ```bash
 # Export old deployments
 fraisier history my_api production --since 1y > old_deployments.json
@@ -1072,6 +1156,7 @@ fraisier db purge --before 2024-01-01
 ```
 
 4. **Enable log rotation**:
+
 ```yaml
 logging:
   rotation:
@@ -1081,6 +1166,7 @@ logging:
 ```
 
 **Debug Commands**:
+
 ```bash
 fraisier db status
 du -sh fraisier.db
@@ -1094,17 +1180,20 @@ sqlite3 fraisier.db "SELECT COUNT(*) FROM tb_deployment;"
 If you can't find your issue here:
 
 1. **Check logs**:
+
    ```bash
    fraisier logs dep_00001 --follow
    docker logs fraisier
    ```
 
 2. **Enable debug mode**:
+
    ```bash
    FRAISIER_LOG_LEVEL=DEBUG fraisier deploy my_api production
    ```
 
 3. **Run diagnostics**:
+
    ```bash
    fraisier health
    fraisier config show

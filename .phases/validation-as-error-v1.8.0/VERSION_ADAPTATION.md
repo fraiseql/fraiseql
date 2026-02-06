@@ -16,6 +16,7 @@ The implementation plans have been adapted to incorporate "Validation as Error T
 ## What Changed in the Plans
 
 ### 1. Directory Renamed
+
 ```bash
 # Before
 .phases/validation-as-error-v1.9.0/
@@ -27,12 +28,14 @@ The implementation plans have been adapted to incorporate "Validation as Error T
 ### 2. Version References Updated
 
 All references updated throughout the plan:
+
 - `v1.9.0` → `v1.8.0`
 - `1.9.0` → `1.8.0`
 - `v1.8.x` → `v1.7.x` (previous version)
 - `1.8.x` → `1.7.x` (previous version)
 
 **Files affected:**
+
 - `00_OVERVIEW.md`
 - `01_PHASE_1_RUST_CORE.md`
 - `02_PHASE_2_PYTHON_LAYER.md`
@@ -46,6 +49,7 @@ All references updated throughout the plan:
 ### 3. Key Plan Updates
 
 #### 00_OVERVIEW.md
+
 ```markdown
 # Before
 **Breaking Change:** Yes (major version bump to v1.9.0)
@@ -56,6 +60,7 @@ All references updated throughout the plan:
 ```
 
 #### Rollout Strategy
+
 ```markdown
 # Before
 **Deliverable:** v1.9.0-beta.1
@@ -69,6 +74,7 @@ All references updated throughout the plan:
 ```
 
 #### 05_PHASE_5_VERIFICATION_RELEASE.md
+
 ```markdown
 # Before
 **Deliverable:** FraiseQL v1.9.0-beta.1 → v1.9.0 GA
@@ -81,6 +87,7 @@ No need for a separate beta release - this becomes part of the existing v1.8.0 b
 ```
 
 #### Version Bump Strategy
+
 ```markdown
 # Before
 sed -i 's/version = "1.8.0"/version = "1.9.0-beta.1"/' pyproject.toml
@@ -99,13 +106,17 @@ sed -i 's/version = "1.8.0"/version = "1.9.0-beta.1"/' pyproject.toml
 The combined v1.8.0-beta.1 will include:
 
 ### Feature 1: CASCADE Selection Filtering
+
 **Status:** Already implemented (alpha.1 - alpha.5)
+
 - Efficient CASCADE field selection
 - Schema-level filtering
 - Performance optimizations
 
 ### Feature 2: Validation as Error Type
+
 **Status:** To be implemented (this plan)
+
 - Validation failures → Error type (not Success)
 - Error type includes `code` field (422, 404, 409, 500)
 - Success type always has non-null entity
@@ -116,6 +127,7 @@ The combined v1.8.0-beta.1 will include:
 ## Implementation Timeline
 
 ### Current Status
+
 ```
 v1.8.0-alpha.5 (CASCADE feature)
     ↓
@@ -129,6 +141,7 @@ v1.8.0 GA
 ```
 
 ### No Changes to Implementation Steps
+
 - All 5 phases remain the same
 - Code changes remain identical
 - Test updates remain identical
@@ -139,6 +152,7 @@ v1.8.0 GA
 ## Migration Guide Updates
 
 ### Code Examples
+
 ```python
 # Before (v1.7.x) ← Changed from v1.8.x
 @fraiseql.success
@@ -152,6 +166,7 @@ class CreateMachineSuccess:
 ```
 
 ### GraphQL Examples
+
 ```graphql
 # Before (v1.7.x) ← Changed from v1.8.x
 type CreateMachineSuccess {
@@ -224,6 +239,7 @@ class CreateMachineSuccess:
 ```
 
 **After (v1.8.0):**
+
 ```python
 @fraiseql.success
 class CreateMachineSuccess:
@@ -251,6 +267,7 @@ pip install --upgrade fraiseql==1.8.0b1
 ## Changelog
 
 See [CHANGELOG.md](https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md)
+
 ```
 
 ---
@@ -264,6 +281,7 @@ fraiseql = "^1.8.0"  # Would need update to 1.9.0
 ```
 
 ### After
+
 ```toml
 [dependencies]
 fraiseql = "^1.8.0"  # No change needed, just update to beta.1

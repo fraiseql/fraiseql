@@ -44,6 +44,7 @@ For applications with <20 types and simple queries.
 Strawberry typically uses simple table names. FraiseQL recommends the trinity pattern.
 
 **Before (Strawberry):**
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY,
@@ -60,6 +61,7 @@ CREATE TABLE posts (
 ```
 
 **After (FraiseQL):**
+
 ```sql
 -- Base tables (source of truth)
 CREATE TABLE tb_user (
@@ -101,6 +103,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ```
 
 **Migration Script:**
+
 ```sql
 -- Rename existing tables
 ALTER TABLE users RENAME TO tb_user;
@@ -120,6 +123,7 @@ CREATE VIEW v_post AS SELECT * FROM tb_post;
 ### 2.1 Convert Strawberry Types to FraiseQL
 
 **Before (Strawberry):**
+
 ```python
 import strawberry
 from typing import Optional
@@ -139,6 +143,7 @@ class Post:
 ```
 
 **After (FraiseQL):**
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -166,7 +171,7 @@ class Post:
         return await db.find_one("v_user", where={"id": self.author_id})
 ```
 
-### Key Changes:
+### Key Changes
 
 1. **`@strawberry.type`** → **`@fraiseql.type(sql_source="v_user")`**
    - Add `sql_source` parameter pointing to database view
@@ -186,6 +191,7 @@ class Post:
 ### 3.1 Simple Queries
 
 **Before (Strawberry):**
+
 ```python
 @strawberry.type
 class Query:
@@ -203,6 +209,7 @@ class Query:
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.query
 class Query:
@@ -216,6 +223,7 @@ class Query:
 ### 3.2 List Queries with Filtering
 
 **Before (Strawberry):**
+
 ```python
 @strawberry.type
 class Query:
@@ -242,6 +250,7 @@ class Query:
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.query
 class Query:
@@ -264,6 +273,7 @@ class Query:
 ```
 
 **GraphQL Query:**
+
 ```graphql
 # Before (Strawberry) - limited filtering
 query {
@@ -297,6 +307,7 @@ query {
 ### 4.1 Simple Mutations
 
 **Before (Strawberry):**
+
 ```python
 @strawberry.type
 class Mutation:
@@ -319,6 +330,7 @@ class Mutation:
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.mutation(
     function="fn_create_user",
@@ -348,6 +360,7 @@ $$ LANGUAGE plpgsql;
 One of FraiseQL's killer features is automatic cache invalidation with CASCADE.
 
 **Before (Strawberry):**
+
 ```python
 @strawberry.mutation
 async def create_post(
@@ -382,6 +395,7 @@ async def create_post(
 ```
 
 **After (FraiseQL with CASCADE):**
+
 ```python
 @fraiseql.mutation(
     function="fn_create_post",
@@ -412,6 +426,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **What CASCADE Does:**
+
 - Automatically returns updated `User` object with new post count
 - Invalidates client cache for affected entities
 - No manual cache updates needed in frontend
@@ -425,6 +440,7 @@ $$ LANGUAGE plpgsql;
 ### DataLoader Pattern
 
 **Before (Strawberry with DataLoader):**
+
 ```python
 from strawberry.dataloader import DataLoader
 
@@ -449,6 +465,7 @@ class Post:
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
@@ -475,6 +492,7 @@ class Post:
 ### Application Configuration
 
 **Before (Strawberry):**
+
 ```python
 import strawberry
 from strawberry.fastapi import GraphQLRouter
@@ -486,6 +504,7 @@ app.include_router(graphql_app, prefix="/graphql")
 ```
 
 **After (FraiseQL):**
+
 ```python
 from fraiseql import create_fraiseql_app
 
@@ -497,6 +516,7 @@ app = create_fraiseql_app(
 ```
 
 **Configuration Options:**
+
 ```python
 app = create_fraiseql_app(
     database_url=os.environ["DATABASE_URL"],
@@ -523,6 +543,7 @@ app = create_fraiseql_app(
 ### Example Test Migration
 
 **Before (Strawberry):**
+
 ```python
 import pytest
 from app import schema
@@ -544,6 +565,7 @@ async def test_create_user():
 ```
 
 **After (FraiseQL):**
+
 ```python
 import pytest
 from fraiseql.testing import GraphQLClient
@@ -572,6 +594,7 @@ async def test_create_user(graphql_client: GraphQLClient):
 **Symptom:** `MutationError: Function fn_create_user does not exist`
 
 **Fix:** Create PostgreSQL function before defining mutation:
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(...) RETURNS UUID AS $$
 BEGIN
@@ -585,6 +608,7 @@ $$ LANGUAGE plpgsql;
 **Symptom:** `ViewNotFoundError: View v_users not found`
 
 **Fix:** Ensure view name matches `sql_source` parameter:
+
 ```python
 @fraiseql.type(sql_source="v_user")  # Must match view name exactly
 class User:
@@ -602,6 +626,7 @@ class User:
 **Symptom:** Performance is similar to Strawberry
 
 **Fix:** Enable Rust pipeline:
+
 ```python
 app = create_fraiseql_app(enable_rust_pipeline=True)
 ```
@@ -623,6 +648,7 @@ app = create_fraiseql_app(enable_rust_pipeline=True)
 - **N+1 Queries**: Automatic DataLoader batching
 
 **Benchmark:**
+
 ```bash
 # Before
 wrk -t4 -c100 -d30s http://localhost:8000/graphql

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Reading Order Guide
 description: This document provides **reading paths** tailored to different roles and use cases. Each path includes:
 keywords: []

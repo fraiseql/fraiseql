@@ -35,6 +35,7 @@ FraiseQL automatically provides two health check endpoints for production deploy
 **Purpose**: Check if the application process is alive (for Kubernetes liveness probes).
 
 **Response**:
+
 ```json
 {
   "status": "healthy",
@@ -43,11 +44,13 @@ FraiseQL automatically provides two health check endpoints for production deploy
 ```
 
 **Status Codes**:
+
 - `200 OK`: Process is running
 
 **Use Case**: Kubernetes liveness probe - restart pod if this endpoint fails (process crashed).
 
 **Kubernetes Configuration**:
+
 ```yaml
 livenessProbe:
   httpGet:
@@ -66,11 +69,13 @@ livenessProbe:
 **Purpose**: Check if the application is ready to serve traffic (for Kubernetes readiness probes).
 
 **What it checks**:
+
 - Database connection pool is available
 - Database is reachable (simple SELECT 1 query)
 - GraphQL schema is loaded
 
 **Response (Ready)**:
+
 ```json
 {
   "status": "ready",
@@ -83,6 +88,7 @@ livenessProbe:
 ```
 
 **Response (Not Ready)**:
+
 ```json
 {
   "status": "not_ready",
@@ -95,12 +101,14 @@ livenessProbe:
 ```
 
 **Status Codes**:
+
 - `200 OK`: Application ready to serve traffic
 - `503 Service Unavailable`: Application not ready (database down, schema not loaded)
 
 **Use Case**: Kubernetes readiness probe - remove pod from load balancer if dependencies are not ready.
 
 **Kubernetes Configuration**:
+
 ```yaml
 readinessProbe:
   httpGet:
@@ -122,6 +130,7 @@ readinessProbe:
 | **Readiness** | `/ready` | Can it serve traffic? | **Remove from load balancer** (database down) |
 
 **Example Scenario**:
+
 - Database connection fails
 - `/health` returns `200` (process is still alive)
 - `/ready` returns `503` (database not ready)

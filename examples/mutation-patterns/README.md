@@ -59,6 +59,7 @@ Each example is standalone and copy-paste ready:
 ## Contributing
 
 Have a useful pattern? Submit a PR with:
+
 - SQL file with comments
 - Test case showing usage
 - README section explaining the pattern

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Building a Blog API with FraiseQL: Schema Authoring in Python
 description: In this tutorial, you'll build a complete Blog API by:
 keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]

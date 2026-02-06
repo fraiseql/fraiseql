@@ -9,6 +9,7 @@
 Welcome! This journey will take you from zero to a working GraphQL API in under 2 hours. You'll learn FraiseQL's core concepts through hands-on examples, starting with simple concepts and building up to a complete application.
 
 By the end, you'll understand:
+
 - How to set up a FraiseQL project
 - The trinity pattern (tb_/v_/tv_ naming)
 - Basic GraphQL queries and mutations
@@ -21,11 +22,13 @@ By the end, you'll understand:
 **Goal:** Get FraiseQL running on your machine
 
 1. **Install Python dependencies:**
+
    ```bash
    pip install fraiseql fastapi uvicorn
    ```
 
 2. **Verify installation:**
+
    ```bash
    python -c "import fraiseql; print('FraiseQL installed successfully!')"
    ```
@@ -41,6 +44,7 @@ By the end, you'll understand:
 **Goal:** Create a simple API that returns "Hello World" via GraphQL
 
 1. **Create your first schema:**
+
    ```python
    # hello.py
    from fraiseql import fraise_type, create_fraiseql_app
@@ -54,6 +58,7 @@ By the end, you'll understand:
    ```
 
 2. **Run the server:**
+
    ```bash
    uvicorn hello:app --reload
    ```
@@ -61,6 +66,7 @@ By the end, you'll understand:
 3. **Test your API:**
    - Open http://localhost:8000/graphql
    - Run this query:
+
    ```graphql
    query {
      hello
@@ -74,6 +80,7 @@ By the end, you'll understand:
 **Goal:** Connect to PostgreSQL and create your first data model
 
 1. **Set up database connection:**
+
    ```python
    # app.py
    from fraiseql import fraise_type, create_fraiseql_app
@@ -103,6 +110,7 @@ By the end, you'll understand:
    ```
 
 2. **Create database schema:**
+
    ```sql
    -- Run this in psql
    CREATE TABLE tb_user (
@@ -117,6 +125,7 @@ By the end, you'll understand:
    ```
 
 3. **Add sample data:**
+
    ```sql
    INSERT INTO tb_user (name, email) VALUES
    ('Alice Johnson', 'alice@example.com'),
@@ -132,6 +141,7 @@ By the end, you'll understand:
 **Read:** [Trinity Pattern Guide](../core/trinity-pattern/)
 
 **Key Concepts:**
+
 - `tb_user` - Base table (stores data)
 - `v_user` - View (what GraphQL exposes)
 - `tv_user_with_posts` - Computed view (joins data)
@@ -168,12 +178,14 @@ By the end, you'll understand:
 **Read:** [Queries and Mutations](../core/queries-and-mutations/)
 
 **Key Concepts:**
+
 - **Queries:** Read data (like SELECT)
 - **Mutations:** Change data (like INSERT/UPDATE)
 - **Resolvers:** Functions that fetch data
 - **Schema:** Type definitions
 
 **Example Query:**
+
 ```graphql
 query {
   posts {
@@ -213,6 +225,7 @@ query {
 3. **[Deploy to Production](../production/deployment/)** - Go live
 
 **Need help?**
+
 - Check the [examples](../../examples/) directory
 - Join our [Discord community](https://discord.gg/fraiseql)
 - Read the [full documentation](../README/)
@@ -220,14 +233,18 @@ query {
 ## Common Issues & Solutions
 
 **"ImportError: No module named 'fraiseql'"**
+
 - Solution: `pip install fraiseql`
 
 **"Connection refused" to database**
+
 - Solution: Make sure PostgreSQL is running and database exists
 
 **"Table doesn't exist" errors**
+
 - Solution: Run the SQL schema creation commands
 
 **GraphQL returns null**
+
 - Solution: Check your resolver functions and database queries</content>
 <parameter name="filePath">docs/journeys/junior-developer.md

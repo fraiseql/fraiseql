@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Custom Scalar Types Reference
 description: 1. [Overview](#overview)
 keywords: ["directives", "types", "scalars", "schema", "api"]

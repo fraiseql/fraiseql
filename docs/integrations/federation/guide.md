@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Federation v2 Guide
 description: FraiseQL implements **Apollo Federation v2**, enabling multi-subgraph GraphQL composition with sub-5ms latency for local entity resolution and sub-20ms for dire
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

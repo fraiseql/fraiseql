@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Aggregation Model
 description: FraiseQL v2 supports **database-native aggregations** through compile-time schema analysis and runtime SQL generation. All aggregations execute server-side in t
 keywords: ["design", "scalability", "performance", "patterns", "security"]
@@ -439,5 +440,3 @@ FROM tf_sales;
 - **Window Functions** (`window-functions.md`) - Phase 5 analytical functions
 
 ---
-
-

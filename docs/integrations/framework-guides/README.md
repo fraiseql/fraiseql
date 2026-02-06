@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Framework Integration Guides
 description: Comprehensive guide for integrating FraiseQL GraphQL APIs with popular web frameworks across Python, TypeScript/JavaScript, Go, Java, and Ruby ecosystems.
 keywords: ["framework", "debugging", "implementation", "best-practices", "sdk", "deployment", "monitoring", "database"]

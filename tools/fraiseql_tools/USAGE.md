@@ -237,15 +237,18 @@ Use for:
 ### Trigger-based
 
 **Pros:**
+
 - Real-time data freshness
 - Immediate consistency
 - Low read latency
 
 **Cons:**
+
 - Higher overhead on writes
 - Not ideal for bulk operations
 
 **Best for:**
+
 - Read-heavy workloads
 - Strict latency requirements (< 100ms)
 - Low write volume (< 10 writes/sec)
@@ -253,15 +256,18 @@ Use for:
 ### Scheduled
 
 **Pros:**
+
 - Low write overhead
 - Predictable refresh timing
 - Efficient for bulk operations
 
 **Cons:**
+
 - Data lag (up to refresh interval)
 - Lower freshness guarantees
 
 **Best for:**
+
 - Batch import systems
 - Acceptable staleness (30+ minutes)
 - High write volume (> 1000 writes/min)
@@ -338,6 +344,7 @@ from fraiseql_tools import load_schema
 ### Schema Not Found
 
 Ensure schema.json exists and use absolute path:
+
 ```python
 from pathlib import Path
 schema_path = Path(__file__).parent / "schema.json"
@@ -347,6 +354,7 @@ schema = load_schema(str(schema_path))
 ### Entity Not Found
 
 Check entity name is correct (case-sensitive):
+
 ```python
 # List available entities
 print([t['name'] for t in schema['types']])
@@ -355,6 +363,7 @@ print([t['name'] for t in schema['types']])
 ### Template Not Found
 
 Ensure templates directory exists:
+
 ```bash
 ls -la /home/lionel/code/fraiseql/tools/fraiseql_tools/templates/
 ```

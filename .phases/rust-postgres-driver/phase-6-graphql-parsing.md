@@ -18,6 +18,7 @@ Move GraphQL query parsing from Python (graphql-core C extension) to pure Rust, 
 5. Set foundation for query plan caching (Phase 8)
 
 **Success Criteria**:
+
 - ✅ Rust parses GraphQL queries with 100% parity to graphql-core
 - ✅ All 5991+ tests pass with Rust parser
 - ✅ Python can call Rust parser and receive structured query info
@@ -137,6 +138,7 @@ thiserror = "1.0"
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs && cargo check
 # Should compile successfully
@@ -252,6 +254,7 @@ impl PartialEq for GraphQLArgument {
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs && cargo test --lib graphql::types
 # Tests for equality, serialization, etc.
@@ -495,6 +498,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs && cargo test --lib graphql::parser
 # Run all parser tests
@@ -555,6 +559,7 @@ fn _fraiseql_rs(py: Python, m: &PyModule) -> PyResult<()> {
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs && cargo build --release
 # Should compile successfully
@@ -793,6 +798,7 @@ query_info = {
 ## Testing Strategy
 
 ### Unit Tests
+
 - ✅ Simple query parsing
 - ✅ Mutations
 - ✅ Nested fields (3+ levels)
@@ -801,16 +807,19 @@ query_info = {
 - ✅ Error cases (invalid syntax)
 
 ### Integration Tests
+
 - ✅ Parse + validate against FraiseQL schema
 - ✅ Parse + extract WHERE clauses
 - ✅ Parse + extract pagination arguments
 - ✅ All 5991+ existing tests pass
 
 ### Performance Tests
+
 - ⏱️ Benchmark parse speed: target < 50µs
 - 📊 Compare vs graphql-core (should be 2-5x faster)
 
 ### Regression Tests
+
 - ✅ Existing query format support maintained
 - ✅ Error messages compatible with existing error handling
 - ✅ Fragment handling (graceful error if not supported)
@@ -820,6 +829,7 @@ query_info = {
 ## Common Mistakes
 
 ### ❌ Mistake 1: Not Handling Fragment Spreads
+
 ```rust
 // WRONG: Ignoring fragments
 Selection::FragmentSpread(_) => Ok(Vec::new())
@@ -831,6 +841,7 @@ Selection::FragmentSpread(spread) => {
 ```
 
 ### ❌ Mistake 2: Losing Variable Information
+
 ```rust
 // WRONG: Not capturing variable definitions
 let variables = Vec::new();
@@ -846,6 +857,7 @@ let variables = var_defs.iter().map(|def| {
 ```
 
 ### ❌ Mistake 3: Not Serializing Arguments as JSON
+
 ```rust
 // WRONG: Losing argument structure
 value_json: "complex_object".to_string()
@@ -900,6 +912,7 @@ value_json: serde_json::to_string(value)?
 **After Phase 6**: GraphQL parsing in Rust (pure Rust), ~20-50µs per query
 
 **Actual measurement**:
+
 ```bash
 # Before
 time python -c "from graphql import parse; parse(query_string)"

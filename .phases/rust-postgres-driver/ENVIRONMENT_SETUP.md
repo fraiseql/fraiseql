@@ -10,6 +10,7 @@
 ## ✅ Pre-Flight Checklist
 
 Before you start, have these ready:
+
 - [ ] Command-line terminal access
 - [ ] Admin/sudo access on your computer
 - [ ] ~5 GB free disk space (Rust + PostgreSQL)
@@ -34,6 +35,7 @@ cargo --version
 ```
 
 **Expected output**:
+
 ```
 rustc 1.70.0 (90c541806 2023-05-31)
 cargo 1.70.0 (ec8d8dbb5 2023-04-25)
@@ -58,6 +60,7 @@ cargo run
 ```
 
 **Expected output**:
+
 ```
 Hello, world!
 ```
@@ -81,6 +84,7 @@ psql postgres -c "SELECT version();"
 ```
 
 **Expected output**:
+
 ```
 PostgreSQL 15.0 on x86_64-apple-darwin22.1.0, compiled by Apple clang version 14.0.0
 ```
@@ -158,6 +162,7 @@ SELECT * FROM users;
 ```
 
 **Expected output**:
+
 ```
  id | name  |       email
 ----+-------+--------------------
@@ -228,6 +233,7 @@ cargo fmt --version
 ```
 
 **Expected output**:
+
 ```
 clippy 0.1.70
 rustfmt 1.5.3
@@ -250,6 +256,7 @@ ls -la fraiseql_rs/
 ```
 
 **Expected output**:
+
 ```
 Cargo.toml
 Cargo.lock
@@ -340,6 +347,7 @@ prek run --all
    - "Even Better TOML" by tamasfe
 
 3. **Open workspace**:
+
    ```bash
    code fraiseql/
    ```
@@ -359,6 +367,7 @@ prek run --all
 **Problem**: Rust not in PATH
 
 **Fix**:
+
 ```bash
 # Reload shell
 source $HOME/.cargo/env
@@ -371,6 +380,7 @@ source $HOME/.cargo/env
 **Problem**: PostgreSQL not installed or not in PATH
 
 **Fix**:
+
 ```bash
 # Verify PostgreSQL installed
 which psql
@@ -387,6 +397,7 @@ sudo apt list --installed | grep postgresql  # Linux
 **Problem**: Missing dependencies or old Rust version
 
 **Fix**:
+
 ```bash
 # Update Rust
 rustup update
@@ -402,6 +413,7 @@ cargo build
 **Problem**: User not in docker group
 
 **Fix** (Linux):
+
 ```bash
 sudo usermod -aG docker $USER
 newgrp docker
@@ -415,6 +427,7 @@ docker run hello-world
 **Problem**: Permission or service issue
 
 **Fix**:
+
 ```bash
 # Check service status
 brew services list

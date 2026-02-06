@@ -120,12 +120,14 @@ DONE ✅
 ### Checklist
 
 **Planning** ✅
+
 - [x] Problem identified
 - [x] Root cause analyzed
 - [x] Solution designed
 - [x] Documents written
 
 **Implementation** 🟡
+
 - [ ] Feature branch created
 - [ ] Parser module created
 - [ ] Entry point updated
@@ -133,12 +135,14 @@ DONE ✅
 - [ ] Tests passing
 
 **Testing** ⏳
+
 - [ ] Rust unit tests pass
 - [ ] Python integration tests pass
 - [ ] PrintOptim mutations tested
 - [ ] CASCADE location verified
 
 **Release** ⏳
+
 - [ ] Version bumped
 - [ ] CHANGELOG updated
 - [ ] Git commit created
@@ -205,17 +209,21 @@ fraiseql_rs/src/mutation/
 ### By Phase
 
 **📖 Planning Phase**
+
 - [00_OVERVIEW.md](./00_OVERVIEW.md) - Problem & requirements
 - Design doc: `docs/architecture/mutation_pipeline.md`
 
 **💻 Implementation Phase**
+
 - [03_QUICK_START.md](./03_QUICK_START.md) - Quick reference
 - [01_IMPLEMENTATION_PLAN.md](./01_IMPLEMENTATION_PLAN.md) - Detailed guide
 
 **🧪 Testing Phase**
+
 - [02_TESTING_STRATEGY.md](./02_TESTING_STRATEGY.md) - Test plans
 
 **🚀 Release Phase**
+
 - [01_IMPLEMENTATION_PLAN.md](./01_IMPLEMENTATION_PLAN.md) - COMMIT section
 - CHANGELOG.md - Release notes template
 
@@ -224,14 +232,17 @@ fraiseql_rs/src/mutation/
 ## External References
 
 ### Design Documents
+
 - **Main Design:** `docs/architecture/mutation_pipeline.md`
 - **Phase Documentation:** See documents in this directory
 
 ### Related Projects
+
 - **PrintOptim Migration:** `/home/lionel/code/printoptim_backend_manual_migration/.phases/phase_fraiseql_mutation_response/`
 - **GraphQL CASCADE Spec:** `~/code/graphql-cascade/`
 
 ### Code Repositories
+
 - **FraiseQL:** `/home/lionel/code/fraiseql`
 - **PrintOptim:** `/home/lionel/code/printoptim_backend_manual_migration`
 
@@ -269,12 +280,14 @@ A: For full E2E tests, yes. For unit/integration tests, no.
 ## Metrics
 
 ### Code Changes
+
 - **New files:** 1 (~80 lines)
 - **Modified files:** 2 (~105 lines)
 - **Tests added:** ~100 lines
 - **Total changes:** ~285 lines
 
 ### Time Estimates
+
 - **Read docs:** 30-60 min
 - **Implementation:** 3-4 hours
 - **Testing:** 30-60 min
@@ -282,6 +295,7 @@ A: For full E2E tests, yes. For unit/integration tests, no.
 - **Total:** 4-6 hours
 
 ### Success Rate
+
 - **Expected:** 95% success on first attempt
 - **Common issues:** Typos, missed imports (easy to fix)
 - **Rollback risk:** Very low (backward compatible)
@@ -301,11 +315,13 @@ A: For full E2E tests, yes. For unit/integration tests, no.
 After v1.8.0-alpha.5 is released:
 
 **Option 1: Stable Release (v1.8.0)**
+
 - Remove alpha status
 - Full documentation update
 - Production deployment
 
 **Option 2: Enhanced Features (v1.8.1)**
+
 - Advanced CASCADE features
 - Additional performance monitoring
 - Extended test coverage

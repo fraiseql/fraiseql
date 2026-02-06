@@ -164,11 +164,13 @@ for: 1m
    - Should see `fraisier` job in "UP" status
 
 2. Verify Fraisier metrics exporter is running:
+
    ```bash
    curl http://localhost:8001/metrics | head -20
    ```
 
 3. Check for Prometheus client installation:
+
    ```bash
    python -c "import prometheus_client; print('OK')"
    ```

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Full-Stack Blog Application: Python Schema + React Frontend + FraiseQL Backend
 description: In this comprehensive full-stack tutorial, you'll build a complete Blog Application by:
 keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]

@@ -10,6 +10,7 @@
 ## Objective
 
 Update Python mutation layer to:
+
 1. Remove `error_as_data_prefixes` concept (all errors are now Error type)
 2. Update error config to reflect new mapping
 3. Ensure decorator generates union types
@@ -21,12 +22,14 @@ Update Python mutation layer to:
 ## Files to Modify
 
 ### Critical Files
+
 1. `src/fraiseql/mutations/error_config.py` - Error classification
 2. `src/fraiseql/mutations/rust_executor.py` - Rust integration
 3. `src/fraiseql/mutations/types.py` - Type definitions
 4. `src/fraiseql/mutations/mutation_decorator.py` - Mutation decorator
 
 ### Supporting Files
+
 5. `src/fraiseql/mutations/__init__.py` - Exports
 6. `src/fraiseql/mutations/result_processor.py` - May need updates
 
@@ -39,6 +42,7 @@ Update Python mutation layer to:
 **File:** `src/fraiseql/mutations/error_config.py`
 
 **Current (v1.7.x):**
+
 ```python
 @dataclass
 class MutationErrorConfig:
@@ -72,6 +76,7 @@ class MutationErrorConfig:
 ```
 
 **New (v1.8.0):**
+
 ```python
 @dataclass
 class MutationErrorConfig:
@@ -578,7 +583,7 @@ def _is_optional(type_hint: Any) -> bool:
 
 ---
 
-### Step 2.5: Update __init__.py Exports
+### Step 2.5: Update **init**.py Exports
 
 **File:** `src/fraiseql/mutations/__init__.py`
 
@@ -752,6 +757,7 @@ class TestMutationTypesV190:
 ## Verification Checklist
 
 ### Code Changes
+
 - [ ] `error_config.py` - Remove `error_as_data_prefixes`
 - [ ] `error_config.py` - Move `noop:`, `blocked:` to `error_prefixes`
 - [ ] `error_config.py` - Add `get_error_code()` method
@@ -764,6 +770,7 @@ class TestMutationTypesV190:
 - [ ] `__init__.py` - Add deprecation warnings
 
 ### Testing
+
 - [ ] All error config tests pass
 - [ ] New test: `test_noop_is_error_v190`
 - [ ] New test: `test_noop_maps_to_422`
@@ -771,6 +778,7 @@ class TestMutationTypesV190:
 - [ ] All integration tests pass
 
 ### Documentation
+
 - [ ] Docstrings updated with v1.8.0 notes
 - [ ] Deprecation warnings added
 - [ ] Type hints accurate
@@ -780,6 +788,7 @@ class TestMutationTypesV190:
 ## Expected Behavior After Phase 2
 
 **Python decorator:**
+
 ```python
 @fraiseql.success
 class CreateMachineSuccess:
@@ -805,6 +814,7 @@ class CreateMachine:
 ```
 
 **Error config behavior:**
+
 ```python
 config = DEFAULT_ERROR_CONFIG
 
@@ -821,6 +831,7 @@ assert config.is_error_status("created") is False
 ## Next Steps
 
 Once Phase 2 is complete:
+
 1. Run Python test suite: `uv run pytest`
 2. Verify type checking: `uv run mypy src/fraiseql`
 3. Commit changes: `git commit -m "feat(mutations)!: validation as Error type (v1.8.0) [PYTHON]"`

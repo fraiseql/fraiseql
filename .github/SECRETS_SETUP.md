@@ -206,12 +206,14 @@ Tokens should be rotated periodically for security.
 **Problem:** Workflow fails with "secret not found"
 
 **Solution:**
+
 1. Verify secret name matches exactly (case-sensitive)
 2. Verify secret is in repository (not organization)
 3. Verify repository has Actions enabled
 4. Workflows in forked repos may not have access
 
 **Check:**
+
 ```bash
 gh secret list
 # Should show your secret
@@ -222,6 +224,7 @@ gh secret list
 **Problem:** Workflow fails with "401 Unauthorized"
 
 **Solution:**
+
 1. Verify token is correct (copy-paste from platform)
 2. Verify token hasn't expired
 3. Verify token has correct scope
@@ -232,6 +235,7 @@ gh secret list
 **Problem:** Secret appears in workflow logs
 
 **Solution:**
+
 1. GitHub automatically masks secrets in logs
 2. If visible, token may be compromised
 3. Immediately revoke token on platform

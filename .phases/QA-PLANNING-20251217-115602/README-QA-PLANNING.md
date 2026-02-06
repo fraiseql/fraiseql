@@ -12,6 +12,7 @@
 This directory contains a complete QA and release plan for FraiseQL v1.8.6. Three comprehensive documents guide the entire process from code review through production release.
 
 ### Document 1: QA-EXECUTION-SUMMARY.md
+
 **Quick-Start Guide & Executive Overview**
 
 **Purpose**: Get oriented and understand the full process
@@ -19,6 +20,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 **Best For**: Getting started, high-level overview
 
 **Contains:**
+
 - 3-phase execution path with timeline
 - What was implemented (2 features)
 - Quality metrics
@@ -30,6 +32,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 ---
 
 ### Document 2: QA-REVIEW-PLAN.md
+
 **Detailed Technical QA Checklist**
 
 **Purpose**: Execute code quality review, testing, and commit
@@ -37,6 +40,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 **Best For**: Phase A (Code QA) and Phase C (Commit & Release)
 
 **Contains:**
+
 - 1.1-1.6: Implementation QA (code changes, tests, performance, security)
 - 2.1-2.4: Documentation quality assurance
 - 3.1-3.3: Integration verification (full test suite, linting, backward compatibility)
@@ -44,6 +48,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 - 5.1-5.3: Release preparation (version bump, checklist, release notes)
 
 **Reference This For:**
+
 - Code review checklists (Part 1)
 - Test execution commands (Part 3)
 - Commit message format (Part 4)
@@ -52,6 +57,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 ---
 
 ### Document 3: DOCUMENTATION-QUALITY-ASSURANCE.md
+
 **Comprehensive Documentation Validation**
 
 **Purpose**: Validate and enhance documentation quality
@@ -59,6 +65,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 **Best For**: Phase B (Documentation QA)
 
 **Contains:**
+
 - 1.1-1.2: Documentation file structure
 - 2.1-2.3: Nested Fragments documentation guide
 - 3.1-3.3: Fragment Cycle Detection documentation guide
@@ -71,6 +78,7 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 - 10.1-10.2: Review workflow
 
 **Reference This For:**
+
 - Feature documentation templates (Parts 2-4)
 - Example validation criteria (Part 5)
 - Consistency requirements (Part 6-7)
@@ -81,13 +89,17 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 ## 🚀 How to Use These Documents
 
 ### Step 1: Get Oriented (15 min)
+
 **Read**: QA-EXECUTION-SUMMARY.md
+
 - Understand the 3-phase process
 - Review timeline and success criteria
 - Note the day-of-release workflow
 
 ### Step 2: Execute Phase A - Code QA (2-3 hours)
+
 **Follow**: QA-REVIEW-PLAN.md (Parts 1-3)
+
 - Part 1: Implementation QA Checklist (1.1-1.4)
 - Part 2: Documentation QA (2.1-2.4)
 - Part 3: Integration Verification (3.1-3.3)
@@ -95,7 +107,9 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 **Deliverable**: Code Quality Sign-Off ✅
 
 ### Step 3: Execute Phase B - Documentation QA (1-2 hours)
+
 **Follow**: DOCUMENTATION-QUALITY-ASSURANCE.md (Parts 1-10)
+
 - Part 1: File structure validation
 - Parts 2-4: Feature documentation verification
 - Parts 5-8: Example and accuracy validation
@@ -104,11 +118,14 @@ This directory contains a complete QA and release plan for FraiseQL v1.8.6. Thre
 **Deliverable**: Documentation Quality Sign-Off ✅
 
 ### Step 4: Execute Phase C - Commit & Release (1 hour)
+
 **Follow**: QA-REVIEW-PLAN.md (Parts 4-5)
+
 - Part 4: Commit strategy
 - Part 5: Release preparation
 
 **Command**:
+
 ```bash
 git checkout -b chore/prepare-v1.8.6-release
 make pr-ship-patch  # Fully automated release workflow
@@ -142,7 +159,9 @@ make pr-ship-patch  # Fully automated release workflow
 ## ✅ Quality Gates
 
 ### Phase A: Code Quality
+
 Before moving to Phase B, verify:
+
 - [ ] All 10 new tests passing
 - [ ] All 5991+ existing tests passing
 - [ ] No type errors
@@ -152,7 +171,9 @@ Before moving to Phase B, verify:
 - [ ] Backward compatible
 
 ### Phase B: Documentation Quality
+
 Before moving to Phase C, verify:
+
 - [ ] All doc files complete
 - [ ] All examples valid (10+ examples)
 - [ ] Consistency verified
@@ -161,7 +182,9 @@ Before moving to Phase C, verify:
 - [ ] Copy-paste ready
 
 ### Phase C: Release Ready
+
 Before going live, verify:
+
 - [ ] Version bumped (8 files)
 - [ ] Git tag created
 - [ ] PR created with auto-merge
@@ -175,12 +198,14 @@ Before going live, verify:
 ### What Was Built
 
 **Feature 1: Nested Fragment Support**
+
 - Fragments now work in nested selections
 - Recursive processing implementation
 - 3 test cases covering all scenarios
 - Zero breaking changes
 
 **Feature 2: Fragment Cycle Detection**
+
 - Automatic circular reference detection
 - DoS protection against malicious queries
 - 4 test cases covering all cycle types
@@ -203,6 +228,7 @@ Before going live, verify:
 ## 📋 Pre-Release Checklist
 
 ### Code Ready?
+
 - [ ] Implementation complete (routers.py)
 - [ ] Tests complete (10 tests added)
 - [ ] All tests passing
@@ -213,6 +239,7 @@ Before going live, verify:
 **Status**: ✅ Ready
 
 ### Documentation Ready?
+
 - [ ] Nested fragments guide complete
 - [ ] Cycle detection guide complete
 - [ ] 5+ examples per feature
@@ -223,6 +250,7 @@ Before going live, verify:
 **Status**: 🔄 Needs validation (Phase B)
 
 ### Release Ready?
+
 - [ ] Version strategy (patch → 1.8.6)
 - [ ] Commit message prepared
 - [ ] Release notes written
@@ -236,6 +264,7 @@ Before going live, verify:
 ## 🕐 Timeline Breakdown
 
 ### Phase A: Code QA (2-3 hours)
+
 ```
 08:00 ├─ Code Review (30 min)
       ├─ Test Execution (30 min)
@@ -247,6 +276,7 @@ Before going live, verify:
 ```
 
 ### Phase B: Documentation QA (1-2 hours)
+
 ```
 13:00 ├─ Documentation Review (30 min)
       ├─ Example Validation (30 min)
@@ -256,6 +286,7 @@ Before going live, verify:
 ```
 
 ### Phase C: Release (1 hour)
+
 ```
 16:00 ├─ Pre-Release Checks (15 min)
       ├─ Create Branch (2 min)
@@ -272,6 +303,7 @@ Before going live, verify:
 ## 📁 File Locations
 
 ### In /tmp/ (Planning Documents)
+
 ```
 /tmp/
 ├── README-QA-PLANNING.md                    (This file)
@@ -282,6 +314,7 @@ Before going live, verify:
 ```
 
 ### In /home/lionel/code/fraiseql/ (After Commit)
+
 ```
 /home/lionel/code/fraiseql/
 ├── src/fraiseql/fastapi/routers.py          (Updated implementation)
@@ -301,15 +334,18 @@ Before going live, verify:
 ## 🔗 Related References
 
 ### Original Analysis
+
 - Source: `/tmp/fraiseql-graphql-compliance-report.md`
 - Contains: Implementation details, test results, business impact
 
 ### Project Guidelines
+
 - Location: `/home/lionel/code/fraiseql/.claude/CLAUDE.md`
 - Contains: FraiseQL-specific development standards
 - Reference for: Version management, release workflow, testing standards
 
 ### Global Standards
+
 - Location: `/home/lionel/.claude/CLAUDE.md`
 - Contains: General development methodology
 - Reference for: Architecture approach, code quality standards
@@ -319,9 +355,11 @@ Before going live, verify:
 ## 🎓 Key Concepts
 
 ### Nested Fragments
+
 Query fragments can now appear in nested field selections, not just at root level. This improves code reuse and reduces query repetition.
 
 Example:
+
 ```graphql
 fragment UserFields on User { id name }
 query {
@@ -330,15 +368,18 @@ query {
 ```
 
 ### Cycle Detection
+
 Circular fragment references are automatically detected and rejected, preventing infinite recursion and potential DoS attacks.
 
 Example Error:
+
 ```
 Circular fragment reference detected:
 Fragment A → Fragment B → Fragment A
 ```
 
 ### Version Strategy
+
 - Current: v1.8.5
 - Target: v1.8.6
 - Type: Patch bump (new features, no breaking changes)
@@ -349,18 +390,21 @@ Fragment A → Fragment B → Fragment A
 ## 💡 Pro Tips
 
 ### For Phase A (Code QA)
+
 - Run tests early and often
 - Check performance before/after
 - Verify backward compatibility explicitly
 - Document any edge cases found
 
 ### For Phase B (Documentation QA)
+
 - Copy-paste every example to test
 - Check all links manually
 - Verify terminology is consistent
 - Ensure error messages match reality
 
 ### For Phase C (Release)
+
 - Use the automated `make pr-ship-patch` command
 - Verify all 8 version files bumped
 - Confirm git tag created
@@ -371,6 +415,7 @@ Fragment A → Fragment B → Fragment A
 ## ⚠️ Critical Success Factors
 
 **Must Have Before Release:**
+
 1. ✅ All tests passing
 2. ✅ Documentation complete
 3. ✅ Examples valid
@@ -389,6 +434,7 @@ Fragment A → Fragment B → Fragment A
 ## 📞 Support & Questions
 
 ### If Issues Found
+
 - **Code issues**: Use Part 1 of QA-REVIEW-PLAN.md
 - **Doc issues**: Use Part 9 of DOCUMENTATION-QUALITY-ASSURANCE.md
 - **Release issues**: Use Part 5 of QA-REVIEW-PLAN.md
@@ -411,27 +457,31 @@ Fragment A → Fragment B → Fragment A
 
 ## 🎉 Success Definition
 
-### After All 3 Phases Complete:
+### After All 3 Phases Complete
 
 ✅ **Code Quality Verified**
+
 - All tests passing
 - Performance acceptable
 - Security reviewed
 - Backward compatible
 
 ✅ **Documentation Polished**
+
 - Complete and accurate
 - Examples validated
 - Consistent throughout
 - Copy-paste ready
 
 ✅ **Release Executed**
+
 - Version bumped (8 files)
 - Git tag created
 - PR auto-merge enabled
 - Ready for production
 
 ✅ **v1.8.6 Released!**
+
 - New features deployed
 - Docs published
 - Users can adopt
@@ -442,6 +492,7 @@ Fragment A → Fragment B → Fragment A
 ## 📊 Progress Tracking
 
 ### Today's Checklist
+
 - [ ] Read this README (10 min)
 - [ ] Read QA-EXECUTION-SUMMARY.md (15 min)
 - [ ] Execute Phase A using QA-REVIEW-PLAN.md (2-3 hours)
@@ -459,19 +510,22 @@ Fragment A → Fragment B → Fragment A
   - [ ] PR created
 
 ### Total Estimated Time
+
 ⏱️ **4-6 hours** for complete release
 
 ---
 
 ## 🚀 Ready to Start?
 
-### Quick Start Path:
+### Quick Start Path
+
 1. **This minute**: Read this README
 2. **Next**: Open QA-EXECUTION-SUMMARY.md
 3. **Then**: Follow the 3-phase process
 4. **Result**: v1.8.6 released by end of day
 
-### Document Quick Links:
+### Document Quick Links
+
 - 📄 **Quick Start**: QA-EXECUTION-SUMMARY.md
 - 📄 **Code QA**: QA-REVIEW-PLAN.md (Parts 1-3)
 - 📄 **Doc QA**: DOCUMENTATION-QUALITY-ASSURANCE.md (Parts 1-10)

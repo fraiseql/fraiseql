@@ -637,6 +637,7 @@ NATS_METRICS_EVENTS_RETENTION=168         # 7 days - high volume
 ### Security Considerations
 
 1. **Enable TLS**:
+
    ```bash
    NATS_TLS_ENABLED=true
    NATS_TLS_CERT_FILE=/etc/nats/certs/server.crt
@@ -644,6 +645,7 @@ NATS_METRICS_EVENTS_RETENTION=168         # 7 days - high volume
    ```
 
 2. **Use NKey Authentication**:
+
    ```bash
    # Instead of basic username/password
    NATS_NKey_SEED=SUAXXX...

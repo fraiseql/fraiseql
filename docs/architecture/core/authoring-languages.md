@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Multiple Authoring Languages Architecture
 description: FraiseQL supports **schema authoring in multiple languages** through a unified intermediate representation (IR):
 keywords: ["design", "scalability", "performance", "patterns", "security"]

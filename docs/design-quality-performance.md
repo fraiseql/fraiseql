@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Design Quality Performance Guide
 description: FraiseQL's design quality analysis is optimized for fast feedback during development and CI/CD pipelines.
 keywords: ["performance"]

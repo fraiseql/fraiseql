@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL Ruby with Python/T
 Complete implementation of advanced authorization and security features for Ruby:
 
 **Constants:**
+
 - `RoleMatchStrategy::ANY`, `ALL`, `EXACTLY`
 - `AuthzPolicyType::RBAC`, `ABAC`, `CUSTOM`, `HYBRID`
 
 **Configuration Classes:**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for Ruby
 **Builder Methods:**
 
 *AuthorizeBuilder:*
+
 - `rule(string)` - Set authorization rule expression
 - `policy(string)` - Reference named policy
 - `description(string)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for Ruby
 - `build()` - Return configuration
 
 *RoleRequiredBuilder:*
+
 - `roles(*string)` - Set required roles (variadic)
 - `roles_array(array)` - Set roles from array
 - `strategy(strategy)` - Role matching strategy
@@ -63,6 +68,7 @@ Complete implementation of advanced authorization and security features for Ruby
 - `build()` - Return configuration
 
 *AuthzPolicyBuilder:*
+
 - `description(string)` - Policy description
 - `rule(string)` - Authorization rule
 - `attributes(*string)` - Attribute conditions (variadic)
@@ -77,6 +83,7 @@ Complete implementation of advanced authorization and security features for Ruby
 - `build()` - Return configuration
 
 **Ruby Mixins:**
+
 - `Authorize` - Include for custom authorization rules
 - `RoleRequired` - Include for role-based access control
 - `AuthzPolicy` - Include for authorization policies
@@ -292,6 +299,7 @@ Ruby-specific advantages:
 **Current Status**: 100% Parity across 7 languages (210/210 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

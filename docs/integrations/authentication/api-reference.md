@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Authentication API Reference
 description: Complete API documentation for FraiseQL's OAuth 2.0 / OIDC authentication system.
 keywords: ["framework", "directives", "types", "sdk", "schema", "scalars", "monitoring", "api"]

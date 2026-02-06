@@ -33,6 +33,7 @@ The Trinity Pattern solves common database design problems:
 **Visibility**: NEVER exposed in GraphQL or APIs
 
 **Usage**:
+
 - PostgreSQL foreign key references
 - Internal query optimization
 - ltree path construction
@@ -46,11 +47,13 @@ CREATE TABLE tb_post (
 ```
 
 **Why INTEGER?**
+
 - 4 bytes vs 16 bytes (UUID) = 75% smaller indexes
 - Sequential IDs optimize B-tree performance
 - Faster JOIN operations
 
 **Security**: pk_* values MUST NOT be exposed:
+
 - ❌ Never in JSONB: `jsonb_build_object('pk_post', pk_post)`
 - ❌ Never in GraphQL types: `class Post: pk_post: int`
 - ❌ Never in API responses
@@ -65,6 +68,7 @@ CREATE TABLE tb_post (
 **Visibility**: ALWAYS exposed in GraphQL and APIs
 
 **Usage**:
+
 - GraphQL query parameters
 - REST API endpoints
 - External integrations
@@ -79,6 +83,7 @@ CREATE TABLE tb_post (
 ```
 
 **Benefits**:
+
 - Non-sequential (no information leakage about data volume)
 - Globally unique (works across databases/instances)
 - Can be generated client-side
@@ -93,6 +98,7 @@ CREATE TABLE tb_post (
 **Visibility**: Exposed when relevant (posts, users, products)
 
 **Usage**:
+
 - URLs: `/posts/getting-started-with-fraiseql`
 - User references: `@username`
 - Product SKUs: `laptop-dell-xps-13`
@@ -107,6 +113,7 @@ CREATE TABLE tb_post (
 ```
 
 **When to include**:
+
 - ✅ User-facing entities (users, posts, products, categories)
 - ✅ SEO-important pages
 - ❌ Internal entities (readings, logs, events)
@@ -227,6 +234,7 @@ FROM tb_user;
 **Why wrong?**: Exposes internal database structure, enables enumeration attacks
 
 **Fix**:
+
 ```sql
 -- CORRECT
 CREATE VIEW v_user AS
@@ -249,11 +257,13 @@ CREATE TABLE tb_post (
 ```
 
 **Why wrong?**:
+
 - 4x larger indexes (16 bytes vs 4 bytes)
 - Slower JOIN performance
 - Breaks Trinity pattern
 
 **Fix**:
+
 ```sql
 -- CORRECT
 CREATE TABLE tb_post (
@@ -271,6 +281,7 @@ CREATE TABLE tb_user (
 ```
 
 **Fix**:
+
 ```sql
 -- CORRECT (modern PostgreSQL)
 CREATE TABLE tb_user (
@@ -290,6 +301,7 @@ FROM tb_user;
 ```
 
 **Fix**:
+
 ```sql
 -- CORRECT
 CREATE VIEW v_user AS
@@ -340,22 +352,26 @@ python .phases/verify-examples-compliance/verify.py your_example/
 ### Manual Verification
 
 **Tables**:
+
 - [ ] Has `pk_<entity> INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
 - [ ] Has `id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE`
 - [ ] Has `identifier TEXT UNIQUE` (if user-facing)
 - [ ] Foreign keys reference `pk_*` columns
 
 **Views**:
+
 - [ ] Has direct `id` column for WHERE filtering
 - [ ] JSONB never contains `pk_*` fields
 - [ ] Includes `pk_*` only if other views JOIN to it
 
 **Functions**:
+
 - [ ] Variables use `v_<entity>_pk`, `v_<entity>_id` naming
 - [ ] Mutations call `fn_sync_tv_<entity>()`
 - [ ] Return appropriate types (JSONB for app, simple for core)
 
 **Python Types**:
+
 - [ ] Never expose `pk_*` fields
 - [ ] Match JSONB view structure exactly
 

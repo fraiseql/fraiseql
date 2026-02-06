@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Implementing a Custom SessionStore
 description: FraiseQL's authentication system is designed to be extensible. This guide shows how to implement a custom `SessionStore` for your preferred storage backend.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

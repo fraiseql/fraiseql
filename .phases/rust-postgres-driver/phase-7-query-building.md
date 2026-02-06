@@ -19,6 +19,7 @@ Move entire SQL query building pipeline from Python to Rust, eliminating all Pyt
 6. Parameter binding for safe queries
 
 **Success Criteria**:
+
 - ✅ All WHERE clause patterns work identically to Python
 - ✅ Field selection resolution matches Python behavior
 - ✅ Generated SQL is identical to Python version (bit-for-bit)
@@ -899,6 +900,7 @@ async def test_build_query_with_offset(parser, builder, test_schema):
 ## Testing Strategy
 
 ### Unit Tests
+
 - ✅ WHERE clause building (all operators)
 - ✅ Field classification (SQL column vs FK vs JSONB)
 - ✅ Parameter binding
@@ -907,12 +909,14 @@ async def test_build_query_with_offset(parser, builder, test_schema):
 - ✅ LIMIT/OFFSET
 
 ### Integration Tests
+
 - ✅ Build complete query
 - ✅ Verify SQL matches Python version
 - ✅ Parity tests: generate same SQL for 1000 test queries
 - ✅ All 5991+ existing tests pass
 
 ### Performance Tests
+
 - ⏱️ Benchmark query building: target 50-200µs (vs 2-4ms in Python)
 - 📊 Compare 100 complex WHERE clauses
 
@@ -921,6 +925,7 @@ async def test_build_query_with_offset(parser, builder, test_schema):
 ## Common Mistakes
 
 ### ❌ Mistake 1: Not Extracting Arguments Correctly
+
 ```rust
 // WRONG: Assuming WHERE is always present
 let where_arg = root_field.arguments[0];  // Panics if missing
@@ -933,6 +938,7 @@ if let Some(where_arg) = root_field.arguments.iter()
 ```
 
 ### ❌ Mistake 2: Incorrect JSONB Path Handling
+
 ```rust
 // WRONG: Mixing field names
 format!("t.{}->>'{}' ", jsonb_column, field_name)  // Extra space
@@ -942,6 +948,7 @@ format!("t.{}->>'{}'", jsonb_column, field_name)
 ```
 
 ### ❌ Mistake 3: Parameter Counter Not Incrementing
+
 ```rust
 // WRONG: Using same parameter name
 param_counter = 1;  // Never increments

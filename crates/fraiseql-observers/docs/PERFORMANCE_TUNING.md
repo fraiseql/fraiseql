@@ -115,6 +115,7 @@ fraiseql-observers metrics | grep cache_hit_rate
 **When**: Multiple independent actions per event
 
 **Before**:
+
 ```rust
 // Sequential: 100ms + 100ms + 100ms = 300ms
 executor.execute_action(&action1).await?;
@@ -123,6 +124,7 @@ executor.execute_action(&action3).await?;
 ```
 
 **After**:
+
 ```rust
 // Parallel: max(100ms, 100ms, 100ms) = 100ms
 use futures::future::join_all;
@@ -166,6 +168,7 @@ time CONCURRENT=1 cargo run --release --example 100_events  # 30ms per event (3.
 **When**: Throughput-focused scenarios, acceptable event loss window
 
 **Current**:
+
 ```rust
 // Save every event (slowest but safest)
 checkpoint_batch_size: 1,
@@ -175,6 +178,7 @@ checkpoint_batch_size: 1,
 ```
 
 **Optimized**:
+
 ```rust
 // Save every N events (balance)
 checkpoint_batch_size: 100,
@@ -599,4 +603,3 @@ num_workers: (num_cpus::get() * 2).min(64)
 - [ ] Load testing passed
 - [ ] Performance verified
 - [ ] Regression tests pass
-

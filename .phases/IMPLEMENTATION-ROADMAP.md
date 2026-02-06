@@ -16,6 +16,7 @@ This roadmap contains **detailed implementation plans** for three GraphQL spec c
 3. **View/Metadata Directives** (2-4 hours)
 
 Each plan includes:
+
 - ✅ Step-by-step implementation instructions
 - ✅ Complete code examples
 - ✅ Comprehensive test suite (50+ tests total)
@@ -34,21 +35,25 @@ Each plan includes:
 **What:** Enable fragment spreads in nested field selections (recursive fragment resolution)
 
 **Why:**
+
 - Complex denormalized views have many fields
 - Fragment reuse becomes critical as schemas grow
 - Enables composition of view selectors
 
 **Current state:**
+
 - ✅ Fragment resolver works at root level
 - ❌ Doesn't process nested field selections
 
 **Implementation:**
+
 - Modify `src/fraiseql/core/fragment_resolver.py` (30 lines)
 - Recursive field resolution
 - Handle nested inline fragments
 - Deduplicate at each level
 
 **Testing:**
+
 - 15+ unit tests (nested, deep nesting, aliases, dedup)
 - 5+ integration tests (multi-field queries)
 - Performance benchmarks
@@ -66,23 +71,27 @@ Each plan includes:
 **What:** Detect and reject circular fragment references at parse time
 
 **Why:**
+
 - Prevents infinite loops in query execution
 - DoS prevention
 - Early error detection with clear messages
 - Enables safe fragment validation
 
 **Current state:**
+
 - ❌ No cycle detection
 - Circular fragments silently allowed
 - Can cause runtime failures
 
 **Implementation:**
+
 - Create `src/fraiseql/core/fragment_validator.py` (NEW)
 - DFS-based cycle detection with backtracking
 - Type compatibility validation
 - Integration into query processing pipeline
 
 **Testing:**
+
 - 20+ unit tests (self-ref, mutual, transitive cycles, valid patterns)
 - 5+ integration tests (endpoint validation)
 - Error message quality tests
@@ -100,29 +109,34 @@ Each plan includes:
 **What:** Support metadata directives for views and dependencies
 
 **Why:**
+
 - Document view dependencies (implicit in SQL today)
 - Enable schema validation and tooling
 - Query cost analysis and planning
 - Explicit view refresh strategy
 
 **Directives:**
+
 - `@view_cached(ttl: Int!)` - Cache/refresh TTL
 - `@depends_on(views: [String!]!)` - Upstream dependencies
 - `@requires_function(name: String!)` - SQL function requirement
 - `@cost_units(estimate: Float!)` - Query complexity estimate
 
 **Current state:**
+
 - ❌ No metadata directives
 - Dependencies implicit in SQL
 - No cost tracking
 
 **Implementation:**
+
 - Create `src/fraiseql/gql/schema_directives.py` (NEW)
 - Create `src/fraiseql/gql/directive_validator.py` (NEW)
 - Add to schema in `schema_builder.py`
 - Optional validation at schema build time
 
 **Testing:**
+
 - 15+ unit tests (directive classes, validation)
 - 10+ integration tests (introspection, schema validation)
 
@@ -190,6 +204,7 @@ View/Metadata Directives
 ## Success Metrics
 
 ### Code Quality
+
 - [ ] **70+ new tests** (unit + integration + performance)
 - [ ] **100% test pass rate**
 - [ ] **Zero regressions** in 6000+ existing tests
@@ -197,6 +212,7 @@ View/Metadata Directives
 - [ ] **All ruff/black checks** pass
 
 ### Functionality
+
 - [ ] **Nested fragments** work in deeply nested selections
 - [ ] **Fragment cycles** detected and rejected
 - [ ] **Directives** appear in introspection
@@ -204,12 +220,14 @@ View/Metadata Directives
 - [ ] **End-to-end** queries work correctly
 
 ### Performance
+
 - [ ] **< 5% variance** from baseline (no regression)
 - [ ] **Fragment resolution** < 1ms per query
 - [ ] **Cycle detection** < 10ms per query
 - [ ] **Schema building** unchanged
 
 ### Documentation
+
 - [ ] **Clear error messages** for users
 - [ ] **Code comments** explain algorithms
 - [ ] **Docstrings** with examples
@@ -271,21 +289,25 @@ src/fraiseql/fastapi/
 ## Testing Strategy
 
 ### Unit Tests (45+ tests)
+
 - Fragment resolution (15 tests)
 - Fragment cycles (20 tests)
 - Directives (15 tests)
 
 ### Integration Tests (20+ tests)
+
 - Multi-field queries with fragments
 - Endpoint validation for cycles
 - Directive introspection
 
 ### Performance Tests (5+ tests)
+
 - Fragment resolution time
 - Cycle detection time
 - Schema building time
 
 ### Full Suite
+
 - Run existing 6000+ tests
 - Verify no regressions
 - Benchmark comparison
@@ -295,21 +317,25 @@ src/fraiseql/fastapi/
 ## Risk Assessment
 
 ### Risk 1: Breaking Existing Tests
+
 **Probability:** Low
 **Impact:** Medium
 **Mitigation:** Run full test suite after each change
 
 ### Risk 2: Performance Regression
+
 **Probability:** Low
 **Impact:** High
 **Mitigation:** Benchmark before/after, monitor metrics
 
 ### Risk 3: Fragment Complexity Issues
+
 **Probability:** Low
 **Impact:** Medium
 **Mitigation:** Comprehensive cycle detection tests
 
 ### Risk 4: Directive Validation Too Strict
+
 **Probability:** Medium
 **Impact:** Low
 **Mitigation:** Make validation optional, warnings only
@@ -353,6 +379,7 @@ Day 7: Integration & Verification
 ## Checkpoints
 
 ### After Nested Fragments
+
 ```bash
 # Should pass
 pytest tests/unit/core/test_nested_fragments.py -v
@@ -363,6 +390,7 @@ pytest tests/ -k fragment -v
 ```
 
 ### After Fragment Cycles
+
 ```bash
 # Should pass
 pytest tests/unit/core/test_fragment_cycles.py -v
@@ -373,6 +401,7 @@ pytest tests/unit/core/test_nested_fragments.py -v
 ```
 
 ### After View Directives
+
 ```bash
 # Should pass
 pytest tests/unit/gql/test_schema_directives.py -v
@@ -383,6 +412,7 @@ pytest tests/ -v
 ```
 
 ### Final Verification
+
 ```bash
 # Full test suite
 pytest tests/ -v --tb=short
@@ -403,17 +433,20 @@ black --check src/
 ## Rollout Strategy
 
 ### Phase 1: Development
+
 - [ ] Implement features on feature branches
 - [ ] Local testing and verification
 - [ ] Address code review feedback
 
 ### Phase 2: Integration
+
 - [ ] Merge to dev branch
 - [ ] Run full test suite
 - [ ] Verify no regressions
 - [ ] Performance benchmarking
 
 ### Phase 3: Validation
+
 - [ ] Code review approval
 - [ ] Documentation complete
 - [ ] Ready for release in next minor version
@@ -425,11 +458,13 @@ black --check src/
 These gaps were rejected based on FraiseQL's architecture:
 
 ### ❌ Auto DataLoaders (Gap #3)
+
 - **Reason:** Denormalized views eliminate N+1 queries by design
 - **Why:** All joins pre-computed in `tv_*` materialized views
 - **Alternative:** Use `tv_user_with_posts` instead of loading separately
 
 ### ❌ HTTP Streaming (Gap #4)
+
 - **Reason:** Out of scope for bounded query results
 - **Why:** FraiseQL returns complete, pre-shaped results
 - **Alternative:** Use WebSocket subscriptions for real streaming
@@ -439,18 +474,21 @@ These gaps were rejected based on FraiseQL's architecture:
 ## Documentation
 
 ### For Developers
+
 - Detailed implementation plans (this file + 3 separate plans)
 - Code comments with examples
 - Algorithm explanations
 - Testing strategy
 
 ### For Users
+
 - Error messages with solutions
 - Directive descriptions
 - Usage examples
 - Migration guide (if needed)
 
 ### For Tooling Teams
+
 - Directive definitions (enables tools)
 - Introspection support
 - Dependency graph documentation

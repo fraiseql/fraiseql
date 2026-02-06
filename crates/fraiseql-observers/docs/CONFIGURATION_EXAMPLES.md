@@ -437,17 +437,20 @@ checkpoint_batch_size: 10000,
 ### Example 2: Retry Strategy Configuration
 
 #### Exponential Backoff (Standard)
+
 ```rust
 retry_strategy: BackoffStrategy::Exponential {
     initial: Duration::from_millis(100),
     max: Duration::from_secs(30),
 },
 ```
+
 Delays: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s, 30s
 
 **Use case**: Transient failures (network glitches, temporary overload)
 
 #### Linear Backoff (Predictable)
+
 ```rust
 retry_strategy: BackoffStrategy::Linear {
     initial: Duration::from_millis(100),
@@ -455,16 +458,19 @@ retry_strategy: BackoffStrategy::Linear {
     max: Duration::from_secs(10),
 },
 ```
+
 Delays: 100ms, 200ms, 300ms, 400ms, ..., 10s
 
 **Use case**: More predictable, uniform retry pattern
 
 #### Fixed Backoff (Simple)
+
 ```rust
 retry_strategy: BackoffStrategy::Fixed {
     delay: Duration::from_millis(100),
 },
 ```
+
 Delays: 100ms, 100ms, 100ms, ...
 
 **Use case**: Testing, or when service recovers quickly
@@ -474,6 +480,7 @@ Delays: 100ms, 100ms, 100ms, ...
 ### Example 3: Circuit Breaker Configuration
 
 #### Aggressive (Fail Fast)
+
 ```rust
 CircuitBreakerConfig {
     failure_threshold: 0.2,      // Open at 20% failures
@@ -486,6 +493,7 @@ CircuitBreakerConfig {
 **Use case**: Expensive operations (protect system from runaway)
 
 #### Conservative (High Tolerance)
+
 ```rust
 CircuitBreakerConfig {
     failure_threshold: 0.7,      // Open at 70% failures
@@ -502,6 +510,7 @@ CircuitBreakerConfig {
 ### Example 4: Cache Configuration
 
 #### Aggressive Caching (Speed Priority)
+
 ```rust
 cache_backend: Arc::new(
     RedisCacheBackend::with_config(
@@ -518,6 +527,7 @@ cache_backend: Arc::new(
 **Result**: 95%+ hit rate, extreme performance
 
 #### Conservative Caching (Correctness Priority)
+
 ```rust
 cache_backend: Arc::new(
     RedisCacheBackend::with_config(
@@ -538,6 +548,7 @@ cache_backend: Arc::new(
 ### Example 5: Multi-Listener Configuration
 
 #### 1 Listener (No HA)
+
 ```rust
 multi_listener_config: None,
 ```
@@ -545,6 +556,7 @@ multi_listener_config: None,
 **Use case**: Development, non-critical systems
 
 #### 3 Listeners (Standard HA)
+
 ```rust
 multi_listener_config: Some(MultiListenerConfig {
     num_listeners: 3,
@@ -556,6 +568,7 @@ multi_listener_config: Some(MultiListenerConfig {
 **Use case**: Production with acceptable downtime (seconds)
 
 #### 5 Listeners (High Availability)
+
 ```rust
 multi_listener_config: Some(MultiListenerConfig {
     num_listeners: 5,
@@ -611,6 +624,7 @@ pub async fn staging_config() -> ObserverRuntimeConfig {
 ## Migration Path
 
 ### Deploy with Checkpoints Only
+
 ```toml
 [features]
 phase1 = ["checkpoint"]
@@ -621,6 +635,7 @@ phase1 = ["checkpoint"]
 - Safe foundation
 
 ### Add Caching
+
 ```toml
 [features]
 phase2 = ["checkpoint", "caching"]
@@ -631,6 +646,7 @@ phase2 = ["checkpoint", "caching"]
 - Adds Redis dependency
 
 ### Add Deduplication
+
 ```toml
 [features]
 phase3 = ["checkpoint", "caching", "dedup"]
@@ -640,6 +656,7 @@ phase3 = ["checkpoint", "caching", "dedup"]
 - Uses existing Redis
 
 ### Add Monitoring
+
 ```toml
 [features]
 phase4 = ["checkpoint", "caching", "dedup", "metrics"]
@@ -649,6 +666,7 @@ phase4 = ["checkpoint", "caching", "dedup", "metrics"]
 - Enables alerting
 
 ### Add Search
+
 ```toml
 [features]
 final = ["checkpoint", "caching", "dedup", "metrics", "search"]
@@ -664,31 +682,39 @@ final = ["checkpoint", "caching", "dedup", "metrics", "search"]
 ### Increase Throughput
 
 1. **Increase checkpoint batch size**
+
    ```rust
    checkpoint_batch_size: 1000,  // Was 100
    ```
+
    Trade-off: Higher data loss risk on crash
 
 2. **Enable aggressive caching**
+
    ```rust
    cache_ttl: Duration::from_secs(600),  // Was 60
    ```
+
    Trade-off: Staler data
 
 3. **Increase worker pool**
+
    ```rust
    job_queue: Arc::new(RedisJobQueue::with_workers("redis://...", 500))
    ```
+
    Trade-off: Higher resource usage
 
 ### Reduce Latency
 
 1. **Reduce cache TTL** (for fresher data)
+
    ```rust
    cache_ttl: Duration::from_secs(10),  // Was 60
    ```
 
 2. **Reduce retry delays**
+
    ```rust
    retry_strategy: BackoffStrategy::Fixed {
        delay: Duration::from_millis(10),  // Was 100
@@ -696,9 +722,11 @@ final = ["checkpoint", "caching", "dedup", "metrics", "search"]
    ```
 
 3. **Decrease checkpoint batch size**
+
    ```rust
    checkpoint_batch_size: 10,  // Was 100
    ```
+
    Trade-off: More frequent writes to database
 
 ---
@@ -717,4 +745,3 @@ final = ["checkpoint", "caching", "dedup", "metrics", "search"]
 - [ ] Tested configuration with sample events
 - [ ] Documented configuration choices
 - [ ] Set up monitoring and alerting
-

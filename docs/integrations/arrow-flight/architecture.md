@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Arrow Flight Architecture
 description: FraiseQL's Arrow Flight integration provides a **dual-dataplane architecture** optimized for different access patterns:
 keywords: ["framework", "design", "sdk", "scalability", "performance", "monitoring", "patterns", "database"]

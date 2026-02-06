@@ -9,6 +9,7 @@
 FraiseQL v1.9 completes the transition to an **exclusive Rust backend architecture**, delivering unprecedented performance improvements while maintaining full backward compatibility for GraphQL schemas and database designs.
 
 ### Key Achievements
+
 - **2-3x faster response times** for complex queries
 - **40-60% reduction** in memory usage
 - **Zero Python string operations** in the data pipeline
@@ -16,6 +17,7 @@ FraiseQL v1.9 completes the transition to an **exclusive Rust backend architectu
 - **Enhanced reliability** through compile-time type safety
 
 ### Migration Impact
+
 - **Zero breaking changes** for GraphQL APIs
 - **Seamless database compatibility** with existing schemas
 - **Automatic performance gains** for all applications
@@ -28,6 +30,7 @@ FraiseQL v1.9 completes the transition to an **exclusive Rust backend architectu
 FraiseQL v1.9 represents the culmination of a multi-version evolution toward high-performance, Rust-powered data processing:
 
 #### Before v1.9: Dual Execution Paths
+
 ```
 Client Request → GraphQL Parser → [Python Resolver] → Database Query → JSONB Processing → Python Objects → GraphQL Response
                                       ↓
@@ -35,6 +38,7 @@ Client Request → GraphQL Parser → [Python Resolver] → Database Query → J
 ```
 
 #### v1.9+: Exclusive Rust Pipeline
+
 ```
 Client Request → GraphQL Parser → [Rust Resolver] → Database Query → JSONB Processing → Rust Transform → HTTP Response
 ```
@@ -42,21 +46,25 @@ Client Request → GraphQL Parser → [Rust Resolver] → Database Query → JSO
 ### Technical Changes
 
 #### 1. Exclusive Rust Backend
+
 - **All database operations** now flow through the Rust pipeline
 - **Zero Python string operations** between database and HTTP response
 - **Direct byte serialization** from Rust to HTTP transport layer
 
 #### 2. Performance Optimizations
+
 - **Memory allocation** reduced by 40-60% through zero-copy operations
 - **Response times** improved by 2-3x for complex queries
 - **Concurrent processing** enhanced through Rust's async runtime
 
 #### 3. Reliability Improvements
+
 - **Type safety** enforced at compile time
 - **Memory safety** guaranteed by Rust's ownership system
 - **Error handling** improved with detailed diagnostic information
 
 #### 4. Breaking Changes
+
 - **psycopg-only execution** completely removed
 - **Legacy repository methods** deprecated (select_from_json_view)
 - **Direct psycopg imports** no longer supported
@@ -86,22 +94,27 @@ Client Request → GraphQL Parser → [Rust Resolver] → Database Query → JSO
 ### Why the Performance Gains?
 
 #### Zero Python String Operations
+
 Traditional GraphQL servers perform multiple string conversions:
+
 ```
 Database bytes → Python string → Python dict → JSON string → HTTP bytes
 ```
 
 FraiseQL v1.9 eliminates all intermediate conversions:
+
 ```
 Database bytes → Rust processing → HTTP bytes (direct)
 ```
 
 #### Memory Efficiency
+
 - **No intermediate Python objects** for large result sets
 - **Reduced garbage collection pressure** under high load
 - **Predictable memory allocation** patterns
 
 #### Concurrent Processing
+
 - **Rust async runtime** provides better concurrency than Python's GIL
 - **Type-safe concurrent operations** without race conditions
 - **Optimized thread pool** management
@@ -113,6 +126,7 @@ Database bytes → Rust processing → HTTP bytes (direct)
 Most applications will experience **automatic performance improvements** with minimal code changes.
 
 #### Step 1: Update Dependencies
+
 ```bash
 # Update to v1.9+
 pip install fraiseql>=1.9.0
@@ -124,6 +138,7 @@ pip install fraiseql[dev]>=1.9.0
 #### Step 2: Repository Method Updates (If Using Legacy Methods)
 
 **Before (v1.8 and earlier):**
+
 ```python
 from fraiseql.db import PsycopgRepository
 
@@ -138,6 +153,7 @@ results, total = await db.select_from_json_view(
 ```
 
 **After (v1.9+):**
+
 ```python
 from fraiseql.db import FraiseQLRepository
 
@@ -168,12 +184,14 @@ print(f"Response time: {duration:.1f}ms")  # Expect 2-3x improvement
 ### Breaking Changes
 
 #### Removed Features
+
 - `PsycopgRepository` class
 - `select_from_json_view()` method
 - Direct psycopg connection handling
 - Legacy JSONB processing pipeline
 
 #### Migration Timeline
+
 - **v1.8**: psycopg-only path deprecated with warnings
 - **v1.9**: psycopg-only path completely removed
 - **Migration window**: 3 months from v1.8 release
@@ -181,6 +199,7 @@ print(f"Response time: {duration:.1f}ms")  # Expect 2-3x improvement
 ### Database Compatibility
 
 ✅ **Fully Compatible**
+
 - Existing PostgreSQL schemas unchanged
 - JSONB views work without modification
 - Database indexes and constraints preserved
@@ -189,6 +208,7 @@ print(f"Response time: {duration:.1f}ms")  # Expect 2-3x improvement
 ### GraphQL API Compatibility
 
 ✅ **Zero Breaking Changes**
+
 - GraphQL schemas remain identical
 - Query syntax unchanged
 - Response formats maintained
@@ -199,6 +219,7 @@ print(f"Response time: {duration:.1f}ms")  # Expect 2-3x improvement
 v1.9 introduces comprehensive **chaos engineering testing** to validate performance under failure conditions.
 
 ### What is Chaos Engineering?
+
 Chaos engineering intentionally injects failures to verify system resilience:
 
 - **Network failures**: Connection drops, latency injection
@@ -227,16 +248,19 @@ FraiseQL v1.9 includes automated chaos testing in the CI/CD pipeline:
 ## Enterprise Features
 
 ### Enhanced Security
+
 - **Compile-time type checking** prevents data corruption
 - **Memory-safe operations** eliminate buffer overflow vulnerabilities
 - **Secure defaults** with no unsafe Rust code
 
 ### Observability Improvements
+
 - **Performance monitoring** with Rust pipeline metrics
 - **Chaos testing integration** for failure scenario validation
 - **Detailed error reporting** with diagnostic information
 
 ### Production Readiness
+
 - **Zero-downtime upgrades** from v1.8
 - **Backward compatibility** maintained for GraphQL APIs
 - **Comprehensive testing** including chaos engineering
@@ -294,11 +318,13 @@ A: File issues on GitHub or contact enterprise support for assistance.
 ## Timeline
 
 ### Release Schedule
+
 - **v1.8.0** (Q3 2025): Rust backend available, psycopg deprecated with warnings
 - **v1.9.0** (Q4 2025): Exclusive Rust backend, psycopg removed
 - **v1.9.x** (2026): Stability updates and performance optimizations
 
 ### Migration Windows
+
 - **Immediate**: Dependency updates for automatic performance gains
 - **1-2 weeks**: Simple applications with standard repository usage
 - **1-3 months**: Complex applications with custom repository code
@@ -307,16 +333,19 @@ A: File issues on GitHub or contact enterprise support for assistance.
 ## Support Resources
 
 ### Documentation
+
 - **[Migration Guide](core/rust-backend-migration.md)** - Complete technical migration guide
 - **[Performance Optimization](performance/rust-pipeline-optimization.md)** - Advanced performance tuning
 - **[CI/CD Architecture](testing/ci-architecture.md)** - Testing and deployment guidance
 
 ### Community Resources
+
 - **GitHub Issues**: Report bugs and request features
 - **GitHub Discussions**: Ask questions and share experiences
 - **Stack Overflow**: Tag questions with `fraiseql`
 
 ### Enterprise Support
+
 - **Dedicated migration assistance** for enterprise customers
 - **Performance optimization consulting**
 - **Custom chaos testing scenarios**
@@ -325,12 +354,14 @@ A: File issues on GitHub or contact enterprise support for assistance.
 ## Future Roadmap
 
 ### v1.10+ Enhancements
+
 - **Advanced caching strategies** leveraging Rust performance
 - **Distributed query optimization** across multiple database instances
 - **Machine learning integration** for query optimization
 - **Enhanced chaos engineering** with AI-driven failure scenarios
 
 ### Long-term Vision
+
 - **Sub-millisecond query performance** for simple operations
 - **Automatic query optimization** using machine learning
 - **Global database replication** with Rust-powered synchronization

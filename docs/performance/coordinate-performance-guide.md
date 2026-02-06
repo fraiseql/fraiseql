@@ -16,6 +16,7 @@ USING GIST ((coordinates::point));
 ```
 
 **Benefits:**
+
 - Fast distance queries: `ST_DWithin(coordinates::point, center_point, radius)`
 - Spatial containment queries
 - Nearest neighbor searches with `<->` operator
@@ -113,6 +114,7 @@ WHERE ST_DWithin(coordinates::point, ST_Point(-122.4, 37.8)::point, 1000);
 ```
 
 **Look for:**
+
 - "Index Scan" instead of "Seq Scan"
 - GiST index usage
 - Reasonable execution time
@@ -139,6 +141,7 @@ WHERE indexname LIKE '%coordinates%';
 When adding coordinates to existing tables:
 
 1. **Create GiST index concurrently** (doesn't block writes):
+
    ```sql
    CREATE INDEX CONCURRENTLY idx_table_coordinates_gist
    ON your_table USING GIST ((coordinates::point));

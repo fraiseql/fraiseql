@@ -36,6 +36,7 @@ Tests creating a user directly in the users subgraph (the authoritative owner):
 - Direct mutations should execute locally without federation
 
 **Example**:
+
 ```graphql
 mutation {
     createUser(
@@ -66,6 +67,7 @@ Tests updating a user from the orders subgraph (which extends User):
 - Orders subgraph acts as a proxy
 
 **Example**:
+
 ```graphql
 mutation {
     updateUser(
@@ -98,6 +100,7 @@ Tests creating an order that references an existing user:
 - Tests entity linking through federation
 
 **Example**:
+
 ```graphql
 mutation {
     createOrder(
@@ -164,6 +167,7 @@ Tests executing mutations through Apollo Router gateway:
 - Returns result
 
 **Example**:
+
 ```graphql
 mutation {
     updateUser(
@@ -237,6 +241,7 @@ RUST_LOG=debug cargo test test_extended_mutation_ --ignored --nocapture
 ## Test Results Interpretation
 
 ### ✓ All Tests Pass
+
 Extended mutations are fully implemented:
 
 - Mutations on extended entities propagate via HTTP
@@ -245,6 +250,7 @@ Extended mutations are fully implemented:
 - Gateway can route mutations
 
 ### ⚠ HTTP Propagation Fails
+
 This is expected in early implementations:
 
 - Extended mutations may not yet be implemented
@@ -253,6 +259,7 @@ This is expected in early implementations:
 - May be a future enhancement
 
 ### ✗ Data Consistency Fails
+
 Indicates data integrity issue:
 
 - Mutation executed but didn't persist
@@ -260,6 +267,7 @@ Indicates data integrity issue:
 - Verify entity references are correct
 
 ### ✗ Performance Issues
+
 Investigate if:
 
 - Network latency is high
@@ -271,6 +279,7 @@ Investigate if:
 ### View Mutation Requests
 
 Monitor orders subgraph logs during mutation:
+
 ```bash
 docker-compose logs -f orders-subgraph
 ```
@@ -284,6 +293,7 @@ Look for:
 ### Check Database State
 
 Verify mutations actually modified data:
+
 ```bash
 # Users database
 psql postgresql://postgres:fraiseql@localhost:5432/users
@@ -297,6 +307,7 @@ SELECT * FROM tb_order LIMIT 5;
 ### Manual Mutation Testing
 
 Test a mutation manually:
+
 ```bash
 curl -X POST http://localhost:4002/graphql \
   -H "Content-Type: application/json" \
@@ -308,6 +319,7 @@ curl -X POST http://localhost:4002/graphql \
 ### Check Federation Configuration
 
 Verify federation is enabled:
+
 ```bash
 cat tests/integration/services/orders/federation.toml
 ```
@@ -357,6 +369,7 @@ Should show:
 ### Create Order with Validation
 
 Check if all orders have valid user references:
+
 ```graphql
 query {
     orders {
@@ -373,6 +386,7 @@ query {
 ### Update Order Status
 
 Update order status and verify user still accessible:
+
 ```graphql
 mutation {
     updateOrderStatus(id: "<order-id>", status: "shipped") {
@@ -426,6 +440,7 @@ Possible causes:
 4. HTTP timeout too short
 
 Check Docker Compose networking:
+
 ```bash
 docker-compose exec orders-subgraph curl http://users-subgraph:4001/graphql \
   -H "Content-Type: application/json" \

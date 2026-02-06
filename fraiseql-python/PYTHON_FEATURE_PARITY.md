@@ -51,6 +51,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 ### Current Implementation
 
 **Implemented:**
+
 - Field descriptions via field() helper
 - Custom field names
 - Nullable field support (using | None)
@@ -84,6 +85,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 ### Implementation Status
 
 **Implemented:**
+
 - Fact table definitions with @fact_table decorator
 - Measure fields with aggregation functions (SUM, AVG, COUNT, MIN, MAX, STDDEV, VARIANCE)
 - Dimension fields with hierarchy support and cardinality hints
@@ -107,6 +109,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 ### Implementation Status
 
 **Implemented:**
+
 - Custom authorization rules via @authorize decorator
 - Rule expressions with context variables ($context.userId, $context.roles, etc.)
 - Field-level and type-level authorization
@@ -130,6 +133,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 ### Phase 7 - Security Extensions (40 new tests)
 
 **AuthorizationTest** (8 tests)
+
 - Custom authorization rule registration
 - Ownership-based access control
 - Multiple authorization rules on different fields
@@ -140,6 +144,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 - Caching of authorization decisions
 
 **RoleBasedAccessControlTest** (11 tests)
+
 - Single and multiple role requirements
 - Role matching strategies (ANY, ALL, EXACTLY)
 - Role hierarchies and inheritance
@@ -149,6 +154,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 - Patterns: AdminPanel, SalaryData, ComplianceReport, ManagerData
 
 **AttributeBasedAccessControlTest** (11 tests)
+
 - Clearance level-based access
 - Department-based restrictions
 - Time-based access control
@@ -159,6 +165,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 - Patterns: ClassifiedDocument, FinancialRecord, PersonalData, RegionalData
 
 **AuthzPolicyTest** (10 tests)
+
 - RBAC policy definition and reuse
 - ABAC policy with attribute conditions
 - Hybrid policies combining roles and attributes
@@ -249,6 +256,7 @@ The test suites validate that:
 ### Decorators Implemented
 
 **Type System:**
+
 - `@type` - Object types
 - `@enum` - Enumerations
 - `@interface` - Interface types
@@ -257,27 +265,32 @@ The test suites validate that:
 - `field()` - Field configuration
 
 **Operations:**
+
 - `@query` - GraphQL queries
 - `@mutation` - GraphQL mutations
 - `@subscription` - GraphQL subscriptions
 
 **Field Metadata:**
+
 - `field(deprecated=...)` - Deprecation
 - `field(requires_scope=...)` - Scope control
 - `field(description=...)` - Documentation
 
 **Analytics:**
+
 - `@fact_table` - Fact table types
 - `@aggregate_query` - Aggregate queries
 - Measures and dimensions support
 
 **Observers:**
+
 - `@observer` - Event observers
 - `webhook()` - Webhook actions
 - `slack()` - Slack actions
 - `email()` - Email actions
 
 **Security:** (NEW in Phase 7)
+
 - `@authorize` - Custom authorization rules
 - `@role_required` - Role-based access control
 - `@authz_policy` - Reusable authorization policies

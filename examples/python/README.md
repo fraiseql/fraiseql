@@ -16,11 +16,13 @@ High-performance client for querying FraiseQL's ta_* materialized tables via Arr
 ### Prerequisites
 
 1. **FraiseQL Server**: Running with Arrow Flight enabled
+
    ```bash
    cargo run --release --features arrow
    ```
 
 2. **Python Dependencies**:
+
    ```bash
    pip install pyarrow polars
    ```

@@ -1,6 +1,7 @@
 # CQRS Pattern in FraiseQL
 
 ## Overview
+
 FraiseQL implements the Command Query Responsibility Segregation (CQRS) pattern to optimize read and write operations separately. This separation allows for different optimization strategies for queries (reads) and mutations (writes).
 
 ## ASCII Art Diagram
@@ -25,6 +26,7 @@ FraiseQL implements the Command Query Responsibility Segregation (CQRS) pattern 
 ## Detailed CQRS Separation
 
 ### Query Path (Reads)
+
 ```
 GraphQL Query ──▶ tv_* JSONB Table ──▶ Direct Result
                      │
@@ -36,6 +38,7 @@ GraphQL Query ──▶ tv_* JSONB Table ──▶ Direct Result
 ```
 
 ### Command Path (Writes)
+
 ```
 GraphQL Mutation ──▶ fn_* Function ──▶ Business Logic + Write
                         │
@@ -75,24 +78,30 @@ graph TD
 ## Component Roles
 
 ### Queries (Read Operations)
+
 **Purpose**: Retrieve data efficiently
 **Database Objects**:
+
 - `tv_*` tables: Primary read source with generated JSONB (optimal for GraphQL)
 - `v_*` views: Alternative for simple queries or small datasets
 
 **Characteristics**:
+
 - Optimized for speed with pre-computed JSONB
 - May use denormalized data
 - Read-only operations
 - No side effects
 
 ### Mutations (Write Operations)
+
 **Purpose**: Modify data with business logic
 **Database Objects**:
+
 - `fn_*` functions: Business logic functions
 - `tb_*` tables: Normalized storage tables
 
 **Characteristics**:
+
 - ACID compliant
 - Input validation
 - Business rule enforcement
@@ -101,6 +110,7 @@ graph TD
 ## Example: Blog Post System
 
 ### Read Operations (Queries)
+
 ```sql
 -- Primary read source: tv_* table with generated JSONB
 CREATE TABLE tv_post (
@@ -156,6 +166,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ```
 
 ### Write Operations (Mutations)
+
 ```sql
 -- Create post function
 CREATE FUNCTION fn_create_post(
@@ -188,12 +199,14 @@ $$ LANGUAGE plpgsql;
 ## Performance Benefits
 
 ### Read Optimization
+
 - **Pre-computed joins**: Views eliminate N+1 query problems
 - **JSONB aggregation**: Single query returns complete object graphs
 - **Materialized views**: For expensive computations
 - **Indexing**: Optimized for common query patterns
 
 ### Write Optimization
+
 - **Stored procedures**: Reduce network round trips
 - **Transaction grouping**: Related changes in single transaction
 - **Validation at database level**: Prevents invalid data
@@ -202,6 +215,7 @@ $$ LANGUAGE plpgsql;
 ## When to Use Each Pattern
 
 ### Use tv_* Tables (Reads) - Recommended for Production
+
 - GraphQL APIs with complex nested data
 - High-traffic applications needing sub-millisecond queries
 - Large datasets (> 100k rows)
@@ -209,18 +223,21 @@ $$ LANGUAGE plpgsql;
 - Real-time consistency requirements
 
 ### Use v_* Views (Reads) - For Simple Cases
+
 - Small datasets (< 10k rows) where JOIN overhead is acceptable
 - Development/prototyping (quick setup)
 - Simple queries without heavy aggregations
 - Cases requiring absolute freshness (no caching)
 
 ### Use fn_* Functions (Writes)
+
 - Business logic required
 - Multiple table updates
 - Validation needed
 - Audit trails required
 
 ### Use tb_* Tables (Direct Writes)
+
 - Simple data insertion
 - No business logic
 - Bulk operations
@@ -229,11 +246,13 @@ $$ LANGUAGE plpgsql;
 ## Consistency Considerations
 
 ### Eventual Consistency
+
 - Some views may lag behind table updates
 - Materialized views refresh on schedule
 - Real-time views always current
 
 ### Transactional Consistency
+
 - Mutations use database transactions
 - All-or-nothing operations
 - Rollback on errors
@@ -241,6 +260,7 @@ $$ LANGUAGE plpgsql;
 ## Migration from Traditional ORM
 
 ### Before (Traditional)
+
 ```
 User → ORM → SQL → Database → ORM → User
     ↓       ↓       ↓       ↓       ↓
@@ -248,6 +268,7 @@ User → ORM → SQL → Database → ORM → User
 ```
 
 ### After (CQRS)
+
 ```
 User → GraphQL → tv_* Table → JSONB → Response
 User → GraphQL → fn_* Function → Transaction → Success
@@ -256,12 +277,14 @@ User → GraphQL → fn_* Function → Transaction → Success
 ## Monitoring and Observability
 
 ### Read Metrics
+
 - Query execution time
 - View refresh frequency
 - Cache hit rates
 - Data freshness
 
 ### Write Metrics
+
 - Transaction success rate
 - Function execution time
 - Validation failure rates

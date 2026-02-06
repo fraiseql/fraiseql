@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Authentication Monitoring and Observability
 description: This guide covers monitoring, logging, and observability for FraiseQL's authentication system.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

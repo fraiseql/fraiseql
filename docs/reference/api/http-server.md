@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL HTTP Server Guide
 description: The FraiseQL HTTP server is a high-performance GraphQL execution engine built with Axum that loads pre-compiled schemas and executes GraphQL queries with zero r
 keywords: ["directives", "types", "scalars", "schema", "api"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL State Management: Caching, Change Data Capture, and State Model
 description: FraiseQL state management spans three concerns:
 keywords: ["design", "scalability", "performance", "patterns", "security"]

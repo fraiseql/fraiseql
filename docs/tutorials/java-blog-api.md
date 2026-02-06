@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Building a Blog API with FraiseQL: Java Schema Authoring Tutorial
 description: In this tutorial, you'll build a complete GraphQL Blog API by authoring a schema in Java. You'll learn how to:
 keywords: ["project", "hands-on", "schema", "learning", "example", "step-by-step"]

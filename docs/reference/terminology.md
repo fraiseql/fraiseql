@@ -30,22 +30,26 @@ This guide defines canonical terminology used throughout FraiseQL documentation 
 **Primary term:** "PostgreSQL function"
 
 **When to use:**
+
 - Formal documentation
 - API references
 - Technical explanations
 - Mutation descriptions
 
 **Acceptable alternatives:**
+
 - "SQL function" (in code comments, casual use)
 - "Database function" (only when PostgreSQL is clear from context)
 
 **Avoid:**
+
 - "DB function" (too informal)
 - "Function" alone (ambiguous - Python vs SQL)
 
 **Examples:**
 
 ✅ **CORRECT:**
+
 ```markdown
 Mutations call PostgreSQL functions for business logic:
 
@@ -53,12 +57,14 @@ CREATE OR REPLACE FUNCTION fn_create_user(...) RETURNS JSONB AS $$
 ```
 
 ⚠️ **ACCEPTABLE (casual context):**
+
 ```python
 # Call SQL function to create user
 result = await db.execute_function("fn_create_user", {...})
 ```
 
 ❌ **AVOID:**
+
 ```markdown
 Create a database function to handle the mutation.
 ```
@@ -74,11 +80,13 @@ Create a database function to handle the mutation.
 **Primary term:** "JSONB view"
 
 **When to use:**
+
 - Describing FraiseQL's view pattern
 - Views that return JSONB in `data` column
 - Most GraphQL type mappings
 
 **Pattern:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -91,6 +99,7 @@ FROM tb_user;
 ```
 
 **Why JSONB view:**
+
 - Distinguishes FraiseQL's specific pattern
 - Differentiates from generic PostgreSQL views
 - Highlights that JSONB is pre-composed for GraphQL
@@ -100,11 +109,13 @@ FROM tb_user;
 **Primary term:** "PostgreSQL view"
 
 **When to use:**
+
 - Generic database view discussions
 - When not using JSONB pattern
 - Comparing with other databases
 
 **Example:**
+
 ```markdown
 FraiseQL uses PostgreSQL views for read optimization, but specifically
 uses the JSONB view pattern for GraphQL types.
@@ -115,16 +126,19 @@ uses the JSONB view pattern for GraphQL types.
 **Primary term:** "Projection table" (with `tv_*` notation)
 
 **When to use:**
+
 - Regular tables storing cached JSONB
 - Performance optimization discussions
 - Comparing with views
 
 **Avoid:**
+
 - "Table view" (confusing - is it a table or view?)
 - "Materialized projection" (too verbose)
 - "Cached table" (doesn't convey JSONB nature)
 
 **Pattern:**
+
 ```sql
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,
@@ -146,11 +160,13 @@ CREATE TABLE tv_user (
 **Primary term:** "Materialized view" (PostgreSQL's `CREATE MATERIALIZED VIEW`)
 
 **When to use:**
+
 - Pre-computed aggregations
 - PostgreSQL-native materialized views
 - Rarely used in FraiseQL (projection tables preferred)
 
 **Why rare in FraiseQL:**
+
 - Projection tables (`tv_*`) offer more control
 - Explicit sync functions vs `REFRESH MATERIALIZED VIEW`
 - Better integration with mutation pipeline
@@ -164,23 +180,27 @@ CREATE TABLE tv_user (
 **Primary term:** "Rust pipeline"
 
 **When to use:**
+
 - Architecture explanations
 - User-facing documentation
 - Performance discussions
 - "How FraiseQL works" sections
 
 **Example:**
+
 ```markdown
 FraiseQL's Rust pipeline transforms PostgreSQL JSONB to HTTP responses
 7-10x faster than Python serialization.
 ```
 
 **Avoid in user docs:**
+
 - "Rust extension" (too technical)
 - "fraiseql_rs module" (implementation detail)
 - "Rust layer" (vague)
 
 **Use in technical docs:**
+
 - "fraiseql_rs" (when discussing code/implementation)
 
 #### fraiseql_rs
@@ -188,17 +208,20 @@ FraiseQL's Rust pipeline transforms PostgreSQL JSONB to HTTP responses
 **Primary term:** "fraiseql_rs"
 
 **When to use:**
+
 - Code examples with imports
 - Technical/developer documentation
 - Contributing guides
 - Source code references
 
 **Example:**
+
 ```python
 from fraiseql_rs import transform_jsonb
 ```
 
 **Avoid in user docs:**
+
 - Don't expose internal module structure
 - Use "Rust pipeline" instead
 
@@ -211,17 +234,20 @@ from fraiseql_rs import transform_jsonb
 **Primary term:** "Trinity pattern"
 
 **When to use:**
+
 - Describing the architectural pattern
 - High-level explanations
 - Design discussions
 
 **Definition:**
 The architectural pattern of using three identifier types per entity:
+
 1. `pk_*` (integer primary key - internal)
 2. `id` (UUID - public API)
 3. `identifier` (text slug - human-readable)
 
 **Example:**
+
 ```markdown
 FraiseQL uses the Trinity pattern to optimize both performance
 and security.
@@ -232,11 +258,13 @@ and security.
 **Primary term:** "Trinity identifiers"
 
 **When to use:**
+
 - Referring to the three specific ID fields
 - SQL schema examples
 - Field-level discussions
 
 **Example:**
+
 ```sql
 CREATE TABLE tb_user (
     pk_user INT PRIMARY KEY,      -- Trinity identifiers:
@@ -248,6 +276,7 @@ CREATE TABLE tb_user (
 ```
 
 **Avoid:**
+
 - "Trinity IDs" (too casual)
 - "Three-tier ID system" (confusing with application tiers)
 - "Triple identifier pattern" (not established term)
@@ -271,6 +300,7 @@ CREATE TABLE tb_user (
 **Subsequent mentions:** "CQRS" (acronym only)
 
 **When to use:**
+
 - Architecture discussions
 - After defining on first use in document
 - Well-established pattern (no need to spell out repeatedly)
@@ -278,6 +308,7 @@ CREATE TABLE tb_user (
 **Example:**
 
 ✅ **CORRECT:**
+
 ```markdown
 FraiseQL follows CQRS (Command Query Responsibility Segregation)
 principles, separating read paths (queries) from write paths (mutations).
@@ -286,12 +317,14 @@ The CQRS architecture allows independent optimization of reads and writes.
 ```
 
 ❌ **AVOID (too verbose):**
+
 ```markdown
 FraiseQL follows Command Query Responsibility Segregation (CQRS).
 The Command Query Responsibility Segregation pattern allows...
 ```
 
 **Always link to definition:**
+
 ```markdown
 FraiseQL follows [CQRS](../core/concepts-glossary.md#cqrs) principles...
 ```
@@ -305,13 +338,16 @@ FraiseQL follows [CQRS](../core/concepts-glossary.md#cqrs) principles...
 **Primary term:** "GraphQL type"
 
 **When to use:**
+
 - Distinguishing from Python types, database types
 - GraphQL schema discussions
 
 **Avoid:**
+
 - "Type" alone (ambiguous - Python, SQL, or GraphQL?)
 
 **Example:**
+
 ```markdown
 The @fraiseql.type decorator maps a Python class to a GraphQL type.
 ```
@@ -323,6 +359,7 @@ The @fraiseql.type decorator maps a Python class to a GraphQL type.
 **Acceptable:** "field" (when GraphQL context is clear)
 
 **Avoid confusing with:**
+
 - "Column" (database term)
 - "Attribute" (Python term)
 - "Property" (Python term)
@@ -332,11 +369,13 @@ The @fraiseql.type decorator maps a Python class to a GraphQL type.
 **Primary term:** "resolver"
 
 **Use when:**
+
 - Discussing GraphQL field resolution
 - Query/mutation execution
 - Custom field logic
 
 **Example:**
+
 ```markdown
 The resolver fetches data from the database and returns it to GraphQL.
 ```
@@ -346,10 +385,12 @@ The resolver fetches data from the database and returns it to GraphQL.
 **Primary term:** "mutation" or "GraphQL mutation"
 
 **Use "GraphQL mutation" when:**
+
 - Distinguishing from database mutations (INSERT/UPDATE/DELETE)
 - Clarifying context
 
 **Example:**
+
 ```markdown
 GraphQL mutations call PostgreSQL functions for business logic.
 
@@ -366,11 +407,13 @@ The mutation validates input and calls fn_create_user().
 
 **What it means:**
 Automatic detection/generation by FraiseQL:
+
 - Field names: `created_at` → `createdAt`
 - View names: `User` type → `v_user` view
 - Success fields: Automatic `success`, `message`, `data`, `timestamp`
 
 **Always link to:**
+
 ```markdown
 FraiseQL's [auto-inference](../core/auto-inference.md) reduces boilerplate...
 ```
@@ -383,10 +426,12 @@ FraiseQL's [auto-inference](../core/auto-inference.md) reduces boilerplate...
 FraiseQL's automatic cache invalidation based on data relationships.
 
 **Avoid:**
+
 - "CASCADE" (all caps - confuses with SQL CASCADE DELETE)
 - "Cascade feature" (redundant)
 
 **Example:**
+
 ```markdown
 Enable Cascade for automatic cache invalidation:
 
@@ -437,12 +482,14 @@ mutation {
 ### Always Define on First Use
 
 For less common terms:
+
 - Projection tables
 - Trinity pattern
 - APQ (Automatic Persisted Queries)
 - Dataloader
 
 **Example:**
+
 ```markdown
 FraiseQL supports projection tables (regular tables storing cached JSONB
 for ultra-fast reads) for high-performance use cases.
@@ -451,6 +498,7 @@ for ultra-fast reads) for high-performance use cases.
 ### No Need to Define (Well-Established)
 
 For common terms:
+
 - CQRS (define once per doc)
 - GraphQL (assume knowledge)
 - PostgreSQL (assume knowledge)
@@ -463,6 +511,7 @@ For common terms:
 ### ❌ Inconsistent Term Usage
 
 **WRONG:**
+
 ```markdown
 Create a database function...
 Later: The PostgreSQL function should return JSONB...
@@ -470,6 +519,7 @@ Later: The SQL function validates input...
 ```
 
 **CORRECT:**
+
 ```markdown
 Create a PostgreSQL function...
 The PostgreSQL function should return JSONB...
@@ -479,12 +529,14 @@ The function validates input... (or "SQL function" if casual)
 ### ❌ Ambiguous "View" Usage
 
 **WRONG:**
+
 ```markdown
 Create a view for the User type...
 (Is it JSONB view? Materialized view? Regular view?)
 ```
 
 **CORRECT:**
+
 ```markdown
 Create a JSONB view for the User type:
 
@@ -495,11 +547,13 @@ SELECT id, jsonb_build_object(...) as data FROM tb_user;
 ### ❌ Using Technical Terms in User Docs
 
 **WRONG (in getting-started docs):**
+
 ```markdown
 The fraiseql_rs module transforms JSONB...
 ```
 
 **CORRECT:**
+
 ```markdown
 FraiseQL's Rust pipeline transforms JSONB 7-10x faster than Python...
 ```

@@ -9,6 +9,7 @@
 ## Overview
 
 Build the final GraphQL response structure:
+
 - Success responses with entity, message, and optional CASCADE
 - Error responses with status, message, errors array
 - Schema validation against Success type fields
@@ -22,6 +23,7 @@ Build the final GraphQL response structure:
 **Objective**: Build GraphQL Success response
 
 **Key behaviors**:
+
 - CASCADE at success level (sibling to entity, NOT nested inside entity)
 - Entity field name derived from entity_type or explicit parameter
 - Wrapper fields promoted to success level
@@ -29,6 +31,7 @@ Build the final GraphQL response structure:
 **Implementation**: See `/tmp/fraiseql_rust_greenfield_implementation_plan_v2.md` lines 1105-1456 for full code
 
 **Key test cases**:
+
 ```rust
 #[test]
 fn test_build_success_simple() {
@@ -47,6 +50,7 @@ fn test_wrapper_fields_promoted() {
 ```
 
 **Acceptance Criteria**:
+
 - [x] Success responses have correct structure
 - [x] CASCADE placed at success level (NOT nested in entity)
 - [x] __typename added to response and entity
@@ -62,6 +66,7 @@ fn test_wrapper_fields_promoted() {
 **Objective**: Build GraphQL Error response
 
 **Key behaviors**:
+
 - Extract error code from status string (part after ':')
 - Auto-generate errors array if not in metadata
 - Map status to HTTP code
@@ -69,6 +74,7 @@ fn test_wrapper_fields_promoted() {
 **Implementation**: See plan lines 1273-1353
 
 **Key test cases**:
+
 ```rust
 #[test]
 fn test_build_error() {
@@ -87,6 +93,7 @@ fn test_http_code_mapping() {
 ```
 
 **Acceptance Criteria**:
+
 - [x] Error responses have correct structure
 - [x] Error code extracted from status
 - [x] HTTP codes mapped correctly
@@ -217,6 +224,7 @@ mod integration_tests {
 ```
 
 **Acceptance Criteria**:
+
 - [x] End-to-end pipeline works
 - [x] Simple format → Success response
 - [x] Full format → Success/Error response
@@ -270,6 +278,7 @@ fn fraiseql_rs(_py: Python, m: &PyModule) -> PyResult<()> {
 ```
 
 **Test from Python**:
+
 ```python
 # Quick test
 import fraiseql_rs
@@ -292,6 +301,7 @@ print(response)
 ```
 
 **Acceptance Criteria**:
+
 - [x] Function exposed to Python
 - [x] Can be called from Python
 - [x] Returns valid JSON bytes
@@ -312,6 +322,7 @@ print(response)
 - [x] Existing Python tests still pass
 
 **Verification**:
+
 ```bash
 # Rust tests
 cd fraiseql_rs

@@ -309,6 +309,7 @@ FraiseQL's nested array where filtering is implemented efficiently:
 4. **No N+1 Queries**: Filtering doesn't trigger additional database queries
 
 For very large arrays (1000+ items), consider:
+
 - Adding database-level filtering in your SQL views
 - Using pagination
 - Implementing cursor-based pagination for large result sets
@@ -373,6 +374,7 @@ field_name: list[Type] = fraise_field(
 **Problem**: The WhereInput type doesn't exist in your schema.
 
 **Solution**: The WhereInput type is automatically generated from the `nested_where_type`. Ensure:
+
 1. The nested type is decorated with `@type`
 2. The nested type has properly typed fields
 3. The schema is being rebuilt after your changes
@@ -382,6 +384,7 @@ field_name: list[Type] = fraise_field(
 **Problem**: Filters are applied but don't filter correctly.
 
 **Solution**: Check:
+
 1. Field names match exactly (case-sensitive)
 2. Types match (string vs int vs UUID, etc.)
 3. Enum values are correct (if using enums)
@@ -398,6 +401,7 @@ field_name: list[Type] = fraise_field(
 ---
 
 **Next Steps:**
+
 - [See the end-to-end test](../../tests/test_end_to_end_nested_array_where.py) for complete examples
 - [Check logical operators test](../../tests/test_nested_array_logical_operators.py) for complex filter patterns
 - [Review the schema builder](../../src/fraiseql/core/graphql_type.py) to understand internals

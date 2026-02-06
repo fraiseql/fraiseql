@@ -9,10 +9,12 @@
 ## 🎯 Overview
 
 This document provides a comprehensive guide to validate and enhance documentation for:
+
 1. **Nested Fragment Support** - Fragments work in nested selections
 2. **Fragment Cycle Detection** - Protection against circular references
 
 **Goals:**
+
 - Ensure documentation is comprehensive and accurate
 - Validate all examples with actual GraphQL queries
 - Verify consistency across all documentation files
@@ -28,6 +30,7 @@ This document provides a comprehensive guide to validate and enhance documentati
 Create or validate these documentation files:
 
 #### Main Feature Documentation
+
 ```
 /home/lionel/code/fraiseql/docs/features/fragments.md
 ├── Feature Overview
@@ -39,6 +42,7 @@ Create or validate these documentation files:
 ```
 
 #### Example Files
+
 ```
 /home/lionel/code/fraiseql/docs/examples/
 ├── nested-fragments.md
@@ -48,6 +52,7 @@ Create or validate these documentation files:
 ```
 
 #### Release Documentation
+
 ```
 /home/lionel/code/fraiseql/CHANGELOG.md      (v1.8.6 entry)
 /home/lionel/code/fraiseql/README.md         (compliance status)
@@ -68,6 +73,7 @@ Create or validate these documentation files:
   - Explain why this is useful
 
   **Suggested Content:**
+
   ```markdown
   ## Nested Fragments
 
@@ -87,7 +93,8 @@ Create or validate these documentation files:
   }
   ```
 
-  ### After (v1.8.6)
+### After (v1.8.6)
+
   Fragments work at any nesting level:
 
   ```graphql
@@ -98,6 +105,7 @@ Create or validate these documentation files:
     posts { author { ...UserFields } }  # ✅ Now works!
   }
   ```
+
   ```
 
 - [ ] **Content 2.1.2**: Use cases
@@ -116,6 +124,7 @@ Create or validate these documentation files:
 **Validation Checklist:**
 
 - [ ] **Example 2.2.1**: Basic nested fragment
+
   ```graphql
   fragment UserFields on User {
     id
@@ -133,12 +142,14 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Syntax is valid GraphQL
   - [ ] Type names match FraiseQL schema
   - [ ] Field names are correct
   - [ ] Fragment usage is correct
 
 - [ ] **Example 2.2.2**: Multi-level nesting
+
   ```graphql
   fragment CommentFields on Comment {
     id
@@ -160,11 +171,13 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Demonstrates 3+ levels of nesting
   - [ ] Multiple fragment uses shown
   - [ ] Mixed fragment and direct fields
 
 - [ ] **Example 2.2.3**: Fragment with aliases
+
   ```graphql
   fragment UserFields on User {
     id
@@ -181,11 +194,13 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Aliases work with fragments
   - [ ] Both aliases show same fragment
   - [ ] Result structure clear
 
 - [ ] **Example 2.2.4**: Fragments with directives
+
   ```graphql
   fragment UserFields on User {
     id
@@ -202,11 +217,13 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Variables in directives work
   - [ ] Conditional field inclusion shown
   - [ ] Example queries provided
 
 - [ ] **Example 2.2.5**: Multiple nested fragments
+
   ```graphql
   fragment PersonFields on Person {
     id
@@ -232,6 +249,7 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Multiple fragments shown
   - [ ] Demonstrates real-world scenario
   - [ ] Shows how fragments reduce repetition
@@ -246,6 +264,7 @@ Create or validate these documentation files:
   - [ ] View pattern efficiency highlighted
 
   **Suggested Content:**
+
   ```markdown
   ## Performance Impact
 
@@ -278,6 +297,7 @@ Create or validate these documentation files:
   - Security implications (DoS prevention)
 
   **Suggested Content:**
+
   ```markdown
   ## Fragment Cycle Detection
 
@@ -311,6 +331,7 @@ Create or validate these documentation files:
 **Validation Checklist:**
 
 - [ ] **Example 3.2.1**: Direct cycle (A ↔ B)
+
   ```graphql
   fragment FragmentA on Type {
     field1
@@ -328,11 +349,13 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Shows classic cycle pattern
   - [ ] Error message shown
   - [ ] How to fix explained
 
 - [ ] **Example 3.2.2**: Self-reference cycle (A → A)
+
   ```graphql
   fragment SelfRef on Type {
     id
@@ -346,11 +369,13 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Shows self-referencing pattern
   - [ ] Error clearly indicated
   - [ ] Fix demonstrated
 
 - [ ] **Example 3.2.3**: Long chain cycle (A → B → C → A)
+
   ```graphql
   fragment FragmentA on Type { field1 ...FragmentB }
   fragment FragmentB on Type { field2 ...FragmentC }
@@ -360,11 +385,13 @@ Create or validate these documentation files:
     data { ...FragmentA }
   }
   ```
+
   - [ ] Shows complex cycle pattern
   - [ ] Cycle detection catches it
   - [ ] Break pattern shown
 
 - [ ] **Example 3.2.4**: Error message and how to fix
+
   ```
   ERROR: Circular fragment reference detected
   Cycle: FragmentA → FragmentB → FragmentA
@@ -374,11 +401,13 @@ Create or validate these documentation files:
   2. Break the circular reference
   3. Use different fragment names
   ```
+
   - [ ] Error message clear
   - [ ] Instructions provided
   - [ ] Before/after shown
 
 - [ ] **Example 3.2.5**: Valid fragments without cycles
+
   ```graphql
   fragment UserFields on User {
     id
@@ -400,6 +429,7 @@ Create or validate these documentation files:
     }
   }
   ```
+
   - [ ] Shows valid pattern that works
   - [ ] No cycles present
   - [ ] Expected result shown
@@ -414,6 +444,7 @@ Create or validate these documentation files:
   - Fragment reuse patterns
 
   **Suggested Content:**
+
   ```markdown
   ## How to Avoid Fragment Cycles
 
@@ -424,8 +455,10 @@ Create or validate these documentation files:
   fragment PostFields on Post { ... }
   ```
 
-  ### 2. Maintain Unidirectional Fragment Dependencies
+### 2. Maintain Unidirectional Fragment Dependencies
+
   Fragments should only reference fragments for nested types:
+
   ```graphql
   // ✅ Good: Post fragment references Author fragment
   fragment PostFields on Post {
@@ -438,8 +471,10 @@ Create or validate these documentation files:
   }
   ```
 
-  ### 3. Use Inline Fragments for Recursion
+### 3. Use Inline Fragments for Recursion
+
   For recursive types, use inline fragments instead:
+
   ```graphql
   fragment TreeNode on Node {
     id
@@ -455,6 +490,7 @@ Create or validate these documentation files:
     }
   }
   ```
+
   ```
 
 - [ ] **Content 3.3.2**: Common mistakes
@@ -476,6 +512,7 @@ Create or validate these documentation files:
   - [ ] No new required parameters
 
   **Suggested Content:**
+
   ```markdown
   ## API Changes - v1.8.6
 
@@ -506,6 +543,7 @@ Create or validate these documentation files:
   - [ ] Optional: verify no cycles exist
 
   **Suggested Content:**
+
   ```markdown
   ## Migration Guide
 
@@ -526,6 +564,7 @@ Create or validate these documentation files:
   ```
 
   After:
+
   ```graphql
   fragment UserFields on User { id name email }
 
@@ -535,6 +574,7 @@ Create or validate these documentation files:
     }
   }
   ```
+
   ```
 
 ---
@@ -869,6 +909,7 @@ For each example, verify:
 4. **Technical inaccuracy**: Correct and verify
 
 **Non-blocking issues (can do post-release):**
+
 - Minor formatting improvements
 - Additional examples beyond required 5
 - Performance optimization suggestions

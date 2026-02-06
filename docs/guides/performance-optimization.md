@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Performance & Optimization Guide
 description: Comprehensive guide to optimizing FraiseQL performance for production systems.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "performance", "tutorial"]

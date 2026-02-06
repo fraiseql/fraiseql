@@ -25,6 +25,7 @@ Improve code quality **without changing behavior**. All tests must remain green.
 ### 1. Rust Code Review
 
 **Files likely modified in Phase 2**:
+
 - `fraiseql_rs/src/json_transform.rs`
 - `fraiseql_rs/src/pipeline/builder.rs`
 - `fraiseql_rs/src/core/transform.rs`
@@ -32,6 +33,7 @@ Improve code quality **without changing behavior**. All tests must remain green.
 **For each modified file, check**:
 
 #### Remove Debug Code
+
 ```rust
 // REMOVE any debug prints added during Phase 2
 println!("DEBUG: ...");   // DELETE
@@ -42,6 +44,7 @@ eprintln!("...");         // KEEP only if intentional
 ```
 
 #### Verify Documentation
+
 ```rust
 // GOOD: Clear, concise doc comment
 /// Recursively transform all JSON object keys from snake_case to camelCase.
@@ -54,6 +57,7 @@ fn transform_value(value: Value) -> Value {  // No docs
 ```
 
 #### Consistent Error Handling
+
 ```rust
 // Check for consistent patterns across the codebase
 // FraiseQL typically uses:
@@ -67,6 +71,7 @@ match result {
 ```
 
 #### Efficient Iteration
+
 ```rust
 // GOOD: Consume the map, avoid cloning
 for (key, val) in map {
@@ -82,10 +87,12 @@ for (key, val) in map.iter() {
 ### 2. Test Code Review
 
 **Files created in Phase 1**:
+
 - `tests/regression/test_jsonb_nested_camelcase.py`
 - `tests/unit/core/test_jsonb_camelcase_conversion.py`
 
 #### Remove Verbose Assertions
+
 ```python
 # BEFORE (Phase 1 - verbose for debugging)
 assert "smtpServer" in config, f"Expected 'smtpServer', got keys: {list(config.keys())}"
@@ -96,6 +103,7 @@ assert config["smtpServer"]["ipAddress"] == "13.16.1.10"
 ```
 
 #### Consolidate Test Constants
+
 ```python
 # GOOD: Class-level constant
 class TestJSONBNestedCamelCase:
@@ -109,6 +117,7 @@ def test_two(self):
 ```
 
 #### Clear Test Names
+
 ```python
 # GOOD: Describes behavior
 def test_underscore_nested_object_converts_to_camelcase(self):
@@ -141,7 +150,7 @@ uv run ruff format tests/unit/core/test_jsonb_camelcase_conversion.py
 
 Based on likely Phase 2 changes:
 
-#### If `transform_value()` was modified:
+#### If `transform_value()` was modified
 
 ```rust
 // Ensure the function is:
@@ -172,7 +181,7 @@ pub fn transform_value(value: Value) -> Value {
 }
 ```
 
-#### If `transform_with_schema()` was modified:
+#### If `transform_with_schema()` was modified
 
 Ensure fallback path is clear and documented:
 
@@ -191,6 +200,7 @@ else {
 ## Verification
 
 ### After Each Change
+
 ```bash
 # Quick test - ensure nothing broke
 uv run pytest tests/regression/test_jsonb_nested_camelcase.py -v
@@ -198,6 +208,7 @@ uv run pytest tests/unit/core/test_jsonb_camelcase_conversion.py -v
 ```
 
 ### Before Committing
+
 ```bash
 # Full verification
 cd fraiseql_rs && cargo fmt && cargo clippy && cd ..

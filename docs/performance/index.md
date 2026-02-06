@@ -35,6 +35,7 @@ result = transform_json(data, transform_func)
 | Large (100 fields, deep) | 32.51 KB | 2.157 ms | 0.453 ms | **4.8x** |
 
 **Benefits**:
+
 - **7-10x faster JSON processing** vs pure Python (measured benchmarks)
 - **2-4x faster end-to-end queries** including database time
 - Zero-copy transformations where possible
@@ -55,6 +56,7 @@ def get_users(info: Info) -> list[User]:
 ```
 
 **Best Practices**:
+
 - Use views for read operations
 - Create indexes on frequently queried columns
 - Use materialized views for expensive aggregations
@@ -91,11 +93,13 @@ config = ComplexityConfig(
 **Latest Results** (2025-10-17, fraiseql v0.11.5 with fraiseql_rs v0.2.0):
 
 ### Transformation Performance
+
 - **Rust vs Python**: 7-10x faster JSON transformation
 - **End-to-end queries**: 2-4x faster including database time
 - **Transformation overhead**: < 0.1ms (negligible)
 
 ### Typical Query Performance
+
 - **Simple Query**: < 1ms (with Rust pipeline)
 - **Complex Query with Joins**: < 5ms
 - **Nested relationships**: < 10ms (pre-composed in views)
@@ -103,6 +107,7 @@ config = ComplexityConfig(
 - **Bulk Operations**: ~1ms per record
 
 ### APQ + TurboRouter Performance Stack
+
 - **Base GraphQL**: 100ms average response
 - **+ APQ**: 20-80ms faster (eliminates parsing)
 - **+ TurboRouter**: Additional 2-3x speedup (bypasses GraphQL entirely)
@@ -188,6 +193,7 @@ logging.basicConfig(level=logging.DEBUG)
 ### Metrics
 
 Track key metrics:
+
 - Query execution time
 - Database connection pool utilization
 - Cache hit rate

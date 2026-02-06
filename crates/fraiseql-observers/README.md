@@ -128,6 +128,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ### Action Types
 
 #### Webhook
+
 ```json
 {
   "type": "webhook",
@@ -140,6 +141,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### Slack
+
 ```json
 {
   "type": "slack",
@@ -150,6 +152,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### Email
+
 ```json
 {
   "type": "email",
@@ -160,6 +163,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### SMS
+
 ```json
 {
   "type": "sms",
@@ -169,6 +173,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### Push Notification
+
 ```json
 {
   "type": "push",
@@ -179,6 +184,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### Search Index
+
 ```json
 {
   "type": "search",
@@ -188,6 +194,7 @@ println!("Executed {} actions, {} succeeded, {} failed",
 ```
 
 #### Cache
+
 ```json
 {
   "type": "cache",
@@ -264,6 +271,7 @@ let policy = FailurePolicy::DLQ; // Move to queue on failure
 - `NOT condition` - Invert condition
 
 ### Examples
+
 ```
 // Notify on high-value orders
 total > 100 AND status = 'pending'
@@ -315,16 +323,19 @@ cargo test -p fraiseql-observers -- --nocapture
 ### DLQ Views
 
 Check pending retries:
+
 ```sql
 SELECT * FROM observer_pending_retries;
 ```
 
 Find exhausted items:
+
 ```sql
 SELECT * FROM observer_retry_exhausted;
 ```
 
 View recent failures:
+
 ```sql
 SELECT * FROM observer_recent_failures;
 ```
@@ -332,6 +343,7 @@ SELECT * FROM observer_recent_failures;
 ### Metrics
 
 From execution summary:
+
 ```rust
 let summary = executor.process_event(&event).await?;
 println!("Duration: {:.2}ms", summary.total_duration_ms);

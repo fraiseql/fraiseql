@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Domain-Driven Schema Organization
 description: FraiseQL v2 supports organizing GraphQL schemas across multiple **domains** - a pattern that mirrors how modern applications organize their code.
 keywords: ["schema"]

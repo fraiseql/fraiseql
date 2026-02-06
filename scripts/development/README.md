@@ -5,6 +5,7 @@ Scripts for daily development workflow support and local environment setup.
 ## Scripts Overview
 
 ### `typecheck.sh`
+
 **Purpose**: Run type checking with pyright
 **Usage**: `./typecheck.sh`
 **Dependencies**: pyright (installed via npm or system package)
@@ -12,6 +13,7 @@ Scripts for daily development workflow support and local environment setup.
 Performs static type analysis to catch type errors before runtime.
 
 ### `start-postgres-daemon.sh`
+
 **Purpose**: Start local PostgreSQL daemon for development
 **Usage**: `./start-postgres-daemon.sh`
 **Dependencies**: PostgreSQL server
@@ -19,6 +21,7 @@ Performs static type analysis to catch type errors before runtime.
 Sets up and starts PostgreSQL with development-friendly configuration.
 
 ### `test-db-setup.sh`
+
 **Purpose**: Initialize test database with schema and data
 **Usage**: `./test-db-setup.sh`
 **Dependencies**: PostgreSQL running, database permissions
@@ -26,6 +29,7 @@ Sets up and starts PostgreSQL with development-friendly configuration.
 Creates and configures test database for development and testing.
 
 ### `claude_mcp_server.py`
+
 **Purpose**: Claude MCP server for AI-assisted development
 **Usage**: `python claude_mcp_server.py`
 **Dependencies**: MCP libraries, Claude integration

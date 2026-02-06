@@ -11,17 +11,20 @@
 ## Context
 
 **Why This Phase Matters:**
+
 - Permission checks happen on EVERY field access (critical path)
 - Role hierarchy computation is expensive in Python
 - PostgreSQL cache queries add 0.5-2ms per uncached check
 - Rust can reduce permission checks to <0.1ms (cached) and <1ms (uncached)
 
 **Dependencies:**
+
 - Phase 10 (Auth Integration) ✅ Required
 - UserContext with roles/permissions from JWT
 - PostgreSQL connection pool (Phase 1)
 
 **Performance Target:**
+
 - Cached permission check: <0.1ms
 - Uncached permission check: <1ms
 - Role hierarchy resolution: <2ms
@@ -32,6 +35,7 @@
 ## Files to Modify/Create
 
 ### Rust Files (fraiseql_rs/src/rbac/)
+
 - **mod.rs** (NEW): RBAC module exports
 - **errors.rs** (NEW): RBAC-specific error types
 - **models.rs** (NEW): Role, Permission, UserRole models
@@ -42,15 +46,18 @@
 - **field_auth.rs** (NEW): Field-level authorization hooks
 
 ### Integration Files
+
 - **fraiseql_rs/src/lib.rs**: Add RBAC module, PyRBAC class
 - **fraiseql_rs/src/pipeline/unified.rs**: Integrate RBAC checks in execution
 - **src/fraiseql/db.rs**: Keep schema metadata for RBAC tables
 
 ### Python Migration Files
+
 - **src/fraiseql/enterprise/rbac/rust_resolver.py** (NEW): Python wrapper
 - **src/fraiseql/enterprise/rbac/resolver.py**: Deprecate, redirect to Rust
 
 ### Test Files
+
 - **tests/test_rust_rbac.py** (NEW): Integration tests
 - **tests/unit/rbac/test_permission_resolution.rs** (NEW): Rust unit tests
 
@@ -1393,6 +1400,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 ## Verification Commands
 
 ### Build and Test
+
 ```bash
 # Build Rust extension
 cargo build --release
@@ -1409,6 +1417,7 @@ pytest tests/performance/test_rbac_performance.py -xvs
 ```
 
 ### Expected Performance
+
 ```
 Before (Python):
 - Uncached permission check: 2-5ms
@@ -1428,6 +1437,7 @@ Improvement: 10-100x faster
 ## Acceptance Criteria
 
 **Functionality:**
+
 - ✅ Role hierarchy resolution with recursive CTEs
 - ✅ Permission resolution with caching
 - ✅ Field-level authorization enforcement
@@ -1436,12 +1446,14 @@ Improvement: 10-100x faster
 - ✅ Cache invalidation on RBAC changes
 
 **Performance:**
+
 - ✅ Cached permission check: <0.1ms
 - ✅ Uncached permission check: <1ms
 - ✅ 10-100x faster than Python
 - ✅ Cache hit rate >95%
 
 **Testing:**
+
 - ✅ All existing RBAC tests pass
 - ✅ Rust unit tests for hierarchy and resolution
 - ✅ Integration tests for field-level auth
@@ -1449,6 +1461,7 @@ Improvement: 10-100x faster
 - ✅ Cache invalidation tests
 
 **Quality:**
+
 - ✅ No compilation warnings
 - ✅ Thread-safe caching
 - ✅ Proper error handling
@@ -1484,16 +1497,19 @@ lru = "0.12"
 ## Migration Strategy
 
 **Week 1: Core RBAC**
+
 - Implement models, hierarchy, resolver
 - Add caching layer
 - Python wrapper
 
 **Week 2: Field-Level Auth**
+
 - Directive enforcement
 - Integration with pipeline
 - Testing
 
 **Week 3: Production**
+
 - Gradual rollout
 - Monitor performance
 - Deprecate Python RBAC
@@ -1503,6 +1519,7 @@ lru = "0.12"
 ## Next Phase Preview
 
 **Phase 12** will add:
+
 - Rate limiting in Rust
 - Security headers enforcement
 - Audit logging

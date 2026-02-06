@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Apache Arrow Flight Integration
 description: Arrow Flight is purpose-built for high-throughput data transport. Choose based on your use case:
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

@@ -124,6 +124,7 @@ Emitted when a deployment begins.
 **Subject**: `fraisier.deployment.started.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "deployment.started",
@@ -165,6 +166,7 @@ Emitted when a deployment finishes successfully.
 **Subject**: `fraisier.deployment.completed.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "deployment.completed",
@@ -215,6 +217,7 @@ Emitted when a deployment fails.
 **Subject**: `fraisier.deployment.failed.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "deployment.failed",
@@ -264,6 +267,7 @@ Emitted when a deployment is cancelled.
 **Subject**: `fraisier.deployment.cancelled.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "deployment.cancelled",
@@ -293,6 +297,7 @@ Emitted when a deployment is rolled back.
 **Subject**: `fraisier.deployment.rolled_back.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "deployment.rolled_back",
@@ -328,6 +333,7 @@ Emitted when health checks begin after deployment.
 **Subject**: `fraisier.health_check.started.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "health_check.started",
@@ -351,6 +357,7 @@ Emitted when health checks pass.
 **Subject**: `fraisier.health_check.passed.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "health_check.passed",
@@ -377,6 +384,7 @@ Emitted when health checks fail.
 **Subject**: `fraisier.health_check.failed.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "health_check.failed",
@@ -409,6 +417,7 @@ Emitted after deployment with performance metrics.
 **Subject**: `fraisier.metrics.deployment.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "metrics.deployment",
@@ -454,6 +463,7 @@ Emitted periodically with service health metrics.
 **Subject**: `fraisier.metrics.service.{region}`
 
 **Data Fields**:
+
 ```json
 {
   "event_type": "metrics.service",
@@ -808,6 +818,7 @@ Events are retained in JetStream according to configuration:
 - **Metrics Events**: 168 hours (7 days, default)
 
 Configure retention:
+
 ```bash
 export NATS_DEPLOYMENT_EVENTS_RETENTION=1440  # 60 days
 ```

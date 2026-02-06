@@ -32,6 +32,7 @@ PostgreSQL is ideal for:
 ### Step 1: Start PostgreSQL
 
 **Using Docker** (recommended for dev):
+
 ```bash
 docker run -d \
   --name fraisier-postgres \
@@ -43,6 +44,7 @@ docker run -d \
 ```
 
 **Using Existing Server**:
+
 ```bash
 # Create database and user
 psql -U postgres
@@ -65,12 +67,14 @@ pip install -e ".[dev]"
 ### Step 3: Configure Connection
 
 Create `.env`:
+
 ```bash
 FRAISIER_DATABASE=postgresql
 FRAISIER_DB_PATH=postgresql://fraisier:fraisier_password@localhost:5432/fraisier
 ```
 
 Load environment:
+
 ```bash
 set -a
 source .env
@@ -115,16 +119,19 @@ fraises:
 ### Connection String Options
 
 **Standard Format**:
+
 ```
 postgresql://user:password@host:port/database
 ```
 
 **With SSL**:
+
 ```
 postgresql://user:password@host:port/database?sslmode=require
 ```
 
 **With Replica Failover**:
+
 ```
 postgresql://user:password@primary:5432,replica:5432/database?target_session_attrs=primary
 ```
@@ -291,6 +298,7 @@ echo "Backup completed: fraisier_$BACKUP_DATE.sql.gz"
 ```
 
 Schedule with cron:
+
 ```bash
 # Backup daily at 2 AM
 0 2 * * * /opt/fraisier/backup-fraisier.sh
@@ -325,6 +333,7 @@ fraisier history my_api --limit 5
 ### Replication Setup
 
 **Primary Server**:
+
 ```bash
 # postgresql.conf
 wal_level = replica
@@ -333,6 +342,7 @@ max_replication_slots = 10
 ```
 
 **Replica Server**:
+
 ```bash
 # Create from primary
 pg_basebackup -h primary.db.example.com -U replication -D /var/lib/postgresql/data -Xstream -C -S replica1
@@ -344,6 +354,7 @@ systemctl start postgresql
 ### Connection Failover
 
 In `fraises.yaml`:
+
 ```yaml
 database:
   url: postgresql://fraisier:password@primary.db.example.com,replica.db.example.com/fraisier

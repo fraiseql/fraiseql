@@ -81,6 +81,7 @@
 1. **`_run_migrations()` method (lines 129-142)**
    - Currently: `pass` statements only
    - Needs:
+
      ```python
      def _run_migrations(self) -> None:
          strategy = self.database_config.get("strategy", "apply")
@@ -111,6 +112,7 @@
    - 🔍 Need to verify these actually work
 
 **Tests Needed**: (in `tests/test_deployers.py`)
+
 ```python
 # Test each method with mocked subprocess
 
@@ -148,6 +150,7 @@
 3. Verify script execution (optional - might be out of scope)
 
 **Tests Needed**: (in `tests/test_deployers.py`)
+
 ```python
 - test_etl_deployer_get_current_version()
 - test_etl_deployer_execute_success()
@@ -168,6 +171,7 @@
 3. Consider rollback strategy (might be N/A for scheduled jobs)
 
 **Tests Needed**: (in `tests/test_deployers.py`)
+
 ```python
 - test_scheduled_deployer_get_current_version()
 - test_scheduled_deployer_is_deployment_needed()
@@ -238,6 +242,7 @@ def link_webhook_to_deployment(self, webhook_id: int, deployment_id: int) -> Non
 ```
 
 **Tests Needed**: (in `tests/test_database.py`)
+
 ```python
 # Fixtures first
 @pytest.fixture
@@ -269,6 +274,7 @@ def test_db(tmp_path):
 **Missing**:
 
 1. **Complete `process_webhook_event()` function** (started at line 143)
+
    ```python
    def process_webhook_event(...) -> dict[str, Any]:
        """Process normalized webhook event.
@@ -282,6 +288,7 @@ def test_db(tmp_path):
    ```
 
 2. **Add FastAPI routes**:
+
    ```python
    @app.post("/webhook")
    async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -310,6 +317,7 @@ def test_db(tmp_path):
    - Needs: Proper async handling
 
 **Tests Needed**: (in `tests/test_webhook.py`)
+
 ```python
 - test_webhook_github_push_event()
 - test_webhook_gitlab_push_event()
@@ -334,6 +342,7 @@ def test_db(tmp_path):
 **Contents**:
 
 `conftest.py`:
+
 ```python
 import pytest
 from pathlib import Path
@@ -380,7 +389,7 @@ def test_db(tmp_path):
 
 ### 1.4: Write Comprehensive Tests (Days 4-5)
 
-#### Test File Structure:
+#### Test File Structure
 
 ```
 tests/
@@ -406,7 +415,7 @@ tests/
 - Git provider signature verification
 - Webhook routing
 
-#### Test Writing Strategy:
+#### Test Writing Strategy
 
 1. **Unit tests** (60 tests): Individual components with mocks
    - Mock subprocess.run, requests.get, etc.
@@ -431,12 +440,14 @@ tests/
 **File**: `fraisier/cli.py` (lines 200, 226)
 
 **Current**:
+
 ```python
 # TODO: Add actual version/health checking once deployers are complete
 # TODO: Implement actual status checking
 ```
 
 **Implementation**:
+
 ```python
 def status(ctx, fraise, environment):
     config = ctx.obj["config"]
@@ -470,15 +481,18 @@ def status(ctx, fraise, environment):
 ### Week 1
 
 **Day 1-2: Deployers**
+
 1. Complete APIDeployer.execute() and helpers ✅
 2. Complete ETLDeployer ✅
 3. Complete ScheduledDeployer ✅
 
 **Day 2-3: Database**
+
 1. Implement all FraisierDB methods ✅
 2. Test database operations ✅
 
 **Day 3: Webhook Handler**
+
 1. Complete process_webhook_event() ✅
 2. Add FastAPI routes ✅
 3. Implement background task execution ✅
@@ -486,12 +500,14 @@ def status(ctx, fraise, environment):
 ### Week 2
 
 **Day 4-5: Tests**
+
 1. Create test infrastructure (conftest.py, fixtures) ✅
 2. Write unit tests (50+ tests) ✅
 3. Write integration tests (15+ tests) ✅
 4. Write E2E tests (5+ tests) ✅
 
 **Day 5: Polish**
+
 1. Fix CLI status commands ✅
 2. Run all tests and achieve 90%+ coverage ✅
 3. Ruff linting pass ✅

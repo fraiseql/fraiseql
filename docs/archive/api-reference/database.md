@@ -17,6 +17,7 @@ repo = FraiseQLRepository(pool, context=None)
 ```
 
 **Parameters:**
+
 - `pool`: asyncpg connection pool
 - `context`: Optional context dictionary
 
@@ -40,6 +41,7 @@ async def find(
 ```
 
 **Example:**
+
 ```python
 users = await repo.find(
     "users_view",
@@ -63,6 +65,7 @@ async def find_one(
 ```
 
 **Example:**
+
 ```python
 user = await repo.find_one("users_view", id=user_id)
 ```
@@ -83,6 +86,7 @@ async def insert(
 ```
 
 **Example:**
+
 ```python
 user = await repo.insert(
     "users",
@@ -105,6 +109,7 @@ async def update(
 ```
 
 **Example:**
+
 ```python
 user = await repo.update(
     "users",
@@ -127,6 +132,7 @@ async def delete(
 ```
 
 **Example:**
+
 ```python
 deleted = await repo.delete("users", id=user_id)
 ```

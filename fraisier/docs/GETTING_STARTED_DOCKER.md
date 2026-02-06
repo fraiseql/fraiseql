@@ -105,6 +105,7 @@ open http://localhost:5050
 ### Modify docker-compose.yml
 
 **Change PostgreSQL password**:
+
 ```yaml
 services:
   postgres:
@@ -113,6 +114,7 @@ services:
 ```
 
 **Change Fraisier port**:
+
 ```yaml
 services:
   fraisier:
@@ -121,6 +123,7 @@ services:
 ```
 
 **Add more replicas**:
+
 ```yaml
 services:
   fraisier:
@@ -211,6 +214,7 @@ docker-compose ps  # Verify all services started
 ### 2. Configure Service
 
 Create `fraises.yaml`:
+
 ```yaml
 fraises:
   my_api:
@@ -497,6 +501,7 @@ docker volume prune
 ## Performance Tips
 
 1. **Use host.docker.internal for Mac/Windows**:
+
    ```yaml
    services:
      fraisier:
@@ -510,6 +515,7 @@ docker volume prune
    - CPU: 2+ cores
 
 3. **Use tmpfs for logs**:
+
    ```yaml
    services:
      fraisier:
@@ -517,6 +523,7 @@ docker volume prune
    ```
 
 4. **Enable BuildKit**:
+
    ```bash
    DOCKER_BUILDKIT=1 docker-compose build
    ```

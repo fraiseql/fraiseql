@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Keyset Pagination Architecture (JSON + Arrow Planes)
 description: FraiseQL implements **keyset-based pagination** as the primary pagination strategy for both the JSON (GraphQL) and Arrow (analytics) planes. This avoids perform
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

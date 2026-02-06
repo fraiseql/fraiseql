@@ -3,6 +3,7 @@
 **Created**: 2025-12-30
 **Strategy**: Merge `feature/rust-postgres-driver` + preserve last 3 days of work
 **Branches**:
+
 - Current: `fix/where-clause-edge-cases` (43 commits ahead)
 - Target: `feature/rust-postgres-driver` (60 commits ahead)
 - Common ancestor: `cc29452d` (Dec 27)
@@ -43,6 +44,7 @@
 ### Documentation Improvements (HIGH VALUE)
 
 #### Core Documentation (26 commits)
+
 - **Architecture Diagrams** (NEW - from today's session):
   - `docs/architecture/request-flow.md` ⚠️ NEW
   - `docs/architecture/trinity-pattern.md` ⚠️ NEW
@@ -70,12 +72,14 @@
   - Comprehensive quality cleanup (deduplication, terminology)
 
 #### Migration from UUID to ID
+
 - All code examples updated to use `ID` instead of `UUID`
 - CLI templates updated
 - README.md updated
 - Quickstart updated
 
 ### Build/CI Improvements
+
 - `.github/workflows/quality-gate.yml` - Updated
 - `.readthedocs.yml` - RTD v2 configuration
 - `.trivyignore` - Security updates
@@ -86,6 +90,7 @@
 ## What's on feature/rust-postgres-driver Branch
 
 ### Major Additions
+
 - Full Rust PostgreSQL backend (tokio-postgres + deadpool)
 - 66,992 LOC of Rust database code
 - Chaos engineering tests (57 tests, 34 passing)
@@ -93,7 +98,9 @@
 - Comprehensive Rust documentation
 
 ### Potential Conflicts
+
 The feature branch likely does NOT have:
+
 - ❌ WHERE clause bug fixes (Issue #124)
 - ❌ ID type implementation
 - ❌ Python builtin shadowing fix
@@ -146,12 +153,14 @@ gh pr create --base dev
 ```
 
 **Pros**:
+
 - ✅ Clean history (only essential commits)
 - ✅ Easier to track what was merged
 - ✅ Can skip non-essential doc commits
 - ✅ Test after each critical fix
 
 **Cons**:
+
 - ⚠️ Manual work to cherry-pick ~15-20 commits
 - ⚠️ Might miss some doc improvements
 
@@ -180,11 +189,13 @@ gh pr create --base dev
 ```
 
 **Pros**:
+
 - ✅ Faster (single merge vs multiple cherry-picks)
 - ✅ All work preserved automatically
 - ✅ Complete git history
 
 **Cons**:
+
 - ⚠️ More complex merge conflicts possible
 - ⚠️ Git history less clean
 
@@ -216,11 +227,13 @@ gh pr create --base dev
 ```
 
 **Pros**:
+
 - ✅ Current fixes become base
 - ✅ All recent work automatically preserved
 - ✅ Simpler mental model
 
 **Cons**:
+
 - ⚠️ Rust branch commits come "after" current work (history ordering)
 
 ---
@@ -228,6 +241,7 @@ gh pr create --base dev
 ## Recommended Approach: Option 2 (Merge into Rust Branch)
 
 **Rationale**:
+
 - Fastest path to integration
 - Preserves all work automatically
 - Feature branch has more fundamental changes (database layer)
@@ -239,6 +253,7 @@ gh pr create --base dev
 #### Day 1: Preparation & Analysis
 
 1. **Backup current work**:
+
    ```bash
    git checkout fix/where-clause-edge-cases
    git branch backup/where-clause-fixes
@@ -246,6 +261,7 @@ gh pr create --base dev
    ```
 
 2. **Checkout Rust branch and verify**:
+
    ```bash
    git checkout feature/rust-postgres-driver
 
@@ -255,6 +271,7 @@ gh pr create --base dev
    ```
 
 3. **Analyze potential conflicts**:
+
    ```bash
    git checkout -b integrate/analyze-conflicts
    git merge --no-commit --no-ff fix/where-clause-edge-cases
@@ -277,12 +294,14 @@ gh pr create --base dev
 #### Day 2: Integration
 
 1. **Create integration branch**:
+
    ```bash
    git checkout feature/rust-postgres-driver
    git checkout -b integrate/rust-backend-aggressive
    ```
 
 2. **Merge current work**:
+
    ```bash
    git merge fix/where-clause-edge-cases
    ```
@@ -295,6 +314,7 @@ gh pr create --base dev
    - `mkdocs.yml` - Merge navigation entries
 
 4. **For each conflict**:
+
    ```bash
    # Option A: Keep both changes (most common)
    # Edit file to merge both changes logically
@@ -309,6 +329,7 @@ gh pr create --base dev
    ```
 
 5. **Commit merge**:
+
    ```bash
    git commit -m "merge: integrate WHERE clause fixes + ID type + docs with Rust backend"
    ```
@@ -320,6 +341,7 @@ gh pr create --base dev
 #### Day 3: Testing & Validation
 
 1. **Run full test suite**:
+
    ```bash
    # Test with Rust backend (should be default in feature branch)
    make test
@@ -335,6 +357,7 @@ gh pr create --base dev
    ```
 
 2. **Build and verify**:
+
    ```bash
    make build
 
@@ -344,6 +367,7 @@ gh pr create --base dev
    ```
 
 3. **Performance benchmarks** (optional but recommended):
+
    ```bash
    make benchmark
    ```
@@ -360,6 +384,7 @@ gh pr create --base dev
 #### Day 4: Merge to Dev & Release
 
 1. **Final review**:
+
    ```bash
    # Review all changes
    git log --oneline origin/dev..HEAD
@@ -369,6 +394,7 @@ gh pr create --base dev
    ```
 
 2. **Create PR**:
+
    ```bash
    git push -u origin integrate/rust-backend-aggressive
 
@@ -378,6 +404,7 @@ gh pr create --base dev
    ```
 
 3. **PR Description** (`.github/pr-template-aggressive-merge.md`):
+
    ```markdown
    ## 🚀 Aggressive v1.9.0 Integration - Full Rust Backend
 
@@ -436,12 +463,14 @@ gh pr create --base dev
    ```
 
 4. **Get approval and merge**:
+
    ```bash
    # After approval
    gh pr merge --squash
    ```
 
 5. **Release v1.9.0**:
+
    ```bash
    git checkout dev
    git pull origin dev
@@ -460,6 +489,7 @@ gh pr create --base dev
 ## Critical Files to Verify After Merge
 
 ### Source Code
+
 - [ ] `src/fraiseql/where_normalization.py` - WHERE fixes present
 - [ ] `src/fraiseql/types/scalars/id_scalar.py` - ID type present
 - [ ] `src/fraiseql/types/__init__.py` - ID exported
@@ -468,10 +498,12 @@ gh pr create --base dev
 - [ ] `src/fraiseql/__init__.py` - Version 1.9.0
 
 ### Tests
+
 - [ ] `tests/unit/test_where_clause.py` - Edge case tests present
 - [ ] All 5991+ tests pass
 
 ### Documentation
+
 - [ ] `docs/architecture/request-flow.md` - NEW, present
 - [ ] `docs/architecture/trinity-pattern.md` - NEW, present
 - [ ] `docs/architecture/type-system.md` - NEW, present
@@ -481,6 +513,7 @@ gh pr create --base dev
 - [ ] `mkdocs.yml` - Architecture pages in nav
 
 ### Build
+
 - [ ] `Cargo.toml` - Version 1.9.0
 - [ ] `fraiseql_rs/Cargo.toml` - Version 1.9.0
 - [ ] `pyproject.toml` - Version 1.9.0
@@ -512,6 +545,7 @@ git merge feature/rust-postgres-driver
 ## Success Criteria
 
 ### Must Have
+
 - ✅ All 5991+ tests pass
 - ✅ WHERE clause fixes work (Issue #124 tests pass)
 - ✅ ID type works (new tests pass)
@@ -520,11 +554,13 @@ git merge feature/rust-postgres-driver
 - ✅ Documentation complete
 
 ### Should Have
+
 - ✅ Performance benchmarks show 20-30% improvement
 - ✅ All 4 architecture diagrams render correctly
 - ✅ Migration guide clear and accurate
 
 ### Nice to Have
+
 - ✅ Chaos tests pass (34/57 → more)
 - ✅ Zero compiler warnings
 - ✅ Documentation site builds without errors
@@ -549,6 +585,7 @@ git merge feature/rust-postgres-driver
 **Next Step**: Start Day 1 - Backup and Analyze Conflicts
 
 Commands to run:
+
 ```bash
 # Backup current work
 git branch backup/where-clause-fixes

@@ -15,6 +15,7 @@ This plan implements Tim Berners-Lee's architectural recommendation to treat val
 ### What Changes
 
 **Before (v1.7.x - DEPRECATED):**
+
 ```graphql
 type CreateMachineSuccess {
   machine: Machine      # Nullable - can be null on validation failure
@@ -26,6 +27,7 @@ type CreateMachineSuccess {
 ```
 
 **After (v1.8.0 - NEW):**
+
 ```graphql
 union CreateMachineResult = CreateMachineSuccess | CreateMachineError
 
@@ -69,30 +71,35 @@ type CreateMachineError {
 ## Implementation Phases
 
 ### Phase 1: Rust Core Changes (Week 1)
+
 **Files:** 4 files
 **Objective:** Update Rust mutation pipeline to return Error type for all non-success statuses
 
 **Details:** See `01_PHASE_1_RUST_CORE.md`
 
 ### Phase 2: Python Layer Updates (Week 1)
+
 **Files:** 6 files
 **Objective:** Update Python mutation decorators, error config, and type definitions
 
 **Details:** See `02_PHASE_2_PYTHON_LAYER.md`
 
 ### Phase 3: Schema & GraphQL Generation (Week 2)
+
 **Files:** 5 files
 **Objective:** Generate union types, update schema generation, add code field
 
 **Details:** See `03_PHASE_3_SCHEMA_GENERATION.md`
 
 ### Phase 4: Testing & Documentation (Week 2)
+
 **Files:** Multiple test files + docs
 **Objective:** Update all tests, write migration guide, update docs
 
 **Details:** See `04_PHASE_4_TESTING_DOCS.md`
 
 ### Phase 5: Verification & Release (Week 3)
+
 **Objective:** Final verification, version bump, release coordination
 
 **Details:** See `05_PHASE_5_VERIFICATION_RELEASE.md`
@@ -104,6 +111,7 @@ type CreateMachineError {
 ### GraphQL API
 
 **Schema Changes:**
+
 - ❌ **BREAKING:** All mutations now return union types (`<Mutation>Result`)
 - ❌ **BREAKING:** Success types never have null entities
 - ❌ **BREAKING:** Validation failures return Error type (not Success)
@@ -111,6 +119,7 @@ type CreateMachineError {
 - ✅ **COMPATIBLE:** `status`, `message`, `cascade` fields preserved
 
 **Client Impact:**
+
 ```typescript
 // OLD (v1.7.x)
 if (result.__typename === "CreateMachineSuccess") {
@@ -129,11 +138,13 @@ if (result.__typename === "CreateMachineSuccess") {
 ### Python API
 
 **Decorator Changes:**
+
 - ✅ **COMPATIBLE:** `@fraiseql.success` and `@fraiseql.failure` unchanged
 - ✅ **COMPATIBLE:** `error_config` still works (updated mappings)
 - ❌ **BREAKING:** `error_as_data_prefixes` removed (all are now errors)
 
 **Type Changes:**
+
 ```python
 # OLD (v1.7.x)
 @fraiseql.success
@@ -158,11 +169,13 @@ class CreateMachineError:
 ## Rollout Strategy
 
 ### Stage 1: FraiseQL Core (This Plan)
+
 **Timeline:** Immediate (part of v1.8.0 development)
 **Scope:** FraiseQL library only
 **Deliverable:** v1.8.0-beta.1 (includes CASCADE + validation-as-error)
 
 **Tasks:**
+
 1. Implement Rust changes (Phase 1)
 2. Implement Python changes (Phase 2)
 3. Update schema generation (Phase 3)
@@ -171,15 +184,18 @@ class CreateMachineError:
 6. Release v1.8.0-beta.1 (combined with CASCADE feature)
 
 **Note:** This is being incorporated into v1.8.0-beta.1, which already includes:
+
 - CASCADE selection filtering (v1.8.0-alpha.1 through v1.8.0-alpha.5)
 - Validation as Error type (this plan)
 
 ### Stage 2: PrintOptim Migration (Separate Plan)
+
 **Timeline:** After v1.8.0-beta.1 testing
 **Scope:** PrintOptim backend
 **Prerequisite:** FraiseQL v1.8.0-beta.1 released and tested
 
 **Tasks:**
+
 1. Update FraiseQL dependency to v1.8.0-beta.1
 2. Update ~30-50 test assertions
 3. Update GraphQL fragments (union types)
@@ -193,6 +209,7 @@ class CreateMachineError:
 ## Success Criteria
 
 ### Phase 1-3 (Core Implementation)
+
 - [ ] All Rust response builder tests pass
 - [ ] All Python mutation tests pass
 - [ ] Schema generation produces union types
@@ -202,6 +219,7 @@ class CreateMachineError:
 - [ ] CASCADE works in both Success and Error types
 
 ### Phase 4 (Testing & Docs)
+
 - [ ] All FraiseQL integration tests updated and passing
 - [ ] All unit tests pass
 - [ ] Migration guide complete with code examples
@@ -210,6 +228,7 @@ class CreateMachineError:
 - [ ] API reference updated
 
 ### Phase 5 (Release)
+
 - [ ] No regressions in FraiseQL test suite
 - [ ] Beta release published to PyPI
 - [ ] GitHub release notes published
@@ -221,28 +240,36 @@ class CreateMachineError:
 ## Risk Mitigation
 
 ### Risk 1: Breaking Existing Users
+
 **Mitigation:**
+
 - Clear migration guide with before/after examples
 - Beta release period (1 week minimum)
 - Deprecation warnings in v1.7.x (if possible)
 - Direct coordination with PrintOptim team
 
 ### Risk 2: Incomplete Migration
+
 **Mitigation:**
+
 - Comprehensive test coverage updates
 - Automated schema validation
 - Integration tests for all status codes
 - Manual verification of edge cases
 
 ### Risk 3: Performance Regression
+
 **Mitigation:**
+
 - Benchmark before/after
 - Profile Rust response builder
 - Ensure no extra allocations
 - Load testing on staging
 
 ### Risk 4: Documentation Gaps
+
 **Mitigation:**
+
 - Migration guide with real-world examples
 - Updated API reference
 - Code examples in docs
@@ -253,23 +280,27 @@ class CreateMachineError:
 ## Communication Plan
 
 ### Week 1 (Implementation Start)
+
 - [ ] Announce v1.8.0 development on GitHub Discussions
 - [ ] Create tracking issue for breaking changes
 - [ ] Notify PrintOptim team of upcoming changes
 
 ### Week 2 (Beta Release)
+
 - [ ] Publish v1.8.0-beta.1 to PyPI
 - [ ] Release blog post on docs site
 - [ ] Share migration guide
 - [ ] Request beta testing feedback
 
 ### Week 3 (Stabilization)
+
 - [ ] Address beta feedback
 - [ ] Fix any discovered issues
 - [ ] Finalize documentation
 - [ ] Prepare final release
 
 ### Week 4 (GA Release)
+
 - [ ] Publish v1.8.0 to PyPI
 - [ ] GitHub release with full changelog
 - [ ] Update docs site to default to v1.8.0

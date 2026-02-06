@@ -19,12 +19,15 @@ assignees: ''
 ## What Would You Like to Share?
 
 ### Current Situation
+
 Describe what you tried, what worked, what didn't.
 
 ### What Would Help?
+
 What would make FraiseQL better for your use case?
 
 ### Why Is This Important?
+
 Explain the impact or value this would have.
 
 ---
@@ -32,6 +35,7 @@ Explain the impact or value this would have.
 ## Additional Context
 
 **Environment:**
+
 - Language: Python / TypeScript / Go / PHP
 - Database: PostgreSQL / MySQL / SQLite / SQL Server
 - Deployment: Local / Docker / Kubernetes

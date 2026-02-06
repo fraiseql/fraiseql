@@ -46,6 +46,7 @@ XL (Extra Large) → 3+ levels deep  (0_schema/00_common/000_security/0000_roles
 ```
 
 **Key principle**: **Number of digits = depth level**
+
 - **Level 1** (top-level directories): **1 digit** (`0_schema/`, `1_seed/`)
 - **Level 2** (subdirectories): **2 digits** (`01_tables/`, `10_users/`)
 - **Level 3** (sub-subdirectories): **3 digits** (`010_user/`, `101_profile/`)
@@ -53,6 +54,7 @@ XL (Extra Large) → 3+ levels deep  (0_schema/00_common/000_security/0000_roles
 - **Level 5+**: Add one digit per level
 
 **Visual example with materialized paths:**
+
 ```
 db/
 └── 0_schema/                      ← Level 1 (1 digit: "0")
@@ -66,6 +68,7 @@ db/
 ```
 
 **Reading the path**: File `0101_tb_user.sql` decodes as:
+
 - `0` = in `0_schema/` directory (level 1)
 - `01` = in `01_tables/` subdirectory (level 2)
 - `010` = in `010_users/` subdirectory (level 3)
@@ -93,6 +96,7 @@ db/
 **Example**: Simple todo app with `users` and `todos` tables
 
 **Numbering logic**:
+
 - **Level 1** (top-level directories): **1 digit** - `0_schema/`, `1_seed_dev/`
 - Files inside have no numbering prefix when there's only one file per directory
 
@@ -119,6 +123,7 @@ db/
 **When to use**: Small blogs, simple APIs, basic CRUD apps
 
 **Numbering logic**:
+
 - **Level 1** (directories): **1-2 digits** - `0_schema/`, `10_seed_common/`, `20_seed_dev/`
 - **Level 2** (files): **2-3 digits** - Inherits parent's prefix:
   - Within `0_schema/`: `00_`, `01_`, `02_`, `03_`, `04_` (inherits `0` from parent)
@@ -153,6 +158,7 @@ db/
 **When to use**: Production APIs, SaaS applications, standard business apps
 
 **Numbering logic**:
+
 - **Level 1** (directories): **1-2 digits** - `0_schema/`, `10_seed_common/`, `20_seed_dev/`
 - **Level 2** (subdirectories): **2 digits** - `00_common/`, `01_tables/`, `02_views/`, `03_functions/`
 - **Level 3** (files in schema): **3 digits** - Inherits parent's 2 digits + adds 1, with descriptive suffixes
@@ -208,6 +214,7 @@ db/
 **When to use**: Enterprise applications, complex domains, multi-bounded contexts
 
 **Numbering logic**:
+
 - Level 1: `0_schema/`, `10_seed_common/`, `20_seed_dev/`
 - Level 2 within `0_schema/`: `00_common/`, `01_core_domain/`, `02_views/`, `03_functions/`
 - Level 3 within `00_common/`: `000_security/`, `001_extensions/`, `002_types/` (inherits `00`)
@@ -269,6 +276,7 @@ db/
 **When to use**: Multi-tenant SaaS, enterprise systems, platform products
 
 **Numbering logic**:
+
 - Level 1: `0_schema/`, `10_seed_common/`, `20_seed_dev/`
 - Level 2 within `00_`: `00_common/`, `01_domain_users/`, `02_domain_content/`, `09_finalize/`
 - Level 3 within `00_common/`: `000_security/`, `001_extensions/`, `002_types/`
@@ -285,6 +293,7 @@ db/
 FraiseQL follows PostgreSQL dependency order:
 
 **Top-level directories:**
+
 ```
 0_schema/              # DDL (CREATE statements)
 10_seed_common/         # Production reference data
@@ -294,6 +303,7 @@ FraiseQL follows PostgreSQL dependency order:
 ```
 
 **Within 0_schema/ (CQRS Pattern):**
+
 ```
 00_  Common              (Extensions, schemas, types, security)
 01_  Write (Command)     (CREATE TABLE tb_* - normalized writes, source of truth)
@@ -306,6 +316,7 @@ FraiseQL follows PostgreSQL dependency order:
 ```
 
 **FraiseQL CQRS Convention:**
+
 - **`01_write/`**: Contains all `tb_*` tables (normalized, source of truth)
 - **`02_read/`**: Contains all `v_*` or `tv_*` views/tables (denormalized, optimized)
 - **`03_functions/`**: Mutation functions and business logic
@@ -326,6 +337,7 @@ Always leave gaps in numbering to allow insertion without renumbering:
 ```
 
 **Why gaps matter:**
+
 - Start with: `01_users/`, `03_posts/`, `05_comments/`
 - Later add: `02_profiles/` between users and posts
 - Later add: `04_tags/` between posts and comments
@@ -394,6 +406,7 @@ db/
 ### Numbering Strategy for Bounded Contexts
 
 **Top-level context allocation within `0_schema/`:**
+
 ```
 00_  Shared kernel / Common           (Extensions, types, shared utilities)
 01_  Identity & Access Management     (Users, roles, auth)
@@ -407,17 +420,20 @@ db/
 ```
 
 **Materialized Path Encoding:**
+
 - All files in `01_write/` start with `01`: `010_`, `0101_`, `01011_`
 - All files in `02_read/` start with `02`: `020_`, `0201_`, `02011_`
 - All files in `03_functions/` start with `03`: `030_`, `0301_`, `03011_`
 
 **Within each layer, contexts are numbered:**
+
 - `01_write/010_identity/` - Identity write tables
 - `01_write/011_catalog/` - Catalog write tables
 - `02_read/020_identity/` - Identity read views
 - `02_read/021_catalog/` - Catalog read views
 
 **Benefits:**
+
 - **CQRS enforced by structure** - write side completely loaded before read side
 - **Layer-first organization** - see architectural layers clearly
 - **File number encodes layer + context**: `0201` = `0_schema/02_read/020_identity/0201_view.sql`
@@ -474,11 +490,13 @@ The numbering also shows context dependencies:
 ```
 
 **Load order guarantees:**
+
 1. All write tables load completely before any read views
 2. All read views load completely before any functions
 3. Within each layer, contexts load in order (identity → catalog → order → shipping)
 
 **Materialized Path Example:**
+
 - File `0121_order.sql` decodes to:
   - `0` = in `0_schema/`
   - `01` = in `01_write/` (command side)
@@ -487,6 +505,7 @@ The numbering also shows context dependencies:
 - Full path: `0_schema/01_write/012_order/0121_order.sql`
 
 **Cross-layer example** - same entity in different layers:
+
 - `0121_order.sql` = `0_schema/01_write/012_order/0121_order.sql` (tb_order - write)
 - `0221_order_summary.sql` = `0_schema/02_read/022_order/0221_order_summary.sql` (v_order_summary - read)
 - `0321_order_mutations.sql` = `0_schema/03_functions/032_order/0321_order_mutations.sql` (business logic)
@@ -693,17 +712,20 @@ FraiseQL uses **[CQRS (Command Query Responsibility Segregation)](concepts-gloss
 ```
 
 **Naming Conventions:**
+
 - **Command side (write)**: `tb_*` tables (e.g., `tb_user`, `tb_post`)
 - **Query side (read)**:
   - `v_*` views (e.g., `v_user`, `v_post_with_author`)
   - `tv_*` Trinity views/tables (e.g., `tv_user`, `tv_post`)
 
 **Directory Names (following confiture style):**
+
 - **`01_write/`** - Contains all `tb_*` tables + their indexes
 - **`02_read/`** - Contains all `v_*` or `tv_*` views/tables
 - **`03_functions/`** - Mutation functions and business logic
 
 **Standard CQRS Load Order:**
+
 1. **`00_common/`** - Extensions, types, shared utilities
 2. **`01_write/`** - Command tables (`tb_*`) + indexes - source of truth
 3. **`02_read/`** - Query views/tables (`v_*`/`tv_*`) - depend on write tables

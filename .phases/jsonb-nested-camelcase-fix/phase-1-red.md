@@ -21,6 +21,7 @@ Based on codebase investigation, the bug manifests because:
 3. Fields like `dns_1` may not be registered in schema, causing lookup failures
 
 The bug manifests in two ways:
+
 1. **Fields with underscores** (`smtp_server`, `print_servers`) return as snake_case instead of camelCase
 2. **Fields with underscore+number** (`dns_1`, `dns_2`) may be missing or unconverted
 
@@ -43,6 +44,7 @@ These functions are available from `fraiseql._fraiseql_rs`:
 ## Test Files to Create
 
 ### Test 1: Regression Test (Integration)
+
 **File**: `tests/regression/test_jsonb_nested_camelcase.py`
 
 ```python
@@ -458,6 +460,7 @@ if __name__ == "__main__":
 ---
 
 ### Test 2: Unit Test for CamelCase Conversion
+
 **File**: `tests/unit/core/test_jsonb_camelcase_conversion.py`
 
 ```python
@@ -646,6 +649,7 @@ if __name__ == "__main__":
 ## Implementation Steps
 
 ### Step 1: Create Unit Test File First
+
 ```bash
 mkdir -p tests/unit/core
 ```
@@ -653,6 +657,7 @@ mkdir -p tests/unit/core
 Create `tests/unit/core/test_jsonb_camelcase_conversion.py` with content above.
 
 **Verification**:
+
 ```bash
 uv run pytest tests/unit/core/test_jsonb_camelcase_conversion.py -v
 ```
@@ -660,9 +665,11 @@ uv run pytest tests/unit/core/test_jsonb_camelcase_conversion.py -v
 **Expected**: `to_camel_case` tests PASS, `transform_json` and `build_graphql_response` tests may FAIL
 
 ### Step 2: Create Regression Test File
+
 Create `tests/regression/test_jsonb_nested_camelcase.py` with content above.
 
 **Verification**:
+
 ```bash
 uv run pytest tests/regression/test_jsonb_nested_camelcase.py -v
 ```
@@ -672,6 +679,7 @@ uv run pytest tests/regression/test_jsonb_nested_camelcase.py -v
 ### Step 3: Verify Test Failures Match Bug Report
 
 **Expected Failure Patterns**:
+
 ```
 PASSED test_single_word_nested_object_converts_to_camelcase
 FAILED test_underscore_nested_object_converts_to_camelcase - "smtpServer" not in response

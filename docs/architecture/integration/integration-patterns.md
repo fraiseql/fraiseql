@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Integration Patterns: Federation, Webhooks, and Messaging
 description: FraiseQL integrates with external systems through three primary patterns:
 keywords: ["workflow", "design", "scalability", "saas", "performance", "realtime", "patterns", "ecommerce"]

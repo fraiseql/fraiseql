@@ -20,6 +20,7 @@ Decorators and patterns for defining GraphQL queries, mutations, and subscriptio
 **Purpose**: Mark async functions as GraphQL queries
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -40,6 +41,7 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 **Examples**:
 
 Basic query with database access:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -52,6 +54,7 @@ async def get_user(info, id: ID) -> User:
 ```
 
 Query with multiple parameters:
+
 ```python
 import fraiseql
 
@@ -70,6 +73,7 @@ async def search_users(
 ```
 
 Query with authentication:
+
 ```python
 import fraiseql
 
@@ -87,6 +91,7 @@ async def get_my_profile(info) -> User:
 ```
 
 Query with error handling:
+
 ```python
 import fraiseql
 
@@ -107,6 +112,7 @@ async def get_post(info, id: ID) -> Post | None:
 ```
 
 Query using custom repository methods:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -125,6 +131,7 @@ async def get_user_stats(info, user_id: ID) -> UserStats:
 ```
 
 **Notes**:
+
 - Functions decorated with @fraiseql.query are automatically discovered and registered
 - The first parameter is always 'info' (GraphQL resolver info)
 - Return type annotation is used for GraphQL schema generation
@@ -149,6 +156,7 @@ Queries returning `list[FraiseType]` automatically get these parameters:
 | `offset` | `Int` | Number of results to skip |
 
 **Example**:
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -157,6 +165,7 @@ async def users(info) -> list[User]:
 ```
 
 GraphQL schema automatically includes:
+
 ```graphql
 type Query {
   users(
@@ -169,6 +178,7 @@ type Query {
 ```
 
 **Usage**:
+
 ```graphql
 query {
   users(
@@ -197,6 +207,7 @@ Queries returning `Connection[FraiseType]` automatically get Relay pagination pa
 | `orderBy` | `[{TypeName}OrderByInput!]` | Sort criteria |
 
 **Example**:
+
 ```python
 from fraiseql.types.generic import Connection
 
@@ -224,11 +235,13 @@ async def users(
 ### Validation
 
 Auto-wired pagination parameters include built-in validation:
+
 - `limit`, `offset`, `first`, `last` must be non-negative (returns GraphQL error if negative)
 
 ### Exclusions
 
 Some types are excluded from `orderBy` auto-wiring:
+
 - Types with vector/embedding fields (e.g., `list[float]` fields named `embedding`, `vector`, etc.)
 - These types use `VectorOrderBy` which requires special distance-based ordering
 
@@ -279,12 +292,14 @@ query {
 ```
 
 **Collation Precedence**:
+
 1. Per-field explicit value (highest priority)
 2. Explicit `null` (skips global default)
 3. Global `default_string_collation`
 4. PostgreSQL database default (lowest priority)
 
 **Common Collations**:
+
 - `"C"` - Byte-order sorting (fastest, case-sensitive)
 - `"POSIX"` - Equivalent to `"C"`
 - `"en_US.utf8"` - US English locale-aware sorting
@@ -309,6 +324,7 @@ SELECT collname FROM pg_collation ORDER BY collname;
 **Purpose**: Mark methods as GraphQL fields with optional custom resolvers
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -333,6 +349,7 @@ def method_name(self, info, ...params) -> ReturnType:
 **Examples**:
 
 Computed field with description:
+
 ```python
 import fraiseql
 
@@ -347,6 +364,7 @@ class User:
 ```
 
 Async field with database access:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -362,6 +380,7 @@ class User:
 ```
 
 Field with custom resolver function:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -387,6 +406,7 @@ class User:
 ```
 
 Field with parameters:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -410,6 +430,7 @@ class User:
 ```
 
 Field with authentication/authorization:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -429,6 +450,7 @@ class User:
 ```
 
 Field with caching:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -464,6 +486,7 @@ class Post:
 ```
 
 **Notes**:
+
 - Fields are automatically included in GraphQL schema generation
 - Use 'info' parameter to access GraphQL context (database, user, etc.)
 - Async fields support database queries and external API calls
@@ -477,6 +500,7 @@ class Post:
 **Purpose**: Create cursor-based pagination query resolvers following Relay specification
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -520,6 +544,7 @@ async def query_name(
 **Examples**:
 
 Basic connection query:
+
 ```python
 import fraiseql
 from fraiseql.types import Connection
@@ -538,6 +563,7 @@ async def users_connection(info, first: int | None = None) -> Connection[User]:
 ```
 
 Connection with custom configuration:
+
 ```python
 import fraiseql
 
@@ -561,6 +587,7 @@ async def posts_connection(
 ```
 
 With filtering and ordering:
+
 ```python
 import fraiseql
 
@@ -576,6 +603,7 @@ async def recent_users_connection(
 ```
 
 **GraphQL Usage**:
+
 ```graphql
 query {
   usersConnection(first: 10, after: "cursor123") {
@@ -600,6 +628,7 @@ query {
 ```
 
 **Notes**:
+
 - Functions must be async and take 'info' as first parameter
 - The decorator handles all pagination logic automatically
 - Uses existing repository.paginate() method
@@ -614,6 +643,7 @@ query {
 **Signature**:
 
 Function-based mutation:
+
 ```python
 import fraiseql
 
@@ -623,6 +653,7 @@ async def mutation_name(info, input: InputType) -> ReturnType:
 ```
 
 Class-based mutation:
+
 ```python
 import fraiseql
 
@@ -650,6 +681,7 @@ class MutationName:
 **Examples**:
 
 Simple function-based mutation:
+
 ```python
 import fraiseql
 
@@ -664,6 +696,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 ```
 
 Basic class-based mutation:
+
 ```python
 import fraiseql
 
@@ -694,6 +727,7 @@ class CreateUser:
 ```
 
 Mutation with custom PostgreSQL function:
+
 ```python
 import fraiseql
 
@@ -707,6 +741,7 @@ class RegisterUser:
 ```
 
 Mutation with context parameters:
+
 ```python
 import fraiseql
 
@@ -729,6 +764,7 @@ class CreateLocation:
 ```
 
 Mutation with validation:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -766,6 +802,7 @@ async def update_user(info, input: UpdateUserInput) -> User:
 ```
 
 Multi-step mutation with transaction:
+
 ```python
 import fraiseql
 
@@ -821,6 +858,7 @@ async def transfer_funds(
 ```
 
 Mutation with input transformation (prepare_input hook):
+
 ```python
 import fraiseql
 
@@ -868,6 +906,7 @@ For class-based mutations, the PostgreSQL function should:
 3. Include either 'data' field (success) or 'error' field (failure)
 
 Example PostgreSQL function:
+
 ```sql
 CREATE OR REPLACE FUNCTION public.create_user(input jsonb)
 RETURNS jsonb
@@ -915,6 +954,7 @@ $$;
 ```
 
 **Notes**:
+
 - Function-based mutations provide full control over implementation
 - Class-based mutations automatically integrate with PostgreSQL functions
 - Use transactions for multi-step operations to ensure data consistency
@@ -930,6 +970,7 @@ $$;
 **Purpose**: Mark async generator functions as GraphQL subscriptions for real-time updates
 
 **Signature**:
+
 ```python
 @subscription
 async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]:
@@ -940,6 +981,7 @@ async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]
 **Examples**:
 
 Basic subscription:
+
 ```python
 from typing import AsyncGenerator
 
@@ -951,6 +993,7 @@ async def on_post_created(info) -> AsyncGenerator[Post, None]:
 ```
 
 Filtered subscription with parameters:
+
 ```python
 from fraiseql.types import ID
 
@@ -966,6 +1009,7 @@ async def on_user_posts(
 ```
 
 Subscription with authentication:
+
 ```python
 @subscription
 async def on_private_messages(info) -> AsyncGenerator[Message, None]:
@@ -980,6 +1024,7 @@ async def on_private_messages(info) -> AsyncGenerator[Message, None]:
 ```
 
 Subscription with database polling:
+
 ```python
 import asyncio
 from fraiseql.types import ID
@@ -1010,6 +1055,7 @@ async def on_task_updates(
 ```
 
 **Notes**:
+
 - Subscription functions MUST be async generators (use 'async def' and 'yield')
 - Return type must be AsyncGenerator[YieldType, None]
 - The first parameter is always 'info' (GraphQL resolver info)

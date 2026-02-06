@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Authentication Troubleshooting Guide
 description: Common issues and solutions for FraiseQL authentication.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

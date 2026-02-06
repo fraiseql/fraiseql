@@ -121,6 +121,7 @@ fraiseql migrate init
 ```
 
 **Options:**
+
 - `--path PATH`: Custom migrations directory (default: `./migrations`)
 
 ### `fraiseql migrate create <name>`
@@ -134,6 +135,7 @@ fraiseql migrate create add_comments_table
 ```
 
 **Naming conventions:**
+
 - Use descriptive names: `add_comments_table`, `add_email_index`
 - Use snake_case
 - Be specific: `add_user_bio_column` not `update_users`
@@ -149,6 +151,7 @@ fraiseql migrate up
 ```
 
 **Options:**
+
 - `--steps N`: Apply only N migrations
 - `--dry-run`: Show what would be applied without running
 
@@ -171,6 +174,7 @@ fraiseql migrate down
 ```
 
 **Options:**
+
 - `--steps N`: Roll back N migrations
 - `--force`: Skip confirmation prompt
 
@@ -233,6 +237,7 @@ WHERE created_at < NOW() - INTERVAL '1 day';
 ### Migration Best Practices
 
 1. **One purpose per migration**
+
    ```sql
    -- ✅ Good: Focused on one change
    -- Migration 005: Add email verification
@@ -251,6 +256,7 @@ WHERE created_at < NOW() - INTERVAL '1 day';
    ```
 
 2. **Include rollback comments**
+
    ```sql
    -- Migration 010: Add post categories
 
@@ -264,6 +270,7 @@ WHERE created_at < NOW() - INTERVAL '1 day';
    ```
 
 3. **Handle existing data**
+
    ```sql
    -- Migration 015: Make email required
 
@@ -354,6 +361,7 @@ async def initial_sync():
 ### Safe Production Migrations
 
 1. **Always test migrations first**
+
    ```bash
    # Test in development
    fraiseql migrate up --dry-run
@@ -366,6 +374,7 @@ async def initial_sync():
    ```
 
 2. **Use transactions**
+
    ```sql
    -- Migration 030: Update post status
 
@@ -382,6 +391,7 @@ async def initial_sync():
    ```
 
 3. **Avoid long-running migrations during peak hours**
+
    ```sql
    -- ❌ Bad: Locks table during heavy read load
    CREATE INDEX CONCURRENTLY idx_post_created ON tb_post(created_at);
@@ -391,6 +401,7 @@ async def initial_sync():
    ```
 
 4. **Have a rollback plan**
+
    ```bash
    # Before applying migration
    pg_dump -U user -d database > backup_before_migration.sql
@@ -459,11 +470,13 @@ ALTER TABLE tb_post ADD COLUMN invalid_column INVALID_TYPE;  -- ✗ Failed
 **Solution**:
 
 1. Check what was applied:
+
    ```bash
    psql -U user -d database -c "\d tb_user"
    ```
 
 2. Manually fix:
+
    ```sql
    -- Remove partially applied changes
    ALTER TABLE tb_user DROP COLUMN phone;
@@ -471,6 +484,7 @@ ALTER TABLE tb_post ADD COLUMN invalid_column INVALID_TYPE;  -- ✗ Failed
    ```
 
 3. Fix migration file and reapply:
+
    ```bash
    fraiseql migrate up
    ```

@@ -5,6 +5,7 @@ Ready-to-use workflow files for integrating design quality checks into your CI/C
 ## Files
 
 ### GitHub Actions
+
 - **`github-actions-lint.yml`** - Complete GitHub Actions workflow
   - Runs on PR, push to main/develop, and manual trigger
   - Waits for fraiseql-server to start
@@ -14,19 +15,23 @@ Ready-to-use workflow files for integrating design quality checks into your CI/C
   - Creates GitHub status checks
 
 **Installation:**
+
 ```bash
 cp github-actions-lint.yml .github/workflows/design-quality.yml
 ```
 
 **Required Secrets:**
+
 - `SLACK_WEBHOOK_URL` (optional, for notifications)
 
 **Usage:**
+
 - Automatically runs on schema changes
 - Can trigger manually with custom threshold
 - Use status checks to block merges
 
 ### GitLab CI
+
 - **`gitlab-ci-lint.yml`** - GitLab CI configuration
   - Runs on MR and push to protected branches
   - Services mode for fraiseql-server
@@ -36,6 +41,7 @@ cp github-actions-lint.yml .github/workflows/design-quality.yml
   - Automatic retries on transient failures
 
 **Installation:**
+
 ```bash
 # Add to your existing .gitlab-ci.yml
 cat gitlab-ci-lint.yml >> .gitlab-ci.yml
@@ -45,9 +51,11 @@ cp gitlab-ci-lint.yml .gitlab-ci.yml
 ```
 
 **Required Variables:**
+
 - `SLACK_WEBHOOK_URL` (optional, for notifications)
 
 **Usage:**
+
 ```yaml
 # Override threshold in CI settings or .gitlab-ci.yml
 variables:
@@ -55,6 +63,7 @@ variables:
 ```
 
 ### Pre-Commit Hooks
+
 - **`../pre-commit-hooks.sh`** - Local git pre-commit hook
   - Runs before every commit
   - Checks if schema changed
@@ -62,12 +71,14 @@ variables:
   - Can be skipped with `--no-verify`
 
 **Installation:**
+
 ```bash
 cp examples/pre-commit-hooks.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
 **Configuration:**
+
 ```bash
 # Environment variables
 export SCHEMA_FILE="schema.compiled.json"
@@ -97,6 +108,7 @@ Server will be available at `http://localhost:8080`
 ### 2. Set up CI/CD Integration
 
 **GitHub Actions:**
+
 ```bash
 mkdir -p .github/workflows
 cp examples/ci/github-actions-lint.yml .github/workflows/design-quality.yml
@@ -104,6 +116,7 @@ git add .github/workflows/design-quality.yml
 ```
 
 **GitLab CI:**
+
 ```bash
 # Append to existing .gitlab-ci.yml
 cat examples/ci/gitlab-ci-lint.yml >> .gitlab-ci.yml
@@ -111,6 +124,7 @@ git add .gitlab-ci.yml
 ```
 
 **Pre-Commit (Local):**
+
 ```bash
 cp examples/pre-commit-hooks.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
@@ -119,11 +133,13 @@ chmod +x .git/hooks/pre-commit
 ### 3. (Optional) Set up Slack Notifications
 
 **GitHub:**
+
 1. Go to Slack App settings
 2. Create incoming webhook
 3. Add to GitHub repo secrets: `SLACK_WEBHOOK_URL`
 
 **GitLab:**
+
 1. Go to Slack App settings
 2. Create incoming webhook
 3. Add to GitLab CI/CD variables: `SLACK_WEBHOOK_URL`
@@ -172,6 +188,7 @@ Week 4: Enforce at excellent (fail_if_below = 80)
 ### Changing the Schema File Path
 
 GitHub Actions:
+
 ```yaml
 - name: Run design audit
   run: |
@@ -181,12 +198,14 @@ GitHub Actions:
 ```
 
 GitLab CI:
+
 ```yaml
 variables:
   SCHEMA_FILE: "path/to/schema.compiled.json"
 ```
 
 Pre-commit:
+
 ```bash
 export SCHEMA_FILE="path/to/schema.compiled.json"
 ```
@@ -196,6 +215,7 @@ export SCHEMA_FILE="path/to/schema.compiled.json"
 For remote fraiseql-server instance:
 
 GitHub Actions:
+
 ```yaml
 - name: Run design audit
   run: |
@@ -205,12 +225,14 @@ GitHub Actions:
 ```
 
 GitLab CI:
+
 ```yaml
 before_script:
   - export FRAISEQL_API_ENDPOINT="https://api.example.com:8080"
 ```
 
 Pre-commit:
+
 ```bash
 export FRAISEQL_API_ENDPOINT="https://api.example.com:8080"
 ```

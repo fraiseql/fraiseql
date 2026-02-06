@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: ADR-009: Federation Architecture (Direct DB + HTTP Fallback)
 description: How should FraiseQL implement federation for composing multiple subgraphs into a single federated graph?
 keywords: ["design", "scalability", "performance", "patterns", "security"]

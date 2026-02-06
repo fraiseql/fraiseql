@@ -51,12 +51,14 @@ The entire process takes ~50-200ms depending on schema complexity.
 ### When to Use
 
 **✅ Use schema refresh when**:
+
 - Testing features that create database functions dynamically
 - Creating test-specific mutations that shouldn't be in production schema
 - Verifying auto-discovery behavior
 - Developing plugins that add GraphQL types at runtime
 
 **❌ Don't use schema refresh when**:
+
 - Testing existing schema (no dynamic functions needed)
 - Performance is critical (refresh adds ~50-200ms overhead)
 - Functions can be added to example app's `init.sql` instead
@@ -65,6 +67,7 @@ The entire process takes ~50-200ms depending on schema complexity.
 ### Performance Considerations
 
 Schema refresh is an expensive operation:
+
 - Database introspection queries (~20-50ms)
 - GraphQL schema rebuilding (~20-80ms)
 - Rust registry re-initialization (~10-40ms)
@@ -294,10 +297,12 @@ logging.getLogger("fraiseql").setLevel(logging.DEBUG)
 ### Auto-Discovery Patterns
 
 Auto-discovery looks for specific naming patterns:
+
 - Views: `v_%` (e.g., `v_users`)
 - Functions: `fn_%` (e.g., `fn_create_user`)
 
 Test functions with other names won't be auto-discovered. You'll need to either:
+
 1. Rename them to match the pattern
 2. Provide Python wrapper functions and add them to `original_mutations`
 
@@ -308,6 +313,7 @@ The Rust schema registry is a global singleton. If you see warnings like "Re-ini
 ### Production Usage
 
 Schema refresh is designed for **testing only**. In production:
+
 - Restart the application to pick up schema changes
 - Don't call `refresh_schema()` during request handling
 - Schema refresh is not thread-safe
@@ -319,6 +325,7 @@ Schema refresh is designed for **testing only**. In production:
 **Problem**: Created function but it's not in schema after refresh.
 
 **Solutions**:
+
 1. Check function naming matches auto-discovery pattern (`fn_%`)
 2. Verify function created before calling `refresh_schema()`
 3. Check function has proper return type
@@ -329,6 +336,7 @@ Schema refresh is designed for **testing only**. In production:
 **Problem**: `AssertionError: Schema refresh lost X types`
 
 **Solutions**:
+
 1. Check that `original_types` in refresh config is correct
 2. Verify manual types are being preserved
 3. Use `validate_schema_refresh()` to debug what changed
@@ -338,6 +346,7 @@ Schema refresh is designed for **testing only**. In production:
 **Problem**: Tests are slow due to many refreshes.
 
 **Solutions**:
+
 1. Change fixture scope from `function` to `class`
 2. Batch function creation (create multiple, refresh once)
 3. Consider pre-creating functions in template database instead

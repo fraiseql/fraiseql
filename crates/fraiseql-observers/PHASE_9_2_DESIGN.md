@@ -102,6 +102,7 @@
 - Attribute injection
 
 **Example**:
+
 ```rust
 #[traced(name = "process_event")]
 async fn process_event(event: &Event) -> Result<()> {
@@ -133,6 +134,7 @@ async fn process_event(event: &Event) -> Result<()> {
 - Log-to-trace linking in Jaeger
 
 **Example Output**:
+
 ```
 2026-01-22T10:00:00.123Z INFO process_event trace_id=abc123def456 event_id=evt-1 Processing event
 2026-01-22T10:00:00.150Z DEBUG evaluate_condition trace_id=abc123def456 span_id=child001 Condition matched
@@ -163,6 +165,7 @@ async fn process_event(event: &Event) -> Result<()> {
 - Configurable batch size
 
 **Configuration**:
+
 ```bash
 export JAEGER_EXPORTER=grpc
 export JAEGER_GRPC_ENDPOINT=localhost:14250
@@ -464,7 +467,7 @@ Observer Logs       trace_id injection       Loki/ELK/CloudWatch
 
 ## Success Criteria
 
-### Phase 9.2 Complete When:
+### Phase 9.2 Complete When
 
 1. ✅ Prometheus metrics working
    - Metrics endpoint: `/metrics`

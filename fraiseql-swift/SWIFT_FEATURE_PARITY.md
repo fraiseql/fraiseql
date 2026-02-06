@@ -23,15 +23,18 @@ This document certifies the feature parity status of FraiseQL Swift with all oth
 Complete implementation of advanced authorization and security features for Swift:
 
 **Enums:**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY (Codable)
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID (Codable)
 
 **Structs (Codable for JSON serialization):**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -39,6 +42,7 @@ Complete implementation of advanced authorization and security features for Swif
 ### Builder Methods
 
 **AuthorizeBuilder:**
+
 - `rule(String)` - Set authorization rule expression
 - `policy(String)` - Reference named policy
 - `description(String)` - Set description
@@ -50,6 +54,7 @@ Complete implementation of advanced authorization and security features for Swif
 - `build()` - Return configuration
 
 **RoleRequiredBuilder:**
+
 - `roles([String])` - Set required roles
 - `strategy(RoleMatchStrategy)` - Role matching strategy
 - `hierarchy(Bool)` - Role hierarchy support
@@ -62,6 +67,7 @@ Complete implementation of advanced authorization and security features for Swif
 - `build()` - Return configuration
 
 **AuthzPolicyBuilder:**
+
 - `type(AuthzPolicyType)` - Policy type
 - `description(String)` - Policy description
 - `rule(String)` - Authorization rule
@@ -261,6 +267,7 @@ Swift-specific advantages:
 **Current Status**: 100% Parity across 11 languages (330/330 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

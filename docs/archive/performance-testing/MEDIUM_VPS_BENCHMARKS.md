@@ -22,6 +22,7 @@ FraiseQL delivers **sub-millisecond single-query performance** on standard cloud
 ## Hardware Profile
 
 PostgreSQL Configuration (t3.large equivalent):
+
 ```
 shared_buffers: 2GB
 effective_cache_size: 6GB
@@ -91,6 +92,7 @@ Rust Pipeline:     0.063 ms (4.1%)
 ### 5. Large Result Set Scaling (10-1000 rows)
 
 **Scaling Pattern:**
+
 ```
 10 rows:       0.87 ms   (Rust:  13%)
 100 rows:      2.41 ms   (Rust:  19%)
@@ -101,6 +103,7 @@ Rust Pipeline:     0.063 ms (4.1%)
 **Key Finding**: Linear scaling with result size. Rust pipeline grows from 13% to 31% as rows increase, showing the value of Rust optimization for bulk operations.
 
 **When Pagination Becomes Optional**:
+
 - < 100 rows: Pagination unnecessary (< 3ms)
 - 100-500 rows: Pagination optional (7-10ms is acceptable)
 - > 500 rows: Consider pagination for UX (avoids > 10ms)
@@ -136,17 +139,20 @@ Total:             0.32 ms
 ## Key Findings
 
 ### PostgreSQL Efficiency
+
 - Query execution time: 0.27-1.29 ms
 - Not bottlenecked by RAM (medium VPS still fast)
 - Dominated by query complexity, not hardware
 - **Implication**: Index tuning matters more than hardware upgrades
 
 ### Driver Overhead (Psycopg3)
+
 - Absolute time: 0.04-1.03 ms (constant)
 - Percentage: 4-40% (varies by result size)
 - **Implication**: Driver choice (psycopg3 vs asyncpg) is not the bottleneck
 
 ### Rust Pipeline Efficiency
+
 - Single rows: 3-4% of total time
 - Medium results: 19-28% of total time
 - Large results: 30% of total time
@@ -174,6 +180,7 @@ Running identical tests on your 8GB+ machine shows minimal difference:
 ### Typical SaaS Deployment on Medium VPS
 
 **User API endpoints** (single resource):
+
 ```
 GET /api/users/123          → 0.83 ms response (sub-millisecond!)
 GET /api/posts/456          → 0.70 ms response
@@ -181,6 +188,7 @@ GET /api/products/789       → 0.83 ms response
 ```
 
 **List API endpoints** (paginated):
+
 ```
 GET /api/users?page=1       → 2.59 ms for 100 items
 GET /api/posts?page=1       → 2.41 ms for 100 items
@@ -188,6 +196,7 @@ GET /api/products?page=1    → 2.59 ms for 100 items
 ```
 
 **Multi-tenant queries**:
+
 ```
 20 concurrent user lookups  → 1.61 ms average response
 Peak (P99)                  → 2.77 ms
@@ -196,6 +205,7 @@ Peak (P99)                  → 2.77 ms
 ### Network Context
 
 These benchmarks measure database layer only. Real-world response times:
+
 ```
 FraiseQL (database):    0.83 ms
 Application logic:      ~1-5 ms (varies by framework)
@@ -213,26 +223,31 @@ Total user experience:  ~12-60 ms
 If you need more performance on medium VPS:
 
 ### 1. Add Database Indices ⭐⭐⭐⭐⭐
+
 Expected improvement: 5-10x faster
 Effort: 30 minutes
 ROI: **Highest**
 
 ### 2. Implement Pagination ⭐⭐⭐⭐
+
 Expected improvement: 2-5x faster (for queries > 500 rows)
 Effort: 2-3 hours
 ROI: **High** (improves UX too)
 
 ### 3. Add Caching Layer ⭐⭐⭐⭐
+
 Expected improvement: 100x+ faster (for cache hits)
 Effort: 4-8 hours
 ROI: **High** (if implementing correctly)
 
 ### 4. Upgrade Hardware ⭐⭐
+
 Expected improvement: 1.5-2x faster
 Cost: Higher monthly spend
 ROI: **Low** (already plenty fast)
 
 ### 5. Switch Database Driver ❌
+
 Expected improvement: <1ms savings (invisible)
 Effort: 200+ hours
 ROI: **Highly negative**
@@ -242,18 +257,21 @@ ROI: **Highly negative**
 ## Recommendations
 
 ### For Marketing/Documentation
+
 ✓ Use these medium VPS benchmarks as primary reference
 ✓ Shows realistic, achievable performance
 ✓ Demonstrates production-ready status
 ✓ Credible to prospective users
 
 ### For Performance Expectations
+
 ✓ Set expectations at medium VPS level
 ✓ Emphasize sub-millisecond single queries
 ✓ Show that pagination is optional for most use cases
 ✓ Highlight excellent concurrent performance
 
 ### For Deployments
+
 ✓ Medium VPS (t3.large) is sufficient for most workloads
 ✓ Larger VPS provides only marginal benefits
 ✓ Focus on database tuning (indices) before upgrading hardware
@@ -264,12 +282,14 @@ ROI: **Highly negative**
 ## Technical Appendix
 
 ### Database Tables Used
+
 - `tv_user`: Users with 5KB average JSONB payload
 - `tv_post`: Posts with nested author/comments, 5.8KB average
 - Indices on: id (PK), tenant_id, identifier
 - Data volume: 1-1000 rows per query
 
 ### Measurement Methodology
+
 1. **Pool Acquisition**: Time to get connection from pool
 2. **Query Execution**: Time for PostgreSQL to execute SELECT
 3. **Result Fetching**: Time for psycopg3 to fetch rows from network
@@ -278,6 +298,7 @@ ROI: **Highly negative**
 All timing via `time.perf_counter()` with microsecond precision.
 
 ### Test Harness
+
 - Framework: pytest
 - Database: PostgreSQL 16 (testcontainers)
 - Driver: psycopg3 with asyncio

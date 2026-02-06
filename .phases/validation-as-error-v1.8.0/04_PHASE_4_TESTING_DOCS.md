@@ -532,6 +532,7 @@ All tests asserting `CreateXxxSuccess` with `entity: null` need updates:
 ```
 
 **Find affected tests:**
+
 ```bash
 grep -r "assert.*Success" tests/ | grep "machine.*None"
 grep -r "assert.*Success" tests/ | grep "cascade.*noop"
@@ -544,6 +545,7 @@ grep -r "assert.*Success" tests/ | grep "cascade.*noop"
 ### Issue 1: "Success type requires non-null entity"
 
 **Error:**
+
 ```
 ValueError: Success type 'CreateMachineSuccess' requires non-null entity.
 Status 'noop:invalid_contract_id' returned null entity.
@@ -556,6 +558,7 @@ Status 'noop:invalid_contract_id' returned null entity.
 ### Issue 2: "Error type missing required 'code' field"
 
 **Error:**
+
 ```
 ValueError: Error type 'CreateMachineError' must have 'code: int' field.
 ```
@@ -573,6 +576,7 @@ class CreateMachineError:
 ### Issue 3: GraphQL Query Fails on Union Type
 
 **Error:**
+
 ```
 GraphQL error: Cannot query field "machine" on type "CreateMachineResult"
 ```
@@ -594,6 +598,7 @@ mutation {
 ## Checklist
 
 ### Code Changes
+
 - [ ] Update all Success types (remove nullable entities)
 - [ ] Update all Error types (add `code` field)
 - [ ] Update test assertions (check Error type for validation)
@@ -601,12 +606,14 @@ mutation {
 - [ ] Update client error handling
 
 ### Testing
+
 - [ ] All validation error tests pass
 - [ ] All success tests pass
 - [ ] No null entities in Success type
 - [ ] All Error types have `code` field
 
 ### Verification
+
 - [ ] `pytest tests/` passes
 - [ ] `mypy src/` passes
 - [ ] GraphQL schema validates
@@ -617,6 +624,7 @@ mutation {
 ## Support
 
 Questions? Check:
+
 - [FraiseQL v1.8.0 Documentation](https://fraiseql.io/docs/v1.8.0)
 - [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - [Migration Examples](https://github.com/fraiseql/fraiseql/tree/main/examples/v1.8.0-migration)
@@ -628,6 +636,7 @@ Questions? Check:
 - **v1.8.0-beta.1:** Released 2024-12-XX (beta period: 1 week)
 - **v1.8.0:** Final release 2024-12-XX
 - **v1.7.x:** Security fixes only (deprecated 2025-03-XX)
+
 ```
 
 ---
@@ -663,6 +672,7 @@ END IF;
 ```
 
 **GraphQL Response (v1.8.0):**
+
 ```json
 {
   "data": {
@@ -679,6 +689,7 @@ END IF;
 **Migration from v1.7.x:**
 
 OLD (v1.7.x):
+
 ```json
 {
   "__typename": "CreateMachineSuccess",  ❌ Wrong
@@ -688,6 +699,7 @@ OLD (v1.7.x):
 ```
 
 NEW (v1.8.0):
+
 ```json
 {
   "__typename": "CreateMachineError",    ✅ Correct
@@ -696,6 +708,7 @@ NEW (v1.8.0):
   "message": "..."
 }
 ```
+
 ```
 
 ---

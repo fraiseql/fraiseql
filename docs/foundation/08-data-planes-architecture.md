@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.3: Data Planes Architecture
 description: FraiseQL supports two distinct **data planes** for different use cases:
 keywords: ["design", "query-execution", "security", "patterns", "data-planes", "graphql", "scalability", "performance"]

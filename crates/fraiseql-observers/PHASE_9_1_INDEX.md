@@ -62,6 +62,7 @@
 ### Core Infrastructure
 
 **`src/tracing/config.rs`** (152 lines)
+
 - `TracingConfig` - Configuration struct
 - `from_env()` - Load from environment
 - `validate()` - Validate configuration
@@ -69,6 +70,7 @@
 - Unit tests (6 tests)
 
 **`src/tracing/propagation.rs`** (315 lines)
+
 - `TraceContext` - W3C Trace Context implementation
 - `to_traceparent_header()` - Generate header
 - `from_traceparent_header()` - Parse header
@@ -78,6 +80,7 @@
 - Unit tests (12 tests)
 
 **`src/tracing/spans.rs`** (130 lines)
+
 - `create_event_span()` - Event processing root span
 - `create_action_span()` - Action execution span
 - `create_phase_span()` - Phase-specific spans
@@ -86,6 +89,7 @@
 ### Instrumentation & Tracers
 
 **`src/tracing/instrumentation.rs`** (195 lines)
+
 - `ListenerTracer` - Listener lifecycle tracking
 - `ExecutorTracer` - Action executor tracking
 - `ConditionTracer` - Condition evaluation tracking
@@ -93,6 +97,7 @@
 - Unit tests (7 tests)
 
 **`src/tracing/action_tracing.rs`** (245 lines)
+
 - `WebhookTracer` - HTTP webhook execution
 - `EmailTracer` - Email execution
 - `SlackTracer` - Slack API execution
@@ -101,6 +106,7 @@
 - Unit tests (7 tests)
 
 **`src/tracing/action_integration.rs`** (250 lines)
+
 - `ActionBatchExecutor` - Batch action coordination
 - `ActionChain` - Sequential trace propagation
 - `webhook_execution_example()` - Working example
@@ -111,6 +117,7 @@
 ### Jaeger Backend
 
 **`src/tracing/exporter.rs`** (450+ lines)
+
 - `JaegerConfig` - Jaeger configuration
 - `JaegerSpan` - Span representation
 - `init_jaeger_exporter()` - Initialize exporter
@@ -123,6 +130,7 @@
 ### Testing & Module Organization
 
 **`src/tracing/tests.rs`** (400+ lines)
+
 - 18 comprehensive E2E integration tests
 - Full initialization flows
 - Trace context propagation chains

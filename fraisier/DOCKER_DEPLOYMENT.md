@@ -248,6 +248,7 @@ Edit `monitoring/prometheus.yml` to:
 - Add custom dashboards
 
 Restart Prometheus:
+
 ```bash
 docker-compose restart prometheus
 ```
@@ -268,6 +269,7 @@ docker-compose restart grafana
 To monitor PostgreSQL metrics in Prometheus:
 
 1. Add service to docker-compose.yml:
+
 ```yaml
 postgres_exporter:
   image: prometheuscommunity/postgres-exporter
@@ -282,6 +284,7 @@ postgres_exporter:
 2. Uncomment postgres job in `monitoring/prometheus.yml`
 
 3. Restart services:
+
 ```bash
 docker-compose up -d
 ```

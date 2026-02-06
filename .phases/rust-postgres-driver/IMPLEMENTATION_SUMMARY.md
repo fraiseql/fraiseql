@@ -13,7 +13,8 @@
 
 This directory contains a complete 5-phase implementation plan for migrating FraiseQL's database layer from psycopg (Python) to a native Rust backend using `tokio-postgres` and `deadpool-postgres`.
 
-### For Quick Reference:
+### For Quick Reference
+
 1. **README.md** - Start here (overview, architecture, timeline)
 2. **phase-1-foundation.md** - Week 1 work (connection pool)
 3. **phase-2-query-execution.md** - Week 1-2 work (WHERE clauses, SQL)
@@ -35,6 +36,7 @@ The biggest challenge is bridging Python's asyncio with Rust's tokio via PyO3. K
 4. **Type conversions** between Python, Rust, and PostgreSQL are error-prone (see detailed type conversion guide in README)
 
 **Typical pattern**:
+
 ```rust
 #[pyo3_asyncio::tokio::main]
 async fn rust_async_function(py: Python) -> PyResult<Py<PyAny>> {
@@ -63,17 +65,20 @@ async fn rust_async_function(py: Python) -> PyResult<Py<PyAny>> {
 ## Why This Matters
 
 ### Current Problems
+
 - Database operations go through Python layer (psycopg)
 - Results marshalled to Rust pipeline
 - Two language boundaries = overhead
 - Connection pool managed in Python async runtime
 
 ### New Architecture
+
 - **Python**: GraphQL framework, validation, schema introspection (stays same)
 - **Rust**: All database operations (connection pool, queries, mutations, response building)
 - **Benefits**: 20-30% faster queries, zero-copy streaming, true async, type-safe
 
 ### The Key Insight
+
 FraiseQL's Rust JSON transformation pipeline (7-10x faster than Python) is proven effective. This plan extends that to the entire database layer, resulting in a **fully Rust-powered core** with a clean Python API.
 
 ---
@@ -136,6 +141,7 @@ AFTER:
 ### 1. Driver Choice: tokio-postgres
 
 Why **not** sqlx or diesel?
+
 - **sqlx**: Requires compile-time query validation (incompatible with dynamic schemas)
 - **diesel**: Sync-only (no async support) and also requires compile-time validation
 - **tokio-postgres**: Perfect for dynamic schemas, true async, zero-copy result access
@@ -173,6 +179,7 @@ Why **not** sqlx or diesel?
 ### Rollback Strategy
 
 If critical issues found:
+
 ```bash
 # Immediate fallback
 git revert <problematic-commit>
@@ -187,28 +194,33 @@ uv run pytest tests/
 ## Testing Strategy
 
 ### Phase 1: Foundation
+
 - Unit tests for pool configuration
 - Integration tests for pool initialization
 - Backward compatibility verification
 
 ### Phase 2: Query Execution
+
 - WHERE clause unit tests (parity with Python)
 - SQL generation tests
 - Query execution tests
 - Parity tests (Rust results == psycopg results)
 
 ### Phase 3: Result Streaming
+
 - Streaming performance tests
 - Memory profiling
 - Large result set handling
 
 ### Phase 4: Integration
+
 - End-to-end query tests
 - End-to-end mutation tests
 - Full 5991+ test suite with Rust backend
 - Performance benchmarking
 
 ### Phase 5: Deprecation
+
 - Final regression verification
 - No psycopg references check
 - Performance validation
@@ -218,18 +230,21 @@ uv run pytest tests/
 ## Success Metrics
 
 ### Must Have (Exit Criteria)
+
 - ✅ All 5991+ tests pass with Rust backend
 - ✅ No regressions vs current psycopg implementation
 - ✅ 100% backward-compatible Python API
 - ✅ Connection pool stable under load
 
 ### Performance Targets
+
 - ✅ Query execution: 20-30% faster
 - ✅ Response time: 15-25% faster
 - ✅ Memory usage: 10-15% lower
 - ✅ Throughput: 2-3x higher sustained
 
 ### Code Quality
+
 - ✅ Type hints complete
 - ✅ Doc comments on all public APIs
 - ✅ Test coverage ≥ 85%
@@ -240,6 +255,7 @@ uv run pytest tests/
 ## Files to Create
 
 ### Rust Code
+
 ```
 fraiseql_rs/src/
 ├── db/
@@ -260,6 +276,7 @@ fraiseql_rs/src/
 ```
 
 ### Python Code
+
 ```
 src/fraiseql/
 ├── core/
@@ -269,6 +286,7 @@ src/fraiseql/
 ```
 
 ### Tests
+
 ```
 tests/
 ├── integration/db/              (NEW)
@@ -286,14 +304,17 @@ tests/
 ## Files to Modify
 
 ### Configuration
+
 - `fraiseql_rs/Cargo.toml` - Add dependencies (Phase 1)
 - `pyproject.toml` - Remove psycopg (Phase 5)
 
 ### Core
+
 - `fraiseql_rs/src/lib.rs` - Export new modules
 - `src/fraiseql/core/rust_pipeline.py` - Integrate new functions
 
 ### Build System
+
 - `.github/workflows/` - Update CI/CD if needed
 
 ---
@@ -301,6 +322,7 @@ tests/
 ## Files to Delete
 
 **Phase 5 only**:
+
 - `src/fraiseql/db.py` (old psycopg layer)
 - Any psycopg-specific utilities
 - `.phases/rust-postgres-driver/` directory (after merge)
@@ -362,6 +384,7 @@ opentelemetry-instrumentation-psycopg  (from tracing extras)
 ## How to Execute
 
 ### Before Starting
+
 ```bash
 # Make sure you're on the feature branch
 git checkout feature/rust-postgres-driver
@@ -372,6 +395,7 @@ git status
 ```
 
 ### For Each Phase
+
 ```bash
 # 1. Read the phase document thoroughly
 # 2. Follow implementation steps sequentially
@@ -386,6 +410,7 @@ refactor(scope): clean up X [PHASE]
 ```
 
 ### After Each Phase
+
 ```bash
 # Verify no regressions
 uv run pytest tests/ -v --tb=short
@@ -398,6 +423,7 @@ uv run ruff check src/ fraiseql_rs/
 ```
 
 ### Before Merge
+
 ```bash
 # Full verification
 cargo build --release -p fraiseql_rs
@@ -418,11 +444,14 @@ uv run pytest tests/ -v
 ### PyO3/Async Issues
 
 **Error**: `error: expected async function or closure`
+
 ```
 #[pyo3_asyncio::tokio::main]
 async fn my_function() { }  // ← Wrong decorator placement
 ```
+
 **Fix**: Use correct decorator syntax:
+
 ```rust
 #[pyo3_asyncio::tokio::main]
 async fn my_function(py: Python) -> PyResult<Py<PyAny>> {
@@ -452,10 +481,12 @@ async fn my_function(py: Python) -> PyResult<Py<PyAny>> {
 
 **Error**: `Connection pool exhausted`
 **Cause**:
+
 - All connections in use (increase `MAX_SIZE`)
 - Connections not being returned (connection leak)
 - Timeout waiting for available connection
 **Debug**:
+
 ```bash
 # Check pool stats
 python -c "pool.get_stats()"
@@ -467,6 +498,7 @@ RUST_LOG=debug cargo test --lib db::pool
 **Error**: `connection refused` on first query
 **Cause**: Database not ready or connection string invalid
 **Fix**:
+
 - Verify `DATABASE_URL` is correct
 - Wait for database startup
 - Check network connectivity
@@ -492,16 +524,19 @@ RUST_LOG=debug cargo test --lib db::pool
 **Fix**: Verify using cursors/portals for streaming
 
 ### Compilation Issues
+
 - Check `phase-1-foundation.md` step 1 (dependencies)
 - Verify Rust version: `rustc --version` (1.70+)
 - Common issue: `pyo3` version conflicts - see Cargo.toml for pinned versions
 
 ### Test Failures
+
 - Phase 1: Connection pool tests - see Phase 1 troubleshooting
 - Phase 2: WHERE clause tests - compare generated SQL with Python version
 - Phase 3+: Check memory profiling and streaming behavior
 
 ### Performance Issues
+
 - Memory: Check `cargo bench --bench memory`
 - Throughput: Check `cargo bench --bench pipeline`
 - Query: Check `RUST_LOG=debug cargo test` for timing information
@@ -512,6 +547,7 @@ RUST_LOG=debug cargo test --lib db::pool
 **Error**: `error: failed to run custom build command`
 **Cause**: PyO3 build script failed
 **Fix**:
+
 ```bash
 # Clean and rebuild
 cargo clean
@@ -521,6 +557,7 @@ cargo build -p fraiseql_rs -vv  # Verbose output
 **Error**: `maturin develop` fails
 **Cause**: Python environment issue
 **Fix**:
+
 ```bash
 # Use correct Python interpreter
 uv run pip install -e . --no-build-isolation
@@ -531,18 +568,23 @@ uv run pip install -e . --no-build-isolation
 ## Questions Before Starting?
 
 ### "How long will this take?"
+
 ~44 hours full-time, or ~1 week. Can be parallelized if needed.
 
 ### "Is this safe?"
+
 Yes. Feature flags in phases 1-4 allow fallback to psycopg. Phase 5 is irreversible, but only after full validation.
 
 ### "Can we rollback?"
+
 Yes. Via `git revert` at any phase. Phase 5 requires more work, but still possible.
 
 ### "Do users need to do anything?"
+
 No. Completely internal refactor with zero API changes.
 
 ### "What if we find bugs?"
+
 Each phase has comprehensive testing. Parity tests catch regressions. Rollback available at any phase.
 
 ---

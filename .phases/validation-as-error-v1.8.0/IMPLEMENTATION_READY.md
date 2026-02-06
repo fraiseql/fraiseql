@@ -50,10 +50,12 @@ Located in: `.phases/validation-as-error-v1.8.0/`
 ### Phase 3 Enhancements (Key Improvement)
 
 **Before enhancements:**
+
 - 70% confidence
 - Concerns: Type conversion edge cases, entity field ambiguity
 
 **After enhancements (+563 lines):**
+
 - 90%+ confidence
 - Comprehensive type conversion examples
 - 4-pattern entity field detection
@@ -66,11 +68,13 @@ Located in: `.phases/validation-as-error-v1.8.0/`
 ## 🚀 How to Implement
 
 ### Step 1: Read the Overview
+
 ```bash
 cat .phases/validation-as-error-v1.8.0/00_OVERVIEW.md
 ```
 
 **Key sections:**
+
 - Executive summary
 - Breaking changes overview
 - Rollout strategy
@@ -111,6 +115,7 @@ cat .phases/validation-as-error-v1.8.0/QUICK_REFERENCE.md
 ```
 
 **Includes:**
+
 - Status code mapping (noop→422, not_found→404, etc.)
 - Code changes (Python, GraphQL, TypeScript)
 - Response examples
@@ -122,16 +127,19 @@ cat .phases/validation-as-error-v1.8.0/QUICK_REFERENCE.md
 ## 📊 Version Strategy
 
 ### Current State
+
 ```
 v1.8.0-alpha.5 (CASCADE feature - already implemented)
 ```
 
 ### After Implementation
+
 ```
 v1.8.0-beta.1 (CASCADE + validation-as-error)
 ```
 
 ### Final Release
+
 ```
 v1.8.0 GA (both features combined)
 ```
@@ -160,12 +168,14 @@ v1.8.0 GA (both features combined)
 ### Architecturally Sound: ✅ YES
 
 **Strong points:**
+
 - Clear separation of concerns (Rust → Python → Schema)
 - Type safety enforced at multiple layers
 - REST-like semantics in GraphQL
 - Comprehensive error mapping
 
 **Potential concerns addressed:**
+
 - Schema generation complexity → **Mitigated with 563 lines of examples**
 - Entity field detection → **Clear 4-pattern strategy**
 - Type conversion edge cases → **Comprehensive documentation**
@@ -185,6 +195,7 @@ v1.8.0 GA (both features combined)
 ### For FraiseQL Users
 
 **1. Success Types**
+
 ```python
 # OLD (v1.7.x)
 @fraiseql.success
@@ -198,6 +209,7 @@ class CreateMachineSuccess:
 ```
 
 **2. Error Types**
+
 ```python
 # OLD (v1.7.x)
 @fraiseql.failure
@@ -215,6 +227,7 @@ class CreateMachineError:
 ```
 
 **3. GraphQL Queries**
+
 ```graphql
 # OLD (v1.7.x)
 mutation {
@@ -243,6 +256,7 @@ mutation {
 ```
 
 **4. Test Assertions**
+
 ```python
 # OLD (v1.7.x)
 assert result["__typename"] == "CreateMachineSuccess"
@@ -259,6 +273,7 @@ assert result["status"] == "noop:invalid_contract_id"
 ## 🎯 Success Criteria
 
 ### FraiseQL Core
+
 - [ ] All Rust tests pass
 - [ ] All Python tests pass
 - [ ] Schema validates
@@ -267,6 +282,7 @@ assert result["status"] == "noop:invalid_contract_id"
 - [ ] v1.8.0-beta.1 released to PyPI
 
 ### PrintOptim Migration
+
 - [ ] Update to v1.8.0-beta.1
 - [ ] ~30-50 tests updated
 - [ ] GraphQL fragments updated
@@ -290,6 +306,7 @@ All documentation is ready in the phase plans:
 ## ✅ Ready to Implement
 
 **All prerequisites met:**
+
 - ✅ Plans architecturally sound
 - ✅ Agent confidence 90%+
 - ✅ Version strategy clear
@@ -305,12 +322,14 @@ All documentation is ready in the phase plans:
 ## 📞 Support
 
 **Questions during implementation:**
+
 1. Review phase docs - detailed implementation steps
 2. Check code examples - before/after in each phase
 3. Consult architecture docs - rationale and design decisions
 4. Use smoke tests - verify each step immediately
 
 **Files to reference:**
+
 - Quick lookup: `QUICK_REFERENCE.md`
 - Architecture: `00_OVERVIEW.md`
 - Phase 3 help: `PHASE_3_ENHANCEMENTS.md`

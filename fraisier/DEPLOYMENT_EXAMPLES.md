@@ -574,4 +574,3 @@ $ ssh deploy@prod.example.com "df -h /"
 # View recent logs
 $ fraisier logs api production --lines 100 | tail -20
 ```
-

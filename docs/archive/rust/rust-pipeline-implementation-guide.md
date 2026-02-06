@@ -19,6 +19,7 @@ The Rust pipeline is **always active** in FraiseQL. It automatically handles all
 ## Prerequisites
 
 To use the Rust pipeline, ensure you have:
+
 - [ ] FraiseQL installed
 - [ ] Rust extensions installed: `pip install fraiseql[rust]`
 - [ ] PostgreSQL database with JSONB views
@@ -223,6 +224,7 @@ print(f"Average: {total_time/100:.4f}s per query")
 ### Common Issues
 
 **"fraiseql_rs not found"**
+
 ```bash
 # Install Rust extensions
 pip install fraiseql[rust]
@@ -232,12 +234,14 @@ uv add fraiseql[rust]
 ```
 
 **Performance optimization**
+
 ```python
 # Always use Rust pipeline methods for best performance
 result = await repo.find_rust("table", "field", info)  # Optimal
 ```
 
 **Type errors**
+
 ```python
 # Update return types
 async def users(info) -> RustResponseBytes:  # Correct
@@ -245,6 +249,7 @@ async def users(info) -> list[User]:         # Wrong for Rust pipeline
 ```
 
 **Field selection not working**
+
 ```python
 # Ensure GraphQL info is passed
 return await repo.find_rust("v_user", "users", info)  # info required

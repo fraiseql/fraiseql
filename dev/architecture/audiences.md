@@ -9,6 +9,7 @@
 **FraiseQL is designed for production teams** building GraphQL APIs with PostgreSQL. Our primary users are developers and teams who need high-performance, database-native GraphQL APIs.
 
 ### **Target Profile**
+
 - Teams with 2-50 developers
 - Building customer-facing APIs
 - Using PostgreSQL as primary database
@@ -22,12 +23,14 @@
 ### **1. 🚀 Beginners** - New to GraphQL/Python/PostgreSQL
 
 #### **Profile**
+
 - First time building GraphQL APIs
 - Basic Python knowledge
 - New to PostgreSQL or databases
 - Learning API development
 
 #### **Assumed Knowledge**
+
 - ✅ Basic programming concepts
 - ✅ Simple SQL queries
 - ❌ GraphQL schema design
@@ -35,12 +38,14 @@
 - ❌ API performance tuning
 
 #### **Goals**
+
 - Build first GraphQL API
 - Understand basic concepts
 - Deploy working application
 - Learn best practices
 
 #### **Recommended Path**
+
 ```bash
 # Start here - 5 minute working API
 fraiseql init my-api
@@ -52,6 +57,7 @@ cd examples/blog_simple/
 ```
 
 #### **Success Criteria**
+
 - ✅ Working GraphQL API in < 30 minutes
 - ✅ Understand basic queries/mutations
 - ✅ Deployed to development environment
@@ -62,6 +68,7 @@ cd examples/blog_simple/
 ### **2. 🏭 Production Teams** - Deploying to Production
 
 #### **Profile**
+
 - Experienced developers/engineers
 - Building customer-facing applications
 - Need enterprise-grade features
@@ -69,6 +76,7 @@ cd examples/blog_simple/
 - Team of 2-50 developers
 
 #### **Assumed Knowledge**
+
 - ✅ GraphQL API development
 - ✅ PostgreSQL database design
 - ✅ Python web frameworks
@@ -76,6 +84,7 @@ cd examples/blog_simple/
 - ✅ Performance monitoring
 
 #### **Goals**
+
 - High-performance GraphQL APIs
 - Enterprise features (APQ, caching, monitoring)
 - Database-native architecture
@@ -83,6 +92,7 @@ cd examples/blog_simple/
 - Production reliability
 
 #### **Recommended Path**
+
 ```bash
 # Production installation
 pip install fraiseql[enterprise]
@@ -97,6 +107,7 @@ open docs/performance/
 ```
 
 #### **Success Criteria**
+
 - ✅ < 1ms P95 query latency
 - ✅ 99.9% cache hit rate
 - ✅ Enterprise monitoring integrated
@@ -108,12 +119,14 @@ open docs/performance/
 ### **3. 🤝 Contributors** - Improving FraiseQL
 
 #### **Profile**
+
 - Experienced Python/Rust developers
 - Interested in database frameworks
 - Want to contribute to open source
 - Understand system architecture
 
 #### **Assumed Knowledge**
+
 - ✅ Advanced Python development
 - ✅ Rust programming
 - ✅ Database internals
@@ -121,6 +134,7 @@ open docs/performance/
 - ✅ Open source contribution
 
 #### **Goals**
+
 - Fix bugs and add features
 - Improve performance
 - Enhance documentation
@@ -128,6 +142,7 @@ open docs/performance/
 - Maintain code quality
 
 #### **Recommended Path**
+
 ```bash
 # Development setup
 git clone https://github.com/fraiseql/fraiseql
@@ -140,6 +155,7 @@ open docs/core/architecture.md
 ```
 
 #### **Success Criteria**
+
 - ✅ First PR merged
 - ✅ Understand codebase architecture
 - ✅ Can debug performance issues
@@ -151,6 +167,7 @@ open docs/core/architecture.md
 ## 📚 Content Organization by Audience
 
 ### **Beginner Content**
+
 - ✅ Quickstart guides
 - ✅ Basic examples
 - ✅ Concept explanations
@@ -159,6 +176,7 @@ open docs/core/architecture.md
 - ❌ Enterprise features
 
 ### **Production Content**
+
 - ✅ Performance guides
 - ✅ Enterprise features
 - ✅ Deployment patterns
@@ -167,6 +185,7 @@ open docs/core/architecture.md
 - ❌ Basic tutorials
 
 ### **Contributor Content**
+
 - ✅ Architecture documentation
 - ✅ Code patterns
 - ✅ Testing strategies
@@ -181,20 +200,24 @@ open docs/core/architecture.md
 ### **Quick Assessment**
 
 **Are you building a GraphQL API with PostgreSQL?**
+
 - **Yes** → Continue
 - **No** → FraiseQL may not be the right fit
 
 **What's your experience level?**
 
 #### **Beginner** (0-2 years API development)
+
 - Choose if: Learning GraphQL, first PostgreSQL project, need simple API
 - Start with: Quickstart → Basic examples
 
 #### **Intermediate** (2-5 years)
+
 - Choose if: Building production APIs, need performance, team deployment
 - Start with: Enterprise examples → Performance guide
 
 #### **Advanced** (5+ years)
+
 - Choose if: Contributing to frameworks, optimizing databases, building tools
 - Start with: Architecture docs → Contributing guide
 
@@ -209,6 +232,7 @@ All documentation pages are tagged by primary audience:
 - 🔴 **Contributor** - Architecture, development, contribution
 
 ### **Example Tags**
+
 ```
 🟢 Beginner · 🟡 Production
 # Quickstart Guide
@@ -221,6 +245,7 @@ Content for beginners and production users...
 ## 🚀 Getting Started by Audience
 
 ### **For Beginners**
+
 ```bash
 # 5-minute API
 fraiseql init my-first-api
@@ -233,6 +258,7 @@ open examples/blog_simple/
 ```
 
 ### **For Production Teams**
+
 ```bash
 # Enterprise setup
 pip install fraiseql[enterprise]
@@ -244,6 +270,7 @@ open docs/production/
 ```
 
 ### **For Contributors**
+
 ```bash
 # Development environment
 git clone https://github.com/fraiseql/fraiseql
@@ -260,6 +287,7 @@ open CONTRIBUTING.md
 ## 💡 Audience-Specific Features
 
 ### **Beginner-Friendly**
+
 - Simple CLI commands
 - Auto-generated boilerplate
 - Clear error messages
@@ -267,6 +295,7 @@ open CONTRIBUTING.md
 - Extensive examples
 
 ### **Production-Ready**
+
 - Enterprise monitoring
 - High-performance caching
 - Database-native features
@@ -274,6 +303,7 @@ open CONTRIBUTING.md
 - Comprehensive testing
 
 ### **Contributor-Friendly**
+
 - Clean architecture
 - Comprehensive tests
 - Clear documentation

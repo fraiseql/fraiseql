@@ -15,6 +15,7 @@ This runbook guides you through investigating and responding to rate limiting ev
 ## 🚨 Symptoms
 
 ### Primary Indicators
+
 - Users receiving 429 Too Many Requests errors
 - Increase in rate limit violations
 - Spike in blocked requests
@@ -79,6 +80,7 @@ topk(10, sum by (user_id) (fraiseql_rate_limit_exceeded_total))
 ### Step 1: Identify Affected Users
 
 **Via Prometheus**:
+
 ```promql
 # Top users triggering rate limits
 topk(10,
@@ -96,6 +98,7 @@ topk(10,
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Find rate limit events in last hour
 jq -r 'select(.event == "security.rate_limit") |
@@ -114,6 +117,7 @@ jq -r 'select(.event == "security.rate_limit") | .context.ip_address' \
 ### Step 2: Analyze Traffic Patterns
 
 **Check Request Rate**:
+
 ```promql
 # Requests per second by endpoint
 sum by (endpoint) (
@@ -127,6 +131,7 @@ sum by (user_id) (
 ```
 
 **Check Request Distribution**:
+
 ```bash
 # Timeline of rate limit events
 jq -r 'select(.event == "security.rate_limit") |
@@ -143,6 +148,7 @@ jq -r 'select(.event == "security.rate_limit") |
 ### Step 3: Classify Traffic Type
 
 **Legitimate vs. Abuse**:
+
 ```bash
 # Legitimate user pattern (gradual increase)
 jq -r 'select(.event == "security.rate_limit" and .context.user_id == "user_789") |
@@ -167,6 +173,7 @@ jq -r 'select(.event == "security.rate_limit" and .context.user_id == "user_999"
 ```
 
 **User Agent Analysis**:
+
 ```bash
 # Check if rate-limited requests have unusual User-Agent
 jq -r 'select(.event == "security.rate_limit") |
@@ -182,6 +189,7 @@ jq -r 'select(.event == "security.rate_limit") |
 ### Step 4: Review Current Rate Limits
 
 **Check Configuration**:
+
 ```python
 # Via application code
 from fraiseql.security import RateLimiter
@@ -195,6 +203,7 @@ limits = {
 ```
 
 **Via Environment Variables**:
+
 ```bash
 # Check current configuration
 env | grep RATE_LIMIT
@@ -226,6 +235,7 @@ await rate_limiter.set_user_limit(
 ```
 
 **Via Admin API** (if implemented):
+
 ```bash
 curl -X POST http://localhost:8000/admin/rate-limits \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -252,6 +262,7 @@ await rate_limiter.add_to_whitelist(
 ```
 
 **Configuration File**:
+
 ```yaml
 # config/rate_limits.yml
 whitelisted_ips:
@@ -294,6 +305,7 @@ await rate_limiter.block_user(
 ```
 
 **Via Admin API**:
+
 ```bash
 curl -X POST http://localhost:8000/admin/blocks \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -317,6 +329,7 @@ await rate_limiter.block_ip(
 ```
 
 **Firewall Rule** (if persistent abuse):
+
 ```bash
 # Add iptables rule (requires root)
 sudo iptables -A INPUT -s 198.51.100.23 -j DROP
@@ -385,6 +398,7 @@ RATE_LIMITS = {
 ```
 
 **Environment Variables**:
+
 ```bash
 # Update production configuration
 export FRAISEQL_RATE_LIMIT_DEFAULT=150/minute
@@ -460,11 +474,13 @@ groups:
 ### Grafana Dashboard Panels
 
 **1. Rate Limit Violations Timeline**:
+
 ```promql
 rate(fraiseql_rate_limit_exceeded_total[5m])
 ```
 
 **2. Top Violators (Users)**:
+
 ```promql
 topk(10,
   sum by (user_id) (fraiseql_rate_limit_exceeded_total)
@@ -472,6 +488,7 @@ topk(10,
 ```
 
 **3. Top Violators (IPs)**:
+
 ```promql
 topk(10,
   sum by (ip_address) (fraiseql_rate_limit_exceeded_total)
@@ -479,6 +496,7 @@ topk(10,
 ```
 
 **4. Percentage of Blocked Requests**:
+
 ```promql
 (rate(fraiseql_rate_limit_exceeded_total[5m])
 / rate(fraiseql_http_requests_total[5m])) * 100

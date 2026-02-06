@@ -9,6 +9,7 @@
 ## What You'll Build
 
 A complete Retrieval-Augmented Generation (RAG) system that combines:
+
 - **Semantic Search**: Find documents by meaning, not just keywords
 - **Vector Embeddings**: Store document representations using pgvector
 - **GraphQL API**: Query documents and perform similarity search
@@ -17,10 +18,12 @@ A complete Retrieval-Augmented Generation (RAG) system that combines:
 ## Why RAG Matters
 
 Traditional search systems match keywords, but RAG understands **semantic meaning**:
+
 - ❌ Traditional: "database performance" → matches only exact words
 - ✅ RAG: "how to make my queries faster" → understands the intent
 
 RAG systems are essential for:
+
 - **Knowledge bases** that answer questions from documentation
 - **Customer support** that finds relevant help articles
 - **Research tools** that discover related content
@@ -79,6 +82,7 @@ psql ragdb < schema.sql
 3. **`tv_document_embedding`** - Table view with vector embeddings
 
 This pattern gives you:
+
 - **Performance**: Optimized read/write operations
 - **Clarity**: Clear separation of concerns
 - **Scalability**: Easy to extend and maintain

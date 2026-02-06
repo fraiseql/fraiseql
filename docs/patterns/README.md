@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Real-World Application Patterns
 description: Complete architectural patterns and implementation guides for production FraiseQL applications.
 keywords: ["workflow", "saas", "realtime", "ecommerce", "analytics", "federation"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Metrics Collection Guide
 description: This document explains **what data** FraiseQL's observability system collects, **how** it's collected, and **why** each metric matters for schema optimization.
 keywords: []

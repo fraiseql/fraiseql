@@ -154,6 +154,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - Schema loading from JSON
 - Creating an Executor
 - Executing a basic `{ users { id name } }` query
@@ -169,6 +170,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - Setting up WebSocket connection
 - Subscribing to real-time events
 - Handling subscription messages
@@ -184,6 +186,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - Handling query validation errors
 - Database connection errors
 - Timeout errors
@@ -200,6 +203,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - Query tracing and timing
 - Result caching
 - Batch query execution
@@ -216,6 +220,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - OIDC configuration
 - JWT validation
 - User context extraction
@@ -232,6 +237,7 @@ cargo run
 ```
 
 **What it demonstrates:**
+
 - Nested field selection
 - Variable binding
 - Aggregations

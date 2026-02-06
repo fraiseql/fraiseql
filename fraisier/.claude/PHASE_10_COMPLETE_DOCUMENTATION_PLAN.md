@@ -1,4 +1,5 @@
 # Phase 10: Complete Documentation System
+
 ## Comprehensive Guide for v0.1.0 Release
 
 **Goal**: Create production-quality documentation that enables users to understand, deploy, and operate Fraisier at scale.
@@ -39,6 +40,7 @@ This phase creates a complete documentation system covering:
 - Example curl commands
 
 **Structure**:
+
 ```
 ## Deployments API
 
@@ -73,6 +75,7 @@ GET /api/v1/deployments
 ```
 
 **Example**:
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/deployments?environment=production&limit=10"
@@ -122,6 +125,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 - Example handlers
 
 **Structure**:
+
 ```
 ## Webhook Events
 
@@ -141,9 +145,11 @@ Fired when a deployment begins
 ```
 
 ### deployment.completed
+
 Fired when a deployment finishes
 
 **Payload**:
+
 ```json
 {
   "event": "deployment.completed",
@@ -156,6 +162,7 @@ Fired when a deployment finishes
   "timestamp": "2024-01-22T10:05:30Z"
 }
 ```
+
 ```
 
 #### 3. CLI Reference (`docs/CLI_REFERENCE.md`)
@@ -166,12 +173,15 @@ Fired when a deployment finishes
 
 **Structure**:
 ```
+
 ## fraisier Command Reference
 
 ### fraisier deploy
+
 Deploy a fraise to an environment
 
 **Usage**:
+
 ```bash
 fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 ```
@@ -187,6 +197,7 @@ fraisier deploy [OPTIONS] FRAISE ENVIRONMENT
 - `--dry-run`: Show what would happen, don't actually deploy
 
 **Examples**:
+
 ```bash
 # Deploy latest version to production
 fraisier deploy my_api production
@@ -209,6 +220,7 @@ fraisier deploy my_api production --wait --timeout 600
 - 3: Fraise not found
 - 4: Environment not found
 - 5: Deployment failed
+
 ```
 
 #### 4. Event Reference (`docs/EVENT_REFERENCE.md`)
@@ -220,14 +232,17 @@ fraisier deploy my_api production --wait --timeout 600
 
 **Structure**:
 ```
+
 ## NATS Event Types
 
 ### deployment.started
+
 Emitted when deployment begins
 
 **Subject**: `fraisier.deployment.started.{region}`
 
 **Payload**:
+
 ```json
 {
   "event_type": "deployment.started",
@@ -242,6 +257,7 @@ Emitted when deployment begins
 ```
 
 **Subscribe Example**:
+
 ```python
 from fraisier.nats import get_event_bus, EventFilter, EventSubscriberRegistry
 
@@ -255,6 +271,7 @@ registry.register(
     EventFilter(event_type="deployment.started")
 )
 ```
+
 ```
 
 ---
@@ -288,11 +305,13 @@ cd fraisier
 ```
 
 2. **Install Fraisier**:
+
 ```bash
 pip install -e .
 ```
 
 3. **Initialize SQLite database**:
+
 ```bash
 fraisier db init --database sqlite --path fraisier.db
 ```
@@ -300,6 +319,7 @@ fraisier db init --database sqlite --path fraisier.db
 ## Configuration
 
 Create `fraises.yaml`:
+
 ```yaml
 fraises:
   my_api:
@@ -336,6 +356,7 @@ fraisier history my_api development
 - Set up webhooks for automated deployments
 - Configure monitoring
 - Add more fraises
+
 ```
 
 #### 2. PostgreSQL Production Setup (`docs/GETTING_STARTED_POSTGRES.md`)
@@ -394,6 +415,7 @@ nats sub "fraisier.>"
 - Troubleshooting
 
 **Structure**:
+
 ```markdown
 # Deploying to Bare Metal
 
@@ -409,6 +431,7 @@ ssh-copy-id -i ~/.ssh/fraisier user@production-server.com
 ```
 
 2. **Configure in fraises.yaml**
+
 ```yaml
 fraises:
   my_api:
@@ -431,6 +454,7 @@ fraises:
 ```
 
 3. **Create systemd service on target**
+
 ```ini
 [Unit]
 Description=My API Service
@@ -461,6 +485,7 @@ WantedBy=multi-user.target
 
 - Check SSH connectivity: `ssh -i ~/.ssh/fraisier user@host`
 - View systemd logs: `journalctl -u my-api.service -f`
+
 ```
 
 #### 2. Docker Compose Provider Guide (`docs/PROVIDER_DOCKER_COMPOSE.md`)
@@ -591,6 +616,7 @@ Each scenario includes:
 - Webhook setup
 
 **Files**:
+
 ```
 simple-web-service/
 ├── README.md

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Keycloak OAuth 2.0 / OIDC Setup Guide
 description: This guide walks you through setting up Keycloak authentication with FraiseQL.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

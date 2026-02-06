@@ -402,6 +402,7 @@ curl -X PATCH https://coolify.example.com/api/applications/app_123 \
 Coolify automatically load-balances across replicas using Caddy reverse proxy.
 
 Access via domain:
+
 ```
 https://my-api-production.coolify.example.com
 ```

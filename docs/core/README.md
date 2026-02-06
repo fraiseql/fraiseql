@@ -56,12 +56,14 @@ Essential FraiseQL concepts, architecture, and core features.
 ## Quick Navigation
 
 **New to FraiseQL?** Start here:
+
 1. [Concepts & Glossary](concepts-glossary.md) - Understand the mental model
 2. [Types and Schema](types-and-schema.md) - Learn the type system
 3. [Database API](database-api.md) - Connect to PostgreSQL
 4. [Queries and Mutations](queries-and-mutations.md) - Build your API
 
 **Building production apps?**
+
 - [Configuration](configuration.md) - Production settings
 - [Rust Pipeline Integration](rust-pipeline-integration.md) - Performance optimization
 - [Explicit Sync Pattern](explicit-sync.md) - Complex data patterns

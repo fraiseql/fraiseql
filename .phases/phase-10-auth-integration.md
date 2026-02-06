@@ -11,17 +11,20 @@
 ## Context
 
 **Why This Phase Matters:**
+
 - Token validation is on the critical path (every request)
 - JWT libraries in Rust (jsonwebtoken) are 5-10x faster than Python PyJWT
 - Eliminates Python auth provider overhead
 - Enables auth caching in Rust for sub-millisecond validation
 
 **Dependencies:**
+
 - Phase 9 (Unified Pipeline) ✅ Complete
 - Rust GraphQL execution pipeline
 - UserContext struct already exists in unified.rs
 
 **Performance Target:**
+
 - JWT validation: <1ms (currently ~5-10ms in Python)
 - Cached user context: <0.1ms
 - Auth0 JWKS fetch: <50ms (cached for 1 hour)
@@ -31,6 +34,7 @@
 ## Files to Modify/Create
 
 ### Rust Files (fraiseql_rs/src/auth/)
+
 - **mod.rs** (NEW): Auth module exports
 - **jwt.rs** (NEW): JWT token validation with jsonwebtoken crate
 - **provider.rs** (NEW): Auth provider trait (Auth0, JWT, custom)
@@ -38,15 +42,18 @@
 - **errors.rs** (NEW): Auth error types (TokenExpired, InvalidToken, etc.)
 
 ### Integration Files
+
 - **fraiseql_rs/src/lib.rs**: Add auth module, PyAuth class
 - **fraiseql_rs/src/pipeline/unified.rs**: Integrate auth validation before GraphQL execution
 - **fraiseql_rs/Cargo.toml**: Add dependencies (jsonwebtoken, reqwest for JWKS)
 
 ### Python Migration Files
+
 - **src/fraiseql/auth/rust_provider.py** (NEW): Python wrapper for Rust auth
 - **src/fraiseql/auth/base.py**: Keep interface, deprecate Python implementations
 
 ### Test Files
+
 - **tests/test_rust_auth.py** (NEW): Integration tests for Rust auth
 - **tests/unit/auth/test_jwt_validation.rs** (NEW): Rust unit tests
 
@@ -579,6 +586,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 ## Verification Commands
 
 ### Build Rust Extension
+
 ```bash
 cd fraiseql_rs
 cargo build --release
@@ -587,6 +595,7 @@ maturin develop --release
 ```
 
 ### Run Auth Tests
+
 ```bash
 # Unit tests (Rust)
 cargo test --lib auth
@@ -602,6 +611,7 @@ pytest tests/performance/test_auth_performance.py -xvs
 ```
 
 ### Expected Test Output
+
 ```
 tests/test_rust_auth.py::test_auth0_validation ✓ (2ms)
 tests/test_rust_auth.py::test_jwt_validation ✓ (1ms)
@@ -620,6 +630,7 @@ Performance:
 ## Acceptance Criteria
 
 **Functionality:**
+
 - ✅ JWT token validation with JWKS support
 - ✅ Auth0 provider implementation
 - ✅ Custom JWT provider implementation
@@ -628,12 +639,14 @@ Performance:
 - ✅ Python wrapper maintains backward compatibility
 
 **Performance:**
+
 - ✅ JWT validation: <1ms (cached), <10ms (uncached)
 - ✅ 5-10x faster than Python implementation
 - ✅ Cache hit rate >95% for production workloads
 - ✅ JWKS cache reduces external API calls
 
 **Testing:**
+
 - ✅ All existing auth tests pass
 - ✅ New Rust unit tests for JWT validation
 - ✅ Integration tests for Auth0 and custom JWT
@@ -641,6 +654,7 @@ Performance:
 - ✅ Error handling tests (expired, invalid, missing tokens)
 
 **Quality:**
+
 - ✅ No compilation warnings
 - ✅ No clippy warnings
 - ✅ Proper error propagation
@@ -680,21 +694,25 @@ thiserror = "1.0"
 ## Migration Strategy
 
 **Phase 1: Add Rust Auth (Week 1)**
+
 - Implement Rust JWT validation
 - Add Auth0Provider and CustomJWTProvider
 - Add caching layer
 
 **Phase 2: Python Wrapper (Week 1)**
+
 - Create RustAuth0Provider wrapper
 - Maintain backward compatibility
 - Add integration tests
 
 **Phase 3: Gradual Migration (Week 2)**
+
 - Update FastAPI to use Rust auth by default
 - Keep Python auth as fallback
 - Monitor performance improvements
 
 **Phase 4: Deprecation (Week 3+)**
+
 - Deprecate Python auth implementations
 - Remove after 2 releases
 - Full Rust auth in production
@@ -704,17 +722,20 @@ thiserror = "1.0"
 ## Performance Expectations
 
 **Before (Python):**
+
 - JWT validation: ~5-10ms
 - No caching (every request validates)
 - Python PyJWT overhead
 
 **After (Rust):**
+
 - First validation: ~5ms (JWKS fetch)
 - Cached validation: <1ms
 - 5-10x improvement overall
 - Reduced memory usage
 
 **Real-World Impact:**
+
 - 1000 req/s → Auth overhead: 1s/s → 0.1s/s
 - P99 latency: -4-9ms
 - CPU usage: -10-20%
@@ -724,6 +745,7 @@ thiserror = "1.0"
 ## Next Phase Preview
 
 **Phase 11** will add:
+
 - RBAC permission resolution in Rust
 - Role hierarchy computation
 - PostgreSQL-backed permission caching

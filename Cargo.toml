@@ -20,24 +20,24 @@ opt-level = 1
 
 [workspace]
 members = [
-  "crates/fraiseql-arrow",              # Apache Arrow Flight integration (Phase 9)
+  "crates/fraiseql-arrow",  # Apache Arrow Flight integration (Phase 9)
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",  # Procedural macros for automatic instrumentation (Phase 9.2.B)
-  "crates/fraiseql-server",             # HTTP server with runtime, webhooks, files (Phases 1-4B)
-  "crates/fraiseql-wire"                # Streaming JSON query engine for Postgres
+  "crates/fraiseql-server",  # HTTP server with runtime, webhooks, files (Phases 1-4B)
+  "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 ]
 resolver = "2"
 
 [workspace.dependencies]
+# Encryption
+aes-gcm = "0.10"
 anyhow = "1.0"
 async-trait = "0.1"
 # HTTP server (Axum)
 axum = {version = "0.7"}
-# Encryption
-aes-gcm = "0.10"
 # Encoding
 base64 = "0.22"
 # Utilities
@@ -87,14 +87,16 @@ serde_json = "1.0"
 sha2 = "0.10"
 # MySQL
 sqlx = {version = "0.8", features = ["mysql", "runtime-tokio", "json"]}
+# Testing utilities
+tempfile = "3.8"
 # Error handling
 thiserror = "2.0"
 # Async runtime
 tokio = {version = "1.0", features = ["full"]}
-tokio-util = {version = "0.7"}
 # Database drivers
 # PostgreSQL
 tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"]}
+tokio-util = {version = "0.7"}
 # Configuration
 toml = "0.8"
 tower = {version = "0.5"}
@@ -104,38 +106,36 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 # UUID
 uuid = {version = "1.0", features = ["v4", "serde"]}
-# Testing utilities
-tempfile = "3.8"
 
 [workspace.lints.clippy]
 # Deny all warnings in CI (priority -1 lets individual lints override)
 all = {level = "deny", priority = -1}
 cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
 cargo_common_metadata = "allow"  # Internal crates don't need all metadata
+if_not_else = "allow"  # Style preference
 missing_errors_doc = "allow"  # Can be too verbose
 missing_panics_doc = "allow"  # Can be too verbose
 module_name_repetitions = "allow"
 multiple_crate_versions = "allow"  # Transitive dependencies cause this
 must_use_candidate = "allow"  # We'll use this selectively
 nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
+option_if_let_else = "allow"  # Style preference
+or_fun_call = "allow"  # Often clearer to keep explicit
 pedantic = {level = "warn", priority = -1}  # Changed to warn - too many false positives
+redundant_closure_for_method_calls = "allow"  # Style preference
+return_self_not_must_use = "allow"  # Builder pattern compatibility
+significant_drop_tightening = "allow"  # Too aggressive, false positives
 similar_names = "allow"
 struct_excessive_bools = "allow"  # Schema structs often have many bool flags
 # Allow some pedantic lints that are too strict for practical use
 too_many_lines = "allow"
-unnecessary_wraps = "allow"  # API consistency over strictness
 # Additional allows for common pedantic/nursery lints that don't add value
 uninlined_format_args = "allow"  # Style preference, too noisy
+unnecessary_wraps = "allow"  # API consistency over strictness
+unused_async = "allow"  # Sometimes needed for trait conformance
+unused_enumerate_index = "allow"  # Sometimes index needed later
 unused_self = "allow"  # Sometimes needed for API compatibility
 use_self = "allow"  # Style preference
-redundant_closure_for_method_calls = "allow"  # Style preference
-unused_async = "allow"  # Sometimes needed for trait conformance
-significant_drop_tightening = "allow"  # Too aggressive, false positives
-or_fun_call = "allow"  # Often clearer to keep explicit
-option_if_let_else = "allow"  # Style preference
-if_not_else = "allow"  # Style preference
-return_self_not_must_use = "allow"  # Builder pattern compatibility
-unused_enumerate_index = "allow"  # Sometimes index needed later
 
 [workspace.lints.rust]
 dead_code = "warn"

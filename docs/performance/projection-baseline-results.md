@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: SQL Projection Optimization - Baseline Results
 description: SQL projection optimization delivers **42-55% latency reduction** across all data sizes, exceeding the 20-30% target by 2.1x.
 keywords: []

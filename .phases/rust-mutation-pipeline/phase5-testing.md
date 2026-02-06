@@ -9,6 +9,7 @@
 ## Overview
 
 Add comprehensive test coverage:
+
 1. Edge cases in Rust
 2. Property-based tests (invariants)
 3. Integration tests with real PostgreSQL
@@ -215,6 +216,7 @@ mod edge_cases {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] CASCADE placement tested extensively
 - [ ] __typename correctness verified
 - [ ] Format detection edge cases covered
@@ -232,6 +234,7 @@ mod edge_cases {
 **Objective**: Test invariants that should always hold
 
 **Add to Cargo.toml**:
+
 ```toml
 [dev-dependencies]
 proptest = "1.0"
@@ -330,12 +333,14 @@ mod property_tests {
 ```
 
 **Run property tests**:
+
 ```bash
 cd fraiseql_rs
 cargo test property_tests
 ```
 
 **Acceptance Criteria**:
+
 - [ ] CASCADE placement invariant tested
 - [ ] __typename presence invariant tested
 - [ ] Format detection deterministic
@@ -461,6 +466,7 @@ async def test_error_response_with_database(db_pool):
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Simple format tested with real DB
 - [ ] Full format tested with real DB
 - [ ] CASCADE tested with real DB
@@ -527,6 +533,7 @@ criterion_main!(benches);
 ```
 
 **Add to Cargo.toml**:
+
 ```toml
 [dev-dependencies]
 criterion = "0.5"
@@ -537,12 +544,14 @@ harness = false
 ```
 
 **Run benchmarks**:
+
 ```bash
 cd fraiseql_rs
 cargo bench
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Simple format <1ms
 - [ ] Full format with CASCADE <2ms
 - [ ] No performance regression vs baseline
@@ -563,6 +572,7 @@ cargo bench
 - [ ] Performance acceptable
 
 **Verification**:
+
 ```bash
 # Rust tests
 cd fraiseql_rs

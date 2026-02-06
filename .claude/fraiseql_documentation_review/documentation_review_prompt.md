@@ -17,22 +17,26 @@ You are guiding a human through a comprehensive review of all FraiseQL documenta
 The following documentation files should be reviewed in order:
 
 ### Core Architecture & Design
+
 1. `README.md` - Project overview and getting started
 2. `docs/ARCHITECTURE_PRINCIPLES.md` - Core architectural documentation
 3. `docs/SECURITY_MIGRATION_v2.1.md` - Security implementation guide
 
 ### Development & Implementation
+
 4. `.claude/CLAUDE.md` - Project development guidelines
 5. `.claude/IMPLEMENTATION_ROADMAP.md` - Implementation status and roadmap
 6. `.phases/README.md` - Phase-based development methodology (if exists)
 
 ### Crate-Specific Documentation
+
 7. `crates/fraiseql-core/README.md` - Core engine documentation (if exists)
 8. `crates/fraiseql-server/README.md` - Server documentation (if exists)
 9. `crates/fraiseql-cli/README.md` - CLI documentation (if exists)
 10. `crates/fraiseql-wire/README.md` - Wire protocol documentation (if exists)
 
 ### Other Documentation
+
 11. `CONTRIBUTING.md` - Contributing guidelines (if exists)
 12. `LICENSE` - License file (if exists)
 13. Any other `.md` files found in root or docs/ directory
@@ -41,9 +45,10 @@ The following documentation files should be reviewed in order:
 
 ## Review Workflow
 
-### For Each Document:
+### For Each Document
 
 **STEP 1: Display the File**
+
 ```
 ═══════════════════════════════════════════════════════════════
 📄 REVIEWING: [FILE_PATH]
@@ -55,6 +60,7 @@ The following documentation files should be reviewed in order:
 ```
 
 **STEP 2: Present Summary**
+
 ```
 📋 Summary:
 - File size: [X lines]
@@ -63,6 +69,7 @@ The following documentation files should be reviewed in order:
 ```
 
 **STEP 3: Request Feedback**
+
 ```
 ✏️  PLEASE PROVIDE FEEDBACK:
 
@@ -94,6 +101,7 @@ Example feedback:
 When the human provides corrections:
 
 1. **Show the before/after**:
+
    ```
    BEFORE:
    [Original text]
@@ -103,6 +111,7 @@ When the human provides corrections:
    ```
 
 2. **Ask for approval**:
+
    ```
    ✅ Updated. Does this look correct?
    Respond: "YES" to move to next file, or provide additional feedback
@@ -192,11 +201,13 @@ provide any initial context/instructions for the review.
 ## Exit Points
 
 The human can exit the review at any time by saying:
+
 - "STOP" - End review (document progress)
 - "DONE" - Same as STOP
 - "EXIT" - Same as STOP
 
 When exiting, show:
+
 ```
 📋 REVIEW SESSION ENDED
 

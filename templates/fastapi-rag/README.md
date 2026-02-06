@@ -14,6 +14,7 @@ A complete Retrieval-Augmented Generation (RAG) application built with FastAPI, 
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.10+
 - PostgreSQL with pgvector extension
 - OpenAI API key
@@ -146,6 +147,7 @@ DEBUG=true
 ### Database Schema
 
 The application uses these main tables:
+
 - `documents` - Document metadata
 - `document_chunks` - Text chunks with embeddings
 - `conversations` - Chat history (optional)
@@ -200,6 +202,7 @@ gunicorn src.main:app -w 4 -k uvicorn.workers.UvicornWorker
 ### Common Issues
 
 1. **pgvector extension not installed**
+
    ```sql
    CREATE EXTENSION IF NOT EXISTS vector;
    ```

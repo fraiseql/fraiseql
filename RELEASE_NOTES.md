@@ -1,6 +1,6 @@
 # FraiseQL Documentation v2.0.0-alpha.1 Release
 
-## 🎉 Welcome to FraiseQL v2.0.0-alpha.1!
+## 🎉 Welcome to FraiseQL v2.0.0-alpha.1
 
 This release brings **comprehensive documentation for all 16 language SDKs**, production architecture patterns, and complete guides for getting started, deploying, and optimizing your applications.
 
@@ -44,21 +44,25 @@ Visit: **[https://fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
 ### 🏆 Key Documentation Sections
 
 **For New Users:**
+
 - [Getting Started](https://fraiseql.readthedocs.io/getting-started/) - 5-minute quick start
 - [Foundation Concepts](https://fraiseql.readthedocs.io/foundation/) - Core architectural principles
 - [Reading Order](https://fraiseql.readthedocs.io/reading-order/) - Guided learning path
 
 **For Developers:**
+
 - [SDK References](https://fraiseql.readthedocs.io/integrations/sdk/) - API docs for all 16 languages
 - [Examples & Tutorials](https://fraiseql.readthedocs.io/examples/) - 4 full-stack apps + 14 tutorials
 - [Best Practices](https://fraiseql.readthedocs.io/guides/) - 30+ production guides
 
 **For DevOps/SREs:**
+
 - [Production Deployment](https://fraiseql.readthedocs.io/guides/production-deployment/) - K8s, Docker, Helm
 - [Monitoring & Observability](https://fraiseql.readthedocs.io/operations/observability/) - Prometheus, OpenTelemetry
 - [Security Checklist](https://fraiseql.readthedocs.io/guides/production-security-checklist/) - OWASP, encryption, audit logs
 
 **For Architects:**
+
 - [Architecture Guides](https://fraiseql.readthedocs.io/architecture/) - System design patterns
 - [Production Patterns](https://fraiseql.readthedocs.io/patterns/) - SaaS, analytics, real-time, federation
 - [Performance Guide](https://fraiseql.readthedocs.io/guides/performance-optimization/) - Optimization techniques
@@ -101,12 +105,14 @@ Visit: **[https://fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
 ## 🔗 Key Links
 
 **Documentation:**
+
 - 📖 [Complete Documentation](https://fraiseql.readthedocs.io)
 - 🆎 [All SDK References](https://fraiseql.readthedocs.io/integrations/sdk/)
 - 📚 [Examples & Tutorials](https://fraiseql.readthedocs.io/examples/)
 - 🏗️ [Architecture Guides](https://fraiseql.readthedocs.io/architecture/)
 
 **Community:**
+
 - 🐛 [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 - 💬 [Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - ⭐ [GitHub Repository](https://github.com/fraiseql/fraiseql)
@@ -116,6 +122,7 @@ Visit: **[https://fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
 ## 📋 What's Included in This Release
 
 ### Core Product Features (from v2.0.0-alpha.1)
+
 - GraphQL compilation and execution
 - Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server)
 - Apache Arrow Flight data plane
@@ -126,6 +133,7 @@ Visit: **[https://fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
 - Production-ready for alpha testing
 
 ### Documentation Additions (Phase 18)
+
 - Phase development documentation archived
 - ReadTheDocs infrastructure configured
 - Material theme with full customization
@@ -135,7 +143,7 @@ Visit: **[https://fraiseql.readthedocs.io](https://fraiseql.readthedocs.io)**
 
 ---
 
-## 🔄 Feedback Welcome!
+## 🔄 Feedback Welcome
 
 This is an alpha release. We'd love your feedback on:
 
@@ -153,12 +161,14 @@ This is an alpha release. We'd love your feedback on:
 ## 🗺️ What's Coming
 
 **v2.0.0 GA (Q2 2026):**
+
 - Complete performance benchmarking suite
 - Production hardening feedback incorporation
 - Additional database backends
 - Enhanced schema validation
 
 **v2.1 (Q3 2026):**
+
 - Advanced analytics features
 - Enhanced observability
 - Community-requested features

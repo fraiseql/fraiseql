@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Security Model: Authorization, Row-Level Security, Field Masking, and Audit
 description: FraiseQL security operates on five pillars:
 keywords: ["design", "scalability", "performance", "patterns", "security"]

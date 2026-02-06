@@ -326,7 +326,7 @@ logger = logging.getLogger(__name__)
 logger.debug("This message will appear")
 ```
 
-### Or from CLI:
+### Or from CLI
 
 ```bash
 # Python PYTHONPATH

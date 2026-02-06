@@ -28,6 +28,7 @@ If you get SSH errors, see "SSH Setup" section below.
 If pushing via command line doesn't work:
 
 1. **Go to GitHub:**
+
    ```
    https://github.com/fraiseql/fraiseql
    ```
@@ -46,12 +47,14 @@ If pushing via command line doesn't work:
 
 ## PR Details to Use
 
-### Title:
+### Title
+
 ```
 fix: correct Python version requirement to 3.11+ (uses typing.Self)
 ```
 
-### Description:
+### Description
+
 ```markdown
 This PR corrects the Python version requirement to 3.11+ and adds comprehensive testing infrastructure across Python 3.11, 3.12, and 3.13.
 
@@ -115,7 +118,8 @@ tox -e py313
 tox -e quick
 ```
 
-### CI Testing:
+### CI Testing
+
 - GitHub Actions will automatically test on Python 3.11, 3.12, and 3.13
 - All three versions run in parallel
 - Results available within 5-8 minutes
@@ -124,23 +128,27 @@ tox -e quick
 ## 📊 Impact
 
 **Benefits:**
+
 - ✅ Opens support for Python 3.11 and 3.12 users
 - ✅ Matches actual code requirements
 - ✅ Not a breaking change (loosening requirement)
 - ✅ Comprehensive test coverage across all versions
 
 **Who benefits:**
+
 - Users on Python 3.11 or 3.12 (currently excluded by 3.13 requirement)
 - CI/CD systems on 3.11 or 3.12
 - Ubuntu 23.04-23.10 users (ships with Python 3.11)
 - Debian 12 users (ships with Python 3.11)
 
 **Breaking changes:**
+
 - ❌ None - This loosens the requirement
 
 ## 📚 Documentation
 
 See **PYTHON_VERSION_ANALYSIS.md** for:
+
 - Feature compatibility matrix
 - Detailed explanation of `typing.Self` requirement
 - Alternative approaches for Python 3.10 support
@@ -163,9 +171,11 @@ See **PYTHON_VERSION_ANALYSIS.md** for:
 ---
 
 **See also:**
+
 - `PYTHON_VERSION_ANALYSIS.md` - Technical analysis
 - `PYTHON_VERSION_UPDATE_SUMMARY.md` - Implementation summary
 - `GITHUB_ACTIONS_SETUP.md` - CI/CD documentation
+
 ```
 
 ---
@@ -179,29 +189,34 @@ If you're getting SSH authentication errors, you need to set up your SSH key:
 ls -la ~/.ssh/
 ```
 
-### If no SSH key exists, create one:
+### If no SSH key exists, create one
+
 ```bash
 ssh-keygen -t ed25519 -C "lionel.hamayon@evolution-digitale.fr"
 ```
 
-### Add SSH key to ssh-agent:
+### Add SSH key to ssh-agent
+
 ```bash
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 ```
 
-### Copy your public key:
+### Copy your public key
+
 ```bash
 cat ~/.ssh/id_ed25519.pub
 ```
 
-### Add to GitHub:
+### Add to GitHub
+
 1. Go to: https://github.com/settings/keys
 2. Click "New SSH key"
 3. Paste your public key
 4. Click "Add SSH key"
 
-### Test connection:
+### Test connection
+
 ```bash
 ssh -T git@github.com
 ```
@@ -224,7 +239,8 @@ git push origin fix/python-version-requirement
 
 **Note:** You may need to use a Personal Access Token (PAT) instead of your password.
 
-### Create a GitHub PAT:
+### Create a GitHub PAT
+
 1. Go to: https://github.com/settings/tokens
 2. Click "Generate new token (classic)"
 3. Select scopes: `repo` (all)
@@ -263,6 +279,7 @@ git show --stat
 ```
 
 **Output should show:**
+
 - Branch: `fix/python-version-requirement`
 - Commit: `2985b48 fix: correct Python version requirement to 3.11+`
 - Files changed: 7 files, 1028 insertions(+)

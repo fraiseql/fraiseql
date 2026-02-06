@@ -78,7 +78,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 **External Authentication:**
 
 - OAuth2/OIDC support with 7+ providers:
-  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
+  - GitHub, Google, Auth0, Azure AD, Keycloak, Okta + extensible provider system
 - JWT token handling with rotation support
 - OIDC provider integration
 - Session management with database backend
@@ -223,6 +223,7 @@ fraiseql-cli compile schema.json -o schema.compiled.json
 ### 3. Configure and Run
 
 Create `config.toml`:
+
 ```toml
 [server]
 bind_addr = "0.0.0.0:8080"
@@ -322,14 +323,17 @@ See `docs/specs/schema-conventions.md` for complete conventions.
 FraiseQL automatically generates filter operators based on your GraphQL scalar types and database capabilities. PostgreSQL gets extensive operator support (string matching, full-text search, arrays, JSONB, vectors, networks, hierarchies); other databases get only what they support. No manual filter type definitions needed.
 
 **Standard operators (all databases):**
+
 - Comparison: `_eq`, `_neq`, `_lt`, `_lte`, `_gt`, `_gte`
 - Logical: `_and`, `_or`, `_not`
 
 **String operators (database-dependent):**
+
 - PostgreSQL: `_like`, `_ilike`, `_regex`, `_contains`, `_icontains`, `_startswith`, `_istartswith`, `_endswith`, `_matches` (full-text), etc.
 - SQLite/MySQL: `_like`, `_contains`
 
 **PostgreSQL-specific operators (compiled out for other databases):**
+
 - Arrays: `_array_contains`, `_array_contained_by`, `_array_overlaps`, `_len_eq`, `_len_gt`
 - JSONB: `_jsonb_contains`, `_jsonb_has_key`, `_jsonb_path_exists`
 - Vectors (pgvector): `_cosine_distance_lt`, `_l2_distance_lt`, `_inner_product_gt`, etc.

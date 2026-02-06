@@ -130,6 +130,7 @@ chmod 700 /mnt/backups/fraiseql
 ### 2.1 Build Container Images
 
 **Option A: From Source**
+
 ```bash
 cd tests/integration
 
@@ -143,6 +144,7 @@ docker-compose build products-subgraph
 ```
 
 **Option B: From Registry**
+
 ```bash
 # For pre-built images
 docker pull registry.example.com/fraiseql/users-service:1.0
@@ -158,6 +160,7 @@ docker tag registry.example.com/fraiseql/users-service:1.0 \
 ### 2.2 Configure Environment
 
 **Create `.env` file**:
+
 ```bash
 # Environment: production, staging, development
 ENVIRONMENT=production
@@ -279,6 +282,7 @@ cargo test test_federation_query_performance_baseline --ignored --nocapture
 ### 4.1 Database Configuration
 
 **Backups**:
+
 ```bash
 # Daily backup script
 cat > /opt/fraiseql/backup.sh << 'EOF'
@@ -311,6 +315,7 @@ chmod +x /opt/fraiseql/backup.sh
 ```
 
 **Indexes**:
+
 ```sql
 -- Create indexes for federation queries (run in each database)
 -- Users
@@ -330,6 +335,7 @@ CREATE INDEX idx_products_name ON products(name);
 ### 4.2 Security Configuration
 
 **Environment Variables** (update in `.env`):
+
 ```bash
 # Use strong passwords
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
@@ -344,6 +350,7 @@ POSTGRES_PASSWORD=$(openssl rand -base64 32)
 ```
 
 **Access Control**:
+
 ```bash
 # Restrict service ports to internal network only
 # Only expose port 4000 (Apollo Router) to public
@@ -378,6 +385,7 @@ CACHE_STATISTICS_ENABLED=true     # Track hit rate
 ### 4.4 Monitoring Setup
 
 **Enable Metrics**:
+
 ```bash
 # Prometheus endpoint
 curl http://localhost:9090/metrics
@@ -437,6 +445,7 @@ watch -n 10 /opt/fraiseql/health_check.sh
 ### 5.3 Alerting
 
 **Define alerts**:
+
 ```yaml
 # Alert: High query latency
 

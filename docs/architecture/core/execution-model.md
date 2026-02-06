@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Execution Model Architecture
 description: The **execution model** defines how the Rust runtime handles three orthogonal execution patterns:
 keywords: ["design", "scalability", "performance", "patterns", "security"]

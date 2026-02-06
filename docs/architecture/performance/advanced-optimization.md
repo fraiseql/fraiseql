@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Advanced Optimization
 description: This specification covers advanced optimization techniques for FraiseQL deployments, beyond baseline performance characteristics. It addresses:
 keywords: ["design", "scalability", "performance", "patterns", "security"]

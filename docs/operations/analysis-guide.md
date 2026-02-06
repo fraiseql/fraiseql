@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Analysis Guide: Using the `analyze` Command
 description: The `FraiseQL-cli analyze` command analyzes runtime metrics and generates schema optimization suggestions. This guide covers:
 keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]

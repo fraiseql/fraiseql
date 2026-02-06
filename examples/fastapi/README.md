@@ -183,11 +183,13 @@ mutation UpdateTaskStatus {
 ### CQRS Pattern
 
 **Queries** use database views (`v_projects`, `v_tasks`, `v_users`):
+
 - Optimized for read performance
 - Join-free queries where possible
 - Indexed for common access patterns
 
 **Mutations** use PostgreSQL functions:
+
 - Encapsulate business logic in the database
 - ACID guarantees
 - Automatic timestamp management

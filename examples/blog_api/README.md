@@ -5,6 +5,7 @@
 This example demonstrates how to build a complete GraphQL API using FraiseQL with enterprise-grade patterns for production systems.
 
 **What you'll learn:**
+
 - CQRS architecture with PostgreSQL functions and views
 - Direct database queries for relationship resolution (no DataLoader needed)
 - Enterprise mutation patterns (success/error/noop)
@@ -15,6 +16,7 @@ This example demonstrates how to build a complete GraphQL API using FraiseQL wit
 **Prerequisites:** None (great starting point!)
 
 **Next steps:**
+
 - `../ecommerce/` - Add complex business logic
 - `../enterprise_patterns/` - Master all enterprise patterns
 - `../apq_multi_tenant/` - Add performance optimization
@@ -22,28 +24,33 @@ This example demonstrates how to build a complete GraphQL API using FraiseQL wit
 ## Patterns Demonstrated
 
 ### ✅ Mutation Result Pattern
+
 - Standardized success/error responses with metadata
 - Field-level change tracking
 - Comprehensive audit information
 - See: `mutations.py` enterprise classes and `test_mutation_results.py`
 
 ### ✅ NOOP Handling Pattern
+
 - Idempotent operations with graceful edge case handling
 - Multiple NOOP scenarios (duplicate slugs, no changes detected)
 - See: Enterprise mutation classes with `noop` result types
 
 ### ✅ App/Core Function Split
+
 - Clean separation of input handling and business logic
 - Type-safe core functions with JSONB app wrappers
 - See: `db/functions/app_functions.sql` and `core_functions.sql`
 
 ### ✅ Unified Audit Logging
+
 - **Single `audit_events` table** with CDC + cryptographic chain
 - PostgreSQL-native crypto (no Python overhead)
 - Tamper-proof audit trails with SHA-256 hashing
 - See: `core.log_and_return_mutation()` function and unified audit table
 
 ### ❌ Advanced Features
+
 For complete enterprise patterns (identifier management, multi-layer validation), see `../enterprise_patterns/`
 
 ## Features
@@ -61,6 +68,7 @@ For complete enterprise patterns (identifier management, multi-layer validation)
 ### 1. Database Setup
 
 The blog API uses a CQRS architecture with:
+
 - Write-side tables prefixed with `tb_`
 - SQL functions for all mutations
 - Read-side views prefixed with `v_` containing JSONB data
@@ -85,6 +93,7 @@ psql -d blog_db -f db/migrations/003_views.sql
 ```
 
 The migrations will create:
+
 - Write-side tables: `tb_users`, `tb_posts`, `tb_comments`
 - SQL functions: `fn_create_user`, `fn_create_post`, etc.
 - Read-side views: `v_users`, `v_posts`, `v_comments` with JSONB data
@@ -118,6 +127,7 @@ python app.py
 ```
 
 The API will be available at:
+
 - GraphQL endpoint: `http://localhost:8000/graphql`
 - GraphQL Playground: `http://localhost:8000/playground` (development only)
 

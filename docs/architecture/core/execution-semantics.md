@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Execution Semantics: Query, Mutation, and Subscription Runtime Behavior
 description: 1. [Executive Summary](#executive-summary)
 keywords: ["design", "query-execution", "scalability", "performance", "patterns", "mutation", "security"]

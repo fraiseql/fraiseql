@@ -56,6 +56,7 @@ CREATE TABLE audit_log (
 ```
 
 **Indexes** (7 total):
+
 - `idx_audit_log_timestamp` - Time-based queries
 - `idx_audit_log_user_id` - User activity tracking
 - `idx_audit_log_event_type` - Event filtering
@@ -65,6 +66,7 @@ CREATE TABLE audit_log (
 - `idx_audit_log_event_time` - Event type + time queries
 
 **Use Cases**:
+
 - Query all events in a time range: `timestamp DESC`
 - Find all actions by a user: `user_id`
 - Track event type distribution: `event_type`
@@ -91,11 +93,13 @@ CREATE TABLE tenants (
 ```
 
 **Indexes** (3 total):
+
 - `idx_tenants_name` - Tenant lookup
 - `idx_tenants_slug` - URL-friendly access
 - `idx_tenants_is_active` - Active tenant filtering
 
 **Relationships**:
+
 - 1:N with `users` (users.tenant_id → tenants.id)
 - 1:N with `roles` (roles.tenant_id → tenants.id)
 - 1:N with `audit_log` (audit_log.tenant_id → tenants.id)
@@ -120,16 +124,19 @@ CREATE TABLE roles (
 ```
 
 **Indexes** (3 total):
+
 - `idx_roles_tenant_id` - Tenant-specific queries
 - `idx_roles_name` - Role lookup
 - `idx_roles_tenant_name` - Tenant + name composite
 
 **Key Features**:
+
 - Tenant-scoped (same role name allowed in different tenants)
 - Level-based hierarchy (0 = admin, 100 = user, 200 = guest)
 - Supports custom intermediate levels
 
 **Role Hierarchy** (Example):
+
 ```
 Level 0:   Admin (all permissions)
 Level 50:  Moderator (limited admin)
@@ -155,10 +162,12 @@ CREATE TABLE permissions (
 ```
 
 **Indexes** (2 total):
+
 - `idx_permissions_resource` - Resource filtering
 - `idx_permissions_resource_action` - Composite lookup
 
 **Default Permissions** (14 pre-populated):
+
 - `query:read` - Execute read queries
 - `mutation:write` - Execute mutations
 - `admin:read`, `admin:write` - Admin operations
@@ -186,10 +195,12 @@ CREATE TABLE role_permissions (
 ```
 
 **Indexes** (2 total):
+
 - `idx_role_permissions_role_id` - Permissions for role
 - `idx_role_permissions_permission_id` - Roles with permission
 
 **Cascade Behavior**:
+
 - When role deleted: All role_permissions entries deleted
 - When permission deleted: All role_permissions entries deleted
 
@@ -211,12 +222,14 @@ CREATE TABLE user_roles (
 ```
 
 **Indexes** (4 total):
+
 - `idx_user_roles_user_id` - Roles for user
 - `idx_user_roles_role_id` - Users with role
 - `idx_user_roles_tenant_id` - Tenant filtering
 - `idx_user_roles_user_tenant` - User + tenant queries
 
 **Key Features**:
+
 - Composite tenant context (user can have different roles per tenant)
 - Tracks assignment time for audit trail
 - Cascading deletion protects referential integrity
@@ -294,17 +307,20 @@ CREATE TABLE user_roles (
 ## Migration Files
 
 ### 0010_audit_log.sql
+
 - Creates audit_log table with 16 columns
 - Adds 7 performance-optimized indexes
 - Supports JSON before/after state tracking
 
 ### 0011_tenants.sql
+
 - Creates tenants table
 - Adds tenant_id to users table (if exists)
 - Adds tenant_id to audit_log table
 - Establishes foreign key relationships
 
 ### 0012_rbac.sql
+
 - Creates roles table (tenant-scoped)
 - Creates permissions table (global)
 - Creates role_permissions junction table
@@ -316,31 +332,37 @@ CREATE TABLE user_roles (
 ## Key Design Decisions
 
 ### 1. Audit Log Tracking
+
 - JSONB columns for flexible before/after state
 - Separate status field for quick filtering (success/failure/denied)
 - Tenant-aware for multi-tenant compliance
 
 ### 2. Role Hierarchy
+
 - Numeric levels allow arbitrary hierarchy
 - UNIQUE(tenant_id, name) enables same role names across tenants
 - Separate from permissions for flexibility
 
 ### 3. Global Permissions
+
 - Permissions are not tenant-scoped (reused across all tenants)
 - Resource:action format is convention, not enforced
 - Default permissions provide starting set
 
 ### 4. Cascade Deletes
+
 - Deleting role cascades to role_permissions and user_roles
 - Deleting tenant cascades to roles and users
 - Deleting audit events: SET NULL for tenant_id (preserve event history)
 
 ### 5. Composite Indexes
+
 - tenant_id + timestamp for multi-tenant time-range queries
 - event_type + timestamp for filtering by event and time
 - user_id + tenant_id for user activity within tenant
 
 ### 6. Idempotent Migrations
+
 - All CREATE statements use IF NOT EXISTS
 - Column additions use DO blocks to check existence first
 - Allows safe re-running and partial recovery
@@ -350,6 +372,7 @@ CREATE TABLE user_roles (
 ## Query Patterns
 
 ### Find User's Roles in Tenant
+
 ```sql
 SELECT r.*
 FROM roles r
@@ -360,6 +383,7 @@ ORDER BY r.name;
 ```
 
 ### Get Permissions for User
+
 ```sql
 SELECT DISTINCT p.*
 FROM permissions p
@@ -371,6 +395,7 @@ WHERE ur.user_id = $1
 ```
 
 ### Audit Events in Time Range
+
 ```sql
 SELECT *
 FROM audit_log
@@ -381,6 +406,7 @@ LIMIT $4 OFFSET $5;
 ```
 
 ### Failed Operations by User
+
 ```sql
 SELECT *
 FROM audit_log
@@ -395,16 +421,19 @@ ORDER BY timestamp DESC;
 ## Performance Notes
 
 ### Indexes
+
 - 7 indexes on audit_log support common query patterns
 - Composite indexes (tenant_id, timestamp) reduce query plans
 - JSONB column doesn't require index for basic queries
 
 ### Scaling
+
 - Audit log can grow quickly; consider time-based partitioning for large datasets
 - Tenant_id index prevents cross-tenant data leaks
 - Role_permissions junction is small (typically <1000 entries per tenant)
 
 ### Optimization Opportunities
+
 - Archive audit logs older than 1 year to separate table
 - Create materialized view for user permissions (if queries slow)
 - Consider partial indexes on audit_log for common filters
@@ -414,6 +443,7 @@ ORDER BY timestamp DESC;
 ## Testing
 
 22 schema verification tests cover:
+
 - ✅ All table structures and columns
 - ✅ Index existence and naming
 - ✅ Foreign key relationships
@@ -424,6 +454,7 @@ ORDER BY timestamp DESC;
 - ✅ Composite indexes for performance
 
 **Test Categories**:
+
 - Table structure verification (5 tests)
 - Index verification (6 tests)
 - Relationship verification (3 tests)
@@ -435,11 +466,13 @@ ORDER BY timestamp DESC;
 ## Maintenance
 
 ### Regular Tasks
+
 1. Monitor audit_log growth (may require archival)
 2. Verify index performance with EXPLAIN ANALYZE
 3. Check for orphaned records (data integrity)
 
 ### Admin Commands
+
 ```sql
 -- Vacuum and analyze for query optimization
 VACUUM ANALYZE audit_log;

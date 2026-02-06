@@ -126,17 +126,20 @@ Demonstrates automatic refresh strategy selection for different workload pattern
 ### Trigger-based (Real-time)
 
 **Best for:**
+
 - Read-heavy workloads (1000+ reads per write)
 - Strict latency requirements (<100ms)
 - Low write volume (<10 writes/sec)
 - Mission-critical data freshness
 
 **Mechanism:**
+
 - Trigger fires on source table changes
 - Immediately marks view entry as stale
 - Entry refreshed on next access or via scheduled worker
 
 **Trade-offs:**
+
 - ✓ Data freshness (near real-time)
 - ✗ Higher trigger overhead
 - ✗ Not ideal for bulk operations
@@ -144,17 +147,20 @@ Demonstrates automatic refresh strategy selection for different workload pattern
 ### Scheduled (Batch)
 
 **Best for:**
+
 - Batch import systems
 - Acceptable staleness windows (30+ minutes)
 - High write volume (>1000/min)
 - Read-mostly aggregations
 
 **Mechanism:**
+
 - Runs at fixed intervals (default: 30 minutes)
 - Full or incremental refresh based on staleness
 - Tracks refresh state and health
 
 **Trade-offs:**
+
 - ✓ Lower overhead for bulk operations
 - ✓ Predictable resource usage
 - ✗ Data lag (up to refresh interval)

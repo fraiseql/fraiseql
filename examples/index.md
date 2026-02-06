@@ -5,6 +5,7 @@ Welcome to the FraiseQL examples collection! This index organizes all 20+ exampl
 ## 🎯 Quick Start Recommendation
 
 **New to FraiseQL? Start here:**
+
 - **[`todo_quickstart.py`](todo_quickstart.py)** - 5-minute introduction to basic GraphQL API
 - **[`blog_api/`](blog_api/README.md)** - Complete content management system with enterprise patterns
 
@@ -13,6 +14,7 @@ Welcome to the FraiseQL examples collection! This index organizes all 20+ exampl
 ## 📊 Examples by Difficulty
 
 ### 🟢 Beginner (Start Here)
+
 Perfect for learning FraiseQL fundamentals. These examples focus on core concepts with minimal complexity.
 
 | Example | Description | Key Concepts | Time |
@@ -22,6 +24,7 @@ Perfect for learning FraiseQL fundamentals. These examples focus on core concept
 | [`health_check_example.py`](health_check_example.py) | Basic health check endpoints | Simple queries, FastAPI integration | 5 min |
 
 ### 🟡 Intermediate (Build Skills)
+
 These examples demonstrate real-world patterns and integrations for production applications.
 
 | Example | Description | Key Concepts | Time |
@@ -34,6 +37,7 @@ These examples demonstrate real-world patterns and integrations for production a
 | [`complex_nested_where_clauses.py`](complex_nested_where_clauses.py) | Advanced query patterns | Complex filtering, nested conditions | 15 min |
 
 ### 🟠 Advanced (Production Ready)
+
 Enterprise-grade examples showcasing advanced patterns, scalability, and production considerations.
 
 | Example | Description | Key Concepts | Time |
@@ -47,6 +51,7 @@ Enterprise-grade examples showcasing advanced patterns, scalability, and product
 | [`saas-starter/`](saas-starter/README.md) | Multi-tenant SaaS foundation | Tenant isolation, billing, user management | 50 min |
 
 ### 🔴 Specialized (Domain Specific)
+
 Examples for specific use cases and integrations.
 
 | Example | Description | Key Concepts | Time |
@@ -61,26 +66,31 @@ Examples for specific use cases and integrations.
 ## 🏗️ Examples by Use Case
 
 ### 🛍️ E-commerce & Business
+
 - [`ecommerce/`](ecommerce/README.md) - Complete online store
 - [`saas-starter/`](saas-starter/README.md) - SaaS application foundation
 - [`analytics_dashboard/`](analytics_dashboard/README.md) - Business intelligence
 
 ### 📝 Content Management
+
 - [`blog_api/`](blog_api/README.md) - Enterprise content system
 - [`blog_enterprise/`](blog_enterprise/README.md) - Advanced blogging platform
 - [`complete_cqrs_blog/`](complete_cqrs_blog/README.md) - CQRS blog implementation
 
 ### 🔐 Authentication & Security
+
 - [`security/`](security/README.md) - Security best practices
 - [`native-auth-app/`](native-auth-app/README.md) - Frontend auth integration
 - [`token_revocation_example.py`](token_revocation_example.py) - Token management
 
 ### ⚡ Performance & Caching
+
 - [`apq_multi_tenant/`](apq_multi_tenant/README.md) - Multi-tenant query caching
 - [`caching_example.py`](caching_example.py) - PostgreSQL caching
 - [`turborouter/`](turborouter/README.md) - Query pre-compilation
 
 ### 🏢 Enterprise Patterns
+
 - [`enterprise_patterns/`](enterprise_patterns/README.md) - All enterprise patterns
 - [`admin-panel/`](admin-panel/README.md) - Administrative interfaces
 - [`real_time_chat/`](real_time_chat/README.md) - Real-time applications
@@ -90,24 +100,28 @@ Examples for specific use cases and integrations.
 ## 📚 Learning Paths
 
 ### 🚀 Complete Beginner Path
+
 1. **[`todo_quickstart.py`](todo_quickstart.py)** - Learn the basics (5 min)
 2. **[`blog_api/`](blog_api/README.md)** - Build a real application (15 min)
 3. **[`ecommerce/`](ecommerce/README.md)** - Add complexity (30 min)
 4. **[`enterprise_patterns/`](enterprise_patterns/README.md)** - Master advanced patterns (45 min)
 
 ### 🏢 Production Developer Path
+
 1. **[`blog_api/`](blog_api/README.md)** - Enterprise patterns foundation
 2. **[`apq_multi_tenant/`](apq_multi_tenant/README.md)** - Performance optimization
 3. **[`security/`](security/README.md)** - Security implementation
 4. **[`saas-starter/`](saas-starter/README.md)** - Scalable architecture
 
 ### 🔧 Performance Specialist Path
+
 1. **[`caching_example.py`](caching_example.py)** - Caching fundamentals
 2. **[`turborouter/`](turborouter/README.md)** - Query optimization
 3. **[`apq_multi_tenant/`](apq_multi_tenant/README.md)** - Advanced caching
 4. **[`analytics_dashboard/`](analytics_dashboard/README.md)** - High-performance analytics
 
 ### 🏗️ Enterprise Architect Path
+
 1. **[`enterprise_patterns/`](enterprise_patterns/README.md)** - All enterprise patterns
 2. **[`blog_enterprise/`](blog_enterprise/README.md)** - Domain-driven design
 3. **[`complete_cqrs_blog/`](complete_cqrs_blog/README.md)** - CQRS implementation
@@ -118,10 +132,13 @@ Examples for specific use cases and integrations.
 ## 🔧 Development Tools & Utilities
 
 ### Setup & Configuration
+
 - [`_template-readme.md`](_template-readme.md) - Template for new examples
 
 ### Testing & Validation
+
 All examples include automated testing. Run tests with:
+
 ```bash
 # Test a specific example
 cd examples/example_name
@@ -137,6 +154,7 @@ find . -name "*test*.py" -exec pytest {} \;
 ## 🤝 Contributing Examples
 
 ### Adding New Examples
+
 1. Create a new directory under `examples/`
 2. Follow the established structure (see [`_template-readme.md`](_template-readme.md))
 3. Add comprehensive documentation
@@ -144,6 +162,7 @@ find . -name "*test*.py" -exec pytest {} \;
 5. Update this INDEX.md file
 
 ### Example Structure
+
 ```
 example_name/
 ├── README.md          # Comprehensive documentation
@@ -158,6 +177,7 @@ example_name/
 ```
 
 ### Quality Standards
+
 - ✅ Working code that runs without errors
 - ✅ Comprehensive README with setup instructions
 - ✅ Automated tests with good coverage

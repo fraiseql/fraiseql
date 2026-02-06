@@ -61,6 +61,7 @@ uv pip install -e ".[prod]"
 ### Provider-Specific Installation
 
 #### Bare Metal Provider
+
 ```bash
 # Install SSH support
 pip install asyncssh
@@ -71,6 +72,7 @@ ssh-copy-id -i ~/.ssh/id_fraisier deploy@prod.example.com
 ```
 
 #### Docker Compose Provider
+
 ```bash
 # Install Docker and docker-compose
 curl -fsSL https://get.docker.com | sh
@@ -81,6 +83,7 @@ docker-compose --version
 ```
 
 #### Coolify Provider
+
 ```bash
 # Coolify is self-hosted
 # See: https://coolify.io/docs/installation
@@ -172,6 +175,7 @@ fraisier db-check
 ### Bare Metal Provider (SSH + systemd)
 
 **Configuration:**
+
 ```yaml
 bare_metal:
   host: prod.example.com
@@ -182,11 +186,13 @@ bare_metal:
 ```
 
 **Prerequisites:**
+
 - SSH key-based authentication
 - systemd service for your application
 - Git repository accessible from server
 
 **Example systemd Service:**
+
 ```ini
 [Unit]
 Description=My Fraise API
@@ -204,6 +210,7 @@ WantedBy=multi-user.target
 ```
 
 **Operations:**
+
 ```bash
 # Deploy
 fraisier deploy my_api production
@@ -218,6 +225,7 @@ fraisier history my_api production
 ### Docker Compose Provider
 
 **Configuration:**
+
 ```yaml
 docker_compose:
   compose_file: docker-compose.prod.yml
@@ -226,11 +234,13 @@ docker_compose:
 ```
 
 **Prerequisites:**
+
 - Docker and docker-compose installed
 - docker-compose.yml in deployment directory
 - Docker daemon running and accessible
 
 **Example docker-compose.yml:**
+
 ```yaml
 version: '3.9'
 services:
@@ -255,6 +265,7 @@ services:
 ```
 
 **Operations:**
+
 ```bash
 # Deploy
 fraisier deploy my_api production
@@ -269,6 +280,7 @@ docker-compose -f docker-compose.prod.yml up -d --scale api=3
 ### Coolify Provider (PaaS)
 
 **Configuration:**
+
 ```yaml
 coolify:
   api_url: https://coolify.example.com/api
@@ -278,11 +290,13 @@ coolify:
 ```
 
 **Prerequisites:**
+
 - Coolify instance running and accessible
 - Application already created in Coolify
 - API token with deployment permissions
 
 **Operations:**
+
 ```bash
 # Deploy
 fraisier deploy my_api production
@@ -424,6 +438,7 @@ fraisier metrics --port 8001 --address 0.0.0.0
 ```
 
 **Key Metrics:**
+
 - `fraisier_deployments_total` - Total deployments by status
 - `fraisier_deployment_duration_seconds` - Deployment duration
 - `fraisier_deployment_errors_total` - Deployment errors
@@ -433,6 +448,7 @@ fraisier metrics --port 8001 --address 0.0.0.0
 ### Logging
 
 **Log Levels:**
+
 ```bash
 export FRAISIER_LOG_LEVEL=DEBUG  # Verbose logging
 export FRAISIER_LOG_LEVEL=INFO   # Standard logging (default)
@@ -441,6 +457,7 @@ export FRAISIER_LOG_LEVEL=ERROR  # Errors only
 ```
 
 **Log Output:**
+
 ```json
 {
   "timestamp": "2026-01-22T12:00:00.000Z",
@@ -461,11 +478,13 @@ export FRAISIER_LOG_LEVEL=ERROR  # Errors only
 ### SSH Connection Issues (Bare Metal)
 
 **Problem:** SSH connection timeout
+
 ```
 ConnectionError: Failed to connect to prod.example.com:22
 ```
 
 **Solutions:**
+
 1. Verify connectivity: `ssh deploy@prod.example.com`
 2. Check firewall: `telnet prod.example.com 22`
 3. Verify SSH key: `ssh-keygen -l -f ~/.ssh/id_fraisier`
@@ -474,11 +493,13 @@ ConnectionError: Failed to connect to prod.example.com:22
 ### Docker Connection Issues (Docker Compose)
 
 **Problem:** Docker daemon not responding
+
 ```
 RuntimeError: Failed to connect to Docker daemon
 ```
 
 **Solutions:**
+
 1. Check Docker status: `systemctl status docker`
 2. Verify Docker socket: `ls -la /var/run/docker.sock`
 3. Add user to group: `sudo usermod -aG docker $USER`
@@ -487,11 +508,13 @@ RuntimeError: Failed to connect to Docker daemon
 ### Health Check Failures
 
 **Problem:** Health check fails after deployment
+
 ```
 Error: Health check failed after deployment
 ```
 
 **Solutions:**
+
 1. Check application logs: `fraisier logs my_api production`
 2. Verify health endpoint: `curl -v http://localhost:8000/health`
 3. Check connectivity: `netstat -tuln | grep 8000`
@@ -500,11 +523,13 @@ Error: Health check failed after deployment
 ### Database Issues
 
 **Problem:** Database migration fails
+
 ```
 Error: Migration 001_create_tables.sql failed
 ```
 
 **Solutions:**
+
 1. Check database connectivity: `fraisier db-check`
 2. Verify credentials in DATABASE_URL
 3. Check migration files: `ls fraisier/db/migrations/sqlite/`
@@ -513,6 +538,7 @@ Error: Migration 001_create_tables.sql failed
 ### Provider-Specific Issues
 
 #### Bare Metal: systemd Service Not Found
+
 ```bash
 # List all services
 systemctl list-units --all | grep my-api
@@ -525,6 +551,7 @@ sudo systemctl start my-api.service
 ```
 
 #### Docker: Image Pull Failures
+
 ```bash
 # Check registry credentials
 docker login registry.example.com
@@ -537,6 +564,7 @@ docker system df
 ```
 
 #### Coolify: API Authentication Errors
+
 ```bash
 # Verify token is valid
 curl -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
@@ -687,13 +715,17 @@ fraisier deploy my_api production
 ## FAQ
 
 ### Q: How do I rollback a deployment?
+
 A: Use the rollback command:
+
 ```bash
 fraisier rollback my_api production --to previous
 ```
 
 ### Q: Can I deploy to multiple environments at once?
+
 A: No, but you can script it:
+
 ```bash
 for env in staging production; do
   fraisier deploy my_api $env
@@ -701,9 +733,11 @@ done
 ```
 
 ### Q: How do I skip health checks?
+
 A: You can't (by design). Health checks are critical for safety. Fix the health check endpoint instead.
 
 ### Q: What happens if a deployment fails?
+
 A: Fraisier automatically:
 
 1. Stops the failed deployment
@@ -712,7 +746,9 @@ A: Fraisier automatically:
 4. Sends notification
 
 ### Q: How do I deploy a specific branch?
+
 A: Set the branch in configuration:
+
 ```yaml
 environments:
   production:
@@ -720,20 +756,26 @@ environments:
 ```
 
 ### Q: Can I test deployments without actually deploying?
+
 A: Yes, use dry-run mode:
+
 ```bash
 fraisier deploy my_api production --dry-run
 ```
 
 ### Q: How do I monitor a deployment?
+
 A: Use the status and logs commands:
+
 ```bash
 fraisier status my_api production
 fraisier logs my_api production --lines 100
 ```
 
 ### Q: What if I need to manually intervene?
+
 A: You can SSH to the server and fix issues manually:
+
 ```bash
 ssh deploy@prod.example.com
 sudo systemctl restart my-api.service

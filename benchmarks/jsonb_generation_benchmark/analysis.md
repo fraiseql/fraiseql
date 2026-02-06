@@ -46,12 +46,14 @@ The conventional wisdom that `to_jsonb()` and `row_to_json()` are faster is **on
 ### 1. `jsonb_build_object()` is Optimized for Selective Queries
 
 **Why it's fast for pagination/filtering:**
+
 - PostgreSQL's query planner can **push down WHERE clauses** efficiently
 - JSONB is only built for **rows that pass the filter**
 - Highly optimized C implementation for small-medium result sets
 - No intermediate lateral join overhead
 
 **Evidence:**
+
 - 22 TPS for paginated queries vs 11-14 TPS for alternatives (**90% faster**)
 - 475 TPS for filtered queries vs 406-431 TPS for alternatives (**competitive**)
 
@@ -66,6 +68,7 @@ CROSS JOIN LATERAL (SELECT col1, col2, ...) t
 ```
 
 **Performance:**
+
 - **-47%** throughput on paginated queries
 - **-14%** throughput on filtered queries
 
@@ -74,11 +77,13 @@ The subquery pattern is better but still slower than `jsonb_build_object()`.
 ### 3. `to_jsonb()` is Only Faster for Full Scans
 
 `to_jsonb()` excels when:
+
 - ✅ Selecting ALL or MOST columns
 - ✅ Scanning large portions of the table
 - ✅ No complex field selection needed
 
 But loses when:
+
 - ❌ Using WHERE clauses (filtering)
 - ❌ Using LIMIT/OFFSET (pagination)
 - ❌ Selective field access
@@ -148,6 +153,7 @@ FROM tb_user WHERE is_active = true LIMIT 100;
 3. **Full Scans** (rare): Only 24% slower than `to_jsonb()`
 
 **Use `to_jsonb()` only for:**
+
 - Analytics views with full table scans
 - Materialized views without filters
 - Trinity tables with GENERATED columns (pre-computed)
@@ -177,6 +183,7 @@ CREATE TABLE tv_user (
 ```
 
 **Why:**
+
 - Pre-computed JSONB = **zero query-time cost**
 - `to_jsonb()` is simpler for GENERATED columns
 - Storage overhead (30-50%) is acceptable for read-heavy workloads
@@ -190,6 +197,7 @@ CREATE TABLE tv_user (
 ### Your Current Architecture is Optimal
 
 Your QUERY_EXECUTION_PATH_ANALYSIS.md suggests:
+
 1. PostgreSQL uses `jsonb_build_object()` for field selection
 2. Rust handles camelCase transformation
 3. Results are cached
@@ -217,18 +225,21 @@ Based on your QUERY_EXECUTION_PATH_ANALYSIS.md, focus on:
 ### 1. LATERAL Join is Expensive
 
 The `row_to_json()` with LATERAL pattern is **significantly slower** than expected:
+
 - Theory: Should be fast (C function)
 - Reality: **-47% throughput** due to join overhead
 
 ### 2. `to_jsonb()` Doesn't Respect Filters Early
 
 PostgreSQL doesn't optimize `to_jsonb()` + WHERE as well as `jsonb_build_object()` + WHERE:
+
 - `jsonb_build_object()`: Filter → Build JSONB
 - `to_jsonb()`: Build JSONB → Filter (inefficient!)
 
 ### 3. Field Count Matters Less Than Expected
 
 Even with 10+ fields, `jsonb_build_object()` remains competitive because:
+
 - Query planner optimizes field access
 - Modern PostgreSQL JSONB implementation is highly efficient
 - Filter/limit optimization outweighs field count cost
@@ -242,6 +253,7 @@ Even with 10+ fields, `jsonb_build_object()` remains competitive because:
 ### Future Optimizations
 
 1. **Enable Trinity tables for hot queries**
+
    ```sql
    CREATE TABLE tv_hot_user (
        data JSONB GENERATED ALWAYS AS (to_jsonb(...)) STORED
@@ -249,6 +261,7 @@ Even with 10+ fields, `jsonb_build_object()` remains competitive because:
    ```
 
 2. **Use `field_limit_threshold`** (you already have this!)
+
    ```python
    if len(field_paths) > 50:
        # Use full data column, filter in Rust
@@ -262,6 +275,7 @@ Even with 10+ fields, `jsonb_build_object()` remains competitive because:
 ### Monitoring
 
 Track these metrics in production:
+
 - **Query patterns**: Are most queries paginated/filtered? (expect 90%+ yes)
 - **Field selection**: Average fields per query (if >50, adjust threshold)
 - **Cache hit rate**: For frequently accessed records
@@ -271,6 +285,7 @@ Track these metrics in production:
 Your concern about PostgreSQL JSONB generation being slow is **unfounded for FraiseQL's use case**.
 
 **Key Takeaways:**
+
 1. ✅ `jsonb_build_object()` is **90% faster** for paginated queries (most common)
 2. ✅ `jsonb_build_object()` is **competitive** for filtered queries
 3. ❌ `to_jsonb()` is only faster for full scans (rare in GraphQL)
@@ -280,6 +295,7 @@ Your concern about PostgreSQL JSONB generation being slow is **unfounded for Fra
 **No changes needed to view definitions!**
 
 The real performance gains are in:
+
 - Removing JSON parsing after Rust transformation
 - Using Trinity tables for hot paths
 - Direct RawJSONResult → HTTP response
@@ -291,6 +307,7 @@ The real performance gains are in:
 Full results available in: `results/benchmark_20251016_233008.md`
 
 **Test Environment:**
+
 - PostgreSQL 17.5
 - 10,000 rows per test
 - 10 concurrent clients, 4 jobs

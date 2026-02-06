@@ -16,6 +16,7 @@ query {
 ```
 
 **Current approach:**
+
 ```sql
 -- Can't project individual fields efficiently, so we fetch everything:
 SELECT data::text FROM users
@@ -24,6 +25,7 @@ SELECT data::text FROM users
 **Result:** We send 20+ fields to the client even though they only requested 3.
 
 **Problem:**
+
 - Wasted bandwidth (15KB instead of 2KB)
 - Slower JSON parsing on client
 - Privacy concerns (sending fields user didn't request)
@@ -46,6 +48,7 @@ PostgreSQL → Full JSONB → Rust → Filtered JSON → Client
 ### Flow Comparison
 
 **Current (No Filtering):**
+
 ```
 PostgreSQL:  SELECT data::text FROM users
              ↓ Returns: {"id":"1","first_name":"Alice","email":"...","bio":"...","created_at":"...",...}
@@ -59,6 +62,7 @@ Client:      Receives ALL 20 fields (wastes bandwidth)
 ```
 
 **With Rust Field Projection:**
+
 ```
 PostgreSQL:  SELECT data::text FROM users
              ↓ Returns: {"id":"1","first_name":"Alice","email":"...","bio":"...","created_at":"...",...}
@@ -481,6 +485,7 @@ mod tests {
 **Example: User with 20 fields in JSONB**
 
 Without field projection:
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -498,6 +503,7 @@ Without field projection:
 ```
 
 With field projection (client only requests `id`, `firstName`, `email`):
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -522,14 +528,17 @@ With field projection (client only requests `id`, `firstName`, `email`):
 | **Total overhead** | **+33μs** |
 
 **Net benefit for 100 rows:**
+
 - Current (no projection): 4,268μs + 200KB bandwidth
 - With projection: 4,301μs + 15KB bandwidth
 
 **Trade-off:**
+
 - +33μs processing time (+0.8%)
 - -93% bandwidth (saves 185KB for 100 users)
 
 **Verdict:** Worth it for:
+
 - Mobile clients (limited bandwidth)
 - Large result sets (>100 rows)
 - Fields with large content (bio, avatars, metadata)
@@ -543,6 +552,7 @@ With field projection (client only requests `id`, `firstName`, `email`):
 Even if the client requests 99% of available fields, we **MUST still filter** to only include requested fields. This is a security/privacy requirement, not a performance optimization.
 
 **Rationale:**
+
 1. **Privacy by Design:** Never send data that wasn't explicitly requested
 2. **GDPR Compliance:** Minimize data transfer to only what's necessary
 3. **Audit Trail:** If a field was not requested, it should not be in the response
@@ -604,6 +614,7 @@ pub fn build_list_response(
 ```
 
 **Key changes:**
+
 1. `field_selection` is now **REQUIRED** (not `Option<Vec<String>>`)
 2. No "skip projection" code path - it **always** projects
 3. Simpler API - projection is the default behavior
@@ -626,6 +637,7 @@ query {
 ```
 
 **Without mandatory projection:**
+
 ```json
 {
   "id": "1",
@@ -635,6 +647,7 @@ query {
 ```
 
 **With mandatory projection:**
+
 ```json
 {
   "id": "1",
@@ -687,6 +700,7 @@ FIELD_PROJECTION_LOG_LEVEL = "DEBUG"
 **Important:** There is no configuration option to disable field projection. This is intentional.
 
 If you need unfiltered JSONB data for debugging:
+
 1. Use a database client directly (not GraphQL)
 2. Add a special debug resolver (with authentication)
 3. Request all fields explicitly in your GraphQL query
@@ -711,27 +725,32 @@ query GetUsers {
 ### What Happens
 
 1. **Python extracts field selection:**
+
    ```python
    field_selection = ["id", "first_name", "email"]
    ```
 
 2. **PostgreSQL returns full JSONB:**
+
    ```sql
    SELECT data::text FROM users LIMIT 100
    -- Returns all 20+ fields per row
    ```
 
 3. **Rust receives full JSON:**
+
    ```json
    {"id":"1","first_name":"Alice","email":"...","bio":"...","avatar":"...",...}
    ```
 
 4. **Rust filters to requested fields:**
+
    ```json
    {"id":"1","first_name":"Alice","email":"..."}
    ```
 
 5. **Rust transforms:**
+
    ```json
    {"id":"1","firstName":"Alice","email":"...","__typename":"User"}
    ```
@@ -745,22 +764,26 @@ query GetUsers {
 ## Benefits Summary
 
 ### 🚀 Performance
+
 - **Bandwidth savings:** 70-95% for typical queries
 - **Client parsing:** Faster (less JSON to parse)
 - **Network transfer:** Faster (less data)
 - **Rust overhead:** Minimal (+33μs per 100 rows)
 
 ### 🔒 Security
+
 - **Privacy:** Don't send fields user didn't request
 - **Compliance:** GDPR-friendly (minimal data transfer)
 - **Attack surface:** Reduced (less data exposed)
 
 ### 💰 Cost Savings
+
 - **Bandwidth costs:** Reduced by 70-95%
 - **CDN costs:** Lower (smaller responses)
 - **Mobile data:** Better UX (less data usage)
 
 ### 📱 User Experience
+
 - **Faster responses:** Less network transfer time
 - **Better mobile:** Crucial for slow connections
 - **Lower battery:** Less data = less radio usage
@@ -772,18 +795,21 @@ query GetUsers {
 ### When to Use Field Projection
 
 ✅ **ALWAYS use when field selection is provided:**
+
 - **Security/Privacy requirement:** Even if requesting 99% of fields
 - **GDPR compliance:** Only send what was explicitly requested
 - **Audit trail:** Prove that unrequested data was not transmitted
 - **Defense in depth:** Never assume all fields are safe to send
 
 🔒 **Critical for:**
+
 - Tables with sensitive fields (SSN, passwords, PII)
 - Multi-tenant systems (prevent data leakage)
 - Compliance requirements (HIPAA, GDPR, SOC2)
 - Any production system handling user data
 
 ⚠️ **Never skip:**
+
 - Field projection is MANDATORY
 - No "disable" option exists
 - GraphQL info with field selection is REQUIRED
@@ -821,6 +847,7 @@ query {
 ```
 
 **Implementation:**
+
 ```rust
 struct FieldSelection {
     fields: HashSet<String>,
@@ -848,6 +875,7 @@ This would enable projection at all nesting levels, not just the root.
 **Field projection in Rust is a SECURITY REQUIREMENT**, not just a performance optimization.
 
 **Primary Purpose (in order of importance):**
+
 1. 🔒 **Privacy/Security:** Never send unrequested fields (CRITICAL)
 2. 📊 **Bandwidth savings:** 70-95% reduction for typical queries
 3. ⚡ **Performance:** Faster client parsing
@@ -858,22 +886,26 @@ This would enable projection at all nesting levels, not just the root.
 > **"If a field is not in the GraphQL field selection, it MUST NOT be in the response."**
 >
 > This is true even if:
+>
 > - The client requests 99% of fields (1% could be sensitive)
 > - Performance overhead is 0.1% (privacy is non-negotiable)
 > - Bandwidth savings is minimal (security > performance)
 
 **Implementation complexity:**
+
 - 🟡 **Medium** - Requires parsing/filtering in Rust
 - ✅ **One-time cost** - Once implemented, works for all queries
 - ✅ **Breaking change** - GraphQL info is now REQUIRED (security improvement)
 
 **Recommendation:**
+
 - ✅ **MANDATORY for production** - This is a security requirement
 - ✅ **Enable by default** - Protect user privacy automatically
 - ✅ **Always project** - Even if requesting 99% of fields
 - ⚠️ **Never skip** - Privacy violations can't be "optimized away"
 
 **Real-world impact:**
+
 ```
 Without projection: "Oops, we leaked SSN in 0.1% of responses"
 With projection:    "Mathematically impossible to leak unrequested fields"

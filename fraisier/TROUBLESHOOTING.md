@@ -7,11 +7,13 @@ Quick troubleshooting for common Fraisier issues.
 ### SSH Connection Timeout
 
 **Error:**
+
 ```
 ConnectionError: Failed to connect to prod.example.com:22
 ```
 
 **Quick Fix:**
+
 ```bash
 # Test direct SSH connection
 ssh -v deploy@prod.example.com
@@ -33,11 +35,13 @@ ssh deploy@prod.example.com "cat .ssh/authorized_keys | grep $(cat ~/.ssh/id_fra
 ### Docker Connection Issues
 
 **Error:**
+
 ```
 RuntimeError: Failed to connect to Docker daemon
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check Docker is running
 sudo systemctl status docker
@@ -60,11 +64,13 @@ newgrp docker
 ### Health Check Timeout
 
 **Error:**
+
 ```
 Error: Health check failed: Connect timeout
 ```
 
 **Quick Fix:**
+
 ```bash
 # Test endpoint directly
 curl -v http://localhost:8000/health
@@ -86,11 +92,13 @@ systemctl start my-api.service
 ### Health Check Returns 500
 
 **Error:**
+
 ```
 Error: Health check failed: HTTP 500
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check application logs
 journalctl -u my-api.service -n 50
@@ -113,11 +121,13 @@ psql -U api -d api_production -c "SELECT version();"
 ### Deployment Hangs
 
 **Error:**
+
 ```
 Waiting for deployment... (stuck)
 ```
 
 **Quick Fix:**
+
 ```bash
 # Kill the stuck process
 ^C  # Ctrl+C
@@ -136,11 +146,13 @@ systemctl restart my-api.service
 ### Git Pull Fails
 
 **Error:**
+
 ```
 Error: git pull failed
 ```
 
 **Quick Fix:**
+
 ```bash
 # Test SSH access to git repository
 ssh deploy@prod.example.com "cd /var/www/api && git fetch origin"
@@ -158,11 +170,13 @@ ssh deploy@prod.example.com "cd /var/www/api && git pull origin main"
 ### Database Migration Fails
 
 **Error:**
+
 ```
 Error: Migration failed: Table already exists
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check which migrations have run
 ssh deploy@prod.example.com
@@ -187,10 +201,12 @@ python manage.py migrate
 ### High CPU Usage
 
 **Symptoms:**
+
 - Deployment takes too long
 - System becomes unresponsive
 
 **Quick Fix:**
+
 ```bash
 # Check what's using CPU
 top -b -n 1 | head -20
@@ -212,11 +228,13 @@ SELECT * FROM pg_stat_activity;
 ### Disk Space Issues
 
 **Error:**
+
 ```
 Error: Disk space exhausted
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check disk usage
 ssh deploy@prod.example.com "df -h /"
@@ -236,11 +254,13 @@ ssh deploy@prod.example.com "cd /var/www/api && git prune"
 ### Metrics Endpoint Fails
 
 **Error:**
+
 ```
 Error: Could not connect to metrics endpoint
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check if metrics server is running
 curl http://localhost:8001/metrics
@@ -258,11 +278,13 @@ fraisier metrics --port 8002
 ### Missing Metrics
 
 **Error:**
+
 ```
 No metrics available for deployment
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check if prometheus-client is installed
 python -c "import prometheus_client; print(prometheus_client.__version__)"
@@ -279,11 +301,13 @@ curl http://localhost:8001/metrics | grep fraisier
 ### Rollback Fails
 
 **Error:**
+
 ```
 Error: Rollback failed
 ```
 
 **Quick Fix:**
+
 ```bash
 # Get deployment history
 fraisier history my_api production --limit 10
@@ -302,11 +326,13 @@ curl https://api.prod.example.com/health
 ### Previous Deployment Not Available
 
 **Error:**
+
 ```
 Error: Cannot rollback - no previous deployment
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check deployment history
 fraisier history my_api production
@@ -323,11 +349,13 @@ systemctl restart my-api.service
 ### Connection Refused
 
 **Error:**
+
 ```
 Error: Database connection refused
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check database is running
 psql -U api -d api_production -c "SELECT 1;"
@@ -348,11 +376,13 @@ psql "$DATABASE_URL"
 ### Migration Timeout
 
 **Error:**
+
 ```
 Error: Migration timeout after 300 seconds
 ```
 
 **Quick Fix:**
+
 ```bash
 # Increase timeout in fraises.yaml:
 # bare_metal:
@@ -372,11 +402,13 @@ SELECT pg_cancel_backend(pid);
 ### Webhook Not Received
 
 **Error:**
+
 ```
 Webhook received but not processed
 ```
 
 **Quick Fix:**
+
 ```bash
 # Check webhook secret matches
 echo $FRAISIER_WEBHOOK_SECRET
@@ -396,22 +428,26 @@ curl http://localhost:5000/health
 If the above doesn't help:
 
 1. Collect logs:
+
    ```bash
    fraisier logs my_api production > deployment.log
    journalctl -u my-api.service > service.log
    ```
 
 2. Check Fraisier version:
+
    ```bash
    fraisier --version
    ```
 
 3. Test in dry-run mode:
+
    ```bash
    fraisier deploy my_api production --dry-run
    ```
 
 4. Enable debug logging:
+
    ```bash
    export FRAISIER_LOG_LEVEL=DEBUG
    fraisier deploy my_api production
@@ -420,4 +456,3 @@ If the above doesn't help:
 5. Report issue with logs:
    - GitHub: https://github.com/fraiseql/fraisier/issues
    - Include error message, logs, and steps to reproduce
-

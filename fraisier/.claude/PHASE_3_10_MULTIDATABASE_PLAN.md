@@ -51,6 +51,7 @@ Apply proven FraiseQL database patterns to Fraisier:
 4. `PoolMetrics` unified metrics structure
 
 **Key Methods**:
+
 ```python
 class FraiserDatabaseAdapter(ABC):
     @abstractmethod
@@ -103,6 +104,7 @@ class FraiserDatabaseAdapter(ABC):
 ```
 
 **Tests**: 15 tests
+
 - Trait interface validation
 - Method signatures
 - Abstract method enforcement
@@ -121,6 +123,7 @@ class FraiserDatabaseAdapter(ABC):
 4. Pool metrics (mock for SQLite)
 
 **Key Features**:
+
 ```python
 class SqliteAdapter(FraiserDatabaseAdapter):
     def __init__(self, db_path: str):
@@ -152,6 +155,7 @@ class SqliteAdapter(FraiserDatabaseAdapter):
 - Maintain backward compatibility
 
 **Tests**: 20 tests
+
 - Connection handling
 - Query execution
 - Insert/update/delete operations
@@ -172,6 +176,7 @@ class SqliteAdapter(FraiserDatabaseAdapter):
 4. Real pool metrics
 
 **Key Features**:
+
 ```python
 class PostgresAdapter(FraiserDatabaseAdapter):
     def __init__(self, connection_string: str, pool_size: int = 10):
@@ -222,6 +227,7 @@ class PostgresAdapter(FraiserDatabaseAdapter):
 - Connection pooling built-in (psycopg3)
 
 **Tests**: 25 tests
+
 - Connection pool creation
 - Pool sizing (min/max)
 - Query execution with $N parameters
@@ -250,6 +256,7 @@ class PostgresAdapter(FraiserDatabaseAdapter):
 4. Pool metrics
 
 **Key Features**:
+
 ```python
 class MysqlAdapter(FraiserDatabaseAdapter):
     def __init__(
@@ -293,6 +300,7 @@ class MysqlAdapter(FraiserDatabaseAdapter):
 - `aiomysql>=0.2.0` - MySQL driver with connection pooling
 
 **Tests**: 20 tests
+
 - Connection pool with min/max sizing
 - Query execution with % parameters
 - Connection timeout handling
@@ -318,6 +326,7 @@ class MysqlAdapter(FraiserDatabaseAdapter):
 3. Hardcoded defaults (SQLite for dev)
 
 **Usage**:
+
 ```python
 # Environment-driven adapter selection
 import os
@@ -337,6 +346,7 @@ results = await db.execute_query("SELECT * FROM v_deployment")
 ```
 
 **Tests**: 10 tests
+
 - Factory selection logic
 - Configuration parsing
 - Connection initialization
@@ -351,6 +361,7 @@ results = await db.execute_query("SELECT * FROM v_deployment")
 **Test Coverage**:
 
 #### SQLite Tests (20 tests)
+
 ```python
 class TestSqliteAdapter:
     @pytest.fixture
@@ -383,6 +394,7 @@ class TestSqliteAdapter:
 ```
 
 #### PostgreSQL Tests (25 tests)
+
 ```python
 class TestPostgresAdapter:
     @pytest.fixture
@@ -434,6 +446,7 @@ class TestPostgresAdapter:
 4. MySQL migration (schema + indexes)
 
 **Migration Files**:
+
 ```
 migrations/
 ├── 001_create_deployment_tables.sql
@@ -443,6 +456,7 @@ migrations/
 ```
 
 **Migration Runner**:
+
 ```python
 async def run_migrations(adapter: FraiserDatabaseAdapter):
     """Run pending migrations for database type."""
@@ -455,6 +469,7 @@ async def run_migrations(adapter: FraiserDatabaseAdapter):
 ```
 
 **Tests**: 15 tests
+
 - Migration file loading
 - Migration execution
 - Idempotency (running twice doesn't fail)
@@ -500,6 +515,7 @@ class SyncDatabaseWrapper:
 ```
 
 **Tests**: 10 tests
+
 - Legacy API still works
 - Sync wrapper functionality
 - No breaking changes
@@ -538,6 +554,7 @@ class SyncDatabaseWrapper:
 ## Configuration Examples
 
 ### Development (SQLite)
+
 ```bash
 export FRAISIER_DB_TYPE=sqlite
 export FRAISIER_DB_URL=sqlite://./fraisier.db
@@ -545,6 +562,7 @@ fraisier list
 ```
 
 ### Production (PostgreSQL)
+
 ```bash
 export FRAISIER_DB_TYPE=postgresql
 export FRAISIER_DB_URL=postgresql://user:pass@prod.example.com/fraisier
@@ -552,6 +570,7 @@ fraisier list
 ```
 
 ### Alternative (MySQL)
+
 ```bash
 export FRAISIER_DB_TYPE=mysql
 export FRAISIER_DB_URL=mysql://user:pass@db.example.com/fraisier
@@ -589,6 +608,7 @@ fraisier list
 ## Dependencies to Add
 
 **pyproject.toml additions**:
+
 ```toml
 [project]
 dependencies = [

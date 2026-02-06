@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.6: Compiled Schema Structure
-description: The **compiled schema** (`schema.compiled.json`) is the artifact produced by the FraiseQL compiler. It contains the complete GraphQL schema in a form optimized 
+description: The **compiled schema** (`schema.compiled.json`) is the artifact produced by the FraiseQL compiler. It contains the complete GraphQL schema in a form optimized
 keywords: ["query-execution", "schema", "data-planes", "graphql", "compilation", "architecture"]
 tags: ["documentation", "reference"]
 ---

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Deployment Security Guide
 description: This guide covers the security architecture and hardening options for FraiseQL deployments.
 keywords: ["security"]

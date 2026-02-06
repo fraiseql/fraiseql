@@ -141,6 +141,7 @@ query GetUserOrders($orgId: ID!, $userId: ID!) {
 ```
 
 Variables:
+
 ```json
 {
   "orgId": "org1",
@@ -149,6 +150,7 @@ Variables:
 ```
 
 Expected Response:
+
 ```json
 {
   "data": {
@@ -194,6 +196,7 @@ query GetOrgUsers($orgId: ID!) {
 ```
 
 Variables:
+
 ```json
 {
   "orgId": "org1"
@@ -214,6 +217,7 @@ mutation CreateOrder($orgId: ID!, $userId: ID!, $amount: Float!) {
 ```
 
 Variables:
+
 ```json
 {
   "orgId": "org1",

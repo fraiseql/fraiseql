@@ -1,17 +1,17 @@
-[package]
-name = "fraiseql-observers-macros"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-authors.workspace = true
-description = "Procedural macros for automatic span creation and structured logging in fraiseql-observers"
-repository.workspace = true
-documentation.workspace = true
-
-[lib]
-proc-macro = true
-
 [dependencies]
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = {version = "2.0", features = ["full"]}
+
+[lib]
+proc-macro = true
+
+[package]
+description = "Procedural macros for automatic span creation and structured logging in fraiseql-observers"
+name = "fraiseql-observers-macros"
+authors.workspace = true
+documentation.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true

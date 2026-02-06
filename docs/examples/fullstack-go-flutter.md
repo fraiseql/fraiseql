@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Full-Stack Example: Go Schema → FraiseQL Backend → Flutter Mobile App
 description: This guide demonstrates a complete end-to-end integration of a Go GraphQL schema definition with FraiseQL's compiled backend and a Flutter mobile application. W
 keywords: ["schema", "code", "production", "fullstack", "sample", "real-world"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Federation vs Monolithic Database: Decision Guide
 description: Single database server sufficient?
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

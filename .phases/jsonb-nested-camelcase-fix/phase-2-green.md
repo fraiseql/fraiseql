@@ -26,12 +26,14 @@ Make all RED tests from Phase 1 pass with **minimal code changes**. Focus on fix
 Based on codebase investigation, FraiseQL has **two JSON transformation paths**:
 
 ### Path A: Schema-Aware (`json_transform.rs`)
+
 - Entry: `build_with_schema()` in `pipeline/builder.rs:86`
 - Uses `transform_with_schema()` for type-aware recursion
 - Relies on `SchemaRegistry` for nested type resolution
 - **Bug**: Falls back to basic recursion when field not in registry
 
 ### Path B: Zero-Copy Streaming (`core/transform.rs`)
+
 - Entry: `build_zero_copy()` in `pipeline/builder.rs:145`
 - Uses `ZeroCopyTransformer::transform_bytes()`
 - Applies `snake_to_camel()` to keys at line 174
@@ -52,12 +54,14 @@ The bug is likely in **how nested JSONB objects are recursively transformed**:
 Run these BEFORE implementing to pinpoint the exact location:
 
 ### Step 1: Verify `to_camel_case` Works
+
 ```bash
 python -c "from fraiseql._fraiseql_rs import to_camel_case; print(to_camel_case('smtp_server'), to_camel_case('dns_1'))"
 # Expected: smtpServer dns1
 ```
 
 ### Step 2: Check `transform_json` Behavior
+
 ```bash
 python -c "
 from fraiseql._fraiseql_rs import transform_json
@@ -71,6 +75,7 @@ print(result)
 ```
 
 ### Step 3: Check `build_graphql_response` Behavior
+
 ```bash
 python -c "
 from fraiseql._fraiseql_rs import build_graphql_response
@@ -83,6 +88,7 @@ print(json.loads(result))
 ```
 
 ### Step 4: Trace the Code Path
+
 ```bash
 # Find where transform_value is defined
 grep -n "fn transform_value" fraiseql_rs/src/json_transform.rs
@@ -108,6 +114,7 @@ Based on investigation, the fix will be in ONE of these locations:
 **Problem**: May not be recursively applied to all nested structures
 
 **Check**: Look for how `Value::Object` is handled:
+
 ```rust
 fn transform_value(value: Value) -> Value {
     match value {
@@ -128,6 +135,7 @@ fn transform_value(value: Value) -> Value {
 **Problem**: Fallback when field not in schema may not convert keys
 
 **Check**: Look for the fallback path:
+
 ```rust
 fn transform_with_schema(value: &Value, current_type: &str, registry: &SchemaRegistry) -> Value {
     // What happens when registry.get_field_type() returns None?
@@ -143,6 +151,7 @@ fn transform_with_schema(value: &Value, current_type: &str, registry: &SchemaReg
 **Problem**: Transformation may not be applied to JSONB column content
 
 **Check**: Ensure transform is called on JSON data:
+
 ```rust
 // Is transform_value or transform_with_schema called on parsed JSON?
 let transformed = transform_value(parsed_json);  // This should exist
@@ -156,6 +165,7 @@ let transformed = transform_value(parsed_json);  // This should exist
 **Problem**: Nested objects may not be fully processed
 
 **Check**: Ensure recursive handling:
+
 ```rust
 fn transform_object(&mut self, ...) {
     // Does this recursively transform nested objects?
@@ -168,7 +178,7 @@ fn transform_object(&mut self, ...) {
 
 ## Implementation Strategy
 
-### If Bug is in `transform_value()`:
+### If Bug is in `transform_value()`
 
 Ensure recursive transformation for all value types:
 
@@ -192,7 +202,7 @@ pub fn transform_value(value: Value) -> Value {
 }
 ```
 
-### If Bug is in `transform_with_schema()`:
+### If Bug is in `transform_with_schema()`
 
 Ensure fallback path converts keys:
 
@@ -222,7 +232,7 @@ fn transform_with_schema(value: &Value, current_type: &str, registry: &SchemaReg
 }
 ```
 
-### If Bug is in Response Building:
+### If Bug is in Response Building
 
 Ensure `build_graphql_response` applies transformation:
 
@@ -244,19 +254,24 @@ pub fn build_graphql_response(...) -> Vec<u8> {
 ## Implementation Steps
 
 ### Step 1: Run Investigation Commands
+
 Execute all commands in "Investigation Commands" section above.
 Document findings.
 
 ### Step 2: Identify Exact Bug Location
+
 Based on investigation:
+
 - If `transform_json` works but `build_graphql_response` doesn't → Fix in builder
 - If `transform_json` doesn't work → Fix in json_transform.rs
 - If both work but integration test fails → Fix in JSONB column handling
 
 ### Step 3: Apply Minimal Fix
+
 Edit the identified file with smallest possible change.
 
 ### Step 4: Rebuild Rust Extension
+
 ```bash
 cd fraiseql_rs
 maturin develop --release
@@ -264,16 +279,19 @@ cd ..
 ```
 
 ### Step 5: Run Unit Tests
+
 ```bash
 uv run pytest tests/unit/core/test_jsonb_camelcase_conversion.py -v
 ```
 
 ### Step 6: Run Integration Tests
+
 ```bash
 uv run pytest tests/regression/test_jsonb_nested_camelcase.py -v
 ```
 
 ### Step 7: Run Full Test Suite
+
 ```bash
 uv run pytest tests/ -v --tb=short
 ```
@@ -283,26 +301,34 @@ uv run pytest tests/ -v --tb=short
 ## Troubleshooting
 
 ### Issue: Tests still fail after Rust changes
+
 **Solution**: Ensure extension is rebuilt:
+
 ```bash
 cd fraiseql_rs && maturin develop --release && cd ..
 ```
 
 ### Issue: Existing tests break
+
 **Solution**: Check if change affects other patterns:
+
 ```bash
 uv run pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
 uv run pytest tests/integration/rust/test_camel_case.py -v
 ```
 
 ### Issue: Schema registry not initialized
+
 **Solution**: The zero-copy path may be used. Check:
+
 ```bash
 python -c "from fraiseql._fraiseql_rs import is_schema_registry_initialized; print(is_schema_registry_initialized())"
 ```
 
 ### Issue: dns_1 field still missing
+
 **Solution**: Check GraphQL schema generation. The field must be defined as `dns1` in schema for query to work:
+
 ```bash
 # In test, check schema introspection
 query { __type(name: "NetworkConfiguration") { fields { name } } }

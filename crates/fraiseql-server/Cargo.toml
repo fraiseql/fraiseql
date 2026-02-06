@@ -3,107 +3,84 @@ harness = false
 name = "performance_benchmarks"
 
 [dependencies]
+# Encryption
+aes-gcm = "0.10"
 # Error handling
 anyhow = "1.0"
-thiserror = "2.0"
-
-# Async runtime
-tokio = {version = "1.45", features = ["full", "signal"]}
 async-trait = "0.1"
-futures = "0.3"
-pin-project = "1"
-
+aws-config = {version = "1", optional = true}
+# AWS S3 (optional)
+aws-sdk-s3 = {version = "1", optional = true}
 # HTTP server
 axum = {version = "0.8", features = ["macros", "ws"]}
-http = "1"
-tower = {version = "0.5", features = ["full"]}
-tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
-
-# Serialization
-serde = {version = "1.0", features = ["derive"]}
-serde_json = "1.0"
-
+base64 = "0.22"
+# File processing
+bytes = "1"
+# AEAD encryption for state protection (PKCE)
+chacha20poly1305 = "0.10"
 # Date/time handling
 chrono = {version = "0.4", features = ["serde"]}
-
-# UUID generation
-uuid = {version = "1.0", features = ["v4", "serde"]}
-
-# Config and paths
-toml = "0.8"
+dashmap = "5.5"
 dirs = "5"
-
-# Tracing
-tracing = "0.1"
-tracing-subscriber = {version = "0.3", features = ["env-filter", "json"]}
-
+# Phase 4: Cache support for API endpoints
+fraiseql-arrow = {path = "../fraiseql-arrow"}
+# FraiseQL core
+fraiseql-core = {path = "../fraiseql-core"}
+fraiseql-error = {path = "../fraiseql-error"}
+# FraiseQL observers (optional)
+fraiseql-observers = {path = "../fraiseql-observers", optional = true}
+futures = "0.3"
+hex = "0.4"
+# Webhook signature verification
+hmac = "0.12"
+http = "1"
+image = {version = "0.24", features = ["jpeg", "png", "webp"]}
+infer = "0.15"
+# Authentication (JWT, OAuth, OIDC)
+jsonwebtoken = "9.2"
 # Metrics (optional)
 metrics = {version = "0.22", optional = true}
 metrics-exporter-prometheus = {version = "0.14", optional = true}
-
+mime_guess = "2"
 # OpenTelemetry (optional)
 opentelemetry = {version = "0.22", optional = true}
-opentelemetry_sdk = {version = "0.22", features = ["rt-tokio"], optional = true}
 opentelemetry-otlp = {version = "0.15", features = ["http-proto"], optional = true}
-tracing-opentelemetry = {version = "0.23", optional = true}
-
-# Database
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
-
+opentelemetry_sdk = {version = "0.22", features = ["rt-tokio"], optional = true}
+pin-project = "1"
+rand = "0.8"
 # Redis for rate limiting (optional)
 redis = {version = "0.25", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
-
-# Encryption
-aes-gcm = "0.10"
-
+reqwest = {version = "0.12", features = ["json"]}
 # TLS/SSL support
 rustls = "0.23"
-tokio-rustls = "0.25"
 rustls-pemfile = "2.2"
-
-# Webhook signature verification
-hmac = "0.12"
-sha2 = "0.10"
+# Serialization
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
 sha1 = "0.10"
-hex = "0.4"
-base64 = "0.22"
-
-# Authentication (JWT, OAuth, OIDC)
-jsonwebtoken = "9.2"
-reqwest = {version = "0.12", features = ["json"]}
-rand = "0.8"
-dashmap = "5.5"
-urlencoding = "2.1"
-
+sha2 = "0.10"
+# Database
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 # Constant-time comparison (timing attack prevention)
 subtle = "2.5"
-
-# AEAD encryption for state protection (PKCE)
-chacha20poly1305 = "0.10"
-zeroize = "1.8"
-
-# File processing
-bytes = "1"
-image = {version = "0.24", features = ["jpeg", "png", "webp"]}
-infer = "0.15"
-mime_guess = "2"
-
-# AWS S3 (optional)
-aws-sdk-s3 = {version = "1", optional = true}
-aws-config = {version = "1", optional = true}
-
-# FraiseQL core
-fraiseql-core = {path = "../fraiseql-core"}
-
-# Phase 4: Cache support for API endpoints
-fraiseql-arrow = {path = "../fraiseql-arrow"}
-fraiseql-error = {path = "../fraiseql-error"}
-
-# FraiseQL observers (optional)
-fraiseql-observers = {path = "../fraiseql-observers", optional = true}
-
+thiserror = "2.0"
+# Async runtime
+tokio = {version = "1.45", features = ["full", "signal"]}
+tokio-rustls = "0.25"
+# Config and paths
+toml = "0.8"
 # Arrow Flight server (optional)
 tonic = {version = "0.12", optional = true}
+tower = {version = "0.5", features = ["full"]}
+tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
+# Tracing
+tracing = "0.1"
+tracing-opentelemetry = {version = "0.23", optional = true}
+tracing-subscriber = {version = "0.3", features = ["env-filter", "json"]}
+urlencoding = "2.1"
+# UUID generation
+uuid = {version = "1.0", features = ["v4", "serde"]}
+zeroize = "1.8"
 
 [dev-dependencies]
 # Performance testing
@@ -111,7 +88,8 @@ criterion = {version = "0.5", features = ["async_tokio"]}
 futures = "0.3"
 # HTTP testing
 reqwest = {version = "0.12", features = ["json"]}
-wiremock = "0.6"
+# YAML parsing for deployment tests
+serde_yaml = "0.9"
 # Database testing
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
 tempfile = "3.13"
@@ -119,26 +97,23 @@ tempfile = "3.13"
 tokio-test = "0.4"
 # Utilities for E2E tests
 tokio-util = "0.7"
-# YAML parsing for deployment tests
-serde_yaml = "0.9"
+wiremock = "0.6"
 
 [features]
-default = []
-database = []
-cors = []
-metrics = ["dep:metrics", "metrics-exporter-prometheus"]
-tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
-redis-rate-limiting = ["redis"]
-aws-s3 = ["aws-sdk-s3", "aws-config"]
-testing = []
-
-# Observer system for reactive business logic
-observers = ["fraiseql-observers"]
-observers-nats = ["observers", "fraiseql-observers/nats"]
-observers-full = ["observers", "fraiseql-observers/phase8", "fraiseql-observers/nats"]
-
 # Arrow Flight server for high-performance data delivery
 arrow = ["tonic"]
+aws-s3 = ["aws-sdk-s3", "aws-config"]
+cors = []
+database = []
+default = []
+metrics = ["dep:metrics", "metrics-exporter-prometheus"]
+# Observer system for reactive business logic
+observers = ["fraiseql-observers"]
+observers-full = ["observers", "fraiseql-observers/phase8", "fraiseql-observers/nats"]
+observers-nats = ["observers", "fraiseql-observers/nats"]
+redis-rate-limiting = ["redis"]
+testing = []
+tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
 
 [package]
 authors = ["FraiseQL Contributors"]

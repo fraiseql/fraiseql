@@ -16,6 +16,7 @@ Pentagon-Readiness Assessment recommends "Add incident response playbooks" as im
 ## Objective
 
 Create comprehensive incident response procedures document with:
+
 1. Severity level definitions (P0/P1/P2/P3)
 2. Incident response team roles
 3. Detailed playbooks for 3 critical scenarios
@@ -29,6 +30,7 @@ Create comprehensive incident response procedures document with:
 ## Context Files
 
 **Review these files before writing (orchestrator will copy to `context/`):**
+
 - `docs/production/MONITORING.md` - Monitoring and alerting setup
 - `docs/security/PROFILES.md` - Security profiles and controls
 - `COMPLIANCE/AUDIT/AUDIT_LOGGING.md` - Audit trail capabilities
@@ -36,6 +38,7 @@ Create comprehensive incident response procedures document with:
 - Any existing security incident documentation
 
 **Reference Standards:**
+
 - NIST Incident Response Guide: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf
 - SANS Incident Response: https://www.sans.org/white-papers/
 
@@ -74,6 +77,7 @@ Create comprehensive incident response procedures document with:
 - **Security Lead (SL):** Handles security-specific incidents
 
 **On-call rotation and escalation paths:**
+
 - Primary: On-call engineer (PagerDuty/Opsgenie)
 - Secondary: Senior engineer
 - Escalation: Engineering manager → CTO
@@ -89,6 +93,7 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 ```
 
 **For each phase:**
+
 - What happens
 - Who is responsible
 - Time expectations
@@ -101,6 +106,7 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 **Scenario:** Unauthorized access, data exfiltration, or security policy violation
 
 **Triggers:**
+
 - Unusual authentication patterns (many failed attempts)
 - Unauthorized data access (RLS policy violations)
 - Suspicious query patterns
@@ -110,6 +116,7 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 **Response Steps:**
 
 #### Immediate Actions (0-15 minutes)
+
 - [ ] Confirm breach via audit logs
 - [ ] Identify affected systems/data
 - [ ] Preserve evidence (logs, database snapshots, network captures)
@@ -117,6 +124,7 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 - [ ] If active attack: Consider isolating affected systems
 
 #### Investigation (15-60 minutes)
+
 - [ ] Identify attack vector (how did they get in?)
 - [ ] Assess scope of compromise (what data was accessed?)
 - [ ] Check audit logs for all unauthorized access
@@ -125,6 +133,7 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 - [ ] Identify if credentials were compromised
 
 #### Containment (1-4 hours)
+
 - [ ] Revoke compromised credentials/API keys
 - [ ] Rotate encryption keys (if data was accessed)
 - [ ] Deploy security patches (if vulnerability exploited)
@@ -133,12 +142,14 @@ Detection → Triage → Investigation → Containment → Remediation → Commu
 - [ ] Reset affected user passwords
 
 #### Communication
+
 - **Internal:** Immediate notification to leadership
 - **External:** Notify affected users if PII/CUI was exposed
 - **Regulatory:** File breach report if required (GDPR, HIPAA, DoD)
 - **Timeline:** Within 72 hours for GDPR, immediately for classified data
 
 #### Post-Incident (24-48 hours)
+
 - [ ] Complete post-mortem (use template below)
 - [ ] Update security controls and policies
 - [ ] Conduct security training for team
@@ -171,6 +182,7 @@ psql -c "SELECT * FROM audit_log WHERE event_type = 'RLS_VIOLATION' ORDER BY tim
 **Scenario:** Performance issues, high latency, or elevated error rates
 
 **Triggers:**
+
 - P95 latency exceeds SLO threshold
 - Error rate > 0.1%
 - Database connection pool exhaustion
@@ -180,12 +192,14 @@ psql -c "SELECT * FROM audit_log WHERE event_type = 'RLS_VIOLATION' ORDER BY tim
 **Response Steps:**
 
 #### Immediate Actions (0-5 minutes)
+
 - [ ] Check Grafana dashboards for anomalies
 - [ ] Verify incident severity (P0/P1/P2?)
 - [ ] Notify on-call engineer
 - [ ] Check if recent deployment occurred
 
 #### Investigation (5-30 minutes)
+
 - [ ] Review recent deployments (rollback candidate?)
 - [ ] Check application logs for errors
 - [ ] Review database slow query log
@@ -194,6 +208,7 @@ psql -c "SELECT * FROM audit_log WHERE event_type = 'RLS_VIOLATION' ORDER BY tim
 - [ ] Check resource utilization (CPU, memory, disk I/O)
 
 #### Remediation (30-60 minutes)
+
 - [ ] If recent deployment: Rollback immediately
 - [ ] If resource exhaustion: Scale horizontally/vertically
 - [ ] If slow queries: Optimize or kill long-running queries
@@ -201,11 +216,13 @@ psql -c "SELECT * FROM audit_log WHERE event_type = 'RLS_VIOLATION' ORDER BY tim
 - [ ] If connection pool exhausted: Scale pool or identify connection leak
 
 #### Communication
+
 - **Internal:** Update incident channel every 15 minutes
 - **External:** Post status page update if user-facing degradation
 - **SLA:** Provide ETA for resolution (or "investigating")
 
 #### Post-Incident (Within 48 hours)
+
 - [ ] Complete post-mortem
 - [ ] Update monitoring alerts (tune thresholds)
 - [ ] Add regression test
@@ -242,6 +259,7 @@ grep "ERROR\|CRITICAL" /var/log/fraiseql/app.log | tail -100
 **Scenario:** RLS policy failures, data corruption, or unauthorized data modifications
 
 **Triggers:**
+
 - RLS policy violation alerts
 - Data corruption detected in checksums/validation
 - Unexpected data modifications in audit logs
@@ -251,6 +269,7 @@ grep "ERROR\|CRITICAL" /var/log/fraiseql/app.log | tail -100
 **Response Steps:**
 
 #### Immediate Actions (0-15 minutes)
+
 - [ ] Identify affected table(s)
 - [ ] Stop writes to affected tables (if safe to do so)
 - [ ] Take database snapshot/backup
@@ -258,6 +277,7 @@ grep "ERROR\|CRITICAL" /var/log/fraiseql/app.log | tail -100
 - [ ] Assess scope of data corruption
 
 #### Investigation (15-60 minutes)
+
 - [ ] Query audit logs for data changes
 - [ ] Review recent database migrations
 - [ ] Check RLS policy definitions and enforcement
@@ -266,6 +286,7 @@ grep "ERROR\|CRITICAL" /var/log/fraiseql/app.log | tail -100
 - [ ] Check application logic for bugs
 
 #### Remediation (1-4 hours)
+
 - [ ] If corruption: Restore from backup (last known good state)
 - [ ] If RLS failure: Fix policies and test thoroughly
 - [ ] If application bug: Deploy hotfix
@@ -273,11 +294,13 @@ grep "ERROR\|CRITICAL" /var/log/fraiseql/app.log | tail -100
 - [ ] Verify fix with test queries
 
 #### Communication
+
 - **Internal:** Notify data owners and stakeholders
 - **External:** Notify affected users if data loss or unauthorized exposure
 - **Compliance:** Report to regulatory bodies if PII/CUI affected
 
 #### Post-Incident (24-48 hours)
+
 - [ ] Update RLS policies with better tests
 - [ ] Add data integrity checks to CI/CD
 - [ ] Review and improve backup/restore procedures
@@ -421,6 +444,7 @@ FraiseQL Operations Team
 ### 8. Appendix: Useful Commands & Tools
 
 #### Log Analysis
+
 ```bash
 # Tail application logs
 tail -f /var/log/fraiseql/app.log
@@ -436,6 +460,7 @@ grep "user_id=<user_id>" /var/log/fraiseql/audit.log | tail -50
 ```
 
 #### Database Operations
+
 ```bash
 # Check database health
 psql -c "SELECT version(); SELECT now(); SELECT pg_database_size('fraiseql');"
@@ -454,6 +479,7 @@ psql -c "VACUUM ANALYZE <table>"
 ```
 
 #### OpenTelemetry & Observability
+
 ```bash
 # Access Grafana dashboards
 open http://grafana.example.com/d/fraiseql-overview
@@ -467,6 +493,7 @@ open http://grafana.example.com/d/fraiseql-overview
 ```
 
 #### Security Operations
+
 ```bash
 # Check for failed authentication attempts
 grep "authentication_failed" /var/log/fraiseql/security.log | wc -l
@@ -501,6 +528,7 @@ psql -c "SELECT * FROM audit_log WHERE event_type IN ('DELETE', 'UPDATE', 'RLS_V
 ## Requirements Summary
 
 **Content Quality:**
+
 - [ ] 400-600 lines total
 - [ ] 3 detailed playbooks (security breach, degradation, data integrity)
 - [ ] Severity levels clearly defined
@@ -509,6 +537,7 @@ psql -c "SELECT * FROM audit_log WHERE event_type IN ('DELETE', 'UPDATE', 'RLS_V
 - [ ] Written for stressed operators during incidents
 
 **Completeness:**
+
 - [ ] Each playbook has: triggers, immediate actions, investigation, remediation, communication, post-incident
 - [ ] Commands reference actual FraiseQL systems (logs, database, OpenTelemetry)
 - [ ] Templates are realistic and usable

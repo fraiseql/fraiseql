@@ -167,6 +167,7 @@ query GetUsersWithOrders {
 Instead of individual queries for each entity, batch multiple entities:
 
 **Without Batching** (3 separate queries):
+
 ```
 Query 1: WHERE id = 'user-1'     → 20ms
 Query 2: WHERE id = 'user-2'     → 20ms
@@ -176,6 +177,7 @@ Total: 60ms (sequential)
 ```
 
 **With Batching** (1 query for all):
+
 ```
 Query: WHERE id IN ('user-1', 'user-2', 'user-3')  → 25ms
 ─────────────────────────────
@@ -207,6 +209,7 @@ const BATCH_TIMEOUT_MS: u64 = 10;         // Wait max 10ms to batch
 Only fetch fields the query requests:
 
 **Without Projection** (fetch all fields):
+
 ```graphql
 query {
   users(limit: 5) {
@@ -218,6 +221,7 @@ query {
 This may still fetch: id, name, email, phone, address, created_at, updated_at = 200 bytes per user
 
 **With Projection** (fetch only requested):
+
 ```sql
 -- Compiled SQL
 SELECT jsonb_build_object(
@@ -358,6 +362,7 @@ Impact:
 ### Performance Baseline Tests
 
 #### Test 1: Baseline Performance
+
 ```bash
 cargo test test_federation_query_performance_baseline --ignored --nocapture
 ```
@@ -369,6 +374,7 @@ Measures:
 - Baseline for optimization comparison
 
 Expected output:
+
 ```
 ✓ Baseline latency for 3-hop federation query: 145ms
 ✓ Second execution latency: 148ms
@@ -376,6 +382,7 @@ Expected output:
 ```
 
 #### Test 2: Repeated Query Performance
+
 ```bash
 cargo test test_federation_repeated_query_performance --ignored --nocapture
 ```
@@ -387,6 +394,7 @@ Measures:
 - Consistency
 
 Expected output:
+
 ```
 ✓ Repeated query latency analysis:
   1st execution: 145ms
@@ -396,6 +404,7 @@ Expected output:
 ```
 
 #### Test 3: Batch vs Sequential
+
 ```bash
 cargo test test_federation_batch_vs_sequential_performance --ignored --nocapture
 ```
@@ -407,6 +416,7 @@ Measures:
 - Batching efficiency ratio
 
 Expected output:
+
 ```
 ✓ Batch entity resolution performance:
   Batch query (10 users): 125ms
@@ -416,6 +426,7 @@ Expected output:
 ```
 
 #### Test 4: Large Result Set
+
 ```bash
 cargo test test_federation_large_result_set_performance --ignored --nocapture
 ```
@@ -427,6 +438,7 @@ Measures:
 - Memory efficiency
 
 Expected output:
+
 ```
 ✓ Large result set performance:
   Query latency: 340ms
@@ -437,6 +449,7 @@ Expected output:
 ```
 
 #### Test 5: Query Complexity Scaling
+
 ```bash
 cargo test test_federation_query_complexity_scaling --ignored --nocapture
 ```
@@ -448,6 +461,7 @@ Measures:
 - Complexity overhead
 
 Expected output:
+
 ```
 ✓ Query complexity scaling:
   Simple (2-hop, 2 fields): 85ms
@@ -457,6 +471,7 @@ Expected output:
 ```
 
 #### Test 6: Concurrent Queries
+
 ```bash
 cargo test test_federation_concurrent_query_performance --ignored --nocapture
 ```
@@ -468,6 +483,7 @@ Measures:
 - Resource utilization
 
 Expected output:
+
 ```
 ✓ Concurrent query performance:
   Sequential (5 queries): 650ms
@@ -476,6 +492,7 @@ Expected output:
 ```
 
 #### Test 7: Mutation Impact
+
 ```bash
 cargo test test_federation_mutation_impact_on_performance --ignored --nocapture
 ```
@@ -487,6 +504,7 @@ Measures:
 - Cache stability
 
 Expected output:
+
 ```
 ✓ Query performance stability:
   First execution: 125ms
@@ -495,6 +513,7 @@ Expected output:
 ```
 
 #### Test 8: Query Pattern Comparison
+
 ```bash
 cargo test test_federation_different_query_patterns_performance --ignored --nocapture
 ```
@@ -507,6 +526,7 @@ Measures:
 - Pattern recommendations
 
 Expected output:
+
 ```
 ✓ Query pattern performance:
   Filtered (basic): 35ms
@@ -610,6 +630,7 @@ grep "ms" results.txt | grep "✓"
 ### Issue: 3-hop queries >500ms
 
 **Diagnosis**:
+
 ```bash
 # Check individual subgraph latency
 curl -X POST http://localhost:4001/graphql \

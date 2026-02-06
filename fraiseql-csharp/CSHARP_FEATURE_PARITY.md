@@ -23,20 +23,24 @@ This document certifies the feature parity status of FraiseQL C#/.NET with Pytho
 Complete implementation of advanced authorization and security features for C#/.NET:
 
 **Abstract Records (Type-safe enumerations):**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Records (Immutable data types):**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Classes:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
 
 **Attributes (First-class annotation support):**
+
 - `[Authorize]` - Custom authorization rules
 - `[RoleRequired]` - Role-based access control
 - `[AuthzPolicy]` - Authorization policies
@@ -44,6 +48,7 @@ Complete implementation of advanced authorization and security features for C#/.
 ### Builder Methods
 
 **AuthorizeBuilder:**
+
 - `Rule(String)` - Set authorization rule expression
 - `Policy(String)` - Reference named policy
 - `Description(String)` - Set description
@@ -55,6 +60,7 @@ Complete implementation of advanced authorization and security features for C#/.
 - `Build()` - Return configuration
 
 **RoleRequiredBuilder:**
+
 - `Roles(params String[])` - Set required roles (variadic)
 - `RolesArray(List<String>)` - Set roles from list
 - `Strategy(RoleMatchStrategy)` - Role matching strategy
@@ -68,6 +74,7 @@ Complete implementation of advanced authorization and security features for C#/.
 - `Build()` - Return configuration
 
 **AuthzPolicyBuilder:**
+
 - `Type(AuthzPolicyType)` - Policy type
 - `Description(String)` - Policy description
 - `Rule(String)` - Authorization rule
@@ -274,6 +281,7 @@ C#/.NET-specific advantages:
 **Current Status**: 100% Parity across 9 languages (270/270 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

@@ -5,11 +5,13 @@
 ### Task Complexity Assessment
 
 **Simple Tasks** (Single file, config, basic changes):
+
 - Direct execution
 - Minimal planning required
 - Quick validation
 
 **Complex Tasks** (Multi-file, architecture, new features):
+
 - **Phased TDD Approach**
 - Structured planning
 - Disciplined execution cycles
@@ -17,6 +19,7 @@
 ## 🔄 TDD Cycle Methodology
 
 ### Phase Structure
+
 Each development phase follows disciplined TDD cycles:
 
 ```
@@ -32,7 +35,9 @@ Each development phase follows disciplined TDD cycles:
 ```
 
 ### 🔴 RED Phase
+
 Write failing tests that define the expected behavior:
+
 ```bash
 # Write specific failing test
 uv run pytest path/to/test.py::TestClass::test_new_feature -v
@@ -41,12 +46,15 @@ uv run pytest path/to/test.py::TestClass::test_new_feature -v
 ```
 
 **Focus:**
+
 - Clear test case for specific behavior
 - Minimal test scope per cycle
 - Document expected failure reason
 
 ### 🟢 GREEN Phase
+
 Implement minimal code to make the test pass:
+
 ```bash
 # Run the specific test
 uv run pytest path/to/test.py::TestClass::test_new_feature -v
@@ -55,12 +63,15 @@ uv run pytest path/to/test.py::TestClass::test_new_feature -v
 ```
 
 **Focus:**
+
 - Simplest possible implementation
 - No optimization or cleanup yet
 - Just make the test pass
 
 ### 🔧 REFACTOR Phase
+
 Clean up and optimize the working code:
+
 ```bash
 # Run broader test suite to ensure no regressions
 uv run pytest path/to/related_tests/ -v
@@ -70,13 +81,16 @@ uv run pytest
 ```
 
 **Focus:**
+
 - Improve code structure
 - Follow project patterns
 - Maintain all passing tests
 - Performance optimization
 
 ### ✅ QA Phase
+
 Verify overall quality and integration:
+
 ```bash
 # Run complete test suite
 uv run pytest --tb=short
@@ -90,6 +104,7 @@ make test
 ```
 
 **Focus:**
+
 - All tests passing
 - Code quality standards met
 - Integration working correctly
@@ -98,6 +113,7 @@ make test
 ## 📋 Phase Planning Template
 
 ### Complex Task Structure
+
 ```markdown
 # [Task Title] - COMPLEX
 
@@ -143,18 +159,21 @@ make test
 ## 🎯 Development Principles
 
 ### Discipline Over Speed
+
 - **Never skip phases** - Each phase builds confidence
 - **One cycle at a time** - Complete RED/GREEN/REFACTOR/QA before moving
 - **Test-driven decisions** - Tests guide implementation choices
 - **Refactor with confidence** - Comprehensive test coverage enables safe changes
 
 ### Quality Gates
+
 - **RED**: Test fails as expected (validates test logic)
 - **GREEN**: Minimal implementation passes (validates approach)
 - **REFACTOR**: Code improved without breaking tests (validates architecture)
 - **QA**: Full integration works (validates completion)
 
 ### Iteration Strategy
+
 - **Small cycles** - Each RED/GREEN/REFACTOR cycle should be < 30 minutes
 - **Clear objectives** - Each phase has specific, measurable goals
 - **Continuous validation** - Tests run at every step
@@ -171,6 +190,7 @@ make test
 ## 🧪 Testing Strategy
 
 ### Test Categories
+
 ```bash
 uv run pytest --tb=short -v                    # Standard test run
 uv run pytest --cov=src                        # Coverage verification
@@ -180,6 +200,7 @@ uv run pytest tests/integration/               # Integration tests only
 ```
 
 ### Quality Verification
+
 - Run tests at every phase transition
 - Maintain test coverage above project standards
 - Use tests to document expected behavior
@@ -190,15 +211,18 @@ uv run pytest tests/integration/               # Integration tests only
 # 📊 Maestro Analytics Database
 
 ## 🎯 Purpose
+
 The Maestro project includes a comprehensive SQLite analytics database that tracks development iterations, assessments, and progress toward the $100M+ multi-language code generation vision.
 
 ## 🗄️ Database Location
+
 **Path**: `database/maestro_analytics.db`
 **Schema**: `database/maestro_analytics.sql`
 **API**: `database/analytics_db.py`
 **CLI**: `database/analytics_cli.py`
 
 ## 📈 Quick Dashboard Access
+
 ```bash
 # Show current status dashboard (either command works)
 ./analytics dashboard
@@ -215,9 +239,10 @@ The Maestro project includes a comprehensive SQLite analytics database that trac
 
 ## 🔍 Efficient Context Retrieval
 
-### **For Claude Sessions**: Use these queries to quickly understand project context instead of reading multiple files:
+### **For Claude Sessions**: Use these queries to quickly understand project context instead of reading multiple files
 
 #### Current Status Overview
+
 ```bash
 sqlite3 database/maestro_analytics.db "
 SELECT
@@ -232,6 +257,7 @@ ORDER BY priority_score DESC;"
 ```
 
 #### Active Development Focus
+
 ```bash
 sqlite3 database/maestro_analytics.db "
 SELECT
@@ -244,6 +270,7 @@ WHERE status = 'active';"
 ```
 
 #### Outstanding Action Items
+
 ```bash
 sqlite3 database/maestro_analytics.db "
 SELECT
@@ -258,6 +285,7 @@ ORDER BY priority DESC;"
 ```
 
 #### Recent Progress Metrics
+
 ```bash
 sqlite3 database/maestro_analytics.db "
 SELECT
@@ -271,6 +299,7 @@ LIMIT 10;"
 ```
 
 #### Strategic Decisions History
+
 ```bash
 sqlite3 database/maestro_analytics.db "
 SELECT
@@ -287,26 +316,31 @@ LIMIT 5;"
 ## 🎯 Key Tables for Context
 
 ### **assessments** - Strategic vision and gap analysis
+
 - `current_completion_percentage` - Overall project completion (currently 65%)
 - `gaps_identified` - What's missing for multi-language generation
 - `priority_score` - Strategic importance (1-10)
 
 ### **iterations** - Development cycles
+
 - `phase_name` - Current development phase
 - `objectives` - What this iteration aims to achieve
 - `status` - 'active', 'completed', 'planning'
 
 ### **action_items** - Specific tasks
+
 - `title` - Task description
 - `estimated_hours` - Time estimate
 - `status` - 'todo', 'in_progress', 'completed', 'blocked'
 
 ### **progress_metrics** - Quantitative progress
+
 - `codebase_lines` - Lines of code (currently 6,173)
 - `completion_percentage` - Feature completion
 - `languages_supported` - Target languages implemented
 
 ### **decisions** - Architectural choices
+
 - `chosen_path` - What was decided
 - `reasoning` - Why this choice was made
 - `confidence_level` - How confident in decision (1-10)

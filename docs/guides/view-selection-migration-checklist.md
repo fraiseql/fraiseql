@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: View Selection Migration Checklist
 description: - SQL query fundamentals and JOIN optimization
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

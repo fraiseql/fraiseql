@@ -79,6 +79,7 @@ query GetUser($id: Int!) {
 ```
 
 **Variables:**
+
 ```json
 {"id": 1}
 ```
@@ -101,6 +102,7 @@ query GetPosts($limit: Int!) {
 ```
 
 **Variables:**
+
 ```json
 {"limit": 10}
 ```
@@ -205,12 +207,14 @@ config = TurboRouterConfig(
 ## When to Use TurboRouter
 
 ✅ **Good for:**
+
 - High-traffic queries (user profiles, product details)
 - Simple, frequently-called queries
 - Mobile apps with pre-defined queries
 - APIs with stable query patterns
 
 ❌ **Not for:**
+
 - Complex queries with nested resolvers
 - Queries with custom business logic
 - Dynamic queries built at runtime

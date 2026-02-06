@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Authentication Security Checklist
 description: Complete security checklist for FraiseQL authentication deployment.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication", "security"]

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Consistency Model: CAP Theorem in FraiseQL
 description: - CAP theorem fundamentals (Consistency, Availability, Partition Tolerance)
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

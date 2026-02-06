@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Distributed Tracing in FraiseQL v2
 description: FraiseQL v2 provides comprehensive distributed tracing support for tracking requests across service boundaries. Built on W3C Trace Context standards, it enables
 keywords: ["deployment", "scaling", "performance", "monitoring", "troubleshooting"]

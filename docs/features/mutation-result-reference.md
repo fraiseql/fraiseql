@@ -5,6 +5,7 @@
 **📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)**
 
 This new guide provides:
+
 - Complete PostgreSQL function requirements
 - Error handling patterns (including native error arrays)
 - Working examples for all mutation types
@@ -134,6 +135,7 @@ CREATE TYPE mutation_response AS (
 FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Status String Conventions](../archive/mutations/status-strings.md) for complete details.
 
 #### Success States
+
 - `success` - Generic success
 - `new` / `created` - Entity created
 - `updated` - Entity modified
@@ -142,6 +144,7 @@ FraiseQL uses a comprehensive status taxonomy parsed by the Rust layer. See [Sta
 - `ok` - Alternative success
 
 #### Noop States
+
 - `noop:<reason>` - No changes made (e.g., `noop:unchanged`, `noop:duplicate`)
 
 #### Error States
@@ -521,6 +524,7 @@ $$ LANGUAGE plpgsql;
 ---
 
 **Related Documentation**:
+
 - [Mutation SQL Requirements](../guides/mutation-sql-requirements.md) - Comprehensive PostgreSQL function guide
 - [GraphQL Cascade](graphql-cascade.md) - Complete cascade specification
 - [Migration: Add mutation_response](../../migrations/trinity/005_add_mutation_response.sql) - SQL type definition and helpers

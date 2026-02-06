@@ -10,6 +10,7 @@
 ## Objective
 
 Update Rust mutation pipeline to:
+
 1. Return Error type for ALL non-success statuses (including `noop:*`)
 2. Add `code` field to error responses (422, 404, 409, 500)
 3. Ensure Success type never has null entity
@@ -20,11 +21,13 @@ Update Rust mutation pipeline to:
 ## Files to Modify
 
 ### Critical Files (Must Change)
+
 1. `fraiseql_rs/src/mutation/response_builder.rs` - Main response logic
 2. `fraiseql_rs/src/mutation/mod.rs` - Status classification
 3. `fraiseql_rs/src/mutation/types.rs` - Type definitions
 
 ### Supporting Files (May Need Updates)
+
 4. `fraiseql_rs/src/mutation/tests.rs` - Unit tests
 5. `fraiseql_rs/src/mutation/test_status_only.rs` - Status parsing tests
 
@@ -37,6 +40,7 @@ Update Rust mutation pipeline to:
 **File:** `fraiseql_rs/src/mutation/mod.rs`
 
 **Current Logic (WRONG):**
+
 ```rust
 // Line 24 in response_builder.rs
 let response_obj = if result.status.is_success() || result.status.is_noop() {
@@ -47,6 +51,7 @@ let response_obj = if result.status.is_success() || result.status.is_noop() {
 ```
 
 **New Logic (CORRECT):**
+
 ```rust
 let response_obj = if result.status.is_success() {
     build_success_response(...)  // ✅ ONLY true success
@@ -60,6 +65,7 @@ let response_obj = if result.status.is_success() {
 **Location:** `fraiseql_rs/src/mutation/response_builder.rs:24`
 
 **OLD:**
+
 ```rust
 pub fn build_graphql_response(
     result: &MutationResult,
@@ -95,6 +101,7 @@ pub fn build_graphql_response(
 ```
 
 **NEW:**
+
 ```rust
 pub fn build_graphql_response(
     result: &MutationResult,
@@ -144,6 +151,7 @@ pub fn build_graphql_response(
 **File:** `fraiseql_rs/src/mutation/response_builder.rs`
 
 **NEW FUNCTION:**
+
 ```rust
 /// Build error response object with REST-like code field
 ///
@@ -220,6 +228,7 @@ fn map_status_to_code(status: &MutationStatus) -> i32 {
 ```
 
 **DEPRECATE OLD FUNCTION:**
+
 ```rust
 /// Build error response object (DEPRECATED - use build_error_response_with_code)
 ///
@@ -252,6 +261,7 @@ pub fn build_error_response(
 **Location:** `fraiseql_rs/src/mutation/response_builder.rs:79-171`
 
 **ADD VALIDATION:**
+
 ```rust
 pub fn build_success_response(
     result: &MutationResult,
@@ -302,6 +312,7 @@ pub fn build_success_response(
 **File:** `fraiseql_rs/src/mutation/mod.rs`
 
 **Current Methods:**
+
 ```rust
 impl MutationStatus {
     pub fn is_success(&self) -> bool {
@@ -327,6 +338,7 @@ impl MutationStatus {
 ```
 
 **New Methods:**
+
 ```rust
 impl MutationStatus {
     pub fn is_success(&self) -> bool {
@@ -406,6 +418,7 @@ impl MutationStatus {
 **Review:** Check if `MutationResult` struct needs updates
 
 **Current:**
+
 ```rust
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FullResponse {
@@ -586,6 +599,7 @@ fn test_success_is_not_error() {
 ## Verification Checklist
 
 ### Code Changes
+
 - [ ] `response_builder.rs:24` - Remove `|| result.status.is_noop()`
 - [ ] `response_builder.rs` - Add `build_error_response_with_code` function
 - [ ] `response_builder.rs` - Add `map_status_to_code` function
@@ -596,6 +610,7 @@ fn test_success_is_not_error() {
 - [ ] `mod.rs` - Add `application_code()` method
 
 ### Testing
+
 - [ ] All existing tests updated for new behavior
 - [ ] New test: `test_noop_returns_error_type_v1_9`
 - [ ] New test: `test_not_found_returns_error_type_with_404`
@@ -604,6 +619,7 @@ fn test_success_is_not_error() {
 - [ ] All unit tests pass (`cargo test`)
 
 ### Documentation
+
 - [ ] Add inline comments explaining v1.8.0 changes
 - [ ] Update function doc comments
 - [ ] Add deprecation notices for old functions
@@ -613,6 +629,7 @@ fn test_success_is_not_error() {
 ## Expected Output After Phase 1
 
 **Before:**
+
 ```json
 {
   "data": {
@@ -627,6 +644,7 @@ fn test_success_is_not_error() {
 ```
 
 **After:**
+
 ```json
 {
   "data": {
@@ -646,6 +664,7 @@ fn test_success_is_not_error() {
 ## Next Steps
 
 Once Phase 1 is complete:
+
 1. Run full Rust test suite: `cargo test`
 2. Run Rust benchmarks to ensure no regression
 3. Commit changes: `git commit -m "feat(mutations)!: validation as Error type (v1.8.0) [RUST]"`

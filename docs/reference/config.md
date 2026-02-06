@@ -50,6 +50,7 @@ Configuration values can be set via:
 - **Description**: PostgreSQL connection URL with JSONB support required
 
 **Formats**:
+
 ```python
 # Standard PostgreSQL URL
 "postgresql://user:password@host:port/database"
@@ -64,6 +65,7 @@ Configuration values can be set via:
 **Environment Variable**: `FRAISEQL_DATABASE_URL`
 
 **Examples**:
+
 ```python
 # Direct
 config = FraiseQLConfig(database_url="postgresql://localhost/mydb")
@@ -101,6 +103,7 @@ FRAISEQL_DATABASE_URL=postgresql://localhost/mydb
 - **Description**: Enable SQL query logging (development only)
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -120,6 +123,7 @@ config = FraiseQLConfig(
 Applied to all text fields in ORDER BY unless overridden per-field in queries.
 
 **Common Values**:
+
 - `"C"` - Byte-order sorting (fastest, case-sensitive)
 - `"POSIX"` - Equivalent to `"C"`
 - `"en_US.utf8"` - US English locale-aware sorting
@@ -130,6 +134,7 @@ Applied to all text fields in ORDER BY unless overridden per-field in queries.
 **Environment Variable**: `FRAISEQL_DEFAULT_STRING_COLLATION`
 
 **Examples**:
+
 ```python
 # Global default for French locale
 config = FraiseQLConfig(
@@ -149,6 +154,7 @@ query {
 ```
 
 **Performance**: For best performance with collation, create matching indexes:
+
 ```sql
 CREATE INDEX idx_users_name_fr
 ON users ((data->>'name') COLLATE "fr_FR.utf8");
@@ -177,11 +183,13 @@ ON users ((data->>'name') COLLATE "fr_FR.utf8");
 - **Description**: Current environment mode
 
 **Impact**:
+
 - `production`: Disables playground and introspection by default
 - `development`: Enables debugging features
 - `testing`: Used for test suites
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -208,6 +216,7 @@ config = FraiseQLConfig(
 | `IntrospectionPolicy.AUTHENTICATED` | Introspection only for authenticated users |
 
 **Examples**:
+
 ```python
 from fraiseql.fastapi.config import IntrospectionPolicy
 
@@ -256,6 +265,7 @@ config = FraiseQLConfig(
 - **Description**: Auto-convert snake_case fields to camelCase in GraphQL
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -394,6 +404,7 @@ config = FraiseQLConfig(
 - **Description**: Field count threshold for full data column (default: 20)
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -409,10 +420,12 @@ config = FraiseQLConfig(
 **v0.11.5 Architectural Change**: FraiseQL now uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic.
 
 **Configuration Options**:
+
 - `field_projection: bool = True` - Enable Rust-based field filtering
 - `schema_registry: bool = True` - Enable schema-based transformation
 
 **Benefits**:
+
 - ✅ **Single execution path** - PostgreSQL → Rust → HTTP
 - ✅ **7-10x faster JSON transformation** - Zero Python overhead
 - ✅ **Always active** - No configuration needed
@@ -486,6 +499,7 @@ config = FraiseQLConfig(
 - **Description**: Development mode password
 
 **Examples**:
+
 ```python
 # Auth0 configuration
 config = FraiseQLConfig(
@@ -536,6 +550,7 @@ config = FraiseQLConfig(
 - **Description**: Allowed headers for CORS requests
 
 **Examples**:
+
 ```python
 # Production CORS (specific origins)
 config = FraiseQLConfig(
@@ -595,6 +610,7 @@ config = FraiseQLConfig(
 - **Description**: IP addresses to blacklist
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -645,6 +661,7 @@ config = FraiseQLConfig(
 - **Description**: Custom field complexity multipliers
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -710,6 +727,7 @@ When set, all `.graphql` and `.gql` files in this directory (recursively) will b
 - **Description**: Backend-specific configuration options
 
 **Examples**:
+
 ```python
 # APQ with PostgreSQL backend
 config = FraiseQLConfig(
@@ -786,6 +804,7 @@ config = FraiseQLConfig(
 - **Description**: Enable schema-based transformation
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -809,6 +828,7 @@ config = FraiseQLConfig(
 - **Description**: Default schema for queries when not specified
 
 **Examples**:
+
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
@@ -826,6 +846,7 @@ config = FraiseQLConfig(
 - **Description**: Default error configuration for all mutations when not explicitly specified in the `@mutation` decorator
 
 **Impact**:
+
 - When set, all mutations without an explicit `error_config` parameter will use this global default
 - Individual mutations can override the global default by specifying `error_config` in the decorator
 - Only used in non-HTTP mode (direct GraphQL execution); HTTP mode uses [status string taxonomy](../archive/mutations/status-strings.md)
@@ -905,17 +926,20 @@ class DeleteUser:
 ```
 
 **Resolution Order**:
+
 1. Explicit `error_config` in `@mutation` decorator (highest priority)
 2. `default_error_config` from `FraiseQLConfig`
 3. `None` (no error configuration, uses default behavior)
 
 **Benefits**:
+
 - **DRY Principle**: Set error handling once, apply everywhere
 - **Environment-aware**: Different configs for dev/staging/prod
 - **Maintainability**: Change error strategy in one place
 - **Flexibility**: Override per-mutation when needed
 
 **See Also**:
+
 - [Mutation Decorator](./decorators.md#fraiseqlmutation) - Mutation decorator reference
 - [Status Strings](../archive/mutations/status-strings.md) - Status string conventions (HTTP mode)
 
@@ -928,6 +952,7 @@ class DeleteUser:
 - **Description**: Configuration for entity-aware query routing (optional)
 
 **Examples**:
+
 ```python
 from fraiseql.routing.config import EntityRoutingConfig
 

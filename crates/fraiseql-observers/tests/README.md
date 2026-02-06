@@ -65,21 +65,25 @@ docker-compose -f docker-compose.nats-distributed.yml up -d
 ### Running Tests
 
 **All integration tests with Redis**:
+
 ```bash
 cargo test --test integration_test --features "postgres,dedup,caching,testing"
 ```
 
 **With NATS tests enabled**:
+
 ```bash
 cargo test --test integration_test --features "postgres,dedup,caching,nats,testing"
 ```
 
 **Run specific test**:
+
 ```bash
 cargo test --test integration_test test_full_pipeline_with_deduplication --features "postgres,dedup,caching,testing"
 ```
 
 **With output logging**:
+
 ```bash
 cargo test --test integration_test --features "postgres,dedup,caching,testing" -- --nocapture
 ```
@@ -119,6 +123,7 @@ test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 **Error**: `Failed to connect to Redis`
 
 **Solution**:
+
 ```bash
 # Check Redis is running
 docker-compose -f docker-compose.postgres-redis.yml ps redis
@@ -145,6 +150,7 @@ REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features 
 **Error**: `no tests to run matching...`
 
 **Solution**: Make sure to include all required features:
+
 ```bash
 cargo test --test integration_test --features "postgres,dedup,caching,testing"
 ```
@@ -152,6 +158,7 @@ cargo test --test integration_test --features "postgres,dedup,caching,testing"
 ## Performance Benchmarks
 
 For detailed performance benchmarking, see:
+
 ```bash
 cargo bench --bench observer_benchmarks
 ```

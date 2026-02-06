@@ -29,21 +29,25 @@ All operators are available through the GraphQL `where` input types and are auto
 **Use Case**: Filter records based on PostgreSQL array columns or JSONB arrays
 
 **Requirements**:
+
 - PostgreSQL array columns (e.g., `TEXT[]`, `INTEGER[]`) or JSONB arrays
 - GIN indexes recommended for performance
 
 **Key Feature**: FraiseQL automatically detects whether you're filtering on native array columns or JSONB arrays and uses the optimal operator:
+
 - **Native columns** (e.g., `tags TEXT[]`): Uses `&&` operator with GIN index
 - **JSONB arrays** (e.g., `data->'tags'`): Uses `?|` operator
 
 ### Available Operators
 
 #### `eq` - Array Equality
+
 **Description**: Exact array match (same elements in same order)
 **GraphQL Type**: `[String]` (or appropriate array type)
 **PostgreSQL Operator**: `=`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -57,6 +61,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 SELECT * FROM v_product
 WHERE tags = ARRAY['electronics', 'gadget']::text[]
@@ -65,11 +70,13 @@ WHERE tags = ARRAY['electronics', 'gadget']::text[]
 ---
 
 #### `neq` - Array Inequality
+
 **Description**: Arrays are not equal
 **GraphQL Type**: `[String]`
 **PostgreSQL Operator**: `!=`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -84,11 +91,13 @@ query {
 ---
 
 #### `contains` - Array Contains Element
+
 **Description**: Array contains the specified element
 **GraphQL Type**: `String` (single element)
 **PostgreSQL Operator**: `@>`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -102,6 +111,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 -- Native array column
 WHERE tags @> ARRAY['electronics']::text[]
@@ -111,6 +121,7 @@ WHERE data->'tags' @> '["electronics"]'::jsonb
 ```
 
 **Performance Note**: Create GIN index for fast containment queries:
+
 ```sql
 CREATE INDEX idx_products_tags ON tb_product USING gin(tags);
 ```
@@ -118,11 +129,13 @@ CREATE INDEX idx_products_tags ON tb_product USING gin(tags);
 ---
 
 #### `contained_by` - Array Contained By
+
 **Description**: Array is a subset of the provided array
 **GraphQL Type**: `[String]`
 **PostgreSQL Operator**: `<@`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -140,11 +153,13 @@ query {
 ---
 
 #### `overlaps` - Array Overlaps (Intersection)
+
 **Description**: Arrays have at least one element in common
 **GraphQL Type**: `[String]`
 **PostgreSQL Operators**: `&&` (native) or `?|` (JSONB) - automatically selected
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -158,6 +173,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 -- Native array column (optimal performance with GIN index)
 WHERE tags && ARRAY['electronics', 'featured']::text[]
@@ -167,6 +183,7 @@ WHERE data->'tags' ?| '{"electronics","featured"}'
 ```
 
 **Performance Note**: This is the most common array filter operator. Always use GIN indexes:
+
 ```sql
 CREATE INDEX idx_products_tags_gin ON tb_product USING gin(tags);
 ```
@@ -174,11 +191,13 @@ CREATE INDEX idx_products_tags_gin ON tb_product USING gin(tags);
 ---
 
 #### `len_eq`, `len_neq`, `len_gt`, `len_gte`, `len_lt`, `len_lte` - Array Length
+
 **Description**: Compare array length
 **GraphQL Type**: `Int`
 **PostgreSQL Function**: `array_length(arr, 1)` or `jsonb_array_length()`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -192,6 +211,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 -- Native array
 WHERE array_length(tags, 1) >= 3
@@ -205,11 +225,13 @@ WHERE jsonb_array_length(data->'tags') >= 3
 ---
 
 #### `any_eq` - Any Element Equals
+
 **Description**: At least one array element equals the value
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `= ANY()`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -222,6 +244,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE 'premium' = ANY(tags)
 ```
@@ -229,11 +252,13 @@ WHERE 'premium' = ANY(tags)
 ---
 
 #### `all_eq` - All Elements Equal
+
 **Description**: All array elements equal the value
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `= ALL()`
 
 **Example**:
+
 ```graphql
 query {
   statuses(where: {
@@ -254,6 +279,7 @@ query {
 **Use Case**: Search text content with PostgreSQL's full-text search capabilities
 
 **Requirements**:
+
 - `tsvector` column in your table
 - GIN index on the tsvector column (critical for performance)
 - Trigger to auto-update tsvector on INSERT/UPDATE
@@ -275,6 +301,7 @@ FOR EACH ROW EXECUTE FUNCTION
 ```
 
 Expose in your view:
+
 ```sql
 CREATE VIEW v_post AS
 SELECT
@@ -292,11 +319,13 @@ FROM tb_post;
 ### Available Operators
 
 #### `matches` - Basic Text Search
+
 **Description**: Match tsvector against tsquery
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `@@`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -309,6 +338,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE search_vector @@ to_tsquery('english', 'python')
 ```
@@ -316,11 +346,13 @@ WHERE search_vector @@ to_tsquery('english', 'python')
 ---
 
 #### `plain_query` - Plain Text Query
+
 **Description**: Convert plain text to tsquery (AND between words)
 **GraphQL Type**: `String`
 **PostgreSQL Function**: `plainto_tsquery()`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -333,6 +365,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE search_vector @@ plainto_tsquery('english', 'javascript tutorial')
 ```
@@ -342,11 +375,13 @@ WHERE search_vector @@ plainto_tsquery('english', 'javascript tutorial')
 ---
 
 #### `phrase_query` - Phrase Search
+
 **Description**: Search for exact phrase
 **GraphQL Type**: `String`
 **PostgreSQL Function**: `phraseto_tsquery()`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -359,6 +394,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE search_vector @@ phraseto_tsquery('english', 'programming basics')
 ```
@@ -368,11 +404,13 @@ WHERE search_vector @@ phraseto_tsquery('english', 'programming basics')
 ---
 
 #### `websearch_query` - Web-Style Search
+
 **Description**: Web search engine style queries (supports OR, quotes, -)
 **GraphQL Type**: `String`
 **PostgreSQL Function**: `websearch_to_tsquery()`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -385,11 +423,13 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE search_vector @@ websearch_to_tsquery('english', 'javascript OR python')
 ```
 
 **Supported Syntax**:
+
 - `javascript OR python` - Either term
 - `javascript -tutorial` - JavaScript but NOT tutorial
 - `"exact phrase"` - Exact phrase match
@@ -398,11 +438,13 @@ WHERE search_vector @@ websearch_to_tsquery('english', 'javascript OR python')
 ---
 
 #### `rank_gt`, `rank_gte`, `rank_lt`, `rank_lte` - Relevance Ranking
+
 **Description**: Filter by relevance score
 **GraphQL Type**: `Float`
 **PostgreSQL Function**: `ts_rank()`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -418,6 +460,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE search_vector @@ plainto_tsquery('english', 'python')
   AND ts_rank(search_vector, plainto_tsquery('english', 'python')) > 0.1
@@ -428,11 +471,13 @@ WHERE search_vector @@ plainto_tsquery('english', 'python')
 ---
 
 #### `rank_cd_gt`, `rank_cd_gte`, `rank_cd_lt`, `rank_cd_lte` - Cover Density Ranking
+
 **Description**: Filter by cover density (proximity of matching terms)
 **GraphQL Type**: `Float`
 **PostgreSQL Function**: `ts_rank_cd()`
 
 **Example**:
+
 ```graphql
 query {
   posts(where: {
@@ -456,10 +501,12 @@ query {
 **Use Case**: Query and filter JSONB columns for structure and content
 
 **Requirements**:
+
 - JSONB column type
 - GIN index recommended for key/containment operations
 
 **Performance Setup**:
+
 ```sql
 -- GIN index for key existence and containment
 CREATE INDEX idx_product_attributes ON tb_product USING gin(attributes);
@@ -472,11 +519,13 @@ CREATE INDEX idx_product_attributes_path ON tb_product
 ### Available Operators
 
 #### `has_key` - Key Existence
+
 **Description**: JSONB object has the specified key
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `?`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -489,6 +538,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE attributes ? 'ram'
 ```
@@ -498,11 +548,13 @@ WHERE attributes ? 'ram'
 ---
 
 #### `has_any_keys` - Any Key Exists
+
 **Description**: JSONB has at least one of the specified keys
 **GraphQL Type**: `[String]`
 **PostgreSQL Operator**: `?|`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -515,6 +567,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE attributes ?| ARRAY['ram', 'storage']
 ```
@@ -522,11 +575,13 @@ WHERE attributes ?| ARRAY['ram', 'storage']
 ---
 
 #### `has_all_keys` - All Keys Exist
+
 **Description**: JSONB has all of the specified keys
 **GraphQL Type**: `[String]`
 **PostgreSQL Operator**: `?&`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -539,6 +594,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE attributes ?& ARRAY['brand', 'storage']
 ```
@@ -546,11 +602,13 @@ WHERE attributes ?& ARRAY['brand', 'storage']
 ---
 
 #### `contains` - JSONB Contains
+
 **Description**: Left JSONB contains right JSONB
 **GraphQL Type**: `JSON` (dict or list)
 **PostgreSQL Operator**: `@>`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -563,6 +621,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE attributes @> '{"brand": "Apple"}'::jsonb
 ```
@@ -572,11 +631,13 @@ WHERE attributes @> '{"brand": "Apple"}'::jsonb
 ---
 
 #### `strictly_contains` - Strict JSONB Contains
+
 **Description**: Same as `contains` but with type coercion
 **GraphQL Type**: `JSON`
 **PostgreSQL Operator**: `@>`
 
 **Example**:
+
 ```graphql
 query {
   configs(where: {
@@ -591,11 +652,13 @@ query {
 ---
 
 #### `contained_by` - JSONB Contained By
+
 **Description**: Left JSONB is contained by right JSONB
 **GraphQL Type**: `JSON`
 **PostgreSQL Operator**: `<@`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -612,11 +675,13 @@ query {
 ---
 
 #### `path_exists` - JSONPath Exists
+
 **Description**: JSONPath query returns any results
 **GraphQL Type**: `String` (JSONPath expression)
 **PostgreSQL Operator**: `@?`
 
 **Example**:
+
 ```graphql
 query {
   orders(where: {
@@ -628,6 +693,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE metadata @? '$.items[*].price'
 ```
@@ -637,11 +703,13 @@ WHERE metadata @? '$.items[*].price'
 ---
 
 #### `path_match` - JSONPath Match
+
 **Description**: JSONPath query predicate matches
 **GraphQL Type**: `String` (JSONPath predicate)
 **PostgreSQL Operator**: `@@`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -654,6 +722,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE attributes @@ '$.price < 100'
 ```
@@ -661,11 +730,13 @@ WHERE attributes @@ '$.price < 100'
 ---
 
 #### `get_path` - Get JSON Path Value
+
 **Description**: Extract value at JSON path
 **GraphQL Type**: `[String]` (path array)
 **PostgreSQL Operator**: `#>`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -678,6 +749,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE metadata #> '{specs,cpu}' = '"Intel i7"'::jsonb
 ```
@@ -685,11 +757,13 @@ WHERE metadata #> '{specs,cpu}' = '"Intel i7"'::jsonb
 ---
 
 #### `get_path_text` - Get JSON Path as Text
+
 **Description**: Extract value at JSON path as text
 **GraphQL Type**: `[String]` (path array)
 **PostgreSQL Operator**: `#>>`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -702,6 +776,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE metadata #>> '{specs,cpu}' LIKE '%Intel%'
 ```
@@ -719,11 +794,13 @@ WHERE metadata #>> '{specs,cpu}' LIKE '%Intel%'
 ### Available Operators
 
 #### `matches` - Regex Match
+
 **Description**: Text matches POSIX regular expression
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `~`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -736,6 +813,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE sku ~ '^PROD-[0-9]{4}$'
 ```
@@ -745,11 +823,13 @@ WHERE sku ~ '^PROD-[0-9]{4}$'
 ---
 
 #### `imatches` - Case-Insensitive Regex
+
 **Description**: Case-insensitive regex match
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `~*`
 
 **Example**:
+
 ```graphql
 query {
   users(where: {
@@ -762,6 +842,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE email ~* '.*@company\.com$'
 ```
@@ -769,11 +850,13 @@ WHERE email ~* '.*@company\.com$'
 ---
 
 #### `not_matches` - Negated Regex
+
 **Description**: Text does NOT match regex
 **GraphQL Type**: `String`
 **PostgreSQL Operator**: `!~`
 
 **Example**:
+
 ```graphql
 query {
   products(where: {
@@ -786,6 +869,7 @@ query {
 ```
 
 **SQL Generated**:
+
 ```sql
 WHERE name !~ '^(test|demo)'
 ```
@@ -801,6 +885,7 @@ WHERE name !~ '^(test|demo)'
 Operators are only available for compatible field types. The GraphQL schema will only expose operators that make sense for each field:
 
 **Works**:
+
 ```graphql
 query {
   products(where: { tags: { overlaps: ["electronics"] } }) { id }  # ✅ Array field
@@ -809,6 +894,7 @@ query {
 ```
 
 **Fails at GraphQL validation**:
+
 ```graphql
 query {
   products(where: { id: { overlaps: ["foo"] } }) { id }  # ❌ ID is not an array
@@ -821,11 +907,13 @@ query {
 Some specialized operators require explicit type information:
 
 **Required**:
+
 - Typed Pydantic models with proper annotations
 - GraphQL schema (provides type information)
 - Table/view with known column types
 
 **May return `None` (no filter)**:
+
 - Dynamic queries without type hints
 - Applying specialized operators to incompatible types
 
@@ -838,16 +926,19 @@ This is intentional to prevent incorrect SQL generation.
 ### Indexing Strategy
 
 **Array operators** - Use GIN indexes:
+
 ```sql
 CREATE INDEX idx_products_tags ON tb_product USING gin(tags);
 ```
 
 **Full-text search** - GIN index is essential:
+
 ```sql
 CREATE INDEX idx_posts_search ON tb_post USING gin(search_vector);
 ```
 
 **JSONB operators**:
+
 ```sql
 -- General purpose (supports all operations)
 CREATE INDEX idx_product_attrs ON tb_product USING gin(attributes);
@@ -858,6 +949,7 @@ CREATE INDEX idx_product_attrs_path ON tb_product
 ```
 
 **Text regex** - Cannot be indexed. Consider alternatives:
+
 - Use full-text search for text content
 - Use `LIKE` with prefix (`name LIKE 'prefix%'`) which can use btree index
 - Consider computed columns with functional indexes if pattern is fixed
@@ -865,6 +957,7 @@ CREATE INDEX idx_product_attrs_path ON tb_product
 ### Query Optimization
 
 **1. Combine filters efficiently**:
+
 ```graphql
 query {
   products(where: {
@@ -877,6 +970,7 @@ query {
 ```
 
 **2. Avoid sequential scans**:
+
 ```graphql
 # ❌ Bad: Regex without index
 products(where: { name: { matches: ".*widget.*" } })
@@ -886,6 +980,7 @@ products(where: { searchVector: { plain_query: "widget" } })
 ```
 
 **3. Use relevance ranking for full-text**:
+
 ```graphql
 query {
   posts(where: {
@@ -901,6 +996,7 @@ query {
 ```
 
 **4. Limit result sets**:
+
 ```graphql
 query {
   products(
@@ -983,12 +1079,14 @@ query {
 If you're currently using basic `eq`, `in`, etc., you can now use advanced operators:
 
 **Before**:
+
 ```graphql
 # Limited to exact match
 products(where: { tags: { in: ["electronics"] } })
 ```
 
 **After**:
+
 ```graphql
 # Rich array operations
 products(where: {
@@ -1026,6 +1124,7 @@ class Product:
 
 **Problem**: Slow queries on tables with many rows
 **Solution**:
+
 1. Add appropriate indexes (GIN for arrays/JSONB/fulltext)
 2. Use `EXPLAIN ANALYZE` to verify index usage
 3. Add `limit` to queries
@@ -1035,12 +1134,14 @@ class Product:
 
 **Problem**: `tsvector` not properly configured
 **Solution**:
+
 1. Verify `tsvector` column exists and is populated
 2. Check trigger is updating `tsvector` on changes
 3. Verify language configuration matches your content
 4. Use `ts_debug()` to troubleshoot tokenization
 
 **Debug query**:
+
 ```sql
 SELECT * FROM ts_debug('english', 'your search text');
 ```

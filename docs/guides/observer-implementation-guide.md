@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Observer Implementation Guide
 description: Step-by-step implementation guide for setting up event-driven workflows using FraiseQL Observers and webhooks.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

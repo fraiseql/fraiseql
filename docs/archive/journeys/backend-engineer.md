@@ -9,6 +9,7 @@
 As a senior backend engineer evaluating FraiseQL for production use, you need concrete answers about performance, architecture, migration effort, and operational complexity. This journey focuses on the technical deep-dive you need to make a confident recommendation.
 
 By the end, you'll have:
+
 - Reproducible performance benchmarks (7-10x claims verified)
 - Clear migration path from your current framework
 - Understanding of Rust pipeline architecture
@@ -24,6 +25,7 @@ By the end, you'll have:
 **Read:** [FraiseQL Philosophy](../core/fraiseql-philosophy/)
 
 **Key Questions Answered:**
+
 - Why "database-first" approach?
 - How does zero-copy JSONB work?
 - What's the trinity pattern and why?
@@ -37,11 +39,13 @@ By the end, you'll have:
 **Read:** [Rust Pipeline Integration](../core/rust-pipeline-integration/)
 
 **Key Concepts:**
+
 - Zero-copy JSONB processing
 - Rust JSON serialization (7-10x faster than Python)
 - How the Rust pipeline integrates with Python GraphQL layer
 
 **Explore Existing Benchmarks:**
+
 ```bash
 # Review available benchmarks in the repository
 cd benchmarks/
@@ -58,6 +62,7 @@ python rust_vs_python_benchmark.py  # Rust vs Python JSON performance
 **Goal:** Estimate migration effort from your current framework
 
 **Read:**
+
 - [Migration Guides Overview](../migration/README/)
 - Framework-specific guides:
   - [From Strawberry](../migration/from-strawberry/) - 2-3 weeks
@@ -76,6 +81,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
 | **Strawberry** | ⭐⭐ Medium | 2-3 weeks (2 engineers) | Database restructuring |
 
 **Key Migration Steps (All Frameworks):**
+
 1. Audit your current schema (types, resolvers, mutations)
 2. Create PostgreSQL views using trinity pattern (tb_/v_/tv_)
 3. Convert resolvers to FraiseQL decorators
@@ -83,6 +89,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
 5. Deploy using blue-green strategy
 
 **Migration Effort Breakdown:**
+
 - Schema mapping: 20% of effort
 - Resolver conversion: 50% of effort
 - Testing: 30% of effort
@@ -98,6 +105,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
 **Key Features to Evaluate:**
 
 1. **Row-Level Security (RLS):**
+
    ```sql
    -- Automatic tenant isolation
    ALTER TABLE tb_user ENABLE ROW LEVEL SECURITY;
@@ -106,6 +114,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
    ```
 
 2. **Computed Views:**
+
    ```sql
    -- Pre-computed aggregations
    CREATE VIEW tv_user_stats AS
@@ -115,6 +124,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
    ```
 
 3. **Connection Pooling:**
+
    ```python
    # Production-ready connection pool configuration
    app = create_fraiseql_app(
@@ -126,6 +136,7 @@ Choose your framework-specific guide for detailed migration steps, code examples
        production=True
    )
    ```
+
    **Defaults:** 10 connections (dev), 20 connections (production)
    **For detailed tuning:** See [Database Configuration](../core/configuration/)
 
@@ -138,12 +149,14 @@ Choose your framework-specific guide for detailed migration steps, code examples
 **Read:** [Production Deployment](../production/deployment/)
 
 **Key Operational Aspects:**
+
 - **Monitoring:** Prometheus metrics, Grafana dashboards
 - **Logging:** Structured logs with correlation IDs
 - **Health Checks:** Built-in `/health` endpoint
 - **Incident Response:** Runbook for common issues
 
 **Deployment Commands:**
+
 ```bash
 # Health check (liveness probe)
 curl http://localhost:8000/health
@@ -164,12 +177,14 @@ curl http://localhost:8000/metrics
 **Read:** [Security Configuration](../security/configuration/)
 
 **Security Features:**
+
 - **Cryptographic Audit Trails:** SHA-256 + HMAC chains
 - **KMS Integration:** AWS KMS, GCP KMS, Vault
 - **SLSA Provenance:** Supply chain security verification
 - **Security Profiles:** STANDARD/REGULATED/RESTRICTED modes
 
 **Compliance Evidence:**
+
 - **FedRAMP:** Security profiles map to FedRAMP controls
 - **NIST 800-53:** Control mappings available
 - **SOC 2:** Audit trails and access logging
@@ -183,18 +198,21 @@ curl http://localhost:8000/metrics
 **Risk Assessment:**
 
 **✅ Advantages:**
+
 - 7-10x JSON performance → Lower infrastructure costs
 - Zero-copy architecture → Predictable scaling
 - Built-in security → Faster compliance audits
 - Database-first → Easier schema evolution
 
 **⚠️ Risks:**
+
 - Smaller community than Strawberry/Graphene
 - Rust toolchain required in CI/CD
 - Team learning curve: Trinity pattern, Rust integration
 - Vendor lock-in (PostgreSQL + specific patterns)
 
 **Decision Framework:**
+
 - **Adopt if:** Performance-critical, PostgreSQL shop, need compliance features
 - **Consider alternatives if:** Small team, simple API, multi-database support needed
 
@@ -212,32 +230,38 @@ curl http://localhost:8000/metrics
 ## Next Steps
 
 **If recommending FraiseQL:**
+
 1. **Pilot Project:** Start with 1 service, 2-week timeline
 2. **Team Training:** 1-day workshop on trinity pattern + Rust pipeline
 3. **Migration Plan:** Use Confiture tool for schema migration
 4. **Production Setup:** Follow deployment checklist
 
 **If not recommending:**
+
 1. **Keep Monitoring:** Community growth, enterprise adoption
 2. **Alternative Evaluation:** Graphene-Python, Strawberry, PostGraphile
 
 **Resources:**
+
 - [Performance Benchmarks](../../benchmarks/)
 - [Production Runbooks](../production/)
 
 ## Questions for the Team
 
 **Technical Questions:**
+
 - Do we need the performance gains for our scale?
 - Can we commit to PostgreSQL-only architecture?
 - Is the team comfortable with Rust in the stack?
 
 **Business Questions:**
+
 - What's our timeline for GraphQL framework decision?
 - Do we have compliance requirements (FedRAMP, SOC 2)?
 - What's the cost of current performance issues?
 
 **Organizational Questions:**
+
 - Can we allocate 2-3 weeks for migration?
 - Do we have Rust experience on the team?
 - What's our risk tolerance for newer frameworks?</content>

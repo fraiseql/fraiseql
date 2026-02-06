@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Compilation Pipeline Architecture
 description: The **compilation pipeline** transforms an authoring-layer schema (Python, TypeScript, YAML, etc.) into a **CompiledSchema** — a database-agnostic JSON artifact
 keywords: ["design", "scalability", "performance", "patterns", "security"]

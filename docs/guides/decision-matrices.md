@@ -111,12 +111,14 @@ flowchart TD
 ### ✅ JSONB View (`v_*`) - DEFAULT CHOICE
 
 **Use when:**
+
 - Read:write ratio is moderate (< 50:1)
 - Query latency of 5-10ms is acceptable
 - You want simplicity (no sync logic needed)
 - Data must always be current
 
 **Example:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -143,12 +145,14 @@ class User:
 ### ⚡ Projection Table (`tv_*`) - HIGH PERFORMANCE
 
 **Use when:**
+
 - Read:write ratio is very high (> 100:1)
 - You need sub-millisecond query latency
 - You can implement sync functions in mutations
 - Stale data for a few milliseconds is acceptable
 
 **Example:**
+
 ```sql
 -- Regular table storing cached JSONB
 CREATE TABLE tv_user (
@@ -182,11 +186,13 @@ $$ LANGUAGE plpgsql;
 ### 📊 Materialized View - AGGREGATIONS
 
 **Use when:**
+
 - Pre-computing expensive aggregations (COUNT, SUM, etc.)
 - Batch refresh is acceptable
 - Rarely used in FraiseQL (projection tables preferred)
 
 **Example:**
+
 ```sql
 CREATE MATERIALIZED VIEW user_post_stats AS
 SELECT
@@ -312,12 +318,14 @@ query {
 **Best practices:**
 
 ✅ **DO:**
+
 - Always use `pk_*` for foreign keys in `tb_*` tables
 - Always expose `id` in GraphQL types
 - Add `identifier` for entities with public URLs
 - Index all three for query performance
 
 ❌ **DON'T:**
+
 - Expose `pk_*` in GraphQL (security risk)
 - Use `id` for foreign keys (slower JOINs)
 - Use `identifier` as foreign key (can change)
@@ -406,34 +414,40 @@ flowchart TD
 ### Function-Based (Simple)
 
 ✅ **Use when:**
+
 - Mutation rarely fails
 - Exceptions are acceptable error handling
 - Quick prototyping
 - Simple CRUD operations
 
 **Pros:**
+
 - Less boilerplate
 - Easier to understand
 - Faster to write
 
 **Cons:**
+
 - Errors are GraphQL exceptions (not typed)
 - No structured error responses
 
 ### Class-Based (Explicit Errors)
 
 ✅ **Use when:**
+
 - Mutation has multiple failure modes
 - Client needs structured error responses
 - Production APIs with robust error handling
 - Complex validation logic
 
 **Pros:**
+
 - Typed success/failure responses
 - Client can handle errors programmatically
 - Better for production APIs
 
 **Cons:**
+
 - More boilerplate
 - Requires defining success/failure types
 
@@ -660,6 +674,7 @@ config = FraiseQLConfig(
 **When to choose FraiseQL:**
 
 ✅ **Choose FraiseQL if:**
+
 - You have or want PostgreSQL expertise
 - Performance is critical (Rust pipeline advantage)
 - You prefer business logic in database (CQRS pattern)
@@ -667,6 +682,7 @@ config = FraiseQLConfig(
 - Your team is comfortable with SQL
 
 ❌ **Consider alternatives if:**
+
 - You need pure Python business logic (Strawberry)
 - You have existing Django app (Graphene + Django)
 - Your team doesn't know SQL well

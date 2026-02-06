@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.4: Type System
-description: FraiseQL's type system is the bridge between your database schema and your GraphQL API. Every column in your database maps to a type in your schema, which maps 
+description: FraiseQL's type system is the bridge between your database schema and your GraphQL API. Every column in your database maps to a type in your schema, which maps
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]
 tags: ["documentation", "reference"]
 ---

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Tutorials
 description: Complete, hands-on tutorials for building real-world applications with FraiseQL. Each tutorial focuses on practical schema authoring patterns in different progr
 keywords: ["project", "hands-on", "learning", "example", "step-by-step"]

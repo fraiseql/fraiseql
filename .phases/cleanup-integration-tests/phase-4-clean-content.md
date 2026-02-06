@@ -1,10 +1,13 @@
 # Phase 4: Clean Content - Remove Development Markers (REFACTOR)
 
 ## Objective
+
 Remove all development process markers from test file content, replacing them with clear, evergreen descriptions of what each test validates.
 
 ## Context
+
 Test files contain comments, docstrings, and code that reference:
+
 - Work packages (WP-XXX)
 - Development phases
 - TDD markers (RED/GREEN/REFACTOR)
@@ -15,6 +18,7 @@ Test files contain comments, docstrings, and code that reference:
 These need to be replaced with professional, timeless documentation.
 
 ## Files to Modify
+
 ~50 integration test files need content cleanup (most of the suite)
 
 ## Implementation Steps
@@ -186,6 +190,7 @@ echo "Example usage:"
 **Expected output**: Line-by-line report showing what needs to be changed
 
 **Usage pattern**:
+
 ```bash
 # Analyze a file before editing
 /tmp/analyze-file-markers.sh tests/integration/graphql/test_example.py
@@ -203,6 +208,7 @@ $EDITOR tests/integration/graphql/test_example.py
 These files were mentioned in the cleanup plan as having heavy process markers.
 
 **Workflow for each file**:
+
 1. Run analysis script: `/tmp/analyze-file-markers.sh <file>`
 2. Note the line numbers with markers
 3. Open file in editor
@@ -216,6 +222,7 @@ These files were mentioned in the cleanup plan as having heavy process markers.
 **File**: `tests/integration/graphql/mutations/test_error_arrays.py`
 
 **First, analyze the file**:
+
 ```bash
 /tmp/analyze-file-markers.sh tests/integration/graphql/mutations/test_error_arrays.py
 ```
@@ -223,6 +230,7 @@ These files were mentioned in the cleanup plan as having heavy process markers.
 **Expected analysis output**: Shows lines with WP-034, Phase markers, version numbers
 
 **Markers to remove**:
+
 - All WP-034 references (work package markers)
 - Phase markers (Phase 3, etc.)
 - "Native implementation" comments
@@ -231,6 +239,7 @@ These files were mentioned in the cleanup plan as having heavy process markers.
 - Function names like `test_xxx_fix` → `test_xxx`
 
 **Strategy**:
+
 1. Run the analysis script (above)
 2. Open the file in editor
 3. For each line identified:
@@ -243,6 +252,7 @@ These files were mentioned in the cleanup plan as having heavy process markers.
 5. Run tests: `uv run pytest tests/integration/graphql/mutations/test_error_arrays.py -v`
 
 **Example transformation**:
+
 ```python
 # BEFORE (bad)
 """WP-034: Native Error Arrays Implementation - Phase 3
@@ -268,6 +278,7 @@ class TestMutationErrorArrays:
 ```
 
 **Commands**:
+
 ```bash
 # Open file for editing
 $EDITOR tests/integration/graphql/mutations/test_error_arrays.py
@@ -285,11 +296,13 @@ uv run pytest tests/integration/graphql/mutations/test_error_arrays.py -v
 **File**: `tests/integration/graphql/test_fastapi_jsonb_integration.py`
 
 **First, analyze**:
+
 ```bash
 /tmp/analyze-file-markers.sh tests/integration/graphql/test_fastapi_jsonb_integration.py
 ```
 
 **Markers to remove**:
+
 - Phase references
 - JSONB implementation notes
 - Timeline/version information
@@ -297,6 +310,7 @@ uv run pytest tests/integration/graphql/mutations/test_error_arrays.py -v
 **Focus**: Rewrite docstrings to explain JSONB passthrough behavior, not when it was implemented.
 
 **Commands**:
+
 ```bash
 # Edit based on analysis
 $EDITOR tests/integration/graphql/test_fastapi_jsonb_integration.py
@@ -313,11 +327,13 @@ uv run pytest tests/integration/graphql/test_fastapi_jsonb_integration.py -v
 **File**: `tests/integration/graphql/test_graphql_cascade.py`
 
 **First, analyze**:
+
 ```bash
 /tmp/analyze-file-markers.sh tests/integration/graphql/test_graphql_cascade.py
 ```
 
 **Markers to remove**:
+
 - "Phase 3 validation" references
 - Cascade implementation notes
 - Historical context about when feature was added
@@ -325,6 +341,7 @@ uv run pytest tests/integration/graphql/test_fastapi_jsonb_integration.py -v
 **Focus**: Describe cascade delete behavior in domain terms.
 
 **Commands**:
+
 ```bash
 $EDITOR tests/integration/graphql/test_graphql_cascade.py
 /tmp/analyze-file-markers.sh tests/integration/graphql/test_graphql_cascade.py
@@ -336,11 +353,13 @@ uv run pytest tests/integration/graphql/test_graphql_cascade.py -v
 **File**: `tests/integration/meta/test_schema_validation.py`
 
 **First, analyze**:
+
 ```bash
 /tmp/analyze-file-markers.sh tests/integration/meta/test_schema_validation.py
 ```
 
 **Markers to remove**:
+
 - All "phase0" references (already removed from filename)
 - Bootstrap/initialization timeline language
 - Historical context about initial setup
@@ -348,6 +367,7 @@ uv run pytest tests/integration/graphql/test_graphql_cascade.py -v
 **Focus**: Describe schema validation requirements as current behavior.
 
 **Commands**:
+
 ```bash
 $EDITOR tests/integration/meta/test_schema_validation.py
 /tmp/analyze-file-markers.sh tests/integration/meta/test_schema_validation.py
@@ -375,6 +395,7 @@ grep -rn "def test_.*_fix\|def test_.*_regression" tests/integration/ --include=
 **Pattern**: `TestXxxFix` → `TestXxx`
 
 **Example**:
+
 ```python
 # BEFORE
 class TestMutationNameCollisionFix:
@@ -384,6 +405,7 @@ class TestMutationNameResolution:
 ```
 
 **Commands**: For each file identified:
+
 ```bash
 # Example: test_mutation_name_resolution.py
 $EDITOR tests/integration/graphql/mutations/test_mutation_name_resolution.py
@@ -396,10 +418,12 @@ grep "class.*Fix" tests/integration/graphql/mutations/test_mutation_name_resolut
 #### 4.3: Rename test functions
 
 **Patterns**:
+
 - `test_xxx_fix` → `test_xxx`
 - `test_xxx_regression` → `test_xxx` (or more descriptive name)
 
 **Example**:
+
 ```python
 # BEFORE
 def test_resolver_names_fix(self):
@@ -417,6 +441,7 @@ For ALL test files, update docstrings to be evergreen.
 #### 5.1: Rewrite module docstrings
 
 **Bad patterns to remove**:
+
 - "Regression test for..."
 - "This test verifies the fix for..."
 - "Fixed in version X"
@@ -424,11 +449,13 @@ For ALL test files, update docstrings to be evergreen.
 - Version numbers and dates
 
 **Good patterns to use**:
+
 - "Tests for [feature name]"
 - "Validates that [expected behavior]"
 - "Ensures [domain requirement]"
 
 **Example transformation**:
+
 ```python
 # BEFORE (bad)
 """Regression test for enum conversion fix.
@@ -450,16 +477,19 @@ GraphQL enum types in queries and mutations.
 #### 5.2: Rewrite test function docstrings
 
 **Bad patterns**:
+
 - "Test that X is fixed"
 - "Verify the fix for Y"
 - "Regression test"
 
 **Good patterns**:
+
 - "Test that X behaves as expected"
 - "Verify that Y produces Z"
 - "Ensure A when B"
 
 **Example**:
+
 ```python
 # BEFORE (bad)
 def test_enum_conversion_fix(self):
@@ -478,6 +508,7 @@ grep -rn "TODO" tests/integration/ --include="*.py"
 ```
 
 **Action**: For each TODO:
+
 - If test is complete: remove the TODO
 - If test is incomplete: complete it or remove the test
 
@@ -521,6 +552,7 @@ chmod +x /tmp/find-all-files-needing-cleanup.sh
 **Expected output**: List of files sorted by marker count (most markers first)
 
 **Example output**:
+
 ```
 [15 markers] tests/integration/graphql/test_example.py
 [8 markers] tests/integration/auth/test_another.py
@@ -572,6 +604,7 @@ done < /tmp/cleanup-order.txt
 ```
 
 **Action**: This semi-automated workflow will:
+
 1. Show you each file that needs cleanup
 2. Analyze it to show what markers exist
 3. Let you edit the file
@@ -580,6 +613,7 @@ done < /tmp/cleanup-order.txt
 6. Move to the next file
 
 **Alternative manual approach** (if you prefer more control):
+
 ```bash
 # Get the list
 /tmp/find-all-files-needing-cleanup.sh > /tmp/cleanup-order.txt
@@ -639,6 +673,7 @@ grep -r "TODO" tests/integration --include="*.py" | wc -l
 **Expected output**: All counts should be 0
 
 **If any count > 0**:
+
 1. Find the specific files: `grep -r "<pattern>" tests/integration --include="*.py"`
 2. Analyze each file: `/tmp/analyze-file-markers.sh <file>`
 3. Clean and re-verify
@@ -716,12 +751,14 @@ Tests remain functionally identical. All tests passing."
 
 **Problem**: Cleaning takes too long
 **Solution**:
+
 1. Focus on high-impact files first (those with most markers)
 2. Batch process files with only 1-2 markers
 3. Take breaks - this phase is tedious but important
 
 **Problem**: Removed a comment and now test is confusing
 **Solution**: Add back a comment, but make it evergreen:
+
 - Bad: "# This fixes the bug where X"
 - Good: "# X requires Y because Z"
 
@@ -732,12 +769,14 @@ Professional codebases don't reveal their development history in test files. Tes
 
 **How to use the analysis script effectively?**
 The `/tmp/analyze-file-markers.sh` script is your friend:
+
 1. Run it BEFORE editing to see what needs changing
 2. Keep the output visible while editing (split terminal or print it)
 3. Run it AFTER editing to verify you got everything
 4. The line numbers help you navigate directly to problem areas
 
 **Workflow for each file**:
+
 ```bash
 # 1. Analyze (see what needs fixing)
 /tmp/analyze-file-markers.sh tests/integration/graphql/test_example.py
@@ -754,28 +793,33 @@ uv run pytest tests/integration/graphql/test_example.py -v
 ```
 
 **How much detail in docstrings?**
+
 - Module docstring: 2-3 sentences about what feature area is tested
 - Class docstring: 1-2 sentences about the specific aspect
 - Function docstring: 1 sentence about what this test proves
 
 **What if a test name doesn't make sense without "_fix"?**
 The test name probably wasn't descriptive enough. Choose a name that describes the feature being tested:
+
 - `test_enum_conversion_fix` → `test_enum_values_serialize_to_graphql`
 - `test_auth_regression` → `test_unauthorized_users_rejected`
 
 **Should I remove ALL comments?**
 No! Keep comments that explain:
+
 - Complex test setups
 - Why certain data is used
 - What a non-obvious assertion validates
 
 Remove comments that explain:
+
 - What bug this fixed
 - What version it was added in
 - References to work packages or phases
 
 **Can I batch multiple files?**
 Yes! Use the systematic cleanup workflow in Step 6.2, which:
+
 - Shows you files in priority order (most markers first)
 - Analyzes each file automatically
 - Prompts you to edit
@@ -784,6 +828,7 @@ Yes! Use the systematic cleanup workflow in Step 6.2, which:
 - Moves to the next file
 
 **Time estimate**: ~3 hours
+
 - Setting up scripts: ~10 minutes
 - High-impact files: ~1 hour
 - Systematic cleanup (remaining files): ~1.5 hours

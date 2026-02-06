@@ -10,12 +10,14 @@
 ### Overall Findings
 
 **Strengths:**
+
 - Most core modules have comprehensive docstrings
 - Complex algorithms are well documented with performance notes
 - Type hints are consistently used throughout
 - Module-level docstrings are generally present
 
 **Areas for Improvement:**
+
 - Some utility functions lack docstrings
 - A few files have minimal or placeholder docstrings
 - Some complex logic could benefit from inline comments
@@ -28,16 +30,19 @@
 ### High Priority (Missing/Inadequate Docstrings)
 
 #### `src/fraiseql/utils/field_counter.py`
+
 - **Issue**: Module docstring is "Missing docstring."
 - **Impact**: Users won't understand the purpose of field ordering
 - **Recommendation**: Add comprehensive module docstring explaining field ordering system
 
 #### `src/fraiseql/core/exceptions.py`
+
 - **Issue**: Exception classes have minimal docstrings
 - **Impact**: Error messages may not provide enough context
 - **Recommendation**: Add detailed docstrings explaining when each exception is raised
 
 #### `src/fraiseql/__version__.py`
+
 - **Issue**: Minimal docstring
 - **Impact**: Version information purpose unclear
 - **Recommendation**: Add docstring explaining version management
@@ -45,6 +50,7 @@
 ### Medium Priority (Incomplete Documentation)
 
 #### Complex Logic Needing Comments
+
 - **File**: `src/fraiseql/core/rust_pipeline.py`
 - **Issue**: Lazy loading mechanism could use more comments
 - **Recommendation**: Add comments explaining lazy loading strategy
@@ -54,6 +60,7 @@
 - **Recommendation**: Add inline comments for type variable resolution
 
 #### Function Documentation Gaps
+
 - **File**: `src/fraiseql/fastapi/dependencies.py`
 - **Issue**: Some dependency functions lack detailed examples
 - **Recommendation**: Add usage examples for complex dependency patterns
@@ -61,11 +68,13 @@
 ### Low Priority (Enhancement Opportunities)
 
 #### Enhanced Examples
+
 - **File**: `src/fraiseql/fields.py`
 - **Issue**: `fraise_field()` function has excellent docs, but some edge cases could be documented
 - **Recommendation**: Add examples for advanced field configurations
 
 #### Performance Notes
+
 - **File**: `src/fraiseql/db.py`
 - **Issue**: Some performance optimizations could be better documented
 - **Recommendation**: Add comments explaining optimization strategies
@@ -75,6 +84,7 @@
 ## Documentation Standards Compliance
 
 ### Current Standards
+
 - ✅ **Module docstrings**: 95% coverage
 - ✅ **Function docstrings**: 90% coverage for public functions
 - ✅ **Class docstrings**: 95% coverage
@@ -98,6 +108,7 @@
 ## Implementation Plan
 
 ### Phase 1: Critical Missing Documentation (Week 1)
+
 **Goal**: Fix obviously missing or placeholder docstrings
 
 1. **Fix placeholder docstrings**
@@ -108,6 +119,7 @@
    - `src/fraiseql/core/exceptions.py`: Add detailed docstrings for each exception class
 
 ### Phase 2: Improve Function Documentation (Week 2)
+
 **Goal**: Ensure all public functions have complete docstrings
 
 1. **Add missing parameter documentation**
@@ -119,6 +131,7 @@
    - Add type information where missing
 
 ### Phase 3: Complex Logic Documentation (Week 3)
+
 **Goal**: Add comments for complex algorithms and edge cases
 
 1. **Add inline comments for complex logic**
@@ -131,6 +144,7 @@
    - Document trade-offs made
 
 ### Phase 4: Quality Assurance (Week 4)
+
 **Goal**: Verify documentation completeness and accuracy
 
 1. **Documentation audit**

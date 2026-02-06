@@ -9,11 +9,13 @@ import fraiseql
 ```
 
 **Why this pattern:**
+
 - Concise and readable
 - Imports only what you need
 - Consistent across all examples
 
 **NOT these patterns:**
+
 ```python
 # ❌ Too verbose
 @fraiseql.type
@@ -43,6 +45,7 @@ class User:
 ```
 
 **Rules:**
+
 - Always use `@type(sql_source="v_*")` for database-backed types
 - Use `UUID` type for ID fields, not `str`
 - Use descriptive field names (snake_case)
@@ -66,6 +69,7 @@ def get_user_by_id(id: ID) -> User:
 ```
 
 **Rules:**
+
 - Use `@query` decorator
 - Return type hints must match GraphQL schema
 - Use `list[Type]` for collections
@@ -90,6 +94,7 @@ def create_user(input: CreateUserInput) -> User:
 ```
 
 **Rules:**
+
 - Use `@input` for mutation input types
 - Use `@mutation` decorator
 - Input types should be separate from domain types
@@ -99,6 +104,7 @@ def create_user(input: CreateUserInput) -> User:
 ## Naming Conventions
 
 ### Database Objects
+
 ```sql
 -- Tables: tb_ prefix
 CREATE TABLE tb_user (...);
@@ -114,6 +120,7 @@ CREATE FUNCTION fn_create_user(...) RETURNS UUID AS $$
 ```
 
 ### Python Types
+
 ```python
 # Domain types: PascalCase
 class User:
@@ -129,6 +136,7 @@ class UserRole:
 ```
 
 ### GraphQL Fields
+
 ```python
 import fraiseql
 
@@ -162,6 +170,7 @@ my-fraiseql-api/
 ```
 
 **Rules:**
+
 - Keep types separate from resolvers
 - Database schema in dedicated directory
 - Clear separation of concerns
@@ -179,6 +188,7 @@ def create_user(input: CreateUserInput) -> User | None:
 ```
 
 **Rules:**
+
 - Use `Type | None` for mutations that might fail
 - Document failure conditions in docstrings
 - Let framework handle database constraint violations
@@ -198,6 +208,7 @@ class User:
 ```
 
 **Rules:**
+
 - Comment non-obvious fields
 - Explain business logic constraints
 - Reference database constraints
@@ -225,6 +236,7 @@ def get_user(id: ID) -> User:
 ```
 
 **Rules:**
+
 - Show GraphQL query examples alongside Python code
 - Use realistic UUIDs in examples
 - Include both success and error cases
@@ -233,6 +245,7 @@ def get_user(id: ID) -> User:
 ## Migration from Old Patterns
 
 ### Old Pattern → New Pattern
+
 ```python
 # Old ❌
 import fraiseql as gql_type
@@ -252,6 +265,7 @@ class User:
 ```
 
 **Migration checklist:**
+
 - [ ] Replace `from fraiseql.decorators import` with `from fraiseql import`
 - [ ] Change `str` IDs to `UUID` type
 - [ ] Add missing type hints
@@ -262,6 +276,7 @@ class User:
 ## Validation Checklist
 
 Before publishing documentation:
+
 - [ ] All imports use standard pattern
 - [ ] All types have proper type hints
 - [ ] All IDs use `UUID` not `str`

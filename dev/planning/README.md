@@ -5,9 +5,11 @@ This directory contains active planning documents and strategies for the FraiseQ
 ## Current Plans
 
 ### Documentation Quality Audit Plan
+
 **File**: `documentation-quality-audit-plan.md`
 
 Comprehensive plan for documentation quality improvement including:
+
 - Phase 1: Automated analysis
 - Phase 2: Manual review
 - Phase 3: Code example validation (✅ Complete)
@@ -19,6 +21,7 @@ Comprehensive plan for documentation quality improvement including:
 ## Usage
 
 Planning documents in this directory are:
+
 - **Active**: Used for ongoing work
 - **Reference**: Consulted for strategy and approach
 - **Living**: Updated as plans evolve

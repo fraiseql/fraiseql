@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Arrow Plane: Columnar Data Acceleration
 description: 1. [Introduction & Philosophy](#1-introduction--philosophy)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

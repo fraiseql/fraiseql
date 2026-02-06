@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Compilation vs Runtime: Decision Authority Matrix
 description: This document establishes **when decisions are made** in FraiseQL: compile-time (static) vs runtime (dynamic).
 keywords: ["design", "scalability", "performance", "patterns", "security"]

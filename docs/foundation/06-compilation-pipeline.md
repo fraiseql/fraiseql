@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.1: Compilation Pipeline
 description: FraiseQL's core strength is its **build-time compilation**. This topic explains how FraiseQL transforms your schema definitions (Python/TypeScript) into an opti
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

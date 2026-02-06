@@ -1,24 +1,29 @@
 # Phase 1: PostgreSQL Migration Files (v1.8.0 with Alias Strategy)
 
 ## Objective
+
 Introduce `mutation_response` as the new name while maintaining backward compatibility via alias.
 
 ## Duration
+
 2 hours
 
 ## Strategy: Dual-Name Support
 
 **Both names work in v1.8.0:**
+
 - `mutation_response` (new, recommended)
 - `mutation_result_v2` (old, deprecated, aliased)
 
 **Removal timeline:**
+
 - v1.8.0-v1.9.x: Both names supported
 - v2.0.0: Only `mutation_response`
 
 ---
 
 ## Files to Modify
+
 1. `migrations/trinity/005_add_mutation_result_v2.sql` → `006_add_mutation_response.sql` (NEW)
 2. Keep `005_add_mutation_result_v2.sql` (unchanged for existing users)
 3. `examples/mutations_demo/v2_init.sql` → Update to use new name
@@ -31,6 +36,7 @@ Introduce `mutation_response` as the new name while maintaining backward compati
 **File**: `migrations/trinity/006_add_mutation_response.sql` (NEW)
 
 **Create new migration**:
+
 ```sql
 -- Migration: Add mutation_response type and deprecate mutation_result_v2
 -- Description: Introduces clean naming while maintaining backward compatibility
@@ -111,6 +117,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ```
 
 **Action**:
+
 ```bash
 cd /home/lionel/code/fraiseql
 cp migrations/trinity/005_add_mutation_result_v2.sql migrations/trinity/006_add_mutation_response.sql
@@ -123,6 +130,7 @@ cp migrations/trinity/005_add_mutation_result_v2.sql migrations/trinity/006_add_
 ## Task 1.2: Update Examples to Use New Name
 
 **Files**:
+
 - `examples/mutations_demo/v2_init.sql`
 - `examples/mutations_demo/v2_mutation_functions.sql`
 
@@ -194,6 +202,7 @@ END;
 ### How to Migrate
 
 **Find and replace** in your SQL files:
+
 ```bash
 # Find uses of old name
 grep -r "mutation_result_v2" your_project/
@@ -205,8 +214,10 @@ sed -i 's/mutation_result_v2/mutation_response/g' your_file.sql
 ### Why the Change?
 
 The "v2" suffix was confusing and implied versioning. The new name is clearer:
+
 - `mutation_response` - What it is (a response from a mutation)
 - No version number - Evolves via database migrations, not type name
+
 ```
 
 ---

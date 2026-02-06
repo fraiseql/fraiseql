@@ -33,15 +33,18 @@ The Rust mutation pipeline provides ultra-fast GraphQL mutation response buildin
 ## JSON Format Support
 
 ### Simple Format (Auto-detected)
+
 ```json
 {"id": "123", "name": "John", "email": "john@example.com"}
 ```
+
 - No `status` field or invalid status values
 - Entire JSON becomes the entity
 - Assumes success status
 - Supports `_cascade` field extraction
 
 ### Full v2 Format
+
 ```json
 {
   "status": "created",
@@ -57,6 +60,7 @@ The Rust mutation pipeline provides ultra-fast GraphQL mutation response buildin
   "metadata": {"errors": [...]}
 }
 ```
+
 - Complete mutation response structure
 - Rich status taxonomy
 - Cascade data support
@@ -65,9 +69,11 @@ The Rust mutation pipeline provides ultra-fast GraphQL mutation response buildin
 ## Status Taxonomy
 
 ### Success States
+
 - `success`, `created`, `updated`, `deleted` → HTTP 200
 
 ### Error States (with HTTP codes)
+
 - `failed:*` → HTTP 422 (validation) or 500 (generic)
 - `unauthorized:*` → HTTP 401
 - `forbidden:*` → HTTP 403
@@ -76,6 +82,7 @@ The Rust mutation pipeline provides ultra-fast GraphQL mutation response buildin
 - `timeout:*` → HTTP 408
 
 ### Noop States
+
 - `noop:*` → HTTP 200 (success with no changes)
 
 ## Cascade Data Handling
@@ -96,6 +103,7 @@ Cascade data represents side effects of mutations:
 ## Response Structure
 
 ### Success Response
+
 ```json
 {
   "data": {
@@ -119,6 +127,7 @@ Cascade data represents side effects of mutations:
 ```
 
 ### Error Response
+
 ```json
 {
   "data": {
@@ -149,6 +158,7 @@ Cascade data represents side effects of mutations:
 ## Integration Points
 
 ### Python API
+
 ```python
 from fraiseql_rs import build_mutation_response
 
@@ -166,7 +176,9 @@ result = build_mutation_response(
 ```
 
 ### GraphQL Schema Integration
+
 The pipeline integrates with GraphQL union types:
+
 ```graphql
 union CreateUserResult = CreateUserSuccess | CreateUserError
 
@@ -187,6 +199,7 @@ type CreateUserError {
 ## Testing Strategy
 
 ### Unit Tests
+
 - Format detection edge cases
 - Status taxonomy validation
 - Cascade placement invariants
@@ -194,16 +207,19 @@ type CreateUserError {
 - Error handling scenarios
 
 ### Property-Based Tests
+
 - Invariant verification (cascade never in entity)
 - Deterministic format detection
 - Type safety guarantees
 
 ### Integration Tests
+
 - End-to-end response building
 - Python interoperability
 - Performance regression detection
 
 ### Benchmarks
+
 - Simple format processing
 - Full format with cascade
 - Error response handling

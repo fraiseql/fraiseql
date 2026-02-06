@@ -11,11 +11,13 @@
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.13+
 - PostgreSQL 14+
 - Docker & Docker Compose (recommended)
 
 ### Using Docker (Recommended)
+
 ```bash
 cd examples/{example_name}
 docker-compose up -d
@@ -25,6 +27,7 @@ docker-compose up -d
 ```
 
 ### Manual Setup
+
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -42,6 +45,7 @@ uvicorn app:app --reload
 {Brief explanation of the architecture patterns used}
 
 ### Patterns Demonstrated
+
 - ✅ **{Pattern 1}**: {Description}
 - ✅ **{Pattern 2}**: {Description}
 - ✅ **{Pattern 3}**: {Description}

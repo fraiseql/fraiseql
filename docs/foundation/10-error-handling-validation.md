@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: 2.5: Error Handling & Validation
 description: FraiseQL's error handling and validation strategy ensures predictable, safe query execution across compile-time and runtime boundaries. Unlike traditional Graph
 keywords: ["query-execution", "data-planes", "graphql", "compilation", "architecture"]

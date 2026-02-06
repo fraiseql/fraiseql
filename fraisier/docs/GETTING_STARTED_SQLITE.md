@@ -678,27 +678,32 @@ See [GETTING_STARTED_POSTGRES.md](GETTING_STARTED_POSTGRES.md)
 ## Tips & Best Practices
 
 1. **Use Dry-Run Before Production**
+
    ```bash
    fraisier deploy my_api production --dry-run
    ```
 
 2. **Always Wait for Staging**
+
    ```bash
    fraisier deploy my_api staging --wait --timeout 600
    ```
 
 3. **Keep Database Backed Up**
+
    ```bash
    # Daily backups
    0 2 * * * cp /path/to/fraisier.db /backups/fraisier-$(date +\%Y-\%m-\%d).db
    ```
 
 4. **Monitor Health Checks**
+
    ```bash
    fraisier status my_api production --watch
    ```
 
 5. **Review Deployment History**
+
    ```bash
    fraisier history my_api production --limit 100
    ```

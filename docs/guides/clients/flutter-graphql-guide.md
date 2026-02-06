@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Flutter with GraphQL Client for FraiseQL
 description: Complete guide for querying FraiseQL servers from Flutter mobile applications.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "graphql", "tutorial"]

@@ -18,23 +18,23 @@ mkdir -p "$OUTPUT_DIR"
 # Scan using Trivy (if available)
 if command -v trivy &> /dev/null; then
     echo "Scanning with Trivy..."
-    
+
     # Generate JSON report
     trivy image "$IMAGE" \
         --severity "$SEVERITY" \
         --format json \
         --output "$OUTPUT_DIR/trivy-scan-$TIMESTAMP.json"
-    
+
     echo "Generating summary..."
     trivy image "$IMAGE" \
         --severity "$SEVERITY" \
         --format table \
         --output "$OUTPUT_DIR/trivy-scan-$TIMESTAMP.txt"
-    
+
     echo "Vulnerability scan completed"
     echo "  - JSON: $OUTPUT_DIR/trivy-scan-$TIMESTAMP.json"
     echo "  - Summary: $OUTPUT_DIR/trivy-scan-$TIMESTAMP.txt"
-    
+
     # Exit with error if vulnerabilities found
     VULN_COUNT=$(grep -c '"Severity"' "$OUTPUT_DIR/trivy-scan-$TIMESTAMP.json" || true)
     if [ "$VULN_COUNT" -gt 0 ]; then

@@ -129,6 +129,7 @@ FraiseQL uses the **Strategy Pattern** for operator implementations. Located in:
 `/home/lionel/code/fraiseql/src/fraiseql/sql/operator_strategies.py`
 
 **Base Protocol:**
+
 ```python
 class OperatorStrategy(Protocol):
     def can_handle(self, op: str) -> bool:
@@ -158,6 +159,7 @@ class OperatorStrategy(Protocol):
 ### 2.3 Specialized Type Strategies
 
 #### **NetworkOperatorStrategy** (L1004-1398)
+
 For IP addresses with network-aware operators:
 
 ```python
@@ -183,6 +185,7 @@ For IP addresses with network-aware operators:
 ```
 
 #### **LTreeOperatorStrategy** (L773-905)
+
 For hierarchical paths:
 
 ```python
@@ -202,6 +205,7 @@ For hierarchical paths:
 ```
 
 #### **DateRangeOperatorStrategy** (L613-771)
+
 For PostgreSQL daterange type:
 
 ```python
@@ -222,6 +226,7 @@ For PostgreSQL daterange type:
 ```
 
 #### **MacAddressOperatorStrategy** (L907-1002)
+
 For MAC addresses:
 
 ```python
@@ -310,7 +315,8 @@ def _apply_type_cast(
 
 When field type information is lost (production CQRS queries), FraiseQL detects types from values:
 
-#### IP Address Detection:
+#### IP Address Detection
+
 ```python
 def _looks_like_ip_address_value(self, val: Any, op: str) -> bool:
     """Detect IP addresses (fallback when field_type missing)."""
@@ -336,7 +342,8 @@ def _looks_like_ip_address_value(self, val: Any, op: str) -> bool:
     return False
 ```
 
-#### MAC Address Detection:
+#### MAC Address Detection
+
 ```python
 def _looks_like_mac_address_value(self, val: Any, op: str) -> bool:
     """Detect MAC addresses."""
@@ -349,7 +356,8 @@ def _looks_like_mac_address_value(self, val: Any, op: str) -> bool:
     return False
 ```
 
-#### LTree Detection:
+#### LTree Detection
+
 ```python
 def _looks_like_ltree_value(self, val: Any, op: str) -> bool:
     """Detect LTree hierarchical paths."""
@@ -370,7 +378,8 @@ def _looks_like_ltree_value(self, val: Any, op: str) -> bool:
     return bool(re.match(ltree_pattern, val))
 ```
 
-#### DateRange Detection:
+#### DateRange Detection
+
 ```python
 def _looks_like_daterange_value(self, val: Any, op: str) -> bool:
     """Detect PostgreSQL daterange format."""
@@ -404,6 +413,7 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType]:
 Located in: `/home/lionel/code/fraiseql/src/fraiseql/sql/graphql_where_generator.py`
 
 **Generic Filters:**
+
 ```python
 @fraise_input
 class StringFilter:
@@ -520,6 +530,7 @@ async def query(
 ### 5.2 SQL Generation Example
 
 For query:
+
 ```python
 {
     "ipAddress": {"isPrivate": True},
@@ -529,6 +540,7 @@ For query:
 ```
 
 Generates:
+
 ```sql
 SELECT data FROM network_devices WHERE 1=1
   AND (data->>'ip_address')::inet <<= '10.0.0.0/8'::inet
@@ -547,6 +559,7 @@ SELECT data FROM network_devices WHERE 1=1
 Located in: `/home/lionel/code/fraiseql/tests/unit/sql/where/test_*_operators_sql_building.py`
 
 Pattern:
+
 ```python
 def test_ltree_ancestor_of_operation(self):
     """Test LTree ancestor_of operation (@>)."""
@@ -571,6 +584,7 @@ def test_ltree_ancestor_of_operation(self):
 Located in: `/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/test_*_operations.py`
 
 Test actual database execution with:
+
 - End-to-end IP filtering
 - LTree hierarchical queries
 - DateRange range operations
@@ -582,6 +596,7 @@ Test actual database execution with:
 Located in: `/home/lionel/code/fraiseql/tests/regression/`
 
 Tests ensure backward compatibility and fix verification for:
+
 - IP address normalization in JSONB
 - LTree path detection vs domain name false positives
 - MAC address format normalization
@@ -592,29 +607,38 @@ Tests ensure backward compatibility and fix verification for:
 ## 7. Key Design Patterns
 
 ### 7.1 Strategy Pattern
+
 Each operator type has its own strategy class implementing:
+
 - `can_handle(op, field_type)` - Determine applicability
 - `build_sql(path_sql, op, val, field_type)` - Generate SQL
 
 ### 7.2 Scalar Marker Pattern
+
 Custom types combine:
+
 - A GraphQL `ScalarType` (serialization/validation)
 - A Python marker class for type hints
 - Validation functions (serialize, parse_value, parse_literal)
 
 ### 7.3 JSONB Path Pattern
+
 - JSONB data stored as `data` column
 - Fields accessed via JSONB operators: `data->>'field'`
 - Type casting applied: `(data->>'field')::inet`
 
 ### 7.4 Fallback Type Detection
+
 When field_type not available:
+
 1. Detect from field name patterns
 2. Detect from value heuristics
 3. Default to STRING type
 
 ### 7.5 Operator Precedence
+
 Specialized strategies registered BEFORE generic ones:
+
 1. NullOperatorStrategy
 2. DateRangeOperatorStrategy
 3. LTreeOperatorStrategy
@@ -635,6 +659,7 @@ This ensures type-specific validation before generic operations.
 To add a new custom type to FraiseQL:
 
 ### Step 1: Create Scalar Type
+
 ```python
 # src/fraiseql/types/scalars/my_type.py
 
@@ -664,12 +689,14 @@ class MyTypeField(str, ScalarMarker):
 ```
 
 ### Step 2: Export Type
+
 ```python
 # src/fraiseql/types/__init__.py
 from .scalars.my_type import MyTypeField as MyType
 ```
 
 ### Step 3: Create Operator Strategy (if specialized operators needed)
+
 ```python
 # src/fraiseql/sql/operator_strategies.py
 
@@ -697,6 +724,7 @@ class MyTypeOperatorStrategy(BaseOperatorStrategy):
 ```
 
 ### Step 4: Register Strategy
+
 ```python
 # In OperatorRegistry.__init__()
 self.strategies: list[OperatorStrategy] = [
@@ -707,6 +735,7 @@ self.strategies: list[OperatorStrategy] = [
 ```
 
 ### Step 5: Create Filter Input Type
+
 ```python
 # src/fraiseql/sql/graphql_where_generator.py
 
@@ -722,6 +751,7 @@ class MyTypeFilter:
 ```
 
 ### Step 6: Update Field Detection
+
 ```python
 # src/fraiseql/sql/where/core/field_detection.py
 
@@ -739,6 +769,7 @@ def from_python_type(cls, python_type: type) -> "FieldType":
 ```
 
 ### Step 7: Add Tests
+
 ```python
 # tests/unit/sql/where/test_my_type_operators_sql_building.py
 # tests/integration/database/sql/where/{category}/test_my_type_operations.py
@@ -749,20 +780,24 @@ def from_python_type(cls, python_type: type) -> "FieldType":
 ## 9. File Reference Summary
 
 ### Core Type System
+
 - `/home/lionel/code/fraiseql/src/fraiseql/types/fraise_type.py` - @fraise_type decorator
 - `/home/lionel/code/fraiseql/src/fraiseql/types/scalars/` - All custom scalar implementations
 - `/home/lionel/code/fraiseql/src/fraiseql/types/__init__.py` - Type exports
 
 ### Filter Operators
+
 - `/home/lionel/code/fraiseql/src/fraiseql/sql/operator_strategies.py` - Strategy implementations (1458 lines)
 - `/home/lionel/code/fraiseql/src/fraiseql/sql/where_generator.py` - WHERE clause generation
 - `/home/lionel/code/fraiseql/src/fraiseql/sql/graphql_where_generator.py` - GraphQL filter input types
 - `/home/lionel/code/fraiseql/src/fraiseql/sql/where/core/field_detection.py` - Type detection
 
 ### Repository Integration
+
 - `/home/lionel/code/fraiseql/src/fraiseql/cqrs/repository.py` - CQRS repository with filtering
 
 ### Tests
+
 - `/home/lionel/code/fraiseql/tests/unit/sql/where/test_*_operators_sql_building.py` - Operator unit tests
 - `/home/lionel/code/fraiseql/tests/integration/database/sql/where/*/` - Integration tests (organized by operator category)
 - `/home/lionel/code/fraiseql/tests/unit/sql/test_all_operator_strategies_coverage.py` - Strategy coverage tests
@@ -772,6 +807,7 @@ def from_python_type(cls, python_type: type) -> "FieldType":
 ## 10. Production Considerations
 
 ### Type Information Loss
+
 In production CQRS queries, field type hints are often unavailable. FraiseQL handles this through:
 
 1. **Value heuristics** - Detect from data values
@@ -779,12 +815,14 @@ In production CQRS queries, field type hints are often unavailable. FraiseQL han
 3. **Operator specificity** - Network-specific operators (isPrivate) always indicate IP fields
 
 ### Performance Optimization
+
 - Type casting is applied once when building SQL
 - Parameterized queries prevent SQL injection
 - Strategy pattern allows adding new types without modifying core WHERE generator
 - Type detection is cached via `@functools.cache` decorators
 
 ### Edge Cases Handled
+
 - MAC address format normalization (multiple formats supported)
 - IP address CIDR notation handling
 - LTree path vs domain name disambiguation

@@ -23,14 +23,18 @@ This directory contains visual diagrams explaining FraiseQL's architecture and d
 ## Diagram Formats
 
 ### ASCII Art
+
 All diagrams include ASCII art versions that render correctly in:
+
 - Terminal/command line interfaces
 - Plain text editors
 - GitHub README files
 - Documentation systems without Mermaid support
 
 ### Mermaid Diagrams
+
 Interactive diagrams using Mermaid syntax for:
+
 - Web documentation
 - IDE preview
 - Documentation generators
@@ -41,27 +45,32 @@ Interactive diagrams using Mermaid syntax for:
 ### When to Use Each Diagram
 
 **For New Users:**
+
 1. Start with [Request Flow](request-flow/) - understand the big picture
 2. Read [CQRS Pattern](cqrs-pattern/) - learn read vs write separation
 3. Study [Database Schema Conventions](database-schema-conventions/) - understand naming patterns
 
 **For Developers:**
+
 1. [Multi-Tenant Isolation](multi-tenant-isolation/) - implementing multi-tenant apps
 2. [APQ Cache Flow](apq-cache-flow/) - optimizing query performance
 3. [Rust Pipeline](rust-pipeline/) - advanced performance tuning
 
 **For Architects:**
+
 - All diagrams provide comprehensive understanding of system design
 - Use as reference for design decisions and troubleshooting
 
 ### Reading the Diagrams
 
 **Flow Direction:**
+
 - Left to right: Data flow through the system
 - Top to bottom: Layered architecture
 - Arrows: Transformation or processing steps
 
 **Color Coding:**
+
 - Blue: Client-side components
 - Green: Database and storage
 - Red: Processing and transformation
@@ -70,6 +79,7 @@ Interactive diagrams using Mermaid syntax for:
 ## Contributing
 
 ### Adding New Diagrams
+
 1. Create diagram file in this directory
 2. Include both ASCII art and Mermaid versions
 3. Add comprehensive explanations
@@ -77,6 +87,7 @@ Interactive diagrams using Mermaid syntax for:
 5. Test rendering in both terminal and web formats
 
 ### Diagram Standards
+
 - **ASCII Art**: Use box-drawing characters, keep lines under 80 characters
 - **Mermaid**: Use flowchart syntax, include styling for clarity
 - **Explanations**: Provide context, examples, and code samples
@@ -85,16 +96,19 @@ Interactive diagrams using Mermaid syntax for:
 ## Quick Reference
 
 ### Most Important Diagrams (Start Here)
+
 1. **[Request Flow](request-flow/)** - System overview
 2. **[CQRS Pattern](cqrs-pattern/)** - Core architectural pattern
 3. **[Database Schema Conventions](database-schema-conventions/)** - Naming system
 
 ### Performance & Scaling
+
 1. **[APQ Cache Flow](apq-cache-flow/)** - Query optimization
 2. **[Rust Pipeline](rust-pipeline/)** - High-performance processing
 3. **[Multi-Tenant Isolation](multi-tenant-isolation/)** - Scaling considerations
 
 ### Troubleshooting
+
 - Check [Request Flow](request-flow/) for general issues
 - Review [CQRS Pattern](cqrs-pattern/) for read/write problems
 - Consult [Multi-Tenant Isolation](multi-tenant-isolation/) for data access issues

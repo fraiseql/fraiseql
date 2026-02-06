@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Architecture Decision Records (ADRs)
 description: This directory contains Architecture Decision Records documenting significant architectural decisions made during FraiseQL's development.
 keywords: []

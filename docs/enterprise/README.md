@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Enterprise Features
 description: Enterprise-grade security, compliance, and audit capabilities for production deployments.
 keywords: []

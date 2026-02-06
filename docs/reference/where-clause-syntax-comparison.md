@@ -20,6 +20,7 @@ Quick reference comparing FraiseQL's two where clause syntaxes.
 ### Simple Field Filter
 
 **WhereType:**
+
 ```python
 from fraiseql.sql import StringFilter, BooleanFilter
 
@@ -30,6 +31,7 @@ where = UserWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "name": {"contains": "John"},
@@ -44,6 +46,7 @@ where = {
 ### Filter by Related Object
 
 **WhereType:**
+
 ```python
 where = AssignmentWhereInput(
     status=StringFilter(eq="active"),
@@ -55,6 +58,7 @@ where = AssignmentWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "status": {"eq": "active"},
@@ -66,6 +70,7 @@ where = {
 ```
 
 **Generated SQL (both):**
+
 ```sql
 WHERE data->>'status' = 'active'
   AND data->'device'->>'is_active' = 'true'
@@ -79,6 +84,7 @@ WHERE data->>'status' = 'active'
 ### AND Operator
 
 **WhereType:**
+
 ```python
 where = UserWhereInput(
     AND=[
@@ -90,6 +96,7 @@ where = UserWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "AND": [
@@ -103,6 +110,7 @@ where = {
 ### OR Operator
 
 **WhereType:**
+
 ```python
 where = UserWhereInput(
     OR=[
@@ -113,6 +121,7 @@ where = UserWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "OR": [
@@ -125,6 +134,7 @@ where = {
 ### NOT Operator
 
 **WhereType:**
+
 ```python
 where = UserWhereInput(
     NOT=UserWhereInput(
@@ -134,6 +144,7 @@ where = UserWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "NOT": {
@@ -149,6 +160,7 @@ where = {
 ### Nested AND/OR/NOT
 
 **WhereType:**
+
 ```python
 where = UserWhereInput(
     AND=[
@@ -167,6 +179,7 @@ where = UserWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "AND": [
@@ -191,6 +204,7 @@ where = {
 ### Filter by Multiple Properties of Same Nested Object
 
 **WhereType:**
+
 ```python
 where = AssignmentWhereInput(
     device=DeviceWhereInput(
@@ -203,6 +217,7 @@ where = AssignmentWhereInput(
 ```
 
 **Dict:**
+
 ```python
 where = {
     "device": {
@@ -221,6 +236,7 @@ where = {
 ### Automatic Conversion
 
 **WhereType:**
+
 ```python
 # Field names use snake_case in WhereInput types
 where = DeviceWhereInput(
@@ -230,6 +246,7 @@ where = DeviceWhereInput(
 ```
 
 **Dict:**
+
 ```python
 # Dict accepts both camelCase AND snake_case
 where = {
@@ -253,6 +270,7 @@ where = {
 ### Runtime Filter Construction
 
 **WhereType:**
+
 ```python
 def build_filter(criteria: dict) -> UserWhereInput:
     filters = []
@@ -273,6 +291,7 @@ def build_filter(criteria: dict) -> UserWhereInput:
 ```
 
 **Dict (simpler):**
+
 ```python
 def build_filter(criteria: dict) -> dict:
     where = {}
@@ -295,6 +314,7 @@ def build_filter(criteria: dict) -> dict:
 ### GraphQL Query Resolver
 
 **WhereType:**
+
 ```python
 import fraiseql
 
@@ -323,6 +343,7 @@ async def active_assignments(
 ```
 
 **Dict:**
+
 ```python
 import fraiseql
 
@@ -382,9 +403,10 @@ async def active_assignments(
 
 ## Best Practices
 
-### Use WhereType When:
+### Use WhereType When
 
 ✅ **Type safety is important**
+
 ```python
 # IDE will catch typos and type errors
 where = UserWhereInput(
@@ -393,6 +415,7 @@ where = UserWhereInput(
 ```
 
 ✅ **Building reusable query helpers**
+
 ```python
 def get_active_users_filter() -> UserWhereInput:
     """Reusable filter with type hints."""
@@ -400,6 +423,7 @@ def get_active_users_filter() -> UserWhereInput:
 ```
 
 ✅ **Complex queries benefit from autocomplete**
+
 ```python
 # Full IDE autocomplete for nested objects
 where = PostWhereInput(
@@ -409,9 +433,10 @@ where = PostWhereInput(
 )
 ```
 
-### Use Dict When:
+### Use Dict When
 
 ✅ **Building filters dynamically**
+
 ```python
 # Easy to add/remove fields at runtime
 where = {}
@@ -420,6 +445,7 @@ if user_active is not None:
 ```
 
 ✅ **Working with GraphQL client input**
+
 ```python
 # Accept camelCase from frontend
 where = graphql_variables["where"]  # Already a dict
@@ -427,6 +453,7 @@ results = await db.find("users", where=where)
 ```
 
 ✅ **Quick tests and scripts**
+
 ```python
 # Less boilerplate for simple queries
 await db.find("users", where={"age": {"gt": 18}})

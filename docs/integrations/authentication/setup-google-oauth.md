@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Google OAuth 2.0 Setup Guide
 description: This guide walks you through setting up Google OAuth authentication with FraiseQL.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

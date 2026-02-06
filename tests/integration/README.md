@@ -23,6 +23,7 @@ Apollo Router (Gateway)       [Port 4000]
 - `identifier`: TEXT semantic key (human-readable)
 
 Example:
+
 ```sql
 CREATE TABLE tb_user (
     pk_user BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -74,6 +75,7 @@ CREATE TABLE tb_user (
 - At least 2GB free memory
 
 ### Start Services
+
 ```bash
 cd tests/integration
 docker-compose up -d
@@ -88,6 +90,7 @@ docker-compose logs apollo-router | grep "server running"
 ### Query Federation
 
 **Simple Query (single subgraph)**:
+
 ```bash
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
@@ -95,6 +98,7 @@ curl -X POST http://localhost:4000/graphql \
 ```
 
 **Federated Query (cross-subgraph)**:
+
 ```bash
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
@@ -114,6 +118,7 @@ curl -X POST http://localhost:4000/graphql \
 ```
 
 **3-Hop Federated Query**:
+
 ```bash
 curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
@@ -135,6 +140,7 @@ curl -X POST http://localhost:4000/graphql \
 ```
 
 ### Stop Services
+
 ```bash
 docker-compose down -v  # -v removes volumes
 ```
@@ -142,6 +148,7 @@ docker-compose down -v  # -v removes volumes
 ### Logs
 
 View logs for specific service:
+
 ```bash
 docker-compose logs -f users-subgraph
 docker-compose logs -f orders-subgraph
@@ -170,6 +177,7 @@ docker-compose logs -f apollo-router
 ### Add Test Data
 
 Access any subgraph directly for mutations:
+
 ```bash
 curl -X POST http://localhost:4001/graphql \
   -H "Content-Type: application/json" \
@@ -200,6 +208,7 @@ curl -X POST http://localhost:4001/graphql \
 ### Automated Integration Tests
 
 Run integration tests:
+
 ```bash
 # From project root
 cargo test --test federation_docker_compose_integration
@@ -208,6 +217,7 @@ cargo test --test federation_docker_compose_integration
 ## Federation Configuration
 
 ### Order Service (federation.toml)
+
 ```toml
 [federation]
 enabled = true
@@ -226,6 +236,7 @@ key_columns = ["id"]
 ```
 
 ### Products Service (federation.toml)
+
 ```toml
 [federation]
 enabled = true
@@ -268,6 +279,7 @@ key_columns = ["id"]
 ## Troubleshooting
 
 ### Services Won't Start
+
 ```bash
 # Check Docker disk space
 docker system df
@@ -278,6 +290,7 @@ docker-compose up -d
 ```
 
 ### Health Checks Failing
+
 ```bash
 # View service logs
 docker-compose logs users-subgraph
@@ -289,6 +302,7 @@ curl -f http://localhost:4001/graphql \
 ```
 
 ### Gateway Can't Compose Schema
+
 ```bash
 # Check Apollo Router logs
 docker-compose logs apollo-router
@@ -298,6 +312,7 @@ curl http://localhost:4001/graphql?query={_service{sdl}}
 ```
 
 ### Queries Return Errors
+
 ```bash
 # Get query error details
 curl -X POST http://localhost:4000/graphql \

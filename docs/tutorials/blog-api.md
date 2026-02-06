@@ -18,6 +18,7 @@ Complete blog application demonstrating FraiseQL's [CQRS](../core/concepts-gloss
 ## Overview
 
 Build a blog API with:
+
 - Users, posts, and threaded comments
 - JSONB composition (single-query nested data)
 - Mutation functions with explicit side effects

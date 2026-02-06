@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Common Patterns - Real-World Solutions
 description: - GraphQL fundamentals (types, fields, queries, mutations)
 keywords: ["workflow", "debugging", "implementation", "best-practices", "deployment", "saas", "realtime", "ecommerce"]

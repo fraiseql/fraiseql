@@ -1,10 +1,13 @@
 # Phase 5: Verification and QA (QA)
 
 ## Objective
+
 Comprehensively verify that all cleanup goals have been achieved and the integration test suite is professional, evergreen, and fully functional.
 
 ## Context
+
 This is the final quality assurance phase. We'll run a complete checklist to ensure:
+
 1. All file naming issues resolved
 2. All duplicate files removed
 3. All content markers removed
@@ -12,6 +15,7 @@ This is the final quality assurance phase. We'll run a complete checklist to ens
 5. Test coverage maintained or improved
 
 ## Files to Review
+
 - All files in `tests/integration/`
 - Cleanup inventory and summary
 
@@ -59,6 +63,7 @@ echo "ALL COUNTS ABOVE SHOULD BE 0"
 **Expected output**: All counts = 0
 
 **If any count > 0**:
+
 - List the files: `find tests/integration -name "*_fix.py"` (replace pattern)
 - Return to Phase 3 and rename those files
 
@@ -207,6 +212,7 @@ uv run pytest tests/integration/ -v --tb=short
 **Expected output**: All tests pass
 
 **Critical**: If ANY tests fail, stop and investigate:
+
 1. Which test failed?
 2. Is it related to cleanup changes?
 3. Fix before proceeding
@@ -219,6 +225,7 @@ uv run pytest tests/integration/ --cov=fraiseql --cov-report=term-missing --cov-
 ```
 
 **Expected output**:
+
 - Coverage percentage (note this number)
 - HTML report generated in `htmlcov/`
 
@@ -377,6 +384,7 @@ git log --oneline dev..HEAD
 ```
 
 **Expected output**:
+
 - Clean working tree (all committed)
 - ~50-70 files changed
 - 5 commits (one per phase)
@@ -493,12 +501,14 @@ Integration test suite is now evergreen and production-ready."
 
 **Problem**: Verification finds remaining markers
 **Solution**:
+
 1. Run the specific check to see which files: `grep -r "WP-" tests/integration --include="*.py"`
 2. Return to Phase 4, clean those files
 3. Re-run verification
 
 **Problem**: Tests are failing
 **Solution**:
+
 1. Identify which test: `uv run pytest tests/integration/ -v | grep FAILED`
 2. Run that test individually: `uv run pytest path/to/test.py::TestClass::test_function -v`
 3. Check if failure is related to cleanup
@@ -506,6 +516,7 @@ Integration test suite is now evergreen and production-ready."
 
 **Problem**: Coverage dropped
 **Solution**:
+
 1. Generate HTML coverage report: `uv run pytest tests/integration/ --cov=fraiseql --cov-report=html`
 2. Open `htmlcov/index.html` in browser
 3. Identify uncovered lines
@@ -514,6 +525,7 @@ Integration test suite is now evergreen and production-ready."
 
 **Problem**: Git shows unexpected changes
 **Solution**:
+
 1. Review: `git diff`
 2. Check if changes are related to cleanup
 3. If unrelated, stash them: `git stash`
@@ -535,6 +547,7 @@ It shouldn't drop. If it does, you likely removed a test during consolidation. R
 
 **What's the final deliverable?**
 A clean integration test suite with:
+
 - Professional file names
 - Clear, focused documentation
 - No historical artifacts
@@ -542,6 +555,7 @@ A clean integration test suite with:
 - Maintained coverage
 
 **Time estimate**: ~30 minutes
+
 - Verification checks: ~15 minutes
 - Test runs: ~10 minutes
 - Documentation: ~5 minutes

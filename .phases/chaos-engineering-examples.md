@@ -624,22 +624,26 @@ echo "📊 Results in: $CHAOS_RESULTS_DIR"
 
 ## Usage
 
-### Run all chaos tests:
+### Run all chaos tests
+
 ```bash
 pytest tests/chaos/ -v --chaos-report=chaos_report.html
 ```
 
-### Run specific phase:
+### Run specific phase
+
 ```bash
 pytest tests/chaos/network/ -v
 ```
 
-### Run with specific failure injection:
+### Run with specific failure injection
+
 ```bash
 pytest tests/chaos/ -v -k "latency"
 ```
 
-### Run with coverage:
+### Run with coverage
+
 ```bash
 pytest tests/chaos/ -v --cov=fraiseql --cov-report=html
 ```

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Observer System
 description: - Event-driven architecture concepts
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

@@ -418,6 +418,7 @@ error[E0382]: use of moved value: `s`
 **What it means**: You used a value twice, but it was moved (ownership transferred).
 
 **Fix**:
+
 ```rust
 let s = String::from("hello");
 println!("{}", &s);  // Borrow instead of move
@@ -441,6 +442,7 @@ error[E0503]: cannot borrow `x` as mutable because it's also borrowed as immutab
 **What it means**: You're trying to mutate something while someone else is reading it.
 
 **Fix**: Drop the read reference before mutating:
+
 ```rust
 let r = &x;
 println!("{}", r);  // Use r
@@ -466,6 +468,7 @@ error[E0597]: `x` does not live long enough
 **What it means**: You're returning a reference to something that will be destroyed.
 
 **Fix**: Return the owned value, not a reference:
+
 ```rust
 fn get_string() -> String {  // Not &String
     let x = String::from("hello");
@@ -488,6 +491,7 @@ error[E0308]: mismatched types
 **What it means**: Type mismatch. You promised one type but provided another.
 
 **Fix**: Convert or fix the declaration:
+
 ```rust
 let x: &str = "hello";  // ✅ Correct type
 // or
@@ -513,6 +517,7 @@ mod tests {
 ```
 
 **Output**:
+
 ```
 [src/lib.rs:42] &filter = Filter {
     field: "age",
@@ -526,12 +531,14 @@ mod tests {
 ### Strategy 2: Read the Compiler Error Carefully
 
 Rust compiler errors are verbose but specific. They tell you:
+
 1. **What** went wrong (top line)
 2. **Where** it happened (file and line)
 3. **Context** (surrounding code)
 4. **Suggestion** (how to fix it)
 
 **Example**:
+
 ```
 error: this expression will panic at runtime
  --> src/main.rs:123:15
@@ -587,17 +594,20 @@ fn test_get_connections() {
 ## When to Ask for Help
 
 🟢 **You should try to solve (1-2 hours max)**:
+
 - Compiler error you haven't seen before
 - Test that's failing
 - Small logic bug
 
 🟡 **After 1-2 hours, ask for help**:
+
 - Compiler error keeps appearing despite fixes
 - Can't understand phase documentation
 - Test infrastructure not working
 - Async code deadlocking
 
 🔴 **Ask immediately (something is very wrong)**:
+
 - Code crashes with "panicked at"
 - Pool exhaustion/deadlocks
 - Memory usage growing infinitely
@@ -627,6 +637,7 @@ Before asking for help, verify:
 **Cause**: Usually environment differences (database, timing).
 
 **Debug**:
+
 1. Check if test uses `TestDatabase` (isolated)
 2. Check if test has race conditions (run locally 10x: `for i in {1..10}; do cargo test --lib test_name; done`)
 3. Check if test is time-dependent (may be flaky)
@@ -638,6 +649,7 @@ Before asking for help, verify:
 **Cause**: Usually a subtle mistake.
 
 **Debug**:
+
 1. Copy-paste the error message into search
 2. Check Rust documentation for the error code
 3. Look at the "note" or "help" in the error
@@ -650,6 +662,7 @@ Before asking for help, verify:
 **Cause**: Missing `.await` or blocking code in async context.
 
 **Debug**:
+
 ```rust
 // Add prints to see where it gets stuck
 async fn my_function() {
@@ -666,6 +679,7 @@ async fn my_function() {
 **Cause**: Holding connections too long or forgetting to release them.
 
 **Debug**:
+
 - Verify each connection is released in a scope
 - Check for infinite loops that keep getting connections
 - Use `#[test] async fn` not `#[tokio::test]` for simpler tests

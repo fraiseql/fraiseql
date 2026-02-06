@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Guides
 description: Practical how-to guides for operators, developers, and DevOps teams.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

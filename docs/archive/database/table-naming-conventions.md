@@ -16,6 +16,7 @@ mv_*  → Materialized Views (pre-computed aggregations)
 ```
 
 **✅ RECOMMENDED PATTERN**: Use `tb_*`, `v_*`, and `tv_*` prefixes for production applications. This provides:
+
 - Clear separation of concerns
 - Automatic multi-tenancy support
 - Optimal performance for GraphQL APIs
@@ -24,6 +25,7 @@ tb_*  → Base Tables (normalized, write-optimized)
 v_*   → Views (standard SQL views, read-optimized)
 tv_*  → Table Views (denormalized tables matching GraphQL types)
 mv_*  → Materialized Views (pre-computed aggregations)
+
 ```
 
 **Key Insight**: `tv_*` (table views) are **TABLES** that store denormalized, pre-composed data matching the GraphQL types exposed by the API.
@@ -73,6 +75,7 @@ CREATE TABLE tb_comment (
 ```
 
 **Characteristics**:
+
 - ✅ Normalized (3NF)
 - ✅ Write-optimized (no duplication)
 - ✅ Foreign keys enforced
@@ -81,11 +84,13 @@ CREATE TABLE tb_comment (
 - ❌ Slower for read-heavy workloads
 
 **When to Use**:
+
 - Write operations (INSERT, UPDATE, DELETE)
 - Data integrity enforcement
 - As the source for `tv_*` and `v_*` objects
 
 **GraphQL Mapping** (not recommended directly):
+
 ```python
 import fraiseql
 
@@ -104,6 +109,7 @@ class User:
 **Purpose**: Pre-defined queries for common access patterns
 
 **Example**:
+
 ```sql
 -- View: Standard SQL view (query on read)
 CREATE VIEW v_user AS
@@ -133,6 +139,7 @@ FROM tb_user u;
 ```
 
 **Characteristics**:
+
 - ✅ No storage overhead (just a query)
 - ✅ Always up-to-date (queries live data)
 - ✅ Can have indexes on underlying tables
@@ -140,12 +147,14 @@ FROM tb_user u;
 - ❌ Cannot index the view itself
 
 **Performance**:
+
 ```sql
 SELECT * FROM v_user WHERE id = 1;
 -- Execution: 5-10ms (JOIN + subquery on every read)
 ```
 
 **When to Use**:
+
 - ✅ Simple queries on small datasets (< 10k rows)
 - ✅ When storage is constrained (no extra space for tv_* tables)
 - ✅ When absolute freshness required (no staleness acceptable)
@@ -153,11 +162,13 @@ SELECT * FROM v_user WHERE id = 1;
 - ✅ Admin interfaces (performance less critical)
 
 **When NOT to Use**:
+
 - ❌ Large datasets (> 100k rows) - too slow (5-10ms per query)
 - ❌ High-traffic GraphQL APIs - JOIN overhead kills performance
 - ❌ Complex aggregations - better with mv_* materialized views
 
 **GraphQL Mapping**:
+
 ```python
 import fraiseql
 
@@ -169,6 +180,7 @@ class User:
 ```
 
 **Trade-offs**:
+
 - Still slow (5-10ms per query due to JOINs)
 - Returns JSON (snake_case), needs transformation
 - No storage overhead but runtime performance cost
@@ -181,6 +193,7 @@ class User:
 **Purpose**: Pre-composed JSONB data for instant GraphQL responses
 
 **Example**:
+
 ```sql
 -- Table view (regular table, NOT generated column)
 CREATE TABLE tv_user (
@@ -265,6 +278,7 @@ FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 ```
 
 **Characteristics**:
+
 - ✅ **It's a TABLE** (not a view!)
 - ✅ Regular table with explicit sync (not generated column)
 - ✅ Pre-composed JSONB matching GraphQL types (instant reads)
@@ -276,6 +290,7 @@ FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 - ⚠️ Write amplification (sync on every change) — acceptable trade-off for read-heavy workloads
 
 **Performance**:
+
 ```sql
 SELECT data FROM tv_user WHERE id = 1;
 -- Execution: 0.05ms (simple indexed lookup!)
@@ -293,6 +308,7 @@ SELECT * FROM v_user WHERE id = 1;
 PostgreSQL materialized views require `REFRESH MATERIALIZED VIEW` which recomputes the *entire* view—expensive and slow for frequently changing data. Table views are regular tables with row-level sync: mutations only recompute affected rows via `fn_sync_tv_*()`. This enables fast, incremental updates instead of full table refreshes.
 
 **When to Use**:
+
 - ✅ Read-heavy workloads (10:1+ read:write)
 - ✅ GraphQL APIs (perfect fit!)
 - ✅ Predictable query patterns
@@ -300,6 +316,7 @@ PostgreSQL materialized views require `REFRESH MATERIALIZED VIEW` which recomput
 - ✅ When you need explicit control over sync timing
 
 **GraphQL Mapping** (optimal):
+
 ```python
 import fraiseql
 
@@ -339,6 +356,7 @@ async def update_user(info, id: int, input: UpdateUserInput) -> User:
 **Purpose**: Pre-computed aggregations with manual refresh
 
 **Example**:
+
 ```sql
 -- Materialized view: complex aggregation
 CREATE MATERIALIZED VIEW mv_dashboard AS
@@ -368,6 +386,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard;
 ```
 
 **Characteristics**:
+
 - ✅ Pre-computed aggregations
 - ✅ Very fast reads (0.1-0.5ms)
 - ✅ Handles complex queries (GROUP BY, multiple JOINs)
@@ -376,6 +395,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard;
 - ❌ Cannot use for transactional data
 
 **Performance**:
+
 ```sql
 -- Live query (no MV)
 SELECT COUNT(*), ... complex aggregation ...
@@ -389,6 +409,7 @@ SELECT * FROM mv_dashboard;
 ```
 
 **When to Use**:
+
 - ✅ Complex aggregations (GROUP BY, COUNT, SUM)
 - ✅ Analytics dashboards
 - ✅ Acceptable staleness (5-60 minutes)
@@ -430,6 +451,7 @@ SELECT * FROM mv_dashboard;
 ```
 
 **Schema**:
+
 ```sql
 -- Base tables (tb_*)
 CREATE TABLE tb_user (...);
@@ -456,6 +478,7 @@ CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
 ```
 
 **Benefits**:
+
 - ✅ Simple (only 2 layers)
 - ✅ Always up-to-date (explicit sync in mutations)
 - ✅ Fast reads (0.05-0.5ms)
@@ -463,6 +486,7 @@ CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
 - ✅ Explicit control over sync timing
 
 **Drawbacks**:
+
 - ❌ Must call sync functions in mutations (not automatic)
 - ❌ Storage overhead (1.5-2x)
 - ❌ Write amplification (sync on every change)
@@ -494,6 +518,7 @@ CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
 ```
 
 **Schema**:
+
 ```sql
 -- Base tables
 CREATE TABLE tb_user (...);
@@ -509,6 +534,7 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 ```
 
 **When to Use**:
+
 - Public API (use `tv_*` for fast entity queries)
 - Analytics dashboard (use `mv_*` for aggregations)
 - Admin panel (query `tb_*` directly for flexibility)
@@ -533,6 +559,7 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 ```
 
 **Schema**:
+
 ```sql
 -- Simple: no tv_ split, but with tb_ prefix
 CREATE TABLE tb_user (
@@ -552,12 +579,14 @@ CREATE TABLE tb_user (
 ```
 
 **Benefits**:
+
 - ✅ Simplest setup (no sync triggers)
 - ✅ Still fast (0.5-1ms queries)
 - ✅ Consistent tb_ naming
 - ✅ Good for small apps
 
 **When to Use**:
+
 - MVPs and prototypes
 - Small applications (<10k users)
 - Development/testing
@@ -599,6 +628,7 @@ Query type?
 ### For Production Applications (Recommended)
 
 **Always use prefixes for production applications**:
+
 ```sql
 -- Base tables (write operations)
 CREATE TABLE tb_user (...);
@@ -617,6 +647,7 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 ### For Development/Prototypes Only
 
 **Simple naming without prefixes** (NOT recommended for production):
+
 ```sql
 -- Simple naming (no prefixes) - FOR PROTOTYPES ONLY
 CREATE TABLE users (...);
@@ -627,6 +658,7 @@ ALTER TABLE users ADD COLUMN data JSONB GENERATED ALWAYS AS (...) STORED;
 ```
 
 **⚠️ WARNING**: Simple naming without prefixes is only suitable for:
+
 - MVPs and prototypes
 - Small applications (<10k users)
 - Development/testing
@@ -697,10 +729,12 @@ mv_* (optional, for analytics)
 ```
 
 **Remove**:
+
 - ❌ `v_*` views (not needed with `tv_*`)
 - ❌ Complex sync logic (use triggers)
 
 **Keep**:
+
 - ✅ `tb_*` (source of truth)
 - ✅ `tv_*` (GraphQL optimization)
 - ✅ `mv_*` (optional, for aggregations)
@@ -709,9 +743,10 @@ mv_* (optional, for analytics)
 
 ## 🎯 Key Takeaways
 
-### 1. `tv_*` Are Tables with Explicit Sync!
+### 1. `tv_*` Are Tables with Explicit Sync
 
 `tv_*` (table views) are **regular TABLES** that store denormalized data matching GraphQL types and require explicit sync:
+
 ```sql
 CREATE TABLE tv_user (  -- ← It's a TABLE!
     id UUID PRIMARY KEY,
@@ -725,6 +760,7 @@ CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 ### 2. `tv_*` Table View Pattern is Optimal for GraphQL
 
 **Why**:
+
 - ✅ Pre-composed JSONB matching GraphQL types (instant reads)
 - ✅ Embedded relations (no JOINs)
 - ✅ Perfect for Rust transformer
@@ -735,11 +771,13 @@ CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 ### 3. Choose `v_*` or `tv_*` Based on Scale
 
 **`v_*` (SQL views)** are appropriate for:
+
 - Small datasets (< 10k rows) where JOIN overhead is acceptable
 - Development/prototypes where setup speed matters
 - Cases where absolute freshness is required
 
 **`tv_*` (table views)** are optimal for:
+
 - Large datasets (> 100k rows) needing sub-millisecond queries
 - Production GraphQL APIs with high traffic
 - Complex relations with pre-composed JSONB matching GraphQL types
@@ -747,6 +785,7 @@ CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 ### 4. Use `mv_*` Selectively
 
 **Materialized views** for aggregations only:
+
 - Complex GROUP BY queries
 - Analytics dashboards
 - Acceptable staleness
@@ -810,6 +849,7 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 | **With analytics** | `tb_*` + `tv_*` + `mv_*` | Add `mv_dashboard` for aggregations |
 
 **Key Insight**: The `tv_*` table view pattern (tables with explicit sync) is **ideal for Rust-first FraiseQL**:
+
 - 0.05-0.5ms reads
 - Always up-to-date (via explicit sync)
 - Perfect for Rust transformer

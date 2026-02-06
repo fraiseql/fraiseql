@@ -11,12 +11,14 @@ The operator refactoring (Phases 1-7) has achieved **100% passing tests** but on
 ### Critical Findings
 
 ✅ **Strengths**:
+
 - Core strategies (String, Numeric, Boolean): 89-100% coverage
 - Registry and base infrastructure: 90-100% coverage
 - All happy path scenarios thoroughly tested
 - Zero regressions across 2,447 tests
 
 ⚠️ **Gaps**:
+
 - Network operators: 27% coverage (many operators untested)
 - DateRange operators: 27% coverage
 - Coordinate operators: 15% coverage
@@ -77,6 +79,7 @@ The operator refactoring (Phases 1-7) has achieved **100% passing tests** but on
 ### 🚨 Priority 1: Critical Production Features (Estimated: 120 tests)
 
 **1. Network Operators (27% → 85%)**
+
 - **Missing**: `isprivate`, `ispublic`, `insubnet`, `overlaps`, `strictleft`, `strictright`
 - **Impact**: IP filtering is a common use case
 - **Estimated**: 25 tests
@@ -93,6 +96,7 @@ def test_network_insubnet():
 ```
 
 **2. DateRange Operators (27% → 80%)**
+
 - **Missing**: Most range operators (overlaps, contains, adjacent, before, after)
 - **Impact**: Date filtering in time-series data
 - **Estimated**: 30 tests
@@ -107,6 +111,7 @@ def test_daterange_contains():
 ```
 
 **3. Pattern Operators (23% → 80%)**
+
 - **Missing**: `contains`, `startswith`, `endswith`, case sensitivity, regex
 - **Impact**: Text search is fundamental
 - **Estimated**: 20 tests
@@ -125,21 +130,25 @@ def test_pattern_regex():
 ### 🔸 Priority 2: Advanced Features (Estimated: 80 tests)
 
 **4. Coordinate Operators (15% → 70%)**
+
 - **Missing**: Distance calculations, bounding boxes, spatial queries
 - **Impact**: Geospatial applications
 - **Estimated**: 30 tests
 
 **5. Array Operators (24% → 75%)**
+
 - **Missing**: Array containment, overlap, element access
 - **Impact**: PostgreSQL array columns
 - **Estimated**: 20 tests
 
 **6. MAC Address Operators (38% → 80%)**
+
 - **Missing**: MAC address comparison, manufacturer lookup
 - **Impact**: Network inventory systems
 - **Estimated**: 15 tests
 
 **7. JSONB Operators (60% → 85%)**
+
 - **Missing**: Nested path extraction, type casting edge cases
 - **Impact**: JSON data queries
 - **Estimated**: 15 tests
@@ -149,6 +158,7 @@ def test_pattern_regex():
 ### 🔹 Priority 3: Edge Cases & Error Handling (Estimated: 60 tests)
 
 **8. Fallback Strategies**
+
 - `comparison_operators.py`: Type casting edge cases
 - `list_operators.py`: Empty lists, None values
 - `null_operators.py`: NULL propagation
@@ -156,12 +166,14 @@ def test_pattern_regex():
 - **Estimated**: 30 tests
 
 **9. Error Handling**
+
 - Invalid operator names
 - Type mismatches
 - Malformed values (invalid IPs, dates, coordinates)
 - **Estimated**: 20 tests
 
 **10. Base Strategy Helpers**
+
 - `_cast_path()` with various JSONB depths
 - `_build_in_operator()` with large lists
 - NULL handling edge cases
@@ -239,6 +251,7 @@ def test_pattern_regex():
 ## Test File Organization
 
 ### Current Structure (Good)
+
 ```
 tests/unit/sql/where/
 ├── test_ltree_*.py                      # ✅ Comprehensive (84 tests)
@@ -249,6 +262,7 @@ tests/unit/sql/where/
 ```
 
 ### Recommended Additions
+
 ```
 tests/unit/sql/where/
 ├── test_network_operators_complete.py        # 🆕 All network ops (25 tests)
@@ -267,6 +281,7 @@ tests/unit/sql/where/
 ### Pattern 1: Comprehensive Operator Testing
 
 **Example from ltree (86% coverage - good model)**:
+
 ```python
 class TestLTreeArrayOperators:
     """Test all ltree array operators."""
@@ -284,6 +299,7 @@ class TestLTreeArrayOperators:
 ### Pattern 2: Error Handling Tests
 
 **Currently Missing**:
+
 ```python
 class TestOperatorValidation:
     """Test operator validation and error handling."""
@@ -306,6 +322,7 @@ class TestOperatorValidation:
 ### Pattern 3: Edge Case Testing
 
 **Currently Missing**:
+
 ```python
 class TestOperatorEdgeCases:
     """Test boundary conditions and edge cases."""
@@ -328,6 +345,7 @@ class TestOperatorEdgeCases:
 ## Metrics & Goals
 
 ### Current State
+
 - **Total Tests**: 2,447
 - **Passing**: 2,447 (100%)
 - **Coverage**: 60%
@@ -335,6 +353,7 @@ class TestOperatorEdgeCases:
 - **Edge Cases**: ⚠️ 40% covered
 
 ### Target State (Phase 1)
+
 - **Total Tests**: 2,707 (+260)
 - **Passing**: 2,707 (100%)
 - **Coverage**: 70% (+10%)
@@ -342,6 +361,7 @@ class TestOperatorEdgeCases:
 - **Edge Cases**: ⚠️ 60% covered
 
 ### Target State (Phase 2)
+
 - **Total Tests**: 2,867 (+160)
 - **Passing**: 2,867 (100%)
 - **Coverage**: 80% (+10%)
@@ -349,6 +369,7 @@ class TestOperatorEdgeCases:
 - **Edge Cases**: ⚠️ 75% covered
 
 ### Target State (Phase 3)
+
 - **Total Tests**: 2,997 (+130)
 - **Passing**: 2,997 (100%)
 - **Coverage**: 90% (+10%)
@@ -360,17 +381,20 @@ class TestOperatorEdgeCases:
 ## Risk Assessment
 
 ### Low Risk (Current State OK)
+
 - Core comparison operators (eq, neq, gt, lt) - **100% tested**
 - String operations (basic) - **89% tested**
 - Boolean logic - **100% tested**
 - Registry and routing - **100% tested**
 
 ### Medium Risk (Needs Priority 1)
+
 - Network filtering (IP addresses) - **27% tested**
 - Date range queries - **27% tested**
 - Text search (pattern matching) - **23% tested**
 
 ### High Risk (Needs Priority 2)
+
 - Spatial/coordinate queries - **15% tested**
 - Array operations - **24% tested**
 - Advanced PostgreSQL types - **30% tested avg**
@@ -380,6 +404,7 @@ class TestOperatorEdgeCases:
 ## Recommended Next Steps
 
 ### Immediate (This Sprint)
+
 1. ✅ **Document coverage gaps** (This file)
 2. 🔄 **Add Priority 1 tests** (Network, DateRange, Pattern)
    - Target: 70% coverage
@@ -387,12 +412,14 @@ class TestOperatorEdgeCases:
    - Tests: +95 tests
 
 ### Short Term (Next Sprint)
+
 3. **Add Priority 2 tests** (Array, Coordinate, JSONB, MAC)
    - Target: 80% coverage
    - Time: 2-3 days
    - Tests: +80 tests
 
 ### Medium Term (Following Sprint)
+
 4. **Add Priority 3 tests** (Edge cases, integration)
    - Target: 90% coverage
    - Time: 2 days
@@ -408,12 +435,14 @@ class TestOperatorEdgeCases:
 ## Cost-Benefit Analysis
 
 ### Investment Required
+
 - **Phase 1**: 3-4 days (~24-32 hours)
 - **Phase 2**: 2-3 days (~16-24 hours)
 - **Phase 3**: 2 days (~16 hours)
 - **Total**: 7-9 days (~56-72 hours)
 
 ### Benefits
+
 - ✅ **Confidence**: Catch bugs before production
 - ✅ **Refactoring Safety**: Safely refactor with comprehensive tests
 - ✅ **Documentation**: Tests serve as usage examples
@@ -421,6 +450,7 @@ class TestOperatorEdgeCases:
 - ✅ **Maintenance**: Easier to onboard new developers
 
 ### Break-Even Analysis
+
 - **Bug Fix Cost**: ~4 hours average
 - **Bugs Prevented**: Estimated 15-20 bugs (based on 40% uncovered code)
 - **Savings**: 60-80 hours of debugging time

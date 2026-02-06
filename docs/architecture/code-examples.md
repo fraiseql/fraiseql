@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2: Code Examples
 description: This document provides concrete, runnable code examples for the core architecture components.
 keywords: ["design", "scalability", "fullstack", "code", "performance", "production", "patterns", "sample"]

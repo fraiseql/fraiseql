@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Monitoring & Observability Guide
 description: - Prometheus metrics format and scrape configuration
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

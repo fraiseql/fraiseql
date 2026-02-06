@@ -22,6 +22,7 @@ def _is_entity_field(self, field_name: str) -> bool:
 ```
 
 **Coverage:**
+
 - ✅ Exact "entity" match
 - ✅ Mutation-derived names (CreateMachine → machine)
 - ✅ Plural forms (CreateMachines → machines)
@@ -47,6 +48,7 @@ def _python_type_to_graphql(self, python_type: Any) -> str:
 ```
 
 **New Error Handling:**
+
 - ❌ Bare `list` without type parameter → Clear error message
 - ❌ Multiple non-None union types → Clear error message
 - ❌ Direct `None` type → Clear error message
@@ -81,21 +83,25 @@ def _python_type_to_graphql(self, python_type: Any) -> str:
 **Added 200+ lines of practical examples:**
 
 #### Success Type Examples
+
 - Simple entity
 - Entity with nested types
 - Entity with metadata
 - Nullable list items
 
 #### Error Type Examples
+
 - Basic error
 - Error with validation details
 - Error with metadata
 
 #### Entity Field Detection Examples
+
 - All 4 detection patterns
 - Clear distinction between entity and non-entity fields
 
 #### Edge Cases and Error Handling
+
 - 6 common edge cases
 - Clear error messages
 - Fix suggestions for each
@@ -139,26 +145,31 @@ def _python_type_to_graphql(self, python_type: Any) -> str:
 ## Key Benefits for Agent Implementation
 
 ### 1. Clear Type Conversion Logic
+
 - Every Python type → GraphQL conversion documented
 - Error handling for edge cases
 - Examples for all common patterns
 
 ### 2. Entity Field Detection Made Explicit
+
 - 4 clear patterns with priority order
 - Examples for each pattern
 - Clear distinction: entity vs non-entity fields
 
 ### 3. Immediate Verification
+
 - 5 smoke tests to run after each step
 - Catches issues early
 - Provides confidence in implementation
 
 ### 4. Real-World Context
+
 - Not just toy examples
 - Actual FraiseQL use cases
 - Complete Success/Error type examples
 
 ### 5. Error Handling Guidance
+
 - 6 common edge cases documented
 - Clear error messages for each
 - Fix suggestions provided
@@ -168,10 +179,12 @@ def _python_type_to_graphql(self, python_type: Any) -> str:
 ## Implementation Confidence
 
 **Before Enhancements:**
+
 - Phase 3 agent confidence: 70%
 - Main concerns: Type conversion edge cases, entity field ambiguity
 
 **After Enhancements:**
+
 - Phase 3 agent confidence: 90%+
 - Clear patterns, comprehensive examples, immediate verification
 
@@ -249,6 +262,7 @@ assert schema._is_entity_field("cascade") is False
 ## Summary
 
 Phase 3 is now **agent-ready** with:
+
 - ✅ Clear, comprehensive type conversion logic
 - ✅ Explicit entity field detection patterns
 - ✅ Extensive test examples (175 lines)

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Specifications
 description: Detailed technical specifications for implementers and integrators.
 keywords: ["format", "compliance", "protocol", "specification", "standard"]

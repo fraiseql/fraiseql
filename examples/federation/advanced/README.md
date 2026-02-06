@@ -43,6 +43,7 @@ Complex federation scenarios including circular references, 4+ subgraphs, field 
 **Solution**:
 
 Users Service:
+
 ```python
 @type
 @extends
@@ -62,6 +63,7 @@ class User:
 ```
 
 Companies Service:
+
 ```python
 @type
 @extends
@@ -81,6 +83,7 @@ class Company:
 ```
 
 **Result**: Bidirectional traversal:
+
 ```graphql
 query {
   company(id: "c1") {
@@ -100,6 +103,7 @@ Multiple services need to provide the same field with different logic.
 **Solution**:
 
 Orders Service:
+
 ```python
 @type
 class Product:
@@ -111,6 +115,7 @@ class Product:
 ```
 
 Inventory Service:
+
 ```python
 @type
 @shareable
@@ -132,6 +137,7 @@ Resolving a field requires different input fields depending on context.
 **Solution**:
 
 Orders Service:
+
 ```python
 @type
 @extends
@@ -146,6 +152,7 @@ class Product:
 **Hierarchy**: User → Company → Order → Product
 
 **Traversal Example**:
+
 ```graphql
 query {
   users {
@@ -185,6 +192,7 @@ docker-compose ps
 ### Database Schemas
 
 **Users Service**
+
 ```sql
 CREATE TABLE users (
   id VARCHAR(50) PRIMARY KEY,
@@ -194,6 +202,7 @@ CREATE TABLE users (
 ```
 
 **Companies Service**
+
 ```sql
 CREATE TABLE companies (
   id VARCHAR(50) PRIMARY KEY,
@@ -203,6 +212,7 @@ CREATE TABLE companies (
 ```
 
 **Orders Service**
+
 ```sql
 CREATE TABLE orders (
   id VARCHAR(50) PRIMARY KEY,
@@ -213,6 +223,7 @@ CREATE TABLE orders (
 ```
 
 **Inventory Service**
+
 ```sql
 CREATE TABLE products (
   id VARCHAR(50) PRIMARY KEY,
@@ -300,6 +311,7 @@ query {
 **Symptom**: Query hangs or returns with many repeated fields
 
 **Solution**: Use field aliases to break cycles:
+
 ```graphql
 query {
   company(id: "c1") {
@@ -320,6 +332,7 @@ query {
 **Symptom**: Different services provide conflicting field definitions
 
 **Solution**: Ensure `@shareable` fields have identical types:
+
 ```python
 # ✅ Correct
 class Product:
@@ -335,6 +348,7 @@ class Product:
 **Symptom**: Performance degrades with nested queries
 
 **Solution**: Use field selection and batching:
+
 ```graphql
 query {
   users {
@@ -361,6 +375,7 @@ Different services can own different aspects of the same entity:
 - **Billing Service**: Owns subscription, payment info
 
 One query can pull from all three:
+
 ```graphql
 query {
   user(id: "u1") {

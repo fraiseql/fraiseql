@@ -75,18 +75,22 @@
 ## Recommendations Summary
 
 ### Immediate (P0)
+
 1. **Add markers to unmarked tests** - Run `fix_test_markers.py` on remaining files
 2. **Add core module tests** - Target `nested_field_resolver.py`, `cqrs/repository.py`
 
 ### Short-term (P1)
+
 3. **Add caching tests** - Entire module at 0% coverage
 4. **Add auth flow tests** - `auth0.py` at 20%, `token_revocation.py` at 28%
 
 ### Medium-term (P2)
+
 5. **Replace star imports in conftest** - Improves fixture discoverability
 6. **Add fixture documentation** - Missing type hints and docstrings
 
 ### Long-term (P3)
+
 7. **Consider CLI integration tests** - Currently 0% coverage
 8. **Enterprise feature tests** - Add when features are actively used
 

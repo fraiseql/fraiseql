@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: WHERE Clause Operators Reference
 description: FraiseQL provides 150+ WHERE clause operators for filtering, searching, and comparing data across all supported column types. These operators enable:
 keywords: ["directives", "types", "scalars", "schema", "api"]

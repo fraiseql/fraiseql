@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Client Implementation Guides
 description: Complete guides for querying FraiseQL servers from different client frameworks and platforms.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

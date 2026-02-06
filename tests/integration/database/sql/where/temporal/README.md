@@ -5,6 +5,7 @@ Integration tests for date, datetime, and daterange operators.
 ## Tests
 
 ### DateRange Tests
+
 - `test_daterange_filtering.py` - DateRange end-to-end filtering
 - `test_daterange_operations.py` - DateRange operator validation (contains_date, overlaps, etc.)
 

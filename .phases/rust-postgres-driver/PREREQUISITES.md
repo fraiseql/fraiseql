@@ -43,6 +43,7 @@
    - Why? Because Rust prevents data races at compile time
 
    **Example**:
+
    ```rust
    let s = String::from("hello");      // s owns the string
    let r1 = &s;                         // r1 borrows s (immutable)
@@ -56,6 +57,7 @@
    - Use pattern matching to handle results
 
    **Example**:
+
    ```rust
    fn get_user(id: i32) -> Result<User, Error> {
        let conn = database.connect()?;      // ? propagates error if connect fails
@@ -73,6 +75,7 @@
    - Used with Options and Results
 
    **Example**:
+
    ```rust
    match result {
        Ok(value) => println!("Success: {}", value),
@@ -81,6 +84,7 @@
    ```
 
 **Resources** (1-2 hours each):
+
 - [Rust Book - Ownership Chapter](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)
 - [Rust Book - Error Handling](https://doc.rust-lang.org/book/ch09-00-error-handling.html)
 - [Learn Rust with Rustlings (interactive exercises)](https://github.com/rust-lang/rustlings)
@@ -97,6 +101,7 @@
    - Multiple futures can run concurrently (not in parallel, but interleaved)
 
    **Example**:
+
    ```rust
    async fn fetch_user(id: i32) -> User {
        // This function doesn't run immediately
@@ -115,6 +120,7 @@
    - Connection pools handle the tokio runtime
 
    **Example**:
+
    ```rust
    async fn fetch_all_users() -> Vec<User> {
        let user1 = tokio::spawn(fetch_user(1));
@@ -133,6 +139,7 @@
    - This is why `deadpool-postgres` is async (doesn't block the event loop)
 
 **Resources** (1-2 hours):
+
 - [Rust Book - Async Chapter](https://doc.rust-lang.org/book/ch17-00-async-await.html)
 - [Tokio Tutorial](https://tokio.rs/tokio/tutorial)
 
@@ -147,6 +154,7 @@
 **What you NEED to know**:
 
 1. **Basic Queries**
+
    ```sql
    -- SELECT: get data
    SELECT * FROM users WHERE id = 1;
@@ -177,6 +185,7 @@
    - `UNIQUE` - no duplicates
 
 **Resources** (2-3 hours):
+
 - [PostgreSQL Official Tutorial](https://www.postgresql.org/docs/current/tutorial.html)
 - [SQL in 100 Seconds (YouTube)](https://www.youtube.com/watch?v=zsjvGqFqWBc)
 
@@ -190,6 +199,7 @@
    - FraiseQL heavily uses JSONB for flexible schemas
 
    **Example**:
+
    ```sql
    CREATE TABLE users (
        id SERIAL PRIMARY KEY,
@@ -235,6 +245,7 @@
    - Errors must convert to Python exceptions
 
 2. **Basic PyO3 Pattern**
+
    ```rust
    use pyo3::prelude::*;
 
@@ -272,6 +283,7 @@
    - Rust: Fast database operations, connection pooling, result streaming
 
 3. **Data Flow**
+
    ```
    Python API Call
        ↓
@@ -334,16 +346,19 @@ Before starting, verify you can:
 ### For Rust Beginners (Total: 3 days)
 
 **Day 1** (6 hours):
+
 - [ ] Rust Book Chapters 1-4 (Ownership)
 - [ ] Rust Book Chapter 9 (Error Handling)
 - [ ] Rustlings exercises (ownership + error handling)
 
 **Day 2** (6 hours):
+
 - [ ] SQL basics (PostgreSQL tutorial)
 - [ ] Write 5 simple SELECT/INSERT queries manually
 - [ ] Understand JSONB concept
 
 **Day 3** (6 hours):
+
 - [ ] Rust Book Chapter 17 (Async/Await)
 - [ ] Tokio tutorial
 - [ ] Write small async Rust program with basic operations
@@ -353,11 +368,13 @@ Before starting, verify you can:
 ### For Rust Developers Without Async (Total: 2 days)
 
 **Day 1** (6 hours):
+
 - [ ] Rust Book Chapter 17 (Async/Await)
 - [ ] Tokio tutorial
 - [ ] Hands-on: Write async functions with `.await`
 
 **Day 2** (6 hours):
+
 - [ ] SQL basics refresher
 - [ ] JSONB concept
 - [ ] Review PyO3 basics section above
@@ -367,6 +384,7 @@ Before starting, verify you can:
 ### For Experienced Rust + Async (Total: 1 day)
 
 **Day 1** (6 hours):
+
 - [ ] Read GLOSSARY.md (in this directory)
 - [ ] Review Architecture section above
 - [ ] Skim Phase 0.1-0.2 to understand structure

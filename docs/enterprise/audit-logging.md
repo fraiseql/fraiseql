@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Enterprise Audit Logging Documentation
 description: FraiseQL's Enterprise Audit Logging system provides:
 keywords: []

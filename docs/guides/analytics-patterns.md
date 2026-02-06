@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Analytics Patterns Guide
 description: - SQL aggregation functions (SUM, AVG, COUNT, GROUP BY, HAVING)
 keywords: ["workflow", "debugging", "implementation", "best-practices", "deployment", "saas", "realtime", "ecommerce"]
@@ -920,5 +921,3 @@ query {
 - **[Troubleshooting Guide](../troubleshooting.md)** — FAQ and solutions
 
 ---
-
-

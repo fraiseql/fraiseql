@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: OAuth Provider Selection Guide
 description: ├─ YES → Keycloak (self-hosted) or SCRAM
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

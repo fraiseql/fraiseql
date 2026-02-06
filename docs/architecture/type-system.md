@@ -206,6 +206,7 @@ flowchart TD
 ```
 
 **String Enum:**
+
 ```python
 from enum import Enum
 
@@ -217,6 +218,7 @@ class UserRole(Enum):
 ```
 
 **GraphQL:**
+
 ```graphql
 enum UserRole {
   ADMIN
@@ -226,12 +228,14 @@ enum UserRole {
 ```
 
 **PostgreSQL:**
+
 ```sql
 -- Stored as TEXT
 role TEXT CHECK (role IN ('ADMIN', 'USER', 'GUEST'))
 ```
 
 **Integer Enum:**
+
 ```python
 @fraiseql.enum
 class Priority(Enum):
@@ -258,6 +262,7 @@ flowchart TD
 ```
 
 **Embedded (JSONB):**
+
 ```python
 @fraiseql.type
 class Address:
@@ -273,6 +278,7 @@ class User:
 ```
 
 **SQL View:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -290,6 +296,7 @@ FROM tb_user;
 ```
 
 **Relational (Separate Query):**
+
 ```python
 @fraiseql.type(sql_source="v_department", resolve_nested=True)
 class Department:
@@ -329,6 +336,7 @@ flowchart TD
 ```
 
 **Code:**
+
 ```python
 # User writes this
 @fraiseql.type
@@ -363,6 +371,7 @@ flowchart LR
 ```
 
 **Output Type (Query Results):**
+
 ```python
 @fraiseql.type
 class User:
@@ -373,6 +382,7 @@ class User:
 ```
 
 **Input Type (Mutation Args):**
+
 ```python
 @fraiseql.input
 class CreateUserInput:
@@ -401,6 +411,7 @@ flowchart TD
 ```
 
 **Validation Points:**
+
 1. **GraphQL Schema Validation** - Input matches GraphQL type
 2. **Python Type Conversion** - GraphQL values → Python objects
 3. **Database Constraints** - PostgreSQL validates on INSERT/UPDATE

@@ -36,6 +36,7 @@ CREATE INDEX idx_user_created ON tb_user(created_at DESC) WHERE deleted_at IS NU
 ```
 
 **Referenced from**:
+
 - [Core Concepts Glossary](../core/concepts-glossary.md#trinity-identifiers)
 - [Trinity Pattern Guide](../guides/trinity-pattern-guide.md)
 - [Blog API Tutorial](../tutorials/blog-api.md)
@@ -75,6 +76,7 @@ CREATE INDEX idx_post_identifier ON tb_post(identifier) WHERE deleted_at IS NULL
 ```
 
 **Referenced from**:
+
 - [Blog API Tutorial](../tutorials/blog-api.md)
 - [Database Patterns](../advanced/database-patterns.md)
 
@@ -146,6 +148,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Referenced from**:
+
 - [Mutation SQL Requirements](../guides/mutation-sql-requirements.md)
 - [Getting Started Quickstart](../getting-started/quickstart.md)
 - [Blog API Tutorial](../tutorials/blog-api.md)
@@ -265,6 +268,7 @@ class User:
 ```
 
 **Referenced from**:
+
 - [Core Concepts Glossary](../core/concepts-glossary.md)
 - [Types & Schema](../core/types-and-schema.md)
 - [Getting Started](../getting-started/quickstart.md)
@@ -418,6 +422,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Referenced from**:
+
 - [Core Concepts Glossary](../core/concepts-glossary.md#jsonb-view-pattern)
 - [Database API](../core/database-api.md)
 
@@ -493,6 +498,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Referenced from**:
+
 - [Core Concepts Glossary](../core/concepts-glossary.md#projection-tables-tv_)
 - [Database Patterns](../advanced/database-patterns.md)
 
@@ -503,18 +509,22 @@ $$ LANGUAGE plpgsql;
 **When referencing these examples:**
 
 ✅ **DO:**
+
 - Link to this page instead of copying
 - Use relative links: `[example](../examples/canonical-examples.md#user-table)`
 - Mention which section you're referring to
 
 ❌ **DON'T:**
+
 - Copy/paste entire examples into your documentation
 - Modify examples inline (create variations in your own doc instead)
 - Create new "canonical" examples elsewhere
 
 **If you need a variation:**
+
 1. Link to the canonical example first
 2. Show only the difference:
+
    ```markdown
    Based on the [canonical User table](../examples/canonical-examples.md#user-table),
    add a `role` column:
@@ -522,6 +532,7 @@ $$ LANGUAGE plpgsql;
    ```sql
    ALTER TABLE tb_user ADD COLUMN role TEXT DEFAULT 'user';
    ```
+
    ```
 
 ---
@@ -538,11 +549,13 @@ $$ LANGUAGE plpgsql;
 - Follow [FraiseQL terminology guide](../reference/terminology.md)
 
 **When to add a new example:**
+
 - When you find the same pattern in 3+ documentation files
 - When creating a new tutorial that needs a standard example
 - When a common question needs a definitive answer
 
 **When NOT to add:**
+
 - One-off examples specific to a single guide
 - Variations of existing examples (link to original + show diff)
 - Deprecated patterns

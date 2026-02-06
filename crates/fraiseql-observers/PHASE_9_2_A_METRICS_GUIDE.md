@@ -407,31 +407,37 @@ match execute_action(&action).await {
 ### PromQL Examples for Grafana
 
 **Event Processing Rate (events/sec)**
+
 ```promql
 rate(events_processed_total[1m])
 ```
 
 **Event Processing Latency (P99)**
+
 ```promql
 histogram_quantile(0.99, event_processing_duration_ms)
 ```
 
 **Action Success Rate (%)**
+
 ```promql
 (action_success_total / action_executed_total) * 100
 ```
 
 **Queue Depth Over Time**
+
 ```promql
 queue_depth
 ```
 
 **Cache Hit Rate**
+
 ```promql
 cache_hit_rate
 ```
 
 **Deduplication Effectiveness**
+
 ```promql
 dedup_hit_rate
 ```
@@ -452,6 +458,7 @@ Key panels:
 - Error rate
 
 Query examples:
+
 ```
 Panel: Event Processing Rate
 Query: rate(events_processed_total[1m])
@@ -477,6 +484,7 @@ Key panels:
 - Error rate over time
 
 Query examples:
+
 ```
 Panel: Failed Actions
 Query: action_failure_total
@@ -507,6 +515,7 @@ Query: rate(action_failure_total[1m]) / rate(action_executed_total[1m])
 ### Optimization Tips
 
 1. **Batch Metric Updates**
+
    ```rust
    // Bad: update each metric individually
    for event in events {
@@ -518,6 +527,7 @@ Query: rate(action_failure_total[1m]) / rate(action_executed_total[1m])
    ```
 
 2. **Use Gauges for Ranges**
+
    ```rust
    // Use gauge for current values (can go up/down)
    metrics.queue_depth.set(queue.len() as f64);
@@ -527,6 +537,7 @@ Query: rate(action_failure_total[1m]) / rate(action_executed_total[1m])
    ```
 
 3. **Sample Histograms**
+
    ```rust
    // For high-frequency operations, consider sampling
    if rand::random::<f32>() < 0.01 {  // 1% sample
@@ -699,16 +710,19 @@ spec:
 ### Metrics Not Appearing
 
 **Check 1**: Is metrics feature enabled?
+
 ```bash
 cargo build --features phase8
 ```
 
 **Check 2**: Is metrics endpoint responding?
+
 ```bash
 curl http://localhost:8080/metrics
 ```
 
 **Check 3**: Is Prometheus scraping?
+
 ```
 Check Prometheus Targets: http://localhost:9090/targets
 Should show: localhost:8080/metrics UP
@@ -717,6 +731,7 @@ Should show: localhost:8080/metrics UP
 ### High Prometheus Memory Usage
 
 **Solution**: Reduce cardinality
+
 ```promql
 # Check metric cardinality
 topk(10, count by (__name__) (ALERTS))

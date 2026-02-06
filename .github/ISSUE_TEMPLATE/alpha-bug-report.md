@@ -7,6 +7,7 @@ assignees: ''
 ---
 
 ## Description
+
 Brief description of the bug you encountered.
 
 ---
@@ -42,16 +43,19 @@ class Example:
 ---
 
 ## Expected Behavior
+
 What should have happened?
 
 ---
 
 ## Actual Behavior
+
 What actually happened instead?
 
 ---
 
 ## Error Message
+
 If applicable, paste the full error message:
 
 ```
@@ -79,6 +83,7 @@ error: ...
 ---
 
 ## Label This Issue
+
 Please add the **`alpha`** label. Other useful labels:
 
 - `bug` — for broken functionality

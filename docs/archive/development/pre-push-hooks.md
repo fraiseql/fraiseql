@@ -81,6 +81,7 @@ git push --no-verify
 ## What Tests Are Run
 
 The pre-push hook runs:
+
 - ✅ Unit tests
 - ✅ Integration tests (excluding slow blog examples)
 - ✅ Mutation tests
@@ -92,6 +93,7 @@ The pre-push hook runs:
 ## CI/CD Behavior
 
 The pre-push hook automatically skips in CI environments:
+
 - GitHub Actions
 - pre-commit.ci
 - Other CI services

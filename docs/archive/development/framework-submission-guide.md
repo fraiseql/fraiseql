@@ -204,6 +204,7 @@ Your application connects to the shared benchmark PostgreSQL instance:
 If your framework has special database requirements (extensions, custom types, specialized configurations), you may provide your own database container:
 
 **Requirements**:
+
 1. **Same schema**: Must implement the exact table structure shown below
 2. **Same data**: Use our data seeding scripts (provided)
 3. **PostgreSQL only**: Must be PostgreSQL (same version as benchmark suite)
@@ -212,11 +213,13 @@ If your framework has special database requirements (extensions, custom types, s
 6. **Transparency**: Publish all custom configurations
 
 **Example use cases**:
+
 - Framework requires specific PostgreSQL extensions (PostGIS, pgvector, etc.)
 - Framework uses custom PostgreSQL types
 - Framework integrates with database-specific features (triggers, functions)
 
 **Not allowed**:
+
 - Using a different DBMS to gain unfair advantage
 - Custom indexing beyond what's specified (unless you add same indexes to shared DB)
 - Pre-computed materialized views or caches
@@ -448,6 +451,7 @@ frameworks/
 Your framework will be tested on these scenarios:
 
 ### 1. Simple Query (P0)
+
 ```graphql
 query {
   users(limit: 10) {
@@ -457,9 +461,11 @@ query {
   }
 }
 ```
+
 **Measures**: Basic framework overhead, latency (p50, p95, p99)
 
 ### 2. N+1 Query Test (P0)
+
 ```graphql
 query {
   users(limit: 50) {
@@ -472,9 +478,11 @@ query {
   }
 }
 ```
+
 **Measures**: DataLoader effectiveness, database query count
 
 ### 3. Complex Filtering (P1)
+
 ```graphql
 query {
   usersWhere(
@@ -489,9 +497,11 @@ query {
   }
 }
 ```
+
 **Measures**: SQL generation efficiency, query planning time
 
 ### 4. Mutations (P1)
+
 ```graphql
 mutation {
   createUser(input: {
@@ -506,9 +516,11 @@ mutation {
   }
 }
 ```
+
 **Measures**: Write performance, validation overhead
 
 ### 5. Deep Nesting (P2)
+
 ```graphql
 query {
   posts(limit: 10) {
@@ -529,6 +541,7 @@ query {
   }
 }
 ```
+
 **Measures**: Complex query optimization, resolver efficiency
 
 ---
@@ -646,6 +659,7 @@ Your framework will appear in benchmark results:
 ```
 
 Results include:
+
 - Latency percentiles (p50, p95, p99)
 - Throughput (requests per second)
 - Database query counts
@@ -696,6 +710,7 @@ After your framework is benchmarked:
 **A**: **Yes, if you have a legitimate technical requirement** (e.g., need PostgreSQL extensions, custom types, database-specific features).
 
 **Requirements**:
+
 - Must be PostgreSQL (same version as benchmark suite)
 - Must use exact same schema and seed data
 - Must have same resource limits (2 CPU, 2GB RAM)

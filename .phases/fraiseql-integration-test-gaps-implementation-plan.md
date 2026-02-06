@@ -9,6 +9,7 @@
 **Approach**: Build meta-integration tests first to catch "works in isolation, fails in production" bugs, then systematically fill coverage gaps using TDD workflow.
 
 **Success Metrics**:
+
 - All 27 gap areas have integration tests
 - Meta-tests prevent future registration bugs
 - Test suite completes in <10 minutes
@@ -19,10 +20,13 @@
 ## Phase 0: Discovery & Test Infrastructure Setup
 
 ### Objective
+
 Understand FraiseQL's existing test infrastructure and verify what utilities are available before writing integration tests.
 
 ### Context
+
 Before implementing integration tests, we need to:
+
 1. Document existing test utilities (`GraphQLTestClient`, fixtures)
 2. Understand FraiseQL's operator/scalar registration patterns
 3. Identify gaps in test infrastructure
@@ -31,6 +35,7 @@ Before implementing integration tests, we need to:
 This prevents writing tests based on assumptions about APIs that don't exist.
 
 ### Files to Check
+
 - ✅ `tests/utils/graphql_test_client.py` - GraphQL test client (EXISTS)
 - ✅ `tests/conftest.py` - Pytest fixtures (EXISTS)
 - ✅ `src/fraiseql/where_clause.py` - Operator registry (`ALL_OPERATORS` EXISTS)
@@ -43,6 +48,7 @@ This prevents writing tests based on assumptions about APIs that don't exist.
 **Task**: Read and document `GraphQLTestClient` API.
 
 **Expected findings**:
+
 ```python
 # tests/utils/graphql_test_client.py provides:
 
@@ -71,6 +77,7 @@ class GraphQLTestClient:
 **Task**: Extract fixture list from `tests/conftest.py`.
 
 **Expected findings**:
+
 ```python
 # Database fixtures (from tests/fixtures/database/database_conftest.py):
 # - postgres_container: Docker PostgreSQL instance
@@ -92,6 +99,7 @@ class GraphQLTestClient:
 **Task**: Understand how operators are registered in `ALL_OPERATORS`.
 
 **Expected findings**:
+
 ```python
 # src/fraiseql/where_clause.py:
 
@@ -134,6 +142,7 @@ ALL_OPERATORS = {
 **Task**: Understand how custom scalars are implemented.
 
 **Expected findings**:
+
 ```python
 # src/fraiseql/types/scalars/ contains 80+ scalar implementations
 # Examples:
@@ -167,6 +176,7 @@ find src/fraiseql/types/scalars/ -name "*.py" | wc -l
 ```
 
 **Expected output**:
+
 ```
 ✓ GraphQLTestClient found
 ✓ 20+ fixtures available
@@ -193,21 +203,25 @@ find src/fraiseql/types/scalars/ -name "*.py" | wc -l
 ## Phase 1: Meta-Integration Tests (Prevent Future Regressions)
 
 ### Objective
+
 Create meta-integration tests that automatically verify ALL components work in complete pipelines, preventing the "works in isolation, fails in production" pattern.
 
 ### Context
 
 **Current State**:
+
 - Unit tests verify individual operators work in isolation
 - No tests verify operators are registered in `ALL_OPERATORS`
 - Recent bug: network operators implemented but not registered → failed in production
 
 **Problem**:
+
 - Developers add operators to category dict but forget `ALL_OPERATORS`
 - No automated check catches missing registrations
 - Bugs only found when users try to use operators in WHERE clauses
 
 **Solution**:
+
 - Meta-test that iterates through ALL_OPERATORS and tests each in real GraphQL query
 - Similar to `test_operator_registration.py` that caught the network bug
 - If operator missing from `ALL_OPERATORS`, test fails immediately
@@ -336,6 +350,7 @@ class TestOperatorRegistration:
 ```
 
 **Verification**:
+
 ```bash
 pytest tests/integration/test_all_operators_registration.py -v
 
@@ -350,6 +365,7 @@ pytest tests/integration/test_all_operators_registration.py -v
 **Action**: Ensure `test_schema` fixture includes `operator_test` table in schema definition.
 
 **Verification**:
+
 ```bash
 pytest tests/integration/test_all_operators_registration.py -v
 
@@ -361,11 +377,13 @@ pytest tests/integration/test_all_operators_registration.py -v
 **Task**: Extract test data setup into fixture, improve error messages.
 
 **Changes**:
+
 - Move table creation to conftest fixture
 - Add better error messages showing which operator failed
 - Group operators by category for clearer output
 
 **Verification**:
+
 ```bash
 pytest tests/integration/test_all_operators_registration.py -v
 
@@ -377,6 +395,7 @@ pytest tests/integration/test_all_operators_registration.py -v
 **Task**: Expand test to cover ALL operators in ALL_OPERATORS, not just critical subset.
 
 **Changes**:
+
 - Test all comparison operators (eq, neq, gt, gte, lt, lte)
 - Test all string operators (contains, icontains, startswith, etc.)
 - Test array operators
@@ -384,6 +403,7 @@ pytest tests/integration/test_all_operators_registration.py -v
 - Add edge cases (null values, empty arrays, etc.)
 
 **Verification**:
+
 ```bash
 pytest tests/integration/test_all_operators_registration.py -v --tb=short
 
@@ -426,21 +446,25 @@ pytest tests/integration/test_all_operators_registration.py --cov=fraiseql.where
 ## Phase 2: Critical Gaps - Operators & Type System
 
 ### Objective
+
 Fill the most critical gaps: `sql/where/operators` and `core/type_system` (80 scalars with 0 integration tests).
 
 ### Context
 
 **Current State**:
+
 - 80+ custom scalar implementations in `src/fraiseql/types/scalars/`
 - No integration tests verify scalars work in queries, mutations, WHERE clauses
 - No registry to enumerate all scalars (unlike `ALL_OPERATORS`)
 
 **Problem**:
+
 - Scalars tested in isolation but not in complete GraphQL pipeline
 - No test catches: scalar works in Python but fails in database roundtrip
 - No test verifies scalar works in WHERE clause with operators
 
 **Solution**:
+
 - Create scalar registry helper for enumeration
 - Test each scalar in: query, mutation, WHERE clause, database roundtrip
 
@@ -507,6 +531,7 @@ def get_scalar_test_value(scalar_name: str) -> Any:
 ```
 
 **Verification**:
+
 ```bash
 python -c "from fraiseql.testing.scalar_registry import get_all_custom_scalar_names; print(len(get_all_custom_scalar_names()))"
 
@@ -605,6 +630,7 @@ class TestScalarDatabaseRoundtrip:
 ```
 
 **Verification**:
+
 ```bash
 pytest tests/integration/core/test_scalar_database_roundtrip.py -v
 
@@ -620,11 +646,13 @@ pytest tests/integration/core/test_scalar_database_roundtrip.py -v
 **Task**: Optimize test to run faster (currently might be slow with 80+ scalars).
 
 **Changes**:
+
 - Use single table with multiple scalar columns instead of creating table per test
 - Batch insertions where possible
 - Use class-scoped fixtures for database setup
 
 **Verification**:
+
 ```bash
 pytest tests/integration/core/test_scalar_database_roundtrip.py -v --durations=10
 
@@ -636,12 +664,14 @@ pytest tests/integration/core/test_scalar_database_roundtrip.py -v --durations=1
 **Task**: Test edge cases like null values, invalid values, type coercion.
 
 **Changes**:
+
 - Test null scalar values
 - Test invalid scalar values (expect errors)
 - Test scalar arrays
 - Test scalars in nested objects
 
 **Verification**:
+
 ```bash
 pytest tests/integration/core/test_scalar_database_roundtrip.py -v
 
@@ -683,21 +713,25 @@ pytest tests/integration/core/ --durations=0
 ## Phase 3: High Priority Areas - Mutations & Utils
 
 ### Objective
+
 Address mutations (complex logic, no e2e validation) and utils (critical utilities affecting all features).
 
 ### Context
 
 **Current State**:
+
 - Mutations have unit tests for individual features (auto-populate, input conversion, etc.)
 - No end-to-end test of complete mutation lifecycle (create → update → delete)
 - Utils tested in isolation but not in real schema context
 
 **Problem**:
+
 - Mutation features work individually but might conflict when combined
 - Case conversion works in unit tests but might fail with real schema field names
 - No test verifies complete CRUD workflow
 
 **Solution**:
+
 - End-to-end mutation lifecycle test
 - Test utils with real schema field names from introspection
 
@@ -852,6 +886,7 @@ class TestMutationLifecycle:
 ```
 
 **Verification**:
+
 ```bash
 pytest tests/integration/mutations/test_mutation_lifecycle.py -v
 
@@ -863,6 +898,7 @@ pytest tests/integration/mutations/test_mutation_lifecycle.py -v
 **Task**: Configure test schema with User type and CRUD mutations.
 
 **Verification**:
+
 ```bash
 pytest tests/integration/mutations/test_mutation_lifecycle.py -v
 
@@ -874,6 +910,7 @@ pytest tests/integration/mutations/test_mutation_lifecycle.py -v
 **Task**: Extract common patterns, improve readability.
 
 **Changes**:
+
 - Extract GraphQL queries to module-level constants
 - Create helper methods for common assertions
 - Use fixtures for test data
@@ -883,12 +920,14 @@ pytest tests/integration/mutations/test_mutation_lifecycle.py -v
 **Task**: Test edge cases and complex scenarios.
 
 **Scenarios**:
+
 - Nested input objects
 - Mutation validation errors
 - Concurrent mutations
 - Batch mutations
 
 **Verification**:
+
 ```bash
 pytest tests/integration/mutations/ -v
 
@@ -928,16 +967,19 @@ pytest tests/integration/mutations/ --durations=5
 ## Phase 4: Systematic Coverage - Remaining Areas
 
 ### Objective
+
 Address remaining 22 areas with integration test gaps using systematic approach.
 
 ### Context
 
 **Current State**:
+
 - Phases 1-3 covered: operators, scalars, mutations (highest priority)
 - Remaining areas: decorators, validation, db utils, parsing, etc.
 
 **Approach**:
 Apply the same patterns from Phases 1-3:
+
 - Decorators: Test combinations and schema integration
 - Validation: Test in complete pipeline (not just isolated validation)
 - DB utils: Test with real schema operations
@@ -1038,16 +1080,19 @@ pytest tests/integration/ --cov=fraiseql --cov-report=html
 ## Phase 5: Quality Assurance & Documentation
 
 ### Objective
+
 Ensure all integration tests are robust, documented, and prevent future regressions.
 
 ### Context
 
 **Current State**:
+
 - Phases 1-4 created integration tests for all 27 gap areas
 - Tests pass but might not be maintainable by junior engineers
 - No documentation on patterns used
 
 **Goal**:
+
 - Document integration test patterns
 - Add CI automation
 - Verify test quality and coverage
@@ -1067,6 +1112,7 @@ Ensure all integration tests are robust, documented, and prevent future regressi
 **File**: `docs/testing/integration-test-patterns.md`
 
 **Content**:
+
 ```markdown
 # Integration Test Patterns
 
@@ -1117,6 +1163,7 @@ Ensure all integration tests are robust, documented, and prevent future regressi
 ```
 
 **Verification**:
+
 ```bash
 # Check documentation exists
 ls docs/testing/integration-test-patterns.md
@@ -1130,6 +1177,7 @@ markdownlint docs/testing/integration-test-patterns.md
 **Task**: Add integration test section to `tests/README.md`.
 
 **Changes**:
+
 - Add "Integration Tests" section
 - Link to pattern documentation
 - Explain how to run tests
@@ -1142,6 +1190,7 @@ markdownlint docs/testing/integration-test-patterns.md
 **Note**: Check if `.github/workflows/` exists first. If not, document how to add.
 
 **Verification**:
+
 ```bash
 # Check if CI config exists
 ls .github/workflows/
@@ -1155,6 +1204,7 @@ grep -r "pytest.*integration" .github/workflows/
 **Task**: Verify test quality meets standards.
 
 **Checks**:
+
 - [ ] All tests pass consistently (run 10 times)
 - [ ] No flaky tests (failing randomly)
 - [ ] Test coverage ≥85% for tested modules
@@ -1162,6 +1212,7 @@ grep -r "pytest.*integration" .github/workflows/
 - [ ] Error messages are clear and actionable
 
 **Verification**:
+
 ```bash
 # Run tests 10 times to check for flakiness
 for i in {1..10}; do pytest tests/integration/ -q || echo "FAILED on run $i"; done
@@ -1217,24 +1268,29 @@ time pytest tests/integration/
 ### Critical Risks
 
 #### 1. Test Flakiness
+
 **Risk**: Database state pollution between tests causes random failures.
 
 **Mitigation**:
+
 - Use class-scoped `class_db_pool` fixture (see fraiseql-testing.md)
 - Ensure database cleanup in teardown
 - Use transactions that rollback
 - Isolate test data with unique IDs
 
 **Detection**:
+
 ```bash
 # Run tests 10 times, should pass all runs
 for i in {1..10}; do pytest tests/integration/ || echo "FAIL"; done
 ```
 
 #### 2. Slow Test Suite
+
 **Risk**: Integration tests take too long, developers skip them.
 
 **Mitigation**:
+
 - Use class-scoped fixtures (setup once per class)
 - Batch operations where possible
 - Use parametrized tests instead of loops
@@ -1243,27 +1299,33 @@ for i in {1..10}; do pytest tests/integration/ || echo "FAIL"; done
 **Target**: <10 minutes for full integration test suite
 
 #### 3. Missing Edge Cases
+
 **Risk**: Meta-tests miss edge cases that cause bugs.
 
 **Mitigation**:
+
 - Combine meta-tests with targeted integration tests
 - Add tests for known bug patterns (e.g., network operators bug)
 - Use QA phase to add edge cases
 - Code review focuses on test coverage
 
 #### 4. Test Data Complexity
+
 **Risk**: Creating realistic test data for 80+ scalars is complex.
 
 **Mitigation**:
+
 - Use `SCALAR_TEST_DATA` registry with example values
 - Create factory functions for complex data
 - Document test data patterns
 - Reuse fixtures across tests
 
 #### 5. Schema Configuration Complexity
+
 **Risk**: `test_schema` fixture might not include all types needed.
 
 **Mitigation**:
+
 - Document required schema configuration
 - Use modular schema building (add types as needed)
 - Create helper functions for common schema patterns
@@ -1272,18 +1334,22 @@ for i in {1..10}; do pytest tests/integration/ || echo "FAIL"; done
 ### Success Metrics
 
 **Coverage**:
+
 - ✅ All 27 gap areas have integration tests
 - ✅ 85%+ code coverage for integration-tested modules
 
 **Reliability**:
+
 - ✅ <5% test failure rate in CI
 - ✅ Zero flaky tests (10 consecutive passes)
 
 **Performance**:
+
 - ✅ Integration test suite completes in <10 minutes
 - ✅ No individual test takes >30 seconds
 
 **Maintainability**:
+
 - ✅ Junior engineers can write new integration tests using documented patterns
 - ✅ Clear error messages when tests fail
 - ✅ Documentation with examples for all patterns
@@ -1293,6 +1359,7 @@ for i in {1..10}; do pytest tests/integration/ || echo "FAIL"; done
 ## Implementation Order
 
 **Dependencies**:
+
 - Phase 1-5 depend on Phase 0 (must understand infrastructure first)
 - Phase 5 depends on Phase 1-4 (can't document patterns until they exist)
 - Phases 1-4 can be worked in parallel after Phase 0 (independent areas)
@@ -1324,6 +1391,7 @@ for i in {1..10}; do pytest tests/integration/ || echo "FAIL"; done
    - Make maintainable for future engineers
 
 **Parallel work opportunities**:
+
 - After Phase 0, can work on Phase 1-4 in parallel if multiple engineers available
 - Within Phase 4, different areas can be worked independently
 
@@ -1379,29 +1447,34 @@ These rules apply to ALL phases:
 When all phases complete, verify:
 
 ### Coverage
+
 - [ ] All 27 gap areas have integration tests
 - [ ] 85%+ code coverage for tested modules
 - [ ] Meta-tests cover all operators in ALL_OPERATORS
 - [ ] All 80+ custom scalars tested
 
 ### Quality
+
 - [ ] All tests pass consistently (10 consecutive runs)
 - [ ] Zero flaky tests
 - [ ] Clear, actionable error messages
 - [ ] Code review approved
 
 ### Performance
+
 - [ ] Full integration suite runs in <10 minutes
 - [ ] No individual test >30 seconds
 - [ ] Class-scoped fixtures used appropriately
 
 ### Documentation
+
 - [ ] Integration test patterns documented with examples
 - [ ] Test infrastructure documented (fixtures, utilities)
 - [ ] README updated with how to run tests
 - [ ] Junior engineer can write new tests using docs
 
 ### Automation
+
 - [ ] Tests run in CI automatically
 - [ ] Coverage reports generated
 - [ ] Performance metrics tracked

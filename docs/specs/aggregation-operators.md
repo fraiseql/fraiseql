@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Aggregation Operators Specification
 description: This specification defines the aggregation operators available in FraiseQL, organized by database target and phase of implementation.
 keywords: ["format", "compliance", "protocol", "specification", "standard"]
@@ -623,5 +624,3 @@ fn temporal_bucket_sqlserver(field: &str, bucket: &str) -> String {
 - **Window Operators** (`window-operators.md`) - Window function reference
 
 ---
-
-

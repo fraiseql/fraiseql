@@ -12,6 +12,7 @@
 FraiseQL provides **three pre-configured security profiles** that implement progressively stricter controls for different deployment scenarios. Each profile balances security, performance, and compliance requirements.
 
 **Available Profiles:**
+
 - 🟢 **STANDARD** - General-purpose applications (default)
 - 🟡 **REGULATED** - Compliance-driven industries (HIPAA, PCI-DSS, SOC 2)
 - 🔴 **RESTRICTED** - High-security environments (government, defense, critical infrastructure)
@@ -104,6 +105,7 @@ app = create_fraiseql_app(
 | **IP Allowlisting** | ❌ No | ⚠️ Optional | ✅ Required |
 
 **Legend:**
+
 - ✅ Enabled/Required
 - ⚠️ Optional (recommended)
 - ❌ Disabled/Not required
@@ -115,6 +117,7 @@ app = create_fraiseql_app(
 ### When to Use
 
 ✅ **Ideal for:**
+
 - Internal applications with trusted users
 - Development and staging environments
 - Applications without sensitive data
@@ -122,6 +125,7 @@ app = create_fraiseql_app(
 - Non-regulated industries
 
 ❌ **Not suitable for:**
+
 - Processing payment card data
 - Handling protected health information (PHI)
 - SOC 2 Type II compliance
@@ -130,6 +134,7 @@ app = create_fraiseql_app(
 ### Key Features
 
 **Authentication & Access Control:**
+
 - JWT-based authentication required
 - Session timeout: 60 minutes
 - RBAC with PostgreSQL roles
@@ -137,18 +142,21 @@ app = create_fraiseql_app(
 - Field-level authorization
 
 **Network Security:**
+
 - HTTPS recommended (not enforced)
 - TLS 1.2+ support
 - Permissive CORS (configure for production)
 - Rate limiting: 100 requests/minute
 
 **Input Validation:**
+
 - GraphQL query depth limit: 15 levels
 - Query complexity limit: 1000
 - Request body size: 1 MB
 - SQL injection prevention (architecture)
 
 **Monitoring:**
+
 - Standard logging
 - Optional audit logging
 - Distributed tracing with OpenTelemetry
@@ -188,6 +196,7 @@ app = create_fraiseql_app(
 ### When to Use
 
 ✅ **Ideal for:**
+
 - Healthcare applications (HIPAA compliance)
 - Payment processing (PCI-DSS compliance)
 - SaaS applications requiring SOC 2 Type II
@@ -197,6 +206,7 @@ app = create_fraiseql_app(
 - Applications handling sensitive personal data
 
 ❌ **Not suitable for:**
+
 - Air-gapped deployments
 - Classified data (CUI, Secret, etc.)
 - DoD contractors requiring IL4/IL5
@@ -205,6 +215,7 @@ app = create_fraiseql_app(
 ### Key Features
 
 **Authentication & Access Control:**
+
 - JWT-based authentication required
 - **Multi-factor authentication (MFA) required**
 - Session timeout: **15 minutes**
@@ -213,6 +224,7 @@ app = create_fraiseql_app(
 - Field-level authorization with audit
 
 **Network Security:**
+
 - **HTTPS enforced** (no HTTP allowed)
 - TLS 1.2+ required
 - Restrictive CORS policies
@@ -221,18 +233,21 @@ app = create_fraiseql_app(
 - Optional: Mutual TLS (mTLS)
 
 **Encryption:**
+
 - **KMS integration required** (AWS KMS, Azure Key Vault, GCP KMS, HashiCorp Vault)
 - Envelope encryption for sensitive fields
 - Key rotation: 30 days
 - Encryption at rest and in transit
 
 **Input Validation:**
+
 - GraphQL query depth limit: **10 levels**
 - Query complexity limit: 1000
 - Request body size: 1 MB
 - **GraphQL introspection disabled**
 
 **Audit & Monitoring:**
+
 - **Comprehensive audit logging required**
 - **Field-level access tracking**
 - Immutable audit trails
@@ -349,6 +364,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 ### When to Use
 
 ✅ **Ideal for:**
+
 - Government and defense applications
 - Federal agencies (FedRAMP High, DoD IL4/IL5)
 - Critical infrastructure (NIS2 Essential Entities)
@@ -361,6 +377,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 - Canadian defence contractors (CPCSC)
 
 ❌ **Not suitable for:**
+
 - General SaaS applications (too restrictive)
 - High-throughput public APIs (rate limits too strict)
 - Prototypes and MVPs (setup complexity)
@@ -368,6 +385,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 ### Key Features
 
 **Authentication & Access Control:**
+
 - JWT-based authentication required
 - **Multi-factor authentication (MFA) required**
 - Session timeout: **5 minutes** (very short)
@@ -377,6 +395,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 - **Zero-trust network policies**
 
 **Network Security:**
+
 - **HTTPS enforced (TLS 1.3 only)**
 - **Mutual TLS (mTLS) required** (client certificates)
 - **IP allowlisting required**
@@ -386,6 +405,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 - Optional: Air-gapped deployment support
 
 **Encryption:**
+
 - **HSM-backed KMS required** (FIPS 140-2 Level 3)
 - Envelope encryption for all sensitive fields
 - Key rotation: **7 days** (weekly)
@@ -393,12 +413,14 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 - Encryption context (AAD) required
 
 **Input Validation:**
+
 - GraphQL query depth limit: **5 levels** (very strict)
 - Query complexity limit: **500** (half of standard)
 - Request body size: **512 KB** (half of standard)
 - **GraphQL introspection disabled**
 
 **Audit & Monitoring:**
+
 - **Verbose audit logging required**
 - **Field-level access tracking**
 - **Immutable audit trails with cryptographic chains**
@@ -408,6 +430,7 @@ See [Compliance Matrix](./compliance-matrix/) for detailed control mapping.
 - Security Operations Center (SOC) integration
 
 **Infrastructure:**
+
 - Non-root container user enforced
 - Read-only filesystem required
 - Resource limits enforced
@@ -520,6 +543,7 @@ app = create_fraiseql_app(
 - **Trade-off:** Security over performance
 
 **Optimization Tips:**
+
 - Use HSM with hardware acceleration
 - Enable aggressive caching (with encryption)
 - Deploy multiple instances behind load balancer
@@ -716,6 +740,7 @@ app = create_fraiseql_app(
 **Steps:**
 
 1. **Assess Current State** (1-2 days)
+
    ```bash
    fraiseql security audit
    ```
@@ -726,6 +751,7 @@ app = create_fraiseql_app(
    - Test key access from application
 
 3. **Enable Audit Logging** (1 day)
+
    ```bash
    fraiseql audit init --profile regulated
    fraiseql migrate up
@@ -737,6 +763,7 @@ app = create_fraiseql_app(
    - Roll out to users
 
 5. **Update Application Config** (1 day)
+
    ```python
    # Old (STANDARD)
    app = create_fraiseql_app(
@@ -771,6 +798,7 @@ app = create_fraiseql_app(
 **Steps:**
 
 1. **Assess Requirements** (3-5 days)
+
    ```bash
    fraiseql compliance check --standard [fedramp-high|nist-800-53-high|dod-il4]
    ```
@@ -791,6 +819,7 @@ app = create_fraiseql_app(
    - Test network policies
 
 5. **Enable Cryptographic Audit Chain** (1-2 days)
+
    ```bash
    fraiseql audit upgrade --crypto-chain
    ```
@@ -801,6 +830,7 @@ app = create_fraiseql_app(
    - Integrate with SOC
 
 7. **Update Application Config** (1 day)
+
    ```python
    # Old (REGULATED)
    app = create_fraiseql_app(
@@ -925,6 +955,7 @@ def test_rate_limiting(security_tester):
 **Cause:** KMS provider not configured correctly
 
 **Solution:**
+
 ```python
 # Verify KMS configuration
 from fraiseql.kms import test_kms_connection
@@ -942,6 +973,7 @@ if not result.success:
 **Cause:** Client certificate not trusted by server CA
 
 **Solution:**
+
 ```bash
 # Verify client certificate
 openssl verify -CAfile ca.crt client.crt
@@ -956,6 +988,7 @@ openssl s_client -connect api.example.com:443 \
 **Cause:** Audit table not initialized or permissions issue
 
 **Solution:**
+
 ```bash
 # Initialize audit infrastructure
 fraiseql audit init
@@ -975,6 +1008,7 @@ fraiseql audit test
 **Cause:** Default RESTRICTED rate limit (10/min) too low for use case
 
 **Solution:**
+
 ```python
 # Override rate limit for specific use case
 from fraiseql.security.profiles import get_profile, SecurityProfile
@@ -994,7 +1028,9 @@ app = create_fraiseql_app(
 **Cause:** HSM operations and cryptographic chains add latency
 
 **Solutions:**
+
 1. **Enable KMS data key caching:**
+
    ```python
    kms_config={
        "enable_data_key_caching": True,
@@ -1003,11 +1039,13 @@ app = create_fraiseql_app(
    ```
 
 2. **Use connection pooling:**
+
    ```python
    database_url="postgresql://localhost/mydb?pool_size=20&max_overflow=10"
    ```
 
 3. **Deploy multiple instances:**
+
    ```bash
    # Scale horizontally
    kubectl scale deployment fraiseql --replicas=5
@@ -1034,6 +1072,7 @@ A: Yes, for non-regulated applications with non-sensitive data. However, we reco
 **Q: How much does KMS integration cost?**
 
 A: KMS costs vary by provider:
+
 - AWS KMS: ~$1/month per key + $0.03 per 10,000 requests
 - Azure Key Vault: ~$0.03 per 10,000 operations
 - GCP KMS: ~$0.03 per 10,000 operations
@@ -1054,11 +1093,13 @@ A: No. One application instance uses one profile. Deploy separate instances if y
 **Q: How do I prove compliance to auditors?**
 
 A: Use the compliance reporting tools:
+
 ```bash
 fraiseql compliance report --profile regulated --output compliance-report.pdf
 ```
 
 Provide auditors with:
+
 1. Compliance report (PDF)
 2. Security audit results
 3. This documentation
@@ -1067,6 +1108,7 @@ Provide auditors with:
 ---
 
 **For Questions or Support:**
+
 - **Email:** security@fraiseql.com
 - **Enterprise Support:** Available for REGULATED/RESTRICTED deployments
 - **GitHub Discussions:** Community support for configuration questions

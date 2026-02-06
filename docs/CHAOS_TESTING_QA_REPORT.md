@@ -14,6 +14,7 @@ A comprehensive QA review of the FraiseQL chaos engineering test suite (Phases 1
 ### Key Findings
 
 ✅ **Strengths**:
+
 - Excellent architectural design with clean separation of concerns
 - Comprehensive coverage of all failure modes (network, database, cache, auth, resources, concurrency)
 - Detailed success criteria with realistic thresholds
@@ -21,6 +22,7 @@ A comprehensive QA review of the FraiseQL chaos engineering test suite (Phases 1
 - Professional implementation with metrics collection
 
 ❌ **Critical Issues**:
+
 1. **Test Class Inheritance Problem**: All test classes inherit from abstract `ChaosTestCase`, blocking pytest discovery
 2. **Toxiproxy Integration Not Tested**: Network chaos injection fixtures not functional
 3. **MockFraiseQLClient Behavior Undefined**: Client simulations incomplete
@@ -203,12 +205,14 @@ print(".2f")  # Incomplete format string
 #### Code Quality Issues in `auth/test_auth_chaos.py`
 
 **Example** (lines 44-50):
+
 ```python
 if random.random() < 0.15:  # 15% chance of token expiration
     raise jwt.ExpiredSignatureError("Token expired during request processing")
 ```
 
 **Problem**: Uses probability instead of controlled chaos. Real chaos testing should:
+
 - Use actual JWT tokens with real expiration times
 - Control timing precisely
 - Measure recovery behavior deterministically
@@ -271,12 +275,14 @@ if random.random() < 0.15:  # 15% chance of token expiration
 #### Code Quality Issues
 
 **Format String Bug Example** (line 56):
+
 ```python
 issues.append(".1f")  # Should be actual message like:
 # f"Resource success rate {success_rate:.1f}% below minimum {cls.RESOURCE_SUCCESS_RATE_MIN:.1f}%"
 ```
 
 **Missing Implementation** (resource monitoring):
+
 ```python
 # Tests reference these metrics but MockFraiseQLClient doesn't provide them:
 - memory_usage_mb
@@ -308,12 +314,14 @@ class ChaosTestCase(ABC):  # ❌ MAKES CLASS ABSTRACT
 ```
 
 **Problem**:
+
 - Makes `ChaosTestCase` abstract
 - All subclasses inherit abstractness
 - Pytest doesn't discover abstract test classes
 - **Result**: 0 tests discovered despite 100+ test methods written
 
 **Fix**: Remove `ABC` from inheritance
+
 ```python
 class ChaosTestCase:  # ✅ CONCRETE BASE CLASS
     """Base class for chaos engineering tests."""
@@ -326,11 +334,13 @@ class ChaosTestCase:  # ✅ CONCRETE BASE CLASS
 **Issue**: Missing `chaos_auth` marker
 
 **Status**: ✅ FIXED by adding to conftest.py line 44:
+
 ```python
 config.addinivalue_line("markers", "chaos_auth: authentication-related chaos tests")
 ```
 
 **Remaining Issues**:
+
 - Test files in subdirectories couldn't import `chaos` modules initially
 - Solution: Created conftest.py in each phase subdirectory to add tests dir to sys.path
 
@@ -350,21 +360,25 @@ config.addinivalue_line("markers", "chaos_auth: authentication-related chaos tes
 
 **Severity**: HIGH
 **Files Affected**:
+
 - `phase1_validation.py` - 5 bugs (lines 55, 111, 151, 196, 389-405)
 - `test_phase3_validation.py` - 4 bugs (lines 73, 128, 141, 159)
 - `test_phase4_validation.py` - 15 bugs (lines 56, 62, 68, 74, 124, 136, 148, 196, 470-506)
 
 **Example Bug** (Phase1 line 55):
+
 ```python
 issues.append(".1f")  # ❌ Not a valid Python expression
 ```
 
 **Impact**:
+
 - Error reports won't display metric values
 - Makes validation feedback useless
 - Suggests code is untested
 
 **Fix Pattern**:
+
 ```python
 # Before:
 issues.append(".1f")
@@ -380,6 +394,7 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 ### Architecture: ⭐⭐⭐⭐⭐ (5/5)
 
 **Strengths**:
+
 - Clean separation of concerns (base, fixtures, scenarios, plugins)
 - Comprehensive metrics collection
 - Validation framework is professional
@@ -387,6 +402,7 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 - Statistics and analysis generation
 
 **Evidence**:
+
 - `ChaosMetrics` dataclass elegantly captures all metrics
 - Validation classes use `@classmethod` pattern well
 - `ToxiproxyManager` has complete API coverage
@@ -395,11 +411,13 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 ### Implementation: ⭐⭐⭐☆☆ (3/5)
 
 **Strengths**:
+
 - Test methods are well-documented
 - Success criteria are realistic
 - Good use of parametrize for edge cases
 
 **Weaknesses**:
+
 - Abstract base class prevents test execution
 - Format strings incomplete in 24 locations
 - Mock implementations incomplete
@@ -408,6 +426,7 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 ### Test Coverage: ⭐⭐⭐⭐☆ (4/5)
 
 **Coverage**:
+
 - ✅ Network chaos (3 files, ~15 tests)
 - ✅ Database chaos (3 files, ~20 tests)
 - ✅ Cache chaos (2 files, ~10 tests)
@@ -416,6 +435,7 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 - ✅ Concurrency chaos (1 file, ~10 tests)
 
 **Missing**:
+
 - Integration tests between phases
 - Real PostgreSQL connection testing
 - Actual JWT token generation
@@ -424,12 +444,14 @@ issues.append(f"Recovery time degradation: {degradation:.1f}ms")
 ### Validation Logic: ⭐⭐⭐⭐⭐ (5/5)
 
 **Strengths**:
+
 - Realistic success thresholds
 - Clear pass/fail criteria
 - Comprehensive recommendations
 - Security-first approach (e.g., 60% auth success)
 
 **Example - Phase 3 Auth**:
+
 ```python
 AUTH_SUCCESS_RATE_MIN = 0.6  # ✅ Security over performance
 JWT_VALIDATION_ACCURACY = 0.9  # ✅ 90% is strict, appropriate for security
@@ -488,6 +510,7 @@ done
 ### Phase 2: Fix Validation Framework (30 minutes)
 
 Search and replace format string bugs:
+
 ```bash
 # Fix all ".1f" and ".2f" incomplete strings
 grep -rn '\.1f"' tests/chaos/ | grep append

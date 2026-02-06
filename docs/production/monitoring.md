@@ -19,6 +19,7 @@ Comprehensive monitoring strategy for FraiseQL applications with **PostgreSQL-na
 FraiseQL implements the **"In PostgreSQL Everything"** philosophy: all monitoring, error tracking, caching, and observability run directly in PostgreSQL, saving $300-3,000/month and simplifying operations.
 
 **PostgreSQL-Native Stack:**
+
 - **Error Tracking**: PostgreSQL-based alternative to Sentry
 - **Caching**: UNLOGGED tables alternative to Redis
 - **Metrics**: Prometheus or PostgreSQL-native metrics
@@ -26,6 +27,7 @@ FraiseQL implements the **"In PostgreSQL Everything"** philosophy: all monitorin
 - **Dashboards**: Grafana querying PostgreSQL directly
 
 **Cost Savings:**
+
 ```
 Traditional Stack:
 - Sentry: $300-3,000/month
@@ -38,6 +40,7 @@ FraiseQL Stack:
 ```
 
 **Key Components:**
+
 - PostgreSQL-native error tracking (recommended)
 - Prometheus metrics
 - Structured logging
@@ -85,6 +88,7 @@ except Exception as error:
 ### Features
 
 **Automatic Error Fingerprinting:**
+
 ```python
 # Errors are automatically grouped by fingerprint
 # Similar to Sentry's issue grouping
@@ -103,6 +107,7 @@ ORDER BY occurrences DESC;
 ```
 
 **Full Stack Trace Capture:**
+
 ```sql
 -- View complete error details
 SELECT
@@ -120,6 +125,7 @@ LIMIT 10;
 ```
 
 **OpenTelemetry Correlation:**
+
 ```sql
 -- Correlate errors with distributed traces
 SELECT
@@ -135,6 +141,7 @@ ORDER BY e.occurred_at DESC;
 ```
 
 **Issue Management:**
+
 ```python
 # Resolve errors
 await tracker.resolve_error(fingerprint="payment_timeout_error")
@@ -150,6 +157,7 @@ await tracker.assign_error(
 ```
 
 **Custom Notifications:**
+
 ```python
 from fraiseql.monitoring.notifications import EmailNotifier, SlackNotifier, WebhookNotifier
 
@@ -268,6 +276,7 @@ values = await cache.get_many(["product:1", "product:2", "product:3"])
 ### Features
 
 **UNLOGGED Tables:**
+
 ```sql
 -- FraiseQL automatically creates UNLOGGED tables
 -- No WAL overhead = Redis-level write performance
@@ -284,6 +293,7 @@ WHERE expires_at IS NOT NULL;
 ```
 
 **Automatic Expiration:**
+
 ```python
 # TTL-based expiration (automatic cleanup)
 await cache.set("session:abc", session_data, ttl=900)  # 15 minutes
@@ -293,6 +303,7 @@ await cache.set("session:abc", session_data, ttl=900)  # 15 minutes
 ```
 
 **Shared Across Instances:**
+
 ```python
 # Unlike in-memory cache, PostgreSQL cache is shared
 # All app instances see the same cached data
@@ -307,6 +318,7 @@ flags = await cache.get("config:feature_flags")
 ### Performance
 
 **UNLOGGED Table Benefits:**
+
 - No WAL (Write-Ahead Log) = 2-5x faster writes than logged tables
 - Same read performance as regular PostgreSQL tables
 - Data survives crashes (unlike Redis default mode)
@@ -337,6 +349,7 @@ flags = await cache.get("config:feature_flags")
 ### Migrating from Sentry
 
 **Before (Sentry):**
+
 ```python
 import sentry_sdk
 
@@ -351,6 +364,7 @@ sentry_sdk.capture_exception(error)
 ```
 
 **After (PostgreSQL):**
+
 ```python
 from fraiseql.monitoring import init_error_tracker
 
@@ -364,6 +378,7 @@ await tracker.capture_exception(error, context={
 ```
 
 **Migration Steps:**
+
 1. Install monitoring schema: `psql -f src/fraiseql/monitoring/schema.sql`
 2. Initialize error tracker in application startup
 3. Replace `sentry_sdk.capture_exception()` calls with `tracker.capture_exception()`
@@ -374,6 +389,7 @@ await tracker.capture_exception(error, context={
 ### Migrating from Redis
 
 **Before (Redis):**
+
 ```python
 import redis.asyncio as redis
 
@@ -384,6 +400,7 @@ value = await redis_client.get("key")
 ```
 
 **After (PostgreSQL):**
+
 ```python
 from fraiseql.caching import PostgresCache
 
@@ -394,6 +411,7 @@ value = await cache.get("key")
 ```
 
 **Migration Steps:**
+
 1. Initialize PostgresCache with database pool
 2. Replace redis operations with cache operations:
    - `redis.set()` → `cache.set()`

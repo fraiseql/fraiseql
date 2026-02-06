@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Example: Production Deployment at Scale
 description: This example demonstrates deploying observability in a **high-traffic production environment** with best practices for monitoring, maintenance, and continuous o
 keywords: ["deployment", "scaling", "code", "fullstack", "production", "performance", "monitoring", "troubleshooting"]

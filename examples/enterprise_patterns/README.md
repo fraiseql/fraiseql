@@ -5,6 +5,7 @@
 This example demonstrates all FraiseQL enterprise patterns in a single, comprehensive application.
 
 **What you'll learn:**
+
 - Complete enterprise pattern implementation
 - SOX/HIPAA compliant audit trails
 - Multi-layer validation (GraphQL → App → Core → DB)
@@ -13,11 +14,13 @@ This example demonstrates all FraiseQL enterprise patterns in a single, comprehe
 - Identifier management (triple ID pattern)
 
 **Prerequisites:**
+
 - Basic GraphQL knowledge
 - Understanding of CQRS patterns
 - `../blog_api/` - Basic enterprise patterns
 
 **Next steps:**
+
 - `../real_time_chat/` - Add real-time features
 - `../analytics_dashboard/` - High-performance analytics
 - `../saas-starter/` - Multi-tenant SaaS foundation
@@ -25,34 +28,40 @@ This example demonstrates all FraiseQL enterprise patterns in a single, comprehe
 ## Patterns Demonstrated
 
 ### ✅ Mutation Result Pattern
+
 - Standardized mutation responses with metadata
 - Field-level change tracking
 - Comprehensive audit information
 - See: `mutations.py` and `test_mutation_results.py`
 
 ### ✅ NOOP Handling Pattern
+
 - Idempotent operations with graceful edge case handling
 - Multiple NOOP scenarios (duplicate, no-changes, business rules)
 - See: `test_noop_handling.py`
 
 ### ✅ App/Core Function Split
+
 - Clean separation of input handling and business logic
 - Type-safe core functions with JSONB app wrappers
 - See: `db/migrations/002_app_functions.sql` and `003_core_functions.sql`
 
 ### ✅ Unified Audit Logging
+
 - **Single `audit_events` table** combining CDC + cryptographic chain
 - PostgreSQL-native crypto with SHA-256 hashing and HMAC signatures
 - Tamper-proof audit trails for SOX/HIPAA compliance
 - See: `core.log_and_return_mutation()` and unified audit table schema
 
 ### ✅ Identifier Management
+
 - Triple ID pattern: internal ID, UUID primary key, business identifier
 - Automatic identifier generation and recalculation
 - Flexible lookup by any identifier type
 - See: identifier-related functions and tests
 
 ### ✅ Multi-Layer Validation
+
 - GraphQL schema validation with Pydantic
 - App layer input sanitization
 - Core layer business rule validation
@@ -134,6 +143,7 @@ Each entity demonstrates all patterns in a realistic business context.
 ## Testing Strategy
 
 ### Pattern-Specific Tests
+
 - `test_mutation_results.py` - Validates success/error/noop responses
 - `test_noop_handling.py` - Tests all NOOP scenarios
 - `test_audit_trails.py` - Verifies complete audit information
@@ -141,11 +151,13 @@ Each entity demonstrates all patterns in a realistic business context.
 - `test_identifiers.py` - Triple ID pattern verification
 
 ### Integration Tests
+
 - `test_cross_entity_validation.py` - Complex business rules
 - `test_transaction_handling.py` - Multi-entity operations
 - `test_performance.py` - Scale testing with enterprise patterns
 
 ### End-to-End Tests
+
 - `test_complete_workflows.py` - Realistic business scenarios
 - `test_error_recovery.py` - Failure handling and rollback
 - `test_audit_compliance.py` - Regulatory compliance scenarios
@@ -153,12 +165,14 @@ Each entity demonstrates all patterns in a realistic business context.
 ## Performance Considerations
 
 With enterprise patterns enabled, expect:
+
 - **Memory Usage**: ~20% increase due to audit trails
 - **Query Performance**: Minimal impact with proper indexing
 - **Function Calls**: 2-3 per mutation (app → core → logging)
 - **Database Size**: ~30% increase from audit data
 
 Optimizations included:
+
 - Efficient JSONB indexing strategies
 - Lazy loading of audit information
 - Batch operations for bulk changes
@@ -167,6 +181,7 @@ Optimizations included:
 ## Production Readiness
 
 This example includes production-ready features:
+
 - Complete error handling with structured responses
 - Comprehensive logging and monitoring
 - Security best practices (no secrets in logs)
@@ -176,6 +191,7 @@ This example includes production-ready features:
 ## Compliance Features
 
 Enterprise patterns support:
+
 - **SOX Compliance** - Complete change auditing
 - **GDPR Compliance** - Data lineage tracking
 - **HIPAA Compliance** - Audit trail requirements

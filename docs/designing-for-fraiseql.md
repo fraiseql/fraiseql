@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Designing Schemas for FraiseQL
 description: This guide covers design patterns specific to FraiseQL's compilation model. FraiseQL automatically optimizes SQL execution for your schema, but *architectural d
 keywords: ["schema"]

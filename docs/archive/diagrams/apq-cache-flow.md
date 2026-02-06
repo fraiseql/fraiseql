@@ -1,6 +1,7 @@
 # APQ Cache Flow
 
 ## Overview
+
 Automatic Persisted Queries (APQ) is a caching mechanism that optimizes GraphQL request performance by storing and reusing query execution plans. This diagram shows how APQ eliminates redundant query parsing and validation.
 
 ## ASCII Art Diagram
@@ -33,6 +34,7 @@ Automatic Persisted Queries (APQ) is a caching mechanism that optimizes GraphQL 
 ## Detailed APQ Flow
 
 ### First Request (Cache Population)
+
 ```
 Client Query ──▶ Full GraphQL Query
                   │
@@ -44,6 +46,7 @@ Client Query ──▶ Full GraphQL Query
 ```
 
 ### Cache Miss Flow
+
 ```
 Unknown Hash ──▶ Parse & Validate Query
                   │
@@ -56,6 +59,7 @@ Unknown Hash ──▶ Parse & Validate Query
 ```
 
 ### Cache Storage
+
 ```
 Execution Plan ──▶ Cache Storage
                    │
@@ -68,6 +72,7 @@ Execution Plan ──▶ Cache Storage
 ```
 
 ### Subsequent Requests (Cache Hit)
+
 ```
 Query Hash ──▶ Cache Lookup
                │
@@ -109,6 +114,7 @@ graph TD
 ## APQ Protocol
 
 ### Client-Side Implementation
+
 ```javascript
 // First request - send full query
 const query = `
@@ -152,6 +158,7 @@ const response = await fetch('/graphql', {
 ```
 
 ### Server-Side Implementation
+
 ```python
 class APQMiddleware:
     def __init__(self, cache_store):
@@ -194,7 +201,9 @@ class APQMiddleware:
 ## Cache Storage Strategies
 
 ### In-Memory Cache
+
 **Best for:** Single server deployments
+
 ```python
 from cachetools import TTLCache
 
@@ -210,7 +219,9 @@ class MemoryAPQCache:
 ```
 
 ### Redis Cache
+
 **Best for:** Distributed deployments
+
 ```python
 import redis.asyncio as redis
 
@@ -226,7 +237,9 @@ class RedisAPQCache:
 ```
 
 ### Database Cache
+
 **Best for:** Persistence and large scale
+
 ```sql
 CREATE TABLE apq_cache (
     query_hash varchar(64) PRIMARY KEY,
@@ -266,6 +279,7 @@ class DatabaseAPQCache:
 ## Performance Benefits
 
 ### Latency Reduction
+
 ```
 Without APQ: Parse (10ms) + Validate (5ms) + Plan (3ms) + Execute (2ms) = 20ms
 With APQ:    Lookup (0.1ms) + Execute (2ms) = 2.1ms
@@ -274,6 +288,7 @@ Improvement: 90% faster for cached queries
 ```
 
 ### Bandwidth Savings
+
 ```
 Without APQ: Send full query (2KB) each request
 With APQ:    Send hash (64 bytes) + variables
@@ -282,6 +297,7 @@ Savings: 97% bandwidth reduction for large queries
 ```
 
 ### Server CPU Savings
+
 - Eliminates redundant AST parsing
 - Reduces garbage collection pressure
 - Lowers memory allocation for query processing
@@ -289,6 +305,7 @@ Savings: 97% bandwidth reduction for large queries
 ## Cache Management
 
 ### TTL and Eviction
+
 ```python
 # Time-based expiration
 APQ_TTL = 24 * 60 * 60  # 24 hours
@@ -301,6 +318,7 @@ MAX_CACHE_SIZE = 10000
 ```
 
 ### Cache Invalidation
+
 ```python
 class APQCacheManager:
     async def invalidate_query(self, query_hash):
@@ -325,17 +343,20 @@ class APQCacheManager:
 ## Monitoring and Observability
 
 ### Cache Metrics
+
 - Cache hit rate: `hits / (hits + misses)`
 - Cache size: Current number of stored queries
 - Query frequency: Most/least used queries
 - Cache latency: Time to retrieve from cache
 
 ### Business Metrics
+
 - Bandwidth savings: Bytes saved by APQ
 - Response time improvement: Average latency reduction
 - Server CPU reduction: Processing time saved
 
 ### Alerting
+
 ```python
 # Alert if cache hit rate drops below threshold
 if cache_hit_rate < 0.8:
@@ -349,16 +370,19 @@ if cache_size > MAX_CACHE_SIZE * 0.9:
 ## Security Considerations
 
 ### Query Hash Validation
+
 - Use cryptographically secure hash (SHA-256)
 - Prevent hash collision attacks
 - Validate query syntax before caching
 
 ### Cache Poisoning Prevention
+
 - Only cache validated queries
 - Implement query size limits
 - Rate limit cache population
 
 ### Access Control
+
 - APQ cache is query-specific, not user-specific
 - Schema validation still applies
 - Authentication/authorization unchanged
@@ -366,6 +390,7 @@ if cache_size > MAX_CACHE_SIZE * 0.9:
 ## Implementation Best Practices
 
 ### Cache Warming
+
 ```python
 async def warmup_apq_cache():
     """Pre-populate cache with common queries"""
@@ -381,6 +406,7 @@ async def warmup_apq_cache():
 ```
 
 ### Error Handling
+
 ```python
 try:
     cached_query = await apq_cache.get(query_hash)
@@ -397,6 +423,7 @@ except Exception as e:
 ```
 
 ### Testing
+
 ```python
 def test_apq_flow():
     # Test cache miss
@@ -427,6 +454,7 @@ def test_apq_flow():
 ## Integration with CDNs
 
 ### CDN-Level Caching
+
 ```
 Client → CDN → APQ Server → Database
           │         │
@@ -436,6 +464,7 @@ Client → CDN → APQ Server → Database
 ```
 
 ### Cache Headers
+
 ```python
 # Set appropriate cache headers for APQ responses
 response.headers['Cache-Control'] = 'public, max-age=300'  # 5 minutes

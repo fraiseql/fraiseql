@@ -43,6 +43,7 @@
 **New Tests**: 15
 
 **Test Scenarios**:
+
 ```rust
 ✓ Checkpoint creation and persistence
 ✓ Checkpoint recovery on restart
@@ -64,6 +65,7 @@
 **New Tests**: 12
 
 **Test Scenarios**:
+
 ```rust
 ✓ Sequential vs concurrent execution
 ✓ Timeout handling per action
@@ -85,6 +87,7 @@
 **New Tests**: 14
 
 **Test Scenarios**:
+
 ```rust
 ✓ Dedup hash collision handling
 ✓ TTL expiration and re-processing
@@ -106,6 +109,7 @@
 **New Tests**: 16
 
 **Test Scenarios**:
+
 ```rust
 ✓ Cache hit/miss tracking
 ✓ TTL expiration and eviction
@@ -128,6 +132,7 @@
 **New Tests**: 12
 
 **Test Scenarios**:
+
 ```rust
 ✓ Event indexing
 ✓ Full-text search
@@ -148,6 +153,7 @@
 **New Tests**: 13
 
 **Test Scenarios**:
+
 ```rust
 ✓ Job enqueue/dequeue
 ✓ Worker pool processing
@@ -169,6 +175,7 @@
 **New Tests**: 10
 
 **Test Scenarios**:
+
 ```rust
 ✓ Metric counter increments
 ✓ Gauge value updates
@@ -188,6 +195,7 @@
 **New Tests**: 15
 
 **Test Scenarios**:
+
 ```rust
 ✓ State transitions (CLOSED → OPEN → HALF_OPEN → CLOSED)
 ✓ Failure threshold triggering
@@ -208,6 +216,7 @@
 **New Tests**: 20
 
 **Test Scenarios**:
+
 ```rust
 ✓ Multiple listener registration
 ✓ Health check execution
@@ -233,6 +242,7 @@
 **New Tests**: 10
 
 **Test Scenarios**:
+
 ```rust
 ✓ Status command output
 ✓ Debug event command accuracy
@@ -254,6 +264,7 @@
 **Goal**: Verify system handles 10,000 events/second
 
 **Setup**:
+
 ```rust
 - 10,000 events injected per second
 - 3 concurrent listeners
@@ -262,6 +273,7 @@
 ```
 
 **Success Criteria**:
+
 ```
 ✓ No events lost
 ✓ No events duplicated
@@ -273,6 +285,7 @@
 ```
 
 **Measurements**:
+
 ```
 
 - Throughput: events/second
@@ -289,6 +302,7 @@
 **Goal**: Handle very large event payloads
 
 **Setup**:
+
 ```rust
 - Event size: 100 MB (extreme case)
 - 1000 events of 100 KB (realistic case)
@@ -296,6 +310,7 @@
 ```
 
 **Success Criteria**:
+
 ```
 ✓ No memory exhaustion
 ✓ No crashes
@@ -310,6 +325,7 @@
 **Goal**: Verify no memory leaks or degradation
 
 **Setup**:
+
 ```rust
 - 1000 events/second
 - Duration: 24 hours
@@ -317,6 +333,7 @@
 ```
 
 **Success Criteria**:
+
 ```
 ✓ Memory stable (< 10% growth over 24h)
 ✓ No connection leaks
@@ -331,6 +348,7 @@
 **Goal**: Verify recovery from various failures
 
 **Scenarios**:
+
 ```
 
 1. Database connection loss
@@ -365,6 +383,7 @@
 **Metric**: Time from event arrival to completion
 
 **Test Setup**:
+
 ```rust
 // Process 1000 events, measure distribution
 for _ in 0..1000 {
@@ -379,6 +398,7 @@ P50, P95, P99, P99.9, MAX
 ```
 
 **Baseline** (without Phase 8):
+
 ```
 P50: 150ms
 P95: 250ms
@@ -387,6 +407,7 @@ MAX: 500ms
 ```
 
 **Target** (with Phase 8):
+
 ```
 P50: 30ms (5x improvement)
 P95: 60ms (4x improvement)
@@ -401,6 +422,7 @@ MAX: 150ms (3x improvement)
 **Metric**: Performance with and without cache hits
 
 **Test Setup**:
+
 ```rust
 // Same 100 events, 80% are duplicates (cache hits)
 for _ in 0..100 {
@@ -410,6 +432,7 @@ for _ in 0..100 {
 ```
 
 **Results**:
+
 ```
 Without cache:
   Average: 200ms per event
@@ -429,6 +452,7 @@ Improvement: ~4.8x
 **Metric**: Events processed per second
 
 **Test Setup**:
+
 ```rust
 // Measure events/second over 60 seconds
 let start = Instant::now();
@@ -443,6 +467,7 @@ events_per_second = count / 60;
 ```
 
 **Target**:
+
 ```
 -7: 100 events/second
  1,000 events/second (10x)
@@ -456,6 +481,7 @@ events_per_second = count / 60;
 **Metrics**: Memory, CPU, Disk, Network
 
 **Test Setup**:
+
 ```rust
 // Monitor resources while processing 100k events
 for _ in 0..100_000 {
@@ -464,6 +490,7 @@ for _ in 0..100_000 {
 ```
 
 **Targets**:
+
 ```
 Memory: < 500 MB (peak)
 CPU: < 80% sustained
@@ -479,6 +506,7 @@ Network: < 100 Mbps average
 **Metric**: How performance changes with scale
 
 **Test Cases**:
+
 ```
 
 1. Single listener: baseline
@@ -496,6 +524,7 @@ Network: < 100 Mbps average
 ### Failover Test 1: Primary Listener Crash
 
 **Scenario**:
+
 ```
 
 1. Start 3 listeners
@@ -509,6 +538,7 @@ Network: < 100 Mbps average
 ```
 
 **Success Criteria**:
+
 ```
 ✓ Failover within 60 seconds
 ✓ Zero events lost
@@ -522,6 +552,7 @@ Network: < 100 Mbps average
 ### Failover Test 2: Secondary Listener Failure
 
 **Scenario**:
+
 ```
 
 1. Start 3 listeners (primary + 2 secondaries)
@@ -532,6 +563,7 @@ Network: < 100 Mbps average
 ```
 
 **Success Criteria**:
+
 ```
 ✓ System continues normally
 ✓ Throughput unchanged
@@ -544,6 +576,7 @@ Network: < 100 Mbps average
 ### Failover Test 3: Database Connection Loss
 
 **Scenario**:
+
 ```
 
 1. Start observer system
@@ -555,6 +588,7 @@ Network: < 100 Mbps average
 ```
 
 **Success Criteria**:
+
 ```
 ✓ Detects within 30 seconds
 ✓ Enters recovery mode
@@ -567,6 +601,7 @@ Network: < 100 Mbps average
 ### Failover Test 4: Redis Unavailable
 
 **Scenario**:
+
 ```
 
 1. System running with cache/dedup enabled
@@ -578,6 +613,7 @@ Network: < 100 Mbps average
 ```
 
 **Success Criteria**:
+
 ```
 ✓ Continues without Redis
 ✓ Cache/dedup disabled gracefully
@@ -590,6 +626,7 @@ Network: < 100 Mbps average
 ### Failover Test 5: Network Partition
 
 **Scenario**:
+
 ```
 
 1. Start 3 listeners in separate containers
@@ -602,6 +639,7 @@ Network: < 100 Mbps average
 ```
 
 **Success Criteria**:
+
 ```
 ✓ Leader re-elected in main partition
 ✓ No duplicate processing
@@ -616,6 +654,7 @@ Network: < 100 Mbps average
 ### E2E Test 1: Complete Order Processing Flow
 
 **Scenario**:
+
 ```
 
 1. Insert order into database
@@ -632,6 +671,7 @@ Network: < 100 Mbps average
 ```
 
 **Expected**:
+
 ```
 ✓ 1 webhook call
 ✓ 1 email sent
@@ -645,6 +685,7 @@ Network: < 100 Mbps average
 ### E2E Test 2: DLQ Recovery Flow
 
 **Scenario**:
+
 ```
 
 1. Process order with broken webhook
@@ -656,6 +697,7 @@ Network: < 100 Mbps average
 ```
 
 **Expected**:
+
 ```
 ✓ Action failed and added to DLQ
 ✓ Retry succeeded
@@ -667,6 +709,7 @@ Network: < 100 Mbps average
 ### E2E Test 3: Cache Effectiveness
 
 **Scenario**:
+
 ```
 
 1. Process 100 orders (create)
@@ -677,6 +720,7 @@ Network: < 100 Mbps average
 ```
 
 **Expected**:
+
 ```
 ✓ L2 < 10 * L1 (at least 10x improvement with 100% cache hit)
 ```
@@ -686,6 +730,7 @@ Network: < 100 Mbps average
 ### E2E Test 4: Multi-Listener Coordination
 
 **Scenario**:
+
 ```
 
 1. Start 3 listeners
@@ -700,6 +745,7 @@ Network: < 100 Mbps average
 ```
 
 **Expected**:
+
 ```
 ✓ 2000 events processed
 ✓ Zero duplicates
@@ -716,6 +762,7 @@ Network: < 100 Mbps average
 **Goal**: Verify Phase 8 doesn't break Phase 1-7 functionality
 
 **Test Coverage**:
+
 ```
 ✓ All Phase 1-7 tests still pass
 ✓ Event listening works
@@ -853,8 +900,8 @@ cargo bench
 ## Next Phase
 
 **Phase 8.13: Final Polish & Release**
+
 - Final code review
 - Release notes
 - Production deployment checklist
 - Phase 8 completion
-

@@ -74,6 +74,7 @@ const strategy = suggestRefreshStrategy({
 Load a schema.json file from disk.
 
 **Parameters:**
+
 - `filePath`: Path to schema.json
 
 **Returns:** Parsed SchemaObject
@@ -91,6 +92,7 @@ const schema = loadSchema("schema.json");
 Generate DDL for a table-backed JSON view (tv_*).
 
 **Parameters:**
+
 ```typescript
 interface GenerateTvOptions {
   schema: SchemaObject;              // Loaded schema
@@ -111,6 +113,7 @@ interface GenerateTvOptions {
 - Optional monitoring/staleness detection functions
 
 **Example:**
+
 ```typescript
 const ddl = generateTvDdl({
   schema,
@@ -129,6 +132,7 @@ const ddl = generateTvDdl({
 Generate DDL for a table-backed Arrow view (ta_*).
 
 **Parameters:**
+
 ```typescript
 interface GenerateTaOptions {
   schema: SchemaObject;              // Loaded schema
@@ -148,6 +152,7 @@ interface GenerateTaOptions {
 - Indexes and monitoring functions
 
 **Example:**
+
 ```typescript
 const ddl = generateTaDdl({
   schema,
@@ -164,6 +169,7 @@ const ddl = generateTaDdl({
 Generate SQL for composition helper views.
 
 **Parameters:**
+
 ```typescript
 interface CompositionOptions {
   schema: SchemaObject;
@@ -178,6 +184,7 @@ interface CompositionOptions {
 - Batch composition helper function
 
 **Example:**
+
 ```typescript
 const sql = generateCompositionViews({
   schema,
@@ -193,6 +200,7 @@ const sql = generateCompositionViews({
 Suggest refresh strategy based on workload characteristics.
 
 **Parameters:**
+
 ```typescript
 interface StrategyOptions {
   writeVolumePerMinute: number;   // Writes per minute
@@ -204,6 +212,7 @@ interface StrategyOptions {
 **Returns:** `"trigger-based"` or `"scheduled"`
 
 **Logic:**
+
 - Returns `"trigger-based"` if:
   - Write volume > 100 writes/min, OR
   - Latency requirement < 500ms, OR
@@ -211,6 +220,7 @@ interface StrategyOptions {
 - Returns `"scheduled"` otherwise
 
 **Example:**
+
 ```typescript
 const strategy = suggestRefreshStrategy({
   writeVolumePerMinute: 500,
@@ -226,11 +236,13 @@ const strategy = suggestRefreshStrategy({
 Validate generated DDL for syntax errors and common issues.
 
 **Parameters:**
+
 - `sql`: Generated DDL string
 
 **Returns:** Array of validation errors (empty if valid)
 
 **Validates:**
+
 - Balanced parentheses and quotes
 - Presence of CREATE statement
 - Documentation completeness (warnings)
@@ -238,6 +250,7 @@ Validate generated DDL for syntax errors and common issues.
 **Note:** This is basic validation. Execute against a test database for comprehensive validation.
 
 **Example:**
+
 ```typescript
 const errors = validateGeneratedDdl(ddl);
 if (errors.length > 0) {
@@ -252,7 +265,9 @@ if (errors.length > 0) {
 ### Type Definitions
 
 #### `SchemaObject`
+
 Complete schema structure from schema.json:
+
 ```typescript
 interface SchemaObject {
   types: SchemaType[];
@@ -264,7 +279,9 @@ interface SchemaObject {
 ```
 
 #### `SchemaType`
+
 Entity definition:
+
 ```typescript
 interface SchemaType {
   name: string;
@@ -274,7 +291,9 @@ interface SchemaType {
 ```
 
 #### `SchemaField`
+
 Entity field:
+
 ```typescript
 interface SchemaField {
   name: string;
@@ -284,7 +303,9 @@ interface SchemaField {
 ```
 
 #### `SchemaRelationship`
+
 Entity relationship:
+
 ```typescript
 interface SchemaRelationship {
   name: string;

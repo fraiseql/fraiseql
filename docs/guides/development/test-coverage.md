@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Test Coverage Report
 description: FraiseQL has comprehensive test coverage across all major components with **2,400+ tests** and **100% pass rate**.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]

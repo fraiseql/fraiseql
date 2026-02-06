@@ -80,6 +80,7 @@ mutation {
 ### Chosen Approach: Option A - Python Layer Post-Processing
 
 **Why Python Layer:**
+
 - ✅ Can inspect Python type definitions (Success class annotations)
 - ✅ No changes needed to Rust code (zero risk to Rust pipeline)
 - ✅ Easier to test with existing Python test infrastructure
@@ -87,6 +88,7 @@ mutation {
 - ✅ Can be conditional based on Success type structure
 
 **Where to implement:**
+
 - **File**: `src/fraiseql/mutations/rust_executor.py`
 - **Function**: `execute_mutation_rust()` (after Rust returns response)
 - **OR**: New function `_flatten_entity_wrapper()` called from `execute_mutation_rust()`
@@ -114,9 +116,11 @@ This section documents the reconnaissance performed before implementation.
 ### Reconnaissance Results
 
 #### 1. ✅ Caller Search Results
+
 **Command**: `grep -rn "execute_mutation_rust" src/fraiseql --include="*.py"`
 
 **Findings**:
+
 - **SINGLE CALLER FOUND**: `src/fraiseql/mutations/mutation_decorator.py:189`
 - Caller context: `MutationResolver.__call__()` method
 - Good news: `self.success_type` (the Python class) is already available at line 162
@@ -125,9 +129,11 @@ This section documents the reconnaissance performed before implementation.
 **Impact on Plan**: Task 5 simplified - only one file to modify!
 
 #### 2. ✅ Success Type Patterns Survey
+
 **Command**: `grep -rn "class.*Success:" src/fraiseql tests --include="*.py" | head -20`
 
 **Findings**:
+
 - Multiple Success type patterns found in tests
 - Common patterns:
   - Minimal: Only `message: str` field
@@ -138,9 +144,11 @@ This section documents the reconnaissance performed before implementation.
 **Impact on Plan**: `should_flatten_entity()` logic confirmed correct.
 
 #### 3. ✅ Cascade Usage Patterns
+
 **Command**: `grep -r "cascade" tests/integration --include="*.py" -B 2 -A 3`
 
 **Findings**:
+
 - Cascade used in: `test_graphql_cascade.py` (main integration test)
 - Current test uses workaround: Accesses through `entity` wrapper (lines 77-81)
 - Expected structure after fix: Direct access without `.entity` nesting
@@ -149,9 +157,11 @@ This section documents the reconnaissance performed before implementation.
 **Impact on Plan**: Task 6 must revert the workaround in lines 77-81.
 
 #### 4. ✅ Test Schema Setup
+
 **Command**: `grep -rn "mutation_result_v2" tests/fixtures --include="*.py"`
 
 **Findings**:
+
 - ✅ `mutation_result_v2` type defined in: `tests/fixtures/cascade/conftest.py:85-88`
 - Function using v2: `cascade_db_schema` fixture (lines 79-228)
 - Schema creates: `posts` table, `users` table, `create_post` function
@@ -160,6 +170,7 @@ This section documents the reconnaissance performed before implementation.
 **Impact on Plan**: No test fixture changes needed, can start implementation immediately.
 
 #### 5. ✅ Cascade Parameter in execute_mutation_rust
+
 **Finding**: `cascade_selections: str | None = None` parameter exists (line 38)
 **Status**: Already supported, no changes needed
 
@@ -313,6 +324,7 @@ def flatten_entity_wrapper(
 **Changes needed**:
 
 1. Import the flattening helper at top of file (around line 7):
+
 ```python
 from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 ```
@@ -324,11 +336,13 @@ from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 **Solution Options**:
 
 **Option 2A: Add `success_type_class` parameter** (RECOMMENDED)
+
 - Add new parameter to `execute_mutation_rust()`: `success_type_class: Type | None = None`
 - Caller passes the actual Python class (not just string name)
 - Simple, explicit, no registry lookup needed
 
 **Option 2B: Import from registry**
+
 - Use `SchemaRegistry.get_instance()` to lookup type by name
 - More complex, requires registry access
 - May have circular import issues
@@ -336,6 +350,7 @@ from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 **Decision**: Use Option 2A - add explicit parameter
 
 **Modified function signature** (line 28):
+
 ```python
 async def execute_mutation_rust(
     conn: Any,
@@ -371,17 +386,20 @@ async def execute_mutation_rust(
 **Files to modify**: Find all callers of `execute_mutation_rust()`
 
 **Search command**:
+
 ```bash
 grep -r "execute_mutation_rust" src/fraiseql --include="*.py"
 ```
 
 **Expected callers**:
+
 1. `src/fraiseql/mutations/executor.py` - Main mutation executor
 2. Possibly test files
 
 **For each caller**: Add logic to pass `success_type_class` parameter
 
 **Example in `executor.py`** (hypothetical, need to check actual code):
+
 ```python
 # Before
 result = await execute_mutation_rust(
@@ -416,6 +434,7 @@ result = await execute_mutation_rust(
 **File**: `src/fraiseql/mutations/entity_flattener.py` (NEW)
 
 **Implementation**:
+
 1. Create new file `src/fraiseql/mutations/entity_flattener.py`
 2. Copy the complete implementation from Phase 1 design above
 3. Includes functions:
@@ -424,12 +443,14 @@ result = await execute_mutation_rust(
    - `flatten_entity_wrapper(mutation_result: dict, success_type: Type) -> dict`
 
 **Acceptance criteria**:
+
 - File created with all three functions
 - Proper docstrings with examples
 - Logging added for debugging
 - Type hints for all parameters
 
 **Verification**:
+
 ```bash
 # File exists
 ls -la src/fraiseql/mutations/entity_flattener.py
@@ -476,6 +497,7 @@ grep "def flatten_entity_wrapper" src/fraiseql/mutations/entity_flattener.py
    - Expected: Top-level cascade used, NOT entity.cascade
 
 **Implementation**:
+
 ```python
 """Unit tests for entity flattening logic."""
 
@@ -605,6 +627,7 @@ def test_flatten_entity_wrapper_cascade_priority():
 ```
 
 **Verification**:
+
 ```bash
 # Run tests
 uv run pytest tests/unit/mutations/test_entity_flattener.py -v
@@ -619,12 +642,14 @@ uv run pytest tests/unit/mutations/test_entity_flattener.py -v
 **Changes**:
 
 1. **Add import** (line ~7):
+
 ```python
 from typing import Any, Type  # Add Type to existing import
 from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
 ```
 
 2. **Modify function signature** (line ~28):
+
 ```python
 async def execute_mutation_rust(
     conn: Any,
@@ -643,6 +668,7 @@ async def execute_mutation_rust(
 ```
 
 3. **Add docstring for new parameter** (line ~52):
+
 ```python
     Args:
         ...existing args...
@@ -651,6 +677,7 @@ async def execute_mutation_rust(
 ```
 
 **Verification**:
+
 ```bash
 # Check import added
 grep "from fraiseql.mutations.entity_flattener import" src/fraiseql/mutations/rust_executor.py
@@ -668,6 +695,7 @@ grep "success_type_class" src/fraiseql/mutations/rust_executor.py | head -3
 **Location**: After line 150 (after `mutation_result` dict created, before JSON conversion)
 
 **Find this section** (~line 128-150):
+
 ```python
     # Handle different result types from psycopg
     if isinstance(mutation_result, dict):
@@ -713,6 +741,7 @@ grep "success_type_class" src/fraiseql/mutations/rust_executor.py | head -3
 ```
 
 **Verification**:
+
 ```bash
 # Check flattening logic added
 grep -A 2 "FLATTEN ENTITY WRAPPER" src/fraiseql/mutations/rust_executor.py
@@ -728,16 +757,19 @@ grep -B 5 "mutation_json = json.dumps" src/fraiseql/mutations/rust_executor.py |
 **Step 5.1: Reconnaissance Results**
 
 **Search command**:
+
 ```bash
 grep -rn "execute_mutation_rust" src/fraiseql --include="*.py"
 ```
 
 **Results**:
+
 1. ✅ **FOUND**: `src/fraiseql/mutations/mutation_decorator.py:157` - Import statement
 2. ✅ **FOUND**: `src/fraiseql/mutations/mutation_decorator.py:189` - Actual function call (SINGLE CALLER)
 3. ✅ **FOUND**: `src/fraiseql/mutations/rust_executor.py:28` - Function definition (no change needed)
 
 **Key Finding**: There is **ONLY ONE** caller of `execute_mutation_rust` in the entire codebase!
+
 - Location: `src/fraiseql/mutations/mutation_decorator.py` line 189
 - Context: Inside the `MutationResolver.__call__()` method
 - Good news: `self.success_type` is already available (line 162-163)
@@ -745,6 +777,7 @@ grep -rn "execute_mutation_rust" src/fraiseql --include="*.py"
 **Step 5.2: Examine the existing caller** (lines 189-199)
 
 Current code at `mutation_decorator.py:189-199`:
+
 ```python
 rust_response = await execute_mutation_rust(
     conn=conn,
@@ -760,6 +793,7 @@ rust_response = await execute_mutation_rust(
 ```
 
 Where:
+
 - `success_type_name` comes from line 162: `success_type_name = getattr(self.success_type, "__name__", "Success")`
 - `self.success_type` is the actual Python class (set in `__init__` from type hints)
 
@@ -769,6 +803,7 @@ Where:
 **Line**: 189-199
 
 **Change from**:
+
 ```python
 rust_response = await execute_mutation_rust(
     conn=conn,
@@ -784,6 +819,7 @@ rust_response = await execute_mutation_rust(
 ```
 
 **Change to**:
+
 ```python
 rust_response = await execute_mutation_rust(
     conn=conn,
@@ -800,6 +836,7 @@ rust_response = await execute_mutation_rust(
 ```
 
 **Verification**:
+
 ```bash
 # Check caller updated
 grep -A 12 "rust_response = await execute_mutation_rust" src/fraiseql/mutations/mutation_decorator.py | grep "success_type_class"
@@ -816,6 +853,7 @@ grep -A 12 "rust_response = await execute_mutation_rust" src/fraiseql/mutations/
 **Changes needed**: Revert the temporary workaround
 
 **Current broken test** (lines 77-78):
+
 ```python
 # Temporary workaround: access through entity wrapper
 assert data["data"]["createPost"]["entity"]["entityId"]
@@ -823,6 +861,7 @@ assert data["data"]["createPost"]["entity"]["message"] == "Post created successf
 ```
 
 **Fix to**:
+
 ```python
 # After flattening, fields should be at top level
 assert data["data"]["createPost"]["id"]  # or whatever field name is used
@@ -830,16 +869,19 @@ assert data["data"]["createPost"]["message"] == "Post created successfully"
 ```
 
 **Current broken cascade access** (line 81):
+
 ```python
 cascade = data["data"]["createPost"]["entity"]["cascade"]
 ```
 
 **Fix to**:
+
 ```python
 cascade = data["data"]["createPost"]["cascade"]
 ```
 
 **Full test expectations** (lines 32-51) - should work as-is now:
+
 ```python
 mutation_query = """
 mutation CreatePost($input: CreatePostInput!) {
@@ -860,6 +902,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **Verification**:
+
 ```bash
 # Run the cascade test
 uv run pytest tests/integration/test_graphql_cascade.py::test_cascade_end_to_end -v
@@ -874,6 +917,7 @@ uv run pytest tests/integration/test_graphql_cascade.py::test_cascade_end_to_end
 **File**: `tests/integration/test_entity_flattening.py` (NEW)
 
 **Purpose**: Verify that:
+
 1. mutation_result v1 format still works (printoptim compatibility)
 2. mutation_result_v2 with generic Success type keeps entity wrapper
 3. mutation_result_v2 with explicit Success type flattens correctly
@@ -1002,6 +1046,7 @@ async def test_v2_explicit_success_flattens_entity(db_connection, clear_registry
 ```
 
 **Verification**:
+
 ```bash
 # Run backward compat tests
 uv run pytest tests/integration/test_entity_flattening.py -v
@@ -1012,11 +1057,13 @@ uv run pytest tests/integration/test_entity_flattening.py -v
 ## Testing Strategy
 
 ### Unit Tests (Task 2)
+
 - **Location**: `tests/unit/mutations/test_entity_flattener.py`
 - **Coverage**: All functions in entity_flattener.py
 - **Mocking**: Use simple dataclasses for type definitions
 
 ### Integration Tests (Tasks 6 & 7)
+
 - **Location**:
   - `tests/integration/test_graphql_cascade.py` (existing, update)
   - `tests/integration/test_entity_flattening.py` (new)
@@ -1027,6 +1074,7 @@ uv run pytest tests/integration/test_entity_flattening.py -v
   - mutation_result_v2 with minimal Success → entity kept
 
 ### Manual Testing
+
 - Run against printoptim backend to verify no regression
 - Test cascade functionality end-to-end with real GraphQL client
 
@@ -1035,6 +1083,7 @@ uv run pytest tests/integration/test_entity_flattening.py -v
 ## Acceptance Criteria
 
 ### Functional Requirements
+
 - ✅ Test `test_cascade_end_to_end` passes with ORIGINAL query structure (no `.entity` nesting)
 - ✅ Clients can query Success type fields directly as defined in Python
 - ✅ `mutation_result v1` format still works (printoptim not affected)
@@ -1042,6 +1091,7 @@ uv run pytest tests/integration/test_entity_flattening.py -v
 - ✅ No breaking changes to existing projects using v1 format
 
 ### Technical Requirements
+
 - ✅ Entity flattening only happens for mutation_result_v2 format
 - ✅ Flattening only happens when Success type has explicit fields
 - ✅ Cascade always comes from top-level, never from entity
@@ -1049,6 +1099,7 @@ uv run pytest tests/integration/test_entity_flattening.py -v
 - ✅ All other mutation_result_v2 fields preserved (status, entity_type, etc.)
 
 ### Code Quality
+
 - ✅ All unit tests pass
 - ✅ All integration tests pass
 - ✅ Type hints on all new functions
@@ -1062,22 +1113,26 @@ uv run pytest tests/integration/test_entity_flattening.py -v
 If flattening causes issues:
 
 1. **Remove flattening call** in `rust_executor.py`:
+
    ```python
    # Comment out this line:
    # mutation_result = flatten_entity_wrapper(mutation_result, success_type_class)
    ```
 
 2. **Remove parameter** from function signature:
+
    ```python
    # Remove success_type_class parameter
    ```
 
 3. **Revert test changes**:
+
    ```bash
    git checkout tests/integration/test_graphql_cascade.py
    ```
 
 4. **Delete new files**:
+
    ```bash
    rm src/fraiseql/mutations/entity_flattener.py
    rm tests/unit/mutations/test_entity_flattener.py
@@ -1089,11 +1144,13 @@ If flattening causes issues:
 ## Files Summary
 
 ### Files to Create (3)
+
 1. `src/fraiseql/mutations/entity_flattener.py` - Flattening logic
 2. `tests/unit/mutations/test_entity_flattener.py` - Unit tests
 3. `tests/integration/test_entity_flattening.py` - Integration tests
 
 ### Files to Modify (3)
+
 1. `src/fraiseql/mutations/rust_executor.py` - Add parameter and flattening call
 2. `tests/integration/test_graphql_cascade.py` - Revert temporary workarounds
 3. Caller files (TBD based on search results) - Pass success_type_class

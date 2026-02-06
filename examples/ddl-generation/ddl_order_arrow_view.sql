@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS ta_order (
 
     -- Arrow columnar storage
     -- Each column stores Arrow IPC-encoded RecordBatch for the field
-    
+
     col_ BYTEA NOT NULL DEFAULT ''::bytea,
-    
+
 
     -- Batch metadata
     row_count INTEGER NOT NULL DEFAULT 0,
@@ -153,18 +153,18 @@ BEGIN
         -- Insert batch with Arrow-encoded data
         INSERT INTO ta_order (
             batch_number,
-            
+
             col_,
-            
+
             row_count,
             view_generated_at,
             is_stale
         )
         SELECT
             v_batch_count,
-            
+
             DECODE(ENCODE(::bytea, 'hex'), 'hex'),
-            
+
             COUNT(*),
             CURRENT_TIMESTAMP,
             false

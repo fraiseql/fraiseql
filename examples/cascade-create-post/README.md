@@ -5,11 +5,13 @@ This example demonstrates the basic CASCADE pattern: creating a post that update
 ## Overview
 
 **Business Logic**: When a user creates a post, we need to:
+
 1. Create the post entity
 2. Update the author's post count
 3. Provide CASCADE data so clients can update their caches
 
 **CASCADE Benefits**:
+
 - Client caches are automatically updated with the new post
 - Author's post count is updated in cache
 - Post list queries are invalidated for refetching

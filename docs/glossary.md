@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Glossary
 description: - **Terms are alphabetically ordered**
 keywords: []

@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Full-Stack E-Commerce with TypeScript Schema, FraiseQL Backend, and Vue 3 Frontend
 description: This guide demonstrates the complete FraiseQL workflow: schema authoring in TypeScript → compilation to Rust → deployment as a production GraphQL server → front
 keywords: ["schema", "code", "production", "fullstack", "sample", "real-world"]

@@ -82,6 +82,7 @@ Authoring (Python/TS) → Compilation (Rust) → Runtime (Rust)
 ```
 
 **Why:**
+
 - Zero runtime parsing overhead
 - Schema optimizations applied once
 - Type safety guaranteed at compile time
@@ -112,12 +113,14 @@ impl DatabaseAdapter for MssqlAdapter { ... }
 ```
 
 **Benefits:**
+
 - ✅ Easy to mock for testing (no external services needed)
 - ✅ Swappable implementations (Postgres → MySQL without code changes)
 - ✅ Clear contracts (trait defines the interface)
 - ✅ Type-generic code (`Server<A: DatabaseAdapter>`)
 
 **Pattern extends to all integrations:**
+
 - `OAuthProvider` trait (Google, GitHub, Keycloak, etc.)
 - `StorageBackend` trait (S3, GCS, local filesystem)
 - `SessionStore` trait (Postgres, Redis, in-memory)
@@ -147,6 +150,7 @@ mssql = ["tiberius"]
 ```
 
 **Usage:**
+
 ```bash
 # Minimal build (GraphQL only)
 cargo build --no-default-features
@@ -159,6 +163,7 @@ cargo build --all-features
 ```
 
 **Benefits:**
+
 - ✅ Users pay only for what they use (compilation time, binary size)
 - ✅ Clear feature boundaries
 - ✅ Independent testing (feature combinations are composable)
@@ -179,6 +184,7 @@ server.serve().await?;
 ```
 
 **Example Configuration:**
+
 ```toml
 [server]
 bind_addr = "0.0.0.0:4000"
@@ -201,6 +207,7 @@ channel_capacity = 1000
 ```
 
 **Benefits:**
+
 - ✅ No recompilation for config changes
 - ✅ Environment-specific configs (dev, staging, prod)
 - ✅ Feature toggles without code changes
@@ -230,6 +237,7 @@ Router::new()
 ```
 
 **Benefits:**
+
 - ✅ High performance (no data copying)
 - ✅ Simple concurrency model (no mutexes for read-only data)
 - ✅ Safe across threads (Arc guarantees)
@@ -268,6 +276,7 @@ server.serve().await?;
 **Location**: `fraiseql-core/`
 
 **When:**
+
 - GraphQL execution logic
 - Database query generation
 - Schema compilation
@@ -280,6 +289,7 @@ server.serve().await?;
 **Location**: `fraiseql-server/src/`
 
 **When:**
+
 - HTTP endpoints
 - Middleware
 - Request/response handling
@@ -292,6 +302,7 @@ server.serve().await?;
 **Location**: `fraiseql-<feature>/` + Cargo feature
 
 **When:**
+
 - Large, optional functionality
 - External integrations
 - Can be disabled without breaking core
@@ -299,6 +310,7 @@ server.serve().await?;
 **Example:** Adding a notification system
 
 **Steps:**
+
 1. Create `fraiseql-notifications/` crate
 2. Add feature flag: `notifications = ["fraiseql-notifications"]`
 3. Add optional dependency in `fraiseql-server`
@@ -311,6 +323,7 @@ server.serve().await?;
 ### 1. Compile-Time Optimization
 
 **Schema compiled to SQL templates:**
+
 ```rust
 // At build time: GraphQL → SQL template
 query { users(where: { age: { gt: 18 } }) { id name } }
@@ -403,7 +416,9 @@ cargo test --no-default-features
 ## Security Model
 
 ### 1. Parameterized Queries (SQL Injection Prevention)
+
 All queries use parameters, never string concatenation:
+
 ```rust
 // Safe
 execute("SELECT * FROM users WHERE id = $1", &[user_id])
@@ -415,7 +430,7 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 ### 2. Authentication Layers
 
 - OAuth2/OIDC support with 7+ providers:
-  * GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible provider system
+  - GitHub, Google, Auth0, Azure AD, Keycloak, Okta, extensible provider system
 - JWT token validation for sessions with automatic rotation
 - Bearer token for metrics endpoints
 - TLS/mTLS for transport security
@@ -433,20 +448,20 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 
 - **Field-Level Encryption**: Encrypt sensitive database columns with configurable key rotation
 - **Secrets Management**: HashiCorp Vault integration with automatic secret refresh
-  * Dynamic secrets with TTL and automatic renewal
-  * Transit encryption for sensitive data in transit
-  * Lease management and automatic key rotation
-  * Fallback to environment variables and file-based backends
+  - Dynamic secrets with TTL and automatic renewal
+  - Transit encryption for sensitive data in transit
+  - Lease management and automatic key rotation
+  - Fallback to environment variables and file-based backends
 - **Credential Rotation**: Automated rotation of authentication credentials
-  * Monitor rotation status and refresh triggers
-  * Dashboard for rotation history and compliance auditing
+  - Monitor rotation status and refresh triggers
+  - Dashboard for rotation history and compliance auditing
 
 ### 5. Audit & Compliance
 
 - **Audit Logging**: Track all mutations and admin operations
-  * Multiple backends: file, PostgreSQL, Syslog
-  * Redacted secrets in logs (implementation details hidden)
-  * Structured logging for compliance tooling
+  - Multiple backends: file, PostgreSQL, Syslog
+  - Redacted secrets in logs (implementation details hidden)
+  - Structured logging for compliance tooling
 - **Error Sanitization**: Hide implementation details from error messages
 - **Rate Limiting on Auth Endpoints**: Brute-force protection with configurable thresholds
 - **RBAC Database Schema**: Role-based access control with permission system
@@ -457,18 +472,21 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 ## Migration from Other Systems
 
 ### From Hasura
+
 ```rust
 // Similar pattern: schema → GraphQL execution
 // Difference: Compiled ahead of time, not interpreted
 ```
 
 ### From PostGraphile
+
 ```rust
 // Same: Database-centric approach
 // Difference: Multi-database, compiled execution
 ```
 
 ### From Apollo Server
+
 ```rust
 // Different: No resolvers, fully compiled
 // Benefit: 10-100x faster, deterministic behavior
@@ -524,6 +542,7 @@ if config.my_feature_enabled {
 ## Anti-Patterns (Don't Do This)
 
 ### ❌ Don't Mix Authoring and Runtime
+
 ```rust
 // Wrong: Authoring in runtime
 fraiseql_core.compile_schema(python_code)  // NO!
@@ -534,6 +553,7 @@ Server::new(compiled_schema)       // Runtime
 ```
 
 ### ❌ Don't Add Required Dependencies for Optional Features
+
 ```toml
 # Wrong
 [dependencies]
@@ -548,6 +568,7 @@ observers = ["redis"]
 ```
 
 ### ❌ Don't Create Tight Coupling
+
 ```rust
 // Wrong: Direct dependency
 use fraiseql_observers::ObserverRuntime;
@@ -566,6 +587,7 @@ use fraiseql_observers::ObserverRuntime;
 **Decision:** Keep `Server<A: DatabaseAdapter>` generic
 
 **Reason:**
+
 - Users can implement custom database adapters
 - Testing is easier (mock adapters)
 - Type safety enforced at compile time
@@ -576,6 +598,7 @@ use fraiseql_observers::ObserverRuntime;
 **Decision:** Keep observers as separate optional crate
 
 **Reason:**
+
 - Large feature (9K LOC)
 - Many dependencies (Redis, NATS, Elasticsearch)
 - Can be disabled entirely for minimal deployments
@@ -586,6 +609,7 @@ use fraiseql_observers::ObserverRuntime;
 **Decision:** Consolidated to single `Server<A>` implementation
 
 **Reason:**
+
 - RuntimeServer was never used (dead code)
 - Maintaining two server implementations confusing
 - All features can be achieved with `Server<A>` + config
@@ -628,6 +652,7 @@ use fraiseql_observers::ObserverRuntime;
 - `ActionExecutor` - Observer action abstraction (fraiseql-observers)
 
 ### Key Commands
+
 ```bash
 # Build minimal
 cargo build --no-default-features

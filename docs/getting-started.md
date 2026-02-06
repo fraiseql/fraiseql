@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Getting Started with FraiseQL v2
 description: cargo new my-graphql-api
 keywords: []

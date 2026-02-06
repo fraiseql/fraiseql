@@ -5,6 +5,7 @@
 FraiseQL uses GitHub Dependabot for automated dependency updates and security vulnerability monitoring.
 
 **Update Schedule:**
+
 - Python dependencies: Weekly (Mondays, 09:00 UTC)
 - GitHub Actions: Weekly (Mondays)
 - Security updates: Immediate (as vulnerabilities are discovered)
@@ -58,11 +59,13 @@ For updates that introduce breaking changes:
 ### Security Alerts
 
 **Notification Settings:**
+
 - **Critical/High severity:** Immediate email notification
 - **Medium severity:** Weekly digest email
 - **Low severity:** Monthly digest email
 
 **Response Time:**
+
 - Critical: Patch within 24 hours
 - High: Patch within 7 days
 - Medium: Patch within 30 days
@@ -71,16 +74,19 @@ For updates that introduce breaking changes:
 ### Query Dependabot Status
 
 **View pending security alerts:**
+
 ```bash
 gh api repos/:owner/:repo/dependabot/alerts
 ```
 
 **View open Dependabot PRs:**
+
 ```bash
 gh pr list --label dependencies
 ```
 
 **View Dependabot configuration:**
+
 ```bash
 cat .github/dependabot.yml
 ```
@@ -95,6 +101,7 @@ If Dependabot creates too many PRs or causes issues:
    - Commit and push
 
 2. **Close all pending PRs:**
+
    ```bash
    gh pr list --label dependencies --json number --jq '.[].number' | \
      xargs -I {} gh pr close {}
@@ -107,6 +114,7 @@ If Dependabot creates too many PRs or causes issues:
 ### Metrics
 
 Track Dependabot effectiveness:
+
 - Number of security vulnerabilities patched per month
 - Average time to merge security updates
 - Number of automated vs manual dependency updates

@@ -20,6 +20,7 @@ FraiseQL takes an opinionated stance on error handling to provide consistency an
 ### Problems with Multiple Patterns
 
 **Before (v1.7.x):**
+
 - `field_errors: dict[str, str]` in blog_simple
 - `validation_errors: list[dict]` in enterprise
 - `MutationResultBase` required for errors
@@ -31,12 +32,14 @@ FraiseQL takes an opinionated stance on error handling to provide consistency an
 ### The FraiseQL Way™
 
 **After (v1.8.1+):**
+
 - `errors: list[Error]` on ALL error responses
 - Auto-populated from status strings
 - No special base classes needed
 - One pattern, everywhere
 
 **Benefits:**
+
 - ✅ Predictable API responses
 - ✅ Consistent error structure
 - ✅ Better TypeScript/frontend integration
@@ -59,6 +62,7 @@ Error responses have a **two-level structure** by intentional design. Understand
 ```
 
 **Use root fields when:**
+
 - Quick error checks: `if (response.code === 422) { ... }`
 - Display single error message: `toast.error(response.message)`
 - Legacy client compatibility
@@ -80,6 +84,7 @@ Error responses have a **two-level structure** by intentional design. Understand
 ```
 
 **Use errors array when:**
+
 - Multiple validation errors to display
 - Mapping errors to specific form fields
 - Structured error processing: `errors.forEach(err => ...)`
@@ -91,6 +96,7 @@ Error responses have a **two-level structure** by intentional design. Understand
 This design supports both simple and complex use cases:
 
 **Simple case (single error):**
+
 ```json
 {
   "message": "Name is required",    // ← Quick access
@@ -100,9 +106,11 @@ This design supports both simple and complex use cases:
   }]
 }
 ```
+
 Root and errors[0] intentionally match for convenience.
 
 **Complex case (multiple errors):**
+
 ```json
 {
   "message": "Multiple validation errors",  // ← Summary
@@ -112,6 +120,7 @@ Root and errors[0] intentionally match for convenience.
   ]
 }
 ```
+
 Root provides summary, array provides per-field details.
 
 ### Quick Reference
@@ -144,6 +153,7 @@ The simplest and most common pattern: status strings automatically become struct
 ```
 
 **Prefixes:**
+
 - `failed:` - General errors (422)
 - `not_found:` - Missing resources (404)
 - `conflict:` - Business conflicts (409)
@@ -153,6 +163,7 @@ The simplest and most common pattern: status strings automatically become struct
 - `noop:` - No changes (422)
 
 **Examples:**
+
 ```sql
 -- Input validation
 status := 'validation:'
@@ -179,6 +190,7 @@ status := 'forbidden:insufficient_role'
 ```
 
 **Code mapping:**
+
 - `failed:*` → 422 (Unprocessable Entity)
 - `not_found:*` → 404 (Not Found)
 - `conflict:*` → 409 (Conflict)
@@ -306,21 +318,25 @@ class Error:
 ### Field Meanings
 
 **code:** HTTP-inspired status codes for categorization:
+
 - 400-499: Client errors (validation, not found, etc.)
 - 500-599: Server errors
 
 **identifier:** Machine-readable identifier for:
+
 - Frontend error handling logic
 - Translation keys
 - Analytics tracking
 - Debugging
 
 **message:** Human-readable description for:
+
 - User display
 - Logs
 - API documentation
 
 **details:** Structured additional context:
+
 - Field names for validation errors
 - Constraint information
 - Debug data
@@ -564,6 +580,7 @@ END IF;
 ### From field_errors Dictionaries
 
 **Before:**
+
 ```python
 @fraiseql.failure
 class CreateUserError(MutationResultBase):
@@ -571,6 +588,7 @@ class CreateUserError(MutationResultBase):
 ```
 
 **After:**
+
 ```python
 @fraiseql.failure
 class CreateUserError:
@@ -579,6 +597,7 @@ class CreateUserError:
 ```
 
 **Migration logic:**
+
 ```sql
 -- Before: Set field_errors in Python resolver
 -- After: Use metadata.errors in PostgreSQL function
@@ -596,6 +615,7 @@ result.metadata := jsonb_build_object('errors', jsonb_build_array(
 ### From ValidationError Lists
 
 **Before:**
+
 ```python
 @fraiseql.failure
 class ValidationError:
@@ -603,6 +623,7 @@ class ValidationError:
 ```
 
 **After:**
+
 ```python
 @fraiseql.failure
 class ValidationError:
@@ -613,6 +634,7 @@ class ValidationError:
 ### From MutationResultBase Dependency
 
 **Before:**
+
 ```python
 @fraiseql.failure
 class MyError(MutationResultBase):
@@ -620,6 +642,7 @@ class MyError(MutationResultBase):
 ```
 
 **After:**
+
 ```python
 @fraiseql.failure
 class MyError:
@@ -707,6 +730,7 @@ $$ LANGUAGE plpgsql;
 ### Errors Not Appearing
 
 **Check:**
+
 - Status string format: Must be `prefix:identifier`
 - Function returns `mutation_response` type
 - No explicit errors in `metadata.errors` (would override)
@@ -714,12 +738,14 @@ $$ LANGUAGE plpgsql;
 ### Wrong Error Codes
 
 **Check:**
+
 - Status prefix mapping (see table above)
 - Explicit error codes in `metadata.errors`
 
 ### Details Not Showing
 
 **Check:**
+
 - `details` field is valid JSONB
 - Frontend expects the structure you provide
 - No null/undefined values breaking serialization
@@ -727,6 +753,7 @@ $$ LANGUAGE plpgsql;
 ### Performance Issues
 
 **Check:**
+
 - Error generation only on failure paths
 - JSONB construction not in hot paths
 - Logging not enabled for all errors

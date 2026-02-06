@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Subscriptions: Event Projections from the Database
 description: 1. [Overview](#1-overview)
 keywords: ["design", "scalability", "performance", "patterns", "security"]

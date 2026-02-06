@@ -5,6 +5,7 @@ Production-ready filtering examples demonstrating FraiseQL's automatic filter ge
 ## What This Example Demonstrates
 
 This is a **complete filtering pattern showcase** with:
+
 - Automatic filter operators based on field types
 - String filters (contains, startsWith, endsWith, case-insensitive)
 - Numeric filters (gt, gte, lt, lte, between)

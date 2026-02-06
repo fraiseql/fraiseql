@@ -9,6 +9,7 @@
 ## Overview
 
 Create comprehensive documentation:
+
 1. Architecture documentation (how it works)
 2. Migration guide (for users upgrading)
 3. Examples (common patterns)
@@ -48,6 +49,7 @@ RETURN jsonb_build_object('id', user_id, 'name', 'John');
 **Detection**: No `status` field OR invalid status value
 
 **GraphQL Response**:
+
 ```json
 {
   "data": {
@@ -69,6 +71,7 @@ RETURN jsonb_build_object('id', user_id, 'name', 'John');
 **When to use**: Mutations with status/error handling, CASCADE
 
 **PostgreSQL**:
+
 ```sql
 RETURN ROW(
     'created',      -- status
@@ -84,6 +87,7 @@ RETURN ROW(
 **Detection**: Has valid `status` field
 
 **GraphQL Response**:
+
 ```json
 {
   "data": {
@@ -120,6 +124,7 @@ RETURN ROW(
 ```
 
 **NOT**:
+
 ```json
 {
   "data": {
@@ -147,6 +152,7 @@ The pipeline automatically detects wrappers and extracts the entity.
 ### __typename Injection
 
 Every GraphQL type must have `__typename`:
+
 - Success response: `__typename: "CreateUserSuccess"`
 - Entity: `__typename: "User"`
 - CASCADE: `__typename: "Cascade"`
@@ -154,6 +160,7 @@ Every GraphQL type must have `__typename`:
 ### camelCase Conversion
 
 Snake_case field names converted to camelCase:
+
 - `first_name` → `firstName`
 - `created_at` → `createdAt`
 
@@ -162,11 +169,13 @@ Controlled by `auto_camel_case` config option.
 ## Status Classification
 
 Status strings are classified into:
+
 - **Success**: `success`, `created`, `updated`, `deleted`, `ok`, `new`
 - **Error**: `failed:*`, `unauthorized:*`, `forbidden:*`, `not_found:*`, etc.
 - **Noop**: `noop:*`
 
 HTTP codes mapped from status:
+
 - `failed:validation` → 422
 - `not_found:*` → 404
 - `unauthorized:*` → 401
@@ -183,6 +192,7 @@ HTTP codes mapped from status:
 
 Typical mutation: <1ms overhead
 With CASCADE: <2ms overhead
+
 ```
 
 **Acceptance Criteria**:
@@ -223,6 +233,7 @@ user_id = result.user.id  # Typed object
 ```
 
 **After (v1.9)**:
+
 ```python
 result = await graphql_execute(mutation, variables)
 user_id = result["user"]["id"]  # Dict
@@ -231,6 +242,7 @@ user_id = result["user"]["id"]  # Dict
 **Impact**: Update test assertions to use dict access.
 
 **Migration**:
+
 ```python
 # OLD
 assert result.user.id == "123"
@@ -311,11 +323,13 @@ $$ LANGUAGE plpgsql;
 ### Common Pitfalls
 
 ❌ **Wrong**: Lowercase entity_type
+
 ```sql
 RETURN ROW(..., 'user', ...)::mutation_response;
 ```
 
 ✅ **Correct**: PascalCase entity_type
+
 ```sql
 RETURN ROW(..., 'User', ...)::mutation_response;
 ```
@@ -370,6 +384,7 @@ pip install fraiseql==1.8.2
 
 - Issues: https://github.com/fraiseql/fraiseql/issues
 - Docs: https://fraiseql.dev/docs
+
 ```
 
 **Acceptance Criteria**:
@@ -419,6 +434,7 @@ class GetUser:
 ```
 
 **PostgreSQL**:
+
 ```sql
 CREATE FUNCTION get_user(input jsonb) RETURNS jsonb AS $$
 BEGIN
@@ -437,6 +453,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Usage**:
+
 ```python
 result = await execute(schema, """
     mutation {
@@ -459,6 +476,7 @@ print(f"User: {user['name']}")
 ## Full Format with CASCADE Example
 
 **Python Schema**:
+
 ```python
 @fraiseql.success
 class CreateUserSuccess:
@@ -477,6 +495,7 @@ class CreateUser:
 ```
 
 **PostgreSQL**:
+
 ```sql
 CREATE FUNCTION create_user(input jsonb)
 RETURNS mutation_response AS $$
@@ -522,6 +541,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Usage**:
+
 ```python
 result = await execute(schema, """
     mutation {
@@ -552,6 +572,7 @@ print(f"Invalidations: {cascade['invalidations']}")
 ## Error Handling Example
 
 **PostgreSQL**:
+
 ```sql
 CREATE FUNCTION create_user(input jsonb)
 RETURNS mutation_response AS $$
@@ -580,6 +601,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Usage**:
+
 ```python
 result = await execute(schema, mutation)
 
@@ -591,6 +613,7 @@ if result.data["createUser"]["__typename"] == "CreateUserError":
     for err in error['errors']:
         print(f"  - {err['field']}: {err['message']}")
 ```
+
 ```
 
 **Acceptance Criteria**:
@@ -658,6 +681,7 @@ See `docs/guides/migrating_to_rust_pipeline.md` for full migration guide.
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Release notes clear and concise
 - [ ] Breaking changes highlighted
 - [ ] Migration path documented
@@ -675,6 +699,7 @@ See `docs/guides/migrating_to_rust_pipeline.md` for full migration guide.
 - [ ] Links to docs valid
 
 **Verification**:
+
 ```bash
 # Check docs exist
 ls docs/architecture/mutation_pipeline.md

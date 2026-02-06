@@ -28,11 +28,13 @@ Stores all events processed by the observer system for debugging and audit trail
 | status | VARCHAR(50) | DEFAULT 'pending' | pending, processing, completed, failed |
 
 **Indexes:**
+
 - `idx_observer_events_entity` - (entity_type, event_type) - for event lookup
 - `idx_observer_events_status` - (status) - for status filtering
 - `idx_observer_events_created` - (created_at) - for time-range queries
 
 **Usage:**
+
 ```sql
 -- Find all created order events in last hour
 SELECT * FROM observer_events
@@ -65,12 +67,14 @@ Stores failed action executions for manual retry and debugging.
 | status | VARCHAR(50) | DEFAULT 'pending' | pending, processing, success, retry_failed, manually_resolved |
 
 **Indexes:**
+
 - `idx_observer_dlq_items_status` - (status) - for finding pending items
 - `idx_observer_dlq_items_created` - (created_at) - for old items
 - `idx_observer_dlq_items_action` - (action_type) - for action type filtering
 - `idx_observer_dlq_items_event` - (event_id) - for finding items by event
 
 **Status Values:**
+
 - `pending` - Waiting for retry
 - `processing` - Currently being retried
 - `success` - Retry succeeded
@@ -78,6 +82,7 @@ Stores failed action executions for manual retry and debugging.
 - `manually_resolved` - Resolved by manual intervention
 
 **Usage:**
+
 ```sql
 -- Find all pending SMS failures
 SELECT * FROM observer_dlq_items
@@ -111,17 +116,20 @@ Tracks all retry attempts and their results for comprehensive audit trails.
 | result | VARCHAR(50) | NOT NULL | success, transient_error, permanent_error, timeout |
 
 **Indexes:**
+
 - `idx_observer_dlq_history_item` - (dlq_item_id) - for finding history by item
 - `idx_observer_dlq_history_result` - (result) - for finding failures
 - `idx_observer_dlq_history_executed` - (executed_at) - for time queries
 
 **Result Values:**
+
 - `success` - Action executed successfully
 - `transient_error` - Temporary error, retry should happen
 - `permanent_error` - Error won't resolve with retry
 - `timeout` - Action exceeded timeout
 
 **Usage:**
+
 ```sql
 -- View all attempts for a specific DLQ item
 SELECT * FROM observer_dlq_history

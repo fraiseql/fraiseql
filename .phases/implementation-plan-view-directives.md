@@ -20,6 +20,7 @@ FraiseQL uses denormalized materialized views (`tv_*`) that require careful main
 These directives are **purely semantic**—they document intentions and enable tooling, but don't execute business logic.
 
 **Example usage:**
+
 ```graphql
 type UserWithProfile {
   id: ID!
@@ -40,6 +41,7 @@ type UserWithProfile {
 ### Where Metadata Goes Today
 
 Currently, metadata is scattered:
+
 - **View refresh**: PostgreSQL IVM (Incremental View Maintenance) configuration
 - **Dependencies**: Implicit in view SQL, not documented in schema
 - **Functions**: No tracking of required functions
@@ -48,6 +50,7 @@ Currently, metadata is scattered:
 ### The Problem
 
 Without schema metadata:
+
 1. ❌ Dependencies are **implicit** in SQL (hard to discover)
 2. ❌ View refresh strategy is **opaque** (not visible to API layer)
 3. ❌ Required functions are **undocumented** (easy to break)
@@ -91,24 +94,28 @@ Execution: Directives are ignored (metadata only)
 ### Key Design Decisions
 
 **Decision 1: Where should directives apply?**
+
 - ✅ **FIELD_DEFINITION** - On individual fields
 - Gives granular control
 - Makes sense with denormalized view design
 - Could extend to TYPE_DEFINITION later
 
 **Decision 2: Should directives execute or just store metadata?**
+
 - ✅ **Store metadata only** (no execution)
 - Directives are validation, not transformation
 - Real caching/refresh happens at PostgreSQL level (IVM)
 - FraiseQL can't control database refresh anyway
 
 **Decision 3: Should we validate directives at schema build time?**
+
 - ✅ **Yes, but optional/warnings only**
 - Check that required functions exist (might warn if not found)
 - Don't fail schema build (might be in-progress setup)
 - Validate dependencies exist (but warn, don't error)
 
 **Decision 4: How to define directives?**
+
 - ✅ **Standard GraphQL directive definitions**
 - Use `GraphQLDirective` from graphql-core
 - Add to schema during schema building
@@ -1063,12 +1070,14 @@ class TestDirectiveDocumentation:
 ## Part 4: Complete Code Changes Summary
 
 ### Files Created
+
 1. `src/fraiseql/gql/schema_directives.py` - Directive dataclasses
 2. `src/fraiseql/gql/directive_validator.py` - Validation logic
 3. `tests/unit/gql/test_schema_directives.py` - Unit tests
 4. `tests/integration/gql/test_directives_integration.py` - Integration tests
 
 ### Files Modified
+
 1. `src/fraiseql/gql/schema_builder.py` - Add directives to schema
 
 ---
@@ -1215,9 +1224,11 @@ def calculate_query_cost(query_ast, schema):
 ## Part 7: Migration Guide
 
 ### Breaking Changes
+
 **None.** Directives are purely additive.
 
 ### For New Schemas
+
 Use directives on fields that come from materialized views:
 
 ```python
@@ -1235,6 +1246,7 @@ class User:
 ```
 
 ### For Existing Schemas
+
 Directives are optional. Gradually add to high-value fields.
 
 ---
@@ -1242,6 +1254,7 @@ Directives are optional. Gradually add to high-value fields.
 ## Part 8: Success Criteria
 
 ### Code Quality
+
 - [ ] All unit tests pass (15+ new tests)
 - [ ] All integration tests pass
 - [ ] No regressions in existing tests
@@ -1249,6 +1262,7 @@ Directives are optional. Gradually add to high-value fields.
 - [ ] Passes linting (ruff, black)
 
 ### Functionality
+
 - [ ] Directives appear in introspection
 - [ ] Directive validation works
 - [ ] All 4 directive types work correctly
@@ -1256,12 +1270,14 @@ Directives are optional. Gradually add to high-value fields.
 - [ ] Directives don't affect query execution
 
 ### Documentation
+
 - [ ] Clear directive descriptions
 - [ ] Argument descriptions
 - [ ] Usage examples
 - [ ] Tool integration guide
 
 ### Performance
+
 - [ ] Schema building time unchanged
 - [ ] Query execution unchanged
 - [ ] Introspection unaffected
@@ -1271,13 +1287,16 @@ Directives are optional. Gradually add to high-value fields.
 ## Part 9: Dependencies & Prerequisites
 
 ### Code Dependencies
+
 - `graphql-core >= 3.2` (already required)
 - No new external dependencies
 
 ### Files Modified
+
 1. `src/fraiseql/gql/schema_builder.py`
 
 ### Files Added
+
 1. `src/fraiseql/gql/schema_directives.py`
 2. `src/fraiseql/gql/directive_validator.py`
 3. `tests/unit/gql/test_schema_directives.py`
@@ -1288,6 +1307,7 @@ Directives are optional. Gradually add to high-value fields.
 ## Part 10: Implementation Checklist
 
 ### Development
+
 - [ ] Create `schema_directives.py` with directive classes
 - [ ] Create `directive_validator.py` with validation
 - [ ] Write unit tests for directives
@@ -1295,11 +1315,13 @@ Directives are optional. Gradually add to high-value fields.
 - [ ] Test introspection
 
 ### Integration
+
 - [ ] Update `schema_builder.py` to include directives
 - [ ] Verify directives appear in schema
 - [ ] Test with real FraiseQL schema
 
 ### Validation
+
 - [ ] Run full test suite (6000+ tests)
 - [ ] Verify no regressions
 - [ ] Code review
@@ -1317,6 +1339,7 @@ This implementation adds **metadata directives** to FraiseQL's GraphQL schema, e
 ✅ **Query planning** - Cost-based query optimization
 
 The directives are:
+
 - **Purely semantic** (don't affect execution)
 - **Backward compatible** (optional)
 - **Well-tested** (15+ unit + 10+ integration tests)

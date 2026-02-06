@@ -694,6 +694,7 @@ sudo crontab -e
 ### Connection Pooling
 
 For PostgreSQL:
+
 ```bash
 # Use pgBouncer for connection pooling
 sudo apt-get install pgbouncer

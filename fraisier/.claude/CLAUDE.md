@@ -142,6 +142,7 @@ This allows:
 ### 3. CQRS Database Pattern
 
 Write side (tb_*):
+
 ```sql
 CREATE TABLE tb_deployment (
     id INTEGER PRIMARY KEY,
@@ -152,6 +153,7 @@ CREATE TABLE tb_deployment (
 ```
 
 Read side (v_*):
+
 ```sql
 CREATE VIEW v_fraise_status AS
 SELECT fraise, environment, current_version, status

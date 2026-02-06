@@ -22,6 +22,7 @@ This guide provides 4 production-ready example configurations covering typical d
 **Time to Production**: 15-20 minutes
 
 **Architecture**:
+
 ```
 ┌─────────────────┐
 │ fraisier-cli    │
@@ -55,6 +56,7 @@ This guide provides 4 production-ready example configurations covering typical d
 ### Step 1: Prepare Application
 
 **Repository structure**:
+
 ```
 my-api/
 ├── src/
@@ -67,6 +69,7 @@ my-api/
 ```
 
 **requirements.txt**:
+
 ```
 flask==3.0.0
 psycopg==3.1.14
@@ -75,6 +78,7 @@ gunicorn==21.2.0
 ```
 
 **src/app.py**:
+
 ```python
 from flask import Flask, jsonify
 import psycopg
@@ -117,6 +121,7 @@ if __name__ == '__main__':
 ```
 
 **src/main.py**:
+
 ```python
 import os
 from app import app
@@ -130,6 +135,7 @@ if __name__ == '__main__':
 ```
 
 **Dockerfile**:
+
 ```dockerfile
 FROM python:3.11-slim
 
@@ -153,6 +159,7 @@ CMD ["gunicorn", "--workers=4", "--bind=0.0.0.0:8000", "--timeout=30", "main:app
 ### Step 2: Configure Fraisier
 
 **fraises.yaml**:
+
 ```yaml
 version: '1.0'
 
@@ -220,6 +227,7 @@ fraises:
 ### Step 3: Setup Production Server
 
 **SSH into server and run**:
+
 ```bash
 # Create deploy user (if not exists)
 sudo useradd -m -s /bin/bash deploy
@@ -333,6 +341,7 @@ fraisier deploy my_api production --commit abc123def456
 **Time to Production**: 30-40 minutes
 
 **Architecture**:
+
 ```
 ┌──────────────────────────────────────────┐
 │ Docker Host (single machine)             │
@@ -543,6 +552,7 @@ fraises:
 ### Monitoring Setup
 
 **monitoring/prometheus.yml**:
+
 ```yaml
 global:
   scrape_interval: 15s
@@ -569,6 +579,7 @@ scrape_configs:
 ```
 
 **monitoring/rules.yml**:
+
 ```yaml
 groups:
   - name: application
@@ -633,6 +644,7 @@ open http://localhost:9090        # Prometheus
 **Time to Production**: 25-30 minutes per environment
 
 **Architecture**:
+
 ```
 Development (Local/Docker)
     ↓
@@ -730,6 +742,7 @@ fraises:
 ### Environment-Specific docker-compose Files
 
 **docker-compose.dev.yml**:
+
 ```yaml
 version: '3.9'
 
@@ -748,6 +761,7 @@ services:
 ```
 
 **docker-compose.staging.yml**:
+
 ```yaml
 version: '3.9'
 
@@ -805,6 +819,7 @@ fraisier rollback my_app production
 **Time to Production**: 45-60 minutes
 
 **Architecture**:
+
 ```
 ┌─────────────────────────────────────────┐
 │       Load Balancer (HAProxy)           │

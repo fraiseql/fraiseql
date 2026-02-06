@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: View Selection API: Explicit View Control
 description: FraiseQL allows developers to explicitly control which view backs each GraphQL type or Arrow Flight ticket. This document explains the API patterns for view sel
 keywords: ["directives", "types", "scalars", "schema", "api"]

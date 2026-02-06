@@ -19,15 +19,18 @@
 ### Security Module (`src/fraiseql/security.clj`)
 
 **Keywords (Immutable constants):**
+
 - `ROLE_MATCH_ANY`, `ROLE_MATCH_ALL`, `ROLE_MATCH_EXACTLY`
 - `AUTHZ_POLICY_RBAC`, `AUTHZ_POLICY_ABAC`, `AUTHZ_POLICY_CUSTOM`, `AUTHZ_POLICY_HYBRID`
 
 **Configuration Functions:**
+
 - `authorize-config` - Custom authorization rules
 - `role-required-config` - Role-based access control
 - `authz-policy-config` - Reusable authorization policies
 
 **Builder Functions:**
+
 - `authorize-builder` - Create mutable builder map
 - `authorize` - Build authorization config from builder
 - `role-required-builder` - Create RBAC builder map
@@ -36,6 +39,7 @@
 - `build-policy` - Build policy config from builder
 
 **Helper Functions:**
+
 - `strategy-value` - Convert strategy keyword to string
 - `policy-type-value` - Convert policy type keyword to string
 - `authorize-config->map` - Serialize authorization config
@@ -239,6 +243,7 @@ Clojure-specific advantages:
 **Current Status**: 100% Parity across 14 languages (420/420 features) ✅
 
 **Languages Certified:**
+
 - ✅ Python, TypeScript, Java, Go, PHP, Node.js, Ruby, Kotlin, C#/.NET, Rust, Swift, Scala, Groovy, Clojure
 
 Last Updated: January 26, 2026

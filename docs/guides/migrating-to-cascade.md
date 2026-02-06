@@ -16,6 +16,7 @@ This guide walks through adopting GraphQL Cascade in existing FraiseQL applicati
 ## Quick Assessment: Is Cascade Right for Your App?
 
 ### ✅ Good Candidates for Cascade
+
 - **Social Media/Community Apps**: Post creation with author stats updates
 - **E-commerce**: Order placement with inventory adjustments
 - **Content Management**: Article publishing with category/tag updates
@@ -23,6 +24,7 @@ This guide walks through adopting GraphQL Cascade in existing FraiseQL applicati
 - **Real-time Dashboards**: Data updates with multiple dependent views
 
 ### ❌ Less Ideal for Cascade
+
 - **Simple CRUD**: Single entity updates without side effects
 - **Real-time Cursors**: Very frequent, independent updates
 - **Administrative Bulk Operations**: Large-scale data imports
@@ -51,6 +53,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **Old Behavior**: Response included CASCADE anyway
+
 ```json
 {
   "data": {
@@ -80,6 +83,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **New Behavior**: No CASCADE in response
+
 ```json
 {
   "data": {
@@ -125,6 +129,7 @@ Add `cascade` to selections where needed:
 **Step 3**: Test
 
 Verify your application still works:
+
 - Cache updates function correctly
 - UI synchronization works
 - No TypeScript errors from missing CASCADE
@@ -163,6 +168,7 @@ Instead, update your queries to explicitly request CASCADE.
 ### Performance Impact
 
 After migration, you should see:
+
 - 20-50% smaller response payloads (for mutations not using CASCADE)
 - Faster mutation response times
 - Reduced network bandwidth usage
@@ -174,6 +180,7 @@ After migration, you should see:
 #### 1.1 Database Schema Updates
 
 **Create Entity Views for Cascade Data**
+
 ```sql
 -- Example: User entity view for cascade
 CREATE VIEW v_user AS
@@ -190,6 +197,7 @@ FROM tb_user;
 ```
 
 **Create Helper Functions** (Optional but recommended)
+
 ```sql
 -- Helper functions for cascade construction
 CREATE OR REPLACE FUNCTION app.cascade_entity(
@@ -245,6 +253,7 @@ $$ LANGUAGE plpgsql;
 #### 1.2 Update PostgreSQL Functions
 
 **Before** (Standard Mutation):
+
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
 RETURNS jsonb AS $$
@@ -269,6 +278,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **After** (With Cascade):
+
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_post(input jsonb)
 RETURNS jsonb AS $$
@@ -311,6 +321,7 @@ $$ LANGUAGE plpgsql;
 #### 2.1 Update Mutation Decorators
 
 **Before**:
+
 ```python
 import fraiseql
 
@@ -322,6 +333,7 @@ class CreatePost:
 ```
 
 **After**:
+
 ```python
 import fraiseql
 
@@ -335,6 +347,7 @@ class CreatePost:
 #### 2.2 Update GraphQL Queries
 
 **Before** (Client needs follow-up queries):
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -345,6 +358,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **After** (Client gets cascade data):
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -372,6 +386,7 @@ mutation CreatePost($input: CreatePostInput!) {
 #### 3.1 Apollo Client Integration
 
 **Basic Cascade Processing**:
+
 ```typescript
 import { useMutation, gql } from '@apollo/client';
 
@@ -418,6 +433,7 @@ function CreatePostComponent() {
 ```
 
 **Advanced Cascade Processing** (if you need custom logic):
+
 ```typescript
 import { useMutation, gql, ApolloCache } from '@apollo/client';
 
@@ -706,6 +722,7 @@ describe('Cascade Integration', () => {
 #### 5.1 Feature Flags
 
 **Environment Variable Control**:
+
 ```bash
 # Enable cascade globally
 export FRAISEQL_ENABLE_CASCADE=true
@@ -715,6 +732,7 @@ export FRAISEQL_ENABLE_CASCADE=false
 ```
 
 **Per-Mutation Control** (recommended):
+
 ```python
 import fraiseql
 
@@ -731,6 +749,7 @@ class UpdateProfile:
 #### 5.2 Monitoring Setup
 
 **Performance Metrics**:
+
 ```python
 # Add to your monitoring
 cascade_processing_duration = Histogram(
@@ -750,6 +769,7 @@ cascade_entities_total = Counter(
 ```
 
 **Grafana Dashboard**:
+
 - Cascade processing latency
 - Payload size distribution
 - Error rates
@@ -758,11 +778,13 @@ cascade_entities_total = Counter(
 #### 5.3 Rollback Plan
 
 **Immediate Rollback** (if issues arise):
+
 1. Set `FRAISEQL_ENABLE_CASCADE=false`
 2. No database changes needed
 3. Clients ignore cascade field gracefully
 
 **Complete Rollback**:
+
 1. Remove `enable_cascade=True` from mutations
 2. Update client code to remove cascade handling
 3. Monitor for 24-48 hours
@@ -774,6 +796,7 @@ cascade_entities_total = Counter(
 **Problem**: Cascade field is `null` or missing in GraphQL response.
 
 **Solutions**:
+
 1. **Check Mutation Decorator**: Ensure `@mutation(enable_cascade=True)`
 2. **Verify PostgreSQL Function**: Confirm `_cascade` field in return JSONB
 3. **Check Database Views**: Ensure entity views exist and are accessible
@@ -789,6 +812,7 @@ SELECT jsonb_pretty(_cascade) FROM graphql.create_post('{"title": "Test", "autho
 **Problem**: Client cache doesn't reflect cascade changes.
 
 **Solutions**:
+
 1. **Check Apollo Client Version**: Ensure compatible version
 2. **Verify Cache Updates**: Manually test cache.writeFragment calls
 3. **Check Entity IDs**: Ensure `__typename` + `id` matches cache keys
@@ -799,6 +823,7 @@ SELECT jsonb_pretty(_cascade) FROM graphql.create_post('{"title": "Test", "autho
 **Problem**: Cascade processing is slow or memory-intensive.
 
 **Solutions**:
+
 1. **Limit Cascade Scope**: Only include necessary entities
 2. **Optimize Database Views**: Add indexes for cascade view queries
 3. **Batch Updates**: Group related entity updates
@@ -817,6 +842,7 @@ FROM graphql.create_post('{"title": "Test", "author_id": "user-123"}');
 **Problem**: TypeScript or GraphQL schema errors.
 
 **Solutions**:
+
 1. **Update GraphQL Schema**: Include cascade field in mutation responses
 2. **Generate Types**: Regenerate TypeScript types after schema changes
 3. **Validate Cascade Structure**: Ensure consistent `__typename` values
@@ -824,18 +850,21 @@ FROM graphql.create_post('{"title": "Test", "author_id": "user-123"}');
 ## Best Practices
 
 ### Database Design
+
 - **Use Entity Views**: Create dedicated views for cascade data extraction
 - **Index Cascade Views**: Add performance indexes on frequently cascaded entities
 - **Consistent Naming**: Use `v_entity_name` pattern for cascade views
 - **Validate Data**: Ensure views return complete, consistent entity data
 
 ### Application Architecture
+
 - **Start Small**: Enable cascade on one mutation first
 - **Feature Flags**: Use environment variables for gradual rollout
 - **Error Handling**: Implement cascade error handling in clients
 - **Monitoring**: Track cascade performance and usage metrics
 
 ### Client Integration
+
 - **Apollo Client**: Leverage automatic cache updates when possible
 - **Custom Logic**: Implement manual cache updates for complex scenarios
 - **Error Boundaries**: Handle cascade processing errors gracefully
@@ -844,24 +873,28 @@ FROM graphql.create_post('{"title": "Test", "author_id": "user-123"}');
 ## Migration Checklist
 
 ### Database Preparation
+
 - [ ] Create entity views for cascade data extraction
 - [ ] Add cascade helper functions to schema
 - [ ] Update PostgreSQL functions to include `_cascade` field
 - [ ] Test cascade data generation
 
 ### Application Code Changes
+
 - [ ] Add `enable_cascade=True` to mutation decorators
 - [ ] Update GraphQL queries to request cascade field
 - [ ] Implement client-side cascade processing logic
 - [ ] Test cascade integration end-to-end
 
 ### Deployment Steps
+
 - [ ] Enable feature flag in staging
 - [ ] Deploy with cascade-enabled mutations
 - [ ] Monitor performance and errors
 - [ ] Gradually enable for production traffic
 
 ### Post-Deployment
+
 - [ ] Monitor cascade performance metrics
 - [ ] Collect user feedback
 - [ ] Plan optimizations based on usage patterns

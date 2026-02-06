@@ -9,8 +9,10 @@
 ## Three Branches to Integrate
 
 ### Branch 1: `fix/where-clause-edge-cases` (current branch)
+
 **Commits**: 43 since divergence
 **Key Work**:
+
 - ✅ WHERE clause filtering bug fix (Issue #124)
 - ✅ ID type implementation
 - ✅ Python builtin shadowing fix
@@ -19,8 +21,10 @@
 - ✅ Documentation quality improvements (100+ fixes)
 
 ### Branch 2: `fix/nested-field-selection-bug`
+
 **Commits**: ~60 unique commits
 **Key Work**:
+
 - ✅ Rust memory safety improvements (Arena allocator bounds)
 - ✅ Panic elimination in production code paths
 - ✅ JSON recursion depth limits
@@ -29,8 +33,10 @@
 - ✅ Clippy strict warnings eliminated
 
 ### Branch 3: `feature/rust-postgres-driver`
+
 **Commits**: 60 since divergence
 **Key Work**:
+
 - ✅ Full Rust PostgreSQL backend (tokio-postgres + deadpool)
 - ✅ 66,992 LOC of Rust database code
 - ✅ Chaos engineering tests (57 tests, 34 passing)
@@ -53,6 +59,7 @@ Step 4: Merge to dev → v1.9.0
 ```
 
 **Rationale**:
+
 - Combines the two smaller feature branches first
 - Then merges into the large Rust backend
 - Easier to track what breaks at each step
@@ -71,6 +78,7 @@ Step 4: Merge to dev → v1.9.0
 ```
 
 **Rationale**:
+
 - Rust backend is the "base" (biggest change)
 - Merge both feature branches into it
 - Slightly faster but harder to debug conflicts
@@ -91,6 +99,7 @@ Step 6: Merge integration → dev → v1.9.0
 ```
 
 **Rationale**:
+
 - Clean integration branch
 - All branches merge to neutral base
 - Easiest to revert individual merges if issues
@@ -127,6 +136,7 @@ git commit -m "merge: combine WHERE clause + Rust safety fixes"
 ```
 
 **Expected Conflicts**:
+
 - `Cargo.toml` / `fraiseql_rs/Cargo.toml` - version numbers
 - `CHANGELOG.md` - both have v1.9.0 entries
 - Possibly some doc files
@@ -167,6 +177,7 @@ git commit -m "merge: integrate all v1.9.0 features (WHERE fixes + Rust improvem
 ```
 
 **Expected Conflicts**:
+
 1. **Rust Code** - Both branches modify `fraiseql_rs/src/`:
    - nested-field: Arena safety, panic fixes
    - rust-backend: Full database layer
@@ -191,6 +202,7 @@ git commit -m "merge: integrate all v1.9.0 features (WHERE fixes + Rust improvem
 **Goal**: Verify everything works together
 
 **Test Suite**:
+
 ```bash
 # 1. Basic build
 make build
@@ -214,11 +226,13 @@ make profile
 ```
 
 **Expected Issues**:
+
 - Some chaos tests may fail (34/57 → need fixes)
 - Rust backend tests might conflict with safety improvements
 - Documentation build might have broken links
 
 **Fix Strategy**:
+
 - Fix critical test failures (WHERE clause, ID type must pass)
 - Document known issues (chaos tests) for post-release
 - Update docs as needed
@@ -263,6 +277,7 @@ gh release create v1.9.0 \
 ## Critical Work from All Branches
 
 ### Must Preserve from fix/where-clause-edge-cases
+
 - [x] WHERE clause fixes (src/fraiseql/where_normalization.py)
 - [x] WHERE clause tests (tests/unit/test_where_clause.py)
 - [x] ID type (src/fraiseql/types/scalars/id_scalar.py)
@@ -272,6 +287,7 @@ gh release create v1.9.0 \
 - [x] Field documentation (docs/core/types-and-schema.md)
 
 ### Must Preserve from fix/nested-field-selection-bug
+
 - [x] Arena safety (fraiseql_rs/src/core/arena.rs)
 - [x] Panic elimination (fraiseql_rs/src/core/*.rs)
 - [x] JSON recursion limits (fraiseql_rs/src/core/transform.rs)
@@ -280,6 +296,7 @@ gh release create v1.9.0 \
 - [x] Performance docs (docs/performance/)
 
 ### Must Preserve from feature/rust-postgres-driver
+
 - [x] Rust database layer (fraiseql_rs/src/db/*)
 - [x] tokio-postgres integration (fraiseql_rs/Cargo.toml)
 - [x] Connection pooling (fraiseql_rs/src/db/pool.rs)
@@ -294,26 +311,31 @@ gh release create v1.9.0 \
 ### File-by-File Strategy
 
 #### src/fraiseql/where_normalization.py
+
 - **Status**: where-clause has fixes, rust-backend may have changes
 - **Resolution**: Prefer where-clause version (has bug fixes)
 - **Action**: `git checkout --theirs src/fraiseql/where_normalization.py`
 
 #### fraiseql_rs/src/core/arena.rs
+
 - **Status**: nested-field has safety improvements, rust-backend may differ
 - **Resolution**: Merge both (safety + backend changes)
 - **Action**: Manual merge
 
 #### docs/architecture/README.md
+
 - **Status**: All three branches may have changes
 - **Resolution**: Merge all sections
 - **Action**: Manual merge, update navigation
 
 #### Cargo.toml / fraiseql_rs/Cargo.toml
+
 - **Status**: All three have dependency changes
 - **Resolution**: Merge all dependencies
 - **Action**: Combine all `[dependencies]` entries
 
 #### CHANGELOG.md
+
 - **Status**: All three have v1.9.0 entries
 - **Resolution**: Combine all entries under single v1.9.0
 - **Action**: Manual merge, organize by category
@@ -336,6 +358,7 @@ gh release create v1.9.0 \
 ## Success Criteria
 
 ### Must Have
+
 - ✅ All 5991+ tests pass
 - ✅ WHERE clause fixes work (Issue #124 tests pass)
 - ✅ ID type works
@@ -344,12 +367,14 @@ gh release create v1.9.0 \
 - ✅ Build succeeds
 
 ### Should Have
+
 - ✅ Chaos tests improved (>34/57 passing)
 - ✅ Performance benchmarks show improvement
 - ✅ Documentation complete and accurate
 - ✅ All architecture diagrams render
 
 ### Nice to Have
+
 - ✅ 100% chaos test pass rate
 - ✅ Zero compiler warnings
 - ✅ Memory profiling shows improvements
@@ -375,6 +400,7 @@ git push origin backup/rust-backend
 ### If Integration Fails
 
 **Option A**: Use where-clause branch only for v1.9.0
+
 ```bash
 git checkout dev
 git merge fix/where-clause-edge-cases
@@ -382,12 +408,14 @@ git merge fix/where-clause-edge-cases
 ```
 
 **Option B**: Delay v1.9.0
+
 ```bash
 # Take more time to integrate properly
 # Release v1.8.x patch instead
 ```
 
 **Option C**: Release separate features in stages
+
 ```bash
 # v1.9.0: WHERE fixes + ID type
 # v1.10.0: Rust safety improvements
@@ -419,6 +447,7 @@ Ready to start? Here's what I'll do:
 ### Immediate Actions (30 minutes)
 
 1. **Backup all branches**:
+
    ```bash
    git branch backup/where-clause-fixes
    git branch backup/nested-field-fixes
@@ -426,6 +455,7 @@ Ready to start? Here's what I'll do:
    ```
 
 2. **Analyze conflicts**:
+
    ```bash
    # Test merge 1: nested-field → where-clause
    git checkout -b test/merge1 fix/where-clause-edge-cases

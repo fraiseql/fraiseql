@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Observability-Driven Schema Optimization
 description: Traditional database optimization relies on static analysis and developer intuition. You might guess which columns need indexes or which queries are slow, but w
 keywords: ["schema"]

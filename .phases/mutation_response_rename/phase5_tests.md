@@ -1,12 +1,15 @@
 # Phase 5: Test Files Updates
 
 ## Objective
+
 Update test files and fixtures to use `mutation_response`.
 
 ## Duration
+
 1 hour
 
 ## Files to Modify
+
 - `tests/fixtures/cascade/conftest.py`
 - `tests/test_mutations/test_status_taxonomy.py`
 - `tests/integration/graphql/mutations/test_unified_camel_case.py`
@@ -21,7 +24,8 @@ For EACH file:
 2. Replace `mutation_result_v2` → `mutation_response`
 3. Update docstrings/comments
 
-### Example change:
+### Example change
+
 ```python
 # OLD
 await db.execute("""
@@ -55,11 +59,13 @@ uv run pytest tests/fixtures/cascade/ -v
 ---
 
 ## Acceptance Criteria
+
 - [ ] All test files updated
 - [ ] No `mutation_result_v2` in tests/
 - [ ] All tests pass
 
 ## Git Commit
+
 ```bash
 git add tests/
 git commit -m "test: update mutation_response references

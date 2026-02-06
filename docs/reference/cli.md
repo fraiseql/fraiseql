@@ -69,16 +69,19 @@ fraiseql init PROJECT_NAME [OPTIONS]
 ### Templates
 
 **basic** - Simple User type with minimal setup
+
 - Single `src/main.py` with User type
 - Basic project structure
 - Ideal for learning or simple APIs
 
 **blog** - Complete blog application structure
+
 - User, Post, Comment types in separate files
 - Organized `src/types/` directory
 - Demonstrates relationships and imports
 
 **ecommerce** - E-commerce application (work in progress)
+
 - Currently uses basic template
 - Future: Product, Order, Customer types
 
@@ -113,12 +116,14 @@ FRAISEQL_DEV_AUTH_PASSWORD=development-only-password
 ### Examples
 
 **Basic project:**
+
 ```bash
 fraiseql init my-api
 cd my-api
 ```
 
 **Blog template with custom database:**
+
 ```bash
 fraiseql init blog-api \
   --template blog \
@@ -126,6 +131,7 @@ fraiseql init blog-api \
 ```
 
 **Skip git initialization:**
+
 ```bash
 fraiseql init quick-test --no-git
 ```
@@ -170,6 +176,7 @@ fraiseql dev [OPTIONS]
 ### Environment Loading
 
 Automatically loads `.env` file if it exists:
+
 ```bash
 📋 Loading environment from .env file
 🚀 Starting FraiseQL development server...
@@ -183,24 +190,28 @@ Automatically loads `.env` file if it exists:
 ### Examples
 
 **Standard development:**
+
 ```bash
 fraiseql dev
 # Server at http://127.0.0.1:8000/graphql
 ```
 
 **Custom host and port:**
+
 ```bash
 fraiseql dev --host 0.0.0.0 --port 3000
 # Server at http://0.0.0.0:3000/graphql
 ```
 
 **Disable auto-reload:**
+
 ```bash
 fraiseql dev --no-reload
 # Useful for performance testing
 ```
 
 **Custom app location:**
+
 ```bash
 fraiseql dev --app myapp.server:application
 ```
@@ -208,16 +219,19 @@ fraiseql dev --app myapp.server:application
 ### Troubleshooting
 
 **"Not in a FraiseQL project directory"**
+
 - Ensure you're in the project root with `pyproject.toml`
 - Run `fraiseql init` if starting new project
 
 **"uvicorn not installed"**
+
 ```bash
 pip install uvicorn
 # Or: pip install -e ".[dev]"
 ```
 
 **Port already in use**
+
 ```bash
 fraiseql dev --port 8001
 ```
@@ -277,6 +291,7 @@ fraiseql check
 ### Examples
 
 **Pre-deployment validation:**
+
 ```bash
 fraiseql check
 if [ $? -eq 0 ]; then
@@ -286,6 +301,7 @@ fi
 ```
 
 **CI/CD integration:**
+
 ```yaml
 # .github/workflows/test.yml
 - name: Validate FraiseQL project
@@ -295,9 +311,11 @@ fi
 ### Common Issues
 
 **"No 'app' found in src/main.py"**
+
 - Ensure you have: `app = fraiseql.create_fraiseql_app(...)`
 
 **"Schema validation failed"**
+
 - Check all type definitions for syntax errors
 - Ensure all referenced types are imported
 
@@ -328,6 +346,7 @@ fraiseql generate [COMMAND] [OPTIONS]
 Export GraphQL schema to a file for client-side tooling.
 
 **Usage:**
+
 ```bash
 fraiseql generate schema [OPTIONS]
 ```
@@ -353,6 +372,7 @@ graphql-codegen --schema schema.graphql
 ```
 
 **Output Format:**
+
 ```graphql
 type User {
   id: ID!
@@ -374,6 +394,7 @@ type Query {
 Generate database migration SQL for a FraiseQL type.
 
 **Usage:**
+
 ```bash
 fraiseql generate migration ENTITY_NAME [OPTIONS]
 ```
@@ -411,6 +432,7 @@ fraiseql generate migration Post --table blog_posts
 ```
 
 **Generated SQL Structure:**
+
 ```sql
 -- Create table with JSONB
 CREATE TABLE IF NOT EXISTS users (
@@ -437,6 +459,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **Apply Migration:**
+
 ```bash
 psql $DATABASE_URL -f migrations/20241010120000_create_users.sql
 ```
@@ -448,6 +471,7 @@ psql $DATABASE_URL -f migrations/20241010120000_create_users.sql
 Generate CRUD mutations boilerplate for a type.
 
 **Usage:**
+
 ```bash
 fraiseql generate crud TYPE_NAME
 ```
@@ -461,6 +485,7 @@ fraiseql generate crud TYPE_NAME
 **Generated Files:**
 
 Creates `src/mutations/{type_name}_mutations.py` with:
+
 - Input types (Create, Update)
 - Result types (Success, Error, Result union)
 - Mutation functions (create, update, delete)
@@ -478,6 +503,7 @@ fraiseql generate crud Product
 ```
 
 **Generated Structure:**
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -513,6 +539,7 @@ async def create_user(input: CreateUserInput, repository: CQRSRepository) -> Use
 ```
 
 **Next Steps:**
+
 1. Import and register mutations in your app
 2. Customize input fields and validation logic
 3. Implement repository calls with proper error handling
@@ -546,6 +573,7 @@ fraiseql sql [COMMAND] [OPTIONS]
 Generate a SQL view definition from a FraiseQL type.
 
 **Usage:**
+
 ```bash
 fraiseql sql generate-view TYPE_NAME [OPTIONS]
 ```
@@ -584,6 +612,7 @@ fraiseql sql generate-view User -o migrations/001_user_view.sql
 Generate complete SQL setup including table, indexes, and view.
 
 **Usage:**
+
 ```bash
 fraiseql sql generate-setup TYPE_NAME [OPTIONS]
 ```
@@ -618,6 +647,7 @@ fraiseql sql generate-setup User --with-table --with-indexes -o db/schema.sql
 Generate common SQL patterns for queries.
 
 **Usage:**
+
 ```bash
 fraiseql sql generate-pattern PATTERN_TYPE TABLE_NAME [OPTIONS]
 ```
@@ -670,6 +700,7 @@ fraiseql sql generate-pattern aggregation posts --group-by user_id
 ```
 
 **Generated Output Example (pagination):**
+
 ```sql
 -- Pagination pattern for users
 SELECT *
@@ -685,11 +716,13 @@ LIMIT 10 OFFSET 20;
 Validate SQL for FraiseQL compatibility.
 
 **Usage:**
+
 ```bash
 fraiseql sql validate SQL_FILE
 ```
 
 **Checks:**
+
 - View returns JSONB data
 - Contains 'data' column
 - Compatible with FraiseQL query patterns
@@ -718,11 +751,13 @@ fraiseql sql validate migrations/001_user_view.sql
 Explain SQL in beginner-friendly terms.
 
 **Usage:**
+
 ```bash
 fraiseql sql explain SQL_FILE
 ```
 
 **Provides:**
+
 - Human-readable explanation of SQL operations
 - Common mistake detection
 - Optimization suggestions
@@ -900,6 +935,7 @@ echo "FRAISEQL_DATABASE_URL=postgresql://localhost/mydb" >> .env
 1. **Always validate before deploying**: Use `fraiseql check` in CI/CD pipelines
 
 2. **Generate schema for frontend teams**: Keep `schema.graphql` in version control
+
    ```bash
    fraiseql generate schema -o schema.graphql
    git add schema.graphql
@@ -912,6 +948,7 @@ echo "FRAISEQL_DATABASE_URL=postgresql://localhost/mydb" >> .env
 5. **Development workflow**: Use `fraiseql dev` with auto-reload for fast iteration
 
 6. **Script common tasks**:
+
    ```bash
    # scripts/reset-db.sh
    psql $DATABASE_URL -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
@@ -931,6 +968,7 @@ echo "FRAISEQL_DATABASE_URL=postgresql://localhost/mydb" >> .env
 ---
 
 **Need help?** Run any command with `--help` for detailed usage information:
+
 ```bash
 fraiseql --help
 fraiseql init --help

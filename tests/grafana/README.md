@@ -21,30 +21,36 @@ Comprehensive test suite for FraiseQL Grafana dashboards ensuring high quality s
 **17 tests** validating SQL queries for correctness, performance, and security:
 
 #### SQL Syntax (4 tests)
+
 - Queries are not empty
 - All queries have SELECT statements
 - All queries have FROM clauses
 - Consistent semicolon usage
 
 #### Table References (2 tests)
+
 - Queries reference valid FraiseQL tables
 - Monitoring schema usage for observability tables
 
 #### Grafana Variables (3 tests)
+
 - Time range variables usage (`$__timeFrom()`, `$__timeTo()`, or `NOW()`)
 - Environment variable filtering
 - Custom time range variable usage
 
 #### Query Performance (3 tests)
+
 - Indexed columns in WHERE clauses
 - Reasonable LIMIT values (≤1000 rows)
 - Avoid SELECT * (use specific columns)
 
 #### SQL Injection Prevention (2 tests)
+
 - Variables properly quoted in WHERE clauses
 - No dynamic SQL construction
 
 #### Query Correctness (3 tests)
+
 - Aggregates with proper GROUP BY clauses
 - Valid JSONB operators (->>, ->)
 - Valid CTE (WITH ... AS) syntax
@@ -54,11 +60,13 @@ Comprehensive test suite for FraiseQL Grafana dashboards ensuring high quality s
 **16 tests** validating the import automation script:
 
 #### Script Structure (4 tests)
+
 - Script exists and is executable
 - Has proper shebang (#!/bin/bash)
 - Has error handling (set -e)
 
 #### Script Content (5 tests)
+
 - Configuration variables defined
 - Grafana connectivity check
 - Import function defined
@@ -66,19 +74,23 @@ Comprehensive test suite for FraiseQL Grafana dashboards ensuring high quality s
 - Error and success messages
 
 #### Script Safety (3 tests)
+
 - Proper variable quoting
 - Safe exit codes
 - File path validation
 
 #### Script Help (2 tests)
+
 - Header comments present
 - Usage information documented
 
 #### Script Dependencies (2 tests)
+
 - Uses standard Unix tools (curl)
 - Uses jq for JSON manipulation
 
 #### Script Linting (1 test, optional)
+
 - Passes shellcheck (if installed)
 
 ## Running Tests
@@ -137,6 +149,7 @@ Some queries intentionally don't follow strict rules for valid reasons. These ar
 ### No GROUP BY
 
 **Queries**:
+
 - `error_monitoring.Error Resolution Status`
 - `cache_hit_rate.Overall Cache Hit Rate`
 
@@ -157,6 +170,7 @@ FraiseQL maintains **very high quality standards**. These tests ensure:
 ### Continuous Quality
 
 Tests run automatically on:
+
 - Every commit (via pre-commit hooks)
 - Pull requests (via CI/CD)
 - Before releases
@@ -170,6 +184,7 @@ If any test fails, the merge is blocked until fixed. This ensures dashboards rem
 When adding a new dashboard:
 
 1. **Add to file list** in all test files:
+
    ```python
    DASHBOARD_FILES = [
        "error_monitoring.json",
@@ -182,6 +197,7 @@ When adding a new dashboard:
    ```
 
 2. **Add expected panels** to `test_dashboard_structure.py`:
+
    ```python
    def test_your_new_dashboard(self, dashboards):
        dashboard = dashboards["your_new_dashboard"]
@@ -198,6 +214,7 @@ When adding a new dashboard:
    ```
 
 3. **Add expected tags** to tag validation:
+
    ```python
    expected_tags = {
        # ... existing dashboards ...
@@ -206,6 +223,7 @@ When adding a new dashboard:
    ```
 
 4. **Run tests** to verify:
+
    ```bash
    uv run pytest tests/grafana/ -v
    ```
@@ -218,9 +236,11 @@ When modifying dashboards:
 
 1. **Make changes** to dashboard JSON
 2. **Run tests** to catch issues:
+
    ```bash
    uv run pytest tests/grafana/ -v
    ```
+
 3. **Fix any failures**
 4. **If test is too strict**, add documented exception in `conftest.py`
 5. **Update tests** if dashboard structure changed intentionally
@@ -237,6 +257,7 @@ When modifying dashboards:
 ### Test Performance
 
 Current test performance:
+
 - **50 tests** run in **<0.4 seconds**
 - **Fast feedback** for development
 - **No external dependencies** (except optional shellcheck)
@@ -293,12 +314,14 @@ jobs:
 ### Test Fails: "Query should filter by '$environment'"
 
 **Options**:
+
 1. Add environment filter to query (recommended)
 2. Add to known exceptions if multi-environment query is intentional
 
 ### Test Fails: "Query with aggregates needs GROUP BY"
 
 **Options**:
+
 1. Add GROUP BY clause (recommended)
 2. Simplify to aggregate-only query
 3. Add to known exceptions if structure is correct
@@ -306,6 +329,7 @@ jobs:
 ### Shellcheck Test Skipped
 
 **Optional**: Install shellcheck for bash script linting
+
 ```bash
 # macOS
 brew install shellcheck

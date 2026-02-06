@@ -19,10 +19,12 @@
 ### Security Module (`src/main/groovy/com/fraiseql/security/Security.groovy`)
 
 **Enums:**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Classes (Immutable & Mutable):**
+
 - `AuthorizeConfig` - Custom authorization rules (Immutable)
 - `RoleRequiredConfig` - Role-based access control (Immutable)
 - `AuthzPolicyConfig` - Reusable authorization policies (Immutable)
@@ -76,6 +78,7 @@ All implementations maintain 100% feature parity across 30 core features.
 **Current Status**: 100% Parity across 13 languages (390/390 features) ✅
 
 **Languages Certified:**
+
 - ✅ Python, TypeScript, Java, Go, PHP, Node.js, Ruby, Kotlin, C#/.NET, Rust, Swift, Scala, Groovy
 
 Last Updated: January 26, 2026

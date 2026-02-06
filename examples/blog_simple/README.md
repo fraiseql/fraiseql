@@ -5,6 +5,7 @@
 A complete blog application demonstrating FraiseQL's fundamental patterns and best practices.
 
 **What you'll learn:**
+
 - Trinity Pattern for secure identifier management
 - CQRS architecture with PostgreSQL functions
 - Complete CRUD operations with enterprise patterns
@@ -12,9 +13,11 @@ A complete blog application demonstrating FraiseQL's fundamental patterns and be
 - Database-first GraphQL API design
 
 **Prerequisites:**
+
 - None (great starting point!)
 
 **Next steps:**
+
 - `../blog_api/` - Add enterprise mutation patterns
 - `../ecommerce/` - Complex business logic
 - `../enterprise_patterns/` - Advanced enterprise features
@@ -22,6 +25,7 @@ A complete blog application demonstrating FraiseQL's fundamental patterns and be
 ## 🌟 Overview
 
 This is a **production-ready blog application** that showcases:
+
 - **Database-first architecture** with PostgreSQL functions
 - **Command/Query separation** with views and materialized tables
 - **CRUD operations** with comprehensive error handling
@@ -186,36 +190,42 @@ CREATE TABLE post_tags (
 This example uses FraiseQL's **Trinity Pattern** with three types of identifiers per entity:
 
 ### 1. **Internal IDs** (`pk_*`)
+
 - **Purpose**: Fast database joins and internal operations
 - **Type**: `INT GENERATED ALWAYS AS IDENTITY`
 - **Example**: `pk_user`, `pk_post`, `pk_tag`
 - **Benefits**: 10-100x faster JOINs than UUID joins
 
 ### 2. **Public IDs** (`id`)
+
 - **Purpose**: External API exposure (secure, non-guessable)
 - **Type**: `UUID DEFAULT gen_random_uuid()`
 - **Example**: User UUIDs in URLs, API responses
 - **Benefits**: Security through obscurity, no enumeration attacks
 
 ### 3. **Human IDs** (`identifier`)
+
 - **Purpose**: User-friendly identifiers (usernames, slugs)
 - **Type**: `TEXT UNIQUE NOT NULL`
 - **Example**: `@john_doe`, `my-blog-post-title`
 - **Benefits**: Readable URLs, SEO-friendly, user experience
 
 ### Foreign Key Strategy
+
 ```sql
 -- Fast INT foreign keys (not UUID)
 fk_author INT NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE
 ```
 
 **Why This Matters**:
+
 - **Performance**: INT joins are 10-100x faster than UUID joins
 - **Security**: Public UUIDs prevent ID enumeration
 - **UX**: Human identifiers are memorable and shareable
 - **Flexibility**: All three types available for different use cases
 
 ### Learn More
+
 - [Trinity Identifiers Guide](../../docs/archive/database/trinity-identifiers.md)
 - [Table Naming Conventions](../../docs/archive/database/table-naming-conventions.md)
 - [Migration Guide](../../docs/archive/database/migrations.md)

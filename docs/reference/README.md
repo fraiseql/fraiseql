@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL v2 Reference
 description: Complete API and operator references.
 keywords: ["directives", "types", "scalars", "schema", "api"]

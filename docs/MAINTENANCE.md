@@ -10,11 +10,13 @@ This document outlines the process for maintaining and updating FraiseQL documen
 ## Update Schedule
 
 ### Weekly Checks
+
 - ✅ Automated link validation (GitHub Actions)
 - ✅ Code example validation (syntax checking)
 - ⚠️ Check for broken external links (manual)
 
 ### Monthly Tasks
+
 - Review and update examples for new releases
 - Process user feedback from GitHub Issues
 - Update best practices based on real-world usage
@@ -22,6 +24,7 @@ This document outlines the process for maintaining and updating FraiseQL documen
 - Check for outdated information
 
 ### Quarterly Review
+
 - Full documentation audit
 - Update architecture patterns if needed
 - Review all code examples for currency
@@ -29,6 +32,7 @@ This document outlines the process for maintaining and updating FraiseQL documen
 - Performance guide updates based on benchmarks
 
 ### Annual Review
+
 - Comprehensive documentation rewrite for major releases
 - Update version-specific documentation
 - Archive previous versions
@@ -39,15 +43,18 @@ This document outlines the process for maintaining and updating FraiseQL documen
 ### Documentation Owners
 
 **Core Guides:**
+
 - Getting Started & Foundation
 - Architecture documentation
 - Reference documentation
 
 **Language-Specific:**
+
 - Each of 16 SDK references (one maintainer per SDK)
 - Language-specific best practices
 
 **Operational:**
+
 - Deployment guides
 - Monitoring & observability
 - Security & compliance
@@ -104,6 +111,7 @@ mkdocs serve
 ### Code Examples
 
 All code examples should:
+
 - Be syntactically valid for the language
 - Include sufficient context (imports, setup)
 - Show both correct and incorrect patterns (with ❌/✅ marks)
@@ -157,6 +165,7 @@ python3 tools/validate-code-examples.py docs/
 ### Deployment
 
 ReadTheDocs automatically builds and deploys:
+
 1. On every push to `main` branch
 2. On every PR (preview)
 3. On manual trigger via RTD dashboard
@@ -246,6 +255,7 @@ For critical documentation errors (incorrect security info, broken tutorial):
 ### Common Maintenance Tasks
 
 **Update SDK for new version:**
+
 ```bash
 cd docs/integrations/sdk/
 # Update {language}-reference.md
@@ -254,18 +264,21 @@ git commit -m "docs(sdk): Update for v2.1.0"
 ```
 
 **Add new feature documentation:**
+
 1. Add to appropriate section
 2. Link from related pages
 3. Add to table of contents
 4. Submit PR with examples
 
 **Fix broken external link:**
+
 1. Search for all occurrences: `grep -r "broken-url" docs/`
 2. Replace with working link or archive link
 3. Update CHANGELOG.md
 4. Commit fix
 
 **Remove outdated information:**
+
 - Mark as deprecated in front matter
 - Add note with deprecation date
 - Suggest alternative in related files
@@ -274,18 +287,21 @@ git commit -m "docs(sdk): Update for v2.1.0"
 ## Documentation Roadmap
 
 **Short-term (1-3 months):**
+
 - Gather user feedback from alpha testing
 - Update troubleshooting based on issues
 - Add missing examples
 - Clarify complex sections
 
 **Medium-term (3-6 months):**
+
 - Add advanced tutorials
 - Expand enterprise guides
 - Add performance benchmarks
 - Create video tutorials (optional)
 
 **Long-term (6-12 months):**
+
 - Add community-contributed patterns
 - Expand to 20+ languages if SDKs created
 - Add interactive examples

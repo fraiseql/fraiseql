@@ -9,6 +9,7 @@
 ## Context
 
 Documentation must be updated to reflect:
+
 1. CASCADE is only returned when requested in selection
 2. Partial CASCADE selections are supported
 3. Performance benefits of selective CASCADE querying
@@ -25,6 +26,7 @@ Documentation must be updated to reflect:
 **Section to Add/Update**: After line 8 (Overview section)
 
 **Content**:
+
 ```markdown
 ## Selection-Aware Behavior
 
@@ -45,9 +47,11 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: No `cascade` field in response (smaller payload)
 
 **Full CASCADE Requested**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -64,9 +68,11 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: Complete CASCADE data included
 
 **Partial CASCADE Requested**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -81,6 +87,7 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: Only `metadata` field in CASCADE object
 
 ### Performance Benefits
@@ -91,6 +98,7 @@ Not requesting CASCADE can reduce response payload size by 2-10x for typical mut
 - Same mutation with full CASCADE: ~1,500-5,000 bytes
 
 Clients should only request CASCADE when they need the side effect information for cache updates or UI synchronization.
+
 ```
 
 **Location**: Insert after line 8, before "Architecture Overview"
@@ -123,6 +131,7 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 Use CASCADE when your client needs to update its cache based on side effects.
 
 **You're Using Apollo Client or Similar**
@@ -131,9 +140,10 @@ CASCADE works seamlessly with Apollo Client's automatic cache updates.
 **You Have Complex Mutations**
 Mutations that affect multiple entities benefit from CASCADE for consistency.
 
-### ❌ Don't Request CASCADE When:
+### ❌ Don't Request CASCADE When
 
 **Simple Display-Only Mutations**
+
 ```graphql
 mutation UpdateUserPreference($input: PreferenceInput!) {
   updatePreference(input: $input) {
@@ -177,6 +187,7 @@ cascade {
 ```
 
 This reduces payload size while still getting needed side effect information.
+
 ```
 
 ---
@@ -223,6 +234,7 @@ cascade {
 ```
 
 **2. Use Conditional CASCADE with Directives**
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!, $needCascade: Boolean!) {
   createPost(input: $input) {
@@ -251,6 +263,7 @@ console.log('Response size:', JSON.stringify(response).length);
 **4. Mobile-Specific Optimizations**
 
 For mobile clients, avoid CASCADE on:
+
 - Background sync operations
 - Bulk operations
 - Low-priority mutations
@@ -272,11 +285,13 @@ cascade_payload_size = Histogram(
 ```
 
 Alert on large payloads:
+
 ```yaml
 - alert: LargeCascadePayloads
   expr: histogram_quantile(0.95, cascade_payload_bytes) > 10000
   for: 5m
 ```
+
 ```
 
 ---
@@ -312,6 +327,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **Old Behavior**: Response included CASCADE anyway
+
 ```json
 {
   "data": {
@@ -341,6 +357,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 **New Behavior**: No CASCADE in response
+
 ```json
 {
   "data": {
@@ -386,6 +403,7 @@ Add `cascade` to selections where needed:
 **Step 3**: Test
 
 Verify your application still works:
+
 - Cache updates function correctly
 - UI synchronization works
 - No TypeScript errors from missing CASCADE
@@ -424,9 +442,11 @@ Instead, update your queries to explicitly request CASCADE.
 ### Performance Impact
 
 After migration, you should see:
+
 - 20-50% smaller response payloads (for mutations not using CASCADE)
 - Faster mutation response times
 - Reduced network bandwidth usage
+
 ```
 
 ---
@@ -479,6 +499,7 @@ type CascadeMetadata {
 ### Selection Examples
 
 **Full CASCADE**:
+
 ```graphql
 cascade {
   updated {
@@ -504,6 +525,7 @@ cascade {
 ```
 
 **Partial CASCADE** (metadata only):
+
 ```graphql
 cascade {
   metadata {
@@ -513,6 +535,7 @@ cascade {
 ```
 
 **With Inline Fragments**:
+
 ```graphql
 cascade {
   updated {
@@ -536,6 +559,7 @@ cascade {
 ### Nullability
 
 The `cascade` field is nullable:
+
 - Returns `null` if no side effects occurred
 - Not present in response if not requested in selection
 - Returns object with requested fields if side effects occurred
@@ -549,6 +573,7 @@ The `cascade` field is nullable:
 | invalidations only | ~100-300 bytes | Cache clearing |
 | updated only | ~500-2000 bytes | Entity sync |
 | Full CASCADE | ~1000-5000 bytes | Complete sync |
+
 ```
 
 ---
@@ -622,6 +647,7 @@ mutation CreatePost($input: CreatePostInput!) {
 ```
 
 Performance: Not requesting CASCADE reduces response size by 2-10x.
+
 ```
 
 ---

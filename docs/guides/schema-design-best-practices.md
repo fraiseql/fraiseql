@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Schema Design Best Practices for FraiseQL
 description: Best practices and patterns for designing performant, maintainable FraiseQL schemas with compile-time optimization.
 keywords: ["debugging", "implementation", "best-practices", "deployment", "schema", "tutorial"]

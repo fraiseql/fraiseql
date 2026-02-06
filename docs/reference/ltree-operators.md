@@ -27,6 +27,7 @@ Path comparison operators use **lexicographic ordering** to compare paths as str
 ### Equality Operators
 
 #### `eq` - Path Equals
+
 **Use when:** Exact path match
 
 ```graphql
@@ -41,6 +42,7 @@ query {
 ```
 
 **Behavior:**
+
 - Exact string match after normalization
 - PostgreSQL: `(path)::ltree = 'top.science'::ltree`
 - Requires exact path (not substring)
@@ -48,6 +50,7 @@ query {
 ---
 
 #### `neq` - Path Not Equal
+
 **Use when:** Exclude specific paths
 
 ```graphql
@@ -68,6 +71,7 @@ query {
 ### Comparison Operators
 
 #### `lt` - Path Less Than
+
 **Use when:** Paths that come before another path lexicographically
 
 ```graphql
@@ -82,6 +86,7 @@ query {
 ```
 
 **Lexicographic ordering examples:**
+
 - `"aaa" < "bbb"` → true
 - `"top.alpha" < "top.beta"` → true
 - `"top.a.z" < "top.b"` → true
@@ -91,6 +96,7 @@ query {
 ---
 
 #### `lte` - Path Less Than or Equal
+
 **Use when:** Paths that come before or equal to another path
 
 ```graphql
@@ -109,6 +115,7 @@ query {
 ---
 
 #### `gt` - Path Greater Than
+
 **Use when:** Paths that come after another path lexicographically
 
 ```graphql
@@ -123,6 +130,7 @@ query {
 ```
 
 **Example paths that match `gt: "m"`:**
+
 - `"n"`, `"z"`, `"top.xyz"` → true
 - `"a"`, `"middle"` → false
 
@@ -131,6 +139,7 @@ query {
 ---
 
 #### `gte` - Path Greater Than or Equal
+
 **Use when:** Paths that come after or equal to another path
 
 ```graphql
@@ -151,6 +160,7 @@ query {
 ## Hierarchy Operators
 
 ### `ancestor_of` - Is Ancestor
+
 **Use when:** Find paths that contain another path
 
 ```graphql
@@ -165,6 +175,7 @@ query {
 ```
 
 **Returns:** All ancestor paths of `"science.astronomy.nebulae"`
+
 - `"science"`
 - `"science.astronomy"`
 
@@ -173,6 +184,7 @@ query {
 ---
 
 ### `descendant_of` - Is Descendant
+
 **Use when:** Find paths that are children/descendants of another path
 
 ```graphql
@@ -187,6 +199,7 @@ query {
 ```
 
 **Returns:** All descendant paths under `"science.astronomy"`
+
 - `"science.astronomy.nebulae"`
 - `"science.astronomy.planets"`
 - `"science.astronomy.planets.terrestrial"`
@@ -198,9 +211,11 @@ query {
 ## Pattern Matching Operators
 
 ### `matches_lquery` - Match LQuery Pattern
+
 **Use when:** Wildcard patterns with optional/alternative labels
 
 LQuery syntax allows:
+
 - `*` - any single label
 - `{n}` - exactly n levels
 - `{n,}` - n or more levels
@@ -219,6 +234,7 @@ query {
 ```
 
 **Examples:**
+
 - `"science.*"` → matches `science.astronomy`, `science.biology`, etc.
 - `"*.*.astronomy"` → matches paths with exactly 3 levels ending in "astronomy"
 - `"science.{2}"` → matches exactly 2 levels under "science"
@@ -229,9 +245,11 @@ query {
 ---
 
 ### `matches_ltxtquery` - Match LTxtQuery Pattern
+
 **Use when:** Text search patterns with AND/OR/NOT logic
 
 LTxtQuery syntax allows Boolean operators:
+
 - `&` - AND
 - `|` - OR
 - `!` - NOT
@@ -248,6 +266,7 @@ query {
 ```
 
 **Examples:**
+
 - `"science & astronomy"` → both "science" AND "astronomy" present
 - `"astronomy | geology"` → either "astronomy" OR "geology" present
 - `"!archive"` → does NOT contain "archive"
@@ -259,9 +278,11 @@ query {
 ## Path Depth Operators
 
 ### `nlevel` - Get Path Depth
+
 **Use when:** You need the depth value (not filtering)
 
 This returns the number of labels in the path:
+
 - `"science"` → 1
 - `"science.astronomy"` → 2
 - `"science.astronomy.planets"` → 3
@@ -271,6 +292,7 @@ This returns the number of labels in the path:
 ### Depth Comparison Operators
 
 #### `nlevel_eq` / `depth_eq` - Exact Depth
+
 **Use when:** Filter by exact depth
 
 ```graphql
@@ -285,6 +307,7 @@ query {
 ```
 
 **Returns paths with exactly 2 labels:**
+
 - `"science.astronomy"` → depth 2
 - `"science.biology"` → depth 2
 - `"science"` → depth 1 (not matched)
@@ -383,6 +406,7 @@ query {
 ## Path Analysis Operators
 
 ### `subpath` - Extract Subpath
+
 **Use when:** Extract a portion of a path
 
 ```graphql
@@ -397,10 +421,12 @@ query {
 ```
 
 **Parameters:** `[offset, length]`
+
 - `offset` - starting position (0-indexed)
 - `length` - number of labels to extract
 
 **Examples:**
+
 - `path: "science.astronomy.planets"` with `[0, 2]` → `"science.astronomy"`
 - `path: "science.astronomy.planets"` with `[1, 2]` → `"astronomy.planets"`
 - `path: "a.b.c.d"` with `[2, 1]` → `"c"`
@@ -410,6 +436,7 @@ query {
 ---
 
 ### `index` - Find Label Index
+
 **Use when:** Locate a specific label in a path
 
 ```graphql
@@ -426,12 +453,14 @@ query {
 **Returns:** Position of label (0-indexed, or -1 if not found)
 
 **Example:**
+
 - `path: "science.astronomy.planets"` → index of `"astronomy"` is 1
 - `path: "science.astronomy.planets"` → index of `"nonexistent"` is -1
 
 ---
 
 ### `index_eq` - Label at Position
+
 **Use when:** Check if a specific label is at a position
 
 ```graphql
@@ -452,6 +481,7 @@ Returns paths where `label` is at `position`.
 ---
 
 ### `index_gte` - Label at or After Position
+
 **Use when:** Label appears at or after a position
 
 ```graphql
@@ -472,6 +502,7 @@ Returns paths where `"planets"` first appears at position 1 or later.
 ## Path Manipulation Operators
 
 ### `concat` - Concatenate Paths
+
 **Use when:** Combine two paths
 
 ```graphql
@@ -486,6 +517,7 @@ query {
 ```
 
 **Example:**
+
 - `path: "science.astronomy"` concatenated with `"planets.terrestrial"`
 - Result: `"science.astronomy.planets.terrestrial"`
 
@@ -494,6 +526,7 @@ query {
 ---
 
 ### `lca` - Lowest Common Ancestor
+
 **Use when:** Find common ancestor path
 
 ```graphql
@@ -516,6 +549,7 @@ query {
 **Returns:** The lowest (deepest) common ancestor
 
 **Example:**
+
 - Input paths: `"science.astronomy.planets"`, `"science.astronomy.stars"`
 - LCA result: `"science.astronomy"`
 
@@ -524,6 +558,7 @@ query {
 ## Array Operations
 
 ### `in_array` - Path in Array
+
 **Use when:** Check if path is in a list
 
 ```graphql
@@ -546,6 +581,7 @@ query {
 ---
 
 ### `array_contains` - Array Contains Path
+
 **Use when:** Array of paths contains a specific path
 
 ```graphql
@@ -564,6 +600,7 @@ query {
 ---
 
 ### `matches_any_lquery` - Match Any LQuery
+
 **Use when:** Path matches any of multiple patterns
 
 ```graphql
@@ -634,6 +671,7 @@ where_dict = {
 ## Performance Characteristics
 
 ### Index Support
+
 All operators are **GiST index-optimized** in PostgreSQL:
 
 ```sql
@@ -655,16 +693,19 @@ CREATE INDEX idx_path_gist ON categories USING GIST(path);
 ### Query Optimization Tips
 
 1. **Use GiST indexes** for best performance
+
    ```sql
    CREATE INDEX idx_category_path ON categories USING GIST(path);
    ```
 
 2. **For depth-based queries**, create a functional index
+
    ```sql
    CREATE INDEX idx_category_depth ON categories(nlevel(path));
    ```
 
 3. **Combine operators efficiently**
+
    ```graphql
    # Good: Ancestor_of alone uses GiST
    path: { ancestorOf: "science.astronomy" }
@@ -681,6 +722,7 @@ CREATE INDEX idx_path_gist ON categories USING GIST(path);
 ## Real-World Examples
 
 ### Organizational Hierarchy
+
 ```graphql
 query {
   departments(where: {
@@ -696,6 +738,7 @@ query {
 ```
 
 ### Category Tree with Depth Limit
+
 ```graphql
 query {
   categories(where: {
@@ -711,6 +754,7 @@ query {
 ```
 
 ### Range Query on Paths
+
 ```graphql
 query {
   categories(where: {
@@ -726,6 +770,7 @@ query {
 ```
 
 ### Pattern Matching for Autocomplete
+
 ```graphql
 query {
   categories(where: {
@@ -744,6 +789,7 @@ query {
 ## Comparison with Other Operators
 
 ### Path Comparison vs Hierarchy
+
 ```graphql
 # Path comparison: lexicographic order
 path: { lt: "science.physics" }  # All paths before "science.physics"
@@ -753,6 +799,7 @@ path: { descendantOf: "science" }  # All paths under "science"
 ```
 
 ### Pattern Matching Operators
+
 ```graphql
 # LQuery: wildcard patterns
 matchesLquery: "science.*"  # Matches science.astronomy, science.biology, etc.

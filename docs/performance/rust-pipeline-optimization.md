@@ -11,6 +11,7 @@ The Rust pipeline is **already optimized** and provides 0.5-5ms response times o
 The Rust pipeline is fast (< 1ms), but database queries can take 1-100ms+ depending on complexity.
 
 ### Use Table Views (tv_*)
+
 Pre-compute denormalized data in the database:
 
 ```sql
@@ -30,6 +31,7 @@ SELECT * FROM tv_user WHERE id = $1;
 **Impact**: 5-50x faster database queries
 
 ### Index Properly
+
 ```sql
 -- Index JSONB paths used in WHERE clauses
 CREATE INDEX idx_user_email ON tv_user ((data->>'email'));
@@ -55,6 +57,7 @@ query {
 Rust pipeline will extract only `id` and `firstName` from the full JSONB, ignoring other fields.
 
 **Configuration:**
+
 ```python
 config = FraiseQLConfig(
     field_projection=True,  # Enable field filtering (default)
@@ -75,6 +78,7 @@ config = FraiseQLConfig(
 ```
 
 **Benefits:**
+
 - 85-95% cache hit rate in production
 - Eliminates GraphQL parsing overhead
 - Reduces bandwidth (send hash instead of full query)
@@ -86,6 +90,7 @@ config = FraiseQLConfig(
 Smaller JSONB = faster Rust transformation:
 
 ### Don't Include Unnecessary Data
+
 ```sql
 -- ❌ Bad: Include everything
 SELECT jsonb_build_object(
@@ -108,6 +113,7 @@ SELECT jsonb_build_object(
 **Impact**: 2-5x faster for large objects
 
 ### Use Separate Queries for Large Fields
+
 ```graphql
 # Main query: small fields
 query {
@@ -154,6 +160,7 @@ print(f"Rust transform p95: {metrics['rust_transform_p95_ms']}ms")
 ```
 
 **Normal values:**
+
 - Simple objects: 0.1-0.5ms
 - Complex nested: 0.5-2ms
 - Large arrays: 1-5ms
@@ -196,6 +203,7 @@ print(f"Total time: {duration*1000:.2f}ms")
 ```
 
 **Target times:**
+
 - Simple query: < 5ms
 - Complex query with joins: < 25ms
 - With APQ cache hit: < 2ms

@@ -11,10 +11,12 @@
 CASCADE data is currently returned in GraphQL responses regardless of whether the client requested it in the selection set. This violates GraphQL's fundamental principle that only requested fields should be returned.
 
 **Current Bug**:
+
 - Client queries mutation WITHOUT `cascade` field → Still receives CASCADE data
 - Client queries mutation with partial CASCADE selection → Receives full CASCADE object
 
 **Expected Behavior**:
+
 - Client doesn't request `cascade` → No CASCADE in response
 - Client requests `cascade { updated }` → Only `updated` field in response
 - Client requests full `cascade { updated deleted invalidations metadata }` → Full CASCADE
@@ -24,6 +26,7 @@ CASCADE data is currently returned in GraphQL responses regardless of whether th
 ## Files to Create/Modify
 
 ### New Test File
+
 - `tests/integration/test_cascade_selection_filtering.py`
 
 ---

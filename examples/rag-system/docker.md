@@ -20,6 +20,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 ```
 
 The test script will:
+
 1. Build Docker images
 2. Start PostgreSQL with pgvector and the RAG application
 3. Run comprehensive tests:
@@ -55,6 +56,7 @@ docker-compose down -v
 ## Services
 
 ### PostgreSQL (pgvector)
+
 - **Image**: `pgvector/pgvector:pg16`
 - **Port**: 5432
 - **Database**: ragdb
@@ -65,6 +67,7 @@ docker-compose down -v
   - Sample documents loaded from schema.sql
 
 ### RAG Application
+
 - **Build**: From local Dockerfile
 - **Port**: 8000
 - **Endpoints**:

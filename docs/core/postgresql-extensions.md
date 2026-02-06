@@ -371,6 +371,7 @@ ORDER BY extname;
 ```
 
 Expected output:
+
 ```
     extname       | extversion | extrelocatable
 ------------------+------------+----------------
@@ -419,6 +420,7 @@ test_extensions()
 **Problem**: `ERROR: could not open extension control file`
 
 **Solution**:
+
 ```bash
 # Find PostgreSQL extension directory
 pg_config --sharedir
@@ -438,6 +440,7 @@ sudo make install
 **Problem**: `fatal error: postgres.h: No such file or directory`
 
 **Solution**: Install PostgreSQL development headers
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get install postgresql-server-dev-17
@@ -454,6 +457,7 @@ sudo pacman -S postgresql-libs
 **Problem**: `ERROR: permission denied to create extension`
 
 **Solution**: You need superuser privileges
+
 ```bash
 # Connect as superuser
 psql -U postgres -d your_database
@@ -470,6 +474,7 @@ GRANT USAGE ON SCHEMA public TO fraiseql_user;
 **Problem**: Extension version doesn't match after update
 
 **Solution**: Upgrade the extension
+
 ```sql
 -- Check current version
 SELECT extversion FROM pg_extension WHERE extname = 'jsonb_ivm';
@@ -509,6 +514,7 @@ else:
 ```
 
 You'll see a warning in logs:
+
 ```
 [WARNING] jsonb_ivm extension not installed, using fallback (slower)
 [INFO] For better performance, install jsonb_ivm: see docs/core/postgresql-extensions.md

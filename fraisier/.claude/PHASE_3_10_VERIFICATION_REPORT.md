@@ -30,7 +30,7 @@ Fraisier now supports three database backends (SQLite, PostgreSQL, MySQL) throug
 3. **fraisier/db/postgres_adapter.py** - PostgreSQL implementation (~370 lines)
 4. **fraisier/db/mysql_adapter.py** - MySQL implementation (~350 lines)
 5. **fraisier/db/factory.py** - Database factory & config (~170 lines)
-6. **fraisier/db/__init__.py** - Package exports (~20 lines)
+6. **fraisier/db/**init**.py** - Package exports (~20 lines)
 7. **tests/test_database_adapters.py** - Comprehensive tests (~500 lines)
 8. **pyproject.toml** - Updated with database dependencies
 
@@ -318,6 +318,7 @@ Fixes applied:
 - `aiosqlite>=0.19.0` - For SQLite async support
 
 **Optional** (via feature flags):
+
 ```toml
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.1.0"]
@@ -326,6 +327,7 @@ all-databases = ["aiosqlite>=0.19.0", "psycopg[binary]>=3.1.0", "aiomysql>=0.2.0
 ```
 
 **Installation Examples**:
+
 ```bash
 # Development with SQLite only
 pip install -e ".dev"
@@ -359,6 +361,7 @@ pip install -e ".[all-databases]"
 ### From Phase 3 to Phase 3.10
 
 **Before** (SQLite only):
+
 ```python
 from fraisier.database import FraisierDB, get_db
 
@@ -367,6 +370,7 @@ results = db.get_recent_deployments()
 ```
 
 **After** (Multi-database ready):
+
 ```python
 from fraisier.db.factory import get_database_adapter
 
@@ -387,26 +391,32 @@ results = await adapter.execute_query("SELECT * FROM tb_deployment")
 .10 successfully applies FraiseQL's proven database abstraction patterns:
 
 ✅ **Trait-Based Abstraction**
+
 - FraiseQL: `trait DatabaseAdapter`
 - Fraisier: `class FraiserDatabaseAdapter(ABC)`
 
 ✅ **Feature Flags**
+
 - FraiseQL: Cargo features (postgres, mysql, sqlite)
 - Fraisier: Python extras + environment variables
 
 ✅ **Database-Specific Implementations**
+
 - FraiseQL: Separate database modules
 - Fraisier: Separate adapter files per database
 
 ✅ **Connection Pooling**
+
 - FraiseQL: deadpool-postgres, bb8+tiberius
 - Fraisier: psycopg3 pool, aiomysql pool
 
 ✅ **Type Safety**
+
 - FraiseQL: Parameterized queries in Rust
 - Fraisier: Parameterized queries in Python adapters
 
 ✅ **Error Mapping**
+
 - FraiseQL: FraiseQLError enum
 - Fraisier: FraisierError hierarchy
 

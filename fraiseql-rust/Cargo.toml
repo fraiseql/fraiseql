@@ -1,29 +1,28 @@
-[workspace]
-# Exclude from parent workspace - this is a standalone SDK
-
-[package]
-name = "fraiseql-rust"
-version = "1.0.0"
-edition = "2021"
-authors = ["FraiseQL Contributors"]
-description = "Rust authoring language for FraiseQL with 100% feature parity"
-repository = "https://github.com/fraiseql/fraiseql"
-license = "Apache-2.0"
-keywords = ["graphql", "authorization", "rbac", "schema"]
-categories = ["database", "network-programming"]
+[dev-dependencies]
 
 [lib]
 name = "fraiseql_rust"
 path = "src/lib.rs"
 
+[lints.clippy]
+all = "deny"
+cargo = "deny"
+nursery = "warn"
+pedantic = "deny"
+
 [lints.rust]
 unsafe_code = "forbid"
 
-[lints.clippy]
-all = "deny"
-pedantic = "deny"
-cargo = "deny"
-nursery = "warn"
+[package]
+authors = ["FraiseQL Contributors"]
+categories = ["database", "network-programming"]
+description = "Rust authoring language for FraiseQL with 100% feature parity"
+edition = "2021"
+keywords = ["graphql", "authorization", "rbac", "schema"]
+license = "Apache-2.0"
+name = "fraiseql-rust"
+repository = "https://github.com/fraiseql/fraiseql"
+version = "1.0.0"
 
 [[test]]
 name = "integration_test"
@@ -33,4 +32,4 @@ path = "tests/integration_test.rs"
 name = "phase18_cycle16_scope_extraction_test"
 path = "tests/phase18_cycle16_scope_extraction_test.rs"
 
-[dev-dependencies]
+[workspace]

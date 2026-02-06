@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Troubleshooting Guide
 description: This guide covers common issues with FraiseQL's observability system and their solutions, organized by:
 keywords: []

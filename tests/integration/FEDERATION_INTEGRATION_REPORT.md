@@ -114,6 +114,7 @@ Client Query: Get users with orders and products
 ### Total Test Coverage: 44 Tests + 8 Performance Benchmarks
 
 #### 1. Service Health (4 tests)
+
 ```bash
 ✓ test_users_subgraph_health
 ✓ test_orders_subgraph_health
@@ -122,6 +123,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 2. Single Subgraph Queries (5 tests)
+
 ```bash
 ✓ test_users_single_subgraph_query
 ✓ test_orders_single_subgraph_query
@@ -131,6 +133,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 3. Two-Subgraph Federation (7 tests)
+
 ```bash
 ✓ test_users_with_orders_simple
 ✓ test_users_with_orders_multiple
@@ -142,6 +145,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 4. Extended Mutations (5 tests)
+
 ```bash
 ✓ test_extended_mutation_create
 ✓ test_extended_mutation_update
@@ -151,6 +155,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 5. Composite Key Tests (4 tests)
+
 ```bash
 ✓ test_composite_key_generation
 ✓ test_composite_key_resolution
@@ -159,6 +164,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 6. Three-Subgraph Federation (10 tests)
+
 ```bash
 ✓ test_three_subgraph_setup_validation
 ✓ test_three_subgraph_direct_queries
@@ -173,6 +179,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 7. Apollo Router Verification (6 tests)
+
 ```bash
 ✓ test_apollo_router_discovers_subgraphs
 ✓ test_apollo_router_schema_composition
@@ -183,6 +190,7 @@ Client Query: Get users with orders and products
 ```
 
 #### 8. Query Performance & Optimization (8 tests)
+
 ```bash
 ✓ test_federation_query_performance_baseline
 ✓ test_federation_repeated_query_performance
@@ -457,6 +465,7 @@ curl http://localhost:4000/.well-known/apollo/server-health
 - Connection pool utilization (target: <80%)
 
 **Logging**:
+
 ```bash
 # View Apollo Router logs
 docker-compose logs -f apollo-router
@@ -473,6 +482,7 @@ docker-compose logs -f postgres-users
 ### Backup & Recovery
 
 **Database Backups**:
+
 ```bash
 # Backup all databases
 docker-compose exec postgres-users pg_dump -U postgres users > users_backup.sql
@@ -503,6 +513,7 @@ docker-compose exec -T postgres-users psql -U postgres < users_backup.sql
 **Symptoms**: `docker-compose ps` shows "Exited" status
 
 **Solution**:
+
 ```bash
 # Check logs
 docker-compose logs [service-name]
@@ -518,6 +529,7 @@ docker-compose logs -f       # Watch startup
 **Symptoms**: "Request timeout" or "Gateway timeout"
 
 **Solution**:
+
 ```bash
 # Check individual subgraph latency
 time curl http://localhost:4001/graphql -d '{"query":"{ users { id } }"}'
@@ -545,6 +557,7 @@ time curl http://localhost:4001/graphql -d '{"query":"{ users { id } }"}'
 **Symptoms**: "Entity not found" or "Unknown field"
 
 **Solution**:
+
 ```bash
 # Verify schema composition
 curl -X POST http://localhost:4000/graphql \

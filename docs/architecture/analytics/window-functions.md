@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: Window Functions Architecture
 description: Window functions (analytical functions) perform calculations across rows related to the current row, using an OVER clause to define the window. Unlike aggregate
 keywords: ["design", "scalability", "performance", "patterns", "security"]

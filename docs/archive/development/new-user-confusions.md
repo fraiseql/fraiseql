@@ -5,18 +5,21 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 1. Multiple Versions/Implementations Without Clear Distinction
 
 **Confusion**: The repository contains multiple seemingly separate implementations:
+
 - Root level (`README.md`, `pyproject.toml`, `examples/`)
 - `fraiseql/` directory (v1 rebuild)
 - `fraiseql_rs/` directory (Rust extension)
 - `fraiseql-v1/` directory (another v1 for hiring)
 
 **What wasn't clear**:
+
 - Which is the current/main version to use?
 - Are these different versions, or different components?
 - Why are there multiple v1 implementations?
 - How do they relate to each other?
 
 **What I discovered after investigation**:
+
 - Root level appears to be the main/current version (v0.11.5)
 - `fraiseql/` is a "v1 rebuild" for production
 - `fraiseql_rs/` is a Rust performance extension
@@ -29,6 +32,7 @@ As a new user exploring this repository, I encountered several areas that were n
 **Confusion**: The repository has many directories (`archive/`, `benchmark_submission/`, `deploy/`, `docs/`, `examples/`, `fraiseql/`, `fraiseql_rs/`, `fraiseql-v1/`, `grafana/`, `migrations/`, `scripts/`, `src/`, `tests/`) without clear explanation of their purpose.
 
 **What wasn't clear**:
+
 - Which directories are for users vs developers?
 - What's the difference between `src/` and `fraiseql/`?
 - What is `archive/` and should users care about it?
@@ -39,6 +43,7 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 3. Documentation Spread Across Multiple Locations
 
 **Confusion**: Documentation exists in multiple places with different purposes:
+
 - Root `README.md` (marketing/overview)
 - `docs/README.md` (comprehensive docs)
 - `fraiseql/README.md` (v1 rebuild status)
@@ -46,6 +51,7 @@ As a new user exploring this repository, I encountered several areas that were n
 - `fraiseql-v1/README.md` (hiring portfolio)
 
 **What wasn't clear**:
+
 - Which documentation to read first?
 - How the different docs relate to each other?
 - Whether some docs are outdated or for different versions?
@@ -55,6 +61,7 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 4. Architecture Concepts Not Explained for Beginners
 
 **Confusion**: The README and docs use advanced concepts without sufficient explanation:
+
 - CQRS (Command Query Responsibility Segregation)
 - JSONB views and table views (tv_*)
 - Trinity identifiers (pk_*, fk_*, id, identifier)
@@ -62,6 +69,7 @@ As a new user exploring this repository, I encountered several areas that were n
 - Rust acceleration layers
 
 **What wasn't clear**:
+
 - Why these architectural choices matter
 - How they benefit typical GraphQL applications
 - When to use different patterns
@@ -72,6 +80,7 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 5. Installation and Setup Complexity
 
 **Confusion**: Multiple installation methods mentioned without clear guidance:
+
 - `pip install fraiseql`
 - `pip install fraiseql[rust]`
 - `pip install fraiseql[fastapi]`
@@ -79,6 +88,7 @@ As a new user exploring this repository, I encountered several areas that were n
 - Optional Rust compilation
 
 **What wasn't clear**:
+
 - Which installation is recommended for beginners?
 - What features require which extras?
 - Whether Rust is required or optional?
@@ -91,6 +101,7 @@ As a new user exploring this repository, I encountered several areas that were n
 **Confusion**: The quickstart guide shows creating files in the current directory, but the actual project has a complex structure with `src/`, `examples/`, etc.
 
 **What wasn't clear**:
+
 - How the quickstart relates to the full project structure?
 - Whether users should follow the quickstart exactly or adapt it?
 - How to integrate quickstart code into a larger project?
@@ -102,6 +113,7 @@ As a new user exploring this repository, I encountered several areas that were n
 **Confusion**: The `examples/` directory contains many subdirectories with different purposes and complexity levels, but no clear guidance on which to start with.
 
 **What wasn't clear**:
+
 - Which example is best for beginners?
 - What's the learning progression?
 - Are some examples outdated or experimental?
@@ -112,11 +124,13 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 8. Version Status and Roadmap Confusion
 
 **Confusion**: Multiple version statuses mentioned:
+
 - Root level: v0.11.5 "Production/Stable"
 - `fraiseql/`: "Week 1/15 - Documentation Phase"
 - `fraiseql-v1/`: "8 weeks to interview-ready"
 
 **What wasn't clear**:
+
 - Is this a stable project or still in development?
 - Which version should new users adopt?
 - What's the relationship between versions?
@@ -127,12 +141,14 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 9. Performance Claims Without Context
 
 **Confusion**: Aggressive performance claims ("4-100x faster", "sub-millisecond", "40x speedup") without sufficient context about:
+
 - What it's faster than?
 - Under what conditions?
 - What the baseline comparison is?
 - Whether claims are realistic for typical applications?
 
 **What wasn't clear**:
+
 - Realistic performance expectations
 - When the performance benefits matter
 - Trade-offs for the performance gains
@@ -142,12 +158,14 @@ As a new user exploring this repository, I encountered several areas that were n
 ## 10. Target Audience Uncertainty
 
 **Confusion**: The project seems to target multiple audiences simultaneously:
+
 - Beginners (5-minute quickstart)
 - Enterprise users (production features, monitoring)
 - Performance enthusiasts (Rust acceleration)
 - Job seekers (hiring portfolio version)
 
 **What wasn't clear**:
+
 - Who is the primary target audience?
 - What skill level is assumed?
 - Whether this is for learning GraphQL or production use?

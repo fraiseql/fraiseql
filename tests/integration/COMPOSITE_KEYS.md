@@ -7,6 +7,7 @@ This document describes composite key federation and multi-tenant integration te
 Composite keys are federation keys composed of multiple fields, commonly used in multi-tenant systems:
 
 ### Single Field Key (Standard)
+
 ```graphql
 @key(fields: ["id"])
 type User {
@@ -17,6 +18,7 @@ type User {
 Query: `user(id: "...")`
 
 ### Composite Key (Multi-Field)
+
 ```graphql
 @key(fields: ["tenantId", "userId"])
 type TenantUser {
@@ -99,6 +101,7 @@ Tests single-field keys as baseline (current implementation):
 - Validates infrastructure foundation
 
 **Example**:
+
 ```graphql
 query {
     user(id: "550e8400-e29b-41d4-a716-446655440001") {
@@ -123,6 +126,7 @@ Tests multi-field composite key infrastructure:
 - Infrastructure readiness for true composite keys
 
 **Example** (future):
+
 ```graphql
 query {
     user(tenantId: "acme", userId: "550e8400...") {
@@ -147,6 +151,7 @@ Tests multi-tenant data isolation patterns:
 - Cross-tenant queries fail or return null
 
 **Pattern**:
+
 ```
 Query Tenant A data with Tenant B credentials → Denied/Null
 Query Tenant A data with Tenant A credentials → Success
@@ -167,6 +172,7 @@ Tests resolving multiple entities with composite keys:
 - All resolved consistently
 
 **Example**:
+
 ```graphql
 query {
     users(limit: 5) {
@@ -191,6 +197,7 @@ Tests mutations preserve tenant isolation:
 - Mutation respects isolation boundaries
 
 **Example**:
+
 ```graphql
 mutation {
     createUser(
@@ -219,6 +226,7 @@ Tests composite key federation across subgraph boundaries:
 - Isolation maintained across federation
 
 **Example**:
+
 ```graphql
 mutation {
     createOrder(
@@ -250,6 +258,7 @@ Tests gateway-level composite key handling:
 - Consistency across resolution layers
 
 **Example**:
+
 ```graphql
 query {
     users(tenantId: "acme") {

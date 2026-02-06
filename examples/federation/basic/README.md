@@ -63,6 +63,7 @@ curl -X POST http://localhost:4001/graphql \
 ```
 
 Response:
+
 ```json
 {
   "data": {
@@ -95,6 +96,7 @@ curl -X POST http://localhost:4001/graphql \
 ```
 
 Response:
+
 ```json
 {
   "data": {
@@ -268,17 +270,20 @@ docker-compose ps
 ### Federation queries are slow
 
 1. Verify both services are responding quickly
+
    ```bash
    time curl http://localhost:4001/graphql -d '{"query": "{users{id}}"}'
    time curl http://localhost:4002/graphql -d '{"query": "{orders{id}}"}'
    ```
 
 2. Check network latency between services
+
    ```bash
    docker exec federation_users-service_1 ping orders-service
    ```
 
 3. Verify databases have indexes on key fields
+
    ```bash
    docker exec federation_postgres1_1 psql -U postgres -d users -c "\\d users"
    ```

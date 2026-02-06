@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Extension Points: Plugins, Customization, and Integration Hooks
 description: FraiseQL provides extension points for customization without modifying core framework. Developers can extend behavior through hooks, custom validators, authoriz
 keywords: ["design", "scalability", "performance", "patterns", "security"]

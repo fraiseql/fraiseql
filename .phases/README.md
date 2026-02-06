@@ -73,11 +73,13 @@
 ## Progress Tracking
 
 ### Day 1 (4 hours)
+
 - [ ] Phase 03: Dependabot (0.75h) - Quick win
 - [ ] Phase 02: Loki Configuration (1.5h)
 - [ ] Phase 01: Operations Runbook (2h of 2.5h) - Start long task
 
 ### Day 2 (4.75 hours)
+
 - [ ] Phase 01: Operations Runbook (0.5h remaining)
 - [ ] Phase 04: Incident Response (1.5h)
 - [ ] Phase 05: Classified Deployment (1.5h)

@@ -19,11 +19,13 @@ Phase 3 successfully implemented adaptive scaling for all 6 authentication chaos
 ### Phase 3.1: Pilot Implementation (2 tests)
 
 **Files Modified**:
+
 1. `tests/chaos/auth/conftest.py` - Auto-injection fixture for unittest compatibility
 2. `tests/chaos/auth/test_auth_chaos.py` - First 2 tests adaptive
 3. `tests/chaos/auth/test_auth_adaptive_validation.py` - 14 validation tests (NEW)
 
 **Tests Made Adaptive**:
+
 - ✅ `test_jwt_expiration_during_request`
 - ✅ `test_jwt_signature_validation_failure`
 
@@ -34,15 +36,18 @@ Phase 3 successfully implemented adaptive scaling for all 6 authentication chaos
 ### Phase 3.2: Full Category Implementation (4 more tests)
 
 **Files Modified**:
+
 1. `tests/chaos/auth/test_auth_chaos.py` - Remaining 4 tests + bug fixes
 
 **Tests Made Adaptive**:
+
 - ✅ `test_rbac_policy_failure`
 - ✅ `test_authentication_service_outage`
 - ✅ `test_concurrent_authentication_load`
 - ✅ `test_role_based_access_control_failure`
 
 **Bugs Fixed**:
+
 1. Success rate calculation (was producing negative values)
 2. Outage ratio threshold (too strict for adaptive iteration counts)
 
@@ -51,6 +56,7 @@ Phase 3 successfully implemented adaptive scaling for all 6 authentication chaos
 ### Phase 3 Documentation
 
 **Files Created**:
+
 1. `.phases/chaos-tuning/PHASE3_COMPLETE.md` - This document
 2. `.phases/chaos-tuning/GENERALIZATION_PLAN.md` - Implementation plan for remaining categories
 
@@ -78,6 +84,7 @@ iterations = max(5, int(10 * chaos_config.load_multiplier))
 ```
 
 **Why This Matters**:
+
 - On LOW hardware, divisor-based would produce 1 iteration (80% reduction!)
 - On LOW hardware, multiplier-based produces 5 iterations (50% reduction, still meaningful)
 - Difference: 5x better on resource-constrained systems (CI/CD, low-end laptops)
@@ -87,6 +94,7 @@ iterations = max(5, int(10 * chaos_config.load_multiplier))
 **Challenge**: Tests inherit from `unittest.TestCase`, not pure pytest
 
 **Solution**:
+
 ```python
 # tests/chaos/auth/conftest.py
 @pytest.fixture(autouse=True)
@@ -97,6 +105,7 @@ def inject_chaos_config(request, chaos_config):
 ```
 
 **Usage in Tests**:
+
 ```python
 class TestAuthenticationChaos(ChaosTestCase):  # Inherits from unittest.TestCase
     def test_something(self):  # No chaos_config parameter needed!
@@ -106,6 +115,7 @@ class TestAuthenticationChaos(ChaosTestCase):  # Inherits from unittest.TestCase
 ### 3. Documentation Template
 
 **Docstring**:
+
 ```python
 def test_jwt_expiration_during_request(self):
     """
@@ -126,6 +136,7 @@ def test_jwt_expiration_during_request(self):
 ```
 
 **Inline Comment**:
+
 ```python
 # Scale iterations based on hardware (10 on baseline, 5-40 adaptive)
 # Uses multiplier-based formula to ensure meaningful test on all hardware
@@ -184,6 +195,7 @@ tests/chaos/auth/test_auth_chaos.py::TestAuthenticationChaos::test_role_based_ac
 ### Validation Tests
 
 **14/14 validation tests passing**:
+
 - 6 tests: Scaling correctness (2 tests × 3 profiles)
 - 3 tests: Timeout scaling (3 profiles)
 - 3 tests: Concurrent requests scaling (3 profiles)
@@ -199,6 +211,7 @@ tests/chaos/auth/test_auth_chaos.py::TestAuthenticationChaos::test_role_based_ac
 **Location**: `test_authentication_service_outage`
 
 **Original Code**:
+
 ```python
 success_rate = 1 - (summary["error_count"] / max(summary["query_count"], 1))
 # When error_count > query_count, this produces negative success rate!
@@ -206,6 +219,7 @@ success_rate = 1 - (summary["error_count"] / max(summary["query_count"], 1))
 ```
 
 **Fixed Code**:
+
 ```python
 total_attempts = summary["query_count"] + summary["error_count"]
 success_rate = summary["query_count"] / max(total_attempts, 1) if total_attempts > 0 else 0
@@ -214,6 +228,7 @@ success_rate = summary["query_count"] / max(total_attempts, 1) if total_attempts
 ```
 
 **Why It Appeared**:
+
 - Original hardcoded 15 iterations → errors rarely exceeded queries
 - Adaptive 60 iterations (4.0x) → statistical variance increased
 - Pre-existing mathematical error became visible
@@ -225,6 +240,7 @@ success_rate = summary["query_count"] / max(total_attempts, 1) if total_attempts
 **Location**: `test_authentication_service_outage`
 
 **Original Code**:
+
 ```python
 outage_ratio = degraded_operations / total_operations
 assert outage_ratio <= 0.5  # ❌ Too strict with more iterations
@@ -232,6 +248,7 @@ assert outage_ratio <= 0.5  # ❌ Too strict with more iterations
 ```
 
 **Fixed Code**:
+
 ```python
 outage_ratio = degraded_operations / total_operations
 # With more iterations, statistical variance evens out and outage ratio may be higher
@@ -240,6 +257,7 @@ assert outage_ratio <= 0.9  # ✅ Realistic threshold
 ```
 
 **Why It Appeared**:
+
 - With 15 iterations: 20% outage chance × 25% recovery chance = low variance
 - With 60 iterations: Statistical behavior converges to expected value (87% outage time)
 - Original threshold was unrealistic for scaled-up test
@@ -255,10 +273,12 @@ assert outage_ratio <= 0.9  # ✅ Realistic threshold
 ### 1. Expert Review Was Critical
 
 **Original Plan**: Divisor-based formulas
+
 - Would have worked on HIGH profile
 - Would have FAILED on LOW/CI profiles (1 iteration!)
 
 **After Expert Review**: Multiplier-based formulas
+
 - Works on ALL profiles
 - 5x better on LOW profile
 
@@ -267,6 +287,7 @@ assert outage_ratio <= 0.9  # ✅ Realistic threshold
 ### 2. Higher Iteration Counts Expose Bugs
 
 **Both bugs** found in Phase 3.2 were pre-existing but dormant:
+
 - Negative success rate: Math error masked by low iteration counts
 - Outage ratio: Threshold unrealistic, but 15 iterations never hit it
 
@@ -275,11 +296,13 @@ assert outage_ratio <= 0.9  # ✅ Realistic threshold
 ### 3. Incremental Rollout Validates Patterns
 
 **Phase 3.1 Pilot** (2 tests):
+
 - Validated multiplier-based approach
 - Created validation test framework
 - Proved unittest compatibility solution
 
 **Phase 3.2 Full** (4 tests):
+
 - Applied proven patterns quickly
 - Found and fixed 2 bugs
 - 100% success rate
@@ -289,11 +312,13 @@ assert outage_ratio <= 0.9  # ✅ Realistic threshold
 ### 4. Documentation Pays Off
 
 **Comprehensive docstrings** made it easy to:
+
 - Understand what each test does
 - See how it scales
 - Know what configuration it uses
 
 **Validation tests** provide:
+
 - Regression prevention
 - Proof of correctness
 - Examples for future developers

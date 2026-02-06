@@ -1,7 +1,8 @@
 <!-- Skip to main content -->
 ---
+
 title: GraphQL API Specification
-description: This document specifies the GraphQL API provided by the FraiseQL HTTP server. The API follows the official GraphQL specification with additional validation and 
+description: This document specifies the GraphQL API provided by the FraiseQL HTTP server. The API follows the official GraphQL specification with additional validation and
 keywords: ["directives", "types", "scalars", "schema", "graphql", "api"]
 tags: ["documentation", "reference"]
 ---

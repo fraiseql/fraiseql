@@ -44,6 +44,7 @@
 - **CI-validated** - Validation script checks absolute paths reliably
 
 **When to use:**
+
 - Internal documentation cross-references (95% of cases)
 - Links to examples or source code
 - Links to project root files (README, CONTRIBUTING, LICENSE)
@@ -64,11 +65,13 @@
 ```
 
 **When to use (RARE):**
+
 - Links within the same directory
 - Generated documentation (e.g., API docs that move together)
 - Templates where absolute paths don't apply
 
 **Drawbacks:**
+
 - Breaks when source file is moved
 - Requires mental calculation of directory depth
 - Hard to validate across refactorings
@@ -94,6 +97,7 @@
 ```
 
 **Best practices:**
+
 - Use HTTPS when available
 - Link to specific version docs when relevant
 - Avoid linking to own repository on GitHub (use relative/absolute instead)
@@ -121,6 +125,7 @@
 ```
 
 **Rules:**
+
 - GitHub auto-generates anchors from headers (lowercase, hyphens for spaces)
 - Remove special characters (!, ?, etc.)
 - Multiple words: use hyphens
@@ -153,6 +158,7 @@
 ```
 
 **Why this matters:**
+
 - GitHub renders `/examples/` as directory listing
 - `/examples` might 404 or redirect
 - Trailing slash indicates browsable content
@@ -253,6 +259,7 @@
 ```
 
 **Checks:**
+
 - Broken internal links
 - Missing files
 - Invalid paths
@@ -294,6 +301,7 @@
 **Common causes:**
 
 1. **File was renamed/moved**
+
    ```markdown
    # Link points to old location
    [Database API](../core/database-api/)
@@ -303,6 +311,7 @@
    ```
 
 2. **Wrong relative path depth**
+
     ```markdown
     # From: docs/development/link-best-practices.md
     [Core](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary/)  # Wrong - uses GitHub URL
@@ -313,6 +322,7 @@
     ```
 
 3. **Using GitHub URLs for internal links**
+
    ```markdown
    [Config](https://github.com/fraiseql/fraiseql/blob/main/docs/core/configuration/)  # External link to own repo
    [Config](/docs/core/configuration/)  # Correct absolute path
@@ -353,6 +363,7 @@ grep -r "concepts-glossary.md" docs/
 ```
 
 **Benefits after conversion:**
+
 - File can be moved without updating links
 - Links work from any documentation location
 - CI validation catches broken links immediately

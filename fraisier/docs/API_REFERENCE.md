@@ -44,6 +44,7 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -60,6 +61,7 @@ curl -X POST http://localhost:8000/api/v1/auth/refresh \
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -139,6 +141,7 @@ GET /deployments?environment=production&status=success&limit=10&offset=0
 - `created_before` (string, optional): ISO 8601 timestamp
 
 **Response** (200 OK):
+
 ```json
 {
   "deployments": [
@@ -175,6 +178,7 @@ GET /deployments?environment=production&status=success&limit=10&offset=0
 ```
 
 **Example**:
+
 ```bash
 # List recent production deployments
 curl -H "Authorization: Bearer $TOKEN" \
@@ -202,6 +206,7 @@ GET /deployments/{deployment_id}
 - `deployment_id` (string, required): Deployment ID (e.g., dep_00001)
 
 **Response** (200 OK):
+
 ```json
 {
   "id": "dep_00001",
@@ -246,6 +251,7 @@ GET /deployments/{deployment_id}
 ```
 
 **Example**:
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/deployments/dep_00001
@@ -265,6 +271,7 @@ POST /deployments/{fraise}/{environment}
 - `environment` (string, required): Target environment (e.g., production)
 
 **Request Body** (JSON):
+
 ```json
 {
   "version": "2.0.0",
@@ -300,6 +307,7 @@ POST /deployments/{fraise}/{environment}
 - `metadata` (object, optional): Custom metadata for audit logging
 
 **Response** (202 Accepted):
+
 ```json
 {
   "id": "dep_00002",
@@ -315,6 +323,7 @@ POST /deployments/{fraise}/{environment}
 ```
 
 **Example**:
+
 ```bash
 # Deploy latest version with default rolling strategy
 curl -X POST -H "Authorization: Bearer $TOKEN" \
@@ -351,6 +360,7 @@ DELETE /deployments/{deployment_id}
 - `deployment_id` (string, required): Deployment ID to cancel
 
 **Response** (202 Accepted):
+
 ```json
 {
   "id": "dep_00001",
@@ -361,6 +371,7 @@ DELETE /deployments/{deployment_id}
 ```
 
 **Example**:
+
 ```bash
 curl -X DELETE -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/deployments/dep_00001
@@ -380,6 +391,7 @@ POST /deployments/{fraise}/{environment}/rollback
 - `environment` (string, required): Target environment
 
 **Request Body** (JSON):
+
 ```json
 {
   "to_version": "1.9.0",
@@ -393,6 +405,7 @@ POST /deployments/{fraise}/{environment}/rollback
 - `reason` (string, optional): Reason for rollback (for audit logging)
 
 **Response** (202 Accepted):
+
 ```json
 {
   "id": "dep_00003",
@@ -407,6 +420,7 @@ POST /deployments/{fraise}/{environment}/rollback
 ```
 
 **Example**:
+
 ```bash
 # Rollback to previous version
 curl -X POST -H "Authorization: Bearer $TOKEN" \
@@ -439,6 +453,7 @@ GET /deployments/{deployment_id}/logs?lines=100&follow=false
 - `component` (string, optional): Filter by component (deployment, health_check, provider)
 
 **Response** (200 OK):
+
 ```json
 {
   "deployment_id": "dep_00001",
@@ -471,6 +486,7 @@ GET /deployments/{deployment_id}/logs?lines=100&follow=false
 ```
 
 **Example**:
+
 ```bash
 # Get last 50 lines of logs
 curl -H "Authorization: Bearer $TOKEN" \
@@ -498,6 +514,7 @@ GET /deployments/{deployment_id}/events
 - `deployment_id` (string, required): Deployment ID
 
 **Response** (200 OK):
+
 ```json
 {
   "deployment_id": "dep_00001",
@@ -536,6 +553,7 @@ GET /deployments/{deployment_id}/events
 ```
 
 **Example**:
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/deployments/dep_00001/events
@@ -559,6 +577,7 @@ GET /fraises?environment=production&type=api&limit=50&offset=0
 - `offset` (integer, optional): Pagination offset (default: 0)
 
 **Response** (200 OK):
+
 ```json
 {
   "fraises": [
@@ -593,6 +612,7 @@ GET /fraises?environment=production&type=api&limit=50&offset=0
 ```
 
 **Example**:
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/v1/fraises"
@@ -614,6 +634,7 @@ GET /fraises/{fraise_name}
 - `fraise_name` (string, required): Fraise name
 
 **Response** (200 OK):
+
 ```json
 {
   "name": "my_api",
@@ -664,6 +685,7 @@ GET /fraises/{fraise_name}
 ```
 
 **Example**:
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/fraises/my_api
@@ -686,6 +708,7 @@ GET /fraises/{fraise_name}/status?environment=production
 - `environment` (string, optional): Specific environment (returns all if not specified)
 
 **Response** (200 OK):
+
 ```json
 {
   "fraise": "my_api",
@@ -732,6 +755,7 @@ GET /fraises/{fraise_name}/history?environment=production&limit=20
 - `status` (string, optional): Filter by status (success, failed, cancelled)
 
 **Response** (200 OK):
+
 ```json
 {
   "fraise": "my_api",
@@ -775,6 +799,7 @@ GET /environments
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "environments": [
@@ -819,6 +844,7 @@ GET /environments/{environment_name}/status
 - `environment_name` (string, required): Environment name
 
 **Response** (200 OK):
+
 ```json
 {
   "name": "production",
@@ -859,6 +885,7 @@ GET /health
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "status": "healthy",
@@ -891,6 +918,7 @@ GET /metrics
 ```
 
 **Response** (200 OK - Prometheus format):
+
 ```
 # HELP fraisier_deployments_total Total deployments
 # TYPE fraisier_deployments_total counter
@@ -923,6 +951,7 @@ All API endpoints are subject to rate limiting:
 - Write operations: 100 requests per hour
 
 **Rate Limit Headers**:
+
 ```
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 999
@@ -930,6 +959,7 @@ X-RateLimit-Reset: 1705929510
 ```
 
 **When Rate Limited** (429 Conflict):
+
 ```json
 {
   "error": {
@@ -952,6 +982,7 @@ List endpoints support cursor-based pagination:
 - `offset` (integer): Pagination offset (default: 0)
 
 **Response**:
+
 ```json
 {
   "items": [...],
@@ -978,6 +1009,7 @@ List endpoints support filtering:
 - `field` (string): Filter by specific field value
 
 **Examples**:
+
 ```bash
 # Search by name
 curl -H "Authorization: Bearer $TOKEN" \

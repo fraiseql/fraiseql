@@ -124,11 +124,14 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
 #### Deployment Timeout
 
 **Symptoms:**
+
 - Deployment runs for > configured timeout
 - Service not responding after deployment
 
 **Recovery:**
+
 1. Check provider logs:
+
    ```bash
    fraisier status <fraise> <environment>
    ```
@@ -141,6 +144,7 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
 3. If service is healthy, mark deployment as complete (manual intervention)
 
 4. If service is unhealthy:
+
    ```bash
    # Trigger rollback
    fraisier rollback <fraise> <environment>
@@ -149,11 +153,14 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
 #### Provider Connection Error
 
 **Symptoms:**
+
 - Cannot connect to provider (SSH, Docker socket, Coolify API)
 - "Connection refused" or "Timeout" errors
 
 **Recovery:**
+
 1. Test provider connectivity:
+
    ```bash
    fraisier provider-test bare_metal --config-file provider-config.yaml
    ```
@@ -164,6 +171,7 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
    - **Coolify**: Check API key, URL, network access
 
 3. Once fixed, retry deployment:
+
    ```bash
    fraisier deploy <fraise> <environment> --force
    ```
@@ -171,10 +179,12 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
 #### Health Check Failure
 
 **Symptoms:**
+
 - Deployment succeeds but health check fails
 - Service running but not responding to health endpoint
 
 **Recovery:**
+
 1. Manually verify service:
    - SSH to server
    - Test health endpoint: `curl http://localhost:8000/health`
@@ -192,11 +202,14 @@ Import the provided dashboard from `monitoring/grafana-dashboard.json`:
 #### Database Lock Timeout
 
 **Symptoms:**
+
 - "Deployment lock acquisition timed out" error
 - Unable to acquire deployment lock
 
 **Recovery:**
+
 1. Check if other deployments are running:
+
    ```bash
    fraisier status-all
    ```
@@ -223,6 +236,7 @@ fraisier deploy <fraise> <environment> --force
 ```
 
 **When to use:**
+
 - Deploying same version to fix state
 - Forcing redeploy after manual changes
 - Emergency deployment
@@ -258,7 +272,9 @@ fraisier rollback <fraise> <environment>
 Fraisier uses PostgreSQL (default) with the following tables:
 
 #### tb_deployment
+
 Main deployment records:
+
 ```sql
 SELECT id, fraise, environment, status, old_version, new_version,
        started_at, completed_at, duration_seconds, error_message
@@ -268,13 +284,17 @@ LIMIT 10;
 ```
 
 #### tb_fraise_state
+
 Current state for each fraise:
+
 ```sql
 SELECT * FROM v_fraise_status;
 ```
 
 #### tb_deployment_lock
+
 Active locks (should be empty normally):
+
 ```sql
 SELECT * FROM tb_deployment_lock;
 ```
@@ -425,6 +445,7 @@ Fraisier looks in these locations (in order):
 4. `./config/fraises.yaml`
 
 **Solution:**
+
 ```bash
 fraisier list -c /path/to/fraises.yaml
 ```
@@ -462,11 +483,13 @@ fraisier provider-test bare_metal --config-file provider.yaml
 #### Service healthy but check fails
 
 1. Verify endpoint returns correct status:
+
    ```bash
    curl -v http://localhost:8000/health
    ```
 
 2. Check response time (may need timeout adjustment):
+
    ```bash
    time curl http://localhost:8000/health
    ```
@@ -533,27 +556,32 @@ echo $?  # Should be 0 for success
 ### Upgrade Procedure
 
 1. **Backup database:**
+
    ```bash
    pg_dump fraisier > backup-$(date +%Y%m%d).sql
    ```
 
 2. **Stop services:**
+
    ```bash
    systemctl stop fraisier-webhook
    ```
 
 3. **Upgrade:**
+
    ```bash
    pip install --upgrade fraisier
    ```
 
 4. **Verify:**
+
    ```bash
    fraisier --version
    fraisier provider-test bare_metal
    ```
 
 5. **Start services:**
+
    ```bash
    systemctl start fraisier-webhook
    ```

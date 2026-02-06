@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: FraiseQL Federation Deployment Guide
 description: Production-ready deployment of FraiseQL federation across multiple clouds.
 keywords: ["framework", "sdk", "monitoring", "database", "authentication"]

@@ -176,12 +176,14 @@ query { documents(where: { binary_hash: { jaccard_distance: "10101010" } }) }
 ## Distance Semantics
 
 ### Float Vector Operators
+
 - **cosine_distance**: 0.0 (identical) to 2.0 (opposite)
 - **l2_distance**: 0.0 (identical) to ∞ (very different)
 - **inner_product**: More negative = more similar
 - **l1_distance**: 0.0 (identical) to ∞ (very different)
 
 ### Binary Vector Operators
+
 - **hamming_distance**: 0 (identical) to bit_length (completely different)
 - **jaccard_distance**: 0.0 (identical sets) to 1.0 (no overlap)
 

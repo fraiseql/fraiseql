@@ -19,18 +19,21 @@ Successfully transformed **24 core chaos tests** from mock-based simulation to r
 ### Completed ✅
 
 **Phase 1: Infrastructure & Foundation** (Commit 1)
+
 - ✅ RealFraiseQLClient class (280 lines)
 - ✅ Chaos-specific fixtures (chaos_db_client, chaos_test_schema, baseline_metrics)
 - ✅ Example test suite with 4 async tests
 - ✅ Comprehensive migration documentation
 
 **Phase 2: Network & Database Tests** (Commit 2)
+
 - ✅ Network latency tests: 6 async functions (350 lines)
 - ✅ Packet loss/corruption tests: 6 async functions (400 lines)
 - ✅ Query execution tests: 6 async functions (350 lines)
 - ✅ Data consistency tests: 6 async functions (380 lines)
 
 **Documentation Created**
+
 - ✅ REAL_DB_MIGRATION.md (350+ lines) - Step-by-step guide
 - ✅ TRANSFORMATION_SUMMARY.md (400+ lines) - Architecture & status
 - ✅ REMAINING_TESTS_TEMPLATE.md (300+ lines) - Template for rapid completion
@@ -57,6 +60,7 @@ Test files by category:
 ### Remaining Work
 
 **Phase 3: Standard Pattern Transformation**
+
 - Cache chaos tests (straightforward)
 - Auth chaos tests (require auth-specific chaos)
 - Resource chaos tests (multiple files)
@@ -64,6 +68,7 @@ Test files by category:
 - Validation tests (cross-cutting tests)
 
 **Phase 4: Verification**
+
 - Run full test suite
 - Performance profiling
 - Document results
@@ -76,6 +81,7 @@ Test files by category:
 ### New Test Pattern
 
 **Before (Mock-based):**
+
 ```python
 class TestDatabaseConnectionChaos(ChaosTestCase):
     def test_connection_refused_recovery(self):
@@ -87,6 +93,7 @@ class TestDatabaseConnectionChaos(ChaosTestCase):
 ```
 
 **After (Real PostgreSQL):**
+
 ```python
 @pytest.mark.asyncio
 @pytest.mark.chaos_database
@@ -143,6 +150,7 @@ tests/chaos/
 ### Original Mock Tests (Still Present)
 
 All original test files preserved for reference:
+
 - `tests/chaos/network/test_db_connection_chaos.py`
 - `tests/chaos/network/test_network_latency_chaos.py`
 - `tests/chaos/network/test_packet_loss_corruption.py`
@@ -156,6 +164,7 @@ All original test files preserved for reference:
 ### Transformed Tests (24 functions, all async)
 
 **Network Tests (12)**
+
 1. test_connection_refused_recovery ✅
 2. test_pool_exhaustion_recovery ✅
 3. test_slow_connection_establishment ✅
@@ -295,6 +304,7 @@ Every transformed test follows:
 ### Trade-off Analysis
 
 **Slower Execution BUT**:
+
 - ✅ Real database behavior tested
 - ✅ Actual network effects validated
 - ✅ Genuine error conditions reproduced
@@ -303,6 +313,7 @@ Every transformed test follows:
 - ✅ More confident test results
 
 **Acceptable because**:
+
 - Tests run in CI/CD pipeline (not blocking development)
 - Parallelizable with pytest-xdist (can run multiple tests)
 - Still ~15-25 minutes for entire suite (acceptable)
@@ -363,18 +374,21 @@ Every transformed test follows:
 ### Expected Timeline to Completion
 
 **Option A: Manual Transformation**
+
 - 15-30 minutes per file
 - 13 files × 20 minutes = ~4.3 hours
 - Plus testing/debugging: 1-2 hours
 - **Total: 5-6 hours**
 
 **Option B: Local Model Assistance**
+
 - Provide template + files to local 8B model
 - Systematic transformation of 13 files
 - Human review and fixes
 - **Total: 2-3 hours**
 
 **Option C: opencode Workflow**
+
 - Break into 5 phases
 - Each phase ~30 minutes
 - Automated + verification
@@ -384,7 +398,7 @@ Every transformed test follows:
 
 ## Next Steps (User Choice)
 
-### To Complete Remaining Tests:
+### To Complete Remaining Tests
 
 1. **Continue Manually**
    - Use REMAINING_TESTS_TEMPLATE.md
@@ -411,6 +425,7 @@ Every transformed test follows:
 ## Git History
 
 **Commit 1**: Foundation & Example Tests
+
 ```
 feat(chaos): Transform tests to use real PostgreSQL database backend
 
@@ -421,6 +436,7 @@ feat(chaos): Transform tests to use real PostgreSQL database backend
 ```
 
 **Commit 2**: Network & Database Tests
+
 ```
 feat(chaos): Transform network and database chaos tests to real PostgreSQL
 
@@ -455,6 +471,7 @@ feat(chaos): Transform network and database chaos tests to real PostgreSQL
 Phase 2 of the chaos test transformation is **complete and successful**. The foundation is solid, the pattern is clear, and 54% of tests are transformed.
 
 **Key Accomplishments**:
+
 - ✅ Infrastructure created and tested
 - ✅ 24 core tests transformed
 - ✅ Reusable pattern established

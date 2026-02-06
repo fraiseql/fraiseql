@@ -23,6 +23,7 @@ This document certifies the feature parity status of FraiseQL Rust with Python/T
 Complete implementation of advanced authorization and security features for Rust:
 
 **File Structure:**
+
 - `src/lib.rs` - Main library entry point and module exports
 - `src/authorization.rs` - Custom authorization rules and builder
 - `src/roles.rs` - Role-based access control (RBAC)
@@ -30,15 +31,18 @@ Complete implementation of advanced authorization and security features for Rust
 - `tests/integration_test.rs` - 44 comprehensive tests
 
 **Enums (Type-safe representations):**
+
 - `RoleMatchStrategy` - ANY, ALL, EXACTLY
 - `AuthzPolicyType` - RBAC, ABAC, CUSTOM, HYBRID
 
 **Structs (Immutable data types):**
+
 - `AuthorizeConfig` - Custom authorization rules
 - `RoleRequiredConfig` - Role-based access control
 - `AuthzPolicyConfig` - Reusable authorization policies
 
 **Builder Structs:**
+
 - `AuthorizeBuilder` - Custom authorization rule builder
 - `RoleRequiredBuilder` - Role-based access control builder
 - `AuthzPolicyBuilder` - Reusable authorization policy builder
@@ -46,6 +50,7 @@ Complete implementation of advanced authorization and security features for Rust
 ### Builder Methods
 
 **AuthorizeBuilder:**
+
 - `new()` - Create new builder instance
 - `rule(String)` - Set authorization rule expression
 - `policy(String)` - Reference named policy
@@ -58,6 +63,7 @@ Complete implementation of advanced authorization and security features for Rust
 - `build()` - Return configuration
 
 **RoleRequiredBuilder:**
+
 - `new()` - Create new builder instance
 - `roles(impl IntoIterator)` - Set required roles (variadic)
 - `roles_vec(Vec<String>)` - Set roles from vector
@@ -72,6 +78,7 @@ Complete implementation of advanced authorization and security features for Rust
 - `build()` - Return configuration
 
 **AuthzPolicyBuilder:**
+
 - `new(String)` - Create builder with policy name
 - `policy_type(AuthzPolicyType)` - Policy type
 - `description(String)` - Policy description
@@ -280,6 +287,7 @@ Rust-specific advantages:
 **Current Status**: 100% Parity across 10 languages (300/300 features) ✅
 
 **Languages Certified for Complete Feature Parity:**
+
 - ✅ Python
 - ✅ TypeScript
 - ✅ Java

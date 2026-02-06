@@ -1,5 +1,6 @@
 <!-- Skip to main content -->
 ---
+
 title: CLI Commands Cheat Sheet
 description: Quick reference for all `FraiseQL` CLI commands and options.
 keywords: ["directives", "types", "scalars", "schema", "api"]

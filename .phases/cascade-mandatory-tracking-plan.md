@@ -11,6 +11,7 @@
 ## Problem Statement
 
 Currently, FraiseQL has:
+
 - ✅ Cascade infrastructure implemented (Rust layer, mutation_result_v2)
 - ✅ Documentation and examples for cascade
 - ❌ Cascade is opt-in via `enable_cascade=True`
@@ -18,6 +19,7 @@ Currently, FraiseQL has:
 - ❌ Complex entity flattening logic to handle both formats
 
 This creates:
+
 - Unpredictable behavior (some mutations track cascade, others don't)
 - Complex code paths for format detection
 - Missed opportunities for audit trails and debugging
@@ -25,6 +27,7 @@ This creates:
 ## Proposed Solution
 
 ### Core Principle
+
 **All mutations track cascade data internally, but only expose it in GraphQL schema when explicitly requested.**
 
 ### Architecture
@@ -62,11 +65,13 @@ This creates:
 ### Phase 1: Python Decorator Changes (Minimal)
 
 **Files to modify:**
+
 - `src/fraiseql/mutations/mutation_decorator.py`
 
 **Changes:**
 
 1. Add `expose_cascade` parameter to `@mutation` decorator
+
    ```python
    def mutation(
        *,
@@ -100,6 +105,7 @@ This creates:
    ```
 
 2. Pass `expose_cascade` to GraphQL schema builder
+
    ```python
    mutation_metadata = {
        'name': cls.__name__,
@@ -111,6 +117,7 @@ This creates:
    ```
 
 **Verification:**
+
 ```bash
 # Test that deprecation warning works
 uv run pytest tests/unit/decorators/test_mutation_decorator.py -v -k deprecation
@@ -120,6 +127,7 @@ uv run pytest tests/unit/decorators/test_mutation_decorator.py -v -k expose_casc
 ```
 
 **Acceptance Criteria:**
+
 - [ ] `expose_cascade` parameter added with default `False`
 - [ ] `enable_cascade=False` triggers deprecation warning
 - [ ] Mutation metadata includes `expose_cascade` flag
@@ -130,11 +138,13 @@ uv run pytest tests/unit/decorators/test_mutation_decorator.py -v -k expose_casc
 ### Phase 2: GraphQL Schema Builder Changes
 
 **Files to modify:**
+
 - `src/fraiseql/gql/builders/mutation_builder.py`
 
 **Changes:**
 
 1. Conditionally add cascade field to Success type based on `expose_cascade`
+
    ```python
    def build_mutation_success_type(
        success_class: Type,
@@ -163,6 +173,7 @@ uv run pytest tests/unit/decorators/test_mutation_decorator.py -v -k expose_casc
    ```
 
 2. Define `CascadeDataType` if not already defined
+
    ```python
    # Reusable cascade type for all mutations
    CascadeDataType = GraphQLObjectType(
@@ -192,6 +203,7 @@ uv run pytest tests/unit/decorators/test_mutation_decorator.py -v -k expose_casc
    ```
 
 **Verification:**
+
 ```bash
 # Test cascade field not in schema by default
 uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "not_exposed"
@@ -201,6 +213,7 @@ uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "exposed"
 ```
 
 **Acceptance Criteria:**
+
 - [ ] `expose_cascade=False`: No cascade field in GraphQL schema
 - [ ] `expose_cascade=True`: Cascade field present in schema
 - [ ] `CascadeDataType` defined and reusable
@@ -211,11 +224,13 @@ uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "exposed"
 ### Phase 3: Rust Layer - Always Parse Cascade
 
 **Files to modify:**
+
 - `fraiseql_rs/src/mutations/result_parser.rs` (or equivalent)
 
 **Changes:**
 
 1. Remove conditional cascade parsing - always parse it
+
    ```rust
    // OLD: Conditional parsing based on enable_cascade flag
    if mutation_config.enable_cascade {
@@ -227,6 +242,7 @@ uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "exposed"
    ```
 
 2. Always log cascade for audit/debug purposes
+
    ```rust
    // Log cascade even if not exposed to GraphQL
    if !cascade.updated.is_empty() || !cascade.deleted.is_empty() {
@@ -240,6 +256,7 @@ uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "exposed"
    ```
 
 3. Always include cascade in response JSON (Python can filter later)
+
    ```rust
    let response_json = json!({
        "status": status,
@@ -251,6 +268,7 @@ uv run pytest tests/integration/graphql/test_mutation_schema.py -v -k "exposed"
    ```
 
 **Verification:**
+
 ```bash
 # Run Rust tests
 cd fraiseql_rs && cargo test mutation_result_parsing
@@ -260,6 +278,7 @@ uv run pytest tests/integration/rust/test_mutation_execution.py -v
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Cascade data always parsed from mutation_result_v2
 - [ ] Cascade logged for all mutations (even if empty)
 - [ ] Cascade included in JSON response to Python layer
@@ -270,11 +289,13 @@ uv run pytest tests/integration/rust/test_mutation_execution.py -v
 ### Phase 4: Python Response Handler - Conditional Filtering
 
 **Files to modify:**
+
 - `src/fraiseql/mutations/response_handler.py` (or equivalent)
 
 **Changes:**
 
 1. Receive cascade data from Rust, but only include in GraphQL response if exposed
+
    ```python
    def build_graphql_response(
        mutation_result: dict,
@@ -300,6 +321,7 @@ uv run pytest tests/integration/rust/test_mutation_execution.py -v
    ```
 
 2. Keep cascade data in internal context for logging/audit
+
    ```python
    # Store cascade in request context for logging
    if mutation_result.get('cascade'):
@@ -307,6 +329,7 @@ uv run pytest tests/integration/rust/test_mutation_execution.py -v
    ```
 
 **Verification:**
+
 ```bash
 # Test that cascade not in response when expose_cascade=False
 uv run pytest tests/integration/mutations/test_cascade_filtering.py -v
@@ -316,6 +339,7 @@ uv run pytest tests/integration/mutations/test_cascade_exposure.py -v
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Response includes cascade only when `expose_cascade=True`
 - [ ] Cascade data available in logs regardless of exposure
 - [ ] No cascade in GraphQL response when `expose_cascade=False`
@@ -326,6 +350,7 @@ uv run pytest tests/integration/mutations/test_cascade_exposure.py -v
 ### Phase 5: Documentation Updates
 
 **Files to create/modify:**
+
 - `docs/mutations/cascade-tracking.md` (NEW)
 - `docs/mutations/status-strings.md` (UPDATE - add cascade section)
 - `CHANGELOG.md` (UPDATE)
@@ -334,6 +359,7 @@ uv run pytest tests/integration/mutations/test_cascade_exposure.py -v
 **Content:**
 
 #### docs/mutations/cascade-tracking.md
+
 ```markdown
 # Cascade Tracking in FraiseQL
 
@@ -364,6 +390,7 @@ class CreatePost:
 ```
 
 When exposed, Success type includes:
+
 ```graphql
 type CreatePostSuccess {
     status: String!
@@ -376,12 +403,14 @@ type CreatePostSuccess {
 ## When to Expose Cascade
 
 **Expose cascade when:**
+
 - Clients need to update UI for affected entities
 - Building real-time features
 - Implementing optimistic updates
 - Advanced debugging tools
 
 **Keep cascade internal when:**
+
 - Simple CRUD operations
 - Clients don't need side effect data
 - Simpler GraphQL schema preferred
@@ -414,15 +443,18 @@ $$ LANGUAGE plpgsql;
 ## Best Practices
 
 ### ✅ DO
+
 - Always return cascade in PostgreSQL functions (even if empty)
 - Log cascade data for audit trails
 - Expose cascade for complex mutations with side effects
 - Document when cascade is exposed in API docs
 
 ### ❌ DON'T
+
 - Try to disable cascade tracking (it's mandatory)
 - Expose cascade for every simple mutation (keep schemas simple)
 - Forget to update GraphQL schema when exposing cascade
+
 ```
 
 #### Update CHANGELOG.md
@@ -447,6 +479,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Verification:**
+
 ```bash
 # Check docs exist and are properly formatted
 ls -la docs/mutations/cascade-tracking.md
@@ -457,6 +490,7 @@ grep -i "cascade tracking" CHANGELOG.md
 ```
 
 **Acceptance Criteria:**
+
 - [ ] `cascade-tracking.md` created with comprehensive guide
 - [ ] Examples show both exposed and non-exposed patterns
 - [ ] CHANGELOG entry added
@@ -468,11 +502,13 @@ grep -i "cascade tracking" CHANGELOG.md
 ### Phase 6: Tests
 
 **Files to create:**
+
 - `tests/unit/decorators/test_cascade_exposure.py`
 - `tests/integration/mutations/test_cascade_filtering.py`
 - `tests/integration/graphql/test_cascade_schema.py`
 
 #### Test 1: Decorator Parameter Tests
+
 ```python
 # tests/unit/decorators/test_cascade_exposure.py
 
@@ -509,6 +545,7 @@ def test_enable_cascade_deprecation_warning():
 ```
 
 #### Test 2: GraphQL Schema Tests
+
 ```python
 # tests/integration/graphql/test_cascade_schema.py
 
@@ -560,6 +597,7 @@ async def test_cascade_in_schema_when_exposed(
 ```
 
 #### Test 3: Response Filtering Tests
+
 ```python
 # tests/integration/mutations/test_cascade_filtering.py
 
@@ -658,6 +696,7 @@ async def test_cascade_in_response_when_exposed(
 ```
 
 **Verification:**
+
 ```bash
 # Run all cascade tests
 uv run pytest tests/ -v -k cascade
@@ -669,6 +708,7 @@ uv run pytest tests/integration/mutations/test_cascade_filtering.py -v
 ```
 
 **Acceptance Criteria:**
+
 - [ ] All decorator tests pass
 - [ ] Schema introspection tests pass
 - [ ] Response filtering tests pass
@@ -680,6 +720,7 @@ uv run pytest tests/integration/mutations/test_cascade_filtering.py -v
 ## Migration Path for Users
 
 ### Current State (Before)
+
 ```python
 # Some mutations track cascade, others don't
 @mutation(enable_cascade=True)  # Opt-in
@@ -696,6 +737,7 @@ class SimpleUpdate:
 ```
 
 ### New State (After)
+
 ```python
 # All mutations track cascade internally
 # But GraphQL exposure is opt-in
@@ -714,12 +756,15 @@ class SimpleUpdate:
 ```
 
 ### Breaking Changes
+
 **NONE** - This is a fully backward-compatible change:
+
 - Existing mutations without `enable_cascade=True` work as before
 - Cascade data is tracked internally but not exposed
 - GraphQL schemas unchanged unless explicitly opted in
 
 ### Deprecation Timeline
+
 - **v1.8.0**: Add `expose_cascade` parameter, deprecate `enable_cascade`
 - **v1.9.0**: Warn if `enable_cascade=False` is used
 - **v2.0.0**: Remove `enable_cascade` parameter entirely
@@ -729,21 +774,25 @@ class SimpleUpdate:
 ## Rollout Strategy
 
 ### Week 1: Foundation
+
 - Implement Phase 1 (Decorator changes)
 - Implement Phase 2 (Schema builder)
 - Write unit tests
 
 ### Week 2: Integration
+
 - Implement Phase 3 (Rust layer)
 - Implement Phase 4 (Response handler)
 - Write integration tests
 
 ### Week 3: Documentation
+
 - Implement Phase 5 (Docs)
 - Write examples
 - Update CHANGELOG
 
 ### Week 4: QA & Release
+
 - Full test suite run
 - Performance testing
 - Documentation review
@@ -754,18 +803,21 @@ class SimpleUpdate:
 ## Success Metrics
 
 ### Technical Metrics
+
 - [ ] 100% of mutations return mutation_result_v2
 - [ ] Zero additional latency from cascade tracking
 - [ ] All tests pass (unit + integration)
 - [ ] No breaking changes detected
 
 ### User Experience Metrics
+
 - [ ] Clear documentation for expose_cascade
 - [ ] Examples cover common use cases
 - [ ] Migration path documented
 - [ ] Deprecation warnings clear and actionable
 
 ### Code Quality Metrics
+
 - [ ] Remove entity flattener complexity (if no longer needed)
 - [ ] Single code path for mutation result handling
 - [ ] Reduced conditional logic in schema builder
@@ -775,15 +827,18 @@ class SimpleUpdate:
 ## Risk Assessment
 
 ### Low Risk
+
 - ✅ Additive changes only (no breaking changes)
 - ✅ Default behavior unchanged (expose_cascade=False)
 - ✅ Existing cascade functionality already tested
 
 ### Medium Risk
+
 - ⚠️ Rust layer changes (need careful testing)
 - ⚠️ Schema builder changes (need introspection tests)
 
 ### Mitigation
+
 - Comprehensive test coverage (unit + integration)
 - Feature flag for rollout (if needed)
 - Detailed logging for debugging
@@ -793,21 +848,25 @@ class SimpleUpdate:
 ## Alternatives Considered
 
 ### Alternative 1: Make Cascade Always Exposed
+
 **Pros**: Simpler (one code path)
 **Cons**: Breaking change, clutters simple mutations
 **Decision**: ❌ Rejected - too aggressive
 
 ### Alternative 2: Keep Cascade Fully Optional
+
 **Pros**: No changes needed
 **Cons**: Inconsistent behavior, complex code
 **Decision**: ❌ Rejected - current problems persist
 
 ### Alternative 3: Two Mutation Types
+
 **Pros**: Clear distinction
 **Cons**: Confusing for users, duplication
 **Decision**: ❌ Rejected - too complex
 
 ### Selected: Mandatory Tracking, Optional Exposure
+
 **Pros**: Internal consistency + external simplicity
 **Cons**: None significant
 **Decision**: ✅ Selected - best of all worlds
@@ -833,6 +892,7 @@ class SimpleUpdate:
 ## Completion Checklist
 
 ### Implementation
+
 - [ ] Phase 1: Decorator changes
 - [ ] Phase 2: Schema builder
 - [ ] Phase 3: Rust layer
@@ -841,12 +901,14 @@ class SimpleUpdate:
 - [ ] Phase 6: Tests
 
 ### Quality Assurance
+
 - [ ] All tests pass
 - [ ] No performance regression
 - [ ] Documentation complete
 - [ ] Examples working
 
 ### Release Preparation
+
 - [ ] CHANGELOG updated
 - [ ] Migration guide written
 - [ ] Deprecation warnings tested
@@ -857,24 +919,29 @@ class SimpleUpdate:
 ## Appendix: File Checklist
 
 ### Python Files Modified
+
 - [ ] `src/fraiseql/mutations/mutation_decorator.py`
 - [ ] `src/fraiseql/gql/builders/mutation_builder.py`
 - [ ] `src/fraiseql/mutations/response_handler.py`
 
 ### Rust Files Modified
+
 - [ ] `fraiseql_rs/src/mutations/result_parser.rs`
 
 ### Documentation Files
+
 - [ ] `docs/mutations/cascade-tracking.md` (NEW)
 - [ ] `docs/mutations/status-strings.md` (UPDATE)
 - [ ] `CHANGELOG.md` (UPDATE)
 
 ### Test Files
+
 - [ ] `tests/unit/decorators/test_cascade_exposure.py` (NEW)
 - [ ] `tests/integration/mutations/test_cascade_filtering.py` (NEW)
 - [ ] `tests/integration/graphql/test_cascade_schema.py` (NEW)
 
 ### Example Files
+
 - [ ] `examples/cascade-tracking/` (NEW directory)
 - [ ] `examples/cascade-tracking/README.md` (NEW)
 - [ ] `examples/cascade-tracking/main.py` (NEW)
