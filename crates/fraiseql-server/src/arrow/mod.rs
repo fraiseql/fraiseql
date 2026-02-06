@@ -29,14 +29,22 @@ pub use database_adapter::FlightDatabaseAdapter;
 pub use executor_wrapper::ExecutorQueryAdapter;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
-#[cfg(feature = "arrow")]
+
+#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 
-/// Create an Arrow Flight service with a real PostgreSQL database adapter.
+#[cfg(all(feature = "arrow", feature = "wire-backend"))]
+use fraiseql_core::db::FraiseWireAdapter;
+
+/// Create an Arrow Flight service with a real database adapter.
+///
+/// Supports both PostgreSQL and FraiseQL Wire adapters depending on feature flags:
+/// - Default: PostgreSQL adapter for traditional database connections
+/// - `wire-backend` feature: FraiseQL Wire adapter for streaming JSON queries with low memory overhead
 ///
 /// # Arguments
 ///
-/// * `adapter` - PostgreSQL adapter from fraiseql-core
+/// * `adapter` - Database adapter from fraiseql-core (PostgreSQL or Wire depending on features)
 ///
 /// # Returns
 ///
@@ -45,13 +53,29 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 /// # Example
 ///
 /// ```rust,ignore
+/// // PostgreSQL (default)
 /// let pg_adapter = PostgresAdapter::new(&db_url).await?;
 /// let flight_service = create_flight_service(Arc::new(pg_adapter));
+///
+/// // FraiseQL Wire (with wire-backend feature)
+/// # #[cfg(feature = "wire-backend")]
+/// # {
+/// let wire_adapter = FraiseWireAdapter::new(&db_url);
+/// let flight_service = create_flight_service(Arc::new(wire_adapter));
+/// # }
 /// ```
-#[cfg(feature = "arrow")]
+#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
 pub fn create_flight_service(adapter: Arc<PostgresAdapter>) -> FraiseQLFlightService {
     let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
 
-    // Create Flight service with real database adapter
+    // Create Flight service with PostgreSQL adapter
+    FraiseQLFlightService::new_with_db(Arc::new(flight_adapter))
+}
+
+#[cfg(all(feature = "arrow", feature = "wire-backend"))]
+pub fn create_flight_service(adapter: Arc<FraiseWireAdapter>) -> FraiseQLFlightService {
+    let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
+
+    // Create Flight service with FraiseQL Wire adapter
     FraiseQLFlightService::new_with_db(Arc::new(flight_adapter))
 }

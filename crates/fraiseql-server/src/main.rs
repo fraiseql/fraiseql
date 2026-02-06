@@ -2,7 +2,12 @@
 
 use std::{env, path::Path, sync::Arc};
 
+#[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
+
+#[cfg(feature = "wire-backend")]
+use fraiseql_core::db::FraiseWireAdapter;
+
 use fraiseql_server::{
     CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
 };
@@ -195,14 +200,27 @@ async fn main() -> anyhow::Result<()> {
     // Log security configuration for observability
     fraiseql_server::auth::log_security_config(&security_config);
 
-    // Initialize database adapter with pool configuration
-    tracing::info!(
-        database_url = %config.database_url,
-        pool_min_size = config.pool_min_size,
-        pool_max_size = config.pool_max_size,
-        pool_timeout_secs = config.pool_timeout_secs,
-        "Initializing database adapter"
-    );
+    // Initialize database adapter
+    #[cfg(not(feature = "wire-backend"))]
+    {
+        tracing::info!(
+            database_url = %config.database_url,
+            pool_min_size = config.pool_min_size,
+            pool_max_size = config.pool_max_size,
+            pool_timeout_secs = config.pool_timeout_secs,
+            "Initializing PostgreSQL database adapter"
+        );
+    }
+
+    #[cfg(feature = "wire-backend")]
+    {
+        tracing::info!(
+            database_url = %config.database_url,
+            "Initializing FraiseQL Wire database adapter (low-memory streaming)"
+        );
+    }
+
+    #[cfg(not(feature = "wire-backend"))]
     let adapter = Arc::new(
         PostgresAdapter::with_pool_config(
             &config.database_url,
@@ -211,7 +229,15 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?,
     );
-    tracing::info!("Database adapter initialized successfully with connection pooling");
+
+    #[cfg(feature = "wire-backend")]
+    let adapter = Arc::new(FraiseWireAdapter::new(&config.database_url));
+
+    #[cfg(not(feature = "wire-backend"))]
+    tracing::info!("PostgreSQL adapter initialized successfully with connection pooling");
+
+    #[cfg(feature = "wire-backend")]
+    tracing::info!("FraiseQL Wire adapter initialized successfully");
 
     // Create sqlx pool for observers (if enabled)
     #[cfg(feature = "observers")]

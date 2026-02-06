@@ -25,7 +25,7 @@ dirs = "5"
 # Phase 4: Cache support for API endpoints
 fraiseql-arrow = {path = "../fraiseql-arrow", version = "0.1.0"}
 # FraiseQL core
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.2"}
+fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.2", features = ["postgres"]}
 fraiseql-error = {path = "../fraiseql-error", version = "2.0.0-alpha.2"}
 # FraiseQL observers (optional)
 fraiseql-observers = {path = "../fraiseql-observers", version = "2.0.0-alpha.2", optional = true}
@@ -114,6 +114,8 @@ observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-rate-limiting = ["redis"]
 testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
+# Wire backend for streaming JSON queries with low memory overhead
+wire-backend = ["fraiseql-core/wire-backend"]
 
 [package]
 authors = ["FraiseQL Contributors"]
