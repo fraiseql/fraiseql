@@ -252,6 +252,7 @@ async fn test_bulk_export_ticket_not_implemented() {
         table:  "users".to_string(),
         filter: None,
         limit:  Some(1000),
+        format: None,
     };
 
     let ticket_bytes = ticket.encode().unwrap();

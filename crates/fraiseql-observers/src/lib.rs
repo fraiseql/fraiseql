@@ -106,6 +106,7 @@ pub mod queue;
 pub mod queued_executor;
 pub mod resilience;
 pub mod search;
+pub mod storage;
 pub mod traits;
 pub mod transport;
 
@@ -170,6 +171,9 @@ pub use resilience::{
 #[cfg(feature = "search")]
 pub use search::http::HttpSearchBackend;
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
+pub use storage::EventStorage;
+#[cfg(feature = "postgres")]
+pub use storage::postgres::PostgresEventStorage;
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,

@@ -51,11 +51,14 @@ pub mod db;
 pub mod db_convert;
 pub mod error;
 pub mod event_schema;
+pub mod event_storage;
 pub mod exchange_protocol;
+pub mod export;
 pub mod flight_server;
 pub mod metadata;
 pub mod schema;
 pub mod schema_gen;
+pub mod subscription;
 pub mod ticket;
 
 #[cfg(feature = "clickhouse")]
@@ -66,7 +69,10 @@ pub use cache::QueryCache;
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{DatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
+pub use event_storage::{EventStorage, HistoricalEvent};
 pub use exchange_protocol::{ExchangeMessage, RequestType};
+pub use export::{BatchStats, BulkExporter, ExportFormat};
 pub use flight_server::{FraiseQLFlightService, QueryExecutor};
 pub use metadata::SchemaRegistry;
+pub use subscription::{EventSubscription, SubscriptionManager};
 pub use ticket::FlightTicket;

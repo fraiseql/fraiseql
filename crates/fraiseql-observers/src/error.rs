@@ -134,6 +134,13 @@ pub enum ObserverError {
         /// Reason for subscribe failure
         reason: String,
     },
+
+    /// OB019: Event storage operation failed
+    #[error("OB019: Event storage operation failed: {reason}")]
+    StorageError {
+        /// Reason for storage operation failure
+        reason: String,
+    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -175,6 +182,8 @@ pub enum ObserverErrorCode {
     TransportPublishFailed,
     /// OB018: Event transport subscribe failed
     TransportSubscribeFailed,
+    /// OB019: Event storage operation failed
+    StorageError,
 }
 
 impl ObserverErrorCode {
@@ -258,6 +267,7 @@ impl ObserverError {
             ObserverError::TransportSubscribeFailed { .. } => {
                 ObserverErrorCode::TransportSubscribeFailed
             },
+            ObserverError::StorageError { .. } => ObserverErrorCode::StorageError,
         }
     }
 

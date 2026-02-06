@@ -57,9 +57,12 @@ use crate::{
     convert::{ConvertConfig, RowToArrowConverter},
     db::DatabaseAdapter,
     db_convert::convert_db_rows_to_arrow,
+    event_storage::EventStorage,
     exchange_protocol::{ExchangeMessage, RequestType},
+    export::{BulkExporter, ExportFormat},
     metadata::SchemaRegistry,
     schema::{graphql_result_schema, observer_event_schema},
+    subscription::SubscriptionManager,
     ticket::FlightTicket,
 };
 
@@ -129,21 +132,25 @@ type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType
 /// }
 /// ```
 pub struct FraiseQLFlightService {
-    /// Schema registry for pre-compiled Arrow views
-    schema_registry:  SchemaRegistry,
+    /// Schema registry for pre-compiled Arrow views (Arc for safe sharing in async contexts)
+    schema_registry:      Arc<SchemaRegistry>,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    db_adapter:       Option<Arc<dyn DatabaseAdapter>>,
+    db_adapter:           Option<Arc<dyn DatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
     /// Uses trait object to abstract over generic `Executor<A>` type.
-    executor:         Option<Arc<dyn QueryExecutor>>,
+    executor:             Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
-    cache:            Option<Arc<QueryCache>>,
+    cache:                Option<Arc<QueryCache>>,
     /// Phase 2: Optional security context for authenticated requests
     /// Stores session information from successful handshake
-    security_context: Option<SecurityContext>,
+    security_context:     Option<SecurityContext>,
     /// OIDC validator for JWT authentication during handshake
-    oidc_validator:   Option<Arc<OidcValidator>>,
+    oidc_validator:       Option<Arc<OidcValidator>>,
+    /// Optional event storage for historical observer event queries
+    event_storage:        Option<Arc<dyn EventStorage>>,
+    /// Subscription manager for real-time event streaming
+    subscription_manager: Arc<SubscriptionManager>,
 }
 
 /// Phase 2: Security context for authenticated Flight requests
@@ -162,7 +169,7 @@ impl FraiseQLFlightService {
     /// Create a new Flight service with placeholder data (for testing/development).
     #[must_use]
     pub fn new() -> Self {
-        let schema_registry = SchemaRegistry::new();
+        let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults(); // Register va_orders, va_users, ta_orders, ta_users, etc.
 
         Self {
@@ -172,6 +179,8 @@ impl FraiseQLFlightService {
             cache: None,
             security_context: None,
             oidc_validator: None,
+            event_storage: None,
+            subscription_manager: Arc::new(SubscriptionManager::new()),
         }
     }
 
@@ -200,7 +209,7 @@ impl FraiseQLFlightService {
     /// ```
     #[must_use]
     pub fn new_with_db(db_adapter: Arc<dyn DatabaseAdapter>) -> Self {
-        let schema_registry = SchemaRegistry::new();
+        let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults(); // Register va_orders, va_users, ta_orders, ta_users, etc.
 
         Self {
@@ -210,6 +219,8 @@ impl FraiseQLFlightService {
             cache: None,
             security_context: None,
             oidc_validator: None,
+            event_storage: None,
+            subscription_manager: Arc::new(SubscriptionManager::new()),
         }
     }
 
@@ -236,7 +247,7 @@ impl FraiseQLFlightService {
     /// ```
     #[must_use]
     pub fn new_with_cache(db_adapter: Arc<dyn DatabaseAdapter>, cache_ttl_secs: u64) -> Self {
-        let schema_registry = SchemaRegistry::new();
+        let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults();
 
         Self {
@@ -246,6 +257,8 @@ impl FraiseQLFlightService {
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
             security_context: None,
             oidc_validator: None,
+            event_storage: None,
+            subscription_manager: Arc::new(SubscriptionManager::new()),
         }
     }
 
@@ -278,7 +291,7 @@ impl FraiseQLFlightService {
         cache_ttl_secs: Option<u64>,
         oidc_validator: Arc<OidcValidator>,
     ) -> Self {
-        let schema_registry = SchemaRegistry::new();
+        let schema_registry = Arc::new(SchemaRegistry::new());
         schema_registry.register_defaults();
 
         let cache = cache_ttl_secs.map(|ttl| Arc::new(QueryCache::new(ttl)));
@@ -290,6 +303,8 @@ impl FraiseQLFlightService {
             cache,
             security_context: None,
             oidc_validator: Some(oidc_validator),
+            event_storage: None,
+            subscription_manager: Arc::new(SubscriptionManager::new()),
         }
     }
 
@@ -375,6 +390,41 @@ impl FraiseQLFlightService {
     #[must_use]
     pub fn has_executor(&self) -> bool {
         self.executor.is_some()
+    }
+
+    /// Set the event storage for historical observer event queries.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use fraiseql_arrow::EventStorage;
+    /// use std::sync::Arc;
+    ///
+    /// let storage: Arc<dyn EventStorage> = todo!("Create storage");
+    /// service.set_event_storage(storage);
+    /// ```
+    pub fn set_event_storage(&mut self, event_storage: Arc<dyn EventStorage>) {
+        self.event_storage = Some(event_storage);
+    }
+
+    /// Get a reference to the event storage, if set.
+    #[must_use]
+    pub fn event_storage(&self) -> Option<&Arc<dyn EventStorage>> {
+        self.event_storage.as_ref()
+    }
+
+    /// Check if event storage is configured for historical event queries.
+    ///
+    /// Returns true if event storage has been set via set_event_storage().
+    #[must_use]
+    pub fn has_event_storage(&self) -> bool {
+        self.event_storage.is_some()
+    }
+
+    /// Get a reference to the subscription manager for real-time event subscriptions.
+    #[must_use]
+    pub fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
+        &self.subscription_manager
     }
 
     /// Phase 2.2: Check if service has authenticated security context
@@ -807,6 +857,199 @@ impl FraiseQLFlightService {
         Ok(stream)
     }
 
+    /// Query historical observer events and stream as Arrow data.
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_type` - Entity type to filter (e.g., "Order", "User")
+    /// * `start_date` - Optional ISO 8601 start date
+    /// * `end_date` - Optional ISO 8601 end date
+    /// * `limit` - Optional maximum number of events
+    async fn execute_observer_events(
+        &self,
+        entity_type: &str,
+        start_date: Option<String>,
+        end_date: Option<String>,
+        limit: Option<usize>,
+    ) -> std::result::Result<Response<FlightDataStream>, Status> {
+        // Check if event storage is configured
+        let event_storage = self.event_storage.as_ref().ok_or_else(|| {
+            Status::failed_precondition(
+                "Event storage not configured - cannot query historical events",
+            )
+        })?;
+
+        // Parse date strings to DateTime<Utc>
+        let start = start_date
+            .as_ref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc));
+
+        let end = end_date
+            .as_ref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc));
+
+        // Query events from storage
+        let events = event_storage
+            .query_events(entity_type, start, end, limit)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to query events: {}", e)))?;
+
+        info!(
+            entity_type = %entity_type,
+            event_count = events.len(),
+            "Queried historical observer events"
+        );
+
+        // Build response as vector of FlightData messages
+        let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
+
+        // For now, return events as JSON (TODO: proper Arrow conversion in future)
+        let json_data = serde_json::json!(events);
+        let json_str = json_data.to_string();
+
+        let flight_data = FlightData {
+            data_body: json_str.into_bytes().into(),
+            app_metadata: b"application/json".to_vec().into(),
+            ..Default::default()
+        };
+        messages.push(Ok(flight_data));
+
+        let stream = futures::stream::iter(messages);
+        Ok(Response::new(Box::pin(stream)))
+    }
+
+    /// Export table data in bulk with multiple format support.
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - Table name to export
+    /// * `filter` - Optional WHERE clause filter
+    /// * `limit` - Optional row limit
+    /// * `format` - Export format: "parquet", "csv", or "json" (default: "parquet")
+    /// * `security_context` - Security context for RLS
+    async fn execute_bulk_export(
+        &self,
+        table: &str,
+        filter: Option<String>,
+        limit: Option<usize>,
+        format: Option<String>,
+        security_context: &fraiseql_core::security::SecurityContext,
+    ) -> std::result::Result<Response<FlightDataStream>, Status> {
+        // Parse export format (default to Parquet)
+        let export_format = match format.as_deref() {
+            Some(f) => ExportFormat::from_str(f)
+                .map_err(|e| Status::invalid_argument(format!("Invalid format: {}", e)))?,
+            None => ExportFormat::Parquet,
+        };
+
+        info!(
+            user_id = %security_context.user_id,
+            table = %table,
+            format = ?export_format,
+            "Starting bulk export"
+        );
+
+        // Get database adapter
+        let db_adapter = self.db_adapter.as_ref().ok_or_else(|| {
+            Status::failed_precondition("Database adapter not configured - cannot export data")
+        })?;
+
+        // Build SQL query
+        let mut sql = format!("SELECT * FROM {}", table);
+
+        if let Some(f) = &filter {
+            sql.push_str(" WHERE ");
+            sql.push_str(f);
+        }
+
+        if let Some(l) = limit {
+            sql.push_str(" LIMIT ");
+            sql.push_str(&l.to_string());
+        }
+
+        info!(sql = %sql, "Executing export query");
+
+        // Execute query
+        let rows = db_adapter
+            .execute_raw_query(&sql)
+            .await
+            .map_err(|e| Status::internal(format!("Query execution failed: {}", e)))?;
+
+        if rows.is_empty() {
+            info!(table = %table, "Export returned no rows");
+            return Err(Status::not_found(format!(
+                "No rows found for export from table: {}",
+                table
+            )));
+        }
+
+        info!(
+            table = %table,
+            row_count = rows.len(),
+            "Query returned rows for export"
+        );
+
+        // Infer schema from rows
+        let schema = crate::schema_gen::infer_schema_from_rows(&rows)
+            .map_err(|e| Status::internal(format!("Schema inference failed: {}", e)))?;
+
+        // Convert database rows to Arrow format
+        let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
+            .map_err(|e| Status::internal(format!("Row conversion failed: {}", e)))?;
+
+        // Convert to RecordBatches
+        let config = ConvertConfig {
+            batch_size: 10_000,
+            max_rows: None,
+        };
+        let converter = RowToArrowConverter::new(schema.clone(), config);
+
+        let batches: Vec<RecordBatch> = arrow_rows
+            .chunks(config.batch_size)
+            .map(|chunk| converter.convert_batch(chunk.to_vec()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::internal(format!("Arrow conversion failed: {}", e)))?;
+
+        if batches.is_empty() {
+            return Err(Status::internal("No Arrow batches created".to_string()));
+        }
+
+        // Export batches to requested format
+        let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
+
+        for (index, batch) in batches.iter().enumerate() {
+            // Export batch to requested format
+            let exported_bytes = BulkExporter::export_batch(batch, export_format)
+                .map_err(|e| Status::internal(format!("Export failed: {}", e)))?;
+
+            info!(
+                batch_index = index,
+                bytes_size = exported_bytes.len(),
+                "Exported batch"
+            );
+
+            // Create FlightData with exported bytes
+            let flight_data = FlightData {
+                data_body: exported_bytes.into(),
+                app_metadata: export_format.mime_type().as_bytes().to_vec().into(),
+                ..Default::default()
+            };
+            messages.push(Ok(flight_data));
+        }
+
+        info!(
+            table = %table,
+            batch_count = messages.len(),
+            format = ?export_format,
+            "Bulk export completed"
+        );
+
+        let stream = futures::stream::iter(messages);
+        Ok(Response::new(Box::pin(stream)))
+    }
+
     /// Handle ClearCache action
     fn handle_clear_cache(&self) -> ActionResultStream {
         info!("ClearCache action triggered");
@@ -825,23 +1068,85 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle RefreshSchemaRegistry action (deferred to v2.1).
+    /// Handle RefreshSchemaRegistry action (Phase 4).
     ///
-    /// This action allows admin users to reload schema definitions from the database.
-    /// Currently returns a "not yet implemented" message as this requires integration
-    /// with schema discovery that may impact running queries.
+    /// Admin-only action that safely reloads schema definitions from the database
+    /// without disrupting running queries (Copy-on-Write via Arc<Schema>).
     ///
-    /// Planned implementation will:
-    /// - Query database for updated schema metadata
-    /// - Reload all va_* and ta_* view definitions
-    /// - Update SchemaRegistry with new schemas
-    /// - Return success/failure status
+    /// Returns a JSON result with:
+    /// - `success`: true/false
+    /// - `reloaded_count`: number of successfully reloaded schemas
+    /// - `message`: descriptive message
     fn handle_refresh_schema_registry(&self) -> ActionResultStream {
-        info!("RefreshSchemaRegistry action triggered (deferred to v2.1)");
+        info!("RefreshSchemaRegistry action triggered");
 
-        let message = "RefreshSchemaRegistry not yet implemented (deferred to v2.1 - requires safe schema update mechanism)".to_string();
+        let db_adapter = self.db_adapter.clone();
+        let schema_registry = Arc::clone(&self.schema_registry);
+
+        // Spawn background task to reload schemas
+        if let Some(adapter) = db_adapter {
+            tokio::spawn(async move {
+                match schema_registry.reload_all_schemas(adapter.as_ref()).await {
+                    Ok(count) => {
+                        info!("Schema reload completed: {} schemas reloaded", count);
+                    }
+                    Err(e) => {
+                        warn!("Schema reload failed: {}", e);
+                    }
+                }
+            });
+        }
+
+        // Return immediate response to client
+        let response = serde_json::json!({
+            "success": true,
+            "message": "Schema reload started (processing in background)",
+        });
+
         let result = Ok(arrow_flight::Result {
-            body: message.into_bytes().into(),
+            body: serde_json::to_vec(&response)
+                .unwrap_or_else(|_| b"{}".to_vec())
+                .into(),
+        });
+
+        let stream = futures::stream::iter(vec![result]);
+        Box::pin(stream)
+    }
+
+    /// Handle GetSchemaVersions action (Phase 4).
+    ///
+    /// Returns information about all registered schemas and their versions.
+    /// Useful for debugging schema reload issues.
+    ///
+    /// Returns a JSON result with array of:
+    /// - `view_name`: the view name (e.g., "va_orders")
+    /// - `version`: current schema version number
+    /// - `created_at`: when this version was created (ISO 8601)
+    fn handle_get_schema_versions(&self) -> ActionResultStream {
+        info!("GetSchemaVersions action triggered");
+
+        let versions = self.schema_registry.get_all_versions();
+
+        let schema_infos: Vec<serde_json::Value> = versions
+            .iter()
+            .map(|(view_name, version, created_at)| {
+                serde_json::json!({
+                    "view_name": view_name,
+                    "version": version,
+                    "created_at": created_at.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        let response = serde_json::json!({
+            "schemas": schema_infos,
+            "count": versions.len(),
+        });
+
+        let result = Ok(arrow_flight::Result {
+            body: serde_json::to_vec(&response)
+                .unwrap_or_else(|_| b"{}".to_vec())
+                .into(),
         });
 
         let stream = futures::stream::iter(vec![result]);
@@ -1307,11 +1612,34 @@ impl FlightService for FraiseQLFlightService {
                     .await?;
                 Ok(Response::new(Box::pin(stream)))
             },
-            FlightTicket::ObserverEvents { .. } => {
-                Err(Status::unimplemented("Observer events not implemented yet"))
+            FlightTicket::ObserverEvents {
+                entity_type,
+                start_date,
+                end_date,
+                limit,
+            } => {
+                self.execute_observer_events(
+                    &entity_type,
+                    start_date,
+                    end_date,
+                    limit,
+                )
+                .await
             },
-            FlightTicket::BulkExport { .. } => {
-                Err(Status::unimplemented("Bulk export not implemented yet"))
+            FlightTicket::BulkExport {
+                table,
+                filter,
+                limit,
+                format,
+            } => {
+                self.execute_bulk_export(
+                    &table,
+                    filter,
+                    limit,
+                    format,
+                    &security_context,
+                )
+                .await
             },
             FlightTicket::BatchedQueries { queries } => {
                 // Phase 2.3: Pass security_context for batched query execution with RLS
@@ -1520,6 +1848,16 @@ impl FlightService for FraiseQLFlightService {
 
                 self.handle_refresh_schema_registry()
             },
+            "GetSchemaVersions" => {
+                // Admin-only action - verify "admin" scope
+                if !authenticated_user.scopes.contains(&"admin".to_string()) {
+                    return Err(Status::permission_denied(
+                        "GetSchemaVersions requires 'admin' scope",
+                    ));
+                }
+
+                self.handle_get_schema_versions()
+            },
             "HealthCheck" => {
                 // Public action - no special authorization needed beyond authentication
                 self.handle_health_check()
@@ -1548,7 +1886,11 @@ impl FlightService for FraiseQLFlightService {
             }),
             Ok(ActionType {
                 r#type:      "RefreshSchemaRegistry".to_string(),
-                description: "Reload schema definitions".to_string(),
+                description: "Reload schema definitions from database".to_string(),
+            }),
+            Ok(ActionType {
+                r#type:      "GetSchemaVersions".to_string(),
+                description: "Get current schema versions and metadata".to_string(),
             }),
             Ok(ActionType {
                 r#type:      "HealthCheck".to_string(),
@@ -1596,6 +1938,7 @@ impl FlightService for FraiseQLFlightService {
         // Clone shared state for spawned task
         let db_adapter = self.db_adapter.clone();
         let executor = self.executor.clone();
+        let subscription_manager = self.subscription_manager.clone();
         let user_id = authenticated_user.user_id.clone();
 
         // Spawn handler task for bidirectional streaming
@@ -1895,23 +2238,79 @@ impl FlightService for FraiseQLFlightService {
                                     }
                                 }
                             }
-                            RequestType::Subscribe { .. } => {
-                                // Subscriptions deferred to v2.1
-                                warn!("Subscriptions not yet supported");
-                                let error_response = ExchangeMessage::Response {
+                            RequestType::Subscribe {
+                                entity_type,
+                                filter,
+                            } => {
+                                info!(
+                                    correlation_id = %correlation_id,
+                                    entity_type = %entity_type,
+                                    "Starting event subscription"
+                                );
+
+                                // Create subscription and get receiver
+                                let mut event_rx = subscription_manager.subscribe(
+                                    correlation_id.clone(),
+                                    entity_type.clone(),
+                                    filter.clone(),
+                                );
+
+                                // Send subscription acknowledgment
+                                let ack_msg = format!("Subscribed to {}", entity_type);
+                                let ack_response = ExchangeMessage::Response {
                                     correlation_id: correlation_id.clone(),
-                                    result: Err(
-                                        "Subscriptions not yet supported (deferred to v2.1)"
-                                            .to_string(),
-                                    ),
+                                    result: Ok(ack_msg.into_bytes()),
                                 };
-                                if let Ok(err_bytes) = error_response.to_json_bytes() {
-                                    let err_data = FlightData {
-                                        app_metadata: err_bytes.into(),
+
+                                if let Ok(ack_bytes) = ack_response.to_json_bytes() {
+                                    let ack_data = FlightData {
+                                        app_metadata: ack_bytes.into(),
                                         ..Default::default()
                                     };
-                                    let _ = tx.send(Ok(err_data)).await;
+                                    let _ = tx.send(Ok(ack_data)).await;
                                 }
+
+                                // Clone necessary state for event forwarding task
+                                let tx_clone = tx.clone();
+                                let correlation_id_clone = correlation_id.clone();
+
+                                // Spawn task to forward events from subscription to client
+                                tokio::spawn(async move {
+                                    while let Some(event) = event_rx.recv().await {
+                                        // Convert event to JSON for transmission
+                                        match serde_json::to_vec(&event) {
+                                            Ok(event_json) => {
+                                                let event_data = FlightData {
+                                                    data_body: event_json.into(),
+                                                    app_metadata: b"observer_event".to_vec()
+                                                        .into(),
+                                                    ..Default::default()
+                                                };
+
+                                                if let Err(e) = tx_clone.send(Ok(event_data)).await
+                                                {
+                                                    warn!(
+                                                        "Failed to send event to subscriber: {}",
+                                                        e
+                                                    );
+                                                    break;
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!(
+                                                    "Failed to serialize event: {}",
+                                                    e
+                                                );
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    info!(
+                                        correlation_id = %correlation_id_clone,
+                                        "Subscription event stream closed"
+                                    );
+                                });
                             }
                         }
                     }

@@ -91,6 +91,7 @@ pub enum FlightTicket {
     /// {
     ///   "type": "BulkExport",
     ///   "table": "users",
+    ///   "format": "parquet",
     ///   "limit": 1000000
     /// }
     /// ```
@@ -101,6 +102,8 @@ pub enum FlightTicket {
         filter: Option<String>,
         /// Maximum number of rows
         limit:  Option<usize>,
+        /// Export format: "parquet", "csv", or "json" (default: "parquet")
+        format: Option<String>,
     },
 
     /// Batched queries for efficient bulk operations.
@@ -259,6 +262,7 @@ mod tests {
             table:  "users".to_string(),
             filter: Some("active = true".to_string()),
             limit:  Some(1_000_000),
+            format: Some("parquet".to_string()),
         };
 
         let bytes = ticket.encode().unwrap();
