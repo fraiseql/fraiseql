@@ -26,6 +26,31 @@
 
 use crate::error::Result;
 
+/// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
+///
+/// FraiseQL converts schema field names from snake_case to camelCase for GraphQL spec compliance.
+/// However, JSON/JSONB keys are stored in their original snake_case form.
+/// This function reverses that conversion for JSON key access.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// assert_eq!(to_snake_case("firstName"), "first_name");
+/// assert_eq!(to_snake_case("id"), "id");
+/// ```
+fn to_snake_case(name: &str) -> String {
+    let mut result = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            result.push('_');
+            result.push(ch.to_lowercase().next().unwrap());
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
 /// PostgreSQL SQL projection generator using jsonb_build_object.
 ///
 /// Generates efficient PostgreSQL SQL that projects only requested JSONB fields,
@@ -89,9 +114,12 @@ impl PostgresProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
-                // Escape field name for SQL (simple protection against injection)
+                // Response key uses the GraphQL field name (camelCase)
                 let safe_field = Self::escape_identifier(field);
-                format!("'{}', \"{}\"->>'{}' ", safe_field, self.jsonb_column, safe_field)
+                // JSONB key uses the original schema field name (snake_case)
+                let jsonb_key = to_snake_case(field);
+                let safe_jsonb_key = Self::escape_identifier(&jsonb_key);
+                format!("'{}', \"{}\"->>'{}' ", safe_field, self.jsonb_column, safe_jsonb_key)
             })
             .collect();
 
@@ -213,10 +241,13 @@ impl MySqlProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
+                // Response key uses the GraphQL field name (camelCase)
                 let safe_field = Self::escape_identifier(field);
+                // JSON key uses the original schema field name (snake_case)
+                let json_key = to_snake_case(field);
                 format!(
                     "'{}', JSON_EXTRACT(`{}`, '$.{}')",
-                    safe_field, self.json_column, safe_field
+                    safe_field, self.json_column, json_key
                 )
             })
             .collect();
@@ -303,10 +334,13 @@ impl SqliteProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
+                // Response key uses the GraphQL field name (camelCase)
                 let safe_field = Self::escape_identifier(field);
+                // JSON key uses the original schema field name (snake_case)
+                let json_key = to_snake_case(field);
                 format!(
                     "'{}', json_extract(\"{}\", '$.{}')",
-                    safe_field, self.json_column, safe_field
+                    safe_field, self.json_column, json_key
                 )
             })
             .collect();
@@ -487,5 +521,51 @@ mod tests {
 
         let sql = generator.generate_projection_sql(&fields).unwrap();
         assert_eq!(sql, "json_object('id', json_extract(\"metadata\", '$.id'))");
+    }
+
+    // ========================================================================
+    // Issue #269: JSONB field extraction with snake_case/camelCase mapping
+    // ========================================================================
+
+    #[test]
+    fn test_to_snake_case_conversion() {
+        // Test camelCase to snake_case conversion
+        assert_eq!(super::to_snake_case("id"), "id");
+        assert_eq!(super::to_snake_case("firstName"), "first_name");
+        assert_eq!(super::to_snake_case("createdAt"), "created_at");
+        assert_eq!(super::to_snake_case("userId"), "user_id");
+        assert_eq!(super::to_snake_case("updatedAtTimestamp"), "updated_at_timestamp");
+    }
+
+    #[test]
+    fn test_postgres_projection_with_field_mapping_snake_case() {
+        // RED: Test for Issue #269 - Field name extraction should use original names
+        //
+        // Problem: GraphQL converts field names to camelCase (first_name → firstName)
+        // But JSONB stores them in snake_case (first_name).
+        // When generating JSONB extraction SQL, we must use the original snake_case key,
+        // not the camelCase GraphQL name.
+
+        let generator = PostgresProjectionGenerator::new();
+
+        // Simulate what happens when fields come from GraphQL query
+        // These are camelCase field names (what GraphQL expects in response)
+        let graphql_fields = vec!["id".to_string(), "firstName".to_string(), "createdAt".to_string()];
+
+        let sql = generator.generate_projection_sql(&graphql_fields).unwrap();
+
+        eprintln!("Generated SQL: {}", sql);
+
+        // Current broken behavior generates:
+        // jsonb_build_object('id', data->>'id', 'firstName', data->>'firstName', 'createdAt', data->>'createdAt')
+        //
+        // This fails because JSONB has snake_case keys: first_name, created_at
+        // Result: data->>'firstName' returns NULL (key not found)
+
+        // Test the bug: SQL should NOT have camelCase JSONB access
+        // We expect this to FAIL until we implement field mapping
+        assert!(!sql.contains("->>'firstName'") && !sql.contains("->>'createdAt'"),
+            "BUG: SQL is using camelCase keys for JSONB access. \
+             JSONB has snake_case keys like 'first_name', 'created_at'. SQL: {}", sql);
     }
 }
