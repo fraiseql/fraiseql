@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 pub mod cors;
 pub mod env;
+pub mod jsonb_optimization;
 pub mod loader;
 pub mod metrics;
 pub mod rate_limiting;
@@ -14,6 +15,7 @@ pub mod validation;
 
 // Re-export config types
 pub use cors::CorsConfig;
+pub use jsonb_optimization::{JsonbOptimizationConfig, JsonbStrategy};
 pub use metrics::{LatencyTargets, MetricsConfig, SloConfig};
 pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
 pub use tracing::TracingConfig;
@@ -77,6 +79,9 @@ pub struct RuntimeConfig {
 
     #[serde(default)]
     pub lifecycle: Option<LifecycleConfig>,
+
+    #[serde(default)]
+    pub jsonb_optimization: Option<JsonbOptimizationConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
