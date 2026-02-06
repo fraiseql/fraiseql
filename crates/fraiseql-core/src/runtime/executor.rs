@@ -1555,4 +1555,49 @@ mod tests {
         assert!(err.is_retryable());
         assert!(err.is_server_error());
     }
+
+    // ========================================================================
+    // Phase 2, Cycle 4: JSONB Strategy Integration Tests
+    // ========================================================================
+
+    #[test]
+    fn test_jsonb_strategy_in_runtime_config() {
+        // Verify that RuntimeConfig includes JSONB optimization options
+        let config = RuntimeConfig {
+            cache_query_plans:    false,
+            max_query_depth:      5,
+            max_query_complexity: 500,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
+        };
+
+        assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
+        assert_eq!(config.jsonb_optimization.auto_threshold_percent, 80);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_custom_config() {
+        // Verify custom JSONB strategy options in config
+        let custom_options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Stream,
+            auto_threshold_percent: 50,
+        };
+
+        let config = RuntimeConfig {
+            cache_query_plans:    false,
+            max_query_depth:      5,
+            max_query_complexity: 500,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   custom_options,
+        };
+
+        assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
+        assert_eq!(config.jsonb_optimization.auto_threshold_percent, 50);
+    }
 }
