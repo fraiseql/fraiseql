@@ -615,6 +615,7 @@ mod tests {
                 sql_source:   Some("users".to_string()),
                 auto_params:  None,
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -657,6 +658,7 @@ mod tests {
                     sql_source:   Some("users".to_string()),
                     auto_params:  None,
                     deprecated:   None,
+                    jsonb_column: None,
                 },
                 IntermediateQuery {
                     name:         "users".to_string(), // Duplicate!
@@ -668,6 +670,7 @@ mod tests {
                     sql_source:   Some("users".to_string()),
                     auto_params:  None,
                     deprecated:   None,
+                    jsonb_column: None,
                 },
             ],
             mutations:         vec![],
@@ -709,6 +712,7 @@ mod tests {
                 sql_source:   None, // Missing SQL source
                 auto_params:  None,
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],

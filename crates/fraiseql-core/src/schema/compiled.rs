@@ -1253,6 +1253,11 @@ pub struct QueryDefinition {
     /// When set, this query is marked as deprecated in the schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<super::field_type::DeprecationInfo>,
+
+    /// JSONB column name (e.g., "data").
+    /// Used to extract data from JSONB columns in query results.
+    #[serde(default = "default_jsonb_column")]
+    pub jsonb_column: String,
 }
 
 impl QueryDefinition {
@@ -1269,6 +1274,7 @@ impl QueryDefinition {
             description:  None,
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         }
     }
 

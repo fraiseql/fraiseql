@@ -387,6 +387,7 @@ fn create_test_schema() -> CompiledSchema {
         description:  None,
         auto_params:  AutoParams::default(),
         deprecation:  None,
+        jsonb_column: "data".to_string(),
     });
 
     schema

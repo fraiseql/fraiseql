@@ -315,6 +315,7 @@ impl SchemaConverter {
             description: intermediate.description,
             auto_params,
             deprecation,
+            jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),
         })
     }
 
@@ -741,6 +742,7 @@ mod tests {
                 sql_source:   Some("v_user".to_string()),
                 auto_params:  None,
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -792,6 +794,7 @@ mod tests {
                     order_by:     false,
                 }),
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],

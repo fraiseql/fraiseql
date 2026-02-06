@@ -138,6 +138,7 @@ impl CodeGenerator {
                         has_offset:   q.auto_params.has_offset,
                     },
                     deprecation:  None, // Note: IR doesn't have deprecation info yet
+                    jsonb_column: "data".to_string(), // Default to "data" column
                 }
             })
             .collect();

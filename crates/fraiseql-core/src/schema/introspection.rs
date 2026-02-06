@@ -1123,6 +1123,7 @@ mod tests {
             description:  Some("Get all users".to_string()),
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         });
 
         // Add a user query with argument
@@ -1143,6 +1144,7 @@ mod tests {
             description:  Some("Get user by ID".to_string()),
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         });
 
         schema
@@ -1779,6 +1781,7 @@ mod tests {
             deprecation:  Some(DeprecationInfo {
                 reason: Some("Use 'users' instead".to_string()),
             }),
+            jsonb_column: "data".to_string(),
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -1811,6 +1814,7 @@ mod tests {
             description:  Some("Get users with pagination".to_string()),
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
