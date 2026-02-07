@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: File-based Secrets Backend
 //! Backend for reading secrets from local files
 
 use std::path::PathBuf;

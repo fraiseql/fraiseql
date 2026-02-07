@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 9: Performance Optimization (GREEN)
 //! Performance optimization for encryption operations including batching,
 //! parallelization, caching, and metrics collection.
 

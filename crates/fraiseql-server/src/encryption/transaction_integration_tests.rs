@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 7: Transaction Integration Tests (RED)
 //! Comprehensive test specifications for handling encrypted fields within
 //! database transactions, including atomicity, consistency, and context tracking.
 

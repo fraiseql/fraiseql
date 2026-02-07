@@ -1,4 +1,3 @@
-// Phase 12.5 Cycle 2: Database Schema for Secrets & Keys - GREEN
 //! Database schema definitions for secrets management, encryption keys,
 //! external authentication providers, and OAuth sessions.
 

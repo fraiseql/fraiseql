@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 5: Audit Logging & Advanced Features Tests (RED)
 //! Comprehensive test specifications for audit logging, schema detection,
 //! and transaction integration with field-level encryption
 

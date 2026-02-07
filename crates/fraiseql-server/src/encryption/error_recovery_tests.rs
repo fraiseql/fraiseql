@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 10: Error Recovery Tests (RED)
 //! Comprehensive test specifications for encryption error recovery:
 //! Vault outages, key expiry, network partitions, and graceful degradation.
 

@@ -48,7 +48,7 @@ fn test_ecommerce_example_compiles() {
     assert!(output.contains("Mutations: 8"), "Expected 8 mutations");
 }
 
-/// Test SaaS example with 4 domains
+/// Test `SaaS` example with 4 domains
 #[test]
 fn test_saas_example_compiles() {
     let saas_path = PathBuf::from("examples/saas/fraiseql.toml");

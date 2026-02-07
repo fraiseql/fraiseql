@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 1: Credential Rotation - GREEN
 //! Credential rotation and key lifecycle management including versioning,
 //! TTL tracking, automatic refresh, and multi-version decryption support.
 

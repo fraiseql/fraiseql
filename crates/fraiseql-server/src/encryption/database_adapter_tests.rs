@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 2: Database Adapter Integration Tests (RED)
 //! Comprehensive test specifications for integrating field-level encryption
 //! with database adapters for automatic encryption/decryption
 

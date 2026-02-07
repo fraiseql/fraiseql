@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 6: Schema Detection (GREEN)
 //! Schema detection for automatically identifying and managing encrypted fields.
 //!
 //! Supports multiple encryption marks (`#[encrypted]`, `#[sensitive]`, `#[encrypt(key="...")]`),

@@ -48,7 +48,7 @@ pub mod transaction;
 
 const NONCE_SIZE: usize = 12; // 96 bits for GCM
 #[allow(dead_code)]
-const TAG_SIZE: usize = 16; // 128 bits authentication tag (used in Phase 12.3+ cycles)
+const TAG_SIZE: usize = 16; // 128 bits authentication tag
 const KEY_SIZE: usize = 32; // 256 bits for AES-256
 
 /// Cipher for field-level encryption using AES-256-GCM

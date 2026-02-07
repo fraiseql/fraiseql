@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 2: Automatic Refresh Triggers - GREEN
 //! Automatic key refresh triggering with background job coordination,
 //! TTL monitoring, and non-blocking refresh during operations.
 

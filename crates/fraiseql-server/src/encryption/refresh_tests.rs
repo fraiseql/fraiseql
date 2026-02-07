@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 2: Automatic Refresh Triggers - RED
 //! Comprehensive test specifications for automatic key refresh triggering,
 //! background job coordination, and non-blocking refresh during operations.
 

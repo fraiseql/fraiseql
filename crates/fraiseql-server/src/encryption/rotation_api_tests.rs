@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 3: Rotation API Endpoints - RED
 //! Comprehensive test specifications for credential rotation REST API endpoints,
 //! rotation status retrieval, history tracking, and configuration management.
 

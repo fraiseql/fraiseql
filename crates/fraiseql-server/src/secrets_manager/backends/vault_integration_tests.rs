@@ -1,4 +1,3 @@
-// Phase 12.2 Cycle 1: Vault Integration Tests (RED)
 //! Tests for HashiCorp Vault backend integration
 //!
 //! These tests define the interface and behavior for Vault integration

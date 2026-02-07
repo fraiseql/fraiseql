@@ -1,4 +1,3 @@
-// Phase 12.5 Cycle 1: External Auth Provider Integration - RED
 //! Comprehensive test specifications for OAuth2 and OIDC authentication,
 //! provider discovery, JWT validation, and user provisioning.
 

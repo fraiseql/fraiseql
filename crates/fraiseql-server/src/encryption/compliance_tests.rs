@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 8: Compliance Features Tests (RED)
 //! Comprehensive test specifications for compliance frameworks:
 //! HIPAA (PHI protection), PCI-DSS (payment data), GDPR (data privacy), SOC 2 (controls)
 

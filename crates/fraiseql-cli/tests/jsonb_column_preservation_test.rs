@@ -1,11 +1,11 @@
-//! Tests for jsonb_column field preservation during schema compilation
+//! Tests for `jsonb_column` field preservation during schema compilation
 //!
 //! Verifies that:
-//! 1. jsonb_column field is preserved during schema compilation
-//! 2. jsonb_column defaults to "data" when not specified
-//! 3. QueryDefinition supports jsonb_column field
+//! 1. `jsonb_column` field is preserved during schema compilation
+//! 2. `jsonb_column` defaults to "data" when not specified
+//! 3. `QueryDefinition` supports `jsonb_column` field
 //!
-//! Issue #268: fraiseql-cli compile drops jsonb_column from queries
+//! Issue #268: fraiseql-cli compile drops `jsonb_column` from queries
 
 use serde_json::json;
 

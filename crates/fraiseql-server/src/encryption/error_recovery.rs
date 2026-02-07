@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 10: Error Recovery (GREEN)
 //! Error recovery for encryption operations including Vault outages,
 //! key expiry, network partitions, and graceful degradation strategies.
 

@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 1: Field-Level Encryption Tests (RED)
 //! Comprehensive test specifications for field-level encryption
 //! testing AES-256-GCM encryption, database integration, and security properties
 

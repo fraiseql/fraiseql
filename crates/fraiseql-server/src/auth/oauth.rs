@@ -1,4 +1,3 @@
-// Phase 12.5 Cycle 1: External Auth Provider Integration - GREEN
 //! OAuth2 and OIDC authentication support with JWT validation,
 //! provider discovery, and automatic user provisioning.
 

@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 3: Query Builder Integration Tests (RED)
 //! Comprehensive test specifications for integrating EncryptedFieldAdapter
 //! with query builders for transparent encryption/decryption
 

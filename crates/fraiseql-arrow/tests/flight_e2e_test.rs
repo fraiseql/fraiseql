@@ -165,6 +165,23 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
+    /// Create an appropriate database adapter based on feature flags.
+    async fn create_flight_adapter(
+        conn_string: &str,
+    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>> {
+        #[cfg(not(feature = "wire-backend"))]
+        {
+            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
+            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter)))
+        }
+
+        #[cfg(feature = "wire-backend")]
+        {
+            let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(conn_string);
+            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter)))
+        }
+    }
+
     /// Test complete DoGet flow: create ticket → execute → stream results
     ///
     /// This test verifies the end-to-end path:
@@ -179,9 +196,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service with database
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
@@ -205,9 +220,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service with 60-second cache
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_cache(flight_adapter, 60);
@@ -232,9 +245,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service with cache
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_cache(flight_adapter, 60);
@@ -259,9 +270,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
@@ -288,9 +297,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
@@ -319,9 +326,7 @@ mod tests {
         let conn_string = test_db.connection_string();
 
         // Create adapters
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         // Create Flight service
         let service = Arc::new(fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter));

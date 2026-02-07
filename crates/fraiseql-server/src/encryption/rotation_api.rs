@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 3: Rotation API Endpoints - GREEN
 //! Credential rotation REST API endpoints for status, manual rotation,
 //! history retrieval, and configuration management.
 

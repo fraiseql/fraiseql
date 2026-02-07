@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Secrets Manager Backends
 //! Multiple backend implementations for secrets management
 
 pub mod env;

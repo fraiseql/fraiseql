@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Environment Variables Backend
 //! Backend for reading secrets from environment variables
 
 use chrono::{Duration, Utc};

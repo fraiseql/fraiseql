@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 2: Database Adapter Integration (REFACTOR)
 //! Database adapter for transparent field-level encryption/decryption
 //!
 //! Provides query-layer integration for automatic encryption on write
@@ -109,7 +108,7 @@ impl EncryptionContext {
 #[derive(Clone)]
 struct CachedEncryption {
     cipher:   FieldEncryption,
-    /// Key name from Vault - kept for debugging and audit trail (used in Phase 12.3+ cycles)
+    /// Key name from Vault - kept for debugging and audit trail
     #[allow(dead_code)]
     key_name: String,
 }

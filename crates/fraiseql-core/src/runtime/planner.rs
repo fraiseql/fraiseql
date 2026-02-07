@@ -273,7 +273,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Phase 2, Cycle 4: JSONB Strategy Integration
+
     // ========================================================================
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
         let planner = QueryPlanner::with_jsonb_options(true, options);
 
         // 2 fields requested out of ~10 estimated = 20% < 80% threshold
-        let strategy = planner.choose_jsonb_strategy(&vec!["id".to_string(), "name".to_string()]);
+        let strategy = planner.choose_jsonb_strategy(&["id".to_string(), "name".to_string()]);
         assert_eq!(strategy, JsonbStrategy::Project);
     }
 
@@ -336,7 +336,7 @@ mod tests {
         let planner = QueryPlanner::with_jsonb_options(true, options);
 
         // Even with few fields, should use Stream as default
-        let strategy = planner.choose_jsonb_strategy(&vec!["id".to_string()]);
+        let strategy = planner.choose_jsonb_strategy(&["id".to_string()]);
         assert_eq!(strategy, JsonbStrategy::Stream);
     }
 }

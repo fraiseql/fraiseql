@@ -147,7 +147,7 @@ fn create_executor_context(role: &str) -> SecurityContext {
 }
 
 // ============================================================================
-// RED Phase Tests: Cycle 7 - Executor Field RBAC Integration
+// Executor Field RBAC Integration Tests
 // ============================================================================
 
 #[test]

@@ -1,4 +1,3 @@
-// Phase 12.5 Cycle 2: Database Schema for Secrets & Keys - RED
 //! Comprehensive test specifications for database schema and operations,
 //! including secrets audit, encryption keys, auth providers, and OAuth sessions.
 

@@ -57,6 +57,7 @@ uuid = {version = "1", features = ["v4"]}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
+wire-backend = ["fraiseql-server/wire-backend"]
 
 [lib]
 name = "fraiseql_arrow"

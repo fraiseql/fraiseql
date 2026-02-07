@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 1: Credential Rotation - RED
 //! Comprehensive test specifications for credential rotation and key lifecycle management:
 //! Key versioning, TTL tracking, automatic refresh, multi-version decryption,
 //! and rotation scheduling.

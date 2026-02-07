@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 7: Transaction Integration (GREEN)
 //! Transaction context management for encrypted operations.
 //!
 //! Tracks transaction metadata, user context, and ensures consistent

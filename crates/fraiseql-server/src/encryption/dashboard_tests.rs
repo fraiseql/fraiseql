@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 4: Dashboard & Monitoring - RED
 //! Comprehensive test specifications for rotation dashboard, metrics visualization,
 //! compliance monitoring, and historical trend tracking.
 

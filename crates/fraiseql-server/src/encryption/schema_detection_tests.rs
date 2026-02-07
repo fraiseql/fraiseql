@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 6: Schema Detection Tests (RED)
 //! Comprehensive test specifications for automatic schema detection of encrypted fields,
 //! supporting multiple encryption marks, key references, and schema evolution.
 

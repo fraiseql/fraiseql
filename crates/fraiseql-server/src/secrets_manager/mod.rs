@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Secrets Manager Interface
 //! Abstraction layer for multiple secrets backends (Vault, Environment Variables, File)
 //!
 //! This module provides a unified interface to manage secrets from different sources:

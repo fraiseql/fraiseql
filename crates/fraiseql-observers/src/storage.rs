@@ -241,7 +241,7 @@ pub mod postgres {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL connection
+    #[ignore = "Requires PostgreSQL connection"]
     async fn test_postgres_query_events() {
         // This test would require a test database setup
         // Skipping for now - integration tests will cover this

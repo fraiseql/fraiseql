@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 3: Query Builder Integration (REFACTOR)
 //! Query builder integration for transparent field-level encryption/decryption
 //!
 //! Provides automatic encryption on write operations and decryption on read

@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 8: Compliance Features (GREEN)
 //! Compliance framework validation and reporting for HIPAA, PCI-DSS, GDPR, SOC 2.
 //!
 //! Provides compliance validators, audit trail enforcement, and compliance reporting

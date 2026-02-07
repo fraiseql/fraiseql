@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Secrets Manager Types
 //! Core types for secrets management
 
 use std::fmt;

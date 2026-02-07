@@ -43,6 +43,38 @@ use fraiseql_core::{
 };
 use serde_json::{Map, Value as JsonValue, json};
 
+// ============================================================================
+// Test Helpers - Sample data generation
+// ============================================================================
+
+/// Generate sample JSONB rows with specified field and row counts
+fn generate_sample_rows(row_count: usize, field_count: usize) -> Vec<JsonbValue> {
+    let mut rows = Vec::with_capacity(row_count);
+
+    for row_id in 0..row_count {
+        let mut obj = Map::new();
+
+        // Always include these standard fields
+        obj.insert("id".to_string(), json!(format!("id_{}", row_id)));
+        obj.insert("name".to_string(), json!(format!("User {}", row_id)));
+        obj.insert("email".to_string(), json!(format!("user{}@example.com", row_id)));
+
+        // Add extra fields up to field_count
+        for field_idx in 3..field_count {
+            obj.insert(format!("field_{}", field_idx), json!(format!("value_{}", field_idx)));
+        }
+
+        // Add some realistic nested data
+        obj.insert("status".to_string(), json!("active"));
+        obj.insert("created_at".to_string(), json!("2024-01-14T00:00:00Z"));
+        obj.insert("metadata".to_string(), json!({"score": 100}));
+
+        rows.push(JsonbValue::new(JsonValue::Object(obj)));
+    }
+
+    rows
+}
+
 #[cfg(test)]
 mod query_optimization_tests {
     use super::*;
@@ -465,36 +497,4 @@ mod query_optimization_tests {
             "Should include table name"
         );
     }
-}
-
-// ============================================================================
-// Test Helpers - Sample data generation
-// ============================================================================
-
-/// Generate sample JSONB rows with specified field and row counts
-fn generate_sample_rows(row_count: usize, field_count: usize) -> Vec<JsonbValue> {
-    let mut rows = Vec::with_capacity(row_count);
-
-    for row_id in 0..row_count {
-        let mut obj = Map::new();
-
-        // Always include these standard fields
-        obj.insert("id".to_string(), json!(format!("id_{}", row_id)));
-        obj.insert("name".to_string(), json!(format!("User {}", row_id)));
-        obj.insert("email".to_string(), json!(format!("user{}@example.com", row_id)));
-
-        // Add extra fields up to field_count
-        for field_idx in 3..field_count {
-            obj.insert(format!("field_{}", field_idx), json!(format!("value_{}", field_idx)));
-        }
-
-        // Add some realistic nested data
-        obj.insert("status".to_string(), json!("active"));
-        obj.insert("created_at".to_string(), json!("2024-01-14T00:00:00Z"));
-        obj.insert("metadata".to_string(), json!({"score": 100}));
-
-        rows.push(JsonbValue::new(JsonValue::Object(obj)));
-    }
-
-    rows
 }

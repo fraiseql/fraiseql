@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 4: Mapper Integration Tests (RED)
 //! Comprehensive test specifications for integrating field-level encryption
 //! with database mappers/codecs for automatic encryption/decryption
 

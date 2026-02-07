@@ -1,4 +1,3 @@
-// Phase 11.6 Cycle 4: Database Schema Verification Tests
 // Tests verify the schema migrations create proper table structure, indexes, and constraints
 
 #[cfg(test)]

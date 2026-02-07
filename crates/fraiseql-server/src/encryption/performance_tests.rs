@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 9: Performance Optimization Tests (RED)
 //! Comprehensive test specifications for encryption performance optimization:
 //! batching, parallelization, caching, and memory efficiency.
 

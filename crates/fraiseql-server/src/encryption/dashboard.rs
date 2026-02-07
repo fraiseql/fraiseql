@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 4: Dashboard & Monitoring - GREEN
 //! Rotation dashboard, metrics visualization, compliance monitoring,
 //! and alert/notification systems for rotation management.
 

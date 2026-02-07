@@ -49,7 +49,7 @@ struct CachedSecret {
 const VAULT_API_VERSION: &str = "v1";
 const CACHE_TTL_PERCENTAGE: f64 = 0.8; // Cache for 80% of credential TTL
 #[allow(dead_code)]
-const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8; // Renew when 80% expired (used in Phase 12.2+ cycles)
+const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8; // Renew when 80% expired
 const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000; // Maximum cached secrets
 
 /// Secret cache with TTL management and LRU eviction
