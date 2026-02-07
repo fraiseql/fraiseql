@@ -9,6 +9,7 @@ pub use file::FileBackend;
 pub use vault::VaultBackend;
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test all backends available
     #[test]

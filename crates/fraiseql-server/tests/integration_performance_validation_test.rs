@@ -51,7 +51,7 @@ mod integration_performance_tests {
         // Baseline: uncached latency
         let uncached_start = Instant::now();
         for _ in 0..num_iterations {
-            let _result = simulate_complex_query_execution(query_size);
+            simulate_complex_query_execution(query_size);
             // Simulates: DB query + result projection + metric recording
         }
         let uncached_elapsed = uncached_start.elapsed();
@@ -75,7 +75,7 @@ mod integration_performance_tests {
                 c.load(Ordering::Relaxed)
             };
             // If cache miss, execute query
-            let _result = simulate_complex_query_execution(query_size);
+            simulate_complex_query_execution(query_size);
         }
         let cached_elapsed = cached_start.elapsed();
         let cached_avg_latency_us = if cached_elapsed.as_micros() > 0 {

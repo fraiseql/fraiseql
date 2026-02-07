@@ -2,6 +2,7 @@
 //! provider discovery, JWT validation, and user provisioning.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod oauth_tests {
     // ============================================================================
     // OAUTH2 AUTHORIZATION CODE FLOW TESTS

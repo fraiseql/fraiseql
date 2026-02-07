@@ -204,6 +204,7 @@ impl RbacDbBackend {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test backend creation (placeholder)
     #[test]

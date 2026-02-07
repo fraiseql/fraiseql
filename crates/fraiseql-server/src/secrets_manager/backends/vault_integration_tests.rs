@@ -4,6 +4,7 @@
 //! including dynamic credentials, lease management, and rotation
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod vault_integration_tests {
     use chrono::{DateTime, Utc};
 

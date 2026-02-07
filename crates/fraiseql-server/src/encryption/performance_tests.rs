@@ -2,6 +2,7 @@
 //! batching, parallelization, caching, and memory efficiency.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod performance_tests {
     // ============================================================================
     // ENCRYPTION BATCHING OPTIMIZATION

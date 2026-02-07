@@ -2,6 +2,7 @@
 //! with database mappers/codecs for automatic encryption/decryption
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod mapper_integration_tests {
     // ============================================================================
     // MAPPER WRITE OPERATIONS

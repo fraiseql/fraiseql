@@ -6,6 +6,7 @@
 //! including lease tracking, automatic renewal, and encryption support
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod vault_advanced_tests {
     use chrono::{DateTime, Duration, Utc};
 

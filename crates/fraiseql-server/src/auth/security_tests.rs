@@ -2,6 +2,7 @@
 /// Validates that security-critical operations meet production standards.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod security_tests {
     use std::collections::HashSet;
 

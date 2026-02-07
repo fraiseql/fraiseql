@@ -1,6 +1,7 @@
 // Rate limiting integration tests
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod rate_limiting_tests {
     use crate::auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
 

@@ -2,6 +2,7 @@
 //! compliance monitoring, and historical trend tracking.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod dashboard_tests {
     // ============================================================================
     // ROTATION STATUS DASHBOARD TESTS

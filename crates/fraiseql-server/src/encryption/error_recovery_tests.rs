@@ -2,6 +2,7 @@
 //! Vault outages, key expiry, network partitions, and graceful degradation.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod error_recovery_tests {
     // ============================================================================
     // VAULT TEMPORARY OUTAGE TESTS

@@ -2,6 +2,7 @@
 //! database transactions, including atomicity, consistency, and context tracking.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod transaction_integration_tests {
     // ============================================================================
     // BASIC TRANSACTION TESTS

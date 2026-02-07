@@ -2,6 +2,7 @@
 //! with database adapters for automatic encryption/decryption
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod database_adapter_tests {
     // ============================================================================
     // QUERY BUILDER INTEGRATION TESTS

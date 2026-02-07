@@ -43,7 +43,7 @@ fn test_audit_event_timestamp() {
 #[test]
 fn test_audit_event_status_values() {
     // Valid statuses: success, failure, denied
-    let valid_statuses = vec!["success", "failure", "denied"];
+    let valid_statuses = ["success", "failure", "denied"];
     assert_eq!(valid_statuses.len(), 3);
 }
 

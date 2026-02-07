@@ -3,6 +3,7 @@
 //! and rotation scheduling.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod rotation_tests {
     // ============================================================================
     // KEY VERSIONING TESTS

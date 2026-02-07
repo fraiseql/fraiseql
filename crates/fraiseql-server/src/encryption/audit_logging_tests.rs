@@ -2,6 +2,7 @@
 //! and transaction integration with field-level encryption
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod audit_logging_tests {
     // ============================================================================
     // AUDIT LOGGING TESTS

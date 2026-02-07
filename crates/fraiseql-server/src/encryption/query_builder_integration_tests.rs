@@ -2,6 +2,7 @@
 //! with query builders for transparent encryption/decryption
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod query_builder_integration_tests {
     // ============================================================================
     // INSERT OPERATION TESTS

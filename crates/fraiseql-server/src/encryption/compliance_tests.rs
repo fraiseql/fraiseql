@@ -2,6 +2,7 @@
 //! HIPAA (PHI protection), PCI-DSS (payment data), GDPR (data privacy), SOC 2 (controls)
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod compliance_tests {
     // ============================================================================
     // HIPAA COMPLIANCE TESTS

@@ -2,6 +2,7 @@
 //! rotation status retrieval, history tracking, and configuration management.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod rotation_api_tests {
     // ============================================================================
     // ROTATION STATUS ENDPOINT TESTS

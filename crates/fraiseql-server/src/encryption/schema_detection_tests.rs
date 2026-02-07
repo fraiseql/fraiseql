@@ -2,6 +2,7 @@
 //! supporting multiple encryption marks, key references, and schema evolution.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod schema_detection_tests {
     // ============================================================================
     // BASIC SCHEMA DETECTION TESTS

@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn test_metrics_endpoint_format() {
         // Simulate Prometheus format metrics
-        let metrics = vec![
+        let metrics = [
             "# HELP graphql_queries_total Total GraphQL queries",
             "# TYPE graphql_queries_total counter",
             "graphql_queries_total{operation=\"query\",status=\"success\"} 1234",
@@ -338,7 +338,7 @@ mod tests {
     /// 4. Response compression middleware runs last
     #[test]
     fn test_middleware_execution_order() {
-        let execution_log = vec![
+        let execution_log = [
             "request_logging",
             "authentication",
             "rate_limiting",

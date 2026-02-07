@@ -2,6 +2,7 @@
 //! testing AES-256-GCM encryption, database integration, and security properties
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod field_encryption_tests {
 
     // ============================================================================

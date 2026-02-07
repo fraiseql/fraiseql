@@ -77,6 +77,7 @@ impl fmt::Display for SecretsError {
 impl std::error::Error for SecretsError {}
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test SecretsManager initialization
     #[test]

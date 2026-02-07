@@ -1,6 +1,7 @@
 // Audit logging tests for secret access tracking
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod audit_logging {
     use std::{collections::VecDeque, sync::Mutex};
 
@@ -65,7 +66,7 @@ mod audit_logging {
         let logs = logger.get_logs();
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].event_type, "jwt_validation");
-        assert_eq!(logs[0].success, true);
+        assert!(logs[0].success);
         assert_eq!(logs[0].subject, Some("user123".to_string()));
     }
 
@@ -88,7 +89,7 @@ mod audit_logging {
 
         let logs = logger.get_logs();
         assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].success, false);
+        assert!(!(logs[0].success));
         assert!(logs[0].error_message.is_some());
     }
 

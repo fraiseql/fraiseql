@@ -2,6 +2,7 @@
 //! including secrets audit, encryption keys, auth providers, and OAuth sessions.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod schema_tests {
     // ============================================================================
     // SECRET ROTATION AUDIT TABLE TESTS

@@ -2,6 +2,7 @@
 //! background job coordination, and non-blocking refresh during operations.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod refresh_tests {
     // ============================================================================
     // REFRESH TRIGGER TESTS
