@@ -63,6 +63,7 @@ use crate::{
         where_clause::{WhereClause, WhereOperator},
     },
     error::{FraiseQLError, Result},
+    utils::casing::to_snake_case,
 };
 
 /// SQL query components
@@ -661,7 +662,9 @@ impl AggregationSqlGenerator {
         value: &serde_json::Value,
     ) -> Result<String> {
         let field_path = &path[0]; // Simple path for now (no nested paths)
-        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, field_path);
+        // Convert GraphQL field name (camelCase) to database column name (snake_case)
+        let db_field_path = to_snake_case(field_path);
+        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
         let op_sql = self.operator_to_sql(operator);
 
         // Handle NULL checks
