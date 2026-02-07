@@ -15,8 +15,9 @@ use std::collections::HashMap;
 
 use fraiseql_core::filters::{get_operators_for_type, ParameterType};
 use fraiseql_core::schema::CompiledSchema;
-use serde_json::Value;
+use serde_json::{json, Value};
 
+use super::lookup_data;
 use super::sql_templates;
 
 /// Rich filter compilation configuration
@@ -46,6 +47,9 @@ pub fn compile_rich_filters(
         return Ok(());
     }
 
+    // Build global lookup data (embedded in schema for runtime use)
+    let lookup_data_value = lookup_data::build_lookup_data();
+
     // Get list of rich scalar type names from config or detect from schema
     // For now, we'll detect them from operators module
     let rich_types = get_all_rich_types();
@@ -59,6 +63,20 @@ pub fn compile_rich_filters(
             // Add to schema
             schema.input_types.push(where_input);
         }
+    }
+
+    // Store lookup data in the schema for runtime access
+    // This enables the server to perform lookups without external dependencies
+    if let Some(ref mut security_val) = schema.security {
+        // If security is already present, merge lookup data
+        if let Some(obj) = security_val.as_object_mut() {
+            obj.insert("lookup_data".to_string(), lookup_data_value);
+        }
+    } else {
+        // Create security section with lookup data
+        schema.security = Some(json!({
+            "lookup_data": lookup_data_value
+        }));
     }
 
     Ok(())

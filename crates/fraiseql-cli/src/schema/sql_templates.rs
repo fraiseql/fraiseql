@@ -29,6 +29,17 @@ use serde_json::json;
 ///
 /// Maps operator names to SQL templates for all 4 databases.
 /// Organizes templates by operation type for maintainability.
+///
+/// # Lookup-Based Operators
+///
+/// Some operators use lookup data stored in the compiled schema:
+/// - Country operators: continent, region, EU/Schengen membership
+/// - Currency operators: currency code, symbol, decimal places
+/// - Timezone operators: UTC offset, daylight saving time
+/// - Language operators: language family, script
+///
+/// These templates use a special `$lookup` placeholder that's replaced
+/// at runtime with actual lookup value parameters.
 fn extract_template_for_operator(
     db_name: &str,
     operator_name: &str,
@@ -304,6 +315,84 @@ fn extract_template_for_operator(
         ("mysql", "percentageValid") => Some("CAST($field AS DECIMAL) BETWEEN 0 AND 100".to_string()),
         ("sqlite", "percentageValid") => Some("CAST($field AS REAL) BETWEEN 0 AND 100".to_string()),
         ("sqlserver", "percentageValid") => Some("CAST($field AS DECIMAL) BETWEEN 0 AND 100".to_string()),
+
+        // ========================================================================
+        // LOOKUP-BASED OPERATORS
+        // ========================================================================
+        // These operators use external lookup data embedded in the schema.
+        // Templates use $lookup placeholder for the lookup field name.
+
+        // Country: continent membership
+        ("postgres", "continentEq") => Some("$lookup ->> 'continent' = $1".to_string()),
+        ("mysql", "continentEq") => Some("JSON_EXTRACT($lookup, '$.continent') = ?".to_string()),
+        ("sqlite", "continentEq") => Some("json_extract($lookup, '$.continent') = ?".to_string()),
+        ("sqlserver", "continentEq") => Some("JSON_VALUE($lookup, '$.continent') = ?".to_string()),
+
+        // Country: region membership
+        ("postgres", "regionEq") => Some("$lookup ->> 'region' = $1".to_string()),
+        ("mysql", "regionEq") => Some("JSON_EXTRACT($lookup, '$.region') = ?".to_string()),
+        ("sqlite", "regionEq") => Some("json_extract($lookup, '$.region') = ?".to_string()),
+        ("sqlserver", "regionEq") => Some("JSON_VALUE($lookup, '$.region') = ?".to_string()),
+
+        // Country: EU membership
+        ("postgres", "inEu") => Some("($lookup ->> 'in_eu')::boolean = $1".to_string()),
+        ("mysql", "inEu") => Some("JSON_EXTRACT($lookup, '$.in_eu') = ?".to_string()),
+        ("sqlite", "inEu") => Some("json_extract($lookup, '$.in_eu') = ?".to_string()),
+        ("sqlserver", "inEu") => Some("JSON_VALUE($lookup, '$.in_eu') = ?".to_string()),
+
+        // Country: Schengen membership
+        ("postgres", "inSchengen") => Some("($lookup ->> 'in_schengen')::boolean = $1".to_string()),
+        ("mysql", "inSchengen") => Some("JSON_EXTRACT($lookup, '$.in_schengen') = ?".to_string()),
+        ("sqlite", "inSchengen") => Some("json_extract($lookup, '$.in_schengen') = ?".to_string()),
+        ("sqlserver", "inSchengen") => Some("JSON_VALUE($lookup, '$.in_schengen') = ?".to_string()),
+
+        // Currency: decimal places (for Money type)
+        ("postgres", "currencyDecimalEq") => Some("($lookup ->> 'decimal_places')::integer = $1".to_string()),
+        ("mysql", "currencyDecimalEq") => Some("JSON_EXTRACT($lookup, '$.decimal_places') = ?".to_string()),
+        ("sqlite", "currencyDecimalEq") => Some("json_extract($lookup, '$.decimal_places') = ?".to_string()),
+        ("sqlserver", "currencyDecimalEq") => Some("JSON_VALUE($lookup, '$.decimal_places') = ?".to_string()),
+
+        // Timezone: offset in minutes from UTC
+        ("postgres", "timezoneOffsetEq") => Some("($lookup ->> 'offset_minutes')::integer = $1".to_string()),
+        ("mysql", "timezoneOffsetEq") => Some("JSON_EXTRACT($lookup, '$.offset_minutes') = ?".to_string()),
+        ("sqlite", "timezoneOffsetEq") => Some("json_extract($lookup, '$.offset_minutes') = ?".to_string()),
+        ("sqlserver", "timezoneOffsetEq") => Some("JSON_VALUE($lookup, '$.offset_minutes') = ?".to_string()),
+
+        // Timezone: daylight saving time support
+        ("postgres", "timezoneDst") => Some("($lookup ->> 'has_dst')::boolean = $1".to_string()),
+        ("mysql", "timezoneDst") => Some("JSON_EXTRACT($lookup, '$.has_dst') = ?".to_string()),
+        ("sqlite", "timezoneDst") => Some("json_extract($lookup, '$.has_dst') = ?".to_string()),
+        ("sqlserver", "timezoneDst") => Some("JSON_VALUE($lookup, '$.has_dst') = ?".to_string()),
+
+        // Timezone: region (Americas, Europe, Asia, Oceania)
+        ("postgres", "timezoneRegionEq") => Some("$lookup ->> 'region' = $1".to_string()),
+        ("mysql", "timezoneRegionEq") => Some("JSON_EXTRACT($lookup, '$.region') = ?".to_string()),
+        ("sqlite", "timezoneRegionEq") => Some("json_extract($lookup, '$.region') = ?".to_string()),
+        ("sqlserver", "timezoneRegionEq") => Some("JSON_VALUE($lookup, '$.region') = ?".to_string()),
+
+        // Language: family (Indo-European, Sino-Tibetan, Japonic, etc.)
+        ("postgres", "languageFamilyEq") => Some("$lookup ->> 'family' = $1".to_string()),
+        ("mysql", "languageFamilyEq") => Some("JSON_EXTRACT($lookup, '$.family') = ?".to_string()),
+        ("sqlite", "languageFamilyEq") => Some("json_extract($lookup, '$.family') = ?".to_string()),
+        ("sqlserver", "languageFamilyEq") => Some("JSON_VALUE($lookup, '$.family') = ?".to_string()),
+
+        // Language: writing script (Latin, Cyrillic, Han, etc.)
+        ("postgres", "languageScriptEq") => Some("$lookup ->> 'script' = $1".to_string()),
+        ("mysql", "languageScriptEq") => Some("JSON_EXTRACT($lookup, '$.script') = ?".to_string()),
+        ("sqlite", "languageScriptEq") => Some("json_extract($lookup, '$.script') = ?".to_string()),
+        ("sqlserver", "languageScriptEq") => Some("JSON_VALUE($lookup, '$.script') = ?".to_string()),
+
+        // Locale: language part of locale code
+        ("postgres", "localeLanguageEq") => Some("SPLIT_PART($field, '-', 1) = $1".to_string()),
+        ("mysql", "localeLanguageEq") => Some("SUBSTRING_INDEX($field, '-', 1) = ?".to_string()),
+        ("sqlite", "localeLanguageEq") => Some("SUBSTR($field, 1, INSTR($field, '-') - 1) = ?".to_string()),
+        ("sqlserver", "localeLanguageEq") => Some("SUBSTRING($field, 1, CHARINDEX('-', $field) - 1) = ?".to_string()),
+
+        // Locale: country part of locale code
+        ("postgres", "localeCountryEq") => Some("SPLIT_PART($field, '-', 2) = $1".to_string()),
+        ("mysql", "localeCountryEq") => Some("SUBSTRING_INDEX(SUBSTRING_INDEX($field, '-', 2), '-', -1) = ?".to_string()),
+        ("sqlite", "localeCountryEq") => Some("SUBSTR($field, INSTR($field, '-') + 1) = ?".to_string()),
+        ("sqlserver", "localeCountryEq") => Some("SUBSTRING($field, CHARINDEX('-', $field) + 1, LEN($field)) = ?".to_string()),
 
         // Standard operators (not extended operators, so no templates)
         _ => None,

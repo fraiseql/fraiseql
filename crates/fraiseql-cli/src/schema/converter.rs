@@ -1131,6 +1131,74 @@ mod tests {
     }
 
     #[test]
+    fn test_lookup_data_embedded_in_schema() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Verify lookup data is embedded in schema.security
+        assert!(compiled.security.is_some(), "Security section should exist");
+        let security = compiled.security.as_ref().unwrap();
+        assert!(security.get("lookup_data").is_some(), "Lookup data should be in security section");
+
+        let lookup_data = security["lookup_data"].as_object().unwrap();
+
+        // Verify all lookup tables are present
+        assert!(lookup_data.contains_key("countries"), "Countries lookup should be present");
+        assert!(lookup_data.contains_key("currencies"), "Currencies lookup should be present");
+        assert!(lookup_data.contains_key("timezones"), "Timezones lookup should be present");
+        assert!(lookup_data.contains_key("languages"), "Languages lookup should be present");
+
+        // Verify countries data
+        let countries = lookup_data["countries"].as_object().unwrap();
+        assert!(countries.contains_key("US"), "US should be in countries");
+        assert!(countries.contains_key("FR"), "France should be in countries");
+        assert!(countries.contains_key("GB"), "UK should be in countries");
+
+        // Verify US data
+        let us = countries["US"].as_object().unwrap();
+        assert_eq!(us["continent"].as_str().unwrap(), "North America");
+        assert_eq!(us["in_eu"].as_bool().unwrap(), false);
+
+        // Verify France is EU and Schengen
+        let fr = countries["FR"].as_object().unwrap();
+        assert_eq!(fr["in_eu"].as_bool().unwrap(), true);
+        assert_eq!(fr["in_schengen"].as_bool().unwrap(), true);
+
+        // Verify currencies data
+        let currencies = lookup_data["currencies"].as_object().unwrap();
+        assert!(currencies.contains_key("USD"));
+        assert!(currencies.contains_key("EUR"));
+        let usd = currencies["USD"].as_object().unwrap();
+        assert_eq!(usd["symbol"].as_str().unwrap(), "$");
+        assert_eq!(usd["decimal_places"].as_i64().unwrap(), 2);
+
+        // Verify timezones data
+        let timezones = lookup_data["timezones"].as_object().unwrap();
+        assert!(timezones.contains_key("UTC"));
+        assert!(timezones.contains_key("EST"));
+        let est = timezones["EST"].as_object().unwrap();
+        assert_eq!(est["offset_minutes"].as_i64().unwrap(), -300);
+        assert_eq!(est["has_dst"].as_bool().unwrap(), true);
+    }
+
+    #[test]
     fn test_convert_interface() {
         use crate::schema::intermediate::{IntermediateField, IntermediateInterface};
 

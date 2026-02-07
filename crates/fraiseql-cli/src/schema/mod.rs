@@ -5,6 +5,7 @@
 
 pub mod converter;
 pub mod intermediate;
+pub mod lookup_data;
 pub mod merger;
 pub mod multi_file_loader;
 pub mod optimizer;
