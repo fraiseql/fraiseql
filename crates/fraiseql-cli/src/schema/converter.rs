@@ -19,6 +19,7 @@ use super::intermediate::{
     IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
     IntermediateSubscription, IntermediateType, IntermediateUnion,
 };
+use super::rich_filters::{compile_rich_filters, RichFilterConfig};
 
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
@@ -113,7 +114,7 @@ impl SchemaConverter {
             })
             .collect();
 
-        let compiled = CompiledSchema {
+        let mut compiled = CompiledSchema {
             types,
             enums,
             input_types,
@@ -130,6 +131,11 @@ impl SchemaConverter {
             security: intermediate.security, // Security configuration from TOML
             schema_sdl: None,                // Raw GraphQL SDL
         };
+
+        // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
+        let rich_filter_config = RichFilterConfig::default();
+        compile_rich_filters(&mut compiled, &rich_filter_config)
+            .context("Failed to compile rich filter types")?;
 
         // Validate the compiled schema
         Self::validate(&compiled)?;
@@ -1002,9 +1008,11 @@ mod tests {
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
-        assert_eq!(compiled.input_types.len(), 1);
+        // 1 user-defined input type + 49 rich type WhereInput types
+        assert_eq!(compiled.input_types.len(), 50);
 
-        let filter = &compiled.input_types[0];
+        // Find the UserFilter type (rich types are added at the end)
+        let filter = compiled.input_types.iter().find(|t| t.name == "UserFilter").unwrap();
         assert_eq!(filter.name, "UserFilter");
         assert_eq!(filter.description, Some("User filter input".to_string()));
         assert_eq!(filter.fields.len(), 3);
@@ -1023,6 +1031,52 @@ mod tests {
         // Check deprecated field
         let old_field = filter.find_field("oldField").unwrap();
         assert!(old_field.is_deprecated());
+    }
+
+    #[test]
+    fn test_rich_filter_types_generated() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Should have 49 rich type WhereInput types
+        assert_eq!(compiled.input_types.len(), 49);
+
+        // Check that EmailAddressWhereInput exists
+        let email_where = compiled.input_types.iter()
+            .find(|t| t.name == "EmailAddressWhereInput")
+            .expect("EmailAddressWhereInput should be generated");
+
+        // Should have standard operators (eq, neq, in, nin, contains, isnull) + rich operators
+        assert!(email_where.fields.len() > 6);
+        assert!(email_where.fields.iter().any(|f| f.name == "eq"));
+        assert!(email_where.fields.iter().any(|f| f.name == "neq"));
+        assert!(email_where.fields.iter().any(|f| f.name == "contains"));
+        assert!(email_where.fields.iter().any(|f| f.name == "isnull"));
+
+        // Check that VINWhereInput exists
+        let vin_where = compiled.input_types.iter()
+            .find(|t| t.name == "VINWhereInput")
+            .expect("VINWhereInput should be generated");
+
+        assert!(vin_where.fields.len() > 6);
+        assert!(vin_where.fields.iter().any(|f| f.name == "eq"));
     }
 
     #[test]
