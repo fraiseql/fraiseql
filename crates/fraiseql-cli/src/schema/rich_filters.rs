@@ -17,6 +17,8 @@ use fraiseql_core::filters::{get_operators_for_type, ParameterType};
 use fraiseql_core::schema::CompiledSchema;
 use serde_json::Value;
 
+use super::sql_templates;
+
 /// Rich filter compilation configuration
 #[derive(Debug, Clone)]
 pub struct RichFilterConfig {
@@ -181,8 +183,10 @@ fn generate_where_input_type(
     ];
 
     // Rich operators
+    let mut operator_names = Vec::new();
     for op_info in operators {
         let graphql_type = operator_param_type_to_graphql_string(&op_info.parameter_type);
+        operator_names.push(op_info.graphql_name.clone());
         fields.push(InputFieldDefinition {
             name: op_info.graphql_name.clone(),
             field_type: graphql_type,
@@ -192,10 +196,15 @@ fn generate_where_input_type(
         });
     }
 
+    // Build SQL template metadata for this rich type
+    let operator_refs: Vec<&str> = operator_names.iter().map(|s| s.as_str()).collect();
+    let sql_metadata = sql_templates::build_sql_templates_metadata(&operator_refs);
+
     Ok(InputObjectDefinition {
         name: where_input_name,
         description: Some(format!("Filter operations for {}", rich_type_name)),
         fields,
+        metadata: Some(sql_metadata),
     })
 }
 

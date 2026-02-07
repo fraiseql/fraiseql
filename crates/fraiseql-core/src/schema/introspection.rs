@@ -1408,6 +1408,7 @@ mod tests {
                     deprecation:   None,
                 },
             ],
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1469,6 +1470,7 @@ mod tests {
             name:        "CreateUserInput".to_string(),
             description: None,
             fields:      vec![],
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -1880,6 +1882,7 @@ mod tests {
                     }),
                 },
             ],
+            metadata: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

@@ -1076,11 +1076,13 @@ mod tests {
                     name:        "UserFilter".to_string(),
                     fields:      vec![InputFieldDefinition::new("status", "UserStatus")],
                     description: None,
+                    metadata: None,
                 },
                 InputObjectDefinition {
                     name:        "UserStatus".to_string(),
                     fields:      vec![InputFieldDefinition::new("active", "Boolean")],
                     description: None,
+                    metadata: None,
                 },
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],

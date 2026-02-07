@@ -911,6 +911,7 @@ impl EnumValueDefinition {
 ///         InputFieldDefinition::new("active", "Boolean"),
 ///     ],
 ///     description: Some("Filter criteria for users".to_string()),
+///     metadata: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -925,6 +926,11 @@ pub struct InputObjectDefinition {
     /// Description of the input type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    /// Optional metadata for specialized input types (e.g., SQL templates for rich filters).
+    /// Used by the compiler and runtime for code generation and query execution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 impl InputObjectDefinition {
@@ -935,6 +941,7 @@ impl InputObjectDefinition {
             name:        name.into(),
             fields:      Vec::new(),
             description: None,
+            metadata:    None,
         }
     }
 
@@ -956,6 +963,13 @@ impl InputObjectDefinition {
     #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
+        self
+    }
+
+    /// Set metadata (for specialized input types like rich filters).
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
+        self.metadata = Some(metadata);
         self
     }
 

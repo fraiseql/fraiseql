@@ -196,6 +196,7 @@ impl SchemaConverter {
             name: intermediate.name,
             fields,
             description: intermediate.description,
+            metadata: None,
         }
     }
 
@@ -1077,6 +1078,56 @@ mod tests {
 
         assert!(vin_where.fields.len() > 6);
         assert!(vin_where.fields.iter().any(|f| f.name == "eq"));
+    }
+
+    #[test]
+    fn test_rich_filter_types_have_sql_templates() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Check that EmailAddressWhereInput has SQL template metadata
+        let email_where = compiled.input_types.iter()
+            .find(|t| t.name == "EmailAddressWhereInput")
+            .expect("EmailAddressWhereInput should be generated");
+
+        // Verify metadata exists and contains operators
+        assert!(email_where.metadata.is_some(), "Metadata should exist for EmailAddressWhereInput");
+        let metadata = email_where.metadata.as_ref().unwrap();
+        assert!(metadata.get("operators").is_some(), "Operators should be in metadata: {:?}", metadata);
+
+        let operators = metadata["operators"].as_object().unwrap();
+        // Should have templates for email-specific operators
+        assert!(!operators.is_empty(), "Operators map should not be empty: {:?}", operators);
+        assert!(operators.contains_key("domainEq"), "Missing domainEq in operators: {:?}", operators.keys().collect::<Vec<_>>());
+
+        // Verify domainEq has templates for all 4 databases
+        let email_domain_eq = operators["domainEq"].as_object().unwrap();
+        assert!(email_domain_eq.contains_key("postgres"));
+        assert!(email_domain_eq.contains_key("mysql"));
+        assert!(email_domain_eq.contains_key("sqlite"));
+        assert!(email_domain_eq.contains_key("sqlserver"));
+
+        // Verify PostgreSQL template is correct
+        let postgres_template = email_domain_eq["postgres"].as_str().unwrap();
+        assert!(postgres_template.contains("SPLIT_PART"));
+        assert!(postgres_template.contains("$field"));
     }
 
     #[test]
