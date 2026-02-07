@@ -26,6 +26,8 @@ pub struct RichFilterConfig {
     /// Enable rich filter compilation
     pub enabled: bool,
     /// Validation rules overrides (from fraiseql.toml)
+    // Reason: Will be used in future phases for extensible validation configuration
+    #[allow(dead_code)]
     pub validation_overrides: HashMap<String, Value>,
 }
 
