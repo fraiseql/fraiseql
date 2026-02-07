@@ -939,7 +939,7 @@ impl FraiseQLFlightService {
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
         // Parse export format (default to Parquet)
         let export_format = match format.as_deref() {
-            Some(f) => ExportFormat::from_str(f)
+            Some(f) => f.parse::<ExportFormat>()
                 .map_err(|e| Status::invalid_argument(format!("Invalid format: {}", e)))?,
             None => ExportFormat::Parquet,
         };

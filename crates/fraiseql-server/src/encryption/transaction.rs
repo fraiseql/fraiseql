@@ -101,7 +101,7 @@ impl TransactionContext {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros(),
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
+            &uuid::Uuid::new_v4().to_string()[..8]
         );
 
         Self {
@@ -286,7 +286,7 @@ impl TransactionManager {
             let savepoint = Savepoint::new(name, txn_id, txn.operation_count());
             self.savepoints
                 .entry(txn_id.to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(savepoint);
             Ok(())
         } else {

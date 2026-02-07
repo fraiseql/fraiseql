@@ -40,6 +40,7 @@ where
 {
     type Rejection = ExtensionRejection;
 
+    #[allow(clippy::manual_async_fn)]
     fn from_request_parts(
         parts: &mut Parts,
         _state: &S,

@@ -3,6 +3,7 @@
 //! Supports exporting Arrow RecordBatches to Parquet, CSV, and JSON formats.
 
 use arrow::array::RecordBatch;
+use std::str::FromStr;
 
 /// Supported export formats
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,19 +16,33 @@ pub enum ExportFormat {
     Json,
 }
 
-impl ExportFormat {
-    /// Parse export format from string (case-insensitive).
-    ///
-    /// # Errors
-    ///
-    /// Returns error if format string is not recognized.
-    pub fn from_str(s: &str) -> Result<Self, String> {
+impl FromStr for ExportFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "parquet" => Ok(Self::Parquet),
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
             _ => Err(format!("Unsupported export format: {}", s)),
         }
+    }
+}
+
+impl ExportFormat {
+    /// Parse export format from string (case-insensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if format string is not recognized.
+    ///
+    /// # Note
+    ///
+    /// This method is a convenience wrapper around the `FromStr` trait impl.
+    /// Prefer using `.parse()` for idiomatic Rust code.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        <Self as FromStr>::from_str(s)
     }
 
     /// Get file extension for this format.

@@ -351,7 +351,7 @@ impl VersionedKeyStorage {
             self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
 
         let mut all_versions: Vec<_> = versions.values().cloned().collect();
-        all_versions.sort_by(|a, b| b.issued_at.cmp(&a.issued_at));
+        all_versions.sort_by_key(|v| std::cmp::Reverse(v.issued_at));
         Ok(all_versions)
     }
 

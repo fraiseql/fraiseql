@@ -91,7 +91,7 @@ pub mod postgres {
 
     impl PostgresEventStorage {
         /// Create a new PostgreSQL event storage backend.
-        pub fn new(pool: PgPool) -> Self {
+        pub const fn new(pool: PgPool) -> Self {
             Self { pool }
         }
     }
@@ -107,29 +107,32 @@ pub mod postgres {
         ) -> Result<Vec<EntityEvent>> {
             // Build query with optional date filters
             let mut query_str = String::from(
-                r#"
+                r"
                 SELECT id, event_type, entity_type, entity_id, timestamp, data, user_id, tenant_id
                 FROM fraiseql_events
                 WHERE entity_type = $1
-                "#,
+                ",
             );
 
             let mut param_index = 2;
 
             if start_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp >= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp <= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
             // Default sort: most recent first
             query_str.push_str(" ORDER BY timestamp DESC");
 
             if let Some(lim) = limit {
-                query_str.push_str(&format!(" LIMIT {}", lim));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" LIMIT {lim}"));
             }
 
             // Execute query
@@ -159,7 +162,7 @@ pub mod postgres {
 
             let rows = query.fetch_all(&self.pool).await.map_err(|e| {
                 ObserverError::StorageError {
-                    reason: format!("Failed to query events: {}", e),
+                    reason: format!("Failed to query events: {e}"),
                 }
             })?;
 
@@ -203,12 +206,14 @@ pub mod postgres {
             let mut param_index = 2;
 
             if start_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp >= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp <= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
             let mut query =
@@ -224,7 +229,7 @@ pub mod postgres {
 
             let count = query.fetch_one(&self.pool).await.map_err(|e| {
                 ObserverError::StorageError {
-                    reason: format!("Failed to count events: {}", e),
+                    reason: format!("Failed to count events: {e}"),
                 }
             })?;
 

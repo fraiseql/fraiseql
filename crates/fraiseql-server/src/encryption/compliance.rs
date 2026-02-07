@@ -277,7 +277,7 @@ impl ComplianceValidator {
         let statuses: Vec<_> = enabled.iter().map(|f| self.check_framework_status(*f)).collect();
 
         let all_compliant = statuses.iter().all(|s| *s == ComplianceStatus::Compliant);
-        let any_compliant = statuses.iter().any(|s| *s == ComplianceStatus::Compliant);
+        let any_compliant = statuses.contains(&ComplianceStatus::Compliant);
 
         if all_compliant {
             ComplianceStatus::Compliant

@@ -280,7 +280,7 @@ mod atomic {
         }
 
         pub fn store(&self, val: CircuitState) {
-            self.0.store(val.to_usize(), std::sync::atomic::Ordering::Relaxed)
+            self.0.store(val.to_usize(), std::sync::atomic::Ordering::Relaxed);
         }
     }
 

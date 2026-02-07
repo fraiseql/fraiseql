@@ -742,7 +742,7 @@ impl ObserverExecutor {
 
         // Hash the action config for uniqueness
         let mut hasher = DefaultHasher::new();
-        format!("{:?}", action).hash(&mut hasher);
+        format!("{action:?}").hash(&mut hasher);
         let action_hash = hasher.finish();
 
         format!(

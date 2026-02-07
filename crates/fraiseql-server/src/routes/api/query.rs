@@ -208,8 +208,8 @@ fn calculate_complexity(query: &str) -> ComplexityInfo {
 
 /// Calculate maximum nesting depth of braces in a query.
 fn calculate_depth(query: &str) -> usize {
-    let mut max_depth = 0;
-    let mut current_depth = 0;
+    let mut max_depth: usize = 0;
+    let mut current_depth: usize = 0;
 
     for ch in query.chars() {
         match ch {
@@ -218,9 +218,7 @@ fn calculate_depth(query: &str) -> usize {
                 max_depth = max_depth.max(current_depth);
             },
             '}' => {
-                if current_depth > 0 {
-                    current_depth -= 1;
-                }
+                current_depth = current_depth.saturating_sub(1);
             },
             _ => {},
         }
