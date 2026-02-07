@@ -44,8 +44,11 @@ fn test_jsonb_column_preserved_in_query() {
     // Verify IntermediateQuery has jsonb_column
     let intermediate_query = &intermediate.queries[0];
     assert_eq!(intermediate_query.name, "users");
-    assert_eq!(intermediate_query.jsonb_column, Some("data".to_string()),
-        "IntermediateQuery should preserve jsonb_column field");
+    assert_eq!(
+        intermediate_query.jsonb_column,
+        Some("data".to_string()),
+        "IntermediateQuery should preserve jsonb_column field"
+    );
 
     // Convert to compiled schema
     let compiled = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
@@ -54,8 +57,10 @@ fn test_jsonb_column_preserved_in_query() {
     // Verify QueryDefinition has jsonb_column
     let compiled_query = &compiled.queries[0];
     assert_eq!(compiled_query.name, "users");
-    assert_eq!(compiled_query.jsonb_column, "data",
-        "QueryDefinition should preserve jsonb_column after compilation");
+    assert_eq!(
+        compiled_query.jsonb_column, "data",
+        "QueryDefinition should preserve jsonb_column after compilation"
+    );
 }
 
 #[test]
@@ -91,8 +96,10 @@ fn test_jsonb_column_defaults_to_data() {
     // Verify IntermediateQuery defaults to "data"
     let intermediate_query = &intermediate.queries[0];
     assert_eq!(intermediate_query.name, "users");
-    assert_eq!(intermediate_query.jsonb_column, None,
-        "IntermediateQuery should have None when not specified (will default during conversion)");
+    assert_eq!(
+        intermediate_query.jsonb_column, None,
+        "IntermediateQuery should have None when not specified (will default during conversion)"
+    );
 
     // Convert to compiled schema
     let compiled = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
@@ -101,8 +108,10 @@ fn test_jsonb_column_defaults_to_data() {
     // Verify QueryDefinition defaults to "data"
     let compiled_query = &compiled.queries[0];
     assert_eq!(compiled_query.name, "users");
-    assert_eq!(compiled_query.jsonb_column, "data",
-        "QueryDefinition should default jsonb_column to 'data' when not specified");
+    assert_eq!(
+        compiled_query.jsonb_column, "data",
+        "QueryDefinition should default jsonb_column to 'data' when not specified"
+    );
 }
 
 #[test]
@@ -143,8 +152,10 @@ fn test_jsonb_column_custom_value() {
     // Verify custom jsonb_column is preserved
     let compiled_query = &compiled.queries[0];
     assert_eq!(compiled_query.name, "orders");
-    assert_eq!(compiled_query.jsonb_column, "metadata",
-        "Custom jsonb_column value should be preserved, not default to 'data'");
+    assert_eq!(
+        compiled_query.jsonb_column, "metadata",
+        "Custom jsonb_column value should be preserved, not default to 'data'"
+    );
 }
 
 #[test]
@@ -183,14 +194,16 @@ fn test_jsonb_column_in_compiled_schema_json() {
         .expect("Failed to convert schema");
 
     // Serialize compiled schema to JSON
-    let compiled_json = serde_json::to_value(&compiled)
-        .expect("Failed to serialize compiled schema");
+    let compiled_json =
+        serde_json::to_value(&compiled).expect("Failed to serialize compiled schema");
 
     // Verify jsonb_column appears in JSON output
     let query_json = &compiled_json["queries"][0];
     assert_eq!(query_json["name"], "users");
-    assert_eq!(query_json["jsonb_column"], "data",
-        "Compiled schema JSON should include jsonb_column, not null or missing");
+    assert_eq!(
+        query_json["jsonb_column"], "data",
+        "Compiled schema JSON should include jsonb_column, not null or missing"
+    );
 }
 
 #[test]

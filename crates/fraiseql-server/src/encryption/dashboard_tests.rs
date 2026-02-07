@@ -23,7 +23,7 @@ mod dashboard_tests {
 
     /// Test dashboard key status cards
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_key_status_cards() {
         // Dashboard displays card for each key with:
         // - key_id: Key name
@@ -37,7 +37,7 @@ mod dashboard_tests {
 
     /// Test dashboard urgency indicator
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_urgency_indicator() {
         // Each key card shows urgency level
         // Color coding: green (0-40%), yellow (40-70%), orange (70-85%), red (85%+)
@@ -47,7 +47,7 @@ mod dashboard_tests {
 
     /// Test dashboard filters
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_filters() {
         // Dashboard supports filters:
         // - status: healthy, warning, urgent, overdue
@@ -58,7 +58,7 @@ mod dashboard_tests {
 
     /// Test dashboard sort options
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_sort_options() {
         // Sort by: urgency, ttl_percent, last_rotation, key_name
         // Ascending/descending
@@ -71,7 +71,7 @@ mod dashboard_tests {
 
     /// Test rotation metrics time series
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_metrics_time_series() {
         // GET /api/v1/admin/rotation/metrics/time-series?period=30d
         // Returns time series data for:
@@ -84,7 +84,7 @@ mod dashboard_tests {
 
     /// Test rotation success rate chart
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_success_rate_chart() {
         // Chart shows rotation success rate over time
         // Y-axis: percentage (0-100%)
@@ -95,7 +95,7 @@ mod dashboard_tests {
 
     /// Test rotation duration histogram
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_duration_histogram() {
         // Histogram of rotation durations
         // X-axis: duration in milliseconds (buckets)
@@ -106,7 +106,7 @@ mod dashboard_tests {
 
     /// Test key version lifecycle chart
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_version_lifecycle_chart() {
         // Timeline of key versions
         // Shows: created, active, expiring_soon, expired, compromised states
@@ -117,7 +117,7 @@ mod dashboard_tests {
 
     /// Test TTL consumption gauge
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_ttl_consumption_gauge() {
         // Circular gauge showing TTL consumption
         // 0% = full circle (green)
@@ -132,7 +132,7 @@ mod dashboard_tests {
 
     /// Test compliance dashboard
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_dashboard() {
         // GET /api/v1/admin/rotation/compliance/dashboard
         // Shows compliance status for each framework:
@@ -145,7 +145,7 @@ mod dashboard_tests {
 
     /// Test compliance requirement checklist
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_requirement_checklist() {
         // Per-framework checklist:
         // - rotation_required: yes/no with deadline
@@ -157,7 +157,7 @@ mod dashboard_tests {
 
     /// Test compliance violation alerts
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_violation_alerts() {
         // Alerts when requirements not met:
         // - "HIPAA: Rotation overdue (365+ days)"
@@ -169,7 +169,7 @@ mod dashboard_tests {
 
     /// Test compliance certificate simulation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_certificate() {
         // GET /api/v1/admin/rotation/compliance/certificate?framework=hipaa
         // Returns text representation of compliance status
@@ -183,7 +183,7 @@ mod dashboard_tests {
 
     /// Test rotation trend analysis
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_trend_analysis() {
         // GET /api/v1/admin/rotation/trends
         // Shows trends:
@@ -195,7 +195,7 @@ mod dashboard_tests {
 
     /// Test anomaly detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_anomaly_detection() {
         // System detects anomalies:
         // - "Rotation taking longer than usual" (>3 std dev from mean)
@@ -206,7 +206,7 @@ mod dashboard_tests {
 
     /// Test trend forecasting
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_trend_forecasting() {
         // System forecasts:
         // - When next rotation due (based on TTL)
@@ -221,7 +221,7 @@ mod dashboard_tests {
 
     /// Test dashboard theme configuration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_theme_config() {
         // Dashboard supports themes:
         // - light mode (white background, dark text)
@@ -232,7 +232,7 @@ mod dashboard_tests {
 
     /// Test dashboard widget customization
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_widget_customization() {
         // Users can customize dashboard:
         // - Add/remove widgets
@@ -244,7 +244,7 @@ mod dashboard_tests {
 
     /// Test dashboard refresh settings
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_refresh_settings() {
         // Refresh rate configurable:
         // - auto-refresh disabled
@@ -257,7 +257,7 @@ mod dashboard_tests {
 
     /// Test dashboard export
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_export() {
         // Export dashboard snapshot:
         // - PDF report with charts
@@ -273,7 +273,7 @@ mod dashboard_tests {
 
     /// Test dashboard alerts widget
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_alerts_widget() {
         // Alerts widget shows:
         // - Rotation overdue
@@ -286,7 +286,7 @@ mod dashboard_tests {
 
     /// Test alert notification email
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_alert_notification_email() {
         // Alerts can be sent via email
         // Contains:
@@ -299,7 +299,7 @@ mod dashboard_tests {
 
     /// Test alert webhook integration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_alert_webhook_integration() {
         // Alert webhook payload:
         // {
@@ -319,7 +319,7 @@ mod dashboard_tests {
 
     /// Test WebSocket real-time updates
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_websocket_real_time_updates() {
         // WebSocket endpoint: /ws/rotation-status
         // Pushes updates when:
@@ -332,7 +332,7 @@ mod dashboard_tests {
 
     /// Test server-sent events updates
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_server_sent_events_updates() {
         // GET /api/v1/admin/rotation/stream
         // Returns event stream with updates
@@ -346,7 +346,7 @@ mod dashboard_tests {
 
     /// Test dashboard load time
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_load_time() {
         // Dashboard should load in <2 seconds
         // Initial page load with all widgets
@@ -356,7 +356,7 @@ mod dashboard_tests {
 
     /// Test dashboard with many keys
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_with_many_keys() {
         // Dashboard scales with 100+ keys
         // Pagination for key list
@@ -366,7 +366,7 @@ mod dashboard_tests {
 
     /// Test dashboard responsive design
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_responsive_design() {
         // Dashboard works on:
         // - Desktop (1920x1080+)
@@ -378,7 +378,7 @@ mod dashboard_tests {
 
     /// Test dashboard accessibility
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_accessibility() {
         // Dashboard meets WCAG 2.1 AA standards
         // Keyboard navigation works

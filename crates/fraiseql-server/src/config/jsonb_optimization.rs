@@ -7,10 +7,9 @@
 //! This module re-exports core JSONB types for use in server-level configuration.
 //! The actual strategy logic is implemented in fraiseql-core::runtime::jsonb_strategy.
 
-use serde::Deserialize;
-
 // Re-export core types - single source of truth
 pub use fraiseql_core::runtime::{JsonbOptimizationOptions as CoreJsonbOptions, JsonbStrategy};
+use serde::Deserialize;
 
 /// Server-level JSONB optimization configuration
 ///

@@ -89,7 +89,12 @@ impl FieldEncryption {
     /// # Panics
     /// If key length is not exactly 32 bytes
     pub fn new(key: &[u8]) -> Self {
-        assert!(key.len() == KEY_SIZE, "Encryption key must be exactly {} bytes, got {}", KEY_SIZE, key.len());
+        assert!(
+            key.len() == KEY_SIZE,
+            "Encryption key must be exactly {} bytes, got {}",
+            KEY_SIZE,
+            key.len()
+        );
 
         let cipher = Aes256Gcm::new_from_slice(key).expect("Key size already validated");
 

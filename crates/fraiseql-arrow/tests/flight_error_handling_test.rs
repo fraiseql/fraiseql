@@ -135,7 +135,8 @@ mod tests {
     /// Create an appropriate database adapter based on feature flags.
     async fn create_flight_adapter(
         conn_string: &str,
-    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>> {
+    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>>
+    {
         #[cfg(not(feature = "wire-backend"))]
         {
             let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;

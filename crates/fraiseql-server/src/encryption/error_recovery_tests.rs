@@ -20,7 +20,7 @@ mod error_recovery_tests {
 
     /// Test encryption fails gracefully without cache
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_vault_outage_no_cache_graceful_failure() {
         // When Vault unavailable and key not in cache
         // Encryption fails with clear error
@@ -30,7 +30,7 @@ mod error_recovery_tests {
 
     /// Test retry logic with exponential backoff
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_vault_retry_exponential_backoff() {
         // When Vault connection fails
         // Retry with exponential backoff
@@ -42,7 +42,7 @@ mod error_recovery_tests {
 
     /// Test connection pool handles Vault outage
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_connection_pool_vault_outage() {
         // When Vault connection fails
         // Connection pool marks connection as bad
@@ -52,7 +52,7 @@ mod error_recovery_tests {
 
     /// Test health check detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_vault_health_check_detection() {
         // Periodic health checks to Vault
         // Detects unavailability quickly
@@ -66,7 +66,7 @@ mod error_recovery_tests {
 
     /// Test encryption key expiry detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_expiry_detection() {
         // When encryption key lease expires
         // System detects expiry
@@ -77,7 +77,7 @@ mod error_recovery_tests {
 
     /// Test key refresh before expiry
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_refresh_before_expiry() {
         // Key refresh should happen before expiry
         // Not at expiry (too late)
@@ -87,7 +87,7 @@ mod error_recovery_tests {
 
     /// Test multiple key versions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_multiple_key_versions_decryption() {
         // When records encrypted with different key versions
         // Old records decrypt with old key (Vault versioning)
@@ -97,7 +97,7 @@ mod error_recovery_tests {
 
     /// Test key expiry with operations in flight
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_expiry_operations_in_flight() {
         // When key expires during operation
         // In-flight operations complete with original key
@@ -107,7 +107,7 @@ mod error_recovery_tests {
 
     /// Test key expiry error message
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_expiry_clear_error_message() {
         // When operation fails due to key expiry
         // Error message: "Encryption key expired"
@@ -121,7 +121,7 @@ mod error_recovery_tests {
 
     /// Test encryption during network partition
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_network_partition_with_cache() {
         // When network partition occurs
         // With cache: operations use cached keys
@@ -131,7 +131,7 @@ mod error_recovery_tests {
 
     /// Test network partition without cache
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_network_partition_no_cache_failure() {
         // When network partition and no cache
         // Encryption fails with clear error
@@ -141,7 +141,7 @@ mod error_recovery_tests {
 
     /// Test network partition detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_network_partition_detection() {
         // System detects network partition
         // Connection timeouts indicate partition
@@ -151,7 +151,7 @@ mod error_recovery_tests {
 
     /// Test recovery from network partition
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_network_partition_recovery() {
         // When network partition heals
         // Connection reestablished to Vault
@@ -166,7 +166,7 @@ mod error_recovery_tests {
 
     /// Test encryption with degraded Vault availability
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_degraded_vault_availability() {
         // When Vault slow (high latency)
         // Requests may timeout
@@ -176,7 +176,7 @@ mod error_recovery_tests {
 
     /// Test encryption load shedding
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_load_shedding() {
         // When system under load
         // Prioritize read operations (SELECT with decryption)
@@ -186,7 +186,7 @@ mod error_recovery_tests {
 
     /// Test encryption circuit breaker pattern
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_circuit_breaker() {
         // After N failures to Vault
         // Circuit breaker opens
@@ -197,7 +197,7 @@ mod error_recovery_tests {
 
     /// Test fallback to read-only mode
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_fallback_read_only_mode() {
         // When Vault unavailable
         // Could operate in read-only mode
@@ -212,7 +212,7 @@ mod error_recovery_tests {
 
     /// Test error context includes recovery suggestion
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_context_recovery_suggestion() {
         // When encryption fails
         // Error includes context
@@ -223,7 +223,7 @@ mod error_recovery_tests {
 
     /// Test error logging with correlation ID
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_logging_correlation_id() {
         // When error occurs
         // Logged with request/transaction ID
@@ -233,7 +233,7 @@ mod error_recovery_tests {
 
     /// Test error metrics collection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_metrics_collection() {
         // Metrics collected for all errors
         // Error type, frequency, severity
@@ -243,7 +243,7 @@ mod error_recovery_tests {
 
     /// Test error patterns detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_patterns_detection() {
         // System detects error patterns
         // Multiple timeouts suggest network issue
@@ -257,7 +257,7 @@ mod error_recovery_tests {
 
     /// Test cache survives Vault outage
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_survives_vault_outage() {
         // When Vault becomes unavailable
         // Cached keys remain available
@@ -267,7 +267,7 @@ mod error_recovery_tests {
 
     /// Test cache eviction under load
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_eviction_under_load() {
         // When many keys accessed under load
         // LRU eviction works correctly
@@ -277,7 +277,7 @@ mod error_recovery_tests {
 
     /// Test cache coherency after key rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_coherency_key_rotation() {
         // When key rotates
         // Cache invalidated for that key
@@ -291,7 +291,7 @@ mod error_recovery_tests {
 
     /// Test transaction rollback on encryption failure
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_rollback_encryption_failure() {
         // When encryption fails mid-transaction
         // Entire transaction rolled back
@@ -301,7 +301,7 @@ mod error_recovery_tests {
 
     /// Test transaction consistency after Vault recovery
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_consistency_vault_recovery() {
         // Transaction failed due to Vault outage
         // Vault recovers
@@ -312,7 +312,7 @@ mod error_recovery_tests {
 
     /// Test encryption failure doesn't corrupt state
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_failure_no_state_corruption() {
         // When encryption fails
         // System state not corrupted
@@ -327,7 +327,7 @@ mod error_recovery_tests {
 
     /// Test alerts on encryption errors
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_alerts_encryption_errors() {
         // When errors exceed threshold
         // Alert triggered
@@ -337,7 +337,7 @@ mod error_recovery_tests {
 
     /// Test dashboards show error details
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dashboard_error_details() {
         // Dashboard shows error rates per operation
         // Error types and patterns
@@ -347,7 +347,7 @@ mod error_recovery_tests {
 
     /// Test distributed tracing of errors
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_distributed_tracing_errors() {
         // Errors traced across services
         // Request flow visible
@@ -357,7 +357,7 @@ mod error_recovery_tests {
 
     /// Test health status reporting
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_health_status_reporting() {
         // Health endpoint reports encryption subsystem status
         // Statuses: healthy, degraded, unavailable

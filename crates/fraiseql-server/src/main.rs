@@ -2,12 +2,10 @@
 
 use std::{env, path::Path, sync::Arc};
 
-#[cfg(not(feature = "wire-backend"))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
-
+#[cfg(not(feature = "wire-backend"))]
+use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{
     CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
 };

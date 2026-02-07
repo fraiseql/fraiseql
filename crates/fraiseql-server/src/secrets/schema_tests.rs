@@ -25,7 +25,7 @@ mod schema_tests {
 
     /// Test secret rotation audit retrieval by secret name
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_rotation_audit_by_name() {
         // SELECT * FROM secret_rotation_audit WHERE secret_name = 'database/creds/fraiseql'
         // ORDER BY rotation_timestamp DESC
@@ -35,7 +35,7 @@ mod schema_tests {
 
     /// Test secret rotation audit filtering by status
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_rotation_audit_filter_by_status() {
         // Filter by status: "success", "failed"
         // Can identify problematic rotations
@@ -44,7 +44,7 @@ mod schema_tests {
 
     /// Test secret rotation audit date range filtering
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_rotation_audit_date_range() {
         // Filter by date range: WHERE rotation_timestamp BETWEEN ? AND ?
         // Can generate audit reports for time periods
@@ -53,7 +53,7 @@ mod schema_tests {
 
     /// Test secret rotation audit with metadata
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_rotation_audit_with_metadata() {
         // metadata JSONB column stores:
         // - duration_ms: rotation duration
@@ -65,7 +65,7 @@ mod schema_tests {
 
     /// Test secret rotation audit cleanup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_rotation_audit_cleanup() {
         // DELETE FROM secret_rotation_audit WHERE rotation_timestamp < NOW() - INTERVAL '1 year'
         // Maintains reasonable table size
@@ -78,7 +78,7 @@ mod schema_tests {
 
     /// Test encryption key record creation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_creation() {
         // INSERT INTO encryption_keys:
         // - id: UUID (generated)
@@ -94,7 +94,7 @@ mod schema_tests {
 
     /// Test encryption key retrieval by name
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_by_name() {
         // SELECT * FROM encryption_keys WHERE name = 'fraiseql/database-encryption'
         // Returns current active key
@@ -103,7 +103,7 @@ mod schema_tests {
 
     /// Test encryption key version management
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_version_increment() {
         // After rotation:
         // - version incremented: 1 -> 2
@@ -114,7 +114,7 @@ mod schema_tests {
 
     /// Test encryption key status lifecycle
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_status_transitions() {
         // Statuses: "active", "rotating", "retired"
         // Transitions:
@@ -125,7 +125,7 @@ mod schema_tests {
 
     /// Test encryption key metadata
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_metadata() {
         // metadata JSON contains:
         // - compliance_frameworks: ["HIPAA", "PCI-DSS", "GDPR"]
@@ -136,7 +136,7 @@ mod schema_tests {
 
     /// Test encryption key key material retrieval
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_material_retrieval() {
         // SELECT key_material FROM encryption_keys WHERE name = ? AND status = 'active'
         // Retrieved from encrypted storage
@@ -146,7 +146,7 @@ mod schema_tests {
 
     /// Test encryption key unique constraint
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_unique_name() {
         // INSERT with duplicate name: UNIQUE constraint violation
         // Prevents accidentally creating duplicate keys
@@ -159,7 +159,7 @@ mod schema_tests {
 
     /// Test external auth provider creation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_creation() {
         // INSERT INTO external_auth_providers:
         // - id: UUID (generated)
@@ -175,7 +175,7 @@ mod schema_tests {
 
     /// Test external auth provider per tenant
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_by_tenant() {
         // SELECT * FROM external_auth_providers WHERE tenant_id = ? AND enabled = true
         // Each tenant can have multiple providers
@@ -185,7 +185,7 @@ mod schema_tests {
 
     /// Test external auth provider unique constraint
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_unique_per_tenant() {
         // UNIQUE(tenant_id, provider_name)
         // Only one instance of "auth0" per tenant
@@ -194,7 +194,7 @@ mod schema_tests {
 
     /// Test external auth provider enable/disable
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_enable_disable() {
         // UPDATE external_auth_providers SET enabled = false WHERE id = ?
         // Hidden from login UI when disabled
@@ -204,7 +204,7 @@ mod schema_tests {
 
     /// Test external auth provider configuration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_configuration() {
         // configuration JSON contains provider-specific settings:
         // - authorization_endpoint
@@ -216,7 +216,7 @@ mod schema_tests {
 
     /// Test external auth provider removal
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_external_auth_provider_deletion() {
         // DELETE FROM external_auth_providers WHERE id = ?
         // Cascades to oauth_sessions (soft delete or cascade)
@@ -229,7 +229,7 @@ mod schema_tests {
 
     /// Test OAuth session creation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_creation() {
         // INSERT INTO oauth_sessions:
         // - id: UUID (generated)
@@ -245,7 +245,7 @@ mod schema_tests {
 
     /// Test OAuth session by user
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_by_user() {
         // SELECT * FROM oauth_sessions WHERE user_id = ?
         // User can have multiple OAuth sessions (different providers)
@@ -254,7 +254,7 @@ mod schema_tests {
 
     /// Test OAuth session by provider user ID
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_by_provider_user_id() {
         // SELECT * FROM oauth_sessions WHERE provider_user_id = ? AND provider_type = ?
         // Find local user by provider identity
@@ -263,7 +263,7 @@ mod schema_tests {
 
     /// Test OAuth session token expiry tracking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_token_expiry() {
         // SELECT * FROM oauth_sessions WHERE token_expiry <= NOW()
         // Identify expired sessions for refresh
@@ -272,7 +272,7 @@ mod schema_tests {
 
     /// Test OAuth session token refresh update
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_token_refresh_update() {
         // UPDATE oauth_sessions SET access_token = ?, token_expiry = ?, last_refreshed = NOW()
         // New tokens after refresh
@@ -281,7 +281,7 @@ mod schema_tests {
 
     /// Test OAuth session multiple providers per user
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_multiple_providers_per_user() {
         // User can have:
         // - oauth_sessions for Auth0
@@ -292,7 +292,7 @@ mod schema_tests {
 
     /// Test OAuth session provider type consistency
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_provider_type_consistency() {
         // provider_type matches external_auth_providers.provider_type
         // Foreign key constraint ensures consistency
@@ -301,7 +301,7 @@ mod schema_tests {
 
     /// Test OAuth session cleanup after provider removal
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_cleanup_on_provider_deletion() {
         // When external_auth_provider deleted:
         // - Related oauth_sessions cleaned up (soft delete or cascade)
@@ -315,7 +315,7 @@ mod schema_tests {
 
     /// Test foreign key constraints
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_schema_foreign_key_constraints() {
         // external_auth_providers.tenant_id -> tenants.id
         // oauth_sessions.user_id -> users.id (nullable for pre-provisioning)
@@ -324,7 +324,7 @@ mod schema_tests {
 
     /// Test cascade on provider deletion
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_schema_cascade_on_provider_deletion() {
         // DELETE external_auth_provider
         // Cascades to oauth_sessions (delete or mark inactive)
@@ -333,7 +333,7 @@ mod schema_tests {
 
     /// Test indexes for performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_schema_indexes() {
         // secret_rotation_audit: INDEX(secret_name, rotation_timestamp DESC)
         // encryption_keys: UNIQUE(name), INDEX(status)
@@ -344,7 +344,7 @@ mod schema_tests {
 
     /// Test schema migrations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_schema_migration_0013() {
         // Migration file: 0013_secrets_audit.sql
         // Creates all four tables with proper constraints
@@ -358,7 +358,7 @@ mod schema_tests {
 
     /// Test secret rotation audit provides complete history
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_audit_provides_rotation_history() {
         // Query full rotation history:
         // SELECT * FROM secret_rotation_audit
@@ -369,7 +369,7 @@ mod schema_tests {
 
     /// Test encryption key audit trail
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_audit_trail() {
         // encryption_keys table tracks:
         // - created_at: when key was created
@@ -380,7 +380,7 @@ mod schema_tests {
 
     /// Test OAuth session audit trail
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_audit_trail() {
         // oauth_sessions tracks:
         // - created_at: when session created
@@ -395,7 +395,7 @@ mod schema_tests {
 
     /// Test secret audit retention policy
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_secret_audit_retention_policy() {
         // Keep secret_rotation_audit for 1+ year (per compliance)
         // DELETE WHERE rotation_timestamp < NOW() - INTERVAL '1 year'
@@ -404,7 +404,7 @@ mod schema_tests {
 
     /// Test encryption key cleanup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_key_cleanup() {
         // Mark keys as "retired" after rotation period
         // Keep retired keys for decryption of historical data
@@ -413,7 +413,7 @@ mod schema_tests {
 
     /// Test OAuth session cleanup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_cleanup() {
         // DELETE oauth_sessions WHERE token_expiry < NOW() - INTERVAL '30 days'
         // Remove expired sessions older than 30 days
@@ -422,7 +422,7 @@ mod schema_tests {
 
     /// Test schema capacity and scaling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_schema_capacity_and_scaling() {
         // secret_rotation_audit: Can handle millions of rows
         // Partition by month: secret_rotation_audit_2024_01, etc.

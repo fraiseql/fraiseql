@@ -200,7 +200,11 @@ impl QueryBuilderIntegration {
 
     /// Get encrypted fields that appear in field list
     pub fn get_encrypted_fields_in_list(&self, fields: &[&str]) -> Vec<String> {
-        fields.iter().filter(|f| self.is_encrypted(f)).map(|f| (*f).to_string()).collect()
+        fields
+            .iter()
+            .filter(|f| self.is_encrypted(f))
+            .map(|f| (*f).to_string())
+            .collect()
     }
 
     /// Validate entire query structure

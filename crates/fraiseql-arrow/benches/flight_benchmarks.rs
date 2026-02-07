@@ -192,13 +192,15 @@ fn flight_adapter_latency(c: &mut Criterion) {
                 let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
                     .await
                     .expect("Failed to create adapter");
-                let _flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
+                let _flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
             }
 
             #[cfg(feature = "wire-backend")]
             {
                 let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
-                let _flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
+                let _flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
             }
         });
     });
@@ -221,7 +223,8 @@ fn flight_adapter_latency(c: &mut Criterion) {
             #[cfg(feature = "wire-backend")]
             {
                 let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
-                let flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
+                let flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
                 flight_adapter
                     .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
                     .await

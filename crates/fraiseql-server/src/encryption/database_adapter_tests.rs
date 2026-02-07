@@ -20,7 +20,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field on SELECT query
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_query_auto_decrypt_on_select() {
         // When selecting rows with encrypted fields
         // Query builder automatically decrypts ciphertext
@@ -30,7 +30,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field on UPDATE query
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_query_auto_encrypt_on_update() {
         // When updating an encrypted field
         // New value automatically encrypted
@@ -40,7 +40,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field in WHERE clause limitations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_query_encrypted_field_where_limitations() {
         // When attempting WHERE clause on encrypted field
         // Should not support direct equality (e.g., WHERE email = ?)
@@ -50,7 +50,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field in ORDER BY
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_query_encrypted_field_order_by() {
         // When attempting ORDER BY on encrypted field
         // Should not work (encrypted data not comparable)
@@ -59,7 +59,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field in JOIN conditions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_query_encrypted_field_join() {
         // When joining on encrypted field
         // Should not work (encrypted data not comparable)
@@ -72,7 +72,7 @@ mod database_adapter_tests {
 
     /// Test EncryptedFieldAdapter trait
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_encrypted_field_adapter_trait() {
         // Adapter should define:
         // - get_encrypted_fields() -> list of field names
@@ -83,7 +83,7 @@ mod database_adapter_tests {
 
     /// Test adapter with multiple encryption keys
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_adapter_multiple_keys() {
         // When adapter has multiple fields with different encryption keys
         // Each field should use its own key
@@ -93,7 +93,7 @@ mod database_adapter_tests {
 
     /// Test adapter key caching
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_adapter_key_caching() {
         // When encryption key accessed multiple times
         // Should cache key (via SecretsManager cache)
@@ -107,7 +107,7 @@ mod database_adapter_tests {
 
     /// Test field mapper for encrypt on write
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_encrypt_on_write() {
         // When mapper writes a record
         // Designated fields automatically encrypted
@@ -117,7 +117,7 @@ mod database_adapter_tests {
 
     /// Test field mapper for decrypt on read
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_decrypt_on_read() {
         // When mapper reads a record from database
         // Encrypted fields automatically decrypted
@@ -127,7 +127,7 @@ mod database_adapter_tests {
 
     /// Test mapper with mixed encrypted/unencrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_mixed_fields() {
         // When model has both encrypted and unencrypted fields
         // Only designated fields encrypted/decrypted
@@ -137,7 +137,7 @@ mod database_adapter_tests {
 
     /// Test mapper batch operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_encrypt_decrypt() {
         // When processing batch of records
         // All records encrypted on insert
@@ -151,7 +151,7 @@ mod database_adapter_tests {
 
     /// Test getting encryption key from Vault
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_vault_key_retrieval() {
         // When adapter needs encryption key
         // Should fetch from SecretsManager
@@ -161,7 +161,7 @@ mod database_adapter_tests {
 
     /// Test key rotation from Vault
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_vault_key_rotation() {
         // When encryption key rotated in Vault
         // Adapter invalidates cached key
@@ -171,7 +171,7 @@ mod database_adapter_tests {
 
     /// Test Vault unavailability handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_vault_unavailable() {
         // When Vault becomes unavailable
         // If key cached, operations continue
@@ -185,7 +185,7 @@ mod database_adapter_tests {
 
     /// Test storing context with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_database_context_storage() {
         // When encrypting with context (e.g., "user:123:email")
         // Context not stored (only plaintext encrypted)
@@ -195,7 +195,7 @@ mod database_adapter_tests {
 
     /// Test context audit trail
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_database_context_audit_trail() {
         // When using context encryption
         // Audit log can track access by user (from context)
@@ -205,7 +205,7 @@ mod database_adapter_tests {
 
     /// Test context field validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_database_context_validation() {
         // When context generated from database values
         // Should validate context format
@@ -219,7 +219,7 @@ mod database_adapter_tests {
 
     /// Test encrypted fields in transactions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_encrypt_decrypt() {
         // When transaction inserts and reads encrypted field
         // Insert encrypts value
@@ -229,7 +229,7 @@ mod database_adapter_tests {
 
     /// Test transaction rollback with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_rollback() {
         // When transaction rolls back
         // Encrypted data not committed
@@ -239,7 +239,7 @@ mod database_adapter_tests {
 
     /// Test concurrent transactions with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_concurrent_encryption() {
         // When multiple transactions encrypt different fields
         // No lock contention on encryption
@@ -253,7 +253,7 @@ mod database_adapter_tests {
 
     /// Test NULL encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_null_encrypted_field() {
         // When encrypted field is NULL
         // Should remain NULL (not encrypted)
@@ -263,7 +263,7 @@ mod database_adapter_tests {
 
     /// Test empty string encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_empty_string_encrypted_field() {
         // When encrypted field is empty string
         // Should encrypt empty string (not skip)
@@ -273,7 +273,7 @@ mod database_adapter_tests {
 
     /// Test default value encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_default_value_encrypted_field() {
         // When encrypted field uses DEFAULT value
         // Default applied before encryption
@@ -287,7 +287,7 @@ mod database_adapter_tests {
 
     /// Test encryption overhead on INSERT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_encrypt_overhead() {
         // When inserting 1000 records with encrypted fields
         // Encryption adds <10% overhead typically
@@ -297,7 +297,7 @@ mod database_adapter_tests {
 
     /// Test decryption overhead on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_decrypt_overhead() {
         // When selecting 1000 rows with encrypted fields
         // Decryption adds <10% overhead typically
@@ -307,7 +307,7 @@ mod database_adapter_tests {
 
     /// Test encryption key caching impact
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_key_caching() {
         // When accessing encrypted fields repeatedly
         // With key caching: fast (no Vault calls)
@@ -321,7 +321,7 @@ mod database_adapter_tests {
 
     /// Test encryption of invalid UTF-8
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_invalid_utf8_field() {
         // When database field contains invalid UTF-8
         // Should return error (not panic)
@@ -331,7 +331,7 @@ mod database_adapter_tests {
 
     /// Test decryption with wrong key
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_decrypt_wrong_key() {
         // When decryption key changed
         // Old ciphertexts fail to decrypt
@@ -341,7 +341,7 @@ mod database_adapter_tests {
 
     /// Test corrupted ciphertext in database
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_corrupted_ciphertext() {
         // When database contains corrupted encrypted data
         // Decryption should fail
@@ -351,7 +351,7 @@ mod database_adapter_tests {
 
     /// Test missing key in SecretsManager
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_missing_encryption_key() {
         // When encryption key not in SecretsManager
         // Should return error (not panic)
@@ -365,7 +365,7 @@ mod database_adapter_tests {
 
     /// Test encrypted VARCHAR field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_type_varchar_encrypted() {
         // When VARCHAR field encrypted
         // Stored as BYTEA or BLOB in database
@@ -375,7 +375,7 @@ mod database_adapter_tests {
 
     /// Test encrypted NUMERIC field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_type_numeric_encrypted() {
         // When NUMERIC field encrypted (converted to string)
         // Encrypted as string representation
@@ -385,7 +385,7 @@ mod database_adapter_tests {
 
     /// Test encrypted TIMESTAMP field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_type_timestamp_encrypted() {
         // When TIMESTAMP field encrypted
         // Converted to string, then encrypted
@@ -395,7 +395,7 @@ mod database_adapter_tests {
 
     /// Test encrypted JSON field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_type_json_encrypted() {
         // When JSON field encrypted
         // Entire JSON encrypted as string
@@ -409,7 +409,7 @@ mod database_adapter_tests {
 
     /// Test adapter detects encrypted fields from schema
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_detect_encrypted_fields() {
         // Adapter should detect which fields are encrypted
         // From schema metadata or annotations
@@ -419,7 +419,7 @@ mod database_adapter_tests {
 
     /// Test adapter handles schema evolution
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_evolution_add_encrypted_field() {
         // When new encrypted field added to schema
         // Adapter automatically handles it
@@ -429,7 +429,7 @@ mod database_adapter_tests {
 
     /// Test adapter handles encryption key changes
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_encryption_key_change() {
         // When encryption key changes for a field
         // Adapter uses new key

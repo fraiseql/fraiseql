@@ -283,10 +283,7 @@ impl TransactionManager {
     pub fn savepoint(&mut self, txn_id: &str, name: impl Into<String>) -> Result<(), SecretsError> {
         if let Some(txn) = self.active_transactions.get(txn_id) {
             let savepoint = Savepoint::new(name, txn_id, txn.operation_count());
-            self.savepoints
-                .entry(txn_id.to_string())
-                .or_default()
-                .push(savepoint);
+            self.savepoints.entry(txn_id.to_string()).or_default().push(savepoint);
             Ok(())
         } else {
             Err(SecretsError::ValidationError(format!("Transaction {} not found", txn_id)))

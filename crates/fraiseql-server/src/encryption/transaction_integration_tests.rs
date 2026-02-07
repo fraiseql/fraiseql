@@ -23,7 +23,7 @@ mod transaction_integration_tests {
 
     /// Test successful transaction commits encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_successful_commit() {
         // When transaction with encrypted INSERT succeeds
         // Record committed with ciphertext
@@ -33,7 +33,7 @@ mod transaction_integration_tests {
 
     /// Test failed transaction doesn't commit encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_failed_rollback() {
         // When transaction with encrypted INSERT fails
         // No data persisted
@@ -48,7 +48,7 @@ mod transaction_integration_tests {
 
     /// Test batch INSERT with encrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_batch_insert_encryption() {
         // When transaction inserts 100 User records
         // Each record encrypted independently
@@ -59,7 +59,7 @@ mod transaction_integration_tests {
 
     /// Test batch UPDATE with encrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_batch_update_encryption() {
         // When transaction updates 50 records' encrypted fields
         // Old ciphertext replaced with new
@@ -70,7 +70,7 @@ mod transaction_integration_tests {
 
     /// Test mixed operations in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_mixed_operations() {
         // Within single transaction:
         // - INSERT 10 encrypted records
@@ -83,7 +83,7 @@ mod transaction_integration_tests {
 
     /// Test batch DELETE with encrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_batch_delete_encryption() {
         // When transaction deletes 20 records with encrypted data
         // Record deleted (not decrypted)
@@ -98,7 +98,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with READ UNCOMMITTED isolation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_read_uncommitted_encryption() {
         // When transaction operates at READ UNCOMMITTED
         // Encrypted data isolation same as unencrypted
@@ -108,7 +108,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with READ COMMITTED isolation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_read_committed_encryption() {
         // When transaction operates at READ COMMITTED
         // Cannot read uncommitted encrypted data
@@ -118,7 +118,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with REPEATABLE READ isolation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_repeatable_read_encryption() {
         // When transaction operates at REPEATABLE READ
         // First read of encrypted field cached
@@ -128,7 +128,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with SERIALIZABLE isolation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_serializable_encryption() {
         // When transaction operates at SERIALIZABLE
         // Encrypted data serialized
@@ -142,7 +142,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with savepoint rollback
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_savepoint_rollback() {
         // When transaction creates savepoint
         // Performs encrypted INSERT
@@ -153,7 +153,7 @@ mod transaction_integration_tests {
 
     /// Test encryption with savepoint partial commit
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_savepoint_partial_commit() {
         // When transaction:
         // 1. Insert record A (encrypted)
@@ -166,7 +166,7 @@ mod transaction_integration_tests {
 
     /// Test nested savepoint with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_nested_savepoint_encryption() {
         // When transaction has multiple nested savepoints
         // Each level can rollback independently
@@ -180,7 +180,7 @@ mod transaction_integration_tests {
 
     /// Test concurrent transactions encrypt different rows
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_concurrent_isolation() {
         // When multiple transactions encrypt different rows simultaneously
         // No lock contention on encryption
@@ -191,7 +191,7 @@ mod transaction_integration_tests {
 
     /// Test concurrent transactions on same encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_concurrent_same_field() {
         // When multiple transactions update same encrypted field
         // Database locking enforced
@@ -202,7 +202,7 @@ mod transaction_integration_tests {
 
     /// Test READ-WRITE lock with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_read_write_lock_encryption() {
         // When multiple readers reading encrypted field
         // All succeed concurrently
@@ -213,7 +213,7 @@ mod transaction_integration_tests {
 
     /// Test WRITE-WRITE conflict with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_write_write_conflict() {
         // When two transactions try to update same encrypted field
         // Database locking serializes writes
@@ -228,7 +228,7 @@ mod transaction_integration_tests {
 
     /// Test transaction uses consistent encryption key
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_consistent_key() {
         // When transaction encrypts multiple fields in same record
         // Same key used throughout transaction
@@ -238,7 +238,7 @@ mod transaction_integration_tests {
 
     /// Test key rotation during transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_key_rotation_during() {
         // When key rotation scheduled during long transaction
         // Transaction continues with original key
@@ -249,7 +249,7 @@ mod transaction_integration_tests {
 
     /// Test key expiry during transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_key_expiry_during() {
         // When encryption key lease expires mid-transaction
         // Transaction holds reference to original key
@@ -260,7 +260,7 @@ mod transaction_integration_tests {
 
     /// Test Vault unavailable during transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_vault_unavailable() {
         // When Vault becomes unavailable during transaction
         // With cached key: continue normally
@@ -275,7 +275,7 @@ mod transaction_integration_tests {
 
     /// Test transaction ID in audit log
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_id_audit_trail() {
         // When transaction encrypts multiple operations
         // All audit entries include transaction ID
@@ -285,7 +285,7 @@ mod transaction_integration_tests {
 
     /// Test user context tracked in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_user_context() {
         // When transaction initiated by user session
         // Encryption operations include user ID
@@ -295,7 +295,7 @@ mod transaction_integration_tests {
 
     /// Test request ID correlation in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_request_correlation() {
         // When HTTP request initiates database transaction
         // Request ID flows to transaction context
@@ -305,7 +305,7 @@ mod transaction_integration_tests {
 
     /// Test session tracking in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_session_tracking() {
         // When user session has multiple transactions
         // Session ID consistent across all
@@ -319,7 +319,7 @@ mod transaction_integration_tests {
 
     /// Test encryption error during transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_encryption_error_handling() {
         // When encryption fails during transaction
         // Transaction rolled back
@@ -330,7 +330,7 @@ mod transaction_integration_tests {
 
     /// Test decryption error on read
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_decryption_error_read() {
         // When SELECT within transaction finds corrupted encrypted data
         // Decryption fails with clear error
@@ -340,7 +340,7 @@ mod transaction_integration_tests {
 
     /// Test NULL handling in encrypted transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_null_encrypted_field() {
         // When transaction inserts NULL into encrypted field
         // NULL remains NULL (not encrypted)
@@ -351,7 +351,7 @@ mod transaction_integration_tests {
 
     /// Test empty string in encrypted transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_empty_string_encryption() {
         // When transaction inserts empty string into encrypted field
         // Empty string encrypted (produces ciphertext)
@@ -366,7 +366,7 @@ mod transaction_integration_tests {
 
     /// Test long-running transaction with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_long_running() {
         // When transaction runs for extended time
         // Encryption keys cached locally
@@ -377,7 +377,7 @@ mod transaction_integration_tests {
 
     /// Test large batch transaction encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_large_batch_encryption() {
         // When transaction encrypts 10k+ records
         // Memory usage reasonable
@@ -388,7 +388,7 @@ mod transaction_integration_tests {
 
     /// Test transaction memory cleanup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_memory_cleanup() {
         // After transaction completes
         // Encryption buffers properly released
@@ -399,7 +399,7 @@ mod transaction_integration_tests {
 
     /// Test transaction deadlock with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_deadlock_detection() {
         // When two transactions could deadlock
         // Database detects deadlock
@@ -414,7 +414,7 @@ mod transaction_integration_tests {
 
     /// Test transaction with schema version mismatch
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_schema_version_mismatch() {
         // When transaction uses schema version 2
         // Database has records of version 1 and 2
@@ -425,7 +425,7 @@ mod transaction_integration_tests {
 
     /// Test transaction with new encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_schema_evolution_add_field() {
         // When new encrypted field added to schema
         // Old records (without field) still work
@@ -435,7 +435,7 @@ mod transaction_integration_tests {
 
     /// Test encryption migration in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_encryption_migration() {
         // When field transitioning from unencrypted to encrypted
         // Bulk migration can use transaction

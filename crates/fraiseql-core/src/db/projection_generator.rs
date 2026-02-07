@@ -245,10 +245,7 @@ impl MySqlProjectionGenerator {
                 let safe_field = Self::escape_identifier(field);
                 // JSON key uses the original schema field name (snake_case)
                 let json_key = to_snake_case(field);
-                format!(
-                    "'{}', JSON_EXTRACT(`{}`, '$.{}')",
-                    safe_field, self.json_column, json_key
-                )
+                format!("'{}', JSON_EXTRACT(`{}`, '$.{}')", safe_field, self.json_column, json_key)
             })
             .collect();
 
@@ -550,22 +547,30 @@ mod tests {
 
         // Simulate what happens when fields come from GraphQL query
         // These are camelCase field names (what GraphQL expects in response)
-        let graphql_fields = vec!["id".to_string(), "firstName".to_string(), "createdAt".to_string()];
+        let graphql_fields = vec![
+            "id".to_string(),
+            "firstName".to_string(),
+            "createdAt".to_string(),
+        ];
 
         let sql = generator.generate_projection_sql(&graphql_fields).unwrap();
 
         eprintln!("Generated SQL: {}", sql);
 
         // Current broken behavior generates:
-        // jsonb_build_object('id', data->>'id', 'firstName', data->>'firstName', 'createdAt', data->>'createdAt')
+        // jsonb_build_object('id', data->>'id', 'firstName', data->>'firstName', 'createdAt',
+        // data->>'createdAt')
         //
         // This fails because JSONB has snake_case keys: first_name, created_at
         // Result: data->>'firstName' returns NULL (key not found)
 
         // Test the bug: SQL should NOT have camelCase JSONB access
         // We expect this to FAIL until we implement field mapping
-        assert!(!sql.contains("->>'firstName'") && !sql.contains("->>'createdAt'"),
+        assert!(
+            !sql.contains("->>'firstName'") && !sql.contains("->>'createdAt'"),
             "BUG: SQL is using camelCase keys for JSONB access. \
-             JSONB has snake_case keys like 'first_name', 'created_at'. SQL: {}", sql);
+             JSONB has snake_case keys like 'first_name', 'created_at'. SQL: {}",
+            sql
+        );
     }
 }

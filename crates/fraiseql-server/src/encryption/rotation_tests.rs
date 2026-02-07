@@ -22,7 +22,7 @@ mod rotation_tests {
 
     /// Test encryption stores version with ciphertext
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_embeds_version() {
         // When field encrypted
         // Ciphertext includes version metadata
@@ -32,7 +32,7 @@ mod rotation_tests {
 
     /// Test multi-version decryption support
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_multi_version_decryption() {
         // When decrypting old data encrypted with version 1
         // System reads version from ciphertext
@@ -43,7 +43,7 @@ mod rotation_tests {
 
     /// Test version retrieval for old records
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_retrieve_version_from_ciphertext() {
         // When decrypting ciphertext
         // First 2 bytes read as version ID
@@ -54,7 +54,7 @@ mod rotation_tests {
 
     /// Test version compatibility across key rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_version_compatibility_after_rotation() {
         // When key rotates from v1 to v2
         // Old records still decrypt with v1
@@ -69,7 +69,7 @@ mod rotation_tests {
 
     /// Test key TTL tracking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_ttl_tracking() {
         // Each key version has TTL (time to live)
         // Stored with issued_at and expires_at timestamps
@@ -79,7 +79,7 @@ mod rotation_tests {
 
     /// Test expired key detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_expired_key_detection() {
         // When key TTL expires
         // System detects expiration (time > expires_at)
@@ -90,7 +90,7 @@ mod rotation_tests {
 
     /// Test near-expiry warnings
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_near_expiry_warnings() {
         // When key has <7 days remaining
         // System logs warning
@@ -101,7 +101,7 @@ mod rotation_tests {
 
     /// Test TTL configuration by framework
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_ttl_configuration_compliance() {
         // HIPAA: 1 year key rotation required
         // PCI-DSS: 1 year key rotation required
@@ -116,7 +116,7 @@ mod rotation_tests {
 
     /// Test automatic key refresh before expiry
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_automatic_refresh_before_expiry() {
         // When key has 14 days remaining (80% TTL consumed)
         // Automatic refresh triggered
@@ -127,7 +127,7 @@ mod rotation_tests {
 
     /// Test refresh creates new version
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_creates_new_version() {
         // When refresh triggered
         // New encryption key generated
@@ -138,7 +138,7 @@ mod rotation_tests {
 
     /// Test operations during refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_operations_during_refresh() {
         // When key refresh in progress
         // In-flight encryptions continue with old key
@@ -149,7 +149,7 @@ mod rotation_tests {
 
     /// Test refresh scheduling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_scheduling() {
         // Refresh can be scheduled (background job)
         // Or triggered on-demand (manual rotation)
@@ -164,7 +164,7 @@ mod rotation_tests {
 
     /// Test rotation schedule configuration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_configuration() {
         // Rotation can be scheduled as cron expression
         // Examples: "0 2 1 * *" (monthly at 2am on 1st)
@@ -175,7 +175,7 @@ mod rotation_tests {
 
     /// Test rotation schedule execution
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_execution() {
         // When scheduled time arrives
         // Rotation job triggers
@@ -186,7 +186,7 @@ mod rotation_tests {
 
     /// Test rotation scheduling with timezone
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_timezone() {
         // Scheduled rotation respects timezone
         // "2am UTC" vs "2am EST" respected
@@ -196,7 +196,7 @@ mod rotation_tests {
 
     /// Test manual rotation trigger
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_manual_rotation_trigger() {
         // API endpoint to trigger rotation immediately
         // POST /api/v1/admin/rotation/rotate-key
@@ -211,7 +211,7 @@ mod rotation_tests {
 
     /// Test versioned key storage
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_versioned_key_storage() {
         // Keys stored with version metadata
         // Storage structure: {version, key, issued_at, expires_at, current}
@@ -222,7 +222,7 @@ mod rotation_tests {
 
     /// Test current version marking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_current_version_marking() {
         // Each key has one "current" version
         // New encryptions always use current
@@ -233,7 +233,7 @@ mod rotation_tests {
 
     /// Test version history retrieval
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_version_history_retrieval() {
         // Can retrieve all versions of a key
         // Sorted by issue date (newest first)
@@ -244,7 +244,7 @@ mod rotation_tests {
 
     /// Test key version lifecycle
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_version_lifecycle() {
         // Key version states: active → expiring → expired
         // Active: can encrypt/decrypt
@@ -259,7 +259,7 @@ mod rotation_tests {
 
     /// Test transparent decryption with historical keys
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transparent_historical_decryption() {
         // When decrypting old record with v1 key
         // System automatically fetches v1 key
@@ -270,7 +270,7 @@ mod rotation_tests {
 
     /// Test decryption with missing version
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_decryption_missing_version() {
         // When ciphertext references non-existent version
         // System logs error with version ID
@@ -281,7 +281,7 @@ mod rotation_tests {
 
     /// Test batch decryption with mixed versions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_decryption_mixed_versions() {
         // When query returns records with different versions
         // Batch decryption handles mixed versions
@@ -292,7 +292,7 @@ mod rotation_tests {
 
     /// Test decryption performance with versions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_decryption_performance_with_versions() {
         // Decryption performance not degraded by versioning
         // Version lookup cached (O(1) after cache warmup)
@@ -306,7 +306,7 @@ mod rotation_tests {
 
     /// Test HIPAA rotation compliance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_hipaa_rotation_compliance() {
         // HIPAA requires key rotation at least annually
         // System enforces maximum 365 day TTL
@@ -317,7 +317,7 @@ mod rotation_tests {
 
     /// Test PCI-DSS rotation compliance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_pci_dss_rotation_compliance() {
         // PCI-DSS requires key rotation at least annually
         // System enforces maximum 365 day TTL
@@ -328,7 +328,7 @@ mod rotation_tests {
 
     /// Test GDPR data minimization with rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_gdpr_data_minimization_rotation() {
         // GDPR: minimize key exposure time
         // System limits key lifetime (1 year default)
@@ -339,7 +339,7 @@ mod rotation_tests {
 
     /// Test SOC 2 rotation controls
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_soc2_rotation_controls() {
         // SOC 2: documented key rotation procedures
         // Audit log records all rotations with timestamps
@@ -354,7 +354,7 @@ mod rotation_tests {
 
     /// Test rotation audit logging
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_audit_logging() {
         // All key rotations logged
         // Audit includes: timestamp, triggered_by, old_version, new_version
@@ -364,7 +364,7 @@ mod rotation_tests {
 
     /// Test rotation metrics collection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_metrics_collection() {
         // Metrics: rotations_total, rotations_duration_ms, rotations_failed
         // Per-key rotation frequency
@@ -375,7 +375,7 @@ mod rotation_tests {
 
     /// Test rotation alerts
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_alerts() {
         // Alerts when rotation overdue (14+ days past deadline)
         // Alerts when rotation fails
@@ -386,7 +386,7 @@ mod rotation_tests {
 
     /// Test rotation status dashboard
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_dashboard() {
         // Dashboard shows all keys and rotation status
         // Status: "Healthy", "Expiring Soon", "Overdue", "Failed"
@@ -402,7 +402,7 @@ mod rotation_tests {
 
     /// Test emergency key rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_emergency_key_rotation() {
         // When key compromise suspected
         // Immediate rotation can be triggered
@@ -413,7 +413,7 @@ mod rotation_tests {
 
     /// Test compromised key quarantine
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compromised_key_quarantine() {
         // When key marked compromised
         // Cannot be used for encryption
@@ -424,7 +424,7 @@ mod rotation_tests {
 
     /// Test emergency rotation notification
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_emergency_rotation_notification() {
         // When emergency rotation triggered
         // Immediate notification to security team
@@ -439,7 +439,7 @@ mod rotation_tests {
 
     /// Test rotation dry-run validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_dry_run() {
         // Can test rotation without applying
         // Validates: new key generation, version increment, storage
@@ -450,7 +450,7 @@ mod rotation_tests {
 
     /// Test rotation validation before commit
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_validation_before_commit() {
         // Before marking new version current
         // System validates: key encryption works, decryption works
@@ -461,7 +461,7 @@ mod rotation_tests {
 
     /// Test decryption compatibility testing
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_decryption_compatibility_testing() {
         // Before rotation, can test old ciphertexts decrypt
         // Verify: random sample of encrypted records

@@ -23,7 +23,7 @@ mod audit_logging_tests {
 
     /// Test decryption operation logged to audit trail
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_decryption_operation() {
         // When field decrypted during SELECT
         // Audit trail records:
@@ -36,7 +36,7 @@ mod audit_logging_tests {
 
     /// Test encryption failure logged
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_encryption_failure() {
         // When encryption fails
         // Audit trail records:
@@ -49,7 +49,7 @@ mod audit_logging_tests {
 
     /// Test decryption failure logged
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_decryption_failure() {
         // When decryption fails
         // Audit trail records:
@@ -62,7 +62,7 @@ mod audit_logging_tests {
 
     /// Test audit trail correlates related operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_operation_correlation() {
         // When user inserts and later selects same record
         // Audit trail can correlate operations
@@ -72,7 +72,7 @@ mod audit_logging_tests {
 
     /// Test audit log includes user context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_user_context() {
         // When encryption operation includes user ID
         // Audit log records:
@@ -85,7 +85,7 @@ mod audit_logging_tests {
 
     /// Test audit log includes encryption context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_encryption_context() {
         // When encryption uses context data
         // Audit log includes:
@@ -97,7 +97,7 @@ mod audit_logging_tests {
 
     /// Test audit log persists to storage
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_persistence() {
         // When encryption operation logged
         // Audit log written to:
@@ -109,7 +109,7 @@ mod audit_logging_tests {
 
     /// Test audit log is tamper-resistant
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_log_tamper_resistant() {
         // When audit log written
         // Should be:
@@ -126,7 +126,7 @@ mod audit_logging_tests {
 
     /// Test schema detects encrypted field annotations
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_detect_encrypted_annotation() {
         // When struct has #[encrypted] on field
         // Schema parser detects it
@@ -136,7 +136,7 @@ mod audit_logging_tests {
 
     /// Test schema supports multiple encryption marks
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_multiple_encryption_marks() {
         // Supported marks:
         // - #[encrypted]
@@ -147,7 +147,7 @@ mod audit_logging_tests {
 
     /// Test schema includes key reference
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_encryption_key_reference() {
         // When schema has #[encrypt(key="path/to/key")]
         // Mapper uses that specific key from Vault
@@ -157,7 +157,7 @@ mod audit_logging_tests {
 
     /// Test schema includes encryption algorithm hint
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_encryption_algorithm_hint() {
         // Schema can specify algorithm:
         // #[encrypt(algorithm="aes256-gcm")]
@@ -167,7 +167,7 @@ mod audit_logging_tests {
 
     /// Test schema evolution adds encrypted field
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_evolution_add_encrypted_field() {
         // When new encrypted field added
         // Old records (without field) still work
@@ -177,7 +177,7 @@ mod audit_logging_tests {
 
     /// Test schema evolution changes key for field
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_evolution_key_rotation() {
         // When encryption key changes for field
         // New records use new key
@@ -187,7 +187,7 @@ mod audit_logging_tests {
 
     /// Test schema validation on startup
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_validation_startup() {
         // When application starts
         // Schema validated:
@@ -203,7 +203,7 @@ mod audit_logging_tests {
 
     /// Test encryption with transaction context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_encryption_context() {
         // When transaction uses encryption context
         // Context includes:
@@ -216,7 +216,7 @@ mod audit_logging_tests {
 
     /// Test batch operations in transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_batch_encryption() {
         // When transaction inserts 100 records
         // All encrypted with same context ID
@@ -226,7 +226,7 @@ mod audit_logging_tests {
 
     /// Test transaction rollback with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_rollback_cleanup() {
         // When transaction with encryption rolls back
         // No encrypted data persisted
@@ -236,7 +236,7 @@ mod audit_logging_tests {
 
     /// Test nested transactions with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_nested_encryption() {
         // When transaction has nested savepoints
         // Encryption operations in nested transaction
@@ -246,7 +246,7 @@ mod audit_logging_tests {
 
     /// Test concurrent transactions with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_concurrent_isolation() {
         // When multiple transactions encrypt different rows
         // No lock contention
@@ -256,7 +256,7 @@ mod audit_logging_tests {
 
     /// Test long-running transaction with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_long_running_encryption() {
         // When transaction runs for extended time
         // Encryption keys cached locally
@@ -270,7 +270,7 @@ mod audit_logging_tests {
 
     /// Test encryption batching optimization
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_optimization_encryption_batching() {
         // When encrypting many fields
         // Should batch operations where possible
@@ -280,7 +280,7 @@ mod audit_logging_tests {
 
     /// Test parallel decryption optimization
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_optimization_parallel_decryption() {
         // When decrypting many fields
         // Should use parallelization
@@ -290,7 +290,7 @@ mod audit_logging_tests {
 
     /// Test key caching effectiveness
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_optimization_key_cache_effectiveness() {
         // When same key accessed repeatedly
         // Cache hit rate should be >95%
@@ -300,7 +300,7 @@ mod audit_logging_tests {
 
     /// Test memory efficiency of encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_optimization_memory_efficiency() {
         // When encrypting large batches
         // Memory usage should scale linearly
@@ -314,7 +314,7 @@ mod audit_logging_tests {
 
     /// Test recovery from temporary Vault unavailability
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_recovery_vault_temporary_outage() {
         // When Vault unavailable temporarily
         // With cached keys: operations continue
@@ -324,7 +324,7 @@ mod audit_logging_tests {
 
     /// Test recovery from encryption key expiry
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_recovery_key_expiry() {
         // When encryption key lease expires
         // Mapper detects expiry
@@ -334,7 +334,7 @@ mod audit_logging_tests {
 
     /// Test recovery from network partition
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_recovery_network_partition() {
         // When network partition occurs
         // With cache: operations use cached keys
@@ -348,7 +348,7 @@ mod audit_logging_tests {
 
     /// Test HIPAA compliance with audit logging
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_hipaa_audit_logging() {
         // HIPAA requires:
         // - Comprehensive audit logging
@@ -359,7 +359,7 @@ mod audit_logging_tests {
 
     /// Test PCI-DSS compliance with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_pci_dss_encryption() {
         // PCI-DSS requires:
         // - Strong encryption (AES-256)
@@ -370,7 +370,7 @@ mod audit_logging_tests {
 
     /// Test GDPR compliance with data handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_gdpr_data_handling() {
         // GDPR requires:
         // - Data encryption
@@ -381,7 +381,7 @@ mod audit_logging_tests {
 
     /// Test SOC 2 compliance with controls
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_compliance_soc2_controls() {
         // SOC 2 requires:
         // - Logical access controls

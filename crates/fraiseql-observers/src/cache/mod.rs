@@ -118,7 +118,8 @@ pub trait CacheBackend: Send + Sync + Clone {
 /// Object-safe cache backend trait for trait objects.
 ///
 /// This is a subset of `CacheBackend` designed to be object-safe (works as `dyn CacheBackendDyn`).
-/// Unlike `CacheBackend`, it does not require `Clone`, making it suitable for use as a trait object.
+/// Unlike `CacheBackend`, it does not require `Clone`, making it suitable for use as a trait
+/// object.
 #[async_trait::async_trait]
 pub trait CacheBackendDyn: Send + Sync {
     /// Get a cached action result.

@@ -41,7 +41,7 @@ async fn test_get_schema_versions_action() {
     use arrow_flight::Action;
     let action = Action {
         r#type: "GetSchemaVersions".to_string(),
-        body: vec![].into(),
+        body:   vec![].into(),
     };
 
     let request = tonic::Request::new(action);
@@ -56,16 +56,15 @@ async fn test_get_schema_versions_action() {
 
 #[tokio::test]
 async fn test_schema_versioning_metadata() {
-    use fraiseql_arrow::metadata::SchemaRegistry;
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+    use fraiseql_arrow::metadata::SchemaRegistry;
 
     let registry = Arc::new(SchemaRegistry::new());
 
     // Register initial schema
-    let schema_v0 = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-    ]));
+    let schema_v0 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
     registry.register("test_view", schema_v0.clone());
 
@@ -90,16 +89,15 @@ async fn test_schema_versioning_metadata() {
 
 #[tokio::test]
 async fn test_get_all_versions_list() {
-    use fraiseql_arrow::metadata::SchemaRegistry;
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+    use fraiseql_arrow::metadata::SchemaRegistry;
 
     let registry = SchemaRegistry::new();
 
     // Register multiple schemas
-    let schema = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
     registry.register("view1", schema.clone());
     registry.register("view2", schema.clone());
@@ -122,15 +120,14 @@ async fn test_get_all_versions_list() {
 
 #[tokio::test]
 async fn test_schema_copy_on_write_safety() {
-    use fraiseql_arrow::metadata::SchemaRegistry;
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+    use fraiseql_arrow::metadata::SchemaRegistry;
 
     let registry = SchemaRegistry::new();
 
-    let schema_v0 = Arc::new(Schema::new(vec![
-        Field::new("id", DataType::Int64, false),
-    ]));
+    let schema_v0 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
     registry.register("view", schema_v0.clone());
 
@@ -158,9 +155,10 @@ async fn test_schema_copy_on_write_safety() {
 
 #[tokio::test]
 async fn test_concurrent_schema_updates() {
-    use fraiseql_arrow::metadata::SchemaRegistry;
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
+
+    use arrow::datatypes::{DataType, Field, Schema};
+    use fraiseql_arrow::metadata::SchemaRegistry;
 
     let registry = Arc::new(SchemaRegistry::new());
 

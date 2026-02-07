@@ -24,7 +24,7 @@ mod oauth_tests {
 
     /// Test OAuth2 authorization code exchange
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_exchange_code_for_token() {
         // POST to token endpoint with:
         // - code: authorization code
@@ -41,7 +41,7 @@ mod oauth_tests {
 
     /// Test OAuth2 token refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_refresh_token() {
         // POST to token endpoint with:
         // - grant_type: "refresh_token"
@@ -54,7 +54,7 @@ mod oauth_tests {
 
     /// Test OAuth2 state parameter validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_state_parameter_prevents_csrf() {
         // Authorization URL includes random state parameter
         // Callback verifies state matches original
@@ -64,7 +64,7 @@ mod oauth_tests {
 
     /// Test OAuth2 redirect URI validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_redirect_uri_validation() {
         // Authorization uses redirect_uri parameter
         // Must match configured callback URL exactly
@@ -78,7 +78,7 @@ mod oauth_tests {
 
     /// Test OAuth2 invalid credentials
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_invalid_credentials_error() {
         // Token exchange with invalid client_secret
         // Provider returns: error: "invalid_client"
@@ -87,7 +87,7 @@ mod oauth_tests {
 
     /// Test OAuth2 expired authorization code
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_expired_authorization_code() {
         // Exchange authorization code after expiry (usually 10 minutes)
         // Provider returns: error: "invalid_grant"
@@ -96,7 +96,7 @@ mod oauth_tests {
 
     /// Test OAuth2 scope mismatch
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_insufficient_permissions_error() {
         // User denies requested scopes (e.g., email access)
         // Provider returns: error: "access_denied"
@@ -109,7 +109,7 @@ mod oauth_tests {
 
     /// Test OIDC provider discovery via well-known endpoint
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oidc_provider_discovery() {
         // GET /.well-known/openid-configuration from provider
         // Response includes:
@@ -123,7 +123,7 @@ mod oauth_tests {
 
     /// Test OIDC JWKS (JSON Web Key Set) retrieval
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oidc_jwks_retrieval_and_caching() {
         // GET /oauth/discovery/keys or jwks_uri
         // Response contains public keys for ID token verification
@@ -133,7 +133,7 @@ mod oauth_tests {
 
     /// Test OIDC configuration caching
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oidc_configuration_caching() {
         // Provider configuration cached locally
         // Subsequent requests use cache, not HTTP
@@ -147,7 +147,7 @@ mod oauth_tests {
 
     /// Test ID token structure validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_structure_validation() {
         // ID token is JWT with three parts: header.payload.signature
         // Header contains: alg (algorithm), kid (key ID)
@@ -157,7 +157,7 @@ mod oauth_tests {
 
     /// Test ID token signature verification
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_signature_verification() {
         // Retrieve provider's public key from JWKS by kid
         // Verify JWT signature matches algorithm in header
@@ -167,7 +167,7 @@ mod oauth_tests {
 
     /// Test ID token expiry validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_expiry_validation() {
         // Check exp claim against current time
         // Token expired: reject
@@ -177,7 +177,7 @@ mod oauth_tests {
 
     /// Test ID token issuer validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_issuer_validation() {
         // Verify iss claim matches provider issuer
         // Mismatch: reject
@@ -186,7 +186,7 @@ mod oauth_tests {
 
     /// Test ID token audience (aud) claim validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_audience_validation() {
         // Verify aud claim contains application's client_id
         // Mismatch: reject
@@ -195,7 +195,7 @@ mod oauth_tests {
 
     /// Test ID token subject (sub) claim validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_id_token_subject_claim_extraction() {
         // Extract sub (subject) claim from validated token
         // Sub is unique user identifier from provider
@@ -208,7 +208,7 @@ mod oauth_tests {
 
     /// Test userinfo endpoint access
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_userinfo_endpoint_retrieval() {
         // GET /oauth/userinfo with Bearer access_token
         // Response includes:
@@ -222,7 +222,7 @@ mod oauth_tests {
 
     /// Test userinfo token validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_userinfo_access_token_validation() {
         // Userinfo endpoint requires valid access_token
         // Expired/invalid token: 401 Unauthorized
@@ -231,7 +231,7 @@ mod oauth_tests {
 
     /// Test userinfo email verification
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_userinfo_email_verified_flag() {
         // Provider indicates if email is verified: email_verified boolean
         // If false: application may require re-verification
@@ -244,7 +244,7 @@ mod oauth_tests {
 
     /// Test first-time user auto-provisioning
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_first_login_auto_provisioning() {
         // User logs in with OAuth provider for first time
         // System retrieves userinfo from provider
@@ -257,7 +257,7 @@ mod oauth_tests {
 
     /// Test existing user OAuth linking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_linking_existing_user_to_oauth() {
         // User with existing local account
         // Logs in with OAuth provider
@@ -268,7 +268,7 @@ mod oauth_tests {
 
     /// Test user profile update on login
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_user_profile_update_from_provider() {
         // On each login, sync user profile from provider
         // Update: name, picture, locale if changed
@@ -278,7 +278,7 @@ mod oauth_tests {
 
     /// Test multiple OAuth providers per user
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_multiple_oauth_providers_same_user() {
         // User can link multiple OAuth providers (Google + GitHub)
         // Each provider has separate external_auth record
@@ -288,7 +288,7 @@ mod oauth_tests {
 
     /// Test OAuth provider unlinking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_unlinking_oauth_provider() {
         // User can disconnect OAuth provider from account
         // Removes external_auth record for that provider
@@ -302,7 +302,7 @@ mod oauth_tests {
 
     /// Test Auth0 OIDC provider support
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_auth0_provider_integration() {
         // Auth0 provider configuration
         // Domain: tenant.auth0.com
@@ -312,7 +312,7 @@ mod oauth_tests {
 
     /// Test Google OAuth2 provider support
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_google_oauth2_provider_integration() {
         // Google provider configuration
         // Discovery: https://accounts.google.com/.well-known/openid-configuration
@@ -322,7 +322,7 @@ mod oauth_tests {
 
     /// Test Microsoft OIDC provider support
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_microsoft_oidc_provider_integration() {
         // Microsoft provider configuration
         // Discovery: https://login.microsoftonline.com/common/.well-known/openid-configuration
@@ -332,7 +332,7 @@ mod oauth_tests {
 
     /// Test Okta OIDC provider support
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_okta_oidc_provider_integration() {
         // Okta provider configuration
         // Custom domain: https://tenant.okta.com
@@ -346,7 +346,7 @@ mod oauth_tests {
 
     /// Test OAuth session creation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_creation() {
         // After successful authentication
         // Create oauth_session record with:
@@ -360,7 +360,7 @@ mod oauth_tests {
 
     /// Test OAuth session token refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_automatic_refresh() {
         // When access_token expires
         // System uses refresh_token to get new access_token
@@ -370,7 +370,7 @@ mod oauth_tests {
 
     /// Test OAuth session expiration handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_expiration() {
         // Refresh token has longer expiry (typically 7-90 days)
         // If refresh_token expired: user must re-authenticate
@@ -380,7 +380,7 @@ mod oauth_tests {
 
     /// Test OAuth session revocation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_session_revocation() {
         // User logs out
         // Provider revocation endpoint called if available
@@ -394,7 +394,7 @@ mod oauth_tests {
 
     /// Test PKCE code challenge verification
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_pkce_code_challenge() {
         // For public clients (SPAs, mobile apps)
         // Generate code_verifier (random string)
@@ -407,7 +407,7 @@ mod oauth_tests {
 
     /// Test state parameter CSRF protection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_state_csrf_protection() {
         // Generate random state token
         // Store in session with fingerprint
@@ -418,7 +418,7 @@ mod oauth_tests {
 
     /// Test nonce parameter replay protection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_nonce_replay_prevention() {
         // Generate random nonce
         // Include nonce in authorization request
@@ -429,7 +429,7 @@ mod oauth_tests {
 
     /// Test XSS prevention in OAuth flow
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth2_xss_protection() {
         // User info and claims properly escaped
         // No script injection through provider data
@@ -439,7 +439,7 @@ mod oauth_tests {
 
     /// Test credential storage security
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_credentials_encrypted_storage() {
         // Access tokens encrypted in database
         // Refresh tokens encrypted in database
@@ -453,7 +453,7 @@ mod oauth_tests {
 
     /// Test dynamic provider configuration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_dynamic_oauth_provider_configuration() {
         // Application stores provider configuration
         // Configuration retrievable via API
@@ -463,7 +463,7 @@ mod oauth_tests {
 
     /// Test provider enablement toggle
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_provider_enable_disable() {
         // Each provider can be enabled/disabled independently
         // Disabled provider: hidden from login UI
@@ -473,7 +473,7 @@ mod oauth_tests {
 
     /// Test fallback provider handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_provider_fallback() {
         // If primary provider unavailable
         // Try fallback provider if configured
@@ -482,7 +482,7 @@ mod oauth_tests {
 
     /// Test scope customization per provider
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_scopes_configuration() {
         // Each provider can request different scopes
         // Auth0: openid profile email custom:claims
@@ -497,7 +497,7 @@ mod oauth_tests {
 
     /// Test OAuth provider timeout handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_provider_timeout() {
         // Provider request timeout: 10 seconds
         // Timeout: return user-friendly error
@@ -507,7 +507,7 @@ mod oauth_tests {
 
     /// Test OAuth provider unavailability
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_provider_unavailable() {
         // Provider returns 5xx error
         // Application shows appropriate error message
@@ -517,7 +517,7 @@ mod oauth_tests {
 
     /// Test OAuth audit logging
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_audit_logging() {
         // Log all OAuth events:
         // - Authorization attempt
@@ -530,7 +530,7 @@ mod oauth_tests {
 
     /// Test OAuth malicious token detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_oauth_suspicious_token_detection() {
         // Detect suspicious patterns:
         // - Multiple failed token exchanges

@@ -20,7 +20,7 @@ mod compliance_tests {
 
     /// Test HIPAA audit trail completeness
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_hipaa_audit_trail_completeness() {
         // HIPAA requires comprehensive audit trail for all PHI access
         // Must capture: who, what, when, where, why
@@ -30,7 +30,7 @@ mod compliance_tests {
 
     /// Test HIPAA access controls
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_hipaa_access_controls() {
         // Only authorized users can access PHI
         // Role-based access control (RBAC)
@@ -41,7 +41,7 @@ mod compliance_tests {
 
     /// Test HIPAA minimum necessary access
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_hipaa_minimum_necessary_principle() {
         // Users access only PHI needed for their job function
         // Can query encrypted fields but get access denied if not authorized
@@ -51,7 +51,7 @@ mod compliance_tests {
 
     /// Test HIPAA data retention policy
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_hipaa_data_retention_policy() {
         // PHI retention policy configurable
         // Default: indefinite (healthcare records)
@@ -62,7 +62,7 @@ mod compliance_tests {
 
     /// Test HIPAA breach notification
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_hipaa_breach_notification_tracking() {
         // System tracks security incidents
         // Potential breaches flagged and logged
@@ -77,7 +77,7 @@ mod compliance_tests {
 
     /// Test PCI-DSS cardholder data encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_pci_dss_cardholder_data_encryption() {
         // Cardholder data must be encrypted (Primary Account Number)
         // Encryption: AES-256-GCM minimum
@@ -88,7 +88,7 @@ mod compliance_tests {
 
     /// Test PCI-DSS key management requirements
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_pci_dss_key_management_requirements() {
         // Encryption keys managed via Vault
         // Unique keys per environment (dev/staging/prod)
@@ -99,7 +99,7 @@ mod compliance_tests {
 
     /// Test PCI-DSS audit trail for payment data
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_pci_dss_audit_trail_payment_data() {
         // All access to cardholder data logged
         // Includes: user, action, timestamp, success/failure
@@ -110,7 +110,7 @@ mod compliance_tests {
 
     /// Test PCI-DSS field masking for output
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_pci_dss_field_masking_output() {
         // Cardholder data masked in output (except last 4 digits)
         // Logs don't show full PAN
@@ -120,7 +120,7 @@ mod compliance_tests {
 
     /// Test PCI-DSS secure transmission
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_pci_dss_secure_transmission() {
         // Cardholder data encrypted in transit (TLS 1.2+)
         // Database connection encrypted
@@ -134,7 +134,7 @@ mod compliance_tests {
 
     /// Test GDPR data encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_personal_data_encryption() {
         // Personal data encrypted at rest
         // Encryption: AES-256-GCM minimum
@@ -145,7 +145,7 @@ mod compliance_tests {
 
     /// Test GDPR right to be forgotten
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_right_to_be_forgotten() {
         // User can request data deletion
         // System marks record for deletion
@@ -156,7 +156,7 @@ mod compliance_tests {
 
     /// Test GDPR data portability
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_data_portability() {
         // User can export their personal data
         // Data provided in machine-readable format (JSON)
@@ -166,7 +166,7 @@ mod compliance_tests {
 
     /// Test GDPR data minimization
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_data_minimization_principle() {
         // Only necessary personal data collected
         // Schema limits fields marked for collection
@@ -177,7 +177,7 @@ mod compliance_tests {
 
     /// Test GDPR consent tracking
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_consent_tracking() {
         // Consent recorded for each data processing activity
         // Timestamp and consent version tracked
@@ -188,7 +188,7 @@ mod compliance_tests {
 
     /// Test GDPR data breach notification
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_gdpr_data_breach_notification() {
         // Breach detection and logging
         // Notification required within 72 hours
@@ -203,7 +203,7 @@ mod compliance_tests {
 
     /// Test SOC 2 access controls
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_soc2_logical_access_controls() {
         // Access to encrypted data controlled
         // Authentication required (multi-factor recommended)
@@ -214,7 +214,7 @@ mod compliance_tests {
 
     /// Test SOC 2 monitoring and alerting
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_soc2_monitoring_and_alerting() {
         // Continuous monitoring of encryption operations
         // Alerts on unusual activity (failed decryptions, multiple errors)
@@ -225,7 +225,7 @@ mod compliance_tests {
 
     /// Test SOC 2 change management
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_soc2_change_management() {
         // Schema changes logged and tracked
         // Encryption configuration changes audited
@@ -236,7 +236,7 @@ mod compliance_tests {
 
     /// Test SOC 2 incident response
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_soc2_incident_response() {
         // Encryption failures logged as incidents
         // Incident history queryable
@@ -247,7 +247,7 @@ mod compliance_tests {
 
     /// Test SOC 2 availability requirements
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_soc2_availability_and_resilience() {
         // Encryption operations don't significantly impact performance
         // Key cache prevents Vault unavailability from stopping queries
@@ -261,7 +261,7 @@ mod compliance_tests {
 
     /// Test compliance configuration at startup
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_configuration_at_startup() {
         // Application can configure compliance frameworks
         // Supported: HIPAA, PCI-DSS, GDPR, SOC 2
@@ -272,7 +272,7 @@ mod compliance_tests {
 
     /// Test compliance validation on schema
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_schema_validation() {
         // Schema validated against compliance requirements
         // HIPAA: PHI fields must be encrypted
@@ -283,7 +283,7 @@ mod compliance_tests {
 
     /// Test compliance reporting
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_reporting() {
         // Can generate compliance reports
         // Report types: HIPAA audit summary, PCI-DSS validation, GDPR data inventory
@@ -293,7 +293,7 @@ mod compliance_tests {
 
     /// Test compliance audit trail integrity
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_audit_trail_integrity() {
         // Audit trail tamper-evident
         // Entries signed (HMAC or digital signature)
@@ -304,7 +304,7 @@ mod compliance_tests {
 
     /// Test compliance with encryption key rotation
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_with_key_rotation() {
         // Key rotation maintains compliance
         // Old records decrypt with old key (versioning)
@@ -315,7 +315,7 @@ mod compliance_tests {
 
     /// Test compliance failure handling
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_failure_handling() {
         // If compliance requirement violated (e.g., missing audit entry)
         // System logs violation
@@ -330,7 +330,7 @@ mod compliance_tests {
 
     /// Test compliance metrics collection
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_metrics_collection() {
         // Metrics collected per framework
         // HIPAA: encrypted PHI fields, access attempts, audit entries
@@ -341,7 +341,7 @@ mod compliance_tests {
 
     /// Test compliance dashboard availability
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_dashboard_availability() {
         // Dashboard shows compliance status per framework
         // Key metrics displayed
@@ -352,7 +352,7 @@ mod compliance_tests {
 
     /// Test compliance policy enforcement
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_policy_enforcement() {
         // Encryption policy enforced (no plaintext for sensitive data)
         // Retention policy enforced (automatic cleanup)
@@ -363,7 +363,7 @@ mod compliance_tests {
 
     /// Test compliance documentation generation
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_compliance_documentation_generation() {
         // System can generate compliance documentation
         // Includes: control descriptions, evidence, audit trails

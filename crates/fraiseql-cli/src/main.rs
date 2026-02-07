@@ -20,21 +20,31 @@
 #![allow(clippy::struct_excessive_bools)] // IntermediateAutoParams uses bools for flags
 #![allow(clippy::derive_partial_eq_without_eq)] // Some structs shouldn't implement Eq
 
-use std::{process, str::FromStr};
+use std::{env, process, str::FromStr};
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod commands;
 mod config;
+mod introspection;
 mod output;
+mod output_schemas;
 mod schema;
+
+/// Exit codes documented in help text
+const EXIT_CODES_HELP: &str = "\
+EXIT CODES:
+    0  Success - Command completed successfully
+    1  Error - Command failed with an error
+    2  Validation failed - Schema or input validation failed";
 
 /// FraiseQL CLI - Compile GraphQL schemas to optimized SQL execution
 #[derive(Parser)]
 #[command(name = "fraiseql")]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
+#[command(after_help = EXIT_CODES_HELP)]
 struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
@@ -64,6 +74,12 @@ enum Commands {
     /// 1. TOML-only: fraiseql compile fraiseql.toml
     /// 2. Language + TOML: fraiseql compile fraiseql.toml --types types.json
     /// 3. Legacy JSON: fraiseql compile schema.json
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql compile fraiseql.toml
+    fraiseql compile fraiseql.toml --types types.json
+    fraiseql compile schema.json -o schema.compiled.json
+    fraiseql compile fraiseql.toml --check")]
     Compile {
         /// Input file path: fraiseql.toml (TOML) or schema.json (legacy)
         #[arg(value_name = "INPUT")]
@@ -112,6 +128,10 @@ enum Commands {
     /// Explain query execution plan and complexity
     ///
     /// Shows GraphQL query execution plan, SQL, and complexity analysis.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql explain '{ users { id name } }'
+    fraiseql explain '{ user(id: 1) { posts { title } } }' --json")]
     Explain {
         /// GraphQL query string
         #[arg(value_name = "QUERY")]
@@ -121,6 +141,10 @@ enum Commands {
     /// Calculate query complexity score
     ///
     /// Quick analysis of query complexity (depth, field count, score).
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql cost '{ users { id name } }'
+    fraiseql cost '{ deeply { nested { query { here } } } }' --json")]
     Cost {
         /// GraphQL query string
         #[arg(value_name = "QUERY")]
@@ -131,15 +155,44 @@ enum Commands {
     ///
     /// Provides recommendations across 6 categories:
     /// performance, security, federation, complexity, caching, indexing
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql analyze schema.compiled.json
+    fraiseql analyze schema.compiled.json --json")]
     Analyze {
         /// Path to schema.compiled.json
         #[arg(value_name = "SCHEMA")]
         schema: String,
     },
 
+    /// Analyze schema type dependencies
+    ///
+    /// Exports dependency graph, detects cycles, and finds unused types.
+    /// Supports multiple output formats for visualization and CI integration.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql dependency-graph schema.compiled.json
+    fraiseql dependency-graph schema.compiled.json -f dot > graph.dot
+    fraiseql dependency-graph schema.compiled.json -f mermaid
+    fraiseql dependency-graph schema.compiled.json --json")]
+    DependencyGraph {
+        /// Path to schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Output format (json, dot, mermaid, d2, console)
+        #[arg(short, long, value_name = "FORMAT", default_value = "json")]
+        format: String,
+    },
+
     /// Export federation dependency graph
     ///
     /// Visualize federation structure in multiple formats.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql federation graph schema.compiled.json
+    fraiseql federation graph schema.compiled.json -f dot
+    fraiseql federation graph schema.compiled.json -f mermaid")]
     Federation {
         /// Schema path (positional argument passed to subcommand)
         #[command(subcommand)]
@@ -150,6 +203,12 @@ enum Commands {
     ///
     /// Analyzes schema using FraiseQL-calibrated design rules.
     /// Detects JSONB batching issues, compilation problems, auth boundaries, etc.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql lint schema.json
+    fraiseql lint schema.compiled.json --federation
+    fraiseql lint schema.json --fail-on-critical
+    fraiseql lint schema.json --json")]
     Lint {
         /// Path to schema.json or schema.compiled.json
         #[arg(value_name = "SCHEMA")]
@@ -189,6 +248,10 @@ enum Commands {
     },
 
     /// Generate DDL for Arrow views (va_*, tv_*, ta_*)
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate-views -s schema.json -e User --view va_users
+    fraiseql generate-views -s schema.json -e Order --view tv_orders --refresh-strategy scheduled")]
     GenerateViews {
         /// Path to schema.json
         #[arg(short, long, value_name = "SCHEMA")]
@@ -228,6 +291,18 @@ enum Commands {
     },
 
     /// Validate schema.json or fact tables
+    ///
+    /// Performs comprehensive schema validation including:
+    /// - JSON structure validation
+    /// - Type reference validation
+    /// - Circular dependency detection (with --check-cycles)
+    /// - Unused type detection (with --check-unused)
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql validate schema.json
+    fraiseql validate schema.json --check-unused
+    fraiseql validate schema.json --strict
+    fraiseql validate facts -s schema.json -d postgres://localhost/db")]
     Validate {
         #[command(subcommand)]
         command: Option<ValidateCommands>,
@@ -235,9 +310,29 @@ enum Commands {
         /// Schema.json file path to validate (if no subcommand)
         #[arg(value_name = "INPUT")]
         input: Option<String>,
+
+        /// Check for circular dependencies between types
+        #[arg(long, default_value = "true")]
+        check_cycles: bool,
+
+        /// Check for unused types (no incoming references)
+        #[arg(long)]
+        check_unused: bool,
+
+        /// Strict mode: treat warnings as errors (unused types become errors)
+        #[arg(long)]
+        strict: bool,
+
+        /// Only analyze specific type(s) - comma-separated list
+        #[arg(long, value_name = "TYPES", value_delimiter = ',')]
+        types: Vec<String>,
     },
 
     /// Introspect database for fact tables and output suggestions
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql introspect facts -d postgres://localhost/db
+    fraiseql introspect facts -d postgres://localhost/db -f json")]
     Introspect {
         #[command(subcommand)]
         command: IntrospectCommands,
@@ -300,6 +395,12 @@ enum IntrospectCommands {
 
 #[tokio::main]
 async fn main() {
+    // Handle AI-agent introspection flags before clap parsing
+    // These flags output JSON and exit, bypassing normal command processing
+    if let Some(code) = handle_introspection_flags() {
+        process::exit(code);
+    }
+
     let cli = Cli::parse();
 
     // Initialize logging
@@ -354,6 +455,22 @@ async fn main() {
                 Ok(())
             },
             Err(e) => Err(e),
+        },
+
+        Commands::DependencyGraph { schema, format } => {
+            match commands::dependency_graph::GraphFormat::from_str(&format) {
+                Ok(fmt) => match commands::dependency_graph::run(&schema, fmt) {
+                    Ok(result) => {
+                        println!(
+                            "{}",
+                            output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                        );
+                        Ok(())
+                    },
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(anyhow::anyhow!(e)),
+            }
         },
 
         Commands::Lint {
@@ -436,12 +553,40 @@ async fn main() {
             Err(e) => Err(anyhow::anyhow!(e)),
         },
 
-        Commands::Validate { command, input } => match command {
+        Commands::Validate {
+            command,
+            input,
+            check_cycles,
+            check_unused,
+            strict,
+            types,
+        } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
                 commands::validate_facts::run(std::path::Path::new(&schema), &database).await
             },
             None => match input {
-                Some(input) => commands::validate::run(&input).await,
+                Some(input) => {
+                    let opts = commands::validate::ValidateOptions {
+                        check_cycles,
+                        check_unused,
+                        strict,
+                        filter_types: types,
+                    };
+                    match commands::validate::run_with_options(&input, opts) {
+                        Ok(result) => {
+                            println!(
+                                "{}",
+                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                            );
+                            if result.status == "validation-failed" {
+                                Err(anyhow::anyhow!("Validation failed"))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
                 None => Err(anyhow::anyhow!("INPUT required when no subcommand provided")),
             },
         },
@@ -485,4 +630,63 @@ fn init_logging(verbose: bool, debug: bool) {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+}
+
+/// Handle AI-agent introspection flags before normal parsing
+///
+/// Returns Some(exit_code) if an introspection flag was handled,
+/// None if normal parsing should continue.
+fn handle_introspection_flags() -> Option<i32> {
+    let args: Vec<String> = env::args().collect();
+
+    // Check for --help-json
+    if args.iter().any(|a| a == "--help-json") {
+        let cmd = Cli::command();
+        let version = env!("CARGO_PKG_VERSION");
+        let help = introspection::extract_cli_help(&cmd, version);
+        let result = output::CommandResult::success("help", serde_json::to_value(&help).unwrap());
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        return Some(0);
+    }
+
+    // Check for --list-commands
+    if args.iter().any(|a| a == "--list-commands") {
+        let cmd = Cli::command();
+        let commands = introspection::list_commands(&cmd);
+        let result =
+            output::CommandResult::success("list-commands", serde_json::to_value(&commands).unwrap());
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        return Some(0);
+    }
+
+    // Check for --show-output-schema <command>
+    let idx = args.iter().position(|a| a == "--show-output-schema")?;
+    let available = output_schemas::list_schema_commands().join(", ");
+
+    let Some(cmd_name) = args.get(idx + 1) else {
+        let result = output::CommandResult::error(
+            "show-output-schema",
+            &format!("Missing command name. Available: {available}"),
+            "MISSING_ARGUMENT",
+        );
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        return Some(1);
+    };
+
+    if let Some(schema) = output_schemas::get_output_schema(cmd_name) {
+        let result = output::CommandResult::success(
+            "show-output-schema",
+            serde_json::to_value(&schema).unwrap(),
+        );
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        return Some(0);
+    }
+
+    let result = output::CommandResult::error(
+        "show-output-schema",
+        &format!("Unknown command: {cmd_name}. Available: {available}"),
+        "UNKNOWN_COMMAND",
+    );
+    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    Some(1)
 }

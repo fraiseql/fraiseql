@@ -21,7 +21,7 @@ mod performance_tests {
 
     /// Test batch encryption context reuse
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_encryption_context_reuse() {
         // When encrypting batch of fields
         // Encryption context created once
@@ -32,7 +32,7 @@ mod performance_tests {
 
     /// Test batch INSERT performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_insert_performance() {
         // When inserting 1000 records with 5 encrypted fields each
         // Encryption adds <10% overhead vs unencrypted
@@ -42,7 +42,7 @@ mod performance_tests {
 
     /// Test batch UPDATE performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_update_performance() {
         // When updating 500 records' encrypted fields
         // Each update generates new nonce
@@ -52,7 +52,7 @@ mod performance_tests {
 
     /// Test batch SELECT performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_select_performance() {
         // When selecting 1000 records with encrypted fields
         // Decryption parallelizable
@@ -62,7 +62,7 @@ mod performance_tests {
 
     /// Test batch size optimization
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_size_optimization() {
         // Optimal batch size varies by CPU cores
         // System can auto-tune batch size
@@ -77,7 +77,7 @@ mod performance_tests {
 
     /// Test parallel decryption improves throughput
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_parallel_decryption_throughput() {
         // When decrypting many fields in parallel
         // Use rayon or tokio::spawn_blocking
@@ -88,7 +88,7 @@ mod performance_tests {
 
     /// Test decryption parallelization safety
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_decryption_parallel_safety() {
         // When parallelizing decryption
         // Thread-safe cipher instances required
@@ -99,7 +99,7 @@ mod performance_tests {
 
     /// Test parallel decryption with different keys
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_parallel_decryption_different_keys() {
         // When decrypting fields with different keys
         // Each worker fetches own key from cache
@@ -109,7 +109,7 @@ mod performance_tests {
 
     /// Test spawn_blocking for CPU-bound crypto
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_spawn_blocking_crypto_operations() {
         // Crypto operations are CPU-bound
         // Should use tokio::spawn_blocking to avoid blocking runtime
@@ -119,7 +119,7 @@ mod performance_tests {
 
     /// Test parallel decryption error handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_parallel_decryption_error_handling() {
         // When parallel decryption fails on one field
         // Error collected and returned
@@ -134,7 +134,7 @@ mod performance_tests {
 
     /// Test key cache hit effectiveness
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_cache_hit_rate() {
         // When accessing encryption keys repeatedly
         // Cache hit rate should be >95%
@@ -144,7 +144,7 @@ mod performance_tests {
 
     /// Test cache eviction strategy
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_eviction_lru() {
         // Key cache uses LRU eviction
         // Most-used keys stay in cache
@@ -155,7 +155,7 @@ mod performance_tests {
 
     /// Test cache warmup on startup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_warmup_startup() {
         // On startup, can pre-warm cache
         // Load common keys proactively
@@ -165,7 +165,7 @@ mod performance_tests {
 
     /// Test cache invalidation on key rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_invalidation_key_rotation() {
         // When encryption key rotates
         // Affected cache entry invalidated
@@ -176,7 +176,7 @@ mod performance_tests {
 
     /// Test cache statistics collection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_cache_statistics_collection() {
         // Cache collects statistics
         // Hit rate, miss rate, eviction count
@@ -186,7 +186,7 @@ mod performance_tests {
 
     /// Test distributed cache consistency
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_distributed_cache_consistency() {
         // In distributed deployment
         // Multiple servers with local caches
@@ -201,7 +201,7 @@ mod performance_tests {
 
     /// Test memory usage scales linearly
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_memory_efficiency_linear_scaling() {
         // When encrypting batches of increasing size
         // Memory usage should scale linearly
@@ -211,7 +211,7 @@ mod performance_tests {
 
     /// Test zero-copy encryption where possible
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_zero_copy_encryption_optimization() {
         // Encryption should minimize copies
         // Use references where possible
@@ -221,7 +221,7 @@ mod performance_tests {
 
     /// Test sensitive data cleanup
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_sensitive_data_memory_cleanup() {
         // After encryption/decryption
         // Sensitive data properly overwritten
@@ -232,7 +232,7 @@ mod performance_tests {
 
     /// Test batch buffer pool
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_batch_buffer_pool() {
         // Reusable buffer pool for batches
         // Reduces allocation churn
@@ -242,7 +242,7 @@ mod performance_tests {
 
     /// Test connection pool with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_connection_pool_encryption_overhead() {
         // Connection pool + encryption
         // Overhead minimal
@@ -252,7 +252,7 @@ mod performance_tests {
 
     /// Test memory pressure handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_memory_pressure_handling() {
         // Under memory pressure
         // Cache size reduced gracefully
@@ -266,7 +266,7 @@ mod performance_tests {
 
     /// Test encryption operation metrics
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_operation_metrics() {
         // Metrics collected per operation
         // Latency, throughput, errors
@@ -276,7 +276,7 @@ mod performance_tests {
 
     /// Test performance regression detection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_regression_detection() {
         // System can detect performance regressions
         // Historical baseline established
@@ -286,7 +286,7 @@ mod performance_tests {
 
     /// Test performance dashboard
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_dashboard() {
         // Dashboard shows real-time metrics
         // Encryption rate (ops/sec)
@@ -297,7 +297,7 @@ mod performance_tests {
 
     /// Test performance SLOs
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_slo_compliance() {
         // System enforces performance SLOs
         // Encryption: <10ms p99
@@ -312,7 +312,7 @@ mod performance_tests {
 
     /// Test encryption under peak load
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_peak_load_encryption() {
         // When system handles peak load
         // 10k+ operations/sec
@@ -323,7 +323,7 @@ mod performance_tests {
 
     /// Test sustained load encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_sustained_load_encryption() {
         // When system handles sustained load
         // 1k+ operations/sec for hours
@@ -334,7 +334,7 @@ mod performance_tests {
 
     /// Test encryption with cache churn
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_encryption_cache_churn() {
         // When many different keys accessed
         // Cache churns frequently
@@ -344,7 +344,7 @@ mod performance_tests {
 
     /// Test encryption with key rotation under load
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_key_rotation_under_load() {
         // When key rotation happens during peak load
         // Rotation completes without blocking operations

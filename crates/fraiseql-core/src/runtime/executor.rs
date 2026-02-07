@@ -17,7 +17,8 @@
 use std::{sync::Arc, time::Duration};
 
 use super::{
-    ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig, filter_fields,
+    ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
+    filter_fields,
 };
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
@@ -636,7 +637,9 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 6. Generate SQL projection hint for requested fields (optimization)
         // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        let projection_hint = if !plan.projection_fields.is_empty() && plan.jsonb_strategy == JsonbStrategy::Project {
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_projection_sql(&plan.projection_fields)
@@ -707,7 +710,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 3a. Generate SQL projection hint for requested fields (optimization)
         // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
         // This reduces payload by 40-55% by projecting only requested fields at the database level
-        let projection_hint = if !plan.projection_fields.is_empty() && plan.jsonb_strategy == JsonbStrategy::Project {
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_projection_sql(&plan.projection_fields)

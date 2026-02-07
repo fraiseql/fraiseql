@@ -21,10 +21,9 @@ impl std::str::FromStr for JsonbStrategy {
         match s.to_lowercase().as_str() {
             "project" => Ok(JsonbStrategy::Project),
             "stream" => Ok(JsonbStrategy::Stream),
-            other => Err(format!(
-                "Invalid JSONB strategy '{}', must be 'project' or 'stream'",
-                other
-            )),
+            other => {
+                Err(format!("Invalid JSONB strategy '{}', must be 'project' or 'stream'", other))
+            },
         }
     }
 }

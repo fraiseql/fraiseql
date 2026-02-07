@@ -18,5 +18,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod introspection;
 pub mod output;
+pub mod output_schemas;
 pub mod schema;

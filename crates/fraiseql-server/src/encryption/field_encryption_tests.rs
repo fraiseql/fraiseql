@@ -19,7 +19,7 @@ mod field_encryption_tests {
 
     /// Test encrypted data contains random nonce
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encryption_contains_nonce() {
         // When same plaintext encrypted twice
         // Should produce different ciphertexts (due to random nonce)
@@ -28,7 +28,7 @@ mod field_encryption_tests {
 
     /// Test ciphertext is not plaintext
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encryption_output_not_plaintext() {
         // When plaintext is encrypted
         // Ciphertext should not contain plaintext bytes
@@ -37,7 +37,7 @@ mod field_encryption_tests {
 
     /// Test authenticated encryption prevents tampering
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encryption_detects_tampering() {
         // When ciphertext is modified (any byte changed)
         // Decryption should fail (authentication tag verification fails)
@@ -50,7 +50,7 @@ mod field_encryption_tests {
 
     /// Test email field encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_email() {
         // When email address encrypted
         // Should support standard email format
@@ -59,7 +59,7 @@ mod field_encryption_tests {
 
     /// Test phone number encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_phone_number() {
         // When phone number encrypted (various formats: +1-555-123-4567, 5551234567)
         // Should handle all formats correctly
@@ -68,7 +68,7 @@ mod field_encryption_tests {
 
     /// Test SSN/tax ID encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_ssn() {
         // When SSN encrypted (format: XXX-XX-XXXX)
         // Should preserve format information after decryption
@@ -77,7 +77,7 @@ mod field_encryption_tests {
 
     /// Test credit card encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_credit_card() {
         // When credit card number encrypted
         // Should handle 13-19 digit numbers
@@ -87,7 +87,7 @@ mod field_encryption_tests {
 
     /// Test API key encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_api_key() {
         // When API key encrypted (e.g., sk_live_xxx, pk_test_xxx)
         // Should preserve key format and content
@@ -96,7 +96,7 @@ mod field_encryption_tests {
 
     /// Test OAuth token encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_oauth_token() {
         // When OAuth token encrypted
         // Should support JWT format (header.payload.signature)
@@ -106,7 +106,7 @@ mod field_encryption_tests {
 
     /// Test empty string encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_empty_string() {
         // When empty string encrypted
         // Should succeed (not treat as error)
@@ -115,7 +115,7 @@ mod field_encryption_tests {
 
     /// Test special characters
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_special_characters() {
         // When plaintext with special chars encrypted
         // Should handle: !@#$%^&*()_+-=[]{}|;':",./<>?
@@ -125,7 +125,7 @@ mod field_encryption_tests {
 
     /// Test unicode support
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_unicode() {
         // When unicode plaintext encrypted
         // Should support Chinese, Cyrillic, emoji, etc.
@@ -138,7 +138,7 @@ mod field_encryption_tests {
 
     /// Test encryption with context
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_with_context() {
         // When plaintext encrypted with context
         // Should require same context to decrypt
@@ -147,7 +147,7 @@ mod field_encryption_tests {
 
     /// Test context verification prevents wrong context
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_context_verification_strict() {
         // When decrypted with different context than encryption used
         // Should fail immediately (context mismatch)
@@ -156,7 +156,7 @@ mod field_encryption_tests {
 
     /// Test context supports audit trail use cases
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_context_audit_information() {
         // When context includes: user_id:field_name:timestamp
         // Should provide audit information without bloating ciphertext
@@ -169,7 +169,7 @@ mod field_encryption_tests {
 
     /// Test invalid key size
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_invalid_key_size() {
         // When FieldEncryption created with wrong key size
         // Should reject (not 32 bytes for AES-256)
@@ -178,7 +178,7 @@ mod field_encryption_tests {
 
     /// Test decryption of corrupted data
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_corrupted_ciphertext_error() {
         // When ciphertext modified (any byte changed)
         // Decryption should fail
@@ -187,7 +187,7 @@ mod field_encryption_tests {
 
     /// Test decryption of truncated data
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_truncated_ciphertext_error() {
         // When ciphertext truncated (too short for nonce)
         // Should return error (not panic)
@@ -196,7 +196,7 @@ mod field_encryption_tests {
 
     /// Test decryption with wrong key
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_decrypt_wrong_key_error() {
         // When ciphertext decrypted with different key
         // Should fail (authentication tag verification fails)
@@ -205,7 +205,7 @@ mod field_encryption_tests {
 
     /// Test invalid UTF-8 handling
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_invalid_utf8_error() {
         // When encrypted data decrypts to invalid UTF-8
         // Should return error (not panic)
@@ -218,7 +218,7 @@ mod field_encryption_tests {
 
     /// Test encrypted field in database storage
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_database_storage() {
         // When encrypted field stored in database
         // Should store as BYTEA or BLOB
@@ -228,7 +228,7 @@ mod field_encryption_tests {
 
     /// Test encrypting before database insert
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_encrypt_before_insert() {
         // When plaintext field encrypted before INSERT
         // Should store ciphertext in database
@@ -237,7 +237,7 @@ mod field_encryption_tests {
 
     /// Test decrypting after database retrieval
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_decrypt_after_select() {
         // When encrypted field retrieved from database
         // Should decrypt to original plaintext
@@ -246,7 +246,7 @@ mod field_encryption_tests {
 
     /// Test multiple encrypted fields in single row
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_multiple_encrypted_fields() {
         // When row has multiple encrypted fields (email, phone, ssn)
         // Each should be independently encryptable with different keys
@@ -256,7 +256,7 @@ mod field_encryption_tests {
 
     /// Test encrypted field in UPDATE operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_database_update() {
         // When encrypted field updated
         // Should re-encrypt with new nonce
@@ -266,7 +266,7 @@ mod field_encryption_tests {
 
     /// Test encrypted field in WHERE clauses (not supported)
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_cannot_query_encrypted() {
         // When attempting to filter on encrypted field (WHERE email = ?)
         // Should fail appropriately
@@ -280,7 +280,7 @@ mod field_encryption_tests {
 
     /// Test encryption throughput
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_encryption_throughput() {
         // When 1000 fields encrypted sequentially
         // Should complete in reasonable time (<100ms)
@@ -290,7 +290,7 @@ mod field_encryption_tests {
 
     /// Test decryption throughput
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_decryption_throughput() {
         // When 1000 encrypted fields decrypted sequentially
         // Should complete quickly
@@ -299,7 +299,7 @@ mod field_encryption_tests {
 
     /// Test large plaintext encryption
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_large_plaintext() {
         // When very large plaintext encrypted (1MB+)
         // Should succeed (no artificial limits)
@@ -312,7 +312,7 @@ mod field_encryption_tests {
 
     /// Test key derivation requirements
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_key_must_be_32_bytes() {
         // When FieldEncryption created with non-32-byte key
         // Should reject with clear error
@@ -321,7 +321,7 @@ mod field_encryption_tests {
 
     /// Test key reuse across many encryptions
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_key_reuse_with_random_nonce() {
         // When same key used for multiple encryptions
         // Each encryption should use different random nonce
@@ -331,7 +331,7 @@ mod field_encryption_tests {
 
     /// Test independent cipher instances
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_cipher_instances_independent() {
         // When multiple FieldEncryption instances created with same key
         // Each should be independently encrypted
@@ -344,7 +344,7 @@ mod field_encryption_tests {
 
     /// Test IND-CPA security (indistinguishability under chosen plaintext)
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_ind_cpa_property() {
         // When same plaintext encrypted multiple times
         // Ciphertexts should be computationally indistinguishable
@@ -353,7 +353,7 @@ mod field_encryption_tests {
 
     /// Test authenticated encryption (prevents undetected modifications)
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_authenticated_encryption() {
         // When ciphertext modified in any way
         // Authentication tag verification should fail
@@ -362,7 +362,7 @@ mod field_encryption_tests {
 
     /// Test nonce reuse protection
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_nonce_uniqueness_requirement() {
         // When same nonce used with same key for two plaintexts
         // Should produce different ciphertexts
@@ -371,7 +371,7 @@ mod field_encryption_tests {
 
     /// Test no key recovery from ciphertext
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_key_not_recoverable() {
         // When attacker has plaintext and ciphertext pairs
         // Should not be able to derive encryption key
@@ -384,7 +384,7 @@ mod field_encryption_tests {
 
     /// Test ciphertext format stability
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_ciphertext_format() {
         // Ciphertext should always be: [12-byte nonce][ciphertext][16-byte tag]
         // Format should be stable across versions
@@ -393,7 +393,7 @@ mod field_encryption_tests {
 
     /// Test different aes-gcm implementations compatibility
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_aes_gcm_standard_compliance() {
         // When using NIST SP 800-38D compliant AES-GCM
         // Should be compatible with other standard implementations
@@ -406,7 +406,7 @@ mod field_encryption_tests {
 
     /// Test all zero key
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_all_zero_key() {
         // When all-zero key used
         // Should still work (though not recommended)
@@ -415,7 +415,7 @@ mod field_encryption_tests {
 
     /// Test all zero plaintext
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_all_zero_plaintext() {
         // When all-zero plaintext encrypted
         // Should produce valid ciphertext
@@ -424,7 +424,7 @@ mod field_encryption_tests {
 
     /// Test very long plaintext
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_very_long_plaintext() {
         // When plaintext is 10MB or larger
         // Should handle without panic
@@ -433,7 +433,7 @@ mod field_encryption_tests {
 
     /// Test single character
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_single_character() {
         // When single character encrypted
         // Should succeed

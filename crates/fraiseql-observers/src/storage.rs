@@ -21,8 +21,8 @@ pub trait EventStorage: Send + Sync {
     /// * `entity_type` - Filter events for this entity type (e.g., "Order", "User")
     /// * `start_date` - Optional start of date range (inclusive)
     /// * `end_date` - Optional end of date range (inclusive)
-    /// * `limit` - Maximum number of events to return (None = no limit, but implementations
-    ///   may cap this)
+    /// * `limit` - Maximum number of events to return (None = no limit, but implementations may cap
+    ///   this)
     ///
     /// # Returns
     ///
@@ -59,12 +59,11 @@ pub mod postgres {
     use sqlx::PgPool;
     use uuid::Uuid;
 
+    use super::EventStorage;
     use crate::{
         error::{ObserverError, Result},
         event::{EntityEvent, EventKind},
     };
-
-    use super::EventStorage;
 
     /// PostgreSQL-backed event storage using fraiseql_events table.
     ///
@@ -138,14 +137,14 @@ pub mod postgres {
             // Execute query
             #[derive(sqlx::FromRow)]
             struct EventRow {
-                id: Uuid,
-                event_type: String,
+                id:          Uuid,
+                event_type:  String,
                 entity_type: String,
-                entity_id: Uuid,
-                timestamp: DateTime<Utc>,
-                data: serde_json::Value,
-                user_id: Option<String>,
-                tenant_id: Option<String>,
+                entity_id:   Uuid,
+                timestamp:   DateTime<Utc>,
+                data:        serde_json::Value,
+                user_id:     Option<String>,
+                tenant_id:   Option<String>,
             }
 
             let mut query = sqlx::query_as::<_, EventRow>(&query_str);
@@ -160,11 +159,10 @@ pub mod postgres {
                 query = query.bind(end);
             }
 
-            let rows = query.fetch_all(&self.pool).await.map_err(|e| {
-                ObserverError::StorageError {
+            let rows =
+                query.fetch_all(&self.pool).await.map_err(|e| ObserverError::StorageError {
                     reason: format!("Failed to query events: {e}"),
-                }
-            })?;
+                })?;
 
             // Convert rows to EntityEvents
             let events = rows
@@ -200,8 +198,9 @@ pub mod postgres {
             start_date: Option<DateTime<Utc>>,
             end_date: Option<DateTime<Utc>>,
         ) -> Result<usize> {
-            let mut query_str =
-                String::from("SELECT COUNT(*) as count FROM fraiseql_events WHERE entity_type = $1");
+            let mut query_str = String::from(
+                "SELECT COUNT(*) as count FROM fraiseql_events WHERE entity_type = $1",
+            );
 
             let mut param_index = 2;
 
@@ -216,8 +215,7 @@ pub mod postgres {
                 query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
-            let mut query =
-                sqlx::query_scalar::<_, i64>(&query_str).bind(entity_type);
+            let mut query = sqlx::query_scalar::<_, i64>(&query_str).bind(entity_type);
 
             if let Some(start) = start_date {
                 query = query.bind(start);
@@ -227,11 +225,10 @@ pub mod postgres {
                 query = query.bind(end);
             }
 
-            let count = query.fetch_one(&self.pool).await.map_err(|e| {
-                ObserverError::StorageError {
+            let count =
+                query.fetch_one(&self.pool).await.map_err(|e| ObserverError::StorageError {
                     reason: format!("Failed to count events: {e}"),
-                }
-            })?;
+                })?;
 
             Ok(count as usize)
         }

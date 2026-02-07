@@ -24,7 +24,7 @@ mod rotation_api_tests {
 
     /// Test rotation status with multiple keys
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_multiple_keys() {
         // When system has multiple encryption keys
         // Status endpoint returns array of key statuses
@@ -34,7 +34,7 @@ mod rotation_api_tests {
 
     /// Test rotation status indicates urgency
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_urgency_levels() {
         // Status values indicate urgency:
         // "healthy": <70% TTL consumed
@@ -45,7 +45,7 @@ mod rotation_api_tests {
 
     /// Test rotation status with auto-refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_with_auto_refresh() {
         // When auto-refresh enabled
         // Status shows: next_rotation time
@@ -55,7 +55,7 @@ mod rotation_api_tests {
 
     /// Test rotation status metrics
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_includes_metrics() {
         // Status includes:
         // - versions_total: Number of versions for this key
@@ -71,7 +71,7 @@ mod rotation_api_tests {
 
     /// Test POST /api/v1/admin/rotation/rotate immediate rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_immediate_rotation() {
         // POST /api/v1/admin/rotation/rotate with body:
         // {"key_id": "primary", "reason": "Scheduled rotation"}
@@ -81,7 +81,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint dry-run mode
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_dry_run() {
         // POST /api/v1/admin/rotation/rotate with:
         // {"key_id": "primary", "dry_run": true}
@@ -92,7 +92,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint with reason tracking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_reason_tracking() {
         // Rotation reason stored in audit log
         // Examples: "scheduled", "emergency", "testing", "compliance_requirement"
@@ -102,7 +102,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint requires authentication
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_auth_required() {
         // POST without bearer token: 401 Unauthorized
         // POST with invalid token: 403 Forbidden
@@ -112,7 +112,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint validates key ID
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_validates_key_id() {
         // POST with unknown key_id: 400 Bad Request
         // Error message: "Key 'unknown' not found"
@@ -121,7 +121,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint prevents too-frequent rotation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_prevents_too_frequent() {
         // Manual rotations allowed once per hour minimum
         // Second rotation within 1 hour: 429 Too Many Requests
@@ -135,7 +135,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/history response structure
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_endpoint_structure() {
         // GET /api/v1/admin/rotation/history?key_id=primary&limit=10
         // Response: array of rotation records
@@ -151,7 +151,7 @@ mod rotation_api_tests {
 
     /// Test rotation history pagination
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_pagination() {
         // Query parameters:
         // ?limit=10 (default 100, max 1000)
@@ -163,7 +163,7 @@ mod rotation_api_tests {
 
     /// Test rotation history filtering
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_filtering() {
         // Can filter by:
         // ?reason=scheduled|emergency|testing|compliance
@@ -174,7 +174,7 @@ mod rotation_api_tests {
 
     /// Test rotation history sorting
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_sorting() {
         // Default: newest first (descending timestamp)
         // ?order=asc for oldest first
@@ -184,7 +184,7 @@ mod rotation_api_tests {
 
     /// Test rotation history export
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_export() {
         // ?format=json (default) returns JSON
         // ?format=csv returns CSV export
@@ -198,7 +198,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/config
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_endpoint_get() {
         // GET /api/v1/admin/rotation/config
         // Returns current configuration:
@@ -213,7 +213,7 @@ mod rotation_api_tests {
 
     /// Test PUT /api/v1/admin/rotation/config update
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_endpoint_update() {
         // PUT /api/v1/admin/rotation/config with:
         // {
@@ -227,7 +227,7 @@ mod rotation_api_tests {
 
     /// Test rotation config validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_validation() {
         // Invalid values rejected:
         // - threshold > 99: 400 Bad Request
@@ -238,7 +238,7 @@ mod rotation_api_tests {
 
     /// Test rotation config compliance defaults
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_compliance_presets() {
         // GET /api/v1/admin/rotation/config/presets
         // Returns recommended configs:
@@ -250,7 +250,7 @@ mod rotation_api_tests {
 
     /// Test rotation config apply preset
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_apply_preset() {
         // POST /api/v1/admin/rotation/config/apply-preset?preset=hipaa
         // Applies preset configuration
@@ -264,7 +264,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/schedule
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_endpoint_get() {
         // GET /api/v1/admin/rotation/schedule
         // Returns:
@@ -276,7 +276,7 @@ mod rotation_api_tests {
 
     /// Test PUT /api/v1/admin/rotation/schedule update
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_endpoint_update() {
         // PUT /api/v1/admin/rotation/schedule with:
         // {"schedule_type": "cron", "schedule_value": "0 2 1 * *"}
@@ -287,7 +287,7 @@ mod rotation_api_tests {
 
     /// Test schedule validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_validation() {
         // Cron validation: must be valid cron format
         // Interval validation: 1-365 days
@@ -297,7 +297,7 @@ mod rotation_api_tests {
 
     /// Test test schedule endpoint
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_test_endpoint() {
         // POST /api/v1/admin/rotation/schedule/test
         // Calculates when rotations would occur
@@ -311,7 +311,7 @@ mod rotation_api_tests {
 
     /// Test rotation error response format
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_error_response_format() {
         // Errors return JSON:
         // {
@@ -324,7 +324,7 @@ mod rotation_api_tests {
 
     /// Test rotation timeout handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_timeout_handling() {
         // If rotation takes >30s: 504 Gateway Timeout
         // Response includes: "Still rotating, check status endpoint"
@@ -334,7 +334,7 @@ mod rotation_api_tests {
 
     /// Test rotation concurrent request handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_concurrent_requests() {
         // Second rotation request while first in progress: 409 Conflict
         // Error: "Rotation already in progress"
@@ -347,7 +347,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint bearer token validation
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_bearer_token_validation() {
         // All endpoints require valid bearer token
         // Token validated against configured JWT validator
@@ -357,7 +357,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint rate limiting
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_rate_limiting() {
         // Rate limit: 10 requests per minute per user
         // Limit: 100 requests per minute per IP
@@ -367,7 +367,7 @@ mod rotation_api_tests {
 
     /// Test rotation audit logging
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_audit_logging() {
         // All rotation API calls logged
         // Log includes: timestamp, user_id, endpoint, parameters, result
@@ -381,7 +381,7 @@ mod rotation_api_tests {
 
     /// Test rotation metrics collection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_metrics_collection() {
         // Metrics tracked:
         // - rotation_endpoint_requests_total
@@ -393,7 +393,7 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint tracing
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_tracing() {
         // Each request includes trace ID
         // Rotation operations traced through system
@@ -403,7 +403,7 @@ mod rotation_api_tests {
 
     /// Test rotation status webhook
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_webhook() {
         // POST /api/v1/admin/rotation/webhooks/subscribe
         // Subscribe to rotation events

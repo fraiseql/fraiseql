@@ -939,7 +939,8 @@ impl FraiseQLFlightService {
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
         // Parse export format (default to Parquet)
         let export_format = match format.as_deref() {
-            Some(f) => f.parse::<ExportFormat>()
+            Some(f) => f
+                .parse::<ExportFormat>()
                 .map_err(|e| Status::invalid_argument(format!("Invalid format: {}", e)))?,
             None => ExportFormat::Parquet,
         };
@@ -1002,7 +1003,7 @@ impl FraiseQLFlightService {
         // Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows: None,
+            max_rows:   None,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -1024,11 +1025,7 @@ impl FraiseQLFlightService {
             let exported_bytes = BulkExporter::export_batch(batch, export_format)
                 .map_err(|e| Status::internal(format!("Export failed: {}", e)))?;
 
-            info!(
-                batch_index = index,
-                bytes_size = exported_bytes.len(),
-                "Exported batch"
-            );
+            info!(batch_index = index, bytes_size = exported_bytes.len(), "Exported batch");
 
             // Create FlightData with exported bytes
             let flight_data = FlightData {
@@ -1089,10 +1086,10 @@ impl FraiseQLFlightService {
                 match schema_registry.reload_all_schemas(adapter.as_ref()).await {
                     Ok(count) => {
                         info!("Schema reload completed: {} schemas reloaded", count);
-                    }
+                    },
                     Err(e) => {
                         warn!("Schema reload failed: {}", e);
-                    }
+                    },
                 }
             });
         }
@@ -1104,9 +1101,7 @@ impl FraiseQLFlightService {
         });
 
         let result = Ok(arrow_flight::Result {
-            body: serde_json::to_vec(&response)
-                .unwrap_or_else(|_| b"{}".to_vec())
-                .into(),
+            body: serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec()).into(),
         });
 
         let stream = futures::stream::iter(vec![result]);
@@ -1144,9 +1139,7 @@ impl FraiseQLFlightService {
         });
 
         let result = Ok(arrow_flight::Result {
-            body: serde_json::to_vec(&response)
-                .unwrap_or_else(|_| b"{}".to_vec())
-                .into(),
+            body: serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec()).into(),
         });
 
         let stream = futures::stream::iter(vec![result]);
@@ -1617,30 +1610,13 @@ impl FlightService for FraiseQLFlightService {
                 start_date,
                 end_date,
                 limit,
-            } => {
-                self.execute_observer_events(
-                    &entity_type,
-                    start_date,
-                    end_date,
-                    limit,
-                )
-                .await
-            },
+            } => self.execute_observer_events(&entity_type, start_date, end_date, limit).await,
             FlightTicket::BulkExport {
                 table,
                 filter,
                 limit,
                 format,
-            } => {
-                self.execute_bulk_export(
-                    &table,
-                    filter,
-                    limit,
-                    format,
-                    &security_context,
-                )
-                .await
-            },
+            } => self.execute_bulk_export(&table, filter, limit, format, &security_context).await,
             FlightTicket::BatchedQueries { queries } => {
                 // Phase 2.3: Pass security_context for batched query execution with RLS
                 let stream = self.execute_batched_queries(queries, &security_context).await?;
@@ -1667,7 +1643,9 @@ impl FlightService for FraiseQLFlightService {
         );
 
         // Check if database adapter is available
-        let db_adapter = self.db_adapter.as_ref()
+        let db_adapter = self
+            .db_adapter
+            .as_ref()
             .ok_or_else(|| Status::internal("Database adapter not configured"))?;
 
         // Get the incoming stream
@@ -1689,20 +1667,22 @@ impl FlightService for FraiseQLFlightService {
                     let table_name = match first_msg.flight_descriptor {
                         Some(descriptor) => {
                             if descriptor.path.is_empty() {
-                                let _ = tx.send(Err(Status::invalid_argument(
-                                    "FlightDescriptor path cannot be empty"
-                                ))).await;
+                                let _ = tx
+                                    .send(Err(Status::invalid_argument(
+                                        "FlightDescriptor path cannot be empty",
+                                    )))
+                                    .await;
                                 return;
                             }
                             // descriptor.path contains UTF8 strings
                             descriptor.path[0].clone()
                         },
                         None => {
-                            let _ = tx.send(Err(Status::invalid_argument(
-                                "Missing FlightDescriptor"
-                            ))).await;
+                            let _ = tx
+                                .send(Err(Status::invalid_argument("Missing FlightDescriptor")))
+                                .await;
                             return;
-                        }
+                        },
                     };
 
                     info!(
@@ -1740,29 +1720,37 @@ impl FlightService for FraiseQLFlightService {
                                             Ok(_) => {
                                                 total_rows += rows_in_batch;
                                                 // Send success result for this batch
-                                                let metadata = format!("Inserted {} rows", rows_in_batch)
-                                                    .into_bytes();
-                                                if let Err(e) = tx.send(Ok(PutResult {
-                                                    app_metadata: metadata.into(),
-                                                })).await {
+                                                let metadata =
+                                                    format!("Inserted {} rows", rows_in_batch)
+                                                        .into_bytes();
+                                                if let Err(e) = tx
+                                                    .send(Ok(PutResult {
+                                                        app_metadata: metadata.into(),
+                                                    }))
+                                                    .await
+                                                {
                                                     warn!("Failed to send result: {}", e);
                                                     break;
                                                 }
                                             },
                                             Err(e) => {
-                                                let err_msg = format!("Database insert failed: {}", e);
+                                                let err_msg =
+                                                    format!("Database insert failed: {}", e);
                                                 warn!("{}", err_msg);
-                                                let _ = tx.send(Err(Status::internal(err_msg))).await;
+                                                let _ =
+                                                    tx.send(Err(Status::internal(err_msg))).await;
                                                 break;
-                                            }
+                                            },
                                         }
                                     },
                                     Err(e) => {
-                                        let err_msg = format!("Failed to build INSERT query: {}", e);
+                                        let err_msg =
+                                            format!("Failed to build INSERT query: {}", e);
                                         warn!("{}", err_msg);
-                                        let _ = tx.send(Err(Status::invalid_argument(err_msg))).await;
+                                        let _ =
+                                            tx.send(Err(Status::invalid_argument(err_msg))).await;
                                         break;
-                                    }
+                                    },
                                 }
                             },
                             Err(e) => {
@@ -1770,7 +1758,7 @@ impl FlightService for FraiseQLFlightService {
                                 warn!("{}", err_msg);
                                 let _ = tx.send(Err(Status::invalid_argument(err_msg))).await;
                                 break;
-                            }
+                            },
                         }
                     }
 
@@ -1782,18 +1770,20 @@ impl FlightService for FraiseQLFlightService {
                     );
 
                     // Send final success result
-                    let metadata = format!("Upload complete: {} total rows", total_rows)
-                        .into_bytes();
-                    let _ = tx.send(Ok(PutResult {
-                        app_metadata: metadata.into(),
-                    })).await;
+                    let metadata =
+                        format!("Upload complete: {} total rows", total_rows).into_bytes();
+                    let _ = tx
+                        .send(Ok(PutResult {
+                            app_metadata: metadata.into(),
+                        }))
+                        .await;
                 },
                 Ok(None) => {
                     let _ = tx.send(Err(Status::invalid_argument("Empty stream"))).await;
                 },
                 Err(e) => {
                     let _ = tx.send(Err(Status::internal(format!("Stream error: {}", e)))).await;
-                }
+                },
             }
         });
 
@@ -1953,10 +1943,7 @@ impl FlightService for FraiseQLFlightService {
                         request_type,
                     }) => {
                         match request_type {
-                            RequestType::Query {
-                                query,
-                                variables,
-                            } => {
+                            RequestType::Query { query, variables } => {
                                 // Execute GraphQL query
                                 info!(
                                     user_id = %user_id,
@@ -1972,7 +1959,7 @@ impl FlightService for FraiseQLFlightService {
                                             &security_context,
                                         )
                                         .await
-                                    }
+                                    },
                                     None => Err("No executor configured".to_string()),
                                 };
 
@@ -1991,7 +1978,9 @@ impl FlightService for FraiseQLFlightService {
                                                 match record_batch_to_flight_data(&batch) {
                                                     Ok(flight_batch) => {
                                                         // Send batch data
-                                                        if let Err(e) = tx.send(Ok(flight_batch)).await {
+                                                        if let Err(e) =
+                                                            tx.send(Ok(flight_batch)).await
+                                                        {
                                                             warn!("Failed to send batch: {}", e);
                                                         }
 
@@ -2008,19 +1997,17 @@ impl FlightService for FraiseQLFlightService {
                                                                 app_metadata: complete_bytes.into(),
                                                                 ..Default::default()
                                                             };
-                                                            let _ = tx.send(Ok(complete_data)).await;
+                                                            let _ =
+                                                                tx.send(Ok(complete_data)).await;
                                                         }
-                                                    }
+                                                    },
                                                     Err(e) => {
-                                                        warn!(
-                                                            "Failed to encode batch: {}",
-                                                            e
-                                                        );
+                                                        warn!("Failed to encode batch: {}", e);
                                                         let error_response =
                                                             ExchangeMessage::Response {
                                                                 correlation_id: correlation_id
                                                                     .clone(),
-                                                                result: Err(format!(
+                                                                result:         Err(format!(
                                                                     "Encoding error: {}",
                                                                     e
                                                                 )),
@@ -2034,17 +2021,14 @@ impl FlightService for FraiseQLFlightService {
                                                             };
                                                             let _ = tx.send(Ok(err_data)).await;
                                                         }
-                                                    }
+                                                    },
                                                 }
-                                            }
+                                            },
                                             Err(e) => {
-                                                warn!(
-                                                    "Failed to convert result to Arrow: {}",
-                                                    e
-                                                );
+                                                warn!("Failed to convert result to Arrow: {}", e);
                                                 let error_response = ExchangeMessage::Response {
                                                     correlation_id: correlation_id.clone(),
-                                                    result: Err(format!(
+                                                    result:         Err(format!(
                                                         "Conversion error: {}",
                                                         e
                                                     )),
@@ -2058,17 +2042,17 @@ impl FlightService for FraiseQLFlightService {
                                                     };
                                                     let _ = tx.send(Ok(err_data)).await;
                                                 }
-                                            }
+                                            },
                                         }
-                                    }
+                                    },
                                     Err(e) => {
-                                        warn!(
-                                            "Query execution failed: {}",
-                                            e
-                                        );
+                                        warn!("Query execution failed: {}", e);
                                         let error_response = ExchangeMessage::Response {
                                             correlation_id: correlation_id.clone(),
-                                            result: Err(format!("Query execution failed: {}", e)),
+                                            result:         Err(format!(
+                                                "Query execution failed: {}",
+                                                e
+                                            )),
                                         };
                                         if let Ok(err_bytes) = error_response.to_json_bytes() {
                                             let err_data = FlightData {
@@ -2077,9 +2061,9 @@ impl FlightService for FraiseQLFlightService {
                                             };
                                             let _ = tx.send(Ok(err_data)).await;
                                         }
-                                    }
+                                    },
                                 }
-                            }
+                            },
                             RequestType::Upload { table, batch } => {
                                 // Handle upload request using do_put logic
                                 info!(
@@ -2099,9 +2083,7 @@ impl FlightService for FraiseQLFlightService {
                                                 match build_insert_query(&table, &record_batch) {
                                                     Ok(sql) => {
                                                         // Execute INSERT
-                                                        match adapter
-                                                            .execute_raw_query(&sql)
-                                                            .await
+                                                        match adapter.execute_raw_query(&sql).await
                                                         {
                                                             Ok(_) => {
                                                                 let rows_inserted =
@@ -2114,18 +2096,16 @@ impl FlightService for FraiseQLFlightService {
                                                                 );
 
                                                                 // Send success response
-                                                                let success_msg =
-                                                                    format!(
-                                                                        "Inserted {} rows",
-                                                                        rows_inserted
-                                                                    )
-                                                                    .into_bytes();
+                                                                let success_msg = format!(
+                                                                    "Inserted {} rows",
+                                                                    rows_inserted
+                                                                )
+                                                                .into_bytes();
                                                                 let response =
                                                                     ExchangeMessage::Response {
                                                                         correlation_id:
-                                                                            correlation_id
-                                                                                .clone(),
-                                                                        result: Ok(
+                                                                            correlation_id.clone(),
+                                                                        result:         Ok(
                                                                             success_msg,
                                                                         ),
                                                                     };
@@ -2133,54 +2113,49 @@ impl FlightService for FraiseQLFlightService {
                                                                     response.to_json_bytes()
                                                                 {
                                                                     let resp_data = FlightData {
-                                                                        app_metadata: resp_bytes.into(),
+                                                                        app_metadata: resp_bytes
+                                                                            .into(),
                                                                         ..Default::default()
                                                                     };
                                                                     let _ = tx
                                                                         .send(Ok(resp_data))
                                                                         .await;
                                                                 }
-                                                            }
+                                                            },
                                                             Err(e) => {
-                                                                warn!(
-                                                                    "Insert failed: {}",
-                                                                    e
-                                                                );
+                                                                warn!("Insert failed: {}", e);
                                                                 let error_response =
                                                                     ExchangeMessage::Response {
                                                                         correlation_id:
-                                                                            correlation_id
-                                                                                .clone(),
-                                                                        result: Err(format!(
-                                                                            "Insert failed: {}",
-                                                                            e
-                                                                        )),
+                                                                            correlation_id.clone(),
+                                                                        result:         Err(
+                                                                            format!(
+                                                                                "Insert failed: {}",
+                                                                                e
+                                                                            ),
+                                                                        ),
                                                                     };
                                                                 if let Ok(err_bytes) =
-                                                                    error_response
-                                                                        .to_json_bytes()
+                                                                    error_response.to_json_bytes()
                                                                 {
                                                                     let err_data = FlightData {
-                                                                        app_metadata: err_bytes.into(),
+                                                                        app_metadata: err_bytes
+                                                                            .into(),
                                                                         ..Default::default()
                                                                     };
-                                                                    let _ = tx
-                                                                        .send(Ok(err_data))
-                                                                        .await;
+                                                                    let _ =
+                                                                        tx.send(Ok(err_data)).await;
                                                                 }
-                                                            }
+                                                            },
                                                         }
-                                                    }
+                                                    },
                                                     Err(e) => {
-                                                        warn!(
-                                                            "Failed to build INSERT: {}",
-                                                            e
-                                                        );
+                                                        warn!("Failed to build INSERT: {}", e);
                                                         let error_response =
                                                             ExchangeMessage::Response {
-                                                                correlation_id:
-                                                                    correlation_id.clone(),
-                                                                result: Err(format!(
+                                                                correlation_id: correlation_id
+                                                                    .clone(),
+                                                                result:         Err(format!(
                                                                     "Failed to build INSERT: {}",
                                                                     e
                                                                 )),
@@ -2192,18 +2167,16 @@ impl FlightService for FraiseQLFlightService {
                                                                 app_metadata: err_bytes.into(),
                                                                 ..Default::default()
                                                             };
-                                                            let _ = tx
-                                                                .send(Ok(err_data))
-                                                                .await;
+                                                            let _ = tx.send(Ok(err_data)).await;
                                                         }
-                                                    }
+                                                    },
                                                 }
-                                            }
+                                            },
                                             Err(e) => {
                                                 warn!("Failed to decode batch: {}", e);
                                                 let error_response = ExchangeMessage::Response {
                                                     correlation_id: correlation_id.clone(),
-                                                    result: Err(format!(
+                                                    result:         Err(format!(
                                                         "Failed to decode batch: {}",
                                                         e
                                                     )),
@@ -2217,15 +2190,15 @@ impl FlightService for FraiseQLFlightService {
                                                     };
                                                     let _ = tx.send(Ok(err_data)).await;
                                                 }
-                                            }
+                                            },
                                         }
-                                    }
+                                    },
                                     None => {
                                         warn!("Database adapter not configured");
                                         let error_response = ExchangeMessage::Response {
                                             correlation_id: correlation_id.clone(),
-                                            result: Err(
-                                                "Database adapter not configured".to_string(),
+                                            result:         Err(
+                                                "Database adapter not configured".to_string()
                                             ),
                                         };
                                         if let Ok(err_bytes) = error_response.to_json_bytes() {
@@ -2235,9 +2208,9 @@ impl FlightService for FraiseQLFlightService {
                                             };
                                             let _ = tx.send(Ok(err_data)).await;
                                         }
-                                    }
+                                    },
                                 }
-                            }
+                            },
                             RequestType::Subscribe {
                                 entity_type,
                                 filter,
@@ -2259,7 +2232,7 @@ impl FlightService for FraiseQLFlightService {
                                 let ack_msg = format!("Subscribed to {}", entity_type);
                                 let ack_response = ExchangeMessage::Response {
                                     correlation_id: correlation_id.clone(),
-                                    result: Ok(ack_msg.into_bytes()),
+                                    result:         Ok(ack_msg.into_bytes()),
                                 };
 
                                 if let Ok(ack_bytes) = ack_response.to_json_bytes() {
@@ -2282,8 +2255,7 @@ impl FlightService for FraiseQLFlightService {
                                             Ok(event_json) => {
                                                 let event_data = FlightData {
                                                     data_body: event_json.into(),
-                                                    app_metadata: b"observer_event".to_vec()
-                                                        .into(),
+                                                    app_metadata: b"observer_event".to_vec().into(),
                                                     ..Default::default()
                                                 };
 
@@ -2295,14 +2267,11 @@ impl FlightService for FraiseQLFlightService {
                                                     );
                                                     break;
                                                 }
-                                            }
+                                            },
                                             Err(e) => {
-                                                warn!(
-                                                    "Failed to serialize event: {}",
-                                                    e
-                                                );
+                                                warn!("Failed to serialize event: {}", e);
                                                 break;
-                                            }
+                                            },
                                         }
                                     }
 
@@ -2311,9 +2280,9 @@ impl FlightService for FraiseQLFlightService {
                                         "Subscription event stream closed"
                                     );
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Ok(ExchangeMessage::Complete { correlation_id }) => {
                         info!(
                             user_id = %user_id,
@@ -2321,14 +2290,14 @@ impl FlightService for FraiseQLFlightService {
                             "Client stream complete"
                         );
                         break;
-                    }
+                    },
                     Ok(ExchangeMessage::Response { .. }) => {
                         warn!("Received response from client (unexpected)");
-                    }
+                    },
                     Err(e) => {
                         warn!("Failed to decode exchange message: {}", e);
                         // Send error but continue processing
-                    }
+                    },
                 }
             }
 
@@ -2677,9 +2646,12 @@ fn execute_placeholder_query(
 ///
 /// # Errors
 /// Returns error if decoding fails
-fn decode_flight_data_to_batch(flight_data: &FlightData) -> std::result::Result<RecordBatch, String> {
-    use arrow::ipc::reader::StreamReader;
+fn decode_flight_data_to_batch(
+    flight_data: &FlightData,
+) -> std::result::Result<RecordBatch, String> {
     use std::io::Cursor;
+
+    use arrow::ipc::reader::StreamReader;
 
     if flight_data.data_body.is_empty() {
         return Err("Empty flight data body".to_string());
@@ -2690,7 +2662,8 @@ fn decode_flight_data_to_batch(flight_data: &FlightData) -> std::result::Result<
         .map_err(|e| format!("Failed to create IPC stream reader: {}", e))?;
 
     // Read first batch from the stream
-    reader.next()
+    reader
+        .next()
         .ok_or_else(|| "No batch in flight data message".to_string())?
         .map_err(|e| format!("Failed to read batch: {}", e))
 }
@@ -2732,8 +2705,7 @@ fn arrow_value_to_sql(
     array: &std::sync::Arc<dyn arrow::array::Array>,
     row: usize,
 ) -> std::result::Result<String, String> {
-    use arrow::array::*;
-    use arrow::datatypes::DataType;
+    use arrow::{array::*, datatypes::DataType};
 
     if array.is_null(row) {
         return Ok("NULL".to_string());
@@ -2741,58 +2713,97 @@ fn arrow_value_to_sql(
 
     match array.data_type() {
         DataType::Int8 => {
-            let arr = array.as_any().downcast_ref::<Int8Array>().ok_or("Failed to cast to Int8Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .ok_or("Failed to cast to Int8Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Int16 => {
-            let arr = array.as_any().downcast_ref::<Int16Array>().ok_or("Failed to cast to Int16Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .ok_or("Failed to cast to Int16Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Int32 => {
-            let arr = array.as_any().downcast_ref::<Int32Array>().ok_or("Failed to cast to Int32Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or("Failed to cast to Int32Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Int64 => {
-            let arr = array.as_any().downcast_ref::<Int64Array>().ok_or("Failed to cast to Int64Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or("Failed to cast to Int64Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::UInt8 => {
-            let arr = array.as_any().downcast_ref::<UInt8Array>().ok_or("Failed to cast to UInt8Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .ok_or("Failed to cast to UInt8Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::UInt16 => {
-            let arr = array.as_any().downcast_ref::<UInt16Array>().ok_or("Failed to cast to UInt16Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .ok_or("Failed to cast to UInt16Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::UInt32 => {
-            let arr = array.as_any().downcast_ref::<UInt32Array>().ok_or("Failed to cast to UInt32Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or("Failed to cast to UInt32Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::UInt64 => {
-            let arr = array.as_any().downcast_ref::<UInt64Array>().ok_or("Failed to cast to UInt64Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .ok_or("Failed to cast to UInt64Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Float32 => {
-            let arr = array.as_any().downcast_ref::<Float32Array>().ok_or("Failed to cast to Float32Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or("Failed to cast to Float32Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Float64 => {
-            let arr = array.as_any().downcast_ref::<Float64Array>().ok_or("Failed to cast to Float64Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or("Failed to cast to Float64Array")?;
             Ok(arr.value(row).to_string())
         },
         DataType::Utf8 => {
-            let arr = array.as_any().downcast_ref::<StringArray>().ok_or("Failed to cast to StringArray")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or("Failed to cast to StringArray")?;
             let val = arr.value(row);
             // Escape single quotes for SQL string literals
             Ok(format!("'{}'", val.replace('\'', "''")))
         },
         DataType::LargeUtf8 => {
-            let arr = array.as_any().downcast_ref::<LargeStringArray>().ok_or("Failed to cast to LargeStringArray")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<LargeStringArray>()
+                .ok_or("Failed to cast to LargeStringArray")?;
             let val = arr.value(row);
             Ok(format!("'{}'", val.replace('\'', "''")))
         },
         DataType::Boolean => {
-            let arr = array.as_any().downcast_ref::<BooleanArray>().ok_or("Failed to cast to BooleanArray")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .ok_or("Failed to cast to BooleanArray")?;
             Ok(if arr.value(row) { "true" } else { "false" }.to_string())
         },
         DataType::Timestamp(_, _) => {
@@ -2825,10 +2836,14 @@ fn arrow_value_to_sql(
             Err(format!("Unsupported timestamp precision: {:?}", array.data_type()))
         },
         DataType::Date32 => {
-            let arr = array.as_any().downcast_ref::<Date32Array>().ok_or("Failed to cast to Date32Array")?;
+            let arr = array
+                .as_any()
+                .downcast_ref::<Date32Array>()
+                .ok_or("Failed to cast to Date32Array")?;
             let days_since_epoch = arr.value(row);
             // Calculate date from days since epoch (1970-01-01)
-            let epoch_date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
+            let epoch_date =
+                chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
             let target_date = epoch_date + chrono::Duration::days(i64::from(days_since_epoch));
             Ok(format!("'{}'", target_date))
         },
@@ -2849,7 +2864,10 @@ fn arrow_value_to_sql(
 ///
 /// # Errors
 /// Returns error if column types are unsupported
-fn build_insert_query(table_name: &str, batch: &RecordBatch) -> std::result::Result<String, String> {
+fn build_insert_query(
+    table_name: &str,
+    batch: &RecordBatch,
+) -> std::result::Result<String, String> {
     let schema = batch.schema();
     let num_rows = batch.num_rows();
     let num_cols = batch.num_columns();
@@ -2859,10 +2877,7 @@ fn build_insert_query(table_name: &str, batch: &RecordBatch) -> std::result::Res
     }
 
     // Build column list
-    let columns: Vec<String> = schema.fields()
-        .iter()
-        .map(|f| quote_identifier(f.name()))
-        .collect();
+    let columns: Vec<String> = schema.fields().iter().map(|f| quote_identifier(f.name())).collect();
 
     // Build VALUES clause for each row
     let mut values_clauses = Vec::new();
@@ -2898,8 +2913,10 @@ fn build_insert_query(table_name: &str, batch: &RecordBatch) -> std::result::Res
 /// # Errors
 /// Returns error if RecordBatch creation fails
 fn encode_json_to_arrow_batch(json_str: &str) -> std::result::Result<RecordBatch, String> {
-    use arrow::array::StringArray;
-    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::{
+        array::StringArray,
+        datatypes::{DataType, Field, Schema},
+    };
 
     // Create a simple single-column batch with JSON result
     let schema = Arc::new(Schema::new(vec![Field::new("result", DataType::Utf8, false)]));
@@ -2923,8 +2940,9 @@ fn encode_json_to_arrow_batch(json_str: &str) -> std::result::Result<RecordBatch
 /// # Errors
 /// Returns error if deserialization fails
 fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
-    use arrow::ipc::reader::StreamReader;
     use std::io::Cursor;
+
+    use arrow::ipc::reader::StreamReader;
 
     if batch_bytes.is_empty() {
         return Err("Empty batch data".to_string());
@@ -2935,7 +2953,8 @@ fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, S
         .map_err(|e| format!("Failed to create IPC stream reader: {}", e))?;
 
     // Read first batch from the stream
-    reader.next()
+    reader
+        .next()
         .ok_or_else(|| "No batch in data".to_string())?
         .map_err(|e| format!("Failed to read batch: {}", e))
 }
@@ -3305,5 +3324,4 @@ mod tests {
 
         assert!(result.is_err(), "Unknown action should return error");
     }
-
 }

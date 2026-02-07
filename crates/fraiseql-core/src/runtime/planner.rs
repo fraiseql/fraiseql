@@ -1,7 +1,11 @@
 //! Query plan selection - chooses optimal execution strategy.
 
 use super::matcher::QueryMatch;
-use crate::{error::Result, graphql::FieldSelection, runtime::{JsonbOptimizationOptions, JsonbStrategy}};
+use crate::{
+    error::Result,
+    graphql::FieldSelection,
+    runtime::{JsonbOptimizationOptions, JsonbStrategy},
+};
 
 /// Execution plan for a query.
 #[derive(Debug, Clone)]
@@ -43,7 +47,10 @@ impl QueryPlanner {
 
     /// Create query planner with custom JSONB optimization options.
     #[must_use]
-    pub fn with_jsonb_options(cache_enabled: bool, jsonb_options: JsonbOptimizationOptions) -> Self {
+    pub fn with_jsonb_options(
+        cache_enabled: bool,
+        jsonb_options: JsonbOptimizationOptions,
+    ) -> Self {
         Self {
             cache_enabled,
             jsonb_options,
@@ -101,7 +108,8 @@ impl QueryPlanner {
         // Estimate total fields - in reality this would come from schema
         // For now, use a reasonable estimate based on common field counts
         let estimated_total_fields = projection_fields.len().max(10); // assume at least 10 fields available
-        self.jsonb_options.choose_strategy(projection_fields.len(), estimated_total_fields)
+        self.jsonb_options
+            .choose_strategy(projection_fields.len(), estimated_total_fields)
     }
 
     /// Extract field names for projection from parsed selections.

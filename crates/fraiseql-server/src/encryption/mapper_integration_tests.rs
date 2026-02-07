@@ -21,7 +21,7 @@ mod mapper_integration_tests {
 
     /// Test mapper encrypts multiple encrypted fields on insert
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_insert_multiple_encrypted_fields() {
         // When mapper writes User with email, phone, ssn encrypted fields
         // Each field encrypted independently
@@ -31,7 +31,7 @@ mod mapper_integration_tests {
 
     /// Test mapper preserves type information through encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_preserves_types_through_encryption() {
         // When mapper writes strongly-typed struct
         // Encrypted fields maintain type information
@@ -41,7 +41,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles NULL encrypted fields on insert
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_insert_null_encrypted_field() {
         // When mapper writes struct with NULL in encrypted field
         // NULL should remain NULL (not encrypted)
@@ -51,7 +51,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles mixed encrypted and unencrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_insert_mixed_fields() {
         // When struct has both encrypted and unencrypted fields
         // Only encrypted fields go through cipher
@@ -61,7 +61,7 @@ mod mapper_integration_tests {
 
     /// Test mapper batch insert with multiple records
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_insert_encryption() {
         // When mapper inserts Vec<User> (100 records)
         // All records encrypted independently
@@ -75,7 +75,7 @@ mod mapper_integration_tests {
 
     /// Test mapper decrypts single encrypted field on select
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_select_single_encrypted_field() {
         // When mapper reads User from database
         // Detects encrypted field from schema
@@ -85,7 +85,7 @@ mod mapper_integration_tests {
 
     /// Test mapper decrypts multiple encrypted fields on select
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_select_multiple_encrypted_fields() {
         // When mapper reads User with email, phone, ssn encrypted
         // All fields automatically decrypted
@@ -95,7 +95,7 @@ mod mapper_integration_tests {
 
     /// Test mapper restores type information after decryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_restores_types_after_decryption() {
         // When mapper reads encrypted struct
         // Decrypts to plaintext
@@ -105,7 +105,7 @@ mod mapper_integration_tests {
 
     /// Test mapper batch read with multiple records
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_select_decryption() {
         // When mapper reads Vec<User> (100 records)
         // All records decrypted independently
@@ -115,7 +115,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles NULL encrypted fields on select
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_select_null_encrypted_field() {
         // When mapper reads struct with NULL encrypted field
         // NULL returned as NULL (not decrypted)
@@ -125,7 +125,7 @@ mod mapper_integration_tests {
 
     /// Test mapper collection deserialization with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_collection_deserialization() {
         // When mapper reads collection of User (email encrypted)
         // Entire collection decrypted in one pass
@@ -139,7 +139,7 @@ mod mapper_integration_tests {
 
     /// Test mapper encrypts on update
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_update_encrypt() {
         // When mapper updates User with new email
         // New plaintext encrypted before UPDATE
@@ -149,7 +149,7 @@ mod mapper_integration_tests {
 
     /// Test mapper batch update with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_update_encrypt() {
         // When mapper updates Vec<User> (100 records)
         // All updated fields encrypted independently
@@ -163,7 +163,7 @@ mod mapper_integration_tests {
 
     /// Test mapper reads encrypted field metadata from schema
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_schema_metadata() {
         // Mapper should detect from schema which fields are encrypted
         // Via annotation, attribute, or configuration
@@ -173,7 +173,7 @@ mod mapper_integration_tests {
 
     /// Test mapper respects encrypted field metadata
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_respects_field_metadata() {
         // When schema marks field as encrypted
         // Mapper always applies encryption/decryption
@@ -183,7 +183,7 @@ mod mapper_integration_tests {
 
     /// Test mapper ignores non-encrypted fields
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_ignores_unencrypted_fields() {
         // When field not marked as encrypted
         // Mapper passes through unchanged
@@ -193,7 +193,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles schema evolution
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_schema_evolution() {
         // When new encrypted field added to schema
         // Old records (without field) still work
@@ -207,7 +207,7 @@ mod mapper_integration_tests {
 
     /// Test mapper gets encryption keys from adapter
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_gets_keys_from_adapter() {
         // Mapper should request encryption keys from DatabaseFieldAdapter
         // Adapter fetches from SecretsManager/Vault
@@ -217,7 +217,7 @@ mod mapper_integration_tests {
 
     /// Test mapper uses correct key for each field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_correct_key_per_field() {
         // When struct has multiple encrypted fields
         // Each field uses its own encryption key
@@ -227,7 +227,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles missing key gracefully
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_missing_key_error() {
         // When encryption key not available
         // Mapper operation fails with clear error
@@ -241,7 +241,7 @@ mod mapper_integration_tests {
 
     /// Test mapper in transaction: insert then select same record
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_transaction_insert_select() {
         // Within transaction:
         // 1. Insert with encryption
@@ -252,7 +252,7 @@ mod mapper_integration_tests {
 
     /// Test mapper in transaction: rollback
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_transaction_rollback() {
         // When transaction rolls back after encrypted insert
         // Encrypted data not committed
@@ -262,7 +262,7 @@ mod mapper_integration_tests {
 
     /// Test mapper in concurrent transactions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_concurrent_transactions() {
         // When multiple transactions encrypt/decrypt different records
         // No lock contention on encryption
@@ -276,7 +276,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles encryption errors
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_encryption_error() {
         // When encryption fails during insert
         // Mapper returns clear error
@@ -286,7 +286,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles decryption errors
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_decryption_error() {
         // When decryption fails on select
         // Mapper returns clear error
@@ -296,7 +296,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles corrupted ciphertext
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_corrupted_ciphertext() {
         // When ciphertext corrupted in database
         // Mapper fails gracefully
@@ -306,7 +306,7 @@ mod mapper_integration_tests {
 
     /// Test mapper handles invalid UTF-8
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_invalid_utf8_error() {
         // When decrypted plaintext is invalid UTF-8
         // Mapper returns error
@@ -320,7 +320,7 @@ mod mapper_integration_tests {
 
     /// Test mapper batch insert performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_insert_performance() {
         // When inserting 1000 records with encryption
         // Encryption adds <10% overhead
@@ -330,7 +330,7 @@ mod mapper_integration_tests {
 
     /// Test mapper batch select performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_batch_select_performance() {
         // When selecting 1000 records with decryption
         // Decryption adds <10% overhead
@@ -340,7 +340,7 @@ mod mapper_integration_tests {
 
     /// Test mapper cache hit performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_cache_hit_performance() {
         // When accessing same field repeatedly
         // Cipher cache hit improves performance
@@ -354,7 +354,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with UUID fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_uuid_field_encryption() {
         // When UUID field encrypted
         // Converted to string, then encrypted
@@ -364,7 +364,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with DateTime fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_datetime_field_encryption() {
         // When DateTime field encrypted
         // Converted to string, encrypted
@@ -374,7 +374,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with JSON fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_json_field_encryption() {
         // When JSON field encrypted
         // Entire JSON encrypted as string
@@ -384,7 +384,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with Option<T> fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_option_encrypted_field() {
         // When Option<String> field encrypted
         // Some(value) encrypted
@@ -398,7 +398,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with custom serializer
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_custom_serializer() {
         // When field uses custom serialization
         // Encryption applied after serialization
@@ -408,7 +408,7 @@ mod mapper_integration_tests {
 
     /// Test mapper with field-level encryption marks
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_mapper_encryption_marks() {
         // Schema should mark encrypted fields clearly
         // Via #[encrypted], #[sensitive], or #[encrypt]
@@ -422,7 +422,7 @@ mod mapper_integration_tests {
 
     /// Test mapper logs encryption operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_encryption_audit_log() {
         // When mapper encrypts field
         // Operation logged with context
@@ -432,7 +432,7 @@ mod mapper_integration_tests {
 
     /// Test mapper logs decryption operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_decryption_audit_log() {
         // When mapper decrypts field
         // Operation logged with context
@@ -442,7 +442,7 @@ mod mapper_integration_tests {
 
     /// Test mapper logs errors
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_error_audit_log() {
         // When encryption/decryption fails
         // Error logged with full context

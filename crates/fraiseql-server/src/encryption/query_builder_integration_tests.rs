@@ -20,7 +20,7 @@ mod query_builder_integration_tests {
 
     /// Test auto-encrypt on multi-field INSERT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_auto_encrypt_multiple_fields() {
         // When inserting record with multiple encrypted fields
         // Each field encrypted with its own key independently
@@ -30,7 +30,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT with NULL encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_null_encrypted_field() {
         // When inserting record with NULL in encrypted field
         // NULL should remain NULL (not encrypted)
@@ -40,7 +40,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT with empty string encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_empty_string_encrypted_field() {
         // When inserting empty string in encrypted field
         // Empty string should be encrypted (not skipped)
@@ -50,7 +50,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT with mixed encrypted and unencrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_mixed_encrypted_unencrypted() {
         // When row has both encrypted and unencrypted fields
         // Only designated fields encrypted
@@ -60,7 +60,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT with DEFAULT value for encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_default_value_encrypted() {
         // When encrypted field uses DEFAULT value
         // DEFAULT applied at database layer
@@ -70,7 +70,7 @@ mod query_builder_integration_tests {
 
     /// Test batch INSERT with multiple encrypted records
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_batch_multiple_records() {
         // When batch inserting 100 records with encrypted fields
         // All records encrypted independently
@@ -80,7 +80,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT with encryption context (audit trail)
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_insert_with_context() {
         // When INSERT uses encryption context
         // Context includes: user_id, field_name, operation="insert"
@@ -94,7 +94,7 @@ mod query_builder_integration_tests {
 
     /// Test auto-decrypt on single SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_auto_decrypt_single_field() {
         // When selecting record with one encrypted field
         // Query builder detects encrypted field
@@ -104,7 +104,7 @@ mod query_builder_integration_tests {
 
     /// Test auto-decrypt on multi-field SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_auto_decrypt_multiple_fields() {
         // When selecting record with multiple encrypted fields
         // Each field decrypted independently
@@ -114,7 +114,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT all columns (including encrypted)
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_all_columns_with_encryption() {
         // When SELECT * returns encrypted and unencrypted fields
         // Encrypted fields automatically decrypted
@@ -124,7 +124,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT with NULL encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_null_encrypted_field() {
         // When retrieving row with NULL in encrypted field
         // NULL returned as NULL (not decrypted)
@@ -134,7 +134,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT with empty string encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_empty_string_encrypted_field() {
         // When retrieving row with empty string in encrypted field
         // Decrypts to empty string
@@ -144,7 +144,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT of multiple rows with decryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_batch_multiple_rows() {
         // When selecting 100 rows with encrypted fields
         // All rows decrypted automatically
@@ -154,7 +154,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT with column aliases for encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_column_alias_encrypted() {
         // When selecting encrypted field with alias (AS)
         // Alias doesn't affect encryption/decryption
@@ -164,7 +164,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT with context (audit trail)
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_select_with_context() {
         // When SELECT uses encryption context
         // Context includes: user_id, field_name, operation="select"
@@ -178,7 +178,7 @@ mod query_builder_integration_tests {
 
     /// Test auto-encrypt on UPDATE
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_auto_encrypt_single_field() {
         // When updating encrypted field
         // New plaintext encrypted before UPDATE
@@ -188,7 +188,7 @@ mod query_builder_integration_tests {
 
     /// Test UPDATE with NULL for encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_set_null_encrypted_field() {
         // When updating encrypted field to NULL
         // NULL should remain NULL
@@ -198,7 +198,7 @@ mod query_builder_integration_tests {
 
     /// Test UPDATE multiple encrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_multiple_encrypted_fields() {
         // When UPDATE modifies multiple encrypted fields
         // Each field encrypted independently
@@ -208,7 +208,7 @@ mod query_builder_integration_tests {
 
     /// Test UPDATE mixed encrypted and unencrypted
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_mixed_encrypted_unencrypted() {
         // When UPDATE modifies both encrypted and unencrypted fields
         // Encrypted fields encrypted, unencrypted left as-is
@@ -217,7 +217,7 @@ mod query_builder_integration_tests {
 
     /// Test batch UPDATE multiple records
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_batch_multiple_records() {
         // When batch updating 100 records with encrypted fields
         // All records encrypted independently
@@ -227,7 +227,7 @@ mod query_builder_integration_tests {
 
     /// Test UPDATE with encryption context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_update_with_context() {
         // When UPDATE uses encryption context
         // Context includes: user_id, field_name, operation="update"
@@ -241,7 +241,7 @@ mod query_builder_integration_tests {
 
     /// Test DELETE doesn't need decryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_delete_encrypted_records() {
         // When deleting records with encrypted fields
         // Encrypted values not needed for DELETE
@@ -251,7 +251,7 @@ mod query_builder_integration_tests {
 
     /// Test DELETE with context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_delete_with_context() {
         // When DELETE uses encryption context
         // Context recorded in audit trail
@@ -264,7 +264,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause on unencrypted field with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_unencrypted_field_with_encrypted_records() {
         // When WHERE filters on unencrypted field
         // Encrypted records with matching filter returned
@@ -274,7 +274,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause rejects encrypted field equality
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_encrypted_field_equality_unsupported() {
         // When attempting WHERE email = 'user@example.com'
         // Query builder should reject (encrypted field not directly queryable)
@@ -284,7 +284,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause rejects encrypted field range queries
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_encrypted_field_range_unsupported() {
         // When attempting WHERE phone > '555-0000'
         // Query builder should reject (encrypted not comparable)
@@ -293,7 +293,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause with IN operator on encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_encrypted_field_in_unsupported() {
         // When attempting WHERE email IN (list)
         // Query builder should reject
@@ -302,7 +302,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause with LIKE on encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_encrypted_field_like_unsupported() {
         // When attempting WHERE email LIKE '%@example.com'
         // Query builder should reject
@@ -311,7 +311,7 @@ mod query_builder_integration_tests {
 
     /// Test WHERE clause with IS NULL on encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_where_encrypted_field_is_null() {
         // When WHERE email IS NULL
         // Should work (NULL at database level, not encrypted)
@@ -324,7 +324,7 @@ mod query_builder_integration_tests {
 
     /// Test ORDER BY on unencrypted field with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_order_by_unencrypted_field() {
         // When ORDER BY unencrypted field
         // Works normally despite encrypted fields present
@@ -334,7 +334,7 @@ mod query_builder_integration_tests {
 
     /// Test ORDER BY rejects encrypted field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_order_by_encrypted_field_unsupported() {
         // When attempting ORDER BY email
         // Query builder should reject
@@ -344,7 +344,7 @@ mod query_builder_integration_tests {
 
     /// Test ORDER BY with DESC on encrypted field rejection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_order_by_encrypted_field_desc_unsupported() {
         // When attempting ORDER BY email DESC
         // Query builder should reject
@@ -357,7 +357,7 @@ mod query_builder_integration_tests {
 
     /// Test JOIN on unencrypted field with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_join_unencrypted_field() {
         // When JOINing on unencrypted field
         // Works normally despite encrypted fields
@@ -367,7 +367,7 @@ mod query_builder_integration_tests {
 
     /// Test JOIN rejects encrypted field condition
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_join_encrypted_field_unsupported() {
         // When attempting JOIN ON users.email = customers.email
         // Query builder should reject
@@ -377,7 +377,7 @@ mod query_builder_integration_tests {
 
     /// Test LEFT JOIN with encrypted fields
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_left_join_encrypted_fields_unencrypted_condition() {
         // When LEFT JOIN on unencrypted field
         // Works normally
@@ -391,7 +391,7 @@ mod query_builder_integration_tests {
 
     /// Test mapper encrypts on INSERT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_encrypt_on_insert() {
         // When mapper writes User record with email field
         // Email field automatically encrypted
@@ -401,7 +401,7 @@ mod query_builder_integration_tests {
 
     /// Test mapper decrypts on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_decrypt_on_select() {
         // When mapper reads User from database
         // Email field automatically decrypted
@@ -411,7 +411,7 @@ mod query_builder_integration_tests {
 
     /// Test mapper with generic collection encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_encrypt_collection_results() {
         // When mapper reads Vec<User> from SELECT
         // All users have encrypted fields decrypted
@@ -421,7 +421,7 @@ mod query_builder_integration_tests {
 
     /// Test mapper respects field metadata
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_mapper_respects_encrypted_field_metadata() {
         // When mapping uses encrypted field metadata
         // Only designated fields encrypted/decrypted
@@ -435,7 +435,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption within transaction
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_insert_and_select() {
         // When transaction inserts then selects encrypted field
         // INSERT encrypts value
@@ -445,7 +445,7 @@ mod query_builder_integration_tests {
 
     /// Test transaction rollback with encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_rollback_encrypted() {
         // When transaction rolls back after encrypting data
         // Encrypted data not committed to database
@@ -455,7 +455,7 @@ mod query_builder_integration_tests {
 
     /// Test concurrent transactions with encrypted data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_concurrent_encryption() {
         // When multiple transactions encrypt different records
         // No lock contention on encryption
@@ -465,7 +465,7 @@ mod query_builder_integration_tests {
 
     /// Test transaction with encryption context
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transaction_with_encryption_context() {
         // When transaction uses encryption context
         // Context includes transaction ID
@@ -479,7 +479,7 @@ mod query_builder_integration_tests {
 
     /// Test INSERT performance with encryption overhead
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_insert_with_encryption() {
         // When inserting 1000 records with 3 encrypted fields each
         // Encryption adds <10% overhead typically
@@ -489,7 +489,7 @@ mod query_builder_integration_tests {
 
     /// Test SELECT performance with decryption overhead
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_select_with_decryption() {
         // When selecting 1000 rows with encrypted fields
         // Decryption adds <10% overhead typically
@@ -499,7 +499,7 @@ mod query_builder_integration_tests {
 
     /// Test cipher cache improves performance
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_performance_cipher_cache_hit() {
         // When accessing same encrypted field repeatedly
         // With cache: cipher reused, minimal overhead
@@ -513,7 +513,7 @@ mod query_builder_integration_tests {
 
     /// Test missing encryption key on INSERT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_missing_key_on_insert() {
         // When encryption key not available in SecretsManager
         // INSERT fails with clear error
@@ -523,7 +523,7 @@ mod query_builder_integration_tests {
 
     /// Test missing encryption key on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_missing_key_on_select() {
         // When decryption key not available
         // SELECT fails with clear error
@@ -533,7 +533,7 @@ mod query_builder_integration_tests {
 
     /// Test corrupted encrypted data on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_corrupted_data_on_select() {
         // When ciphertext corrupted in database
         // Decryption fails (authentication tag verification fails)
@@ -543,7 +543,7 @@ mod query_builder_integration_tests {
 
     /// Test wrong encryption key on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_wrong_key_on_select() {
         // When field decrypted with wrong key
         // Decryption fails (authentication tag fails)
@@ -553,7 +553,7 @@ mod query_builder_integration_tests {
 
     /// Test invalid UTF-8 on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_invalid_utf8_on_select() {
         // When decrypted plaintext is invalid UTF-8
         // SELECT fails with clear error
@@ -563,7 +563,7 @@ mod query_builder_integration_tests {
 
     /// Test context mismatch on SELECT
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_error_context_mismatch_on_select() {
         // When decryption context doesn't match encryption context
         // Decryption fails (authentication failure)
@@ -577,7 +577,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption of VARCHAR field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_type_varchar_encryption() {
         // When VARCHAR field encrypted
         // Stored as BYTEA/BLOB in database
@@ -587,7 +587,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption of NUMERIC field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_type_numeric_encryption() {
         // When NUMERIC field encrypted (converted to string)
         // Encrypted as string representation
@@ -597,7 +597,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption of TIMESTAMP field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_type_timestamp_encryption() {
         // When TIMESTAMP field encrypted
         // Converted to string, then encrypted
@@ -607,7 +607,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption of JSON field
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_field_type_json_encryption() {
         // When JSON field encrypted
         // Entire JSON encrypted as string
@@ -621,7 +621,7 @@ mod query_builder_integration_tests {
 
     /// Test query builder detects encrypted fields from schema
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_detection_encrypted_fields() {
         // Query builder should detect encrypted fields
         // From schema metadata or annotations
@@ -631,7 +631,7 @@ mod query_builder_integration_tests {
 
     /// Test query builder handles schema evolution
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_evolution_encrypted_fields() {
         // When new encrypted field added to schema
         // Query builder automatically handles it
@@ -641,7 +641,7 @@ mod query_builder_integration_tests {
 
     /// Test query builder handles key changes
     #[test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     fn test_schema_key_rotation_encryption() {
         // When encryption key changed for field
         // Query builder uses new key
@@ -655,7 +655,7 @@ mod query_builder_integration_tests {
 
     /// Test encryption context recorded in audit log
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_encryption_context_logged() {
         // When operation uses encryption context
         // Audit trail includes: user, field, operation, timestamp
@@ -665,7 +665,7 @@ mod query_builder_integration_tests {
 
     /// Test audit trail for encryption failures
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_audit_encryption_failure_logged() {
         // When encryption operation fails
         // Audit trail records failure

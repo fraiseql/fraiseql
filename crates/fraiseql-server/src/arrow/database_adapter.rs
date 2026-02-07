@@ -13,13 +13,11 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::db::{DatabaseAdapter as ArrowDatabaseAdapter, DatabaseError};
-use fraiseql_core::db::traits::DatabaseAdapter as CoreDatabaseAdapter;
-
-#[cfg(not(feature = "wire-backend"))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
+#[cfg(not(feature = "wire-backend"))]
+use fraiseql_core::db::postgres::PostgresAdapter;
+use fraiseql_core::db::traits::DatabaseAdapter as CoreDatabaseAdapter;
 
 /// Wrapper that adapts fraiseql-core's database adapters to fraiseql-arrow's DatabaseAdapter trait.
 ///
@@ -29,7 +27,8 @@ use fraiseql_core::db::FraiseWireAdapter;
 /// # Feature-Gated Backends
 ///
 /// - Default (PostgreSQL): Uses `PostgresAdapter` for traditional PostgreSQL connections
-/// - `wire-backend` feature: Uses `FraiseWireAdapter` for streaming JSON queries with low memory overhead
+/// - `wire-backend` feature: Uses `FraiseWireAdapter` for streaming JSON queries with low memory
+///   overhead
 #[cfg(not(feature = "wire-backend"))]
 pub struct FlightDatabaseAdapter {
     /// Inner PostgreSQL adapter from fraiseql-core

@@ -20,7 +20,7 @@ mod refresh_tests {
 
     /// Test refresh not triggered too early
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_not_triggered_early() {
         // When key is <80% TTL consumed
         // No refresh is triggered
@@ -30,7 +30,7 @@ mod refresh_tests {
 
     /// Test refresh triggers only once per version
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_single_trigger_per_version() {
         // When refresh triggered for version 1
         // New version 2 created
@@ -40,7 +40,7 @@ mod refresh_tests {
 
     /// Test refresh with in-flight operations
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_with_inflight_operations() {
         // When refresh triggered during active operations
         // In-flight operations continue with old version
@@ -50,7 +50,7 @@ mod refresh_tests {
 
     /// Test refresh failure handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_failure_handling() {
         // When refresh fails (e.g., Vault unavailable)
         // Error logged but doesn't block operations
@@ -64,7 +64,7 @@ mod refresh_tests {
 
     /// Test background refresh job starts
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_background_refresh_job_starts() {
         // When rotation manager initialized with auto-refresh enabled
         // Background job spawned
@@ -74,7 +74,7 @@ mod refresh_tests {
 
     /// Test background job periodic execution
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_background_job_periodic_execution() {
         // Background job checks TTL on interval
         // Default: once per 24 hours
@@ -84,7 +84,7 @@ mod refresh_tests {
 
     /// Test background job graceful shutdown
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_background_job_shutdown() {
         // When application shuts down
         // Background job stops gracefully
@@ -95,7 +95,7 @@ mod refresh_tests {
 
     /// Test background job error resilience
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_background_job_error_resilience() {
         // When refresh job encounters error
         // Error logged and reported
@@ -106,7 +106,7 @@ mod refresh_tests {
 
     /// Test background job concurrent safety
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_background_job_concurrent_safety() {
         // When refresh job runs while operations in progress
         // No data races or corruption
@@ -121,7 +121,7 @@ mod refresh_tests {
 
     /// Test atomic version switch
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_atomic_version_switch() {
         // When new version created and marked current
         // All threads see consistent state
@@ -131,7 +131,7 @@ mod refresh_tests {
 
     /// Test version switch during encryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_version_switch_during_encryption() {
         // When version switches mid-batch encryption
         // Records encrypted before switch use old version
@@ -141,7 +141,7 @@ mod refresh_tests {
 
     /// Test version switch during decryption
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_version_switch_during_decryption() {
         // When version switches during batch decryption
         // Each record decrypts with its embedded version
@@ -151,7 +151,7 @@ mod refresh_tests {
 
     /// Test version switch visibility
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_version_switch_visibility() {
         // After version switch completes
         // All new operations see new version immediately
@@ -165,7 +165,7 @@ mod refresh_tests {
 
     /// Test refresh check interval configuration
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_check_interval_config() {
         // Refresh check interval configurable
         // Default: 24 hours
@@ -175,7 +175,7 @@ mod refresh_tests {
 
     /// Test refresh check timing
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_check_timing() {
         // Checks happen on configured schedule
         // Not at random intervals
@@ -185,7 +185,7 @@ mod refresh_tests {
 
     /// Test refresh with quiet hours
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_with_quiet_hours() {
         // Can configure quiet hours (e.g., 2am-4am)
         // Refresh doesn't trigger outside quiet hours
@@ -195,7 +195,7 @@ mod refresh_tests {
 
     /// Test refresh can be triggered manually
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_manual_refresh_trigger() {
         // Can trigger refresh immediately via API
         // Doesn't wait for scheduled check
@@ -209,7 +209,7 @@ mod refresh_tests {
 
     /// Test refresh metrics collection
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_metrics_collection() {
         // Metrics tracked per refresh operation
         // Duration in milliseconds
@@ -220,7 +220,7 @@ mod refresh_tests {
 
     /// Test refresh duration tracking
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_duration_tracking() {
         // Each refresh records duration
         // Average refresh duration calculated
@@ -230,7 +230,7 @@ mod refresh_tests {
 
     /// Test refresh latency impact
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_latency_impact() {
         // Refresh doesn't block operations (async)
         // Encryption latency unchanged during refresh
@@ -240,7 +240,7 @@ mod refresh_tests {
 
     /// Test refresh dashboard metrics
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_dashboard_metrics() {
         // Dashboard shows refresh status
         // Last refresh timestamp
@@ -255,7 +255,7 @@ mod refresh_tests {
 
     /// Test new version validation before use
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_new_version_validation() {
         // Before marking new version current
         // System validates: key generation, encryption works, decryption works
@@ -265,7 +265,7 @@ mod refresh_tests {
 
     /// Test old version decryption capability preserved
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_old_version_decryption_preserved() {
         // After refresh, old version still decrypts data
         // No data loss or corruption
@@ -275,7 +275,7 @@ mod refresh_tests {
 
     /// Test refresh doesn't lose data
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_data_integrity() {
         // Before and after refresh
         // All encrypted records decrypt correctly
@@ -289,7 +289,7 @@ mod refresh_tests {
 
     /// Test refresh with Vault unavailable
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_vault_unavailable() {
         // When Vault unreachable during refresh
         // Refresh fails gracefully
@@ -300,7 +300,7 @@ mod refresh_tests {
 
     /// Test refresh with insufficient permissions
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_insufficient_permissions() {
         // When permission denied for key generation
         // Refresh fails with clear error
@@ -310,7 +310,7 @@ mod refresh_tests {
 
     /// Test refresh timeout handling
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_timeout_handling() {
         // If refresh takes too long (e.g., >30s)
         // Timeout triggered
@@ -321,7 +321,7 @@ mod refresh_tests {
 
     /// Test partial refresh recovery
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_partial_refresh_recovery() {
         // If refresh partially fails mid-way
         // System detects and recovers
@@ -335,7 +335,7 @@ mod refresh_tests {
 
     /// Test read operations during refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_read_operations_during_refresh() {
         // When SELECT (with decryption) happens during refresh
         // Query completes successfully
@@ -345,7 +345,7 @@ mod refresh_tests {
 
     /// Test write operations during refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_write_operations_during_refresh() {
         // When INSERT/UPDATE (with encryption) happens during refresh
         // New operations use new version
@@ -355,7 +355,7 @@ mod refresh_tests {
 
     /// Test transactions during refresh
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_transactions_during_refresh() {
         // When transaction spans refresh
         // All operations in transaction use same version
@@ -369,7 +369,7 @@ mod refresh_tests {
 
     /// Test refresh with TTL-based rotation schedule
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_with_ttl_schedule() {
         // System checks TTL-based schedule
         // If threshold reached, triggers refresh
@@ -379,7 +379,7 @@ mod refresh_tests {
 
     /// Test refresh with compliance requirements
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_compliance_aware() {
         // HIPAA: Refresh before 365-day mark
         // PCI-DSS: Refresh before 365-day mark
@@ -389,7 +389,7 @@ mod refresh_tests {
 
     /// Test refresh prevents expiry surprises
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_prevents_expiry() {
         // Without refresh: key might expire during operation (bad)
         // With refresh at 80%: new key ready well before expiry
@@ -403,7 +403,7 @@ mod refresh_tests {
 
     /// Test refresh logging
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_logging() {
         // Each refresh operation logged
         // Log includes: timestamp, old version, new version, duration, status
@@ -413,7 +413,7 @@ mod refresh_tests {
 
     /// Test refresh alerts
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_alerts() {
         // Alert when refresh fails
         // Alert when refresh takes too long
@@ -423,7 +423,7 @@ mod refresh_tests {
 
     /// Test refresh tracing
     #[tokio::test]
-#[ignore = "Incomplete test: needs actual implementation"]
+    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_refresh_tracing() {
         // Refresh operations included in distributed tracing
         // Can see refresh in request trace

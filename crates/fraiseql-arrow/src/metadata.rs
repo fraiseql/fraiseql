@@ -16,15 +16,19 @@
 //! using `preload_all_schemas()`. This reduces first-query latency by discovering and
 //! registering all va_* and ta_* view schemas from the database metadata.
 
-use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering as AtomicOrdering},
+};
 
 use arrow::datatypes::Schema;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 
-use crate::db::DatabaseAdapter;
-use crate::error::{ArrowFlightError, Result};
+use crate::{
+    db::DatabaseAdapter,
+    error::{ArrowFlightError, Result},
+};
 
 /// Versioned schema with metadata for schema refresh tracking.
 ///
@@ -35,9 +39,9 @@ use crate::error::{ArrowFlightError, Result};
 #[derive(Clone)]
 struct VersionedSchema {
     /// The actual Arrow schema
-    schema: Arc<Schema>,
+    schema:     Arc<Schema>,
     /// Monotonically increasing version number
-    version: u64,
+    version:    u64,
     /// When this schema version was created
     created_at: DateTime<Utc>,
 }
@@ -64,11 +68,11 @@ fn infer_schema_from_row(
                 } else {
                     DataType::Int64
                 }
-            }
+            },
             serde_json::Value::String(_) => {
                 // Store strings as Utf8; timestamp detection could be added in future
                 DataType::Utf8
-            }
+            },
             serde_json::Value::Array(_) | serde_json::Value::Object(_) => DataType::Utf8,
         };
 
@@ -127,7 +131,7 @@ fn infer_schema_from_row(
 /// registry.register("va_orders", new_schema);
 /// ```
 pub struct SchemaRegistry {
-    schemas: DashMap<String, VersionedSchema>,
+    schemas:         DashMap<String, VersionedSchema>,
     version_counter: AtomicU64,
 }
 
@@ -136,7 +140,7 @@ impl SchemaRegistry {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            schemas: DashMap::new(),
+            schemas:         DashMap::new(),
             version_counter: AtomicU64::new(0),
         }
     }
@@ -224,15 +228,12 @@ impl SchemaRegistry {
 
         let sample_query = format!("SELECT * FROM {} LIMIT 1", view_name);
 
-        let rows = db_adapter
-            .execute_raw_query(&sample_query)
-            .await
-            .map_err(|e| {
-                ArrowFlightError::SchemaNotFound(format!(
-                    "Failed to reload schema for {}: {}",
-                    view_name, e
-                ))
-            })?;
+        let rows = db_adapter.execute_raw_query(&sample_query).await.map_err(|e| {
+            ArrowFlightError::SchemaNotFound(format!(
+                "Failed to reload schema for {}: {}",
+                view_name, e
+            ))
+        })?;
 
         if let Some(first_row) = rows.first() {
             let new_schema = infer_schema_from_row(view_name, first_row)?;
@@ -240,8 +241,8 @@ impl SchemaRegistry {
             // Atomically update with new version
             let new_version = self.version_counter.fetch_add(1, AtomicOrdering::SeqCst);
             let versioned = VersionedSchema {
-                schema: new_schema,
-                version: new_version,
+                schema:     new_schema,
+                version:    new_version,
                 created_at: Utc::now(),
             };
 
@@ -270,10 +271,7 @@ impl SchemaRegistry {
     /// # Returns
     ///
     /// Ok(count) with number of successfully reloaded schemas
-    pub async fn reload_all_schemas(
-        &self,
-        db_adapter: &dyn DatabaseAdapter,
-    ) -> Result<usize> {
+    pub async fn reload_all_schemas(&self, db_adapter: &dyn DatabaseAdapter) -> Result<usize> {
         use tracing::warn;
 
         let views = vec!["va_orders", "va_users", "ta_orders", "ta_users"];
@@ -283,10 +281,10 @@ impl SchemaRegistry {
             match self.reload_schema(view_name, db_adapter).await {
                 Ok(_) => {
                     reloaded_count += 1;
-                }
+                },
                 Err(e) => {
                     warn!(view = %view_name, error = %e, "Failed to reload schema");
-                }
+                },
             }
         }
 
@@ -374,7 +372,7 @@ impl SchemaRegistry {
         // Note: Using Utf8 for timestamp strings to work around Arrow conversion limitations
         let ta_orders_schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
-            Field::new("total", DataType::Utf8, false), /* Decimal128 would be ideal */
+            Field::new("total", DataType::Utf8, false), // Decimal128 would be ideal
             Field::new("created_at", DataType::Utf8, false), // ISO 8601 string
             Field::new("customer_name", DataType::Utf8, true),
         ]));
@@ -439,21 +437,21 @@ impl SchemaRegistry {
                                 self.register(view_name, schema);
                                 preloaded_count += 1;
                                 info!("Preloaded schema for view: {}", view_name);
-                            }
+                            },
                             Err(e) => {
                                 // Log but continue with next view
                                 tracing::warn!("Failed to infer schema for {}: {}", view_name, e);
-                            }
+                            },
                         }
                     } else {
                         // View exists but is empty; register with empty schema as fallback
                         tracing::debug!("View {} is empty, using fallback schema", view_name);
                     }
-                }
+                },
                 Err(e) => {
                     // View might not exist; log and continue
                     tracing::debug!("Failed to query view {}: {}", view_name, e);
-                }
+                },
             }
         }
 
@@ -683,9 +681,7 @@ mod tests {
     fn test_schema_versioning() {
         let registry = SchemaRegistry::new();
 
-        let schema1 = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int64, false),
-        ]));
+        let schema1 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
         registry.register("va_test", schema1.clone());
         let (version1, _created_at1) = registry.get_version_info("va_test").unwrap();
@@ -707,9 +703,7 @@ mod tests {
     fn test_get_all_versions() {
         let registry = SchemaRegistry::new();
 
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int64, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
         registry.register("va_test1", schema.clone());
         registry.register("va_test2", schema.clone());
@@ -728,9 +722,7 @@ mod tests {
     fn test_schema_atomic_update() {
         let registry = SchemaRegistry::new();
 
-        let schema1 = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int64, false),
-        ]));
+        let schema1 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
         registry.register("va_test", schema1.clone());
         let retrieved1 = registry.get("va_test").unwrap();
