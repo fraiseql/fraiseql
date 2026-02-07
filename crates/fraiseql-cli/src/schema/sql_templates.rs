@@ -394,6 +394,183 @@ fn extract_template_for_operator(
         ("sqlite", "localeCountryEq") => Some("SUBSTR($field, INSTR($field, '-') + 1) = ?".to_string()),
         ("sqlserver", "localeCountryEq") => Some("SUBSTRING($field, CHARINDEX('-', $field) + 1, LEN($field)) = ?".to_string()),
 
+        // ========================================================================
+        // GEOSPATIAL OPERATORS (PostGIS - PostgreSQL only, with fallbacks)
+        // ========================================================================
+        // Coordinates: Distance within radius
+        // Format: JSONB with {lat: f64, lng: f64}
+        ("postgres", "distanceWithin") => Some(
+            "ST_DWithin(
+                ST_GeomFromText('POINT(' || ($field->>'lng') || ' ' || ($field->>'lat') || ')'),
+                ST_GeomFromText('POINT($1 $2)'),
+                $3 * 1000
+            )"
+            .to_string()
+        ),
+        // MySQL: Uses ST_Distance_Sphere for great-circle distance
+        ("mysql", "distanceWithin") => Some(
+            "ST_Distance_Sphere(
+                ST_GeomFromText(CONCAT('POINT(', JSON_EXTRACT($field, '$.lng'), ' ', JSON_EXTRACT($field, '$.lat'), ')')),
+                ST_GeomFromText(CONCAT('POINT(', ?, ' ', ?, ')'))
+            ) <= ? * 1000"
+            .to_string()
+        ),
+        // SQLite: Haversine formula approximation
+        ("sqlite", "distanceWithin") => Some(
+            "111.111 * DEGREES(ACOS(LEAST(1, GREATEST(-1,
+                COS(RADIANS(90 - json_extract($field, '$.lat'))) *
+                COS(RADIANS(90 - ?)) *
+                COS(RADIANS(json_extract($field, '$.lng') - ?)) +
+                SIN(RADIANS(90 - json_extract($field, '$.lat'))) *
+                SIN(RADIANS(90 - ?))
+            )))) <= ?"
+            .to_string()
+        ),
+        // SQL Server: Uses geography type
+        ("sqlserver", "distanceWithin") => Some(
+            "geography::Point(JSON_VALUE($field, '$.lat'), JSON_VALUE($field, '$.lng'), 4326)
+                .STDistance(geography::Point(?, ?, 4326)) <= ? * 1000"
+            .to_string()
+        ),
+
+        // Coordinates: Within bounding box
+        ("postgres", "withinBoundingBox") => Some(
+            "($field->>'lat')::float8 BETWEEN $1 AND $2 AND ($field->>'lng')::float8 BETWEEN $3 AND $4"
+                .to_string()
+        ),
+        ("mysql", "withinBoundingBox") => Some(
+            "JSON_EXTRACT($field, '$.lat') BETWEEN ? AND ? AND JSON_EXTRACT($field, '$.lng') BETWEEN ? AND ?"
+                .to_string()
+        ),
+        ("sqlite", "withinBoundingBox") => Some(
+            "json_extract($field, '$.lat') BETWEEN ? AND ? AND json_extract($field, '$.lng') BETWEEN ? AND ?"
+                .to_string()
+        ),
+        ("sqlserver", "withinBoundingBox") => Some(
+            "JSON_VALUE($field, '$.lat') BETWEEN ? AND ? AND JSON_VALUE($field, '$.lng') BETWEEN ? AND ?"
+                .to_string()
+        ),
+
+        // ========================================================================
+        // PHONE NUMBER OPERATORS
+        // ========================================================================
+        // Phone: Country code from E.164 format
+        ("postgres", "phoneCountryCodeEq") => Some("SUBSTRING($field FROM 1 FOR LENGTH($1)) = $1".to_string()),
+        ("mysql", "phoneCountryCodeEq") => Some("SUBSTRING($field, 1, LENGTH(?)) = ?".to_string()),
+        ("sqlite", "phoneCountryCodeEq") => Some("SUBSTR($field, 1, LENGTH(?)) = ?".to_string()),
+        ("sqlserver", "phoneCountryCodeEq") => Some("SUBSTRING($field, 1, LEN(?)) = ?".to_string()),
+
+        ("postgres", "phoneCountryCodeIn") => Some("SUBSTRING($field FROM 1 FOR POSITION('+' IN $field)) IN ($params)".to_string()),
+        ("mysql", "phoneCountryCodeIn") => Some("SUBSTRING($field, 1, LOCATE('+', $field)) IN ($params)".to_string()),
+        ("sqlite", "phoneCountryCodeIn") => Some("SUBSTR($field, 1, INSTR($field, '+')) IN ($params)".to_string()),
+        ("sqlserver", "phoneCountryCodeIn") => Some("SUBSTRING($field, 1, CHARINDEX('+', $field)) IN ($params)".to_string()),
+
+        // Phone: E.164 format validation (+[1-9]{1,3}[0-9]{1,14})
+        ("postgres", "phoneIsValid") => Some("$field ~ '^\\+[1-9]\\d{1,14}$' = $1".to_string()),
+        ("mysql", "phoneIsValid") => Some("$field REGEXP '^\\\\+[1-9]\\\\d{1,14}$' = ?".to_string()),
+        ("sqlite", "phoneIsValid") => Some("$field GLOB '+[1-9]*' AND LENGTH($field) BETWEEN 5 AND 15".to_string()),
+        ("sqlserver", "phoneIsValid") => Some("$field LIKE '+[1-9]%'".to_string()),
+
+        // Phone: Type classification (mobile, fixed, etc.)
+        ("postgres", "phoneTypeEq") => Some("CASE WHEN $field ~ '^\\+1' THEN 'US' WHEN $field ~ '^\\+44' THEN 'UK' ELSE 'OTHER' END = $1".to_string()),
+        ("mysql", "phoneTypeEq") => Some("CASE WHEN $field REGEXP '^\\\\+1' THEN 'US' WHEN $field REGEXP '^\\\\+44' THEN 'UK' ELSE 'OTHER' END = ?".to_string()),
+        ("sqlite", "phoneTypeEq") => Some("CASE WHEN $field GLOB '+1*' THEN 'US' WHEN $field GLOB '+44*' THEN 'UK' ELSE 'OTHER' END = ?".to_string()),
+        ("sqlserver", "phoneTypeEq") => Some("CASE WHEN $field LIKE '+1%' THEN 'US' WHEN $field LIKE '+44%' THEN 'UK' ELSE 'OTHER' END = ?".to_string()),
+
+        // ========================================================================
+        // DATE RANGE OPERATORS
+        // ========================================================================
+        // Format: JSON with {start: ISO8601, end: ISO8601} or period string
+
+        // DateRange: Duration in days >= min
+        ("postgres", "durationGte") => Some(
+            "EXTRACT(DAY FROM ($field->>'end')::timestamp - ($field->>'start')::timestamp) >= $1"
+                .to_string()
+        ),
+        ("mysql", "durationGte") => Some(
+            "DATEDIFF(JSON_EXTRACT($field, '$.end'), JSON_EXTRACT($field, '$.start')) >= ?"
+                .to_string()
+        ),
+        ("sqlite", "durationGte") => Some(
+            "CAST((julianday(json_extract($field, '$.end')) - julianday(json_extract($field, '$.start'))) AS INTEGER) >= ?"
+                .to_string()
+        ),
+        ("sqlserver", "durationGte") => Some(
+            "DATEDIFF(DAY, JSON_VALUE($field, '$.start'), JSON_VALUE($field, '$.end')) >= ?"
+                .to_string()
+        ),
+
+        // DateRange: Starts after date
+        ("postgres", "startsAfter") => Some("($field->>'start')::timestamp > $1::timestamp".to_string()),
+        ("mysql", "startsAfter") => Some("JSON_EXTRACT($field, '$.start') > ?".to_string()),
+        ("sqlite", "startsAfter") => Some("json_extract($field, '$.start') > ?".to_string()),
+        ("sqlserver", "startsAfter") => Some("JSON_VALUE($field, '$.start') > ?".to_string()),
+
+        // DateRange: Ends before date
+        ("postgres", "endsBefore") => Some("($field->>'end')::timestamp < $1::timestamp".to_string()),
+        ("mysql", "endsBefore") => Some("JSON_EXTRACT($field, '$.end') < ?".to_string()),
+        ("sqlite", "endsBefore") => Some("json_extract($field, '$.end') < ?".to_string()),
+        ("sqlserver", "endsBefore") => Some("JSON_VALUE($field, '$.end') < ?".to_string()),
+
+        // DateRange: Overlaps with another range
+        ("postgres", "overlaps") => Some(
+            "($field->>'start')::timestamp < $2::timestamp AND ($field->>'end')::timestamp > $1::timestamp"
+                .to_string()
+        ),
+        ("mysql", "overlaps") => Some(
+            "JSON_EXTRACT($field, '$.start') < ? AND JSON_EXTRACT($field, '$.end') > ?"
+                .to_string()
+        ),
+        ("sqlite", "overlaps") => Some(
+            "json_extract($field, '$.start') < ? AND json_extract($field, '$.end') > ?"
+                .to_string()
+        ),
+        ("sqlserver", "overlaps") => Some(
+            "JSON_VALUE($field, '$.start') < ? AND JSON_VALUE($field, '$.end') > ?"
+                .to_string()
+        ),
+
+        // ========================================================================
+        // DURATION OPERATORS
+        // ========================================================================
+        // Format: ISO8601 duration (P1Y2M3DT4H5M6S) or total seconds/milliseconds
+
+        // Duration: Total seconds equals
+        ("postgres", "totalSecondsEq") => Some(
+            "EXTRACT(EPOCH FROM CAST($field AS INTERVAL)) = $1"
+                .to_string()
+        ),
+        ("mysql", "totalSecondsEq") => Some(
+            "CAST(REPLACE($field, 'PT', '') AS UNSIGNED) = ?"
+                .to_string()
+        ),
+        ("sqlite", "totalSecondsEq") => Some(
+            "CAST(REPLACE($field, 'PT', '') AS INTEGER) = ?"
+                .to_string()
+        ),
+        ("sqlserver", "totalSecondsEq") => Some(
+            "CAST(SUBSTRING($field, 3, LEN($field)) AS BIGINT) = ?"
+                .to_string()
+        ),
+
+        // Duration: Total minutes >= min
+        ("postgres", "totalMinutesGte") => Some(
+            "EXTRACT(EPOCH FROM CAST($field AS INTERVAL)) / 60 >= $1"
+                .to_string()
+        ),
+        ("mysql", "totalMinutesGte") => Some(
+            "CAST(REPLACE($field, 'PT', '') AS UNSIGNED) / 60 >= ?"
+                .to_string()
+        ),
+        ("sqlite", "totalMinutesGte") => Some(
+            "CAST(REPLACE($field, 'PT', '') AS INTEGER) / 60 >= ?"
+                .to_string()
+        ),
+        ("sqlserver", "totalMinutesGte") => Some(
+            "CAST(SUBSTRING($field, 3, LEN($field)) AS BIGINT) / 60 >= ?"
+                .to_string()
+        ),
+
         // Standard operators (not extended operators, so no templates)
         _ => None,
     }
@@ -487,5 +664,54 @@ mod tests {
         assert!(templates.contains_key("postgres"));
         assert!(templates["postgres"].contains("SUBSTRING"));
         assert!(templates["mysql"].contains("SUBSTRING"));
+    }
+
+    #[test]
+    fn test_geospatial_templates() {
+        let templates = extract_operator_templates("distanceWithin");
+
+        assert!(templates.contains_key("postgres"));
+        assert!(templates["postgres"].contains("ST_DWithin"));
+
+        assert!(templates.contains_key("mysql"));
+        assert!(templates["mysql"].contains("ST_Distance_Sphere"));
+
+        assert!(templates.contains_key("sqlite"));
+        assert!(templates["sqlite"].contains("Haversine") || templates["sqlite"].contains("ACOS"));
+
+        assert!(templates.contains_key("sqlserver"));
+        assert!(templates["sqlserver"].contains("geography"));
+    }
+
+    #[test]
+    fn test_phone_templates() {
+        let templates = extract_operator_templates("phoneCountryCodeEq");
+
+        assert!(templates.contains_key("postgres"));
+        assert!(templates.contains_key("mysql"));
+        assert!(templates.contains_key("sqlite"));
+        assert!(templates.contains_key("sqlserver"));
+    }
+
+    #[test]
+    fn test_date_range_templates() {
+        let templates = extract_operator_templates("durationGte");
+
+        assert!(templates.contains_key("postgres"));
+        assert!(templates["postgres"].contains("EXTRACT"));
+
+        assert!(templates.contains_key("mysql"));
+        assert!(templates["mysql"].contains("DATEDIFF"));
+    }
+
+    #[test]
+    fn test_duration_templates() {
+        let templates = extract_operator_templates("totalSecondsEq");
+
+        assert!(templates.contains_key("postgres"));
+        assert!(templates["postgres"].contains("EPOCH"));
+
+        assert!(templates.contains_key("mysql"));
+        assert!(templates["mysql"].contains("REPLACE"));
     }
 }
