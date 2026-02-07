@@ -10,7 +10,7 @@ mod audit_logging_tests {
 
     /// Test encryption operation logged to audit trail
     #[tokio::test]
-    #[ignore] // Requires audit logging integration
+    #[ignore = "Requires audit logging integration"]
     async fn test_audit_log_encryption_operation() {
         // When field encrypted during INSERT/UPDATE
         // Audit trail records:

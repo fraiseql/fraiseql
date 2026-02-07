@@ -10,7 +10,7 @@ mod database_adapter_tests {
 
     /// Test encrypted field on INSERT query
     #[tokio::test]
-    #[ignore] // Requires database setup
+    #[ignore = "Requires database setup"]
     async fn test_query_auto_encrypt_on_insert() {
         // When inserting a record with an encrypted field
         // Query builder should automatically encrypt plaintext

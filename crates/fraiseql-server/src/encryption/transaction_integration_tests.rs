@@ -10,7 +10,7 @@ mod transaction_integration_tests {
 
     /// Test encryption operation within transaction context
     #[tokio::test]
-    #[ignore] // Requires transaction integration
+    #[ignore = "Requires transaction integration"]
     async fn test_transaction_encryption_context() {
         // When transaction uses encryption context
         // Context includes:

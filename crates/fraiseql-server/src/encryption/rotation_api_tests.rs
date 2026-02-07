@@ -10,7 +10,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/status response structure
     #[tokio::test]
-    #[ignore] // Requires API implementation
+    #[ignore = "Requires API implementation"]
     async fn test_rotation_status_endpoint_structure() {
         // When GET /api/v1/admin/rotation/status called
         // Response includes:

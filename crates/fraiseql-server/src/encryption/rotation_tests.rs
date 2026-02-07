@@ -11,7 +11,7 @@ mod rotation_tests {
 
     /// Test key version tracking
     #[tokio::test]
-    #[ignore] // Requires rotation implementation
+    #[ignore = "Requires rotation implementation"]
     async fn test_key_version_tracking() {
         // When key rotates (new version issued)
         // System tracks version number: 1, 2, 3, ...

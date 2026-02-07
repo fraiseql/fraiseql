@@ -76,7 +76,7 @@ mod tests {
         let config = JsonbOptimizationConfig::default();
         assert_eq!(config.default_strategy, JsonbStrategy::Project);
         assert_eq!(config.auto_threshold_percent, 80);
-        assert_eq!(config.allow_query_hint, true);
+        assert!(config.allow_query_hint);
     }
 
     #[test]
@@ -116,7 +116,7 @@ allow_query_hint = true
         let config: JsonbOptimizationConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.default_strategy, JsonbStrategy::Project);
         assert_eq!(config.auto_threshold_percent, 75);
-        assert_eq!(config.allow_query_hint, true);
+        assert!(config.allow_query_hint);
     }
 
     #[test]
@@ -129,7 +129,7 @@ allow_query_hint = false
         let config: JsonbOptimizationConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.default_strategy, JsonbStrategy::Stream);
         assert_eq!(config.auto_threshold_percent, 50);
-        assert_eq!(config.allow_query_hint, false);
+        assert!(!(config.allow_query_hint));
     }
 
     #[test]
@@ -140,7 +140,7 @@ default_strategy = "project"
         let config: JsonbOptimizationConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.default_strategy, JsonbStrategy::Project);
         assert_eq!(config.auto_threshold_percent, 80);
-        assert_eq!(config.allow_query_hint, true);
+        assert!(config.allow_query_hint);
     }
 
     #[test]
@@ -149,6 +149,6 @@ default_strategy = "project"
         let config: JsonbOptimizationConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.default_strategy, JsonbStrategy::Project);
         assert_eq!(config.auto_threshold_percent, 80);
-        assert_eq!(config.allow_query_hint, true);
+        assert!(config.allow_query_hint);
     }
 }

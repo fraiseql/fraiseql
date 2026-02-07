@@ -551,6 +551,4 @@ fn test_rls_policy_evaluation_architecture() {
     // - tenant_id: "org-456" (for multi-tenancy)
     // - attributes: {"department": "sales"} (custom claims)
 
-    let note = "RLS policy evaluation architecture documented in Phase 2.3";
-    assert!(note.len() > 0);
 }

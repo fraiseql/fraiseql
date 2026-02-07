@@ -57,7 +57,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -82,7 +82,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       false,
             error_message: Some("Invalid signature".to_string()),
-            timestamp:     1234567890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -97,7 +97,7 @@ mod audit_logging {
     fn test_jwt_validation_log_includes_timestamp() {
         // RED: Audit logs must include timestamp for sequence verification
         let logger = MockAuditLogger::new();
-        let timestamp = 1234567890u64;
+        let timestamp = 1_234_567_890_u64;
 
         let entry = AuditLogEntry {
             event_type: "jwt_validation".to_string(),
@@ -129,7 +129,7 @@ mod audit_logging {
             operation:     "retrieve".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -152,7 +152,7 @@ mod audit_logging {
             operation:     "exchange".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567891,
+            timestamp:     1_234_567_891,
         };
 
         logger.log_entry(entry);
@@ -176,7 +176,7 @@ mod audit_logging {
             operation:     "create".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567892,
+            timestamp:     1_234_567_892,
         };
 
         logger.log_entry(entry);
@@ -198,7 +198,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567893,
+            timestamp:     1_234_567_893,
         };
 
         logger.log_entry(entry);
@@ -219,7 +219,7 @@ mod audit_logging {
             operation:     "revoke".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567894,
+            timestamp:     1_234_567_894,
         };
 
         logger.log_entry(entry);
@@ -242,7 +242,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       false,
             error_message: Some("Token expired".to_string()),
-            timestamp:     1234567895,
+            timestamp:     1_234_567_895,
         };
 
         logger.log_entry(entry);
@@ -264,7 +264,7 @@ mod audit_logging {
             operation:     "retrieve".to_string(),
             success:       false,
             error_message: Some("Unauthorized access".to_string()),
-            timestamp:     1234567896,
+            timestamp:     1_234_567_896,
         };
 
         logger.log_entry(entry);
@@ -289,7 +289,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567897,
+            timestamp:     1_234_567_897,
         };
 
         logger.log_entry(entry);
@@ -310,7 +310,7 @@ mod audit_logging {
             operation:     "retrieve".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567898,
+            timestamp:     1_234_567_898,
         };
 
         logger.log_entry(entry);
@@ -383,7 +383,7 @@ mod audit_logging {
             operation:     "test".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567899,
+            timestamp:     1_234_567_899,
         };
 
         logger.log_entry(entry);
@@ -408,7 +408,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       false,
             error_message: Some(long_error.clone()),
-            timestamp:     1234567900,
+            timestamp:     1_234_567_900,
         };
 
         logger.log_entry(entry);
@@ -429,7 +429,7 @@ mod audit_logging {
             operation:     "validate".to_string(),
             success:       true,
             error_message: None,
-            timestamp:     1234567901,
+            timestamp:     1_234_567_901,
         };
 
         logger.log_entry(entry);

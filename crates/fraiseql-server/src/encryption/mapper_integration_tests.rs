@@ -10,7 +10,7 @@ mod mapper_integration_tests {
 
     /// Test mapper encrypts single encrypted field on insert
     #[tokio::test]
-    #[ignore] // Requires mapper integration
+    #[ignore = "Requires mapper integration"]
     async fn test_mapper_insert_single_encrypted_field() {
         // When mapper writes User record with email field
         // Email field marked as encrypted in schema

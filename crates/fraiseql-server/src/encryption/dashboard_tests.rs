@@ -10,7 +10,7 @@ mod dashboard_tests {
 
     /// Test dashboard overview endpoint
     #[tokio::test]
-    #[ignore] // Requires dashboard implementation
+    #[ignore = "Requires dashboard implementation"]
     async fn test_dashboard_overview() {
         // GET /api/v1/admin/rotation/dashboard
         // Returns overview of all keys:

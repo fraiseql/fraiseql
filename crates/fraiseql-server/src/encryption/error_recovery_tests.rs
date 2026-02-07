@@ -10,7 +10,7 @@ mod error_recovery_tests {
 
     /// Test encryption with Vault temporarily unavailable
     #[tokio::test]
-    #[ignore] // Requires error recovery implementation
+    #[ignore = "Requires error recovery implementation"]
     async fn test_vault_temporary_outage_with_cache() {
         // When Vault becomes temporarily unavailable
         // With cached encryption key: operations continue normally

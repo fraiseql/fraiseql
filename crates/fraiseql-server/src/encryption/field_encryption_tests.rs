@@ -11,7 +11,7 @@ mod field_encryption_tests {
 
     /// Test basic field encryption roundtrip
     #[test]
-    #[ignore] // Implemented in mod.rs basic tests
+    #[ignore = "Implemented in mod.rs basic tests"]
     fn test_field_encrypt_decrypt_basic() {
         // When plaintext is encrypted and then decrypted
         // Should return original plaintext

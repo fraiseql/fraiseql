@@ -111,16 +111,16 @@ fn test_design_audit_handles_deeply_nested_json() {
         nested.push_str(r#": {"value"#);
     }
     for _ in 0..1000 {
-        nested.push_str("}");
+        nested.push('}');
     }
     nested.push('}');
 
     let result = serde_json::from_str::<serde_json::Value>(&nested);
 
     // Should either parse or fail gracefully
-    if result.is_ok() {
+    if let Ok(schema) = result {
         let req = DesignAuditRequest {
-            schema: result.unwrap(),
+            schema,
         };
         assert!(req.schema.is_object());
     } else {

@@ -10,7 +10,7 @@ mod refresh_tests {
 
     /// Test refresh trigger detection
     #[tokio::test]
-    #[ignore] // Requires refresh implementation
+    #[ignore = "Requires refresh implementation"]
     async fn test_refresh_trigger_detection() {
         // When key reaches 80% TTL consumed
         // System detects need for refresh

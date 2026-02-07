@@ -99,7 +99,7 @@ mod metrics_monitoring_tests {
         // Verify accuracy (should be last value written)
         assert_eq!(
             gauge.load(Ordering::Relaxed),
-            (iterations - 1) as u64,
+            (iterations - 1),
             "Gauge should be accurate"
         );
     }
@@ -526,27 +526,27 @@ mod metrics_monitoring_tests {
 
         assert!(fully_spent.abs() < 0.001, "Budget should be fully spent");
     }
-}
 
-// ============================================================================
-// Test Helpers - Metric simulation utilities
-// ============================================================================
+    // ========================================================================
+    // Test Helpers - Metric simulation utilities
+    // ========================================================================
 
-/// Simulate latency measurement
-#[allow(dead_code)]
-fn measure_latency(operations: usize) -> f64 {
-    let start = Instant::now();
-    for _ in 0..operations {
-        let _result = 1 + 1; // Minimal work
+    #[allow(dead_code)]
+    fn measure_latency(operations: usize) -> f64 {
+        let start = Instant::now();
+        for _ in 0..operations {
+            let _result = 1 + 1; // Minimal work
+        }
+        start.elapsed().as_secs_f64()
     }
-    start.elapsed().as_secs_f64()
-}
 
-#[allow(dead_code)]
-fn simulate_cache_operation(hit: bool) -> (u64, u64) {
-    if hit {
-        (1, 0) // 1 hit, 0 misses
-    } else {
-        (0, 1) // 0 hits, 1 miss
+    #[allow(dead_code)]
+    fn simulate_cache_operation(hit: bool) -> (u64, u64) {
+        if hit {
+            (1, 0) // 1 hit, 0 misses
+        } else {
+            (0, 1) // 0 hits, 1 miss
+        }
     }
+
 }

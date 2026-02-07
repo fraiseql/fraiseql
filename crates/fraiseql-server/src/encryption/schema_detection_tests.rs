@@ -10,7 +10,7 @@ mod schema_detection_tests {
 
     /// Test detect basic #[encrypted] attribute on field
     #[test]
-    #[ignore] // Requires schema detection implementation
+    #[ignore = "Requires schema detection implementation"]
     fn test_schema_detect_basic_encrypted_attribute() {
         // Given struct with #[encrypted] on email field
         // When schema is parsed

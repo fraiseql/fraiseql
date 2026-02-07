@@ -10,7 +10,7 @@ mod performance_tests {
 
     /// Test encryption batching reduces overhead
     #[tokio::test]
-    #[ignore] // Requires batching implementation
+    #[ignore = "Requires batching implementation"]
     async fn test_encryption_batching_optimization() {
         // When encrypting many fields in batch
         // Should batch operations where possible

@@ -10,7 +10,7 @@ mod oauth_tests {
 
     /// Test OAuth2 authorization URL generation
     #[tokio::test]
-    #[ignore] // Requires OAuth implementation
+    #[ignore = "Requires OAuth implementation"]
     async fn test_oauth2_authorization_url_generation() {
         // OAuth2Client with provider configuration
         // Generate authorization URL with:

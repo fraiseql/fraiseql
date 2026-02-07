@@ -10,7 +10,7 @@ mod query_builder_integration_tests {
 
     /// Test auto-encrypt on single INSERT
     #[tokio::test]
-    #[ignore] // Requires query builder integration
+    #[ignore = "Requires query builder integration"]
     async fn test_insert_auto_encrypt_single_field() {
         // When inserting record with one encrypted field
         // Query builder should encrypt plaintext before INSERT

@@ -10,7 +10,7 @@ mod compliance_tests {
 
     /// Test HIPAA PHI encryption at rest
     #[test]
-    #[ignore] // Requires compliance implementation
+    #[ignore = "Requires compliance implementation"]
     fn test_hipaa_phi_encryption_at_rest() {
         // Protected Health Information (PHI) must be encrypted at rest
         // Supported PHI fields: SSN, medical record numbers, health conditions

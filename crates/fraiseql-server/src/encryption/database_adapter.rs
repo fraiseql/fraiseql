@@ -342,7 +342,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires SecretsManager setup
+    #[ignore = "Requires SecretsManager setup"]
     async fn test_adapter_get_cipher_caching() {
         // When cipher accessed multiple times for same field
         // Should return cached instance on subsequent calls

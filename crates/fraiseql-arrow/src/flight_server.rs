@@ -3118,7 +3118,6 @@ mod tests {
         // (will be done in GREEN phase implementation)
     }
 
-    /// Phase 2.2b: Authenticated query execution - COMPLETE
 
     /// Phase 3.1: Tests that get_flight_info returns schema for views
     #[tokio::test]

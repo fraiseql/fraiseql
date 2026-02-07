@@ -10,7 +10,7 @@ mod schema_tests {
 
     /// Test secret rotation audit record creation
     #[tokio::test]
-    #[ignore] // Requires database implementation
+    #[ignore = "Requires database implementation"]
     async fn test_secret_rotation_audit_creation() {
         // INSERT INTO secret_rotation_audit:
         // - secret_name: "database/creds/fraiseql"
