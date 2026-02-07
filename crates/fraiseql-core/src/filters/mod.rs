@@ -27,10 +27,12 @@
 //! to reduce binary size for minimal deployments.
 
 pub mod default_rules;
+pub mod operator_mapping;
 pub mod operators;
 pub mod validators;
 
 pub use default_rules::get_default_rules;
+pub use operator_mapping::{get_operators_for_type, OperatorInfo, ParameterType};
 pub use operators::ExtendedOperator;
 pub use validators::{ChecksumType, ValidationRule};
 
