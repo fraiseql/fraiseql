@@ -353,14 +353,73 @@ impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
     fn generate_extended_sql(
         &self,
         operator: &crate::filters::ExtendedOperator,
-        _field_sql: &str,
-        _params: &mut Vec<serde_json::Value>,
+        field_sql: &str,
+        params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // TODO: Week 3 implementation
-        // For now, return a stub error
-        Err(FraiseQLError::validation(
-            format!("Extended operator not yet implemented: {}", operator),
-        ))
+        match operator {
+            // Email domain extraction: extract part after @
+            crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
+                params.push(serde_json::Value::String(domain.clone()));
+                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) = ?
+                Ok(format!(
+                    "SUBSTR({}, INSTR({}, '@') + 1) = ?",
+                    field_sql, field_sql
+                ))
+            }
+
+            crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
+                let placeholders: Vec<&str> = domains
+                    .iter()
+                    .map(|d| {
+                        params.push(serde_json::Value::String(d.clone()));
+                        "?"
+                    })
+                    .collect();
+                Ok(format!(
+                    "SUBSTR({}, INSTR({}, '@') + 1) IN ({})",
+                    field_sql,
+                    field_sql,
+                    placeholders.join(", ")
+                ))
+            }
+
+            crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
+                params.push(serde_json::Value::String(suffix.clone()));
+                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) LIKE '%' || ?
+                Ok(format!(
+                    "SUBSTR({}, INSTR({}, '@') + 1) LIKE '%' || ?",
+                    field_sql, field_sql
+                ))
+            }
+
+            crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
+                params.push(serde_json::Value::String(prefix.clone()));
+                // SQLite: SUBSTR(field, 1, INSTR(field, '@') - 1) LIKE ? || '%'
+                Ok(format!(
+                    "SUBSTR({}, 1, INSTR({}, '@') - 1) LIKE ? || '%'",
+                    field_sql, field_sql
+                ))
+            }
+
+            // VIN operations
+            crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
+                params.push(serde_json::Value::String(wmi.clone()));
+                // SQLite: SUBSTR(field, 1, 3) = ?
+                Ok(format!("SUBSTR({}, 1, 3) = ?", field_sql))
+            }
+
+            // IBAN operations
+            crate::filters::ExtendedOperator::IbanCountryEq(country) => {
+                params.push(serde_json::Value::String(country.clone()));
+                // SQLite: SUBSTR(field, 1, 2) = ?
+                Ok(format!("SUBSTR({}, 1, 2) = ?", field_sql))
+            }
+
+            // Fallback: not implemented
+            _ => Err(FraiseQLError::validation(
+                format!("Extended operator not yet implemented: {}", operator),
+            )),
+        }
     }
 }
 

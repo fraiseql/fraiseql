@@ -26,9 +26,13 @@
 //! All 44 types are available by default, but can be disabled via feature flags
 //! to reduce binary size for minimal deployments.
 
+pub mod default_rules;
 pub mod operators;
+pub mod validators;
 
+pub use default_rules::get_default_rules;
 pub use operators::ExtendedOperator;
+pub use validators::{ChecksumType, ValidationRule};
 
 use crate::error::Result;
 use serde_json::Value;
