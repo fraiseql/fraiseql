@@ -8,11 +8,11 @@
 //!
 //! Uses wiremock to mock provider endpoints without needing real credentials.
 
-use fraiseql_server::auth::{oidc_provider::OidcProvider, OAuthProvider};
+use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};
 use serde_json::json;
 use wiremock::{
-    matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
+    matchers::{method, path},
 };
 
 // ============================================================================
@@ -230,7 +230,10 @@ async fn test_oidc_discovery_invalid_json() {
     )
     .await;
 
-    assert!(provider.is_err(), "Provider should fail when discovery endpoint returns invalid JSON");
+    assert!(
+        provider.is_err(),
+        "Provider should fail when discovery endpoint returns invalid JSON"
+    );
 }
 
 // ============================================================================
@@ -394,10 +397,7 @@ async fn test_google_provider_discovery() {
 #[tokio::test]
 async fn test_google_discovery_endpoints() {
     let doc = google_discovery_doc();
-    assert!(doc["authorization_endpoint"]
-        .as_str()
-        .unwrap()
-        .contains("accounts.google.com"));
+    assert!(doc["authorization_endpoint"].as_str().unwrap().contains("accounts.google.com"));
     assert!(doc["token_endpoint"].as_str().unwrap().contains("oauth2.googleapis.com"));
     assert!(doc["jwks_uri"].as_str().unwrap().contains("googleapis.com"));
 }
@@ -432,10 +432,7 @@ async fn test_microsoft_provider_discovery() {
 async fn test_microsoft_discovery_v2_endpoints() {
     let doc = microsoft_discovery_doc();
     assert!(doc["token_endpoint"].as_str().unwrap().contains("/v2.0/token"));
-    assert!(doc["authorization_endpoint"]
-        .as_str()
-        .unwrap()
-        .contains("/v2.0/authorize"));
+    assert!(doc["authorization_endpoint"].as_str().unwrap().contains("/v2.0/authorize"));
 }
 
 // ============================================================================
@@ -469,10 +466,7 @@ async fn test_okta_discovery_tenant_specific_endpoints() {
     let doc = okta_discovery_doc("dev-12345");
     assert!(doc["token_endpoint"].as_str().unwrap().contains("dev-12345.okta.com"));
     assert!(doc["jwks_uri"].as_str().unwrap().contains("/oauth2/v1/keys"));
-    assert!(doc["revocation_endpoint"]
-        .as_str()
-        .unwrap()
-        .contains("/oauth2/v1/revoke"));
+    assert!(doc["revocation_endpoint"].as_str().unwrap().contains("/oauth2/v1/revoke"));
 }
 
 // ============================================================================
@@ -582,14 +576,9 @@ async fn test_discovery_timeout_handling() {
     // Test that provider handles connection failures gracefully
     let invalid_url = "http://localhost:1/invalid";
 
-    let provider = OidcProvider::new(
-        "test",
-        invalid_url,
-        "id",
-        "secret",
-        "http://localhost:8000/callback",
-    )
-    .await;
+    let provider =
+        OidcProvider::new("test", invalid_url, "id", "secret", "http://localhost:8000/callback")
+            .await;
 
     assert!(provider.is_err(), "Provider should fail on invalid URL");
 }

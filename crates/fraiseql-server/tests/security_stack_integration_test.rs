@@ -23,8 +23,7 @@ use serde_json::json;
 
 /// Helper to create RBAC deny error
 fn rbac_deny_error(field: &str) -> GraphQLError {
-    GraphQLError::forbidden()
-        .with_path(vec!["query".to_string(), field.to_string()])
+    GraphQLError::forbidden().with_path(vec!["query".to_string(), field.to_string()])
 }
 
 /// Helper to create RLS filter result (empty)
@@ -105,8 +104,8 @@ fn test_security_stack_evaluation_order() {
     // Layer 1: RBAC Check
     fn rbac_check(role: &str, operation: &str) -> Result<(), &'static str> {
         match (role, operation) {
-            ("admin", _) => Ok(()),           // Admin can do anything
-            ("user", "read") => Ok(()),       // User can read
+            ("admin", _) => Ok(()),     // Admin can do anything
+            ("user", "read") => Ok(()), // User can read
             ("user", "delete") => Err("Permission denied"),
             _ => Err("Unauthorized"),
         }
@@ -115,8 +114,8 @@ fn test_security_stack_evaluation_order() {
     // Layer 2: RLS Filter (mock)
     fn rls_filter(role: &str, _user_id: &str) -> Vec<String> {
         match role {
-            "admin" => vec!["user-1", "user-2", "user-3"].iter().map(|s| s.to_string()).collect(),
-            "user" => vec!["user-1"].iter().map(|s| s.to_string()).collect(), // Only own record
+            "admin" => ["user-1", "user-2", "user-3"].iter().map(|s| s.to_string()).collect(),
+            "user" => ["user-1"].iter().map(|s| s.to_string()).collect(), // Only own record
             _ => vec![],
         }
     }
@@ -125,7 +124,7 @@ fn test_security_stack_evaluation_order() {
     fn apply_field_masking(role: &str, field_name: &str) -> bool {
         // admin sees everything, others have masked fields
         match role {
-            "admin" => false,  // Admin sees all fields unmasked
+            "admin" => false, // Admin sees all fields unmasked
             _ => matches!(field_name, "password" | "ssn" | "api_key"),
         }
     }
@@ -151,8 +150,8 @@ fn test_security_stack_evaluation_order() {
 #[test]
 fn test_error_response_when_rbac_denies() {
     // RBAC denial should produce specific error
-    let error = GraphQLError::forbidden()
-        .with_path(vec!["user".to_string(), "sensitiveField".to_string()]);
+    let error =
+        GraphQLError::forbidden().with_path(vec!["user".to_string(), "sensitiveField".to_string()]);
 
     let response = ErrorResponse::from_error(error);
 
@@ -188,7 +187,11 @@ fn test_field_masking_pattern_consistency() {
     for (field_name, original_value) in sensitive_fields {
         let masked = masked_field(original_value);
         assert!(masked.starts_with("****"), "Masked field {} should start with ****", field_name);
-        assert!(!masked.contains(&original_value[0..3]), "Masked field {} should not contain original prefix", field_name);
+        assert!(
+            !masked.contains(&original_value[0..3]),
+            "Masked field {} should not contain original prefix",
+            field_name
+        );
     }
 }
 
@@ -267,8 +270,8 @@ fn test_tenant_isolation_via_rls() {
     fn get_tenant_rows(tenant_id: &str, _user_id: &str) -> Vec<String> {
         // User should only see rows for their tenant
         match tenant_id {
-            "tenant-a" => vec!["user-1-a", "user-2-a"].iter().map(|s| s.to_string()).collect(),
-            "tenant-b" => vec!["user-1-b", "user-2-b"].iter().map(|s| s.to_string()).collect(),
+            "tenant-a" => ["user-1-a", "user-2-a"].iter().map(|s| s.to_string()).collect(),
+            "tenant-b" => ["user-1-b", "user-2-b"].iter().map(|s| s.to_string()).collect(),
             _ => vec![],
         }
     }
@@ -277,8 +280,14 @@ fn test_tenant_isolation_via_rls() {
     let tenant_b_rows = get_tenant_rows("tenant-b", "user-1");
 
     // Rows should be isolated per tenant
-    assert!(!tenant_a_rows.iter().any(|r| r.contains("-b")), "Tenant A should not see Tenant B rows");
-    assert!(!tenant_b_rows.iter().any(|r| r.contains("-a")), "Tenant B should not see Tenant A rows");
+    assert!(
+        !tenant_a_rows.iter().any(|r| r.contains("-b")),
+        "Tenant A should not see Tenant B rows"
+    );
+    assert!(
+        !tenant_b_rows.iter().any(|r| r.contains("-a")),
+        "Tenant B should not see Tenant A rows"
+    );
 }
 
 #[test]
@@ -291,21 +300,21 @@ fn test_combined_rbac_rls_filtering() {
         }
 
         // RLS: Filter by tenant
-        let all_rows = vec!["user-1", "user-2", "user-3", "user-4"];
+        let all_rows = ["user-1", "user-2", "user-3", "user-4"];
         let tenant_rows: Vec<_> = all_rows
             .iter()
             .filter(|r| {
-                // Filter by tenant
-                (tenant_id == "a" && r.starts_with("user-1")) ||
-                (tenant_id == "a" && r.starts_with("user-2")) ||
-                (tenant_id == "b" && r.starts_with("user-3"))
+                // Filter by tenant - combine conditions
+                (tenant_id == "a" && (r.starts_with("user-1") || r.starts_with("user-2")))
+                    || (tenant_id == "b" && r.starts_with("user-3"))
             })
             .map(|s| s.to_string())
             .collect();
 
         // Further filter if user is not admin
         if role == "user" {
-            return tenant_rows.into_iter()
+            return tenant_rows
+                .into_iter()
                 .filter(|r| r == user_id || r.contains("-1")) // User only sees own + public
                 .collect();
         }
@@ -331,8 +340,7 @@ fn test_error_hierarchy_for_security_layers() {
     // Errors should indicate which layer blocked access (for logging/debugging)
 
     // RBAC error
-    let rbac_error = GraphQLError::forbidden()
-        .with_path(vec!["secretField".to_string()]);
+    let rbac_error = GraphQLError::forbidden().with_path(vec!["secretField".to_string()]);
     assert_eq!(rbac_error.code, ErrorCode::Forbidden);
 
     // RLS result (not an error, just empty data)
@@ -356,9 +364,9 @@ fn test_security_stack_performance_order() {
     // 2. RLS filter (database query, medium)
     // 3. Field masking (string manipulation, fast)
 
-    // This test documents the expected optimization order
-    assert!(true, "RBAC checks should happen before database queries");
-    assert!(true, "RLS filtering should happen before field masking");
+    // This test documents the expected optimization order:
+    // - RBAC checks happen before database queries (avoid expensive filters if access denied)
+    // - RLS filtering happens before field masking (don't mask data that won't be visible)
 }
 
 #[test]
@@ -380,21 +388,21 @@ fn test_field_masking_independent_of_rbac() {
     // Field masking should apply even when RBAC allows
     // (e.g., admin who can see field still sees masked version if marked for masking)
 
-    let admin_sees_email = "john@example.com";  // Could be visible to admin
+    let admin_sees_email = "john@example.com"; // Could be visible to admin
 
     // But if field is marked for masking even in admin view
     let admin_masked_password = "****"; // Admin sees masked version
 
     assert_eq!(admin_sees_email, "john@example.com"); // Not masked
-    assert_eq!(admin_masked_password, "****");        // Masked regardless of role
+    assert_eq!(admin_masked_password, "****"); // Masked regardless of role
 }
 
 #[test]
 fn test_graphql_request_with_security_context() {
     // GraphQL request should carry security context through all layers
     let request = GraphQLRequest {
-        query: "query { user(id: \"123\") { id name email } }".to_string(),
-        variables: None,
+        query:          "query { user(id: \"123\") { id name email } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
@@ -413,18 +421,24 @@ fn test_multi_tenant_field_masking() {
     // Field masking might be different per tenant
     fn get_masked_fields(tenant_type: &str, role: &str) -> Vec<&'static str> {
         match (tenant_type, role) {
-            ("healthcare", _) => vec!["ssn", "dob", "medical_history"],  // HIPAA compliance
-            ("finance", _) => vec!["account_number", "routing_number"],    // PCI compliance
-            ("standard", "admin") => vec![],                                // Admin sees all
-            ("standard", "user") => vec!["email", "phone"],                // User has masked
+            ("healthcare", _) => vec!["ssn", "dob", "medical_history"], // HIPAA compliance
+            ("finance", _) => vec!["account_number", "routing_number"], // PCI compliance
+            ("standard", "admin") => vec![],                            // Admin sees all
+            ("standard", "user") => vec!["email", "phone"],             // User has masked
             _ => vec![],
         }
     }
 
     let healthcare_masked = get_masked_fields("healthcare", "user");
     assert!(healthcare_masked.contains(&"ssn"), "Healthcare should mask SSN");
-    assert!(healthcare_masked.contains(&"medical_history"), "Healthcare should mask medical data");
+    assert!(
+        healthcare_masked.contains(&"medical_history"),
+        "Healthcare should mask medical data"
+    );
 
     let finance_masked = get_masked_fields("finance", "user");
-    assert!(finance_masked.contains(&"account_number"), "Finance should mask account numbers");
+    assert!(
+        finance_masked.contains(&"account_number"),
+        "Finance should mask account numbers"
+    );
 }

@@ -21,15 +21,15 @@ use serde_json::json;
 fn test_graphql_request_structure_for_mutation_attack() {
     // Demonstrate the structure of a mutation attack attempt
     let mutation_request = GraphQLRequest {
-        query: "mutation { updateUser(id: \"123\", role: \"admin\") { id role } }"
+        query:          "mutation { updateUser(id: \"123\", role: \"admin\") { id role } }"
             .to_string(),
-        variables: None,
+        variables:      None,
         operation_name: Some("UpdateRole".to_string()),
     };
 
     // Server should validate and reject attempts to set role through mutation
-    assert_eq!(mutation_request.query.contains("role"), true);
-    assert_eq!(mutation_request.query.contains("admin"), true);
+    assert!(mutation_request.query.contains("role"));
+    assert!(mutation_request.query.contains("admin"));
 }
 
 #[test]
@@ -49,8 +49,8 @@ fn test_variable_injection_with_role_parameter() {
     });
 
     let request = GraphQLRequest {
-        query: query_with_role_var.to_string(),
-        variables: Some(variables),
+        query:          query_with_role_var.to_string(),
+        variables:      Some(variables),
         operation_name: Some("SetRole".to_string()),
     };
 
@@ -63,20 +63,26 @@ fn test_variable_injection_with_role_parameter() {
 fn test_jwt_claim_injection_in_token() {
     // Simulate an attacker trying to add/modify claims in JWT
     // JWT structure: header.payload.signature
-    let malicious_token_header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";  // {"alg":"HS256","typ":"JWT"}
-    let malicious_token_payload = "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0";  // {"sub":"1234567890","name":"John Doe"}
+    let malicious_token_header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"; // {"alg":"HS256","typ":"JWT"}
+    let malicious_token_payload = "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0"; // {"sub":"1234567890","name":"John Doe"}
     let malicious_token_signature = "HMAC_SIGNATURE";
 
-    let malicious_token = format!("{}.{}.{}", malicious_token_header, malicious_token_payload, malicious_token_signature);
+    let malicious_token = format!(
+        "{}.{}.{}",
+        malicious_token_header, malicious_token_payload, malicious_token_signature
+    );
 
     // Token should be cryptographically signed and verified
     // Any modification to claims should be detected
     // This is a test that the token verification happens
-    assert!(malicious_token.contains("eyJ"));  // JWT should start with header
+    assert!(malicious_token.contains("eyJ")); // JWT should start with header
 
-    // Attacker would try to modify the payload to add admin role, but signature would fail verification
-    // This is verified by the auth layer before GraphQL execution
-    assert!(!malicious_token_payload.contains("role"), "Original token doesn't have role claim");
+    // Attacker would try to modify the payload to add admin role, but signature would fail
+    // verification This is verified by the auth layer before GraphQL execution
+    assert!(
+        !malicious_token_payload.contains("role"),
+        "Original token doesn't have role claim"
+    );
 }
 
 #[test]
@@ -119,8 +125,8 @@ fn test_role_field_not_exposed_in_mutation_arguments() {
         }
     }";
 
-    // Attacker tries to set role to admin - should be rejected
-    let variables = json!({
+    // Attacker tries to set role to admin - should be rejected (simulated here)
+    let _variables = json!({
         "id": "user-456",
         "name": "Attacker",
         "role": "admin"
@@ -240,8 +246,10 @@ fn test_deeply_nested_field_access_attack() {
 
     let validator = RequestValidator::new().with_max_depth(10);
     // This query might exceed depth limits
-    assert!(validator.validate_query(nested_query).is_ok() ||
-            validator.validate_query(nested_query).is_err());
+    assert!(
+        validator.validate_query(nested_query).is_ok()
+            || validator.validate_query(nested_query).is_err()
+    );
 
     // But even if structurally valid, server must reject access to:
     // - adminSettings field (doesn't exist in schema)
@@ -252,8 +260,7 @@ fn test_deeply_nested_field_access_attack() {
 #[test]
 fn test_field_mutation_error_code() {
     // Create an error that would be returned for unauthorized field modification
-    let error = GraphQLError::forbidden()
-        .with_path(vec!["user".to_string(), "role".to_string()]);
+    let error = GraphQLError::forbidden().with_path(vec!["user".to_string(), "role".to_string()]);
 
     assert_eq!(error.code, ErrorCode::Forbidden);
     assert!(error.path.is_some());
@@ -273,9 +280,8 @@ fn test_authentication_error_for_missing_token() {
 #[test]
 fn test_validation_error_for_unknown_field() {
     // Trying to access non-existent field should fail validation
-    let error = GraphQLError::validation(
-        "Field 'adminSettings' doesn't exist on type 'UserProfile'"
-    );
+    let error =
+        GraphQLError::validation("Field 'adminSettings' doesn't exist on type 'UserProfile'");
 
     assert_eq!(error.code, ErrorCode::ValidationError);
     assert!(error.message.contains("doesn't exist"));
@@ -284,8 +290,8 @@ fn test_validation_error_for_unknown_field() {
 #[test]
 fn test_permission_check_error_message() {
     // Error message when permission check fails
-    let error = GraphQLError::forbidden()
-        .with_path(vec!["user".to_string(), "sensitiveData".to_string()]);
+    let error =
+        GraphQLError::forbidden().with_path(vec!["user".to_string(), "sensitiveData".to_string()]);
 
     assert_eq!(error.code, ErrorCode::Forbidden);
     // Error should NOT reveal why access was denied
@@ -315,8 +321,10 @@ fn test_no_role_modification_through_any_vector() {
     assert!(validator.validate_query(variable_vector).is_ok());
 
     // assignment_vector: invalid GraphQL syntax
-    assert!(validator.validate_query(assignment_vector).is_err() ||
-            validator.validate_query(assignment_vector).is_ok()); // Depends on parser strictness
+    assert!(
+        validator.validate_query(assignment_vector).is_err()
+            || validator.validate_query(assignment_vector).is_ok()
+    ); // Depends on parser strictness
 }
 
 #[test]
@@ -331,17 +339,16 @@ fn test_privilege_escalation_with_malformed_token() {
 
     // But token validation happens before query execution
     // (verified at auth middleware level)
-    assert!(!malformed_token.contains("eyJ"));  // Valid JWT start
+    assert!(!malformed_token.contains("eyJ")); // Valid JWT start
 }
 
 #[test]
 fn test_permission_denied_error_is_consistent() {
     // All permission denied errors should use same error code
     let error1 = GraphQLError::forbidden();
-    let error2 = GraphQLError::forbidden()
-        .with_path(vec!["user".to_string(), "admin_field".to_string()]);
-    let error3 = GraphQLError::forbidden()
-        .with_location(15, 5);
+    let error2 =
+        GraphQLError::forbidden().with_path(vec!["user".to_string(), "admin_field".to_string()]);
+    let error3 = GraphQLError::forbidden().with_location(15, 5);
 
     assert_eq!(error1.code, error2.code);
     assert_eq!(error2.code, error3.code);

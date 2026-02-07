@@ -170,7 +170,8 @@ fn test_standard_profile_complexity_limit() {
     assert!(validator.validate_query(simple).is_ok());
 
     // Moderately complex query should pass
-    let moderate = "{ posts { id title author { id name email } comments { id text user { id name } } } }";
+    let moderate =
+        "{ posts { id title author { id name email } comments { id text user { id name } } } }";
     assert!(validator.validate_query(moderate).is_ok());
 }
 
@@ -205,17 +206,11 @@ fn test_restricted_profile_complexity_limit() {
 #[test]
 fn test_profile_query_validator_builder_pattern() {
     // Verify all profiles can be built with builder pattern
-    let standard = RequestValidator::new()
-        .with_max_depth(15)
-        .with_max_complexity(1000);
+    let standard = RequestValidator::new().with_max_depth(15).with_max_complexity(1000);
 
-    let regulated = RequestValidator::new()
-        .with_max_depth(10)
-        .with_max_complexity(500);
+    let regulated = RequestValidator::new().with_max_depth(10).with_max_complexity(500);
 
-    let restricted = RequestValidator::new()
-        .with_max_depth(5)
-        .with_max_complexity(250);
+    let restricted = RequestValidator::new().with_max_depth(5).with_max_complexity(250);
 
     // All should be created successfully
     assert!(standard.validate_query("{ posts { id } }").is_ok());
@@ -228,7 +223,7 @@ fn test_disabling_depth_validation() {
     // Verify depth validation can be disabled
     let validator = RequestValidator::new()
         .with_max_depth(5)
-        .with_depth_validation(false)  // Disable
+        .with_depth_validation(false) // Disable
         .with_complexity_validation(true);
 
     // Query with excessive depth should pass (validation disabled)
@@ -245,7 +240,7 @@ fn test_disabling_complexity_validation() {
     let validator = RequestValidator::new()
         .with_max_depth(15)
         .with_max_complexity(10)
-        .with_complexity_validation(false);  // Disable
+        .with_complexity_validation(false); // Disable
 
     // Even a moderately complex query should pass
     let complex = "{ posts { id title author { id name } comments { id text user { id } } } }";
@@ -256,8 +251,8 @@ fn test_disabling_complexity_validation() {
 fn test_graphql_request_structure_with_profiles() {
     // Verify GraphQLRequest can be created and validated with profile limits
     let request = GraphQLRequest {
-        query: "{ posts { id title author { id name } } }".to_string(),
-        variables: None,
+        query:          "{ posts { id title author { id name } } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 

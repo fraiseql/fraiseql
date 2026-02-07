@@ -13,8 +13,7 @@ use fraiseql_server::error::{ErrorCode, ErrorResponse, GraphQLError};
 /// Helper to create a database error with SQL details
 fn sql_error_with_details() -> GraphQLError {
     GraphQLError::database(
-        "SQL syntax error near line 42: SELECT * FROM users WHERE id = $1 LIMIT 10"
-            .to_string(),
+        "SQL syntax error near line 42: SELECT * FROM users WHERE id = $1 LIMIT 10".to_string(),
     )
 }
 
@@ -43,18 +42,9 @@ fn test_error_code_mapping_to_http_status() {
         ErrorCode::DatabaseError.status_code(),
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
     );
-    assert_eq!(
-        ErrorCode::Unauthenticated.status_code(),
-        axum::http::StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(
-        ErrorCode::ValidationError.status_code(),
-        axum::http::StatusCode::BAD_REQUEST
-    );
-    assert_eq!(
-        ErrorCode::Forbidden.status_code(),
-        axum::http::StatusCode::FORBIDDEN
-    );
+    assert_eq!(ErrorCode::Unauthenticated.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    assert_eq!(ErrorCode::ValidationError.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(ErrorCode::Forbidden.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
 
 #[test]
@@ -280,7 +270,8 @@ fn test_database_error_variations() {
 fn test_validation_error_includes_limits() {
     // Validation errors can include constraint information (safe to show)
     let depth_error = GraphQLError::validation("Query exceeds maximum depth: 15 > 10");
-    let complexity_error = GraphQLError::validation("Query exceeds maximum complexity: 1500 > 1000");
+    let complexity_error =
+        GraphQLError::validation("Query exceeds maximum complexity: 1500 > 1000");
 
     // Showing limits is safe - it doesn't leak data, just policy
     assert!(depth_error.message.contains("15"));
