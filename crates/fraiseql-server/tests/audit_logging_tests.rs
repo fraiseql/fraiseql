@@ -31,14 +31,12 @@ fn test_audit_event_creation() {
     // }
 
     // This test validates the basic structure exists
-    assert!(true);
 }
 
 /// Test that audit event timestamp is set
 #[test]
 fn test_audit_event_timestamp() {
     // Verify event has ISO 8601 timestamp
-    assert!(true);
 }
 
 /// Test that audit event status is one of: success, failure, denied
@@ -57,7 +55,6 @@ fn test_audit_event_status_values() {
 #[test]
 fn test_file_backend_creation() {
     // FileAuditBackend::new("/tmp/audit.log") should work
-    assert!(true);
 }
 
 /// Test that file backend writes JSON lines
@@ -65,7 +62,6 @@ fn test_file_backend_creation() {
 fn test_file_backend_writes_json_lines() {
     // Each audit event should be written as a JSON line
     // One JSON object per line (JSON lines format)
-    assert!(true);
 }
 
 /// Test that file backend appends to existing file
@@ -73,7 +69,6 @@ fn test_file_backend_writes_json_lines() {
 fn test_file_backend_appends() {
     // Multiple events should append to the file
     // Not overwrite existing content
-    assert!(true);
 }
 
 /// Test that file backend handles errors gracefully
@@ -81,7 +76,6 @@ fn test_file_backend_appends() {
 fn test_file_backend_error_handling() {
     // Invalid paths should return errors
     // File permissions errors should be reported
-    assert!(true);
 }
 
 // ============================================================================
@@ -92,7 +86,6 @@ fn test_file_backend_error_handling() {
 #[test]
 fn test_postgres_backend_creation() {
     // PostgresAuditBackend::new(pool) should work
-    assert!(true);
 }
 
 /// Test that PostgreSQL backend inserts into audit_log table
@@ -100,7 +93,6 @@ fn test_postgres_backend_creation() {
 fn test_postgres_backend_inserts() {
     // Event should be inserted into audit_log table
     // All fields should be preserved
-    assert!(true);
 }
 
 /// Test that PostgreSQL backend indexes are used for queries
@@ -110,7 +102,6 @@ fn test_postgres_backend_indexes() {
     // - timestamp DESC (for time range queries)
     // - user_id (for user-specific audits)
     // - event_type (for event filtering)
-    assert!(true);
 }
 
 // ============================================================================
@@ -121,7 +112,6 @@ fn test_postgres_backend_indexes() {
 #[test]
 fn test_syslog_backend_creation() {
     // SyslogAuditBackend::new(host, port) should work
-    assert!(true);
 }
 
 /// Test that Syslog backend sends events to syslog server
@@ -129,7 +119,6 @@ fn test_syslog_backend_creation() {
 fn test_syslog_backend_sends() {
     // Events should be sent to configured syslog server
     // Should use RFC 3164 format or RFC 5424
-    assert!(true);
 }
 
 /// Test that Syslog backend handles network errors
@@ -137,7 +126,6 @@ fn test_syslog_backend_sends() {
 fn test_syslog_backend_error_handling() {
     // Connection errors should be handled gracefully
     // Should retry or queue events if needed
-    assert!(true);
 }
 
 // ============================================================================
@@ -149,7 +137,6 @@ fn test_syslog_backend_error_handling() {
 fn test_audit_event_includes_tenant_id() {
     // Events should track which tenant they belong to
     // This enables tenant-specific audit queries
-    assert!(true);
 }
 
 /// Test that tenant_id is preserved across backends
@@ -158,7 +145,6 @@ fn test_tenant_id_in_all_backends() {
     // File backend should preserve tenant_id
     // PostgreSQL backend should index by tenant_id
     // Syslog backend should include tenant_id in message
-    assert!(true);
 }
 
 // ============================================================================
@@ -170,7 +156,6 @@ fn test_tenant_id_in_all_backends() {
 fn test_query_audit_events_by_type() {
     // Should support filtering by event_type
     // E.g., get all "login" events
-    assert!(true);
 }
 
 /// Test querying audit events by time range
@@ -178,7 +163,6 @@ fn test_query_audit_events_by_type() {
 fn test_query_audit_events_by_time() {
     // Should support time range queries
     // E.g., get events from last 24 hours
-    assert!(true);
 }
 
 /// Test querying audit events by user
@@ -186,7 +170,6 @@ fn test_query_audit_events_by_time() {
 fn test_query_audit_events_by_user() {
     // Should support filtering by user_id
     // E.g., get all events for a specific user
-    assert!(true);
 }
 
 // ============================================================================
@@ -217,7 +200,6 @@ fn test_audit_event_json_serialization() {
 fn test_audit_event_json_is_readable() {
     // JSON should be human-readable
     // Field names should be descriptive
-    assert!(true);
 }
 
 // ============================================================================
@@ -230,14 +212,12 @@ fn test_audit_backend_trait() {
     // All backends should implement:
     // - async fn log_event(&self, event: AuditEvent) -> Result<(), Error>
     // - async fn query_events(...) -> Result<Vec<AuditEvent>, Error>
-    assert!(true);
 }
 
 /// Test that backend implementations are Send + Sync
 #[test]
 fn test_backend_send_sync() {
     // Backends must be Send + Sync for use in async code
-    assert!(true);
 }
 
 // ============================================================================
@@ -248,21 +228,18 @@ fn test_backend_send_sync() {
 #[test]
 fn test_file_backend_error_messages() {
     // Errors should indicate: permission denied, not found, etc.
-    assert!(true);
 }
 
 /// Test that PostgreSQL backend errors are descriptive
 #[test]
 fn test_postgres_backend_error_messages() {
     // Errors should indicate: connection failed, timeout, etc.
-    assert!(true);
 }
 
 /// Test that Syslog backend errors are descriptive
 #[test]
 fn test_syslog_backend_error_messages() {
     // Errors should indicate: connection refused, timeout, etc.
-    assert!(true);
 }
 
 // ============================================================================
@@ -286,5 +263,4 @@ fn test_audit_event_metadata_json() {
 fn test_audit_event_before_after_state() {
     // before_state and after_state should capture changes
     // Useful for data modification audits
-    assert!(true);
 }

@@ -346,42 +346,37 @@ mod tests {
     async fn test_adapter_get_cipher_caching() {
         // When cipher accessed multiple times for same field
         // Should return cached instance on subsequent calls
-        assert!(true);
     }
 
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_multiple_keys() {
         // When adapter configured with multiple fields and keys
         // Each field should use its own encryption key
         // Keys sourced from SecretsManager
-        assert!(true);
     }
 
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_cache_invalidation() {
         // When cache invalidated (e.g., after key rotation)
         // Next access should fetch fresh key from SecretsManager
         // Old cached ciphers discarded
-        assert!(true);
     }
 
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_missing_key_error() {
         // When field not registered in adapter
         // encrypt_value should return NotFound error
         // Should indicate which key missing
-        assert!(true);
     }
 
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_is_encrypted_check() {
         // When checking if field is encrypted
         // Should return true for registered fields
         // Should return false for unregistered fields
-        assert!(true);
     }
 }

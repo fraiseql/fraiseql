@@ -19,46 +19,42 @@ mod rotation_api_tests {
         // - next_rotation: Estimated next rotation time
         // - status: "active", "expiring_soon", "needs_rotation"
         // - auto_refresh_enabled: Boolean
-        assert!(true);
     }
 
     /// Test rotation status with multiple keys
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_multiple_keys() {
         // When system has multiple encryption keys
         // Status endpoint returns array of key statuses
         // Each includes: key_id, current_version, last_rotation, status
         // Can query specific key or all keys
-        assert!(true);
     }
 
     /// Test rotation status indicates urgency
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_urgency_levels() {
         // Status values indicate urgency:
         // "healthy": <70% TTL consumed
         // "expiring_soon": 70-85% TTL consumed
         // "needs_rotation": 85%+ TTL consumed, refresh triggered
         // "overdue": >100% TTL consumed
-        assert!(true);
     }
 
     /// Test rotation status with auto-refresh
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_with_auto_refresh() {
         // When auto-refresh enabled
         // Status shows: next_rotation time
         // Shows refresh already triggered: "refresh_in_progress"
         // Shows when refresh completes
-        assert!(true);
     }
 
     /// Test rotation status metrics
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_includes_metrics() {
         // Status includes:
         // - versions_total: Number of versions for this key
@@ -66,7 +62,6 @@ mod rotation_api_tests {
         // - versions_expired: Cannot encrypt, can decrypt
         // - last_rotation_duration_ms: How long previous rotation took
         // - auto_refresh_checks: Total checks performed
-        assert!(true);
     }
 
     // ============================================================================
@@ -75,68 +70,62 @@ mod rotation_api_tests {
 
     /// Test POST /api/v1/admin/rotation/rotate immediate rotation
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_immediate_rotation() {
         // POST /api/v1/admin/rotation/rotate with body:
         // {"key_id": "primary", "reason": "Scheduled rotation"}
         // Response: {new_version: 5, old_version: 4, status: "success"}
         // Rotates immediately (bypasses TTL check)
-        assert!(true);
     }
 
     /// Test rotation endpoint dry-run mode
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_dry_run() {
         // POST /api/v1/admin/rotation/rotate with:
         // {"key_id": "primary", "dry_run": true}
         // Response includes: would_be_new_version, validation_status
         // Does NOT actually rotate
         // Useful for testing before production rotation
-        assert!(true);
     }
 
     /// Test rotation endpoint with reason tracking
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_reason_tracking() {
         // Rotation reason stored in audit log
         // Examples: "scheduled", "emergency", "testing", "compliance_requirement"
         // Visible in history endpoint
         // Helps operators understand rotation decisions
-        assert!(true);
     }
 
     /// Test rotation endpoint requires authentication
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_auth_required() {
         // POST without bearer token: 401 Unauthorized
         // POST with invalid token: 403 Forbidden
         // POST with valid token: 200 OK
         // Protects rotation from unauthorized access
-        assert!(true);
     }
 
     /// Test rotation endpoint validates key ID
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_validates_key_id() {
         // POST with unknown key_id: 400 Bad Request
         // Error message: "Key 'unknown' not found"
         // Lists available key IDs in response
-        assert!(true);
     }
 
     /// Test rotation endpoint prevents too-frequent rotation
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_prevents_too_frequent() {
         // Manual rotations allowed once per hour minimum
         // Second rotation within 1 hour: 429 Too Many Requests
         // After cooldown: allowed
         // Prevents accidental multiple rotations
-        assert!(true);
     }
 
     // ============================================================================
@@ -145,7 +134,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/history response structure
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_endpoint_structure() {
         // GET /api/v1/admin/rotation/history?key_id=primary&limit=10
         // Response: array of rotation records
@@ -157,12 +146,11 @@ mod rotation_api_tests {
         // - duration_ms: Rotation operation duration
         // - triggered_by: "auto" or "manual"
         // - user_id: Who triggered (if manual)
-        assert!(true);
     }
 
     /// Test rotation history pagination
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_pagination() {
         // Query parameters:
         // ?limit=10 (default 100, max 1000)
@@ -170,41 +158,37 @@ mod rotation_api_tests {
         // ?from=2026-01-01 (ISO date filter)
         // ?to=2026-02-01 (ISO date filter)
         // Returns paginated results with total_count
-        assert!(true);
     }
 
     /// Test rotation history filtering
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_filtering() {
         // Can filter by:
         // ?reason=scheduled|emergency|testing|compliance
         // ?triggered_by=auto|manual
         // ?key_id=primary (can list for specific key)
         // Multiple filters combined (AND logic)
-        assert!(true);
     }
 
     /// Test rotation history sorting
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_sorting() {
         // Default: newest first (descending timestamp)
         // ?order=asc for oldest first
         // ?sort_by=timestamp|duration|version
         // Stable sort with consistent ordering
-        assert!(true);
     }
 
     /// Test rotation history export
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_history_export() {
         // ?format=json (default) returns JSON
         // ?format=csv returns CSV export
         // ?format=json-lines returns newline-delimited JSON
         // Useful for compliance reporting
-        assert!(true);
     }
 
     // ============================================================================
@@ -213,7 +197,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/config
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_endpoint_get() {
         // GET /api/v1/admin/rotation/config
         // Returns current configuration:
@@ -224,12 +208,11 @@ mod rotation_api_tests {
         // - quiet_hours_start: Option<u32>
         // - quiet_hours_end: Option<u32>
         // - manual_rotation_cooldown_minutes: u32
-        assert!(true);
     }
 
     /// Test PUT /api/v1/admin/rotation/config update
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_endpoint_update() {
         // PUT /api/v1/admin/rotation/config with:
         // {
@@ -239,24 +222,22 @@ mod rotation_api_tests {
         // Partial updates allowed (only specified fields updated)
         // Validation: threshold 1-99, ttl 1-365, interval 1-720
         // Returns updated config
-        assert!(true);
     }
 
     /// Test rotation config validation
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_validation() {
         // Invalid values rejected:
         // - threshold > 99: 400 Bad Request
         // - ttl < 1 or > 365: 400 Bad Request
         // - interval < 1 or > 720: 400 Bad Request
         // Error includes validation rules
-        assert!(true);
     }
 
     /// Test rotation config compliance defaults
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_compliance_presets() {
         // GET /api/v1/admin/rotation/config/presets
         // Returns recommended configs:
@@ -264,18 +245,16 @@ mod rotation_api_tests {
         // - "pci_dss": {ttl_days: 365, check_interval: 24, ...}
         // - "gdpr": {ttl_days: 90, check_interval: 24, ...}
         // - "custom": user-configured defaults
-        assert!(true);
     }
 
     /// Test rotation config apply preset
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_config_apply_preset() {
         // POST /api/v1/admin/rotation/config/apply-preset?preset=hipaa
         // Applies preset configuration
         // Returns applied config
         // Can optionally validate_only to see what would change
-        assert!(true);
     }
 
     // ============================================================================
@@ -284,7 +263,7 @@ mod rotation_api_tests {
 
     /// Test GET /api/v1/admin/rotation/schedule
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_endpoint_get() {
         // GET /api/v1/admin/rotation/schedule
         // Returns:
@@ -292,41 +271,37 @@ mod rotation_api_tests {
         // - schedule_value: cron expression or interval in days
         // - next_scheduled_time: ISO timestamp of next rotation
         // - enabled: bool
-        assert!(true);
     }
 
     /// Test PUT /api/v1/admin/rotation/schedule update
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_endpoint_update() {
         // PUT /api/v1/admin/rotation/schedule with:
         // {"schedule_type": "cron", "schedule_value": "0 2 1 * *"}
         // Validates cron expression format
         // Returns updated schedule
         // Next scheduled time calculated
-        assert!(true);
     }
 
     /// Test schedule validation
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_validation() {
         // Cron validation: must be valid cron format
         // Interval validation: 1-365 days
         // Schedule too frequent: warning (e.g., every day)
         // Returns validation result
-        assert!(true);
     }
 
     /// Test test schedule endpoint
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_schedule_test_endpoint() {
         // POST /api/v1/admin/rotation/schedule/test
         // Calculates when rotations would occur
         // Returns next 10 scheduled times
         // Useful for verifying cron expression
-        assert!(true);
     }
 
     // ============================================================================
@@ -335,7 +310,7 @@ mod rotation_api_tests {
 
     /// Test rotation error response format
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_error_response_format() {
         // Errors return JSON:
         // {
@@ -344,28 +319,25 @@ mod rotation_api_tests {
         //   "code": "VAULT_UNAVAILABLE"
         // }
         // Consistent error format across all endpoints
-        assert!(true);
     }
 
     /// Test rotation timeout handling
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_timeout_handling() {
         // If rotation takes >30s: 504 Gateway Timeout
         // Response includes: "Still rotating, check status endpoint"
         // Can check status without blocking
         // Rotation continues in background
-        assert!(true);
     }
 
     /// Test rotation concurrent request handling
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_concurrent_requests() {
         // Second rotation request while first in progress: 409 Conflict
         // Error: "Rotation already in progress"
         // User can check status or wait
-        assert!(true);
     }
 
     // ============================================================================
@@ -374,35 +346,32 @@ mod rotation_api_tests {
 
     /// Test rotation endpoint bearer token validation
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_bearer_token_validation() {
         // All endpoints require valid bearer token
         // Token validated against configured JWT validator
         // Expired tokens: 401 Unauthorized
         // Invalid signature: 403 Forbidden
-        assert!(true);
     }
 
     /// Test rotation endpoint rate limiting
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_rate_limiting() {
         // Rate limit: 10 requests per minute per user
         // Limit: 100 requests per minute per IP
         // 429 Too Many Requests when limit exceeded
         // Retry-After header indicates wait time
-        assert!(true);
     }
 
     /// Test rotation audit logging
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_audit_logging() {
         // All rotation API calls logged
         // Log includes: timestamp, user_id, endpoint, parameters, result
         // Failed operations also logged (with error details)
         // Audit log queryable by date/user/endpoint
-        assert!(true);
     }
 
     // ============================================================================
@@ -411,7 +380,7 @@ mod rotation_api_tests {
 
     /// Test rotation metrics collection
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_metrics_collection() {
         // Metrics tracked:
         // - rotation_endpoint_requests_total
@@ -419,28 +388,25 @@ mod rotation_api_tests {
         // - rotation_endpoint_errors_total
         // - rotation_manual_triggered_total
         // Available via metrics endpoint
-        assert!(true);
     }
 
     /// Test rotation endpoint tracing
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_endpoint_tracing() {
         // Each request includes trace ID
         // Rotation operations traced through system
         // Distributed tracing integration
         // Can correlate logs/metrics with trace
-        assert!(true);
     }
 
     /// Test rotation status webhook
     #[tokio::test]
-    #[ignore]
+#[ignore = "Incomplete test: needs actual implementation"]
     async fn test_rotation_status_webhook() {
         // POST /api/v1/admin/rotation/webhooks/subscribe
         // Subscribe to rotation events
         // Webhook called on: rotation_started, rotation_completed, rotation_failed
         // Webhook payload includes: timestamp, old_version, new_version, status
-        assert!(true);
     }
 }

@@ -65,8 +65,7 @@ fn test_design_audit_handles_null_schema() {
         schema: null_schema,
     };
 
-    // Should not panic
-    assert!(true, "Null schema should be handled without panic");
+    // Successful construction without panic is the test
 }
 
 #[test]
@@ -187,7 +186,7 @@ fn test_design_audit_doesnt_expose_internal_state() {
 
     // Verify that arbitrary fields don't affect schema analysis
     // (Proto pollution is a JavaScript issue, not relevant for Rust JSON)
-    assert!(true, "Arbitrary JSON fields should be safely ignored");
+    // Successful construction without panic is the test
 }
 
 // ============================================================================

@@ -275,7 +275,7 @@ mod tests {
     fn test_field_encryption_creation() {
         let key = [0u8; KEY_SIZE];
         let _cipher = FieldEncryption::new(&key);
-        assert!(true); // Just verify creation succeeds
+        // Successful construction is the test
     }
 
     /// Test basic encryption/decryption roundtrip

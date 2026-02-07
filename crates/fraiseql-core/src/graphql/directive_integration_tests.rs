@@ -43,7 +43,6 @@ fn test_authorized_user_sees_all_fields() {
     // including sensitive ones
 
     // This will be implemented in server integration
-    assert!(true);
 }
 
 // ============================================================================
@@ -57,7 +56,6 @@ fn test_permission_denied_error_response() {
     // they get a proper GraphQL error with "permission" in the message
 
     // This will be implemented in server integration
-    assert!(true);
 }
 
 // ============================================================================
@@ -71,7 +69,6 @@ fn test_multiple_permission_directives_and_logic() {
     // user must have ALL permissions
 
     // This will be implemented in server integration
-    assert!(true);
 }
 
 // ============================================================================
@@ -84,7 +81,6 @@ fn test_directive_on_nested_type_fields() {
     // Verify directives work on fields of nested types (not just top-level Query)
 
     // This will be implemented in server integration
-    assert!(true);
 }
 
 // ============================================================================
@@ -97,5 +93,4 @@ fn test_register_custom_directive_handler() {
     // Verify that custom directive handlers can be registered and used
 
     // This will be implemented in server integration
-    assert!(true);
 }

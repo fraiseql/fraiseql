@@ -187,6 +187,5 @@ mod tests {
         // 3. get_secret_with_expiry(&self, name: &str) -> Future<Result<(String, DateTime<Utc>)>>
         // 4. rotate_secret(&self, name: &str) -> Future<Result<String>>
         // All methods async for I/O operations
-        assert!(true);
     }
 }
