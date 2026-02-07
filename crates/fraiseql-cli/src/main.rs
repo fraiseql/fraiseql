@@ -653,8 +653,10 @@ fn handle_introspection_flags() -> Option<i32> {
     if args.iter().any(|a| a == "--list-commands") {
         let cmd = Cli::command();
         let commands = introspection::list_commands(&cmd);
-        let result =
-            output::CommandResult::success("list-commands", serde_json::to_value(&commands).unwrap());
+        let result = output::CommandResult::success(
+            "list-commands",
+            serde_json::to_value(&commands).unwrap(),
+        );
         println!("{}", serde_json::to_string_pretty(&result).unwrap());
         return Some(0);
     }

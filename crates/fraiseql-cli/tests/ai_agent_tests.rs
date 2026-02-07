@@ -51,10 +51,8 @@ mod help_json {
         assert!(!subcommands.is_empty());
 
         // Check that known commands exist
-        let command_names: Vec<&str> = subcommands
-            .iter()
-            .map(|c| c["name"].as_str().unwrap())
-            .collect();
+        let command_names: Vec<&str> =
+            subcommands.iter().map(|c| c["name"].as_str().unwrap()).collect();
 
         assert!(command_names.contains(&"compile"));
         assert!(command_names.contains(&"validate"));
@@ -67,10 +65,8 @@ mod help_json {
         let parsed: Value = serde_json::from_str(&stdout).unwrap();
 
         let global_options = parsed["data"]["global_options"].as_array().unwrap();
-        let option_names: Vec<&str> = global_options
-            .iter()
-            .map(|o| o["name"].as_str().unwrap())
-            .collect();
+        let option_names: Vec<&str> =
+            global_options.iter().map(|o| o["name"].as_str().unwrap()).collect();
 
         assert!(option_names.contains(&"verbose"));
         assert!(option_names.contains(&"debug"));
@@ -85,10 +81,7 @@ mod help_json {
         let exit_codes = parsed["data"]["exit_codes"].as_array().unwrap();
         assert!(!exit_codes.is_empty());
 
-        let codes: Vec<i64> = exit_codes
-            .iter()
-            .map(|e| e["code"].as_i64().unwrap())
-            .collect();
+        let codes: Vec<i64> = exit_codes.iter().map(|e| e["code"].as_i64().unwrap()).collect();
 
         assert!(codes.contains(&0)); // success
         assert!(codes.contains(&1)); // error
@@ -129,10 +122,8 @@ mod list_commands {
         let commands = parsed["data"].as_array().unwrap();
         assert!(!commands.is_empty());
 
-        let command_names: Vec<&str> = commands
-            .iter()
-            .map(|c| c["name"].as_str().unwrap())
-            .collect();
+        let command_names: Vec<&str> =
+            commands.iter().map(|c| c["name"].as_str().unwrap()).collect();
 
         // Check core commands exist
         assert!(command_names.contains(&"compile"));
@@ -152,10 +143,7 @@ mod list_commands {
 
         // "serve" is hidden in the CLI
         assert!(
-            !commands
-                .iter()
-                .map(|c| c["name"].as_str().unwrap())
-                .any(|x| x == "serve"),
+            !commands.iter().map(|c| c["name"].as_str().unwrap()).any(|x| x == "serve"),
             "Hidden commands should not be listed"
         );
     }
@@ -169,11 +157,7 @@ mod list_commands {
 
         for cmd in commands {
             let description = cmd["description"].as_str().unwrap();
-            assert!(
-                !description.is_empty(),
-                "Command {} should have a description",
-                cmd["name"]
-            );
+            assert!(!description.is_empty(), "Command {} should have a description", cmd["name"]);
         }
     }
 
@@ -252,11 +236,7 @@ mod show_output_schema {
 
         for cmd in documented_commands {
             let (stdout, code) = run_cli(&["--show-output-schema", cmd]);
-            assert_eq!(
-                code, 0,
-                "Command '{}' should have an output schema",
-                cmd
-            );
+            assert_eq!(code, 0, "Command '{}' should have an output schema", cmd);
 
             let parsed: Value = serde_json::from_str(&stdout).unwrap();
             assert_eq!(parsed["data"]["command"], cmd);
@@ -275,10 +255,7 @@ mod exit_codes_in_help {
             .expect("Failed to execute CLI");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("EXIT CODES:"),
-            "Help should include EXIT CODES section"
-        );
+        assert!(stdout.contains("EXIT CODES:"), "Help should include EXIT CODES section");
         assert!(stdout.contains('0'), "Help should document exit code 0");
         assert!(stdout.contains('1'), "Help should document exit code 1");
         assert!(stdout.contains('2'), "Help should document exit code 2");
@@ -296,10 +273,7 @@ mod examples_in_help {
             .expect("Failed to execute CLI");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("EXAMPLES:"),
-            "compile --help should include EXAMPLES section"
-        );
+        assert!(stdout.contains("EXAMPLES:"), "compile --help should include EXAMPLES section");
         assert!(
             stdout.contains("fraiseql compile"),
             "Examples should show fraiseql compile usage"
@@ -314,10 +288,7 @@ mod examples_in_help {
             .expect("Failed to execute CLI");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("EXAMPLES:"),
-            "validate --help should include EXAMPLES section"
-        );
+        assert!(stdout.contains("EXAMPLES:"), "validate --help should include EXAMPLES section");
     }
 
     #[test]
@@ -328,9 +299,6 @@ mod examples_in_help {
             .expect("Failed to execute CLI");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("EXAMPLES:"),
-            "lint --help should include EXAMPLES section"
-        );
+        assert!(stdout.contains("EXAMPLES:"), "lint --help should include EXAMPLES section");
     }
 }

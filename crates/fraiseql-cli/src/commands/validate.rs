@@ -67,18 +67,18 @@ pub struct CycleError {
     /// Types involved in the cycle
     pub types: Vec<String>,
     /// Human-readable path
-    pub path: String,
+    pub path:  String,
 }
 
 /// Analysis of a specific type
 #[derive(Debug, Serialize)]
 pub struct TypeAnalysis {
     /// Type name
-    pub name: String,
+    pub name:                    String,
     /// Types this type depends on
-    pub dependencies: Vec<String>,
+    pub dependencies:            Vec<String>,
     /// Types that depend on this type
-    pub dependents: Vec<String>,
+    pub dependents:              Vec<String>,
     /// Transitive dependencies (all types reachable)
     pub transitive_dependencies: Vec<String>,
 }
@@ -89,18 +89,8 @@ pub struct TypeAnalysis {
 #[allow(dead_code)]
 pub async fn run(input: &str) -> Result<()> {
     // Validate is just compile --check (no database validation)
-    super::compile::run(
-        input,
-        None,
-        None,
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-        "unused",
-        true,
-        None,
-    )
-    .await
+    super::compile::run(input, None, None, Vec::new(), Vec::new(), Vec::new(), "unused", true, None)
+        .await
 }
 
 /// Run validation with options and return structured result
@@ -155,10 +145,10 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
                 let transitive = graph.transitive_dependencies(type_name);
 
                 analyses.push(TypeAnalysis {
-                    name:                     type_name.clone(),
-                    dependencies:             deps,
-                    dependents:               refs,
-                    transitive_dependencies:  transitive.into_iter().collect(),
+                    name:                    type_name.clone(),
+                    dependencies:            deps,
+                    dependents:              refs,
+                    transitive_dependencies: transitive.into_iter().collect(),
                 });
             } else {
                 warnings.push(format!("Type '{type_name}' not found in schema"));
@@ -169,10 +159,10 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
 
     // Build result
     let result = ValidationResult {
-        schema_path:    input.to_string(),
-        valid:          errors.is_empty(),
-        type_count:     schema.types.len(),
-        query_count:    schema.queries.len(),
+        schema_path: input.to_string(),
+        valid: errors.is_empty(),
+        type_count: schema.types.len(),
+        query_count: schema.queries.len(),
         mutation_count: schema.mutations.len(),
         cycles,
         unused_types,
@@ -183,11 +173,11 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
 
     if !errors.is_empty() {
         Ok(CommandResult {
-            status:    "validation-failed".to_string(),
-            command:   "validate".to_string(),
-            data:      Some(data),
-            message:   Some(format!("{} validation error(s) found", errors.len())),
-            code:      Some("VALIDATION_FAILED".to_string()),
+            status: "validation-failed".to_string(),
+            command: "validate".to_string(),
+            data: Some(data),
+            message: Some(format!("{} validation error(s) found", errors.len())),
+            code: Some("VALIDATION_FAILED".to_string()),
             errors,
             warnings,
             exit_code: 2,
@@ -201,9 +191,11 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     fn create_valid_schema() -> String {
         serde_json::json!({

@@ -40,10 +40,7 @@ use serde_json::json;
 ///
 /// These templates use a special `$lookup` placeholder that's replaced
 /// at runtime with actual lookup value parameters.
-fn extract_template_for_operator(
-    db_name: &str,
-    operator_name: &str,
-) -> Option<String> {
+fn extract_template_for_operator(db_name: &str, operator_name: &str) -> Option<String> {
     match (db_name, operator_name) {
         // ========================================================================
         // EMAIL OPERATORS
@@ -585,7 +582,7 @@ pub fn extract_operator_templates(operator_name: &str) -> HashMap<String, String
 
     for db in &["postgres", "mysql", "sqlite", "sqlserver"] {
         if let Some(template) = extract_template_for_operator(db, operator_name) {
-            templates.insert(db.to_string(), template);
+            templates.insert((*db).to_string(), template);
         }
     }
 
@@ -613,10 +610,7 @@ pub fn build_sql_templates_metadata(operator_names: &[&str]) -> serde_json::Valu
     for op_name in operator_names {
         let templates = extract_operator_templates(op_name);
         if !templates.is_empty() {
-            operators.insert(
-                op_name.to_string(),
-                json!(templates),
-            );
+            operators.insert((*op_name).to_string(), json!(templates));
         }
     }
 

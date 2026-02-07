@@ -194,11 +194,11 @@ pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
 
         // Include the graph data in the error response
         return Ok(CommandResult {
-            status:    "validation-failed".to_string(),
-            command:   "dependency-graph".to_string(),
-            data:      Some(data),
-            message:   Some(format!("Schema has {} circular dependencies", cycles.len())),
-            code:      Some("CIRCULAR_DEPENDENCY".to_string()),
+            status: "validation-failed".to_string(),
+            command: "dependency-graph".to_string(),
+            data: Some(data),
+            message: Some(format!("Schema has {} circular dependencies", cycles.len())),
+            code: Some("CIRCULAR_DEPENDENCY".to_string()),
             errors,
             warnings,
             exit_code: 2,
@@ -209,11 +209,7 @@ pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     if warnings.is_empty() {
         Ok(CommandResult::success("dependency-graph", data))
     } else {
-        Ok(CommandResult::success_with_warnings(
-            "dependency-graph",
-            data,
-            warnings,
-        ))
+        Ok(CommandResult::success_with_warnings("dependency-graph", data, warnings))
     }
 }
 
@@ -278,10 +274,10 @@ fn build_output(
     let max_depth = calculate_max_depth(graph, &root_types);
 
     let stats = GraphStats {
-        total_types:      nodes.len(),
-        total_edges:      edges.len(),
-        cycle_count:      cycles.len(),
-        unused_count:     unused.len(),
+        total_types: nodes.len(),
+        total_edges: edges.len(),
+        cycle_count: cycles.len(),
+        unused_count: unused.len(),
         avg_dependencies: (avg_deps * 100.0).round() / 100.0,
         max_depth,
         most_depended_on: most_depended,
@@ -583,11 +579,8 @@ fn to_console(output: &DependencyGraphOutput) -> String {
     // Summary stats
     let _ = writeln!(console, "Total types: {}", output.stats.total_types);
     let _ = writeln!(console, "Total dependencies: {}", output.stats.total_edges);
-    let _ = writeln!(
-        console,
-        "Average dependencies per type: {:.2}",
-        output.stats.avg_dependencies
-    );
+    let _ =
+        writeln!(console, "Average dependencies per type: {:.2}", output.stats.avg_dependencies);
     let _ = writeln!(console, "Maximum depth from roots: {}", output.stats.max_depth);
     console.push('\n');
 
@@ -692,34 +685,34 @@ mod tests {
     #[test]
     fn test_to_dot_contains_expected_elements() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "Query".to_string(),
+                    name:             "Query".to_string(),
                     dependency_count: 1,
-                    dependent_count: 0,
-                    is_root: true,
+                    dependent_count:  0,
+                    is_root:          true,
                 },
                 GraphNode {
-                    name: "User".to_string(),
+                    name:             "User".to_string(),
                     dependency_count: 0,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![GraphEdge {
+            edges:        vec![GraphEdge {
                 from: "Query".to_string(),
-                to: "User".to_string(),
+                to:   "User".to_string(),
             }],
-            cycles: vec![],
+            cycles:       vec![],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 1,
-                cycle_count: 0,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      1,
+                cycle_count:      0,
+                unused_count:     0,
                 avg_dependencies: 0.5,
-                max_depth: 1,
+                max_depth:        1,
                 most_depended_on: vec!["User".to_string()],
             },
         };
@@ -734,34 +727,34 @@ mod tests {
     #[test]
     fn test_to_mermaid_contains_expected_elements() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "Query".to_string(),
+                    name:             "Query".to_string(),
                     dependency_count: 1,
-                    dependent_count: 0,
-                    is_root: true,
+                    dependent_count:  0,
+                    is_root:          true,
                 },
                 GraphNode {
-                    name: "User".to_string(),
+                    name:             "User".to_string(),
                     dependency_count: 0,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![GraphEdge {
+            edges:        vec![GraphEdge {
                 from: "Query".to_string(),
-                to: "User".to_string(),
+                to:   "User".to_string(),
             }],
-            cycles: vec![],
+            cycles:       vec![],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 1,
-                cycle_count: 0,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      1,
+                cycle_count:      0,
+                unused_count:     0,
                 avg_dependencies: 0.5,
-                max_depth: 1,
+                max_depth:        1,
                 most_depended_on: vec!["User".to_string()],
             },
         };
@@ -777,34 +770,34 @@ mod tests {
     #[test]
     fn test_to_d2_contains_expected_elements() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "Query".to_string(),
+                    name:             "Query".to_string(),
                     dependency_count: 1,
-                    dependent_count: 0,
-                    is_root: true,
+                    dependent_count:  0,
+                    is_root:          true,
                 },
                 GraphNode {
-                    name: "User".to_string(),
+                    name:             "User".to_string(),
                     dependency_count: 0,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![GraphEdge {
+            edges:        vec![GraphEdge {
                 from: "Query".to_string(),
-                to: "User".to_string(),
+                to:   "User".to_string(),
             }],
-            cycles: vec![],
+            cycles:       vec![],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 1,
-                cycle_count: 0,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      1,
+                cycle_count:      0,
+                unused_count:     0,
                 avg_dependencies: 0.5,
-                max_depth: 1,
+                max_depth:        1,
                 most_depended_on: vec!["User".to_string()],
             },
         };
@@ -821,23 +814,23 @@ mod tests {
     #[test]
     fn test_to_d2_shows_unused() {
         let output = DependencyGraphOutput {
-            type_count: 1,
-            nodes: vec![GraphNode {
-                name: "Orphan".to_string(),
+            type_count:   1,
+            nodes:        vec![GraphNode {
+                name:             "Orphan".to_string(),
                 dependency_count: 0,
-                dependent_count: 0,
-                is_root: false,
+                dependent_count:  0,
+                is_root:          false,
             }],
-            edges: vec![],
-            cycles: vec![],
+            edges:        vec![],
+            cycles:       vec![],
             unused_types: vec!["Orphan".to_string()],
-            stats: GraphStats {
-                total_types: 1,
-                total_edges: 0,
-                cycle_count: 0,
-                unused_count: 1,
+            stats:        GraphStats {
+                total_types:      1,
+                total_edges:      0,
+                cycle_count:      0,
+                unused_count:     1,
                 avg_dependencies: 0.0,
-                max_depth: 0,
+                max_depth:        0,
                 most_depended_on: vec![],
             },
         };
@@ -852,44 +845,44 @@ mod tests {
     #[test]
     fn test_to_d2_shows_cycles() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "A".to_string(),
+                    name:             "A".to_string(),
                     dependency_count: 1,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
                 GraphNode {
-                    name: "B".to_string(),
+                    name:             "B".to_string(),
                     dependency_count: 1,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![
+            edges:        vec![
                 GraphEdge {
                     from: "A".to_string(),
-                    to: "B".to_string(),
+                    to:   "B".to_string(),
                 },
                 GraphEdge {
                     from: "B".to_string(),
-                    to: "A".to_string(),
+                    to:   "A".to_string(),
                 },
             ],
-            cycles: vec![CycleInfo {
-                types: vec!["A".to_string(), "B".to_string()],
-                path: "A -> B -> A".to_string(),
+            cycles:       vec![CycleInfo {
+                types:             vec!["A".to_string(), "B".to_string()],
+                path:              "A -> B -> A".to_string(),
                 is_self_reference: false,
             }],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 2,
-                cycle_count: 1,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      2,
+                cycle_count:      1,
+                unused_count:     0,
                 avg_dependencies: 1.0,
-                max_depth: 0,
+                max_depth:        0,
                 most_depended_on: vec![],
             },
         };
@@ -903,34 +896,34 @@ mod tests {
     #[test]
     fn test_to_console_contains_expected_elements() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "Query".to_string(),
+                    name:             "Query".to_string(),
                     dependency_count: 1,
-                    dependent_count: 0,
-                    is_root: true,
+                    dependent_count:  0,
+                    is_root:          true,
                 },
                 GraphNode {
-                    name: "User".to_string(),
+                    name:             "User".to_string(),
                     dependency_count: 0,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![GraphEdge {
+            edges:        vec![GraphEdge {
                 from: "Query".to_string(),
-                to: "User".to_string(),
+                to:   "User".to_string(),
             }],
-            cycles: vec![],
+            cycles:       vec![],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 1,
-                cycle_count: 0,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      1,
+                cycle_count:      0,
+                unused_count:     0,
                 avg_dependencies: 0.5,
-                max_depth: 1,
+                max_depth:        1,
                 most_depended_on: vec!["User".to_string()],
             },
         };
@@ -945,44 +938,44 @@ mod tests {
     #[test]
     fn test_to_console_shows_cycles() {
         let output = DependencyGraphOutput {
-            type_count: 2,
-            nodes: vec![
+            type_count:   2,
+            nodes:        vec![
                 GraphNode {
-                    name: "A".to_string(),
+                    name:             "A".to_string(),
                     dependency_count: 1,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
                 GraphNode {
-                    name: "B".to_string(),
+                    name:             "B".to_string(),
                     dependency_count: 1,
-                    dependent_count: 1,
-                    is_root: false,
+                    dependent_count:  1,
+                    is_root:          false,
                 },
             ],
-            edges: vec![
+            edges:        vec![
                 GraphEdge {
                     from: "A".to_string(),
-                    to: "B".to_string(),
+                    to:   "B".to_string(),
                 },
                 GraphEdge {
                     from: "B".to_string(),
-                    to: "A".to_string(),
+                    to:   "A".to_string(),
                 },
             ],
-            cycles: vec![CycleInfo {
-                types: vec!["A".to_string(), "B".to_string()],
-                path: "A -> B -> A".to_string(),
+            cycles:       vec![CycleInfo {
+                types:             vec!["A".to_string(), "B".to_string()],
+                path:              "A -> B -> A".to_string(),
                 is_self_reference: false,
             }],
             unused_types: vec![],
-            stats: GraphStats {
-                total_types: 2,
-                total_edges: 2,
-                cycle_count: 1,
-                unused_count: 0,
+            stats:        GraphStats {
+                total_types:      2,
+                total_edges:      2,
+                cycle_count:      1,
+                unused_count:     0,
                 avg_dependencies: 1.0,
-                max_depth: 0,
+                max_depth:        0,
                 most_depended_on: vec![],
             },
         };
@@ -995,23 +988,23 @@ mod tests {
     #[test]
     fn test_to_console_shows_unused() {
         let output = DependencyGraphOutput {
-            type_count: 1,
-            nodes: vec![GraphNode {
-                name: "Orphan".to_string(),
+            type_count:   1,
+            nodes:        vec![GraphNode {
+                name:             "Orphan".to_string(),
                 dependency_count: 0,
-                dependent_count: 0,
-                is_root: false,
+                dependent_count:  0,
+                is_root:          false,
             }],
-            edges: vec![],
-            cycles: vec![],
+            edges:        vec![],
+            cycles:       vec![],
             unused_types: vec!["Orphan".to_string()],
-            stats: GraphStats {
-                total_types: 1,
-                total_edges: 0,
-                cycle_count: 0,
-                unused_count: 1,
+            stats:        GraphStats {
+                total_types:      1,
+                total_edges:      0,
+                cycle_count:      0,
+                unused_count:     1,
                 avg_dependencies: 0.0,
-                max_depth: 0,
+                max_depth:        0,
                 most_depended_on: vec![],
             },
         };

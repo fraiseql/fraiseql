@@ -5,8 +5,7 @@
 //! 2. Schema with multiple types
 //! 3. Schema with complex relationships
 
-use fraiseql_cli::schema::intermediate::IntermediateSchema;
-use fraiseql_cli::schema::SchemaConverter;
+use fraiseql_cli::schema::{SchemaConverter, intermediate::IntermediateSchema};
 
 /// Benchmark: Compile empty schema with auto-generated rich types
 #[test]
@@ -16,29 +15,28 @@ fn bench_compile_empty_schema_rich_types() {
 
     for _ in 0..iterations {
         let intermediate = IntermediateSchema {
-            security: None,
-            version: "2.0.0".to_string(),
-            types: vec![],
-            enums: vec![],
-            input_types: vec![],
-            interfaces: vec![],
-            unions: vec![],
-            queries: vec![],
-            mutations: vec![],
-            subscriptions: vec![],
-            fragments: None,
-            directives: None,
-            fact_tables: None,
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
             aggregate_queries: None,
-            observers: None,
+            observers:         None,
         };
 
-        let _compiled = SchemaConverter::convert(intermediate)
-            .expect("Compilation should succeed");
+        let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / iterations as f64;
+    let avg_ns = elapsed.as_nanos() as f64 / f64::from(iterations);
 
     println!("Empty schema compilation:");
     println!("  Iterations: {}", iterations);
@@ -47,7 +45,7 @@ fn bench_compile_empty_schema_rich_types() {
 
     // Verify performance is reasonable (should be < 1ms per iteration)
     assert!(
-        (elapsed.as_millis() as f64 / iterations as f64) < 1.0,
+        (elapsed.as_millis() as f64 / f64::from(iterations)) < 1.0,
         "Compilation too slow: average > 1ms"
     );
 }
@@ -56,21 +54,21 @@ fn bench_compile_empty_schema_rich_types() {
 #[test]
 fn bench_metadata_access_performance() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -83,7 +81,7 @@ fn bench_metadata_access_performance() {
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / iterations as f64;
+    let avg_ns = elapsed.as_nanos() as f64 / f64::from(iterations);
 
     println!("Metadata access performance:");
     println!("  Iterations: {}", iterations);
@@ -101,21 +99,21 @@ fn bench_metadata_access_performance() {
 #[test]
 fn bench_operator_metadata_parsing() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -136,38 +134,35 @@ fn bench_operator_metadata_parsing() {
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / iterations as f64;
+    let avg_ns = elapsed.as_nanos() as f64 / f64::from(iterations);
 
     println!("Operator metadata parsing:");
     println!("  Iterations: {}", iterations);
     println!("  Total time: {:?}", elapsed);
     println!("  Average: {:.2} ns per parse", avg_ns);
 
-    assert!(
-        avg_ns < 10000.0,
-        "Metadata parsing too slow: average > 10µs"
-    );
+    assert!(avg_ns < 10000.0, "Metadata parsing too slow: average > 10µs");
 }
 
 /// Benchmark: Database template access
 #[test]
 fn bench_database_template_access() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -194,38 +189,35 @@ fn bench_database_template_access() {
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / (iterations as f64 * 4.0);
+    let avg_ns = elapsed.as_nanos() as f64 / (f64::from(iterations) * 4.0);
 
     println!("Database template access:");
     println!("  Iterations: {}", iterations);
     println!("  Total time: {:?}", elapsed);
     println!("  Average: {:.2} ns per template access", avg_ns);
 
-    assert!(
-        avg_ns < 5000.0,
-        "Template access too slow: average > 5µs"
-    );
+    assert!(avg_ns < 5000.0, "Template access too slow: average > 5µs");
 }
 
 /// Benchmark: Lookup data access
 #[test]
 fn bench_lookup_data_access() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -244,38 +236,35 @@ fn bench_lookup_data_access() {
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / iterations as f64;
+    let avg_ns = elapsed.as_nanos() as f64 / f64::from(iterations);
 
     println!("Lookup data access:");
     println!("  Iterations: {}", iterations);
     println!("  Total time: {:?}", elapsed);
     println!("  Average: {:.2} ns per lookup", avg_ns);
 
-    assert!(
-        avg_ns < 10000.0,
-        "Lookup data access too slow: average > 10µs"
-    );
+    assert!(avg_ns < 10000.0, "Lookup data access too slow: average > 10µs");
 }
 
 /// Benchmark: Full operator metadata traversal
 #[test]
 fn bench_full_operator_traversal() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -308,9 +297,5 @@ fn bench_full_operator_traversal() {
     println!("  Expected: 49 types × ~4-10 operators × 4 databases");
 
     // Rough sanity check (49 types, average 4 operators per type, 4 databases = ~784 operators)
-    assert!(
-        count > 100,
-        "Should find many operators (found {})",
-        count
-    );
+    assert!(count > 100, "Should find many operators (found {})", count);
 }

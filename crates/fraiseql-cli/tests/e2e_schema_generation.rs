@@ -6,38 +6,33 @@
 //! 3. Validate GraphQL schema structure
 //! 4. Verify SQL template correctness
 
-use fraiseql_cli::schema::intermediate::IntermediateSchema;
-use fraiseql_cli::schema::SchemaConverter;
+use fraiseql_cli::schema::{SchemaConverter, intermediate::IntermediateSchema};
 
 /// Test: E2E complete rich filter compilation pipeline
 #[test]
 fn test_e2e_complete_compilation_pipeline() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     // Verify 49 rich types were compiled
-    assert_eq!(
-        compiled.input_types.len(),
-        49,
-        "Should have exactly 49 rich type WhereInputs"
-    );
+    assert_eq!(compiled.input_types.len(), 49, "Should have exactly 49 rich type WhereInputs");
 
     // Spot-check key rich types
     let key_types = vec![
@@ -62,21 +57,21 @@ fn test_e2e_complete_compilation_pipeline() {
 #[test]
 fn test_e2e_sql_templates_all_databases() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -106,40 +101,34 @@ fn test_e2e_sql_templates_all_databases() {
     }
 
     // Rough sanity check - should have many templates
-    assert!(
-        total_templates > 100,
-        "Should have many templates (found {})",
-        total_templates
-    );
+    assert!(total_templates > 100, "Should have many templates (found {})", total_templates);
 }
 
 /// Test: E2E lookup data is comprehensive
 #[test]
 fn test_e2e_lookup_data_comprehensive() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     let security = compiled.security.as_ref().expect("Security should exist");
-    let lookup = security["lookup_data"]
-        .as_object()
-        .expect("Lookup data should exist");
+    let lookup = security["lookup_data"].as_object().expect("Lookup data should exist");
 
     // Verify all expected lookup tables
     assert!(lookup.contains_key("countries"), "Should have countries");
@@ -151,19 +140,13 @@ fn test_e2e_lookup_data_comprehensive() {
     let countries = lookup["countries"].as_object().expect("Countries should exist");
     assert!(countries.len() >= 10, "Should have many countries");
 
-    let currencies = lookup["currencies"]
-        .as_object()
-        .expect("Currencies should exist");
+    let currencies = lookup["currencies"].as_object().expect("Currencies should exist");
     assert!(currencies.len() >= 5, "Should have many currencies");
 
-    let timezones = lookup["timezones"]
-        .as_object()
-        .expect("Timezones should exist");
+    let timezones = lookup["timezones"].as_object().expect("Timezones should exist");
     assert!(timezones.len() >= 5, "Should have many timezones");
 
-    let languages = lookup["languages"]
-        .as_object()
-        .expect("Languages should exist");
+    let languages = lookup["languages"].as_object().expect("Languages should exist");
     assert!(languages.len() >= 5, "Should have many languages");
 }
 
@@ -171,21 +154,21 @@ fn test_e2e_lookup_data_comprehensive() {
 #[test]
 fn test_e2e_all_operators_generated() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -200,34 +183,17 @@ fn test_e2e_all_operators_generated() {
     let field_names: Vec<_> = email_where.fields.iter().map(|f| &f.name).collect();
 
     // Standard operators
-    assert!(
-        field_names.contains(&&"eq".to_string()),
-        "Should have eq operator"
-    );
-    assert!(
-        field_names.contains(&&"neq".to_string()),
-        "Should have neq operator"
-    );
-    assert!(
-        field_names.contains(&&"contains".to_string()),
-        "Should have contains operator"
-    );
+    assert!(field_names.contains(&&"eq".to_string()), "Should have eq operator");
+    assert!(field_names.contains(&&"neq".to_string()), "Should have neq operator");
+    assert!(field_names.contains(&&"contains".to_string()), "Should have contains operator");
 
     // Rich email operators
-    assert!(
-        field_names.contains(&&"domainEq".to_string()),
-        "Should have domainEq operator"
-    );
-    assert!(
-        field_names.contains(&&"domainIn".to_string()),
-        "Should have domainIn operator"
-    );
+    assert!(field_names.contains(&&"domainEq".to_string()), "Should have domainEq operator");
+    assert!(field_names.contains(&&"domainIn".to_string()), "Should have domainIn operator");
 
     // Verify Coordinates operators (if available)
-    if let Some(coords_where) = compiled
-        .input_types
-        .iter()
-        .find(|t| t.name == "CoordinatesWhereInput")
+    if let Some(coords_where) =
+        compiled.input_types.iter().find(|t| t.name == "CoordinatesWhereInput")
     {
         let coord_field_names: Vec<_> = coords_where.fields.iter().map(|f| &f.name).collect();
 
@@ -244,26 +210,29 @@ fn test_e2e_all_operators_generated() {
 #[test]
 fn test_e2e_compilation_deterministic() {
     let create_schema = || IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
-    let compiled1 = SchemaConverter::convert(create_schema()).expect("Compilation 1 should succeed");
-    let compiled2 = SchemaConverter::convert(create_schema()).expect("Compilation 2 should succeed");
-    let compiled3 = SchemaConverter::convert(create_schema()).expect("Compilation 3 should succeed");
+    let compiled1 =
+        SchemaConverter::convert(create_schema()).expect("Compilation 1 should succeed");
+    let compiled2 =
+        SchemaConverter::convert(create_schema()).expect("Compilation 2 should succeed");
+    let compiled3 =
+        SchemaConverter::convert(create_schema()).expect("Compilation 3 should succeed");
 
     // All compilations should produce identical results
     assert_eq!(
@@ -287,25 +256,25 @@ fn test_e2e_compilation_deterministic() {
     }
 }
 
-/// Test: E2E all 49 types generate proper WhereInput
+/// Test: E2E all 49 types generate proper `WhereInput`
 #[test]
 fn test_e2e_all_49_types_valid() {
     let intermediate = IntermediateSchema {
-        security: None,
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        security:          None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
+        observers:         None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -322,11 +291,7 @@ fn test_e2e_all_49_types_valid() {
         );
 
         // Fields validation
-        assert!(
-            !input_type.fields.is_empty(),
-            "Type {} should have fields",
-            input_type.name
-        );
+        assert!(!input_type.fields.is_empty(), "Type {} should have fields", input_type.name);
 
         for field in &input_type.fields {
             assert!(!field.name.is_empty(), "Field name should not be empty");
@@ -339,10 +304,7 @@ fn test_e2e_all_49_types_valid() {
             if let Some(operators) = metadata.get("operators").and_then(|o| o.as_object()) {
                 // All operators should have templates
                 for (_op_name, templates) in operators {
-                    assert!(
-                        templates.is_object(),
-                        "Operator templates should be an object"
-                    );
+                    assert!(templates.is_object(), "Operator templates should be an object");
                 }
             }
         }

@@ -13,18 +13,19 @@
 
 use std::collections::HashMap;
 
-use fraiseql_core::filters::{get_operators_for_type, ParameterType};
-use fraiseql_core::schema::CompiledSchema;
-use serde_json::{json, Value};
+use fraiseql_core::{
+    filters::{ParameterType, get_operators_for_type},
+    schema::CompiledSchema,
+};
+use serde_json::{Value, json};
 
-use super::lookup_data;
-use super::sql_templates;
+use super::{lookup_data, sql_templates};
 
 /// Rich filter compilation configuration
 #[derive(Debug, Clone)]
 pub struct RichFilterConfig {
     /// Enable rich filter compilation
-    pub enabled: bool,
+    pub enabled:              bool,
     /// Validation rules overrides (from fraiseql.toml)
     // Reason: Will be used in future phases for extensible validation configuration
     #[allow(dead_code)]
@@ -34,7 +35,7 @@ pub struct RichFilterConfig {
 impl Default for RichFilterConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled:              true,
             validation_overrides: HashMap::new(),
         }
     }
@@ -154,51 +155,51 @@ fn generate_where_input_type(
 ) -> anyhow::Result<fraiseql_core::schema::InputObjectDefinition> {
     use fraiseql_core::schema::{InputFieldDefinition, InputObjectDefinition};
 
-    let where_input_name = format!("{}WhereInput", rich_type_name);
+    let where_input_name = format!("{rich_type_name}WhereInput");
 
     // Standard operators (always present)
     let mut fields = vec![
         InputFieldDefinition {
-            name: "eq".to_string(),
-            field_type: "String".to_string(),
-            description: Some("Equals".to_string()),
+            name:          "eq".to_string(),
+            field_type:    "String".to_string(),
+            description:   Some("Equals".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
         InputFieldDefinition {
-            name: "neq".to_string(),
-            field_type: "String".to_string(),
-            description: Some("Not equals".to_string()),
+            name:          "neq".to_string(),
+            field_type:    "String".to_string(),
+            description:   Some("Not equals".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
         InputFieldDefinition {
-            name: "in".to_string(),
-            field_type: "[String!]!".to_string(),
-            description: Some("In list".to_string()),
+            name:          "in".to_string(),
+            field_type:    "[String!]!".to_string(),
+            description:   Some("In list".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
         InputFieldDefinition {
-            name: "nin".to_string(),
-            field_type: "[String!]!".to_string(),
-            description: Some("Not in list".to_string()),
+            name:          "nin".to_string(),
+            field_type:    "[String!]!".to_string(),
+            description:   Some("Not in list".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
         InputFieldDefinition {
-            name: "contains".to_string(),
-            field_type: "String".to_string(),
-            description: Some("Contains substring".to_string()),
+            name:          "contains".to_string(),
+            field_type:    "String".to_string(),
+            description:   Some("Contains substring".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
         InputFieldDefinition {
-            name: "isnull".to_string(),
-            field_type: "Boolean".to_string(),
-            description: Some("Is null".to_string()),
+            name:          "isnull".to_string(),
+            field_type:    "Boolean".to_string(),
+            description:   Some("Is null".to_string()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         },
     ];
 
@@ -208,21 +209,21 @@ fn generate_where_input_type(
         let graphql_type = operator_param_type_to_graphql_string(&op_info.parameter_type);
         operator_names.push(op_info.graphql_name.clone());
         fields.push(InputFieldDefinition {
-            name: op_info.graphql_name.clone(),
-            field_type: graphql_type,
-            description: Some(op_info.description.clone()),
+            name:          op_info.graphql_name.clone(),
+            field_type:    graphql_type,
+            description:   Some(op_info.description.clone()),
             default_value: None,
-            deprecation: None,
+            deprecation:   None,
         });
     }
 
     // Build SQL template metadata for this rich type
-    let operator_refs: Vec<&str> = operator_names.iter().map(|s| s.as_str()).collect();
+    let operator_refs: Vec<&str> = operator_names.iter().map(std::string::String::as_str).collect();
     let sql_metadata = sql_templates::build_sql_templates_metadata(&operator_refs);
 
     Ok(InputObjectDefinition {
         name: where_input_name,
-        description: Some(format!("Filter operations for {}", rich_type_name)),
+        description: Some(format!("Filter operations for {rich_type_name}")),
         fields,
         metadata: Some(sql_metadata),
     })

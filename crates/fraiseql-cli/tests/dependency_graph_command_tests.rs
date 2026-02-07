@@ -1,6 +1,7 @@
 //! Integration tests for the dependency-graph command
 
 use std::io::Write;
+
 use tempfile::NamedTempFile;
 
 /// Create a simple test schema
@@ -105,7 +106,7 @@ fn create_cyclic_schema() -> String {
 
 #[test]
 fn test_dependency_graph_run_success() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -124,7 +125,7 @@ fn test_dependency_graph_run_success() {
 
 #[test]
 fn test_dependency_graph_detects_cycles() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_cyclic_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -140,7 +141,7 @@ fn test_dependency_graph_detects_cycles() {
 
 #[test]
 fn test_dependency_graph_dot_format() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -160,7 +161,7 @@ fn test_dependency_graph_dot_format() {
 
 #[test]
 fn test_dependency_graph_mermaid_format() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -179,7 +180,7 @@ fn test_dependency_graph_mermaid_format() {
 
 #[test]
 fn test_dependency_graph_d2_format() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -200,7 +201,7 @@ fn test_dependency_graph_d2_format() {
 
 #[test]
 fn test_dependency_graph_console_format() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -220,7 +221,7 @@ fn test_dependency_graph_console_format() {
 
 #[test]
 fn test_dependency_graph_json_structure() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let schema_json = create_test_schema();
     let mut temp_file = NamedTempFile::new().unwrap();
@@ -249,7 +250,7 @@ fn test_dependency_graph_json_structure() {
 
 #[test]
 fn test_dependency_graph_file_not_found() {
-    use fraiseql_cli::commands::dependency_graph::{run, GraphFormat};
+    use fraiseql_cli::commands::dependency_graph::{GraphFormat, run};
 
     let result = run("/nonexistent/path/schema.json", GraphFormat::Json);
     assert!(result.is_err());

@@ -13,13 +13,15 @@ use fraiseql_core::schema::{
 };
 use tracing::{info, warn};
 
-use super::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
-    IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
-    IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
-    IntermediateSubscription, IntermediateType, IntermediateUnion,
+use super::{
+    intermediate::{
+        IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
+        IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
+        IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
+        IntermediateSubscription, IntermediateType, IntermediateUnion,
+    },
+    rich_filters::{RichFilterConfig, compile_rich_filters},
 };
-use super::rich_filters::{compile_rich_filters, RichFilterConfig};
 
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
@@ -1060,7 +1062,9 @@ mod tests {
         assert_eq!(compiled.input_types.len(), 49);
 
         // Check that EmailAddressWhereInput exists
-        let email_where = compiled.input_types.iter()
+        let email_where = compiled
+            .input_types
+            .iter()
             .find(|t| t.name == "EmailAddressWhereInput")
             .expect("EmailAddressWhereInput should be generated");
 
@@ -1072,7 +1076,9 @@ mod tests {
         assert!(email_where.fields.iter().any(|f| f.name == "isnull"));
 
         // Check that VINWhereInput exists
-        let vin_where = compiled.input_types.iter()
+        let vin_where = compiled
+            .input_types
+            .iter()
             .find(|t| t.name == "VINWhereInput")
             .expect("VINWhereInput should be generated");
 
@@ -1103,19 +1109,31 @@ mod tests {
         let compiled = SchemaConverter::convert(intermediate).unwrap();
 
         // Check that EmailAddressWhereInput has SQL template metadata
-        let email_where = compiled.input_types.iter()
+        let email_where = compiled
+            .input_types
+            .iter()
             .find(|t| t.name == "EmailAddressWhereInput")
             .expect("EmailAddressWhereInput should be generated");
 
         // Verify metadata exists and contains operators
-        assert!(email_where.metadata.is_some(), "Metadata should exist for EmailAddressWhereInput");
+        assert!(
+            email_where.metadata.is_some(),
+            "Metadata should exist for EmailAddressWhereInput"
+        );
         let metadata = email_where.metadata.as_ref().unwrap();
-        assert!(metadata.get("operators").is_some(), "Operators should be in metadata: {:?}", metadata);
+        assert!(
+            metadata.get("operators").is_some(),
+            "Operators should be in metadata: {metadata:?}"
+        );
 
         let operators = metadata["operators"].as_object().unwrap();
         // Should have templates for email-specific operators
-        assert!(!operators.is_empty(), "Operators map should not be empty: {:?}", operators);
-        assert!(operators.contains_key("domainEq"), "Missing domainEq in operators: {:?}", operators.keys().collect::<Vec<_>>());
+        assert!(!operators.is_empty(), "Operators map should not be empty: {operators:?}");
+        assert!(
+            operators.contains_key("domainEq"),
+            "Missing domainEq in operators: {:?}",
+            operators.keys().collect::<Vec<_>>()
+        );
 
         // Verify domainEq has templates for all 4 databases
         let email_domain_eq = operators["domainEq"].as_object().unwrap();
@@ -1155,7 +1173,10 @@ mod tests {
         // Verify lookup data is embedded in schema.security
         assert!(compiled.security.is_some(), "Security section should exist");
         let security = compiled.security.as_ref().unwrap();
-        assert!(security.get("lookup_data").is_some(), "Lookup data should be in security section");
+        assert!(
+            security.get("lookup_data").is_some(),
+            "Lookup data should be in security section"
+        );
 
         let lookup_data = security["lookup_data"].as_object().unwrap();
 
@@ -1174,12 +1195,12 @@ mod tests {
         // Verify US data
         let us = countries["US"].as_object().unwrap();
         assert_eq!(us["continent"].as_str().unwrap(), "North America");
-        assert_eq!(us["in_eu"].as_bool().unwrap(), false);
+        assert!(!us["in_eu"].as_bool().unwrap());
 
         // Verify France is EU and Schengen
         let fr = countries["FR"].as_object().unwrap();
-        assert_eq!(fr["in_eu"].as_bool().unwrap(), true);
-        assert_eq!(fr["in_schengen"].as_bool().unwrap(), true);
+        assert!(fr["in_eu"].as_bool().unwrap());
+        assert!(fr["in_schengen"].as_bool().unwrap());
 
         // Verify currencies data
         let currencies = lookup_data["currencies"].as_object().unwrap();
@@ -1195,7 +1216,7 @@ mod tests {
         assert!(timezones.contains_key("EST"));
         let est = timezones["EST"].as_object().unwrap();
         assert_eq!(est["offset_minutes"].as_i64().unwrap(), -300);
-        assert_eq!(est["has_dst"].as_bool().unwrap(), true);
+        assert!(est["has_dst"].as_bool().unwrap());
     }
 
     #[test]

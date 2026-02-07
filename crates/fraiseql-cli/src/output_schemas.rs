@@ -21,9 +21,9 @@ pub fn get_output_schema(command: &str) -> Option<OutputSchema> {
     };
 
     Some(OutputSchema {
-        command:        command.to_string(),
+        command: command.to_string(),
         schema_version: "1.0".to_string(),
-        format:         "json".to_string(),
+        format: "json".to_string(),
         success,
         error,
     })

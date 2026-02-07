@@ -27,8 +27,8 @@ pub fn extract_command_help(cmd: &Command) -> CommandHelp {
     let (arguments, options) = extract_arguments(cmd);
 
     CommandHelp {
-        name:        cmd.get_name().to_string(),
-        about:       cmd.get_about().map_or_else(String::new, ToString::to_string),
+        name: cmd.get_name().to_string(),
+        about: cmd.get_about().map_or_else(String::new, ToString::to_string),
         arguments,
         options,
         subcommands: cmd
@@ -36,7 +36,7 @@ pub fn extract_command_help(cmd: &Command) -> CommandHelp {
             .filter(|sub| !sub.is_hide_set())
             .map(extract_command_help)
             .collect(),
-        examples:    extract_examples(cmd),
+        examples: extract_examples(cmd),
     }
 }
 
