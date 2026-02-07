@@ -3018,7 +3018,7 @@ mod tests {
         let _message = "fraiseql-core types accessible";
 
         // Verify imports work by checking these exist at compile time
-        assert!(_message.len() > 0);
+        assert!(!_message.is_empty());
     }
 
     /// Tests that has_executor() returns correct status
@@ -3044,7 +3044,7 @@ mod tests {
         // 3. Return HandshakeResponse with session token on success
         // 4. Return error on validation failure
         let _test_note = "Handshake JWT validation to be implemented in GREEN phase";
-        assert!(_test_note.len() > 0);
+        assert!(!_test_note.is_empty());
     }
 
     /// Phase 2.1: JWT extraction from Bearer format
