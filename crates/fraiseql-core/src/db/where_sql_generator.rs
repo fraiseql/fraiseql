@@ -210,7 +210,8 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthGte
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
-            | WhereOperator::Lca => {
+            | WhereOperator::Lca
+            | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
                         "Advanced operators not yet supported in fraiseql-wire: {operator:?}"

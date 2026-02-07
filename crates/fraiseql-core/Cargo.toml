@@ -83,12 +83,15 @@ tokio-test = "0.4"
 # Provides arrow_executor module for Arrow RecordBatch conversion.
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
-default = ["postgres"]
+default = ["postgres", "rich-filters"]
 kafka = ["rdkafka"]
 mysql = ["sqlx/mysql"]
 postgres = []
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
+# Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
+# Includes specialized filter operators for 44 rich scalar types
+rich-filters = []
 # Run with: cargo test --features test-mysql -- --test-threads=1
 test-mysql = ["mysql"]
 # Test features - enable database integration tests

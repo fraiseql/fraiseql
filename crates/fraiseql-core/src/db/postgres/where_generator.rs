@@ -361,6 +361,12 @@ impl PostgresWhereGenerator {
             WhereOperator::DepthLt => self.generate_ltree_depth(&field_path, "<", value, params),
             WhereOperator::DepthLte => self.generate_ltree_depth(&field_path, "<=", value, params),
             WhereOperator::Lca => self.generate_ltree_lca(&field_path, value, params),
+
+            // Extended operators for rich scalar types
+            WhereOperator::Extended(op) => {
+                use crate::filters::ExtendedOperatorHandler;
+                self.generate_extended_sql(op, &field_path, params)
+            }
         }
     }
 
@@ -669,6 +675,21 @@ impl PostgresWhereGenerator {
 impl Default for PostgresWhereGenerator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::filters::ExtendedOperatorHandler for PostgresWhereGenerator {
+    fn generate_extended_sql(
+        &self,
+        operator: &crate::filters::ExtendedOperator,
+        field_sql: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        // TODO: Week 3 implementation
+        // For now, return a stub error
+        Err(FraiseQLError::validation(
+            format!("Extended operator not yet implemented: {}", operator),
+        ))
     }
 }
 

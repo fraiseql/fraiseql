@@ -131,6 +131,7 @@ pub mod cache;
 pub mod db;
 pub mod design;
 pub mod federation;
+pub mod filters;
 pub mod security;
 pub mod tenancy;
 pub mod utils;

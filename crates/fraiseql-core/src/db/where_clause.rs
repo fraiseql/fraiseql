@@ -72,7 +72,10 @@ impl WhereClause {
 ///
 /// All operators from v1 are supported for backwards compatibility.
 /// No underscore prefix (e.g., `eq`, `icontains`, not `_eq`, `_icontains`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// Note: ExtendedOperator variants may contain f64 values which don't implement Eq,
+/// so WhereOperator derives PartialEq only (not Eq).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WhereOperator {
     // ========================================================================
     // Comparison Operators
@@ -229,6 +232,15 @@ pub enum WhereOperator {
     DepthLte,
     /// Lowest common ancestor (lca()).
     Lca,
+
+    // ========================================================================
+    // Extended Operators (Rich Type Filters)
+    // ========================================================================
+    /// Extended operator for rich scalar types (Email, VIN, CountryCode, etc.)
+    /// These operators are specialized filters enabled via feature flags.
+    /// See `fraiseql_core::filters::ExtendedOperator` for available operators.
+    #[serde(skip)]
+    Extended(crate::filters::ExtendedOperator),
 }
 
 impl WhereOperator {

@@ -223,6 +223,12 @@ impl SqliteWhereGenerator {
             | WhereOperator::Lca => Err(FraiseQLError::validation(
                 "LTree operators not supported in SQLite".to_string(),
             )),
+
+            // Extended operators for rich scalar types
+            WhereOperator::Extended(op) => {
+                use crate::filters::ExtendedOperatorHandler;
+                self.generate_extended_sql(op, &field_path, params)
+            }
         }
     }
 
@@ -340,6 +346,21 @@ impl SqliteWhereGenerator {
 impl Default for SqliteWhereGenerator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
+    fn generate_extended_sql(
+        &self,
+        operator: &crate::filters::ExtendedOperator,
+        _field_sql: &str,
+        _params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        // TODO: Week 3 implementation
+        // For now, return a stub error
+        Err(FraiseQLError::validation(
+            format!("Extended operator not yet implemented: {}", operator),
+        ))
     }
 }
 
