@@ -22,8 +22,9 @@
 //! let inherited = inherit_validation_rules(&parent_rules, &child_rules, InheritanceMode::Merge);
 //! ```
 
-use crate::validation::rules::ValidationRule;
 use std::collections::HashMap;
+
+use crate::validation::rules::ValidationRule;
 
 /// Determines how child validation rules interact with parent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,13 +55,13 @@ impl InheritanceMode {
 #[derive(Debug, Clone)]
 pub struct RuleMetadata {
     /// The validation rule
-    pub rule: ValidationRule,
+    pub rule:         ValidationRule,
     /// Whether this rule can be overridden by child types
     pub overrideable: bool,
     /// Whether this rule is inherited from a parent type
-    pub inherited: bool,
+    pub inherited:    bool,
     /// The source type name for tracking
-    pub source: String,
+    pub source:       String,
 }
 
 impl RuleMetadata {
@@ -93,7 +94,7 @@ pub struct ValidationRuleRegistry {
     /// Rules by type name
     rules_by_type: HashMap<String, Vec<RuleMetadata>>,
     /// Parent type references
-    parent_types: HashMap<String, String>,
+    parent_types:  HashMap<String, String>,
 }
 
 impl ValidationRuleRegistry {
@@ -101,7 +102,7 @@ impl ValidationRuleRegistry {
     pub fn new() -> Self {
         Self {
             rules_by_type: HashMap::new(),
-            parent_types: HashMap::new(),
+            parent_types:  HashMap::new(),
         }
     }
 
@@ -131,23 +132,23 @@ impl ValidationRuleRegistry {
                 InheritanceMode::Override => {
                     // Child rules completely override parent rules
                     return own_rules.clone();
-                }
+                },
                 InheritanceMode::Merge => {
                     // Add all own rules that don't override parent rules
                     for own_rule in own_rules {
                         rules.push(own_rule.clone());
                     }
-                }
+                },
                 InheritanceMode::ChildFirst => {
                     // Keep order: own rules first (reverse order since we prepend)
                     let mut result = own_rules.clone();
                     result.extend(rules);
                     return result;
-                }
+                },
                 InheritanceMode::ParentFirst => {
                     // Keep order: parent rules first
                     rules.extend(own_rules.clone());
-                }
+                },
             }
         }
 
@@ -183,25 +184,25 @@ pub fn inherit_validation_rules(
         InheritanceMode::Override => {
             // Child rules completely replace parent rules
             child_rules.to_vec()
-        }
+        },
         InheritanceMode::Merge => {
             // Combine all rules from both parent and child
             let mut combined = parent_rules.to_vec();
             combined.extend_from_slice(child_rules);
             combined
-        }
+        },
         InheritanceMode::ChildFirst => {
             // Child rules first, then parent rules
             let mut combined = child_rules.to_vec();
             combined.extend_from_slice(parent_rules);
             combined
-        }
+        },
         InheritanceMode::ParentFirst => {
             // Parent rules first, then child rules
             let mut combined = parent_rules.to_vec();
             combined.extend_from_slice(child_rules);
             combined
-        }
+        },
     }
 }
 
@@ -221,10 +222,7 @@ pub fn validate_inheritance(
 ) -> Result<(), String> {
     // Check that parent type exists in registry
     if !registry.rules_by_type.contains_key(parent_name) {
-        return Err(format!(
-            "Parent type '{}' not found in validation registry",
-            parent_name
-        ));
+        return Err(format!("Parent type '{}' not found in validation registry", parent_name));
     }
 
     // Check for circular inheritance
@@ -329,10 +327,7 @@ mod tests {
         let mut registry = ValidationRuleRegistry::new();
         registry.set_parent("AdminUserInput", "UserInput");
 
-        assert_eq!(
-            registry.get_parent("AdminUserInput"),
-            Some("UserInput")
-        );
+        assert_eq!(registry.get_parent("AdminUserInput"), Some("UserInput"));
     }
 
     #[test]
@@ -361,8 +356,7 @@ mod tests {
         registry.register_type("AdminUserInput", child_rules);
         registry.set_parent("AdminUserInput", "UserInput");
 
-        let inherited =
-            registry.get_rules("AdminUserInput", InheritanceMode::Merge);
+        let inherited = registry.get_rules("AdminUserInput", InheritanceMode::Merge);
         assert_eq!(inherited.len(), 2);
     }
 
@@ -413,7 +407,10 @@ mod tests {
         let user_rules = vec![RuleMetadata::new(ValidationRule::Required, "UserInput")];
         registry.register_type("UserInput", user_rules);
 
-        let admin_rules = vec![RuleMetadata::new(ValidationRule::Required, "AdminUserInput")];
+        let admin_rules = vec![RuleMetadata::new(
+            ValidationRule::Required,
+            "AdminUserInput",
+        )];
         registry.register_type("AdminUserInput", admin_rules);
 
         registry.set_parent("UserInput", "AdminUserInput");
@@ -461,8 +458,7 @@ mod tests {
 
     #[test]
     fn test_rule_metadata_non_overrideable() {
-        let rule = RuleMetadata::new(ValidationRule::Required, "UserInput")
-            .non_overrideable();
+        let rule = RuleMetadata::new(ValidationRule::Required, "UserInput").non_overrideable();
         assert!(!rule.overrideable);
         assert!(rule.inherited == false);
     }

@@ -4,9 +4,12 @@
 //! variables and validates them against defined validation rules before
 //! execution.
 
-use crate::error::{FraiseQLError, Result, ValidationFieldError};
-use crate::validation::ValidationRule;
 use serde_json::Value;
+
+use crate::{
+    error::{FraiseQLError, Result, ValidationFieldError},
+    validation::ValidationRule,
+};
 
 /// Validation error aggregator - collects multiple validation errors.
 #[derive(Debug, Clone, Default)]
@@ -44,13 +47,13 @@ impl ValidationErrorCollection {
             let err = &self.errors[0];
             FraiseQLError::Validation {
                 message: err.to_string(),
-                path: Some(err.field.clone()),
+                path:    Some(err.field.clone()),
             }
         } else {
             let messages: Vec<String> = self.errors.iter().map(|e| e.to_string()).collect();
             FraiseQLError::Validation {
                 message: format!("Multiple validation errors: {}", messages.join("; ")),
-                path: None,
+                path:    None,
             }
         }
     }
@@ -60,11 +63,7 @@ impl ValidationErrorCollection {
 ///
 /// This function recursively validates a JSON value against a set of
 /// validation rules, collecting all errors that occur.
-pub fn validate_input(
-    value: &Value,
-    field_path: &str,
-    rules: &[ValidationRule],
-) -> Result<()> {
+pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule]) -> Result<()> {
     let mut errors = ValidationErrorCollection::new();
 
     match value {
@@ -78,7 +77,7 @@ pub fn validate_input(
                     }
                 }
             }
-        }
+        },
         Value::Null => {
             for rule in rules {
                 if rule.is_required() {
@@ -89,10 +88,10 @@ pub fn validate_input(
                     ));
                 }
             }
-        }
+        },
         _ => {
             // Other types (number, bool, array, object) have different validation logic
-        }
+        },
     }
 
     if errors.is_empty() {
@@ -112,15 +111,14 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "required", "Field is required")
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 });
             }
             Ok(())
-        }
+        },
         ValidationRule::Pattern { pattern, message } => {
-            let regex = regex::Regex::new(pattern).map_err(|e| {
-                FraiseQLError::validation(format!("Invalid regex pattern: {}", e))
-            })?;
+            let regex = regex::Regex::new(pattern)
+                .map_err(|e| FraiseQLError::validation(format!("Invalid regex pattern: {}", e)))?;
             if regex.is_match(value) {
                 Ok(())
             } else {
@@ -130,21 +128,14 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "pattern", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
-        }
+        },
         ValidationRule::Length { min, max } => {
             let len = value.len();
-            let valid = if let Some(m) = min {
-                len >= *m
-            } else {
-                true
-            } && if let Some(m) = max {
-                len <= *m
-            } else {
-                true
-            };
+            let valid = if let Some(m) = min { len >= *m } else { true }
+                && if let Some(m) = max { len <= *m } else { true };
 
             if valid {
                 Ok(())
@@ -160,10 +151,10 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "length", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
-        }
+        },
         ValidationRule::Enum { values } => {
             if values.contains(&value.to_string()) {
                 Ok(())
@@ -177,10 +168,10 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                             format!("Must be one of: {}", values.join(", "))
                         )
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
-        }
+        },
         _ => Ok(()), // Other rule types handled elsewhere
     }
 }

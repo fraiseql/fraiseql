@@ -3,9 +3,10 @@
 //! Provides simple validators for patterns, lengths, numeric ranges, and enums.
 //! These validators are combined to create comprehensive input validation rules.
 
+use regex::Regex;
+
 use super::rules::ValidationRule;
 use crate::error::{FraiseQLError, Result, ValidationFieldError};
-use regex::Regex;
 
 /// Basic validator trait for field validation.
 pub trait Validator {
@@ -15,7 +16,7 @@ pub trait Validator {
 
 /// Pattern validator using regular expressions.
 pub struct PatternValidator {
-    regex: Regex,
+    regex:   Regex,
     message: String,
 }
 
@@ -56,7 +57,7 @@ impl Validator for PatternValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "pattern", &self.message)
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -111,7 +112,7 @@ impl Validator for LengthValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "length", self.error_message())
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -190,9 +191,13 @@ impl Validator for EnumValidator {
             Err(FraiseQLError::Validation {
                 message: format!(
                     "Field validation failed: {}",
-                    ValidationFieldError::new(field, "enum", format!("Must be one of: {}", allowed))
+                    ValidationFieldError::new(
+                        field,
+                        "enum",
+                        format!("Must be one of: {}", allowed)
+                    )
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -209,7 +214,7 @@ impl Validator for RequiredValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "required", "Field is required")
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         } else {
             Ok(())
@@ -222,17 +227,17 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
     match rule {
         ValidationRule::Pattern { pattern, message } => {
             let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
-            PatternValidator::new(pattern.clone(), msg).ok().map(|v| Box::new(v) as Box<dyn Validator>)
-        }
+            PatternValidator::new(pattern.clone(), msg)
+                .ok()
+                .map(|v| Box::new(v) as Box<dyn Validator>)
+        },
         ValidationRule::Length { min, max } => {
             Some(Box::new(LengthValidator::new(*min, *max)) as Box<dyn Validator>)
-        }
+        },
         ValidationRule::Enum { values } => {
             Some(Box::new(EnumValidator::new(values.clone())) as Box<dyn Validator>)
-        }
-        ValidationRule::Required => {
-            Some(Box::new(RequiredValidator) as Box<dyn Validator>)
-        }
+        },
+        ValidationRule::Required => Some(Box::new(RequiredValidator) as Box<dyn Validator>),
         _ => None, // Other validators handled separately
     }
 }

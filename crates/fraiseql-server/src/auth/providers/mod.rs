@@ -1,5 +1,6 @@
 // OAuth provider implementations
-// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and Logto
+// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and
+// Logto
 
 pub mod auth0;
 pub mod azure_ad;
@@ -24,7 +25,8 @@ use crate::auth::{error::Result, provider::OAuthProvider};
 /// Factory for creating OAuth providers from configuration
 ///
 /// # Arguments
-/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad", "ory", "logto"
+/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad",
+///   "ory", "logto"
 /// * `client_id` - OAuth client ID
 /// * `client_secret` - OAuth client secret
 /// * `config` - Provider-specific configuration (JSON value)
@@ -155,8 +157,8 @@ pub async fn create_provider(
                 })?
                 .to_string();
 
-            let provider = LogtoOAuth::new(client_id, client_secret, logto_endpoint, redirect_uri)
-                .await?;
+            let provider =
+                LogtoOAuth::new(client_id, client_secret, logto_endpoint, redirect_uri).await?;
             Ok(Box::new(provider))
         },
         _ => Err(crate::auth::AuthError::ConfigError {

@@ -22,9 +22,12 @@
 //! ])
 //! ```
 
-use crate::error::{FraiseQLError, Result};
-use crate::validation::rules::ValidationRule;
 use std::fmt;
+
+use crate::{
+    error::{FraiseQLError, Result},
+    validation::rules::ValidationRule,
+};
 
 /// Composite validation error that aggregates multiple validation errors.
 #[derive(Debug, Clone)]
@@ -32,9 +35,9 @@ pub struct CompositeError {
     /// The operator being applied (all, any, not, optional)
     pub operator: CompositeOperator,
     /// Individual validation errors
-    pub errors: Vec<String>,
+    pub errors:   Vec<String>,
     /// The field being validated
-    pub field: String,
+    pub field:    String,
 }
 
 impl fmt::Display for CompositeError {
@@ -101,8 +104,12 @@ pub fn validate_all(
 
     if !errors.is_empty() {
         return Err(FraiseQLError::Validation {
-            message: format!("All validators must pass for '{}': {}", field_name, errors.join("; ")),
-            path: Some(field_name.to_string()),
+            message: format!(
+                "All validators must pass for '{}': {}",
+                field_name,
+                errors.join("; ")
+            ),
+            path:    Some(field_name.to_string()),
         });
     }
 
@@ -136,17 +143,21 @@ pub fn validate_any(
         match validate_single_rule(rule, field_value, field_name, is_present) {
             Ok(()) => {
                 passed_count += 1;
-            }
+            },
             Err(e) => {
                 errors.push(format!("{}", e));
-            }
+            },
         }
     }
 
     if passed_count == 0 {
         return Err(FraiseQLError::Validation {
-            message: format!("At least one validator must pass for '{}': {}", field_name, errors.join("; ")),
-            path: Some(field_name.to_string()),
+            message: format!(
+                "At least one validator must pass for '{}': {}",
+                field_name,
+                errors.join("; ")
+            ),
+            path:    Some(field_name.to_string()),
         });
     }
 
@@ -174,12 +185,10 @@ pub fn validate_not(
     is_present: bool,
 ) -> Result<()> {
     match validate_single_rule(rule, field_value, field_name, is_present) {
-        Ok(()) => {
-            Err(FraiseQLError::Validation {
-                message: format!("Validator for '{}' must fail but passed", field_name),
-                path: Some(field_name.to_string()),
-            })
-        }
+        Ok(()) => Err(FraiseQLError::Validation {
+            message: format!("Validator for '{}' must fail but passed", field_name),
+            path:    Some(field_name.to_string()),
+        }),
         Err(_) => Ok(()), // Validator failed as expected
     }
 }
@@ -226,31 +235,34 @@ fn validate_single_rule(
             if field_value.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Field '{}' is required", field_name),
-                    path: Some(field_name.to_string()),
+                    path:    Some(field_name.to_string()),
                 });
             }
             Ok(())
-        }
+        },
         ValidationRule::Pattern { pattern, message } => {
             if let Ok(regex) = regex::Regex::new(pattern) {
                 if !regex.is_match(field_value) {
                     return Err(FraiseQLError::Validation {
-                        message: message
-                            .clone()
-                            .unwrap_or_else(|| format!("'{}' must match pattern: {}", field_name, pattern)),
-                        path: Some(field_name.to_string()),
+                        message: message.clone().unwrap_or_else(|| {
+                            format!("'{}' must match pattern: {}", field_name, pattern)
+                        }),
+                        path:    Some(field_name.to_string()),
                     });
                 }
             }
             Ok(())
-        }
+        },
         ValidationRule::Length { min, max } => {
             let len = field_value.len();
             if let Some(min_len) = min {
                 if len < *min_len {
                     return Err(FraiseQLError::Validation {
-                        message: format!("'{}' must be at least {} characters", field_name, min_len),
-                        path: Some(field_name.to_string()),
+                        message: format!(
+                            "'{}' must be at least {} characters",
+                            field_name, min_len
+                        ),
+                        path:    Some(field_name.to_string()),
                     });
                 }
             }
@@ -258,21 +270,21 @@ fn validate_single_rule(
                 if len > *max_len {
                     return Err(FraiseQLError::Validation {
                         message: format!("'{}' must be at most {} characters", field_name, max_len),
-                        path: Some(field_name.to_string()),
+                        path:    Some(field_name.to_string()),
                     });
                 }
             }
             Ok(())
-        }
+        },
         ValidationRule::Enum { values } => {
             if !values.contains(&field_value.to_string()) {
                 return Err(FraiseQLError::Validation {
                     message: format!("'{}' must be one of: {}", field_name, values.join(", ")),
-                    path: Some(field_name.to_string()),
+                    path:    Some(field_name.to_string()),
                 });
             }
             Ok(())
-        }
+        },
         // For other rule types, we skip validation in this basic implementation
         _ => Ok(()),
     }
@@ -555,8 +567,8 @@ mod tests {
     fn test_composite_error_display() {
         let error = CompositeError {
             operator: CompositeOperator::All,
-            errors: vec!["error1".to_string(), "error2".to_string()],
-            field: "field".to_string(),
+            errors:   vec!["error1".to_string(), "error2".to_string()],
+            field:    "field".to_string(),
         };
         let display_str = error.to_string();
         assert!(display_str.contains("All validators must pass"));

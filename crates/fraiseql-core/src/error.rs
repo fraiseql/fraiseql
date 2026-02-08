@@ -539,21 +539,25 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ValidationFieldError {
     /// Path to the field that failed validation (e.g., "user.email", "addresses.0.zipcode").
-    pub field: String,
+    pub field:     String,
     /// Type of validation rule that failed (e.g., "pattern", "required", "range").
     pub rule_type: String,
     /// Human-readable error message explaining what went wrong.
-    pub message: String,
+    pub message:   String,
 }
 
 impl ValidationFieldError {
     /// Create a new validation field error.
     #[must_use]
-    pub fn new(field: impl Into<String>, rule_type: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn new(
+        field: impl Into<String>,
+        rule_type: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
-            field: field.into(),
+            field:     field.into(),
             rule_type: rule_type.into(),
-            message: message.into(),
+            message:   message.into(),
         }
     }
 }
@@ -646,7 +650,8 @@ mod tests {
 
     #[test]
     fn test_validation_field_error_display() {
-        let field_err = ValidationFieldError::new("address.zipcode", "length", "Zipcode must be 5 digits");
+        let field_err =
+            ValidationFieldError::new("address.zipcode", "length", "Zipcode must be 5 digits");
         let display = format!("{}", field_err);
         assert_eq!(display, "address.zipcode (length): Zipcode must be 5 digits");
     }
@@ -655,7 +660,8 @@ mod tests {
     fn test_validation_field_error_serialization() {
         let field_err = ValidationFieldError::new("user.phone", "pattern", "Invalid phone number");
         let json = serde_json::to_string(&field_err).expect("serialization failed");
-        let deserialized: ValidationFieldError = serde_json::from_str(&json).expect("deserialization failed");
+        let deserialized: ValidationFieldError =
+            serde_json::from_str(&json).expect("deserialization failed");
         assert_eq!(deserialized.field, "user.phone");
         assert_eq!(deserialized.rule_type, "pattern");
         assert_eq!(deserialized.message, "Invalid phone number");

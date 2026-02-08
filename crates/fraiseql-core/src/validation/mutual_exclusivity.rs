@@ -6,8 +6,9 @@
 //! - ConditionalRequired: If one field is present, others must be too
 //! - RequiredIfAbsent: If one field is missing, others must be provided
 
-use crate::error::{FraiseQLError, Result};
 use serde_json::Value;
+
+use crate::error::{FraiseQLError, Result};
 
 /// Validates that exactly one field from the specified set is provided.
 ///
@@ -31,9 +32,7 @@ impl OneOfValidator {
             .iter()
             .filter(|name| {
                 if let Value::Object(obj) = input {
-                    obj.get(*name)
-                        .map(|v| !matches!(v, Value::Null))
-                        .unwrap_or(false)
+                    obj.get(*name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
                 } else {
                     false
                 }
@@ -48,7 +47,7 @@ impl OneOfValidator {
                     present_count,
                     if present_count == 1 { "was" } else { "were" }
                 ),
-                path: Some(field_path.to_string()),
+                path:    Some(field_path.to_string()),
             });
         }
 
@@ -76,9 +75,7 @@ impl AnyOfValidator {
 
         let has_any = field_names.iter().any(|name| {
             if let Value::Object(obj) = input {
-                obj.get(name)
-                    .map(|v| !matches!(v, Value::Null))
-                    .unwrap_or(false)
+                obj.get(name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
             } else {
                 false
             }
@@ -86,11 +83,8 @@ impl AnyOfValidator {
 
         if !has_any {
             return Err(FraiseQLError::Validation {
-                message: format!(
-                    "At least one of [{}] must be provided",
-                    field_names.join(", ")
-                ),
-                path: Some(field_path.to_string()),
+                message: format!("At least one of [{}] must be provided", field_names.join(", ")),
+                path:    Some(field_path.to_string()),
             });
         }
 
@@ -123,20 +117,14 @@ impl ConditionalRequiredValidator {
 
         if let Value::Object(obj) = input {
             // Check if the condition field is present and non-null
-            let condition_met = obj
-                .get(if_field_present)
-                .map(|v| !matches!(v, Value::Null))
-                .unwrap_or(false);
+            let condition_met =
+                obj.get(if_field_present).map(|v| !matches!(v, Value::Null)).unwrap_or(false);
 
             if condition_met {
                 // If condition is met, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| {
-                        obj.get(*name)
-                            .map(|v| matches!(v, Value::Null))
-                            .unwrap_or(true)
-                    })
+                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
                     .collect();
 
                 if !missing_fields.is_empty() {
@@ -150,7 +138,7 @@ impl ConditionalRequiredValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path: Some(field_path.to_string()),
+                        path:    Some(field_path.to_string()),
                     });
                 }
             }
@@ -160,7 +148,8 @@ impl ConditionalRequiredValidator {
     }
 }
 
-/// Validates conditional requirement based on absence: if one field is missing, others must be provided.
+/// Validates conditional requirement based on absence: if one field is missing, others must be
+/// provided.
 ///
 /// # Example
 /// ```ignore
@@ -185,20 +174,14 @@ impl RequiredIfAbsentValidator {
 
         if let Value::Object(obj) = input {
             // Check if the condition field is absent or null
-            let field_absent = obj
-                .get(absent_field)
-                .map(|v| matches!(v, Value::Null))
-                .unwrap_or(true);
+            let field_absent =
+                obj.get(absent_field).map(|v| matches!(v, Value::Null)).unwrap_or(true);
 
             if field_absent {
                 // If field is absent, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| {
-                        obj.get(*name)
-                            .map(|v| matches!(v, Value::Null))
-                            .unwrap_or(true)
-                    })
+                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
                     .collect();
 
                 if !missing_fields.is_empty() {
@@ -212,7 +195,7 @@ impl RequiredIfAbsentValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path: Some(field_path.to_string()),
+                        path:    Some(field_path.to_string()),
                     });
                 }
             }
@@ -224,8 +207,9 @@ impl RequiredIfAbsentValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_one_of_validator_exactly_one_present() {
@@ -233,7 +217,11 @@ mod tests {
             "entityId": "123",
             "entityPayload": null
         });
-        let result = OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None);
+        let result = OneOfValidator::validate(
+            &input,
+            &["entityId".to_string(), "entityPayload".to_string()],
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -243,7 +231,11 @@ mod tests {
             "entityId": "123",
             "entityPayload": { "name": "test" }
         });
-        let result = OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None);
+        let result = OneOfValidator::validate(
+            &input,
+            &["entityId".to_string(), "entityPayload".to_string()],
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -253,7 +245,11 @@ mod tests {
             "entityId": null,
             "entityPayload": null
         });
-        let result = OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None);
+        let result = OneOfValidator::validate(
+            &input,
+            &["entityId".to_string(), "entityPayload".to_string()],
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -262,7 +258,11 @@ mod tests {
         let input = json!({
             "entityId": "123"
         });
-        let result = OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], None);
+        let result = OneOfValidator::validate(
+            &input,
+            &["entityId".to_string(), "entityPayload".to_string()],
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -275,7 +275,11 @@ mod tests {
         });
         let result = AnyOfValidator::validate(
             &input,
-            &["email".to_string(), "phone".to_string(), "address".to_string()],
+            &[
+                "email".to_string(),
+                "phone".to_string(),
+                "address".to_string(),
+            ],
             None,
         );
         assert!(result.is_ok());
@@ -290,7 +294,11 @@ mod tests {
         });
         let result = AnyOfValidator::validate(
             &input,
-            &["email".to_string(), "phone".to_string(), "address".to_string()],
+            &[
+                "email".to_string(),
+                "phone".to_string(),
+                "address".to_string(),
+            ],
             None,
         );
         assert!(result.is_ok());
@@ -305,7 +313,11 @@ mod tests {
         });
         let result = AnyOfValidator::validate(
             &input,
-            &["email".to_string(), "phone".to_string(), "address".to_string()],
+            &[
+                "email".to_string(),
+                "phone".to_string(),
+                "address".to_string(),
+            ],
             None,
         );
         assert!(result.is_err());
@@ -317,7 +329,12 @@ mod tests {
             "isPremium": true,
             "paymentMethod": "credit_card"
         });
-        let result = ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None);
+        let result = ConditionalRequiredValidator::validate(
+            &input,
+            "isPremium",
+            &["paymentMethod".to_string()],
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -327,7 +344,12 @@ mod tests {
             "isPremium": true,
             "paymentMethod": null
         });
-        let result = ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None);
+        let result = ConditionalRequiredValidator::validate(
+            &input,
+            "isPremium",
+            &["paymentMethod".to_string()],
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -337,7 +359,12 @@ mod tests {
             "isPremium": null,
             "paymentMethod": null
         });
-        let result = ConditionalRequiredValidator::validate(&input, "isPremium", &["paymentMethod".to_string()], None);
+        let result = ConditionalRequiredValidator::validate(
+            &input,
+            "isPremium",
+            &["paymentMethod".to_string()],
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -442,7 +469,11 @@ mod tests {
             "entityId": "123",
             "entityPayload": { "name": "test" }
         });
-        let result = OneOfValidator::validate(&input, &["entityId".to_string(), "entityPayload".to_string()], Some("createInput"));
+        let result = OneOfValidator::validate(
+            &input,
+            &["entityId".to_string(), "entityPayload".to_string()],
+            Some("createInput"),
+        );
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { path, .. }) = result {
             assert_eq!(path, Some("createInput".to_string()));

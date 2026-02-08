@@ -132,6 +132,7 @@ pub mod db;
 pub mod design;
 pub mod federation;
 pub mod filters;
+pub mod observability;
 pub mod security;
 pub mod tenancy;
 pub mod utils;

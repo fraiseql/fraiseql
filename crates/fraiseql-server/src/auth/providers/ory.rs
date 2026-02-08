@@ -35,8 +35,8 @@ impl OryOAuth {
     /// # Arguments
     /// * `client_id` - Ory client ID
     /// * `client_secret` - Ory client secret
-    /// * `ory_issuer_url` - Ory issuer URL (e.g., <https://your-project.projects.oryapis.com> for Cloud,
-    ///   or self-hosted instance URL)
+    /// * `ory_issuer_url` - Ory issuer URL (e.g., <https://your-project.projects.oryapis.com> for
+    ///   Cloud, or self-hosted instance URL)
     /// * `redirect_uri` - Redirect URI after authentication
     ///
     /// # Errors
@@ -49,9 +49,8 @@ impl OryOAuth {
     ) -> Result<Self> {
         let issuer_url = ory_issuer_url.clone();
 
-        let oidc =
-            OidcProvider::new("ory", &issuer_url, &client_id, &client_secret, &redirect_uri)
-                .await?;
+        let oidc = OidcProvider::new("ory", &issuer_url, &client_id, &client_secret, &redirect_uri)
+            .await?;
 
         Ok(Self { oidc, issuer_url })
     }
@@ -176,9 +175,7 @@ impl OAuthProvider for OryOAuth {
         user_info.raw_claims["ory_issuer"] = json!(&self.issuer_url);
 
         // Extract org_id if present
-        if let Some(org_id) =
-            Self::extract_org_id(&user_info.raw_claims, &user_info.email)
-        {
+        if let Some(org_id) = Self::extract_org_id(&user_info.raw_claims, &user_info.email) {
             user_info.raw_claims["org_id"] = json!(org_id);
         }
 

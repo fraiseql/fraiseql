@@ -4,9 +4,9 @@
 //! framework, enabling concise, portable validation rules that can be compiled to
 //! multiple targets (Rust, JavaScript, SQL).
 
-use crate::error::FraiseQLError;
-use crate::error::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
+
+use crate::error::{FraiseQLError, Result};
 
 /// ELO expression evaluator for validation rules.
 ///
@@ -22,7 +22,7 @@ pub struct EloExpressionEvaluator {
     expression: String,
     /// Compiled expression cache (for optimization)
     #[allow(dead_code)]
-    compiled: Option<CompiledExpression>,
+    compiled:   Option<CompiledExpression>,
 }
 
 /// Compiled ELO expression (internal representation)
@@ -165,14 +165,14 @@ impl EloExpressionEvaluator {
                     self.compare_values(&left_val, &right_val),
                     Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
                 )
-            }
+            },
             ">" => self.compare_values(&left_val, &right_val) == Some(std::cmp::Ordering::Greater),
             ">=" => {
                 matches!(
                     self.compare_values(&left_val, &right_val),
                     Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
                 )
-            }
+            },
             _ => false,
         };
 
@@ -181,10 +181,7 @@ impl EloExpressionEvaluator {
             error: if valid {
                 None
             } else {
-                Some(format!(
-                    "Comparison failed: {} {} {}",
-                    left_val, op, right_val
-                ))
+                Some(format!("Comparison failed: {} {} {}", left_val, op, right_val))
             },
         })
     }
@@ -200,14 +197,14 @@ impl EloExpressionEvaluator {
                 '"' => {
                     in_string = !in_string;
                     current_arg.push(ch);
-                }
+                },
                 ',' if !in_string => {
                     args.push(current_arg.trim().to_string());
                     current_arg = String::new();
-                }
+                },
                 _ => {
                     current_arg.push(ch);
-                }
+                },
             }
         }
 
@@ -219,11 +216,7 @@ impl EloExpressionEvaluator {
     }
 
     /// Evaluate a function call.
-    fn evaluate_function_call(
-        &self,
-        expr: &str,
-        context: &Value,
-    ) -> Result<EloValidationResult> {
+    fn evaluate_function_call(&self, expr: &str, context: &Value) -> Result<EloValidationResult> {
         if let Some(paren_idx) = expr.find('(') {
             let func_name = &expr[..paren_idx].trim();
             let args_str = &expr[paren_idx + 1..expr.len() - 1];
@@ -235,20 +228,20 @@ impl EloExpressionEvaluator {
                         valid: true,
                         error: None,
                     })
-                }
+                },
                 "now" => {
                     // Returns current datetime
                     Ok(EloValidationResult {
                         valid: true,
                         error: None,
                     })
-                }
+                },
                 "matches" => {
                     let parts = self.parse_function_args(args_str);
                     if parts.len() != 2 {
                         return Err(FraiseQLError::Validation {
                             message: "matches() requires 2 arguments".to_string(),
-                            path: None,
+                            path:    None,
                         });
                     }
 
@@ -267,25 +260,25 @@ impl EloExpressionEvaluator {
                                         Some(format!("'{}' does not match pattern '{}'", s, p))
                                     },
                                 })
-                            }
+                            },
                             Err(_) => Err(FraiseQLError::Validation {
                                 message: format!("Invalid regex pattern: {}", p),
-                                path: None,
+                                path:    None,
                             }),
                         }
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "matches() requires string arguments".to_string(),
-                            path: None,
+                            path:    None,
                         })
                     }
-                }
+                },
                 "contains" => {
                     let parts = self.parse_function_args(args_str);
                     if parts.len() != 2 {
                         return Err(FraiseQLError::Validation {
                             message: "contains() requires 2 arguments".to_string(),
-                            path: None,
+                            path:    None,
                         });
                     }
 
@@ -305,10 +298,10 @@ impl EloExpressionEvaluator {
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "contains() requires string arguments".to_string(),
-                            path: None,
+                            path:    None,
                         })
                     }
-                }
+                },
                 "length" => {
                     let field_val = self.get_value(args_str, context)?;
                     if let Value::String(_s) = field_val {
@@ -319,10 +312,10 @@ impl EloExpressionEvaluator {
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "length() requires a string argument".to_string(),
-                            path: None,
+                            path:    None,
                         })
                     }
-                }
+                },
                 "age" => {
                     let _field_val = self.get_value(args_str, context)?;
                     // Age calculation would go here
@@ -330,16 +323,16 @@ impl EloExpressionEvaluator {
                         valid: true,
                         error: None,
                     })
-                }
+                },
                 _ => Err(FraiseQLError::Validation {
                     message: format!("Unknown function: {}", func_name),
-                    path: None,
+                    path:    None,
                 }),
             }
         } else {
             Err(FraiseQLError::Validation {
                 message: "Invalid function call".to_string(),
-                path: None,
+                path:    None,
             })
         }
     }
@@ -396,8 +389,8 @@ impl EloExpressionEvaluator {
                     if count == 0 && i < expr.len() - 1 {
                         return false;
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -498,7 +491,7 @@ impl EloExpressionEvaluator {
 
         Err(FraiseQLError::Validation {
             message: format!("Cannot resolve value: {}", trimmed),
-            path: None,
+            path:    None,
         })
     }
 
@@ -516,13 +509,12 @@ impl EloExpressionEvaluator {
 
     /// Compare two JSON values with proper type handling.
     fn compare_values(&self, left: &Value, right: &Value) -> Option<std::cmp::Ordering> {
-
         match (left, right) {
             (Value::Number(l), Value::Number(r)) => {
                 let l_f64 = l.as_f64()?;
                 let r_f64 = r.as_f64()?;
                 Some(l_f64.partial_cmp(&r_f64)?)
-            }
+            },
             (Value::String(l), Value::String(r)) => Some(l.cmp(r)),
             _ => None,
         }
@@ -680,8 +672,9 @@ mod tests {
 
     #[test]
     fn test_matches_function() {
-        let eval =
-            EloExpressionEvaluator::new("matches(email, \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\")".to_string());
+        let eval = EloExpressionEvaluator::new(
+            "matches(email, \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\")".to_string(),
+        );
         let user = create_test_user();
         let result = eval.evaluate(&user).unwrap();
         assert!(result.valid);
@@ -689,8 +682,7 @@ mod tests {
 
     #[test]
     fn test_matches_function_fails() {
-        let eval =
-            EloExpressionEvaluator::new("matches(email, \"^[0-9]+$\")".to_string());
+        let eval = EloExpressionEvaluator::new("matches(email, \"^[0-9]+$\")".to_string());
         let user = create_test_user();
         let result = eval.evaluate(&user).unwrap();
         assert!(!result.valid);
@@ -727,7 +719,8 @@ mod tests {
     #[test]
     fn test_complex_with_matches() {
         let eval = EloExpressionEvaluator::new(
-            "age >= 18 && matches(email, \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\")".to_string(),
+            "age >= 18 && matches(email, \"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$\")"
+                .to_string(),
         );
         let user = create_test_user();
         let result = eval.evaluate(&user).unwrap();
@@ -808,7 +801,8 @@ mod tests {
 
     #[test]
     fn test_multiple_operators_precedence() {
-        let eval = EloExpressionEvaluator::new("age > 20 && age < 30 && role == \"user\"".to_string());
+        let eval =
+            EloExpressionEvaluator::new("age > 20 && age < 30 && role == \"user\"".to_string());
         let user = create_test_user();
         let result = eval.evaluate(&user).unwrap();
         assert!(result.valid);

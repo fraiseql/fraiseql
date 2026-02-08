@@ -18,8 +18,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::validation::ValidationRule;
 use super::field_type::{FieldDefinition, FieldType};
+use crate::validation::ValidationRule;
 
 /// Role definition for field-level RBAC.
 ///

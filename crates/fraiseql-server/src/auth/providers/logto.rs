@@ -35,8 +35,8 @@ impl LogtoOAuth {
     /// # Arguments
     /// * `client_id` - Logto application ID
     /// * `client_secret` - Logto application secret
-    /// * `logto_endpoint` - Logto base endpoint (e.g., <https://your-tenant.logto.app>)
-    ///   The `/oidc` path is automatically appended
+    /// * `logto_endpoint` - Logto base endpoint (e.g., <https://your-tenant.logto.app>) The `/oidc`
+    ///   path is automatically appended
     /// * `redirect_uri` - Redirect URI after authentication
     ///
     /// # Errors
@@ -69,12 +69,7 @@ impl LogtoOAuth {
         raw_claims
             .get("roles")
             .and_then(|roles| roles.as_array())
-            .map(|roles| {
-                roles
-                    .iter()
-                    .filter_map(|r| r.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|roles| roles.iter().filter_map(|r| r.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -88,11 +83,7 @@ impl LogtoOAuth {
         raw_claims
             .get("organizations")
             .and_then(|orgs| orgs.as_array())
-            .map(|orgs| {
-                orgs.iter()
-                    .filter_map(|o| o.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
+            .map(|orgs| orgs.iter().filter_map(|o| o.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default()
     }
 
@@ -160,8 +151,7 @@ impl LogtoOAuth {
                                 Some("admin".to_string())
                             } else if role_lower.contains("operator") {
                                 Some("operator".to_string())
-                            } else if role_lower.contains("member") || role_lower.contains("user")
-                            {
+                            } else if role_lower.contains("member") || role_lower.contains("user") {
                                 Some("viewer".to_string())
                             } else {
                                 None

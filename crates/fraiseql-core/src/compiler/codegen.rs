@@ -337,11 +337,12 @@ impl CodeGenerator {
                 InputFieldDefinition {
                     name:             f.name.clone(),
                     field_type:       f.field_type.clone(), /* InputFieldDefinition uses String,
-                                                            * not FieldType */
+                                                             * not FieldType */
                     description:      f.description.clone(),
                     default_value:    f.default_value.as_ref().map(|v| v.to_string()),
                     deprecation:      None, // Note: IR input fields don't have deprecation yet
-                    validation_rules: Vec::new(), // Validation rules set separately from @validate directives
+                    validation_rules: Vec::new(), /* Validation rules set separately from @validate
+                                             * directives */
                 }
             })
             .collect()

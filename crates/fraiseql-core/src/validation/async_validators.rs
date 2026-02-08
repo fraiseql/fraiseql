@@ -4,6 +4,7 @@
 //! asynchronous operations like network requests or database lookups.
 
 use std::time::Duration;
+
 use crate::error::{FraiseQLError, Result};
 
 /// Async validator result type.
@@ -44,13 +45,13 @@ impl std::fmt::Display for AsyncValidatorProvider {
 #[derive(Debug, Clone)]
 pub struct AsyncValidatorConfig {
     /// The provider to use
-    pub provider: AsyncValidatorProvider,
+    pub provider:       AsyncValidatorProvider,
     /// Timeout duration for the validation operation
-    pub timeout: Duration,
+    pub timeout:        Duration,
     /// Cache TTL in seconds (0 = no caching)
     pub cache_ttl_secs: u64,
     /// Field pattern this validator applies to (e.g., "*.email")
-    pub field_pattern: String,
+    pub field_pattern:  String,
 }
 
 impl AsyncValidatorConfig {
@@ -103,7 +104,7 @@ pub trait AsyncValidator: Send + Sync {
 ///
 /// In production, this would perform actual MX record lookups.
 pub struct MockEmailDomainValidator {
-    config: AsyncValidatorConfig,
+    config:        AsyncValidatorConfig,
     /// List of valid domains (for testing)
     valid_domains: Vec<String>,
 }
@@ -111,7 +112,8 @@ pub struct MockEmailDomainValidator {
 impl MockEmailDomainValidator {
     /// Create a new mock email domain validator.
     pub fn new(timeout_ms: u64) -> Self {
-        let config = AsyncValidatorConfig::new(AsyncValidatorProvider::EmailDomainCheck, timeout_ms);
+        let config =
+            AsyncValidatorConfig::new(AsyncValidatorProvider::EmailDomainCheck, timeout_ms);
         Self {
             config,
             valid_domains: vec![
@@ -147,13 +149,16 @@ impl AsyncValidator for MockEmailDomainValidator {
                         "Email domain validation failed: {} (domain {} not found)",
                         field, domain
                     ),
-                    path: Some(field.to_string()),
+                    path:    Some(field.to_string()),
                 })
             }
         } else {
             Err(FraiseQLError::Validation {
-                message: format!("Email domain validation failed: {} (invalid email format)", field),
-                path: Some(field.to_string()),
+                message: format!(
+                    "Email domain validation failed: {} (invalid email format)",
+                    field
+                ),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -171,7 +176,7 @@ impl AsyncValidator for MockEmailDomainValidator {
 ///
 /// In production, this would integrate with Twilio or similar service.
 pub struct MockPhoneNumberValidator {
-    config: AsyncValidatorConfig,
+    config:          AsyncValidatorConfig,
     /// List of valid country codes (for testing)
     valid_countries: Vec<String>,
 }
@@ -179,14 +184,15 @@ pub struct MockPhoneNumberValidator {
 impl MockPhoneNumberValidator {
     /// Create a new mock phone number validator.
     pub fn new(timeout_ms: u64) -> Self {
-        let config = AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneNumberValidation, timeout_ms);
+        let config =
+            AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneNumberValidation, timeout_ms);
         Self {
             config,
             valid_countries: vec![
-                "1".to_string(),   // US
-                "44".to_string(),  // UK
-                "33".to_string(),  // France
-                "49".to_string(),  // Germany
+                "1".to_string(),  // US
+                "44".to_string(), // UK
+                "33".to_string(), // France
+                "49".to_string(), // Germany
             ],
         }
     }
@@ -212,8 +218,11 @@ impl AsyncValidator for MockPhoneNumberValidator {
             Ok(())
         } else {
             Err(FraiseQLError::Validation {
-                message: format!("Phone number validation failed: {} (invalid phone number)", field),
-                path: Some(field.to_string()),
+                message: format!(
+                    "Phone number validation failed: {} (invalid phone number)",
+                    field
+                ),
+                path:    Some(field.to_string()),
             })
         }
     }

@@ -19,9 +19,11 @@
 //! };
 //! ```
 
-use crate::error::{FraiseQLError, Result};
-use serde_json::Value;
 use std::cmp::Ordering;
+
+use serde_json::Value;
+
+use crate::error::{FraiseQLError, Result};
 
 /// Operators supported for cross-field comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,12 +111,12 @@ pub fn validate_cross_field_comparison(
     if let Value::Object(obj) = input {
         let left_val = obj.get(left_field).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Field '{}' not found in input", left_field),
-            path: Some(field_path.to_string()),
+            path:    Some(field_path.to_string()),
         })?;
 
         let right_val = obj.get(right_field).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Field '{}' not found in input", right_field),
-            path: Some(field_path.to_string()),
+            path:    Some(field_path.to_string()),
         })?;
 
         // Skip validation if either field is null
@@ -126,7 +128,7 @@ pub fn validate_cross_field_comparison(
     } else {
         Err(FraiseQLError::Validation {
             message: "Input is not an object".to_string(),
-            path: Some(field_path.to_string()),
+            path:    Some(field_path.to_string()),
         })
     }
 }
@@ -152,7 +154,7 @@ fn compare_values(
             } else {
                 Ordering::Equal
             }
-        }
+        },
         // Both are strings (lexicographic comparison)
         (Value::String(l), Value::String(r)) => l.cmp(r),
         // Type mismatch
@@ -165,9 +167,9 @@ fn compare_values(
                     right_field,
                     value_type_name(right)
                 ),
-                path: Some(context_path.to_string()),
-            })
-        }
+                path:    Some(context_path.to_string()),
+            });
+        },
     };
 
     let result = match operator {
@@ -189,7 +191,7 @@ fn compare_values(
                 right_field,
                 value_to_string(right)
             ),
-            path: Some(context_path.to_string()),
+            path:    Some(context_path.to_string()),
         });
     }
 
@@ -221,8 +223,9 @@ fn value_to_string(val: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_operator_parsing() {
@@ -247,7 +250,13 @@ mod tests {
             "start": 10,
             "end": 20
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -257,7 +266,13 @@ mod tests {
             "start": 30,
             "end": 20
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -267,7 +282,8 @@ mod tests {
             "a": 42,
             "b": 42
         });
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
         assert!(result.is_ok());
     }
 
@@ -277,7 +293,8 @@ mod tests {
             "a": 10,
             "b": 20
         });
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::NotEqual, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::NotEqual, "b", None);
         assert!(result.is_ok());
     }
 
@@ -287,7 +304,13 @@ mod tests {
             "min": 10,
             "max": 10
         });
-        let result = validate_cross_field_comparison(&input, "max", ComparisonOperator::GreaterEqual, "min", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "max",
+            ComparisonOperator::GreaterEqual,
+            "min",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -297,7 +320,13 @@ mod tests {
             "start_name": "alice",
             "end_name": "zoe"
         });
-        let result = validate_cross_field_comparison(&input, "start_name", ComparisonOperator::LessThan, "end_name", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start_name",
+            ComparisonOperator::LessThan,
+            "end_name",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -307,7 +336,13 @@ mod tests {
             "start_name": "zoe",
             "end_name": "alice"
         });
-        let result = validate_cross_field_comparison(&input, "start_name", ComparisonOperator::LessThan, "end_name", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start_name",
+            ComparisonOperator::LessThan,
+            "end_name",
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -317,7 +352,13 @@ mod tests {
             "start_date": "2024-01-01",
             "end_date": "2024-12-31"
         });
-        let result = validate_cross_field_comparison(&input, "start_date", ComparisonOperator::LessThan, "end_date", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start_date",
+            ComparisonOperator::LessThan,
+            "end_date",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -327,7 +368,13 @@ mod tests {
             "price": 19.99,
             "budget": 25.50
         });
-        let result = validate_cross_field_comparison(&input, "price", ComparisonOperator::LessThan, "budget", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "price",
+            ComparisonOperator::LessThan,
+            "budget",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -336,7 +383,13 @@ mod tests {
         let input = json!({
             "end": 20
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -345,7 +398,13 @@ mod tests {
         let input = json!({
             "start": 10
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -355,7 +414,13 @@ mod tests {
             "start": null,
             "end": 20
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -365,7 +430,13 @@ mod tests {
             "start": null,
             "end": null
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -375,7 +446,13 @@ mod tests {
             "start": 10,
             "end": "twenty"
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
             assert!(message.contains("Cannot compare"));
@@ -388,7 +465,13 @@ mod tests {
             "start": 30,
             "end": 20
         });
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", Some("dateRange"));
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            Some("dateRange"),
+        );
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { path, .. }) = result {
             assert_eq!(path, Some("dateRange".to_string()));
@@ -401,7 +484,13 @@ mod tests {
             "price": 100,
             "max_price": 50
         });
-        let result = validate_cross_field_comparison(&input, "price", ComparisonOperator::LessThan, "max_price", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "price",
+            ComparisonOperator::LessThan,
+            "max_price",
+            None,
+        );
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
             assert!(message.contains("price"));
@@ -427,21 +516,35 @@ mod tests {
         for (left, right, op, should_pass) in test_cases {
             let input = json!({ "a": left, "b": right });
             let result = validate_cross_field_comparison(&input, "a", op, "b", None);
-            assert_eq!(result.is_ok(), should_pass, "Failed for {} {} {}", left, op.symbol(), right);
+            assert_eq!(
+                result.is_ok(),
+                should_pass,
+                "Failed for {} {} {}",
+                left,
+                op.symbol(),
+                right
+            );
         }
     }
 
     #[test]
     fn test_non_object_input() {
         let input = json!([1, 2, 3]);
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_empty_object() {
         let input = json!({});
-        let result = validate_cross_field_comparison(&input, "start", ComparisonOperator::LessThan, "end", None);
+        let result = validate_cross_field_comparison(
+            &input,
+            "start",
+            ComparisonOperator::LessThan,
+            "end",
+            None,
+        );
         assert!(result.is_err());
     }
 
@@ -451,7 +554,8 @@ mod tests {
             "a": 0,
             "b": 0
         });
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::Equal, "b", None);
         assert!(result.is_ok());
     }
 
@@ -461,7 +565,8 @@ mod tests {
             "a": -10,
             "b": 5
         });
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
         assert!(result.is_ok());
     }
 
@@ -471,7 +576,8 @@ mod tests {
             "a": "",
             "b": "text"
         });
-        let result = validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
+        let result =
+            validate_cross_field_comparison(&input, "a", ComparisonOperator::LessThan, "b", None);
         assert!(result.is_ok());
     }
 }

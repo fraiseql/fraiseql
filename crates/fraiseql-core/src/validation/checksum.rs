@@ -54,11 +54,7 @@ impl LuhnValidator {
 
             let processed = if is_second {
                 let doubled = digit * 2;
-                if doubled > 9 {
-                    doubled - 9
-                } else {
-                    doubled
-                }
+                if doubled > 9 { doubled - 9 } else { doubled }
             } else {
                 digit
             };

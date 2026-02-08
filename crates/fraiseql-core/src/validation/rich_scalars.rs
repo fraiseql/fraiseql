@@ -3,8 +3,8 @@
 //! This module provides validators for common structured data types like emails,
 //! phone numbers, IBANs, VINs, and country codes.
 
-use regex::Regex;
 use lazy_static::lazy_static;
+use regex::Regex;
 
 lazy_static! {
     // Email regex: Simple but practical pattern
@@ -347,9 +347,7 @@ impl CountryCodeValidator {
         codes.insert("ZA");
         codes.insert("ZM");
         codes.insert("ZW");
-        Self {
-            valid_codes: codes,
-        }
+        Self { valid_codes: codes }
     }
 
     /// Validate a country code against ISO 3166-1 alpha-2 standard.
