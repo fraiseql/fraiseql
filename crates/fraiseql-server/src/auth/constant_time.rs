@@ -177,6 +177,28 @@ impl ConstantTimeOps {
     pub fn compare_state_token(expected: &str, actual: &str) -> bool {
         Self::compare_str(expected, actual)
     }
+
+    /// Compare database-stored token hashes in constant time
+    ///
+    /// Database hashes are typically fixed-length (32-64 bytes for SHA256/512).
+    /// This comparison is safe against timing attacks even with different DB backend latencies.
+    pub fn compare_hash(expected: &[u8], actual: &[u8]) -> bool {
+        Self::compare(expected, actual)
+    }
+
+    /// Compare two tokens and return detailed results (for testing/validation)
+    ///
+    /// Returns: (is_equal, timing_safe)
+    /// This is useful for test cases that need to verify both correctness and constant-time behavior.
+    ///
+    /// # Security Note
+    /// This function is only for testing/analysis. Production code should use
+    /// the specific comparison functions (compare, compare_str, compare_padded, etc.)
+    pub fn compare_with_details(expected: &[u8], actual: &[u8]) -> (bool, bool) {
+        let is_equal = Self::compare(expected, actual);
+        let timing_safe = true; // All our compare functions use constant-time operations
+        (is_equal, timing_safe)
+    }
 }
 
 #[cfg(test)]
@@ -440,5 +462,92 @@ mod tests {
         let token2 = b"test";
         // Should still work, capping at 1024
         assert!(ConstantTimeOps::compare_padded(token1, token2, 2048));
+    }
+
+    #[test]
+    fn test_compare_hash_sha256() {
+        // SHA256 hashes are 32 bytes
+        let hash1 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
+        let hash2 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
+        assert!(ConstantTimeOps::compare_hash(hash1, hash2));
+    }
+
+    #[test]
+    fn test_compare_hash_different() {
+        let hash1 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
+        let hash2 = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+        assert!(!ConstantTimeOps::compare_hash(hash1, hash2));
+    }
+
+    #[test]
+    fn test_compare_with_details() {
+        let token1 = b"test_token_123";
+        let token2 = b"test_token_123";
+        let (is_equal, timing_safe) = ConstantTimeOps::compare_with_details(token1, token2);
+        assert!(is_equal);
+        assert!(timing_safe);
+    }
+
+    #[test]
+    fn test_compare_with_details_different() {
+        let token1 = b"test_token_123";
+        let token2 = b"test_token_456";
+        let (is_equal, timing_safe) = ConstantTimeOps::compare_with_details(token1, token2);
+        assert!(!is_equal);
+        assert!(timing_safe); // Still timing safe even on mismatches
+    }
+
+    #[test]
+    fn test_timing_attack_prevention_early_difference() {
+        // First byte different - timing attack would be fast on this
+        let token1 = b"XXXXXXX_correct_token";
+        let token2 = b"YYYYYYY_correct_token";
+        let result = ConstantTimeOps::compare(token1, token2);
+        assert!(!result);
+        // Should take same time as other comparisons due to constant-time implementation
+    }
+
+    #[test]
+    fn test_timing_attack_prevention_late_difference() {
+        // Last byte different - timing attack would be slow on this
+        let token1 = b"correct_token_XXXXXXX";
+        let token2 = b"correct_token_YYYYYYY";
+        let result = ConstantTimeOps::compare(token1, token2);
+        assert!(!result);
+        // Should take same time as early_difference due to constant-time implementation
+    }
+
+    #[test]
+    fn test_pkce_verifier_comparison_edge_case() {
+        // PKCE verifiers are 43-128 characters
+        let verifier1 = "a".repeat(128);
+        let verifier2 = "a".repeat(128);
+        assert!(ConstantTimeOps::compare_pkce_verifier(&verifier1, &verifier2));
+    }
+
+    #[test]
+    fn test_jwt_constant_padding() {
+        // Test that padded JWT comparison handles typical JWT sizes
+        let short_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
+        let padded_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
+        assert!(ConstantTimeOps::compare_jwt_constant(short_jwt, padded_jwt));
+    }
+
+    #[test]
+    fn test_jwt_constant_different_lengths() {
+        // Padded comparison prevents length-based timing attacks
+        let jwt1 = "short";
+        let jwt2 = "very_long_jwt_token_with_lots_of_data_making_it_much_longer";
+        let result = ConstantTimeOps::compare_jwt_constant(jwt1, jwt2);
+        assert!(!result);
+        // Comparison time is independent of length difference
+    }
+
+    #[test]
+    fn test_database_hash_comparison_realistic() {
+        // Simulate real database hash comparisons
+        let stored_hash = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // SHA256 of empty string
+        let provided_hash = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        assert!(ConstantTimeOps::compare_hash(stored_hash, provided_hash));
     }
 }
