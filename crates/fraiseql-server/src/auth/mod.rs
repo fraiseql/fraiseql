@@ -11,6 +11,7 @@ pub mod middleware;
 pub mod monitoring;
 pub mod oauth;
 pub mod oidc_provider;
+pub mod proxy;
 pub mod operation_rbac;
 pub mod provider;
 pub mod providers;
@@ -71,6 +72,7 @@ pub use oidc_provider::OidcProvider;
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
+pub use proxy::ProxyConfig;
 pub use rate_limiting::{KeyedRateLimiter, RateLimitConfig, RateLimiters};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
